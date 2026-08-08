@@ -79,7 +79,7 @@
     "heading": "Tạo Project từ GitHub Issues",
     "description": "Chọn một kho GitHub, tạo ORGII Project và đồng bộ GitHub Issues thành work items.",
     "importButton": "Nhập GitHub Issues",
-    "projectDescription": "Được đồng bộ từ GitHub Issues trong {{owner}}/{{repo}}.",
+    "projectDescription": "GitHub Issues · {{owner}}/{{repo}}",
     "fields": {
       "projectName": "Tên Project",
       "repo": "Kho GitHub",

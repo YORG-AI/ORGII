@@ -1,6 +1,10 @@
 import { Loader2, Sparkles } from "lucide-react";
 import React, { memo } from "react";
 
+import {
+  PILL_CONTROL_ACTIVE_ACCENT_CLASS,
+  PILL_CONTROL_IDLE_SURFACE_CLASS,
+} from "@src/components/CompoundPill/config";
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import type { PromptPolishControl } from "@src/engines/ChatPanel/hooks/useInputArea/types";
@@ -27,8 +31,8 @@ const PromptPolishButton: React.FC<PromptPolishButtonProps> = memo(
     const stateClass = isDisabled
       ? "cursor-not-allowed bg-transparent text-text-4 opacity-60"
       : control.isPolished
-        ? "cursor-pointer bg-primary-1 text-primary-6 hover:bg-primary-2"
-        : "cursor-pointer bg-fill-1 text-text-2 hover:bg-fill-2 hover:text-text-1";
+        ? `cursor-pointer ${PILL_CONTROL_ACTIVE_ACCENT_CLASS}`
+        : `cursor-pointer text-text-2 hover:text-text-1 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`;
 
     const button = (
       <button

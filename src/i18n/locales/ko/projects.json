@@ -79,7 +79,7 @@
     "heading": "GitHub Issues에서 Project 만들기",
     "description": "GitHub 리포지토리를 선택하고 ORGII Project를 만든 뒤 GitHub Issues를 work items로 동기화합니다.",
     "importButton": "GitHub Issues 가져오기",
-    "projectDescription": "{{owner}}/{{repo}}의 GitHub Issues에서 동기화됨.",
+    "projectDescription": "GitHub Issues · {{owner}}/{{repo}}",
     "fields": {
       "projectName": "Project 이름",
       "repo": "GitHub 리포지토리",

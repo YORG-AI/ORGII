@@ -560,4 +560,43 @@ describe("startDataSourceAutoScanScheduler", () => {
 
     scheduler.stop();
   });
+
+  it("keeps one hidden timer only while background history freshness is required", async () => {
+    vi.useFakeTimers();
+    const source = new VisibilitySourceStub();
+    source.visibilityState = "hidden";
+    const scan = vi.fn().mockResolvedValue(undefined);
+    let backgroundRequired = true;
+    const scheduler = startDataSourceAutoScanScheduler(
+      source,
+      scan,
+      () => 30_000,
+      30_000,
+      () => backgroundRequired
+    );
+
+    expect(scan).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(scan).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(1);
+
+    backgroundRequired = false;
+    scheduler.schedule();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(scan).toHaveBeenCalledTimes(2);
+
+    backgroundRequired = true;
+    scheduler.schedule();
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(scan).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(1);
+
+    scheduler.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

@@ -6,9 +6,20 @@
  */
 import React, { memo } from "react";
 
+import "./ProgressBar.scss";
+
 export interface ProgressBarProps {
   /** Progress percentage (0-100) */
   percent: number;
+  /**
+   * Unknown total: render a sliding segment instead of a fill and expose no
+   * aria-valuenow. `percent` is ignored while set.
+   */
+  indeterminate?: boolean;
+  /** Accessible name for the progressbar role. */
+  ariaLabel?: string;
+  /** Human-readable progress detail (aria-valuetext). */
+  ariaValuetext?: string;
   /** Background color class for the filled portion (default: "bg-primary-6") */
   color?: string;
   /** Height class or pixel value (default: "h-1.5") */
@@ -26,6 +37,9 @@ export interface ProgressBarProps {
 export const ProgressBar: React.FC<ProgressBarProps> = memo(
   ({
     percent,
+    indeterminate = false,
+    ariaLabel,
+    ariaValuetext,
     color = "bg-primary-6",
     height = "h-1.5",
     width = "flex",
@@ -43,14 +57,22 @@ export const ProgressBar: React.FC<ProgressBarProps> = memo(
 
     return (
       <div
-        className={`overflow-hidden rounded-full ${trackColor} ${widthClass} ${heightClass} ${className}`}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={indeterminate ? undefined : clampedPercent}
+        aria-label={ariaLabel}
+        aria-valuetext={ariaValuetext}
+        className={`overflow-hidden rounded-full ${trackColor} ${widthClass} ${heightClass} ${
+          indeterminate ? "progress-bar--indeterminate" : ""
+        } ${className}`}
         style={heightStyle}
       >
         <div
           className={`h-full rounded-full ${color} transition-all duration-300 ${
             animated ? "animate-pulse" : ""
           }`}
-          style={{ width: `${clampedPercent}%` }}
+          style={indeterminate ? undefined : { width: `${clampedPercent}%` }}
         />
       </div>
     );

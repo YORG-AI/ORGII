@@ -38,6 +38,7 @@ export interface ModelVariant {
   baseModel: string;
   reasoning?: string;
   fast: boolean;
+  contextWindow?: number;
 }
 
 // ============================================

@@ -65,6 +65,7 @@ export function useProjectData(
     setData: setProjectData,
   } = useAsyncResource({
     autoLoad,
+    enabled: isActive,
     fetcher: fetchProjectData,
     initialData: EMPTY_PROJECT_DATA,
     scopeKey: selectedProjectId ?? AUTO_PROJECT_SCOPE,
@@ -158,14 +159,6 @@ export function useProjectData(
     void loadFromFiles();
   }, [isActive, loadFromFiles]);
   useProjectDataChanged(activeLoadFromFiles);
-
-  const wasActiveRef = useRef(isActive);
-  useEffect(() => {
-    if (isActive && !wasActiveRef.current && project !== null) {
-      void loadFromFiles();
-    }
-    wasActiveRef.current = isActive;
-  }, [isActive, loadFromFiles, project]);
 
   return {
     project,

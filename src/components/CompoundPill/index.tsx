@@ -12,7 +12,12 @@ import React, { memo, useCallback, useRef, useState } from "react";
 
 import Tooltip from "@src/components/Tooltip";
 
-import { PILL_SM_ICON_CONTAINER_CLASS, PILL_SM_ICON_SIZE } from "./config";
+import {
+  PILL_CONTROL_ACTIVE_SURFACE_CLASS,
+  PILL_CONTROL_HOVER_CLASS,
+  PILL_SM_ICON_CONTAINER_CLASS,
+  PILL_SM_ICON_SIZE,
+} from "./config";
 
 const HOVER_LEAVE_DELAY_MS = 200;
 
@@ -123,7 +128,11 @@ const CompoundPill: React.FC<CompoundPillProps> = memo(
         >
           <button
             onClick={onPrimaryClick}
-            className={`group/primarybtn flex h-full items-center gap-2 transition-colors hover:bg-fill-2 focus:outline-none ${primaryRounding}`}
+            className={`group/primarybtn flex h-full items-center gap-2 transition-colors focus:outline-none ${
+              primaryActive
+                ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
+                : PILL_CONTROL_HOVER_CLASS
+            } ${primaryRounding}`}
             aria-label={primaryAriaLabel}
             title={primaryTooltip ? undefined : (primaryTitle ?? primaryLabel)}
           >
@@ -169,9 +178,11 @@ const CompoundPill: React.FC<CompoundPillProps> = memo(
             >
               <button
                 onClick={onSecondaryClick}
-                className={`group/secondary h-full items-center gap-2 ${hasClear ? "pl-2 pr-2" : "rounded-r-full pl-2 pr-3"} transition-colors hover:bg-fill-2 focus:outline-none ${
-                  secondaryForceVisible || showExtra ? "flex" : "hidden"
-                }`}
+                className={`group/secondary h-full items-center gap-2 ${hasClear ? "pl-2 pr-2" : "rounded-r-full pl-2 pr-3"} transition-colors focus:outline-none ${
+                  secondaryActive
+                    ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
+                    : PILL_CONTROL_HOVER_CLASS
+                } ${secondaryForceVisible || showExtra ? "flex" : "hidden"}`}
                 aria-label={secondaryAriaLabel}
                 title={secondaryTooltip ? undefined : secondaryLabel}
               >
@@ -219,7 +230,7 @@ const CompoundPill: React.FC<CompoundPillProps> = memo(
             >
               <button
                 onClick={onClearClick}
-                className={`group/clear h-full items-center rounded-r-full px-2 transition-colors hover:bg-fill-2 focus:outline-none ${showExtra ? "flex" : "hidden"}`}
+                className={`group/clear h-full items-center rounded-r-full px-2 transition-colors focus:outline-none ${PILL_CONTROL_HOVER_CLASS} ${showExtra ? "flex" : "hidden"}`}
                 aria-label={clearAriaLabel}
               >
                 <Eraser

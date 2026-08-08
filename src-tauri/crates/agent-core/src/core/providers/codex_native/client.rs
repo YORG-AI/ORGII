@@ -112,7 +112,10 @@ impl CodexNativeClient {
     }
 
     fn codex_supports_fast_service_tier(model: &str) -> bool {
-        matches!(model, "gpt-5.5" | "gpt-5.4")
+        matches!(
+            model,
+            "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna" | "gpt-5.5" | "gpt-5.4"
+        )
     }
 
     fn strip_codex_provider_prefix(model: &str) -> &str {
@@ -206,7 +209,14 @@ impl CodexNativeClient {
         let refreshed = key_vault::key_store::KEY_SERVICE
             .refresh_codex_oauth_key(&refresh_config.key_id, &rejected_access_token)
             .await
-            .map_err(ProviderError::AuthError)?;
+            .map_err(ProviderError::AuthError)?
+            .into_key()
+            .ok_or_else(|| {
+                ProviderError::AuthError(format!(
+                    "Key {} is not a native Codex OAuth account",
+                    refresh_config.key_id
+                ))
+            })?;
 
         let access_token = refreshed
             .session_token
@@ -311,5 +321,15 @@ mod tests {
         assert_eq!(value["service_tier"], "priority");
         assert!(value.get("max_output_tokens").is_none());
         assert!(value.get("temperature").is_none());
+    }
+
+    #[test]
+    fn build_responses_request_maps_gpt_5_6_ultra_fast_to_native_fields() {
+        let req =
+            CodexNativeClient::build_responses_request(&[], None, "gpt-5.6-sol-ultra-fast", true);
+
+        assert_eq!(req.model, "gpt-5.6-sol");
+        assert_eq!(req.reasoning.as_ref().unwrap()["effort"], "max");
+        assert_eq!(req.service_tier.as_deref(), Some("priority"));
     }
 }

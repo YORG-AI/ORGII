@@ -16,7 +16,14 @@ pub(super) fn sync_cline_history_cache(conn: &mut Connection) -> Result<(), Stri
         })?;
     let mut inputs = Vec::new();
     for record in changed {
-        if let Some(meta) = parse_cline_session_meta(record)? {
+        let Some(parsed) = imported_history::skip_unparsable_record(
+            SOURCE_CLINE,
+            &record.record.source_session_id,
+            parse_cline_session_meta(record),
+        ) else {
+            continue;
+        };
+        if let Some(meta) = parsed {
             inputs.push(session_meta_to_cache_input(meta));
         }
     }

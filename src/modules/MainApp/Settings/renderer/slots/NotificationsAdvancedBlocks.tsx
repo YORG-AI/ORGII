@@ -1,52 +1,79 @@
 import {
+  SECTION_ACTION_GAP_CLASSES,
+  SECTION_CONTROL_STYLE,
   SectionContainer,
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
-import React, { useEffect, useState } from "react";
+import { useAtomValue } from "jotai";
+import { Play } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   type NotificationPermissionStatus,
   checkNotificationPermission,
-  playCompletionSound,
+  playNotificationSound,
   requestNotificationPermission,
   sendTestNotification,
+  setDockBadge,
+  unlockNotificationSound,
 } from "@src/api/services/notification";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import Select from "@src/components/Select";
 import Slider from "@src/components/Slider";
 import Switch from "@src/components/Switch";
+import {
+  NOTIFICATION_SOUND_PRESETS,
+  normalizeNotificationSoundPreset,
+} from "@src/config/notificationSounds";
+import type { NotificationSoundPreset } from "@src/config/notificationSounds";
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import { useSetting } from "@src/store/settings";
+import { notificationSettingsAtom } from "@src/store/ui/notificationAtom";
+import type { NotificationCategory } from "@src/types/ui/notification";
 import { isMacOS } from "@src/util/platform/tauri";
 
+import NotificationFocusBlocks from "./NotificationFocusBlocks";
+
 interface NotificationCategoryConfig {
-  key: "taskCompletion" | "errors" | "teamInbox";
+  key: NotificationCategory;
   labelKey: string;
+  critical: boolean;
 }
 
 const NOTIFICATION_CATEGORIES: NotificationCategoryConfig[] = [
   {
     key: "taskCompletion",
     labelKey: "notifications.taskCompletion",
+    critical: false,
+  },
+  {
+    key: "agentApproval",
+    labelKey: "notifications.agentApproval",
+    critical: true,
   },
   {
     key: "errors",
     labelKey: "notifications.errors",
+    critical: true,
   },
   {
     key: "teamInbox",
     labelKey: "notifications.teamInbox",
+    critical: false,
   },
 ];
 
 const NotificationsAdvancedBlocks: React.FC = () => {
   const { t } = useTranslation("settings");
+  const notificationSettings = useAtomValue(notificationSettingsAtom);
   const [enabled] = useSetting("notifications.enabled");
-  const [completionSound, setCompletionSound] = useSetting(
+  const [soundEnabled, setSoundEnabled] = useSetting(
     "notifications.completionSound"
   );
+  const [soundPreset, setSoundPreset] = useSetting("notifications.soundPreset");
   const [systemNotificationEnabled, setSystemNotificationEnabled] = useSetting(
     "notifications.systemNotificationEnabled"
   );
@@ -54,8 +81,12 @@ const NotificationsAdvancedBlocks: React.FC = () => {
     "notifications.dockBadgeEnabled"
   );
   const [soundVolume, setSoundVolume] = useSetting("notifications.soundVolume");
+  const [criticalOnly] = useSetting("notifications.criticalOnly");
   const [taskCompletion, setTaskCompletion] = useSetting(
     "notifications.categories.taskCompletion"
+  );
+  const [agentApproval, setAgentApproval] = useSetting(
+    "notifications.categories.agentApproval"
   );
   const [errors, setErrors] = useSetting("notifications.categories.errors");
   const [teamInbox, setTeamInbox] = useSetting(
@@ -66,13 +97,19 @@ const NotificationsAdvancedBlocks: React.FC = () => {
     useState<NotificationPermissionStatus>("unknown");
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const soundPresetOptions = useMemo(
+    () =>
+      NOTIFICATION_SOUND_PRESETS.map((preset) => ({
+        value: preset,
+        label: t(`notifications.soundPresets.${preset}`),
+      })),
+    [t]
+  );
 
   useEffect(() => {
     let cancelled = false;
     checkNotificationPermission().then((status) => {
-      if (!cancelled) {
-        setPermissionStatus(status);
-      }
+      if (!cancelled) setPermissionStatus(status);
     });
     return () => {
       cancelled = true;
@@ -109,7 +146,7 @@ const NotificationsAdvancedBlocks: React.FC = () => {
     setIsTesting(true);
     try {
       if ((await ensureSystemPermission()) !== "granted") return;
-      const success = await sendTestNotification();
+      const success = await sendTestNotification(notificationSettings);
       if (success) {
         Message.success(t("notifications.test.sent"));
       } else {
@@ -122,52 +159,109 @@ const NotificationsAdvancedBlocks: React.FC = () => {
     }
   };
 
+  const handleToggleDockBadge = () => {
+    const nextEnabled = !dockBadgeEnabled;
+    setDockBadgeEnabled(nextEnabled);
+    if (!nextEnabled) void setDockBadge(0);
+  };
+
   const handleVolumeChange: (value: number | [number, number]) => void = (
     value
   ) => {
-    const nextVolume = Array.isArray(value) ? value[0] : value;
-    setSoundVolume(nextVolume);
+    setSoundVolume(Array.isArray(value) ? value[0] : value);
+  };
+
+  const handleSoundEnabledChange = () => {
+    const nextSoundEnabled = !soundEnabled;
+    setSoundEnabled(nextSoundEnabled);
+    if (nextSoundEnabled) void unlockNotificationSound();
+  };
+
+  const handlePreviewSound = async (preset: NotificationSoundPreset) => {
+    const played = await playNotificationSound({
+      preset,
+      volume: soundVolume,
+    });
+    if (!played && soundVolume > 0) {
+      Message.warning(t("notifications.test.soundFailed"));
+    }
+  };
+
+  const handleSoundPresetChange = (value: unknown) => {
+    const nextPreset = normalizeNotificationSoundPreset(value);
+    setSoundPreset(nextPreset);
+    void handlePreviewSound(nextPreset);
   };
 
   const categoryValues = {
     taskCompletion,
+    agentApproval,
     errors,
     teamInbox,
   };
 
   const categorySetters = {
     taskCompletion: setTaskCompletion,
+    agentApproval: setAgentApproval,
     errors: setErrors,
     teamInbox: setTeamInbox,
   } as const;
 
-  if (!enabled) {
-    return null;
-  }
+  if (!enabled) return null;
 
   return (
     <>
+      <NotificationFocusBlocks />
+
       <SectionContainer>
         <SectionRow label={t("notifications.enableSound")}>
-          <Switch
-            checked={completionSound}
-            onChange={() => setCompletionSound(!completionSound)}
-          />
+          <Switch checked={soundEnabled} onChange={handleSoundEnabledChange} />
         </SectionRow>
 
-        {completionSound && (
-          <SectionRow label={t("notifications.volume")}>
-            <div className="w-[160px] max-w-full">
-              <Slider
-                value={soundVolume}
-                onChange={handleVolumeChange}
-                min={0}
-                max={100}
-                showTooltip={false}
-                noPadding
-              />
-            </div>
-          </SectionRow>
+        {soundEnabled && (
+          <>
+            <SectionRow
+              label={t("notifications.soundPreset")}
+              description={t("notifications.soundPresetDesc")}
+              indent
+            >
+              <div
+                className={`${SECTION_ACTION_GAP_CLASSES} w-full flex-wrap`}
+                style={SECTION_CONTROL_STYLE}
+              >
+                <div className="min-w-0 flex-1">
+                  <Select
+                    value={soundPreset}
+                    onChange={handleSoundPresetChange}
+                    options={soundPresetOptions}
+                    size="default"
+                    style={{ width: "100%" }}
+                    dataTestId="notification-sound-preset-select"
+                  />
+                </div>
+                <Button
+                  size="default"
+                  icon={<Play size={14} />}
+                  onClick={() => void handlePreviewSound(soundPreset)}
+                  disabled={soundVolume === 0}
+                >
+                  {t("notifications.previewSound")}
+                </Button>
+              </div>
+            </SectionRow>
+            <SectionRow label={t("notifications.volume")} indent>
+              <div className="w-[160px] max-w-full">
+                <Slider
+                  value={soundVolume}
+                  onChange={handleVolumeChange}
+                  min={0}
+                  max={100}
+                  showTooltip={false}
+                  noPadding
+                />
+              </div>
+            </SectionRow>
+          </>
         )}
       </SectionContainer>
 
@@ -176,9 +270,11 @@ const NotificationsAdvancedBlocks: React.FC = () => {
           <SectionRow key={category.key} label={t(category.labelKey)}>
             <Switch
               checked={categoryValues[category.key]}
+              disabled={criticalOnly && !category.critical}
               onChange={() =>
                 categorySetters[category.key](!categoryValues[category.key])
               }
+              ariaLabel={t(category.labelKey)}
             />
           </SectionRow>
         ))}
@@ -231,32 +327,20 @@ const NotificationsAdvancedBlocks: React.FC = () => {
 
       <SectionContainer>
         <SectionRow label={t("notifications.enableDockBadge")}>
-          <Switch
-            checked={dockBadgeEnabled}
-            onChange={() => setDockBadgeEnabled(!dockBadgeEnabled)}
-          />
+          <Switch checked={dockBadgeEnabled} onChange={handleToggleDockBadge} />
         </SectionRow>
       </SectionContainer>
 
       <SectionContainer>
         <SectionRow label={t("notifications.testNotification")}>
-          <div className="flex items-center gap-2">
-            <Button
-              size="default"
-              onClick={handleTestNotification}
-              loading={isTesting}
-              disabled={isRequestingPermission}
-            >
-              {t("notifications.notification")}
-            </Button>
-            <Button
-              size="default"
-              onClick={() => void playCompletionSound(soundVolume)}
-              disabled={!completionSound}
-            >
-              {t("notifications.sound")}
-            </Button>
-          </div>
+          <Button
+            size="default"
+            onClick={handleTestNotification}
+            loading={isTesting}
+            disabled={isRequestingPermission}
+          >
+            {t("notifications.notification")}
+          </Button>
         </SectionRow>
       </SectionContainer>
     </>

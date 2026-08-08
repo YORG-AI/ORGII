@@ -1,0 +1,83 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "kind": "Routine",
+  "metadata": {
+    "id": "routine_interaction_impact",
+    "name": "interaction-impact-analysis",
+    "revision": 3
+  },
+  "spec": {
+    "inputs": {
+      "requirement_id": {
+        "type": "string",
+        "required": true
+      },
+      "prd_path": {
+        "type": "path",
+        "required": false
+      }
+    },
+    "rootWork": {
+      "title": "交互影响分析：{{ inputs.requirement_id }}",
+      "body": "完成交付物收集、影响分析与归档通知。",
+      "priority": "high",
+      "labels": ["requirement", "impact-analysis"]
+    },
+    "steps": [
+      {
+        "id": "collect-deliverables",
+        "title": "收集交付物清单",
+        "actor": {
+          "role": "delivery-extractor",
+          "requires": ["artifact-read"]
+        },
+        "instruction": "根据 requirement_id 收集 PRD、配置参数、原型标注、功能边界和测试用例。",
+        "outputs": {
+          "deliverables": {
+            "type": "artifact-list"
+          }
+        }
+      },
+      {
+        "id": "review-impact",
+        "title": "执行交互影响分析",
+        "needs": ["collect-deliverables"],
+        "actor": {
+          "role": "reviewer",
+          "requires": ["artifact-read"]
+        },
+        "inputs": {
+          "deliverables": "${steps.collect-deliverables.outputs.deliverables}"
+        },
+        "outputs": {
+          "impact_report": {
+            "type": "artifact"
+          }
+        }
+      },
+      {
+        "id": "archive-and-notify",
+        "title": "归档资产并通知",
+        "needs": ["review-impact"],
+        "actor": {
+          "role": "project-manager"
+        },
+        "inputs": {
+          "report": "${steps.review-impact.outputs.impact_report}"
+        }
+      }
+    ],
+    "activations": [
+      {
+        "type": "manual"
+      },
+      {
+        "type": "schedule",
+        "cron": "0 9 * * 1-5",
+        "timezone": "America/Vancouver",
+        "concurrencyPolicy": "skip",
+        "catchUp": "none"
+      }
+    ]
+  }
+}

@@ -38,6 +38,14 @@ export const SYNC_JOURNAL_LEVEL = {
 export type SyncJournalLevel =
   (typeof SYNC_JOURNAL_LEVEL)[keyof typeof SYNC_JOURNAL_LEVEL];
 
+/** Optional human identity attached to a sync event at its producer boundary. */
+export interface SyncJournalMember {
+  /** Stable identity used for filtering and copied diagnostics. */
+  userId: string;
+  /** Human-readable label. The UI falls back to `userId` when unavailable. */
+  displayName?: string;
+}
+
 export interface SyncJournalEntry {
   /** Monotonic per-process id — deterministic, unlike `Math.random`. */
   id: string;
@@ -46,6 +54,7 @@ export interface SyncJournalEntry {
   /** Coarse producer tag, e.g. `sync_pass`, `org_backoff`, `member_runtime`. */
   kind: string;
   orgId?: string;
+  member?: SyncJournalMember;
   message: string;
   /** Server error code when the source error carried one. */
   code?: string;
@@ -63,6 +72,8 @@ export const SYNC_JOURNAL_CAP = 100;
 
 /** Defensive bound on any single stringified message. */
 const MESSAGE_MAX_LENGTH = 500;
+const MEMBER_USER_ID_MAX_LENGTH = 256;
+const MEMBER_DISPLAY_NAME_MAX_LENGTH = 120;
 
 const LAST_SYNC_STORAGE_KEY = "orgii:org2-cloud-v1:syncLastPass";
 
@@ -129,6 +140,30 @@ function clampMessage(message: string): string {
   return `${trimmed.slice(0, MESSAGE_MAX_LENGTH - 1)}…`;
 }
 
+function clampIdentityField(value: string, maxLength: number): string {
+  return value.trim().slice(0, maxLength);
+}
+
+function normalizeMember(
+  member: SyncJournalMember | undefined
+): SyncJournalMember | undefined {
+  if (!member) return undefined;
+  const userId = clampIdentityField(
+    String(member.userId ?? ""),
+    MEMBER_USER_ID_MAX_LENGTH
+  );
+  if (!userId) return undefined;
+  const displayName = member.displayName
+    ? clampIdentityField(
+        String(member.displayName),
+        MEMBER_DISPLAY_NAME_MAX_LENGTH
+      )
+    : "";
+  return displayName && displayName !== userId
+    ? { userId, displayName }
+    : { userId };
+}
+
 /**
  * Coerce anything a `catch` can hand us into a flat `{ message, code }`.
  *
@@ -182,6 +217,7 @@ export type SyncJournalInput = Omit<SyncJournalEntry, "id" | "atMs"> & {
 
 /** Append one diagnostic entry, evicting the oldest past the cap. */
 export function recordSyncEvent(input: SyncJournalInput): void {
+  const member = normalizeMember(input.member);
   const entry: SyncJournalEntry = {
     id: nextId(),
     atMs: input.atMs ?? Date.now(),
@@ -189,6 +225,7 @@ export function recordSyncEvent(input: SyncJournalInput): void {
     kind: input.kind,
     message: clampMessage(String(input.message ?? "")) || "Unknown error",
     ...(input.orgId ? { orgId: input.orgId } : {}),
+    ...(member ? { member } : {}),
     ...(input.code ? { code: input.code.slice(0, 64) } : {}),
   };
   // A fresh array per mutation is what keeps `getSyncJournalSnapshot`

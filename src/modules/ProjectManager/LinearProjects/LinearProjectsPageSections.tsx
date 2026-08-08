@@ -116,7 +116,7 @@ export function LinearProjectsIndexProjectsView({
         <div className="min-h-0 flex-1 overflow-hidden">
           <VirtualizedGroupedList
             key={collapseAllSignal}
-            className="pb-3 scrollbar-hide"
+            className="scrollbar-hide"
             testId="linear-projects-virtual-list"
             groups={virtualProjectGroups}
             defaultExpanded={defaultGroupExpanded}
@@ -135,13 +135,15 @@ export function LinearProjectsIndexProjectsView({
                 expanded={expanded}
                 onExpandedChange={onExpandedChange}
                 virtualizedHeader
+                variant="table"
               />
             )}
-            renderItem={(project, _group, isLastInGroup) => (
-              <div className={`px-2 ${isLastInGroup ? "pb-3" : "pb-1"}`}>
+            renderItem={(project) => (
+              <div>
                 <ProjectRow
                   project={project}
                   isSelected={false}
+                  variant="table"
                   onSelect={onSelectProject}
                 />
               </div>

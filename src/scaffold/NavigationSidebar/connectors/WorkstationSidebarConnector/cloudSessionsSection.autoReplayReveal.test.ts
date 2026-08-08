@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildCloudRemoteItemId } from "@src/features/Org2Cloud/cloudRemoteItemId";
+import type { CloudSessionBusyEntry } from "@src/features/Org2Cloud/cloudSessionBusyAtom";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { SessionSidebarRevealRequest } from "@src/store/ui/sidebarAtom";
 
@@ -50,7 +51,7 @@ function input(
     rows: [row],
     state: "ready",
     fetchedAt: FETCHED_AT,
-    busySessionRowId: null,
+    busySessionRows: new Map<string, CloudSessionBusyEntry>(),
     selfUserId: "viewer-1",
     localOwnSessionIds: new Set<string>(),
     nowMs: NOW,
@@ -107,9 +108,52 @@ describe("decideCloudAutoReplay", () => {
     expect(decideCloudAutoReplay(input({ orgId: "other-org" }))).toBeNull();
   });
 
-  it("waits while another cloud action is in flight", () => {
+  it("is not deferred by an unrelated row's in-flight action", () => {
     expect(
-      decideCloudAutoReplay(input({ busySessionRowId: "some-row" }))
+      decideCloudAutoReplay(
+        input({
+          busySessionRows: new Map<string, CloudSessionBusyEntry>([
+            ["some-other-row", { kind: "replay", orgId: ORG }],
+          ]),
+        })
+      )
+    ).toMatchObject({ kind: "replay", requestId: 7 });
+  });
+
+  it("refocuses the referenced row's surface when it is already downloading", () => {
+    expect(
+      decideCloudAutoReplay(
+        input({
+          busySessionRows: new Map<string, CloudSessionBusyEntry>([
+            [
+              ROW_ID,
+              {
+                kind: "replay",
+                orgId: ORG,
+                localSessionId: "imported-session-abc",
+              },
+            ],
+          ]),
+        })
+      )
+    ).toEqual({
+      kind: "focus-busy",
+      requestId: 7,
+      row,
+      localSessionId: "imported-session-abc",
+    });
+  });
+
+  it("keeps waiting when the busy referenced row has left the listing", () => {
+    expect(
+      decideCloudAutoReplay(
+        input({
+          rows: [],
+          busySessionRows: new Map<string, CloudSessionBusyEntry>([
+            [ROW_ID, { kind: "replay", orgId: ORG }],
+          ]),
+        })
+      )
     ).toBeNull();
   });
 

@@ -2,22 +2,25 @@
  * SetupWalkthrough step configuration
  */
 import {
-  FolderGit2,
-  Github,
-  IdCard,
-  Palette,
-  Rocket,
-  Sparkles,
-} from "lucide-react";
-
+  BasicsStepIcon,
+  GoalStepIcon,
+  OrganizationStepIcon,
+  ReadyStepIcon,
+  SharingStepIcon,
+  ToolsStepIcon,
+  TutorialStepIcon,
+  WorkModelStepIcon,
+} from "./components/SetupStepIcons";
 import {
-  CompleteStep,
-  DevPassportStep,
-  GitHubStep,
-  RepoStep,
-  ThemeSelectionStep,
-  WelcomeStep,
-} from "./steps";
+  BasicsStep,
+  GoalStep,
+  OrganizationStep,
+  ReadyStep,
+  SharingStep,
+  ToolsStep,
+  TutorialStep,
+  WorkModelStep,
+} from "./steps/ReadinessSteps";
 import type { StepConfig } from "./types";
 
 // ============================================
@@ -26,39 +29,51 @@ import type { StepConfig } from "./types";
 
 export const STEP_CONFIGS: StepConfig[] = [
   {
-    id: "welcome",
-    i18nKey: "welcome",
-    icon: Sparkles,
-    content: <WelcomeStep />,
+    id: "goal",
+    i18nKey: "goal",
+    icon: GoalStepIcon,
+    component: GoalStep,
   },
   {
-    id: "theme",
-    i18nKey: "theme",
-    icon: Palette,
-    content: <ThemeSelectionStep />,
+    id: "tools",
+    i18nKey: "tools",
+    icon: ToolsStepIcon,
+    component: ToolsStep,
   },
   {
-    id: "dev-passport",
-    i18nKey: "devPassport",
-    icon: IdCard,
-    content: <DevPassportStep />,
+    id: "organization",
+    i18nKey: "organization",
+    icon: OrganizationStepIcon,
+    component: OrganizationStep,
   },
   {
-    id: "github",
-    i18nKey: "github",
-    icon: Github,
-    content: <GitHubStep />,
+    id: "sharing",
+    i18nKey: "sharing",
+    icon: SharingStepIcon,
+    component: SharingStep,
   },
   {
-    id: "workspace",
-    i18nKey: "workspace",
-    icon: FolderGit2,
-    content: <RepoStep />,
+    id: "basics",
+    i18nKey: "basics",
+    icon: BasicsStepIcon,
+    component: BasicsStep,
   },
   {
-    id: "complete",
-    i18nKey: "complete",
-    icon: Rocket,
-    content: <CompleteStep />,
+    id: "tutorial",
+    i18nKey: "tutorial",
+    icon: TutorialStepIcon,
+    component: TutorialStep,
+  },
+  {
+    id: "work-model",
+    i18nKey: "workModel",
+    icon: WorkModelStepIcon,
+    component: WorkModelStep,
+  },
+  {
+    id: "ready",
+    i18nKey: "ready",
+    icon: ReadyStepIcon,
+    component: ReadyStep,
   },
 ];

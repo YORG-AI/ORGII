@@ -32,8 +32,12 @@ fn render_linked_work_item_context(work_item_id: &str, project_slug: Option<&str
     format!(
         "## Linked Work Item\n\n\
          This planning session is already linked to Work Item `short_id` {}. \
-         {} Update this linked draft instead of creating a duplicate unless the user explicitly asks for multiple Work Items. \
-         Keep the current session linked after every update.",
+         {} \
+         Scope rule: the linked item is THIS session's original deliverable. \
+         When the user iterates on that same request (refine, expand, correct, retitle), update the linked draft instead of creating a duplicate. \
+         When the user asks for a NEW or additional Work Item — a different topic, an example, \"another one\" — create a fresh item with `manage_work_item(action=create_item)` and leave the linked item untouched; never repurpose it by overwriting its title and body with unrelated content. \
+         Keep the current session linked after every update. \
+         Apply all of this silently: never announce the linkage, ids, or drafting mechanics to the user (no \"this session is already linked to…\") — just acknowledge the request and do the work.",
         serde_json::to_string(work_item_id).expect("work item id is JSON serializable"),
         scope_instruction,
     )
@@ -187,23 +191,24 @@ impl UnifiedMessageProcessor {
         }
 
         // The ChatPanel "Create with AI" flow persists a draft before launch
-        // so the planning session has a durable Work Item target. The generic
-        // session runtime carries that linkage, but it was not previously
-        // visible to Work Item Manager; the model could therefore create a
-        // second item and strand the original "AI Work Item Draft". Keep this
-        // volatile (session-specific) and narrowly scoped to the manager.
-        if self.runtime.agent_definition_id.as_deref()
-            == Some(crate::core::definitions::WORK_ITEM_MANAGER_AGENT_ID)
+        // so the planning session has a durable Work Item target. Any agent
+        // launched through that flow (session agent_role "custom") needs the
+        // linkage in its prompt, or the model can create a second item and
+        // strand the original "AI Work Item Draft". Orchestrator-launched
+        // sessions carry work item context in their launch prompt and are
+        // excluded here. Keep this volatile (session-specific).
         {
             let linked_session =
                 tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
             match linked_session {
                 Ok(Some(session)) => {
-                    if let Some(work_item_id) = session.work_item_id.as_deref() {
-                        dynamic_sections.push(render_linked_work_item_context(
-                            work_item_id,
-                            session.project_slug.as_deref(),
-                        ));
+                    if session.agent_role.as_deref() == Some("custom") {
+                        if let Some(work_item_id) = session.work_item_id.as_deref() {
+                            dynamic_sections.push(render_linked_work_item_context(
+                                work_item_id,
+                                session.project_slug.as_deref(),
+                            ));
+                        }
                     }
                 }
                 Ok(None) => {}

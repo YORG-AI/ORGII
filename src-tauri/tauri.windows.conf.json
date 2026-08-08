@@ -9,12 +9,15 @@
         "minWidth": 450,
         "minHeight": 300,
         "resizable": true,
-        "maximized": true,
+        "maximized": false,
         "fullscreen": false,
         "decorations": false,
         "hiddenTitle": true,
-        "backgroundColor": "#0d0d0d",
-        "transparent": false
+        "backgroundColor": "#00000000",
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["acrylic"]
+        }
       }
     ]
   },

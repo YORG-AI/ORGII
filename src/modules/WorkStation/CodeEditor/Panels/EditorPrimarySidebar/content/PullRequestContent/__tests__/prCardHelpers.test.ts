@@ -14,6 +14,7 @@ describe("getPrStatusVariant (re-exported from @src/shared/pr)", () => {
     expect(getPrStatusVariant("open")).toEqual({
       badgeClass: "bg-success-1 text-success-6",
       dotClass: "bg-success-6",
+      textClass: "text-success-6",
     });
   });
 
@@ -21,6 +22,7 @@ describe("getPrStatusVariant (re-exported from @src/shared/pr)", () => {
     expect(getPrStatusVariant("pending_review")).toEqual({
       badgeClass: "bg-fill-2 text-text-3",
       dotClass: "bg-text-3",
+      textClass: "text-text-3",
     });
   });
 });

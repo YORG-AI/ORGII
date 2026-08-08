@@ -1,13 +1,14 @@
 /**
- * Activity Styles — Shared Variables & Utility Classes
+ * Activity Styles — Shared Sass Variables
  *
- * Shared SCSS variables and reusable utility classes for activity chat items.
- * All activity style partials import this file for consistent tokens.
+ * Shared SCSS variables for activity chat items. Runtime typography utility
+ * classes live in `src/styles/_chat-typography.scss` so Markdown and other
+ * non-transcript surfaces can consume the same tokens globally.
  */
 
 // Fallback font sizes (used when CSS variables not available)
 $font-size-fallback: 13px;
-$font-size-code-fallback: 12px;
+$font-size-code-fallback: 13px;
 $font-mono: var(
   --code-font-family,
   "SF Mono",
@@ -18,88 +19,3 @@ $font-mono: var(
   "Courier New",
   monospace
 );
-
-// ============================================
-// Unified font classes using CSS variables
-// ============================================
-
-// Main text - uses --chat-font-size
-.chat-text {
-  font-size: var(--chat-font-size, $font-size-fallback);
-  line-height: var(--chat-line-height, 1.6);
-}
-
-// Small text - 1px smaller than main
-.chat-text-sm {
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 1px);
-  line-height: var(--chat-line-height, 1.6);
-}
-
-// Extra small text - 2px smaller than main
-.chat-text-xs {
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
-  line-height: var(--chat-line-height, 1.6);
-}
-
-// Code/mono text - uses --chat-code-font-size
-.chat-code {
-  font-family: $font-mono;
-  font-size: var(--chat-code-font-size, $font-size-code-fallback);
-}
-
-// Code small - 1px smaller
-.chat-code-sm {
-  font-family: $font-mono;
-  font-size: calc(var(--chat-code-font-size, $font-size-code-fallback) - 1px);
-}
-
-// ============================================
-// Block-level font-size token classes
-// All derived from --chat-font-size (set on .wp__chat__history via inline style).
-// Hierarchy (default 14px base):
-//   xs  = -2px (12px)  labels, badges, section headers
-//   content = code-font-size (13px)  code/content areas
-//   title   = base (14px)  block headers, meta
-//   md  = base (14px)  main body text
-// ============================================
-
-.chat-block-xs {
-  font-size: var(--chat-block-xs-size, 12px);
-}
-
-.chat-block-content {
-  font-size: var(--chat-block-content-size, 13px);
-}
-
-.chat-block-title {
-  font-size: var(--chat-block-title-size, 14px);
-}
-
-.chat-block-md {
-  font-size: var(--chat-block-md-size, 14px);
-}
-
-// ============================================
-// Icon size classes - match font sizes
-// ============================================
-
-// Main icon - matches chat-text font size
-.chat-icon {
-  width: var(--chat-font-size, $font-size-fallback);
-  height: var(--chat-font-size, $font-size-fallback);
-  flex-shrink: 0;
-}
-
-// Small icon - matches chat-text-sm (1px smaller)
-.chat-icon-sm {
-  width: calc(var(--chat-font-size, $font-size-fallback) - 1px);
-  height: calc(var(--chat-font-size, $font-size-fallback) - 1px);
-  flex-shrink: 0;
-}
-
-// Extra small icon - matches chat-text-xs (2px smaller)
-.chat-icon-xs {
-  width: calc(var(--chat-font-size, $font-size-fallback) - 2px);
-  height: calc(var(--chat-font-size, $font-size-fallback) - 2px);
-  flex-shrink: 0;
-}

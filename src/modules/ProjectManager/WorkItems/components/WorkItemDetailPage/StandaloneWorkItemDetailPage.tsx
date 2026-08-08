@@ -8,7 +8,7 @@ import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { WorkItem } from "@src/types/core/workItem";
 
 import WorkItemDetail from "../WorkItemDetail";
-import { applyStandaloneWorkItemUpdates } from "./model";
+import { standaloneWorkItemUpdatesToPartial } from "./model";
 import type { WorkItemDetailPageProps } from "./types";
 
 const EMPTY_RELATION_MAPS = {
@@ -57,11 +57,12 @@ export function StandaloneWorkItemDetailPage({
       if (updates.name !== undefined) {
         onWorkItemNameUpdated?.(updates.name);
       }
-      const current = await projectApi.readStandaloneWorkItem(workItemId);
-      await projectApi.writeStandaloneWorkItem(
+      // Atomic partial update — the read-modify-write happens inside the
+      // Rust BEGIN IMMEDIATE transaction, so concurrent edits can't be
+      // silently dropped by a client-side merge + whole-row write.
+      await projectApi.updateStandaloneWorkItemPartial(
         workItemId,
-        applyStandaloneWorkItemUpdates(current.frontmatter, updates),
-        updates.spec ?? current.body
+        standaloneWorkItemUpdatesToPartial(updates, updates.spec)
       );
       await loadWorkItem();
     },

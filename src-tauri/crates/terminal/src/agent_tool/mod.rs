@@ -130,6 +130,9 @@ pub(crate) fn resolve_default_shell_path(
     platform: DefaultShellPlatform,
     shell_env: Option<&str>,
 ) -> String {
+    #[cfg(target_os = "windows")]
+    let _ = shell_env;
+
     match platform {
         #[cfg(any(test, target_os = "windows"))]
         DefaultShellPlatform::Windows => "powershell.exe".to_string(),

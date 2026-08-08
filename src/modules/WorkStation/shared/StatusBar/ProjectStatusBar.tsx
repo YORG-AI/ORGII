@@ -12,6 +12,7 @@ import ProjectOrgGitFolderSyncWidget from "./ProjectOrgGitFolderSyncWidget";
 import ProjectSyncStatusWidget from "./ProjectSyncStatusWidget";
 import {
   BaseStatusBar,
+  StatusBarLabel,
   StatusBarSegment,
   StatusBarText,
 } from "./StatusBarBase";
@@ -59,9 +60,9 @@ const ProjectStatusBar: React.FC<ProjectStatusBarProps> = memo(
           {activeMemberCount != null && (
             <StatusBarSegment>
               <Users size={12} className="text-text-1" />
-              <span className="tabular-nums text-text-1">
+              <StatusBarLabel numeric className="text-text-1">
                 {activeMemberCount}
-              </span>
+              </StatusBarLabel>
             </StatusBarSegment>
           )}
 

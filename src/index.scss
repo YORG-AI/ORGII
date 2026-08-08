@@ -536,14 +536,34 @@ html[data-host-desktop="macos"] .sidebar-base {
   background: transparent;
 }
 
-html[data-host-desktop="windows"],
 html[data-host-desktop="windows"] body,
 html[data-host-desktop="windows"] #root {
-  background: var(--color-bg-2);
+  background: transparent;
 }
 
 html[data-host-desktop="windows"] .sidebar-base {
-  background: var(--sidebar-bg);
+  background: transparent;
+}
+
+// The work surface overlaps the sidebar edge like Codex: only the inner
+// top-left corner is rounded, while the sidebar keeps its native edge depth.
+html[data-host-desktop="windows"] .windows-main-page-surface {
+  overflow: hidden;
+  border-top-left-radius: var(--radius-page);
+}
+
+// Windows uses a frameless Tauri window with DWM owning the outer shape.
+// Clip the HTML header to the same radius so its translucent fill cannot
+// square off the native top corners.
+html[data-host-desktop="windows"] [data-windows-top-bar="true"] {
+  overflow: hidden;
+  border-top-left-radius: var(--border-radius-window);
+  border-top-right-radius: var(--border-radius-window);
+  background: color-mix(
+    in srgb,
+    var(--color-bg-2) var(--windows-native-chrome-opacity, 30%),
+    transparent
+  );
 }
 
 // Ensure popup layers are not clipped by body's overflow: hidden

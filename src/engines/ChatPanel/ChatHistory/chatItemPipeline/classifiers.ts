@@ -229,6 +229,8 @@ export const isManageTodoEvent = (event: SessionEvent): boolean => {
  * shape stamped by both producers:
  * - Rust `lifecycle::build_session_error_event` (id `session-error-…`)
  * - FE `makeErrorEvent` in sync/adapters/shared/eventFactories.ts
+ * - normalized CLI/native-transcript chunks (`actionType` / `functionName`
+ *   / `displayVariant` = `error`)
  *
  * Mirrors Claude Code's `isApiErrorMessage` contract: every render,
  * filter, and collapse path must treat these as always-visible — a
@@ -238,8 +240,26 @@ export const isManageTodoEvent = (event: SessionEvent): boolean => {
  */
 export const isAgentErrorEvent = (event: SessionEvent): boolean => {
   return (
-    event.functionName === "system" &&
-    event.displayStatus === "failed" &&
-    event.displayVariant === "message"
+    event.displayVariant === "error" ||
+    event.actionType === "error" ||
+    event.functionName === "error" ||
+    (event.functionName === "system" &&
+      event.displayStatus === "failed" &&
+      event.displayVariant === "message")
   );
+};
+
+export const getAgentErrorMessage = (event: SessionEvent): string | null => {
+  if (!isAgentErrorEvent(event)) return null;
+
+  for (const value of [
+    event.result?.error,
+    event.result?.error_message,
+    event.result?.observation,
+    event.displayText,
+  ]) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+
+  return null;
 };

@@ -177,7 +177,13 @@ fn sync_warp_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
 
     for record in changed {
         let fallback_ms = parse_warp_timestamp_ms(&record.last_modified_at).unwrap_or(0);
-        let task_blobs = load_task_blobs(&source_conn, &record.conversation_id)?;
+        let Some(task_blobs) = imported_history::skip_unparsable_record(
+            SOURCE_WARP,
+            &record.conversation_id,
+            load_task_blobs(&source_conn, &record.conversation_id),
+        ) else {
+            continue;
+        };
         let analysis = analyze_task_blobs(
             &format!("{WARP_SESSION_PREFIX}{}", record.conversation_id),
             &task_blobs,

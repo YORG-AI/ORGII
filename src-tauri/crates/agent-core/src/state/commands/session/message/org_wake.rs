@@ -93,6 +93,43 @@ pub(super) fn promote_agent_org_wake_session_to_running(
     .map_err(|error| error.to_string())
 }
 
+/// Promote a direct Rust Agent Org turn unless deletion has established the
+/// run's terminal `cancelled` fence. Direct user turns intentionally retain
+/// their existing behavior for completed/failed historical runs; this guard
+/// only closes the race where a message was queued while hierarchy deletion
+/// was stopping the run.
+pub(super) fn promote_agent_org_direct_session_to_running(
+    conn: &rusqlite::Connection,
+    run_id: &str,
+    session_id: &str,
+) -> Result<usize, String> {
+    use rusqlite::OptionalExtension;
+
+    let run_status = conn
+        .query_row(
+            "SELECT status FROM agent_org_runs WHERE id=?1",
+            [run_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    if run_status.as_deref() == Some("cancelled") || run_status.is_none() {
+        return Ok(0);
+    }
+
+    conn.execute(
+        "UPDATE agent_sessions
+         SET status=?1, updated_at=?2
+         WHERE session_id=?3",
+        rusqlite::params![
+            crate::session::SessionStatus::Running.as_str(),
+            chrono::Utc::now().to_rfc3339(),
+            session_id,
+        ],
+    )
+    .map_err(|error| error.to_string())
+}
+
 /// Resolve the execution mode for one background Agent Org wake from unread
 /// control envelopes in durable inbox order.
 ///

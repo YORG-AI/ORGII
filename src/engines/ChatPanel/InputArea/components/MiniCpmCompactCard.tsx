@@ -8,6 +8,7 @@ import {
   setHousekeeperContextCompactionEnabled,
 } from "@src/api/tauri/agent";
 import Switch from "@src/components/Switch";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const EMPTY_STATE: HousekeeperContextCompactionState = {
   enabled: false,
@@ -46,8 +47,7 @@ const MiniCpmCompactCard: React.FC<MiniCpmCompactCardProps> = memo(
 
     useEffect(() => {
       void refresh();
-      const interval = window.setInterval(() => void refresh(), 5_000);
-      return () => window.clearInterval(interval);
+      return startVisibilityAwarePoller(document, refresh, 5_000);
     }, [refresh]);
 
     const handleToggle = useCallback(

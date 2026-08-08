@@ -16,8 +16,9 @@
  * at startup.
  *
  * Config is read straight from the shared store on each tick, so the interval is
- * armed once and always sees the latest values without re-arming. The timer is
- * paused while the document is hidden and catches up immediately on return.
+ * armed once and always sees the latest values without re-arming. Hidden windows
+ * pause by default; an explicit app-wide background-upload demand keeps one
+ * low-frequency timer alive and catches up immediately when it is enabled.
  */
 import { useEffect } from "react";
 
@@ -42,6 +43,7 @@ import {
   dataSourcePresenceAtom,
   dataSourceRosterSignaturesAtom,
   effectiveFrequency,
+  externalHistoryBackgroundScanEnabledAtom,
   externalSessionsEnabledAtom,
   getSourceConfig,
 } from "./dataSourceConfigAtom";
@@ -136,7 +138,10 @@ async function performDataSourceAutoScan(force: boolean): Promise<void> {
   const global = store.get(dataSourceGlobalFrequencyAtom);
   const now = Date.now();
 
-  const focused = isWindowFocused();
+  const focused =
+    (typeof document === "undefined" ||
+      document.visibilityState !== "hidden") &&
+    isWindowFocused();
   const candidates = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.flatMap(
     ({ sourceId }) => {
       const cfg = getSourceConfig(cfgMap, sourceId);
@@ -284,15 +289,18 @@ interface DataSourceAutoScanScheduler {
 
 /**
  * Own the scheduler's one exact-deadline timeout. Hidden documents clear the
- * timer; becoming visible triggers one immediate due-check and re-arms the
- * chain. Failed scans retry after a bounded delay without creating a second
- * timer or overlapping an active scan.
+ * timer unless an explicit background consumer requires fresh external
+ * history; that path uses the same unfocused cadence floor. Becoming visible
+ * triggers one immediate due-check and re-arms the chain. Failed scans retry
+ * after a bounded delay without creating a second timer or overlapping an
+ * active scan.
  */
 export function startDataSourceAutoScanScheduler(
   source: DataSourceAutoScanVisibilitySource,
   scan: (force?: boolean) => Promise<void>,
   nextDelay: () => number | null,
-  failedScanRetryMs = FAILED_SCAN_RETRY_MS
+  failedScanRetryMs = FAILED_SCAN_RETRY_MS,
+  shouldScanWhileHidden: () => boolean = () => false
 ): DataSourceAutoScanScheduler {
   let stopped = false;
   let running = false;
@@ -304,9 +312,11 @@ export function startDataSourceAutoScanScheduler(
     clearTimeout(timeoutId);
     timeoutId = undefined;
   };
+  const hiddenAndPaused = () =>
+    source.visibilityState === "hidden" && !shouldScanWhileHidden();
   const schedule = () => {
     clearTimer();
-    if (stopped || running || source.visibilityState === "hidden") return;
+    if (stopped || running || hiddenAndPaused()) return;
     const delay = nextDelay();
     if (delay == null) return;
     timeoutId = setTimeout(
@@ -319,7 +329,7 @@ export function startDataSourceAutoScanScheduler(
   };
   const trigger = (force = false) => {
     clearTimer();
-    if (stopped || running || source.visibilityState === "hidden") return;
+    if (stopped || running || hiddenAndPaused()) return;
     running = true;
     void scan(force)
       .then(
@@ -337,7 +347,8 @@ export function startDataSourceAutoScanScheduler(
   };
   const onVisibilityChange = () => {
     clearTimer();
-    if (source.visibilityState !== "hidden") trigger();
+    if (source.visibilityState === "hidden") schedule();
+    else trigger();
   };
 
   source.addEventListener("visibilitychange", onVisibilityChange);
@@ -364,12 +375,14 @@ export function useDataSourceAutoScan(): void {
       () =>
         nextDataSourceAutoScanDelay(
           Date.now(),
-          isWindowFocused(),
+          document.visibilityState !== "hidden" && isWindowFocused(),
           store.get(externalSessionsEnabledAtom),
           store.get(dataSourceConfigAtom),
           store.get(dataSourcePresenceAtom),
           store.get(dataSourceGlobalFrequencyAtom)
-        )
+        ),
+      FAILED_SCAN_RETRY_MS,
+      () => store.get(externalHistoryBackgroundScanEnabledAtom)
     );
     // A visible but unfocused window retains the low-frequency background
     // safety floor. Regaining focus immediately checks foreground cadences.
@@ -381,6 +394,7 @@ export function useDataSourceAutoScan(): void {
       store.sub(dataSourcePresenceAtom, scheduler.schedule),
       store.sub(dataSourceGlobalFrequencyAtom, scheduler.schedule),
       store.sub(externalSessionsEnabledAtom, scheduler.schedule),
+      store.sub(externalHistoryBackgroundScanEnabledAtom, scheduler.schedule),
     ];
     return () => {
       unsubscribeFocus();

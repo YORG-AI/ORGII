@@ -1,4 +1,8 @@
-import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  SquareArrowOutUpRight,
+} from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -125,7 +129,7 @@ const ReviewFeedbackPanel: React.FC<ReviewFeedbackPanelProps> = ({
           <Button
             variant="tertiary"
             size="mini"
-            icon={<ExternalLink size={11} />}
+            icon={<SquareArrowOutUpRight size={11} />}
             onClick={() => onOpenSession(latestReview.session_id)}
             title={t("workItems.agentWorkflow.openSession")}
           />

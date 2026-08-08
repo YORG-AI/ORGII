@@ -1,4 +1,9 @@
-import { ExternalLink, FolderCog, KeyRound, Terminal } from "lucide-react";
+import {
+  FolderCog,
+  KeyRound,
+  SquareArrowOutUpRight,
+  Terminal,
+} from "lucide-react";
 import React, { memo } from "react";
 
 import { getToolIcon } from "@src/config/toolIcons";
@@ -62,7 +67,8 @@ function statusLabel(status: SetupRepoStatus): string {
 
 function appTypeIcon(appType: SetupRepoAppType): React.ReactNode {
   const cls = "text-text-2";
-  if (appType === "web") return <ExternalLink size={12} className={cls} />;
+  if (appType === "web")
+    return <SquareArrowOutUpRight size={12} className={cls} />;
   if (appType === "cli") return <Terminal size={12} className={cls} />;
   if (appType === "desktop") return <FolderCog size={12} className={cls} />;
   return <Terminal size={12} className={cls} />;
@@ -244,7 +250,7 @@ const LaunchAppContent: React.FC<{
     </div>
     {url && (
       <div className="flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-fill-2">
-        <ExternalLink size={11} className="shrink-0 text-text-3" />
+        <SquareArrowOutUpRight size={11} className="shrink-0 text-text-3" />
         <span className="chat-block-content min-w-0 flex-1 truncate font-mono text-primary-6">
           {url}
         </span>

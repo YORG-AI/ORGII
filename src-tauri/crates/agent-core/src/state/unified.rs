@@ -344,6 +344,18 @@ impl AgentAppState {
         info!("[agent-state] Removed session: {}", session_id);
     }
 
+    /// Remove several sessions while holding the registry lock once.
+    ///
+    /// Used after an Agent Org hierarchy transaction commits so descendant
+    /// runtimes cannot remain retained after their durable rows are gone.
+    pub async fn remove_sessions(&self, session_ids: &[String]) {
+        let mut sessions = self.sessions.lock().await;
+        for session_id in session_ids {
+            sessions.remove(session_id);
+            info!("[agent-state] Removed session: {}", session_id);
+        }
+    }
+
     /// Invalidate the runtime attached to a session, forcing re-initialization
     /// on the next request.
     pub async fn invalidate_session(&self, session_id: &str) {

@@ -8,6 +8,7 @@ import { installGlobalTauriSelectAllShortcut } from "@src/hooks/keyboard/useTaur
 import { createLogger, initializeLogging } from "@src/hooks/logger/useLogger";
 import { i18nReady } from "@src/i18n";
 import "@src/util/core/storage/cleanup";
+import { cleanUpBrowserStorage } from "@src/util/core/storage/quotaRecovery";
 import "@src/util/platform/tauri";
 
 import "./index.scss";
@@ -150,6 +151,17 @@ async function initializeApp() {
   // Runtime identity must be known before loading App: several API modules
   // derive local HTTP/WebSocket constants at module evaluation time.
   await initializeRuntimeInstanceIdentity();
+
+  // Versioned list caches are disposable. Release superseded keys before App
+  // modules hydrate current atoms so a stale snapshot cannot consume the
+  // WebKit localStorage quota indefinitely after a cache-key bump.
+  const obsoleteStorageCleanup = cleanUpBrowserStorage("obsolete");
+  if (obsoleteStorageCleanup.freedBytes > 0) {
+    log.info(
+      `[Init] Released ${obsoleteStorageCleanup.freedBytes} bytes from obsolete browser caches`
+    );
+  }
+
   // Tauri dev and bundled WebViews have different origins. Hydrate the shared
   // app-data auth store before App imports initialize auth atoms and guards.
   try {

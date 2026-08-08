@@ -26,8 +26,20 @@ describe("Task Kanban external-history filters", () => {
     expect(EXTERNAL_HISTORY_FILTER_BY_SOURCE.omp).toBe(
       KANBAN_AGENT_TYPE_FILTER.OMP_APP
     );
+    expect(EXTERNAL_HISTORY_FILTER_BY_SOURCE.pi).toBe(
+      KANBAN_AGENT_TYPE_FILTER.PI_APP
+    );
     expect(EXTERNAL_HISTORY_FILTER_BY_SOURCE.qoder_cli).toBe(
       KANBAN_AGENT_TYPE_FILTER.QODER_CLI_APP
+    );
+    expect(EXTERNAL_HISTORY_FILTER_BY_SOURCE.qwen_code).toBe(
+      KANBAN_AGENT_TYPE_FILTER.QWEN_CODE_APP
+    );
+    expect(EXTERNAL_HISTORY_FILTER_BY_SOURCE.copilot).toBe(
+      KANBAN_AGENT_TYPE_FILTER.COPILOT_APP
+    );
+    expect(EXTERNAL_HISTORY_FILTER_BY_SOURCE.kimi).toBe(
+      KANBAN_AGENT_TYPE_FILTER.KIMI_CLI
     );
   });
 });

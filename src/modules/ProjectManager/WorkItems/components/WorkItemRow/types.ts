@@ -19,6 +19,7 @@ export interface WorkItemRowProps {
   onRestore?: (id: string) => void;
   readonly?: boolean;
   compact?: boolean;
+  variant?: "card" | "table";
   availableMembers?: Person[];
   availableProjects?: WorkItemProject[];
   availableMilestones?: WorkItemMilestone[];
@@ -37,6 +38,8 @@ export interface WorkItemRowProps {
    * item between projects is not yet supported.
    */
   disableProjectEdit?: boolean;
+  /** Hide redundant project identity in a fixed project-scoped list. */
+  hideProjectCell?: boolean;
 }
 
 export interface DueDateInfo {

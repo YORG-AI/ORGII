@@ -11,6 +11,11 @@
       "mentions": "提及",
       "assigned": "已指派給我"
     },
+    "sections": {
+      "reviewRequested": "已請求審查",
+      "authoredByMe": "由我建立",
+      "otherTodos": "其他待辦事項"
+    },
     "status": {
       "read": "已讀",
       "unread": "未讀"
@@ -33,10 +38,10 @@
       "title": "目前尚無項目",
       "subtitle": "新的提及與指派的工作項目會顯示在這裡。",
       "selectTitle": "選擇一個項目",
-      "selectSubtitle": "查看留言脈絡或工作項目詳情。",
+      "selectSubtitle": "查看留言脈絡或工作項目詳情",
       "mentions": {
         "title": "尚無提及",
-        "subtitle": "當同事在留言中以 @ 提及你時，會顯示在這裡。"
+        "subtitle": "當同事在留言中以 @ 提及你時，會顯示在這裡"
       },
       "assigned": {
         "title": "尚無指派給你的項目",
@@ -110,7 +115,9 @@
       "markUnread": "無法將此項目標記為未讀，請再試一次。",
       "markAllRead": "無法將所有項目標記為已讀，請再試一次。",
       "identity": "無法將你的帳戶與專案成員配對，請檢查專案個人資料中的電子郵件。",
-      "partialLoad": "部分團隊收件匣來源無法重新整理，現有項目仍會繼續顯示。",
+      "partialLoad": "部分團隊收件匣來源無法重新整理，現有項目仍會繼續顯示",
+      "pullRequestsPartialLoad": "部分 pull request 無法重新整理",
+      "pullRequestsPartialLoadHelp": "現有項目仍會繼續顯示；請重新整理以再次載入缺少的 pull request",
       "workItemContext": "部分專案內容暫時無法使用，工作項目仍可繼續操作。",
       "workItemLoad": "無法載入此工作項目，請再試一次。",
       "workItemUpdate": "無法儲存工作項目的最新變更，請再試一次。"
@@ -153,6 +160,50 @@
       "medium": "中",
       "high": "高",
       "urgent": "緊急"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "檔案",
+      "edit": "編輯",
+      "view": "檢視",
+      "window": "視窗",
+      "help": "說明",
+      "aria": "{{label}}選單"
+    },
+    "items": {
+      "quitOrg2": "結束 ORG-2",
+      "newSession": "新增工作階段",
+      "openFolder": "開啟資料夾...",
+      "addFolderToWorkspace": "將資料夾新增至工作區...",
+      "saveWorkspaceAs": "工作區另存新檔...",
+      "closeWindow": "關閉視窗",
+      "undo": "復原",
+      "redo": "重做",
+      "cut": "剪下",
+      "copy": "複製",
+      "paste": "貼上",
+      "selectAll": "全選",
+      "commandPalette": "命令選擇區",
+      "goToFile": "前往檔案...",
+      "selectModel": "選擇模型...",
+      "switchWorkspace": "切換工作區...",
+      "switchBranch": "切換分支...",
+      "switchRunningLocation": "切換執行位置...",
+      "settings": "設定...",
+      "zoomIn": "放大",
+      "zoomOut": "縮小",
+      "actualSize": "實際大小",
+      "minimize": "最小化",
+      "maximizeRestore": "最大化 / 還原",
+      "maximizeWorkstation": "最大化工作站",
+      "documentation": "文件",
+      "reportIssue": "回報問題"
+    },
+    "controls": {
+      "minimizeWindow": "最小化視窗",
+      "maximizeRestoreWindow": "最大化或還原視窗",
+      "closeWindow": "關閉視窗"
     }
   },
   "toasts": {
@@ -368,7 +419,8 @@
     "skipThisVersion": "跳過此版本",
     "later": "稍後",
     "link": "連結",
-    "copyName": "複製名稱"
+    "copyName": "複製名稱",
+    "switchMethod": "切換方式"
   },
   "refreshToast": {
     "successName": "{{name}} 已刷新",
@@ -1369,15 +1421,136 @@
       "collapse": "收合工作區資訊"
     },
     "pr": {
-      "linkedBranch": "提取要求 #{{number}}",
+      "title": "Pull request",
+      "linkedBranch": "Pull request #{{number}}",
+      "baseBranch": "基準",
+      "noDescription": "未提供描述。",
+      "loadingConversation": "正在載入…",
+      "reviewNoBody": "留下了審查留言。",
+      "submitReview": "提交審查",
+      "reviewHeadNotice": "只有顯示的 head commit 仍相符時，此審查才會生效。",
+      "reviewDecision": "審查決定",
+      "reviewComment": "審查評論",
+      "reviewCommentPlaceholder": "新增評論…",
+      "commentPlaceholder": "發表留言…",
+      "comment": "留言",
+      "approve": "核准",
+      "requestChanges": "要求變更",
+      "reply": "回覆",
+      "replyPlaceholder": "回覆…",
+      "reviewThreads": "審查留言",
+      "details": "詳細資料",
+      "unknownAuthor": "未知",
+      "activity": {
+        "opened": "開啟了此 pull request",
+        "commented": "發表了留言",
+        "approved": "核准了這些變更",
+        "changesRequested": "要求了變更",
+        "reviewDismissed": "駁回了審查",
+        "reviewed": "進行了審查"
+      },
+      "summary": {
+        "label": "pull request 摘要",
+        "branch": "分支",
+        "reviewers": "審查者",
+        "noReviewers": "無審查者",
+        "comments": "留言",
+        "commentCount_one": "{{count}} 則留言",
+        "commentCount_other": "{{count}} 則留言",
+        "checks": "檢查",
+        "noChecks": "無 CI 檢查",
+        "checksFailed": "檢查失敗",
+        "status": "狀態"
+      },
+      "tabs": {
+        "conversation": "對話",
+        "commits": "提交",
+        "checks": "檢查",
+        "changes": "變更"
+      },
       "checks": {
+        "none": "未回報檢查",
+        "noneHint": "此 pull request 的頭部提交未執行任何 CI 檢查或狀態。",
+        "allPassed": "所有檢查均已通過",
+        "someFailed": "部分檢查失敗",
+        "pending": "檢查進行中",
         "passedShort": "已通過",
         "failedShort": "失敗",
         "runningShort": "執行中",
         "checkingShort": "檢查中",
         "noneShort": "無 CI",
         "unavailableShort": "CI 無法使用",
-        "branchStatus": "提取要求 #{{number}} CI：{{status}}"
+        "branchStatus": "Pull request #{{number}} CI：{{status}}"
+      },
+      "commits": {
+        "backToList": "全部提交",
+        "none": "無提交"
+      },
+      "changes": {
+        "title": "檔案變更",
+        "noFiles": "無檔案變更",
+        "tooLarge": "檔案太大，無法顯示差異",
+        "unavailable": "變更無法使用",
+        "unavailableHint": "無法解析 pull request 的基準提交與頭部提交。"
+      },
+      "status": {
+        "open": "開啟",
+        "merged": "已合併",
+        "closed": "已關閉",
+        "draft": "草稿"
+      },
+      "actions": {
+        "label": "pull request 操作",
+        "confirmMergeTitle": "合併 pull request？",
+        "confirmMergeMessage": "GitHub 會將目前 pull request 的來源分支合併到目標分支。",
+        "merge": "合併 pull request",
+        "squash": "壓縮並合併",
+        "rebase": "變基並合併",
+        "mergeSuccess": "pull request 已合併",
+        "mergeRequested": "已要求合併",
+        "removedFromQueue": "已從合併佇列中移除",
+        "autoMergeEnabled": "已啟用自動合併",
+        "autoMergeDisabled": "已停用自動合併",
+        "confirmCloseTitle": "關閉 pull request？",
+        "confirmCloseMessage": "此 pull request 將保留，稍後可重新開啟。",
+        "close": "關閉 pull request",
+        "closeSuccess": "pull request 已關閉",
+        "reopen": "重新開啟 pull request",
+        "reopenSuccess": "pull request 已重新開啟",
+        "enableAutoMerge": "啟用自動合併",
+        "mergeWhenReady": "準備完成後合併",
+        "disableAutoMerge": "停用自動合併",
+        "removeFromMergeQueue": "從合併佇列中移除",
+        "merged": "已合併",
+        "closed": "已關閉",
+        "draft": "草稿",
+        "inMergeQueue": "在合併佇列中",
+        "approvalRequired": "需要核准",
+        "changesRequested": "已要求變更",
+        "resolveConflicts": "解決衝突",
+        "checksFailed": "檢查失敗",
+        "checksPending": "檢查待定",
+        "mergeBlocked": "合併受阻",
+        "searchReviewers": "搜尋審查者",
+        "reviewersLoadFailed": "無法載入審查者",
+        "noReviewers": "沒有可用的審查者",
+        "reviewersUpdated": "審查者已更新",
+        "reviewersCount_one": "{{count}} 名審查者",
+        "reviewersCount_other": "{{count}} 名審查者",
+        "reviewers": "審查者",
+        "tooltips": {
+          "merge": "在 GitHub 上合併此 pull request",
+          "alreadyMerged": "此 pull request 已合併",
+          "reopenBeforeMerging": "請先重新開啟此 pull request 再進行合併",
+          "markReady": "請先將此 pull request 標記為可供審查再進行合併",
+          "mergeQueue": "GitHub 將透過合併佇列合併此 pull request",
+          "approvalRequired": "GitHub 要求審查核准後才能合併",
+          "changesRequested": "必須解決要求的變更後才能合併",
+          "resolveConflicts": "請先解決合併衝突",
+          "checksFailed": "必須通過必要檢查後才能合併",
+          "checksPending": "等待必要檢查完成或啟用自動合併",
+          "mergeBlocked": "GitHub 回報存在未滿足的合併要求"
+        }
       }
     },
     "messages": {
@@ -1438,12 +1611,12 @@
         "timelineItemCount_one": "{{count}} 個時間軸項目",
         "timelineItemCount_other": "{{count}} 個時間軸項目",
         "noDescription": "未提供描述。",
-        "assigned": "指派了：",
+        "assigned": "指派了",
         "assignedIssue": "指派了此 issue",
-        "unassigned": "取消指派了：",
+        "unassigned": "取消指派了",
         "removedAssignee": "移除了一名受指派者",
-        "added": "新增了：",
-        "removed": "移除了：",
+        "added": "新增了",
+        "removed": "移除了",
         "label": "一個標籤",
         "milestoned": "將此 issue 新增至里程碑 {{milestone}}",
         "demilestoned": "將此 issue 從里程碑 {{milestone}} 中移除",
@@ -1467,7 +1640,49 @@
         "unpinned": "取消置頂了此 issue",
         "transferred": "轉移了此 issue",
         "convertedToDiscussion": "將此 issue 轉換為討論",
-        "mentioned": "提及了此 issue"
+        "mentioned": "提及了此 issue",
+        "commentDeleted": "刪除了一則評論",
+        "subscribed": "訂閱了此 issue",
+        "unsubscribed": "取消訂閱了此 issue",
+        "addedToProject": "將此 issue 新增到專案",
+        "movedInProject": "在專案中移動了此 issue",
+        "removedFromProject": "將此 issue 從專案中移除",
+        "archived": "封存了此 issue",
+        "unarchived": "取消封存了此 issue",
+        "merged": "合併了此 pull request",
+        "committed": "向此 pull request 提交了變更",
+        "headRefDeleted": "刪除了頭部分支",
+        "headRefRestored": "還原了頭部分支",
+        "headRefForcePushed": "強制推送了頭部分支",
+        "baseRefChanged": "變更了基礎分支",
+        "automaticBaseChangeFailed": "無法自動變更基礎分支",
+        "automaticBaseChangeSucceeded": "自動變更了基礎分支",
+        "deployed": "部署了此 pull request",
+        "deploymentEnvironmentChanged": "變更了部署環境",
+        "readyForReview": "將此 pull request 標記為可供審查",
+        "reviewRequested": "請求了審查",
+        "reviewRequestRemoved": "移除了審查請求",
+        "reviewed": "審查了這些變更",
+        "reviewDismissed": "駁回了審查",
+        "userBlocked": "封鎖了此使用者"
+      },
+      "composer": {
+        "addComment": "新增評論",
+        "commentingAs": "正以 {{login}} 身分操作",
+        "identityUnavailable": "GitHub 身分無法使用",
+        "commentPlaceholder": "撰寫評論…",
+        "submitComment": "評論",
+        "closeIssue": "關閉 issue",
+        "closeAsCompleted": "以已完成關閉",
+        "closeAsNotPlanned": "以不計畫關閉",
+        "closeAsDuplicate": "作為重複項關閉",
+        "duplicateSearchPlaceholder": "搜尋 issue",
+        "duplicateEmpty": "沒有符合的 issue",
+        "duplicateLoadFailed": "無法載入 issue",
+        "reopenIssue": "重新開啟 issue",
+        "commentFailed": "新增評論失敗",
+        "bodyUpdateFailed": "更新 issue 描述失敗",
+        "statusFailed": "更新 issue 狀態失敗"
       }
     }
   },
@@ -2488,8 +2703,8 @@
     "selectRepoToStart": "選擇一個 Repo 開始"
   },
   "quitConfirmation": {
-    "title": "結束 ORGII？",
-    "subtitle": "正在執行的工作階段會保留目前狀態。你可以稍後重新開啟 ORGII。",
+    "title": "結束 ORG-2？",
+    "subtitle": "正在執行的工作階段會保留目前狀態。你可以稍後重新開啟 ORG-2。",
     "cancel": "取消",
     "confirm": "結束"
   },
@@ -2520,5 +2735,15 @@
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "正在準備下載…",
     "downloadingAndInstalling": "正在下載並安裝更新 (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "標題 / 上下文",
+      "status": "狀態",
+      "assignee": "負責人",
+      "updated": "更新時間"
+    },
+    "selectRow": "選擇 {{id}}"
   }
 }

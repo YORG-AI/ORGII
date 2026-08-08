@@ -13,6 +13,7 @@ import {
   createChatSessionTab,
   createFileTab,
   createGitDiffTab,
+  createGitHubIssueDetailTab,
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
   createProjectWorkItemsTab,
@@ -396,6 +397,21 @@ describe("Project Manager Factories", () => {
       );
 
       expect(tab.data.workItemStatus).toBe("open");
+    });
+  });
+
+  describe("createGitHubIssueDetailTab", () => {
+    it("keeps independent state scope for each dedicated issue tab", () => {
+      const tab = createGitHubIssueDetailTab(
+        42,
+        "Ship dedicated tabs",
+        "/workspace/ORGII",
+        "https://github.com/orgii/ORGII.git",
+        "repo:/workspace/ORGII:issue:42"
+      );
+
+      expect(tab.id).toBe("github-issue-detail:/workspace/ORGII:42");
+      expect(tab.data.stateScopeKey).toBe("repo:/workspace/ORGII:issue:42");
     });
   });
 });

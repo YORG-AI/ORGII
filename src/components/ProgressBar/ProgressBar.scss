@@ -1,0 +1,20 @@
+.progress-bar--indeterminate > div {
+  width: 36% !important;
+  animation: progress-bar-indeterminate-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-bar-indeterminate-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar--indeterminate > div {
+    animation: none;
+  }
+}

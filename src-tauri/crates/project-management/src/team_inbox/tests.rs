@@ -25,9 +25,14 @@ fn insert_project(connection: &Connection, id: &str, slug: &str) {
     connection
         .execute(
             "INSERT INTO projects
-                (id, name, slug, short_id_prefix, created_at, updated_at)
-             VALUES (?1, ?2, ?3, 'TST', 1, 1)",
-            (id, format!("Project {id}"), slug),
+                (id, name, slug, short_id_prefix, linked_repos_json, created_at, updated_at)
+             VALUES (?1, ?2, ?3, 'TST', ?4, 1, 1)",
+            (
+                id,
+                format!("Project {id}"),
+                slug,
+                r#"["https://github.com/org2AI/ORG2.git"]"#,
+            ),
         )
         .expect("insert project");
 }
@@ -65,6 +70,15 @@ fn insert_work_item(connection: &Connection, item: WorkItemFixture<'_>) {
             ),
         )
         .expect("insert work item");
+}
+
+fn set_work_item_status(connection: &Connection, work_item_id: &str, status: &str) {
+    connection
+        .execute(
+            "UPDATE workitems SET status = ?2 WHERE id = ?1",
+            (work_item_id, status),
+        )
+        .expect("update work item status");
 }
 
 fn options(viewers: &[&str], limit: usize) -> TeamInboxListOptions {
@@ -209,17 +223,99 @@ fn global_query_returns_only_local_items_assigned_to_explicit_viewers() {
         &page.items[0].target,
         TeamInboxTarget::WorkItem {
             project_slug: Some(slug),
+            repository: Some(repository),
             ..
-        } if slug == "alpha"
+        } if slug == "alpha" && repository == "https://github.com/org2AI/ORG2.git"
     ));
+    assert_eq!(
+        serde_json::to_value(&page.items[0].target).expect("serialize Work Item target"),
+        json!({
+            "type": "work_item",
+            "workItemId": "work-1",
+            "shortId": "TST-1",
+            "orgId": "personal-org",
+            "projectId": "project-1",
+            "projectSlug": "alpha",
+            "repository": "https://github.com/org2AI/ORG2.git"
+        })
+    );
     assert!(matches!(
         &page.items[1].target,
         TeamInboxTarget::WorkItem {
             project_id: None,
             project_slug: None,
+            repository: None,
             ..
         }
     ));
+}
+
+#[test]
+fn terminal_assignments_are_not_actionable_or_counted_as_unread() {
+    let mut connection = database();
+    for (index, status) in [
+        "in_progress",
+        "completed",
+        "cancelled",
+        "canceled",
+        "duplicate",
+        "closed",
+        "done",
+        "Done",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = format!("work-{index}");
+        insert_work_item(
+            &connection,
+            WorkItemFixture {
+                id: &id,
+                short_id: &id,
+                title: status,
+                project_id: None,
+                assigned_human_id: Some("member-a"),
+                assignee: None,
+                assignee_type: None,
+                updated_at: 100 - index as i64,
+                deleted_at: None,
+            },
+        );
+        set_work_item_status(&connection, &id, status);
+    }
+
+    let page = list_page_with_connection(&connection, options(&["member-a"], 50))
+        .expect("list actionable assignments");
+    assert_eq!(
+        page.items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
+        ["work_item_assigned:work-0"]
+    );
+    assert_eq!(page.unread_count, 1);
+    assert!(!mark_read_with_connection(
+        &mut connection,
+        &["member-a".into()],
+        "work_item_assigned:work-5",
+        1000,
+    )
+    .expect("closed assignment is not actionable"));
+    assert_eq!(
+        mark_all_read_with_connection(
+            &mut connection,
+            &["member-a".into()],
+            TeamInboxFilter::Assigned,
+            1000,
+        )
+        .expect("mark all actionable assignments read"),
+        1
+    );
+    assert_eq!(
+        unread_count_with_connection(&connection, &["member-a".into()], TeamInboxFilter::Assigned)
+            .expect("assigned unread count"),
+        0
+    );
 }
 
 #[test]
@@ -609,4 +705,77 @@ fn assigned_item_projects_durable_handoff_context() {
         }
         other => panic!("expected assigned handoff payload, got {other:?}"),
     }
+}
+
+#[test]
+fn assigned_item_projects_the_actor_from_the_current_assignment_episode() {
+    let connection = database();
+    insert_project(&connection, "project-1", "alpha");
+    insert_work_item(
+        &connection,
+        WorkItemFixture {
+            id: "work-assigned",
+            short_id: "TST-11",
+            title: "Review notification flow",
+            project_id: Some("project-1"),
+            assigned_human_id: Some("member-recipient"),
+            assignee: Some("member-recipient"),
+            assignee_type: Some("member"),
+            updated_at: 30,
+            deleted_at: None,
+        },
+    );
+    connection
+        .execute(
+            "INSERT INTO workitem_extras (work_item_id, extras_json)
+             VALUES ('work-assigned', ?1)",
+            [json!({
+                "history": [
+                    {
+                        "id": "created",
+                        "action": "created",
+                        "timestamp": "2026-07-28T09:00:00Z",
+                        "actorId": "member-creator",
+                        "actorName": "Creator"
+                    },
+                    {
+                        "id": "assigned",
+                        "action": "updated",
+                        "timestamp": "2026-07-28T10:00:00Z",
+                        "actorId": "member-sender",
+                        "actorName": "Ada",
+                        "changes": [{
+                            "field": "assignee",
+                            "oldValue": null,
+                            "newValue": "member-recipient"
+                        }]
+                    },
+                    {
+                        "id": "status",
+                        "action": "updated",
+                        "timestamp": "2026-07-28T11:00:00Z",
+                        "actorId": "member-editor",
+                        "actorName": "Later editor",
+                        "changes": [{
+                            "field": "status",
+                            "oldValue": "todo",
+                            "newValue": "in_progress"
+                        }]
+                    }
+                ]
+            })
+            .to_string()],
+        )
+        .expect("insert assignment history");
+
+    let page = list_page_with_connection(&connection, options(&["member-recipient"], 10))
+        .expect("list assignment");
+    assert_eq!(
+        page.items[0].actor,
+        Some(TeamInboxActor {
+            id: "member-sender".into(),
+            display_name: "Ada".into(),
+            avatar_url: None,
+        })
+    );
 }

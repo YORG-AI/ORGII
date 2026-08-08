@@ -11,6 +11,8 @@
  */
 import React, { forwardRef, memo } from "react";
 
+import { pillControlStateClass } from "@src/components/CompoundPill/config";
+
 export interface StackPillProps {
   icon?: React.ReactNode;
   count: number;
@@ -73,13 +75,12 @@ const StackPill = memo(
           "flex h-[28px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full border leading-none transition-colors duration-150",
           iconOnly ? "w-[28px] justify-center px-0" : "px-2",
           "text-[13px] font-medium",
-          variant === "primary"
-            ? active
-              ? "border-primary-5 bg-chat-input text-primary-6"
-              : "border-primary-5 bg-chat-input text-primary-6 hover:border-border-3 hover:bg-chat-input"
-            : active
-              ? "border-border-2 bg-chat-input text-text-2"
-              : "border-border-2 bg-chat-input text-text-2 hover:border-border-3 hover:bg-chat-input",
+          pillControlStateClass(active),
+          active
+            ? ""
+            : variant === "primary"
+              ? "border-primary-5 text-primary-6"
+              : "border-border-2 text-text-2",
           className,
         ]
           .filter(Boolean)

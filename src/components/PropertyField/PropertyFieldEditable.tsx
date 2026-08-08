@@ -10,6 +10,7 @@ import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@src/components/Button";
+import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
 import {
@@ -39,7 +40,9 @@ export interface FieldRowProps {
   usePencil?: boolean;
   suffix?: React.ReactNode;
   variant?: FieldRowVariant;
+  compactPill?: boolean;
   borderless?: boolean;
+  disabled?: boolean;
   clearLabel?: string;
   onClear?: () => void;
   onClick: () => void;
@@ -52,12 +55,14 @@ export const FieldRow: React.FC<FieldRowProps> = ({
   value,
   valueClassName = "",
   isSelected,
-  isActive,
+  isActive = false,
   showChevron = true,
   usePencil = false,
   suffix,
   variant = "row",
+  compactPill = false,
   borderless = false,
+  disabled = false,
   onClick,
 }) => {
   const EditIcon = usePencil ? Pencil : ChevronDown;
@@ -81,15 +86,18 @@ export const FieldRow: React.FC<FieldRowProps> = ({
           shape="round"
           icon={iconContent}
           onClick={onClick}
-          className={`max-w-[220px] ${pillBorderClass} ${
-            isActive ? "!border-primary-6 !bg-fill-2 !text-primary-6" : ""
-          }`}
+          disabled={disabled}
+          className={`max-w-[220px] ${compactPill ? "!px-2" : ""} ${pillBorderClass} ${pillControlStateClass(isActive)}`}
           data-field-row
         >
-          <span className={`min-w-0 truncate leading-[18px] ${valueClassName}`}>
-            {value}
+          <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+            <span
+              className={`min-w-0 truncate leading-[18px] ${valueClassName}`}
+            >
+              {value}
+            </span>
+            {suffix}
           </span>
-          {suffix}
         </Button>
       </div>
     );
@@ -108,6 +116,7 @@ export const FieldRow: React.FC<FieldRowProps> = ({
           type="button"
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1.5 py-1.5 text-left outline-none"
           onClick={onClick}
+          disabled={disabled}
         >
           {iconContent}
           <span
@@ -122,6 +131,7 @@ export const FieldRow: React.FC<FieldRowProps> = ({
             type="button"
             aria-label="Open"
             onClick={onClick}
+            disabled={disabled}
             className={`mr-1 flex h-6 w-5 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-3 ${isActive ? "flex" : "hidden group-hover/field:flex"}`}
           >
             <EditIcon size={DROPDOWN_ITEM.iconSize} />
@@ -336,6 +346,7 @@ export interface OptionProps {
   iconColor?: string;
   label: string;
   isSelected?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   children?: React.ReactNode;
   /** Stable selector for rendered UI tests. */
@@ -347,6 +358,7 @@ export const Option: React.FC<OptionProps> = ({
   iconColor,
   label,
   isSelected,
+  disabled = false,
   onClick,
   children,
   dataTestId,
@@ -356,13 +368,16 @@ export const Option: React.FC<OptionProps> = ({
     data-testid={dataTestId}
     className={[
       DROPDOWN_CLASSES.item,
-      DROPDOWN_CLASSES.itemHover,
+      !disabled && DROPDOWN_CLASSES.itemHover,
       "w-full justify-between text-left",
       isSelected && DROPDOWN_CLASSES.itemSelected,
+      disabled && DROPDOWN_CLASSES.itemDisabled,
     ]
       .filter(Boolean)
       .join(" ")}
     onClick={onClick}
+    disabled={disabled}
+    aria-disabled={disabled}
   >
     {children ? (
       <>

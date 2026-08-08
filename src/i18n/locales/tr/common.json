@@ -11,6 +11,11 @@
       "mentions": "Bahsedilenler",
       "assigned": "Atananlar"
     },
+    "sections": {
+      "reviewRequested": "İnceleme istendi",
+      "authoredByMe": "Benim oluşturduklarım",
+      "otherTodos": "Diğer görevler"
+    },
     "status": {
       "read": "Okundu",
       "unread": "Okunmadı"
@@ -33,10 +38,10 @@
       "title": "Henüz burada bir şey yok",
       "subtitle": "Bahsetmeler ve atanan iş öğeleri burada görünecek.",
       "selectTitle": "Bir öğe seçin",
-      "selectSubtitle": "Yorum bağlamını veya iş öğesi ayrıntılarını görüntüleyin.",
+      "selectSubtitle": "Yorum bağlamını veya iş öğesi ayrıntılarını görüntüleyin",
       "mentions": {
         "title": "Bahsetme yok",
-        "subtitle": "Bir takım arkadaşı bir yorumda sizden @ ile bahsettiğinde burada görünür."
+        "subtitle": "Bir takım arkadaşı bir yorumda sizden @ ile bahsettiğinde burada görünür"
       },
       "assigned": {
         "title": "Size atanan hiçbir şey yok",
@@ -111,7 +116,9 @@
       "markUnread": "Bu öğe okunmadı olarak işaretlenemedi. Tekrar deneyin.",
       "markAllRead": "Tüm öğeler okundu olarak işaretlenemedi. Tekrar deneyin.",
       "identity": "Hesabınız bir proje üyesiyle eşleştirilemedi. Proje profilinizdeki e-postayı kontrol edin.",
-      "partialLoad": "Bazı Ekip Gelen Kutusu kaynakları yenilenemedi. Kullanılabilir öğeler gösterilmeye devam ediyor.",
+      "partialLoad": "Bazı Ekip Gelen Kutusu kaynakları yenilenemedi. Kullanılabilir öğeler gösterilmeye devam ediyor",
+      "pullRequestsPartialLoad": "Bazı pull requestler yenilenemedi",
+      "pullRequestsPartialLoadHelp": "Kullanılabilir öğeler gösterilmeye devam ediyor; eksik pull requestleri yeniden yüklemeyi denemek için yenileyin",
       "workItemContext": "Bazı proje bağlamı kullanılamıyor. İş öğesi kullanılabilir durumda kalır.",
       "workItemLoad": "Bu iş öğesi yüklenemedi. Tekrar deneyin.",
       "workItemUpdate": "İş öğesindeki son değişiklik kaydedilemedi. Tekrar deneyin."
@@ -155,6 +162,50 @@
       "medium": "Orta",
       "high": "Yüksek",
       "urgent": "Acil"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Dosya",
+      "edit": "Düzenle",
+      "view": "Görünüm",
+      "window": "Pencere",
+      "help": "Yardım",
+      "aria": "{{label}} menüsü"
+    },
+    "items": {
+      "quitOrg2": "ORG-2'den Çık",
+      "newSession": "Yeni Oturum",
+      "openFolder": "Klasör Aç...",
+      "addFolderToWorkspace": "Çalışma Alanına Klasör Ekle...",
+      "saveWorkspaceAs": "Çalışma Alanını Farklı Kaydet...",
+      "closeWindow": "Pencereyi Kapat",
+      "undo": "Geri Al",
+      "redo": "Yinele",
+      "cut": "Kes",
+      "copy": "Kopyala",
+      "paste": "Yapıştır",
+      "selectAll": "Tümünü Seç",
+      "commandPalette": "Komut Paleti",
+      "goToFile": "Dosyaya Git...",
+      "selectModel": "Model Seç...",
+      "switchWorkspace": "Çalışma Alanını Değiştir...",
+      "switchBranch": "Dal Değiştir...",
+      "switchRunningLocation": "Çalışma Konumunu Değiştir...",
+      "settings": "Ayarlar...",
+      "zoomIn": "Yakınlaştır",
+      "zoomOut": "Uzaklaştır",
+      "actualSize": "Gerçek Boyut",
+      "minimize": "Küçült",
+      "maximizeRestore": "Büyüt / Geri Yükle",
+      "maximizeWorkstation": "Çalışma İstasyonunu Büyüt",
+      "documentation": "Belgeler",
+      "reportIssue": "Sorun Bildir"
+    },
+    "controls": {
+      "minimizeWindow": "Pencereyi küçült",
+      "maximizeRestoreWindow": "Pencereyi büyüt veya geri yükle",
+      "closeWindow": "Pencereyi kapat"
     }
   },
   "toasts": {
@@ -368,7 +419,8 @@
     "skipThisVersion": "Bu sürümü atla",
     "later": "Daha sonra",
     "link": "Bağla",
-    "copyName": "Adı Kopyala"
+    "copyName": "Adı Kopyala",
+    "switchMethod": "Yöntemi değiştir"
   },
   "refreshToast": {
     "successName": "{{name}} yenilendi",
@@ -1359,8 +1411,59 @@
       "collapse": "Çalışma alanı bilgilerini daralt"
     },
     "pr": {
+      "title": "Pull request",
       "linkedBranch": "Pull request #{{number}}",
+      "baseBranch": "Taban",
+      "noDescription": "Açıklama sağlanmadı.",
+      "loadingConversation": "Yükleniyor…",
+      "reviewNoBody": "İnceleme yorumları bıraktı.",
+      "submitReview": "İncelemeyi gönder",
+      "reviewHeadNotice": "İnceleme yalnızca görüntülenen baş commit hâlâ eşleşiyorsa uygulanır.",
+      "reviewDecision": "İnceleme kararı",
+      "reviewComment": "İnceleme yorumu",
+      "reviewCommentPlaceholder": "Yorum ekle…",
+      "commentPlaceholder": "Yorum bırak…",
+      "comment": "Yorum yap",
+      "approve": "Onayla",
+      "requestChanges": "Değişiklik iste",
+      "reply": "Yanıtla",
+      "replyPlaceholder": "Yanıtla…",
+      "reviewThreads": "İnceleme yorumları",
+      "details": "Ayrıntılar",
+      "unknownAuthor": "Bilinmiyor",
+      "activity": {
+        "opened": "bu pull request kaydını açtı",
+        "commented": "yorum yaptı",
+        "approved": "bu değişiklikleri onayladı",
+        "changesRequested": "değişiklik istedi",
+        "reviewDismissed": "bir incelemeyi reddetti",
+        "reviewed": "inceledi"
+      },
+      "summary": {
+        "label": "Pull request özeti",
+        "branch": "Dal",
+        "reviewers": "İnceleyenler",
+        "noReviewers": "İnceleyen yok",
+        "comments": "Yorumlar",
+        "commentCount_one": "{{count}} yorum",
+        "commentCount_other": "{{count}} yorum",
+        "checks": "Kontroller",
+        "noChecks": "CI kontrolü yok",
+        "checksFailed": "Kontroller başarısız",
+        "status": "Durum"
+      },
+      "tabs": {
+        "conversation": "Konuşma",
+        "commits": "Commitler",
+        "checks": "Kontroller",
+        "changes": "Değişiklikler"
+      },
       "checks": {
+        "none": "Bildirilen kontrol yok",
+        "noneHint": "Bu pull request kaydının baş commitinde hiçbir CI kontrolü veya durumu çalışmadı.",
+        "allPassed": "Tüm kontroller başarılı",
+        "someFailed": "Bazı kontroller başarısız",
+        "pending": "Kontroller devam ediyor",
         "passedShort": "Başarılı",
         "failedShort": "Başarısız",
         "runningShort": "Çalışıyor",
@@ -1368,6 +1471,76 @@
         "noneShort": "CI yok",
         "unavailableShort": "CI kullanılamıyor",
         "branchStatus": "Pull request #{{number}} CI: {{status}}"
+      },
+      "commits": {
+        "backToList": "Tüm commitler",
+        "none": "Commit yok"
+      },
+      "changes": {
+        "title": "Değiştirilen dosyalar",
+        "noFiles": "Dosya değişikliği yok",
+        "tooLarge": "Dosya farkı gösterilemeyecek kadar büyük",
+        "unavailable": "Değişiklikler kullanılamıyor",
+        "unavailableHint": "Pull request kaydının taban ve baş commitleri çözümlenemedi."
+      },
+      "status": {
+        "open": "Açık",
+        "merged": "Birleştirildi",
+        "closed": "Kapalı",
+        "draft": "Taslak"
+      },
+      "actions": {
+        "label": "Pull request işlemleri",
+        "confirmMergeTitle": "Pull request birleştirilsin mi?",
+        "confirmMergeMessage": "GitHub mevcut pull request'in kaynak dalını hedef dalla birleştirecek.",
+        "merge": "Pull request'i birleştir",
+        "squash": "Commit'leri birleştir ve merge et",
+        "rebase": "Rebase et ve birleştir",
+        "mergeSuccess": "Pull request birleştirildi",
+        "mergeRequested": "Birleştirme istendi",
+        "removedFromQueue": "Birleştirme kuyruğundan çıkarıldı",
+        "autoMergeEnabled": "Otomatik birleştirme etkinleştirildi",
+        "autoMergeDisabled": "Otomatik birleştirme devre dışı bırakıldı",
+        "confirmCloseTitle": "Pull request kapatılsın mı?",
+        "confirmCloseMessage": "Pull request erişilebilir kalacak ve daha sonra yeniden açılabilecek.",
+        "close": "Pull request'i kapat",
+        "closeSuccess": "Pull request kapatıldı",
+        "reopen": "Pull request'i yeniden aç",
+        "reopenSuccess": "Pull request yeniden açıldı",
+        "enableAutoMerge": "Otomatik birleştirmeyi etkinleştir",
+        "mergeWhenReady": "Hazır olduğunda birleştir",
+        "disableAutoMerge": "Otomatik birleştirmeyi devre dışı bırak",
+        "removeFromMergeQueue": "Birleştirme kuyruğundan çıkar",
+        "merged": "Birleştirildi",
+        "closed": "Kapalı",
+        "draft": "Taslak",
+        "inMergeQueue": "Birleştirme kuyruğunda",
+        "approvalRequired": "Onay gerekli",
+        "changesRequested": "Değişiklik istendi",
+        "resolveConflicts": "Çakışmaları çöz",
+        "checksFailed": "Kontroller başarısız",
+        "checksPending": "Kontroller bekleniyor",
+        "mergeBlocked": "Birleştirme engellendi",
+        "searchReviewers": "İnceleyen ara",
+        "reviewersLoadFailed": "İnceleyenler yüklenemedi",
+        "noReviewers": "Kullanılabilir inceleyen yok",
+        "reviewersUpdated": "İnceleyenler güncellendi",
+        "reviewersCount_one": "{{count}} inceleyen",
+        "reviewersCount_other": "{{count}} inceleyen",
+        "reviewers": "İnceleyenler",
+        "tooltips": {
+          "merge": "Bu pull request'i GitHub'da birleştir",
+          "alreadyMerged": "Bu pull request zaten birleştirildi",
+          "reopenBeforeMerging": "Birleştirmeden önce bu pull request'i yeniden açın",
+          "markReady": "Birleştirmeden önce bu pull request'i incelemeye hazır olarak işaretleyin",
+          "mergeQueue": "GitHub bu pull request'i birleştirme kuyruğu üzerinden birleştirecek",
+          "approvalRequired": "GitHub birleştirmeden önce inceleme onayı gerektiriyor",
+          "changesRequested": "Birleştirmeden önce istenen değişiklikler çözülmelidir",
+          "resolveConflicts": "Birleştirmeden önce çakışmaları çözün",
+          "checksFailed": "Birleştirmeden önce gerekli kontroller geçmelidir",
+          "checksPending": "Gerekli kontrolleri bekleyin veya otomatik birleştirmeyi etkinleştirin",
+          "mergeBlocked": "GitHub karşılanmamış birleştirme gereksinimleri bildiriyor"
+        }
       }
     },
     "messages": {
@@ -1457,7 +1630,49 @@
         "unpinned": "bu issue kaydının sabitlemesini kaldırdı",
         "transferred": "bu issue kaydını aktardı",
         "convertedToDiscussion": "bu issue kaydını tartışmaya dönüştürdü",
-        "mentioned": "bu issue kaydından bahsetti"
+        "mentioned": "bu issue kaydından bahsetti",
+        "commentDeleted": "bir yorumu sildi",
+        "subscribed": "bu issue kaydına abone oldu",
+        "unsubscribed": "bu issue kaydının aboneliğinden çıktı",
+        "addedToProject": "bu issue kaydını bir projeye ekledi",
+        "movedInProject": "bu issue kaydını bir projede taşıdı",
+        "removedFromProject": "bu issue kaydını bir projeden kaldırdı",
+        "archived": "bu issue kaydını arşivledi",
+        "unarchived": "bu issue kaydını arşivden çıkardı",
+        "merged": "bu pull request'i birleştirdi",
+        "committed": "bu pull request'e commit ekledi",
+        "headRefDeleted": "kaynak dalı sildi",
+        "headRefRestored": "kaynak dalı geri yükledi",
+        "headRefForcePushed": "kaynak dalı zorla gönderdi",
+        "baseRefChanged": "hedef dalı değiştirdi",
+        "automaticBaseChangeFailed": "hedef dalı otomatik olarak değiştiremedi",
+        "automaticBaseChangeSucceeded": "hedef dalı otomatik olarak değiştirdi",
+        "deployed": "bu pull request'i dağıttı",
+        "deploymentEnvironmentChanged": "dağıtım ortamını değiştirdi",
+        "readyForReview": "bu pull request'i incelemeye hazır olarak işaretledi",
+        "reviewRequested": "inceleme istedi",
+        "reviewRequestRemoved": "inceleme isteğini kaldırdı",
+        "reviewed": "bu değişiklikleri inceledi",
+        "reviewDismissed": "bir incelemeyi reddetti",
+        "userBlocked": "bu kullanıcıyı engelledi"
+      },
+      "composer": {
+        "addComment": "Yorum ekle",
+        "commentingAs": "{{login}} olarak işlem yapılıyor",
+        "identityUnavailable": "GitHub kimliği kullanılamıyor",
+        "commentPlaceholder": "Yorum yazın…",
+        "submitComment": "Yorum yap",
+        "closeIssue": "Issue kaydını kapat",
+        "closeAsCompleted": "Tamamlandı olarak kapat",
+        "closeAsNotPlanned": "Planlanmadı olarak kapat",
+        "closeAsDuplicate": "Yinelenen olarak kapat",
+        "duplicateSearchPlaceholder": "Issue ara",
+        "duplicateEmpty": "Eşleşen issue yok",
+        "duplicateLoadFailed": "Issue kayıtları yüklenemedi",
+        "reopenIssue": "Issue kaydını yeniden aç",
+        "commentFailed": "Yorum eklenemedi",
+        "bodyUpdateFailed": "Issue açıklaması güncellenemedi",
+        "statusFailed": "Issue durumu güncellenemedi"
       }
     }
   },
@@ -2465,8 +2680,8 @@
     "selectRepoToStart": "Başlamak için bir Repo seçin"
   },
   "quitConfirmation": {
-    "title": "ORGII'den çıkılsın mı?",
-    "subtitle": "Çalışan oturumlar mevcut durumunu korur. ORGII'yi daha sonra yeniden açabilirsiniz.",
+    "title": "ORG-2'den çıkılsın mı?",
+    "subtitle": "Çalışan oturumlar mevcut durumunu korur. ORG-2'yi daha sonra yeniden açabilirsiniz.",
     "cancel": "İptal",
     "confirm": "Çık"
   },
@@ -2497,5 +2712,15 @@
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "İndirme hazırlanıyor…",
     "downloadingAndInstalling": "Güncelleme indiriliyor ve yükleniyor (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "Kimlik",
+      "titleContext": "Başlık / bağlam",
+      "status": "Durum",
+      "assignee": "Sorumlu",
+      "updated": "Güncellendi"
+    },
+    "selectRow": "{{id}} öğesini seç"
   }
 }

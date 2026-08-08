@@ -31,14 +31,19 @@
  *     - the full installed-agent inventory (which CLI providers are present
  *       and their detection status) — see `MemberInstalledAgent`;
  *     - per-day cost and token figures broken out by bucket — see
- *       `MemberUsageDay`.
+ *       `MemberUsageDay`;
+ *     - a rolling 24-hour token/cost series at hourly resolution, aggregated
+ *       across sources — see `MemberRuntimeStats.recentUsage24h`.
  *   These are exactly what let a teammate see "who's running low on RAM" or
  *   "who's spending the most on Claude this week"; they are not incidental
  *   leakage, but they are NOT covered by the "no session titles/repo
  *   paths/models" framing above and must be disclosed alongside it.
  */
 import type { BuilderProfile } from "@src/api/tauri/builderProfile";
-import type { UsageBucket } from "@src/api/tauri/usageDashboard";
+import type {
+  RecentUsageSnapshot,
+  UsageBucket,
+} from "@src/api/tauri/usageDashboard";
 
 // ---------------------------------------------------------------------------
 // Buckets & days
@@ -102,11 +107,15 @@ export interface MemberRuntimeSample {
   sampledAtMs: number;
 }
 
-/** Lifetime local-machine session totals, pushed with every status update
- * (the cloud only holds the retention-windowed daily rows, so a lifetime
- * count must come from the client). Mirror-deduped like the dashboard. */
+/** Bounded usage metadata pushed with every status update. The lifetime
+ * census must come from the client because cloud daily rows are retained only
+ * for a window; the rolling snapshot powers team hourly charts without
+ * storing per-request rows. */
 export interface MemberRuntimeStats {
   totalSessions: number;
+  /** Latest rolling 24h headline + hourly trend. Additive inside the opaque
+   * cloud status blob, so pre-feature peers simply omit it. */
+  recentUsage24h?: RecentUsageSnapshot;
 }
 
 /** One (UTC day, bucket) usage rollup row. */
@@ -200,12 +209,11 @@ export const MEMBER_RUNTIME_SIGNAL_KIND = "member_runtime" as const;
 export const MEMBER_RUNTIME_COMMANDS = {
   /** → `{ cpuPercent, memUsedMb, memTotalMb, gpuPercent, sampledOverMs }` */
   systemRuntimeSnapshot: "system_runtime_snapshot",
-  /** args `{ startMs, endMs }` → `{ days: DailyRollupRow[], totalSessions }`
-   * where a row is `{ dayStartMs, bucket, inputTokens, outputTokens,
-   * cacheReadTokens, cacheWriteTokens, totalTokens, costUsd, sessions,
-   * requests }` with UTC day floors and `all_sources: true` (includes
-   * `other`); `totalSessions` is the LIFETIME mirror-deduped session count,
-   * independent of the window. */
+  /** args `{ startMs, endMs }` → `{ days, totalSessions, recentUsage24h }`.
+   * Daily rows use UTC day floors and `all_sources: true` (includes `other`);
+   * `totalSessions` is the LIFETIME mirror-deduped session count, independent
+   * of the window; `recentUsage24h` is the all-source rolling headline and
+   * hourly series ending at `endMs`. */
   usageDailyRollup: "usage_dashboard_daily_rollup",
   /** → `{ deviceId, machineLabel }`, persisted at `~/.orgii/cloud_device_id`. */
   cloudDeviceIdentity: "cloud_device_identity",
@@ -242,6 +250,8 @@ export const MEMBER_STATUS_MAX_BYTES = 8_192;
 export const MEMBER_PROFILE_MAX_BYTES = 16_384;
 /** Retention for `member_usage_daily` (service-role GC). */
 export const MEMBER_USAGE_RETENTION_DAYS = 90;
+/** Rolling window carried in `stats.recentUsage24h`. */
+export const MEMBER_RECENT_USAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Launch catch-up jitter so an org coming online together doesn't stampede. */
 export const MEMBER_RUNTIME_CATCHUP_JITTER_MIN_MS = 30_000;

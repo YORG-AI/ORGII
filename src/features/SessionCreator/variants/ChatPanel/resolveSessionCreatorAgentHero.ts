@@ -34,8 +34,6 @@ const BUILTIN_HERO_DESCRIPTIONS: Record<string, string> = {
     "Your always-on assistant for workspace files, shell, and desktop tasks",
   "builtin:sde":
     "Plans, writes, and ships code in your repo with full tool access",
-  "builtin:work-item-manager":
-    "Researches, drafts, links, and updates Work Items across projects",
   "builtin:wingman":
     "Watches your screen and assists in real time while you work",
   "builtin:gateway":

@@ -40,8 +40,13 @@ export async function loadSessionTurnBodyIntoStore(
 
   const loader = getSessionTurnLoader(args.sessionId);
   const generation = captureLoadedTurnRegistryGeneration(args.sessionId);
-  const load = loader.loadTurnBodyIntoStore(args).then(() => {
-    markTurnBodyLoaded(args.sessionId, args.turnId, generation);
+  const load = loader.loadTurnBodyIntoStore(args).then((loaded) => {
+    // A body that is not in the local store yet (cloud replay still
+    // downloading behind a turn-index skeleton) must NOT be marked loaded:
+    // the placeholder's retry affordances key off this registry.
+    if (loaded) {
+      markTurnBodyLoaded(args.sessionId, args.turnId, generation);
+    }
   });
   await trackPendingTurnLoad(args.sessionId, args.turnId, load);
 }

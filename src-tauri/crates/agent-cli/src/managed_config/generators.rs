@@ -65,9 +65,65 @@ pub(super) fn generate_codex_managed_config(
         "wire_api".to_string(),
         toml::Value::String("responses".to_string()),
     );
+    orgii.insert(
+        "supports_websockets".to_string(),
+        toml::Value::Boolean(false),
+    );
+    orgii.insert(
+        "request_max_retries".to_string(),
+        toml::Value::Integer(super::CODEX_REQUEST_MAX_RETRIES),
+    );
+    orgii.insert(
+        "stream_max_retries".to_string(),
+        toml::Value::Integer(super::CODEX_STREAM_MAX_RETRIES),
+    );
     providers.insert(ORGII_PROVIDER_ID.to_string(), toml::Value::Table(orgii));
 
     toml::to_string_pretty(&config).map_err(|err| format!("TOML serialize error: {err}"))
+}
+
+pub(super) fn generate_codex_hosted_profile(proxy_url: &str) -> Result<String, String> {
+    let proxy_url = proxy_url.trim();
+    if proxy_url.is_empty() {
+        return Err("Codex hosted profile requires a proxy URL".to_string());
+    }
+
+    let base_url = format!("{}/v1", proxy_url.trim_end_matches('/'));
+    let mut provider = toml::map::Map::new();
+    provider.insert("name".to_string(), toml::Value::String("Proxy".to_string()));
+    provider.insert("base_url".to_string(), toml::Value::String(base_url));
+    provider.insert(
+        "env_key".to_string(),
+        toml::Value::String("PROXY_TOKEN".to_string()),
+    );
+    provider.insert(
+        "requires_openai_auth".to_string(),
+        toml::Value::Boolean(false),
+    );
+    provider.insert(
+        "wire_api".to_string(),
+        toml::Value::String("responses".to_string()),
+    );
+    provider.insert(
+        "supports_websockets".to_string(),
+        toml::Value::Boolean(false),
+    );
+    provider.insert(
+        "request_max_retries".to_string(),
+        toml::Value::Integer(super::CODEX_REQUEST_MAX_RETRIES),
+    );
+    provider.insert(
+        "stream_max_retries".to_string(),
+        toml::Value::Integer(super::CODEX_STREAM_MAX_RETRIES),
+    );
+
+    let mut providers = toml::map::Map::new();
+    providers.insert("proxy".to_string(), toml::Value::Table(provider));
+    let mut root = toml::map::Map::new();
+    root.insert("model_providers".to_string(), toml::Value::Table(providers));
+
+    toml::to_string_pretty(&toml::Value::Table(root))
+        .map_err(|err| format!("TOML serialize error: {err}"))
 }
 
 pub(super) fn selected_model_or_default(selected_model: Option<&str>) -> &str {

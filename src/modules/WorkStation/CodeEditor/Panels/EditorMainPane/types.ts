@@ -78,6 +78,8 @@ export interface EditorContentProps {
   sourceControlHeaderLeadingSlot?: ReactNode;
   sourceControlHeaderTrailingSlot?: ReactNode;
   sourceControlFilterMode?: SourceControlFilterMode;
+  /** Repo/worktree root selected by the Source Control scope picker. */
+  sourceControlActiveRepoRoot?: string;
   showSourceControlModePill?: boolean;
 }
 

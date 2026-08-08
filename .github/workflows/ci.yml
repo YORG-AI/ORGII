@@ -73,13 +73,9 @@ jobs:
           workspaces: "./src-tauri -> target"
           shared-key: "ci-macos"
 
-      # Clippy runs the full compiler front-end, so it subsumes `cargo check` —
-      # a compile error fails this step regardless of the lint level.
-      #
-      # The current develop baseline has pre-existing Clippy warnings across
-      # multiple crates. Keep Clippy visible and compilation-blocking without
-      # letting toolchain lint drift block every feature PR; restore
-      # `-- -D warnings` after the baseline cleanup lands.
-      - name: cargo clippy (advisory warnings)
+      # Clippy runs the full compiler front-end, so it subsumes `cargo check`.
+      # Check every target and reject new warnings now that the workspace
+      # baseline is clean.
+      - name: cargo clippy (all targets, warnings denied)
         working-directory: src-tauri
-        run: cargo clippy --workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings

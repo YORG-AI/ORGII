@@ -1,4 +1,5 @@
 import { AtSign, Network, User } from "lucide-react";
+import { useState } from "react";
 
 import Avatar from "@src/components/Avatar";
 import {
@@ -20,6 +21,11 @@ import {
   type WorkItem as WorkItemExtended,
 } from "@src/types/core/workItem";
 
+import type {
+  WorkItemExternalAssigneeConfig,
+  WorkItemExternalAssigneeOption,
+} from "./types";
+
 interface AssigneePropertyFieldProps {
   workItem: WorkItemExtended;
   availableMembers: Person[];
@@ -36,6 +42,20 @@ interface AssigneePropertyFieldProps {
   readonly?: boolean;
   maxWidthClassName?: string;
   borderless?: boolean;
+  externalConfig?: WorkItemExternalAssigneeConfig;
+}
+
+export function toggleExternalAssigneeIds(
+  currentIds: string[],
+  assigneeId: string
+): string[] {
+  const normalizedId = assigneeId.toLowerCase();
+  const selected = currentIds.some(
+    (currentId) => currentId.toLowerCase() === normalizedId
+  );
+  return selected
+    ? currentIds.filter((currentId) => currentId.toLowerCase() !== normalizedId)
+    : [...currentIds, assigneeId];
 }
 
 function isGitHubIssueWorkItem(workItem: WorkItemExtended): boolean {
@@ -86,6 +106,17 @@ function renderAssigneeIcon(workItem: WorkItemExtended) {
   );
 }
 
+function renderExternalAssigneeIcon(
+  option: WorkItemExternalAssigneeOption | undefined
+) {
+  if (!option) return <User size={DROPDOWN_ITEM.iconSize} />;
+  return (
+    <Avatar size={DROPDOWN_ITEM.iconSize} src={option.avatar}>
+      {option.label.charAt(0).toUpperCase()}
+    </Avatar>
+  );
+}
+
 export function AssigneePropertyField({
   workItem,
   availableMembers,
@@ -101,7 +132,132 @@ export function AssigneePropertyField({
   readonly = false,
   maxWidthClassName,
   borderless = false,
+  externalConfig,
 }: AssigneePropertyFieldProps) {
+  const [savingExternalAssignee, setSavingExternalAssignee] = useState(false);
+  const [externalPickerOpen, setExternalPickerOpen] = useState(false);
+  const externalDisabled =
+    readonly || !!externalConfig?.disabled || savingExternalAssignee;
+  const externalOptionsById = new Map<string, WorkItemExternalAssigneeOption>();
+  for (const currentId of externalConfig?.currentAssigneeIds ?? []) {
+    externalOptionsById.set(currentId.toLowerCase(), {
+      id: currentId,
+      label: currentId,
+    });
+  }
+  for (const option of externalConfig?.options ?? []) {
+    externalOptionsById.set(option.id.toLowerCase(), option);
+  }
+  const externalOptions = Array.from(externalOptionsById.values());
+  const currentExternalOptions = (externalConfig?.currentAssigneeIds ?? []).map(
+    (id) => externalOptionsById.get(id.toLowerCase()) ?? { id, label: id }
+  );
+  const externalLabel =
+    currentExternalOptions.map((option) => option.label).join(", ") ||
+    t("workItems.properties.noAssignee");
+  const handleExternalChange = async (
+    assigneeIds: string[],
+    close?: () => void
+  ) => {
+    if (!externalConfig || externalDisabled) return;
+    setSavingExternalAssignee(true);
+    try {
+      await externalConfig.onChangeAssigneeIds(assigneeIds);
+      close?.();
+    } finally {
+      setSavingExternalAssignee(false);
+    }
+  };
+  const handleExternalActiveChange = (nextActive: boolean) => {
+    if (nextActive && !externalDisabled) void externalConfig?.onOpen?.();
+    if (onActiveChange) onActiveChange(nextActive);
+    else setExternalPickerOpen(nextActive);
+  };
+
+  if (externalConfig) {
+    return (
+      <div
+        title={externalDisabled ? externalConfig.readonlyReason : externalLabel}
+        className="contents"
+      >
+        <PropertyDropdownField
+          value={externalConfig.currentAssigneeIds.join(",") || "__none__"}
+          label={externalLabel}
+          icon={renderExternalAssigneeIcon(currentExternalOptions[0])}
+          options={[]}
+          placement={placement}
+          fieldVariant={fieldVariant}
+          triggerVariant={triggerVariant ?? fieldVariant}
+          selected={currentExternalOptions.length > 0}
+          searchable
+          searchPlaceholder={t("properties.searchAssignee")}
+          active={active ?? externalPickerOpen}
+          onActiveChange={handleExternalActiveChange}
+          readonly={externalDisabled}
+          maxWidthClassName={maxWidthClassName}
+          borderless={borderless}
+          dataTestId={`work-item-property-assignee-${workItem.session_id}`}
+          renderOptions={(searchQuery, close) => {
+            if (externalConfig.loading) {
+              return (
+                <div className="px-2.5 py-2 text-xs text-text-3">
+                  {t("common:status.loading")}
+                </div>
+              );
+            }
+            if (externalConfig.error) {
+              return (
+                <div className="px-2.5 py-2 text-xs text-danger-6">
+                  {externalConfig.error}
+                </div>
+              );
+            }
+            const query = searchQuery.trim().toLowerCase();
+            const filteredOptions = externalOptions.filter(
+              (option) => !query || option.label.toLowerCase().includes(query)
+            );
+            const selectedIds = new Set(
+              externalConfig.currentAssigneeIds.map((id) => id.toLowerCase())
+            );
+            return (
+              <>
+                <Option
+                  icon={<User size={DROPDOWN_ITEM.iconSize} />}
+                  label={t("workItems.properties.noAssignee")}
+                  isSelected={externalConfig.currentAssigneeIds.length === 0}
+                  onClick={() => void handleExternalChange([], close)}
+                  dataTestId={`work-item-property-assignee-${workItem.session_id}-option-none`}
+                />
+                {filteredOptions.map((option) => (
+                  <Option
+                    key={option.id}
+                    label={option.label}
+                    isSelected={selectedIds.has(option.id.toLowerCase())}
+                    onClick={() =>
+                      void handleExternalChange(
+                        toggleExternalAssigneeIds(
+                          externalConfig.currentAssigneeIds,
+                          option.id
+                        ),
+                        close
+                      )
+                    }
+                    dataTestId={`work-item-property-assignee-${workItem.session_id}-option-${option.id}`}
+                  >
+                    <Avatar size={DROPDOWN_ITEM.iconSize} src={option.avatar}>
+                      {option.label.charAt(0).toUpperCase()}
+                    </Avatar>
+                    <span className="flex-1 truncate">{option.label}</span>
+                  </Option>
+                ))}
+              </>
+            );
+          }}
+        />
+      </div>
+    );
+  }
+
   const label = workItem.assignee?.name || t("workItems.properties.noAssignee");
   return (
     <PropertyDropdownField

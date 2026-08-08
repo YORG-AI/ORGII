@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "REVISION_CONFLICT",
+    "message": "WorkItem changed after revision 7",
+    "retryable": true,
+    "details": {
+      "expectedRevision": 7,
+      "currentRevision": 8
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR07"
+  }
+}

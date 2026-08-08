@@ -16,8 +16,9 @@ import {
 
 /**
  * Icon + color per PR state. Semantics match `shared/pr/prStatus` — open is
- * success, merged is primary, closed is danger, draft is neutral — so a row
- * marker and a PR badge elsewhere in the app never disagree about a state.
+ * success, merged is GitHub purple, closed is danger, draft is neutral — so
+ * a row marker and a PR badge elsewhere in the app never disagree about a
+ * state.
  */
 const PR_STATUS_PRESENTATION: Record<
   string,
@@ -35,7 +36,7 @@ const PR_STATUS_PRESENTATION: Record<
   },
   merged: {
     Icon: GitMerge,
-    color: "var(--color-primary-6)",
+    color: "var(--color-purple-6)",
     label: "Merged PR",
   },
   closed: {

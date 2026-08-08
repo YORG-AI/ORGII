@@ -14,8 +14,11 @@ use crate::pricing;
 
 use super::{fetch_scoped_sessions, iso_to_ms, ScopedSession, UsageFilter};
 
-/// A native per-turn token row, pulled once and filtered in Rust.
+const SCOPED_SESSION_TABLE: &str = "usage_dashboard_scoped_session";
+
+/// A native per-turn token row selected inside the dashboard's scope/window.
 struct NativeTurn {
+    row_id: i64,
     session_id: String,
     created_at: String,
     model: Option<String>,
@@ -25,24 +28,110 @@ struct NativeTurn {
     cache_write_tokens: i64,
 }
 
-fn fetch_native_turns(conn: &Connection) -> Result<Vec<NativeTurn>, String> {
-    let mut statement = conn
-        .prepare(
-            "SELECT session_id, created_at, model,
-                    input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
-             FROM session_token_usage",
-        )
+struct ScopedSessionTableGuard<'a> {
+    conn: &'a Connection,
+}
+
+impl Drop for ScopedSessionTableGuard<'_> {
+    fn drop(&mut self) {
+        let _ = self
+            .conn
+            .execute(&format!("DELETE FROM {SCOPED_SESSION_TABLE}"), []);
+    }
+}
+
+/// Materialize only the already bucket/session-scoped ids. Both imported and
+/// native round queries join this tiny temp table, so source filters are applied
+/// before token rows cross the SQLite/Rust boundary.
+fn prepare_scoped_session_table<'a>(
+    conn: &'a Connection,
+    sessions: &[ScopedSession],
+) -> Result<ScopedSessionTableGuard<'a>, String> {
+    conn.execute_batch(&format!(
+        "CREATE TEMP TABLE IF NOT EXISTS {SCOPED_SESSION_TABLE} (
+            session_id TEXT PRIMARY KEY,
+            is_native INTEGER NOT NULL
+         ) WITHOUT ROWID;
+         DELETE FROM {SCOPED_SESSION_TABLE};
+         SAVEPOINT usage_dashboard_scoped_session_load;"
+    ))
+    .map_err(|err| err.to_string())?;
+
+    let load_result = (|| {
+        let mut insert = conn
+            .prepare(&format!(
+                "INSERT INTO {SCOPED_SESSION_TABLE} (session_id, is_native)
+                 VALUES (?1, ?2)"
+            ))
+            .map_err(|err| err.to_string())?;
+        for session in sessions {
+            insert
+                .execute(rusqlite::params![
+                    session.session_id,
+                    i64::from(session.tokens_source == crate::session_usage::TOKENS_SOURCE_NATIVE)
+                ])
+                .map_err(|err| err.to_string())?;
+        }
+        Ok::<(), String>(())
+    })();
+
+    if let Err(err) = load_result {
+        let _ = conn.execute_batch(
+            "ROLLBACK TO usage_dashboard_scoped_session_load;
+             RELEASE usage_dashboard_scoped_session_load;",
+        );
+        let _ = conn.execute(&format!("DELETE FROM {SCOPED_SESSION_TABLE}"), []);
+        return Err(err);
+    }
+    conn.execute_batch("RELEASE usage_dashboard_scoped_session_load;")
         .map_err(|err| err.to_string())?;
+    Ok(ScopedSessionTableGuard { conn })
+}
+
+fn native_turn_query(filter: &UsageFilter) -> (String, Vec<String>) {
+    let mut clauses = vec!["scoped.is_native = 1".to_string()];
+    let mut params = Vec::new();
+    if let Some(start) = filter.start_ms.and_then(rfc3339_ms_bound) {
+        params.push(start);
+        clauses.push(format!("stu.created_at >= ?{}", params.len()));
+    }
+    if let Some(end) = filter
+        .end_ms
+        .and_then(|end| rfc3339_ms_bound(end.saturating_add(1)))
+    {
+        params.push(end);
+        clauses.push(format!("stu.created_at < ?{}", params.len()));
+    }
+    (
+        format!(
+            "SELECT stu.id, stu.session_id, stu.created_at, stu.model,
+                    stu.input_tokens, stu.output_tokens,
+                    stu.cache_read_tokens, stu.cache_write_tokens
+             FROM session_token_usage stu
+             INNER JOIN {SCOPED_SESSION_TABLE} scoped
+                     ON scoped.session_id = stu.session_id
+             WHERE {}
+             ORDER BY stu.session_id, stu.created_at, stu.id",
+            clauses.join(" AND ")
+        ),
+        params,
+    )
+}
+
+fn fetch_native_turns(conn: &Connection, filter: &UsageFilter) -> Result<Vec<NativeTurn>, String> {
+    let (sql, params) = native_turn_query(filter);
+    let mut statement = conn.prepare(&sql).map_err(|err| err.to_string())?;
     let rows = statement
-        .query_map([], |row| {
+        .query_map(rusqlite::params_from_iter(params), |row| {
             Ok(NativeTurn {
-                session_id: row.get(0)?,
-                created_at: row.get(1)?,
-                model: row.get(2)?,
-                input_tokens: row.get(3)?,
-                output_tokens: row.get(4)?,
-                cache_read_tokens: row.get(5)?,
-                cache_write_tokens: row.get(6)?,
+                row_id: row.get(0)?,
+                session_id: row.get(1)?,
+                created_at: row.get(2)?,
+                model: row.get(3)?,
+                input_tokens: row.get(4)?,
+                output_tokens: row.get(5)?,
+                cache_read_tokens: row.get(6)?,
+                cache_write_tokens: row.get(7)?,
             })
         })
         .map_err(|err| err.to_string())?;
@@ -56,68 +145,10 @@ fn fetch_native_turns(conn: &Connection) -> Result<Vec<NativeTurn>, String> {
 /// fixed `+00:00` offset and chrono's `AutoSi` fractional-second precision
 /// (the fewest digits that represent the value exactly). Comparing strings in
 /// that same format sorts identically to comparing the underlying instants,
-/// which is what lets [`fetch_native_turns_in_window`] push a time bound into
-/// SQL instead of pulling every row through the app layer to filter in Rust.
+/// which lets [`fetch_native_turns`] push a time bound into SQL instead of
+/// pulling every row through the app layer to filter in Rust.
 fn rfc3339_ms_bound(ms: i64) -> Option<String> {
     DateTime::<Utc>::from_timestamp_millis(ms).map(|dt| dt.to_rfc3339())
-}
-
-/// Windowed variant of [`fetch_native_turns`]: pushes an inclusive
-/// `[start_ms, end_ms]` bound down to SQL instead of fetching every native
-/// turn ever recorded. Used only by the unattended `daily_rollup` cadence
-/// (see `daily_rollup.rs` / [`super::visit_rounds_windowed`]) — full history
-/// can span months, and re-pulling all of it through row mapping + timestamp
-/// parsing on every ~15-minute tick is the "full-table rescan" this exists to
-/// avoid.
-///
-/// `iso_to_ms` floors sub-millisecond precision (`timestamp_millis()`
-/// truncates toward zero), so the Rust-side inclusive filter's bounds are
-/// asymmetric once translated to the underlying (unfloored) instant:
-/// `floor(x) >= start_ms` holds exactly when `x >= start_ms` (flooring an
-/// integer lower bound doesn't move it), but `floor(x) <= end_ms` holds
-/// exactly when `x < end_ms + 1ms` (a row landing in the SAME millisecond as
-/// `end_ms` with extra sub-ms precision must still be included). Getting the
-/// upper bound wrong here would silently drop rows at the trailing edge of
-/// every rollup window; `daily_rollup_native_window_pushdown_matches_
-/// unwindowed_rust_filter` in `tests.rs` pins exactly this case.
-///
-/// Falls back to the unwindowed [`fetch_native_turns`] if either bound
-/// can't be represented as a valid instant (out-of-range milliseconds), so a
-/// pathological input degrades to the always-correct full scan instead of
-/// silently skipping rows.
-fn fetch_native_turns_in_window(
-    conn: &Connection,
-    start_ms: i64,
-    end_ms: i64,
-) -> Result<Vec<NativeTurn>, String> {
-    let bounds = rfc3339_ms_bound(start_ms).zip(rfc3339_ms_bound(end_ms.saturating_add(1)));
-    let Some((lower, upper)) = bounds else {
-        return fetch_native_turns(conn);
-    };
-
-    let mut statement = conn
-        .prepare(
-            "SELECT session_id, created_at, model,
-                    input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
-             FROM session_token_usage
-             WHERE created_at >= ?1 AND created_at < ?2",
-        )
-        .map_err(|err| err.to_string())?;
-    let rows = statement
-        .query_map(rusqlite::params![lower, upper], |row| {
-            Ok(NativeTurn {
-                session_id: row.get(0)?,
-                created_at: row.get(1)?,
-                model: row.get(2)?,
-                input_tokens: row.get(3)?,
-                output_tokens: row.get(4)?,
-                cache_read_tokens: row.get(5)?,
-                cache_write_tokens: row.get(6)?,
-            })
-        })
-        .map_err(|err| err.to_string())?;
-    rows.collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(|err| err.to_string())
 }
 
 /// List-price cost for a token split at a model's rates.
@@ -141,7 +172,7 @@ fn turn_cost(
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageRoundRow {
-    /// `session_id#index` — stable within a fetch.
+    /// `session_id#stable_database_row_or_sequence_id`.
     pub round_id: String,
     pub session_id: String,
     pub session_name: String,
@@ -172,7 +203,7 @@ fn table_exists(conn: &Connection, name: &str) -> bool {
 #[allow(clippy::too_many_arguments)]
 fn build_round_row(
     session: &ScopedSession,
-    index: usize,
+    stable_key: i64,
     model: Option<String>,
     input: i64,
     output: i64,
@@ -183,7 +214,7 @@ fn build_round_row(
     let model = model.or_else(|| session.model.clone());
     let cost = turn_cost(model.as_deref(), input, output, cache_write, cache_read);
     UsageRoundRow {
-        round_id: format!("{}#{index}", session.session_id),
+        round_id: format!("{}#{stable_key}", session.session_id),
         session_id: session.session_id.clone(),
         session_name: session.name.clone(),
         bucket: session.bucket.clone(),
@@ -212,39 +243,31 @@ pub(super) fn visit_rounds(
     filter: &UsageFilter,
     visit: impl FnMut(UsageRoundRow) -> Result<(), String>,
 ) -> Result<(), String> {
-    visit_rounds_inner(conn, filter, false, visit)
+    visit_rounds_inner(conn, filter, visit)
 }
 
-/// Same streamed pass as [`visit_rounds`], but pushes the native per-turn
-/// fetch's time window down to SQL (see [`fetch_native_turns_in_window`])
-/// instead of pulling every native turn ever recorded on every call.
-///
-/// This is NOT a drop-in replacement for [`visit_rounds`]: windowing changes
-/// how many turns precede a given row within a session, which would change
-/// `UsageRoundRow::round_id` (`session_id#index`) numbering versus the
-/// unwindowed pass. That's harmless for `daily_rollup` — its aggregation
-/// folds by `(day, bucket)` and never reads `round_id` — but would break
-/// request-log pagination stability for the interactive dashboard, so only
-/// `daily_rollup` (`daily_rollup.rs`) calls this; every other caller keeps
-/// using plain [`visit_rounds`] unchanged.
+/// Compatibility entry point for the unattended rollup. Every dashboard read
+/// now applies its available time/source/session scope in SQL; stable native
+/// row ids and imported sequence ids keep request-log ids independent of the
+/// chosen window.
 pub(super) fn visit_rounds_windowed(
     conn: &Connection,
     filter: &UsageFilter,
     visit: impl FnMut(UsageRoundRow) -> Result<(), String>,
 ) -> Result<(), String> {
-    visit_rounds_inner(conn, filter, true, visit)
+    visit_rounds_inner(conn, filter, visit)
 }
 
 fn visit_rounds_inner(
     conn: &Connection,
     filter: &UsageFilter,
-    push_down_native_window: bool,
     mut visit: impl FnMut(UsageRoundRow) -> Result<(), String>,
 ) -> Result<(), String> {
     let mut sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref(), filter.all_sources)?;
     if let Some(session_id) = filter.session_id.as_deref() {
         sessions.retain(|session| session.session_id == session_id);
     }
+    let _scoped_session_table = prepare_scoped_session_table(conn, &sessions)?;
 
     let session_indexes: HashMap<String, usize> = sessions
         .iter()
@@ -256,11 +279,11 @@ fn visit_rounds_inner(
         let mut clauses: Vec<String> = Vec::new();
         let mut params: Vec<i64> = Vec::new();
         if let Some(start) = filter.start_ms {
-            clauses.push(format!("created_at_ms >= ?{}", params.len() + 1));
+            clauses.push(format!("rounds.created_at_ms >= ?{}", params.len() + 1));
             params.push(start);
         }
         if let Some(end) = filter.end_ms {
-            clauses.push(format!("created_at_ms <= ?{}", params.len() + 1));
+            clauses.push(format!("rounds.created_at_ms <= ?{}", params.len() + 1));
             params.push(end);
         }
         let where_sql = if clauses.is_empty() {
@@ -269,26 +292,24 @@ fn visit_rounds_inner(
             format!(" WHERE {}", clauses.join(" AND "))
         };
         let sql = format!(
-            "SELECT session_id, model, input_tokens, output_tokens,
-                    cache_read_tokens, cache_write_tokens, created_at_ms
-             FROM imported_history_round_usage{where_sql}
-             ORDER BY session_id, created_at_ms, seq"
+            "SELECT rounds.session_id, rounds.model,
+                    rounds.input_tokens, rounds.output_tokens,
+                    rounds.cache_read_tokens, rounds.cache_write_tokens,
+                    rounds.created_at_ms, rounds.seq
+             FROM imported_history_round_usage rounds
+             INNER JOIN {SCOPED_SESSION_TABLE} scoped
+                     ON scoped.session_id = rounds.session_id{where_sql}
+             ORDER BY rounds.session_id, rounds.created_at_ms, rounds.seq"
         );
         let mut statement = conn.prepare(&sql).map_err(|err| err.to_string())?;
         let mut rows = statement
             .query(rusqlite::params_from_iter(params))
             .map_err(|err| err.to_string())?;
-        let mut current_session_id = String::new();
-        let mut current_index = 0usize;
         while let Some(row) = rows.next().map_err(|err| err.to_string())? {
             let session_id: String = row.get(0).map_err(|err| err.to_string())?;
             let Some(&session_index) = session_indexes.get(&session_id) else {
                 continue;
             };
-            if current_session_id != session_id {
-                current_session_id.clone_from(&session_id);
-                current_index = 0;
-            }
             if !imported_session_ids.contains(&session_id) {
                 imported_session_ids.insert(session_id.clone());
             }
@@ -298,7 +319,7 @@ fn visit_rounds_inner(
                 .filter(|value| !value.is_empty());
             let round = build_round_row(
                 &sessions[session_index],
-                current_index,
+                row.get(7).map_err(|err| err.to_string())?,
                 model,
                 row.get(2).map_err(|err| err.to_string())?,
                 row.get(3).map_err(|err| err.to_string())?,
@@ -306,17 +327,11 @@ fn visit_rounds_inner(
                 row.get(5).map_err(|err| err.to_string())?,
                 row.get(6).map_err(|err| err.to_string())?,
             );
-            current_index += 1;
             visit(round)?;
         }
     }
 
-    let native_turns = match (push_down_native_window, filter.start_ms, filter.end_ms) {
-        (true, Some(start_ms), Some(end_ms)) => {
-            fetch_native_turns_in_window(conn, start_ms, end_ms)?
-        }
-        _ => fetch_native_turns(conn)?,
-    };
+    let native_turns = fetch_native_turns(conn, filter)?;
     let mut native_by: HashMap<String, Vec<NativeTurn>> = HashMap::new();
     for turn in native_turns {
         if !session_indexes.contains_key(&turn.session_id)
@@ -341,14 +356,14 @@ fn visit_rounds_inner(
                 .into_iter()
                 .map(|turn| (iso_to_ms(&turn.created_at).unwrap_or(0), turn))
                 .collect();
-            turns.sort_by_key(|(ms, _)| *ms);
-            for (index, (ms, turn)) in turns.into_iter().enumerate() {
+            turns.sort_by_key(|(ms, turn)| (*ms, turn.row_id));
+            for (ms, turn) in turns {
                 if !filter.contains(ms) {
                     continue;
                 }
                 visit(build_round_row(
                     session,
-                    index,
+                    turn.row_id,
                     turn.model,
                     turn.input_tokens,
                     turn.output_tokens,
@@ -376,4 +391,38 @@ fn visit_rounds_inner(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+pub(super) fn native_turn_candidates_for_filter(
+    conn: &Connection,
+    filter: &UsageFilter,
+) -> Result<usize, String> {
+    let mut sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref(), filter.all_sources)?;
+    if let Some(session_id) = filter.session_id.as_deref() {
+        sessions.retain(|session| session.session_id == session_id);
+    }
+    let _scoped_session_table = prepare_scoped_session_table(conn, &sessions)?;
+    Ok(fetch_native_turns(conn, filter)?.len())
+}
+
+#[cfg(test)]
+pub(super) fn native_turn_query_plan(
+    conn: &Connection,
+    filter: &UsageFilter,
+) -> Result<Vec<String>, String> {
+    let mut sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref(), filter.all_sources)?;
+    if let Some(session_id) = filter.session_id.as_deref() {
+        sessions.retain(|session| session.session_id == session_id);
+    }
+    let _scoped_session_table = prepare_scoped_session_table(conn, &sessions)?;
+    let (sql, params) = native_turn_query(filter);
+    let mut statement = conn
+        .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+        .map_err(|err| err.to_string())?;
+    let rows = statement
+        .query_map(rusqlite::params_from_iter(params), |row| row.get(3))
+        .map_err(|err| err.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|err| err.to_string())
 }

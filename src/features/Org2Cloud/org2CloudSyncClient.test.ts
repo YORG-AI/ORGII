@@ -64,6 +64,11 @@ beforeEach(() => {
     homeEndpoints: false,
     teamInboxMentions: false,
     memberRuntime: false,
+    sessionTurnIndex: false,
+    offlineSync: false,
+    orgChannels: false,
+    orgChannelMessages: false,
+    orgChannelMessagesIdempotency: false,
   });
 });
 
@@ -264,6 +269,11 @@ describe("storage segment offload (0006)", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
   });
 
@@ -346,6 +356,11 @@ describe("storage segment offload (0006)", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     await appendSessionEvents("jwt-1", appendInput([makeEvent("f1")], null));
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -543,6 +558,44 @@ describe("cloud_list_org_sessions", () => {
       expect.any(String),
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
+  });
+
+  it("drops a malformed row alone and names it in the diagnostic", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        sessions: [
+          {
+            id: "org-1:u-2:s-9",
+            orgId: "org-1",
+            ownerMemberId: "u-2",
+            ownerUserId: "u-2",
+            ownerDisplayName: "Bea",
+            ownerIdentityKind: "human",
+            sourceSessionId: "s-9",
+            title: "Healthy",
+          },
+          {
+            id: "org-1:u-2:s-bad",
+            orgId: "org-1",
+            ownerMemberId: "u-2",
+            ownerUserId: "u-2",
+            ownerDisplayName: "Bea",
+            ownerIdentityKind: "definitely-not-a-kind",
+            sourceSessionId: "s-bad",
+            title: "Broken",
+          },
+        ],
+      })
+    );
+    const result = await listOrgSessions("jwt-1", "org-1");
+    // One malformed row costs that row, never the listing — a failed listing
+    // reads as "org has no sessions" to the sidebar and retract sweep. The
+    // rate-limited diagnostic additionally names the first casualty and its
+    // failing field (logger sink is not observable from this environment).
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0].sourceSessionId).toBe("s-9");
+    info.mockRestore();
   });
 });
 

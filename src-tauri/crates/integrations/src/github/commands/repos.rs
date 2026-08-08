@@ -29,6 +29,18 @@ pub struct Branch {
     pub protected: bool,
 }
 
+/// Repository-level capabilities normalized for frontend work-item controls.
+///
+/// GitHub's repository payload exposes role flags rather than per-action
+/// booleans. Keep that interpretation at the API boundary so every caller
+/// applies the same conservative permission rule.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct RepoPermissions {
+    pub role_name: Option<String>,
+    pub can_manage_issues: bool,
+    pub can_manage_pull_requests: bool,
+}
+
 pub(crate) fn parse_repo(v: &Value) -> Repo {
     Repo {
         id: v["id"].as_u64().unwrap_or(0),
@@ -49,6 +61,19 @@ pub(crate) fn parse_branch(v: &Value) -> Branch {
         name: v["name"].as_str().unwrap_or("").to_string(),
         sha: v["commit"]["sha"].as_str().unwrap_or("").to_string(),
         protected: v["protected"].as_bool().unwrap_or(false),
+    }
+}
+
+pub(crate) fn parse_repo_permissions(v: &Value) -> RepoPermissions {
+    let permissions = &v["permissions"];
+    let can_manage = permissions["admin"].as_bool().unwrap_or(false)
+        || permissions["maintain"].as_bool().unwrap_or(false)
+        || permissions["push"].as_bool().unwrap_or(false)
+        || permissions["triage"].as_bool().unwrap_or(false);
+    RepoPermissions {
+        role_name: v["role_name"].as_str().map(String::from),
+        can_manage_issues: can_manage,
+        can_manage_pull_requests: can_manage,
     }
 }
 
@@ -312,6 +337,18 @@ pub async fn github_resolve_repo_network_identity(
         .ok_or_else(|| "GitHub repository response was missing identity fields".to_string())
 }
 
+/// Return the current viewer's normalized work-item permissions for a repo.
+#[command]
+pub async fn github_get_repo_permissions(
+    repo_full_name: String,
+) -> Result<RepoPermissions, String> {
+    let repo_path = encoded_repo_api_path(&repo_full_name)
+        .ok_or_else(|| "invalid GitHub repository name".to_string())?;
+    let client = make_client()?;
+    let payload = client.get(&format!("/repos/{repo_path}")).await?;
+    Ok(parse_repo_permissions(&payload))
+}
+
 #[command]
 pub async fn github_list_repos(
     page: Option<u32>,
@@ -431,5 +468,50 @@ pub async fn github_get_content(
             is_binary: true,
             truncated: false,
         }),
+    }
+}
+
+#[cfg(test)]
+mod repo_permission_tests {
+    use serde_json::json;
+
+    use super::{parse_repo_permissions, RepoPermissions};
+
+    #[test]
+    fn normalizes_triage_as_work_item_management_permission() {
+        let permissions = parse_repo_permissions(&json!({
+            "role_name": "triage",
+            "permissions": {
+                "admin": false,
+                "maintain": false,
+                "push": false,
+                "triage": true,
+                "pull": true
+            }
+        }));
+
+        assert_eq!(
+            permissions,
+            RepoPermissions {
+                role_name: Some("triage".to_string()),
+                can_manage_issues: true,
+                can_manage_pull_requests: true,
+            }
+        );
+    }
+
+    #[test]
+    fn keeps_pull_only_and_missing_permissions_readonly() {
+        for payload in [
+            json!({
+                "role_name": "read",
+                "permissions": { "pull": true }
+            }),
+            json!({}),
+        ] {
+            let permissions = parse_repo_permissions(&payload);
+            assert!(!permissions.can_manage_issues);
+            assert!(!permissions.can_manage_pull_requests);
+        }
     }
 }

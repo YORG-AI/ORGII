@@ -10,12 +10,16 @@ use super::{
     schema::init_team_inbox_tables, TeamInboxActor, TeamInboxCursor, TeamInboxFilter,
     TeamInboxItem, TeamInboxItemKind, TeamInboxPage, TeamInboxPayload, TeamInboxTarget,
 };
-use crate::projects::types::{WorkItemHandoff, WorkItemHandoffStatus};
+use crate::projects::types::{
+    WorkItemHandoff, WorkItemHandoffStatus, WorkItemHistoryAction, WorkItemHistoryEvent,
+};
 
 const ASSIGNED_SOURCE_KIND: &str = "work_item_assigned";
 const COMMENT_MENTION_SOURCE_KIND: &str = "work_item_comment_mention";
 const DEFAULT_PAGE_LIMIT: usize = 50;
 const MAX_PAGE_LIMIT: usize = 100;
+const ACTIONABLE_ASSIGNMENT_PREDICATE: &str =
+    "LOWER(TRIM(w.status)) NOT IN ('completed', 'cancelled', 'canceled', 'duplicate', 'closed', 'done')";
 /// Upper bound on the assigned-item summary so a long Work Item body never
 /// bloats the inbox payload; the detail surface links back to the full item.
 const SUMMARY_EXCERPT_MAX_CHARS: usize = 240;
@@ -59,6 +63,53 @@ fn handoff_actor(handoff: &WorkItemHandoff) -> TeamInboxActor {
         display_name,
         avatar_url: None,
     }
+}
+
+#[derive(serde::Deserialize)]
+struct AssignmentHistoryProjection {
+    #[serde(default)]
+    history: Vec<WorkItemHistoryEvent>,
+}
+
+fn history_event_actor(event: &WorkItemHistoryEvent) -> Option<TeamInboxActor> {
+    let actor_id = event
+        .actor_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let actor_name = event
+        .actor_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let id = actor_id.or(actor_name)?;
+    Some(TeamInboxActor {
+        id: id.to_string(),
+        display_name: actor_name.unwrap_or(id).to_string(),
+        avatar_url: None,
+    })
+}
+
+/// Resolve the actor that produced the current human-assignment episode from
+/// the canonical Work Item history. Later status/body edits must not replace
+/// the assignment actor shown by Team Inbox.
+fn assignment_actor(extras_json: Option<&str>, assignee_member_id: &str) -> Option<TeamInboxActor> {
+    let history = serde_json::from_str::<AssignmentHistoryProjection>(extras_json?)
+        .ok()?
+        .history;
+    let assignment_event = history.iter().rev().find(|event| {
+        event.changes.iter().any(|change| {
+            change.field == "assignee" && change.new_value.as_str() == Some(assignee_member_id)
+        })
+    });
+    if let Some(event) = assignment_event {
+        return history_event_actor(event);
+    }
+
+    history
+        .iter()
+        .find(|event| event.action == WorkItemHistoryAction::Created)
+        .and_then(history_event_actor)
 }
 
 #[derive(Debug, Clone)]
@@ -186,9 +237,13 @@ fn list_assigned_items(
         String::new()
     };
     let sql = format!(
-        "SELECT w.id, w.org_id, w.project_id, p.slug, w.short_id, w.title,
-                w.status, w.priority, COALESCE(w.assigned_human_id, w.assignee),
-                w.updated_at,
+        "SELECT w.id, w.org_id, w.project_id, p.slug,
+                CASE WHEN json_valid(p.linked_repos_json)
+                     THEN json_extract(p.linked_repos_json, '$[0]')
+                     ELSE NULL
+                END AS repository,
+                w.short_id, w.title, w.status, w.priority,
+                COALESCE(w.assigned_human_id, w.assignee), w.updated_at,
                 (SELECT MAX(r.read_at) FROM team_inbox_read_receipts r
                   WHERE r.source_kind = '{ASSIGNED_SOURCE_KIND}'
                     AND r.source_id = w.id AND {receipt_viewer_predicate}) AS read_at,
@@ -196,7 +251,9 @@ fn list_assigned_items(
            FROM workitems w
            LEFT JOIN projects p ON p.id = w.project_id
            LEFT JOIN workitem_extras e ON e.work_item_id = w.id
-          WHERE w.deleted_at IS NULL AND {assignment_predicate}
+          WHERE w.deleted_at IS NULL
+            AND {ACTIONABLE_ASSIGNMENT_PREDICATE}
+            AND {assignment_predicate}
           {cursor_predicate}
           ORDER BY w.updated_at DESC, w.id DESC
           LIMIT ?"
@@ -215,27 +272,32 @@ fn list_assigned_items(
     let rows = statement
         .query_map(params_from_iter(values), |row| {
             let work_item_id: String = row.get(0)?;
-            let assignee_member_id: String = row.get(8)?;
-            let body: String = row.get(11)?;
-            let extras_json: Option<String> = row.get(12)?;
+            let assignee_member_id: String = row.get(9)?;
+            let body: String = row.get(12)?;
+            let extras_json: Option<String> = row.get(13)?;
             let handoff = handoff_from_extras(extras_json.as_deref());
+            let actor = handoff
+                .as_ref()
+                .map(handoff_actor)
+                .or_else(|| assignment_actor(extras_json.as_deref(), &assignee_member_id));
             Ok(TeamInboxItem {
                 id: assigned_item_id(&work_item_id),
                 kind: TeamInboxItemKind::WorkItemAssigned,
-                occurred_at: row.get(9)?,
-                read_at: row.get(10)?,
-                actor: handoff.as_ref().map(handoff_actor),
+                occurred_at: row.get(10)?,
+                read_at: row.get(11)?,
+                actor,
                 target: TeamInboxTarget::WorkItem {
                     work_item_id,
                     org_id: row.get(1)?,
                     project_id: row.get(2)?,
                     project_slug: row.get(3)?,
-                    short_id: row.get(4)?,
+                    repository: row.get(4)?,
+                    short_id: row.get(5)?,
                 },
                 payload: TeamInboxPayload::WorkItemAssigned {
-                    title: row.get(5)?,
-                    status: row.get(6)?,
-                    priority: row.get(7)?,
+                    title: row.get(6)?,
+                    status: row.get(7)?,
+                    priority: row.get(8)?,
                     assignee_member_id,
                     summary: work_item_summary_excerpt(&body),
                     handoff,
@@ -365,6 +427,7 @@ fn assigned_unread_count(connection: &Connection, viewer_ids: &[String]) -> Resu
     let sql = format!(
         "SELECT COUNT(*) FROM workitems w
           WHERE w.deleted_at IS NULL
+            AND {ACTIONABLE_ASSIGNMENT_PREDICATE}
             AND {}
             AND NOT EXISTS (
                 SELECT 1 FROM team_inbox_read_receipts r
@@ -429,7 +492,11 @@ pub(crate) fn mark_read_with_connection(
     let (source_kind, source_id, sql, values) = if let Some(source_id) = assigned_source_id(item_id)
     {
         let sql = format!(
-            "SELECT 1 FROM workitems w WHERE w.id = ? AND w.deleted_at IS NULL AND {}",
+            "SELECT 1 FROM workitems w
+              WHERE w.id = ?
+                AND w.deleted_at IS NULL
+                AND {ACTIONABLE_ASSIGNMENT_PREDICATE}
+                AND {}",
             assignment_predicate(&placeholders)
         );
         let mut values = vec![Value::from(source_id.to_string())];
@@ -507,6 +574,7 @@ pub(crate) fn mark_all_read_with_connection(
         let query = format!(
             "SELECT w.id FROM workitems w
               WHERE w.deleted_at IS NULL
+                AND {ACTIONABLE_ASSIGNMENT_PREDICATE}
                 AND {}
                 AND NOT EXISTS (
                     SELECT 1 FROM team_inbox_read_receipts r

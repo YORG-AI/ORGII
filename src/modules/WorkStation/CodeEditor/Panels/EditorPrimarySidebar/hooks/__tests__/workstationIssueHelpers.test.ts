@@ -35,6 +35,7 @@ function createLabel(overrides?: Partial<GitHubIssueLabel>): GitHubIssueLabel {
 
 function createIssue(overrides?: Partial<GitHubIssue>): GitHubIssue {
   return {
+    id: 100_001,
     number: 1,
     title: "Test issue",
     body: null,

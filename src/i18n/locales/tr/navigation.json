@@ -139,7 +139,8 @@
       "workstation": "İş istasyonu",
       "viewRam": "RAM’i görüntüle",
       "tutorials": "Eğitimler",
-      "openSettings": "Ayarları aç"
+      "openSettings": "Ayarları aç",
+      "setupChecklist": "Hızlı kurulum"
     },
     "empty": {
       "noItems": "Öğe yok",
@@ -162,6 +163,37 @@
       "duration1h": "1 saat",
       "duration2h": "2 saat",
       "durationTomorrow": "Yarın"
+    },
+    "guide": {
+      "trigger": "Kılavuzu aç",
+      "title": "ORGII'yi kullanmaya başlayın",
+      "startSession": "Oturum başlat",
+      "quickSetup": "Dil ve görünüm",
+      "close": "Kılavuzu kapat",
+      "progressLabel": "{{total}} kurulum adımından {{completed}} tanesi tamamlandı",
+      "localWorkspace": "Yerel çalışma alanı",
+      "connectOrganization": "Bir kuruluş bağlayın veya oluşturun",
+      "createOrganizationHint": "Bir kuruluş adı girin ve Oluştur’u seçin. Bulut kuruluşu oluşturulduktan sonra rehber sonraki adıma geçer.",
+      "inviteTeammate": "Bir ekip arkadaşı davet edin",
+      "inviteTeammateHint": "Burada bir davet bağlantısı oluşturup ekip arkadaşınıza gönderin.",
+      "invitePermissionHint": "Üye listesini burada görüntüleyebilirsiniz. Daveti bir kuruluş yöneticisi veya sahibi oluşturmalıdır.",
+      "devPanelTitle": "Onboarding test durumları",
+      "devPanelHint": "Davet akışının yalnızca çalışma zamanı önizlemesidir. Arka uç kuruluş verileri değiştirilmez.",
+      "devScenarioLive": "Gerçek veriler",
+      "devScenarioNoOrganization": "Kuruluş yok",
+      "devScenarioMember": "Üye · davet erişimi yok",
+      "devScenarioAdmin": "Yönetici · davet erişimi var",
+      "devScenarioOwner": "Sahip · davet erişimi var",
+      "devScenarioRequiresOrganization": "Rol önizlemeleri için en az bir gerçek bulut kuruluşu gerekir.",
+      "devSimulationActive": "Geliştirme simülasyonu etkin",
+      "devSimulationReadOnly": "Bu üye sayfası önizlemesi salt okunurdur. Kuruluş yönetimi işlemleri devre dışıdır.",
+      "viewTeamActivity": "Ekip kullanımını görüntüle",
+      "viewTeamActivityHint": "Runtime Üyeler görünümünde açıldı. Codex, Claude ve Cursor kullanımını görmek için bir ekip üyesi seçin; veri yoksa önce ekip Runtime eşitlemesini etkinleştirin.",
+      "exploreProduct": "Ana sayfaları keşfedin",
+      "nextStep": "Sonraki adım"
+    },
+    "developerTestPanel": {
+      "title": "Geliştirici test paneli"
     }
   },
   "myRole": {
@@ -398,7 +430,17 @@
       "agentError": "Choose a local agent before forking.",
       "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
       "parentOpenUnavailable": "The source session could not be opened from this fork.",
-      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "openParentButton": "{{name}} kaynak oturumunu aç"
+    },
+    "continueCli": {
+      "headerButton": "{{agent}} içinde devam et",
+      "headerTooltip": "Bu oturumu bir terminal sekmesinde {{agent}} ile yeniden aç ({{command}})",
+      "notInstalled": "{{agent}} bu makinede yüklü değil",
+      "missingWorkspace": "Oturumun özgün klasörü artık yok — {{agent}} oturumu yalnızca oradan sürdürebilir",
+      "sourceMissing": "Özgün oturum verileri artık diskte değil",
+      "launchFailed": "{{agent}} terminali açılamadı",
+      "composerPlaceholder": "Yeni bir ORGII oturumunda devam etmek için yazın — veya üstteki düğmeyle {{agent}} içinde sürdürün…"
     }
   },
   "cloud": {
@@ -487,6 +529,10 @@
         "manualRunning": "Eşitleniyor…",
         "manualSuccess": "Eşitleme tamamlandı",
         "manualError": "Eşitleme başarısız: {{message}}",
+        "coverageTitle": "Oturum kapsamı",
+        "coverageSummary": "{{synced}}/{{syncable}} eşitlendi (%{{percent}})",
+        "coveragePercentLabel": "Kapsam",
+        "coverageEmpty": "Bu kuruluşun depo kapsamlarında henüz oturum yok",
         "logsTitle": "Eşitleme günlüğü",
         "logsHelp": "Bu cihazda kaydedilen son eşitleme olayları. Yeniden başlatmada silinir ve hiçbir zaman yüklenmez",
         "logsEmpty": "Henüz eşitleme olayı kaydedilmedi",
@@ -515,7 +561,10 @@
       "viewerOverflow": "ve {{count}} kişi daha izliyor",
       "memberViewing": "görüntülüyor: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "loadingSession": "Oturum yükleniyor…",
+      "downloadProgress": "İndiriliyor… {{percent}}%",
+      "downloadProgressEta": "İndiriliyor… {{percent}}% · ~{{eta}} kaldı"
     },
     "sessionRef": {
       "chipLabel": "Ekip oturumu",
@@ -523,7 +572,8 @@
       "signInRequired": "Bu oturumu açmak için ORG2 Cloud'da oturum aç.",
       "sessionNotFound": "Bu oturum bu organizasyona ait değil.",
       "notPublished": "Referansı kopyalamadan önce bu oturumu bir organizasyonla paylaş.",
-      "chooseOrg": "Bu oturum birden çok organizasyona ait. Referans vermek istediğin organizasyona geç, sonra tekrar kopyala."
+      "chooseOrg": "Bu oturum birden çok organizasyona ait. Referans vermek istediğin organizasyona geç, sonra tekrar kopyala.",
+      "opening": "Takım oturumu açılıyor…"
     },
     "sync": {
       "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
@@ -761,6 +811,151 @@
     },
     "renameDisplayName": "Görünen adı düzenle",
     "renameSaved": "Görünen ad güncellendi",
-    "renameFailed": "Görünen ad güncellenemedi"
+    "renameFailed": "Görünen ad güncellenemedi",
+    "download": {
+      "title": "Takım oturumu indiriliyor…",
+      "events": "{{loaded}} / {{total}} olay",
+      "eta": "Yaklaşık {{eta}} kaldı",
+      "finalizing": "Tamamlanıyor…",
+      "complete": "İndirme tamamlandı",
+      "estimate": "Bu oturumda indirilecek {{count}} olay var (yaklaşık {{eta}})",
+      "start": "İndir",
+      "pause": "Duraklat",
+      "paused": "Duraklatıldı",
+      "resume": "Devam et"
+    },
+    "channels": {
+      "title": "Kanallar",
+      "createAction": "Kanal oluştur",
+      "createFirst": "Bir kanal oluştur",
+      "manageMembers": "Üyeleri yönet",
+      "archiveAction": "Kanalı arşivle",
+      "unarchive": "Arşivden çıkar",
+      "unarchiveFailed": "Kanal arşivden çıkarılamadı",
+      "deleteAction": "Kanalı sil",
+      "leave": "Kanaldan ayrıl",
+      "archivedGroup": "Arşivlenmiş",
+      "loadError": "Kanallar yüklenemedi",
+      "settings": {
+        "action": "Kanal ayarları",
+        "title": "#{{name}} ayarları",
+        "submit": "Kaydet",
+        "managerRequired": "Bu kanalı yalnızca kanal yöneticileri düzenleyebilir",
+        "error": "Kanal güncellenemedi. Lütfen tekrar deneyin."
+      },
+      "local": {
+        "quotaExceeded": "Bu cihazdaki kanal sınırına ulaştınız",
+        "archiveBody": "Arşivlenen kanal kenar çubuğundan gizlenir. Geçmiş korunur ve kanal daha sonra arşivden çıkarılabilir",
+        "deleteWarning": "Bu işlem kanalı bu cihazdan kalıcı olarak siler. Geri alınamaz"
+      },
+      "cancel": "İptal",
+      "create": {
+        "title": "Kanal oluştur",
+        "nameLabel": "Ad",
+        "namePlaceholder": "örn. kod-incelemesi",
+        "topicLabel": "Konu",
+        "topicOptional": "(isteğe bağlı)",
+        "topicPlaceholder": "Bu kanal ne hakkında?",
+        "visibilityLabel": "Görünürlük",
+        "publicTitle": "Herkese açık",
+        "publicDesc": "Organizasyondaki herkes sohbeti görebilir ve katılabilir",
+        "privateTitle": "Özel",
+        "privateDesc": "Bu kanalı yalnızca davet edilen kişiler görebilir",
+        "membersLabel": "Üye ekle",
+        "membersHint": "Otomatik olarak kanal yöneticisi olursunuz",
+        "membersLoading": "Üyeler yükleniyor…",
+        "membersEmpty": "Bu organizasyonda henüz başka üye yok",
+        "postPolicyLabel": "Kimler gönderi yapabilir",
+        "postPolicyEveryone": "Herkes",
+        "postPolicyManagers": "Yalnızca kanal yöneticileri",
+        "submit": "Oluştur",
+        "nameTaken": "Bu ad zaten kullanılıyor",
+        "quotaExceeded": "Bu organizasyon kanal sınırına ulaştı",
+        "error": "Kanal oluşturulamadı. Lütfen tekrar deneyin."
+      },
+      "archive": {
+        "title": "#{{name}} arşivlensin mi?",
+        "body": "Arşivlenen kanal herkesin kenar çubuğundan gizlenir. Geçmiş korunur ve kanal daha sonra arşivden çıkarılabilir",
+        "confirm": "Arşivle",
+        "managerRequired": "Bu kanalı yalnızca kanal yöneticileri arşivleyebilir",
+        "error": "Kanal arşivlenemedi. Lütfen tekrar deneyin."
+      },
+      "delete": {
+        "title": "#{{name}} silinsin mi?",
+        "warning": "Bu işlem kanalı herkes için kalıcı olarak siler. Geri alınamaz",
+        "acknowledge": "Evet, kanalı kalıcı olarak sil",
+        "confirm": "Sil",
+        "adminRequired": "Kanalları yalnızca organizasyon yöneticileri silebilir",
+        "error": "Kanal silinemedi. Lütfen tekrar deneyin."
+      },
+      "members": {
+        "title": "#{{name}} üyeleri",
+        "loading": "Üyeler yükleniyor…",
+        "empty": "Bu kanalda henüz üye yok",
+        "loadError": "Kanal üyeleri yüklenemedi. Lütfen tekrar deneyin.",
+        "managerBadge": "Yönetici",
+        "you": "Sen",
+        "addLabel": "Üye ekle",
+        "addEmpty": "Organizasyondaki herkes zaten bu kanalda",
+        "addSubmit": "Ekle",
+        "actions": "Üye işlemleri",
+        "remove": "Kanaldan çıkar",
+        "makeManager": "Kanal yöneticisi yap",
+        "removeManager": "Kanal yöneticiliğini kaldır",
+        "leave": "Kanaldan ayrıl",
+        "lastManager": "Önce başka bir yönetici atayın",
+        "error": "Bir sorun oluştu. Lütfen tekrar deneyin."
+      },
+      "feed": {
+        "composerPlaceholder": "#{{name}} kanalına mesaj gönder",
+        "save": "Kaydet",
+        "edit": "Mesajı düzenle",
+        "delete": "Mesajı sil",
+        "edited": "(düzenlendi)",
+        "deletedMessage": "mesaj silindi",
+        "today": "Bugün",
+        "yesterday": "Dün",
+        "you": "Sen",
+        "memberCount": "{{memberCount}} üye",
+        "emptyTitle": "Burası #{{name}} kanalının başlangıcı",
+        "emptySubtitle": "Sohbeti başlatmak için ilk mesajı gönder",
+        "missingTitle": "Kanal artık kullanılamıyor",
+        "missingSubtitle": "Bu kanal bu cihazdan silindi",
+        "cloudPendingTitle": "Henüz mesaj yok",
+        "cloudPendingSubtitle": "Bulut kanallarının geçmişi bir sonraki arka uç yükseltmesiyle gelecek",
+        "cloudComposerDisabled": "Bulut kanallarında mesajlaşma henüz kullanılamıyor — bu sürüm yalnızca kanal kurulumu ve üyelik içeriyor. Mesaj gönderme bir sonraki arka uç yükseltmesiyle gelecek",
+        "errorEmpty": "Önce bir mesaj yaz",
+        "errorTooLong": "Bu mesaj çok uzun (en fazla 4000 karakter)",
+        "errorQuota": "Bu kanal bu cihazdaki mesaj sınırına ulaştı",
+        "errorGeneric": "Mesaj gönderilemedi. Lütfen tekrar dene.",
+        "dropSessionHint": "Bu oturumu referans olarak eklemek için bırakın",
+        "messageBodyLabel": "Kanal mesajı",
+        "sessionCardMissing": "Bu cihazda kullanılamıyor",
+        "sessionCardOpen": "{{name}} oturumunu aç",
+        "workItemCardMissing": "Bu cihazda kullanılamıyor",
+        "workItemCardLoading": "Yükleniyor…",
+        "workItemCardOpen": "{{name}} iş öğesini aç",
+        "githubCardOpen": "{{name}} ögesini GitHub'da aç",
+        "githubIssue": "Issue",
+        "githubPullRequest": "Pull request",
+        "archivedComposerDisabled": "Bu kanal arşivlendi. Göndermek için arşivden çıkarın.",
+        "errorPostForbidden": "Bu kanala yalnızca kanal yöneticileri gönderebilir",
+        "errorArchived": "Bu kanal arşivlendi, bu yüzden gönderim kapalı",
+        "errorChannelFull": "Bu kanal mesaj sınırına ulaştı, bu yüzden gönderim kapalı",
+        "errorChannelMissing": "Bu kanal artık kullanılamıyor",
+        "errorMessageMissing": "Bu mesaj artık kullanılamıyor",
+        "loadError": "Mesajlar yüklenemedi",
+        "loadingMessages": "Mesajlar yükleniyor…",
+        "loadOlder": "Önceki mesajları yükle",
+        "unknownAuthor": "Takım arkadaşı"
+      }
+    },
+    "backgroundUpload": {
+      "label": "Arka planda yükleme",
+      "help": "Bu organizasyon etkin değilken bile uygun üye oturumlarını organizasyonun minimum paylaşım düzeyine ve oturum ayarlarına göre arka planda yükler.",
+      "on": "Açık",
+      "off": "Kapalı",
+      "memberNote": "Bir yönetici etkinleştirdi — bu organizasyonu açmanız gerekmeden uygun oturumlar arka planda yüklenir."
+    }
   }
 }

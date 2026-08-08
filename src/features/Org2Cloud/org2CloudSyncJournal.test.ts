@@ -67,6 +67,36 @@ describe("sync journal buffer", () => {
     expect(bare && "code" in bare).toBe(false);
   });
 
+  it("stores a normalized member identity without retaining the input object", () => {
+    const member = {
+      userId: "  user-1  ",
+      displayName: "  VantaNode  ",
+    };
+    recordSyncEvent({
+      level: "warn",
+      kind: "member_runtime",
+      message: "push failed",
+      member,
+    });
+    member.displayName = "changed later";
+
+    expect(getSyncJournalSnapshot()[0]?.member).toEqual({
+      userId: "user-1",
+      displayName: "VantaNode",
+    });
+  });
+
+  it("omits an unusable member identity instead of creating an empty filter", () => {
+    recordSyncEvent({
+      level: "warn",
+      kind: "member_runtime",
+      message: "push failed",
+      member: { userId: "   ", displayName: "VantaNode" },
+    });
+
+    expect(getSyncJournalSnapshot()[0]).not.toHaveProperty("member");
+  });
+
   it("clears entries and notifies subscribers", () => {
     const listener = vi.fn();
     const unsubscribe = subscribeSyncJournal(listener);

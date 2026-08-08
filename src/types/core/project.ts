@@ -64,6 +64,8 @@ export interface Project {
   description?: string;
   /** Public project slug used by URLs and backend project-store lookups. */
   slug?: string;
+  /** Bound external sync adapter. Absent for local-only projects. */
+  syncAdapterId?: string;
   /**
    * Owning project-store org id (`ProjectMeta.org_id`). Absent for external
    * (e.g. Linear) rows.

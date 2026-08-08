@@ -498,14 +498,14 @@ impl WorkItemTool {
 
         run_blocking("create_standalone_work_item", move || {
             let short_id = io::allocate_standalone_short_id(org_id.as_deref())?;
-            let now = chrono::Utc::now().to_rfc3339();
-            let frontmatter = WorkItemFrontmatter {
-                id: short_id.clone(),
-                short_id: short_id.clone(),
+            // Canonical work.create: the application service owns row
+            // construction and audits the creation.
+            let request = project_management::work_service::CreateWorkItemRequest {
                 title: title.clone(),
-                project,
-                status,
-                priority,
+                body: body.clone(),
+                project_id: project,
+                status: Some(status),
+                priority: Some(priority),
                 assignee,
                 assignee_type: None,
                 labels,
@@ -514,27 +514,19 @@ impl WorkItemTool {
                 start_date,
                 target_date,
                 created_by: Some("agent".to_string()),
-                created_at: now.clone(),
-                updated_at: now,
-                deleted_at: None,
                 starred,
-                todos: Self::todos_to_entries(todos, &[]),
-                comments: vec![],
-                history: vec![],
-                delegations: vec![],
-                linked_sessions: vec![],
-                handoff: None,
-                proof_of_work: None,
-                orchestrator_config,
-                orchestrator_state: None,
-                follow_up_items: vec![],
                 schedule,
-                routine_source: None,
-                execution_lock: None,
-                close_out: None,
-                work_products: vec![],
+                orchestrator_config,
+                todos: Self::todos_to_entries(todos, &[]),
+                handoff: None,
+                linked_sessions: vec![],
             };
-            io::write_standalone_work_item(org_id.as_deref(), &short_id, &frontmatter, &body)?;
+            project_management::work_service::create_standalone_work_item(
+                org_id.as_deref(),
+                &short_id,
+                &request,
+                None,
+            )?;
             Ok(format!(
                 "Created standalone work item '{}' [{}]",
                 title, short_id
@@ -550,18 +542,24 @@ impl WorkItemTool {
         params: Value,
     ) -> Result<String, ToolError> {
         run_blocking("update_standalone_work_item", move || {
-            let (found_org, mut item) = Self::read_standalone_scoped(org_id.as_deref(), &short_id)?;
-            Self::apply_updates(&mut item.frontmatter, &mut item.body, &params)
-                .map_err(|err| err.to_string())?;
-            io::write_standalone_work_item(
+            let (found_org, _) = Self::read_standalone_scoped(org_id.as_deref(), &short_id)?;
+            // Atomic RMW: apply_updates runs inside the BEGIN IMMEDIATE
+            // transaction instead of a read + whole-row write (lost-update
+            // race under concurrent edits).
+            let mut title = String::new();
+            io::update_standalone_work_item_atomic(
                 found_org.as_deref(),
                 &short_id,
-                &item.frontmatter,
-                &item.body,
+                |frontmatter, body| {
+                    Self::apply_updates(frontmatter, body, &params)
+                        .map_err(|err| err.to_string())?;
+                    title = frontmatter.title.clone();
+                    Ok(())
+                },
             )?;
             Ok(format!(
                 "Updated standalone work item '{}' [{}]",
-                item.frontmatter.title, short_id
+                title, short_id
             ))
         })
         .await
@@ -573,15 +571,16 @@ impl WorkItemTool {
         short_id: String,
     ) -> Result<String, ToolError> {
         run_blocking("delete_standalone_work_item", move || {
-            let (found_org, mut item) = Self::read_standalone_scoped(org_id.as_deref(), &short_id)?;
-            let now = chrono::Utc::now().to_rfc3339();
-            item.frontmatter.deleted_at = Some(now.clone());
-            item.frontmatter.updated_at = now;
-            io::write_standalone_work_item(
+            let (found_org, _) = Self::read_standalone_scoped(org_id.as_deref(), &short_id)?;
+            io::update_standalone_work_item_atomic(
                 found_org.as_deref(),
                 &short_id,
-                &item.frontmatter,
-                &item.body,
+                |frontmatter, _body| {
+                    let now = chrono::Utc::now().to_rfc3339();
+                    frontmatter.deleted_at = Some(now.clone());
+                    frontmatter.updated_at = now;
+                    Ok(())
+                },
             )?;
             Ok(format!("Deleted standalone work item [{}]", short_id))
         })
@@ -619,17 +618,19 @@ impl WorkItemTool {
                 let session_id = self.session_id.clone();
                 let default_org_id = self.default_org_id.clone();
                 run_blocking("link_standalone_work_item_session", move || {
-                    let (found_org, mut item) =
+                    let (found_org, _) =
                         Self::read_standalone_scoped(default_org_id.as_deref(), &short_id)?;
-                    let tool = WorkItemTool::new(session_id, None);
-                    let linked_session_id = tool
-                        .link_session_to_frontmatter(&mut item.frontmatter, &params)
-                        .map_err(|err| err.to_string())?;
-                    io::write_standalone_work_item(
+                    let mut linked_session_id = String::new();
+                    io::update_standalone_work_item_atomic(
                         found_org.as_deref(),
                         &short_id,
-                        &item.frontmatter,
-                        &item.body,
+                        |frontmatter, _body| {
+                            let tool = WorkItemTool::new(session_id.clone(), None);
+                            linked_session_id = tool
+                                .link_session_to_frontmatter(frontmatter, &params)
+                                .map_err(|err| err.to_string())?;
+                            Ok(())
+                        },
                     )?;
                     Ok(format!(
                         "Linked session {} to standalone work item [{}]",
@@ -670,16 +671,18 @@ impl WorkItemTool {
                 let session_id = self.session_id.clone();
                 let default_org_id = self.default_org_id.clone();
                 run_blocking("unlink_standalone_work_item_session", move || {
-                    let (found_org, mut item) =
+                    let (found_org, _) =
                         Self::read_standalone_scoped(default_org_id.as_deref(), &short_id)?;
-                    let tool = WorkItemTool::new(session_id, None);
-                    let unlinked_session_id =
-                        tool.unlink_session_from_frontmatter(&mut item.frontmatter, &params);
-                    io::write_standalone_work_item(
+                    let mut unlinked_session_id = String::new();
+                    io::update_standalone_work_item_atomic(
                         found_org.as_deref(),
                         &short_id,
-                        &item.frontmatter,
-                        &item.body,
+                        |frontmatter, _body| {
+                            let tool = WorkItemTool::new(session_id.clone(), None);
+                            unlinked_session_id =
+                                tool.unlink_session_from_frontmatter(frontmatter, &params);
+                            Ok(())
+                        },
                     )?;
                     Ok(format!(
                         "Unlinked session {} from standalone work item [{}]",

@@ -5,6 +5,8 @@
 //!   #[cfg(test)] #[path = "tests_extended.rs"] mod tests_extended;
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
+// This wrapper keeps the large extended suite isolated when included from resolved.rs.
 mod tests_extended {
     use crate::core::definitions::builtin::{
         get_builtin_agent, get_builtin_agents, is_builtin_agent, ADE_MANAGER_ID,
@@ -255,10 +257,12 @@ mod tests_extended {
     #[test]
     fn get_builtin_agents_count_matches_registry() {
         // ADE Manager, base, os, sde, ds, ai-research, wingman,
-        // work-item-manager, explore, general, memory-extractor,
-        // memory-consolidator  (gui-control merged into ADE Manager)
+        // explore, general, memory-extractor, memory-consolidator.
+        // Historical: gui-control merged into ADE Manager; the dedicated
+        // PM persona was retired (Orgtrack migration Phase 1) — its
+        // tools are ordinary built-ins on OS Agent.
         let agents = get_builtin_agents();
-        assert_eq!(agents.len(), 12);
+        assert_eq!(agents.len(), 11);
     }
 
     // =========================================================================

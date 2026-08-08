@@ -6,7 +6,9 @@
 
 use serde_json::Value;
 
-use super::CliAgentParser;
+use super::{
+    canonicalize_cli_error_message, is_codex_retry_notice, BoundedCliErrorDeduper, CliAgentParser,
+};
 use crate::agent_sessions::cli::parsers::normalizer::{normalize_tool_name, unwrap_codex_command};
 use crate::agent_sessions::cli::parsers::types::{CliAgentType, TokenUsage};
 use core_types::activity::ActivityChunk;
@@ -16,6 +18,16 @@ pub struct CodexParser {
     thread_id: Option<String>,
     usage: Option<TokenUsage>,
     got_turn_completed: bool,
+    error_deduper: BoundedCliErrorDeduper,
+    /// A non-retryable `error` is provisional until Codex emits the matching
+    /// terminal event. Keeping it here prevents one failed turn from becoming
+    /// both an error card and a failed session-end card.
+    pending_error_message: Option<String>,
+    /// Last retry notice, kept only as a body of last resort. Codex recovers
+    /// from these, so it must never be rendered on its own — but when the
+    /// terminal event carries no message it is the only description of what
+    /// went wrong, and `Turn failed` tells the user nothing.
+    last_retry_notice: Option<String>,
 }
 
 impl CodexParser {
@@ -25,6 +37,9 @@ impl CodexParser {
             thread_id: None,
             usage: None,
             got_turn_completed: false,
+            error_deduper: BoundedCliErrorDeduper::default(),
+            pending_error_message: None,
+            last_retry_notice: None,
         }
     }
 
@@ -139,6 +154,17 @@ impl CodexParser {
                 let item_type = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
                 let cursor_name = normalize_tool_name(CliAgentType::Codex, item_type);
 
+                // Rendering the fallback-metadata notice as an error card is
+                // misleading; Codex keeps running after it.
+                if item_type == "error"
+                    && item
+                        .get("message")
+                        .and_then(|value| value.as_str())
+                        .is_some_and(super::is_codex_fallback_metadata_notice)
+                {
+                    return vec![];
+                }
+
                 // Reasoning items: extract summary text and emit as thinking
                 if item_type == "reasoning" {
                     let thought = Self::extract_reasoning_text(item);
@@ -239,6 +265,8 @@ impl CodexParser {
 
             "turn.completed" => {
                 self.got_turn_completed = true;
+                self.pending_error_message = None;
+                self.last_retry_notice = None;
 
                 // Extract usage
                 if let Some(usage) = data.get("usage") {
@@ -277,22 +305,34 @@ impl CodexParser {
                     .get("message")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Unknown error");
-                let mut chunk = ActivityChunk::new(&self.session_id, "error", "error");
-                chunk.result = serde_json::json!({
-                    "observation": message, "error": message, "success": false,
-                });
-                vec![chunk]
+                if is_codex_retry_notice(message) {
+                    self.last_retry_notice = Some(canonicalize_cli_error_message(message));
+                    return vec![];
+                }
+                let message = canonicalize_cli_error_message(message);
+                let Some(message) = self.error_deduper.admit(message) else {
+                    return vec![];
+                };
+                self.pending_error_message = Some(message);
+                vec![]
             }
 
             "turn.started" => vec![], // Informational, no chunk needed
 
             "turn.failed" => {
                 self.got_turn_completed = true; // Prevent duplicate session_end
-                let error_msg = data
+                let terminal_error = data
                     .get("error")
                     .and_then(|e| e.get("message"))
                     .and_then(|v| v.as_str())
-                    .unwrap_or("Turn failed");
+                    .map(canonicalize_cli_error_message)
+                    .filter(|message| !message.is_empty());
+                let error_msg = terminal_error
+                    .or_else(|| self.pending_error_message.take())
+                    .or_else(|| self.last_retry_notice.take())
+                    .unwrap_or_else(|| "Turn failed".to_string());
+                self.pending_error_message = None;
+                self.last_retry_notice = None;
                 let mut chunk = ActivityChunk::new(&self.session_id, "session_end", "session_end");
                 chunk.result = serde_json::json!({
                     "success": false,
@@ -370,10 +410,24 @@ impl CliAgentParser for CodexParser {
             return vec![];
         }
         let mut chunk = ActivityChunk::new(&self.session_id, "session_end", "session_end");
-        chunk.result = serde_json::json!({
-            "success": exit_code == 0,
-            "exit_code": exit_code,
-        });
+        // A retry notice only describes a failure if the process actually died;
+        // on a clean exit Codex recovered and there is nothing to report.
+        let failure_message = self
+            .pending_error_message
+            .take()
+            .or_else(|| self.last_retry_notice.take().filter(|_| exit_code != 0));
+        if let Some(message) = failure_message {
+            chunk.result = serde_json::json!({
+                "success": false,
+                "exit_code": exit_code,
+                "error_message": message,
+            });
+        } else {
+            chunk.result = serde_json::json!({
+                "success": exit_code == 0,
+                "exit_code": exit_code,
+            });
+        }
         vec![chunk]
     }
 

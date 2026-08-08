@@ -35,7 +35,7 @@ import { activeStatusBarCallbacksAtom } from "@src/store/ui/workStationAtom";
 import { truncate } from "@src/util/string/truncate";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
-import { StatusBarButton } from "./StatusBarBase";
+import { StatusBarButton, StatusBarLabel } from "./StatusBarBase";
 
 export interface ProjectSyncStatusWidgetProps {
   /** Slug of the active project — used to look up the live event entry. */
@@ -83,7 +83,7 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
         return {
           icon: <CloudOff size={13} className="text-danger-6" />,
           label: String(entry.abandoned_count),
-          labelClass: "text-danger-6 tabular-nums",
+          labelClass: "text-danger-6",
           tooltip: t("statusBar.sync.abandoned", {
             count: entry.abandoned_count,
           }),
@@ -98,7 +98,7 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
         return {
           icon: <CloudAlert size={13} className="text-warning-6" />,
           label: String(entry.failed_count),
-          labelClass: "text-warning-6 tabular-nums",
+          labelClass: "text-warning-6",
           tooltip,
         };
       }
@@ -107,7 +107,7 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
         return {
           icon: <CloudUpload size={13} className="text-text-1" />,
           label: String(entry.pending_count),
-          labelClass: "text-text-1 tabular-nums",
+          labelClass: "text-text-1",
           tooltip: t("statusBar.sync.pending", {
             count: entry.pending_count,
           }),
@@ -134,7 +134,9 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
       <StatusBarButton onClick={handleClick} title={fullTooltip}>
         {view.icon}
         {view.label !== null && (
-          <span className={view.labelClass}>{view.label}</span>
+          <StatusBarLabel numeric className={view.labelClass}>
+            {view.label}
+          </StatusBarLabel>
         )}
       </StatusBarButton>
     );

@@ -281,6 +281,35 @@ pub(crate) fn parse_codex_session_meta_with_title(
     watermark: Option<&ImportedParseWatermark>,
     external_title: String,
 ) -> Result<CodexSessionMetaParse, String> {
+    parse_codex_session_meta_with_title_inner(record, watermark, external_title, false)?
+        .ok_or_else(|| "Codex metadata parse unexpectedly required a resume watermark".to_string())
+}
+
+/// Resume a Codex metadata scan without ever falling back to a full-file read.
+///
+/// Large live rollouts may already be tens of megabytes. Their persisted
+/// watermark makes the normal path cheap, but a rotated file, changed boundary,
+/// corrupt state, or missing watermark would make `WatermarkedTranscriptReader`
+/// conservatively rewind to byte zero. Callers that are handling a large active
+/// rollout use this variant so losing resume eligibility defers the record until
+/// it is quiet instead of reintroducing the full-read CPU/RAM spike.
+pub(crate) fn resume_codex_session_meta_with_title(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+    external_title: String,
+) -> Result<Option<CodexSessionMetaParse>, String> {
+    if watermark.is_none() {
+        return Ok(None);
+    }
+    parse_codex_session_meta_with_title_inner(record, watermark, external_title, true)
+}
+
+fn parse_codex_session_meta_with_title_inner(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+    external_title: String,
+    resume_only: bool,
+) -> Result<Option<CodexSessionMetaParse>, String> {
     let mut reader = WatermarkedTranscriptReader::open(
         &record.source_path,
         "Codex",
@@ -298,6 +327,9 @@ pub(crate) fn parse_codex_session_meta_with_title(
                 resumed = true;
             }
             Err(_) => {
+                if resume_only {
+                    return Ok(None);
+                }
                 reader = WatermarkedTranscriptReader::open(
                     &record.source_path,
                     "Codex",
@@ -308,6 +340,8 @@ pub(crate) fn parse_codex_session_meta_with_title(
                 )?;
             }
         }
+    } else if resume_only {
+        return Ok(None);
     }
     let mut tail_state: Option<CodexSessionMetaState> = None;
     while let Some(line) = reader.next_line()? {
@@ -332,11 +366,11 @@ pub(crate) fn parse_codex_session_meta_with_title(
         state_json,
     );
     let meta = tail_state.unwrap_or(state).finish(record, external_title);
-    Ok(CodexSessionMetaParse {
+    Ok(Some(CodexSessionMetaParse {
         meta,
         watermark: next_watermark,
         resumed,
-    })
+    }))
 }
 
 #[cfg(test)]

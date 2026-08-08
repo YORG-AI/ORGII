@@ -59,7 +59,7 @@ export function canAdministerProjectOrg(
   return true;
 }
 
-export function useProjectOrgCloudPermissions(): {
+export function useProjectOrgCloudPermissions(enabled = true): {
   canAdminister: (projectOrgId: string | undefined) => boolean;
 } {
   const auth = useAtomValue(org2CloudAuthAtom);
@@ -69,6 +69,7 @@ export function useProjectOrgCloudPermissions(): {
   const [projectOrgsLoaded, setProjectOrgsLoaded] = useState(false);
 
   const refreshProjectOrgs = useCallback(async () => {
+    if (!enabled) return;
     try {
       setProjectOrgs(await projectApi.readOrgs());
       setProjectOrgsLoaded(true);
@@ -76,9 +77,9 @@ export function useProjectOrgCloudPermissions(): {
       // Preserve the previous authoritative snapshot. On first-load failure
       // the gate remains closed rather than guessing that an org is local.
     }
-  }, []);
+  }, [enabled]);
 
-  useProjectDataChanged(refreshProjectOrgs, { fireOnMount: true });
+  useProjectDataChanged(refreshProjectOrgs, { fireOnMount: enabled });
 
   const canAdminister = useCallback(
     (projectOrgId: string | undefined) =>

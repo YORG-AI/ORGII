@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { BROWSER_CACHE_STORAGE_KEYS } from "@src/util/core/storage/quotaRecovery";
+
 import {
+  GITHUB_ISSUES_PERSISTED_BUDGET_BYTES,
   GITHUB_LIST_CACHE_TTL_MS,
   coalesceGitHubListRequest,
+  flushGitHubListCachePersistence,
   getCachedPrDetail,
   getCachedPrs,
   isIssueCacheStale,
@@ -17,7 +21,68 @@ import {
 
 describe("global GitHub list cache", () => {
   afterEach(() => {
+    flushGitHubListCachePersistence();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it("coalesces bursty list persistence into one storage write", () => {
+    vi.useFakeTimers();
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem,
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      key: vi.fn(() => null),
+      length: 0,
+    });
+    const repoKey = `persist-${crypto.randomUUID()}`;
+
+    updateCachedOpenIssues(repoKey, []);
+    updateCachedClosedIssues(repoKey, []);
+    updateCachedOpenIssues(repoKey, []);
+
+    expect(setItem).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(100);
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the persisted issue snapshot within its byte budget", () => {
+    vi.useFakeTimers();
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem,
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      key: vi.fn(() => null),
+      length: 0,
+    });
+    const largeIssues = Array.from({ length: 200 }, (_, index) => ({
+      number: index + 1,
+      title: `Issue ${index}`,
+      body: "x".repeat(8_000),
+      state: "open",
+    }));
+
+    for (let repoIndex = 0; repoIndex < 4; repoIndex += 1) {
+      updateCachedOpenIssues(
+        `large-persist-${repoIndex}-${crypto.randomUUID()}`,
+        largeIssues as never
+      );
+    }
+    vi.advanceTimersByTime(100);
+
+    const persistedCall = setItem.mock.calls.find(
+      ([key]) => key === BROWSER_CACHE_STORAGE_KEYS.githubIssues
+    );
+    expect(persistedCall).toBeDefined();
+    const serialized = String(persistedCall?.[1] ?? "");
+    expect(serialized.length * 2).toBeLessThanOrEqual(
+      GITHUB_ISSUES_PERSISTED_BUDGET_BYTES
+    );
   });
 
   it("keeps list entries fresh for ten minutes", () => {

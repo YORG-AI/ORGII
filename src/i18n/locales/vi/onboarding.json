@@ -70,5 +70,271 @@
     "skipSetup": "Bỏ qua thiết lập",
     "getStarted": "Bắt đầu",
     "goToSettings": "Đi đến Cài đặt"
+  },
+  "readiness": {
+    "hero": {
+      "title": "Hãy thiết lập <brand>ORGII</brand> của bạn",
+      "description": "Một vài lựa chọn nhanh để cá nhân hóa không gian làm việc."
+    },
+    "presentation": {
+      "label": "Xem trước bố cục",
+      "compact": "Phiên bản gọn hiện tại",
+      "mascot": "Phiên bản có linh vật",
+      "native": "Giao diện gốc",
+      "cinematic": "Thẻ điện ảnh",
+      "classic": "Bảng cổ điển"
+    },
+    "classicPanel": {
+      "title": "Điều chỉnh ORGII theo bạn",
+      "description": "Chọn ngôn ngữ, giao diện, chủ đề và màu nhấn phù hợp. Bạn có thể thay đổi bất cứ lúc nào."
+    },
+    "sidebar": {
+      "brandTag": "Thiết lập",
+      "subtitle": "Chọn ngôn ngữ và giao diện. Mọi thiết lập khác vẫn có sẵn trong ứng dụng.",
+      "ariaLabel": "Tiến trình thiết lập",
+      "stepProgress": "Bước {{current}} / {{total}}",
+      "saved": "Tiến trình được lưu tự động",
+      "help": "Các bước đã hoàn thành vẫn có thể chỉnh sửa được. Các bước trong tương lai sẽ mở khóa khi bạn hoàn thành."
+    },
+    "goal": {
+      "title": "Bạn muốn hoàn thành điều gì trước tiên?",
+      "description": "ORGII sẽ điều chỉnh quá trình thiết lập và đưa bạn đến bề mặt sản phẩm phù hợp khi bạn hoàn thành.",
+      "recommended": "Được đề xuất",
+      "hint": "Điều này thay đổi đường dẫn thiết lập; nó không giới hạn vĩnh viễn những gì bạn có thể sử dụng.",
+      "personal": {
+        "title": "Bắt đầu phiên đại lý",
+        "description": "Thiết lập quy trình mã hóa cá nhân và mở Launchpad."
+      },
+      "team": {
+        "title": "Xem hoạt động Codex của nhóm",
+        "description": "Kết nối một tổ chức, chọn khả năng hiển thị kho lưu trữ và mở Hộp thư đến của nhóm."
+      },
+      "work": {
+        "title": "Quản lý công việc",
+        "description": "Hiểu rõ về Dự án và Mục công việc, sau đó tạo dự án đầu tiên item."
+      }
+    },
+    "tools": {
+      "title": "Phát hiện các công cụ mã hóa của bạn",
+      "description": "Kiểm tra Codex, Mã Claude và Con trỏ bằng cách sử dụng dịch vụ xác thực cục bộ hiện có.",
+      "detectedDescription": "Trạng thái đăng ký hoặc chứng chỉ cục bộ",
+      "found": "Đã tìm thấy {{count}} tài khoản · {{validated}} đã xác thực",
+      "notFound": "Không phát hiện thấy tài khoản nào có thể sử dụng được",
+      "notScanned": "Chưa được quét",
+      "detect": "Công cụ phát hiện",
+      "importHistory": "Nhập lịch sử Codex",
+      "historyImported": "{{count}} Phiên Codex có sẵn cục bộ",
+      "privacy": "Bí mật không bao giờ được truy cập trạng thái thiết lập. Chỉ nhà cung cấp, số lượng và trạng thái xác thực được giữ lại."
+    },
+    "organization": {
+      "title": "Kết nối tổ chức nhóm",
+      "description": "Đăng nhập một lần, sau đó chọn một tổ chức hiện có, tạo một tổ chức hoặc tham gia bằng lời mời.",
+      "signInHint": "Hoạt động nhóm sử dụng tài khoản ORG2 Cloud để các thành viên có chung ranh giới tổ chức.",
+      "signIn": "Đăng nhập / Đăng ký",
+      "existing": "Tổ chức của bạn",
+      "role": "Vai trò: {{role}}",
+      "mode": "Hành động của tổ chức",
+      "create": "Tạo tổ chức",
+      "join": "Tham gia tổ chức",
+      "orgName": "Tên tổ chức",
+      "orgNamePlaceholder": "ví dụ: Acme Engineering",
+      "invite": "Liên kết hoặc mã mời",
+      "invitePlaceholder": "Dán liên kết mà quản trị viên của bạn đã chia sẻ",
+      "selected": "{{org}} được chọn để thiết lập nhóm",
+      "roles": {
+        "owner": "Chủ sở hữu",
+        "admin": "Quản trị viên",
+        "member": "Thành viên",
+        "guest": "Khách"
+      }
+    },
+    "sharing": {
+      "title": "Chọn những gì nhóm có thể thấy",
+      "description": "Điều khiển từ xa của kho lưu trữ là ranh giới hiển thị. Mức chia sẻ kiểm soát lượng chi tiết phiên được xuất bản.",
+      "workspace": "Không gian làm việc",
+      "workspaceDescription": "Thư mục cục bộ nơi tác nhân của bạn chạy",
+      "noWorkspace": "Không có không gian làm việc nào mở",
+      "openWorkspace": "Mở không gian làm việc",
+      "repoScope": "Phạm vi kho lưu trữ",
+      "repoScopeDescription": "Giải quyết các điều khiển từ xa Git đã chuẩn hóa từ không gian làm việc hiện tại",
+      "detectScope": "Phát hiện phạm vi kho lưu trữ",
+      "remote": "Có thể chia sẻ từ xa",
+      "level": "Mức chia sẻ tối thiểu",
+      "levelDescription": "Được tổ chức áp dụng cho các phiên khớp",
+      "off": "Tắt",
+      "metadata": "Chỉ siêu dữ liệu",
+      "replay": "Phát lại đầy đủ",
+      "save": "Lưu và xác minh chính sách",
+      "createInvite": "Tạo lời mời thành viên",
+      "copy": "Sao chép",
+      "verified": "Máy chủ đã chấp nhận chính sách kho lưu trữ này và hàng đợi đồng bộ hóa đã hết.",
+      "memberHint": "{{org}} là được quản lý bởi một quản trị viên. Lịch sử Codex cục bộ của bạn đã sẵn sàng đồng bộ hóa theo chính sách kho lưu trữ của họ.",
+      "verifyMember": "Xác minh đường dẫn đồng bộ hóa của tôi",
+      "memberVerified": "Lựa chọn tổ chức của bạn đang hoạt động và yêu cầu đồng bộ hóa hiện tại đã được loại bỏ."
+    },
+    "basics": {
+      "title": "Tùy chọn cơ bản",
+      "description": "Bạn luôn có thể thay đổi sau.",
+      "workspace": "Không gian làm việc mặc định",
+      "workspaceDescription": "Các phiên chạy trên các tệp trong một không gian làm việc; các dự án và mục công việc tổ chức công việc thay vì thay thế hệ thống tệp.",
+      "openWorkspace": "Mở không gian làm việc",
+      "changeWorkspace": "Thay đổi không gian làm việc",
+      "settingsHint": "Công cụ, không gian làm việc, tổ chức, khả năng hiển thị nhóm và hướng dẫn có thể được thiết lập sau trong ứng dụng."
+    },
+    "tutorial": {
+      "title": "Chọn một hướng dẫn theo ngữ cảnh",
+      "description": "Hướng dẫn này sẽ bắt đầu sau khi thiết lập, trên bề mặt sản phẩm thực nơi có các điều khiển.",
+      "hint": "Bạn có thể phát lại hướng dẫn sau từ menu Cài đặt."
+    },
+    "model": {
+      "title": "Cách ORGII hoạt động khớp với nhau",
+      "description": "Các đối tượng này giải quyết các vấn đề khác nhau; không có cái nào trong số đó là tên khác cho một thư mục.",
+      "session": {
+        "title": "Phiên",
+        "description": "Bối cảnh cuộc trò chuyện và thực thi của một tổng đài viên. Nó có thể tham chiếu một không gian làm việc."
+      },
+      "workItem": {
+        "title": "Mục công việc",
+        "description": "Một nhiệm vụ có thể theo dõi với trạng thái, người được giao, cuộc thảo luận và các phiên được liên kết."
+      },
+      "project": {
+        "title": "Dự án",
+        "description": "Một vùng chứa lập kế hoạch cho các Mục công việc. Nó có thể điều phối công việc trên các kho lưu trữ."
+      },
+      "workspace": {
+        "title": "Không gian làm việc / hệ thống tệp",
+        "description": "Các tác nhân tệp và thư mục cục bộ thực sự đọc và sửa đổi."
+      },
+      "relationship": "Dự án → Mục công việc → Phiên → Tệp không gian làm việc"
+    },
+    "ready": {
+      "title": "Thiết lập đã sẵn sàng",
+      "description": "Xem lại các bước kiểm tra lâu dài bên dưới, sau đó mở giao diện phù hợp với mục tiêu ban đầu của bạn.",
+      "toolsReady": "Đã phát hiện quyền truy cập Agent",
+      "toolsLater": "Có thể thêm quyền truy cập của nhân viên hỗ trợ sau",
+      "workspaceReady": "Không gian làm việc đã chọn",
+      "workspaceLater": "Không gian làm việc có thể được mở tiếp theo",
+      "teamPolicyReady": "Chính sách hiển thị của nhóm đã được xác nhận",
+      "memberSyncReady": "Đã xác nhận đường dẫn đồng bộ hóa thành viên",
+      "teamDestination": "Mở Hộp thư đến của nhóm",
+      "workDestination": "Tạo Mục công việc đầu tiên",
+      "personalDestination": "Bắt đầu phiên nhân viên hỗ trợ",
+      "destinationHint": "Tiến trình thiết lập của bạn vẫn được duy trì sau khi khởi động lại.",
+      "teamDestinationHint": "Bạn đã chọn Tiến trình tổ chức và thiết lập vẫn được duy trì sau khi khởi động lại.",
+      "openDestination": "Hoàn tất và mở"
+    },
+    "destinations": {
+      "teamInbox": "Hộp thư đến của nhóm",
+      "launchpad": "Launchpad"
+    },
+    "errors": {
+      "signInRequired": "Trước tiên hãy đăng nhập vào ORG2 Cloud.",
+      "sessionExpired": "Phiên ORG2 Cloud của bạn đã hết hạn. Đăng nhập lại.",
+      "invalidInvite": "Liên kết hoặc mã mời này không hợp lệ.",
+      "rosterNotConverged": "Tổ chức này chưa hiển thị trong danh sách thành viên được làm mới của bạn.",
+      "cloudUnavailable": "ORG2 Cloud không khả dụng. Hãy thử lại.",
+      "unknown": "Thao tác thiết lập không thành công. Hãy thử lại.",
+      "workspaceRequired": "Mở không gian làm việc trước khi định cấu hình phạm vi nhóm.",
+      "gitRemoteRequired": "Không gian làm việc này không có điều khiển từ xa Git. Thêm điều khiển từ xa rồi thử lại.",
+      "orgAndScopeRequired": "Trước tiên, hãy chọn tổ chức và phạm vi kho lưu trữ.",
+      "orgRequired": "Chọn tổ chức trước.",
+      "policyChanged": "Cài đặt nhóm đã thay đổi trong khi lưu. Hãy xem lại và xác minh lại.",
+      "inviteOrgChanged": "Tổ chức được chọn đã thay đổi khi tạo lời mời. Hãy thử lại.",
+      "syncOrgChanged": "Tổ chức được chọn đã thay đổi trong khi xác minh đồng bộ hóa. Hãy thử lại."
+    }
+  },
+  "tutorials": {
+    "modalTitle": "Hướng dẫn",
+    "start": "Bắt đầu",
+    "chrome": {
+      "stepProgress": "Bước {{current}} / {{total}}",
+      "close": "Đóng",
+      "previous": "Bước trước",
+      "next": "Bước tiếp theo",
+      "finish": "Kết thúc chuyến tham quan",
+      "keyboardHint": "Dùng ← / → hoặc < / >",
+      "desktop": "Máy tính để bàn",
+      "myStation": "Trạm của tôi",
+      "infinity": "Infinity",
+      "agentStation": "Trạm đại lý"
+    },
+    "generalLayout": {
+      "title": "Tham quan bố cục chung",
+      "description": "Tìm hiểu thanh bên Phiên, Bảng trò chuyện, trình chuyển đổi chế độ trạm, Máy trạm, đế và các khu vực ứng dụng.",
+      "duration": "1 phút",
+      "steps": {
+        "chat-panel": {
+          "title": "Bảng trò chuyện",
+          "body": "Đây là nơi người dùng trò chuyện với tổng đài viên, xem xét hoạt động và gửi hướng dẫn tiếp theo."
+        },
+        "runtime": {
+          "title": "Thời gian chạy",
+          "body": "Xem mức sử dụng và trạng thái chạy của bạn tại đây. Trong tổ chức, bạn cũng có thể kiểm tra trạng thái đồng bộ của thành viên và mở chi tiết sử dụng Codex, Claude và Cursor."
+        },
+        "station-mode-pill": {
+          "title": "Chuyển trạm chế độ",
+          "body": "Sử dụng viên thuốc này để chuyển đổi chế độ trạm. Máy tính để bàn có nghĩa là Trạm của tôi, không gian làm việc của bạn. Infinity có nghĩa là Trạm đại lý, chế độ xem hoạt động của đại lý."
+        },
+        "dock": {
+          "title": "Đế trạm đại lý",
+          "body": "Đế cắm chuyển đổi các ứng dụng bên trong trạm. Chuyến tham quan tạm thời vô hiệu hóa tính năng tự động ẩn để các điều khiển này vẫn hiển thị."
+        },
+        "all-tabs": {
+          "title": "Tất cả các tab",
+          "body": "Biểu tượng dock đầu tiên hiển thị tất cả các tab đang mở cùng nhau, bất kể ứng dụng máy trạm nào sở hữu chúng."
+        },
+        "code-editor": {
+          "title": "Trình chỉnh sửa mã",
+          "body": "Sử dụng Trình chỉnh sửa mã cho các tệp, điểm khác biệt, thiết bị đầu cuối, kiểm soát nguồn và các thay đổi mã hóa được thực hiện trong quá trình tham quan phiên."
+        },
+        "browser": {
+          "title": "Trình duyệt",
+          "body": "Sử dụng Trình duyệt cho các trang web, bản xem trước, thử nghiệm ứng dụng và điều tra dựa trên trình duyệt cùng với cuộc trò chuyện."
+        },
+        "projects": {
+          "title": "Dự án",
+          "body": "Sử dụng Dự án để theo dõi các mục công việc, kế hoạch và trạng thái dự án được kết nối với không gian làm việc hiện tại."
+        }
+      }
+    },
+    "codeEditor": {
+      "title": "Chuyến tham quan Trình chỉnh sửa mã",
+      "description": "Tìm hiểu các tab, kho lưu trữ và chuyển nhánh, Kiểm soát nguồn, Lịch sử Git và trang tổng quan dự án.",
+      "duration": "2 phút",
+      "steps": {
+        "tabs": {
+          "title": "tab Trình chỉnh sửa mã",
+          "body": "Các tab thu thập các tệp, khác biệt, thiết bị đầu cuối, chế độ xem kiểm soát nguồn và trang tổng quan bạn mở khi làm việc trong repo."
+        },
+        "repo-selector": {
+          "title": "Tạo hoặc chuyển đổi kho lưu trữ",
+          "body": "Sử dụng bộ chọn kho lưu trữ để chuyển đổi kho lưu trữ đang hoạt động hoặc thêm một kho lưu trữ hoặc không gian làm việc khác."
+        },
+        "branch-selector": {
+          "title": "Thay đổi nhánh",
+          "body": "Bộ chọn nhánh hiển thị nhánh Git hiện tại và mở nút chuyển nhánh hoặc tạo luồng cho kho lưu trữ này."
+        },
+        "editor-surface": {
+          "title": "Không gian làm việc của Trình chỉnh sửa",
+          "body": "Đây là bề mặt chính của Trình soạn thảo Mã. Mở tệp, kiểm tra các khác biệt, chạy thiết bị đầu cuối và xem xét các thay đổi đã tạo tại đây."
+        },
+        "create-tabs": {
+          "title": "Tạo tab mới",
+          "body": "Sử dụng menu dấu cộng trong Tất cả các tab để tạo thiết bị đầu cuối, tab trình duyệt, tệp, trang tổng quan và tiện ích kho lưu trữ."
+        },
+        "source-control": {
+          "title": "Thay đổi Git",
+          "body": "Kiểm soát nguồn mở để xem xét các tệp đã thay đổi, giai đoạn hoặc giai đoạn công việc, cam kết, kéo, đẩy, tìm nạp và đồng bộ hóa với từ xa."
+        },
+        "git-history": {
+          "title": "Lịch sử Git",
+          "body": "Lịch sử Git chuyển Kiểm soát nguồn sang chế độ lịch sử cam kết để bạn có thể kiểm tra các cam kết trước đó và các thay đổi liên quan."
+        },
+        "dashboard": {
+          "title": "Trang tổng quan của Code Editor",
+          "body": "Trang tổng quan là tab trang chủ của Code Editor dành cho không gian làm việc. Sử dụng nó để thêm kho lưu trữ, mở chi tiết kho lưu trữ và bắt tay vào công việc dự án."
+        }
+      }
+    }
   }
 }

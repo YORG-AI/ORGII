@@ -4,10 +4,7 @@
  * Main orchestrating hook for GlobalDragDrop component.
  * Composes sub-hooks for different drag-drop scenarios.
  */
-import { useAtomValue } from "jotai";
 import React, { useState } from "react";
-
-import { workflowDragActiveAtom } from "@src/store/ui/workflowEditorAtom";
 
 import type { UseGlobalDragDropReturn } from "./types";
 import { useBrowserDragDrop } from "./useBrowserDragDrop";
@@ -17,17 +14,10 @@ import { useTauriDragDrop } from "./useTauriDragDrop";
 export function useGlobalDragDrop(): UseGlobalDragDropReturn {
   // Core state
   const [isDragging, setIsDragging] = useState(false);
-  // Track internal workflow drags.
-  const workflowDragActive = useAtomValue(workflowDragActiveAtom);
 
   // Shared refs
   const dragDepthRef = React.useRef(0);
-  const workflowDragActiveRef = React.useRef(false);
   const internalFileTreeDragRef = React.useRef(false);
-
-  React.useEffect(() => {
-    workflowDragActiveRef.current = workflowDragActive;
-  }, [workflowDragActive]);
 
   // Sub-hooks
   const { handleIdeFileDrop, handleBrowserFileDrop } = useFileHandlers();
@@ -37,7 +27,6 @@ export function useGlobalDragDrop(): UseGlobalDragDropReturn {
     handleBrowserFileDrop,
     setIsDragging,
     dragDepthRef,
-    workflowDragActiveRef,
     internalFileTreeDragRef,
   });
 

@@ -16,7 +16,12 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { useAtomValue, useSetAtom } from "jotai";
-import { Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import {
+  Download,
+  Loader2,
+  RefreshCw,
+  SquareArrowOutUpRight,
+} from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -545,7 +550,7 @@ const ComputerUseConfig: React.FC = () => {
         >
           <Button
             size="default"
-            icon={<ExternalLink size={14} />}
+            icon={<SquareArrowOutUpRight size={14} />}
             onClick={goToWingmanSafety}
           >
             {t("osAgent.desktopSafetyDeepLinkAction")}

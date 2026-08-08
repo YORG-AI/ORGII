@@ -6,14 +6,9 @@
 //! the OpenCode SSE sanitizer. Extracted from `session::run_session` so the
 //! runner reads as an orchestration of named phases.
 
+use key_vault::key_store::{ModelKey, ModelType};
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Stdio;
-
-use tokio::process::Command;
-
-use integrations::cli_binary_resolver::{resolve_cli_binary_command, CliBinaryId};
-use key_vault::key_store::{ModelKey, ModelType};
 
 use super::super::persistence::CodeSession;
 use super::super::types::{proxy_env, KeySource};
@@ -22,6 +17,10 @@ use super::oauth_setup::write_codex_cli_auth_file;
 const OPENCODE_ZENMUX_PROVIDER_ID: &str = "zenmux";
 const OPENCODE_ZENMUX_BASE_URL: &str = "https://zenmux.ai/api/v1";
 const OPENCODE_DEFAULT_ZENMUX_MODEL: &str = "deepseek/deepseek-chat";
+const ATLASCLOUD_PROVIDER_ID: &str = "atlascloud";
+const CODEX_COMPATIBLE_PROVIDER_ID: &str = "orgii_compatible";
+const ATLASCLOUD_BASE_URL: &str = "https://api.atlascloud.ai/v1";
+const ATLASCLOUD_DEFAULT_MODEL: &str = "zai-org/glm-5.1";
 const OPENCODE_ZENMUX_MODEL_IDS: &[&str] = &[
     "inclusionai/ling-1t",
     "inclusionai/ring-1t",
@@ -52,6 +51,15 @@ pub(super) fn opencode_zenmux_model_id(
         .or_else(|| selected_key.enabled_models.first().map(String::as_str))
         .or_else(|| selected_key.available_models.first().map(String::as_str))
         .unwrap_or(OPENCODE_DEFAULT_ZENMUX_MODEL)
+        .to_string()
+}
+
+pub(super) fn atlascloud_model_id(session_model: Option<&str>, selected_key: &ModelKey) -> String {
+    session_model
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| selected_key.enabled_models.first().map(String::as_str))
+        .or_else(|| selected_key.available_models.first().map(String::as_str))
+        .unwrap_or(ATLASCLOUD_DEFAULT_MODEL)
         .to_string()
 }
 
@@ -121,6 +129,226 @@ pub(super) fn setup_opencode_zenmux_profile(
     Ok(())
 }
 
+fn opencode_atlascloud_config_payload(model_id: &str, base_url: &str) -> serde_json::Value {
+    serde_json::json!({
+        "$schema": "https://opencode.ai/config.json",
+        "provider": {
+            ATLASCLOUD_PROVIDER_ID: {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "atlascloud",
+                "options": {
+                    "baseURL": base_url,
+                    "apiKey": "{env:ATLASCLOUD_API_KEY}"
+                },
+                "models": {
+                    model_id: {
+                        "name": model_id
+                    }
+                }
+            }
+        },
+        "model": format!("{}/{}", ATLASCLOUD_PROVIDER_ID, model_id),
+        "small_model": format!("{}/{}", ATLASCLOUD_PROVIDER_ID, model_id)
+    })
+}
+
+pub(super) fn setup_opencode_atlascloud_profile(
+    profile_home: &Path,
+    selected_key: &ModelKey,
+    session_model: Option<&str>,
+) -> Result<(), String> {
+    let api_key = selected_key
+        .api_key
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "OpenCode Atlas Cloud session requires an API key".to_string())?;
+    let model_id = atlascloud_model_id(session_model, selected_key);
+    let base_url = selected_key
+        .base_url
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(ATLASCLOUD_BASE_URL);
+    let config_dir = profile_home.join(".config").join("opencode");
+    let data_dir = profile_home.join(".local").join("share").join("opencode");
+
+    std::fs::create_dir_all(&config_dir)
+        .map_err(|err| format!("Failed to create OpenCode config dir: {}", err))?;
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|err| format!("Failed to create OpenCode data dir: {}", err))?;
+
+    let config_bytes =
+        serde_json::to_vec_pretty(&opencode_atlascloud_config_payload(&model_id, base_url))
+            .map_err(|err| err.to_string())?;
+    std::fs::write(config_dir.join("opencode.json"), config_bytes)
+        .map_err(|err| format!("Failed to write OpenCode config: {}", err))?;
+
+    let auth_bytes = serde_json::to_vec_pretty(&serde_json::json!({
+        ATLASCLOUD_PROVIDER_ID: {
+            "type": "api",
+            "key": api_key
+        }
+    }))
+    .map_err(|err| err.to_string())?;
+    std::fs::write(data_dir.join("auth.json"), auth_bytes)
+        .map_err(|err| format!("Failed to write OpenCode auth: {}", err))?;
+
+    Ok(())
+}
+
+fn codex_compatible_model_id(
+    session_model: Option<&str>,
+    selected_key: &ModelKey,
+) -> Result<String, String> {
+    session_model
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| selected_key.enabled_models.first().map(String::as_str))
+        .or_else(|| selected_key.available_models.first().map(String::as_str))
+        .map(|model| normalize_codex_provider_model_id(model, &selected_key.model_type))
+        .ok_or_else(|| {
+            format!(
+                "Codex provider {} requires an explicit Responses-compatible model",
+                selected_key.model_type.as_str()
+            )
+        })
+}
+
+pub(super) fn normalize_codex_provider_model_id(model: &str, provider: &ModelType) -> String {
+    let model = model.trim();
+    match provider {
+        // Apply the equivalent namespace removal for direct OpenAI keys.
+        ModelType::OpenaiApi => model.strip_prefix("openai/").unwrap_or(model).to_string(),
+        // ZenMux requires provider/model slugs, so preserve them exactly.
+        // Zhipu and Atlas Cloud are rejected by the compatibility gate because
+        // their coding endpoints expose Chat Completions but not Responses.
+        _ => model.to_string(),
+    }
+}
+
+fn codex_compatible_base_url(selected_key: &ModelKey) -> Result<String, String> {
+    selected_key
+        .base_url
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            key_vault::provider_config::get_provider_config(selected_key.model_type.as_str())
+                .default_base_url
+        })
+        .ok_or_else(|| {
+            format!(
+                "Codex compatible provider {} requires a base URL",
+                selected_key.model_type.as_str()
+            )
+        })
+}
+
+/// Direct OpenAI keys must keep Codex's built-in `openai` provider, which
+/// already targets the official endpoint over Responses with native OpenAI
+/// auth, WebSocket support and Codex's own retry defaults. Routing them through
+/// the synthetic compatible-provider table downgrades all four for no benefit.
+/// A custom endpoint override is the one case that still needs the table.
+pub(super) fn codex_needs_compatible_profile(selected_key: &ModelKey) -> bool {
+    if selected_key.model_type != ModelType::OpenaiApi {
+        return true;
+    }
+
+    let Some(base_url) = selected_key
+        .base_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return false;
+    };
+
+    key_vault::provider_config::get_provider_config(ModelType::OpenaiApi.as_str())
+        .default_base_url
+        .as_deref()
+        .is_none_or(|official| !codex_endpoints_match(base_url, official))
+}
+
+fn codex_endpoints_match(left: &str, right: &str) -> bool {
+    left.trim_end_matches('/') == right.trim_end_matches('/')
+}
+
+/// Drop a profile an earlier session wrote for this key. Without this a key
+/// that had a custom endpoint and then had it cleared would keep routing
+/// through the stale `orgii_compatible` table forever. Only ORGII-authored
+/// profiles are removed, so anything Codex persisted itself survives.
+pub(super) fn clear_codex_compatible_profile(profile_home: &Path) -> Result<(), String> {
+    let config_path = profile_home.join("config.toml");
+    let Ok(existing) = std::fs::read_to_string(&config_path) else {
+        return Ok(());
+    };
+    if !existing.contains(CODEX_COMPATIBLE_PROVIDER_ID) {
+        return Ok(());
+    }
+
+    match std::fs::remove_file(&config_path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("Failed to clear stale Codex config: {}", err)),
+    }
+}
+
+pub(super) fn validate_codex_own_key_provider(selected_key: &ModelKey) -> Result<(), String> {
+    let provider = selected_key.model_type.as_str();
+    if selected_key.model_type == ModelType::Codex
+        || key_vault::is_cli_provider_compatible("codex", provider)
+    {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Provider {provider} is not registered as Responses-compatible with Codex CLI"
+    ))
+}
+
+/// Write the Codex custom-provider profile used by every cross-provider
+/// own-key session. Codex no longer supports the legacy `wire_api = "chat"`
+/// setting: OpenAI-compatible providers must use Responses, and providers that
+/// do not explicitly advertise WebSocket support must stay on HTTP/SSE.
+pub(super) fn setup_codex_compatible_profile(
+    profile_home: &Path,
+    selected_key: &ModelKey,
+    session_model: Option<&str>,
+    env_vars: &mut HashMap<String, String>,
+) -> Result<(), String> {
+    let base_url = codex_compatible_base_url(selected_key)?;
+    let quoted_base_url = serde_json::to_string(&base_url).map_err(|err| err.to_string())?;
+    let provider_name = format!("ORGII {}", selected_key.model_type.as_str());
+    let quoted_provider_name =
+        serde_json::to_string(&provider_name).map_err(|err| err.to_string())?;
+    let model_id = codex_compatible_model_id(session_model, selected_key)?;
+    let quoted_model = serde_json::to_string(&model_id).map_err(|err| err.to_string())?;
+    let request_max_retries = agent_cli::managed_config::CODEX_REQUEST_MAX_RETRIES;
+    let stream_max_retries = agent_cli::managed_config::CODEX_STREAM_MAX_RETRIES;
+    let config = format!(
+        "model_provider = \"{CODEX_COMPATIBLE_PROVIDER_ID}\"\n\
+         model = {quoted_model}\n\n\
+         [model_providers.{CODEX_COMPATIBLE_PROVIDER_ID}]\n\
+         name = {quoted_provider_name}\n\
+         base_url = {quoted_base_url}\n\
+         env_key = \"OPENAI_API_KEY\"\n\
+         wire_api = \"responses\"\n\
+         requires_openai_auth = false\n\
+         supports_websockets = false\n\
+         request_max_retries = {request_max_retries}\n\
+         stream_max_retries = {stream_max_retries}\n"
+    );
+
+    std::fs::create_dir_all(profile_home)
+        .map_err(|err| format!("Failed to create Codex profile dir: {}", err))?;
+    std::fs::write(profile_home.join("config.toml"), config)
+        .map_err(|err| format!("Failed to write Codex config: {}", err))?;
+
+    // The custom provider table is the single source of truth for routing;
+    // do not leave a second endpoint override for the child to interpret.
+    env_vars.remove("OPENAI_BASE_URL");
+
+    Ok(())
+}
+
 /// Start the per-session MITM proxy and point the child's proxy/cert env at it.
 /// Called only when the session uses a hosted key on a MITM-requiring agent.
 pub(super) async fn start_session_mitm_proxy(
@@ -164,6 +392,37 @@ pub(super) async fn start_session_mitm_proxy(
 /// Set up per-agent config/home directories and auth-profile state on the
 /// child's environment (Cursor, Claude Code, Codex own-key, OpenCode ZenMux,
 /// Kiro). Also clears any stale Kiro session lock for a resumed conversation.
+pub(super) fn setup_codex_hosted_profile(
+    session_id: &str,
+    proxy_url: Option<&str>,
+    env_vars: &mut HashMap<String, String>,
+) -> Result<(), String> {
+    let proxy_url = proxy_url
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Codex hosted session requires a proxy URL".to_string())?;
+    if env_vars
+        .get("PROXY_TOKEN")
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(true)
+    {
+        return Err("Codex hosted session requires PROXY_TOKEN".to_string());
+    }
+
+    let codex_home = app_paths::codex_hosted_cli_profile_dir(session_id);
+    agent_cli::managed_config::write_codex_hosted_profile(&codex_home, proxy_url)
+        .map_err(|err| format!("Failed to setup hosted Codex profile: {err}"))?;
+    env_vars.insert(
+        "CODEX_HOME".to_string(),
+        codex_home.to_string_lossy().to_string(),
+    );
+    tracing::info!(
+        "[CodeSession] Hosted Codex CODEX_HOME={}",
+        codex_home.display()
+    );
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn configure_agent_profile(
     agent: &ModelType,
@@ -231,21 +490,65 @@ pub(super) fn configure_agent_profile(
             "CODEX_HOME".to_string(),
             codex_home.to_string_lossy().to_string(),
         );
-        write_codex_cli_auth_file(account_id, env_vars);
+        let selected_key = selected_key
+            .ok_or_else(|| "Codex CLI own-key session requires a selected key".to_string())?;
+        validate_codex_own_key_provider(selected_key)?;
+        write_codex_cli_auth_file(account_id, selected_key, env_vars)?;
+        if selected_key.model_type.is_api_key_provider()
+            && codex_needs_compatible_profile(selected_key)
+        {
+            setup_codex_compatible_profile(
+                &codex_home,
+                selected_key,
+                session.model.as_deref(),
+                env_vars,
+            )
+            .map_err(|err| format!("Failed to setup Codex compatible provider profile: {err}"))?;
+        } else if selected_key.model_type.is_api_key_provider() {
+            clear_codex_compatible_profile(&codex_home)?;
+        }
+    }
+
+    if matches!(agent, ModelType::Codex) && session.key_source == KeySource::HostedKey {
+        setup_codex_hosted_profile(session_id, session.proxy_url.as_deref(), env_vars)?;
     }
 
     if matches!(agent, ModelType::OpenCode)
         && session.key_source == KeySource::OwnKey
-        && selected_key.is_some_and(|key| key.model_type == ModelType::ZenmuxApi)
+        && selected_key.is_some_and(|key| {
+            matches!(
+                &key.model_type,
+                ModelType::ZenmuxApi | ModelType::AtlascloudApi
+            )
+        })
     {
         let Some(account_id) = account_id else {
-            return Err("OpenCode ZenMux own-key session requires account_id".to_string());
+            return Err("OpenCode provider session requires account_id".to_string());
         };
         let selected_key = selected_key
-            .ok_or_else(|| "OpenCode ZenMux session requires a selected ZenMux key".to_string())?;
+            .ok_or_else(|| "OpenCode provider session requires a selected key".to_string())?;
         let opencode_home = app_paths::opencode_cli_profile_dir(account_id);
-        setup_opencode_zenmux_profile(&opencode_home, selected_key, session.model.as_deref())
-            .map_err(|err| format!("Failed to setup OpenCode ZenMux profile: {}", err))?;
+        let (provider_name, api_key_env) = match &selected_key.model_type {
+            ModelType::ZenmuxApi => {
+                setup_opencode_zenmux_profile(
+                    &opencode_home,
+                    selected_key,
+                    session.model.as_deref(),
+                )
+                .map_err(|err| format!("Failed to setup OpenCode ZenMux profile: {}", err))?;
+                ("ZenMux", "ZENMUX_API_KEY")
+            }
+            ModelType::AtlascloudApi => {
+                setup_opencode_atlascloud_profile(
+                    &opencode_home,
+                    selected_key,
+                    session.model.as_deref(),
+                )
+                .map_err(|err| format!("Failed to setup OpenCode Atlas Cloud profile: {}", err))?;
+                ("Atlas Cloud", "ATLASCLOUD_API_KEY")
+            }
+            _ => unreachable!("OpenCode managed profile guard only accepts ZenMux or Atlas Cloud"),
+        };
 
         let home_path = opencode_home.to_string_lossy().to_string();
         let config_home = opencode_home.join(".config").to_string_lossy().to_string();
@@ -255,12 +558,16 @@ pub(super) fn configure_agent_profile(
             .to_string_lossy()
             .to_string();
 
-        tracing::info!("[CodeSession] OpenCode ZenMux HOME={}", home_path);
+        tracing::info!(
+            "[CodeSession] OpenCode {} HOME={}",
+            provider_name,
+            home_path
+        );
         env_vars.insert("HOME".to_string(), home_path);
         env_vars.insert("XDG_CONFIG_HOME".to_string(), config_home);
         env_vars.insert("XDG_DATA_HOME".to_string(), data_home);
         if let Some(api_key) = selected_key.api_key.as_deref() {
-            env_vars.insert("ZENMUX_API_KEY".to_string(), api_key.to_string());
+            env_vars.insert(api_key_env.to_string(), api_key.to_string());
         }
     }
 
@@ -351,134 +658,6 @@ pub(super) fn apply_system_proxy_passthrough(env_vars: &mut HashMap<String, Stri
             env_vars.insert(key.to_string(), no_proxy_extras.to_string());
         } else if !current.contains("localhost") {
             env_vars.insert(key.to_string(), format!("{},{}", current, no_proxy_extras));
-        }
-    }
-}
-
-fn ensure_codex_hosted_proxy_config(proxy_url_val: &str) {
-    if let Some(home) = dirs::home_dir() {
-        let codex_dir = home.join(".codex");
-        let config_file = codex_dir.join("config.toml");
-
-        let needs_proxy_section = if config_file.exists() {
-            std::fs::read_to_string(&config_file)
-                .map(|content| !content.contains("[model_providers.proxy]"))
-                .unwrap_or(true)
-        } else {
-            true
-        };
-
-        if needs_proxy_section {
-            if let Err(err) = std::fs::create_dir_all(&codex_dir) {
-                tracing::warn!("[CodeSession] Failed to create ~/.codex dir: {}", err);
-            } else {
-                let proxy_section = format!(
-                    "\n[model_providers.proxy]\n\
-                     name = \"Proxy\"\n\
-                     base_url = \"{}/v1\"\n\
-                     env_key = \"PROXY_TOKEN\"\n\
-                     requires_openai_auth = false\n\
-                     wire_api = \"responses\"\n",
-                    proxy_url_val
-                );
-                let write_result = if config_file.exists() {
-                    std::fs::OpenOptions::new()
-                        .append(true)
-                        .open(&config_file)
-                        .and_then(|mut file| {
-                            use std::io::Write;
-                            file.write_all(proxy_section.as_bytes())
-                        })
-                } else {
-                    std::fs::write(&config_file, proxy_section.trim_start())
-                };
-                match write_result {
-                    Ok(()) => {
-                        tracing::info!(
-                            "[CodeSession] Wrote codex proxy config to {:?}",
-                            config_file
-                        )
-                    }
-                    Err(err) => {
-                        tracing::warn!("[CodeSession] Failed to write codex config.toml: {}", err)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// For a Codex hosted-key session: ensure `~/.codex/config.toml` has the proxy
-/// `model_providers.proxy` section, then run `codex login --with-api-key` with
-/// the proxy token. No-op for any other agent/key-source. Failures are logged
-/// and the session continues.
-pub(super) async fn setup_codex_hosted_proxy(
-    agent: &ModelType,
-    session: &CodeSession,
-    env_vars: &HashMap<String, String>,
-) {
-    if !(matches!(agent, ModelType::Codex) && session.key_source == KeySource::HostedKey) {
-        return;
-    }
-
-    let proxy_url = session.proxy_url.clone().unwrap_or_default();
-    if let Err(err) = tokio::task::spawn_blocking(move || {
-        ensure_codex_hosted_proxy_config(&proxy_url);
-    })
-    .await
-    {
-        tracing::warn!("[CodeSession] Codex proxy config task failed: {err}");
-    }
-
-    let api_key_val = session.proxy_token.as_deref().unwrap_or("");
-    if !api_key_val.is_empty() {
-        let codex_bin = resolve_cli_binary_command(CliBinaryId::Codex);
-        tracing::info!(
-            "[CodeSession] Running codex login --with-api-key via {}...",
-            codex_bin
-        );
-        let mut login_cmd = Command::new(&codex_bin);
-        login_cmd
-            .arg("login")
-            .arg("--with-api-key")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .envs(env_vars);
-        // Windows: don't flash a console window for `codex login`.
-        #[cfg(windows)]
-        login_cmd.creation_flags(app_platform::CREATE_NO_WINDOW);
-        match login_cmd.spawn() {
-            Ok(mut login_child) => {
-                if let Some(mut stdin) = login_child.stdin.take() {
-                    use tokio::io::AsyncWriteExt;
-                    let _ = stdin.write_all(api_key_val.as_bytes()).await;
-                    drop(stdin);
-                }
-                match login_child.wait().await {
-                    Ok(status) if status.success() => {
-                        tracing::info!("[CodeSession] codex login succeeded");
-                    }
-                    Ok(status) => {
-                        tracing::warn!(
-                            "[CodeSession] codex login failed (exit {:?}) — continuing anyway",
-                            status.code()
-                        );
-                    }
-                    Err(err) => {
-                        tracing::warn!(
-                            "[CodeSession] codex login wait error: {} — continuing anyway",
-                            err
-                        );
-                    }
-                }
-            }
-            Err(err) => {
-                tracing::warn!(
-                    "[CodeSession] Failed to spawn codex login: {} — continuing anyway",
-                    err
-                );
-            }
         }
     }
 }

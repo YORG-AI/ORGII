@@ -552,6 +552,11 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
   return (
     <BasePill
       variant="editor"
+      className={
+        isClickable
+          ? "underline-offset-2 hover:underline focus-visible:underline active:underline"
+          : undefined
+      }
       iconNode={
         <PillIcon
           pillType={segment.pillType}

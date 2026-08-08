@@ -481,6 +481,9 @@ fn load_loader(
                 parser_version: spec.parser_version,
                 candidate_roots: roots,
                 exclude_subagent_dirs: spec.exclude_subagent_dirs,
+                max_discovery_depth: None,
+                incremental_metadata: false,
+                session_id_from_header: false,
             };
             (LoaderImpl::Jsonl(config), Trust::NotRequired)
         }

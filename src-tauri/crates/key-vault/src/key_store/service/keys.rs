@@ -169,6 +169,9 @@ impl KeyService {
     }
 
     /// Update key health status
+    #[allow(clippy::too_many_arguments)]
+    // Health refreshes atomically merge independent optional facets. Keeping
+    // them explicit avoids a second DTO that would mirror the stored key patch.
     pub fn update_key_health(
         &self,
         key_id: &str,

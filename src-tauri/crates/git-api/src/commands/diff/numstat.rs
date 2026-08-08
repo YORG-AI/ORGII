@@ -17,12 +17,13 @@ struct NumstatCacheEntry {
     result: CombinedDiffNumstatResult,
 }
 
-/// `(repo_path_string, from_ref_string, head_sha)` → cached result.
-static NUMSTAT_CACHE: std::sync::OnceLock<
-    Mutex<HashMap<(String, String, String), NumstatCacheEntry>>,
-> = std::sync::OnceLock::new();
+type NumstatCacheKey = (String, String, String);
+type NumstatCache = Mutex<HashMap<NumstatCacheKey, NumstatCacheEntry>>;
 
-fn numstat_cache() -> &'static Mutex<HashMap<(String, String, String), NumstatCacheEntry>> {
+/// `(repo_path_string, from_ref_string, head_sha)` → cached result.
+static NUMSTAT_CACHE: std::sync::OnceLock<NumstatCache> = std::sync::OnceLock::new();
+
+fn numstat_cache() -> &'static NumstatCache {
     NUMSTAT_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 

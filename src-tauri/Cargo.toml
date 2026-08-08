@@ -28,6 +28,7 @@ members = [
     "crates/lsp",
     "crates/orgtrack-cli",
     "crates/orgtrack-core",
+    "crates/orgtrack-pm-cli",
     "crates/orgtrack-protocol",
     "crates/orgtrack-graph",
     "crates/orgtrack-sync",
@@ -556,6 +557,12 @@ tauri-plugin-updater = "=2.9.0"
 
 [dev-dependencies]
 tempfile = "3.13"
+
+# `test-util` only for the test build: it is what lets a test drive Tokio's
+# clock (`#[tokio::test(start_paused = true)]`) rather than really sleeping out
+# a multi-second timeout. Deliberately absent from the production features.
+tokio = { workspace = true, features = ["test-util"] }
+
 insta = { version = "1", features = ["yaml", "redactions"] }
 assert_matches = "1"
 # HTTP mock server for sync adapter integration tests.

@@ -28,7 +28,7 @@ import {
   createIssue,
   fetchIssueTimeline,
   fetchIssues,
-  fetchRepoCollaborators,
+  fetchRepoAssignees,
   fetchRepoLabels,
   issueCommentToTimelineItem,
   reopenIssue,
@@ -517,7 +517,7 @@ export function useWorkstationIssues({
   const fetchRepoMetadata = useCallback(async (remoteUrl: string) => {
     const [labelsResult, collaboratorsResult] = await Promise.all([
       fetchRepoLabels(remoteUrl),
-      fetchRepoCollaborators(remoteUrl),
+      fetchRepoAssignees(remoteUrl),
     ]);
     return {
       collaborators: collaboratorsResult.data ?? [],

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Globe, SquareArrowOutUpRight } from "lucide-react";
 import React, { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -18,6 +19,47 @@ import AssignedWorkItemDetail from "../components/AssignedWorkItemDetail";
 import type { AssignedWorkItem } from "../domain";
 
 const mocks = vi.hoisted(() => ({
+  detailLayoutProps: null as Record<string, unknown> | null,
+  threadWorkItem: null as WorkItem | null,
+  threadProps: null as Record<string, unknown> | null,
+  getGitRemotes: vi.fn(async () => ({
+    remotes: [
+      {
+        name: "origin",
+        url: "git@github.com:org2AI/ORG2.git",
+        fetch_url: "git@github.com:org2AI/ORG2.git",
+      },
+    ],
+  })),
+  githubIssueState: {
+    issue: null as Record<string, unknown> | null,
+    timeline: [{ event: "assigned" }],
+    timelineLoading: false,
+    interaction: {
+      viewer: {
+        login: "github-viewer",
+        avatar_url: "https://example.com/github-viewer.png",
+      },
+      issueState: "open" as const,
+      duplicateCandidates: [],
+      duplicateCandidatesLoaded: false,
+      loadingDuplicateCandidates: false,
+      duplicateCandidatesError: false,
+      loading: false,
+      canComment: true,
+      canEditBody: true,
+      canManageStatus: true,
+      submittingComment: false,
+      updatingBody: false,
+      updatingStatus: false,
+      error: null,
+      onAddComment: vi.fn(),
+      onUpdateBody: vi.fn(),
+      onLoadDuplicateCandidates: vi.fn(),
+      onStatusChange: vi.fn(),
+    },
+  },
+  openExternalLink: vi.fn(async () => undefined),
   updateWorkItem: vi.fn(),
   transitionHandoff: vi.fn(),
   workItem: {
@@ -42,6 +84,14 @@ const mocks = vi.hoisted(() => ({
       selected_model_id: "model-1",
     },
   } as WorkItem,
+}));
+
+vi.mock("@src/api/http/git/remotes", () => ({
+  getGitRemotes: mocks.getGitRemotes,
+}));
+
+vi.mock("@src/util/platform/ipcRenderer", () => ({
+  openExternalLink: mocks.openExternalLink,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -69,15 +119,22 @@ vi.mock("../useTeamInboxWorkItem", () => ({
   }),
 }));
 
+vi.mock("../useTeamInboxGitHubIssue", () => ({
+  useTeamInboxGitHubIssue: () => mocks.githubIssueState,
+}));
+
 vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
   WorkItemThreadSurface: ({
+    workItem,
     onStartAgent,
     onOpenSession,
     propertyProps,
     onUpdateWorkItem,
     onTransitionHandoff,
     currentUser,
+    ...threadProps
   }: {
+    workItem: WorkItem;
     onStartAgent?: () => void;
     onOpenSession?: (sessionId: string) => void;
     propertyProps?: Record<string, unknown>;
@@ -88,8 +145,12 @@ vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
       actor: { id: string; name: string };
     }) => Promise<WorkItem>;
     currentUser?: { id: string; name: string; avatar?: string };
-  }) =>
-    createElement(
+    githubIssueTimeline?: unknown;
+    githubIssueInteraction?: unknown;
+  }) => {
+    mocks.threadWorkItem = workItem;
+    mocks.threadProps = { ...threadProps, propertyProps };
+    return createElement(
       "div",
       {
         "data-testid": "work-item-content",
@@ -144,12 +205,15 @@ vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
         },
         "Accept handoff"
       )
-    ),
+    );
+  },
 }));
 
 vi.mock("../components/TeamInboxDetailLayout", () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
-    createElement("div", null, children),
+  default: (props: Record<string, unknown>) => {
+    mocks.detailLayoutProps = props;
+    return createElement("div", null, props.children as React.ReactNode);
+  },
 }));
 
 const item: AssignedWorkItem = {
@@ -185,6 +249,12 @@ describe("AssignedWorkItemDetail navigation actions", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.detailLayoutProps = null;
+    mocks.threadWorkItem = null;
+    mocks.threadProps = null;
+    mocks.githubIssueState.issue = null;
+    mocks.githubIssueState.timelineLoading = false;
+    mocks.githubIssueState.interaction.loading = false;
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -222,6 +292,230 @@ describe("AssignedWorkItemDetail navigation actions", () => {
       workItemId: "work-item-1",
       action: "start_agent",
     });
+  });
+
+  it("shows separate browser and Work Item actions for GitHub-backed items", async () => {
+    const onNavigate = vi.fn();
+    const githubItem: AssignedWorkItem = {
+      ...item,
+      target: {
+        ...item.target,
+        repository: "git@github.com:org2AI/ORG2.git",
+        workItemId: "42",
+      },
+      payload: { ...item.payload, status: "open" },
+    };
+
+    await act(async () => {
+      root.render(
+        createElement(AssignedWorkItemDetail, {
+          item: githubItem,
+          onNavigate,
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(mocks.detailLayoutProps?.openLabel).toBe(
+      "teamInbox.actions.openWorkItem"
+    );
+    const openIcon = mocks.detailLayoutProps?.openIcon;
+    expect(React.isValidElement(openIcon)).toBe(true);
+    expect((openIcon as React.ReactElement).type).toBe(SquareArrowOutUpRight);
+    const browserAction = mocks.detailLayoutProps?.headerAuxiliaryAction as
+      | {
+          label: string;
+          icon: React.ReactElement;
+          onClick: () => void;
+          testId: string;
+        }
+      | undefined;
+    expect(browserAction?.label).toBe("previews.openInBrowser");
+    expect(browserAction?.icon.type).toBe(Globe);
+    expect(browserAction?.testId).toBe("team-inbox-open-github");
+    const headerContent = mocks.detailLayoutProps?.headerContent;
+    expect(React.isValidElement(headerContent)).toBe(true);
+    expect(
+      (headerContent as React.ReactElement<{ issue: unknown }>).props.issue
+    ).toEqual({
+      number: 42,
+      state: "open",
+      title: "Add Team Inbox",
+    });
+
+    act(() => {
+      browserAction?.onClick();
+    });
+
+    expect(mocks.openExternalLink).toHaveBeenCalledWith(
+      "https://github.com/org2AI/ORG2/issues/42"
+    );
+    expect(onNavigate).not.toHaveBeenCalled();
+
+    act(() => {
+      (mocks.detailLayoutProps?.onOpen as (() => void) | undefined)?.();
+    });
+    expect(onNavigate).toHaveBeenCalledWith({
+      kind: "open_work_item",
+      projectId: "project-1",
+      workItemId: "42",
+    });
+  });
+
+  it("resolves the local Git remote when repository metadata is unavailable", async () => {
+    const githubItem: AssignedWorkItem = {
+      ...item,
+      target: {
+        ...item.target,
+        workItemId: "61",
+      },
+      payload: { ...item.payload, status: "open" },
+    };
+
+    await act(async () => {
+      root.render(
+        createElement(AssignedWorkItemDetail, {
+          item: githubItem,
+          onNavigate: vi.fn(),
+        })
+      );
+      await Promise.resolve();
+    });
+
+    const headerContent = mocks.detailLayoutProps?.headerContent;
+    expect(React.isValidElement(headerContent)).toBe(true);
+    expect(
+      (headerContent as React.ReactElement<{ issue: unknown }>).props.issue
+    ).toEqual({
+      number: 61,
+      state: "open",
+      title: "Add Team Inbox",
+    });
+    expect(mocks.detailLayoutProps?.openLabel).toBe(
+      "teamInbox.actions.openWorkItem"
+    );
+    expect(mocks.getGitRemotes).toHaveBeenCalledWith({
+      repo_id: "default",
+      repo_path: "/repo",
+    });
+    const browserAction = mocks.detailLayoutProps?.headerAuxiliaryAction as
+      | { label: string; onClick: () => void }
+      | undefined;
+    expect(browserAction?.label).toBe("previews.openInBrowser");
+    act(() => browserAction?.onClick());
+    expect(mocks.openExternalLink).toHaveBeenCalledWith(
+      "https://github.com/org2AI/ORG2/issues/61"
+    );
+  });
+
+  it("loads the GitHub issue opener for the description timeline", async () => {
+    const githubItem: AssignedWorkItem = {
+      ...item,
+      target: {
+        ...item.target,
+        repository: "git@github.com:org2AI/ORG2.git",
+        workItemId: "132",
+      },
+      payload: { ...item.payload, status: "open" },
+    };
+
+    mocks.githubIssueState.issue = {
+      title: "Authoritative title",
+      body: "Authoritative GitHub description",
+      state: "open",
+      updated_at: "2026-08-05T03:00:00.000Z",
+      user: {
+        login: "github-author",
+        avatar_url: "https://example.com/github-author.png",
+      },
+    };
+
+    await act(async () => {
+      root.render(createElement(AssignedWorkItemDetail, { item: githubItem }));
+      await Promise.resolve();
+    });
+
+    expect(mocks.threadWorkItem).toMatchObject({
+      spec: "Authoritative GitHub description",
+      updated_time: "2026-08-05T03:00:00.000Z",
+      user_id: "github-author",
+      createdBy: {
+        id: "github-author",
+        name: "github-author",
+        avatar: "https://example.com/github-author.png",
+      },
+    });
+    expect(mocks.threadProps).toMatchObject({
+      githubIssueTimeline: {
+        items: [{ event: "assigned" }],
+        loading: false,
+      },
+      githubIssueInteraction: mocks.githubIssueState.interaction,
+      propertyFields: ["status", "assignee"],
+      propertyProps: {
+        externalStatusConfig: {
+          currentStatusId: "open",
+          disabled: false,
+        },
+      },
+    });
+  });
+
+  it("shows the GitHub detail skeleton while the issue author is loading", () => {
+    const githubItem: AssignedWorkItem = {
+      ...item,
+      target: {
+        ...item.target,
+        repository: "git@github.com:org2AI/ORG2.git",
+        workItemId: "132",
+      },
+      payload: { ...item.payload, status: "open" },
+    };
+    mocks.githubIssueState.timelineLoading = true;
+    mocks.githubIssueState.interaction.loading = true;
+
+    act(() => {
+      root.render(createElement(AssignedWorkItemDetail, { item: githubItem }));
+    });
+
+    expect(
+      container.querySelector("[data-testid='github-issue-detail-skeleton']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='work-item-content']")
+    ).toBeNull();
+    expect(mocks.threadWorkItem).toBeNull();
+  });
+
+  it("keeps non-GitHub Work Items on the in-app open action", () => {
+    const onNavigate = vi.fn();
+    act(() => {
+      root.render(
+        createElement(AssignedWorkItemDetail, {
+          item,
+          onNavigate,
+        })
+      );
+    });
+
+    expect(mocks.detailLayoutProps?.openLabel).toBe(
+      "teamInbox.actions.openWorkItem"
+    );
+    expect(mocks.detailLayoutProps?.headerContent).toBeUndefined();
+    expect(mocks.detailLayoutProps?.headerAuxiliaryAction).toBeUndefined();
+    const openIcon = mocks.detailLayoutProps?.openIcon;
+    expect(React.isValidElement(openIcon)).toBe(true);
+    expect((openIcon as React.ReactElement).type).toBe(SquareArrowOutUpRight);
+    act(() => {
+      (mocks.detailLayoutProps?.onOpen as (() => void) | undefined)?.();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith({
+      kind: "open_work_item",
+      projectId: "project-1",
+      workItemId: "work-item-1",
+    });
+    expect(mocks.openExternalLink).not.toHaveBeenCalled();
   });
 
   it("provides editable properties to the shared thread surface", () => {

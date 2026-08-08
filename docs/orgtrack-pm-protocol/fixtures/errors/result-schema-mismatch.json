@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "RESULT_SCHEMA_MISMATCH",
+    "message": "Step 'review-impact' declares output 'impact_report' of type artifact; result is missing it. Transition was not committed",
+    "retryable": false,
+    "details": {
+      "stepId": "review-impact",
+      "missingOutputs": ["impact_report"]
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR12"
+  }
+}

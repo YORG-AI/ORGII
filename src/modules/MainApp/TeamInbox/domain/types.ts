@@ -23,6 +23,8 @@ export interface WorkItemTarget {
   orgId?: string;
   projectId: string;
   workItemId: string;
+  /** First repository in the owning project's synced-repository scope. */
+  repository?: string;
 }
 
 export interface WorkItemCommentTarget {
@@ -179,6 +181,12 @@ export interface TeamInboxCreatedWorkItem {
  * implementation backed by the canonical comment/work-item read model.
  */
 export interface TeamInboxDataSource {
+  /**
+   * Returns the last bounded snapshot synchronously when one is available.
+   * The view uses this on mount so switching tabs never replaces a usable
+   * Inbox list with a loading frame while the same scope revalidates.
+   */
+  getSnapshot?(): TeamInboxPage;
   listPage(input: ListTeamInboxInput): Promise<TeamInboxPage>;
   markRead?(item: TeamInboxItem): Promise<void>;
   markUnread?(item: TeamInboxItem): Promise<void>;

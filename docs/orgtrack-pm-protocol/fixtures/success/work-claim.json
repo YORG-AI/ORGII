@@ -1,0 +1,41 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": true,
+  "data": {
+    "apiVersion": "orgtrack/v1",
+    "kind": "WorkItem",
+    "id": "work_01K0000000000000000000WORK0",
+    "scopeId": "project_01K0000000000000000000SCOPE",
+    "key": "ORG2-42",
+    "title": "执行交互影响分析",
+    "state": "in_progress",
+    "priority": "high",
+    "assignee": null,
+    "actorRequirement": {
+      "role": "reviewer",
+      "requires": ["artifact-read"]
+    },
+    "claimedBy": {
+      "kind": "agent",
+      "id": "codex_app:reviewer-1"
+    },
+    "parentId": "work_01K0000000000000000000ROOT0",
+    "dependsOn": ["work_01K000000000000000000COLL0"],
+    "labels": ["impact-analysis"],
+    "origin": {
+      "kind": "routine_step",
+      "routineId": "routine_interaction_impact",
+      "routineRunId": "run_01K00000000000000000000RUN0",
+      "stepId": "review-impact"
+    },
+    "inputs": {},
+    "result": null,
+    "revision": 8,
+    "createdAt": "2026-08-04T18:00:00Z",
+    "updatedAt": "2026-08-04T18:12:00Z"
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000CLAIM",
+    "revision": 8
+  }
+}

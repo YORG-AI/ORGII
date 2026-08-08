@@ -1,0 +1,27 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": true,
+  "data": {
+    "apiVersion": "orgtrack/v1",
+    "kind": "RoutineRun",
+    "id": "run_01K00000000000000000000RUN0",
+    "routineId": "routine_interaction_impact",
+    "routineRevision": 3,
+    "snapshotHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "scopeId": "project_01K0000000000000000000SCOPE",
+    "status": "running",
+    "inputs": {
+      "requirement_id": "REQ-20260803-001"
+    },
+    "rootWorkItemId": "work_01K0000000000000000000ROOT0",
+    "createdBy": {
+      "kind": "human",
+      "id": "org2:user:vince"
+    },
+    "createdAt": "2026-08-04T18:00:00Z",
+    "updatedAt": "2026-08-04T18:05:00Z"
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000RRUN0"
+  }
+}

@@ -34,10 +34,15 @@
  */
 import type { LucideIcon } from "lucide-react";
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import ActionCard from "@src/components/ActionCard";
-import type { ActionCardVariant } from "@src/components/ActionCard/types";
+import type {
+  ActionCardLayout,
+  ActionCardVariant,
+} from "@src/components/ActionCard/types";
 import Button from "@src/components/Button";
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 
 // ============================================
 // Types
@@ -80,10 +85,16 @@ interface SharedGridProps<T extends string = string> {
   compactLabel?: string;
   /** ActionCard variant. Use "subtle" for bg-bg-2 cards when placed on fill-2 backgrounds. */
   cardVariant?: ActionCardVariant;
+  /** Arrange each card's content inline or vertically. */
+  cardLayout?: ActionCardLayout;
+  /** Optional class name applied to every card. */
+  cardClassName?: string;
   /** When using showSelect on cards, show the trailing checkmark (default true). */
   showSelectionCheck?: boolean;
   /** Use compact card padding, useful for text-only picker cards. */
   compactCards?: boolean;
+  /** Optional class name for the grid wrapper. */
+  className?: string;
 }
 
 /** Single-select mode (default) — radio-style */
@@ -121,6 +132,7 @@ export type SelectionGridProps<T extends string = string> =
 function SelectionGrid<T extends string = string>(
   props: SelectionGridProps<T>
 ) {
+  const { t } = useTranslation("common");
   const {
     options,
     selected,
@@ -129,8 +141,11 @@ function SelectionGrid<T extends string = string>(
     compact = false,
     compactLabel,
     cardVariant = "default",
+    cardLayout = "inline",
+    cardClassName = "",
     showSelectionCheck = true,
     compactCards = false,
+    className = "",
   } = props;
 
   const isMulti = props.multiSelect === true;
@@ -144,7 +159,7 @@ function SelectionGrid<T extends string = string>(
 
     return (
       <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-[12px] font-medium text-text-1">{label}</span>
+        <span className={`${TYPOGRAPHY.valueMedium} text-text-1`}>{label}</span>
         {nextOption && (
           <Button
             variant="tertiary"
@@ -153,7 +168,7 @@ function SelectionGrid<T extends string = string>(
               (props as SingleSelectGridProps<T>).onSelect(nextOption.key)
             }
           >
-            Switch method
+            {t("actions.switchMethod")}
           </Button>
         )}
       </div>
@@ -168,7 +183,7 @@ function SelectionGrid<T extends string = string>(
         };
 
   return (
-    <div className="grid w-full gap-2" style={gridStyle}>
+    <div className={`grid w-full gap-2 ${className}`.trim()} style={gridStyle}>
       {options.map((option) => {
         const isSelected = isMulti
           ? (selected as Set<T>).has(option.key)
@@ -198,7 +213,9 @@ function SelectionGrid<T extends string = string>(
             selected={isSelected}
             disabled={option.disabled}
             variant={cardVariant}
+            layout={cardLayout}
             compact={compactCards}
+            className={cardClassName}
             dataTestId={
               option.dataTestId ?? `selection-grid-option-${option.key}`
             }

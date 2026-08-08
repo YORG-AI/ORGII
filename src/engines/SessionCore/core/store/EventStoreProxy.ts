@@ -367,6 +367,15 @@ class EventStoreProxyImpl {
   }
 
   /**
+   * Count the persisted events without loading them. The cheap probe for
+   * "does the durable cache still hold this replay" checks, where
+   * `getPersistedEvents` on a large session costs a full-history read.
+   */
+  async countPersistedEvents(sessionId: string): Promise<number> {
+    return rpc.sessionCore.cache.countEvents({ sessionId });
+  }
+
+  /**
    * Persist one bounded event batch directly to SQLite without materializing
    * the session in the Rust/JS in-memory stores. Large cloud replays use this
    * while downloading, then hydrate only the initial turn window.

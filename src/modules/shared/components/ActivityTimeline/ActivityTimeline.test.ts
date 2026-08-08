@@ -13,15 +13,23 @@ import {
 } from "vitest";
 
 import {
+  ActivityHeaderActionButton,
+  ActivityTimestamp,
+  ConnectedTimelineItem,
   MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT,
   MarkdownContent,
   TimelineCard,
   TimelineCardHeader,
+  TimelineCopyButton,
   TimelineEventCard,
+  TimelineLoadingSkeleton,
 } from ".";
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { resolvedLanguage: "en" },
+  }),
 }));
 
 vi.mock("@src/components/MarkDown", () => ({
@@ -73,6 +81,7 @@ describe("activity timeline", () => {
 
   afterEach(() => {
     act(() => root.unmount());
+    vi.useRealTimers();
     container.remove();
     vi.unstubAllGlobals();
     if (scrollHeightDescriptor) {
@@ -102,6 +111,20 @@ describe("activity timeline", () => {
       `${MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT}px`
     );
     expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("uses the configurable chat body typography token for Markdown", () => {
+    contentHeight = 120;
+
+    act(() => {
+      root.render(createElement(MarkdownContent, { body: "Body text" }));
+    });
+
+    const body = container.querySelector<HTMLElement>(".chat-text");
+    expect(body).not.toBeNull();
+    expect(body?.className).toContain("text-text-1");
+    expect(body?.className).not.toContain("text-[12px]");
+    expect(body?.className).not.toContain("leading-5");
   });
 
   it("collapses long Markdown with an always-visible shared control", () => {
@@ -136,7 +159,44 @@ describe("activity timeline", () => {
     ).not.toBeNull();
   });
 
-  it("uses the Settings container treatment for timeline cards", () => {
+  it("supports matching the preview fade to its surrounding surface", () => {
+    contentHeight = 600;
+
+    act(() => {
+      root.render(
+        createElement(MarkdownContent, {
+          body: "Long body",
+          fadeFrom: "from-chat-pane",
+        })
+      );
+    });
+
+    expect(
+      container.querySelector<HTMLElement>(".pointer-events-none")?.className
+    ).toContain("from-chat-pane");
+  });
+
+  it("renders timeline loading as a text-free accessible skeleton", () => {
+    act(() => {
+      root.render(
+        createElement(TimelineLoadingSkeleton, {
+          label: "Loading activity…",
+        })
+      );
+    });
+
+    const skeleton = container.querySelector<HTMLElement>(
+      "[data-testid='timeline-loading-skeleton']"
+    );
+    expect(skeleton?.getAttribute("role")).toBe("status");
+    expect(skeleton?.getAttribute("aria-label")).toBe("Loading activity…");
+    expect(skeleton?.getAttribute("aria-busy")).toBe("true");
+    expect(skeleton?.textContent).toBe("");
+    expect(skeleton?.className).toContain("animate-pulse");
+    expect(skeleton?.querySelectorAll("[aria-hidden='true']")).toHaveLength(6);
+  });
+
+  it("matches the timeline body to the page and fills only the header", () => {
     act(() => {
       root.render(
         createElement(
@@ -157,12 +217,62 @@ describe("activity timeline", () => {
     const card = container.firstElementChild;
     expect(card?.className).toContain("rounded-xl");
     expect(card?.className).toContain("border-border-1");
-    expect(card?.className).toContain("bg-primary-container");
+    expect(card?.className).toContain("bg-chat-pane");
+    expect(card?.className).not.toContain("bg-primary-container");
     expect(card?.className).toContain("overflow-hidden");
     expect(card?.className).not.toContain("shadow-sm");
+    expect(card?.firstElementChild?.className).toContain(
+      "bg-primary-container"
+    );
     expect(card?.lastElementChild?.getAttribute("data-testid")).toBe(
       "timeline-footer"
     );
+  });
+
+  it("connects through the full height of a multi-line timeline event", () => {
+    act(() => {
+      root.render(
+        createElement(
+          ConnectedTimelineItem,
+          null,
+          createElement(
+            TimelineEventCard,
+            { icon: createElement("span", null, "I") },
+            createElement(
+              "span",
+              null,
+              "First line",
+              createElement("br"),
+              "Second line"
+            )
+          )
+        )
+      );
+    });
+
+    const connector = container.querySelector<HTMLElement>(
+      '[data-testid="timeline-connector"]'
+    );
+    expect(connector?.className).toContain("absolute");
+    expect(connector?.className).toContain("top-5");
+    expect(connector?.className).toContain("bottom-0");
+    expect(connector?.nextElementSibling?.className).toContain("z-10");
+  });
+
+  it("can expose a bounded semantic stop to an owning scroll trail", () => {
+    act(() => {
+      root.render(
+        createElement(
+          ConnectedTimelineItem,
+          { trailLabel: `Issue update ${"x".repeat(140)}` },
+          createElement("span", null, "Update")
+        )
+      );
+    });
+
+    const item = container.firstElementChild;
+    expect(item?.hasAttribute("data-scroll-trail-target")).toBe(true);
+    expect(item?.getAttribute("data-scroll-trail-label")).toHaveLength(120);
   });
 
   it("uses one actor/action/timestamp header contract", () => {
@@ -186,7 +296,70 @@ describe("activity timeline", () => {
     expect(time?.getAttribute("title")).not.toBe(timestamp);
   });
 
-  it("uses the shared compact container treatment for timeline events", () => {
+  it("omits the year from current-year activity timestamps", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-05T12:00:00Z"));
+
+    act(() => {
+      root.render(
+        createElement(ActivityTimestamp, {
+          timestamp: "2026-06-24T15:32:00Z",
+        })
+      );
+    });
+
+    const time = container.querySelector("time");
+    expect(time?.textContent).not.toContain("2026");
+    expect(time?.getAttribute("title")).toContain("2026");
+  });
+
+  it("retains the year for activity from an earlier year", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-05T12:00:00Z"));
+
+    act(() => {
+      root.render(
+        createElement(ActivityTimestamp, {
+          timestamp: "2025-06-24T15:32:00Z",
+        })
+      );
+    });
+
+    expect(container.querySelector("time")?.textContent).toContain("2025");
+  });
+
+  it("uses one icon-only action contract for activity headers", () => {
+    act(() => {
+      root.render(
+        createElement(ActivityHeaderActionButton, {
+          icon: createElement("span", null, "Icon"),
+          label: "Edit",
+        })
+      );
+    });
+
+    const button = container.querySelector("button");
+    expect(button?.getAttribute("aria-label")).toBe("Edit");
+    expect(button?.title).toBe("Edit");
+    expect(button?.className).toContain("text-text-3");
+    expect(button?.className).toContain("hover:bg-fill-2");
+  });
+
+  it("builds timeline copy on the canonical action with the copy icon", () => {
+    act(() => {
+      root.render(createElement(TimelineCopyButton, { body: "Copy me" }));
+    });
+
+    const button = container.querySelector<HTMLButtonElement>(
+      "[data-testid='timeline-copy-button']"
+    );
+    expect(button?.getAttribute("aria-label")).toBe("actions.copy");
+    expect(button?.className).toContain("hover:bg-fill-2");
+    expect(button?.querySelector(".lucide-copy")).not.toBeNull();
+    expect(button?.querySelector(".lucide-clipboard")).toBeNull();
+  });
+
+  it("uses a smaller compact row with vertically centered content", () => {
     act(() => {
       root.render(
         createElement(
@@ -198,13 +371,22 @@ describe("activity timeline", () => {
     });
 
     const card = container.firstElementChild;
-    expect(card?.className).toContain("rounded-lg");
-    expect(card?.className).toContain("border-border-1");
-    expect(card?.className).toContain("bg-primary-container");
+    expect(card?.className).not.toContain("rounded-lg");
+    expect(card?.className).not.toContain("border-border-1");
+    expect(card?.className).not.toContain("bg-primary-container");
+    expect(card?.className).toContain("items-center");
+    expect(card?.className).toContain("text-[11px]");
+    expect(card?.className).toContain("px-2.5");
+    expect(card?.className).not.toContain("py-2");
     expect(card?.textContent).toContain("Event");
 
     const icon = card?.firstElementChild;
     expect(icon?.className).toContain("size-5");
+    expect(icon?.className).toContain("rounded-full");
+    expect(icon?.className).toContain("bg-fill-2");
     expect(icon?.className).not.toContain("mt-0.5");
+
+    const content = card?.lastElementChild;
+    expect(content?.className).toContain("leading-4");
   });
 });

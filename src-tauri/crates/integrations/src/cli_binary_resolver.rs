@@ -1,8 +1,11 @@
 use std::env;
 use std::ffi::OsString;
+#[cfg(unix)]
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+#[cfg(unix)]
+use std::process::Command;
+use std::process::Stdio;
 use std::time::Duration;
 
 const CLI_VERSION_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -88,6 +91,7 @@ impl CliBinaryResolution {
     }
 }
 
+#[cfg(unix)]
 const LOGIN_SHELL_TIMEOUT: Duration = Duration::from_secs(3);
 
 const CLI_BINARY_METADATA: &[CliBinaryMetadata] = &[
@@ -483,9 +487,11 @@ fn parse_version_string(raw: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 struct ResolveOptions {
     path_env: Option<OsString>,
+    #[cfg(unix)]
     shell: Option<OsString>,
     home_dir: Option<PathBuf>,
     search_login_shell: bool,
+    #[cfg(unix)]
     login_shell_timeout: Duration,
 }
 
@@ -493,9 +499,11 @@ impl Default for ResolveOptions {
     fn default() -> Self {
         Self {
             path_env: env::var_os("PATH"),
+            #[cfg(unix)]
             shell: env::var_os("SHELL"),
             home_dir: dirs::home_dir(),
             search_login_shell: true,
+            #[cfg(unix)]
             login_shell_timeout: LOGIN_SHELL_TIMEOUT,
         }
     }
@@ -652,6 +660,7 @@ fn resolve_via_login_shell(_command: &str, _options: &ResolveOptions) -> Option<
     None
 }
 
+#[cfg(unix)]
 fn parse_command_v_path(line: &str) -> Option<PathBuf> {
     let trimmed = line.trim();
     if trimmed.is_empty() || trimmed.contains('\n') || trimmed.contains('\r') {
@@ -736,13 +745,13 @@ mod tests {
         set_executable(path);
     }
 
-    fn set_executable(path: &Path) {
+    fn set_executable(_path: &Path) {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut permissions = fs::metadata(path).unwrap().permissions();
+            let mut permissions = fs::metadata(_path).unwrap().permissions();
             permissions.set_mode(0o755);
-            fs::set_permissions(path, permissions).unwrap();
+            fs::set_permissions(_path, permissions).unwrap();
         }
     }
 
@@ -763,14 +772,20 @@ mod tests {
     #[test]
     fn process_path_hit_returns_absolute_path() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let binary = temp_dir.path().join("codex");
+        let binary = if cfg!(windows) {
+            temp_dir.path().join("codex.CMD")
+        } else {
+            temp_dir.path().join("codex")
+        };
         make_executable(&binary);
 
         let options = ResolveOptions {
             path_env: Some(OsString::from(temp_dir.path().as_os_str())),
+            #[cfg(unix)]
             shell: Some(OsString::from("/bin/false")),
             home_dir: None,
             search_login_shell: true,
+            #[cfg(unix)]
             login_shell_timeout: Duration::from_millis(10),
         };
 
@@ -790,9 +805,11 @@ mod tests {
 
         let options = ResolveOptions {
             path_env: Some(OsString::new()),
+            #[cfg(unix)]
             shell: Some(OsString::from("/bin/false")),
             home_dir: Some(temp_dir.path().to_path_buf()),
             search_login_shell: true,
+            #[cfg(unix)]
             login_shell_timeout: Duration::from_millis(10),
         };
 

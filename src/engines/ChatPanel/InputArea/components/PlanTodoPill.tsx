@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import {
   DropdownHeader,
   DropdownPanel,
@@ -127,7 +128,7 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
         aria-expanded={isOpen}
         aria-controls={isOpen ? panelId : undefined}
         onClick={toggle}
-        className={`shrink-0 tabular-nums ${isOpen ? "!bg-fill-1 !text-primary-6" : ""}`}
+        className={`shrink-0 tabular-nums ${pillControlStateClass(isOpen)}`}
       >
         {progressLabel}
       </Button>

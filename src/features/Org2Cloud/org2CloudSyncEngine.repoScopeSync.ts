@@ -26,7 +26,10 @@ const log = createLogger("Org2CloudSyncEngine");
 /** ALL shareable keys for the session's checkout (multi-remote), from the
  * resolver cache. undefined = resolution in flight (primed here). */
 export function getSessionScopeKeys(
-  session: Session
+  session: Pick<
+    Session,
+    "session_id" | "repoPath" | "repoRemoteUrls" | "parentSessionId"
+  >
 ): string[] | null | undefined {
   const persistedKeys = persistedScopeKeysForImportedSession(session);
   if (persistedKeys !== undefined) return persistedKeys;

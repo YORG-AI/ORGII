@@ -4,7 +4,7 @@
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::super::types::{AuthMethod, ModelKey, ModelType};
+use super::super::types::{AuthMethod, ModelKey, ModelType, OAuthRefreshOutcome};
 use super::{KeyService, OAUTH_REFRESH_EXPIRY_SKEW_SECONDS, OAUTH_REFRESH_REQUEST_TIMEOUT};
 
 const CLAUDE_CODE_TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
@@ -95,7 +95,9 @@ impl KeyService {
 
         let rejected_access_token = key.session_token.clone().unwrap_or_default();
         self.refresh_claude_code_oauth_key(key_id, &rejected_access_token)
-            .await
+            .await?
+            .into_key()
+            .ok_or_else(|| format!("Key {} is not a native Claude OAuth account", key_id))
     }
 
     /// Refresh a Claude Code OAuth key and persist the fresh access token.
@@ -103,7 +105,21 @@ impl KeyService {
         &self,
         key_id: &str,
         rejected_access_token: &str,
-    ) -> Result<ModelKey, String> {
+    ) -> Result<OAuthRefreshOutcome, String> {
+        let key = self
+            .get_key_by_id(key_id)
+            .ok_or_else(|| format!("Key not found: {}", key_id))?;
+
+        if !key.is_native_oauth_for(&ModelType::ClaudeCode) {
+            tracing::info!(
+                "[key-vault] Claude Code OAuth refresh skipped key={} reason=not_claude_oauth type={:?} auth={:?}",
+                key_id,
+                key.model_type,
+                key.auth_method
+            );
+            return Ok(OAuthRefreshOutcome::NotApplicable);
+        }
+
         crate::e2e_guard::ensure_oauth_refresh_allowed()?;
 
         let refresh_lock = self.oauth_refresh_lock_for_key(key_id)?;
@@ -131,14 +147,14 @@ impl KeyService {
             key.oauth_refresh_failure_count
         );
 
-        if key.model_type != ModelType::ClaudeCode || key.auth_method != AuthMethod::Oauth {
+        if !key.is_native_oauth_for(&ModelType::ClaudeCode) {
             tracing::info!(
                 "[key-vault] Claude Code OAuth refresh skipped key={} reason=not_claude_oauth type={:?} auth={:?}",
                 key_id,
                 key.model_type,
                 key.auth_method
             );
-            return Ok(key);
+            return Ok(OAuthRefreshOutcome::NotApplicable);
         }
 
         if key
@@ -150,7 +166,7 @@ impl KeyService {
                 "[key-vault] Claude Code OAuth refresh skipped key={} reason=access_token_already_rotated",
                 key_id
             );
-            return Ok(key);
+            return Ok(OAuthRefreshOutcome::AlreadyRotated(Box::new(key)));
         }
 
         let refresh_token = key
@@ -166,8 +182,10 @@ impl KeyService {
             client_id: CLAUDE_CODE_CLIENT_ID,
         };
 
-        let token_url = std::env::var(CLAUDE_CODE_REFRESH_TOKEN_URL_OVERRIDE_ENV)
-            .unwrap_or_else(|_| CLAUDE_CODE_TOKEN_URL.to_string());
+        let token_url_override = std::env::var(CLAUDE_CODE_REFRESH_TOKEN_URL_OVERRIDE_ENV).ok();
+        let token_url = token_url_override
+            .clone()
+            .unwrap_or_else(|| CLAUDE_CODE_TOKEN_URL.to_string());
         tracing::info!(
             "[key-vault] Claude Code OAuth refresh request start key={} endpoint_override={} refresh_len={} access_len={}",
             key_id,
@@ -176,8 +194,14 @@ impl KeyService {
             rejected_access_token.len()
         );
 
-        let response = match reqwest::Client::builder()
-            .timeout(OAUTH_REFRESH_REQUEST_TIMEOUT)
+        let mut client_builder = reqwest::Client::builder().timeout(OAUTH_REFRESH_REQUEST_TIMEOUT);
+        if token_url_override.is_some() {
+            // Test/diagnostic override endpoints are commonly loopback. Do not
+            // let inherited HTTP(S)_PROXY route 127.0.0.1 away from the local
+            // one-shot server.
+            client_builder = client_builder.no_proxy();
+        }
+        let response = match client_builder
             .build()
             .map_err(|err| format!("Claude Code OAuth refresh client build failed: {}", err))?
             .post(token_url)
@@ -312,6 +336,6 @@ impl KeyService {
                 .is_some_and(|token| !token.trim().is_empty())
         );
 
-        Ok(saved)
+        Ok(OAuthRefreshOutcome::Refreshed(Box::new(saved)))
     }
 }

@@ -67,6 +67,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::agent_sessions::cli::persistence as cli_persistence;
 use agent_core::session::persistence as session_persistence;
 use database::db::get_connection;
+use orgtrack_core::sources::imported_history::cache as imported_cache;
 
 /// Deserialize a JSON value into `Some(_)` even if the value is `null`.
 /// Combined with `#[serde(default)]`, this is the canonical recipe to
@@ -100,6 +101,11 @@ pub struct SessionPatch {
     /// Per-session execution mode. Only legal for `agent_sessions`
     /// rows; rejected for CLI sessions.
     pub agent_exec_mode: Option<String>,
+    /// Persistent product mode (`orgtrack/v1` §5.2):
+    /// `build | plan | ask | project`. Only legal for `agent_sessions`
+    /// rows; validated against the closed enum.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub product_mode: Option<String>,
     /// Per-session unsent draft text (P3). Three-state — see the
     /// "three-state fields" section in module docs.
     #[serde(
@@ -126,6 +132,9 @@ pub struct SessionPatch {
 enum SessionLocation {
     Cli,
     Agent,
+    /// Imported history. Owns no native row, so only the fields ORGII stores
+    /// on its own side of the boundary (currently `pinned`) can be patched.
+    Imported,
 }
 
 fn locate_session(session_id: &str) -> SqliteResult<Option<SessionLocation>> {
@@ -151,6 +160,16 @@ fn locate_session(session_id: &str) -> SqliteResult<Option<SessionLocation>> {
         .optional()?;
     if cli_hit.is_some() {
         return Ok(Some(SessionLocation::Cli));
+    }
+    let imported_hit: Option<i64> = conn
+        .query_row(
+            "SELECT 1 FROM imported_history_session_cache WHERE session_id = ?1",
+            params![session_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if imported_hit.is_some() {
+        return Ok(Some(SessionLocation::Imported));
     }
     Ok(None)
 }
@@ -209,6 +228,7 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
     if patch.name.is_none()
         && patch.model.is_none()
         && patch.agent_exec_mode.is_none()
+        && patch.product_mode.is_none()
         && patch.draft_text.is_none()
         && patch.reply_target_event_id.is_none()
         && patch.pinned.is_none()
@@ -234,6 +254,10 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                 cli_persistence::update_name(session_id, trimmed)
                     .map_err(|err| format!("session_patch update name (cli): {err}"))?;
             }
+            SessionLocation::Imported => {
+                return Err("session_patch: imported sessions do not support name"
+                    .to_string());
+            }
         }
     }
 
@@ -255,6 +279,10 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                 )
                 .map_err(|err| format!("session_patch update model (cli): {err}"))?;
             }
+            SessionLocation::Imported => {
+                return Err("session_patch: imported sessions do not support model"
+                    .to_string());
+            }
         }
     }
 
@@ -268,6 +296,31 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
             SessionLocation::Cli => {
                 cli_persistence::update_agent_exec_mode(session_id, mode)
                     .map_err(|err| format!("session_patch update agent_exec_mode (cli): {err}"))?;
+            }
+            SessionLocation::Imported => {
+                return Err("session_patch: imported sessions do not support agent_exec_mode"
+                    .to_string());
+            }
+        }
+    }
+
+    if let Some(product_mode) = patch.product_mode.as_deref() {
+        // Closed enum (orgtrack/v1 §5.2); a typo must not silently
+        // grant or drop the Project mutation surface.
+        if !matches!(product_mode, "build" | "plan" | "ask" | "project") {
+            return Err(format!(
+                "session_patch: unknown product_mode '{product_mode}' (expected build|plan|ask|project)"
+            ));
+        }
+        match location {
+            SessionLocation::Agent => {
+                session_persistence::update_product_mode(session_id, product_mode)
+                    .map_err(|err| format!("session_patch update product_mode (agent): {err}"))?;
+            }
+            SessionLocation::Cli | SessionLocation::Imported => {
+                return Err(
+                    "session_patch: only agent sessions carry a product_mode".to_string()
+                );
             }
         }
     }
@@ -290,6 +343,10 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                 cli_persistence::update_draft_text(session_id, value)
                     .map_err(|err| format!("session_patch update draft_text (cli): {err}"))?;
             }
+            SessionLocation::Imported => {
+                return Err("session_patch: imported sessions do not support draft_text"
+                    .to_string());
+            }
         }
     }
 
@@ -306,6 +363,10 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                     |err| format!("session_patch update reply_target_event_id (cli): {err}"),
                 )?;
             }
+            SessionLocation::Imported => {
+                return Err("session_patch: imported sessions do not support reply_target_event_id"
+                    .to_string());
+            }
         }
     }
     if let Some(pinned) = patch.pinned {
@@ -317,6 +378,16 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
             SessionLocation::Cli => {
                 cli_persistence::update_pinned(session_id, pinned)
                     .map_err(|err| format!("session_patch update pinned (cli): {err}"))?;
+            }
+            SessionLocation::Imported => {
+                let conn = get_connection()
+                    .map_err(|err| format!("session_patch update pinned (imported): {err}"))?;
+                imported_cache::set_imported_session_pinned_from_conn(
+                    &conn,
+                    session_id,
+                    pinned,
+                    &chrono::Utc::now().to_rfc3339(),
+                )?;
             }
         }
     }
@@ -359,6 +430,7 @@ pub async fn session_patch(
     patch: SessionPatch,
 ) -> Result<(), String> {
     let identity_changed = patch.model.is_some();
+    let switched_to_project = patch.product_mode.as_deref() == Some("project");
     let renamed = patch
         .name
         .as_deref()
@@ -380,6 +452,27 @@ pub async fn session_patch(
     .map_err(|err| format!("session_patch task join error: {err}"))??;
     if identity_changed {
         state.invalidate_session(&patched_session_id).await;
+    }
+    if switched_to_project {
+        // Convert to Project (orgtrack/v1 §7.2): entering the Project
+        // product mode must invalidate Plan mode's snapshot/restore
+        // state, otherwise the pending-approval restore path would
+        // bounce a later turn back to the pre-Plan exec mode.
+        if let Some(session) = state.get_session(&patched_session_id).await {
+            let had_slot = session.plan_slot_cache.get(&patched_session_id).is_some();
+            let _ = session.pre_plan_mode_cache.take(&patched_session_id);
+            session.plan_slot_cache.clear(&patched_session_id);
+            if had_slot {
+                agent_core::bus::broadcast_event(
+                    "agent:exit_plan_mode",
+                    serde_json::json!({
+                        "sessionId": &patched_session_id,
+                        "source": "convert_to_project",
+                        "nextMode": agent_core::session::AgentExecMode::Build.as_str(),
+                    }),
+                );
+            }
+        }
     }
     if let Some(name) = renamed.as_deref() {
         agent_core::lifecycle::emit_session_renamed(

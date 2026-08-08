@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "WorkItem work_01K000000000000000000GONE0 does not exist in scope project_01K0000000000000000000SCOPE",
+    "retryable": false,
+    "details": {
+      "resource": "WorkItem",
+      "id": "work_01K000000000000000000GONE0"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR05"
+  }
+}

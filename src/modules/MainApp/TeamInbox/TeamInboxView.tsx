@@ -1,3 +1,4 @@
+import { Globe, SquareArrowOutUpRight } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -7,15 +8,24 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import InlineAlert from "@src/components/InlineAlert";
+import {
+  type ManagedPrItem,
+  getManagedPullRequestKey,
+} from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
 import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { LoadingBar, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { normalizePrStatus } from "@src/shared/pr/prStatus";
+import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { WorkItem } from "@src/types/core/workItem";
+import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import {
   AssignedWorkItemDetail,
   CommentMentionDetail,
   TeamInboxList,
 } from "./components";
+import TeamInboxHeaderIconAction from "./components/TeamInboxHeaderIconAction";
 import TeamInboxSessionDropSurface from "./components/TeamInboxSessionDropSurface";
 import {
   type TeamInboxDataSource,
@@ -23,6 +33,7 @@ import {
   type TeamInboxIssue,
   type TeamInboxItem,
   type TeamInboxNavigationIntent,
+  type TeamInboxPage,
   type TeamInboxUnreadCounts,
   countUnreadTeamInboxItemsByFilter,
   getTeamInboxItemKey,
@@ -30,15 +41,36 @@ import {
   selectTeamInboxItems,
   toTeamInboxNavigationIntent,
 } from "./domain";
+import {
+  INITIAL_TEAM_INBOX_VIEW_STATE,
+  type TeamInboxItemFocusRequest,
+  type TeamInboxViewState,
+} from "./store";
 import { performTeamInboxReadTransition } from "./teamInboxReadTransitions";
 
 export interface TeamInboxViewProps {
   dataSource?: TeamInboxDataSource;
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
   initialFilter?: TeamInboxFilter;
+  focusRequest?: TeamInboxItemFocusRequest | null;
+  /** Controlled navigation state used by the singleton connected Inbox. */
+  viewState?: TeamInboxViewState;
+  onViewStateChange?: (state: TeamInboxViewState) => void;
   pageSize?: number;
   viewerMemberIds?: readonly string[];
+  pullRequests?: readonly ManagedPrItem[];
+  pullRequestsLoading?: boolean;
+  pullRequestsError?: string | null;
+  onRefreshPullRequests?: () => void;
+  /** Explicit header action; row selection always stays in the right pane. */
+  onOpenPullRequestTab?: (pullRequest: ManagedPrItem) => void;
 }
+
+const PullRequestDetailPanel = React.lazy(() =>
+  import("@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrDetailPanel").then(
+    (module) => ({ default: module.PrDetailPanel })
+  )
+);
 
 const EMPTY_TEAM_INBOX_DATA_SOURCE: TeamInboxDataSource = {
   async listPage() {
@@ -51,37 +83,39 @@ interface LoadState {
   message: string | null;
 }
 
+function loadStateForPage(
+  page: TeamInboxPage,
+  issueMessage: (issue: TeamInboxIssue) => string
+): LoadState {
+  if (page.issue) {
+    return {
+      status: page.issue.code === "partial_load" ? "warning" : "error",
+      message: issueMessage(page.issue),
+    };
+  }
+  // A retained snapshot remains usable while it revalidates. Only an empty
+  // scope needs a blocking loading state.
+  return page.loading && page.items.length === 0
+    ? { status: "loading", message: null }
+    : { status: "ready", message: null };
+}
+
 const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   dataSource = EMPTY_TEAM_INBOX_DATA_SOURCE,
   onNavigate,
   initialFilter = "all",
+  focusRequest = null,
+  viewState: controlledViewState,
+  onViewStateChange,
   pageSize = 50,
   viewerMemberIds = [],
+  pullRequests = [],
+  pullRequestsLoading = false,
+  pullRequestsError = null,
+  onRefreshPullRequests,
+  onOpenPullRequestTab,
 }) => {
   const { t } = useTranslation();
-  const [filter, setFilter] = useState<TeamInboxFilter>(initialFilter);
-  const [query, setQuery] = useState("");
-  const [items, setItems] = useState<TeamInboxItem[]>([]);
-  const [authoritativeUnreadCounts, setAuthoritativeUnreadCounts] =
-    useState<TeamInboxUnreadCounts | null>(null);
-  const [recencyAnchorMs, setRecencyAnchorMs] = useState(() => Date.now());
-  const [requestedItemId, setRequestedItemId] = useState<string | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>({
-    status: "loading",
-    message: null,
-  });
-  const [reloadRevision, setReloadRevision] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
   const issueMessage = useCallback(
     (issue: TeamInboxIssue): string => {
       if (issue.code === "identity_unresolved") {
@@ -94,6 +128,53 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     },
     [t]
   );
+  const [initialPage] = useState<TeamInboxPage | null>(
+    () => dataSource.getSnapshot?.() ?? null
+  );
+  const [internalViewState, setInternalViewState] =
+    useState<TeamInboxViewState>(() => ({
+      ...INITIAL_TEAM_INBOX_VIEW_STATE,
+      filter: initialFilter,
+    }));
+  const viewState = controlledViewState ?? internalViewState;
+  const updateViewState = useCallback(
+    (update: React.SetStateAction<TeamInboxViewState>) => {
+      if (controlledViewState) {
+        const nextState =
+          typeof update === "function" ? update(controlledViewState) : update;
+        onViewStateChange?.(nextState);
+        return;
+      }
+      setInternalViewState(update);
+    },
+    [controlledViewState, onViewStateChange]
+  );
+  const [items, setItems] = useState<TeamInboxItem[]>(
+    () => initialPage?.items ?? []
+  );
+  const [authoritativeUnreadCounts, setAuthoritativeUnreadCounts] =
+    useState<TeamInboxUnreadCounts | null>(
+      () => initialPage?.unreadCounts ?? null
+    );
+  const [loadState, setLoadState] = useState<LoadState>(() =>
+    initialPage
+      ? loadStateForPage(initialPage, issueMessage)
+      : { status: "loading", message: null }
+  );
+  const [reloadRevision, setReloadRevision] = useState(0);
+  const [dismissedLoadNoticeKey, setDismissedLoadNoticeKey] = useState<
+    string | null
+  >(null);
+  const [hasMore, setHasMore] = useState(() => initialPage?.nextCursor != null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -104,18 +185,13 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
         if (abortController.signal.aborted) return;
         setItems(page.items);
         setAuthoritativeUnreadCounts(page.unreadCounts ?? null);
-        setRecencyAnchorMs(Date.now());
         setHasMore(page.nextCursor != null);
-        setLoadState(
-          page.loading
-            ? { status: "loading", message: null }
-            : page.issue
-              ? {
-                  status:
-                    page.issue.code === "partial_load" ? "warning" : "error",
-                  message: issueMessage(page.issue),
-                }
-              : { status: "ready", message: null }
+        const nextLoadState = loadStateForPage(page, issueMessage);
+        setLoadState((current) =>
+          current.status === nextLoadState.status &&
+          current.message === nextLoadState.message
+            ? current
+            : nextLoadState
         );
       })
       .catch((reason: unknown) => {
@@ -137,6 +213,16 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     return () => abortController.abort();
   }, [dataSource, issueMessage, pageSize, reloadRevision, t]);
 
+  const loadNoticeKey =
+    (loadState.status === "error" || loadState.status === "warning") &&
+    loadState.message
+      ? `${reloadRevision}:${loadState.status}:${loadState.message}`
+      : null;
+
+  const dismissLoadNotice = useCallback(() => {
+    setDismissedLoadNoticeKey(loadNoticeKey);
+  }, [loadNoticeKey]);
+
   useEffect(() => {
     if (!dataSource.subscribe) return;
     return dataSource.subscribe(() => {
@@ -144,9 +230,21 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     });
   }, [dataSource]);
 
+  const focusRequestActive =
+    focusRequest !== null &&
+    focusRequest.requestId !== viewState.supersededFocusRequestId;
+  const visibleFilter = focusRequestActive ? "all" : viewState.filter;
+  const visibleQuery = focusRequestActive ? "" : viewState.query;
+  const requestedItemId = focusRequestActive
+    ? focusRequest.itemKey
+    : viewState.selectedItemId;
   const visibleItems = useMemo(
-    () => searchTeamInboxItems(selectTeamInboxItems(items, filter), query),
-    [filter, items, query]
+    () =>
+      searchTeamInboxItems(
+        selectTeamInboxItems(items, visibleFilter),
+        visibleQuery
+      ),
+    [items, visibleFilter, visibleQuery]
   );
   const loadedUnreadCounts = useMemo(
     () => countUnreadTeamInboxItemsByFilter(items),
@@ -154,17 +252,45 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   );
   const unreadCounts = authoritativeUnreadCounts ?? loadedUnreadCounts;
   const totalUnread = unreadCounts.all;
+  const selectedPullRequest = useMemo(
+    () =>
+      pullRequests.find(
+        (pullRequest) =>
+          getManagedPullRequestKey(pullRequest) ===
+          viewState.selectedPullRequestKey
+      ) ?? null,
+    [pullRequests, viewState.selectedPullRequestKey]
+  );
+  const selectedPullRequestIdentity = useMemo<PrIdentity | null>(
+    () =>
+      selectedPullRequest
+        ? {
+            number: selectedPullRequest.id,
+            title: selectedPullRequest.title,
+            url: selectedPullRequest.rawPr.url,
+            status: normalizePrStatus({
+              state: selectedPullRequest.state,
+              merged: selectedPullRequest.state === "merged",
+              draft: selectedPullRequest.rawPr.draft,
+            }),
+            headBranch: selectedPullRequest.sourceBranch,
+            baseBranch: selectedPullRequest.targetBranch,
+          }
+        : null,
+    [selectedPullRequest]
+  );
   const selectedItem = useMemo(() => {
-    if (visibleItems.length === 0) return null;
+    if (!requestedItemId) return null;
     return (
       visibleItems.find(
         (item) => getTeamInboxItemKey(item) === requestedItemId
-      ) ?? visibleItems[0]
+      ) ?? null
     );
   }, [requestedItemId, visibleItems]);
-  const selectedItemId = selectedItem
-    ? getTeamInboxItemKey(selectedItem)
-    : null;
+  const selectedItemId =
+    !selectedPullRequest && selectedItem
+      ? getTeamInboxItemKey(selectedItem)
+      : null;
 
   const markItemRead = useCallback(
     (item: TeamInboxItem) => {
@@ -184,8 +310,8 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   );
 
   useEffect(() => {
-    if (selectedItem) markItemRead(selectedItem);
-  }, [markItemRead, selectedItem]);
+    if (!selectedPullRequest && selectedItem) markItemRead(selectedItem);
+  }, [markItemRead, selectedItem, selectedPullRequest]);
 
   const handleLoadMore = () => {
     if (!dataSource.loadMore || loadingMore) return;
@@ -209,6 +335,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   };
 
   const handleRefresh = () => {
+    onRefreshPullRequests?.();
     setLoadState({ status: "loading", message: null });
     if (!dataSource.refresh) {
       setReloadRevision((value) => value + 1);
@@ -230,7 +357,40 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   };
 
   const handleSelect = (item: TeamInboxItem) => {
-    setRequestedItemId(getTeamInboxItemKey(item));
+    updateViewState((current) => ({
+      ...current,
+      filter: focusRequestActive ? "all" : current.filter,
+      query: focusRequestActive ? "" : current.query,
+      selectedItemId: getTeamInboxItemKey(item),
+      selectedPullRequestKey: null,
+      supersededFocusRequestId: focusRequest?.requestId ?? null,
+    }));
+  };
+
+  const handleFilterChange = (nextFilter: TeamInboxFilter) => {
+    updateViewState((current) => ({
+      ...current,
+      filter: nextFilter,
+      query: focusRequestActive ? "" : current.query,
+      supersededFocusRequestId: focusRequest?.requestId ?? null,
+    }));
+  };
+
+  const handleQueryChange = (nextQuery: string) => {
+    updateViewState((current) => ({
+      ...current,
+      filter: focusRequestActive ? "all" : current.filter,
+      query: nextQuery,
+      supersededFocusRequestId: focusRequest?.requestId ?? null,
+    }));
+  };
+
+  const handleSelectPullRequest = (pullRequest: ManagedPrItem) => {
+    updateViewState((current) => ({
+      ...current,
+      selectedPullRequestKey: getManagedPullRequestKey(pullRequest),
+      supersededFocusRequestId: focusRequest?.requestId ?? null,
+    }));
   };
 
   const handleMarkRead = (item: TeamInboxItem) => {
@@ -253,13 +413,13 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
 
   const handleMarkAllRead = () => {
     const filterUnreadCount =
-      filter === "all"
+      visibleFilter === "all"
         ? unreadCounts.all
-        : filter === "mentions"
+        : visibleFilter === "mentions"
           ? unreadCounts.mentions
           : unreadCounts.assigned;
     if (filterUnreadCount === 0) return;
-    void dataSource.markAllRead?.([], filter).catch(() => {
+    void dataSource.markAllRead?.([], visibleFilter).catch(() => {
       setLoadState({
         status: "error",
         message: t("teamInbox.errors.markAllRead"),
@@ -316,15 +476,51 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   );
 
   const detail = (() => {
-    if (loadState.status === "loading") {
+    if (selectedPullRequest && selectedPullRequestIdentity) {
       return (
-        <Placeholder
-          variant="loading"
-          placement="detail-panel"
-          title={t("teamInbox.loading")}
-          fillParentHeight
-        />
+        <React.Suspense fallback={<LoadingBar />}>
+          <PullRequestDetailPanel
+            identity={selectedPullRequestIdentity}
+            repoPath={selectedPullRequest.repoPath}
+            repoId={selectedPullRequest.repoId}
+            headerActions={
+              <div
+                className="flex items-center gap-px"
+                data-testid="team-inbox-pr-detail-actions"
+              >
+                <TeamInboxHeaderIconAction
+                  label={t("previews.openInBrowser")}
+                  icon={<Globe size={14} strokeWidth={1.75} aria-hidden />}
+                  onClick={() =>
+                    void openExternalLink(selectedPullRequestIdentity.url)
+                  }
+                  testId="team-inbox-open-github-pr"
+                />
+                {onOpenPullRequestTab ? (
+                  <TeamInboxHeaderIconAction
+                    label={t(
+                      "teamInbox.actions.openPullRequest",
+                      "Open pull request"
+                    )}
+                    icon={
+                      <SquareArrowOutUpRight
+                        size={14}
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
+                    }
+                    onClick={() => onOpenPullRequestTab(selectedPullRequest)}
+                    testId="team-inbox-open-pr-tab"
+                  />
+                ) : null}
+              </div>
+            }
+          />
+        </React.Suspense>
       );
+    }
+    if (loadState.status === "loading") {
+      return <LoadingBar />;
     }
     if (loadState.status === "error" && items.length === 0) {
       return (
@@ -376,45 +572,49 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     );
   })();
 
+  const loadNotice =
+    loadNoticeKey &&
+    dismissedLoadNoticeKey !== loadNoticeKey &&
+    (items.length > 0 || pullRequests.length > 0) ? (
+      <InlineAlert
+        type={loadState.status === "warning" ? "warning" : "danger"}
+        hideIcon
+        onClose={dismissLoadNotice}
+        autoCloseMs={3000}
+        role="status"
+        dataTestId="team-inbox-load-notice"
+        closeAriaLabel={t("common:actions.close")}
+        className={`shrink-0 !rounded-none !border-x-0 !border-b-0 !px-3 !py-2 ${
+          loadState.status === "warning" ? "bg-warning-6/10" : "bg-danger-1"
+        }`}
+      >
+        {loadState.message}
+      </InlineAlert>
+    ) : null;
+
   return (
     <TeamInboxSessionDropSurface
       dataSource={dataSource}
       onNavigate={onNavigate}
     >
       <div className="flex h-full min-h-0 flex-col">
-        {(loadState.status === "error" || loadState.status === "warning") &&
-        items.length > 0 ? (
-          <div
-            role="status"
-            className={`shrink-0 border-b px-3 py-2 text-xs ${
-              loadState.status === "warning"
-                ? "border-warning-3 bg-warning-6/10 text-warning-6"
-                : "border-danger-3 bg-danger-1 text-danger-6"
-            }`}
-          >
-            {loadState.message}
-          </div>
-        ) : null}
         <SplitViewLayout
           className="min-h-0 flex-1 rounded-page"
-          listWidth={280}
-          minListWidth={220}
-          maxListWidth={360}
+          listWidth={360}
+          minListWidth={280}
+          maxListWidth={480}
           resizable
           collapsible
           hideBreadcrumbWhenSidebarCollapsed
-          listPanelBackgroundClassName="bg-bg-2"
-          mainContentClassName="bg-bg-1"
+          listPanelBackgroundClassName="bg-chat-pane"
+          mainContentClassName="bg-chat-pane"
           listContent={
-            loadState.status === "loading" && items.length === 0 ? (
-              <Placeholder
-                variant="loading"
-                title={t("teamInbox.loading")}
-                fillParentHeight
-              />
-            ) : loadState.status === "error" && items.length === 0 ? (
+            loadState.status === "error" &&
+            items.length === 0 &&
+            pullRequests.length === 0 ? (
               <Placeholder
                 variant="error"
+                placement="sidebar"
                 title={t("teamInbox.errors.loadTitle")}
                 subtitle={loadState.message ?? undefined}
                 action={{
@@ -424,26 +624,39 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
                 fillParentHeight
               />
             ) : (
-              <TeamInboxList
-                filter={filter}
-                items={visibleItems}
-                recencyAnchorMs={recencyAnchorMs}
-                selectedItemId={selectedItemId}
-                totalUnread={totalUnread}
-                unreadCounts={unreadCounts}
-                query={query}
-                loading={loadState.status === "loading"}
-                onQueryChange={setQuery}
-                onFilterChange={setFilter}
-                onSelectItem={handleSelect}
-                onRefresh={handleRefresh}
-                onMarkAllRead={
-                  dataSource.markAllRead ? handleMarkAllRead : undefined
-                }
-                hasMore={hasMore}
-                loadingMore={loadingMore}
-                onLoadMore={dataSource.loadMore ? handleLoadMore : undefined}
-              />
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="min-h-0 flex-1">
+                  <TeamInboxList
+                    filter={visibleFilter}
+                    items={visibleItems}
+                    selectedItemId={selectedItemId}
+                    totalUnread={totalUnread}
+                    unreadCounts={unreadCounts}
+                    query={visibleQuery}
+                    loading={
+                      loadState.status === "loading" || pullRequestsLoading
+                    }
+                    pullRequests={pullRequests}
+                    pullRequestsLoading={pullRequestsLoading}
+                    pullRequestsError={pullRequestsError}
+                    selectedPullRequestKey={viewState.selectedPullRequestKey}
+                    onQueryChange={handleQueryChange}
+                    onFilterChange={handleFilterChange}
+                    onSelectItem={handleSelect}
+                    onSelectPullRequest={handleSelectPullRequest}
+                    onRefresh={handleRefresh}
+                    onMarkAllRead={
+                      dataSource.markAllRead ? handleMarkAllRead : undefined
+                    }
+                    hasMore={hasMore}
+                    loadingMore={loadingMore}
+                    onLoadMore={
+                      dataSource.loadMore ? handleLoadMore : undefined
+                    }
+                  />
+                </div>
+                {loadNotice}
+              </div>
             )
           }
           mainContent={detail}

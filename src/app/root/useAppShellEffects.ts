@@ -8,6 +8,7 @@
  * Managed properties:
  * - Native WebView scale + coordinate scale variables         (uiScaleAtom, 0–200 %)
  * - `--app-font-family`                                    (applicationUiFontAtom)
+ * - Chat typography variables                              (chat appearance settings)
  * - `html.fullscreen` class                                (windowFullscreenAtom)
  *
  * This hook must run in AppBootstrap (before first render) so the styles are
@@ -18,6 +19,11 @@ import { useEffect } from "react";
 
 import { getApplicationUiFontStack } from "@src/config/appearance/applicationUiFonts";
 import { createLogger } from "@src/hooks/logger";
+import {
+  chatCodeFontSizeAtom,
+  chatFontSizeAtom,
+  chatLineHeightAtom,
+} from "@src/store/config/configAtom";
 import {
   applicationUiFontAtom,
   uiScaleAtom,
@@ -33,6 +39,9 @@ export function useAppShellEffects(): void {
   const uiScale = useAtomValue(uiScaleAtom);
   const applicationUiFont = useAtomValue(applicationUiFontAtom);
   const isFullscreen = useAtomValue(windowFullscreenAtom);
+  const chatFontSize = useAtomValue(chatFontSizeAtom);
+  const chatCodeFontSize = useAtomValue(chatCodeFontSizeAtom);
+  const chatLineHeight = useAtomValue(chatLineHeightAtom);
 
   useEffect(() => {
     let disposed = false;
@@ -137,6 +146,19 @@ export function useAppShellEffects(): void {
       root.style.removeProperty("--app-font-family");
     };
   }, [applicationUiFont]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--chat-font-size", `${chatFontSize}px`);
+    root.style.setProperty("--chat-code-font-size", `${chatCodeFontSize}px`);
+    root.style.setProperty("--chat-line-height", String(chatLineHeight));
+
+    return () => {
+      root.style.removeProperty("--chat-font-size");
+      root.style.removeProperty("--chat-code-font-size");
+      root.style.removeProperty("--chat-line-height");
+    };
+  }, [chatCodeFontSize, chatFontSize, chatLineHeight]);
 
   useEffect(() => {
     const htmlElement = document.documentElement;

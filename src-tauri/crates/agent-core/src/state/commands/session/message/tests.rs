@@ -6,7 +6,10 @@
 //! exercised together here rather than split across their two modules.
 
 use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
-use super::org_wake::{promote_agent_org_wake_session_to_running, resolve_agent_org_wake_mode};
+use super::org_wake::{
+    promote_agent_org_direct_session_to_running, promote_agent_org_wake_session_to_running,
+    resolve_agent_org_wake_mode,
+};
 use super::send::{should_divert_to_mid_turn_steering, terminal_intent_status_override};
 use crate::coordination::agent_inbox::{
     AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
@@ -281,6 +284,31 @@ fn queued_agent_org_wake_rechecks_run_member_and_intervention_at_turn_start() {
             .expect("intervened wake is a no-op"),
         0
     );
+}
+
+#[test]
+fn direct_agent_org_turn_refuses_cancelled_delete_fence() {
+    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+    let conn = database::db::get_connection().expect("test db");
+    conn.execute(
+        "UPDATE agent_org_runs SET status='cancelled' WHERE id=?1",
+        [&fixture.run_id],
+    )
+    .expect("establish delete fence");
+
+    assert_eq!(
+        promote_agent_org_direct_session_to_running(&conn, &fixture.run_id, &fixture.session_id)
+            .expect("cancelled run claim is a no-op"),
+        0
+    );
+    let status = conn
+        .query_row(
+            "SELECT status FROM agent_sessions WHERE session_id=?1",
+            [&fixture.session_id],
+            |row| row.get::<_, String>(0),
+        )
+        .expect("load member status");
+    assert_eq!(status, "idle");
 }
 
 #[test]

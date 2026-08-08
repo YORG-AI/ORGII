@@ -11,12 +11,19 @@ import {
   Menu as TauriMenu,
 } from "@tauri-apps/api/menu";
 import type { TFunction } from "i18next";
-import { GitFork, MoreHorizontal } from "lucide-react";
+import { GitFork, Loader2, MoreHorizontal, Pin, PinOff } from "lucide-react";
 import { useCallback } from "react";
 
 import Message from "@src/components/Message";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { isRemoteSessionPinned } from "@src/features/Org2Cloud/cloudPinnedRemoteSessions";
 import { buildCloudRemoteItemId } from "@src/features/Org2Cloud/cloudRemoteItemId";
+import type { CloudSessionBusyEntry } from "@src/features/Org2Cloud/cloudSessionBusyAtom";
+import {
+  cloudDownloadEtaMs,
+  cloudDownloadPercent,
+  formatCloudDownloadEta,
+} from "@src/features/Org2Cloud/cloudSessionDownloadProgressAtom";
 import { buildCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
 import {
   type CloudSessionThreadRow,
@@ -24,11 +31,50 @@ import {
 } from "@src/features/Org2Cloud/cloudSessionThreads";
 import type { Org2CloudPresenceEntry } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
 import { viewersForSession } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
+import { useCloudSessionDownloadProgressEntry } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { copyText } from "@src/util/data/clipboard";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
+
+const RowBusyIndicator: React.FC<{
+  t: TFunction;
+  bareSessionId: string;
+  localSessionId: string | undefined;
+}> = ({ t, bareSessionId, localSessionId }) => {
+  const progress = useCloudSessionDownloadProgressEntry(localSessionId);
+  const percent = progress ? cloudDownloadPercent(progress) : null;
+  const etaMs = progress ? cloudDownloadEtaMs(progress) : null;
+  const busyLabel =
+    percent === null
+      ? t("cloud.sidebar.loadingSession")
+      : etaMs === null
+        ? t("cloud.sidebar.downloadProgress", { percent })
+        : t("cloud.sidebar.downloadProgressEta", {
+            percent,
+            eta: formatCloudDownloadEta(etaMs),
+          });
+  return (
+    <span
+      className="inline-flex items-center gap-1"
+      role="img"
+      aria-label={busyLabel}
+      title={busyLabel}
+      data-testid={`cloud-session-row-busy-${bareSessionId}`}
+    >
+      {percent !== null && (
+        <span className="text-[9px] font-medium tabular-nums leading-none text-text-3">
+          {percent}%
+        </span>
+      )}
+      <Loader2
+        aria-hidden="true"
+        className="size-3.5 animate-spin text-text-3"
+      />
+    </span>
+  );
+};
 
 interface UseCloudSessionRowItemBuilderParams {
   presenceMap: Record<string, Record<string, Org2CloudPresenceEntry>>;
@@ -37,6 +83,11 @@ interface UseCloudSessionRowItemBuilderParams {
   tCommon: TFunction;
   runFork: (row: RemoteTeammateSessionMetadata) => void;
   hideRemoteSession: (row: RemoteTeammateSessionMetadata) => void;
+  /** Per-row in-flight replay/fork registry — busy rows render a spinner. */
+  busySessionRows: ReadonlyMap<string, CloudSessionBusyEntry>;
+  /** Viewer-local pin keys (`<orgId>|<rowId>`); never a property of the shared row. */
+  pinnedRemoteSessionIds: ReadonlySet<string>;
+  toggleRemoteSessionPin: (orgId: string, rowId: string) => void;
 }
 
 export type BuildCloudSessionRowItem = (
@@ -51,6 +102,9 @@ export function useCloudSessionRowItemBuilder({
   tCommon,
   runFork,
   hideRemoteSession,
+  busySessionRows,
+  pinnedRemoteSessionIds,
+  toggleRemoteSessionPin,
 }: UseCloudSessionRowItemBuilderParams): BuildCloudSessionRowItem {
   const buildRowItem = useCallback(
     (threadRow: CloudSessionThreadRow, asParentOf?: NavigationMenuItem[]) => {
@@ -133,9 +187,36 @@ export function useCloudSessionRowItemBuilder({
             )}
           </span>
         ) : undefined;
+      // In-flight replay/fork: spinner + live percent in the trailing slot.
+      // Without this the shared busy registry would manifest as nothing but
+      // an unresponsive row. The indicator subscribes to its own session's
+      // progress slice so ticks re-render one row, not the whole menu.
+      const busy = busySessionRows.get(row.id);
+      const busyIndicator = busy ? (
+        <RowBusyIndicator
+          t={t}
+          bareSessionId={bareSessionId}
+          localSessionId={busy.localSessionId}
+        />
+      ) : undefined;
+      const isPinned = isRemoteSessionPinned(
+        pinnedRemoteSessionIds,
+        row.orgId,
+        row.id
+      );
+      const pinIndicator = isPinned ? (
+        <Pin
+          size={11}
+          strokeWidth={2}
+          className="shrink-0 text-text-3"
+          aria-label="Pinned"
+        />
+      ) : null;
       const trailingElement =
-        viewerChips || commentsBadge ? (
+        pinIndicator || busyIndicator || viewerChips || commentsBadge ? (
           <span className="inline-flex items-center gap-1">
+            {pinIndicator}
+            {busyIndicator}
             {viewerChips}
             {commentsBadge}
           </span>
@@ -148,6 +229,7 @@ export function useCloudSessionRowItemBuilder({
         label: displayTitle,
         searchText: `${displayTitle} ${row.ownerDisplayName}`,
         dataTestId: `sidebar-cloud-session-item-${bareSessionId}`,
+        pinned: isPinned,
         // Prefer the source/agent brand used by regular sessions. Cloud
         // scope is context, not the session's icon identity.
         icon: sessionIcon,
@@ -182,6 +264,15 @@ export function useCloudSessionRowItemBuilder({
             label: t("cloud.orgPanel.fork"),
             onClick: () => runFork(row),
           },
+          // One click on hover, matching a local row: a teammate's session is
+          // pinned often enough that burying it in the overflow menu is a tax.
+          {
+            icon: isPinned ? PinOff : Pin,
+            label: isPinned
+              ? tCommon("sessions:chat.unpinSession", "Unpin")
+              : tCommon("sessions:chat.pinSession", "Pin"),
+            onClick: () => toggleRemoteSessionPin(row.orgId, row.id),
+          },
           {
             icon: MoreHorizontal,
             label: tCommon("actions.more"),
@@ -201,24 +292,42 @@ export function useCloudSessionRowItemBuilder({
                       });
                   },
                 }),
+                MenuItem.new({
+                  text: isPinned
+                    ? tCommon("sessions:chat.unpinSession", "Unpin")
+                    : tCommon("sessions:chat.pinSession", "Pin"),
+                  action: () => toggleRemoteSessionPin(row.orgId, row.id),
+                }),
                 PredefinedMenuItem.new({ item: "Separator" }),
                 MenuItem.new({
                   text: tCommon("actions.remove", "Remove"),
                   action: () => hideRemoteSession(row),
                 }),
-              ]).then(async ([copyItem, menuSeparator, removeItem]) => {
-                const menu = await TauriMenu.new({
-                  items: [copyItem, menuSeparator, removeItem],
-                });
-                await menu.popup();
-              });
+              ]).then(
+                async ([copyItem, pinItem, menuSeparator, removeItem]) => {
+                  const menu = await TauriMenu.new({
+                    items: [copyItem, pinItem, menuSeparator, removeItem],
+                  });
+                  await menu.popup();
+                }
+              );
             },
           },
         ];
       }
       return item;
     },
-    [hideRemoteSession, presenceMap, runFork, selfUserId, t, tCommon]
+    [
+      busySessionRows,
+      hideRemoteSession,
+      pinnedRemoteSessionIds,
+      toggleRemoteSessionPin,
+      presenceMap,
+      runFork,
+      selfUserId,
+      t,
+      tCommon,
+    ]
   );
 
   return buildRowItem;

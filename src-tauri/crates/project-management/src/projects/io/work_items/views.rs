@@ -10,8 +10,8 @@
 
 use super::enrichment::read_all_work_items_enriched_scoped;
 use crate::projects::types::{
-    CalendarEvent, EnrichedWorkItem, GanttStatus, GanttTask, GroupedWorkItems, KanbanStatus,
-    KanbanTask, StatusCounts, WorkItemsViewData,
+    CalendarEvent, EnrichedWorkItem, GanttStatus, GanttTask, KanbanStatus, KanbanTask,
+    StatusCounts, WorkItemsViewData,
 };
 
 /// Read all work items for `project_slug` with every view transformation
@@ -39,6 +39,22 @@ pub fn read_work_items_view_data_scoped(
     status_filter: Option<&str>,
     search_query: Option<&str>,
 ) -> Result<WorkItemsViewData, String> {
+    read_work_items_view_data_scoped_for_view(
+        project_slug,
+        org_id,
+        status_filter,
+        search_query,
+        None,
+    )
+}
+
+pub fn read_work_items_view_data_scoped_for_view(
+    project_slug: &str,
+    org_id: Option<&str>,
+    status_filter: Option<&str>,
+    search_query: Option<&str>,
+    view: Option<&str>,
+) -> Result<WorkItemsViewData, String> {
     let all_items = read_all_work_items_enriched_scoped(project_slug, org_id)?;
     let active_items: Vec<EnrichedWorkItem> = all_items
         .iter()
@@ -64,10 +80,22 @@ pub fn read_work_items_view_data_scoped(
         })
         .collect();
 
-    let kanban_tasks = visible_items.iter().map(to_kanban_task).collect();
-    let gantt_tasks = visible_items.iter().filter_map(to_gantt_task).collect();
-    let calendar_events = visible_items.iter().filter_map(to_calendar_event).collect();
-    let grouped = group_by_status(&visible_items);
+    let include_all_projections = view.is_none();
+    let kanban_tasks = if include_all_projections || view == Some("kanban") {
+        visible_items.iter().map(to_kanban_task).collect()
+    } else {
+        Vec::new()
+    };
+    let gantt_tasks = if include_all_projections || view == Some("gantt") {
+        visible_items.iter().filter_map(to_gantt_task).collect()
+    } else {
+        Vec::new()
+    };
+    let calendar_events = if include_all_projections || view == Some("calendar") {
+        visible_items.iter().filter_map(to_calendar_event).collect()
+    } else {
+        Vec::new()
+    };
 
     Ok(WorkItemsViewData {
         items,
@@ -75,7 +103,6 @@ pub fn read_work_items_view_data_scoped(
         kanban_tasks,
         gantt_tasks,
         calendar_events,
-        grouped,
     })
 }
 
@@ -171,31 +198,6 @@ fn compute_status_counts(items: &[EnrichedWorkItem]) -> StatusCounts {
         }
     }
     counts
-}
-
-fn group_by_status(items: &[EnrichedWorkItem]) -> GroupedWorkItems {
-    let mut grouped = GroupedWorkItems {
-        backlog: Vec::new(),
-        planned: Vec::new(),
-        in_progress: Vec::new(),
-        in_review: Vec::new(),
-        completed: Vec::new(),
-        cancelled: Vec::new(),
-        duplicate: Vec::new(),
-    };
-    for item in items {
-        match item.status.as_str() {
-            "backlog" => grouped.backlog.push(item.clone()),
-            "planned" | "todo" => grouped.planned.push(item.clone()),
-            "in_progress" => grouped.in_progress.push(item.clone()),
-            "in_review" => grouped.in_review.push(item.clone()),
-            "completed" => grouped.completed.push(item.clone()),
-            "cancelled" => grouped.cancelled.push(item.clone()),
-            "duplicate" => grouped.duplicate.push(item.clone()),
-            _ => grouped.backlog.push(item.clone()),
-        }
-    }
-    grouped
 }
 
 // ---------------------------------------------------------------------
@@ -386,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn view_data_groups_and_counts_by_status() {
+    fn view_data_counts_by_status() {
         let _sandbox = test_env::sandbox();
         seed();
         write_work_item(
@@ -416,10 +418,37 @@ mod tests {
         assert_eq!(view.counts.backlog, 1);
         assert_eq!(view.counts.in_progress, 1);
         assert_eq!(view.counts.completed, 1);
-        assert_eq!(view.grouped.backlog.len(), 1);
-        assert_eq!(view.grouped.in_progress.len(), 1);
-        assert_eq!(view.grouped.completed.len(), 1);
         assert_eq!(view.kanban_tasks.len(), 3);
+    }
+
+    #[test]
+    fn list_projection_omits_unused_view_payloads() {
+        let _sandbox = test_env::sandbox();
+        seed();
+        write_work_item(
+            "demo",
+            "AAA-0001",
+            &work_item_with("AAA-0001", "A", "backlog"),
+            "",
+        )
+        .unwrap();
+
+        let view =
+            read_work_items_view_data_scoped_for_view("demo", None, None, None, Some("list"))
+                .expect("view");
+        assert!(view.kanban_tasks.is_empty());
+        assert!(view.gantt_tasks.is_empty());
+        assert!(view.calendar_events.is_empty());
+
+        let list_json = serde_json::to_vec(&view).expect("serialize list view");
+        let all_view = read_work_items_view_data("demo", None, None).expect("all projections");
+        let all_json = serde_json::to_vec(&all_view).expect("serialize all projections");
+        let list_value: serde_json::Value =
+            serde_json::from_slice(&list_json).expect("parse list view");
+        assert!(list_value.get("kanbanTasks").is_none());
+        assert!(list_value.get("ganttTasks").is_none());
+        assert!(list_value.get("calendarEvents").is_none());
+        assert!(list_json.len() < all_json.len());
     }
 
     #[test]

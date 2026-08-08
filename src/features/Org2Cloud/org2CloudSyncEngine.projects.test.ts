@@ -531,7 +531,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
   });
 
-  it("clears entitlement backoff immediately on a Realtime invalidation", async () => {
+  it("holds entitlement backoff through ordinary invalidations; resumeOrg clears it", async () => {
     store.set(org2CloudRepoScopesAtom, {});
     bridge.drainOutbox
       .mockResolvedValueOnce([
@@ -555,13 +555,21 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     projectsClient.listOrgCollabState.mockClear();
     bridge.drainOutbox.mockClear();
+    // Ordinary change signals (any teammate activity, up to one per 15s)
+    // must NOT reopen the cool-down — that would turn the 5/30-minute
+    // backoff into a per-signal retry.
     await engine.invalidateOrgInboundAndWait("corg-1");
 
-    expect(projectsClient.listOrgCollabState).toHaveBeenCalled();
+    emitDataChanged();
+    await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
+    await engine.runSyncPassAndWaitForDrain();
     expect(bridge.drainOutbox).not.toHaveBeenCalled();
 
-    // The invalidation cleared entitlement backoff; the next concrete local
-    // data event can therefore drain the outbox immediately.
+    // The deliberate escape hatches — policy refresh / user action — run
+    // resumeOrg, which is a FULL invalidation and does clear the backoff:
+    // the next concrete local data event drains again.
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
+    await engine.resumeOrgAndWait("corg-1");
     emitDataChanged();
     await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
     await engine.runSyncPassAndWaitForDrain();

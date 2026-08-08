@@ -12,12 +12,18 @@ import type { SelectOption } from "@src/components/Select";
 import { reposAtom, selectedRepoPathAtom } from "@src/store/repo";
 
 import { GitHubWorkItemsView } from "./GitHubWorkItemsView";
-import type { RepoFilterOption } from "./githubWorkItemsModel";
 import { GITHUB_QUERY_SCOPE } from "./githubWorkItemsSearchQuery";
 import type { GitHubQueryScope } from "./githubWorkItemsSearchQuery";
-import { useGitHubIssueDetail } from "./useGitHubIssueDetail";
+import {
+  DEFAULT_GITHUB_ISSUES_SORT,
+  DEFAULT_GITHUB_PULL_REQUESTS_SORT,
+  type GitHubWorkItemsSort,
+} from "./githubWorkItemsSort";
+import type { RepoFilterOption } from "./githubWorkItemsTypes";
+import { useGitHubIssueAssigneeMutations } from "./useGitHubIssueAssigneeMutations";
 import { useGitHubIssueMutations } from "./useGitHubIssueMutations";
 import { useGitHubWorkItemActions } from "./useGitHubWorkItemActions";
+import { useGitHubWorkItemStatusMutations } from "./useGitHubWorkItemStatusMutations";
 import { useGitHubWorkItemsDerivedState } from "./useGitHubWorkItemsDerivedState";
 import { useGitHubWorkItemsLoadLifecycle } from "./useGitHubWorkItemsLoadLifecycle";
 import {
@@ -25,38 +31,37 @@ import {
   ISSUE_REPO_FILTER,
   useGitHubWorkItemsViewState,
 } from "./useGitHubWorkItemsViewState";
+import type { WorkManagementDetailHost } from "./workManagementDetailHost";
 
 interface GitHubWorkItemsSurfaceProps {
   scope: Extract<GitHubQueryScope, "issue" | "pr">;
-  singleRowHeader: boolean;
-  onDetailViewChange: (open: boolean, onBack: (() => void) | null) => void;
+  detailHost: WorkManagementDetailHost;
 }
 
 const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
   scope,
-  singleRowHeader,
-  onDetailViewChange,
+  detailHost,
 }) => {
   const { t } = useTranslation(["sessions", "common"]);
+  const permissionErrorMessage = t("common:errors.messages.forbidden");
   const repos = useAtomValue(reposAtom);
   const selectedRepoPath = useAtomValue(selectedRepoPathAtom);
   const {
     openIssueInBrowser,
-    openIssueInMyStation,
+    openIssueInTab,
+    openPrInTab,
     addIssue,
     addCreatedIssue,
     addPr,
-    openPr,
-  } = useGitHubWorkItemActions();
+  } = useGitHubWorkItemActions({ detailHost });
   const [createFormOpen, setCreateFormOpen] = useState(false);
-  const {
-    detail: issueDetail,
-    closeDetail,
-    openDetail,
-    closeCurrentIssue,
-    reopenCurrentIssue,
-    addComment: addIssueDetailComment,
-  } = useGitHubIssueDetail({ onDetailViewChange });
+  const [workItemsSortByScope, setWorkItemsSortByScope] = useState<
+    Record<Extract<GitHubQueryScope, "issue" | "pr">, GitHubWorkItemsSort>
+  >({
+    issue: DEFAULT_GITHUB_ISSUES_SORT,
+    pr: DEFAULT_GITHUB_PULL_REQUESTS_SORT,
+  });
+  const workItemsSort = workItemsSortByScope[scope];
   const {
     selectedRepo,
     refreshNonce,
@@ -72,10 +77,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     selectRepo: handleRepoSelect,
     selectPersonalFilters: handleIssuePersonalFiltersSelect,
     refresh: handleRefresh,
-  } = useGitHubWorkItemsViewState({
-    scope,
-    onScopeChange: closeDetail,
-  });
+  } = useGitHubWorkItemsViewState({ scope });
   const {
     repoSources,
     repoIssueMap,
@@ -83,6 +85,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     loading,
     loadError,
     updateIssueMap,
+    updatePrMap,
     setListError,
   } = useGitHubWorkItemsLoadLifecycle({
     repos,
@@ -90,6 +93,10 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     issueStates: selectedIssueListStates,
     prStates: selectedPrListStates,
     refreshNonce,
+    selectedRepo,
+    selectedRepoPath,
+    allReposValue: ISSUE_REPO_FILTER.ALL,
+    currentWorkstationValue: ISSUE_REPO_FILTER.CURRENT_WORKSTATION,
   });
   const deferredParsedSearchQuery = useDeferredValue(parsedSearchQuery);
   const {
@@ -112,6 +119,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     currentPage,
     allReposValue: ISSUE_REPO_FILTER.ALL,
     currentWorkstationValue: ISSUE_REPO_FILTER.CURRENT_WORKSTATION,
+    sort: workItemsSort,
   });
 
   const issuePersonalFilterOptions = useMemo<SelectOption[]>(
@@ -167,10 +175,63 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     onCreated: () => setCreateFormOpen(false),
     createErrorMessage: t("chat.panels.manageIssues.createIssueFailed"),
   });
+  const { updateIssueStatus, updatePrStatus } =
+    useGitHubWorkItemStatusMutations({
+      repoSources,
+      updateIssueMap,
+      updatePrMap,
+      setListError,
+      updateErrorMessage: t("chat.panels.manageIssues.statusUpdateFailed", {
+        defaultValue: "Failed to update GitHub status",
+      }),
+      permissionErrorMessage,
+    });
+  const {
+    getIssueAssigneeControlState,
+    loadAssignableUsers,
+    updateIssueAssignees,
+  } = useGitHubIssueAssigneeMutations({
+    repoSources,
+    updateIssueMap,
+    setListError,
+    updateErrorMessage: t("chat.panels.manageIssues.updateIssueFailed", {
+      defaultValue: "Failed to update GitHub issue",
+    }),
+    updateNotAppliedMessage: t(
+      "chat.panels.manageIssues.assigneeUpdateNotApplied",
+      {
+        defaultValue: "GitHub did not apply the assignee change",
+      }
+    ),
+    updateSuccessMessage: t("chat.panels.manageIssues.assigneeUpdateSuccess", {
+      defaultValue: "Assignees updated on GitHub",
+    }),
+    permissionErrorMessage,
+  });
+  const handleIssueAssigneesChange = useCallback(
+    async (
+      issue: Parameters<typeof updateIssueAssignees>[0],
+      assignees: string[]
+    ) => {
+      await updateIssueAssignees(issue, assignees);
+    },
+    [updateIssueAssignees]
+  );
 
   const handlePreviousPage = useCallback(() => {
     setCurrentPage((page) => Math.max(1, page - 1));
   }, [setCurrentPage]);
+
+  const handleSortChange = useCallback(
+    (nextSort: GitHubWorkItemsSort) => {
+      setWorkItemsSortByScope((current) => ({
+        ...current,
+        [scope]: nextSort,
+      }));
+      setCurrentPage(1);
+    },
+    [scope, setCurrentPage]
+  );
 
   const handleNextPage = useCallback(async () => {
     if (currentPage < totalLoadedPages) {
@@ -192,7 +253,6 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
   return (
     <GitHubWorkItemsView
       scope={scope}
-      singleRowHeader={singleRowHeader}
       loading={loading}
       loadError={loadError}
       loadingMore={loadingMore}
@@ -210,9 +270,9 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       currentPage={currentPage}
       totalLoadedPages={totalLoadedPages}
       hasMoreFilteredIssues={hasMoreFilteredIssues}
+      sort={workItemsSort}
       createFormOpen={createFormOpen}
       creatingIssue={creatingIssue}
-      issueDetail={issueDetail}
       updateSearchQuery={updateSearchQuery}
       onSearchQueryChange={handleSearchQueryChange}
       onRepoSelect={handleRepoSelect}
@@ -220,16 +280,17 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       onRefresh={handleRefresh}
       onPreviousPage={handlePreviousPage}
       onNextPage={handleNextPage}
-      onOpenIssue={openDetail}
+      onSortChange={handleSortChange}
+      onOpenIssue={openIssueInTab}
       onOpenIssueInBrowser={openIssueInBrowser}
-      onOpenIssueInMyStation={openIssueInMyStation}
       onAddIssue={addIssue}
-      onOpenPr={openPr}
+      onIssueStatusChange={updateIssueStatus}
+      getIssueAssigneeControlState={getIssueAssigneeControlState}
+      onLoadIssueAssignees={loadAssignableUsers}
+      onIssueAssigneesChange={handleIssueAssigneesChange}
+      onOpenPr={openPrInTab}
       onAddPr={addPr}
-      onBackFromDetail={closeDetail}
-      onCloseIssueDetail={closeCurrentIssue}
-      onReopenIssueDetail={reopenCurrentIssue}
-      onAddIssueDetailComment={addIssueDetailComment}
+      onPrStatusChange={updatePrStatus}
       onSetCreateFormOpen={setCreateFormOpen}
       onCreateIssue={handleCreateIssue}
     />

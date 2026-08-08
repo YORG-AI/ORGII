@@ -2,28 +2,46 @@
  * PrDetailPanel
  *
  * GitHub-style tabbed Pull Request detail rendered in the Source Control main
- * pane: a header (status pill · #number title · base←head · open on GitHub) over
+ * pane: a header (status pill · #number · title) over
  * a Conversation / Commits / Checks / Changes sub-tab bar.
  *
  * Mounts `useWorkstationPrDetail` (which parallel-fetches every source and
  * publishes into `workstationSelectedPrAtom`) and renders each tab from that
  * shared state. Reuses commit-history + issue-timeline formatting throughout.
  */
-import { useAtom, useAtomValue } from "jotai";
-import { ArrowUpRight, GitPullRequest } from "lucide-react";
-import React, { useEffect, useMemo } from "react";
+import { useAtom } from "jotai";
+import {
+  CheckCircle2,
+  ChevronRight,
+  CircleDot,
+  CircleUserRound,
+  FileDiff,
+  GitBranch,
+  GitCommitHorizontal,
+  GitMerge,
+  ListChecks,
+  MessageCircle,
+  MessagesSquare,
+  SquareArrowOutUpRight,
+} from "lucide-react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import IntegrationIcon from "@src/components/IntegrationIcon";
-import TabPill from "@src/components/TabPill";
-import type { TabPillItem } from "@src/components/TabPill";
+import type {
+  GitHubChecksSummary,
+  GitHubPrReview,
+  PrFile,
+} from "@src/api/tauri/github";
+import Avatar from "@src/components/Avatar";
+import Button from "@src/components/Button";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
+import { PanelHeader, ScrollTrail } from "@src/modules/shared/layouts/blocks";
+import { resolvePullRequestDetailStatus } from "@src/shared/pr/prLevelActions";
 import { getPrStatusVariant } from "@src/shared/pr/prStatus";
 import {
-  type PrDetailTab,
   type PrIdentity,
-  workstationPrDetailTabAtomFamily,
   workstationPrScopeKey,
   workstationSelectedPrAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
@@ -33,13 +51,21 @@ import { PrChangesTab } from "./PrChangesTab";
 import { PrChecksTab } from "./PrChecksTab";
 import { PrCommitsTab } from "./PrCommitsTab";
 import { PrConversationTab } from "./PrConversationTab";
+import { PrDetailHeaderContent } from "./PrDetailHeaderContent";
+import { PrLevelActions } from "./PrLevelActions";
+
+export { PrDetailHeaderContent } from "./PrDetailHeaderContent";
 
 interface PrDetailPanelProps {
   identity: PrIdentity;
   repoPath: string;
   repoId?: string;
+  /** Host-owned action group replacing the default GitHub link action. */
+  headerActions?: React.ReactNode;
+  /** Optional host-specific header spacing and surface overrides. */
+  headerClassName?: string;
   /**
-   * Render the internal status·#number·title·base←head header row. Set false
+   * Render the internal status·#number·title header row. Set false
    * when the host publishes this info elsewhere (e.g. the My Station PR tab
    * lifts it into the 40px tab-header strip via {@link PrDetailHeaderContent}).
    */
@@ -47,53 +73,225 @@ interface PrDetailPanelProps {
   onFileSelect?: (path: string) => void;
 }
 
-/**
- * The inner status pill · #number · title · base←head content of the PR detail
- * header. Extracted so both the panel's own header and the My Station PR tab's
- * 40px strip render the same thing. Callers provide the flex/padding wrapper.
- */
-export function PrDetailHeaderContent({
+interface PrSummaryReviewer {
+  login: string;
+  avatarUrl: string;
+}
+
+export function PrDetailExternalLinkButton({
   identity,
-  baseBranch,
+  title = "Open on GitHub",
 }: {
   identity: PrIdentity;
-  baseBranch: string;
+  title?: string;
 }): React.ReactNode {
+  return (
+    <Button
+      href={identity.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      variant="tertiary"
+      size="small"
+      iconOnly
+      icon={
+        <SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+      }
+      title={title}
+      aria-label={title}
+    />
+  );
+}
+
+function readNumber(
+  detail: Record<string, unknown> | null,
+  key: string
+): number | null {
+  const value = detail?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readRequestedReviewers(
+  detail: Record<string, unknown> | null
+): PrSummaryReviewer[] {
+  const value = detail?.requested_reviewers;
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((reviewer) => {
+    if (!reviewer || typeof reviewer !== "object") return [];
+    const record = reviewer as Record<string, unknown>;
+    if (typeof record.login !== "string" || !record.login) return [];
+    return [
+      {
+        login: record.login,
+        avatarUrl:
+          typeof record.avatar_url === "string" ? record.avatar_url : "",
+      },
+    ];
+  });
+}
+
+function collectReviewers(
+  detail: Record<string, unknown> | null,
+  reviews: GitHubPrReview[]
+): PrSummaryReviewer[] {
+  const unique = new Map<string, PrSummaryReviewer>();
+  for (const reviewer of readRequestedReviewers(detail)) {
+    unique.set(reviewer.login, reviewer);
+  }
+  for (const review of reviews) {
+    if (!review.user.login) continue;
+    unique.set(review.user.login, {
+      login: review.user.login,
+      avatarUrl: review.user.avatar_url,
+    });
+  }
+  return [...unique.values()];
+}
+
+function checksLabel(
+  checks: GitHubChecksSummary | null,
+  t: (key: string, fallback: string) => string
+): string {
+  const count =
+    (checks?.check_runs.length ?? 0) + (checks?.statuses.length ?? 0);
+  if (count === 0) return t("git.pr.summary.noChecks", "No CI checks");
+  if (checks?.state === "success") {
+    return t("git.pr.checks.allPassed", "All checks passed");
+  }
+  if (checks?.state === "failure") {
+    return t("git.pr.summary.checksFailed", "Checks failed");
+  }
+  return t("git.pr.checks.pending", "Checks in progress");
+}
+
+interface PrDetailSummaryProps {
+  identity: PrIdentity;
+  baseBranch: string;
+  detail: Record<string, unknown> | null;
+  conversationCount: number;
+  reviews: GitHubPrReview[];
+  files: PrFile[];
+  checks: GitHubChecksSummary | null;
+}
+
+export function PrDetailSummary({
+  identity,
+  baseBranch,
+  detail,
+  conversationCount,
+  reviews,
+  files,
+  checks,
+}: PrDetailSummaryProps): React.ReactNode {
   const { t } = useTranslation("common");
-  const statusVariant = getPrStatusVariant(identity.status);
+  const reviewers = collectReviewers(detail, reviews);
+  const additions =
+    readNumber(detail, "additions") ??
+    files.reduce((total, file) => total + file.additions, 0);
+  const deletions =
+    readNumber(detail, "deletions") ??
+    files.reduce((total, file) => total + file.deletions, 0);
+  const commentCount = readNumber(detail, "comments") ?? conversationCount;
+  const statusLabel = t(`git.pr.status.${identity.status}`, identity.status);
+  const statusColorClass = getPrStatusVariant(identity.status).textClass;
 
   return (
-    <>
-      <IntegrationIcon
-        type="github"
-        size={HEADER_ICON_SIZE.sm}
-        className="shrink-0"
-      />
-      <span
-        className={`inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium ${statusVariant.badgeClass}`}
+    <section
+      data-testid="pr-detail-summary"
+      aria-label={t("git.pr.summary.label", "Pull request summary")}
+    >
+      <div
+        className={`${DETAIL_PANEL_TOKENS.headerWidth} grid grid-cols-[96px_minmax(0,1fr)] items-center gap-x-4 gap-y-2.5 px-6 pt-4 text-[13px]`}
       >
-        <GitPullRequest size={12} strokeWidth={2} />
-        {t(`git.pr.status.${identity.status}`, identity.status)}
-      </span>
-      <span className="shrink-0 select-text text-[11px] text-text-3">
-        #{identity.number}
-      </span>
-      <span
-        className="min-w-0 flex-1 select-text truncate text-[13px] font-medium text-text-1"
-        title={identity.title}
-      >
-        {identity.title}
-      </span>
-      {baseBranch ? (
-        <span className="hidden shrink-0 items-center gap-1 text-[11px] text-text-3 sm:flex">
-          <span className="rounded bg-fill-2 px-1.5 py-0.5">{baseBranch}</span>
-          <span>←</span>
-          <span className="rounded bg-fill-2 px-1.5 py-0.5">
+        <div className="flex items-center gap-2 text-text-3">
+          <GitBranch size={14} strokeWidth={1.75} />
+          <span>{t("git.pr.summary.branch", "Branch")}</span>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-text-1">
+          <span className="max-w-full truncate" title={identity.headBranch}>
             {identity.headBranch}
           </span>
-        </span>
-      ) : null}
-    </>
+          <ChevronRight
+            size={14}
+            strokeWidth={1.75}
+            className="shrink-0 text-text-3"
+          />
+          <span className="shrink-0">{baseBranch}</span>
+          <span className="shrink-0 tabular-nums text-success-6">
+            +{additions.toLocaleString("en-US")}
+          </span>
+          <span className="shrink-0 tabular-nums text-danger-6">
+            -{deletions.toLocaleString("en-US")}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 text-text-3">
+          <CircleUserRound size={14} strokeWidth={1.75} />
+          <span>{t("git.pr.summary.reviewers", "Reviewers")}</span>
+        </div>
+        <div
+          className="flex min-h-5 min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-text-1"
+          data-testid="pr-summary-reviewers"
+        >
+          {reviewers.length > 0 ? (
+            <>
+              {reviewers.slice(0, 5).map((reviewer) => (
+                <span
+                  key={reviewer.login}
+                  className="inline-flex min-w-0 items-center gap-1.5"
+                  title={reviewer.login}
+                >
+                  <Avatar size={20} src={reviewer.avatarUrl} />
+                  <span className="truncate">{reviewer.login}</span>
+                </span>
+              ))}
+              {reviewers.length > 5 ? (
+                <span className="text-[11px] text-text-3">
+                  +{reviewers.length - 5}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <span>{t("git.pr.summary.noReviewers", "No reviewers")}</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-text-3">
+          <MessageCircle size={14} strokeWidth={1.75} />
+          <span>{t("git.pr.summary.comments", "Comments")}</span>
+        </div>
+        <div className="text-text-1">
+          {t("git.pr.summary.commentCount", {
+            count: commentCount,
+            defaultValue: "{{count}} comment",
+            defaultValue_other: "{{count}} comments",
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 text-text-3">
+          <CheckCircle2 size={14} strokeWidth={1.75} />
+          <span>{t("git.pr.summary.checks", "Checks")}</span>
+        </div>
+        <div className="text-text-1">{checksLabel(checks, t)}</div>
+
+        <div className="flex items-center gap-2 text-text-3">
+          {identity.status === "merged" ? (
+            <GitMerge
+              size={14}
+              strokeWidth={1.75}
+              className={statusColorClass}
+            />
+          ) : (
+            <CircleDot
+              size={14}
+              strokeWidth={1.75}
+              className={statusColorClass}
+            />
+          )}
+          <span>{t("git.pr.summary.status", "Status")}</span>
+        </div>
+        <div className={`capitalize ${statusColorClass}`}>{statusLabel}</div>
+      </div>
+    </section>
   );
 }
 
@@ -101,66 +299,147 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
   identity,
   repoPath,
   repoId,
+  headerActions,
+  headerClassName,
   showHeader = true,
   onFileSelect,
 }) => {
   const { t } = useTranslation("common");
+  const tabContentRef = useRef<HTMLDivElement>(null);
+  const trailScrollContainerRef = useRef<HTMLElement>(null);
+  const trailContentRef = useRef<HTMLElement>(null);
   const scopeKey = workstationPrScopeKey(repoId, repoPath, identity.number);
-  const state = useAtomValue(workstationSelectedPrAtomFamily(scopeKey));
-  const [activeTab, setActiveTab] = useAtom(
-    workstationPrDetailTabAtomFamily(scopeKey)
+  const [state, setState] = useAtom(workstationSelectedPrAtomFamily(scopeKey));
+  const detailViewState = state.viewState;
+  const setDetailViewState = useCallback(
+    (
+      update: (current: typeof detailViewState) => typeof detailViewState
+    ): void => {
+      setState((current) => ({
+        ...current,
+        viewState: update(current.viewState),
+      }));
+    },
+    [setState]
+  );
+  const activeTab = detailViewState.activeTab;
+  const setActiveTab = useCallback(
+    (nextTab: typeof activeTab) => {
+      setDetailViewState((current) => ({
+        ...current,
+        activeTab: nextTab,
+      }));
+    },
+    [setDetailViewState]
+  );
+  const setConversationDraft = useCallback(
+    (conversationDraft: string) => {
+      setDetailViewState((current) => ({
+        ...current,
+        conversationDraft,
+      }));
+    },
+    [setDetailViewState]
+  );
+  const setSelectedCommitSha = useCallback(
+    (selectedCommitSha: string | null) => {
+      setDetailViewState((current) => ({
+        ...current,
+        selectedCommitSha,
+      }));
+    },
+    [setDetailViewState]
+  );
+  const setSelectedChangedFilePath = useCallback(
+    (selectedChangedFilePath: string | null) => {
+      setDetailViewState((current) => ({
+        ...current,
+        selectedChangedFilePath,
+      }));
+    },
+    [setDetailViewState]
+  );
+  const setTabContentNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      tabContentRef.current = node;
+      if (activeTab !== "conversation") {
+        trailScrollContainerRef.current = node;
+        trailContentRef.current = node;
+      }
+    },
+    [activeTab]
+  );
+  const setConversationScrollNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      trailScrollContainerRef.current = node ?? tabContentRef.current;
+    },
+    []
+  );
+  const setConversationContentNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      trailContentRef.current = node ?? tabContentRef.current;
+    },
+    []
   );
 
-  const { repoFullName, addComment, submitReview, replyInlineComment } =
-    useWorkstationPrDetail({
-      repoPath,
-      repoId,
-      pr: identity,
-    });
+  const {
+    repoFullName,
+    addComment,
+    submitReview,
+    replyInlineComment,
+    mergePullRequest,
+    setPullRequestAutoMerge,
+    updatePullRequestState,
+    updateRequestedReviewers,
+    loadReviewerCandidates,
+    reviewerCandidates,
+    loadingReviewerCandidates,
+    reviewerCandidatesError,
+    prActionPending,
+  } = useWorkstationPrDetail({
+    repoPath,
+    repoId,
+    pr: identity,
+  });
 
-  // Reset to Conversation when switching to a different PR.
-  useEffect(() => {
-    setActiveTab("conversation");
-  }, [identity.number, setActiveTab]);
+  const currentIdentity = useMemo(
+    () => ({
+      ...identity,
+      status: resolvePullRequestDetailStatus(state.detail, identity.status),
+    }),
+    [identity, state.detail]
+  );
 
   const baseBranch =
     state.baseRef ?? identity.baseBranch ?? t("git.pr.baseBranch", "base");
 
-  const tabs: TabPillItem[] = useMemo(
+  const tabs = useMemo(
     () => [
       {
-        key: "conversation",
+        key: "conversation" as const,
         label: t("git.pr.tabs.conversation", "Conversation"),
-        badge:
-          state.conversation.length + state.reviews.length > 0 ? (
-            <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
-              {state.conversation.length + state.reviews.length}
-            </span>
-          ) : undefined,
+        icon: <MessagesSquare size={15} strokeWidth={1.8} />,
+        count: state.conversation.length + state.reviews.length,
       },
       {
-        key: "changes",
-        label: t("git.pr.tabs.changes", "Changes"),
-        badge:
-          state.files.length > 0 ? (
-            <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
-              {state.files.length}
-            </span>
-          ) : undefined,
-      },
-      {
-        key: "commits",
+        key: "commits" as const,
         label: t("git.pr.tabs.commits", "Commits"),
-        badge:
-          state.commits.length > 0 ? (
-            <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
-              {state.commits.length}
-            </span>
-          ) : undefined,
+        icon: <GitCommitHorizontal size={15} strokeWidth={1.8} />,
+        count: state.commits.length,
       },
       {
-        key: "checks",
+        key: "checks" as const,
         label: t("git.pr.tabs.checks", "Checks"),
+        icon: <ListChecks size={15} strokeWidth={1.8} />,
+        count:
+          (state.checks?.check_runs.length ?? 0) +
+          (state.checks?.statuses.length ?? 0),
+      },
+      {
+        key: "changes" as const,
+        label: t("git.pr.changes.title", "Files changed"),
+        icon: <FileDiff size={15} strokeWidth={1.8} />,
+        count: state.files.length,
       },
     ],
     [
@@ -168,51 +447,68 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
       state.conversation.length,
       state.reviews.length,
       state.commits.length,
+      state.checks,
       state.files.length,
     ]
   );
 
-  if (state.loading) {
-    return (
-      <Placeholder
-        variant="loading"
-        placement="detail-panel"
-        fillParentHeight
-      />
-    );
+  if (state.loading || (state.detail === null && state.error === null)) {
+    return <GitHubDetailSkeleton kind="pr" showHeader={showHeader} />;
   }
 
   return (
     <div className="allow-select-deep flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
       {showHeader ? (
-        <div className="flex shrink-0 items-center gap-2 px-4 py-2.5">
-          <PrDetailHeaderContent identity={identity} baseBranch={baseBranch} />
-        </div>
+        <PanelHeader
+          className={headerClassName ?? DETAIL_PANEL_TOKENS.headerPadding}
+          dataTestId="pr-detail-header"
+          actions={
+            headerActions ?? (
+              <PrDetailExternalLinkButton
+                identity={identity}
+                title={t("actions.openOnGitHub", "Open on GitHub")}
+              />
+            )
+          }
+        >
+          <PrDetailHeaderContent identity={currentIdentity} />
+        </PanelHeader>
       ) : null}
 
-      {/* Sub-tab bar */}
-      <div className="flex shrink-0 items-center gap-1 border-b border-border-1 py-1 pl-3 pr-2">
-        <TabPill
-          tabs={tabs}
-          activeTab={activeTab}
-          onChange={(key) => setActiveTab(key as PrDetailTab)}
-          variant="pill"
-          fillWidth={false}
-          size="small"
-          buttonStyle
-          height={28}
-        />
-        <a
-          href={identity.url}
-          target="_blank"
-          rel="noreferrer"
-          className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
-          aria-label={t("actions.openOnGitHub", "Open on GitHub")}
-          title={t("actions.openOnGitHub", "Open on GitHub")}
-        >
-          <ArrowUpRight size={14} strokeWidth={2} />
-        </a>
+      {/* GitHub-style PR navigation */}
+      <div
+        role="tablist"
+        aria-label={t("git.pr.summary.label", "Pull request summary")}
+        className="flex h-10 shrink-0 items-end gap-1 border-b border-border-2 bg-bg-2 px-3"
+      >
+        {tabs.map((tab) => {
+          const selected = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              id={`pr-detail-tab-${tab.key}`}
+              aria-controls={`pr-detail-tabpanel-${tab.key}`}
+              aria-selected={selected}
+              className={`relative -mb-px flex h-9 shrink-0 items-center gap-1.5 rounded-t-md border px-3 text-[12px] font-medium transition-colors ${
+                selected
+                  ? "border-border-2 bg-bg-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-bg-2"
+                  : "border-transparent text-text-3 hover:bg-fill-1 hover:text-text-1"
+              }`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              <span className="shrink-0" aria-hidden>
+                {tab.icon}
+              </span>
+              <span>{tab.label}</span>
+              <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fill-2 px-1.5 text-[10px] font-semibold tabular-nums text-text-2">
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Error banner */}
@@ -223,47 +519,107 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
       ) : null}
 
       {/* Active tab */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {activeTab === "conversation" && (
-          <PrConversationTab
-            detail={state.detail}
-            identity={identity}
-            conversation={state.conversation}
-            reviews={state.reviews}
-            reviewComments={state.reviewComments}
-            loading={state.loading}
-            submittingComment={state.submittingComment}
-            submittingReview={state.submittingReview}
-            onAddComment={addComment}
-            onSubmitReview={submitReview}
+      <div
+        role="tabpanel"
+        id={`pr-detail-tabpanel-${activeTab}`}
+        aria-labelledby={`pr-detail-tab-${activeTab}`}
+        className="flex min-h-0 flex-1 overflow-hidden"
+      >
+        <div
+          ref={setTabContentNode}
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        >
+          {activeTab === "conversation" && (
+            <PrConversationTab
+              levelActions={
+                <PrLevelActions
+                  identity={currentIdentity}
+                  detail={state.detail}
+                  checks={state.checks}
+                  disabled={!repoFullName}
+                  pending={prActionPending}
+                  reviewerCandidates={reviewerCandidates}
+                  loadingReviewerCandidates={loadingReviewerCandidates}
+                  reviewerCandidatesError={reviewerCandidatesError}
+                  onLoadReviewerCandidates={loadReviewerCandidates}
+                  onMerge={mergePullRequest}
+                  onSetAutoMerge={setPullRequestAutoMerge}
+                  onStateChange={updatePullRequestState}
+                  onRequestedReviewersChange={updateRequestedReviewers}
+                />
+              }
+              summary={
+                <PrDetailSummary
+                  identity={currentIdentity}
+                  baseBranch={baseBranch}
+                  detail={state.detail}
+                  conversationCount={state.conversation.length}
+                  reviews={state.reviews}
+                  files={state.files}
+                  checks={state.checks}
+                />
+              }
+              detail={state.detail}
+              identity={currentIdentity}
+              conversation={state.conversation}
+              reviews={state.reviews}
+              reviewComments={state.reviewComments}
+              loading={state.loading}
+              submittingComment={state.submittingComment}
+              submittingReview={state.submittingReview}
+              draft={detailViewState.conversationDraft}
+              onDraftChange={setConversationDraft}
+              onAddComment={addComment}
+              onSubmitReview={submitReview}
+              trailScrollContainerRef={setConversationScrollNode}
+              trailContentRef={setConversationContentNode}
+            />
+          )}
+          {activeTab === "commits" && (
+            <PrCommitsTab
+              commits={state.commits}
+              prNumber={identity.number}
+              repoPath={repoPath}
+              repoId={repoId}
+              loading={state.loading}
+              checks={state.checks}
+              selectedCommitSha={detailViewState.selectedCommitSha}
+              onSelectedCommitShaChange={setSelectedCommitSha}
+              onFileSelect={onFileSelect}
+            />
+          )}
+          {activeTab === "checks" && (
+            <PrChecksTab checks={state.checks} loading={state.loading} />
+          )}
+          {activeTab === "changes" && (
+            <PrChangesTab
+              repoFullName={repoFullName}
+              detail={state.detail}
+              headSha={state.headSha}
+              baseRef={state.baseRef}
+              files={state.files}
+              loading={state.loading}
+              reviewComments={state.reviewComments}
+              selectedFilePath={detailViewState.selectedChangedFilePath}
+              onSelectedFilePathChange={setSelectedChangedFilePath}
+              onFileSelect={onFileSelect}
+              onReplyInlineComment={replyInlineComment}
+            />
+          )}
+        </div>
+        <div
+          className="relative w-11 shrink-0"
+          data-testid="pr-detail-navigation-rail"
+        >
+          <ScrollTrail
+            key={activeTab}
+            scrollContainerRef={trailScrollContainerRef}
+            contentRef={trailContentRef}
+            ariaLabel={t("git.pr.navigationTrail", "Pull request navigation")}
+            placement="rail"
+            testId="pr-detail-navigation-trail"
           />
-        )}
-        {activeTab === "commits" && (
-          <PrCommitsTab
-            commits={state.commits}
-            prNumber={identity.number}
-            repoPath={repoPath}
-            repoId={repoId}
-            loading={state.loading}
-            onFileSelect={onFileSelect}
-          />
-        )}
-        {activeTab === "checks" && (
-          <PrChecksTab checks={state.checks} loading={state.loading} />
-        )}
-        {activeTab === "changes" && (
-          <PrChangesTab
-            repoFullName={repoFullName}
-            detail={state.detail}
-            headSha={state.headSha}
-            baseRef={state.baseRef}
-            files={state.files}
-            loading={state.loading}
-            reviewComments={state.reviewComments}
-            onFileSelect={onFileSelect}
-            onReplyInlineComment={replyInlineComment}
-          />
-        )}
+        </div>
       </div>
     </div>
   );

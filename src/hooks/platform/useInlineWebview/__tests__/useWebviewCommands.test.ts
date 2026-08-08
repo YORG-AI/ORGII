@@ -88,3 +88,61 @@ describe("useWebviewCommands reload", () => {
     expect(setIsLoading).not.toHaveBeenCalled();
   });
 });
+
+describe("useWebviewCommands lifecycle", () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
+
+  it("shares overlapping create requests and releases one ref-count slot", async () => {
+    let finishCreate: (() => void) | undefined;
+    invokeMock.mockImplementation((command: string) => {
+      if (command === "create_inline_webview") {
+        return new Promise<void>((resolve) => {
+          finishCreate = resolve;
+        });
+      }
+      return Promise.resolve();
+    });
+
+    const { useWebviewCommands } = await import("../useWebviewCommands");
+    const rect = {
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      toJSON: () => ({}),
+    } as DOMRect;
+    const commands = useWebviewCommands(
+      createParams({
+        isWebviewCreated: false,
+        containerRef: { current: {} as HTMLDivElement },
+        getContainerRect: () => rect,
+      })
+    );
+
+    const first = commands.createWebview("https://example.com");
+    const second = commands.createWebview("https://example.com");
+
+    expect(second).toBe(first);
+    expect(
+      invokeMock.mock.calls.filter(([command]) =>
+        Object.is(command, "create_inline_webview")
+      )
+    ).toHaveLength(1);
+
+    finishCreate?.();
+    await Promise.all([first, second]);
+    await commands.destroy();
+
+    expect(
+      invokeMock.mock.calls.filter(([command]) =>
+        Object.is(command, "close_inline_webview")
+      )
+    ).toHaveLength(1);
+  });
+});

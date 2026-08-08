@@ -17,6 +17,8 @@
 export * from "./sidebarAtom";
 export * from "./hoverSidebarAtom";
 export * from "./collapseStateAtom";
+export * from "./localChannelsAtom";
+export * from "./localChannelMessagesAtom";
 
 // Editor
 export * from "./editorSettingsAtom";
@@ -44,7 +46,6 @@ export * from "./workStationAtom";
 export * from "./routeToolbarAtom";
 export * from "./dragDropAtom";
 export * from "./todoAtom";
-export * from "./workflowEditorAtom";
 export * from "./addToAgentAtom";
 export * from "./integrationsToolbarAtom";
 export * from "./kanbanViewStateAtom";
@@ -54,6 +55,7 @@ export * from "./modelSelectorAtom";
 export * from "./settingsToolbarAtom";
 export * from "./globalTabsTypes";
 export * from "./guideHighlightAtom";
+export * from "./globalPreferencesPanelAtom";
 
 // WorkStation / Chat / Simulator / Workspace Folders (formerly workspaceAtom barrel)
 export * from "./simulatorAtom";

@@ -1,6 +1,6 @@
 ---
 name: org2-performance-guard
-description: Prevent CPU, RAM, I/O, and background-work regressions in ORG2. Use when adding or reviewing polling, timers, Realtime subscriptions, event listeners, workers, streaming paths, caches, pagination, external-history scans, cloud sync, source-control loading, per-session state, or multi-instance behavior; also use before delivering a performance refactor or any feature that stays alive while the UI is idle or hidden.
+description: Prevent CPU, RAM, I/O, background-work, and false-green lifecycle regressions in ORG2. Use when adding or reviewing polling, timers, Realtime subscriptions, event listeners, workers, streaming paths, caches, pagination, provider-owned transcript ingestion or identity/dedupe, external-history scans, cloud sync, source-control loading, per-session state, true-machine verification, or multi-provider/multi-instance behavior; also use before delivering a performance refactor or any feature that stays alive while the UI is idle or hidden.
 ---
 
 # ORG2 Performance Guard
@@ -25,6 +25,8 @@ Require all applicable invariants before delivery:
 - Keep blocking filesystem, database, git, and process work off async executor threads and render-critical paths.
 - Load large histories, request rounds, diffs, and replay segments on demand; do not eagerly materialize invisible data.
 - Isolate secondary Tauri identities completely: data home, external-history home, ports, cookies/auth, and app-lifetime caches.
+- Treat provider ingestion, local identity/listability, UI hydration, cloud transport, and remote rendering as separate verification boundaries. Passing A-to-B sync does not prove the upstream local lifecycle.
+- Test every provider and raw source transition claimed by the change. Do not infer Claude Code compaction coverage from Codex append coverage, or vice versa.
 - Keep rendered E2E strict. Missing UI must fail with diagnostics; never turn a regression into `console.warn`, catch-and-continue, or a debug-helper bypass.
 
 ## Required workflow
@@ -63,10 +65,36 @@ For each resource, record the required behavior in these states:
 | Scope     | personal org, cloud org, removed org, revoked share             |
 | Session   | unopened, active, inactive, deleted, forked                     |
 | Instance  | primary, direct-launched secondary, launcher-created secondary  |
+| Source    | discover, append, large append, compact/rewrite, rotate, delete |
+| UI        | clean load, old row active/open/pinned during refresh, restart  |
+| Transport | local ingest, upload, remote download, reconnect                |
 
 Flag any resource whose owner or terminal state is ambiguous.
 
-### 3. Choose the correct pattern
+### 3. Separate provider lifecycle from machine topology
+
+For provider history, session identity, dedupe, or sync work, build a coverage matrix before testing:
+
+| Axis           | Minimum relevant states                                                          |
+| -------------- | -------------------------------------------------------------------------------- |
+| Provider       | every changed provider plus every provider explicitly claimed as working         |
+| Raw transition | create, append, large append, compact/rewrite, rotate, fork/subagent, delete     |
+| App timing     | cold start, source changes while ORG2 is open, rescan, restart                   |
+| UI state       | clean roster, previous row active/open/pinned, search/filter/load-more as needed |
+| Topology       | local ingest, isolated secondary, A upload, B download/reconnect                 |
+
+Apply these validity rules:
+
+- Treat each matrix cell as independent evidence. Two machines exercise topology; they do not create provider compaction, rotation, or lineage transitions automatically.
+- Exercise the raw provider artifact or a faithful before/after fixture. Do not seed only normalized cache/database rows when the parser, watermark, identity, lineage, or dedupe contract is under test.
+- Derive identity markers from the raw artifact. Do not fabricate identical group keys that merely restate the implementation assumption.
+- Include an assumption-breaking fixture for identity logic: for example, a rewritten transcript head with a changed first-message UUID but a preserved ancestry marker.
+- Observe local ingest and listability before enabling or asserting cloud upload. Then verify upload cursor/payload and remote rendering separately.
+- Keep the previous session active, open, or pinned while applying the source transition when exact-id hydration or force-reveal paths exist.
+- Repeat rescan/restart once to prove idempotence and stable row/resource counts.
+- Name every unexecuted provider or transition. Never summarize partial coverage as “multi-provider,” “dual-machine,” or “full lifecycle.”
+
+### 4. Choose the correct pattern
 
 Apply the smallest applicable pattern:
 
@@ -80,7 +108,7 @@ Apply the smallest applicable pattern:
 - **Demand-driven loading:** paginate or fetch details only after expansion/selection; retain only the visible or recently used window.
 - **Generation guard:** discard late async results after stop, restart, account switch, endpoint switch, or a newer request.
 
-### 4. Sweep equivalent paths
+### 5. Sweep equivalent paths
 
 After finding one issue, search for every semantic peer. A fix is incomplete if another surface still owns a parallel implementation.
 
@@ -96,7 +124,7 @@ Typical ORG2 sweeps:
 
 Unify duplicate resource ownership before tuning individual call sites.
 
-### 5. Protect correctness and privacy
+### 6. Protect correctness and privacy
 
 Performance changes must not weaken:
 
@@ -110,7 +138,7 @@ Performance changes must not weaken:
 
 Capture identity and generation at request start. Before committing a result, confirm the current identity/generation still matches. Do not display a previous identity's cached rows while refreshing.
 
-### 6. Verify proportionally
+### 7. Verify proportionally
 
 Always run:
 
@@ -121,11 +149,16 @@ Always run:
 
 For rendered/background changes, also run the real Tauri surface when available:
 
-1. Observe primary and secondary instances separately.
-2. Measure visible idle, hidden idle, active streaming, and post-close/post-delete behavior.
-3. Exercise account switch, endpoint switch, and direct secondary launch when relevant.
-4. Confirm request/subscription/timer counts stabilize rather than grow after repeated open/close cycles.
-5. Confirm strict rendered E2E uses user-visible actions for the behavior under assertion.
+1. Isolate primary and secondary data homes, provider roots, auth, ports, and processes.
+2. Capture a baseline: raw files, cache rows/listability, active/open/pinned row, cursor/epoch, payload count, process count, CPU, and RSS as applicable.
+3. Apply the raw source transition while ORG2 is already open. For compaction/rewrite/rotation, stage or produce the actual before/after artifact instead of pre-populating the final database state.
+4. Assert local parsing, identity/lineage, exact row count, listability, timestamp, and sidebar behavior before cloud transport can hide the owning-boundary failure.
+5. Keep an old row active/open/pinned, rescan, and assert that hydration does not resurrect a superseded sibling or hide the active row entirely.
+6. Verify A upload and B download/reconnect separately, including cursor/epoch and exact appended payload counts when incremental behavior is claimed.
+7. Rescan and restart once; confirm data and request/subscription/timer/process counts remain stable.
+8. Measure visible idle, hidden idle, active work, and post-close/post-delete behavior.
+9. Exercise account switch, endpoint switch, and direct secondary launch when relevant.
+10. Confirm strict rendered E2E uses user-visible actions for the behavior under assertion.
 
 Do not claim a performance improvement from code shape alone. State the evidence actually collected and any environment blocker.
 
@@ -142,6 +175,11 @@ Reject or revise a change when any applicable answer is unknown or false:
 - Does one session's update wake unrelated session views?
 - Does a growing transcript/history/diff require full eager materialization?
 - Does a direct secondary launch inherit primary external history or auth state?
+- Which provider and raw source transition produced the evidence for each compatibility claim?
+- Did the test inspect local ingest and identity before testing cloud transport?
+- Did it keep the previous row active/open/pinned across rescan or only test a clean roster?
+- Were family/identity keys parsed from raw artifacts, or fabricated to match the implementation?
+- Did “dual-machine” testing merely replicate an already-normalized final state?
 - Can a missing rendered element be skipped while the E2E still passes?
 
 ## Required delivery output
@@ -155,10 +193,18 @@ Report findings and evidence in this compact form:
 | Scope/isolation    | fix / keep | cache/request key                    | identity/generation guard | switch/revocation test  |
 | Rendering/hot path | fix / keep | subscription/allocation trace        | narrowing/coalescing      | render or unit evidence |
 
+For provider ingestion, session identity, or sync work, also report:
+
+| Provider       | Raw transition    | App/UI state                 | Topology/boundary           | Expected invariant                        | Observed evidence            |
+| -------------- | ----------------- | ---------------------------- | --------------------------- | ----------------------------------------- | ---------------------------- |
+| exact provider | actual transition | cold/live/active-row/restart | local/A-to-cloud/cloud-to-B | exact rows, identity, cursor, payload, UI | measured result or `not run` |
+
+Use one row per materially distinct matrix cell. A shared implementation permits shared unit coverage only at the shared boundary; each provider adapter still needs representative raw input before claiming compatibility.
+
 End with:
 
 - `Performance verdict: pass` only when every applicable invariant is evidenced.
-- `Performance verdict: blocked` when required real measurement or compilation cannot run; name the blocker.
+- `Performance verdict: blocked` when required real measurement, provider transition, or compilation cannot run; name the blocker and the uncovered matrix cells.
 - `Performance verdict: fail` when an unbounded, duplicate, hidden-active, stale-write, or cross-identity path remains.
 
 Never promise that a skill can make regressions impossible. Enforce the gates, expose unknowns, and refuse an unsupported green verdict.

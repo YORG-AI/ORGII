@@ -70,5 +70,271 @@
     "skipSetup": "Pomiń konfigurację",
     "getStarted": "Rozpocznij",
     "goToSettings": "Przejdź do Ustawień"
+  },
+  "readiness": {
+    "hero": {
+      "title": "Skonfigurujmy Twoje <brand>ORGII</brand>",
+      "description": "Kilka szybkich wyborów, aby spersonalizować środowisko pracy."
+    },
+    "presentation": {
+      "label": "Podgląd układu",
+      "compact": "Obecna wersja kompaktowa",
+      "mascot": "Wersja z maskotką",
+      "native": "Natywny aplikacji",
+      "cinematic": "Karta filmowa",
+      "classic": "Panel klasyczny"
+    },
+    "classicPanel": {
+      "title": "Dostosuj ORGII do siebie",
+      "description": "Wybierz język, wygląd, motyw i kolor akcentu. Możesz je zmienić w dowolnym momencie."
+    },
+    "sidebar": {
+      "brandTag": "Konfiguracja",
+      "subtitle": "Wybierz język i wygląd. Wszystkie pozostałe ustawienia pozostaną dostępne w aplikacji.",
+      "ariaLabel": "Postęp konfiguracji",
+      "stepProgress": "Krok {{current}} z {{total}}",
+      "saved": "Postęp zapisywany jest automatycznie",
+      "help": "Ukończone kroki można edytować. Dalsze kroki zostaną odblokowane po zakończeniu."
+    },
+    "goal": {
+      "title": "Co chcesz osiągnąć w pierwszej kolejności?",
+      "description": "ORGII dostosuje konfigurację i po zakończeniu przeniesie Cię do odpowiedniego produktu.",
+      "recommended": "Zalecane",
+      "hint": "To zmienia ścieżkę konfiguracji; nie ogranicza to trwale tego, czego możesz użyć.",
+      "personal": {
+        "title": "Rozpocznij sesję agenta",
+        "description": "Skonfiguruj osobisty przepływ pracy z kodowaniem i otwórz Launchpad."
+      },
+      "team": {
+        "title": "Zobacz aktywność zespołu w Kodeksie",
+        "description": "Połącz organizację, wybierz widoczność repozytorium i otwórz skrzynkę odbiorczą zespołu."
+      },
+      "work": {
+        "title": "Zarządzaj pracą",
+        "description": "Poznaj projekty i elementy pracy, następnie utwórz pierwszy element."
+      }
+    },
+    "tools": {
+      "title": "Wykryj narzędzia do kodowania",
+      "description": "Sprawdź Kodeks, Kod Claude'a i Kursor, korzystając z istniejącej lokalnej usługi sprawdzania poprawności.",
+      "detectedDescription": "Lokalne dane uwierzytelniające lub stan subskrypcji",
+      "found": "Znaleziono {{count}} konta(a) · {{validated}} zweryfikowane",
+      "notFound": "Nie wykryto nadającego się do użytku konta",
+      "notScanned": "Jeszcze nie przeskanowane",
+      "detect": "Wykryj narzędzia",
+      "importHistory": "Importuj historię kodeksu",
+      "historyImported": "{{count}} Sesje kodeksu są dostępne lokalnie",
+      "privacy": "Sekrety nigdy nie wchodzą w stan konfiguracji. Zachowywane są tylko dostawca, liczba i stan weryfikacji."
+    },
+    "organization": {
+      "title": "Połącz organizację zespołu",
+      "description": "Zaloguj się raz, a następnie wybierz istniejącą organizację, utwórz ją lub dołącz za zaproszeniem.",
+      "signInHint": "Aktywność zespołu korzysta z konta ORG2 Cloud, więc członkowie dzielą te same granice organizacji.",
+      "signIn": "Zaloguj się / zarejestruj",
+      "existing": "Twoje organizacje",
+      "role": "Rola: {{role}}",
+      "mode": "Działanie organizacji",
+      "create": "Utwórz organizację",
+      "join": "Dołącz do organizacji",
+      "orgName": "Nazwa organizacji",
+      "orgNamePlaceholder": "np. Acme Engineering",
+      "invite": "Zaproś link lub kod",
+      "invitePlaceholder": "Wklej link udostępniony przez administratora",
+      "selected": "{{org}} jest wybrany do konfiguracji zespołu",
+      "roles": {
+        "owner": "Właściciel",
+        "admin": "Administrator",
+        "member": "Członek",
+        "guest": "Gość"
+      }
+    },
+    "sharing": {
+      "title": "Wybierz, co zespół może widzieć",
+      "description": "Pilot repozytorium zapewnia widoczność granica. Poziom udostępniania kontroluje ilość publikowanych szczegółów sesji.",
+      "workspace": "Przestrzeń robocza",
+      "workspaceDescription": "Folder lokalny, w którym działa Twój agent",
+      "noWorkspace": "Brak otwartego obszaru roboczego",
+      "openWorkspace": "Otwórz obszar roboczy",
+      "repoScope": "Zakres repozytorium",
+      "repoScopeDescription": "Rozwiąż znormalizowane zdalne zdalne Git z bieżącego obszaru roboczego",
+      "detectScope": "Wykryj repozytorium zakres",
+      "remote": "Udostępniany pilot",
+      "level": "Minimalny poziom udostępniania",
+      "levelDescription": "Stosowany przez organizację do pasujących sesji",
+      "off": "Wyłączony",
+      "metadata": "Tylko metadane",
+      "replay": "Pełne odtwarzanie",
+      "save": "Zapisz i zweryfikuj zasady",
+      "createInvite": "Utwórz zaproszenie dla członków",
+      "copy": "Kopiuj",
+      "verified": "Serwer zaakceptował tę politykę repozytorium i kolejkę synchronizacji wyczerpany.",
+      "memberHint": "{{org}} jest zarządzany przez administratora. Twoja lokalna historia Kodeksu jest gotowa do synchronizacji zgodnie z zasadami repozytorium.",
+      "verifyMember": "Sprawdź moją ścieżkę synchronizacji",
+      "memberVerified": "Wybór organizacji jest aktywny, a bieżące żądanie synchronizacji zostało wyczerpane."
+    },
+    "basics": {
+      "title": "Podstawowe ustawienia",
+      "description": "Zawsze możesz je później zmienić.",
+      "workspace": "Domyślne obszar roboczy",
+      "workspaceDescription": "Sesje uruchamiane z plikami w obszarze roboczym; projekty i elementy pracy organizują pracę zamiast zastępować system plików.",
+      "openWorkspace": "Otwórz obszar roboczy",
+      "changeWorkspace": "Zmień obszar roboczy",
+      "settingsHint": "Narzędzia, obszary robocze, organizacje, widoczność zespołu i samouczki można skonfigurować później w aplikacji."
+    },
+    "tutorial": {
+      "title": "Wybierz jeden samouczek kontekstowy",
+      "description": "Rozpoczyna się po konfiguracji, na powierzchni prawdziwego produktu, gdzie znajdują się elementy sterujące.",
+      "hint": "Każdy samouczek możesz odtworzyć później w menu Ustawienia."
+    },
+    "model": {
+      "title": "Jak działa ORGII",
+      "description": "Te obiekty rozwiązują różne problemy; żadna z nich nie jest inną nazwą folderu.",
+      "session": {
+        "title": "Sesja",
+        "description": "Kontekst konwersacji i wykonywania dla agenta. Może odnosić się do jednego obszaru roboczego."
+      },
+      "workItem": {
+        "title": "Element pracy",
+        "description": "Zadanie z możliwością śledzenia ze statusem, osobą przypisaną, dyskusją i połączonymi sesjami."
+      },
+      "project": {
+        "title": "Projekt",
+        "description": "Kontener do planowania elementów pracy. Może koordynować pracę między repozytoriami."
+      },
+      "workspace": {
+        "title": "Przestrzeń robocza/system plików",
+        "description": "Prawdziwe lokalne foldery i pliki są odczytywane i modyfikowane przez agentów."
+      },
+      "relationship": "Projekt → Element roboczy → Sesja → Pliki obszaru roboczego"
+    },
+    "ready": {
+      "title": "Konfiguracja jest gotowa",
+      "description": "Przejrzyj poniższe trwałe kontrole, a następnie otwórz powierzchnię odpowiadającą pierwotnemu celowi.",
+      "toolsReady": "Agent wykryto dostęp",
+      "toolsLater": "Dostęp agenta można dodać później",
+      "workspaceReady": "Wybrany obszar roboczy",
+      "workspaceLater": "Przestrzeń roboczą można otworzyć następnie",
+      "teamPolicyReady": "Zasady widoczności zespołu potwierdzone",
+      "memberSyncReady": "Ścieżka synchronizacji członków potwierdzona",
+      "teamDestination": "Otwórz skrzynkę odbiorczą zespołu",
+      "workDestination": "Utwórz pierwszy element roboczy",
+      "personalDestination": "Rozpocznij sesję agenta",
+      "destinationHint": "Twój postęp konfiguracji pozostaje niezmieniony po uruchom ponownie.",
+      "teamDestinationHint": "Wybrana organizacja i postęp konfiguracji pozostają niezmienione po ponownym uruchomieniu.",
+      "openDestination": "Zakończ i otwórz"
+    },
+    "destinations": {
+      "teamInbox": "Skrzynka odbiorcza zespołu",
+      "launchpad": "Launchpad"
+    },
+    "errors": {
+      "signInRequired": "Najpierw zaloguj się do ORG2 Cloud.",
+      "sessionExpired": "Twoja sesja ORG2 Cloud wygasła. Zaloguj się ponownie.",
+      "invalidInvite": "Ten link lub kod zaproszenia jest nieprawidłowy.",
+      "rosterNotConverged": "Organizacja nie jest jeszcze widoczna na Twojej odświeżonej liście członków.",
+      "cloudUnavailable": "Chmura ORG2 jest niedostępna. Spróbuj ponownie.",
+      "unknown": "Operacja konfiguracji nie powiodła się. Spróbuj ponownie.",
+      "workspaceRequired": "Otwórz obszar roboczy przed skonfigurowaniem zakresu zespołu.",
+      "gitRemoteRequired": "W tym obszarze roboczym nie ma pilota Git. Dodaj pilota i spróbuj ponownie.",
+      "orgAndScopeRequired": "Najpierw wybierz organizację i zakres repozytorium.",
+      "orgRequired": "Najpierw wybierz organizację.",
+      "policyChanged": "Ustawienia zespołu zostały zmienione podczas zapisywania. Przejrzyj je i zweryfikuj ponownie.",
+      "inviteOrgChanged": "Wybrana organizacja została zmieniona podczas tworzenia zaproszenia. Spróbuj ponownie.",
+      "syncOrgChanged": "Wybrana organizacja została zmieniona podczas sprawdzania synchronizacji. Spróbuj ponownie."
+    }
+  },
+  "tutorials": {
+    "modalTitle": "Poradniki",
+    "start": "Rozpocznij",
+    "chrome": {
+      "stepProgress": "Krok {{current}} z {{total}}",
+      "close": "Zamknij",
+      "previous": "Poprzedni krok",
+      "next": "Następny krok",
+      "finish": "Zakończ prezentację",
+      "keyboardHint": "Użyj ← / → lub < / >",
+      "desktop": "Pulpit",
+      "myStation": "Moja stacja",
+      "infinity": "Infinity",
+      "agentStation": "Stacja agentów"
+    },
+    "generalLayout": {
+      "title": "Ogólny przewodnik po układzie",
+      "description": "Poznaj pasek boczny sesji, panel czatu, przełącznik trybu stacji, stację roboczą, stację dokującą i obszary aplikacji.",
+      "duration": "1 min",
+      "steps": {
+        "chat-panel": {
+          "title": "Panel czatu",
+          "body": "W tym miejscu użytkownicy prowadzą rozmowy z agentami, przeglądają aktywność i wysyłają dalsze instrukcje."
+        },
+        "runtime": {
+          "title": "Środowisko uruchomieniowe",
+          "body": "Tutaj sprawdzisz własne użycie i stan działania. W organizacji możesz też sprawdzić synchronizację członków oraz otworzyć szczegóły użycia Codex, Claude i Cursor."
+        },
+        "station-mode-pill": {
+          "title": "Stacja przełączania tryby",
+          "body": "Użyj tej pigułki, aby przełączać tryby stacji. Pulpit oznacza My Station, Twoje miejsce pracy. Infinity oznacza Agent Station, widok aktywności agenta."
+        },
+        "dock": {
+          "title": "Dok Agent Station",
+          "body": "Dok przełącza aplikacje wewnątrz stacji. Wycieczka tymczasowo wyłącza automatyczne ukrywanie, więc te elementy sterujące pozostają widoczne."
+        },
+        "all-tabs": {
+          "title": "Wszystkie karty",
+          "body": "Pierwsza ikona w doku pokazuje wszystkie otwarte karty razem, niezależnie od tego, która aplikacja na stacji roboczej jest ich właścicielem."
+        },
+        "code-editor": {
+          "title": "Edytor kodu",
+          "body": "Używaj edytora kodu do plików, różnic, terminali, kontroli źródła i zmian w kodowaniu wprowadzonych podczas sesji."
+        },
+        "browser": {
+          "title": "Przeglądarka",
+          "body": "Używaj przeglądarki do tworzenia stron internetowych, podglądów, testowania aplikacji i badań w przeglądarce podczas czatu."
+        },
+        "projects": {
+          "title": "Projekty",
+          "body": "Używaj Projektów do śledzenia elementów pracy, planów i stanu projektu połączonych z bieżącym obszarem roboczym."
+        }
+      }
+    },
+    "codeEditor": {
+      "title": "Przewodnik po Edytorze kodu",
+      "description": "Dowiedz się o kartach, przełączaniu repozytoriów i gałęzi, kontroli źródła, historii Git i panelu projektu.",
+      "duration": "2 min",
+      "steps": {
+        "tabs": {
+          "title": "Karty Edytora kodu",
+          "body": "Na kartach gromadzone są pliki, różnice, terminale, widoki kontroli źródła i pulpity nawigacyjne, których używasz otwórz podczas pracy w repozytorium."
+        },
+        "repo-selector": {
+          "title": "Utwórz lub przełącz repo",
+          "body": "Użyj selektora repozytorium, aby przełączyć aktywne repozytorium lub dodać kolejne repozytorium lub obszar roboczy."
+        },
+        "branch-selector": {
+          "title": "Zmień gałęzie",
+          "body": "Selektor gałęzi pokazuje bieżącą gałąź Git i otwiera przełącznik gałęzi lub utwórz przepływ dla tego repozytorium."
+        },
+        "editor-surface": {
+          "title": "Obszar roboczy edytora",
+          "body": "To jest główna powierzchnia Edytora kodu. Tutaj otwieraj pliki, sprawdzaj różnice, uruchamiaj terminale i przeglądaj wygenerowane zmiany."
+        },
+        "create-tabs": {
+          "title": "Utwórz nowe karty",
+          "body": "Użyj menu plus na wszystkich kartach, aby tworzyć terminale, karty przeglądarki, pliki, pulpity nawigacyjne i narzędzia repo."
+        },
+        "source-control": {
+          "title": "Zmiany w Gicie",
+          "body": "Open Source Control w celu przeglądania zmienionych plików, tworzenia lub cofania pracy, zatwierdzania, ściągania, wypychania, pobieraj i synchronizuj ze zdalnym."
+        },
+        "git-history": {
+          "title": "Historia Git",
+          "body": "Historia Git przełącza Kontrolę źródła w tryb historii zatwierdzeń, dzięki czemu możesz sprawdzać poprzednie zatwierdzenia i powiązane zmiany."
+        },
+        "dashboard": {
+          "title": "Panel kontrolny Edytora kodu",
+          "body": "Panel kontrolny to główna karta Edytora kodu dla obszarów roboczych. Użyj go, aby dodać repo, otworzyć szczegóły repozytorium i przejść do pracy nad projektem."
+        }
+      }
+    }
   }
 }

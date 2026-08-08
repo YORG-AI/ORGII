@@ -170,6 +170,7 @@ const PRIMARY_PROVIDER_KEYS = new Set([
   "modelscope_api",
   "aihubmix_api",
   "cherryin_api",
+  "atlascloud_api",
   "bedrock_api",
   "custom_api",
   "azure_openai_api",
@@ -330,7 +331,9 @@ function buildUnifiedProviders(
           },
           {
             modelType: cli.name,
-            label: isOpenAiBrand ? "Codex" : `${cli.displayName} Plan`,
+            label: isOpenAiBrand
+              ? "Codex Subscription"
+              : `${cli.displayName} Plan`,
             mode: "cli",
             apiKeyEnvVar: cli.envConfig?.apiKeyEnvVar ?? "",
             supportsBaseUrl: cli.envConfig?.supportsBaseUrl ?? false,

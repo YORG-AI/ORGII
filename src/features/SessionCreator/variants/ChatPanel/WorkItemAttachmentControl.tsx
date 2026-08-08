@@ -1,5 +1,4 @@
-import { emit } from "@tauri-apps/api/event";
-import { Link2, ListTodo, Search, SquarePen, X } from "lucide-react";
+import { Link2, ListTodo, Search, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -7,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { type WorkItemData, projectApi } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
+import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
@@ -18,15 +18,6 @@ import Message from "@src/components/Message";
 import type { SessionLaunchWorkItemContext } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { createLogger } from "@src/hooks/logger";
-import {
-  InlineCreateWorkItemFields,
-  useInlineCreateWorkItemFields,
-} from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView/InlineCreateWorkItemFields";
-import {
-  type CreatedWorkItemResult,
-  createWorkItemFromDraft,
-} from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView/createWorkItemFromDraft";
-import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 
 const logger = createLogger("WorkItemAttachmentControl");
 const WORK_ITEM_SEARCH_RESULT_LIMIT = 8;
@@ -34,8 +25,6 @@ const WORK_ITEM_SEARCH_RESULT_LIMIT = 8;
 function getWorkItemOptionKey(item: ExistingWorkItemOption): string {
   return `${item.projectSlug ?? "standalone"}:${item.shortId}`;
 }
-
-type WorkItemAttachmentMode = "create" | "link" | null;
 
 interface ExistingWorkItemOption {
   shortId: string;
@@ -80,33 +69,29 @@ function toExistingWorkItemOption(
 }
 
 export interface WorkItemAttachmentControlProps {
-  onDraftChange?: (draft: WorkItemDraft | null) => void;
   currentWorkItemContext?: SessionLaunchWorkItemContext | null;
-  onCreated?: (result?: CreatedWorkItemResult) => void;
+  /** Direct navigation to the owning Work Item creator when available. */
+  onCreateWorkItem?: () => void;
   onWorkItemContextChange?: (
     context: SessionLaunchWorkItemContext | null
   ) => void;
   panelHostRef?: React.RefObject<HTMLDivElement | null>;
-  repoPath?: string | null;
 }
 
 const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
   currentWorkItemContext,
-  onDraftChange,
-  onCreated,
+  onCreateWorkItem,
   onWorkItemContextChange,
   panelHostRef,
-  repoPath,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
-  const [mode, setMode] = useState<WorkItemAttachmentMode>(null);
+  const [isLinkPanelOpen, setIsLinkPanelOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [workItems, setWorkItems] = useState<ExistingWorkItemOption[]>([]);
   const [selectedWorkItemKeys, setSelectedWorkItemKeys] = useState<string[]>(
     []
   );
   const [loadingSearch, setLoadingSearch] = useState(false);
-  const [saving, setSaving] = useState(false);
   const {
     isOpen,
     isPositioned,
@@ -116,21 +101,6 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
     toggle,
     close,
   } = useDropdownEngine<HTMLButtonElement>({ placement: "top" });
-
-  const handleDraftChange = useCallback(
-    (draft: WorkItemDraft) => {
-      onDraftChange?.(draft);
-    },
-    [onDraftChange]
-  );
-
-  const inlineFields = useInlineCreateWorkItemFields({
-    aiGenerateMode: true,
-    onDraftChange: handleDraftChange,
-    onSetUnsaved: () => undefined,
-    propertiesOpen: false,
-    repoPath,
-  });
 
   const loadExistingWorkItems = useCallback(async () => {
     setLoadingSearch(true);
@@ -164,68 +134,17 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
     }
   }, []);
 
-  const handleSelectMode = useCallback(
-    (nextMode: WorkItemAttachmentMode) => {
-      setMode(nextMode);
-      close();
-      if (nextMode === "link") {
-        void loadExistingWorkItems();
-      }
-    },
-    [close, loadExistingWorkItems]
-  );
+  const handleLinkWorkItem = useCallback(() => {
+    setIsLinkPanelOpen(true);
+    close();
+    void loadExistingWorkItems();
+  }, [close, loadExistingWorkItems]);
 
-  const handleClosePanel = useCallback(() => {
-    setMode(null);
+  const handleCloseLinkPanel = useCallback(() => {
+    setIsLinkPanelOpen(false);
     setSearchQuery("");
     setSelectedWorkItemKeys([]);
   }, []);
-
-  const handleCreate = useCallback(async () => {
-    if (saving) return;
-
-    setSaving(true);
-    try {
-      const rawMarkdown =
-        inlineFields.editorRef.current?.getMarkdown()?.trim() ??
-        inlineFields.draft.description;
-      const result = await createWorkItemFromDraft({
-        defaultTitle: t("projects:workItems.untitledWorkItem"),
-        description: rawMarkdown,
-        draft: inlineFields.draft,
-        selectedProjectSlug: inlineFields.selectedProjectSlug,
-      });
-      const projects = await projectApi.readProjects();
-      const resultProject = result.projectSlug
-        ? projects.find((project) => project.slug === result.projectSlug)
-        : undefined;
-      await emit("orgii-data-changed");
-      inlineFields.clearDraft();
-      onDraftChange?.(null);
-      onCreated?.(result);
-      onWorkItemContextChange?.({
-        orgId: resultProject?.meta.org_id,
-        projectId: resultProject?.meta.id,
-        projectName: resultProject?.meta.name,
-        workItemId: result.shortId,
-        projectSlug: result.projectSlug,
-        agentRole: "custom",
-      });
-      setMode(null);
-    } catch (err) {
-      logger.error("Failed to create work item from composer", err);
-      Message.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    inlineFields,
-    onCreated,
-    onDraftChange,
-    onWorkItemContextChange,
-    saving,
-    t,
-  ]);
 
   const filteredWorkItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -277,7 +196,7 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
       },
     });
     Message.success(primaryItem.title);
-    setMode(null);
+    setIsLinkPanelOpen(false);
     setSearchQuery("");
     setSelectedWorkItemKeys([]);
   }, [onWorkItemContextChange, selectedWorkItemKeys, workItems]);
@@ -288,110 +207,85 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
   }, [close, onWorkItemContextChange]);
 
   const triggerActive =
-    isOpen || mode !== null || Boolean(currentWorkItemContext);
+    isOpen || isLinkPanelOpen || Boolean(currentWorkItemContext);
 
-  const panelContent = mode ? (
+  const linkPanelContent = isLinkPanelOpen ? (
     <div
-      className={`w-full rounded-xl border border-solid border-border-2 ${
-        mode === "create" ? "p-2" : ""
-      }`}
+      className="w-full rounded-xl border border-solid border-border-2"
       data-testid="work-item-attachment-panel"
     >
-      {mode === "create" ? (
-        <div
-          className="w-full px-1"
-          data-testid="work-item-create-inline-panel"
-        >
-          <InlineCreateWorkItemFields
-            state={inlineFields}
-            className="w-full"
-            descriptionClassName="hidden"
-            showDescription={false}
-          />
-          <div className="mt-2 flex justify-start gap-2">
-            <Button
-              variant="secondary"
-              size="small"
-              onClick={handleCreate}
-              disabled={saving}
-            >
-              {saving ? t("common:status.saving") : t("common:actions.create")}
-            </Button>
-            <Button variant="tertiary" size="small" onClick={handleClosePanel}>
-              {t("common:actions.cancel")}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div
-          className="w-full max-w-[520px]"
-          data-testid="work-item-link-inline-panel"
-        >
-          <DropdownSearch
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder={t("projects:workItems.searchPlaceholder")}
-            autoFocus
-          />
-          <div className="max-h-[180px] overflow-y-auto p-1 scrollbar-hide">
-            {loadingSearch ? (
-              <div className="flex h-16 items-center justify-center text-[12px] text-text-3">
-                {t("common:status.loading")}
-              </div>
-            ) : filteredWorkItems.length > 0 ? (
-              filteredWorkItems.map((item) => {
-                const itemKey = getWorkItemOptionKey(item);
-                const checked = selectedWorkItemKeys.includes(itemKey);
-                return (
-                  <div
-                    key={itemKey}
-                    className={`${DROPDOWN_CLASSES.menuActionItem} w-full justify-start`}
+      <div
+        className="w-full max-w-[520px]"
+        data-testid="work-item-link-inline-panel"
+      >
+        <DropdownSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t("projects:workItems.searchPlaceholder")}
+          autoFocus
+        />
+        <div className="max-h-[180px] overflow-y-auto p-1 scrollbar-hide">
+          {loadingSearch ? (
+            <div className="flex h-16 items-center justify-center text-[12px] text-text-3">
+              {t("common:status.loading")}
+            </div>
+          ) : filteredWorkItems.length > 0 ? (
+            filteredWorkItems.map((item) => {
+              const itemKey = getWorkItemOptionKey(item);
+              const checked = selectedWorkItemKeys.includes(itemKey);
+              return (
+                <div
+                  key={itemKey}
+                  className={`${DROPDOWN_CLASSES.menuActionItem} w-full justify-start`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onChange={(nextChecked) =>
+                      handleToggleWorkItemSelection(item, nextChecked)
+                    }
+                    className="min-w-0 flex-1"
                   >
-                    <Checkbox
-                      checked={checked}
-                      onChange={(nextChecked) =>
-                        handleToggleWorkItemSelection(item, nextChecked)
-                      }
-                      className="min-w-0 flex-1"
-                    >
-                      <span className="flex min-w-0 flex-1 items-center gap-2">
-                        <Search
-                          size={DROPDOWN_ITEM.iconSize}
-                          strokeWidth={1.75}
-                          className="shrink-0 text-text-2"
-                        />
-                        <span className="min-w-0 flex-1 truncate text-left">
-                          {item.title}
-                        </span>
-                        <span className="shrink-0 text-[11px] text-text-3">
-                          {item.shortId}
-                        </span>
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      <Search
+                        size={DROPDOWN_ITEM.iconSize}
+                        strokeWidth={1.75}
+                        className="shrink-0 text-text-2"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-left">
+                        {item.title}
                       </span>
-                    </Checkbox>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="flex h-16 items-center justify-center text-[12px] text-text-3">
-                {t("projects:workItems.noResults")}
-              </div>
-            )}
-          </div>
-          <div className="flex justify-start gap-2 p-2">
-            <Button
-              variant="secondary"
-              size="small"
-              onClick={handleAddLinkedWorkItems}
-              disabled={selectedWorkItemKeys.length === 0}
-            >
-              {t("common:actions.add")}
-            </Button>
-            <Button variant="tertiary" size="small" onClick={handleClosePanel}>
-              {t("common:actions.cancel")}
-            </Button>
-          </div>
+                      <span className="shrink-0 text-[11px] text-text-3">
+                        {item.shortId}
+                      </span>
+                    </span>
+                  </Checkbox>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex h-16 items-center justify-center text-[12px] text-text-3">
+              {t("projects:workItems.noResults")}
+            </div>
+          )}
         </div>
-      )}
+        <div className="flex justify-start gap-2 p-2">
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={handleAddLinkedWorkItems}
+            disabled={selectedWorkItemKeys.length === 0}
+          >
+            {t("common:actions.add")}
+          </Button>
+          <Button
+            variant="tertiary"
+            size="small"
+            onClick={handleCloseLinkPanel}
+          >
+            {t("common:actions.cancel")}
+          </Button>
+        </div>
+      </div>
     </div>
   ) : null;
 
@@ -404,18 +298,17 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
         size="small"
         shape="round"
         icon={<ListTodo size={14} strokeWidth={1.75} />}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        onClick={toggle}
-        className={
-          triggerActive ? "shrink-0 !bg-fill-1 !text-primary-6" : "shrink-0"
-        }
+        aria-expanded={onCreateWorkItem ? undefined : isOpen}
+        aria-haspopup={onCreateWorkItem ? undefined : "menu"}
+        onClick={onCreateWorkItem ?? toggle}
+        className={`shrink-0 ${pillControlStateClass(triggerActive)}`}
         data-testid="session-creator-work-item-toggle"
       >
         {t("projects:workItems.addWorkItem")}
       </Button>
 
-      {isOpen &&
+      {!onCreateWorkItem &&
+        isOpen &&
         isPositioned &&
         createPortal(
           <DropdownPanel
@@ -454,7 +347,7 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
                 type="button"
                 className={DROPDOWN_CLASSES.menuActionItem}
                 role="menuitem"
-                onClick={() => handleSelectMode("link")}
+                onClick={handleLinkWorkItem}
               >
                 <Link2
                   size={DROPDOWN_ITEM.iconSize}
@@ -463,26 +356,13 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
                 />
                 <span>{t("common:actions.link")}</span>
               </button>
-              <button
-                type="button"
-                className={DROPDOWN_CLASSES.menuActionItem}
-                role="menuitem"
-                onClick={() => handleSelectMode("create")}
-              >
-                <SquarePen
-                  size={DROPDOWN_ITEM.iconSize}
-                  strokeWidth={1.75}
-                  className="text-text-2"
-                />
-                <span>{t("common:actions.create")}</span>
-              </button>
             </div>
           </DropdownPanel>,
           document.body
         )}
-      {panelHostRef?.current && panelContent
-        ? createPortal(panelContent, panelHostRef.current)
-        : panelContent}
+      {panelHostRef?.current && linkPanelContent
+        ? createPortal(linkPanelContent, panelHostRef.current)
+        : linkPanelContent}
     </div>
   );
 };

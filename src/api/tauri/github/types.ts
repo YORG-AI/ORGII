@@ -24,6 +24,12 @@ export interface GitHubRepoNetworkIdentity {
   source_full_name: string;
 }
 
+export interface GitHubRepoPermissions {
+  role_name: string | null;
+  can_manage_issues: boolean;
+  can_manage_pull_requests: boolean;
+}
+
 export interface LocalGitHubBranch {
   name: string;
   sha: string;

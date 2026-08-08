@@ -12,6 +12,8 @@ import type {
 import {
   browserTabsAtom,
   closeBrowserTabAtom,
+  closeOtherBrowserTabsAtom,
+  closeSavedBrowserTabsAtom,
   createBrowserSessionTab,
   removeBrowserResourceTabAtom,
   sharedBrowserTabsAtom,
@@ -208,5 +210,22 @@ describe("browserTabsAtom shared-resource integration", () => {
     store.set(removeBrowserResourceTabAtom, browserTab.id);
 
     expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
+  });
+
+  it("tears down omitted resources through browser-owned bulk close actions", () => {
+    const store = createStore();
+    const browserA = createBrowserSessionTab("browser-1", "One");
+    const browserB = createBrowserSessionTab("browser-2", "Two");
+    const browserC = createBrowserSessionTab("browser-3", "Three");
+    store.set(browserTabsAtom, {
+      tabs: [browserA, browserB, browserC],
+      activeTabId: browserB.id,
+    });
+
+    store.set(closeOtherBrowserTabsAtom, browserA.id);
+    expect(store.get(sharedBrowserTabsAtom)).toEqual([browserA]);
+
+    store.set(closeSavedBrowserTabsAtom);
+    expect(store.get(sharedBrowserTabsAtom)).toEqual([]);
   });
 });

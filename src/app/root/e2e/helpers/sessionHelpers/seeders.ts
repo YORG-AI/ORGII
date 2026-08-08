@@ -634,6 +634,40 @@ export function createSessionSeederHelpers(store: E2EStore) {
     }
   };
 
+  /**
+   * Seed one top-level coding row through production persistence. Rendered
+   * sidebar specs use this only for deterministic setup; pagination is still
+   * exercised by clicking the real NavigationMenu item.
+   */
+  const debugSeedSidebarCodingSessionWire = async (input: {
+    sessionId: string;
+    name: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    pinned?: boolean;
+  }): Promise<Result<{ sessionId: string }>> => {
+    try {
+      if (!input.sessionId) {
+        return {
+          ok: false,
+          error: "debugSeedSidebarCodingSessionWire: `sessionId` required",
+        };
+      }
+      await invoke("debug_seed_sidebar_coding_session", {
+        sessionId: input.sessionId,
+        name: input.name,
+        status: input.status,
+        createdAt: input.createdAt,
+        updatedAt: input.updatedAt,
+        pinned: input.pinned,
+      });
+      return { ok: true, sessionId: input.sessionId };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
   /** Remove a seeded child session row (fixture cleanup). */
   const deleteSessionWire = async (
     sessionId: string
@@ -691,6 +725,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
     killSubagentJobWire,
     listRunningSubagentJobsWire,
     debugSeedChildSessionWire,
+    debugSeedSidebarCodingSessionWire,
     debugSeedPendingPlanWire,
     debugSeedFinalDiffWire,
     debugReadFinalDiffCountWire,

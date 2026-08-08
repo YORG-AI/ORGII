@@ -18,12 +18,15 @@ import React, {
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import {
   type LabelEntry,
   type MemberEntry,
   projectApi,
   projectDataToUI,
+  projectSyncApi,
 } from "@src/api/http/project";
+import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
@@ -37,6 +40,7 @@ import WorkItemSection from "@src/modules/ProjectManager/WorkItems/components/Wo
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import { getProjectStatusConfig } from "@src/modules/ProjectManager/config/manage";
 import { useProjectManagerWorkItemsTabBarRegistration } from "@src/modules/ProjectManager/hooks/useProjectManagerWorkItemsTabBarRegistration";
+import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import VirtualizedGroupedList from "@src/modules/ProjectManager/shared/components/VirtualizedGroupedList";
 import { PROJECT_MANAGER_PLACEHOLDER_PLACEMENT } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import {
@@ -44,6 +48,7 @@ import {
   type WorkspaceProject,
   loadWorkspaceLinearProjects,
 } from "@src/modules/ProjectManager/workspaceAggregate";
+import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
@@ -69,7 +74,7 @@ const log = createLogger("ProjectsPage");
 const SECTION_BASE_CONFIG = getProjectStatusConfig("planned");
 
 export interface ProjectsPageProps {
-  breadcrumbSegments?: readonly { label: string }[];
+  breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   /** Callback to open a project as a tab (in the unified tab system) */
   onOpenProject?: (
     projectId: string,
@@ -121,6 +126,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     new Set()
   );
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [unlinkingProjectId, setUnlinkingProjectId] = useState<string | null>(
+    null
+  );
   const [workspaceSourceMode, setWorkspaceSourceMode] =
     useState<WorkspaceSourceMode>("local_only");
 
@@ -260,6 +268,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   const isProjectDeletable = useCallback(
     (project: WorkspaceProject) =>
       project.workspaceSource?.source !== WORKSPACE_SOURCE.LINEAR &&
+      canAdministerProjectOrg(project.orgId),
+    [canAdministerProjectOrg]
+  );
+
+  const isProjectSourceUnlinkable = useCallback(
+    (project: WorkspaceProject) =>
+      project.workspaceSource?.source !== WORKSPACE_SOURCE.LINEAR &&
+      project.syncAdapterId === STORY_SYNC_ADAPTER.GITHUB &&
+      Boolean(project.slug) &&
       canAdministerProjectOrg(project.orgId),
     [canAdministerProjectOrg]
   );
@@ -414,6 +431,53 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     [loadFileProjects]
   );
 
+  const handleUnlinkProjectSource = useCallback(
+    async (project: WorkspaceProject) => {
+      if (
+        unlinkingProjectId !== null ||
+        !project.slug ||
+        !isProjectSourceUnlinkable(project)
+      ) {
+        return;
+      }
+
+      const confirmed = await confirmDestructiveAction({
+        title: t("settings.sync.adapterPicker.detachProjectTitle", {
+          project: project.name,
+        }),
+        message: t("settings.sync.adapterPicker.detachProjectDescription"),
+        okLabel: t("settings.sync.adapterPicker.detachProjectMenuLabel"),
+        cancelLabel: t("common:actions.cancel"),
+      });
+      if (!confirmed) return;
+
+      setUnlinkingProjectId(project.id);
+      try {
+        await projectSyncApi.detachAdapter(project.slug);
+        setSelectedProjectIds((previous) => {
+          const next = new Set(previous);
+          next.delete(project.id);
+          return next;
+        });
+        await loadFileProjects();
+        Message.success(
+          t("settings.sync.adapterPicker.detachProjectSuccess", {
+            project: project.name,
+          })
+        );
+      } catch (error) {
+        Message.error(
+          t("settings.sync.errors.detachFailed", {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        );
+      } finally {
+        setUnlinkingProjectId(null);
+      }
+    },
+    [isProjectSourceUnlinkable, loadFileProjects, t, unlinkingProjectId]
+  );
+
   const handleGroupModeChange = useCallback(
     (value: string | number | (string | number)[]) => {
       if (Array.isArray(value)) return;
@@ -437,18 +501,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     setWorkspaceSourceMode(key as WorkspaceSourceMode);
   }, []);
 
-  const groupModeSelect = (
-    <Select
-      value={groupMode}
-      onChange={handleGroupModeChange}
-      options={groupModeOptions}
-      size="small"
-      variant="ghost"
-      radius="lg"
-      dropdownWidthMode="auto"
-      dropdownAlign="right"
-      className="w-auto"
-    />
+  const groupModeSelect = useMemo(
+    () => (
+      <Select
+        value={groupMode}
+        onChange={handleGroupModeChange}
+        options={groupModeOptions}
+        size="small"
+        variant="ghost"
+        radius="lg"
+        dropdownWidthMode="auto"
+        dropdownAlign="left"
+        className="w-auto"
+      />
+    ),
+    [groupMode, groupModeOptions, handleGroupModeChange]
   );
 
   const sourceModeSwitch = useMemo(() => {
@@ -471,21 +538,18 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     workspaceSourceTabs,
   ]);
 
-  const headerLeadingControls = useMemo(() => {
-    if (!orgSurfaceControls && !sourceModeSwitch) return undefined;
-    if (!orgSurfaceControls) return sourceModeSwitch;
-    if (!sourceModeSwitch) return orgSurfaceControls;
-    return (
-      <>
+  const headerLeadingControls = useMemo(
+    () => (
+      <div className="contents">
         {orgSurfaceControls}
-        <span
-          className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
-          aria-hidden
-        />
+        {orgSurfaceControls && <WorkstationHeaderSectionSeparator />}
+        {groupModeSelect}
+        {sourceModeSwitch && <WorkstationHeaderSectionSeparator />}
         {sourceModeSwitch}
-      </>
-    );
-  }, [orgSurfaceControls, sourceModeSwitch]);
+      </div>
+    ),
+    [groupModeSelect, orgSurfaceControls, sourceModeSwitch]
+  );
 
   const virtualProjectGroups = useMemo(
     () =>
@@ -529,7 +593,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         onAddProject={onAddProject}
         refreshLoading={loading}
         leadingControls={headerLeadingControls}
-        trailingControls={groupModeSelect}
         publishToWorkstationHeader={publishToWorkstationHeader}
         workstationHeaderHost={workstationHeaderHost}
       />
@@ -587,7 +650,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
             ) : (
               <VirtualizedGroupedList
                 key={collapseAllSignal}
-                className="pb-3"
                 testId="projects-virtual-list"
                 groups={virtualProjectGroups}
                 defaultExpanded={defaultProjectGroupExpanded}
@@ -606,17 +668,25 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
                     expanded={expanded}
                     onExpandedChange={onExpandedChange}
                     virtualizedHeader
+                    variant="table"
                   />
                 )}
-                renderItem={(project, _group, isLastInGroup) => (
-                  <div className={`px-2 ${isLastInGroup ? "pb-3" : "pb-1"}`}>
+                renderItem={(project) => (
+                  <div>
                     <ProjectRow
                       project={project}
                       isSelected={false}
+                      variant="table"
                       isChecked={selectedProjectIds.has(project.id)}
                       showCheckboxes={showCheckboxesOnAllRows}
                       onSelect={handleProjectClick}
                       onCheckedChange={handleProjectCheckedChange}
+                      onUnlinkSource={
+                        isProjectSourceUnlinkable(project)
+                          ? () => void handleUnlinkProjectSource(project)
+                          : undefined
+                      }
+                      unlinkingSource={unlinkingProjectId === project.id}
                       onDelete={
                         isProjectDeletable(project)
                           ? handleDeleteProject

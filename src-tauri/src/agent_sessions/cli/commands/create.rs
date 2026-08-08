@@ -96,9 +96,9 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
 
     let repo_path = params.repo_path.clone();
     if isolate
-        && !repo_path
+        && repo_path
             .as_deref()
-            .is_some_and(|path| !path.trim().is_empty())
+            .is_none_or(|path| path.trim().is_empty())
     {
         return Err("Worktree mode requires a workspace path".to_string());
     }

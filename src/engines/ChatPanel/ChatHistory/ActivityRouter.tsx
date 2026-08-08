@@ -20,7 +20,7 @@ import {
 import {
   chatRequiresItemIndex,
   chatShowsStatusLine,
-  getChatLazyComponent,
+  getChatComponent,
 } from "@src/engines/SessionCore/rendering/registry/events";
 import { createLogger } from "@src/hooks/logger";
 import { getRegistryEventType } from "@src/lib/activityData/activityNormalizers";
@@ -33,7 +33,7 @@ import {
 import AgentChatItemDefault from "../ChatItems/AgentChatItemDefault";
 import AgentErrorChatItem from "../ChatItems/AgentErrorChatItem";
 import "./ActivityRouter.scss";
-import { isAgentErrorEvent } from "./chatItemPipeline/classifiers";
+import { getAgentErrorMessage } from "./chatItemPipeline/classifiers";
 import UserMessageContent from "./components/UserMessageContent";
 
 const log = createLogger("ActivityRouter");
@@ -59,6 +59,7 @@ const RESULT_COMPARE_KEYS = [
   "observation",
   "success",
   "error",
+  "error_message",
   "images",
   "call_id",
   "output",
@@ -270,10 +271,9 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
       const functionName = event.functionName;
       const eventType = getRegistryEventType(event);
 
-      if (isAgentErrorEvent(event) && event.result?.observation) {
-        return (
-          <AgentErrorChatItem errorMessage={String(event.result.observation)} />
-        );
+      const agentErrorMessage = getAgentErrorMessage(event);
+      if (agentErrorMessage) {
+        return <AgentErrorChatItem errorMessage={agentErrorMessage} />;
       }
 
       if (
@@ -329,7 +329,7 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
         }
       }
 
-      const EventComponent = getChatLazyComponent(eventType);
+      const EventComponent = getChatComponent(eventType);
 
       if (EventComponent) {
         const extras: Record<string, unknown> = {};

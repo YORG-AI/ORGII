@@ -39,6 +39,7 @@ import type {
   ProjectStatus,
 } from "@src/types/core/project";
 import type { WorkItem } from "@src/types/core/workItem";
+import { mapWithConcurrency } from "@src/util/collections/mapWithConcurrency";
 
 import { cachedLinearProjectsApi } from "./linearProjectsCache";
 import {
@@ -130,6 +131,7 @@ function getProjectStatusLabelKey(status: ProjectStatus): string {
 }
 
 const SECTION_BASE_CONFIG = getProjectStatusConfig("planned");
+const LINEAR_PROJECT_ISSUE_CONCURRENCY = 4;
 
 // ============================================
 // Hook
@@ -141,6 +143,7 @@ interface UseLinearIndexDataOptions {
   projectId: string | undefined;
   surface: "projects" | "work-items";
   teamId: string | undefined;
+  isActive: boolean;
 }
 
 export interface LinearIndexData {
@@ -180,6 +183,7 @@ export function useLinearIndexData({
   projectId,
   surface,
   teamId,
+  isActive,
 }: UseLinearIndexDataOptions): LinearIndexData {
   const { t } = useTranslation(["projects", "common"]);
 
@@ -193,7 +197,7 @@ export function useLinearIndexData({
     );
   }, []);
   const connectionResource = useAsyncResource<string | null>({
-    enabled: !connectionId,
+    enabled: isActive && !connectionId,
     fetcher: discoverDefaultConnection,
     initialData: null,
     scopeKey: connectionId ? null : "linear-default-connection",
@@ -228,14 +232,15 @@ export function useLinearIndexData({
           : projectsResult.projects;
 
         if (scope.surface === "work-items") {
-          const issueResults = await Promise.all(
-            projects.map((linearProject) =>
+          const issueResults = await mapWithConcurrency(
+            projects,
+            LINEAR_PROJECT_ISSUE_CONCURRENCY,
+            (linearProject) =>
               cachedLinearProjectsApi.listProjectIssues(
                 scope.connectionId,
                 linearProject.id,
                 { forceRefresh }
               )
-            )
           );
           return {
             projects,
@@ -270,7 +275,7 @@ export function useLinearIndexData({
     [effectiveConnectionId, projectId, surface, teamId]
   );
   const indexResource = useAsyncResource({
-    enabled: Boolean(indexScopeKey),
+    enabled: isActive && Boolean(indexScopeKey),
     fetcher: fetchIndexData,
     initialData: EMPTY_LINEAR_INDEX,
     scopeKey: indexScopeKey,

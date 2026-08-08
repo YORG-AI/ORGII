@@ -28,6 +28,25 @@ enum AtomicWorkItemScope<'a> {
     Standalone { org_id: &'a str },
 }
 
+/// Work-service options threaded into the atomic RMW choke point
+/// (`orgtrack/v1` Phase 2a). Legacy callers use `Default` — no OCC
+/// precondition, flag-only FSM validation, generic `work.patch` audit
+/// label. The application service (`crate::work_service`) passes explicit
+/// options for strict transitions.
+#[derive(Default)]
+pub struct AtomicServiceOptions {
+    /// Optimistic concurrency: reject with `PM_ERR:REVISION_CONFLICT`
+    /// when the row's `local_version` differs before the mutator runs.
+    pub expected_local_version: Option<i64>,
+    /// Canonical operation label for the audit event (default `work.patch`).
+    pub operation: Option<&'static str>,
+    /// Reject portable-FSM violations instead of recording them as
+    /// flagged audit metadata.
+    pub strict_fsm: bool,
+    /// Human-supplied reason (transition/reopen/release), audited.
+    pub reason: Option<String>,
+}
+
 /// Sync-relevant fields whose mutations are tracked in
 /// `workitem_extras.field_revisions`. The names match
 /// [`crate::sync::adapter::EntityField::as_local_name`]
@@ -174,8 +193,70 @@ where
         short_id,
         override_revisions,
         actor,
+        AtomicServiceOptions::default(),
         mutator,
     )
+}
+
+/// Application-service entry: same transactional semantics as
+/// [`update_work_item_atomic_as`] (outbox emission included) plus the
+/// service options — OCC precondition, strict FSM, audit label/reason.
+pub fn update_work_item_atomic_serviced<T, F>(
+    project_slug: &str,
+    short_id: &str,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    service: AtomicServiceOptions,
+    mutator: F,
+) -> Result<T, String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
+    let (value, changed_fields, payload_tail_changed) =
+        update_work_item_atomic_with_revisions_scoped(
+            AtomicWorkItemScope::Project(project_slug),
+            short_id,
+            HashMap::new(),
+            actor,
+            service,
+            mutator,
+        )?;
+    if !changed_fields.is_empty() {
+        let data = super::crud::read_work_item(project_slug, short_id)?;
+        let payload = changed_fields_payload(&data, &changed_fields);
+        crate::sync::io::record_local_update(project_slug, short_id, &changed_fields, &payload)?;
+    } else if payload_tail_changed {
+        crate::sync::collab_bridge::record_work_item_payload_touch(project_slug, short_id)?;
+    }
+    Ok(value)
+}
+
+/// Closure-form atomic RMW for a standalone (org-scoped) work item —
+/// the standalone counterpart to [`update_work_item_atomic`]. Shares the
+/// same `BEGIN IMMEDIATE` boundary, history writer, audit + watermark
+/// emission, and collab-bridge push as the partial-update path, so
+/// callers stop doing client-side read-modify-write + whole-row writes
+/// (the lost-update race).
+pub fn update_standalone_work_item_atomic<T, F>(
+    org_id: Option<&str>,
+    short_id: &str,
+    mutator: F,
+) -> Result<T, String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
+    let org_id = org_id.unwrap_or("personal-org");
+    let (value, changed_fields, payload_tail_changed) =
+        update_standalone_work_item_atomic_as(org_id, short_id, None, |fm, body| mutator(fm, body))?;
+    if !changed_fields.is_empty() || payload_tail_changed {
+        let data = super::crud::read_standalone_work_item(Some(org_id), short_id)?;
+        crate::sync::collab_bridge::record_work_item_write(
+            org_id,
+            None,
+            &data.frontmatter.id,
+            data.frontmatter.deleted_at.is_some(),
+        )?;
+    }
+    Ok(value)
 }
 
 pub(super) fn update_standalone_work_item_atomic_as<T, F>(
@@ -192,6 +273,7 @@ where
         short_id,
         HashMap::new(),
         actor,
+        AtomicServiceOptions::default(),
         mutator,
     )
 }
@@ -201,6 +283,7 @@ fn update_work_item_atomic_with_revisions_scoped<T, F>(
     short_id: &str,
     override_revisions: HashMap<String, FieldRevision>,
     actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    service: AtomicServiceOptions,
     mutator: F,
 ) -> Result<(T, Vec<&'static str>, bool), String>
 where
@@ -273,6 +356,21 @@ where
     }
     .ok_or_else(|| format!("Work item '{}' not found", short_id))?;
 
+    // OCC precondition (service callers only): the caller read revision N
+    // and asked to mutate iff the row is still at N. Checked inside the
+    // IMMEDIATE tx, so a concurrent writer either committed before us
+    // (mismatch -> conflict) or queues behind us.
+    if let Some(expected) = service.expected_local_version {
+        if expected != core.local_version {
+            return Err(format!(
+                "{}:{}:{}",
+                crate::work_service::error::REVISION_CONFLICT,
+                expected,
+                core.local_version
+            ));
+        }
+    }
+
     // Read labels + extras inside the same tx so the snapshot is
     // strictly consistent with the row we just locked.
     let labels = read_labels_in_tx(&tx, &core.work_item_id)?;
@@ -328,6 +426,26 @@ where
     );
 
     let result = mutator(&mut frontmatter, &mut body)?;
+
+    // Portable-FSM validation on status changes (design §9.3). Strict
+    // callers (the application service) get a hard reject; legacy paths
+    // run flag-only so current UI flows keep working while the violation
+    // is still visible in the audit stream.
+    let status_changed = core.status != frontmatter.status;
+    let mut fsm_violation: Option<String> = None;
+    if status_changed {
+        if let Err(violation) =
+            crate::work_service::state::validate_legacy_transition(&core.status, &frontmatter.status)
+        {
+            if service.strict_fsm {
+                return Err(crate::work_service::error::invalid_transition(
+                    &core.status,
+                    &frontmatter.status,
+                ));
+            }
+            fsm_violation = Some(violation);
+        }
+    }
 
     let changed_fields = before.diff(&frontmatter, &body);
     let assignment_changed =
@@ -513,6 +631,42 @@ where
          ON CONFLICT(work_item_id) DO UPDATE SET extras_json = excluded.extras_json",
         params![&core.work_item_id, next_extras_json],
     ))?;
+
+    // Audit + cross-process watermark, same transaction as the mutation
+    // (frozen persistence invariant, design §19). Every RMW path funnels
+    // through here, so UI patches, agent tools, sync merges and the
+    // future CLI are all audited without per-caller wiring.
+    let seq = crate::work_service::audit::bump_change_seq(&tx)?;
+    let mut audit_payload = serde_json::json!({
+        "changed_fields": changed_fields,
+    });
+    if status_changed {
+        audit_payload["status_from"] = serde_json::Value::String(core.status.clone());
+        audit_payload["status_to"] = serde_json::Value::String(frontmatter.status.clone());
+    }
+    if let Some(violation) = &fsm_violation {
+        audit_payload["fsm_violation"] = serde_json::Value::String(violation.clone());
+    }
+    if let Some(reason) = &service.reason {
+        audit_payload["reason"] = serde_json::Value::String(reason.clone());
+    }
+    crate::work_service::audit::append_audit_event(
+        &tx,
+        &crate::work_service::audit::AuditEventRow {
+            operation: service.operation.unwrap_or("work.patch"),
+            entity_type: "work_item",
+            entity_id: &core.work_item_id,
+            project_slug: match scope {
+                AtomicWorkItemScope::Project(slug) => Some(slug),
+                AtomicWorkItemScope::Standalone { .. } => None,
+            },
+            org_id: Some(&next_org_id),
+            actor,
+            revision: next_version,
+            seq,
+            payload: audit_payload,
+        },
+    )?;
 
     map_db(tx.commit())?;
     if scheduler_changed {
@@ -730,6 +884,7 @@ fn update_work_item_partial_scoped(
         short_id,
         override_revisions,
         updates.actor.as_ref(),
+        AtomicServiceOptions::default(),
         |fm, body| {
             let now_iso = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 

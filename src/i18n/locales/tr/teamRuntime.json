@@ -2,6 +2,20 @@
   "title": "Ekip çalışma zamanı",
   "refresh": "Yenile",
   "loadError": "Ekip çalışma zamanı yüklenemedi",
+  "overview": {
+    "today": "Bugün",
+    "everyone": "Herkes",
+    "activeMembers": "Aktif üyeler",
+    "systemsCurrent": "{{total}} sistemin {{current}} tanesi güncel",
+    "usageByAgent": "Aracıya göre kullanım",
+    "recentSessions": "Son paylaşılan oturumlar",
+    "recentLoading": "Paylaşılan oturumlar yükleniyor…",
+    "recentEmpty": "Henüz paylaşılan oturum yok",
+    "members": "Üye dökümü",
+    "activeToday": "Bugün aktif",
+    "inactiveToday": "Bugün etkin değil",
+    "sync": "Eşitleme"
+  },
   "signedOut": {
     "title": "Ekibinizi görmek için giriş yapın",
     "subtitle": "Ekip arkadaşlarının çalışma zamanı ORG2 Cloud üzerinden paylaşılır.",

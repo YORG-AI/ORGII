@@ -110,10 +110,10 @@ pub fn capture_hook_stdin(source: &str) -> Result<usize, String> {
     Ok(envelopes.len() + usize::from(lifecycle.is_some()))
 }
 
-fn codex_session_start_source_session_id<'a>(
+fn codex_session_start_source_session_id(
     source: HookSource,
-    payload: &'a serde_json::Value,
-) -> Option<&'a str> {
+    payload: &serde_json::Value,
+) -> Option<&str> {
     if source != HookSource::Codex {
         return None;
     }
@@ -232,10 +232,7 @@ fn spool_has_capacity(inbox: &Path, incoming_bytes: u64) -> Result<bool, String>
             continue;
         };
         let path = entry.path();
-        if !path
-            .extension()
-            .is_some_and(|extension| extension == "json")
-        {
+        if path.extension().is_none_or(|extension| extension != "json") {
             continue;
         }
         file_count = file_count.saturating_add(1);

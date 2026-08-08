@@ -892,6 +892,7 @@
     "multipleChoice": "多選",
     "typeYourAnswer": "輸入您的回答…",
     "newSession": "新建會話",
+    "muteNotifications": "將此會話通知靜音",
     "startPage": {
       "title": "你想做什麼？",
       "back": "返回起始頁",
@@ -1213,6 +1214,9 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "所有狀態",
+        "closeAsCompleted": "以已完成關閉",
+        "closeAsNotPlanned": "以不計畫關閉",
+        "statusUpdateFailed": "無法更新 GitHub 狀態",
         "assignedToMe": "指派給我的",
         "createdByMe": "由我建立",
         "filters": "Filters",

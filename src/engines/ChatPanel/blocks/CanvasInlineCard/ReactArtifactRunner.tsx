@@ -75,8 +75,11 @@ const ReactArtifactRunner: React.FC<ReactArtifactRunnerProps> = ({
       noInline
       scope={{ React }}
     >
-      <div className="h-full w-full overflow-auto bg-bg-1 p-4 text-text-1">
-        <LivePreview />
+      <div
+        className="h-full min-h-0 w-full overflow-auto overscroll-contain bg-bg-1 p-4 text-text-1 [scrollbar-gutter:stable]"
+        data-testid="react-artifact-scroll"
+      >
+        <LivePreview className="min-h-full min-w-0" />
         <LiveError
           className="hidden"
           onChange={(message: string) => {

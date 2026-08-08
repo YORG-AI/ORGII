@@ -6,10 +6,15 @@ import type { GitHubIssue } from "@src/api/tauri/github";
 import Message from "@src/components/Message";
 import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
 import { fetchIssueTimeline } from "@src/services/git/operations/githubIssues";
-import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
+import {
+  openGitHubIssueInChatPanelTabAtom,
+  openGitHubPrInChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
-import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
-import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import {
+  workstationIssueDetailScopeKey,
+  workstationSelectedIssueAtomFamily,
+} from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import {
   createGitHubIssueDetailTab,
   createGitHubPrDetailTab,
@@ -17,6 +22,7 @@ import {
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import type { ManagedIssueItem, ManagedPrItem } from "./githubManagedItemModel";
+import type { WorkManagementDetailHost } from "./workManagementDetailHost";
 
 function toIssueContext(issue: GitHubIssue) {
   return {
@@ -31,21 +37,30 @@ function toIssueContext(issue: GitHubIssue) {
   };
 }
 
-export function useGitHubWorkItemActions() {
+export function useGitHubWorkItemActions({
+  detailHost,
+}: {
+  detailHost: WorkManagementDetailHost;
+}) {
   const { t } = useTranslation(["sessions", "common"]);
   const store = useStore();
   const setAddToAgent = useSetAtom(addToAgentAtom);
+  const openIssueInChatPanel = useSetAtom(openGitHubIssueInChatPanelTabAtom);
+  const openPrInChatPanel = useSetAtom(openGitHubPrInChatPanelTabAtom);
   const { openTab } = useWorkStationTabs();
 
   const openIssueInBrowser = useCallback((issue: ManagedIssueItem) => {
     void openExternalLink(issue.rawIssue.html_url);
   }, []);
 
-  const openIssueInMyStation = useCallback(
+  const openIssueInTab = useCallback(
     (issue: ManagedIssueItem) => {
-      const selectedIssueAtom = workstationSelectedIssueAtomFamily(
-        workstationRepoScopeKey(undefined, issue.repoPath)
+      const stateScopeKey = workstationIssueDetailScopeKey(
+        issue.repoPath,
+        issue.id
       );
+      const selectedIssueAtom =
+        workstationSelectedIssueAtomFamily(stateScopeKey);
       store.set(selectedIssueAtom, {
         issue: issue.rawIssue,
         timeline: [],
@@ -54,14 +69,25 @@ export function useGitHubWorkItemActions() {
         error: null,
         submittingComment: false,
       });
-      openTab(
-        createGitHubIssueDetailTab(
-          issue.id,
-          issue.title,
-          issue.repoPath,
-          issue.remoteUrl
-        )
-      );
+      if (detailHost === "chat") {
+        openIssueInChatPanel({
+          issueNumber: issue.id,
+          issueTitle: issue.title,
+          repoPath: issue.repoPath,
+          remoteUrl: issue.remoteUrl,
+          stateScopeKey,
+        });
+      } else {
+        openTab(
+          createGitHubIssueDetailTab(
+            issue.id,
+            issue.title,
+            issue.repoPath,
+            issue.remoteUrl,
+            stateScopeKey
+          )
+        );
+      }
       void fetchIssueTimeline({
         remoteUrl: issue.remoteUrl,
         issueNumber: issue.id,
@@ -78,7 +104,28 @@ export function useGitHubWorkItemActions() {
         });
       });
     },
-    [openTab, store]
+    [detailHost, openIssueInChatPanel, openTab, store]
+  );
+
+  const openPrInTab = useCallback(
+    (pr: ManagedPrItem) => {
+      const detail = {
+        prNumber: pr.id,
+        prTitle: pr.title,
+        prUrl: pr.rawPr.url,
+        prStatus: pr.rawPr.draft ? "draft" : pr.state,
+        headBranch: pr.sourceBranch,
+        baseBranch: pr.targetBranch,
+        repoPath: pr.repoPath,
+        repoId: pr.repoId,
+      };
+      if (detailHost === "chat") {
+        openPrInChatPanel(detail);
+      } else {
+        openTab(createGitHubPrDetailTab(detail));
+      }
+    },
+    [detailHost, openPrInChatPanel, openTab]
   );
 
   const addIssue = useCallback(
@@ -119,31 +166,12 @@ export function useGitHubWorkItemActions() {
     [setAddToAgent, t]
   );
 
-  const openPr = useCallback(
-    (pr: ManagedPrItem) => {
-      openTab(
-        createGitHubPrDetailTab({
-          prNumber: pr.id,
-          prTitle: pr.title,
-          prUrl: pr.rawPr.url,
-          prStatus: pr.state,
-          headBranch: pr.sourceBranch,
-          baseBranch: pr.targetBranch,
-          repoPath: pr.repoPath,
-          repoId: pr.repoId,
-        })
-      );
-      void WorkStationViewService.openStationMode("my-station");
-    },
-    [openTab]
-  );
-
   return {
     openIssueInBrowser,
-    openIssueInMyStation,
+    openIssueInTab,
+    openPrInTab,
     addIssue,
     addCreatedIssue,
     addPr,
-    openPr,
   };
 }

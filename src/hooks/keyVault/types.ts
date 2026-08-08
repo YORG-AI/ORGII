@@ -45,6 +45,7 @@ export interface KeyVaultAccount {
   hasApiKey: boolean;
   hasSessionToken: boolean;
   authMethod?: "api_key" | "oauth";
+  canRefreshQuota?: boolean;
   supportsRustAgents?: boolean;
   canLaunchCli?: boolean;
   canUseNativeHarness?: boolean;

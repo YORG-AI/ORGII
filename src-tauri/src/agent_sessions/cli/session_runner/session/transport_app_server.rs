@@ -10,12 +10,17 @@ use crate::api::websocket_handler;
 use super::super::super::persistence;
 use super::super::helpers::{emit_chunk, snapshot_cli_file_edit};
 use super::super::launch_profiles::ResolvedCliLaunchProfile;
+use super::super::oauth_setup::{
+    is_cli_chunk_replay_unsafe, is_cli_oauth_failure_message, is_retryable_cli_oauth_failure_chunk,
+};
 
 pub(super) struct AppServerOutcome {
     pub(super) exit_code: i32,
     pub(super) timed_out: bool,
     pub(super) cli_session_id_out: Option<String>,
     pub(super) codex_app_server_turn_ok: bool,
+    pub(super) retryable_oauth_message: Option<String>,
+    pub(super) terminal_error_message: Option<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -23,6 +28,7 @@ pub(super) async fn run_codex_app_server_branch(
     mut child: Child,
     session_id: String,
     account_id: Option<&str>,
+    oauth_retry_eligible: bool,
     effective_input: String,
     working_dir: &str,
     cli_resume_id: Option<String>,
@@ -35,6 +41,7 @@ pub(super) async fn run_codex_app_server_branch(
     mut cli_session_id_out: Option<String>,
     sequence: &mut i64,
     mut codex_app_server_turn_ok: bool,
+    attempt_stderr: &mut super::CliStderrCollector,
 ) -> Result<AppServerOutcome, String> {
     // ── Codex app-server: long-lived JSON-RPC over stdio ──
     // (experimental; gate = launch-profile transport="app-server").
@@ -60,8 +67,24 @@ pub(super) async fn run_codex_app_server_branch(
         codex_app_server::run_app_server_turn(stdin, stdout, turn, chunk_tx).await
     });
 
+    let mut retryable_oauth_message = None;
+    let mut replay_unsafe_output_seen = false;
+    let mut terminal_error_message = None;
     let timeout_result = tokio::time::timeout(session_timeout, async {
         while let Some(chunk) = chunk_rx.recv().await {
+            if retryable_oauth_message.is_none() && !replay_unsafe_output_seen {
+                retryable_oauth_message =
+                    is_retryable_cli_oauth_failure_chunk(oauth_retry_eligible, &chunk);
+            }
+            if retryable_oauth_message.is_some() {
+                // Suppress the failed attempt. The outer runner will refresh
+                // and replay only when no assistant/tool output was emitted.
+                continue;
+            }
+            super::record_terminal_cli_error(&mut terminal_error_message, &chunk);
+            if is_cli_chunk_replay_unsafe(&chunk) {
+                replay_unsafe_output_seen = true;
+            }
             // Bind the rollout-compatible thread id as soon as the
             // session_start chunk carries it (mirrors the parser
             // early-binding in the exec branch below): native
@@ -125,10 +148,20 @@ pub(super) async fn run_codex_app_server_branch(
             }
         }
         Ok(Err(err)) if !timed_out => {
-            tracing::error!("[CodeSession] app-server protocol error: {}", err);
+            if oauth_retry_eligible
+                && !replay_unsafe_output_seen
+                && is_cli_oauth_failure_message(&err)
+            {
+                retryable_oauth_message = Some(err);
+            } else {
+                tracing::error!("[CodeSession] app-server protocol error: {}", err);
+                terminal_error_message =
+                    Some(super::super::super::parsers::canonicalize_cli_error_message(&err));
+            }
         }
         Err(join_err) => {
             tracing::error!("[CodeSession] app-server task panicked: {}", join_err);
+            terminal_error_message = Some(format!("Codex app-server task failed: {join_err}"));
         }
         _ => {}
     }
@@ -146,10 +179,30 @@ pub(super) async fn run_codex_app_server_branch(
         .map_err(|err| format!("Wait error: {}", err))?;
     let exit_code = status.code().unwrap_or(-1);
 
+    // The child is gone; collect the rest of its stderr before the OAuth probe
+    // below reads it.
+    attempt_stderr.drain().await;
+
+    if retryable_oauth_message.is_none()
+        && oauth_retry_eligible
+        && !timed_out
+        && !codex_app_server_turn_ok
+        && !replay_unsafe_output_seen
+    {
+        let stderr = attempt_stderr.lines();
+        let stderr = stderr.lock().await;
+        retryable_oauth_message = stderr
+            .iter()
+            .find(|line| is_cli_oauth_failure_message(line))
+            .cloned();
+    }
+
     Ok(AppServerOutcome {
         exit_code,
         timed_out,
         cli_session_id_out,
         codex_app_server_turn_ok,
+        retryable_oauth_message,
+        terminal_error_message,
     })
 }

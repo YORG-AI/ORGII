@@ -24,8 +24,9 @@ mod transcript;
 pub use index::{
     codex_thread_id_from_file_stem, list_codex_app_recent_paths,
     list_codex_app_reconciliation_sessions, list_codex_app_sessions_paginated,
-    load_codex_app_for_session, load_codex_app_initial_window_for_session,
-    load_codex_app_turn_for_session,
+    load_codex_app_cloud_turn_for_session, load_codex_app_for_session,
+    load_codex_app_initial_window_for_session, load_codex_app_turn_for_session,
+    load_codex_app_turn_ids_for_session,
 };
 pub use meta::{resolve_codex_transcript_for_thread_id_near_path, CodexTranscriptLocator};
 pub(crate) use normalize::normalize_codex_tool_calls;
@@ -41,7 +42,7 @@ pub(crate) use crate::sources::imported_history::{
     strip_orgii_exec_mode_bridge,
 };
 #[cfg(test)]
-pub(crate) use index::codex_sessions_dir_candidates;
+pub(crate) use index::{codex_managed_sessions_dirs, codex_sessions_dir_candidates};
 #[cfg(test)]
 pub(crate) use meta::{parse_codex_session_meta, parse_codex_session_meta_incremental};
 #[cfg(test)]

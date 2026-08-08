@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "SCOPE_VIOLATION",
+    "message": "WorkItem work_01K0000000000000000000WORK0 belongs to a different scope than the resolved context",
+    "retryable": false,
+    "details": {
+      "resourceScopeId": "project_01K000000000000000000OTHER",
+      "contextScopeId": "project_01K0000000000000000000SCOPE"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR14"
+  }
+}

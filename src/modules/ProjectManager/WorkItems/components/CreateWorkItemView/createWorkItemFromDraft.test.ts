@@ -11,8 +11,8 @@ import { createWorkItemFromDraft } from "./createWorkItemFromDraft";
 
 vi.mock("@src/api/http/project", () => ({
   projectApi: {
-    writeWorkItem: vi.fn(async () => undefined),
-    writeStandaloneWorkItem: vi.fn(async () => undefined),
+    createWorkItem: vi.fn(async () => undefined),
+    createStandaloneWorkItem: vi.fn(async () => undefined),
   },
 }));
 
@@ -57,13 +57,12 @@ describe("createWorkItemFromDraft", () => {
 
     expect(allocateProjectIdMock).toHaveBeenCalledWith("proj");
     expect(allocateStandaloneIdMock).not.toHaveBeenCalled();
-    expect(projectApiMock.writeWorkItem).toHaveBeenCalledWith(
+    expect(projectApiMock.createWorkItem).toHaveBeenCalledWith(
       "proj",
       "PRJ-0001",
-      expect.objectContaining({ short_id: "PRJ-0001" }),
-      "details"
+      expect.objectContaining({ title: "Ship the fix", body: "details" })
     );
-    expect(projectApiMock.writeStandaloneWorkItem).not.toHaveBeenCalled();
+    expect(projectApiMock.createStandaloneWorkItem).not.toHaveBeenCalled();
     expect(result.orgId).toBeUndefined();
     expect(result.projectSlug).toBe("proj");
   });
@@ -75,13 +74,12 @@ describe("createWorkItemFromDraft", () => {
     });
 
     expect(allocateStandaloneIdMock).toHaveBeenCalledWith("porg-1");
-    expect(projectApiMock.writeStandaloneWorkItem).toHaveBeenCalledWith(
+    expect(projectApiMock.createStandaloneWorkItem).toHaveBeenCalledWith(
       "WI-0001",
-      expect.objectContaining({ short_id: "WI-0001" }),
-      "details",
+      expect.objectContaining({ title: "Ship the fix", body: "details" }),
       { orgId: "porg-1" }
     );
-    expect(projectApiMock.writeWorkItem).not.toHaveBeenCalled();
+    expect(projectApiMock.createWorkItem).not.toHaveBeenCalled();
     // Callers selecting the created item must carry the org, or a later
     // standalone re-write re-homes the row to personal-org.
     expect(result.orgId).toBe("porg-1");
@@ -94,10 +92,9 @@ describe("createWorkItemFromDraft", () => {
     });
 
     expect(allocateStandaloneIdMock).toHaveBeenCalledWith("porg-picked");
-    expect(projectApiMock.writeStandaloneWorkItem).toHaveBeenCalledWith(
+    expect(projectApiMock.createStandaloneWorkItem).toHaveBeenCalledWith(
       "WI-0001",
-      expect.objectContaining({ short_id: "WI-0001" }),
-      "details",
+      expect.objectContaining({ title: "Ship the fix", body: "details" }),
       { orgId: "porg-picked" }
     );
     expect(result.orgId).toBe("porg-picked");
@@ -120,10 +117,9 @@ describe("createWorkItemFromDraft", () => {
     });
 
     expect(allocateStandaloneIdMock).toHaveBeenCalledWith(undefined);
-    expect(projectApiMock.writeStandaloneWorkItem).toHaveBeenCalledWith(
+    expect(projectApiMock.createStandaloneWorkItem).toHaveBeenCalledWith(
       "WI-0001",
-      expect.objectContaining({ short_id: "WI-0001" }),
-      "details",
+      expect.objectContaining({ title: "Ship the fix", body: "details" }),
       undefined
     );
     expect(result.orgId).toBeUndefined();
@@ -133,10 +129,9 @@ describe("createWorkItemFromDraft", () => {
     const result = await createWorkItemFromDraft({ draft: DRAFT });
 
     expect(allocateStandaloneIdMock).toHaveBeenCalledWith(undefined);
-    expect(projectApiMock.writeStandaloneWorkItem).toHaveBeenCalledWith(
+    expect(projectApiMock.createStandaloneWorkItem).toHaveBeenCalledWith(
       "WI-0001",
-      expect.objectContaining({ short_id: "WI-0001" }),
-      "details",
+      expect.objectContaining({ title: "Ship the fix", body: "details" }),
       undefined
     );
     expect(result.orgId).toBeUndefined();
@@ -146,7 +141,7 @@ describe("createWorkItemFromDraft", () => {
     await expect(
       createWorkItemFromDraft({ draft: { ...DRAFT, name: "  " } })
     ).rejects.toThrow("Work item title is required");
-    expect(projectApiMock.writeStandaloneWorkItem).not.toHaveBeenCalled();
+    expect(projectApiMock.createStandaloneWorkItem).not.toHaveBeenCalled();
   });
 
   it("persists linked session provenance atomically with creation", async () => {
@@ -165,10 +160,9 @@ describe("createWorkItemFromDraft", () => {
       linkedSessions: [linkedSession],
     });
 
-    expect(projectApiMock.writeStandaloneWorkItem).toHaveBeenCalledWith(
+    expect(projectApiMock.createStandaloneWorkItem).toHaveBeenCalledWith(
       "WI-0001",
-      expect.objectContaining({ linked_sessions: [linkedSession] }),
-      "details",
+      expect.objectContaining({ linkedSessions: [linkedSession] }),
       undefined
     );
   });

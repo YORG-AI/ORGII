@@ -140,7 +140,8 @@
       "workstation": "工作站",
       "viewRam": "查看 RAM",
       "tutorials": "教程",
-      "openSettings": "打开设置"
+      "openSettings": "打开设置",
+      "setupChecklist": "快速设置"
     },
     "empty": {
       "noItems": "暂无内容",
@@ -163,6 +164,37 @@
       "duration1h": "1 小时",
       "duration2h": "2 小时",
       "durationTomorrow": "明天"
+    },
+    "guide": {
+      "trigger": "打开使用引导",
+      "title": "开始使用 ORGII",
+      "startSession": "创建第一个会话",
+      "quickSetup": "语言与外观",
+      "close": "关闭引导",
+      "progressLabel": "已完成 {{completed}}/{{total}} 项设置",
+      "localWorkspace": "本地工作区",
+      "connectOrganization": "连接或创建组织",
+      "createOrganizationHint": "输入组织名称，然后点击“创建”。云端组织创建成功后，引导会进入下一步。",
+      "inviteTeammate": "邀请一位团队成员",
+      "inviteTeammateHint": "在这里创建邀请链接，然后发送给你的团队成员。",
+      "invitePermissionHint": "你可以在这里查看成员列表；邀请需要由组织管理员或 Owner 创建。",
+      "devPanelTitle": "Onboarding 测试状态",
+      "devPanelHint": "仅在当前进程预览邀请流程，不会修改后端组织数据。",
+      "devScenarioLive": "真实数据",
+      "devScenarioNoOrganization": "无组织",
+      "devScenarioMember": "普通成员 · 无邀请权限",
+      "devScenarioAdmin": "管理员 · 有邀请权限",
+      "devScenarioOwner": "Owner · 有邀请权限",
+      "devScenarioRequiresOrganization": "角色预览至少需要一个真实云组织。",
+      "devSimulationActive": "开发模拟已启用",
+      "devSimulationReadOnly": "成员页仅用于预览，组织管理操作已禁用。",
+      "viewTeamActivity": "查看团队用量",
+      "viewTeamActivityHint": "已打开“运行时 > 成员”。选择一位团队成员即可查看 Codex、Claude 和 Cursor 用量；暂无数据时请先启用团队运行时同步。",
+      "exploreProduct": "了解主要页面",
+      "nextStep": "下一步"
+    },
+    "developerTestPanel": {
+      "title": "开发测试面板"
     }
   },
   "appLauncher": {
@@ -492,6 +524,15 @@
       "parentOpenUnavailable": "无法从此分叉打开源会话。",
       "replayError": "此会话尚无完整回放。请让所有者共享完整回放后重试。",
       "openParentButton": "打开来自 {{name}} 的源会话"
+    },
+    "continueCli": {
+      "headerButton": "在 {{agent}} 中继续",
+      "headerTooltip": "在终端标签页中用 {{agent}} 重新打开此会话（{{command}}）",
+      "notInstalled": "本机未安装 {{agent}}",
+      "missingWorkspace": "会话原目录已不存在，{{agent}} 只能在原目录中恢复该会话",
+      "sourceMissing": "原始会话数据已不在磁盘上",
+      "launchFailed": "打开 {{agent}} 终端失败",
+      "composerPlaceholder": "输入消息以在新的 ORGII 会话中继续 — 也可通过标题栏按钮在 {{agent}} 中原生恢复…"
     }
   },
   "cloud": {
@@ -579,6 +620,10 @@
         "manualRunning": "同步中…",
         "manualSuccess": "同步完成",
         "manualError": "同步失败：{{message}}",
+        "coverageTitle": "会话覆盖率",
+        "coverageSummary": "已同步 {{synced}}/{{syncable}}（{{percent}}%）",
+        "coveragePercentLabel": "覆盖率",
+        "coverageEmpty": "此组织的仓库范围内暂无会话",
         "logsTitle": "同步日志",
         "logsHelp": "本机记录的近期同步事件。重启后清空，且不会上传",
         "logsEmpty": "暂无同步事件记录",
@@ -607,7 +652,10 @@
       "viewerOverflow": "还有 {{count}} 人正在看",
       "memberViewing": "正在看：{{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "loadingSession": "正在加载会话…",
+      "downloadProgress": "下载中… {{percent}}%",
+      "downloadProgressEta": "下载中… {{percent}}% · 剩余约 {{eta}}"
     },
     "sessionRef": {
       "chipLabel": "团队会话",
@@ -615,7 +663,8 @@
       "signInRequired": "登录 ORG2 Cloud 以打开此会话。",
       "sessionNotFound": "该会话不属于此组织。",
       "notPublished": "先将此会话共享给某个组织，再复制引用。",
-      "chooseOrg": "此会话属于多个组织。切换到你要引用的组织，然后重新复制。"
+      "chooseOrg": "此会话属于多个组织。切换到你要引用的组织，然后重新复制。",
+      "opening": "正在打开团队会话…"
     },
     "sync": {
       "quotaExceededToast": "ORG2 云同步已暂停：该组织的套餐配额已用尽",
@@ -854,6 +903,151 @@
     "signedInAs": "已登录：{{name}}",
     "renameDisplayName": "修改显示名",
     "renameSaved": "显示名已更新",
-    "renameFailed": "显示名更新失败"
+    "renameFailed": "显示名更新失败",
+    "download": {
+      "title": "正在下载团队会话…",
+      "events": "{{loaded}} / {{total}} 条事件",
+      "eta": "预计剩余 {{eta}}",
+      "finalizing": "正在整理…",
+      "complete": "下载完成",
+      "estimate": "该会话有 {{count}} 个事件待下载（约 {{eta}}）",
+      "start": "开始下载",
+      "pause": "暂停",
+      "paused": "已暂停",
+      "resume": "继续"
+    },
+    "channels": {
+      "title": "频道",
+      "createAction": "创建频道",
+      "createFirst": "创建一个频道",
+      "manageMembers": "管理成员",
+      "archiveAction": "归档频道",
+      "unarchive": "取消归档",
+      "unarchiveFailed": "取消归档失败",
+      "deleteAction": "删除频道",
+      "leave": "退出频道",
+      "archivedGroup": "已归档",
+      "loadError": "频道加载失败",
+      "settings": {
+        "action": "频道设置",
+        "title": "#{{name}} 的设置",
+        "submit": "保存",
+        "managerRequired": "只有频道管理员才能编辑此频道",
+        "error": "更新失败，请重试。"
+      },
+      "local": {
+        "quotaExceeded": "此设备的频道数量已达上限",
+        "archiveBody": "归档后，频道将从侧边栏隐藏。历史记录会保留，之后可以随时取消归档",
+        "deleteWarning": "此操作将永久删除该频道，且无法撤销"
+      },
+      "cancel": "取消",
+      "create": {
+        "title": "创建频道",
+        "nameLabel": "名称",
+        "namePlaceholder": "例如：code-review",
+        "topicLabel": "主题",
+        "topicOptional": "（可选）",
+        "topicPlaceholder": "这个频道是聊什么的？",
+        "visibilityLabel": "可见性",
+        "publicTitle": "公开",
+        "publicDesc": "组织内所有人都可以查看并加入讨论",
+        "privateTitle": "私密",
+        "privateDesc": "只有受邀成员才能查看此频道",
+        "membersLabel": "添加成员",
+        "membersHint": "你将自动成为频道管理员",
+        "membersLoading": "正在加载成员…",
+        "membersEmpty": "组织里还没有其他成员",
+        "postPolicyLabel": "谁可以发言",
+        "postPolicyEveryone": "所有人",
+        "postPolicyManagers": "仅频道管理员",
+        "submit": "创建",
+        "nameTaken": "该名称已被占用",
+        "quotaExceeded": "该组织的频道数量已达上限",
+        "error": "频道创建失败，请重试。"
+      },
+      "archive": {
+        "title": "归档 #{{name}}？",
+        "body": "归档后，频道将对所有人从侧边栏隐藏。历史记录会保留，之后可以随时取消归档",
+        "confirm": "归档",
+        "managerRequired": "只有频道管理员才能归档此频道",
+        "error": "归档失败，请重试。"
+      },
+      "delete": {
+        "title": "删除 #{{name}}？",
+        "warning": "此操作将为所有人永久删除该频道，且无法撤销",
+        "acknowledge": "是的，永久删除该频道",
+        "confirm": "删除",
+        "adminRequired": "只有组织管理员才能删除频道",
+        "error": "删除失败，请重试。"
+      },
+      "members": {
+        "title": "#{{name}} 的成员",
+        "loading": "正在加载成员…",
+        "empty": "此频道还没有成员",
+        "loadError": "无法加载频道成员，请重试。",
+        "managerBadge": "管理员",
+        "you": "你",
+        "addLabel": "添加成员",
+        "addEmpty": "组织内所有人都已加入此频道",
+        "addSubmit": "添加",
+        "actions": "成员操作",
+        "remove": "移出频道",
+        "makeManager": "设为频道管理员",
+        "removeManager": "取消频道管理员",
+        "leave": "退出频道",
+        "lastManager": "请先指定另一位管理员",
+        "error": "操作失败，请重试。"
+      },
+      "feed": {
+        "composerPlaceholder": "发送消息到 #{{name}}",
+        "save": "保存",
+        "edit": "编辑消息",
+        "delete": "删除消息",
+        "edited": "（已编辑）",
+        "deletedMessage": "消息已删除",
+        "today": "今天",
+        "yesterday": "昨天",
+        "you": "你",
+        "memberCount": "{{memberCount}} 位成员",
+        "emptyTitle": "这里是 #{{name}} 的开始",
+        "emptySubtitle": "发送第一条消息，开启对话",
+        "missingTitle": "频道已不存在",
+        "missingSubtitle": "该频道已从此设备删除",
+        "cloudPendingTitle": "暂无消息",
+        "cloudPendingSubtitle": "云端频道的历史消息将随下一次后端升级提供",
+        "cloudComposerDisabled": "云端频道暂不支持发送消息——本次发布仅包含频道创建与成员管理，发消息功能将随下一次后端升级提供",
+        "errorEmpty": "请先输入消息",
+        "errorTooLong": "消息过长（最多 4000 个字符）",
+        "errorQuota": "此频道在本设备上的消息数量已达上限",
+        "errorGeneric": "消息发送失败，请重试。",
+        "dropSessionHint": "松开以将该会话添加为引用",
+        "messageBodyLabel": "频道消息",
+        "sessionCardMissing": "此设备上不可用",
+        "sessionCardOpen": "打开会话 {{name}}",
+        "workItemCardMissing": "此设备上不可用",
+        "workItemCardLoading": "正在加载…",
+        "workItemCardOpen": "打开工作项 {{name}}",
+        "githubCardOpen": "在 GitHub 中打开 {{name}}",
+        "githubIssue": "Issue",
+        "githubPullRequest": "Pull Request",
+        "archivedComposerDisabled": "该频道已归档,取消归档后才能发言。",
+        "errorPostForbidden": "只有频道管理员才能在此频道发消息",
+        "errorArchived": "此频道已归档，无法发送新消息",
+        "errorChannelFull": "此频道消息数已达上限，无法发送新消息",
+        "errorChannelMissing": "此频道已不可用",
+        "errorMessageMissing": "该消息已不可用",
+        "loadError": "消息加载失败",
+        "loadingMessages": "正在加载消息…",
+        "loadOlder": "加载更早的消息",
+        "unknownAuthor": "团队成员"
+      }
+    },
+    "backgroundUpload": {
+      "label": "后台上传",
+      "help": "即使未打开该组织，也会按照组织最低共享级别和各会话设置，在后台上传符合条件的成员会话。",
+      "on": "开启",
+      "off": "关闭",
+      "memberNote": "由管理员开启——无需打开该组织，符合条件的会话也会在后台上传。"
+    }
   }
 }

@@ -356,6 +356,72 @@ fn codex_gpt_5_6_ultra_tier_limited_to_sol_and_terra() {
 }
 
 #[test]
+fn live_oauth_catalog_is_authoritative_and_preserves_capabilities() {
+    use crate::commands::validate::{resolved_oauth_catalog, OAuthModelCatalogSource};
+    use crate::types::DiscoveredModel;
+
+    let catalog = resolved_oauth_catalog(
+        "codex",
+        vec![DiscoveredModel {
+            id: "account-visible-model".to_string(),
+            context_window: Some(777_000),
+            supported_efforts: vec!["low".to_string(), "high".to_string()],
+            default_effort: Some("high".to_string()),
+            is_default: true,
+            ..DiscoveredModel::default()
+        }],
+        OAuthModelCatalogSource::Live,
+    )
+    .expect("resolved live catalog");
+
+    assert_eq!(catalog.models, vec!["account-visible-model"]);
+    assert_eq!(
+        catalog.default_enabled_models,
+        vec!["account-visible-model"]
+    );
+    assert_eq!(
+        catalog.model_context_lengths.get("account-visible-model"),
+        Some(&777_000)
+    );
+    assert_eq!(catalog.source, OAuthModelCatalogSource::Live);
+    assert_eq!(catalog.model_variants.len(), 2);
+    assert!(catalog
+        .model_variants
+        .iter()
+        .any(|variant| variant.model == "account-visible-model-high"));
+    assert_eq!(catalog.default_variants.len(), 1);
+    assert_eq!(
+        catalog.default_variants[0].model,
+        "account-visible-model-high"
+    );
+}
+
+#[test]
+fn claude_opus_5_fallback_exposes_effort_variants() {
+    use crate::commands::crud::KeyInfo;
+    use crate::key_store::{AuthMethod, ModelKey, ModelType};
+
+    let mut key = ModelKey::new(ModelType::ClaudeCode);
+    key.auth_method = AuthMethod::Oauth;
+    key.session_token = Some("access-token".to_string());
+    key.available_models = vec!["claude-opus-5".to_string()];
+
+    let info = KeyInfo::from(key);
+    let variants: Vec<_> = info
+        .model_variants
+        .iter()
+        .filter(|variant| variant.base_model == "claude-opus-5")
+        .collect();
+    assert_eq!(variants.len(), 5);
+    assert!(variants
+        .iter()
+        .any(|variant| variant.model == "claude-opus-5-max"));
+    assert!(info.default_variants.iter().any(|variant| {
+        variant.base_model == "claude-opus-5" && variant.model == "claude-opus-5-high"
+    }));
+}
+
+#[test]
 fn glm_5_2_plus_gets_high_max_ladder_and_max_default() {
     use crate::commands::crud::KeyInfo;
     use crate::key_store::{AuthMethod, ModelKey, ModelType};

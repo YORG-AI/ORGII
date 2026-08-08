@@ -457,3 +457,36 @@ fn test_compute_derived_anchors_late_turn_summary_before_next_user_turn() {
         vec!["user-1", "assistant-1", "summary-turn-1", "user-2"]
     );
 }
+
+// =========================================================================
+// chat ordering: created_at ties
+// =========================================================================
+
+#[test]
+fn test_unloaded_placeholder_sorts_before_same_instant_next_header() {
+    // An unloaded-turn placeholder spans up to the NEXT round's start, so its
+    // created_at ties with that round's user header. It must stay BEFORE the
+    // header (tail of the previous group) or the previous round loses its
+    // expand affordance and the next group inherits a foreign placeholder.
+    let mut placeholder = make_event(
+        "codex-unloaded-turn-codex-user-1",
+        EventDisplayVariant::Message,
+    );
+    placeholder.action_type = "assistant".to_string();
+    placeholder.function_name = "assistant".to_string();
+    placeholder.created_at = "2026-07-31T00:07:15.017+00:00".to_string();
+    let mut next_header = make_user_message("codex-user-2");
+    next_header.function_name = "user".to_string();
+    next_header.created_at = "2026-07-31T00:07:15.017+00:00".to_string();
+
+    let derived = compute_derived(&[next_header, placeholder], 1);
+    let chat_ids: Vec<&str> = derived
+        .chat_events
+        .iter()
+        .map(|event| event.id.as_str())
+        .collect();
+    assert_eq!(
+        chat_ids,
+        vec!["codex-unloaded-turn-codex-user-1", "codex-user-2"]
+    );
+}

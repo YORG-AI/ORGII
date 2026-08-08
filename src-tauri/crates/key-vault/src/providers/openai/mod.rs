@@ -156,7 +156,7 @@ impl OpenAIValidator {
                     // lightweight completion call using the first discovered model.
                     info!(
                         "[OpenAI] Proxy mode — verifying auth via completion test with model: {}",
-                        &models[0]
+                        models[0]
                     );
                     match self.test_completion(api_key, url, &models[0]).await {
                         Ok(()) => {

@@ -1,6 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import {
+import UserMessageContent, {
   normalizeMarkdownReferencePills,
   parseUserMessage,
 } from "../UserMessageContent";
@@ -85,5 +87,29 @@ describe("external-history Markdown URL pills", () => {
     expect(normalizeMarkdownReferencePills(image)).toBe(image);
     expect(normalizeMarkdownReferencePills(escaped)).toBe(escaped);
     expect(normalizeMarkdownReferencePills(credentialed)).toBe(credentialed);
+  });
+});
+
+describe("message reference interactions", () => {
+  it("underlines clickable references on hover, press, and keyboard focus", () => {
+    const markup = renderToStaticMarkup(
+      createElement(UserMessageContent, {
+        text: "fixtures [folder:/tmp/fixtures]",
+      })
+    );
+
+    expect(markup).toContain("hover:underline");
+    expect(markup).toContain("active:underline");
+    expect(markup).toContain("focus-visible:underline");
+  });
+
+  it("does not add interaction underlines to non-clickable references", () => {
+    const markup = renderToStaticMarkup(
+      createElement(UserMessageContent, { text: "main [branch:main]" })
+    );
+
+    expect(markup).not.toContain("hover:underline");
+    expect(markup).not.toContain("active:underline");
+    expect(markup).not.toContain("focus-visible:underline");
   });
 });

@@ -20,22 +20,45 @@ import {
   Type,
   Underline as UnderlineIcon,
 } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
+import Dropdown from "@src/components/Dropdown";
+import type { DropdownPosition } from "@src/components/Dropdown";
+import {
+  DROPDOWN_ITEM,
+  DROPDOWN_PANEL,
+  DropdownItem,
+  DropdownPanel,
+} from "@src/components/Dropdown/exports";
+import Input from "@src/components/Input";
+
 interface FloatingToolbarProps {
   editor: Editor;
-  position: { top: number; left: number };
+  position?: { top: number; left: number };
+  placement?: "floating" | "inline";
   onImagePickerOpen?: () => void;
   className?: string;
+  size?: "mini" | "small";
+  dropdownPosition?: DropdownPosition;
 }
+
+const getToolbarPopupContainer = () => document.body;
+const TOOLBAR_ICON_SIZE = 14;
+const TOOLBAR_DROPDOWN_STYLE: React.CSSProperties = {
+  zIndex: DROPDOWN_PANEL.portalSubmenuZIndex,
+};
 
 export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   editor,
   position,
+  placement = "floating",
   onImagePickerOpen,
   className = "",
+  size = "small",
+  dropdownPosition = "bottom-start",
 }) => {
   const { t } = useTranslation("sessions");
   const [showHeadingDropdown, setShowHeadingDropdown] = useState(false);
@@ -43,20 +66,6 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (toolbarRef.current && !toolbarRef.current.contains(target)) {
-        setShowHeadingDropdown(false);
-        setShowListDropdown(false);
-        setShowLinkInput(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const closeOtherDropdowns = (keep: "heading" | "list" | "link") => {
     if (keep !== "heading") setShowHeadingDropdown(false);
@@ -94,64 +103,80 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         ? "H3"
         : "Aa";
 
-  return createPortal(
+  const toolbar = (
     <div
       ref={toolbarRef}
-      className={`rich-text-editor-toolbar ${className}`.trim()}
-      style={{
-        position: "fixed",
-        top: position.top,
-        left: position.left,
-        zIndex: 99999,
-      }}
+      className={`rich-text-editor-toolbar ${
+        placement === "inline" ? "rich-text-editor-toolbar-inline" : ""
+      } ${size === "mini" ? "rich-text-editor-toolbar-mini" : ""} ${className}`.trim()}
+      style={
+        placement === "floating" && position
+          ? {
+              position: "fixed",
+              top: position.top,
+              left: position.left,
+              zIndex: 99999,
+            }
+          : undefined
+      }
       onMouseDown={(event) => event.preventDefault()}
       role="toolbar"
       aria-label={t("creator.toolbar.formatting", "Text formatting")}
     >
-      <div className="toolbar-dropdown">
-        <button
-          type="button"
-          className="toolbar-btn dropdown-trigger"
-          onClick={() => {
-            setShowHeadingDropdown((value) => !value);
-            closeOtherDropdowns("heading");
-          }}
-          title={t("creator.toolbar.normalText")}
-          aria-label={t("creator.toolbar.normalText")}
-        >
-          <span className="heading-label">{currentHeading}</span>
-          <ChevronDown size={12} />
-        </button>
-        {showHeadingDropdown && (
-          <div className="dropdown-menu">
-            <button
-              type="button"
-              className={`dropdown-item ${!editor.isActive("heading") ? "active" : ""}`}
+      <Dropdown
+        droplist={
+          <DropdownPanel
+            minWidth={160}
+            className="p-1"
+            role="listbox"
+            aria-label={t("creator.toolbar.normalText")}
+          >
+            <DropdownItem
+              icon={<Type size={DROPDOWN_ITEM.iconSize} />}
+              selected={!editor.isActive("heading")}
               onClick={() => handleHeadingSelect(null)}
             >
-              <Type size={14} />
-              <span>{t("creator.toolbar.normalText")}</span>
-            </button>
+              {t("creator.toolbar.normalText")}
+            </DropdownItem>
             {([1, 2, 3] as const).map((level) => {
               const Icon =
                 level === 1 ? Heading1 : level === 2 ? Heading2 : Heading3;
               return (
-                <button
+                <DropdownItem
                   key={level}
-                  type="button"
-                  className={`dropdown-item ${editor.isActive("heading", { level }) ? "active" : ""}`}
+                  icon={<Icon size={DROPDOWN_ITEM.iconSize} />}
+                  selected={editor.isActive("heading", { level })}
                   onClick={() => handleHeadingSelect(level)}
                 >
-                  <Icon size={14} />
-                  <span>{t(`creator.toolbar.heading${level}`)}</span>
-                </button>
+                  {t(`creator.toolbar.heading${level}`)}
+                </DropdownItem>
               );
             })}
-          </div>
-        )}
-      </div>
-
-      <div className="toolbar-divider" />
+          </DropdownPanel>
+        }
+        trigger="click"
+        position={dropdownPosition}
+        popupVisible={showHeadingDropdown}
+        onVisibleChange={(visible) => {
+          setShowHeadingDropdown(visible);
+          if (visible) closeOtherDropdowns("heading");
+        }}
+        getPopupContainer={getToolbarPopupContainer}
+        avoidViewportOverflow
+        style={TOOLBAR_DROPDOWN_STYLE}
+      >
+        <button
+          type="button"
+          className="toolbar-btn dropdown-trigger"
+          title={t("creator.toolbar.normalText")}
+          aria-label={t("creator.toolbar.normalText")}
+          aria-haspopup="listbox"
+          aria-expanded={showHeadingDropdown}
+        >
+          <span className="heading-label">{currentHeading}</span>
+          <ChevronDown size={TOOLBAR_ICON_SIZE} />
+        </button>
+      </Dropdown>
 
       <button
         type="button"
@@ -160,7 +185,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.bold")}
         aria-label={t("creator.toolbar.bold")}
       >
-        <Bold size={16} />
+        <Bold size={TOOLBAR_ICON_SIZE} />
       </button>
       <button
         type="button"
@@ -169,7 +194,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.italic")}
         aria-label={t("creator.toolbar.italic")}
       >
-        <Italic size={16} />
+        <Italic size={TOOLBAR_ICON_SIZE} />
       </button>
       <button
         type="button"
@@ -178,7 +203,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.strikethrough")}
         aria-label={t("creator.toolbar.strikethrough")}
       >
-        <Strikethrough size={16} />
+        <Strikethrough size={TOOLBAR_ICON_SIZE} />
       </button>
       <button
         type="button"
@@ -187,10 +212,8 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.underline")}
         aria-label={t("creator.toolbar.underline")}
       >
-        <UnderlineIcon size={16} />
+        <UnderlineIcon size={TOOLBAR_ICON_SIZE} />
       </button>
-
-      <div className="toolbar-divider" />
 
       <button
         type="button"
@@ -199,7 +222,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.inlineCode")}
         aria-label={t("creator.toolbar.inlineCode")}
       >
-        <Code size={16} />
+        <Code size={TOOLBAR_ICON_SIZE} />
       </button>
       <button
         type="button"
@@ -208,51 +231,78 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.highlight")}
         aria-label={t("creator.toolbar.highlight")}
       >
-        <Highlighter size={16} />
+        <Highlighter size={TOOLBAR_ICON_SIZE} />
       </button>
 
-      <div className="toolbar-link-wrapper">
+      <Dropdown
+        droplist={
+          <DropdownPanel
+            minWidth={280}
+            className="p-1.5"
+            role="dialog"
+            aria-label={t("creator.toolbar.link")}
+          >
+            <div
+              className="flex items-center gap-1.5"
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Input
+                type="url"
+                size="small"
+                className="w-48"
+                placeholder={t("creator.toolbar.enterUrl")}
+                value={linkUrl}
+                onChange={setLinkUrl}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") handleLinkSubmit();
+                  else if (event.key === "Escape") {
+                    setShowLinkInput(false);
+                    setLinkUrl("");
+                  }
+                }}
+                autoFocus
+              />
+              <Button
+                htmlType="button"
+                variant="primary"
+                size="small"
+                onClick={handleLinkSubmit}
+              >
+                {t("common:actions.apply")}
+              </Button>
+            </div>
+          </DropdownPanel>
+        }
+        trigger="click"
+        position={dropdownPosition}
+        popupVisible={showLinkInput}
+        onVisibleChange={(visible) => {
+          setShowLinkInput(visible);
+          if (visible) closeOtherDropdowns("link");
+        }}
+        getPopupContainer={getToolbarPopupContainer}
+        avoidViewportOverflow
+        style={TOOLBAR_DROPDOWN_STYLE}
+      >
         <button
           type="button"
           className={`toolbar-btn ${editor.isActive("link") ? "active" : ""}`}
-          onClick={() => {
+          onClick={(event) => {
             if (editor.isActive("link")) {
+              event.stopPropagation();
               editor.chain().focus().unsetLink().run();
-            } else {
-              setShowLinkInput((value) => !value);
-              closeOtherDropdowns("link");
+              setShowLinkInput(false);
             }
           }}
           title={t("creator.toolbar.link")}
           aria-label={t("creator.toolbar.link")}
+          aria-haspopup="dialog"
+          aria-expanded={showLinkInput}
         >
-          <LinkIcon size={16} />
+          <LinkIcon size={TOOLBAR_ICON_SIZE} />
         </button>
-        {showLinkInput && (
-          <div
-            className="link-input-popup"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <input
-              type="url"
-              placeholder={t("creator.toolbar.enterUrl")}
-              value={linkUrl}
-              onChange={(event) => setLinkUrl(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") handleLinkSubmit();
-                else if (event.key === "Escape") {
-                  setShowLinkInput(false);
-                  setLinkUrl("");
-                }
-              }}
-              autoFocus
-            />
-            <button type="button" onClick={handleLinkSubmit}>
-              {t("common:actions.apply")}
-            </button>
-          </div>
-        )}
-      </div>
+      </Dropdown>
 
       <button
         type="button"
@@ -261,64 +311,74 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.quote")}
         aria-label={t("creator.toolbar.quote")}
       >
-        <Quote size={16} />
+        <Quote size={TOOLBAR_ICON_SIZE} />
       </button>
 
-      <div className="toolbar-dropdown">
-        <button
-          type="button"
-          className="toolbar-btn dropdown-trigger"
-          onClick={() => {
-            setShowListDropdown((value) => !value);
-            closeOtherDropdowns("list");
-          }}
-          title={t("creator.toolbar.lists")}
-          aria-label={t("creator.toolbar.lists")}
-        >
-          <List size={16} />
-          <ChevronDown size={12} />
-        </button>
-        {showListDropdown && (
-          <div className="dropdown-menu dropdown-menu-right">
-            <button
-              type="button"
-              className={`dropdown-item ${editor.isActive("bulletList") ? "active" : ""}`}
+      <Dropdown
+        droplist={
+          <DropdownPanel
+            minWidth={160}
+            className="p-1"
+            role="listbox"
+            aria-label={t("creator.toolbar.lists")}
+          >
+            <DropdownItem
+              icon={<List size={DROPDOWN_ITEM.iconSize} />}
+              selected={editor.isActive("bulletList")}
               onClick={() => handleListSelect("bullet")}
             >
-              <List size={14} />
-              <span>{t("creator.toolbar.bulletList")}</span>
-            </button>
-            <button
-              type="button"
-              className={`dropdown-item ${editor.isActive("orderedList") ? "active" : ""}`}
+              {t("creator.toolbar.bulletList")}
+            </DropdownItem>
+            <DropdownItem
+              icon={<ListOrdered size={DROPDOWN_ITEM.iconSize} />}
+              selected={editor.isActive("orderedList")}
               onClick={() => handleListSelect("ordered")}
             >
-              <ListOrdered size={14} />
-              <span>{t("creator.toolbar.numberedList")}</span>
-            </button>
-            <button
-              type="button"
-              className={`dropdown-item ${editor.isActive("taskList") ? "active" : ""}`}
+              {t("creator.toolbar.numberedList")}
+            </DropdownItem>
+            <DropdownItem
+              icon={<ListTodo size={DROPDOWN_ITEM.iconSize} />}
+              selected={editor.isActive("taskList")}
               onClick={() => handleListSelect("task")}
             >
-              <ListTodo size={14} />
-              <span>{t("creator.toolbar.taskList")}</span>
-            </button>
-            <div className="dropdown-divider" />
-            <button
-              type="button"
-              className="dropdown-item"
+              {t("creator.toolbar.taskList")}
+            </DropdownItem>
+            <div className="my-1 h-px bg-border-2" role="separator" />
+            <DropdownItem
+              icon={<Minus size={DROPDOWN_ITEM.iconSize} />}
+              showCheckmark={false}
               onClick={() => {
                 editor.chain().focus().setHorizontalRule().run();
                 setShowListDropdown(false);
               }}
             >
-              <Minus size={14} />
-              <span>{t("creator.toolbar.divider")}</span>
-            </button>
-          </div>
-        )}
-      </div>
+              {t("creator.toolbar.divider")}
+            </DropdownItem>
+          </DropdownPanel>
+        }
+        trigger="click"
+        position={dropdownPosition}
+        popupVisible={showListDropdown}
+        onVisibleChange={(visible) => {
+          setShowListDropdown(visible);
+          if (visible) closeOtherDropdowns("list");
+        }}
+        getPopupContainer={getToolbarPopupContainer}
+        avoidViewportOverflow
+        style={TOOLBAR_DROPDOWN_STYLE}
+      >
+        <button
+          type="button"
+          className="toolbar-btn dropdown-trigger"
+          title={t("creator.toolbar.lists")}
+          aria-label={t("creator.toolbar.lists")}
+          aria-haspopup="listbox"
+          aria-expanded={showListDropdown}
+        >
+          <List size={TOOLBAR_ICON_SIZE} />
+          <ChevronDown size={TOOLBAR_ICON_SIZE} />
+        </button>
+      </Dropdown>
 
       {onImagePickerOpen && (
         <button
@@ -328,7 +388,7 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           title={t("creator.toolbar.insertImage")}
           aria-label={t("creator.toolbar.insertImage")}
         >
-          <ImageIcon size={16} />
+          <ImageIcon size={TOOLBAR_ICON_SIZE} />
         </button>
       )}
       <button
@@ -340,9 +400,12 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
         title={t("creator.toolbar.clearFormatting")}
         aria-label={t("creator.toolbar.clearFormatting")}
       >
-        <RemoveFormatting size={16} />
+        <RemoveFormatting size={TOOLBAR_ICON_SIZE} />
       </button>
-    </div>,
-    document.body
+    </div>
   );
+
+  return placement === "inline"
+    ? toolbar
+    : createPortal(toolbar, document.body);
 };

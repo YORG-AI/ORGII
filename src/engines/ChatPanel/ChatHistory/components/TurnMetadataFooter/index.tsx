@@ -1,9 +1,9 @@
 import { useSetAtom } from "jotai";
 import {
-  ExternalLink,
   GitCommitHorizontal,
   GitPullRequest,
   MoreHorizontal,
+  SquareArrowOutUpRight,
 } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -297,7 +297,10 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                     <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
                       {artifactLabel(artifact)}
                     </span>
-                    <ExternalLink size={14} className="shrink-0 text-text-3" />
+                    <SquareArrowOutUpRight
+                      size={14}
+                      className="shrink-0 text-text-3"
+                    />
                   </StackRowButton>
                 ))}
               {activeTab === "edits" &&

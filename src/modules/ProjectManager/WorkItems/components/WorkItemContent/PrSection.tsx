@@ -1,4 +1,4 @@
-import { ExternalLink, GitPullRequest, Loader2 } from "lucide-react";
+import { GitPullRequest, Loader2, SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -68,7 +68,7 @@ const PrSection: React.FC<PrSectionProps> = ({
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-6 hover:underline"
             >
-              <ExternalLink size={13} />
+              <SquareArrowOutUpRight size={13} />
               {prUrl.replace(/^https?:\/\/[^/]+\//, "")}
             </a>
             <div className="mt-1 flex items-center gap-2">

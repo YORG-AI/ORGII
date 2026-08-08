@@ -882,6 +882,7 @@
     "multipleChoice": "Несколько вариантов",
     "typeYourAnswer": "Введите ваш ответ…",
     "newSession": "Новая сессия",
+    "muteNotifications": "Отключить уведомления",
     "startPage": {
       "title": "Что вы хотите сделать?",
       "back": "Назад к стартовой странице",
@@ -1215,6 +1216,9 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "Все состояния",
+        "closeAsCompleted": "Закрыть как выполненную",
+        "closeAsNotPlanned": "Закрыть как незапланированную",
+        "statusUpdateFailed": "Не удалось обновить статус GitHub",
         "assignedToMe": "Назначенные мне",
         "createdByMe": "Созданные мной",
         "filters": "Filters",

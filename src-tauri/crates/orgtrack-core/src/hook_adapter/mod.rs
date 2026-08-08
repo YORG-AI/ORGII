@@ -20,11 +20,11 @@ use crate::sources::imported_history::metadata::{
     SOURCE_WINDSURF, SOURCE_ZCODE,
 };
 
-// Session-id prefixes for hook sources handled inline here. Qwen/Droid/Kimi/
-// Antigravity have no transcript importer yet; Trae/OpenCode/Windsurf DO import,
-// so those must mirror the prefixes their importers use (`sources::*::history`)
-// for a hook session and its imported transcript to resolve to one id.
-const QWEN_CODE_SESSION_PREFIX: &str = "qwencodeapp-";
+// Session-id prefixes for hook sources handled inline here. Droid/Kimi/
+// Antigravity have no transcript importer yet; Qwen/Trae/OpenCode/Windsurf DO
+// import, so those must mirror the prefixes their importers use
+// (`sources::*::history`) for a hook session and its imported transcript to
+// resolve to one id.
 const FACTORY_DROID_SESSION_PREFIX: &str = "droidapp-";
 const TRAE_SESSION_PREFIX: &str = "traeapp-";
 const OPENCODE_SESSION_PREFIX: &str = "opencodeapp-";
@@ -99,10 +99,10 @@ impl HookSource {
                 .map(crate::sources::codex::canonical_session_id)
                 .unwrap_or_else(|| crate::sources::codex::canonical_session_id(source_session_id)),
             Self::Cursor => crate::sources::cursor_ide::canonical_session_id(source_session_id),
-            // Gemini-family (Qwen), Droid, Kimi, and Antigravity emit
-            // Claude-Code-shaped payloads but have no importer yet, so the
-            // canonical id is a stable prefix over the vendor session id.
-            Self::QwenCode => format!("{QWEN_CODE_SESSION_PREFIX}{source_session_id}"),
+            Self::QwenCode => format!(
+                "{}{source_session_id}",
+                crate::sources::qwen_code::history::QWEN_CODE_SESSION_PREFIX
+            ),
             Self::FactoryDroid => format!("{FACTORY_DROID_SESSION_PREFIX}{source_session_id}"),
             Self::Kimi => format!("{KIMI_SESSION_PREFIX}{source_session_id}"),
             Self::Antigravity => format!("{ANTIGRAVITY_SESSION_PREFIX}{source_session_id}"),

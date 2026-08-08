@@ -26,6 +26,7 @@ import {
   useTextSelectionDropdown,
 } from "@src/scaffold/ContextMenu/exports";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
+import type { DiffViewMode } from "@src/types/git/types";
 import { isBinaryByExtension } from "@src/util/file/binaryDetection";
 import {
   getPreviewType,
@@ -84,6 +85,7 @@ export interface DiffFileSectionData {
 
 export interface DiffFileSectionProps {
   file: DiffFileSectionData;
+  viewMode: DiffViewMode;
   defaultExpanded?: boolean;
   expansionSignal?: number;
   repoPath?: string;
@@ -128,6 +130,7 @@ function getFileNameAndDir(path: string): {
 
 const DiffFileSection: React.FC<DiffFileSectionProps> = ({
   file,
+  viewMode,
   defaultExpanded = true,
   expansionSignal = 0,
   repoPath,
@@ -352,7 +355,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
             oldStartLine={resolvedDiff.oldStartLine}
             newStartLine={resolvedDiff.newStartLine}
             showLineNumbers={file.showLineNumbers !== false}
-            viewMode="unified"
+            viewMode={viewMode}
             readOnly={true}
             mergeControls={false}
             collapseUnchanged={true}

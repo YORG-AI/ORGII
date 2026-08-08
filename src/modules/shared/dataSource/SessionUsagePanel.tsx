@@ -120,6 +120,7 @@ export default function SessionUsagePanel() {
   const headlineRequestRef = useRef(0);
   const trendRequestRef = useRef(0);
   const roundRequestRef = useRef(0);
+  const trendRequestedQueryKeyRef = useRef<string | null>(null);
   const roundInFlightRef = useRef<{
     queryKey: string;
     request: ReturnType<typeof usageDashboardOverview>;
@@ -175,29 +176,50 @@ export default function SessionUsagePanel() {
 
   const loadHeadline = useCallback(async () => {
     const requestId = ++headlineRequestRef.current;
+    const includeTrends = trendsOpen;
+    const trendRequestId = includeTrends
+      ? ++trendRequestRef.current
+      : undefined;
+    if (includeTrends) {
+      trendRequestedQueryKeyRef.current = trendQueryKey;
+      setTrendLoading(true);
+      setTrendError(null);
+    }
     setHeadlineLoading(true);
     setHeadlineError(null);
     try {
-      // Headline-only mode skips request-table facets, sorting, pagination,
-      // and row transfer until the collapsed Requests section is opened.
+      // The initially-open trend shares the headline's round-store scan.
+      // Request-table facets, sorting, pagination, and row transfer remain
+      // deferred until the collapsed Requests section is opened.
       const overview = await usageDashboardOverview(scope, {
-        includeTrends: false,
+        includeTrends,
         includeRounds: false,
       });
       if (requestId !== headlineRequestRef.current) return;
       setSummary(overview.summary);
+      if (includeTrends && trendRequestId === trendRequestRef.current) {
+        setTrends(overview.trends);
+        setLoadedTrendQueryKey(trendQueryKey);
+      }
     } catch (err) {
       if (requestId === headlineRequestRef.current) {
         setHeadlineError(String(err));
       }
+      if (includeTrends && trendRequestId === trendRequestRef.current) {
+        setTrendError(String(err));
+      }
     } finally {
       if (requestId === headlineRequestRef.current) setHeadlineLoading(false);
+      if (includeTrends && trendRequestId === trendRequestRef.current) {
+        setTrendLoading(false);
+      }
     }
-  }, [scope]);
+  }, [scope, trendQueryKey, trendsOpen]);
 
   const loadTrends = useCallback(async () => {
     const requestId = ++trendRequestRef.current;
     const requestedQueryKey = trendQueryKey;
+    trendRequestedQueryKeyRef.current = requestedQueryKey;
     setTrendLoading(true);
     setTrendError(null);
     try {
@@ -281,8 +303,14 @@ export default function SessionUsagePanel() {
   }, [loadHeadline]);
 
   useEffect(() => {
-    if (trendsOpen && !trendDataLoaded) void loadTrends();
-  }, [loadTrends, trendDataLoaded, trendsOpen]);
+    if (
+      trendsOpen &&
+      !trendDataLoaded &&
+      trendRequestedQueryKeyRef.current !== trendQueryKey
+    ) {
+      void loadTrends();
+    }
+  }, [loadTrends, trendDataLoaded, trendQueryKey, trendsOpen]);
 
   useEffect(() => {
     if (roundsOpen && !roundDataLoaded) void loadRounds();
@@ -293,6 +321,7 @@ export default function SessionUsagePanel() {
     if (open) return;
 
     trendRequestRef.current += 1;
+    trendRequestedQueryKeyRef.current = null;
     setTrends([]);
     setLoadedTrendQueryKey(null);
     setTrendLoading(false);
@@ -322,9 +351,8 @@ export default function SessionUsagePanel() {
 
   const handleUsageRefresh = useCallback(() => {
     void loadHeadline();
-    if (trendsOpen) void loadTrends();
     if (roundsOpen) void loadRounds();
-  }, [loadHeadline, loadRounds, loadTrends, roundsOpen, trendsOpen]);
+  }, [loadHeadline, loadRounds, roundsOpen]);
   const usageRefreshing =
     headlineLoading ||
     (trendsOpen && trendLoading) ||

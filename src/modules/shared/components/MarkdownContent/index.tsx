@@ -9,6 +9,10 @@ const IMAGE_ATTR_RE = /([\w:-]+)\s*=\s*(["'])(.*?)\2/g;
 /** Fifteen lines at the GitHub timeline body's 20px line height. */
 export const MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT = 300;
 
+export type MarkdownContentFadeFrom =
+  | "from-primary-container"
+  | "from-chat-pane";
+
 function sanitizeMarkdownImageAlt(value: string): string {
   return value.split("[").join("").split("]").join("");
 }
@@ -35,6 +39,8 @@ export interface MarkdownContentProps {
   emptyText?: string;
   clamped?: boolean;
   maxHeight?: number;
+  /** Tailwind `from-*` class matching the surface behind the preview fade. */
+  fadeFrom?: MarkdownContentFadeFrom;
   className?: string;
 }
 
@@ -44,12 +50,13 @@ export const MarkdownContent = memo(function MarkdownContent({
   emptyText,
   clamped = true,
   maxHeight = MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT,
+  fadeFrom = "from-primary-container",
   className = "",
 }: MarkdownContentProps) {
   if (!body.trim()) {
     return (
       <div
-        className={`select-text text-[12px] italic leading-5 text-text-3 ${className}`.trim()}
+        className={`chat-text select-text italic text-text-3 ${className}`.trim()}
       >
         {emptyText}
       </div>
@@ -58,7 +65,7 @@ export const MarkdownContent = memo(function MarkdownContent({
 
   const content = (
     <div
-      className={`chat-block-content w-full min-w-0 select-text text-[12px] leading-5 text-text-2 [&_.chat-markdown-body]:select-text [&_.chat-markdown-body]:text-[12px] [&_.chat-markdown-body]:leading-5 ${className}`.trim()}
+      className={`chat-text w-full min-w-0 select-text text-text-1 [&_.chat-markdown-body]:select-text ${className}`.trim()}
     >
       <Markdown textContent={normalizeMarkdownContent(body)} skipPreprocess />
     </div>
@@ -67,11 +74,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   if (!clamped) return content;
 
   return (
-    <ClampedContent
-      maxHeight={maxHeight}
-      fadeFrom="from-primary-container"
-      alwaysShowControl
-    >
+    <ClampedContent maxHeight={maxHeight} fadeFrom={fadeFrom} alwaysShowControl>
       {content}
     </ClampedContent>
   );

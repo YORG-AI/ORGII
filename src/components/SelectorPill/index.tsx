@@ -16,6 +16,8 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import React, { forwardRef, useCallback, useState } from "react";
 
 import {
+  PILL_CONTROL_ACTIVE_SURFACE_CLASS,
+  PILL_CONTROL_HOVER_CLASS,
   PILL_SM_HEIGHT_CLASS,
   PILL_SM_ICON_CONTAINER_CLASS,
   PILL_SM_ICON_SIZE,
@@ -229,7 +231,6 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       active = false,
       danger = false,
       size = "sm",
-      variant = "default",
       trailingChevron = false,
       textOnly = false,
       hoverIcon,
@@ -260,14 +261,9 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       : active
         ? "text-primary-6"
         : "text-text-1";
-    const variantClasses =
-      variant === "ghost"
-        ? active
-          ? "bg-fill-2"
-          : "hover:bg-fill-2"
-        : active
-          ? "bg-fill-2"
-          : "hover:bg-fill-2";
+    const variantClasses = active
+      ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
+      : PILL_CONTROL_HOVER_CLASS;
 
     // Controlled tooltip visibility so that opening the dropdown (active=true)
     // immediately hides the tooltip instead of leaving it covering the panel.

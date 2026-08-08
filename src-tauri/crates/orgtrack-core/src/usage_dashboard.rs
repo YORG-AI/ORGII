@@ -33,7 +33,7 @@ mod rounds;
 mod tests;
 
 use accumulator::UsageHeadlineAccumulator;
-pub use daily_rollup::{usage_daily_rollup, DailyRollup, DailyRollupRow};
+pub use daily_rollup::{usage_daily_rollup, DailyRollup, DailyRollupRow, RecentUsageSnapshot};
 pub use overview::{usage_overview, usage_rounds, usage_trends, UsageOverview};
 use rounds::visit_rounds;
 pub use rounds::UsageRoundRow;

@@ -14,6 +14,7 @@ import { SegmentIntegrityError } from "../forkSnapshotIntegrity";
 import type {
   CollabSyncBackendClient,
   SessionEventSegmentRecord,
+  SessionEventSegmentsSnapshot,
 } from "../sync/CollabSyncBackend";
 import { computeSegmentHash } from "../sync/collabGzip";
 
@@ -23,6 +24,15 @@ import { computeSegmentHash } from "../sync/collabGzip";
  * remote history through `fetchAndAssembleSegments`; they differ only in what
  * kind of local session the assembled events land in.
  */
+export interface RemoteSessionImportProgress {
+  /** Events fetched/persisted so far, including any locally retained base. */
+  loadedEvents: number;
+  /** Server-reported total events for the session; null until known. */
+  totalEvents: number | null;
+  /** Defaults to "downloading" when omitted. */
+  phase?: "downloading" | "finalizing";
+}
+
 export interface RemoteSessionFetchOptions {
   client: Pick<
     CollabSyncBackendClient,
@@ -30,6 +40,11 @@ export interface RemoteSessionFetchOptions {
   >;
   orgId: string;
   remoteSession: RemoteTeammateSessionMetadata;
+  /**
+   * Per-page progress. The paged events RPC reports the session's total on
+   * every page; without this callback that number is simply discarded.
+   */
+  onProgress?: (progress: RemoteSessionImportProgress) => void;
   /**
    * Link-share capability (design §6.4): when set, every segments fetch
    * authenticates with the token alone — the caller is typically NOT an org
@@ -75,19 +90,74 @@ export async function validateSegmentIntegrity(
   }
 }
 
+/**
+ * One snapshot fetch, preferring the page-streamed wire so per-page progress
+ * can be reported while the result is still assembled in memory for the
+ * atomic splice/restore paths. Byte-identical result either way.
+ */
+async function fetchSegmentsSnapshot(params: {
+  client: RemoteSessionFetchOptions["client"];
+  orgId: string;
+  sessionRowId: string;
+  afterSeq: number;
+  shareToken: string | undefined;
+  signal: AbortSignal | undefined;
+  baseEventCount: number;
+  onProgress: RemoteSessionFetchOptions["onProgress"];
+}): Promise<SessionEventSegmentsSnapshot> {
+  const stream = params.client.streamSessionEventSegments;
+  if (!stream) {
+    return params.client.getSessionEventSegments({
+      orgId: params.orgId,
+      sessionRowId: params.sessionRowId,
+      afterSeq: params.afterSeq,
+      shareToken: params.shareToken,
+      signal: params.signal,
+    });
+  }
+  const segments: SessionEventSegmentRecord[] = [];
+  let loadedEvents = params.baseEventCount;
+  const summary = await stream(
+    {
+      orgId: params.orgId,
+      sessionRowId: params.sessionRowId,
+      afterSeq: params.afterSeq,
+      shareToken: params.shareToken,
+      signal: params.signal,
+    },
+    async (page) => {
+      throwIfAborted(params.signal);
+      segments.push(...page.segments);
+      loadedEvents += page.segments.reduce(
+        (count, segment) => count + segment.events.length,
+        0
+      );
+      params.onProgress?.({
+        loadedEvents,
+        totalEvents: page.count ?? null,
+      });
+    }
+  );
+  return { ...summary, segments };
+}
+
 export async function fetchAndAssembleSegments(
   options: RemoteSessionFetchOptions,
   afterSeq: number,
   baseFrozenEvents: SessionEvent[],
   expectedEpoch: number | null
 ): Promise<AssembledSegments | null> {
-  const { client, orgId, remoteSession, shareToken, signal } = options;
-  const snapshot = await client.getSessionEventSegments({
+  const { client, orgId, remoteSession, shareToken, signal, onProgress } =
+    options;
+  const snapshot = await fetchSegmentsSnapshot({
+    client,
     orgId,
     sessionRowId: remoteSession.id,
     afterSeq,
     shareToken,
     signal,
+    baseEventCount: baseFrozenEvents.length,
+    onProgress,
   });
   if (snapshot.epoch === null || snapshot.count === null) return null;
   // The snapshot is authoritative over the (possibly stale) list summary; a

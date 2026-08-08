@@ -57,7 +57,17 @@ pub fn spawn_trigger(
             event_tx,
         ),
         AutomationTrigger::Cron { expression } => {
-            timer::spawn_cron(rule_id, expression.clone(), event_tx)
+            // Orgtrack migration (Phase 5): recurring execution belongs to
+            // the Routine subsystem — this was the third parallel cron
+            // path. Persisted cron rules still load (no data break) but
+            // no longer spawn an execution loop.
+            tracing::warn!(
+                "[automation] cron trigger '{}' on rule '{}' no longer fires; \
+                 recurring execution moved to Routines",
+                expression,
+                rule_id
+            );
+            None
         }
         AutomationTrigger::GitActivity {
             events,

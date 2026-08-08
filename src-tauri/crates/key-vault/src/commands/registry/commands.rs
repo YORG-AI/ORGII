@@ -124,11 +124,11 @@ fn detect_cli_installation(
 
 fn resolve_cli_config_path(kind: CliConfigPathKind, relative_path: &str) -> String {
     let base = match kind {
-        CliConfigPathKind::HomeRelative => app_paths::home_dir(),
-        CliConfigPathKind::XdgConfigRelative => std::env::var_os("XDG_CONFIG_HOME")
+        CliConfigPathKind::Home => app_paths::home_dir(),
+        CliConfigPathKind::XdgConfig => std::env::var_os("XDG_CONFIG_HOME")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| app_paths::home_dir().join(".config")),
-        CliConfigPathKind::AppDataRelative => std::env::var_os("APPDATA")
+        CliConfigPathKind::AppData => std::env::var_os("APPDATA")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| app_paths::home_dir().join(".config")),
     };

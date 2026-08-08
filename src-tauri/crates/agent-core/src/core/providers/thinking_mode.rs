@@ -50,7 +50,7 @@ impl ReasoningLevel {
             "medium" => Some(Self::Medium),
             "high" => Some(Self::High),
             "extra" | "extra-high" | "xhigh" => Some(Self::ExtraHigh),
-            "max" => Some(Self::Max),
+            "max" | "ultra" => Some(Self::Max),
             "ultracode" => Some(Self::Ultracode),
             _ => None,
         }
@@ -117,6 +117,7 @@ const SUFFIX_TOKENS: &[&str] = &[
     "extra-high",
     "xhigh",
     "max",
+    "ultra",
     "ultracode",
     "minimal",
     "thinking",
@@ -642,6 +643,14 @@ mod tests {
         assert_eq!(p.base_model, "claude-fable-5");
         assert_eq!(p.level, Some(ReasoningLevel::Ultracode));
         assert!(!p.thinking);
+    }
+
+    #[test]
+    fn parses_codex_ultra_as_max() {
+        let p = parse_model_variant("gpt-5.6-sol-ultra-fast");
+        assert_eq!(p.base_model, "gpt-5.6-sol");
+        assert_eq!(p.level, Some(ReasoningLevel::Max));
+        assert!(p.fast);
     }
 
     #[test]

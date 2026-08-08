@@ -34,10 +34,18 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
         return Err("No user input found for session — cannot resume.".to_string());
     }
 
-    let cli_resume_id =
-        persistence::get_cli_session_id_for_account(&session_id, session.account_id.as_deref())
-            .map_err(|err| format!("DB error: {}", err))?
-            .or(session.cli_session_id);
+    let resume_lookup_session_id = session_id.clone();
+    let resume_lookup_account_id = session.account_id.clone();
+    let cli_resume_id = tokio::task::spawn_blocking(move || {
+        persistence::get_cli_session_id_for_account(
+            &resume_lookup_session_id,
+            resume_lookup_account_id.as_deref(),
+        )
+        .map_err(|err| format!("DB error: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Task error: {err}"))??
+    .or(session.cli_session_id);
 
     // Guard before expensive cleanup. Do not hold the global RUNNING_SESSIONS
     // mutex across process/proxy/DB awaits: one slow resume cleanup must not
@@ -73,22 +81,62 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
     // Stop any stale per-session proxy from a previous run
     integrations::proxy::server::stop_session_proxy(&session_id).await;
 
-    // Reset status to pending
-    persistence::update_status(&session_id, SessionStatus::Pending)
-        .map_err(|e| format!("DB error: {}", e))?;
+    // Accept the resumed turn exactly like the create path: session + intent go
+    // Running together and the frontend gets a `running` event carrying the
+    // intent, so the terminal event below can be attributed to this turn.
+    let turn_intent_id = super::run::new_turn_intent_id();
+    let accept_session_id = session_id.clone();
+    let accept_turn_intent_id = turn_intent_id.clone();
+    tokio::task::spawn_blocking(move || {
+        persistence::accept_cli_resume_turn(&accept_session_id, &accept_turn_intent_id)
+            .map_err(|err| format!("failed to accept CLI resume turn lifecycle: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Task error: {err}"))??;
+    let mut running_msg = serde_json::json!({
+        "type": "code_session.status_changed",
+        "session_id": session_id,
+        "status": "running",
+    });
+    running_msg["turn_intent_id"] = serde_json::Value::String(turn_intent_id.clone());
+    crate::api::websocket_handler::broadcast(running_msg.to_string());
 
     let sid = session_id.clone();
     let input = user_input.clone();
+    let runner_turn_intent_id = turn_intent_id.clone();
 
     let handle = tokio::spawn(async move {
-        if let Err(e) =
-            session_runner::run_session(sid.clone(), input, cli_resume_id, None, None, None).await
+        if let Err(e) = session_runner::run_session(
+            sid.clone(),
+            input,
+            cli_resume_id,
+            None,
+            None,
+            Some(&runner_turn_intent_id),
+        )
+        .await
         {
             tracing::error!("[CodeSession] Resume of {} failed: {}", sid, e);
             // Same fail-loud principle as the create path above: log the
             // persistence failure so a stuck Running row is traceable.
-            if let Err(persist_err) =
-                persistence::update_status_with_error(&sid, SessionStatus::Failed, &e)
+            let failed_sid = sid.clone();
+            let failed_error = e.clone();
+            let failed_intent = runner_turn_intent_id.clone();
+            let persist_result = tokio::task::spawn_blocking(move || {
+                persistence::update_cli_turn_lifecycle(
+                    &failed_sid,
+                    SessionStatus::Failed,
+                    Some(&failed_error),
+                    Some((
+                        &failed_intent,
+                        session_persistence::turn_intents::TurnIntentStatus::Failed,
+                    )),
+                )
+            })
+            .await;
+            if let Err(persist_err) = persist_result
+                .map_err(|err| err.to_string())
+                .and_then(|result| result)
             {
                 tracing::error!(
                     "[CodeSession] failed to mark resumed session {} as Failed: {}",
@@ -98,6 +146,16 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
             }
             integrations::proxy::server::stop_session_proxy(&sid).await;
             session_runner::release_proxy_token_for_session_pub(&sid).await;
+            // `cli_agent_resume` already returned Ok by the time we get here, so
+            // this broadcast is the frontend's only failure signal — without it
+            // the panel stays in its optimistic running state and no failure
+            // notification fires.
+            super::failure_broadcast::broadcast_async_run_failure(
+                &sid,
+                &e,
+                Some(&runner_turn_intent_id),
+            )
+            .await;
         }
         session_runner::RUNNING_SESSIONS.lock().await.remove(&sid);
     });

@@ -12,7 +12,13 @@
  * - canvas:a2ui_push   — Push A2UI JSONL content (accumulated incrementally)
  * - canvas:a2ui_reset  — Reset A2UI state
  */
-import { ExternalLink, Layout, Maximize2, Minimize2, X } from "lucide-react";
+import {
+  Layout,
+  Maximize2,
+  Minimize2,
+  SquareArrowOutUpRight,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -198,7 +204,7 @@ function CanvasApp(props: SimulatorAppProps) {
               aria-label={t("simulator.replay.canvas.tooltipOpenInBrowser")}
               size="sm"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
+              <SquareArrowOutUpRight className="h-3.5 w-3.5" />
             </IconButton>
           )}
           <IconButton

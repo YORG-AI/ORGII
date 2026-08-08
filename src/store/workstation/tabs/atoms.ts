@@ -23,6 +23,7 @@ import {
   type WorkstationTabsStateV3,
   type WorkstationWorkspaceKey,
   type WorkstationWorkspaceState,
+  closesSharedResourceOnDismiss,
   getWorkstationTabOwnership,
 } from "./types";
 
@@ -257,6 +258,13 @@ export interface ScopedWorkstationTabRequest {
   tab: WorkStationTab;
 }
 
+export interface CloseWorkstationTabsRequest {
+  workspace: WorkstationWorkspaceKey;
+  tabIds: readonly string[];
+  /** Preserve bulk-close selection semantics when the active tab is removed. */
+  activeTabId?: string | null;
+}
+
 function updateScopedPanel(
   state: WorkstationTabsStateV3,
   workspace: WorkstationWorkspaceKey,
@@ -280,20 +288,100 @@ export const openWorkstationTabAtom = atom(
 );
 openWorkstationTabAtom.debugLabel = "openWorkstationTabAtom";
 
+function removeSharedTabsFromState(
+  state: WorkstationTabsStateV3,
+  tabIds: ReadonlySet<string>
+): WorkstationTabsStateV3 {
+  if (
+    tabIds.size === 0 ||
+    !state.shared.tabs.some((tab) => tabIds.has(tab.id))
+  ) {
+    return state;
+  }
+
+  const removeRefs = (
+    workspace: WorkstationWorkspaceState
+  ): WorkstationWorkspaceState => {
+    const tabOrder = workspace.tabOrder.filter(
+      (ref) => !(ref.partition === "shared" && tabIds.has(ref.tabId))
+    );
+    const activeTabRef =
+      workspace.activeTabRef?.partition === "shared" &&
+      tabIds.has(workspace.activeTabRef.tabId)
+        ? (tabOrder[0] ?? null)
+        : workspace.activeTabRef;
+    return { ...workspace, activeTabRef, tabOrder };
+  };
+
+  return {
+    ...state,
+    shared: {
+      tabs: state.shared.tabs.filter((tab) => !tabIds.has(tab.id)),
+    },
+    globalWorkspace: removeRefs(state.globalWorkspace),
+    sessionWorkspaces: Object.fromEntries(
+      Object.entries(state.sessionWorkspaces).map(([sessionId, workspace]) => [
+        sessionId,
+        removeRefs(workspace),
+      ])
+    ),
+  };
+}
+
+/**
+ * Canonical explicit-close path. Workspace-local and lightweight shared tabs
+ * are removed only from the requested workspace. Live Browser/Terminal tabs
+ * also lose their global resource record, which drives owner teardown.
+ */
+export const closeWorkstationTabsAtom = atom(
+  null,
+  (get, set, request: CloseWorkstationTabsRequest) => {
+    const state = get(workstationTabsStateAtom);
+    const panel = composePanel(state, request.workspace);
+    const requestedIds = new Set(request.tabIds);
+    const tabsToClose = panel.tabs.filter((tab) => requestedIds.has(tab.id));
+    if (tabsToClose.length === 0) return;
+
+    let nextPanel = panel;
+    for (const tab of tabsToClose) {
+      nextPanel = closeTabMutation(nextPanel, tab.id);
+    }
+    if (request.activeTabId !== undefined) {
+      const requestedActiveExists = nextPanel.tabs.some(
+        (tab) => tab.id === request.activeTabId
+      );
+      nextPanel = {
+        ...nextPanel,
+        activeTabId: requestedActiveExists ? request.activeTabId : null,
+      };
+    }
+
+    const resourceIds = new Set(
+      tabsToClose
+        .filter((tab) => closesSharedResourceOnDismiss(tab.type))
+        .map((tab) => tab.id)
+    );
+
+    const nextState = removeSharedTabsFromState(
+      splitPanel(state, request.workspace, nextPanel),
+      resourceIds
+    );
+    setAndPersist(set, nextState);
+  }
+);
+closeWorkstationTabsAtom.debugLabel = "closeWorkstationTabsAtom";
+
 export const closeWorkstationTabAtom = atom(
   null,
   (
-    get,
+    _get,
     set,
     request: { workspace: WorkstationWorkspaceKey; tabId: string }
   ) => {
-    const state = get(workstationTabsStateAtom);
-    setAndPersist(
-      set,
-      updateScopedPanel(state, request.workspace, (panel) =>
-        closeTabMutation(panel, request.tabId)
-      )
-    );
+    set(closeWorkstationTabsAtom, {
+      workspace: request.workspace,
+      tabIds: [request.tabId],
+    });
   }
 );
 closeWorkstationTabAtom.debugLabel = "closeWorkstationTabAtom";
@@ -305,38 +393,23 @@ closeWorkstationTabAtom.debugLabel = "closeWorkstationTabAtom";
  */
 export const removeSharedWorkstationTabAtom = atom(
   null,
-  (get, set, tabId: string) => {
-    const state = get(workstationTabsStateAtom);
-    if (!state.shared.tabs.some((tab) => tab.id === tabId)) return;
-    const removeRef = (workspace: WorkstationWorkspaceState) => {
-      const tabOrder = workspace.tabOrder.filter(
-        (ref) => !(ref.partition === "shared" && ref.tabId === tabId)
-      );
-      return {
-        ...workspace,
-        activeTabRef:
-          workspace.activeTabRef?.partition === "shared" &&
-          workspace.activeTabRef.tabId === tabId
-            ? (tabOrder[0] ?? null)
-            : workspace.activeTabRef,
-        tabOrder,
-      };
-    };
-    setAndPersist(set, {
-      ...state,
-      shared: {
-        tabs: state.shared.tabs.filter((tab) => tab.id !== tabId),
-      },
-      globalWorkspace: removeRef(state.globalWorkspace),
-      sessionWorkspaces: Object.fromEntries(
-        Object.entries(state.sessionWorkspaces).map(
-          ([sessionId, workspace]) => [sessionId, removeRef(workspace)]
-        )
-      ),
-    });
+  (_get, set, tabId: string) => {
+    set(removeSharedWorkstationTabsAtom, [tabId]);
   }
 );
 removeSharedWorkstationTabAtom.debugLabel = "removeSharedWorkstationTabAtom";
+
+/** Remove multiple shared resources and every workspace reference in one write. */
+export const removeSharedWorkstationTabsAtom = atom(
+  null,
+  (get, set, tabIds: readonly string[]) => {
+    const state = get(workstationTabsStateAtom);
+    const next = removeSharedTabsFromState(state, new Set(tabIds));
+    if (next === state) return;
+    setAndPersist(set, next);
+  }
+);
+removeSharedWorkstationTabsAtom.debugLabel = "removeSharedWorkstationTabsAtom";
 
 export const focusWorkstationTabAtom = atom(
   null,

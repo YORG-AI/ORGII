@@ -3,10 +3,12 @@
 //! [`super::usage_overview`] streaming pass — including the mirror-exclusion
 //! and bucket/time-window invariants the module doc comment calls out.
 
+use super::rounds::{native_turn_candidates_for_filter, native_turn_query_plan};
 use super::*;
 use crate::session_usage::recompute_session_usage;
 use crate::store::sqlite::SqliteRecordStore;
 use rusqlite::params;
+use std::collections::HashSet;
 
 fn fixture_conn() -> Connection {
     let conn = Connection::open_in_memory().expect("in-memory sqlite");
@@ -43,7 +45,9 @@ fn fixture_conn() -> Connection {
             account_id TEXT,
             key_source TEXT,
             updated_at TEXT
-         );",
+         );
+         CREATE INDEX idx_stu_session_created_at_id
+             ON session_token_usage(session_id, created_at, id);",
     )
     .expect("create app-owned tables");
     conn
@@ -764,6 +768,60 @@ fn daily_rollup_window_clips_rounds() {
 }
 
 #[test]
+fn daily_rollup_derives_a_true_rolling_24h_snapshot_in_the_same_scan() {
+    let conn = fixture_conn();
+    insert_code_session(
+        &conn,
+        "rolling-claude",
+        "claude",
+        "Rolling window",
+        "2026-07-18T12:00:00+00:00",
+    );
+    insert_turn(
+        &conn,
+        "rolling-claude",
+        "claude-sonnet-4-5",
+        (100, 10, 0, 0),
+        "2026-07-17T11:59:59.999Z",
+    );
+    insert_turn(
+        &conn,
+        "rolling-claude",
+        "claude-sonnet-4-5",
+        (200, 20, 30, 40),
+        "2026-07-17T12:00:00Z",
+    );
+    recompute_session_usage(&conn, "rolling-claude")
+        .unwrap()
+        .expect("rolling session projected");
+
+    let end_ms = ms("2026-07-18T12:00:00Z");
+    let rollup = usage_daily_rollup(&conn, ms("2026-07-01T00:00:00Z"), end_ms)
+        .expect("daily + rolling rollup");
+
+    assert_eq!(rollup.recent_usage_24h.start_ms, ms("2026-07-17T12:00:00Z"));
+    assert_eq!(rollup.recent_usage_24h.end_ms, end_ms);
+    assert_eq!(rollup.recent_usage_24h.summary.input_tokens, 200);
+    assert_eq!(rollup.recent_usage_24h.summary.output_tokens, 20);
+    assert_eq!(rollup.recent_usage_24h.summary.cache_read_tokens, 30);
+    assert_eq!(rollup.recent_usage_24h.summary.cache_write_tokens, 40);
+    assert_eq!(rollup.recent_usage_24h.summary.session_count, 1);
+    assert_eq!(rollup.recent_usage_24h.summary.request_count, 1);
+    assert_eq!(rollup.recent_usage_24h.trends.len(), 1);
+    assert_eq!(
+        rollup.recent_usage_24h.trends[0].bucket_ms,
+        ms("2026-07-17T12:00:00Z")
+    );
+
+    // The daily sync window still contains both rounds; the rolling snapshot
+    // alone excludes the row one millisecond before the 24h boundary.
+    assert_eq!(
+        rollup.days.iter().map(|row| row.input_tokens).sum::<i64>(),
+        300
+    );
+}
+
+#[test]
 fn daily_rollup_skips_zero_usage_cells() {
     let conn = seeded_conn();
     // A zero-token turn on an otherwise idle day: the cell would carry a
@@ -793,7 +851,7 @@ fn daily_rollup_skips_zero_usage_cells() {
 }
 
 #[test]
-fn daily_rollup_native_window_pushdown_matches_unwindowed_rust_filter() {
+fn native_window_pushdown_preserves_inclusive_millisecond_bounds() {
     // A fresh, minimal fixture (not `seeded_conn`) so the boundary math below
     // is easy to check by hand without other fixture rows in range.
     let conn = fixture_conn();
@@ -862,22 +920,143 @@ fn daily_rollup_native_window_pushdown_matches_unwindowed_rust_filter() {
         all_sources: true,
     };
 
-    // Reference: the pre-existing unwindowed native fetch + Rust-side
-    // `filter.contains` (what every non-rollup caller still uses).
-    let unwindowed =
-        usage_rounds(&conn, &filter, SessionSort::Recent, 0, 100).expect("unwindowed rounds");
-    assert_eq!(unwindowed.len(), 2);
+    // Interactive and unattended callers now share the SQL-pushed-down path.
+    let interactive =
+        usage_rounds(&conn, &filter, SessionSort::Recent, 0, 100).expect("interactive rounds");
+    assert_eq!(interactive.len(), 2);
     assert_eq!(
-        unwindowed.iter().map(|r| r.input_tokens).sum::<i64>(),
+        interactive.iter().map(|r| r.input_tokens).sum::<i64>(),
         222 + 333
     );
 
-    // The SQL-pushed-down path `daily_rollup` exercises must agree exactly.
+    // The daily rollup must retain the same inclusive millisecond semantics.
     let rollup = usage_daily_rollup(&conn, boundary_ms, boundary_ms).expect("daily rollup");
     assert_eq!(rollup.days.len(), 1);
     assert_eq!(rollup.days[0].bucket, "claude");
     assert_eq!(rollup.days[0].requests, 2);
     assert_eq!(rollup.days[0].input_tokens, 222 + 333);
+}
+
+#[test]
+fn interactive_native_query_loads_only_windowed_scoped_rows_and_uses_stable_ids() {
+    let conn = fixture_conn();
+    insert_code_session(
+        &conn,
+        "windowed-claude",
+        "claude",
+        "Windowed Claude",
+        "2026-07-18T02:00:00+00:00",
+    );
+    conn.execute(
+        "INSERT INTO agent_sessions
+            (session_id, name, model, account_id, key_source, updated_at)
+         VALUES
+            ('windowed-org2', 'Windowed Org2', 'gpt-5', 'acct-1', 'own_key',
+             '2026-07-18T02:00:00+00:00')",
+        [],
+    )
+    .expect("insert out-of-source session");
+
+    // Large lifetime tail for the in-scope session. The old interactive path
+    // mapped every one of these rows before dropping them in Rust.
+    for index in 0..1_000 {
+        insert_turn(
+            &conn,
+            "windowed-claude",
+            "claude-sonnet-4-5",
+            (index + 1, 0, 0, 0),
+            "2025-01-01T00:00:00+00:00",
+        );
+    }
+    insert_turn(
+        &conn,
+        "windowed-claude",
+        "claude-sonnet-4-5",
+        (2_001, 0, 0, 0),
+        "2026-07-18T02:00:00+00:00",
+    );
+    let first_target_id = conn.last_insert_rowid();
+    insert_turn(
+        &conn,
+        "windowed-claude",
+        "claude-sonnet-4-5",
+        (2_002, 0, 0, 0),
+        "2026-07-18T02:00:00.000700+00:00",
+    );
+    let second_target_id = conn.last_insert_rowid();
+    insert_turn(
+        &conn,
+        "windowed-org2",
+        "gpt-5",
+        (9_999, 0, 0, 0),
+        "2026-07-18T02:00:00+00:00",
+    );
+    recompute_session_usage(&conn, "windowed-claude")
+        .unwrap()
+        .expect("claude projected");
+    recompute_session_usage(&conn, "windowed-org2")
+        .unwrap()
+        .expect("org2 projected");
+
+    let boundary_ms = ms("2026-07-18T02:00:00Z");
+    let filter = UsageFilter {
+        bucket: Some(BUCKET_CLAUDE.to_string()),
+        start_ms: Some(boundary_ms),
+        end_ms: Some(boundary_ms),
+        session_id: None,
+        all_sources: false,
+    };
+    let lifetime_rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM session_token_usage", [], |row| {
+            row.get(0)
+        })
+        .expect("lifetime row count");
+    assert_eq!(lifetime_rows, 1_003);
+    assert_eq!(
+        native_turn_candidates_for_filter(&conn, &filter).expect("windowed candidates"),
+        2,
+        "only the two in-window Claude rows should cross into Rust"
+    );
+
+    let rows = usage_rounds(&conn, &filter, SessionSort::Recent, 0, 100).expect("windowed rounds");
+    assert_eq!(rows.len(), 2);
+    let round_ids = rows
+        .iter()
+        .map(|row| row.round_id.clone())
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        round_ids,
+        HashSet::from([
+            format!("windowed-claude#{first_target_id}"),
+            format!("windowed-claude#{second_target_id}"),
+        ])
+    );
+
+    // Changing the time window must not renumber the same database rows.
+    let broad = usage_rounds(
+        &conn,
+        &UsageFilter {
+            bucket: Some(BUCKET_CLAUDE.to_string()),
+            ..UsageFilter::default()
+        },
+        SessionSort::Recent,
+        0,
+        2_000,
+    )
+    .expect("broad rounds");
+    assert!(broad
+        .iter()
+        .any(|row| row.round_id == format!("windowed-claude#{first_target_id}")));
+    assert!(broad
+        .iter()
+        .any(|row| row.round_id == format!("windowed-claude#{second_target_id}")));
+
+    let plan = native_turn_query_plan(&conn, &filter).expect("native query plan");
+    assert!(
+        plan.iter()
+            .any(|detail| detail.contains("idx_stu_session_created_at_id")),
+        "windowed native query must use the canonical scoped-window index: {plan:?}"
+    );
 }
 
 #[test]
@@ -897,6 +1076,16 @@ fn daily_rollup_serializes_camel_case() {
     let json = serde_json::to_value(DailyRollup {
         days: vec![row],
         total_sessions: 42,
+        recent_usage_24h: RecentUsageSnapshot {
+            start_ms: 1_784_332_800_000,
+            end_ms: 1_784_419_200_000,
+            summary: UsageSummary::default(),
+            trends: vec![UsageTrendPoint {
+                bucket_ms: 1_784_332_800_000,
+                input_tokens: 5,
+                ..UsageTrendPoint::default()
+            }],
+        },
     })
     .expect("serialize rollup");
     assert_eq!(json["totalSessions"], 42);
@@ -911,4 +1100,7 @@ fn daily_rollup_serializes_camel_case() {
     assert_eq!(row["costUsd"], 0.5);
     assert_eq!(row["sessions"], 1);
     assert_eq!(row["requests"], 2);
+    assert_eq!(json["recentUsage24h"]["startMs"], 1_784_332_800_000_i64);
+    assert_eq!(json["recentUsage24h"]["endMs"], 1_784_419_200_000_i64);
+    assert_eq!(json["recentUsage24h"]["trends"][0]["inputTokens"], 5);
 }

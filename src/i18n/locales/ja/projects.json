@@ -79,7 +79,7 @@
     "heading": "GitHub Issues から Project を作成",
     "description": "GitHub リポジトリを選択し、ORGII Project を作成して、GitHub Issues を work items として同期します。",
     "importButton": "GitHub Issues をインポート",
-    "projectDescription": "{{owner}}/{{repo}} の GitHub Issues から同期。",
+    "projectDescription": "GitHub Issues · {{owner}}/{{repo}}",
     "fields": {
       "projectName": "Project 名",
       "repo": "GitHub リポジトリ",

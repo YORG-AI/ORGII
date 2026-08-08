@@ -392,17 +392,8 @@ pub(crate) fn detect_push_error_type(message: &str) -> GitErrorType {
 }
 
 /// Push to remote
-pub fn push_to_remote(
-    repo_path: &Path,
-    remote: Option<&str>,
-    branch: Option<&str>,
-    set_upstream: bool,
-    force: bool,
-    auth_username: Option<&str>,
-    auth_token: Option<&str>,
-    store_auth: bool,
-) -> Result<GitPushResult, String> {
-    let remote_name = remote.unwrap_or("origin");
+pub fn push_to_remote(repo_path: &Path, request: &PushRequest) -> Result<GitPushResult, String> {
+    let remote_name = request.remote.as_deref().unwrap_or("origin");
 
     // Get current branch name
     let current_branch = run_git(repo_path, &["rev-parse", "--abbrev-ref", "HEAD"])
@@ -424,7 +415,7 @@ pub fn push_to_remote(
     // 1. Explicitly requested
     // 2. No upstream exists
     // 3. Upstream branch name doesn't match local branch name (renamed branch scenario)
-    let needs_set_upstream = set_upstream
+    let needs_set_upstream = request.set_upstream
         || upstream_branch.as_ref().is_none_or(|upstream| {
             if let Some(ref current) = current_branch {
                 // Extract branch name from "origin/branch-name"
@@ -441,14 +432,14 @@ pub fn push_to_remote(
         args.push("-u");
     }
 
-    if force {
+    if request.force {
         args.push("--force");
     }
 
     args.push(remote_name);
 
     // Use explicit branch name if provided, otherwise use current branch
-    if let Some(b) = branch {
+    if let Some(b) = request.branch.as_deref() {
         args.push(b);
     } else if let Some(ref cb) = current_branch {
         // Push current branch to same-named remote branch
@@ -457,7 +448,13 @@ pub fn push_to_remote(
 
     log::info!("[GitAPI] Executing: git {:?}", args);
 
-    let output = run_remote_git(repo_path, &args, auth_username, auth_token, store_auth)?;
+    let output = run_remote_git(
+        repo_path,
+        &args,
+        request.auth_username.as_deref(),
+        request.auth_token.as_deref(),
+        request.store_auth,
+    )?;
 
     let message = if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);

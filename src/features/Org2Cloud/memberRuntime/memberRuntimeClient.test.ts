@@ -177,7 +177,45 @@ describe("listMemberRuntime", () => {
             reportedAt: "2026-07-29T09:00:00Z",
             machine: STATUS_INPUT.status?.machine,
             sample: STATUS_INPUT.status?.sample,
-            stats: { totalSessions: 321 },
+            stats: {
+              totalSessions: 321,
+              recentUsage24h: {
+                startMs: 1_753_000_000_000,
+                endMs: 1_753_086_400_000,
+                summary: {
+                  sessionCount: 2,
+                  requestCount: 3,
+                  inputTokens: 10,
+                  outputTokens: 20,
+                  cacheReadTokens: 30,
+                  cacheWriteTokens: 40,
+                  realTotalTokens: 100,
+                  totalTokens: 100,
+                  costUsd: 1.25,
+                  estimatedCostUsd: 1.25,
+                  recordedCostUsd: 0,
+                  cacheHitRate: 0.375,
+                  byBucket: [
+                    {
+                      bucket: "claude",
+                      sessionCount: 2,
+                      realTotalTokens: 100,
+                      costUsd: 1.25,
+                    },
+                  ],
+                },
+                trends: [
+                  {
+                    bucketMs: 1_753_000_000_000,
+                    inputTokens: 10,
+                    outputTokens: 20,
+                    cacheReadTokens: 30,
+                    cacheWriteTokens: 40,
+                    costUsd: 1.25,
+                  },
+                ],
+              },
+            },
             builderTypeCode: "MDFS",
             profile: { code: "MDFS", axes: [], extraFutureField: 1 },
             installedAgents: [{ id: "claude", status: "installed" }],
@@ -206,6 +244,10 @@ describe("listMemberRuntime", () => {
             reportedAt: null,
             machine: { totally: "malformed" },
             sample: "not-an-object",
+            stats: {
+              totalSessions: 7,
+              recentUsage24h: { startMs: "malformed" },
+            },
             builderTypeCode: null,
             profile: null,
             installedAgents: "garbage",
@@ -223,7 +265,9 @@ describe("listMemberRuntime", () => {
     expect(members[0].userId).toBe("user-1");
     expect(members[0].machine?.deviceId).toBe("dev-1");
     expect(members[0].sample?.cpuPercent).toBe(42.5);
-    expect(members[0].stats).toEqual({ totalSessions: 321 });
+    expect(members[0].stats?.totalSessions).toBe(321);
+    expect(members[0].stats?.recentUsage24h?.summary.realTotalTokens).toBe(100);
+    expect(members[0].stats?.recentUsage24h?.trends).toHaveLength(1);
     expect(members[0].profile?.code).toBe("MDFS");
     expect(members[0].installedAgents).toEqual([
       { id: "claude", status: "installed" },
@@ -234,7 +278,10 @@ describe("listMemberRuntime", () => {
     expect(members[1].displayName).toBeNull();
     expect(members[1].machine).toBeNull();
     expect(members[1].sample).toBeNull();
-    expect(members[1].stats).toBeNull();
+    expect(members[1].stats).toEqual({
+      totalSessions: 7,
+      recentUsage24h: undefined,
+    });
     expect(members[1].profile).toBeNull();
     expect(members[1].installedAgents).toEqual([]);
     expect(members[1].recentDays).toEqual([]);

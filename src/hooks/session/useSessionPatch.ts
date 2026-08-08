@@ -44,6 +44,11 @@ interface PatchOptions {
   accountId?: string;
   agentExecMode?: string;
   /**
+   * Persistent product mode (orgtrack/v1 §5.2): build|plan|ask|project.
+   * Validated as a closed enum on the Rust side; agent sessions only.
+   */
+  productMode?: string;
+  /**
    * Three-state per-session draft text (P3):
    *   undefined → leave column alone
    *   null      → clear the draft (composer was emptied / message sent)
@@ -81,6 +86,11 @@ function patchWouldChangeSession(
   if (
     options.agentExecMode !== undefined &&
     before.agentExecMode !== options.agentExecMode
+  )
+    return true;
+  if (
+    options.productMode !== undefined &&
+    before.productMode !== options.productMode
   )
     return true;
   if (
@@ -149,6 +159,8 @@ function usePatchSession(): {
         optimistic.accountId = options.accountId;
       if (options.agentExecMode !== undefined)
         optimistic.agentExecMode = options.agentExecMode;
+      if (options.productMode !== undefined)
+        optimistic.productMode = options.productMode;
       // Three-state fields: `null` clears (write `undefined` into the
       // optimistic session, since the Session type uses `undefined` for
       // "no value"); a string sets; a property left absent on `options`
@@ -179,6 +191,7 @@ function usePatchSession(): {
             model: options.model,
             accountId: options.accountId,
             agentExecMode: options.agentExecMode,
+            productMode: options.productMode,
             // Forward the tri-state values verbatim. zod's
             // `.nullable().optional()` lines up with the Rust double-
             // Option deserialize: undefined skips, null clears, string
@@ -280,6 +293,29 @@ export function useSessionExecModeField(sessionId: string) {
   return {
     agentExecMode: session?.agentExecMode,
     setMode,
+    isPatching,
+    error,
+  };
+}
+
+/**
+ * Read+write the per-session product mode (`orgtrack/v1` §5.2:
+ * build|plan|ask|project). `undefined` = build. Only agent sessions
+ * carry a product mode — the Rust side rejects CLI/imported sessions,
+ * so callers must not render a Project selector for those.
+ */
+export function useSessionProductModeField(sessionId: string) {
+  const session = useAtomValue(sessionByIdAtom(sessionId));
+  const { patch, isPatching, error } = usePatchSession();
+
+  const setProductMode = useCallback(
+    (mode: string) => patch(sessionId, { productMode: mode }),
+    [patch, sessionId]
+  );
+
+  return {
+    productMode: session?.productMode,
+    setProductMode,
     isPatching,
     error,
   };

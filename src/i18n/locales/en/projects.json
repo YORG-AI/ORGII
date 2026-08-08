@@ -78,7 +78,7 @@
     "heading": "Create a project from GitHub Issues",
     "description": "Pick a GitHub repository, create an ORGII project, and keep its GitHub Issues synced as work items.",
     "importButton": "Import GitHub Issues",
-    "projectDescription": "Synced from GitHub Issues in {{owner}}/{{repo}}.",
+    "projectDescription": "GitHub Issues · {{owner}}/{{repo}}",
     "fields": {
       "projectName": "Project name",
       "repo": "GitHub repository",
@@ -717,6 +717,11 @@
         "notAttached": "Not attached",
         "attach": "Attach",
         "detach": "Detach",
+        "detachProjectMenuLabel": "Unlink GitHub",
+        "detachProjectTitle": "Unlink GitHub from {{project}}?",
+        "detachProjectDescription": "GitHub Issues sync will stop. The local project and imported work items will stay in ORGII.",
+        "detachProjectAction": "Unlink GitHub from {{project}}",
+        "detachProjectSuccess": "GitHub unlinked from {{project}}",
         "changeWarning": "Detach the current adapter before attaching a new one."
       },
       "accountPicker": {

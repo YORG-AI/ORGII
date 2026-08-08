@@ -12,8 +12,8 @@ import type { WorkspaceSnapshot } from "@src/services/context/workspaceSnapshot"
 import type { SessionStatus } from "@src/types/session/session";
 
 import type {
-  AgentExecModeConfig,
   AgentStatusInfo,
+  DeleteSessionReceipt,
   FileResolution,
   FileResolutionValue,
   HousekeeperContextCompactionState,
@@ -119,7 +119,9 @@ export async function listAllSessions(): Promise<SessionMeta[]> {
   return rpc.agentSession.listAllSessions();
 }
 
-export async function deleteSession(sessionId: string): Promise<void> {
+export async function deleteSession(
+  sessionId: string
+): Promise<DeleteSessionReceipt> {
   return rpc.agentSession.deleteSession({ sessionId });
 }
 
@@ -183,6 +185,18 @@ export async function linkSessionToWorkItem(input: {
   agentRole?: string;
 }): Promise<SessionMeta> {
   return rpc.agentSession.linkSessionToWorkItem(input);
+}
+
+/** Track this / Convert to Project (orgtrack/v1 §7.2): switch the
+ *  session to the Project product mode, invalidate any pending Plan
+ *  snapshot, and create-or-replay the root WorkItem from the recorded
+ *  first user input. */
+export async function trackSessionAsProject(sessionId: string): Promise<{
+  productMode: string;
+  agentExecMode: string;
+  workItemId?: string | null;
+}> {
+  return rpc.agentSession.trackSessionAsProject({ sessionId });
 }
 
 export async function respondQuestion(
@@ -395,10 +409,6 @@ export async function revertFile(
 
 export async function getTodos(sessionId: string): Promise<TodoItem[]> {
   return rpc.agentSession.getTodos({ sessionId });
-}
-
-export async function listModes(): Promise<AgentExecModeConfig[]> {
-  return rpc.agentSession.listModes();
 }
 
 export async function resolveReview(sessionId: string): Promise<number> {

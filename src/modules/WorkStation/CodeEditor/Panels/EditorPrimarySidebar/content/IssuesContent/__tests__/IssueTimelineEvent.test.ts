@@ -8,14 +8,18 @@ import { IssueTimelineEventRow } from "../IssueTimelineEvent";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string | Record<string, unknown>) =>
-      typeof fallback === "string"
+    t: (key: string, fallback?: string | Record<string, unknown>) => {
+      if (key === "git.issues.activity.commentDeleted") {
+        return "localized deleted comment";
+      }
+      return typeof fallback === "string"
         ? fallback
         : typeof fallback?.defaultValue === "string"
           ? fallback.defaultValue.replace(/{{(\w+)}}/g, (_, name: string) =>
               String(fallback[name] ?? "")
             )
-          : key,
+          : key;
+    },
   }),
 }));
 
@@ -87,6 +91,25 @@ describe("IssueTimelineEventRow", () => {
     expect(markup).toContain("max-w-full");
     expect(markup).toContain("overflow-hidden");
     expect(markup).toContain("min-w-0 truncate");
+    expect(markup).toContain("align-middle");
+  });
+
+  it("uses a compact, middle-aligned label chip", () => {
+    const markup = renderToStaticMarkup(
+      createElement(IssueTimelineEventRow, {
+        item: timelineItem({
+          event: "labeled",
+          label: { name: "enhancement", color: "84e1e6" },
+        }),
+      })
+    );
+
+    expect(markup).toContain("enhancement");
+    expect(markup).toContain("align-middle");
+    expect(markup).toContain("!text-[10px]");
+    expect(markup).toContain("!px-1.5");
+    expect(markup).toContain("!py-px");
+    expect(markup).toContain("!leading-3");
   });
 
   it("shows only the new title for rename events", () => {
@@ -116,6 +139,18 @@ describe("IssueTimelineEventRow", () => {
     );
 
     expect(markup).toContain("future event type");
+  });
+
+  it("localizes deleted-comment activity instead of humanizing the event id", () => {
+    const markup = renderToStaticMarkup(
+      createElement(IssueTimelineEventRow, {
+        item: timelineItem({ event: "comment_deleted" }),
+      })
+    );
+
+    expect(markup).toContain("localized deleted comment");
+    expect(markup).not.toContain("comment deleted");
+    expect(markup).toContain("lucide-message-square");
   });
 
   it.each([

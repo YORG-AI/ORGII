@@ -4,7 +4,10 @@ import {
   resolveGlobalThemePreference,
 } from "@src/config/appearance/globalThemes";
 import { createLogger } from "@src/hooks/logger";
-import { preloadThemeCss } from "@src/util/ui/theme/swapThemeCss";
+import {
+  preloadThemeCss,
+  syncThemeAppearance,
+} from "@src/util/ui/theme/swapThemeCss";
 
 const log = createLogger("Theme");
 
@@ -71,7 +74,14 @@ const initTheme = (): Promise<void> => {
     };
 
     // Wait for CSS to load before resolving
-    link.onload = safeResolve;
+    link.onload = () => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          syncThemeAppearance(theme);
+          safeResolve();
+        });
+      });
+    };
 
     link.onerror = (error) => {
       if (resolved) return;

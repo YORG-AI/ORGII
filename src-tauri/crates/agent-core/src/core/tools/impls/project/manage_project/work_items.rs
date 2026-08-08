@@ -1,116 +1,13 @@
-//! Work-item action handlers (`list_items`, `read_item`, `create_item`,
-//! `update_item`, `delete_item`, `start_item`, `find`).
+//! Work-item action handlers (`start_item`, `find`).
+//!
+//! The duplicate CRUD surface (`list_items`/`read_item`/`create_item`/
+//! `update_item`/`delete_item`) was consolidated into `manage_work_item`
+//! (Orgtrack migration Phase 8): one tool owns work-item CRUD, this tool
+//! keeps only the capabilities `manage_work_item` does not have —
+//! starting a work item's orchestrator run and cross-workspace search.
+//! The dispatcher returns structured guidance for the retired actions.
 
-use serde_json::Value;
-
-use crate::tools::traits::{optional_bool, optional_string, required_string, ToolError};
-
-use super::params::{
-    optional_schedule, optional_string_array, optional_todos, orchestrator_overrides_from_params,
-};
-
-pub(super) async fn list(slug: &str) -> Result<String, ToolError> {
-    crate::tool_infra::list_work_items(slug)
-        .await
-        .map_err(ToolError::ExecutionFailed)
-}
-
-pub(super) async fn read(slug: &str, short_id: &str) -> Result<String, ToolError> {
-    crate::tool_infra::read_work_item(slug, short_id)
-        .await
-        .map_err(ToolError::ExecutionFailed)
-}
-
-pub(super) async fn create(slug: &str, params: &Value) -> Result<String, ToolError> {
-    let title = required_string(params, "title")?;
-    let description = optional_string(params, "description").unwrap_or_default();
-    let project_id = optional_string(params, "project_id");
-    let status = optional_string(params, "status");
-    let priority = optional_string(params, "priority");
-    let assignee = optional_string(params, "assignee");
-    let assignee_type = optional_string(params, "assignee_type");
-    let labels = optional_string_array(params, "labels");
-    let milestone = optional_string(params, "milestone");
-    let parent = optional_string(params, "parent");
-    let start_date = optional_string(params, "start_date");
-    let target_date = optional_string(params, "target_date");
-    let starred = optional_bool(params, "starred");
-    let todos = optional_todos(params);
-    let schedule = optional_schedule(params);
-
-    crate::tool_infra::create_work_item(
-        slug,
-        &title,
-        &description,
-        project_id.as_deref(),
-        status.as_deref(),
-        priority.as_deref(),
-        assignee.as_deref(),
-        assignee_type.as_deref(),
-        labels,
-        milestone.as_deref(),
-        parent.as_deref(),
-        start_date.as_deref(),
-        target_date.as_deref(),
-        starred,
-        todos,
-        orchestrator_overrides_from_params(params),
-        schedule,
-    )
-    .await
-    .map_err(ToolError::ExecutionFailed)
-}
-
-pub(super) async fn update(
-    slug: &str,
-    short_id: &str,
-    params: &Value,
-) -> Result<String, ToolError> {
-    let title = optional_string(params, "title");
-    let description = optional_string(params, "description");
-    let project_id = optional_string(params, "project_id");
-    let status = optional_string(params, "status");
-    let priority = optional_string(params, "priority");
-    let assignee = optional_string(params, "assignee");
-    let assignee_type = optional_string(params, "assignee_type");
-    let labels = optional_string_array(params, "labels");
-    let milestone = optional_string(params, "milestone");
-    let parent = optional_string(params, "parent");
-    let start_date = optional_string(params, "start_date");
-    let target_date = optional_string(params, "target_date");
-    let starred = optional_bool(params, "starred");
-    let todos = optional_todos(params);
-    let schedule = optional_schedule(params);
-
-    crate::tool_infra::update_work_item(
-        slug,
-        short_id,
-        title.as_deref(),
-        description.as_deref(),
-        project_id.as_deref(),
-        status.as_deref(),
-        priority.as_deref(),
-        assignee.as_deref(),
-        assignee_type.as_deref(),
-        labels,
-        milestone.as_deref(),
-        parent.as_deref(),
-        start_date.as_deref(),
-        target_date.as_deref(),
-        starred,
-        todos,
-        orchestrator_overrides_from_params(params),
-        schedule,
-    )
-    .await
-    .map_err(ToolError::ExecutionFailed)
-}
-
-pub(super) async fn delete(slug: &str, short_id: &str) -> Result<String, ToolError> {
-    crate::tool_infra::delete_work_item(slug, short_id)
-        .await
-        .map_err(ToolError::ExecutionFailed)
-}
+use crate::tools::traits::ToolError;
 
 pub(super) async fn start(
     slug: &str,

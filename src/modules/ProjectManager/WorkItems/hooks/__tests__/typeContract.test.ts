@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 
 import type {
   EnrichedWorkItem,
-  GroupedWorkItems,
   RustCalendarEvent,
   RustGanttTask,
   RustKanbanTask,
@@ -61,21 +60,6 @@ function createMockEnrichedWorkItem(
   };
 }
 
-function createMockGroupedWorkItems(
-  overrides: Partial<GroupedWorkItems> = {}
-): GroupedWorkItems {
-  return {
-    backlog: [],
-    planned: [],
-    inProgress: [],
-    inReview: [],
-    completed: [],
-    cancelled: [],
-    duplicate: [],
-    ...overrides,
-  };
-}
-
 function createMockViewData(
   overrides: Partial<WorkItemsViewData> = {}
 ): WorkItemsViewData {
@@ -85,7 +69,6 @@ function createMockViewData(
     kanbanTasks: [],
     ganttTasks: [],
     calendarEvents: [],
-    grouped: createMockGroupedWorkItems(),
     ...overrides,
   };
 }
@@ -95,15 +78,20 @@ function createMockViewData(
 // ----------------------------------------------------------------------------
 
 describe("WorkItemsViewData Structure", () => {
-  it("has all required fields", () => {
+  it("has the required core fields", () => {
     const viewData = createMockViewData();
 
     expect(viewData).toHaveProperty("items");
     expect(viewData).toHaveProperty("counts");
-    expect(viewData).toHaveProperty("kanbanTasks");
-    expect(viewData).toHaveProperty("ganttTasks");
-    expect(viewData).toHaveProperty("calendarEvents");
-    expect(viewData).toHaveProperty("grouped");
+  });
+
+  it("allows view projections to be omitted", () => {
+    const viewData: WorkItemsViewData = {
+      items: [],
+      counts: createMockStatusCounts(),
+    };
+
+    expect(viewData.kanbanTasks).toBeUndefined();
   });
 
   it("items array contains EnrichedWorkItem objects", () => {

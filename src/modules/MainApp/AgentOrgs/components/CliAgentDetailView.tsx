@@ -1,4 +1,4 @@
-import { BookOpen, ExternalLink, RefreshCw } from "lucide-react";
+import { BookOpen, RefreshCw, SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -223,7 +223,7 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
         renderCell: (_row) => (
           <Button
             variant="tertiary"
-            icon={<ExternalLink size={14} />}
+            icon={<SquareArrowOutUpRight size={14} />}
             iconOnly
             onClick={openCredentialInIntegrations}
             title={t("common:actions.open")}

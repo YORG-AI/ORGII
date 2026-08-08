@@ -1,4 +1,4 @@
-import { ExternalLink, GitBranch } from "lucide-react";
+import { GitBranch, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -204,7 +204,7 @@ const PullRequestSubmissionRow: React.FC<{
             aria-label={t("actions.openOnGitHub", "Open on GitHub")}
             title={t("actions.openOnGitHub", "Open on GitHub")}
           >
-            <ExternalLink size={14} />
+            <SquareArrowOutUpRight size={14} />
           </a>
         )}
       </div>

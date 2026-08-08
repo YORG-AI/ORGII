@@ -8,6 +8,7 @@ import { benchmarkApi } from "@src/api/tauri/benchmark";
 import { deleteHumanSession } from "@src/api/tauri/humanSession";
 import { rpc } from "@src/api/tauri/rpc";
 import Message from "@src/components/Message";
+import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import {
   commitRefreshedAuth,
   org2CloudAuthAtom,
@@ -46,6 +47,7 @@ import {
   loadMoreCategory,
   removeSession,
   sessionPaginationAtom,
+  syncSidebarSessionRoster,
   upsertSession,
 } from "@src/store/session";
 import {
@@ -68,10 +70,13 @@ import {
   isChatPanelTuiSessionId,
 } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
+import { expandVisibleGroupsForSessions } from "./loadedSessionVisibility";
+import { applyRustSessionDeleteReceipt } from "./rustSessionDeleteReceipt";
 import {
   NEW_SESSION_MENU_ITEM_ID,
   getDraftIdFromMenuItemId,
 } from "./sidebarConnectorUtils";
+import type { GroupByMode } from "./types";
 import {
   isUnifiedLoadMoreId,
   loadUnifiedReadyCategories,
@@ -93,6 +98,7 @@ interface UseWorkstationSidebarHandlersParams {
     repoPath?: string
   ) => void;
   promoteActiveSessionCreatorDraft: () => void;
+  groupByMode: GroupByMode;
   setGroupVisibleCounts: Dispatch<SetStateAction<Map<string, number>>>;
   tCommon: (key: string, defaultValue?: string) => string;
   onOpenChatPanelTab: (tabId: string) => void;
@@ -126,6 +132,7 @@ export function useWorkstationSidebarHandlers({
   navigateTo,
   openSession,
   promoteActiveSessionCreatorDraft,
+  groupByMode,
   setGroupVisibleCounts,
   tCommon,
   onOpenChatPanelTab,
@@ -149,6 +156,15 @@ export function useWorkstationSidebarHandlers({
   const setCloudAuth = useSetAtom(org2CloudAuthAtom);
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const sessionOrgTags = useAtomValue(sessionOrgTagsAtom);
+  const revealLoadedSessions = useCallback(
+    (sessions: readonly Session[]) => {
+      if (sessions.length === 0) return;
+      setGroupVisibleCounts((previousCounts) =>
+        expandVisibleGroupsForSessions(previousCounts, sessions, groupByMode)
+      );
+    },
+    [groupByMode, setGroupVisibleCounts]
+  );
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       try {
@@ -158,6 +174,7 @@ export function useWorkstationSidebarHandlers({
           return;
         }
         const session = sessionMap.get(sessionId);
+        let deletedActiveRustSession = false;
         const forkedFrom = session ? getSessionForkedFrom(session) : undefined;
         // Cloud retraction targets, mirroring the engine's publish targets:
         // a fork publishes only to its source org; an ordinary session
@@ -203,7 +220,29 @@ export function useWorkstationSidebarHandlers({
         } else if (isHumanSession(sessionId)) {
           await deleteHumanSession(sessionId);
         } else {
-          await deleteSession(sessionId);
+          const receipt = await deleteSession(sessionId);
+          deletedActiveRustSession = await applyRustSessionDeleteReceipt({
+            requestedSessionId: sessionId,
+            activeSessionId,
+            isAgentOrgRoot: Boolean(session?.agentOrgId),
+            receipt,
+            cleanup: {
+              removeSession,
+              removeForkRelayEntry,
+              disposeWorkstationWorkspace,
+              clearPendingFileOpens: clearPendingFileOpensForSession,
+              clearPendingCodeEditorTab: clearPendingCodeEditorTabForSession,
+              evictEventStore: (deletedSessionId) =>
+                eventStoreProxy
+                  .evictSession(deletedSessionId)
+                  .catch((error) =>
+                    log.warn(
+                      "[WorkstationSidebar] Failed to evict deleted Agent Org session:",
+                      { deletedSessionId, error }
+                    )
+                  ),
+            },
+          });
         }
         removeSession(sessionId);
         removeForkRelayEntry(sessionId);
@@ -211,7 +250,7 @@ export function useWorkstationSidebarHandlers({
         clearPendingFileOpensForSession(sessionId);
         clearPendingCodeEditorTabForSession(sessionId);
 
-        if (sessionId === activeSessionId) {
+        if (sessionId === activeSessionId || deletedActiveRustSession) {
           goToNewSession();
         }
       } catch (error) {
@@ -285,7 +324,10 @@ export function useWorkstationSidebarHandlers({
         void loadUnifiedReadyCategories({
           disabled: item.disabled,
           pagination,
-          loadCategory: loadMoreCategoryAction,
+          loadCategory: async (category) => {
+            const result = await loadMoreCategory(category);
+            revealLoadedSessions(result.sessions);
+          },
         });
         return;
       }
@@ -302,9 +344,11 @@ export function useWorkstationSidebarHandlers({
         return;
       }
 
-      const loadMoreCategory = isLoadMoreId(item.id);
-      if (loadMoreCategory) {
-        void loadMoreCategoryAction(loadMoreCategory);
+      const requestedCategory = isLoadMoreId(item.id);
+      if (requestedCategory) {
+        void loadMoreCategoryAction(requestedCategory).then((result) => {
+          revealLoadedSessions(result.sessions);
+        });
         return;
       }
 
@@ -362,6 +406,7 @@ export function useWorkstationSidebarHandlers({
       getLoadMoreGroupId,
       isLoadMoreId,
       pagination,
+      revealLoadedSessions,
       sessionMap,
       openSession,
       goToNewSession,
@@ -385,18 +430,26 @@ export function useWorkstationSidebarHandlers({
       const session = sessionMap.get(sessionId);
       if (!session) return;
       const newPinned = !(session.pinned ?? false);
-      upsertSession({ ...session, pinned: newPinned });
+      const updatedSession = { ...session, pinned: newPinned };
+      upsertSession(updatedSession);
+      syncSidebarSessionRoster(updatedSession);
+      revealLoadedSessions([updatedSession]);
       try {
         await rpc.sessionAggregate.patch({
           sessionId,
           patch: { pinned: newPinned },
         });
       } catch (error) {
-        upsertSession({ ...session, pinned: session.pinned ?? false });
+        const restoredSession = {
+          ...session,
+          pinned: session.pinned ?? false,
+        };
+        upsertSession(restoredSession);
+        syncSidebarSessionRoster(restoredSession);
         log.error("[WorkstationSidebar] Failed to toggle pin:", error);
       }
     },
-    [sessionMap]
+    [revealLoadedSessions, sessionMap]
   );
   return {
     handleDeleteSession,
@@ -408,7 +461,7 @@ export function useWorkstationSidebarHandlers({
 
 function loadMoreCategoryAction(
   sessionListCategory: SessionListCategory
-): Promise<void> {
+): ReturnType<typeof loadMoreCategory> {
   return loadMoreCategory(sessionListCategory);
 }
 

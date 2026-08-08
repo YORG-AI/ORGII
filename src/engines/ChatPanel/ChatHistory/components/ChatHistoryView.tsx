@@ -5,6 +5,8 @@ import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import CloudSessionDownloadProgressCard from "@src/features/Org2Cloud/CloudSessionDownloadProgressCard";
+import { useCloudSessionHasDownloadSurface } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 import SessionHeader from "../../ChatItems/SessionHeader";
@@ -206,6 +208,8 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     () => isExploringRef.current ?? false,
     [isExploringRef]
   );
+  const hasCloudDownloadProgress = useCloudSessionHasDownloadSurface(activeId);
+
   const renderGroupHeader = useGroupHeaderRenderer({
     displaySourceGroupIndices,
     sourceGroupCount: groupCounts.length,
@@ -333,6 +337,18 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
             )
           : pinnedHeaderLayer}
 
+        {/* Anchor cloud-download progress to the chat-pane header edge instead
+            of the virtualized body below SessionHeader. Transcript items and
+            pinned headers create local z-layers up to 70, so this status-only
+            layer sits above chat content but below app modals (z-10000+). */}
+        {hasCloudDownloadProgress && activeProjectionHistory.length > 0 && (
+          <div
+            className={`pointer-events-none absolute left-0 right-0 top-0 z-[9999] mx-auto p-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+          >
+            <CloudSessionDownloadProgressCard sessionId={activeId} />
+          </div>
+        )}
+
         <div className="flex min-h-0 flex-1 flex-col">
           {agentOrgOverviewOpen && agentOrgOverviewPanel && (
             <div
@@ -406,9 +422,11 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
             {isLoadingMore && (
               <div
-                className={`absolute left-0 right-0 top-0 z-20 mx-auto ${surfaceBgClass} p-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+                className={`pointer-events-none absolute left-0 right-0 top-0 z-[9999] mx-auto p-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
               >
-                <ChatLoadingBlock />
+                <div className={`pointer-events-auto ${surfaceBgClass}`}>
+                  <ChatLoadingBlock />
+                </div>
               </div>
             )}
 
@@ -484,6 +502,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                   </>
                 ) : (
                   <ChatHistoryEmptyState
+                    sessionId={activeId}
                     sessionLoadStatus={sessionLoadStatus}
                     sessionLoadError={sessionLoadError}
                     emptyConfirmed={emptyState.emptyConfirmed}

@@ -707,6 +707,9 @@ fn column_exists(conn: &Connection, table_name: &str, column_name: &str) -> Sqli
     Ok(false)
 }
 
+#[allow(clippy::too_many_arguments)]
+// The column identifiers describe one dynamic SQL projection and remain
+// explicit so callers can audit every selected column at the call site.
 fn query_session_file_tool_rows(
     conn: &Connection,
     table_name: &str,

@@ -79,6 +79,24 @@ pub async fn github_git_credential_for_remote(
     }))
 }
 
+/// Resolve the authenticated GitHub account identity with one lightweight
+/// `/user` request. Git transport credentials intentionally use the fixed
+/// `x-access-token` username, so that value cannot classify authored PRs or
+/// outstanding review requests.
+#[command]
+pub async fn github_get_viewer_login() -> Result<String, String> {
+    let user = make_client()?.get("/user").await?;
+    viewer_login_from_user(&user)
+}
+
+fn viewer_login_from_user(user: &serde_json::Value) -> Result<String, String> {
+    user["login"]
+        .as_str()
+        .filter(|login| !login.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| "Missing login in GitHub /user response".to_string())
+}
+
 /// Clone a GitHub repository by shelling out to the system `git` CLI.
 ///
 /// Why subprocess instead of libgit2:
@@ -142,5 +160,26 @@ pub async fn github_check_token() -> Result<bool, String> {
         Ok(_) => Ok(true),
         Err(err) if err.contains("GitHubReAuthRequired") => Ok(false),
         Err(err) => Err(err),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::viewer_login_from_user;
+
+    #[test]
+    fn extracts_authenticated_viewer_login() {
+        assert_eq!(
+            viewer_login_from_user(&json!({ "login": "octocat" })),
+            Ok("octocat".to_string())
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_empty_viewer_login() {
+        assert!(viewer_login_from_user(&json!({})).is_err());
+        assert!(viewer_login_from_user(&json!({ "login": "" })).is_err());
     }
 }

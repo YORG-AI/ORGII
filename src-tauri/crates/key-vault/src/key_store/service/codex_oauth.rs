@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use core_types::providers::{CODEX_ID_TOKEN_ENV_KEY, CODEX_REFRESH_TOKEN_ENV_KEY};
 
-use super::super::types::{AuthMethod, ModelKey, ModelType};
+use super::super::types::{AuthMethod, ModelKey, ModelType, OAuthRefreshOutcome};
 use super::{KeyService, OAUTH_REFRESH_EXPIRY_SKEW_SECONDS, OAUTH_REFRESH_REQUEST_TIMEOUT};
 
 const CODEX_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
@@ -88,14 +88,24 @@ impl KeyService {
 
         let rejected_access_token = key.session_token.clone().unwrap_or_default();
         self.refresh_codex_oauth_key(key_id, &rejected_access_token)
-            .await
+            .await?
+            .into_key()
+            .ok_or_else(|| format!("Key {} is not a native Codex OAuth account", key_id))
     }
 
     pub async fn refresh_codex_oauth_key(
         &self,
         key_id: &str,
         rejected_access_token: &str,
-    ) -> Result<ModelKey, String> {
+    ) -> Result<OAuthRefreshOutcome, String> {
+        let key = self
+            .get_key_by_id(key_id)
+            .ok_or_else(|| format!("Key not found: {}", key_id))?;
+
+        if !key.is_native_oauth_for(&ModelType::Codex) {
+            return Ok(OAuthRefreshOutcome::NotApplicable);
+        }
+
         crate::e2e_guard::ensure_oauth_refresh_allowed()?;
 
         let refresh_lock = self.oauth_refresh_lock_for_key(key_id)?;
@@ -105,8 +115,8 @@ impl KeyService {
             .get_key_by_id(key_id)
             .ok_or_else(|| format!("Key not found: {}", key_id))?;
 
-        if key.model_type != ModelType::Codex || key.auth_method != AuthMethod::Oauth {
-            return Ok(key);
+        if !key.is_native_oauth_for(&ModelType::Codex) {
+            return Ok(OAuthRefreshOutcome::NotApplicable);
         }
 
         if key
@@ -114,7 +124,7 @@ impl KeyService {
             .as_deref()
             .is_some_and(|token| !token.is_empty() && token != rejected_access_token)
         {
-            return Ok(key);
+            return Ok(OAuthRefreshOutcome::AlreadyRotated(Box::new(key)));
         }
 
         let refresh_token = key
@@ -130,11 +140,16 @@ impl KeyService {
             refresh_token: &refresh_token,
         };
 
-        let token_url = std::env::var(CODEX_REFRESH_TOKEN_URL_OVERRIDE_ENV)
-            .unwrap_or_else(|_| CODEX_TOKEN_URL.to_string());
+        let token_url_override = std::env::var(CODEX_REFRESH_TOKEN_URL_OVERRIDE_ENV).ok();
+        let token_url = token_url_override
+            .clone()
+            .unwrap_or_else(|| CODEX_TOKEN_URL.to_string());
 
-        let response = match reqwest::Client::builder()
-            .timeout(OAUTH_REFRESH_REQUEST_TIMEOUT)
+        let mut client_builder = reqwest::Client::builder().timeout(OAUTH_REFRESH_REQUEST_TIMEOUT);
+        if token_url_override.is_some() {
+            client_builder = client_builder.no_proxy();
+        }
+        let response = match client_builder
             .build()
             .map_err(|err| format!("Codex OAuth refresh client build failed: {}", err))?
             .post(token_url)
@@ -218,7 +233,7 @@ impl KeyService {
             Ok(entry.clone())
         })?;
 
-        saved
+        saved.map(|key| OAuthRefreshOutcome::Refreshed(Box::new(key)))
     }
 }
 

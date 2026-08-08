@@ -251,7 +251,7 @@ pub(super) async fn download_file(
 /// Resolve `feishu:image:{key}` / `feishu:file:{key}` media references in an
 /// InboundMessage to local file paths by downloading from Feishu API and
 /// persisting to `~/.orgii/session-images/`.
-pub(super) async fn resolve_feishu_media(auth: &FeishuAuth, media: &mut Vec<String>) {
+pub(super) async fn resolve_feishu_media(auth: &FeishuAuth, media: &mut [String]) {
     let images_dir = app_paths::session_images_dir();
     let _ = std::fs::create_dir_all(&images_dir);
     tracing::info!(

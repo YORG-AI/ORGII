@@ -12,8 +12,11 @@
 pub mod lineage;
 pub mod orchestrator;
 pub mod projects;
+pub mod provider_host;
+pub mod routine_service;
 pub mod sync;
 pub mod team_inbox;
+pub mod work_service;
 
 #[cfg(test)]
 mod test_support;

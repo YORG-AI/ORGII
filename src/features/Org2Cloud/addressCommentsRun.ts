@@ -320,7 +320,46 @@ function buildDisplayContent(threads: readonly AddressableThread[]): string {
   return `@agent Address ${threads.length} cloud comment threads`;
 }
 
+/**
+ * Rounds are SERIALIZED per local session: `activeAddressRuns` holds one
+ * registration per session, so a second round starting while one is in
+ * flight would overwrite it and cross-validate the running turn's
+ * `reply_session_comment` calls against the wrong head-id set (rejected as
+ * unknown, or booked into the wrong run's replied map). Queued rounds also
+ * list comments AFTER the prior round settles, so they see its replies and
+ * resolutions instead of re-addressing them.
+ */
+const roundChainBySession = new Map<string, Promise<unknown>>();
+
 export async function runAddressCommentsRound(
+  input: AddressRoundInput
+): Promise<AddressRoundResult> {
+  const { localSessionId } = input;
+  // Activity begins at ENQUEUE (the scheduled-runs map is a list precisely
+  // so a queued round's threads show as addressing while a prior round runs).
+  const finishRunActivity = beginRunActivity(
+    localSessionId,
+    input.selectedHeadIds
+  );
+  const prior = roundChainBySession.get(localSessionId) ?? Promise.resolve();
+  const round = prior.then(() => executeAddressCommentsRound(input));
+  // Park the settled chain — a failed round must never poison the next.
+  const parked = round.then(
+    () => undefined,
+    () => undefined
+  );
+  roundChainBySession.set(localSessionId, parked);
+  try {
+    return await round;
+  } finally {
+    finishRunActivity();
+    if (roundChainBySession.get(localSessionId) === parked) {
+      roundChainBySession.delete(localSessionId);
+    }
+  }
+}
+
+async function executeAddressCommentsRound(
   input: AddressRoundInput
 ): Promise<AddressRoundResult> {
   const {
@@ -331,7 +370,6 @@ export async function runAddressCommentsRound(
     selectedHeadIds,
     instruction,
   } = input;
-  const finishRunActivity = beginRunActivity(localSessionId, selectedHeadIds);
   let run: ActiveAddressRun | null = null;
   try {
     const listToken = await freshAccessToken();
@@ -410,7 +448,6 @@ export async function runAddressCommentsRound(
     if (run && activeAddressRuns.get(localSessionId) === run) {
       activeAddressRuns.delete(localSessionId);
     }
-    finishRunActivity();
     notifyAddressRunFinished();
   }
 }

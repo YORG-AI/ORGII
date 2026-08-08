@@ -174,31 +174,3 @@ fn test_shell_categories() {
     assert_eq!(ShellKind::Python.category(), ShellCategory::Repl);
     assert_eq!(ShellKind::Ruby.category(), ShellCategory::Repl);
 }
-
-// ============================================
-// Linux-specific: parse_tpgid_from_stat
-// ============================================
-
-#[cfg(target_os = "linux")]
-mod linux_tests {
-    use super::super::parse_tpgid_from_stat;
-
-    #[test]
-    fn test_parse_tpgid_standard() {
-        // pid (comm) state ppid pgrp session tty_nr tpgid ...
-        let stat = "12345 (bash) S 1 12345 12345 34816 12400 4194304";
-        assert_eq!(parse_tpgid_from_stat(stat), Some(12400));
-    }
-
-    #[test]
-    fn test_parse_tpgid_comm_with_spaces() {
-        let stat = "12345 (my shell) S 1 12345 12345 34816 99999 4194304";
-        assert_eq!(parse_tpgid_from_stat(stat), Some(99999));
-    }
-
-    #[test]
-    fn test_parse_tpgid_invalid() {
-        assert_eq!(parse_tpgid_from_stat("garbage"), None);
-        assert_eq!(parse_tpgid_from_stat(""), None);
-    }
-}

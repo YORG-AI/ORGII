@@ -16,6 +16,7 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { HIDDEN_REMOTE_SESSIONS_STORAGE_KEY } from "@src/features/Org2Cloud/cloudHiddenRemoteSessions";
 import {
   type CloudSessionFilter,
   buildCloudSessionMemberFilterOptions,
@@ -24,7 +25,6 @@ import type { CloudOrgMember } from "@src/features/Org2Cloud/org2CloudClient";
 import type { Org2CloudPresenceEntry } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
-import { HIDDEN_REMOTE_SESSIONS_STORAGE_KEY } from "./cloudSessionsSection.hiddenRemoteSessions";
 import type { MemberFilterMenuState } from "./cloudSessionsSection.types";
 
 interface UseCloudMemberFilterDropdownParams {

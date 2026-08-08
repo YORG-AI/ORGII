@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "INVALID_ARGUMENT",
+    "message": "Unknown state 'done'; expected one of open|in_progress|blocked|completed|failed|cancelled",
+    "retryable": false,
+    "details": {
+      "field": "--to",
+      "value": "done"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR01"
+  }
+}

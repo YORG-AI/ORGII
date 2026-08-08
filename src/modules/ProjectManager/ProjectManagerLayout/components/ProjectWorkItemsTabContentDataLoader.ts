@@ -2,11 +2,7 @@
  * Pure workspace work-item fetch/merge helpers for ProjectWorkItemsTabContent.
  * Extracted to keep the tab-content component under the 600-line limit.
  */
-import {
-  enrichedWorkItemToUI,
-  projectApi,
-  workItemDataToUI,
-} from "@src/api/http/project";
+import { enrichedWorkItemToUI, workItemDataToUI } from "@src/api/http/project";
 import { isWorkspaceCompletedWorkItem } from "@src/modules/ProjectManager/WorkItems/workItemsViewModel";
 
 import { WORKSPACE_COMPLETED_READ_BUCKET } from "./ProjectWorkItemsTabContentConstants";
@@ -15,52 +11,50 @@ import type {
   ReadWorkspaceBucketOptions,
 } from "./ProjectWorkItemsTabContentTypes";
 
-export async function readWorkspaceBucket({
-  projects,
-  orgNameById,
+export function readWorkspaceBucket({
+  workspaceData,
   orgId,
   readBucket,
   linearWorkItems,
-}: ReadWorkspaceBucketOptions): Promise<AggregatedWorkItem[]> {
-  const [localEntryGroups, standaloneWorkItems] = await Promise.all([
-    Promise.all(
-      projects.map(async (project) => {
-        const projectWorkItems = await projectApi.readWorkItemsEnriched(
-          project.slug,
-          { orgId, readBucket }
-        );
-        return projectWorkItems.map((workItem) => ({
-          project,
-          shortId: workItem.shortId,
-          orgId: project.meta.org_id,
-          orgName: orgNameById.get(project.meta.org_id),
-          item: {
-            ...enrichedWorkItemToUI(workItem),
-            project: {
-              id: project.meta.id,
-              name: project.meta.name,
-            },
+}: ReadWorkspaceBucketOptions): AggregatedWorkItem[] {
+  const orgNameById = new Map(
+    workspaceData.orgs.map((org) => [org.id, org.name])
+  );
+  const localEntryGroups = workspaceData.projectEntries.map(
+    ({ project, workItems }) =>
+      workItems.map((workItem) => ({
+        project,
+        shortId: workItem.shortId,
+        orgId: project.meta.org_id,
+        orgName: orgNameById.get(project.meta.org_id),
+        item: {
+          ...enrichedWorkItemToUI(workItem),
+          project: {
+            id: project.meta.id,
+            name: project.meta.name,
           },
-        }));
-      })
-    ),
-    projectApi.readStandaloneWorkItems({ orgId, readBucket }),
-  ]);
+        },
+      }))
+  );
   const standaloneOrgId = orgId ?? "personal-org";
-  const standaloneEntries = standaloneWorkItems.map((workItem) => ({
-    shortId: workItem.frontmatter.short_id ?? workItem.frontmatter.id,
-    orgId: standaloneOrgId,
-    orgName: orgNameById.get(standaloneOrgId),
-    item: workItemDataToUI(workItem, {
-      labelMap: new Map(),
-      memberMap: new Map(),
-      projectNameMap: new Map(),
-    }),
-  }));
+  const standaloneEntries = workspaceData.standaloneWorkItems.map(
+    (workItem) => ({
+      shortId: workItem.frontmatter.short_id ?? workItem.frontmatter.id,
+      orgId: standaloneOrgId,
+      orgName: orgNameById.get(standaloneOrgId),
+      item: workItemDataToUI(workItem, {
+        labelMap: new Map(),
+        memberMap: new Map(),
+        projectNameMap: new Map(),
+      }),
+    })
+  );
   const isCompletedBucket = readBucket === WORKSPACE_COMPLETED_READ_BUCKET;
   const linearEntries = linearWorkItems
     .filter(
-      (workItem) => isWorkspaceCompletedWorkItem(workItem) === isCompletedBucket
+      (workItem) =>
+        readBucket === undefined ||
+        isWorkspaceCompletedWorkItem(workItem) === isCompletedBucket
     )
     .map((workItem) => ({
       project: {

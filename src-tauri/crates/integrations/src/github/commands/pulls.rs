@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use tauri::command;
 
 use super::super::client::GitHubClient;
@@ -10,6 +11,51 @@ use super::issues::{parse_issue_user, IssueUser};
 use super::shared::make_client;
 
 const GITHUB_PAGE_SIZE: usize = 100;
+
+const ENABLE_AUTO_MERGE_MUTATION: &str = r#"
+mutation EnablePullRequestAutoMerge($input: EnablePullRequestAutoMergeInput!) {
+  enablePullRequestAutoMerge(input: $input) {
+    pullRequest { id }
+  }
+}
+"#;
+
+const DISABLE_AUTO_MERGE_MUTATION: &str = r#"
+mutation DisablePullRequestAutoMerge($input: DisablePullRequestAutoMergeInput!) {
+  disablePullRequestAutoMerge(input: $input) {
+    pullRequest { id }
+  }
+}
+"#;
+
+const ENQUEUE_PULL_REQUEST_MUTATION: &str = r#"
+mutation EnqueuePullRequest($input: EnqueuePullRequestInput!) {
+  enqueuePullRequest(input: $input) {
+    mergeQueueEntry { id }
+  }
+}
+"#;
+
+const DEQUEUE_PULL_REQUEST_MUTATION: &str = r#"
+mutation DequeuePullRequest($input: DequeuePullRequestInput!) {
+  dequeuePullRequest(input: $input) {
+    mergeQueueEntry { id }
+  }
+}
+"#;
+
+const PULL_REQUEST_MERGE_AUTOMATION_QUERY: &str = r#"
+query PullRequestMergeAutomation($id: ID!) {
+  node(id: $id) {
+    ... on PullRequest {
+      isMergeQueueEnabled
+      mergeQueueEntry { id }
+      mergeStateStatus
+      reviewDecision
+    }
+  }
+}
+"#;
 
 fn paged_path(base_path: &str, page: usize) -> String {
     let separator = if base_path.contains('?') { '&' } else { '?' };
@@ -156,11 +202,574 @@ pub struct OpenPRItem {
     pub url: String,
     pub title: String,
     pub state: String,
+    pub author_login: String,
+    pub author_avatar_url: Option<String>,
+    /// GitHub removes a reviewer from this list after they submit a review,
+    /// unless another review is explicitly requested.
+    pub requested_reviewer_logins: Vec<String>,
     pub head_branch: String,
     pub base_branch: String,
     pub draft: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+fn parse_open_pr_item(item: &Value) -> OpenPRItem {
+    OpenPRItem {
+        number: item["number"].as_u64().unwrap_or(0),
+        url: item["html_url"].as_str().unwrap_or("").to_string(),
+        title: item["title"].as_str().unwrap_or("").to_string(),
+        state: if item["merged_at"].is_null() {
+            item["state"].as_str().unwrap_or("open").to_string()
+        } else {
+            "merged".to_string()
+        },
+        author_login: item["user"]["login"].as_str().unwrap_or("").to_string(),
+        author_avatar_url: item["user"]["avatar_url"].as_str().map(String::from),
+        requested_reviewer_logins: item["requested_reviewers"]
+            .as_array()
+            .map(|reviewers| {
+                reviewers
+                    .iter()
+                    .filter_map(|reviewer| reviewer["login"].as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        head_branch: item["head"]["ref"].as_str().unwrap_or("").to_string(),
+        base_branch: item["base"]["ref"].as_str().unwrap_or("").to_string(),
+        draft: item["draft"].as_bool().unwrap_or(false),
+        created_at: item["created_at"].as_str().unwrap_or("").to_string(),
+        updated_at: item["updated_at"].as_str().unwrap_or("").to_string(),
+    }
+}
+
+fn validate_pull_request_state(state: String) -> Result<String, String> {
+    match state.as_str() {
+        "open" | "closed" => Ok(state),
+        _ => Err("pull request state must be open or closed".to_string()),
+    }
+}
+
+fn validate_merge_method(method: &str) -> Result<&'static str, String> {
+    match method {
+        "merge" => Ok("merge"),
+        "squash" => Ok("squash"),
+        "rebase" => Ok("rebase"),
+        _ => Err(format!(
+            "Invalid pull request merge method `{method}`; expected merge, squash, or rebase"
+        )),
+    }
+}
+
+fn graphql_merge_method(method: &str) -> Result<&'static str, String> {
+    match validate_merge_method(method)? {
+        "merge" => Ok("MERGE"),
+        "squash" => Ok("SQUASH"),
+        "rebase" => Ok("REBASE"),
+        _ => unreachable!("validate_merge_method returns only known methods"),
+    }
+}
+
+fn graphql_error(response: &Value) -> Option<String> {
+    let messages = response["errors"]
+        .as_array()?
+        .iter()
+        .filter_map(|error| error["message"].as_str())
+        .collect::<Vec<_>>();
+    (!messages.is_empty()).then(|| messages.join("; "))
+}
+
+#[derive(Default)]
+struct PullRequestMergeAutomationContext {
+    merge_queue_enabled: bool,
+    merge_queue_entry_id: Option<String>,
+    merge_state_status: Option<String>,
+    review_decision: Option<String>,
+}
+
+impl PullRequestMergeAutomationContext {
+    fn ready_for_merge_queue(&self) -> bool {
+        self.merge_state_status.as_deref() == Some("CLEAN")
+            && !matches!(
+                self.review_decision.as_deref(),
+                Some("REVIEW_REQUIRED" | "CHANGES_REQUESTED")
+            )
+    }
+}
+
+async fn get_pull_request_merge_automation_context(
+    client: &GitHubClient,
+    pull_request_id: &str,
+) -> Result<PullRequestMergeAutomationContext, String> {
+    let response = client
+        .graphql(
+            PULL_REQUEST_MERGE_AUTOMATION_QUERY,
+            json!({ "id": pull_request_id }),
+        )
+        .await?;
+    if let Some(error) = graphql_error(&response) {
+        return Err(error);
+    }
+    let pull_request = &response["data"]["node"];
+    if pull_request.is_null() {
+        return Err("GitHub did not return pull request merge metadata".to_string());
+    }
+    Ok(PullRequestMergeAutomationContext {
+        merge_queue_enabled: pull_request["isMergeQueueEnabled"]
+            .as_bool()
+            .unwrap_or(false),
+        merge_queue_entry_id: pull_request["mergeQueueEntry"]["id"]
+            .as_str()
+            .map(String::from),
+        merge_state_status: pull_request["mergeStateStatus"].as_str().map(String::from),
+        review_decision: pull_request["reviewDecision"].as_str().map(String::from),
+    })
+}
+
+fn normalize_reviewer_logins(reviewers: Vec<String>) -> Result<Vec<String>, String> {
+    let mut seen = HashSet::new();
+    let normalized = reviewers
+        .into_iter()
+        .filter_map(|reviewer| {
+            let reviewer = reviewer.trim().to_string();
+            if reviewer.is_empty() || !seen.insert(reviewer.to_lowercase()) {
+                None
+            } else {
+                Some(reviewer)
+            }
+        })
+        .collect::<Vec<_>>();
+    if normalized.is_empty() {
+        return Err("At least one reviewer login is required".to_string());
+    }
+    Ok(normalized)
+}
+
+fn parse_requested_reviewers(value: &Value) -> Vec<IssueUser> {
+    value["requested_reviewers"]
+        .as_array()
+        .or_else(|| value["users"].as_array())
+        .map(|reviewers| reviewers.iter().map(parse_issue_user).collect())
+        .unwrap_or_default()
+}
+
+fn build_merge_payload(method: &str, expected_head_sha: Option<&str>) -> Result<Value, String> {
+    let method = validate_merge_method(method)?;
+    let mut payload = json!({ "merge_method": method });
+    if let Some(expected_head_sha) = expected_head_sha {
+        payload["sha"] = json!(expected_head_sha);
+    }
+    Ok(payload)
+}
+
+struct AutoMergeGraphqlRequest {
+    mutation: &'static str,
+    mutation_field: &'static str,
+    input: Value,
+}
+
+fn build_auto_merge_graphql_request(
+    enabled: bool,
+    method: Option<&str>,
+    pull_request_id: &str,
+    expected_head_oid: &str,
+) -> Result<AutoMergeGraphqlRequest, String> {
+    if enabled {
+        let merge_method = graphql_merge_method(method.unwrap_or("merge"))?;
+        Ok(AutoMergeGraphqlRequest {
+            mutation: ENABLE_AUTO_MERGE_MUTATION,
+            mutation_field: "enablePullRequestAutoMerge",
+            input: json!({
+                "pullRequestId": pull_request_id,
+                "expectedHeadOid": expected_head_oid,
+                "mergeMethod": merge_method,
+            }),
+        })
+    } else {
+        Ok(AutoMergeGraphqlRequest {
+            mutation: DISABLE_AUTO_MERGE_MUTATION,
+            mutation_field: "disablePullRequestAutoMerge",
+            input: json!({
+                "pullRequestId": pull_request_id,
+            }),
+        })
+    }
+}
+
+fn build_merge_queue_graphql_request(
+    enabled: bool,
+    pull_request_id: &str,
+    merge_queue_entry_id: Option<&str>,
+    expected_head_oid: &str,
+) -> Result<AutoMergeGraphqlRequest, String> {
+    if enabled {
+        Ok(AutoMergeGraphqlRequest {
+            mutation: ENQUEUE_PULL_REQUEST_MUTATION,
+            mutation_field: "enqueuePullRequest",
+            input: json!({
+                "pullRequestId": pull_request_id,
+                "expectedHeadOid": expected_head_oid,
+            }),
+        })
+    } else {
+        let merge_queue_entry_id = merge_queue_entry_id
+            .ok_or_else(|| "GitHub did not return the merge queue entry ID".to_string())?;
+        Ok(AutoMergeGraphqlRequest {
+            mutation: DEQUEUE_PULL_REQUEST_MUTATION,
+            mutation_field: "dequeuePullRequest",
+            input: json!({ "id": merge_queue_entry_id }),
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct PullRequestMergeResult {
+    pub sha: String,
+    pub merged: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PullRequestAutoMergeResult {
+    pub enabled: bool,
+}
+
+#[command]
+pub async fn github_merge_pr(
+    repo_full_name: String,
+    pr_number: u64,
+    method: String,
+    expected_head_sha: Option<String>,
+) -> Result<PullRequestMergeResult, String> {
+    let method = validate_merge_method(&method)?;
+    log::info!("[GitHub][Cmd] merge_pr repo={repo_full_name} pr={pr_number} method={method}");
+    let client = make_client()?;
+    let payload = build_merge_payload(method, expected_head_sha.as_deref())?;
+    let data = client
+        .put(
+            &format!("/repos/{repo_full_name}/pulls/{pr_number}/merge"),
+            payload,
+        )
+        .await?;
+    let message = data["message"]
+        .as_str()
+        .unwrap_or("GitHub did not merge the pull request")
+        .to_string();
+    let merged = data["merged"].as_bool().unwrap_or(false);
+    if !merged {
+        return Err(message);
+    }
+    Ok(PullRequestMergeResult {
+        sha: data["sha"].as_str().unwrap_or("").to_string(),
+        merged,
+        message,
+    })
+}
+
+#[command]
+pub async fn github_set_pr_auto_merge(
+    repo_full_name: String,
+    pr_number: u64,
+    enabled: bool,
+    method: Option<String>,
+    expected_head_sha: Option<String>,
+) -> Result<PullRequestAutoMergeResult, String> {
+    log::info!(
+        "[GitHub][Cmd] set_pr_auto_merge repo={repo_full_name} pr={pr_number} enabled={enabled}"
+    );
+    let client = make_client()?;
+    let detail = client
+        .get(&format!("/repos/{repo_full_name}/pulls/{pr_number}"))
+        .await?;
+    if detail["state"].as_str() != Some("open") || detail["merged"].as_bool() == Some(true) {
+        return Err("Auto-merge is available only for open pull requests".to_string());
+    }
+    if enabled && detail["draft"].as_bool() == Some(true) {
+        return Err(
+            "Mark this pull request ready for review before enabling auto-merge".to_string(),
+        );
+    }
+    let pull_request_id = detail["node_id"]
+        .as_str()
+        .ok_or_else(|| "GitHub did not return the pull request node ID".to_string())?;
+    let current_head_sha = detail["head"]["sha"]
+        .as_str()
+        .ok_or_else(|| "GitHub did not return the pull request head SHA".to_string())?;
+    let expected_head_oid = expected_head_sha.as_deref().unwrap_or(current_head_sha);
+    if expected_head_oid != current_head_sha {
+        return Err(
+            "The pull request head changed; refresh before changing auto-merge".to_string(),
+        );
+    }
+
+    let context = match get_pull_request_merge_automation_context(&client, pull_request_id).await {
+        Ok(context) => context,
+        Err(error) if error.contains("GitHubReAuthRequired") => return Err(error),
+        Err(error) => {
+            log::warn!("[GitHub][Cmd] merge automation metadata unavailable: {error}");
+            PullRequestMergeAutomationContext::default()
+        }
+    };
+    let request = if context.merge_queue_enabled
+        && ((enabled && context.ready_for_merge_queue())
+            || (!enabled && context.merge_queue_entry_id.is_some()))
+    {
+        build_merge_queue_graphql_request(
+            enabled,
+            pull_request_id,
+            context.merge_queue_entry_id.as_deref(),
+            expected_head_oid,
+        )?
+    } else {
+        build_auto_merge_graphql_request(
+            enabled,
+            method.as_deref(),
+            pull_request_id,
+            expected_head_oid,
+        )?
+    };
+    let response = client
+        .graphql(request.mutation, json!({ "input": request.input }))
+        .await?;
+    if let Some(error) = graphql_error(&response) {
+        return Err(error);
+    }
+    if response["data"][request.mutation_field].is_null() {
+        return Err("GitHub did not confirm the auto-merge change".to_string());
+    }
+    Ok(PullRequestAutoMergeResult { enabled })
+}
+
+#[cfg(test)]
+mod pr_action_payload_tests {
+    use super::*;
+
+    #[test]
+    fn merge_payload_uses_an_allowed_method_and_expected_head_sha() {
+        assert_eq!(
+            build_merge_payload("squash", Some("head-sha")).unwrap(),
+            json!({ "merge_method": "squash", "sha": "head-sha" })
+        );
+        assert!(build_merge_payload("octopus", None).is_err());
+    }
+
+    #[test]
+    fn auto_merge_payloads_match_each_mutations_input_schema() {
+        let enable =
+            build_auto_merge_graphql_request(true, Some("rebase"), "pull-request-node", "head-sha")
+                .unwrap();
+        assert_eq!(enable.mutation_field, "enablePullRequestAutoMerge");
+        assert_eq!(
+            enable.input,
+            json!({
+                "pullRequestId": "pull-request-node",
+                "expectedHeadOid": "head-sha",
+                "mergeMethod": "REBASE",
+            })
+        );
+
+        let disable =
+            build_auto_merge_graphql_request(false, None, "pull-request-node", "head-sha").unwrap();
+        assert_eq!(disable.mutation_field, "disablePullRequestAutoMerge");
+        assert_eq!(
+            disable.input,
+            json!({
+                "pullRequestId": "pull-request-node",
+            })
+        );
+    }
+
+    #[test]
+    fn merge_queue_payloads_enqueue_by_pr_and_dequeue_by_entry() {
+        let enqueue =
+            build_merge_queue_graphql_request(true, "pull-request-node", None, "head-sha").unwrap();
+        assert_eq!(enqueue.mutation_field, "enqueuePullRequest");
+        assert_eq!(
+            enqueue.input,
+            json!({
+                "pullRequestId": "pull-request-node",
+                "expectedHeadOid": "head-sha",
+            })
+        );
+
+        let dequeue = build_merge_queue_graphql_request(
+            false,
+            "pull-request-node",
+            Some("queue-entry"),
+            "head-sha",
+        )
+        .unwrap();
+        assert_eq!(dequeue.mutation_field, "dequeuePullRequest");
+        assert_eq!(dequeue.input, json!({ "id": "queue-entry" }));
+        assert!(
+            build_merge_queue_graphql_request(false, "pull-request-node", None, "head-sha")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn merge_queue_requires_clean_merge_state_without_review_blockers() {
+        let ready = PullRequestMergeAutomationContext {
+            merge_state_status: Some("CLEAN".to_string()),
+            ..Default::default()
+        };
+        let review_blocked = PullRequestMergeAutomationContext {
+            merge_state_status: Some("CLEAN".to_string()),
+            review_decision: Some("REVIEW_REQUIRED".to_string()),
+            ..Default::default()
+        };
+        let checks_blocked = PullRequestMergeAutomationContext {
+            merge_state_status: Some("BLOCKED".to_string()),
+            ..Default::default()
+        };
+
+        assert!(ready.ready_for_merge_queue());
+        assert!(!review_blocked.ready_for_merge_queue());
+        assert!(!checks_blocked.ready_for_merge_queue());
+    }
+
+    #[test]
+    fn reviewer_logins_are_trimmed_and_deduplicated_case_insensitively() {
+        assert_eq!(
+            normalize_reviewer_logins(vec![
+                " Reviewer ".to_string(),
+                "reviewer".to_string(),
+                "second".to_string(),
+                " ".to_string(),
+            ])
+            .unwrap(),
+            vec!["Reviewer".to_string(), "second".to_string()]
+        );
+        assert!(normalize_reviewer_logins(vec![" ".to_string()]).is_err());
+    }
+
+    #[test]
+    fn graphql_errors_are_preserved_for_the_frontend() {
+        assert_eq!(
+            graphql_error(&json!({
+                "errors": [
+                    { "message": "Auto-merge is disabled" },
+                    { "message": "Approval is required" }
+                ]
+            })),
+            Some("Auto-merge is disabled; Approval is required".to_string())
+        );
+    }
+}
+
+#[command]
+pub async fn github_request_pr_reviewers(
+    repo_full_name: String,
+    pr_number: u64,
+    reviewers: Vec<String>,
+) -> Result<Vec<IssueUser>, String> {
+    let reviewers = normalize_reviewer_logins(reviewers)?;
+    log::info!(
+        "[GitHub][Cmd] request_pr_reviewers repo={repo_full_name} pr={pr_number} count={}",
+        reviewers.len()
+    );
+    let client = make_client()?;
+    let data = client
+        .post(
+            &format!("/repos/{repo_full_name}/pulls/{pr_number}/requested_reviewers"),
+            json!({ "reviewers": reviewers }),
+        )
+        .await?;
+    Ok(parse_requested_reviewers(&data))
+}
+
+#[command]
+pub async fn github_remove_pr_reviewers(
+    repo_full_name: String,
+    pr_number: u64,
+    reviewers: Vec<String>,
+) -> Result<Vec<IssueUser>, String> {
+    let reviewers = normalize_reviewer_logins(reviewers)?;
+    log::info!(
+        "[GitHub][Cmd] remove_pr_reviewers repo={repo_full_name} pr={pr_number} count={}",
+        reviewers.len()
+    );
+    let client = make_client()?;
+    let data = client
+        .delete_with_body(
+            &format!("/repos/{repo_full_name}/pulls/{pr_number}/requested_reviewers"),
+            json!({ "reviewers": reviewers }),
+        )
+        .await?;
+    Ok(parse_requested_reviewers(&data))
+}
+
+#[cfg(test)]
+mod open_pr_item_tests {
+    use super::*;
+
+    #[test]
+    fn serializes_author_and_only_outstanding_requested_reviewers() {
+        let item = json!({
+            "number": 17,
+            "html_url": "https://github.com/acme/repo/pull/17",
+            "title": "Ship personal PR inbox",
+            "state": "open",
+            "merged_at": null,
+            "user": {
+                "login": "author",
+                "avatar_url": "https://avatars.example/author"
+            },
+            "requested_reviewers": [
+                { "login": "viewer" },
+                { "login": "second-reviewer" }
+            ],
+            "head": { "ref": "feature/personal-prs" },
+            "base": { "ref": "main" },
+            "draft": false,
+            "created_at": "2026-07-30T08:00:00Z",
+            "updated_at": "2026-07-30T09:00:00Z"
+        });
+
+        let serialized = serde_json::to_value(parse_open_pr_item(&item)).unwrap();
+
+        assert_eq!(serialized["author_login"], "author");
+        assert_eq!(
+            serialized["author_avatar_url"],
+            "https://avatars.example/author"
+        );
+        assert_eq!(
+            serialized["requested_reviewer_logins"],
+            json!(["viewer", "second-reviewer"])
+        );
+        assert_eq!(serialized["state"], "open");
+    }
+
+    #[test]
+    fn keeps_merged_state_and_defaults_missing_identity_fields() {
+        let item = json!({
+            "number": 18,
+            "state": "closed",
+            "merged_at": "2026-07-30T10:00:00Z",
+            "head": {},
+            "base": {}
+        });
+
+        let serialized = serde_json::to_value(parse_open_pr_item(&item)).unwrap();
+
+        assert_eq!(serialized["state"], "merged");
+        assert_eq!(serialized["author_login"], "");
+        assert_eq!(serialized["author_avatar_url"], Value::Null);
+        assert_eq!(serialized["requested_reviewer_logins"], json!([]));
+    }
+
+    #[test]
+    fn accepts_only_mutable_pull_request_states() {
+        assert_eq!(
+            validate_pull_request_state("open".to_string()).unwrap(),
+            "open"
+        );
+        assert_eq!(
+            validate_pull_request_state("closed".to_string()).unwrap(),
+            "closed"
+        );
+        assert!(validate_pull_request_state("merged".to_string()).is_err());
+    }
 }
 
 #[command]
@@ -169,10 +778,7 @@ pub async fn github_list_prs(
     state: String,
     per_page: Option<u64>,
 ) -> Result<Vec<OpenPRItem>, String> {
-    let state = match state.as_str() {
-        "open" | "closed" => state,
-        _ => return Err("pull request state must be open or closed".to_string()),
-    };
+    let state = validate_pull_request_state(state)?;
     let limit = per_page.unwrap_or(30).min(100);
     log::info!("[GitHub][Cmd] list_prs repo={repo_full_name} state={state} per_page={limit}");
     let client = make_client()?;
@@ -183,31 +789,31 @@ pub async fn github_list_prs(
         .await?;
     let items: Vec<OpenPRItem> = data
         .as_array()
-        .map(|arr| {
-            arr.iter()
-                .map(|item| OpenPRItem {
-                    number: item["number"].as_u64().unwrap_or(0),
-                    url: item["html_url"].as_str().unwrap_or("").to_string(),
-                    title: item["title"].as_str().unwrap_or("").to_string(),
-                    state: if item["merged_at"].is_null() {
-                        item["state"].as_str().unwrap_or("open").to_string()
-                    } else {
-                        "merged".to_string()
-                    },
-                    head_branch: item["head"]["ref"].as_str().unwrap_or("").to_string(),
-                    base_branch: item["base"]["ref"].as_str().unwrap_or("").to_string(),
-                    draft: item["draft"].as_bool().unwrap_or(false),
-                    created_at: item["created_at"].as_str().unwrap_or("").to_string(),
-                    updated_at: item["updated_at"].as_str().unwrap_or("").to_string(),
-                })
-                .collect()
-        })
+        .map(|arr| arr.iter().map(parse_open_pr_item).collect())
         .unwrap_or_default();
     log::info!(
         "[GitHub][Cmd] list_prs state={state} found {} PRs",
         items.len()
     );
     Ok(items)
+}
+
+#[command]
+pub async fn github_update_pr_state(
+    repo_full_name: String,
+    pr_number: u64,
+    state: String,
+) -> Result<OpenPRItem, String> {
+    let state = validate_pull_request_state(state)?;
+    log::info!("[GitHub][Cmd] update_pr_state repo={repo_full_name} pr={pr_number} state={state}");
+    let client = make_client()?;
+    let data = client
+        .patch(
+            &format!("/repos/{repo_full_name}/pulls/{pr_number}"),
+            json!({ "state": state }),
+        )
+        .await?;
+    Ok(parse_open_pr_item(&data))
 }
 
 #[command]
@@ -218,15 +824,45 @@ pub async fn github_get_pr(repo_full_name: String, pr_number: u64) -> Result<Val
         .get_conditional(&format!("/repos/{repo_full_name}/pulls/{pr_number}"))
         .await?;
 
+    let pull_request_id = detail["node_id"].as_str().map(String::from);
     let base_sha = detail["base"]["sha"].as_str().map(String::from);
     let head_sha = detail["head"]["sha"].as_str().map(String::from);
-    if let (Some(base_sha), Some(head_sha)) = (base_sha, head_sha) {
-        match client
-            .get_conditional(&format!(
-                "/repos/{repo_full_name}/compare/{base_sha}...{head_sha}"
-            ))
-            .await
-        {
+    let merge_context = async {
+        match pull_request_id.as_deref() {
+            Some(id) => Some(get_pull_request_merge_automation_context(&client, id).await),
+            None => None,
+        }
+    };
+    let compare = async {
+        match (base_sha, head_sha) {
+            (Some(base_sha), Some(head_sha)) => Some(
+                client
+                    .get_conditional(&format!(
+                        "/repos/{repo_full_name}/compare/{base_sha}...{head_sha}"
+                    ))
+                    .await,
+            ),
+            _ => None,
+        }
+    };
+    let (merge_context, compare) = tokio::join!(merge_context, compare);
+
+    if let Some(result) = merge_context {
+        match result {
+            Ok(context) => {
+                detail["merge_queue_required"] = json!(context.merge_queue_enabled);
+                detail["is_in_merge_queue"] = json!(context.merge_queue_entry_id.is_some());
+                if let Some(review_decision) = context.review_decision {
+                    detail["review_decision"] = json!(review_decision);
+                }
+            }
+            Err(error) => {
+                log::warn!("[GitHub][Cmd] get_pr merge metadata failed: {error}");
+            }
+        }
+    }
+    if let Some(result) = compare {
+        match result {
             Ok(compare) => {
                 if let Some(merge_base_sha) = compare["merge_base_commit"]["sha"].as_str() {
                     detail["merge_base_sha"] = json!(merge_base_sha);

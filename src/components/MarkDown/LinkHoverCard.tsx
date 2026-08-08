@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Copy, ExternalLink } from "lucide-react";
+import { Copy, SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -68,7 +68,7 @@ const LinkHoverCardContent: React.FC<{ preview: HttpLinkPreview }> = ({
           variant="tertiary"
           appearance="ghost"
           size="mini"
-          icon={<ExternalLink size={13} />}
+          icon={<SquareArrowOutUpRight size={13} />}
           iconOnly
           aria-label={t("cards.actions.openWithDefaultBrowser")}
           title={t("cards.actions.openWithDefaultBrowser")}

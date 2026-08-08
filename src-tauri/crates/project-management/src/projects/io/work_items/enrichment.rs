@@ -21,8 +21,8 @@ use super::crud::{read_all_work_items_scoped_filtered, read_work_item_scoped};
 use crate::projects::io::labels::read_labels;
 use crate::projects::io::members::read_members;
 use crate::projects::types::{
-    EnrichedWorkItem, LabelEntry, MemberEntry, ResolvedLabel, ResolvedMilestone, ResolvedPerson,
-    ResolvedProject, WorkItemData, WorkItemPartialUpdate, WorkItemReadBucket,
+    EnrichedWorkItem, LabelEntry, MemberEntry, ProjectData, ResolvedLabel, ResolvedMilestone,
+    ResolvedPerson, ResolvedProject, WorkItemData, WorkItemPartialUpdate, WorkItemReadBucket,
 };
 
 /// Default avatar/badge color when a member has no override. Mirrors
@@ -51,22 +51,24 @@ pub fn read_all_work_items_enriched_scoped_filtered(
     read_bucket: Option<WorkItemReadBucket>,
 ) -> Result<Vec<EnrichedWorkItem>, String> {
     let project = read_project_scoped(project_slug, org_id)?;
-    let project_id = project.meta.id.clone();
-    let project_name = Some(project.meta.name);
+    let raw_items = read_all_work_items_scoped_filtered(project_slug, org_id, read_bucket)?;
+    enrich_work_items_for_project(&project, raw_items)
+}
 
-    let labels = read_labels(&project_id)?.labels;
-    let members = read_members(&project_id)?.members;
-
+pub(super) fn enrich_work_items_for_project(
+    project: &ProjectData,
+    raw_items: Vec<WorkItemData>,
+) -> Result<Vec<EnrichedWorkItem>, String> {
+    let labels = read_labels(&project.meta.id)?.labels;
+    let members = read_members(&project.meta.id)?.members;
     let label_map = build_label_map(&labels);
     let member_map = build_member_map(&members);
+    let project_name = Some(project.meta.name.clone());
 
-    let raw_items = read_all_work_items_scoped_filtered(project_slug, org_id, read_bucket)?;
-    let enriched = raw_items
+    Ok(raw_items
         .into_iter()
-        .map(|item| enrich_work_item(item, &label_map, &member_map, project_slug, &project_name))
-        .collect();
-
-    Ok(enriched)
+        .map(|item| enrich_work_item(item, &label_map, &member_map, &project.slug, &project_name))
+        .collect())
 }
 
 /// Apply a partial patch to a work item and return the enriched result
@@ -282,6 +284,8 @@ fn build_member_map(members: &[MemberEntry]) -> HashMap<String, &MemberEntry> {
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
+// Enrichment tests construct sparse updates incrementally for scenario readability.
 mod tests {
     use super::*;
     use crate::projects::io::labels::write_labels;

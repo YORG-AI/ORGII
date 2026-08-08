@@ -2,6 +2,20 @@
   "title": "Team runtime",
   "refresh": "Refresh",
   "loadError": "Failed to load team runtime",
+  "overview": {
+    "today": "Today",
+    "everyone": "Everyone",
+    "activeMembers": "Active members",
+    "systemsCurrent": "{{current}} of {{total}} systems current",
+    "usageByAgent": "Usage by agent",
+    "recentSessions": "Latest shared sessions",
+    "recentLoading": "Loading shared sessions…",
+    "recentEmpty": "No shared sessions yet",
+    "members": "Member breakdown",
+    "activeToday": "Active today",
+    "inactiveToday": "Inactive today",
+    "sync": "Sync"
+  },
   "signedOut": {
     "title": "Sign in to see your team",
     "subtitle": "Teammates' runtime is shared through ORG2 Cloud.",

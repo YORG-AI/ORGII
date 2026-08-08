@@ -236,6 +236,21 @@ pub fn finalize_deferred_event_import(session_id: &str) -> SqliteResult<usize> {
     Ok(event_count)
 }
 
+/// Count persisted events for a session without loading them.
+///
+/// A pure read: no sequence normalization and no writer serializer, so it
+/// stays cheap even while a large import batch holds the writer lock. Used
+/// as the cache-hit probe for imported replays, where `load_events` on a
+/// 100k-event session just to check non-emptiness is prohibitive.
+pub fn count_events(session_id: &str) -> SqliteResult<i64> {
+    let conn = get_connection()?;
+    conn.query_row(
+        "SELECT COUNT(*) FROM events WHERE session_id = ?1",
+        [session_id],
+        |row| row.get(0),
+    )
+}
+
 /// Load all events for a session.
 ///
 /// `normalize_session_sequences` is a writer (per-row UPDATEs) so it
@@ -423,22 +438,49 @@ pub fn search_events(session_id: &str, query: &str, limit: i64) -> SqliteResult<
         .collect())
 }
 
-/// Substring search across all sessions. Returns one hit per session — the
-/// most recent matching event (`MAX(created_at)`; SQLite's bare-column
-/// guarantee pins `content` to that row). Sessions are ordered newest-hit
-/// first; `rank` is the 0-based position in that order. LIKE semantics are
-/// documented on [`search_events`]. The caller should join with the session
-/// list API to resolve display names.
+/// Substring search across all sessions. Agent events and Human-session notes
+/// share one bounded result set. Returns one hit per session — the most recent
+/// matching entry (`MAX(created_at)`; SQLite's bare-column guarantee pins
+/// `content` to that row). Sessions are ordered newest-hit first; `rank` is the
+/// 0-based position in that order. LIKE semantics are documented on
+/// [`search_events`]. Each source is reduced to at most the requested limit
+/// before the final merge, and public callers are capped at 100 results. The
+/// caller should join with the session list API to resolve display names.
 pub fn search_all_sessions(query: &str, limit: i64) -> SqliteResult<Vec<CrossSessionSearchHit>> {
+    if query.trim().is_empty() || limit <= 0 {
+        return Ok(Vec::new());
+    }
+
     let conn = get_connection()?;
     let pattern = escape_like_pattern(query);
+    let limit = limit.min(100);
 
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, content, MAX(created_at) AS created_at
-         FROM events
-         WHERE content LIKE '%' || ?1 || '%' ESCAPE '\\'
-            OR function_name LIKE '%' || ?1 || '%' ESCAPE '\\'
-            OR args_json LIKE '%' || ?1 || '%' ESCAPE '\\'
+        "WITH latest_events AS (
+             SELECT session_id, content, MAX(created_at) AS created_at
+             FROM events
+             WHERE content LIKE '%' || ?1 || '%' ESCAPE '\\'
+                OR function_name LIKE '%' || ?1 || '%' ESCAPE '\\'
+                OR args_json LIKE '%' || ?1 || '%' ESCAPE '\\'
+             GROUP BY session_id
+             ORDER BY created_at DESC
+             LIMIT ?2
+         ),
+         latest_human_entries AS (
+             SELECT session_id, body AS content, MAX(created_at) AS created_at
+             FROM human_session_entries
+             WHERE body LIKE '%' || ?1 || '%' ESCAPE '\\'
+             GROUP BY session_id
+             ORDER BY created_at DESC
+             LIMIT ?2
+         ),
+         candidates AS (
+             SELECT session_id, content, created_at FROM latest_events
+             UNION ALL
+             SELECT session_id, content, created_at FROM latest_human_entries
+         )
+         SELECT session_id, content, MAX(created_at) AS created_at
+         FROM candidates
          GROUP BY session_id
          ORDER BY created_at DESC
          LIMIT ?2",
@@ -954,6 +996,31 @@ mod tests {
     }
 
     #[test]
+    fn count_events_counts_without_loading() {
+        with_temp_orgii_home(|| {
+            {
+                let conn = get_connection().expect("open sessions DB");
+                super::super::schema::init_session_tables(&conn).expect("init session schema");
+            }
+            let session_id = "count-events-session";
+            assert_eq!(count_events(session_id).expect("count empty"), 0);
+            save_events(
+                session_id,
+                &[
+                    cached_event(session_id, "event-1", "2026-07-17T00:00:01.000Z"),
+                    cached_event(session_id, "event-2", "2026-07-17T00:00:02.000Z"),
+                ],
+            )
+            .expect("seed events");
+            assert_eq!(count_events(session_id).expect("count seeded"), 2);
+            assert_eq!(
+                count_events("some-other-session").expect("count unrelated"),
+                0
+            );
+        });
+    }
+
+    #[test]
     fn save_events_replacement_recomputes_cached_time_range_from_all_events() {
         with_temp_orgii_home(|| {
             let conn = get_connection().expect("open sessions DB");
@@ -1258,6 +1325,69 @@ mod tests {
             assert_eq!(all.len(), 1);
             assert_eq!(all[0].session_id, session_id);
             assert!(all[0].snippet.contains("<mark>discount</mark>"));
+        });
+    }
+
+    #[test]
+    fn cross_session_search_includes_human_session_notes() {
+        with_temp_orgii_home(|| {
+            let conn = get_connection().expect("open sessions DB");
+            conn.execute_batch(
+                "PRAGMA foreign_keys = ON;
+                 CREATE TABLE agent_sessions (session_id TEXT PRIMARY KEY);",
+            )
+            .expect("create canonical session parent");
+            super::super::schema::init_session_tables(&conn).expect("init session schema");
+            conn.execute(
+                "INSERT INTO agent_sessions (session_id) VALUES (?1)",
+                ["humansession-search-notes"],
+            )
+            .expect("insert Human session parent");
+            conn.execute(
+                "INSERT INTO human_session_entries
+                 (id, session_id, body, created_at)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    "humanentry-search-notes",
+                    "humansession-search-notes",
+                    "Remember to update index.ts before release",
+                    "2026-07-30T02:00:00.000Z"
+                ],
+            )
+            .expect("insert Human session note");
+            drop(conn);
+            save_events(
+                "humansession-search-notes",
+                &[test_event(
+                    "event-search-notes",
+                    "humansession-search-notes",
+                    "An older index.ts mention",
+                    "2026-07-30T01:00:00.000Z",
+                )],
+            )
+            .expect("insert older matching event");
+
+            let hits = search_all_sessions("index.ts", 10).expect("search Human session notes");
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].session_id, "humansession-search-notes");
+            assert!(
+                hits[0]
+                    .snippet
+                    .contains("Remember to update <mark>index.ts</mark>"),
+                "the newest matching Human note should win over an older event"
+            );
+        });
+    }
+
+    #[test]
+    fn cross_session_search_skips_empty_and_non_positive_requests() {
+        with_temp_orgii_home(|| {
+            assert!(search_all_sessions("   ", 30)
+                .expect("skip blank search")
+                .is_empty());
+            assert!(search_all_sessions("content", 0)
+                .expect("skip zero-limit search")
+                .is_empty());
         });
     }
 }

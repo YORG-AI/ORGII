@@ -4,7 +4,13 @@
  * Header for the Projects page with breadcrumb and action buttons.
  * Uses shared WorkStation header tokens for consistent styling.
  */
-import { Box, ListChevronsDownUp, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  Boxes,
+  ListChevronsDownUp,
+  Plus,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -79,21 +85,26 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
         ? {
             ...segment,
             icon: segment.icon ?? (
-              <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+              <Boxes size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
             ),
           }
         : segment
     );
   }, [breadcrumbSegments, title]);
 
-  const headerContent = (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5">
-      <ProjectManagerBreadcrumb
-        segments={resolvedBreadcrumbSegments}
-        trailingNode={leadingControls}
-      />
-    </div>
-  );
+  const headerContent =
+    resolvedBreadcrumbSegments.length === 0 ? (
+      leadingControls ? (
+        <div className="contents">{leadingControls}</div>
+      ) : null
+    ) : (
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <ProjectManagerBreadcrumb
+          segments={resolvedBreadcrumbSegments}
+          trailingNode={leadingControls}
+        />
+      </div>
+    );
 
   const headerTrailing = (
     <div className="flex flex-shrink-0 items-center gap-px">

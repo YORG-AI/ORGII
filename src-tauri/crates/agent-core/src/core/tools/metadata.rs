@@ -44,7 +44,7 @@ impl ToolSchemaCacheScope {
         }
     }
 
-    pub fn from_str(value: &str) -> Option<Self> {
+    pub fn from_wire_value(value: &str) -> Option<Self> {
         match value {
             "stable_prefix" => Some(Self::StablePrefix),
             "live_suffix" => Some(Self::LiveSuffix),
@@ -59,7 +59,7 @@ pub fn tool_schema_cache_scope(schema: &Value) -> ToolSchemaCacheScope {
     schema
         .get(ORGII_TOOL_SCHEMA_CACHE_SCOPE_KEY)
         .and_then(Value::as_str)
-        .and_then(ToolSchemaCacheScope::from_str)
+        .and_then(ToolSchemaCacheScope::from_wire_value)
         .unwrap_or(ToolSchemaCacheScope::StablePrefix)
 }
 

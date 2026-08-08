@@ -101,8 +101,7 @@ fn sync_mimo_code_history_cache(cache_conn: &mut Connection) -> Result<(), Strin
             continue;
         }
         let conn = open_mimo_code_db_at(&db_path)?;
-        let (mtime, size) = imported_paths::file_metadata_signature(&db_path, "Mimo Code")?;
-        metas.extend(list_session_meta_from_conn(&conn, &db_path, mtime, size)?);
+        metas.extend(list_session_meta_from_conn(&conn, &db_path)?);
     }
 
     let container_parent_ids = container_parent_ids(&metas);
@@ -143,8 +142,6 @@ fn sync_mimo_code_history_cache(cache_conn: &mut Connection) -> Result<(), Strin
 fn list_session_meta_from_conn(
     conn: &Connection,
     db_path: &Path,
-    source_mtime_ms: i64,
-    source_size_bytes: i64,
 ) -> Result<Vec<MimoCodeSessionMeta>, String> {
     let pure_imported_session_ids = pure_imported_session_ids(conn)?;
     let mut stmt = conn
@@ -168,8 +165,8 @@ fn list_session_meta_from_conn(
             Ok(MimoCodeSessionMeta {
                 source_session_id: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
                 source_path: db_path.to_string_lossy().to_string(),
-                source_mtime_ms,
-                source_size_bytes,
+                source_mtime_ms: 0,
+                source_size_bytes: 0,
                 source_fingerprint: String::new(),
                 title: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 directory: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
@@ -190,7 +187,8 @@ fn list_session_meta_from_conn(
         })
         .map_err(|err| format!("Failed to query Mimo Code sessions: {err}"))?;
 
-    let sidecars = imported_paths::sqlite_sidecar_signature(db_path);
+    let activity_signatures =
+        imported_paths::sqlite_all_session_activity_signatures_from_conn(conn, "Mimo Code")?;
     let mut metas = Vec::new();
     for row in rows {
         let mut meta = row.map_err(|err| format!("Failed to read Mimo Code session row: {err}"))?;
@@ -200,6 +198,12 @@ fn list_session_meta_from_conn(
         if pure_imported_session_ids.contains(&meta.source_session_id) {
             continue;
         }
+        let (activity_time, activity_fold) = activity_signatures
+            .get(&meta.source_session_id)
+            .copied()
+            .unwrap_or((meta.time_updated.max(meta.time_created), 0));
+        meta.source_mtime_ms = activity_time;
+        meta.source_size_bytes = activity_fold as i64;
         meta.source_fingerprint = [
             meta.source_session_id.as_str(),
             meta.title.as_str(),
@@ -210,7 +214,6 @@ fn list_session_meta_from_conn(
             &meta.input_tokens.to_string(),
             &meta.output_tokens.to_string(),
             meta.parent_id.as_deref().unwrap_or_default(),
-            sidecars.as_str(),
         ]
         .join("|");
         metas.push(meta);
@@ -425,7 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn reads_mimo_session_metadata_and_shared_parts() {
+    fn mimo_metadata_signature_ignores_unrelated_session_writes() {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
             "CREATE TABLE session (
@@ -461,12 +464,12 @@ mod tests {
         )
         .unwrap();
 
-        let metas =
-            list_session_meta_from_conn(&conn, Path::new("mimocode.db"), 10, 20).expect("metadata");
+        let metas = list_session_meta_from_conn(&conn, Path::new("mimocode.db")).expect("metadata");
         assert_eq!(metas.len(), 1);
         assert_eq!(metas[0].model.as_deref(), Some("mimo-model"));
         assert_eq!(metas[0].input_tokens, 14);
         assert_eq!(metas[0].output_tokens, 4);
+        let before = meta_signature(&metas[0]);
 
         let chunks = load_opencode_compatible_history_from_conn(
             &conn,
@@ -476,6 +479,49 @@ mod tests {
         )
         .expect("chunks");
         assert_eq!(chunks.len(), 2);
+
+        conn.execute_batch(
+            "INSERT INTO session VALUES (
+                'ses_other', 'Other', '/other', 1, 2, NULL, NULL
+             );
+             INSERT INTO message VALUES (
+                'msg_other', 'ses_other', 1, '{\"role\":\"assistant\"}'
+             );
+             INSERT INTO part VALUES (
+                'part_other', 'msg_other', 'ses_other', 1,
+                '{\"type\":\"text\",\"text\":\"unrelated tail\"}'
+             );
+             UPDATE part
+                SET data = '{\"type\":\"text\",\"text\":\"longer unrelated tail\"}'
+              WHERE id = 'part_other';",
+        )
+        .expect("write unrelated session");
+        let after_unrelated = list_session_meta_from_conn(&conn, Path::new("mimocode.db"))
+            .expect("metadata after unrelated write")
+            .into_iter()
+            .find(|meta| meta.source_session_id == "ses_1")
+            .map(|meta| meta_signature(&meta))
+            .expect("target signature after unrelated write");
+        assert!(imported_cache::record_matches_cached_signature(
+            &before,
+            &after_unrelated
+        ));
+
+        conn.execute(
+            "UPDATE part SET data = data || ' target growth' WHERE id = 'part_2'",
+            [],
+        )
+        .expect("grow target part");
+        let after_target = list_session_meta_from_conn(&conn, Path::new("mimocode.db"))
+            .expect("metadata after target write")
+            .into_iter()
+            .find(|meta| meta.source_session_id == "ses_1")
+            .map(|meta| meta_signature(&meta))
+            .expect("target signature after target write");
+        assert!(!imported_cache::record_matches_cached_signature(
+            &before,
+            &after_target
+        ));
     }
 
     #[test]
@@ -488,6 +534,10 @@ mod tests {
              );
              CREATE TABLE message (
                 id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT
+             );
+             CREATE TABLE part (
+                id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT,
+                time_created INTEGER, data TEXT
              );
              CREATE TABLE external_import (
                 source TEXT NOT NULL, source_key TEXT NOT NULL, session_id TEXT NOT NULL,
@@ -521,8 +571,7 @@ mod tests {
         )
         .unwrap();
 
-        let metas =
-            list_session_meta_from_conn(&conn, Path::new("mimocode.db"), 10, 20).expect("metadata");
+        let metas = list_session_meta_from_conn(&conn, Path::new("mimocode.db")).expect("metadata");
         let source_ids = metas
             .into_iter()
             .map(|meta| meta.source_session_id)
@@ -549,6 +598,10 @@ mod tests {
              CREATE TABLE message (
                 id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT
              );
+             CREATE TABLE part (
+                id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT,
+                time_created INTEGER, data TEXT
+             );
              CREATE TABLE claude_import (
                 source_uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL,
                 source_path TEXT NOT NULL, source_mtime INTEGER NOT NULL,
@@ -567,8 +620,7 @@ mod tests {
         )
         .unwrap();
 
-        let metas =
-            list_session_meta_from_conn(&conn, Path::new("mimocode.db"), 10, 20).expect("metadata");
+        let metas = list_session_meta_from_conn(&conn, Path::new("mimocode.db")).expect("metadata");
         assert!(metas.is_empty());
     }
 }

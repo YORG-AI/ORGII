@@ -16,6 +16,7 @@ import type {
 } from "@src/api/tauri/usageDashboard";
 import type {
   MemberInstalledAgent,
+  MemberRuntimeListEntry,
   MemberUsageDay,
   OrgRuntimeTelemetry,
   TeamUsageBucket,
@@ -28,8 +29,10 @@ import {
   TEAM_USAGE_BUCKETS,
   utcDayFromMs,
 } from "@src/features/Org2Cloud/memberRuntime/types";
+import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
 
 // ---------------------------------------------------------------------------
 // Org record accessor (safe against the pre-plumbing orgs atom)
@@ -121,7 +124,7 @@ export function parseTelemetryOption(value: string): {
 // Staleness
 // ---------------------------------------------------------------------------
 
-/** Grey-out threshold: a report older than 2× the org interval is stale. */
+/** Freshness threshold: a report older than 2× the org interval is stale. */
 export function staleAfterMs(telemetry: OrgRuntimeTelemetry | null): number {
   const interval = clampTelemetryInterval(
     telemetry?.intervalMinutes ?? RUNTIME_TELEMETRY_DEFAULT_INTERVAL_MINUTES
@@ -185,6 +188,208 @@ export function foldRecentDays(
     }
   }
   return headline;
+}
+
+/**
+ * Whether a member has meaningful usage in the current UTC day.
+ *
+ * This is the shared definition behind both the overview's active-member
+ * count and the Members breakdown groups. A zero-valued day row is not
+ * activity; any request, session, token, or cost is.
+ */
+export function hasMemberActivityToday(
+  recentDays: readonly MemberUsageDay[],
+  nowMs: number
+): boolean {
+  const today = utcDayFromMs(nowMs);
+  return recentDays.some(
+    (row) =>
+      row.day === today &&
+      (row.requests > 0 ||
+        row.sessions > 0 ||
+        row.totalTokens > 0 ||
+        row.costUsd > 0)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Today org snapshot + recent shared sessions
+// ---------------------------------------------------------------------------
+
+export interface OrgRuntimeTodaySnapshot {
+  usage: UsageSummary;
+  activeMembers: number;
+  memberCount: number;
+  currentSystems: number;
+  averageCpuPercent: number | null;
+  averageRamPercent: number | null;
+}
+
+function safeAverage(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+/**
+ * Fold the selected members into one UTC-today dashboard snapshot.
+ *
+ * Machine averages intentionally include only current reports. Mixing an
+ * hours-old sample into "average CPU/RAM" makes a sleeping laptop look like
+ * live org capacity, so stale or malformed samples are excluded rather than
+ * represented as zero.
+ */
+export function buildOrgRuntimeTodaySnapshot(
+  members: readonly MemberRuntimeListEntry[],
+  telemetry: OrgRuntimeTelemetry | null,
+  nowMs: number
+): OrgRuntimeTodaySnapshot {
+  const today = utcDayFromMs(nowMs);
+  const usageRows: MemberUsageDay[] = [];
+  const cpuPercents: number[] = [];
+  const ramPercents: number[] = [];
+  let activeMembers = 0;
+  let currentSystems = 0;
+
+  for (const member of members) {
+    for (const row of member.recentDays) {
+      if (row.day !== today) continue;
+      usageRows.push(row);
+    }
+    if (hasMemberActivityToday(member.recentDays, nowMs)) activeMembers += 1;
+
+    if (isRuntimeStale(member.reportedAt, telemetry, nowMs)) continue;
+    currentSystems += 1;
+    const sample = member.sample;
+    if (!sample) continue;
+    if (Number.isFinite(sample.cpuPercent)) {
+      cpuPercents.push(Math.min(100, Math.max(0, sample.cpuPercent)));
+    }
+    if (
+      Number.isFinite(sample.memUsedMb) &&
+      Number.isFinite(sample.memTotalMb) &&
+      sample.memTotalMb > 0
+    ) {
+      ramPercents.push(
+        Math.min(100, Math.max(0, (sample.memUsedMb / sample.memTotalMb) * 100))
+      );
+    }
+  }
+
+  return {
+    usage: foldMemberUsageSummary(usageRows),
+    activeMembers,
+    memberCount: members.length,
+    currentSystems,
+    averageCpuPercent: safeAverage(cpuPercents),
+    averageRamPercent: safeAverage(ramPercents),
+  };
+}
+
+/**
+ * Merge members' latest rolling-24h hourly series for the viewer's current
+ * display window. Member reports can land at slightly different instants, so
+ * the chart clips by hour bucket and adds matching buckets rather than
+ * assuming every peer reported on the same boundary.
+ */
+export function aggregateMemberRecentUsageTrends(
+  members: readonly MemberRuntimeListEntry[],
+  startMs: number,
+  endMs: number
+): UsageTrendPoint[] {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+    return [];
+  }
+  const firstBucketMs = Math.floor(startMs / HOUR_MS) * HOUR_MS;
+  const lastBucketMs = Math.floor(endMs / HOUR_MS) * HOUR_MS;
+  const byHour = new Map<number, UsageTrendPoint>();
+
+  for (const member of members) {
+    for (const point of member.stats?.recentUsage24h?.trends ?? []) {
+      if (
+        !Number.isFinite(point.bucketMs) ||
+        point.bucketMs < firstBucketMs ||
+        point.bucketMs > lastBucketMs
+      ) {
+        continue;
+      }
+      let aggregate = byHour.get(point.bucketMs);
+      if (!aggregate) {
+        aggregate = {
+          bucketMs: point.bucketMs,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          costUsd: 0,
+        };
+        byHour.set(point.bucketMs, aggregate);
+      }
+      aggregate.inputTokens += point.inputTokens;
+      aggregate.outputTokens += point.outputTokens;
+      aggregate.cacheReadTokens += point.cacheReadTokens;
+      aggregate.cacheWriteTokens += point.cacheWriteTokens;
+      aggregate.costUsd += point.costUsd;
+    }
+  }
+
+  return [...byHour.values()].sort(
+    (left, right) => left.bucketMs - right.bucketMs
+  );
+}
+
+/**
+ * Return the newest visible shared sessions for the selected member scope.
+ * The remote-session coordinator already bounds and identity-keys its cache;
+ * this pure projection retains at most `limit` rows for rendering.
+ */
+export function recentSharedSessions(
+  rows: readonly RemoteTeammateSessionMetadata[],
+  ownerUserId: string | null,
+  limit = 5
+): RemoteTeammateSessionMetadata[] {
+  const boundedLimit = Math.max(0, Math.floor(limit));
+  if (boundedLimit === 0) return [];
+  const newest: RemoteTeammateSessionMetadata[] = [];
+  const compareNewestFirst = (
+    left: RemoteTeammateSessionMetadata,
+    right: RemoteTeammateSessionMetadata
+  ): number => {
+    const leftMs = left.lastActivityAt
+      ? Date.parse(left.lastActivityAt)
+      : Number.NEGATIVE_INFINITY;
+    const rightMs = right.lastActivityAt
+      ? Date.parse(right.lastActivityAt)
+      : Number.NEGATIVE_INFINITY;
+    const normalizedLeft = Number.isFinite(leftMs)
+      ? leftMs
+      : Number.NEGATIVE_INFINITY;
+    const normalizedRight = Number.isFinite(rightMs)
+      ? rightMs
+      : Number.NEGATIVE_INFINITY;
+    if (normalizedLeft !== normalizedRight) {
+      return normalizedRight - normalizedLeft;
+    }
+    return right.id.localeCompare(left.id);
+  };
+
+  // Keep only the requested top-k while scanning. The shared Team Sessions
+  // cache can hold a large bounded org listing; sorting a full copy merely to
+  // render five rows creates avoidable O(n log n) work and O(n) allocation.
+  for (const row of rows) {
+    if (
+      row.deletedAt ||
+      (ownerUserId !== null && row.ownerUserId !== ownerUserId)
+    ) {
+      continue;
+    }
+    const insertAt = newest.findIndex(
+      (existing) => compareNewestFirst(row, existing) < 0
+    );
+    if (insertAt >= 0) newest.splice(insertAt, 0, row);
+    else if (newest.length < boundedLimit) newest.push(row);
+    if (newest.length > boundedLimit) newest.pop();
+  }
+  return newest;
 }
 
 // ---------------------------------------------------------------------------

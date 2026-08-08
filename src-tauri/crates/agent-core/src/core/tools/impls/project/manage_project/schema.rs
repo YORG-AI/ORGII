@@ -3,23 +3,29 @@
 //! Pulled into its own module so the `Tool` impl in `mod.rs` reads as a
 //! thin dispatch layer — see the `actions` submodule for the per-verb
 //! handlers.
+//!
+//! Work-item CRUD moved to `manage_work_item` (Orgtrack migration
+//! Phase 8); this tool keeps project CRUD, members, global `find`, and
+//! `start_item` — the orchestrator-launch capability `manage_work_item`
+//! does not have.
 
 use serde_json::{json, Value};
 
 pub(super) const DESCRIPTION: &str =
-    "Manage projects and work items (tasks/issues) in the global project store.\n\n\
-     **Projects** (Work Item parent containers): list, read, create, update, delete.\n\
-     **Work items** (tasks/bugs): list_items, read_item, create_item, update_item, delete_item, start_item.\n\
+    "Manage projects (Work Item parent containers) in the global project store.\n\n\
+     **Projects**: list, read, create, update, delete.\n\
+     **Execution**: start_item — launch a work item's orchestrator run via the SDE agent.\n\
      **Search**: find — search work items and projects globally by ID, title, or keyword.\n\
      **Members**: list_members — list team members. list_contributors — sync and list git contributors.\n\n\
-     Use 'find' to locate work items. Use 'start_item' to execute via SDE agent.";
+     Work item CRUD (list/read/create/update/delete) lives on the manage_work_item tool.";
 
 pub(super) fn llm_description() -> String {
-    "Manage projects and work items in the global project store.\n\n\
+    "Manage projects in the global project store.\n\n\
      Projects: list, read, create, update, delete.\n\
-     Work items: list_items, read_item, create_item, update_item, delete_item, start_item.\n\
+     Execution: start_item (launch a work item's orchestrator run).\n\
      Search: find — global.\n\
-     Members: list_members, list_contributors."
+     Members: list_members, list_contributors.\n\
+     Work item CRUD lives on manage_work_item."
         .to_string()
 }
 
@@ -31,8 +37,7 @@ pub(super) fn parameters() -> Value {
                 "type": "string",
                 "description": "The operation to perform.",
                 "enum": ["list", "read", "create", "update", "delete",
-                         "list_items", "read_item", "create_item", "update_item", "delete_item", "start_item",
-                         "find", "list_members", "list_contributors"]
+                         "start_item", "find", "list_members", "list_contributors"]
             },
             "query": {
                 "type": "string",
@@ -98,89 +103,10 @@ pub(super) fn parameters() -> Value {
             },
             "short_id": {
                 "type": "string",
-                "description": "Work item short ID, e.g. 'PROJ-001' (for read_item, update_item, delete_item)"
-            },
-            "title": {
-                "type": "string",
-                "description": "Work item title (required for create_item)"
-            },
-            "assignee": {
-                "type": "string",
-                "description": "ID of the assignee (member ID, agent definition ID, or org ID)"
-            },
-            "assignee_type": {
-                "type": "string",
-                "enum": ["member", "agent", "org"],
-                "description": "Type of assignee: 'member' for human, 'agent' for AgentDefinition, 'org' for AgentOrg. Defaults to 'member'."
-            },
-            "milestone": {
-                "type": "string",
-                "description": "Milestone ID for work item"
-            },
-            "parent": {
-                "type": "string",
-                "description": "Parent work item short ID (for sub-issues)"
-            },
-            "starred": {
-                "type": "boolean",
-                "description": "Star/bookmark this work item"
-            },
-            "todos": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "content": { "type": "string" },
-                        "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] }
-                    },
-                    "required": ["content"]
-                },
-                "description": "Todo checklist items (replaces existing)"
-            },
-            "selected_account_id": {
-                "type": "string",
-                "description": "Code account ID for Agent Workflow (from Integrations). Assigns which account runs SDE/Review."
-            },
-            "selected_model_id": {
-                "type": "string",
-                "description": "Model ID for Agent Workflow. Use with selected_account_id."
-            },
-            "sub_agent_ids": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "IDs of custom agents from Agent Orgs to use as sub-agents during execution."
-            },
-            "org_id": {
-                "type": "string",
-                "description": "ID of the agent organization to assign. All org members are resolved as sub-agents."
-            },
-            "worktree_path": {
-                "type": "string",
-                "description": "Absolute path to the code repository where the SDE Agent will work. Overrides project linked_repos. Use the Active IDE Repository path when available."
-            },
-            "review_config": {
-                "type": "object",
-                "description": "Review configuration. Must include 'reviewer' object with 'type' (agent/org/human/self_review) and optional 'id'. Top-level optional: max_rounds (default 3), model_id, account_id."
-            },
-            "schedule": {
-                "type": "object",
-                "description": "Automatic start schedule for a work item. Use 'at' for one-time (ISO 8601 timestamp) or 'cron' for recurring (cron expression).",
-                "properties": {
-                    "at": {
-                        "type": "string",
-                        "description": "One-time trigger: ISO 8601 timestamp (e.g. '2026-03-16T18:30:00Z')"
-                    },
-                    "cron": {
-                        "type": "string",
-                        "description": "Recurring trigger: cron expression (e.g. '0 9 * * *' for daily 9 AM)"
-                    },
-                    "enabled": {
-                        "type": "boolean",
-                        "description": "Whether this schedule is active (default: true)"
-                    }
-                }
+                "description": "Work item short ID, e.g. 'PROJ-001' (for start_item)"
             }
         },
         "required": ["action"]
     })
 }
+

@@ -26,6 +26,7 @@ import { useTranslation } from "react-i18next";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import {
   DROPDOWN_CLASSES,
+  DROPDOWN_ITEM,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
@@ -44,12 +45,14 @@ import {
 } from "@src/store/workstation/codeEditor/search/indexingProgressAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
+import { CiStatusMenu } from "./CiStatusMenu";
 import GitSyncStatusMenu from "./GitSyncStatusMenu";
 import { PortsStatusMenu } from "./PortsStatusMenu";
 import {
   BaseStatusBar,
   StatusBarButton,
   StatusBarDivider,
+  StatusBarLabel,
   StatusBarSegment,
   StatusBarText,
 } from "./StatusBarBase";
@@ -206,9 +209,12 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                 ) : (
                   <Code size={13} className="shrink-0 text-text-1" />
                 )}
-                <span className="min-w-0 truncate font-medium text-text-1">
+                <StatusBarLabel
+                  emphasis
+                  className="min-w-0 truncate text-text-1"
+                >
                   {workspaceLabel}
-                </span>
+                </StatusBarLabel>
               </StatusBarButton>
             </StatusBarTooltip>
           ) : (
@@ -218,9 +224,9 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
               dataTestId="status-bar-no-repo"
             >
               <Code size={13} className="text-primary-6" />
-              <span className="font-medium text-primary-6">
+              <StatusBarLabel emphasis className="text-primary-6">
                 {t("actions.addWorkspace")}
-              </span>
+              </StatusBarLabel>
             </StatusBarButton>
           )}
 
@@ -230,9 +236,9 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
               title={t("workstation.notGitInitializedTooltip")}
             >
               <GitBranch size={13} className="text-text-2" />
-              <span className="font-medium text-text-2">
+              <StatusBarLabel emphasis className="text-text-2">
                 {t("workstation.notGitInitialized")}
-              </span>
+              </StatusBarLabel>
             </StatusBarSegment>
           )}
 
@@ -250,13 +256,16 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                 dataTestId="status-bar-worktree"
               >
                 <Folder size={13} className="shrink-0 text-text-1" />
-                <span className="min-w-0 truncate font-medium text-text-1">
+                <StatusBarLabel
+                  emphasis
+                  className="min-w-0 truncate text-text-1"
+                >
                   {activeWorktree && !activeWorktree.isMain
                     ? activeWorktree.path.split("/").pop() ||
                       activeWorktree.branch ||
                       activeWorktree.path
                     : t("selectors.branch.labels.mainWorktree", "Main")}
-                </span>
+                </StatusBarLabel>
               </StatusBarButton>
             </StatusBarTooltip>
           )}
@@ -291,23 +300,32 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                 ) : (
                   <GitBranch size={13} className="shrink-0 text-text-1" />
                 )}
-                <span className="min-w-0 truncate font-medium text-text-1">
+                <StatusBarLabel
+                  emphasis
+                  className="min-w-0 truncate text-text-1"
+                >
                   {branchName}
-                </span>
+                </StatusBarLabel>
                 {(workingAdditions > 0 || workingDeletions > 0) && (
                   <DiffStatsBadge
                     additions={workingAdditions}
                     deletions={workingDeletions}
                     variant="plain"
                     size="xs"
+                    weight="normal"
                     reserveValueWidth={false}
-                    // `!font-normal` overrides the badge's baked-in font-medium
-                    // (classNames is a plain join, so importance must win, not order).
-                    className="shrink-0 !font-normal"
+                    className="shrink-0"
                   />
                 )}
               </StatusBarButton>
             </StatusBarTooltip>
+          )}
+
+          {showGitControls && branchName && (
+            <CiStatusMenu
+              branchName={branchName}
+              headRevision={commitInfo?.shortSha}
+            />
           )}
 
           {showGitControls && branchName && (
@@ -341,14 +359,14 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
               dataTestId="status-bar-switch-to-session-repo"
             >
               <ArrowRightLeft size={13} />
-              <span className="font-medium">
+              <StatusBarLabel emphasis>
                 {t("workstation.switchToSessionRepo", {
                   name:
                     sessionRepoHint.type === "folder"
                       ? sessionRepoHint.folderName
                       : sessionRepoHint.repoName,
                 })}
-              </span>
+              </StatusBarLabel>
             </StatusBarButton>
           )}
 
@@ -387,7 +405,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                 size={13}
                 className={isIndexingActive ? "animate-pulse" : ""}
               />
-              <span className="font-medium">
+              <StatusBarLabel emphasis>
                 {indexingProgress.status === "embedding"
                   ? indexingProgress.progress > 0
                     ? t("workstation.embeddingShort", {
@@ -397,7 +415,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                   : indexingProgress.filesTotal > 0
                     ? `${t("labels.indexing")} ${indexingProgress.filesProcessed}/${indexingProgress.filesTotal}`
                     : `${t("labels.indexing")}...`}
-              </span>
+              </StatusBarLabel>
             </StatusBarSegment>
           )}
         </>
@@ -416,6 +434,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
         aheadCount,
         workingAdditions,
         workingDeletions,
+        commitInfo?.shortSha,
         onRepoClick,
         onBranchClick,
         onWorktreeClick,
@@ -461,13 +480,13 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
           )}
 
           {cursor && (
-            <StatusBarText className="tabular-nums">
+            <StatusBarText numeric>
               Ln {cursor.line}, Col {cursor.column}
             </StatusBarText>
           )}
 
           {hasSelection && (
-            <StatusBarText>
+            <StatusBarText numeric>
               (
               {cursor?.selectedLines && cursor.selectedLines > 1
                 ? t("workstation.linesSelected", {
@@ -481,7 +500,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
           )}
 
           {totalLines !== undefined && (
-            <StatusBarText>
+            <StatusBarText numeric>
               {t("workstation.nLines", { count: totalLines })}
             </StatusBarText>
           )}
@@ -499,7 +518,9 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                     <span className="inline-flex items-center gap-1">
                       <span>{lspStatus?.language || "LSP"}</span>
                       <StatusBarDivider />
-                      <span>{activeLanguageServiceCount}</span>
+                      <StatusBarLabel numeric>
+                        {activeLanguageServiceCount}
+                      </StatusBarLabel>
                     </span>
                   </>
                 ) : (
@@ -596,7 +617,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                   right: lspDropdownPosition.right,
                 }}
               >
-                <div className="space-y-2 text-[13px]">
+                <div className={`space-y-2 ${DROPDOWN_ITEM.fontSizeClass}`}>
                   {languageServicePanelRows.map((row) =>
                     row.kind === "empty" ? (
                       <div key={row.key} className="font-bold text-text-3">

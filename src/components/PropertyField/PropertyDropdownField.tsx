@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
@@ -19,10 +20,15 @@ export interface PropertyDropdownOption<T extends string> {
   label: string;
   icon?: React.ReactNode;
   iconColor?: string;
+  disabled?: boolean;
 }
 
 export type PropertyDropdownPlacement = "inline" | "portal";
-export type PropertyDropdownTriggerVariant = "row" | "pill" | "iconOnly";
+export type PropertyDropdownTriggerVariant =
+  | "row"
+  | "pill"
+  | "iconOnly"
+  | "iconChevron";
 
 interface PropertyDropdownFieldProps<T extends string> {
   value: T;
@@ -35,6 +41,8 @@ interface PropertyDropdownFieldProps<T extends string> {
   triggerVariant?: PropertyDropdownTriggerVariant;
   fieldVariant?: FieldRowVariant;
   readonly?: boolean;
+  /** Prevents interaction without changing the trigger's visual treatment. */
+  interactionDisabled?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
   selected?: boolean;
@@ -42,6 +50,7 @@ interface PropertyDropdownFieldProps<T extends string> {
   onActiveChange?: (active: boolean) => void;
   maxWidthClassName?: string;
   valueClassName?: string;
+  compactPill?: boolean;
   onClear?: () => void | Promise<void>;
   borderless?: boolean;
   renderOptions?: (searchQuery: string, close: () => void) => React.ReactNode;
@@ -60,6 +69,7 @@ export function PropertyDropdownField<T extends string>({
   triggerVariant,
   fieldVariant = "row",
   readonly = false,
+  interactionDisabled = false,
   searchable = true,
   searchPlaceholder,
   selected = true,
@@ -67,6 +77,7 @@ export function PropertyDropdownField<T extends string>({
   onActiveChange,
   maxWidthClassName,
   valueClassName,
+  compactPill = false,
   onClear,
   borderless = false,
   renderOptions,
@@ -100,6 +111,10 @@ export function PropertyDropdownField<T extends string>({
 
   const close = useCallback(() => setOpen(false), [setOpen]);
 
+  useEffect(() => {
+    if (interactionDisabled && isOpen) close();
+  }, [close, interactionDisabled, isOpen]);
+
   const filtered =
     searchable && searchQuery
       ? options.filter((option) =>
@@ -107,26 +122,35 @@ export function PropertyDropdownField<T extends string>({
         )
       : options;
 
-  const toggleOpen = useCallback(() => setOpen(!isOpen), [isOpen, setOpen]);
+  const toggleOpen = useCallback(() => {
+    if (!interactionDisabled) setOpen(!isOpen);
+  }, [interactionDisabled, isOpen, setOpen]);
 
   const handleSelect = useCallback(
     (nextValue: T) => {
+      if (interactionDisabled) return;
       void onChange?.(nextValue);
       close();
     },
-    [close, onChange]
+    [close, interactionDisabled, onChange]
   );
 
   const resolvedTriggerVariant = triggerVariant ?? fieldVariant;
   const isRowTrigger = resolvedTriggerVariant === "row";
+  const isIconTrigger =
+    resolvedTriggerVariant === "iconOnly" ||
+    resolvedTriggerVariant === "iconChevron";
+  const isIconChevronTrigger = resolvedTriggerVariant === "iconChevron";
   const iconOnlyIdleBorderClass = borderless
     ? "border-transparent"
     : "border-border-2";
   const containerClass = [
     "relative flex min-w-0 items-center",
     maxWidthClassName ??
-      (resolvedTriggerVariant === "iconOnly"
-        ? "w-7 max-w-7 shrink-0"
+      (isIconTrigger
+        ? isIconChevronTrigger
+          ? "w-12 max-w-12 shrink-0"
+          : "w-7 max-w-7 shrink-0"
         : fieldVariant === "pill"
           ? "max-w-[220px] shrink-0"
           : "w-full"),
@@ -135,75 +159,96 @@ export function PropertyDropdownField<T extends string>({
     .filter(Boolean)
     .join(" ");
 
-  const trigger =
-    resolvedTriggerVariant === "iconOnly" ? (
-      <button
-        type="button"
-        title={label}
-        aria-label={label}
-        className={`flex h-6 w-6 items-center justify-center rounded-full border border-solid bg-transparent transition-[border-color,background-color,color] ${
-          isOpen
-            ? "border-primary-6 bg-fill-2 text-primary-6"
-            : `${iconOnlyIdleBorderClass} text-text-3 hover:border-border-3 hover:bg-fill-2`
-        } ${readonly ? "cursor-default" : "cursor-pointer"}`}
-        style={iconColor ? { color: iconColor } : undefined}
-        onClick={() => {
-          if (!readonly) toggleOpen();
-        }}
+  const trigger = isIconTrigger ? (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-disabled={readonly || interactionDisabled}
+      className={`flex items-center justify-center rounded-full border border-solid transition-[border-color,background-color,color] ${isIconChevronTrigger ? "h-7 w-12 gap-0 px-px" : "h-6 w-6"} ${
+        isOpen
+          ? "border-primary-6 bg-fill-2 text-primary-6"
+          : `${iconOnlyIdleBorderClass} ${isIconChevronTrigger ? "bg-bg-2" : "bg-transparent"} text-text-3 hover:border-border-3 hover:bg-fill-2`
+      } ${readonly ? "cursor-default" : "cursor-pointer"}`}
+      style={iconColor ? { color: iconColor } : undefined}
+      disabled={readonly}
+      onClick={() => {
+        if (!readonly && !interactionDisabled) toggleOpen();
+      }}
+    >
+      <span
+        className={`flex items-center justify-center ${isIconChevronTrigger ? "h-6 w-6" : "h-4 w-4"}`}
       >
-        <span className="flex h-4 w-4 items-center justify-center">{icon}</span>
-      </button>
-    ) : (
-      <FieldRow
-        icon={icon}
-        iconColor={iconColor}
-        value={label}
-        valueClassName={valueClassName}
-        isSelected={selected}
-        isActive={isOpen}
-        showChevron
-        variant={fieldVariant}
-        borderless={borderless}
-        onClear={readonly ? undefined : onClear}
-        onClick={() => {
-          if (!readonly) toggleOpen();
-        }}
-      />
-    );
-
-  const optionsContent = renderOptions ? (
-    renderOptions(searchQuery, close)
+        {icon}
+      </span>
+      {isIconChevronTrigger && !readonly ? (
+        <span className="flex h-6 w-5 items-center justify-center">
+          <ChevronDown size={12} strokeWidth={1.8} />
+        </span>
+      ) : null}
+    </button>
   ) : (
-    <>
-      {filtered.map((option) => (
-        <Option
-          key={option.value}
-          icon={option.icon}
-          iconColor={option.iconColor}
-          label={option.label}
-          isSelected={option.value === value}
-          onClick={() => handleSelect(option.value)}
-          dataTestId={
-            dataTestId ? `${dataTestId}-option-${option.value}` : undefined
-          }
-        />
-      ))}
-    </>
+    <FieldRow
+      icon={icon}
+      iconColor={iconColor}
+      value={label}
+      valueClassName={valueClassName}
+      isSelected={selected}
+      isActive={isOpen}
+      showChevron
+      suffix={
+        fieldVariant === "pill" && !readonly ? (
+          <ChevronDown className="ml-1 shrink-0" size={12} strokeWidth={1.8} />
+        ) : undefined
+      }
+      variant={fieldVariant}
+      compactPill={compactPill}
+      borderless={borderless}
+      disabled={readonly}
+      onClear={readonly || interactionDisabled ? undefined : onClear}
+      onClick={() => {
+        if (!readonly && !interactionDisabled) toggleOpen();
+      }}
+    />
   );
 
-  const dropdownContent = (
-    <>
-      {searchable && (
-        <DropdownSearch
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder={searchPlaceholder}
-          autoFocus
-        />
-      )}
-      <div className={DROPDOWN_CLASSES.optionsContainer}>{optionsContent}</div>
-    </>
-  );
+  const dropdownContent = () => {
+    const optionsContent = renderOptions ? (
+      renderOptions(searchQuery, close)
+    ) : (
+      <>
+        {filtered.map((option) => (
+          <Option
+            key={option.value}
+            icon={option.icon}
+            iconColor={option.iconColor}
+            label={option.label}
+            isSelected={option.value === value}
+            disabled={option.disabled}
+            onClick={() => handleSelect(option.value)}
+            dataTestId={
+              dataTestId ? `${dataTestId}-option-${option.value}` : undefined
+            }
+          />
+        ))}
+      </>
+    );
+    return (
+      <>
+        {searchable && (
+          <DropdownSearch
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder={searchPlaceholder}
+            autoFocus
+          />
+        )}
+        <div className={DROPDOWN_CLASSES.optionsContainer}>
+          {optionsContent}
+        </div>
+      </>
+    );
+  };
 
   return (
     <div
@@ -215,8 +260,8 @@ export function PropertyDropdownField<T extends string>({
       <div
         ref={triggerRef}
         className={
-          resolvedTriggerVariant === "iconOnly"
-            ? "flex h-7 w-7 items-center justify-center"
+          isIconTrigger
+            ? `flex h-7 items-center justify-center ${isIconChevronTrigger ? "w-12" : "w-7"}`
             : isRowTrigger
               ? "w-full min-w-0"
               : undefined
@@ -225,17 +270,21 @@ export function PropertyDropdownField<T extends string>({
         {trigger}
       </div>
 
-      {!readonly && isOpen && placement === "inline" && (
-        <div
-          ref={dropdownRef}
-          data-property-dropdown
-          className={`absolute ${fieldVariant === "pill" ? "left-0" : "left-2 right-2"} top-full mt-1 flex flex-col ${fieldVariant === "pill" ? DROPDOWN_WIDTHS.wideMenuClass : ""} ${DROPDOWN_CLASSES.panelAnimated}`}
-        >
-          {dropdownContent}
-        </div>
-      )}
+      {!readonly &&
+        !interactionDisabled &&
+        isOpen &&
+        placement === "inline" && (
+          <div
+            ref={dropdownRef}
+            data-property-dropdown
+            className={`absolute ${fieldVariant === "pill" ? "left-0" : "left-2 right-2"} top-full mt-1 flex flex-col ${fieldVariant === "pill" ? DROPDOWN_WIDTHS.wideMenuClass : ""} ${DROPDOWN_CLASSES.panelAnimated}`}
+          >
+            {dropdownContent()}
+          </div>
+        )}
 
       {!readonly &&
+        !interactionDisabled &&
         isOpen &&
         placement === "portal" &&
         isPositioned &&
@@ -253,7 +302,7 @@ export function PropertyDropdownField<T extends string>({
               right: dropdownPosition.right,
             }}
           >
-            {dropdownContent}
+            {dropdownContent()}
           </div>,
           document.body
         )}

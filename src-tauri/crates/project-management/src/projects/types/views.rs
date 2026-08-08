@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::enriched::{EnrichedWorkItem, ResolvedLabel, ResolvedPerson};
+use super::project::{ProjectData, ProjectOrg};
+use super::work_items::WorkItemData;
 
 // ============================================
 // View-Ready Types (for Kanban, Gantt, Calendar)
@@ -95,20 +97,7 @@ pub struct StatusCounts {
     pub duplicate: usize,
 }
 
-/// Work items grouped by status (for Kanban)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GroupedWorkItems {
-    pub backlog: Vec<EnrichedWorkItem>,
-    pub planned: Vec<EnrichedWorkItem>,
-    pub in_progress: Vec<EnrichedWorkItem>,
-    pub in_review: Vec<EnrichedWorkItem>,
-    pub completed: Vec<EnrichedWorkItem>,
-    pub cancelled: Vec<EnrichedWorkItem>,
-    pub duplicate: Vec<EnrichedWorkItem>,
-}
-
-/// Complete work items response with all pre-computed views
+/// Work-items response with only the projection requested by the caller.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkItemsViewData {
@@ -117,11 +106,31 @@ pub struct WorkItemsViewData {
     /// Status filter counts
     pub counts: StatusCounts,
     /// Kanban-ready tasks
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kanban_tasks: Vec<KanbanTask>,
     /// Gantt-ready tasks
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub gantt_tasks: Vec<GanttTask>,
     /// Calendar-ready events
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub calendar_events: Vec<CalendarEvent>,
-    /// Items grouped by status
-    pub grouped: GroupedWorkItems,
+}
+
+/// One project's metadata and its pre-enriched work items for the workspace
+/// list. Keeping the project beside the rows removes the frontend's N-command
+/// project fan-out while preserving the same wire shapes used elsewhere.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceProjectWorkItems {
+    pub project: ProjectData,
+    pub work_items: Vec<EnrichedWorkItem>,
+}
+
+/// Complete local dataset needed by the workspace work-items surface.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceWorkItemsData {
+    pub project_entries: Vec<WorkspaceProjectWorkItems>,
+    pub standalone_work_items: Vec<WorkItemData>,
+    pub orgs: Vec<ProjectOrg>,
 }

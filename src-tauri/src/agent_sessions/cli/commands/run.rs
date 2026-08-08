@@ -78,6 +78,12 @@ fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
+/// Mint a turn intent id for a path that has no `TurnIdentity` of its own
+/// (currently `cli_agent_resume`), so every turn is attributable.
+pub(super) fn new_turn_intent_id() -> String {
+    new_id()
+}
+
 /// Prepend IDE context (open files, git status, etc.) to the user prompt
 /// so external CLI agents are aware of the user's IDE state.
 fn inject_ide_context_into_prompt(user_input: &str, ide_context: Option<&IdeContext>) -> String {
@@ -94,26 +100,6 @@ fn inject_ide_context_into_prompt(user_input: &str, ide_context: Option<&IdeCont
         "<ide_context>\n{}\n</ide_context>\n\n{}",
         section, user_input
     )
-}
-
-fn failed_status_message(
-    session_id: &str,
-    error_message: &str,
-    turn_intent_id: &str,
-    notification_context: Option<(bool, &str)>,
-) -> serde_json::Value {
-    let mut message = serde_json::json!({
-        "type": "code_session.status_changed",
-        "session_id": session_id,
-        "status": "failed",
-        "error_message": error_message,
-        "turn_intent_id": turn_intent_id,
-    });
-    if let Some((background, session_name)) = notification_context {
-        message["background"] = serde_json::Value::Bool(background);
-        message["session_name"] = serde_json::Value::String(session_name.to_string());
-    }
-    message
 }
 
 /// Park a TUI-hosted session when its terminal pane goes away (PTY exit or
@@ -255,39 +241,12 @@ async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<(), Stri
             }
             integrations::proxy::server::stop_session_proxy(&sid).await;
             session_runner::release_proxy_token_for_session_pub(&sid).await;
-            let notification_sid = sid.clone();
-            let notification_context = match tokio::task::spawn_blocking(move || {
-                persistence::get_session(&notification_sid)
-            })
-            .await
-            {
-                Ok(Ok(session)) => session,
-                Ok(Err(error)) => {
-                    tracing::warn!(
-                        "[CodeSession] Failed to reload notification context for {}: {}",
-                        sid,
-                        error
-                    );
-                    None
-                }
-                Err(error) => {
-                    tracing::warn!(
-                        "[CodeSession] Notification context task failed for {}: {}",
-                        sid,
-                        error
-                    );
-                    None
-                }
-            };
-            let failed_msg = failed_status_message(
+            super::failure_broadcast::broadcast_async_run_failure(
                 &sid,
                 &e,
-                &runner_turn_intent_id,
-                notification_context
-                    .as_ref()
-                    .map(|session| (session.background, session.name.as_str())),
-            );
-            crate::api::websocket_handler::broadcast(failed_msg.to_string());
+                Some(&runner_turn_intent_id),
+            )
+            .await;
         }
         // Remove finished entry from RUNNING_SESSIONS to prevent unbounded growth
         session_runner::RUNNING_SESSIONS.lock().await.remove(&sid);
@@ -528,24 +487,4 @@ pub async fn cli_agent_approval_response(
         always_allow.unwrap_or(false),
     )
     .await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::failed_status_message;
-
-    #[test]
-    fn failed_background_status_keeps_notification_context() {
-        let message = failed_status_message(
-            "cli-session-1",
-            "provider failed",
-            "intent-1",
-            Some((true, "Background review")),
-        );
-
-        assert_eq!(message["status"], "failed");
-        assert_eq!(message["background"], true);
-        assert_eq!(message["session_name"], "Background review");
-        assert_eq!(message["turn_intent_id"], "intent-1");
-    }
 }

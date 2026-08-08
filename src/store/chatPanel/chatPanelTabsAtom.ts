@@ -13,20 +13,27 @@ export {
   closeOrganizationChatPanelTabAtom,
   closeOtherChatPanelTabsAtom,
   closeProjectOrgChatPanelTabsAtom,
+  closeRevokedCloudChannelChatPanelTabsAtom,
   closeWorkItemChatPanelTabAtom,
   nextChatPanelTabAtom,
   patchChatPanelWorkItemTabAtom,
   prevChatPanelTabAtom,
+  reconcileDiscussionChannelTabsAtom,
   reorderChatPanelTabsAtom,
+  setActiveWorkManagementSectionAtom,
   setChatPanelTabTitleAtom,
   toggleChatPanelTabTuiModeAtom,
+  type ReconcileDiscussionChannelTabsInput,
 } from "./chatPanelTabLifecycleAtoms";
 export {
   addChatPanelLaunchpadTabAtom,
   addChatPanelTerminalTabAtom,
+  openChannelInChatPanelTabAtom,
   openOrganizationInChatPanelTabAtom,
   openCreateTargetInChatPanelStartPageAtom,
   openExploreInChatPanelTabAtom,
+  openGitHubIssueInChatPanelTabAtom,
+  openGitHubPrInChatPanelTabAtom,
   openWorkManagementChatPanelTabAtom,
   openOrFocusChatPanelStartPageTabAtom,
   openRuntimeInChatPanelTabAtom,
@@ -39,8 +46,12 @@ export {
   openWorkspaceOverviewInChatPanelTabAtom,
 } from "./chatPanelTabOpenAtoms";
 export {
+  buildChannelTabKey,
   buildDefaultLaunchpadTab,
   buildInitialChatPanelTabsState,
+  createChannelTab,
+  createGitHubIssueTab,
+  createGitHubPrTab,
   createOrganizationTab,
   createLaunchpadTab,
   createRuntimeTab,
@@ -62,6 +73,7 @@ export {
 } from "./chatPanelTabPresentationAtoms";
 export {
   normalizePersistedChatPanelTabsState,
+  type ChatPanelSelectedChannel,
   type ChatPanelTab,
   type ChatPanelTabsState,
   type ChatPanelTabType,

@@ -23,7 +23,7 @@ import CaptionBar from "@src/engines/Simulator/components/CaptionBar";
 import { useCurrentTurnLastAgentMessage } from "@src/engines/Simulator/hooks/useCurrentTurnLastAgentMessage";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import {
-  COLLAPSED_SIDEBAR_CHROME_OFFSET,
+  getCollapsedSidebarChromeOffset,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
@@ -148,7 +148,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
         style={
           {
             paddingLeft: shouldOffsetLeftChrome
-              ? COLLAPSED_SIDEBAR_CHROME_OFFSET
+              ? getCollapsedSidebarChromeOffset()
               : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties

@@ -12,10 +12,7 @@ pub(super) fn sync_zcode_history_cache(cache_conn: &mut Connection) -> Result<()
         )?;
         return Ok(());
     };
-    let (source_mtime_ms, source_size_bytes) =
-        imported_paths::file_metadata_signature(&db_path, "ZCode")?;
-    let metas =
-        list_all_zcode_session_meta_from_conn(&conn, &db_path, source_mtime_ms, source_size_bytes)?;
+    let metas = list_all_zcode_session_meta_from_conn(&conn, &db_path)?;
     let live_ids = metas
         .iter()
         .map(|meta| meta.source_session_id.clone())
@@ -42,7 +39,7 @@ pub(super) fn sync_zcode_history_cache(cache_conn: &mut Connection) -> Result<()
     imported_cache::sync_source_cache_from_conn(cache_conn, SOURCE_ZCODE, live_ids, inputs)
 }
 
-fn zcode_meta_signature(meta: &ZCodeSessionMeta) -> ImportedHistoryRecordSignature {
+pub(super) fn zcode_meta_signature(meta: &ZCodeSessionMeta) -> ImportedHistoryRecordSignature {
     ImportedHistoryRecordSignature {
         source_session_id: meta.source_session_id.clone(),
         source_path: meta.source_path.clone(),
@@ -56,8 +53,6 @@ fn zcode_meta_signature(meta: &ZCodeSessionMeta) -> ImportedHistoryRecordSignatu
 pub(super) fn list_all_zcode_session_meta_from_conn(
     conn: &Connection,
     db_path: &Path,
-    source_mtime_ms: i64,
-    source_size_bytes: i64,
 ) -> Result<Vec<ZCodeSessionMeta>, String> {
     // Tokens live in `turn_usage` (not on the session row): input folds in the
     // cache read/creation tokens, output folds in reasoning — mirroring how the
@@ -115,30 +110,31 @@ pub(super) fn list_all_zcode_session_meta_from_conn(
         })
         .map_err(|err| format!("Failed to query ZCode sessions: {err}"))?;
 
-    // A single `db.sqlite` backs every session, so fold its WAL/`-shm` sidecars
-    // into each session's fingerprint once.
-    let sidecar_signature = imported_paths::sqlite_sidecar_signature(db_path);
+    let activity_signatures =
+        imported_paths::sqlite_all_session_activity_signatures_from_conn(conn, "ZCode")?;
     let mut sessions = Vec::new();
     for row in rows {
         let mut meta = row.map_err(|err| format!("Failed to read ZCode session row: {err}"))?;
         if meta.source_session_id.trim().is_empty() {
             continue;
         }
+        let (activity_time, activity_fold) = activity_signatures
+            .get(&meta.source_session_id)
+            .copied()
+            .unwrap_or((meta.time_updated.max(meta.time_created), 0));
         meta.source_path = db_path.to_string_lossy().to_string();
         meta.source_record_key = meta.source_session_id.clone();
-        meta.source_mtime_ms = source_mtime_ms;
-        meta.source_size_bytes = source_size_bytes;
-        meta.source_fingerprint = zcode_source_fingerprint(&meta, &sidecar_signature);
+        meta.source_mtime_ms = activity_time;
+        meta.source_size_bytes = activity_fold as i64;
+        meta.source_fingerprint = zcode_source_fingerprint(&meta);
         sessions.push(meta);
     }
     Ok(sessions)
 }
 
-/// Content-aware change fingerprint for a ZCode session. The `db.sqlite` mtime
-/// alone can stay flat across a same-mtime rewrite, so this folds the session's
-/// own identity/title/timestamp/token/parent fields together with the shared
-/// WAL/`-shm` sidecar signature.
-fn zcode_source_fingerprint(meta: &ZCodeSessionMeta, sidecar_signature: &str) -> String {
+/// Content-aware fingerprint containing only fields owned by this ZCode
+/// session. Transcript activity rides in the session-local mtime/size fields.
+fn zcode_source_fingerprint(meta: &ZCodeSessionMeta) -> String {
     [
         meta.source_session_id.as_str(),
         meta.title.as_str(),
@@ -148,7 +144,6 @@ fn zcode_source_fingerprint(meta: &ZCodeSessionMeta, sidecar_signature: &str) ->
         &meta.input_tokens.to_string(),
         &meta.output_tokens.to_string(),
         meta.parent_id.as_deref().unwrap_or_default(),
-        sidecar_signature,
     ]
     .join("|")
 }

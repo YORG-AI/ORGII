@@ -133,34 +133,66 @@ const GuideHighlightOverlay: React.FC = () => {
   useEffect(() => {
     if (!highlight) return;
 
+    let observer: MutationObserver | null = null;
+    let hasScrolledToTarget = false;
+
+    const stopObserver = () => {
+      observer?.disconnect();
+      observer = null;
+    };
+    const startObserver = () => {
+      if (observer || document.visibilityState === "hidden" || !document.body) {
+        return;
+      }
+      observer = new MutationObserver(() => scheduler.schedule());
+      observer.observe(document.body, { childList: true, subtree: true });
+    };
     const updateRect = () => {
       const nextRect = getTargetRect(highlight.targetId);
       setTargetRect({ targetId: highlight.targetId, rect: nextRect });
       if (nextRect) {
+        stopObserver();
         const element = document.querySelector<HTMLElement>(
           `[data-guide-target="${CSS.escape(highlight.targetId)}"],[data-tour-target="${CSS.escape(highlight.targetId)}"]`
         );
-        element?.scrollIntoView({
-          block: "center",
-          inline: "center",
-          behavior: "smooth",
-        });
+        if (!hasScrolledToTarget) {
+          hasScrolledToTarget = true;
+          element?.scrollIntoView({
+            block: "center",
+            inline: "center",
+            behavior: "smooth",
+          });
+        }
+      } else {
+        startObserver();
       }
     };
     const scheduler = createAnimationFrameScheduler(updateRect, {
       requestFrame: window.requestAnimationFrame.bind(window),
       cancelFrame: window.cancelAnimationFrame.bind(window),
     });
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        stopObserver();
+        return;
+      }
+      startObserver();
+      scheduler.schedule();
+    };
 
+    startObserver();
     scheduler.schedule();
     window.addEventListener("resize", scheduler.schedule);
     window.addEventListener("scroll", scheduler.schedule, true);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     const timeout = window.setTimeout(clearHighlight, AUTO_DISMISS_MS);
 
     return () => {
       scheduler.cancel();
+      stopObserver();
       window.removeEventListener("resize", scheduler.schedule);
       window.removeEventListener("scroll", scheduler.schedule, true);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearTimeout(timeout);
     };
   }, [clearHighlight, highlight]);

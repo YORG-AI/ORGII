@@ -37,6 +37,7 @@ import { useLinearProjectsMutations } from "./useLinearProjectsMutations";
 interface UseLinearProjectsDataOptions {
   connectionId?: string;
   projectId?: string;
+  isActive?: boolean;
 }
 
 export interface LinearProjectsData {
@@ -107,6 +108,7 @@ export interface LinearProjectsData {
 export function useLinearProjectsData({
   connectionId,
   projectId,
+  isActive = true,
 }: UseLinearProjectsDataOptions): LinearProjectsData {
   const { t } = useTranslation(["projects", "common"]);
 
@@ -138,6 +140,7 @@ export function useLinearProjectsData({
     useLinearProjectsLoaders({
       connectionId,
       projectId,
+      isActive,
       project,
       t,
       setProject,

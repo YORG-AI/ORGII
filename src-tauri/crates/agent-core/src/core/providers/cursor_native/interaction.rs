@@ -21,6 +21,9 @@ use crate::tools::names as tool_names;
 ///
 /// Returns `Some(ToolCallRequest)` when the server has completed an MCP or
 /// task tool call that ORGII should now execute.
+#[allow(clippy::too_many_arguments)]
+// Keep the stream reducer's mutable accumulators explicit; a relay context
+// would obscure which fields this update is allowed to mutate.
 pub(super) fn handle_interaction_update(
     update: pb::InteractionUpdate,
     content: &mut String,

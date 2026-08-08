@@ -31,6 +31,7 @@ describe("ProjectManagerBreadcrumb", () => {
     expect(markup).toContain(`${"p".repeat(23)}…`);
     expect(markup).toContain(`${"w".repeat(35)}…`);
     expect(markup).toContain('role="button"');
+    expect(markup).toContain("mx-0.5 flex-shrink-0 text-fill-4");
   });
 
   it("keeps a fill-width segment untruncated", () => {
@@ -97,6 +98,24 @@ describe("ProjectManagerBreadcrumb", () => {
     expect(markup.match(/data-header-icon/g)).toHaveLength(1);
     expect(markup.indexOf("data-header-icon")).toBeLessThan(
       markup.indexOf(">Parent</span>")
+    );
+  });
+
+  it("uses one evenly spaced container for trailing header controls", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ProjectManagerBreadcrumb, {
+        segments: [{ label: "Projects" }],
+        trailingNode: React.createElement(
+          "div",
+          { className: "contents" },
+          React.createElement("button", null, "Filter"),
+          React.createElement("button", null, "View")
+        ),
+      })
+    );
+
+    expect(markup).toContain(
+      'class="inline-flex h-6 flex-shrink-0 items-center gap-2"'
     );
   });
 });

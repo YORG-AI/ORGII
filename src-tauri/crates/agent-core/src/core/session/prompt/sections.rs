@@ -290,7 +290,13 @@ impl PromptSection for BehavioralRulesSection {
     }
     fn render(&self, ctx: &PromptCtx) -> Option<String> {
         if ctx.is_channel_session {
-            Some(build_channel_behavioral_rules(ctx.config))
+            // Tool summaries are already policy-filtered (product-mode
+            // layer included), so the PM guidance tracks the surface the
+            // model can actually call this turn.
+            Some(build_channel_behavioral_rules(
+                ctx.config,
+                ctx.has_tool(tool_names::MANAGE_WORK_ITEM),
+            ))
         } else if ctx.config.workspace.is_some() {
             Some(sde_behavioral_rules())
         } else {
@@ -741,8 +747,10 @@ impl PromptSection for TaskRoutingSection {
     fn cache_policy(&self) -> PromptCachePolicy {
         PromptCachePolicy::StableUntilClear
     }
-    fn render(&self, _ctx: &PromptCtx) -> Option<String> {
-        Some(build_task_routing_section())
+    fn render(&self, ctx: &PromptCtx) -> Option<String> {
+        Some(build_task_routing_section(
+            ctx.has_tool(tool_names::MANAGE_WORK_ITEM),
+        ))
     }
 }
 

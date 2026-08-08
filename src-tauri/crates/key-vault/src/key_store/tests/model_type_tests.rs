@@ -35,6 +35,7 @@ fn api_providers_are_api_key_providers() {
     let api_types = [
         ModelType::AnthropicApi,
         ModelType::OpenaiApi,
+        ModelType::AtlascloudApi,
         ModelType::DeepseekApi,
         ModelType::GeminiApi,
         ModelType::GroqApi,
@@ -128,6 +129,7 @@ fn as_str_round_trips_through_from_str() {
         ModelType::TraeCli,
         ModelType::AnthropicApi,
         ModelType::OpenaiApi,
+        ModelType::AtlascloudApi,
         ModelType::DeepseekApi,
         ModelType::GeminiApi,
         ModelType::GroqApi,

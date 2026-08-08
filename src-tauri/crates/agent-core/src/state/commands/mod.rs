@@ -1,6 +1,5 @@
 //! Agent Tauri commands.
 
-pub mod automation;
 pub mod channel_handler;
 pub mod desktop;
 pub mod routines;

@@ -81,7 +81,6 @@ export interface UseBrowserDragDropOptions {
   ) => void;
   setIsDragging: (dragging: boolean) => void;
   dragDepthRef: MutableRefObject<number>;
-  workflowDragActiveRef: MutableRefObject<boolean>;
   internalFileTreeDragRef: MutableRefObject<boolean>;
 }
 
@@ -96,13 +95,11 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
     handleBrowserFileDrop,
     setIsDragging,
     dragDepthRef,
-    workflowDragActiveRef,
     internalFileTreeDragRef,
   } = options;
 
   useEffect(() => {
-    const isInternalDragFn = (e: Event) =>
-      isInternalDrag(e, workflowDragActiveRef);
+    const isInternalDragFn = (e: Event) => isInternalDrag(e);
 
     const preventDefaults = createPreventDefaults(isInternalDragFn);
 
@@ -424,7 +421,6 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
     handleBrowserFileDrop,
     setIsDragging,
     dragDepthRef,
-    workflowDragActiveRef,
     internalFileTreeDragRef,
     t,
   ]);

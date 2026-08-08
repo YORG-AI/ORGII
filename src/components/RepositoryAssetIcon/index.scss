@@ -1,0 +1,12 @@
+.repository-asset-icon {
+  display: block;
+  flex: none;
+
+  :where(path, circle, rect, polygon, polyline, ellipse) {
+    fill: currentColor;
+  }
+
+  > :first-child:not(:only-child) {
+    opacity: 0.42;
+  }
+}

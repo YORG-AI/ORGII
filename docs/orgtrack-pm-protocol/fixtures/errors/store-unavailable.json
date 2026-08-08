@@ -1,0 +1,15 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "STORE_UNAVAILABLE",
+    "message": "projects.db is locked or unreachable; no fallback store is used for mutations",
+    "retryable": true,
+    "details": {
+      "store": "projects.db"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR18"
+  }
+}

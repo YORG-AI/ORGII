@@ -4,6 +4,7 @@
  * Icon-only prev/next buttons, page size Select with dropdown opening upward.
  */
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
@@ -22,6 +23,10 @@ export interface SettingsTablePaginationProps {
   onPageChange: (pageIndex: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   pageSizeOptions?: number[];
+  totalLabel?: ReactNode;
+  pageLabel?: ReactNode;
+  showTotal?: boolean;
+  showPageSize?: boolean;
   className?: string;
 }
 
@@ -37,6 +42,10 @@ export function SettingsTablePagination({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
+  totalLabel,
+  pageLabel,
+  showTotal = true,
+  showPageSize = true,
   className = "",
 }: SettingsTablePaginationProps) {
   const { t } = useTranslation("common");
@@ -46,7 +55,9 @@ export function SettingsTablePagination({
   return (
     <div className={`grid w-full grid-cols-3 items-center py-1 ${className}`}>
       <span className="text-xs font-medium text-text-1">
-        {t("pagination.totalItems", { count: total })}
+        {showTotal
+          ? (totalLabel ?? t("pagination.totalItems", { count: total }))
+          : null}
       </span>
 
       <div className="flex items-center justify-center gap-2">
@@ -58,10 +69,11 @@ export function SettingsTablePagination({
           <ChevronLeft size={14} />
         </button>
         <span className="text-xs text-text-1">
-          {t("pagination.pageOf", {
-            current: currentPage,
-            total: pageCount,
-          })}
+          {pageLabel ??
+            t("pagination.pageOf", {
+              current: currentPage,
+              total: pageCount,
+            })}
         </span>
         <button
           className={PAGE_ICON_BUTTON}
@@ -73,16 +85,18 @@ export function SettingsTablePagination({
       </div>
 
       <div className="flex justify-end">
-        <Select
-          value={pageSize}
-          onChange={(value) => onPageSizeChange(Number(value))}
-          options={pageSizeOptions.map((size) => ({
-            label: `${size} ${t("pagination.perPage")}`,
-            value: size,
-          }))}
-          size="small"
-          placement="top"
-        />
+        {showPageSize ? (
+          <Select
+            value={pageSize}
+            onChange={(value) => onPageSizeChange(Number(value))}
+            options={pageSizeOptions.map((size) => ({
+              label: `${size} ${t("pagination.perPage")}`,
+              value: size,
+            }))}
+            size="small"
+            placement="top"
+          />
+        ) : null}
       </div>
     </div>
   );

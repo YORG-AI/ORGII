@@ -50,6 +50,8 @@ interface WorkItemsListSurfaceProps {
   collapseAllSignal?: number;
   /** Render project cells read-only (cross-project Work Items page). */
   disableProjectEdit?: boolean;
+  /** Hide redundant project identity in a fixed project-scoped list. */
+  hideProjectCell?: boolean;
   showEmptySections?: boolean;
   defaultCollapsedStatuses?: readonly string[];
   renderSectionPlaceholder?: (status: string) => ReactNode | undefined;
@@ -88,6 +90,7 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
   statusDisabled = false,
   collapseAllSignal = 0,
   disableProjectEdit = false,
+  hideProjectCell = false,
   showEmptySections = false,
   defaultCollapsedStatuses = [],
   renderSectionPlaceholder,
@@ -120,6 +123,7 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
       statusDisabled={statusDisabled}
       collapseAllSignal={collapseAllSignal}
       disableProjectEdit={disableProjectEdit}
+      hideProjectCell={hideProjectCell}
       showEmptySections={showEmptySections}
       defaultCollapsedStatuses={defaultCollapsedStatuses}
       renderSectionPlaceholder={renderSectionPlaceholder}

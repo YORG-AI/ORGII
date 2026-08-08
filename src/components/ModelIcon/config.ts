@@ -15,6 +15,7 @@ import AiderIcon from "@src/assets/modelIcons/aider.svg";
 import AiHubMixIcon from "@src/assets/modelIcons/aihubmix.svg";
 import AmpIcon from "@src/assets/modelIcons/amp.svg";
 import AntigravityIcon from "@src/assets/modelIcons/antigravity.svg";
+import AtlasCloudIcon from "@src/assets/modelIcons/atlascloud.svg";
 import AugmentIcon from "@src/assets/modelIcons/augment.svg";
 import AutoHandIcon from "@src/assets/modelIcons/autohand.svg";
 import AWSIcon from "@src/assets/modelIcons/aws.svg";
@@ -90,6 +91,7 @@ import ZhipuIcon from "@src/assets/modelIcons/zhipu.svg";
  */
 export type IconProvider =
   | "openai"
+  | "atlascloud"
   | "codex"
   | "aws"
   | "azure"
@@ -183,6 +185,7 @@ export const ICON_MAP: Record<
   kiro: KiroIcon,
   // OpenAI-related
   openai: OpenAIIcon,
+  atlascloud: AtlasCloudIcon,
   codex: OpenAIIcon,
   // Anthropic
   claude: ClaudeIcon,
@@ -256,6 +259,7 @@ export const ICON_MAP: Record<
 /** Active icon providers available for user selection (excludes unknown + inactive agents) */
 export const SELECTABLE_ICON_PROVIDERS: IconProvider[] = [
   "openai",
+  "atlascloud",
   "claude",
   "claude_code",
   "gemini",
@@ -367,6 +371,7 @@ const MODEL_TYPE_TO_ICON: Record<ModelType, IconProvider> = {
   // API key providers
   anthropic_api: "claude",
   openai_api: "openai",
+  atlascloud_api: "atlascloud",
   deepseek_api: "deepseek",
   gemini_api: "gemini",
   groq_api: "groq",

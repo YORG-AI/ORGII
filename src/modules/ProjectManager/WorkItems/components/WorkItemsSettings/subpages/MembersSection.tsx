@@ -6,7 +6,7 @@
  * rename, sync from git), the user clicks "Manage in Repo Settings"
  * to navigate to the repo-level Settings tab from Projects.
  */
-import { ExternalLink } from "lucide-react";
+import { SquareArrowOutUpRight } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -87,7 +87,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
         >
           {onOpenRepoSettings && (
             <Button
-              icon={<ExternalLink size={14} />}
+              icon={<SquareArrowOutUpRight size={14} />}
               iconPosition="right"
               onClick={onOpenRepoSettings}
             >

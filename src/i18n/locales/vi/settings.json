@@ -692,21 +692,47 @@
     "agentApproval": "Phê duyệt Agent",
     "agentApprovalDesc": "Khi hành động Agent cần sự phê duyệt của bạn",
     "errors": "Lỗi & Cảnh báo",
+    "teamInbox": "Hộp thư đến của nhóm",
     "errorsDesc": "Khi có lỗi hoặc cảnh báo",
     "sessionStatus": "Trạng thái Session",
     "sessionStatusDesc": "Bắt đầu, tạm dừng và tiếp tục Session",
     "gitOperations": "Hoạt động Git",
     "gitOperationsDesc": "Thông báo Git pull, push và đồng bộ",
+    "soundPreset": "Âm thanh thông báo",
+    "soundPresetDesc": "Chọn âm thanh cho các thông báo có tiếng",
+    "previewSound": "Nghe thử",
+    "soundPresets": {
+      "classic": "Cổ điển",
+      "gentle": "Nhẹ nhàng",
+      "ascending": "Tăng dần",
+      "bell": "Chuông"
+    },
     "volume": "Âm lượng",
     "testNotification": "Thông báo thử",
     "notification": "Thông báo",
     "sound": "Âm thanh",
     "enabledSuccess": "Đã bật thông báo",
     "permissionDenied": "Đã từ chối quyền thông báo",
+    "criticalOnly": "Chỉ thông báo quan trọng",
+    "criticalOnlyDesc": "Chỉ thông báo khi một hành động cần phê duyệt hoặc một nhiệm vụ thất bại",
+    "quietHours": "Lịch không làm phiền",
+    "quietHoursDesc": "Tắt tiếng thông báo thường lệ trong một khung giờ hằng ngày",
+    "quietHoursSchedule": "Giờ yên tĩnh",
+    "quietHoursScheduleDesc": "Dùng giờ địa phương của thiết bị. Giờ bắt đầu và kết thúc trùng nhau sẽ tắt khung giờ này.",
+    "quietHoursStart": "Từ",
+    "quietHoursEnd": "Đến",
+    "allowCriticalDuringQuietHours": "Cho phép thông báo quan trọng",
+    "allowCriticalDuringQuietHoursDesc": "Yêu cầu phê duyệt và lỗi có thể hiện thông báo hệ thống, nhưng không bao giờ phát âm thanh",
+    "backgroundCompletionSummary": "Tổng hợp các nhiệm vụ nền đã hoàn thành",
+    "backgroundCompletionSummaryDesc": "Gửi một thông báo tổng hợp khi hết giờ yên tĩnh",
+    "mutedSessions": "Session đã tắt tiếng",
+    "mutedSessionsDesc": "{{count}} Session đã tắt tiếng trên thiết bị này",
+    "clearMutedSessions": "Xóa tất cả",
     "test": {
       "sent": "Đã gửi thông báo thử nghiệm",
       "permissionWarning": "Không gửi được thông báo thử nghiệm. Kiểm tra quyền truy cập.",
-      "sendFailed": "Không thể gửi thông báo thử nghiệm. Vui lòng kiểm tra quyền thông báo và thử lại."
+      "sendFailed": "Không thể gửi thông báo thử nghiệm. Vui lòng kiểm tra quyền thông báo và thử lại.",
+      "soundFailed": "Không thể phát âm thanh thông báo. Hãy kiểm tra âm lượng hệ thống."
     }
   },
   "editor": {
@@ -962,7 +988,13 @@
     "tableSize": "Kích thước",
     "tablePercentage": "Tỷ lệ",
     "scanFailed": "Không quét được dung lượng",
-    "openFolderFailed": "Không mở được thư mục"
+    "openFolderFailed": "Không mở được thư mục",
+    "browserCache": "Bộ nhớ đệm trình duyệt",
+    "browserCacheDesc": "Đã dùng {{used}} · có thể dọn an toàn {{cleanable}}",
+    "cleanBrowserCache": "Dọn dẹp",
+    "browserCacheCleaned": "Đã giải phóng {{size}} bộ nhớ trình duyệt",
+    "browserCacheAlreadyClean": "Bộ nhớ đệm trình duyệt đã sạch",
+    "browserCacheCleanFailed": "Không thể dọn bộ nhớ đệm trình duyệt"
   },
   "dependencies": {
     "systemDependencies": "Dependencies hệ thống",

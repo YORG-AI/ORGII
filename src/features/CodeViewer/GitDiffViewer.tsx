@@ -7,6 +7,7 @@
 import React, { useState } from "react";
 
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import type { DiffViewMode } from "@src/types/git/types";
 
 import { ModernSplitDiff } from "./ModernSplitDiff";
 import { VirtualizedModernDiff } from "./VirtualizedModernDiff";
@@ -15,7 +16,7 @@ import { VirtualizedModernDiff } from "./VirtualizedModernDiff";
 // Types
 // ============================================
 
-export type DiffViewMode = "unified" | "split";
+export type { DiffViewMode } from "@src/types/git/types";
 
 export interface GitDiffViewerProps {
   /** Original/old content */

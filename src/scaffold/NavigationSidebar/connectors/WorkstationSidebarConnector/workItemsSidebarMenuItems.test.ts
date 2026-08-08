@@ -11,6 +11,7 @@ import {
   WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
   WORK_ITEMS_MENU_ITEM_ID,
   WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
+  WORK_ITEMS_RUNS_MENU_ITEM_ID,
   isWorkManagementMenuItemId,
 } from "../sidebarConnectorUtils";
 import {
@@ -21,16 +22,25 @@ import {
 describe("buildWorkItemsSidebarMenuItems", () => {
   it("builds the expandable Work Items destinations", () => {
     const items = buildWorkItemsSidebarMenuItems({
+      workItems: "Work Items",
       projects: "Projects",
       githubIssues: "GitHub Issues",
       githubPrs: "GitHub PRs",
+      runs: "Runs",
     });
 
     expect(items.map((item) => item.id)).toEqual([
-      WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
-      WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
       WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
+      WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
+      WORK_ITEMS_MENU_ITEM_ID,
+      WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
+      WORK_ITEMS_RUNS_MENU_ITEM_ID,
     ]);
+    expect(items[0]).toMatchObject({
+      label: "GitHub PRs",
+      iconName: "git-pull-request",
+      dataTestId: "sidebar-work-items-github-prs",
+    });
   });
 
   it("selects the active expanded child from canonical work management state", () => {
@@ -58,6 +68,12 @@ describe("buildWorkItemsSidebarMenuItems", () => {
     expect(isWorkManagementMenuItemId(KANBAN_MENU_ITEM_ID)).toBe(true);
     expect(isWorkManagementMenuItemId(WORK_ITEMS_MENU_ITEM_ID)).toBe(true);
     expect(isWorkManagementMenuItemId(WORK_ITEMS_PROJECTS_MENU_ITEM_ID)).toBe(
+      true
+    );
+    expect(
+      isWorkManagementMenuItemId(WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID)
+    ).toBe(true);
+    expect(isWorkManagementMenuItemId(WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID)).toBe(
       true
     );
     expect(isWorkManagementMenuItemId("session:example")).toBe(false);

@@ -25,8 +25,10 @@ use super::super::types::KeySource;
 use super::command::{
     build_command_with_launch_profile, launch_profile_env, CliCommandBuildRequest,
 };
-use super::helpers::{persist_attached_images, strip_ide_context};
-use super::oauth_setup::{refresh_cli_oauth_for_retry, sanitize_cli_oauth_env_for_child};
+use super::helpers::{emit_chunk, persist_attached_images, strip_ide_context};
+use super::oauth_setup::{
+    is_cli_oauth_retry_eligible, refresh_cli_oauth_for_retry, sanitize_cli_oauth_env_for_child,
+};
 
 mod skills_resolve;
 mod spawn_retry;
@@ -36,6 +38,174 @@ mod transport_standard;
 
 use skills_resolve::resolve_sde_skills;
 use spawn_retry::{is_transient_spawn_error, SPAWN_RETRY_ATTEMPTS, SPAWN_RETRY_BASE_DELAY_MS};
+
+const MAX_OVERLOAD_RETRIES: u32 = 3;
+const OVERLOAD_RETRY_BASE_DELAY_SECS: u64 = 2;
+
+const MAX_STDERR_LINES: usize = 20;
+
+/// How long to keep waiting for the stderr reader once the child is gone. A
+/// CLI that hands its stderr to a surviving grandchild keeps the pipe open
+/// forever, and no diagnostic is worth hanging the turn on.
+const STDERR_DRAIN_TIMEOUT: tokio::time::Duration = tokio::time::Duration::from_secs(3);
+
+/// The child's stderr, collected by a background reader.
+///
+/// The reader must be drained before the buffer is read. A child exiting only
+/// closes the write end of the pipe; it says nothing about whether the reader
+/// task has been scheduled to pick up what is still sitting in it. Reading
+/// straight after `wait()` is how a session that failed loudly on stderr ends
+/// up reporting no reason at all.
+struct CliStderrCollector {
+    lines: Arc<Mutex<VecDeque<String>>>,
+    reader: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl CliStderrCollector {
+    fn new() -> Self {
+        Self {
+            lines: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_STDERR_LINES))),
+            reader: None,
+        }
+    }
+
+    /// The buffer itself, for readers that have already drained (or that run
+    /// after the turn, once draining is guaranteed).
+    fn lines(&self) -> Arc<Mutex<VecDeque<String>>> {
+        Arc::clone(&self.lines)
+    }
+
+    fn attach(&mut self, stderr: tokio::process::ChildStderr, session_id: String) {
+        let sink = Arc::clone(&self.lines);
+        self.reader = Some(tokio::spawn(async move {
+            use tokio::io::AsyncBufReadExt;
+            let mut reader = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                tracing::warn!("[CodeSession][stderr][{}] {}", session_id, line);
+                let mut buf = sink.lock().await;
+                if buf.len() >= MAX_STDERR_LINES {
+                    buf.pop_front();
+                }
+                buf.push_back(line);
+            }
+        }));
+    }
+
+    /// Wait for the reader to hit EOF so the buffer holds everything the child
+    /// wrote. Idempotent — every consumer may call it, and only the first one
+    /// pays. Whatever was collected before the deadline stays in the buffer.
+    ///
+    /// On timeout the reader is aborted rather than abandoned: dropping a
+    /// `JoinHandle` only detaches the task. A reader parked on a pipe that a
+    /// surviving grandchild still holds would then keep itself, the
+    /// `ChildStderr` fd and a buffer handle alive for as long as that
+    /// grandchild lives — once per attempt, for the life of the process.
+    async fn drain(&mut self) {
+        let Some(mut reader) = self.reader.take() else {
+            return;
+        };
+        if tokio::time::timeout(STDERR_DRAIN_TIMEOUT, &mut reader)
+            .await
+            .is_err()
+        {
+            tracing::warn!(
+                "[CodeSession] stderr still open {}s after the child exited; using what was collected so far",
+                STDERR_DRAIN_TIMEOUT.as_secs()
+            );
+            reader.abort();
+            // Awaited so the fd is closed by the time the caller reads the
+            // buffer, not whenever the cancelled task happens to be dropped.
+            let _ = reader.await;
+        }
+    }
+}
+
+fn terminal_cli_error_from_chunk(chunk: &core_types::activity::ActivityChunk) -> Option<String> {
+    let is_error = chunk.action_type == "error" || chunk.function == "error";
+    let is_failed_session_end = (chunk.action_type == "session_end"
+        || chunk.function == "session_end")
+        && chunk
+            .result
+            .get("success")
+            .and_then(serde_json::Value::as_bool)
+            == Some(false);
+    if !is_error && !is_failed_session_end {
+        return None;
+    }
+
+    ["error", "error_message", "observation"]
+        .iter()
+        .find_map(|field| {
+            let value = chunk.result.get(*field)?;
+            value
+                .as_str()
+                .or_else(|| value.get("message").and_then(serde_json::Value::as_str))
+        })
+        .map(super::super::parsers::canonicalize_cli_error_message)
+        .filter(|message| !message.is_empty())
+}
+
+fn record_terminal_cli_error(
+    current: &mut Option<String>,
+    chunk: &core_types::activity::ActivityChunk,
+) {
+    let Some(message) = terminal_cli_error_from_chunk(chunk) else {
+        return;
+    };
+    let is_failed_session_end = (chunk.action_type == "session_end"
+        || chunk.function == "session_end")
+        && chunk
+            .result
+            .get("success")
+            .and_then(serde_json::Value::as_bool)
+            == Some(false);
+    if current.is_none() || is_failed_session_end {
+        *current = Some(message);
+    }
+}
+
+fn is_app_overload_retry_eligible(agent: &ModelType) -> bool {
+    !matches!(agent, ModelType::Codex)
+}
+
+fn exhausted_overload_error_chunk(
+    session_id: &str,
+    overload_retry_count: u32,
+    message: &str,
+) -> Option<(String, core_types::activity::ActivityChunk)> {
+    if overload_retry_count < MAX_OVERLOAD_RETRIES {
+        return None;
+    }
+
+    let message = super::super::parsers::canonicalize_cli_error_message(message);
+    let mut chunk = core_types::activity::ActivityChunk::new(session_id, "error", "error");
+    chunk.result = serde_json::json!({
+        "observation": message,
+        "error": message,
+        "success": false,
+    });
+    Some((message, chunk))
+}
+
+fn resolve_session_model(
+    agent: &ModelType,
+    key_model_type: Option<&ModelType>,
+    session_model: Option<&str>,
+) -> Option<String> {
+    let is_cross_type_key = key_model_type.is_some_and(|key_type| key_type != agent);
+    if is_cross_type_key && matches!(agent, ModelType::ClaudeCode) {
+        None
+    } else {
+        session_model.map(|model| {
+            if matches!(agent, ModelType::Codex) {
+                if let Some(provider) = key_model_type {
+                    return super::env_setup::normalize_codex_provider_model_id(model, provider);
+                }
+            }
+            model.to_string()
+        })
+    }
+}
 
 /// Run a code session: spawn CLI, parse stdout, broadcast events.
 ///
@@ -64,10 +234,10 @@ pub async fn run_session(
             cli_agent_type_str
         )
     })?;
-    // When using a cross-type compatible key (e.g. moonshot_api key for claude_code),
-    // the model override is injected via ANTHROPIC_MODEL / ANTHROPIC_DEFAULT_*_MODEL env vars
-    // in agent_env_builder. Passing --model with a provider-specific name (e.g. "kimi-for-coding")
-    // triggers Claude Code's model validation and fails. Skip --model in that case.
+    // Claude Code cross-type providers inject their model through ANTHROPIC_MODEL
+    // and reject provider-specific values passed to --model. Other compatible
+    // agents retain the user's selected model; their generated provider profile
+    // handles the routing.
     let mut selected_key = session
         .account_id
         .as_deref()
@@ -88,12 +258,12 @@ pub async fn run_session(
         }
     }
     let key_model_type = selected_key.as_ref().map(|key| key.model_type.clone());
-    let is_cross_type_key = key_model_type.as_ref().is_some_and(|kt| kt != &agent);
-    let model = if is_cross_type_key {
-        None
-    } else {
-        session.model.as_deref()
-    };
+    let oauth_retry_eligible =
+        is_cli_oauth_retry_eligible(&agent, session.key_source, selected_key.as_ref());
+    // Codex custom providers retain bounded request/stream retries inside the
+    // same process. Do not multiply those by replaying the entire turn here.
+    let overload_retry_eligible = is_app_overload_retry_eligible(&agent);
+    let model = resolve_session_model(&agent, key_model_type.as_ref(), session.model.as_deref());
     let repo_path = session.repo_path.as_deref();
     let account_id = session.account_id.as_deref();
 
@@ -215,7 +385,7 @@ pub async fn run_session(
     let mut cmd_parts = build_command_with_launch_profile(CliCommandBuildRequest {
         agent: &agent,
         launch_profile: &launch_profile,
-        model,
+        model: model.as_deref(),
         task: &effective_input,
         resume_id: cli_resume_id.as_deref(),
         api_key: api_key_for_cli,
@@ -371,8 +541,6 @@ pub async fn run_session(
         tracing::info!("[CodeSession] env {}={}", key, display_val);
     }
 
-    super::env_setup::setup_codex_hosted_proxy(&agent, &session, &env_vars).await;
-
     super::env_setup::setup_opencode_sse_sanitizer(&agent, &mut env_vars).await;
 
     // ── Spawn subprocess ──
@@ -381,14 +549,12 @@ pub async fn run_session(
         ModelType::Copilot | ModelType::Kiro | ModelType::OpenCode
     );
 
-    const MAX_STDERR_LINES: usize = 20;
     let mut stderr_lines: Arc<Mutex<VecDeque<String>>>;
     let mut exit_code: i32;
     let mut oauth_retry_used = false;
-    let mut suppressed_oauth_error: Option<String> = None;
+    let mut terminal_oauth_error: Option<String> = None;
+    let mut terminal_error_message: Option<String> = None;
     let mut overload_retry_count: u32 = 0;
-    const MAX_OVERLOAD_RETRIES: u32 = 3;
-    const OVERLOAD_RETRY_BASE_DELAY_SECS: u64 = 2;
 
     let base_sequence: i64 = persistence::max_chunk_sequence(&session_id).unwrap_or(-1) + 1;
 
@@ -453,9 +619,8 @@ pub async fn run_session(
     let session_timeout = tokio::time::Duration::from_secs(4 * 60 * 60);
 
     loop {
-        let attempt_stderr_lines: Arc<Mutex<VecDeque<String>>> =
-            Arc::new(Mutex::new(VecDeque::with_capacity(MAX_STDERR_LINES)));
-        stderr_lines = Arc::clone(&attempt_stderr_lines);
+        let mut attempt_stderr = CliStderrCollector::new();
+        stderr_lines = attempt_stderr.lines();
         let mut spawn_cmd = Command::new(program);
         spawn_cmd
             .args(args)
@@ -512,21 +677,10 @@ pub async fn run_session(
             }
         }
 
-        let stderr = child.stderr.take().expect("stderr was piped");
-        let stderr_session_id = session_id.clone();
-        let stderr_lines_writer = Arc::clone(&attempt_stderr_lines);
-        tokio::spawn(async move {
-            use tokio::io::AsyncBufReadExt;
-            let mut reader = BufReader::new(stderr).lines();
-            while let Ok(Some(line)) = reader.next_line().await {
-                tracing::warn!("[CodeSession][stderr][{}] {}", stderr_session_id, line);
-                let mut buf = stderr_lines_writer.lock().await;
-                if buf.len() >= MAX_STDERR_LINES {
-                    buf.pop_front();
-                }
-                buf.push_back(line);
-            }
-        });
+        attempt_stderr.attach(
+            child.stderr.take().expect("stderr was piped"),
+            session_id.clone(),
+        );
 
         let retryable_oauth_message: Option<String>;
         let retryable_overload_message: Option<String>;
@@ -536,10 +690,11 @@ pub async fn run_session(
                 child,
                 session_id.clone(),
                 account_id,
+                oauth_retry_eligible,
                 effective_input.clone(),
                 working_dir,
                 cli_resume_id.clone(),
-                model,
+                model.as_deref(),
                 &launch_profile,
                 image_paths.clone(),
                 session_timeout,
@@ -548,13 +703,15 @@ pub async fn run_session(
                 cli_session_id_out,
                 &mut sequence,
                 codex_app_server_turn_ok,
+                &mut attempt_stderr,
             )
             .await?;
             exit_code = outcome.exit_code;
             timed_out = outcome.timed_out;
             cli_session_id_out = outcome.cli_session_id_out;
             codex_app_server_turn_ok = outcome.codex_app_server_turn_ok;
-            retryable_oauth_message = None;
+            terminal_error_message = outcome.terminal_error_message;
+            retryable_oauth_message = outcome.retryable_oauth_message;
             retryable_overload_message = None;
         } else if is_acp_agent {
             let outcome = transport_acp::run_acp_branch(
@@ -582,26 +739,32 @@ pub async fn run_session(
             let outcome = transport_standard::run_standard_branch(
                 child,
                 session_id.clone(),
-                &session,
+                oauth_retry_eligible,
+                overload_retry_eligible,
                 agent.clone(),
                 mode,
                 account_id,
-                model,
+                model.as_deref(),
                 session_timeout,
                 pre_message_snapshot_id.clone(),
                 snapshot_working_dir.clone(),
                 cli_session_id_out,
                 &mut sequence,
-                Arc::clone(&attempt_stderr_lines),
+                &mut attempt_stderr,
             )
             .await;
             exit_code = outcome.exit_code;
             timed_out = outcome.timed_out;
             cli_session_id_out = outcome.cli_session_id_out;
             cli_plan_approval_gate_reached = outcome.cli_plan_approval_gate_reached;
+            terminal_error_message = outcome.terminal_error_message;
             retryable_oauth_message = outcome.retryable_oauth_message;
             retryable_overload_message = outcome.retryable_overload_message;
         }
+
+        // Whatever the transport did or did not read, the finalizer reads this
+        // buffer for every agent. A no-op if the transport already drained.
+        attempt_stderr.drain().await;
 
         if timed_out {
             tracing::error!(
@@ -613,28 +776,29 @@ pub async fn run_session(
 
         if let Some(message) = retryable_oauth_message {
             if oauth_retry_used {
-                suppressed_oauth_error = Some(message);
+                terminal_oauth_error = Some(message);
                 break;
             }
             oauth_retry_used = true;
-            suppressed_oauth_error = Some(message.clone());
             tracing::warn!(
                 "[CodeSession] {} OAuth failed before replay-unsafe output; refreshing and retrying once",
                 agent.as_str()
             );
             match refresh_cli_oauth_for_retry(&agent, account_id, &mut env_vars).await {
                 Ok(true) => {
+                    // The first failure was recovered. Do not let it outrank a
+                    // different terminal error produced by the retried turn.
                     continue;
                 }
                 Ok(false) => {
-                    suppressed_oauth_error = Some(
+                    terminal_oauth_error = Some(
                         "This account needs to be signed in again before the agent can continue."
                             .to_string(),
                     );
                     break;
                 }
                 Err(err) => {
-                    suppressed_oauth_error = Some(format!(
+                    terminal_oauth_error = Some(format!(
                         "Automatic account refresh failed. Please sign in again. {}",
                         err
                     ));
@@ -643,14 +807,18 @@ pub async fn run_session(
             }
         }
 
-        if let Some(ref message) = retryable_overload_message {
-            if overload_retry_count >= MAX_OVERLOAD_RETRIES {
+        if let Some(message) = retryable_overload_message {
+            if let Some((terminal_message, chunk)) =
+                exhausted_overload_error_chunk(&session_id, overload_retry_count, &message)
+            {
                 tracing::warn!(
                     "[CodeSession] {} API overloaded after {} retries; giving up: {}",
                     agent.as_str(),
                     MAX_OVERLOAD_RETRIES,
-                    message,
+                    terminal_message,
                 );
+                terminal_error_message = Some(terminal_message);
+                emit_chunk(&chunk, &session_id, &mut sequence).await;
                 break;
             }
             let delay_secs = OVERLOAD_RETRY_BASE_DELAY_SECS * (1u64 << overload_retry_count);
@@ -677,6 +845,7 @@ pub async fn run_session(
     super::finalize::finalize_session_run(
         &session,
         &agent,
+        oauth_retry_eligible,
         &env_vars,
         run_started_at,
         needs_mitm,
@@ -689,7 +858,8 @@ pub async fn run_session(
             cli_session_id_out,
             cli_plan_approval_gate_reached,
             codex_app_server_turn_ok,
-            suppressed_oauth_error,
+            terminal_oauth_error,
+            terminal_error_message,
             stderr_lines,
         },
     )

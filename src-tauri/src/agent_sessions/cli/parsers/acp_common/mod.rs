@@ -61,6 +61,9 @@ pub trait AcpAgentAdapter: Send {
         vec![]
     }
 
+    #[allow(clippy::too_many_arguments)]
+    // Adapter implementations share the ACP tool-result callback shape; every
+    // field is optional protocol context rather than parser-owned state.
     fn map_tool_result_chunk(
         &self,
         _session_id: &str,

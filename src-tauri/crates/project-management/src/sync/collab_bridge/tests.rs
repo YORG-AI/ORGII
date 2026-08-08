@@ -1,3 +1,7 @@
+#![allow(clippy::field_reassign_with_default)]
+// Sync scenarios intentionally mutate one partial-update field at a time to
+// mirror the sequence of local changes under test.
+
 use super::outbox::store_remote_version;
 use super::wire::now_ms;
 use super::*;

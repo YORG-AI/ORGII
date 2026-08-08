@@ -170,7 +170,8 @@
       "workstation": "Workstation",
       "viewRam": "View RAM",
       "tutorials": "Tutorials",
-      "openSettings": "Open Settings"
+      "openSettings": "Open Settings",
+      "setupChecklist": "Quick setup"
     },
     "empty": {
       "noItems": "No items",
@@ -193,6 +194,37 @@
       "duration1h": "1 hour",
       "duration2h": "2 hours",
       "durationTomorrow": "Tomorrow"
+    },
+    "guide": {
+      "trigger": "Open guide",
+      "title": "Get started with ORGII",
+      "startSession": "Start a session",
+      "quickSetup": "Language and appearance",
+      "close": "Close guide",
+      "progressLabel": "{{completed}} of {{total}} setup milestones complete",
+      "localWorkspace": "Local workspace",
+      "connectOrganization": "Connect or create an organization",
+      "createOrganizationHint": "Enter an organization name, then select Create. The guide continues after the cloud organization is created.",
+      "inviteTeammate": "Invite a teammate",
+      "inviteTeammateHint": "Create an invite link here, then send it to your teammate.",
+      "invitePermissionHint": "You can view the member list here. An organization admin or owner must create the invite.",
+      "devPanelTitle": "Onboarding test states",
+      "devPanelHint": "Runtime-only preview for the invite journey. Backend organization data is never changed.",
+      "devScenarioLive": "Live data",
+      "devScenarioNoOrganization": "No organization",
+      "devScenarioMember": "Member · no invite access",
+      "devScenarioAdmin": "Admin · invite access",
+      "devScenarioOwner": "Owner · invite access",
+      "devScenarioRequiresOrganization": "Role previews require at least one real cloud organization.",
+      "devSimulationActive": "Development simulation active",
+      "devSimulationReadOnly": "This member-page preview is read-only. Organization management actions are disabled.",
+      "viewTeamActivity": "View team usage",
+      "viewTeamActivityHint": "Runtime is open on Members. Choose a teammate to view their Codex, Claude, and Cursor usage; if no data appears, enable team runtime sync first.",
+      "exploreProduct": "Take the product tour",
+      "nextStep": "Next step"
+    },
+    "developerTestPanel": {
+      "title": "Developer test panel"
     }
   },
   "collaboration": {
@@ -257,6 +289,15 @@
       "parentOpenUnavailable": "The source session could not be opened from this fork.",
       "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
       "openParentButton": "Open source session from {{name}}"
+    },
+    "continueCli": {
+      "headerButton": "Continue in {{agent}}",
+      "headerTooltip": "Reopen this session in {{agent}} in a terminal tab ({{command}})",
+      "notInstalled": "{{agent}} is not installed on this machine",
+      "missingWorkspace": "The session's original folder is gone — {{agent}} can only resume it from there",
+      "sourceMissing": "The original session data is no longer on disk",
+      "launchFailed": "Failed to open the {{agent}} terminal",
+      "composerPlaceholder": "Message to continue in a new ORGII session — or resume in {{agent}} from the header…"
     }
   },
   "myRole": {
@@ -516,6 +557,10 @@
         "manualRunning": "Syncing…",
         "manualSuccess": "Sync finished",
         "manualError": "Sync failed: {{message}}",
+        "coverageTitle": "Session coverage",
+        "coverageSummary": "{{synced}}/{{syncable}} synced ({{percent}}%)",
+        "coveragePercentLabel": "Coverage",
+        "coverageEmpty": "No sessions in this org's repo scopes yet",
         "logsTitle": "Sync log",
         "logsHelp": "Recent sync events recorded on this device. Cleared on restart and never uploaded",
         "logsEmpty": "No sync events recorded yet",
@@ -544,7 +589,10 @@
       "viewerOverflow": "and {{count}} more viewers",
       "memberViewing": "viewing: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "loadingSession": "Loading session…",
+      "downloadProgress": "Downloading… {{percent}}%",
+      "downloadProgressEta": "Downloading… {{percent}}% · ~{{eta}} left"
     },
     "sessionRef": {
       "chipLabel": "Team session",
@@ -552,7 +600,8 @@
       "signInRequired": "Sign in to ORG2 Cloud to open this session.",
       "sessionNotFound": "That session is not in this organization.",
       "notPublished": "Share this session to an organization before copying a reference.",
-      "chooseOrg": "This session is in several organizations. Switch to the one you want to reference, then copy again."
+      "chooseOrg": "This session is in several organizations. Switch to the one you want to reference, then copy again.",
+      "opening": "Opening team session…"
     },
     "sync": {
       "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
@@ -791,6 +840,151 @@
     "signedInAs": "Signed in as {{name}}",
     "renameDisplayName": "Edit display name",
     "renameSaved": "Display name updated",
-    "renameFailed": "Failed to update display name"
+    "renameFailed": "Failed to update display name",
+    "download": {
+      "title": "Downloading team session…",
+      "events": "{{loaded}} / {{total}} events",
+      "eta": "About {{eta}} remaining",
+      "finalizing": "Finalizing…",
+      "complete": "Download complete",
+      "estimate": "This session has {{count}} events to download (about {{eta}})",
+      "start": "Download",
+      "pause": "Pause",
+      "paused": "Paused",
+      "resume": "Resume"
+    },
+    "channels": {
+      "title": "Channels",
+      "createAction": "Create channel",
+      "createFirst": "Create a channel",
+      "manageMembers": "Manage members",
+      "archiveAction": "Archive channel",
+      "unarchive": "Unarchive",
+      "unarchiveFailed": "Couldn't unarchive the channel",
+      "deleteAction": "Delete channel",
+      "leave": "Leave channel",
+      "archivedGroup": "Archived",
+      "loadError": "Couldn't load channels",
+      "settings": {
+        "action": "Channel settings",
+        "title": "Settings for #{{name}}",
+        "submit": "Save",
+        "managerRequired": "Only channel managers can edit this channel",
+        "error": "Couldn't update the channel. Please try again."
+      },
+      "local": {
+        "quotaExceeded": "You've reached the channel limit on this device",
+        "archiveBody": "Archiving hides the channel from your sidebar. Its history is kept, and it can be unarchived later",
+        "deleteWarning": "This will permanently delete the channel from this device. This cannot be undone"
+      },
+      "cancel": "Cancel",
+      "create": {
+        "title": "Create a channel",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. code-review",
+        "topicLabel": "Topic",
+        "topicOptional": "(optional)",
+        "topicPlaceholder": "What's this about?",
+        "visibilityLabel": "Visibility",
+        "publicTitle": "Public",
+        "publicDesc": "Anyone in the org can view and join the conversation",
+        "privateTitle": "Private",
+        "privateDesc": "Only invited people can view this channel",
+        "membersLabel": "Add members",
+        "membersHint": "You'll be added as a channel manager automatically",
+        "membersLoading": "Loading members…",
+        "membersEmpty": "No other members in this org yet",
+        "postPolicyLabel": "Who can post",
+        "postPolicyEveryone": "Everyone",
+        "postPolicyManagers": "Only channel managers",
+        "submit": "Create",
+        "nameTaken": "That name is already taken",
+        "quotaExceeded": "This org has reached its channel limit",
+        "error": "Couldn't create the channel. Please try again."
+      },
+      "archive": {
+        "title": "Archive #{{name}}?",
+        "body": "Archiving hides the channel from the sidebar for everyone. Its history is kept, and it can be unarchived later",
+        "confirm": "Archive",
+        "managerRequired": "Only channel managers can archive this channel",
+        "error": "Couldn't archive the channel. Please try again."
+      },
+      "delete": {
+        "title": "Delete #{{name}}?",
+        "warning": "This will permanently delete the channel for everyone. This cannot be undone",
+        "acknowledge": "Yes, permanently delete the channel",
+        "confirm": "Delete",
+        "adminRequired": "Only org admins can delete channels",
+        "error": "Couldn't delete the channel. Please try again."
+      },
+      "members": {
+        "title": "Members of #{{name}}",
+        "loading": "Loading members…",
+        "empty": "No members in this channel yet",
+        "loadError": "Couldn't load channel members. Please try again.",
+        "managerBadge": "Manager",
+        "you": "You",
+        "addLabel": "Add members",
+        "addEmpty": "Everyone in the org is already in this channel",
+        "addSubmit": "Add",
+        "actions": "Member actions",
+        "remove": "Remove from channel",
+        "makeManager": "Make channel manager",
+        "removeManager": "Remove as channel manager",
+        "leave": "Leave channel",
+        "lastManager": "Assign another manager first",
+        "error": "Something went wrong. Please try again."
+      },
+      "feed": {
+        "composerPlaceholder": "Message #{{name}}",
+        "save": "Save",
+        "edit": "Edit message",
+        "delete": "Delete message",
+        "edited": "(edited)",
+        "deletedMessage": "message deleted",
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "you": "You",
+        "memberCount": "{{memberCount}} members",
+        "emptyTitle": "This is the start of #{{name}}",
+        "emptySubtitle": "Send the first message to start the conversation",
+        "missingTitle": "Channel no longer available",
+        "missingSubtitle": "This channel was deleted from this device",
+        "cloudPendingTitle": "No messages yet",
+        "cloudPendingSubtitle": "Cloud channel history arrives with the next backend upgrade",
+        "cloudComposerDisabled": "Messaging isn't available for cloud channels yet — this release ships channel setup and membership only. Posting arrives with the next backend upgrade",
+        "errorEmpty": "Type a message first",
+        "errorTooLong": "That message is too long (4000 characters max)",
+        "errorQuota": "This channel has reached its message limit on this device",
+        "errorGeneric": "Couldn't post the message. Please try again.",
+        "dropSessionHint": "Drop to add this session as a reference",
+        "messageBodyLabel": "Channel message",
+        "sessionCardMissing": "Not available on this device",
+        "sessionCardOpen": "Open session {{name}}",
+        "workItemCardMissing": "Not available on this device",
+        "workItemCardLoading": "Loading…",
+        "workItemCardOpen": "Open work item {{name}}",
+        "githubCardOpen": "Open {{name}} on GitHub",
+        "githubIssue": "Issue",
+        "githubPullRequest": "Pull request",
+        "archivedComposerDisabled": "This channel is archived. Unarchive it to post again.",
+        "errorPostForbidden": "Only channel managers can post in this channel",
+        "errorArchived": "This channel is archived, so posting is turned off",
+        "errorChannelFull": "This channel has reached its message limit, so posting is turned off",
+        "errorChannelMissing": "This channel is no longer available",
+        "errorMessageMissing": "That message is no longer available",
+        "loadError": "Couldn't load messages",
+        "loadingMessages": "Loading messages…",
+        "loadOlder": "Load earlier messages",
+        "unknownAuthor": "Teammate"
+      }
+    },
+    "backgroundUpload": {
+      "label": "Background upload",
+      "help": "Upload eligible member sessions according to the organization's minimum sharing level and each session's settings, even when this organization is not active.",
+      "on": "On",
+      "off": "Off",
+      "memberNote": "Enabled by an admin — eligible sessions upload in the background without requiring you to open this organization."
+    }
   }
 }

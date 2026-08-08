@@ -60,6 +60,9 @@ export interface LanguageSelectorProps {
    */
   className?: string;
 
+  /** Accessible name forwarded to the shared Select trigger. */
+  ariaLabel?: string;
+
   /**
    * Callback when language changes
    */
@@ -75,6 +78,7 @@ export function LanguageSelector({
   variant = "default",
   showIcon = true,
   className,
+  ariaLabel,
   onLanguageChange,
 }: LanguageSelectorProps) {
   const { i18n, t } = useTranslation("settings");
@@ -116,6 +120,7 @@ export function LanguageSelector({
       variant={variant}
       prefix={showIcon ? <Globe className="h-4 w-4" /> : undefined}
       className={className}
+      ariaLabel={ariaLabel}
       dropdownWidthMode="auto"
     />
   );

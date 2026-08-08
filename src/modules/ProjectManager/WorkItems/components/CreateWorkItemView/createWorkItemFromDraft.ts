@@ -2,7 +2,6 @@ import {
   type LinkedSession,
   type TodoEntry,
   type WorkItemData,
-  type WorkItemFrontmatter,
   type WorkItemHandoff,
   projectApi,
 } from "@src/api/http/project";
@@ -76,7 +75,6 @@ export async function createWorkItemFromDraft({
     throw new Error("Work item title is required");
   }
 
-  const now = new Date().toISOString();
   const descriptionText = unresolveImagePathsForStorage(
     (description ?? draft.description).trim()
   );
@@ -92,56 +90,42 @@ export async function createWorkItemFromDraft({
   const shortId = selectedProjectSlug
     ? await allocateCloudAwareWorkItemId(selectedProjectSlug)
     : await allocateCloudAwareStandaloneWorkItemId(targetOrgId);
-  const frontmatter: WorkItemFrontmatter = {
-    id: shortId,
-    short_id: shortId,
+
+  // Canonical work.create: the Rust service owns row construction.
+  const request = {
     title,
-    project: draft.projectId,
+    body: descriptionText,
+    projectId: draft.projectId,
     status: draft.status || WORK_ITEM_STATUS.PLANNED,
     priority: draft.priority || "none",
     assignee: draft.assigneeId,
-    assignee_type: draft.assigneeType,
+    assigneeType: draft.assigneeType,
     labels: draft.labelIds,
     milestone: draft.milestoneId,
-    start_date: draft.startDate,
-    target_date: draft.targetDate,
-    created_by: createdByMemberId,
-    created_at: now,
-    updated_at: now,
-    starred: false,
-    todos: todos ? [...todos] : [],
+    startDate: draft.startDate,
+    targetDate: draft.targetDate,
+    createdBy: createdByMemberId,
+    todos: todos ? [...todos] : undefined,
     handoff,
-    linked_sessions: linkedSessions ? [...linkedSessions] : undefined,
-    orchestrator_config: draft.orchestratorConfig,
+    linkedSessions: linkedSessions ? [...linkedSessions] : undefined,
+    orchestratorConfig: draft.orchestratorConfig,
     schedule: draft.schedule ?? undefined,
   };
 
   const standaloneOrgId = selectedProjectSlug ? undefined : targetOrgId;
-  if (selectedProjectSlug) {
-    await projectApi.writeWorkItem(
-      selectedProjectSlug,
-      shortId,
-      frontmatter,
-      descriptionText
-    );
-  } else {
-    await projectApi.writeStandaloneWorkItem(
-      shortId,
-      frontmatter,
-      descriptionText,
-      standaloneOrgId ? { orgId: standaloneOrgId } : undefined
-    );
-  }
+  const item: WorkItemData = selectedProjectSlug
+    ? await projectApi.createWorkItem(selectedProjectSlug, shortId, request)
+    : await projectApi.createStandaloneWorkItem(
+        shortId,
+        request,
+        standaloneOrgId ? { orgId: standaloneOrgId } : undefined
+      );
 
   return {
     keepOpen: createMore,
     shortId,
     projectSlug: selectedProjectSlug,
     orgId: standaloneOrgId,
-    item: {
-      frontmatter,
-      body: descriptionText,
-      filename: `${shortId}.md`,
-    },
+    item,
   };
 }

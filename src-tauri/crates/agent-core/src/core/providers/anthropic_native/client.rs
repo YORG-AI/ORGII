@@ -151,7 +151,14 @@ impl AnthropicClient {
         let refreshed = key_vault::key_store::KEY_SERVICE
             .refresh_claude_code_oauth_key(&refresh_config.key_id, &rejected_access_token)
             .await
-            .map_err(ProviderError::AuthError)?;
+            .map_err(ProviderError::AuthError)?
+            .into_key()
+            .ok_or_else(|| {
+                ProviderError::AuthError(format!(
+                    "Key {} is not a native Claude OAuth account",
+                    refresh_config.key_id
+                ))
+            })?;
 
         let access_token = refreshed
             .session_token

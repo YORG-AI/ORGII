@@ -260,6 +260,12 @@ impl ModeSwitchManager {
     }
 }
 
+impl Default for ModeSwitchManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::ModeSwitchManager;
@@ -281,11 +287,5 @@ mod tests {
 
         assert!(!manager.is_pending().await);
         assert!(receiver.await.is_err());
-    }
-}
-
-impl Default for ModeSwitchManager {
-    fn default() -> Self {
-        Self::new()
     }
 }

@@ -1,0 +1,15 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "CONTEXT_REQUIRED",
+    "message": "No scope resolved: pass --scope, set ORGII_SCOPE, or run inside an initialized workspace (.orgii/orgtrack.json)",
+    "retryable": false,
+    "details": {
+      "missing": ["scopeId"]
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR02"
+  }
+}

@@ -4,15 +4,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   IssuePersonalFilterDropdown,
-  ManagedIssueRow,
-  ManagedPrRow,
-  RepoFilterPill,
+  ManagedIssueActionsCell,
+  ManagedIssueAssigneeCell,
+  ManagedIssueContextMeta,
+  ManagedPrActionsCell,
+  toggleIssueAssigneeLogins,
 } from "./GitHubWorkItemControls";
 import {
   GITHUB_ITEM_KIND,
   type ManagedIssueItem,
   type ManagedPrItem,
-} from "./githubWorkItemsModel";
+} from "./githubManagedItemModel";
 
 const linkedIssue: ManagedIssueItem = {
   kind: GITHUB_ITEM_KIND.ISSUE,
@@ -23,6 +25,7 @@ const linkedIssue: ManagedIssueItem = {
   remoteUrl: "https://github.com/org2ai/ORG2.git",
   viewerLogin: "viewer",
   rawIssue: {
+    id: 100_042,
     number: 42,
     title: "Fix linked pull request visibility",
     body: null,
@@ -40,7 +43,7 @@ const linkedIssue: ManagedIssueItem = {
     milestone: null,
   },
   author: "junyu",
-  timeAgo: "10m ago",
+  timeAgo: "10m",
   state: "open",
   labels: [],
   comments: 4,
@@ -56,11 +59,15 @@ const draftPr: ManagedPrItem = {
   repoId: "repo-1",
   repoPath: "/workspace/ORG2",
   remoteUrl: "https://github.com/org2ai/ORG2.git",
+  viewerLogin: "viewer",
   rawPr: {
     number: 465,
     url: "https://github.com/org2ai/ORG2/pull/465",
     title: "Consolidate audited workspace refactors",
     state: "open",
+    author_login: "junyu",
+    author_avatar_url: "https://example.com/avatar.png",
+    requested_reviewer_logins: [],
     head_branch: "audit-workspace",
     base_branch: "develop",
     draft: true,
@@ -68,91 +75,173 @@ const draftPr: ManagedPrItem = {
     updated_at: "2026-07-21T08:10:00Z",
   },
   author: "junyu",
-  timeAgo: "10m ago",
+  authoredByViewer: false,
+  reviewRequestedFromViewer: false,
+  timeAgo: "10m",
   state: "open",
   sourceBranch: "audit-workspace",
   targetBranch: "develop",
   updatedAt: "2026-07-21T08:10:00Z",
 };
 
-describe("ManagedPrRow", () => {
-  it("uses the GitHub draft icon without a Draft tag", () => {
+describe("ManagedIssueContextMeta", () => {
+  it("shows linked pull requests and comments before context tags", () => {
     const markup = renderToStaticMarkup(
-      createElement(ManagedPrRow, {
-        pr: draftPr,
-        addLabel: "Add",
-        onOpenPr: vi.fn(),
-        onAddPr: vi.fn(),
+      createElement(ManagedIssueContextMeta, {
+        issue: linkedIssue,
       })
     );
 
-    expect(markup).toContain("lucide-git-pull-request-draft");
-    expect(markup).not.toContain(">Draft<");
+    expect(markup).toContain("lucide-git-pull-request");
+    expect(markup).toContain("lucide-message-circle");
+    expect(markup).toContain("text-primary-6");
+    expect(markup).toContain(">2<");
+    expect(markup).toContain(">4<");
   });
 });
 
-describe("ManagedIssueRow", () => {
-  it("shows linked pull requests alongside the comment count", () => {
+describe("ManagedIssueAssigneeCell", () => {
+  it("toggles one assignee without dropping the others", () => {
+    const assignees = [
+      { login: "ada", avatar_url: "ada.png" },
+      { login: "grace", avatar_url: "grace.png" },
+    ];
+
+    expect(toggleIssueAssigneeLogins(assignees, "GRACE")).toEqual(["ada"]);
+    expect(toggleIssueAssigneeLogins(assignees, "linus")).toEqual([
+      "ada",
+      "grace",
+      "linus",
+    ]);
+  });
+
+  it("renders a larger avatar-only issue-assignee trigger", () => {
     const markup = renderToStaticMarkup(
-      createElement(ManagedIssueRow, {
+      createElement(ManagedIssueAssigneeCell, {
+        issue: {
+          ...linkedIssue,
+          rawIssue: {
+            ...linkedIssue.rawIssue,
+            assignees: [
+              { login: "octocat", avatar_url: "https://example.com/o.png" },
+            ],
+          },
+        },
+        assignableUsers: [],
+        canManage: true,
+        loading: false,
+        loadError: null,
+        updating: false,
+        noneLabel: "None",
+        loadingLabel: "Loading...",
+        searchPlaceholder: "Search...",
+        readonlyReason: "No permission",
+        onOpen: vi.fn(),
+        onChange: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('aria-label="octocat"');
+    expect(markup).toContain("width:24px;height:24px");
+    expect(markup).toContain("https://example.com/o.png");
+    expect(markup).toContain("lucide-chevron-down");
+    expect(markup).toContain("bg-bg-2");
+    expect(markup).toContain("w-12");
+    expect(markup).toContain("px-px");
+  });
+
+  it("keeps the full assignee pill styling while an update is pending", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ManagedIssueAssigneeCell, {
+        issue: {
+          ...linkedIssue,
+          rawIssue: {
+            ...linkedIssue.rawIssue,
+            assignees: [
+              { login: "octocat", avatar_url: "https://example.com/o.png" },
+            ],
+          },
+        },
+        assignableUsers: [],
+        canManage: true,
+        loading: false,
+        loadError: null,
+        updating: true,
+        noneLabel: "None",
+        loadingLabel: "Loading...",
+        searchPlaceholder: "Search...",
+        readonlyReason: "No permission",
+        onOpen: vi.fn(),
+        onChange: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).toContain("lucide-chevron-down");
+    expect(markup).toContain("bg-bg-2");
+    expect(markup).toContain("w-12");
+    expect(markup).toContain("px-px");
+    expect(markup).not.toContain("opacity-80");
+  });
+
+  it("keeps the assignee selector inert without repository permission", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ManagedIssueAssigneeCell, {
+        issue: linkedIssue,
+        assignableUsers: [],
+        canManage: false,
+        loading: false,
+        loadError: null,
+        updating: false,
+        noneLabel: "None",
+        loadingLabel: "Loading...",
+        searchPlaceholder: "Search...",
+        readonlyReason: "No permission",
+        onOpen: vi.fn(),
+        onChange: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('title="No permission"');
+    expect(markup).toContain("disabled");
+    expect(markup).not.toContain("lucide-chevron-down");
+  });
+});
+
+describe("GitHub work-item row actions", () => {
+  it("keeps issue Add and More actions visible", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ManagedIssueActionsCell, {
         issue: linkedIssue,
         addLabel: "Add",
         openInBrowserLabel: "Open in browser",
-        openInMyStationLabel: "Open in My Station",
         moreActionsLabel: "More actions",
-        onOpenIssue: vi.fn(),
         onOpenIssueInBrowser: vi.fn(),
-        onOpenIssueInMyStation: vi.fn(),
         onAddIssue: vi.fn(),
       })
     );
 
-    expect(markup).toContain('aria-label="2 linked pull requests"');
-    expect(markup).toContain("lucide-git-pull-request");
-    expect(markup).toContain("lucide-message-square");
+    expect(markup).toContain(">Add</span>");
+    expect(markup).toContain('aria-label="More actions"');
+    expect(markup).not.toContain("Open in My Station");
+    expect(markup).not.toContain("opacity-0");
+  });
+
+  it("keeps pull-request Add actions visible", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ManagedPrActionsCell, {
+        pr: draftPr,
+        addLabel: "Add",
+        onAddPr: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain(">Add</span>");
+    expect(markup).not.toContain("opacity-0");
   });
 });
 
 describe("GitHub work-item header controls", () => {
-  it("hugs and shortens the selected repository trigger", () => {
-    const markup = renderToStaticMarkup(
-      createElement(RepoFilterPill, {
-        options: [
-          { key: "all", label: "All repositories" },
-          { key: "org2ai/ORG2", label: "org2ai/ORG2" },
-        ],
-        selectedRepo: "org2ai/ORG2",
-        allReposLabel: "All repositories",
-        onSelectRepo: vi.fn(),
-      })
-    );
-
-    expect(markup).toContain("lucide-code-xml");
-    expect(markup).toContain(">ORG2<");
-    expect(markup).not.toContain("org2ai/ORG2");
-    expect(markup).toContain("select-ghost");
-    expect(markup).toContain("!w-fit shrink-0");
-    expect(markup).toContain('style="width:fit-content"');
-  });
-
-  it("limits long selected repository names to their first 15 characters", () => {
-    const markup = renderToStaticMarkup(
-      createElement(RepoFilterPill, {
-        options: [
-          {
-            key: "org2ai/12345678901234567890",
-            label: "org2ai/12345678901234567890",
-          },
-        ],
-        selectedRepo: "org2ai/12345678901234567890",
-        allReposLabel: "All repositories",
-        onSelectRepo: vi.fn(),
-      })
-    );
-
-    expect(markup).toContain(">123456789012345…<");
-  });
-
   it("renders Filter as a secondary icon-only button", () => {
     const markup = renderToStaticMarkup(
       createElement(IssuePersonalFilterDropdown, {
@@ -166,5 +255,6 @@ describe("GitHub work-item header controls", () => {
     expect(markup).toContain("lucide-funnel");
     expect(markup).toContain('aria-label="Filter (1)"');
     expect(markup).not.toContain(">Filter<");
+    expect(markup).toContain("height:32px");
   });
 });

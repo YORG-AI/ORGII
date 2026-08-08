@@ -18,6 +18,10 @@
  *      reconcile-driven write; it represents activity the user just
  *      performed, so it's the correct signal for sidebar / Kanban
  *      "recent activity" ordering.
+ *   4. `applyImportedSessionTimestamps()` — an imported collaboration
+ *      replay mirrors a TEAMMATE's session, so its timestamps are the
+ *      owner's and arrive on the cloud listing row. No local read or
+ *      list refresh can supply them.
  *
  * On the *update* path of `upsertSession()` we deliberately preserve
  * the prior record's timestamps and ignore whatever the caller spread
@@ -119,6 +123,51 @@ export const markSessionActive = (sessionId: string) => {
         : session
     )
   );
+};
+
+/**
+ * Adopt the SOURCE's activity timestamps on an imported replay copy.
+ *
+ * The only mutation that writes someone else's clock, and the reason it
+ * has to exist: an imported collaboration copy is a read-only mirror of a
+ * teammate's session, so its `created_at` / `updated_at` describe the
+ * OWNER's work and reach this device on the cloud listing row
+ * (`lastActivityAt`) — no `loadSessions()` refresh can correct them.
+ * `upsertSession()`'s pinning is precisely what this bypasses; without it
+ * the copy keeps the moment the viewer first clicked the card, which made
+ * every opened cloud card read "Now" in Kanban and jump to the top of
+ * List/Diary.
+ *
+ * No-op unless the row is in the store AND carries `importedFrom`: the
+ * pinning stays absolute for locally-owned sessions.
+ */
+export const applyImportedSessionTimestamps = (
+  sessionId: string,
+  timestamps: {
+    created_at: string;
+    updated_at: string;
+    completed_at: string;
+  }
+) => {
+  const store = getStore();
+  store.set(sessionsAtom, (prev) => {
+    let changed = false;
+    const next = prev.map((session) => {
+      if (session.session_id !== sessionId || !session.importedFrom) {
+        return session;
+      }
+      if (
+        session.created_at === timestamps.created_at &&
+        session.updated_at === timestamps.updated_at &&
+        session.completed_at === timestamps.completed_at
+      ) {
+        return session;
+      }
+      changed = true;
+      return { ...session, ...timestamps };
+    });
+    return changed ? next : prev;
+  });
 };
 
 /**

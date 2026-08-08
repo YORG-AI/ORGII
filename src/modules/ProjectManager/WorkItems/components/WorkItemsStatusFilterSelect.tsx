@@ -17,11 +17,18 @@ interface WorkItemsStatusFilterSelectProps {
   onChange: (value: StatusFilterType) => void;
   statusCounts: StatusCountMap;
   filterKeys?: readonly StatusFilterType[];
+  dropdownAlign?: "left" | "right";
 }
 
 const WorkItemsStatusFilterSelect: React.FC<
   WorkItemsStatusFilterSelectProps
-> = ({ value, onChange, statusCounts, filterKeys = STATUS_FILTER_KEYS }) => {
+> = ({
+  value,
+  onChange,
+  statusCounts,
+  filterKeys = STATUS_FILTER_KEYS,
+  dropdownAlign = "right",
+}) => {
   const { t } = useTranslation("projects");
 
   const getStatusFilterIcon = useCallback((key: StatusFilterType) => {
@@ -79,7 +86,7 @@ const WorkItemsStatusFilterSelect: React.FC<
       radius="lg"
       dropdownWidthMode="match"
       dropdownMinWidth={172}
-      dropdownAlign="right"
+      dropdownAlign={dropdownAlign}
       className="w-auto"
     />
   );

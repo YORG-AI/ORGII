@@ -697,16 +697,41 @@
     "sessionStatusDesc": "Session 开始、暂停和恢复更新",
     "gitOperations": "Git 操作",
     "gitOperationsDesc": "Git pull、push 和同步通知",
+    "soundPreset": "通知音效",
+    "soundPresetDesc": "选择通知提醒时播放的声音",
+    "previewSound": "试听",
+    "soundPresets": {
+      "classic": "经典双音",
+      "gentle": "轻柔和弦",
+      "ascending": "上扬三音",
+      "bell": "铃音"
+    },
     "volume": "音量",
     "testNotification": "测试通知",
     "notification": "通知",
     "sound": "声音",
     "enabledSuccess": "通知已启用",
     "permissionDenied": "通知权限被拒绝",
+    "criticalOnly": "仅关键提醒",
+    "criticalOnlyDesc": "仅在操作需要批准或任务执行失败时提醒",
+    "quietHours": "免打扰时段",
+    "quietHoursDesc": "在每天指定的时间范围内静音普通通知",
+    "quietHoursSchedule": "静音时间",
+    "quietHoursScheduleDesc": "使用设备本地时间；开始与结束时间相同时不启用静音窗口。",
+    "quietHoursStart": "开始",
+    "quietHoursEnd": "结束",
+    "allowCriticalDuringQuietHours": "允许关键提醒",
+    "allowCriticalDuringQuietHoursDesc": "审批和失败可显示系统通知，但不会播放声音",
+    "backgroundCompletionSummary": "汇总后台任务完成提醒",
+    "backgroundCompletionSummaryDesc": "免打扰结束后只发送一条汇总提醒",
+    "mutedSessions": "已静音会话",
+    "mutedSessionsDesc": "此设备上已有 {{count}} 个会话静音",
+    "clearMutedSessions": "全部清除",
     "test": {
       "sent": "测试通知已发送",
       "permissionWarning": "测试通知发送失败，请检查权限。",
-      "sendFailed": "无法发送测试通知。请检查通知权限后重试。"
+      "sendFailed": "无法发送测试通知。请检查通知权限后重试。",
+      "soundFailed": "无法播放通知音效，请检查系统音量。"
     },
     "teamInbox": "团队收件箱",
     "teamInboxDesc": "来自队友的分配、提及和交接"
@@ -980,7 +1005,13 @@
     "tableSize": "大小",
     "tablePercentage": "占比",
     "scanFailed": "扫描磁盘占用失败",
-    "openFolderFailed": "打开文件夹失败"
+    "openFolderFailed": "打开文件夹失败",
+    "browserCache": "浏览器缓存",
+    "browserCacheDesc": "已使用 {{used}} · 可安全清理 {{cleanable}}",
+    "cleanBrowserCache": "清理",
+    "browserCacheCleaned": "已释放 {{size}} 浏览器存储空间",
+    "browserCacheAlreadyClean": "浏览器缓存已是干净状态",
+    "browserCacheCleanFailed": "清理浏览器缓存失败"
   },
   "dependencies": {
     "systemDependencies": "系统 Dependencies",

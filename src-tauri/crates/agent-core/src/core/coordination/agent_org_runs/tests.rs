@@ -52,6 +52,7 @@ fn sample_org() -> OrgDefinition {
 
 fn ensure_runtime_schemas() {
     let conn = database::db::get_connection().expect("test sqlite connection");
+    crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
     crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
         .expect("agent sessions schema");
     crate::session::persistence::init(&conn).expect("unified session schema");

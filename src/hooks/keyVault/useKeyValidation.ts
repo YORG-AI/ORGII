@@ -11,10 +11,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   fetchKeyQuota,
-  getCodexOAuthModels,
   getCursorNativeModels,
+  getOAuthModelCatalog,
   validateKey,
 } from "@src/api/services/keyValidation";
+import type { OAuthModelCatalog } from "@src/api/services/keyValidation";
 import type { ModelType as ValidationAgentType } from "@src/api/services/keyValidation";
 import {
   CLI_AGENT,
@@ -114,6 +115,7 @@ export interface UseKeyValidationOptions {
     >;
     envVars: EnvVar[];
     extractedConfig: ExtractedConfig | null;
+    oauthCatalog?: OAuthModelCatalog;
   }) => void;
 }
 
@@ -334,7 +336,8 @@ export function useKeyValidation(
           // Cursor-specific: native discovery to fill in the model list when
           // the Rust validator only verified the key but didn't enumerate.
           let finalModels = result.available_models;
-          const finalModelContextLengths = result.model_context_lengths ?? {};
+          let finalModelContextLengths = result.model_context_lengths ?? {};
+          let oauthCatalog: OAuthModelCatalog | undefined;
           if (
             agentType === CLI_AGENT.CURSOR &&
             cursorSessionToken &&
@@ -361,19 +364,12 @@ export function useKeyValidation(
             );
           }
 
-          if (
-            agentType === CLI_AGENT.CODEX &&
-            cursorSessionToken &&
-            finalModels.length === 0
-          ) {
-            try {
-              const native = await getCodexOAuthModels(cursorSessionToken);
-              if (native.length > 0) {
-                finalModels = native;
-              }
-            } catch (nativeErr) {
-              logger.warn("Codex OAuth model discovery failed:", nativeErr);
-            }
+          if (agentType === CLI_AGENT.CODEX && cursorSessionToken) {
+            oauthCatalog = await getOAuthModelCatalog(CLI_AGENT.CODEX, {
+              accessToken: cursorSessionToken,
+            });
+            finalModels = oauthCatalog.models;
+            finalModelContextLengths = oauthCatalog.modelContextLengths;
           }
 
           setExtractedConfig(config);
@@ -386,6 +382,7 @@ export function useKeyValidation(
             modelContextLengths: finalModelContextLengths,
             envVars,
             extractedConfig: config,
+            oauthCatalog,
           });
         } else {
           setValidationError(result.message);

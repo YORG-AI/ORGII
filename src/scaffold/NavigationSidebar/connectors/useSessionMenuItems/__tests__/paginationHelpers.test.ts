@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
+  type CategoryPaginationState,
   SESSION_LIST_CATEGORIES,
   type Session,
   type SessionListCategory,
@@ -16,6 +17,17 @@ import {
   loadUnifiedReadyCategories,
   unifiedLoadMoreRow,
 } from "../paginationHelpers";
+
+function streamState(
+  phase: CategoryPaginationState["phase"]
+): CategoryPaginationState {
+  return {
+    sessionIds: [],
+    cursor: null,
+    phase,
+    generation: 1,
+  };
+}
 
 function makeSession(sessionId: string): Session {
   return {
@@ -40,11 +52,7 @@ function makePagination(
   return Object.fromEntries(
     SESSION_LIST_CATEGORIES.map((category) => [
       category,
-      overrides[category] ?? {
-        loaded: 0,
-        hasMore: false,
-        loading: false,
-      },
+      overrides[category] ?? streamState("exhausted"),
     ])
   ) as SessionPaginationMap;
 }
@@ -90,14 +98,15 @@ describe("unified backend load-more helpers", () => {
     const secondCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
     const state = getUnifiedLoadMoreState(
       makePagination({
-        [firstCategory]: { loaded: 10, hasMore: true, loading: false },
-        [secondCategory]: { loaded: 10, hasMore: true, loading: false },
+        [firstCategory]: streamState("ready"),
+        [secondCategory]: streamState("ready"),
       })
     );
 
     expect(state).toEqual({
       visible: true,
       loading: false,
+      error: false,
       disabled: false,
       readyCategories: [firstCategory, secondCategory],
     });
@@ -108,26 +117,24 @@ describe("unified backend load-more helpers", () => {
     const readyCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
     const state = getUnifiedLoadMoreState(
       makePagination({
-        [loadingCategory]: { loaded: 10, hasMore: true, loading: true },
-        [readyCategory]: { loaded: 10, hasMore: true, loading: false },
+        [loadingCategory]: streamState("loading"),
+        [readyCategory]: streamState("ready"),
       })
     );
 
     expect(state.visible).toBe(true);
     expect(state.loading).toBe(true);
-    expect(state.disabled).toBe(false);
+    expect(state.disabled).toBe(true);
     expect(state.readyCategories).toEqual([readyCategory]);
   });
 
-  it("keeps the unified row enabled while loading when categories are ready", () => {
+  it("disables the unified row while any category is loading", () => {
     const readyCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
     const state = getUnifiedLoadMoreState(
       makePagination({
-        [readyCategory]: { loaded: 10, hasMore: true, loading: false },
+        [readyCategory]: streamState("ready"),
         [SESSION_LIST_CATEGORIES[1] as SessionListCategory]: {
-          loaded: 10,
-          hasMore: true,
-          loading: true,
+          ...streamState("loading"),
         },
       })
     );
@@ -136,7 +143,7 @@ describe("unified backend load-more helpers", () => {
     expect(row.id).toBe(UNIFIED_LOAD_MORE_ID);
     expect(row.key).toBe(UNIFIED_LOAD_MORE_ID);
     expect(row.label).toBe("Loading");
-    expect(row.disabled).toBe(false);
+    expect(row.disabled).toBe(true);
     expect(row.trailingElement).toBeDefined();
   });
 
@@ -144,7 +151,7 @@ describe("unified backend load-more helpers", () => {
     const loadingCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
     const state = getUnifiedLoadMoreState(
       makePagination({
-        [loadingCategory]: { loaded: 10, hasMore: true, loading: true },
+        [loadingCategory]: streamState("loading"),
       })
     );
     const row = unifiedLoadMoreRow(state, "Loading");
@@ -158,8 +165,7 @@ describe("unified backend load-more helpers", () => {
     expect(isUnifiedLoadMoreId("load-more-cursor_ide")).toBe(false);
   });
 
-  it("loads every ready category and skips loading categories", async () => {
-    const loadingCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
+  it("loads every ready category", async () => {
     const firstReadyCategory =
       SESSION_LIST_CATEGORIES[1] as SessionListCategory;
     const secondReadyCategory =
@@ -168,9 +174,8 @@ describe("unified backend load-more helpers", () => {
 
     const result = loadUnifiedReadyCategories({
       pagination: makePagination({
-        [loadingCategory]: { loaded: 10, hasMore: true, loading: true },
-        [firstReadyCategory]: { loaded: 10, hasMore: true, loading: false },
-        [secondReadyCategory]: { loaded: 10, hasMore: true, loading: false },
+        [firstReadyCategory]: streamState("ready"),
+        [secondReadyCategory]: streamState("ready"),
       }),
       loadCategory,
     });
@@ -182,6 +187,49 @@ describe("unified backend load-more helpers", () => {
     expect(loadCategory).toHaveBeenNthCalledWith(2, secondReadyCategory);
   });
 
+  it("does not start another batch while any category is loading", () => {
+    const loadingCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
+    const readyCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
+    const loadCategory = vi.fn(() => Promise.resolve());
+
+    const result = loadUnifiedReadyCategories({
+      pagination: makePagination({
+        [loadingCategory]: streamState("loading"),
+        [readyCategory]: streamState("ready"),
+      }),
+      loadCategory,
+    });
+
+    expect(result).toBeNull();
+    expect(loadCategory).not.toHaveBeenCalled();
+  });
+
+  it("caps the unified footer at four concurrent stream requests", async () => {
+    const ready = Object.fromEntries(
+      SESSION_LIST_CATEGORIES.map((category) => [
+        category,
+        streamState("ready"),
+      ])
+    ) as Partial<SessionPaginationMap>;
+    let active = 0;
+    let maxActive = 0;
+    const loadCategory = vi.fn(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active -= 1;
+    });
+
+    const result = loadUnifiedReadyCategories({
+      pagination: makePagination(ready),
+      loadCategory,
+    });
+    await result;
+
+    expect(loadCategory).toHaveBeenCalledTimes(SESSION_LIST_CATEGORIES.length);
+    expect(maxActive).toBe(4);
+  });
+
   it("does not load categories when the unified row is disabled", () => {
     const readyCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
     const loadCategory = vi.fn(() => Promise.resolve());
@@ -189,7 +237,7 @@ describe("unified backend load-more helpers", () => {
     const result = loadUnifiedReadyCategories({
       disabled: true,
       pagination: makePagination({
-        [readyCategory]: { loaded: 10, hasMore: true, loading: false },
+        [readyCategory]: streamState("ready"),
       }),
       loadCategory,
     });

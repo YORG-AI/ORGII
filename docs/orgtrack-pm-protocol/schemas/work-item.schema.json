@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "orgtrack/v1/work-item.schema.json",
+  "title": "Orgtrack v1 WorkItem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "id",
+    "scopeId",
+    "title",
+    "state",
+    "revision",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "apiVersion": { "$ref": "common.schema.json#/definitions/apiVersion" },
+    "kind": { "const": "WorkItem" },
+    "id": { "type": "string", "pattern": "^work_[A-Za-z0-9]+$" },
+    "scopeId": { "type": "string", "minLength": 1 },
+    "key": {
+      "type": "string",
+      "description": "Human-readable identifier, unique only within the scope."
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "body": { "type": "string" },
+    "state": { "$ref": "common.schema.json#/definitions/workItemState" },
+    "priority": { "$ref": "common.schema.json#/definitions/workItemPriority" },
+    "assignee": {
+      "oneOf": [
+        { "$ref": "common.schema.json#/definitions/actorRef" },
+        { "type": "null" }
+      ],
+      "description": "Concrete actor only. Role/capability requirements live in actorRequirement."
+    },
+    "actorRequirement": {
+      "oneOf": [
+        { "$ref": "common.schema.json#/definitions/actorRequirement" },
+        { "type": "null" }
+      ]
+    },
+    "claimedBy": {
+      "oneOf": [
+        { "$ref": "common.schema.json#/definitions/actorRef" },
+        { "type": "null" }
+      ],
+      "description": "Required (non-null) whenever state is in_progress. Presence does not prove the agent process is alive."
+    },
+    "parentId": {
+      "oneOf": [{ "type": "string" }, { "type": "null" }]
+    },
+    "dependsOn": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "labels": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "origin": {
+      "type": "object",
+      "description": "Immutable creation provenance. Later RoutineRun participation uses typed Run relations, never overwrites origin.",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "routine_step",
+            "track_this",
+            "convert_from_plan",
+            "project_first_submit"
+          ]
+        },
+        "routineId": { "type": "string" },
+        "routineRunId": { "type": "string" },
+        "stepId": { "type": "string" }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Typed references bound from upstream step outputs. Never inline payloads."
+    },
+    "result": {
+      "oneOf": [{ "$ref": "#/definitions/result" }, { "type": "null" }]
+    },
+    "revision": { "$ref": "common.schema.json#/definitions/revision" },
+    "createdAt": { "$ref": "common.schema.json#/definitions/isoTimestamp" },
+    "updatedAt": { "$ref": "common.schema.json#/definitions/isoTimestamp" }
+  },
+  "definitions": {
+    "typedRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "contentHash": { "type": "string" },
+        "label": { "type": "string" }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string" },
+        "artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/typedRef" }
+        },
+        "references": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/typedRef" }
+        }
+      }
+    }
+  }
+}

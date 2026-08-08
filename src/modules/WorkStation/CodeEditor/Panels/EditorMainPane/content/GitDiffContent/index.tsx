@@ -32,11 +32,7 @@ import {
   hasConflictMarkers,
 } from "@src/features/CodeMirror";
 import { createLogger } from "@src/hooks/logger";
-import {
-  type DiffViewMode,
-  FileHeader,
-  FloatingBar,
-} from "@src/modules/WorkStation/shared";
+import { FileHeader, FloatingBar } from "@src/modules/WorkStation/shared";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared/textTokens";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { EditorService } from "@src/services/workStation/EditorService";
@@ -48,6 +44,7 @@ import {
   editorLineNumbersAtom,
   editorWordWrapAtom,
 } from "@src/store/ui";
+import { diffViewModeAtom } from "@src/store/workstation/codeEditor";
 import type { GitFile } from "@src/types/git/types";
 import { isBinaryByExtension } from "@src/util/file/binaryDetection";
 import {
@@ -242,7 +239,7 @@ const GitDiffContentInner: React.FC<GitDiffContentProps> = ({
   });
 
   // View mode state for diff display
-  const [viewMode, setViewMode] = useState<DiffViewMode>("unified");
+  const [viewMode, setViewMode] = useAtom(diffViewModeAtom);
 
   // Local state for edited content
   const [editedContent, setEditedContent] = useState<string | null>(null);

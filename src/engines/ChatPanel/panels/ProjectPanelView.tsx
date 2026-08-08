@@ -12,7 +12,6 @@ import { useTranslation } from "react-i18next";
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import {
   type MemberEntry,
-  type WorkItemFrontmatter,
   enrichedWorkItemToUI,
   projectApi,
 } from "@src/api/http/project";
@@ -250,7 +249,10 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
 
   const fetchProjectWorkItems = useCallback(
     async (scopeProjectSlug: string) => {
-      const viewData = await projectApi.readWorkItemsViewData(scopeProjectSlug);
+      const viewData = await projectApi.readWorkItemsViewData(
+        scopeProjectSlug,
+        { view: "list" }
+      );
       return {
         shortIds: new Map(
           viewData.items.map((item) => [item.id, item.shortId])
@@ -502,23 +504,14 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
       // counter here could mint the same PREFIX-n as a teammate and merge
       // two distinct work items on push.
       const shortId = await allocateCloudAwareWorkItemId(projectSlug);
-      const now = new Date().toISOString();
-      const frontmatter: WorkItemFrontmatter = {
-        id: shortId,
-        short_id: shortId,
+      // Canonical work.create: the Rust service owns row construction.
+      await projectApi.createWorkItem(projectSlug, shortId, {
         title: t("projects:workItems.newWorkItemName", {
           defaultValue: "New Work Item",
         }),
-        project: selectedProject.project.id,
+        projectId: selectedProject.project.id,
         status: status || WORK_ITEMS_DEFAULT_STATUS,
-        priority: "none",
-        labels: [],
-        created_at: now,
-        updated_at: now,
-        starred: false,
-        todos: [],
-      };
-      await projectApi.writeWorkItem(projectSlug, shortId, frontmatter, "");
+      });
       await loadProjectWorkItems();
     },
     [loadProjectWorkItems, projectSlug, selectedProject.project.id, t]

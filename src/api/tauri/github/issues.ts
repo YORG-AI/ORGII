@@ -13,11 +13,13 @@ export interface GitHubIssueLabel {
 }
 
 export interface GitHubIssue {
+  /** GitHub's database ID, used by mutations such as close-as-duplicate. */
+  id: number;
   number: number;
   title: string;
   body: string | null;
   state: "open" | "closed";
-  state_reason: "completed" | "not_planned" | null;
+  state_reason: "completed" | "not_planned" | "duplicate" | null;
   html_url: string;
   created_at: string;
   updated_at: string;
@@ -89,6 +91,7 @@ export async function listIssuesLocal(
     labels?: string;
     page?: number;
     perPage?: number;
+    includeLinkedPullRequests?: boolean;
   }
 ): Promise<GitHubIssueListResponse> {
   return invokeWithAuth<GitHubIssueListResponse>("github_list_issues", {
@@ -97,6 +100,7 @@ export async function listIssuesLocal(
     labels: opts?.labels ?? null,
     page: opts?.page ?? 1,
     perPage: opts?.perPage ?? null,
+    includeLinkedPullRequests: opts?.includeLinkedPullRequests ?? true,
   });
 }
 
@@ -133,7 +137,9 @@ export async function updateIssueLocal(
     title?: string;
     body?: string;
     state?: "open" | "closed";
-    stateReason?: "completed" | "not_planned";
+    stateReason?: "completed" | "not_planned" | "duplicate";
+    /** Database ID of the canonical issue when closing as a duplicate. */
+    duplicateIssueId?: number;
     labels?: string[];
     assignees?: string[];
   }
@@ -145,6 +151,7 @@ export async function updateIssueLocal(
     body: updates.body ?? null,
     state: updates.state ?? null,
     stateReason: updates.stateReason ?? null,
+    duplicateIssueId: updates.duplicateIssueId ?? null,
     labels: updates.labels ?? null,
     assignees: updates.assignees ?? null,
   });
@@ -193,10 +200,10 @@ export async function listRepoLabelsLocal(
   });
 }
 
-export async function listRepoCollaboratorsLocal(
+export async function listRepoAssigneesLocal(
   repoFullName: string
 ): Promise<GitHubIssueUser[]> {
-  return invokeWithAuth<GitHubIssueUser[]>("github_list_repo_collaborators", {
+  return invokeWithAuth<GitHubIssueUser[]>("github_list_repo_assignees", {
     repoFullName,
   });
 }

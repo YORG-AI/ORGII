@@ -17,7 +17,6 @@ import {
   addToBackgroundCache,
   backgroundImageCache,
 } from "@src/util/core/init/backgroundInit";
-import { isMacOS, isWindows } from "@src/util/platform/tauri";
 
 const log = createLogger("BackgroundLayer");
 
@@ -26,8 +25,6 @@ interface BackgroundLayerProps {
   blurAmount: number;
   backgroundColor?: string;
   glass?: "regular" | "medium" | "thick";
-  /** Width reserved for native macOS sidebar material. */
-  sidebarInset?: number;
 }
 
 export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
@@ -35,7 +32,6 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   blurAmount,
   backgroundColor,
   glass,
-  sidebarInset = 0,
 }) => {
   const [displayedImage, setDisplayedImage] = useState<string | null>(() => {
     if (!image) return null;
@@ -78,25 +74,14 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
 
   // If backgroundColor is set and no image, use solid color
   const useColorBackground = backgroundColor && !displayedImage;
-  const nativeSidebarInset = isMacOS() ? Math.max(0, sidebarInset) : 0;
   const frameStyle = useMemo<React.CSSProperties>(
     () => ({
-      left: nativeSidebarInset,
+      left: 0,
       right: 0,
       height: "100vh",
     }),
-    [nativeSidebarInset]
+    []
   );
-
-  if (isWindows()) {
-    return (
-      <div
-        data-background-layer="true"
-        className="absolute left-0 top-0 z-0 bg-bg-2"
-        style={{ width: "100vw", height: "100vh" }}
-      />
-    );
-  }
 
   return (
     <div

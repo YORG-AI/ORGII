@@ -5,11 +5,11 @@ import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import type { SessionTurnLoader } from "./types";
 
-const inFlightTurnLoads = new Map<string, Promise<void>>();
+const inFlightTurnLoads = new Map<string, Promise<boolean>>();
 
 export const cursorIdeTurnLoader: SessionTurnLoader = {
   async loadTurnBodyIntoStore({ sessionId, turnId }) {
-    if (!isCursorIdeSession(sessionId)) return;
+    if (!isCursorIdeSession(sessionId)) return false;
 
     const loadKey = `${sessionId}:${turnId}`;
     const inFlight = inFlightTurnLoads.get(loadKey);
@@ -22,10 +22,11 @@ export const cursorIdeTurnLoader: SessionTurnLoader = {
           userBubbleId: turnId,
         });
         const { chunks } = turnWindow;
-        if (!Array.isArray(chunks) || chunks.length === 0) return;
+        if (!Array.isArray(chunks) || chunks.length === 0) return false;
         const events = await processChunksRust(chunks, sessionId);
-        if (events.length === 0) return;
+        if (events.length === 0) return false;
         await eventStoreProxy.mergeRoundWindowEvents(events, sessionId);
+        return true;
       } finally {
         inFlightTurnLoads.delete(loadKey);
       }

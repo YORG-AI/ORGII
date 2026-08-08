@@ -24,6 +24,7 @@ import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import {
   DETAIL_PANEL_TOKENS,
@@ -169,11 +170,13 @@ const WizardStepLayout: React.FC<WizardStepLayoutProps> = ({
         >
           <div
             className={
-              hideStepIndicator ? "" : "flex items-center gap-2 text-[13px]"
+              hideStepIndicator
+                ? ""
+                : `flex items-center gap-2 ${TYPOGRAPHY.sectionTitle}`
             }
           >
             {!hideStepIndicator && (
-              <span className="font-bold text-text-1">
+              <span className="text-text-1">
                 {t("keyVault.stepLabel", {
                   current: currentStep,
                   total: totalSteps,

@@ -3,6 +3,7 @@
  *
  * Centralized configuration for sidebar styling and behavior.
  */
+import { WINDOW_CHROME_TOKENS } from "@src/config/windowChromeTokens";
 
 // ============================================
 // Style Configuration
@@ -12,7 +13,7 @@ export const SIDEBAR_STYLE = {
   /** Traffic lights reserved space */
   trafficLightsPadding: 80,
   /** Top bar height */
-  topBarHeight: 36,
+  topBarHeight: WINDOW_CHROME_TOKENS.titleBarHeight,
   /** Search input height */
   searchHeight: 28,
   /** Action button size */

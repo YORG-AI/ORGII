@@ -12,6 +12,7 @@
 
 pub mod models;
 pub(crate) mod quota;
+pub mod usage_export;
 
 pub use models::CursorNativeModel;
 

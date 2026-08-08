@@ -15,12 +15,12 @@ import type { SessionCreatorDraft } from "@src/store/session";
 import { toChatPanelTuiSessionId } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
 import { useRenameSessionModal } from "../useRenameSessionModal";
+import type { WorkstationSidebarViewKey } from "./WorkstationSidebarViewSwitcher";
 import { isCloudScopedLocalRow } from "./cloudScopedMenuItems";
 import {
   usePinnedMenuItems,
   useSessionSidebarMenuItems,
 } from "./sidebarMenuCollections";
-import type { WorkstationSidebarKey } from "./types";
 import { buildWorkItemsSidebarMenuItems } from "./workItemsSidebarMenuItems";
 
 interface UseWorkstationSidebarPinnedAndRevealDataParams {
@@ -28,8 +28,7 @@ interface UseWorkstationSidebarPinnedAndRevealDataParams {
   cloudMenuItems: NavigationMenuItem[];
   menuItems: readonly NavigationMenuItem[];
   sessionCreatorDrafts: readonly SessionCreatorDraft[];
-  projectsSidebarVisible: boolean;
-  activeSidebarKey: WorkstationSidebarKey;
+  activeViewKey: WorkstationSidebarViewKey;
   createProjectLabel: string;
   createWorkItemLabel: string;
   importGithubIssuesLabel: string;
@@ -46,8 +45,7 @@ export function useWorkstationSidebarPinnedAndRevealData({
   cloudMenuItems,
   menuItems,
   sessionCreatorDrafts,
-  projectsSidebarVisible,
-  activeSidebarKey,
+  activeViewKey,
   createProjectLabel,
   createWorkItemLabel,
   importGithubIssuesLabel,
@@ -76,15 +74,17 @@ export function useWorkstationSidebarPinnedAndRevealData({
   const workItemsSidebarMenuItems = useMemo(
     () =>
       buildWorkItemsSidebarMenuItems({
+        workItems: t("labels.workItems"),
         projects: t("labels.projects"),
         githubIssues: tSessions("kanban.sidebar.githubIssues"),
         githubPrs: tSessions("kanban.sidebar.githubPrs"),
+        runs: tSessions("kanban.sidebar.runs"),
       }),
     [t, tSessions]
   );
 
   const { pinnedMenuItems } = usePinnedMenuItems({
-    activeSidebarKey: projectsSidebarVisible ? "projects" : activeSidebarKey,
+    activeViewKey,
     createProjectLabel,
     createWorkItemLabel,
     importGithubIssuesLabel,

@@ -7,7 +7,12 @@
  * - Promotions: show action button
  * - Work items: show project/work-item metadata
  */
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  SquareArrowOutUpRight,
+} from "lucide-react";
 import React, { useState } from "react";
 
 import Button from "@src/components/Button";
@@ -136,7 +141,7 @@ const FeedMessage: React.FC<FeedMessageProps> = ({
                     onClick={() =>
                       window.open(message.metadata?.actionUrl, "_blank")
                     }
-                    icon={<ExternalLink size={12} />}
+                    icon={<SquareArrowOutUpRight size={12} />}
                   >
                     View Offer
                   </Button>

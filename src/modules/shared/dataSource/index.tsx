@@ -1,26 +1,58 @@
-import React, { Suspense, lazy, memo, useMemo, useState } from "react";
+import { useAtomValue } from "jotai";
+import { useAtomCallback } from "jotai/utils";
+import { Cloud, Laptop } from "lucide-react";
+import React, {
+  Suspense,
+  lazy,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
-import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import OrganizationScopeHeader from "@src/components/OrganizationScopeHeader";
+import OrganizationTabSwitch from "@src/components/OrganizationTabSwitch";
+import type { SelectOption } from "@src/components/Select";
+import type { TabPillItem } from "@src/components/TabPill";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import {
+  buildCloudOrgSelectorValue,
+  org2CloudOrgsAtom,
+  org2CloudOrgsLoadedAtom,
+  parseCloudOrgSelectorValue,
+  sidebarActiveCloudOrgIdAtom,
+} from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { buildOrgSelectorEntries } from "@src/features/Organizations/orgSelectorEntries";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import {
   DETAIL_PANEL_TOKENS,
-  InternalHeader,
   Placeholder,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
+import { DEFAULT_SESSION_ORG_ID } from "@src/store/session";
+import { runtimeNavigationIntentAtom } from "@src/store/ui/runtimeNavigationAtom";
 
-type RuntimeSection =
+type PersonalRuntimeSection =
   | "usage"
-  | "team"
   | "profile"
   | "quota"
   | "scanning"
   | "hooks"
   | "assets";
+export type OrganizationRuntimeSection = "today" | "members" | "sync";
+type RuntimeSection = PersonalRuntimeSection | OrganizationRuntimeSection;
 
 const SessionUsagePanel = lazy(() => import("./SessionUsagePanel"));
 const TeamRuntimePanel = lazy(() => import("./TeamRuntimePanel"));
+// Same tab as org management → Sync; both mount the one wired component so
+// the two surfaces cannot drift.
+const CloudOrgSyncTab = lazy(
+  () =>
+    import("@src/engines/ChatPanel/panels/CloudOrgPanelView/CloudOrgSyncTab")
+);
 const BuilderProfilePanel = lazy(() => import("./BuilderProfilePanel"));
 const RuntimeScanningPanel = lazy(() => import("./RuntimeScanningPanel"));
 const SessionProvenanceHooksPanel = lazy(
@@ -46,24 +78,21 @@ const SELF_MANAGED = new Set<RuntimeSection>(["assets", "profile"]);
 interface RuntimeSectionTabsProps {
   activeView: RuntimeSection;
   onChange: (view: RuntimeSection) => void;
+  organizationScope: boolean;
 }
 
 const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
-  ({ activeView, onChange }) => {
+  ({ activeView, onChange, organizationScope }) => {
     const { t } = useTranslation("sessions", {
       keyPrefix: "kanban.dataSource",
     });
-    const viewTabs = useMemo<TabPillItem[]>(() => {
+    const { t: tTeamRuntime } = useTranslation("teamRuntime");
+    const personalTabs = useMemo<TabPillItem[]>(() => {
       return [
         {
           key: "usage",
           label: t("views.usage"),
           dataTestId: "data-source-view-usage",
-        },
-        {
-          key: "team",
-          label: t("views.team"),
-          dataTestId: "data-source-view-team",
         },
         {
           key: "profile",
@@ -92,16 +121,40 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
         },
       ];
     }, [t]);
+    const organizationTabs = useMemo<TabPillItem[]>(
+      () => [
+        {
+          key: "today",
+          label: tTeamRuntime("overview.today"),
+          dataTestId: "data-source-view-org-today",
+        },
+        {
+          key: "members",
+          label: tTeamRuntime("overview.members"),
+          dataTestId: "data-source-view-org-members",
+        },
+        {
+          key: "sync",
+          label: tTeamRuntime("overview.sync"),
+          dataTestId: "data-source-view-org-sync",
+        },
+      ],
+      [tTeamRuntime]
+    );
 
     return (
-      <TabPill
-        activeTab={activeView}
-        tabs={viewTabs}
-        onChange={(key) => onChange(key as RuntimeSection)}
-        variant="simple"
-        size="large"
-        fillWidth={false}
-      />
+      <div
+        data-guide-target={
+          organizationScope ? GUIDE_TARGETS.TEAM_RUNTIME_TABS : undefined
+        }
+      >
+        <OrganizationTabSwitch
+          activeTab={activeView}
+          tabs={organizationScope ? organizationTabs : personalTabs}
+          onChange={(key) => onChange(key as RuntimeSection)}
+          size="large"
+        />
+      </div>
     );
   }
 );
@@ -110,14 +163,14 @@ RuntimeSectionTabs.displayName = "RuntimeSectionTabs";
 
 function RuntimeSectionContent({
   activeView,
+  orgId,
 }: {
   activeView: RuntimeSection;
-}): React.ReactElement {
+  orgId: string | null;
+}): React.ReactElement | null {
   switch (activeView) {
     case "usage":
       return <SessionUsagePanel />;
-    case "team":
-      return <TeamRuntimePanel />;
     case "profile":
       return <BuilderProfilePanel />;
     case "quota":
@@ -128,28 +181,141 @@ function RuntimeSectionContent({
       return <SessionProvenanceHooksPanel showTitle={false} />;
     case "assets":
       return <WorkspaceDashboardPanelView />;
+    case "today":
+      return <TeamRuntimePanel orgId={orgId ?? undefined} view="today" />;
+    case "members":
+      return <TeamRuntimePanel orgId={orgId ?? undefined} view="members" />;
+    case "sync":
+      // Only reachable under a cloud-org scope, which is exactly when orgId is
+      // non-null; the personal scope has no sync tab to fall back to.
+      return orgId === null ? null : <CloudOrgSyncTab orgId={orgId} />;
   }
 }
 
 const RuntimeDataSourcePanel: React.FC = () => {
-  const [panelView, setPanelView] = useState<RuntimeSection>("usage");
+  const { t: tProjects } = useTranslation("projects");
+  const auth = useAtomValue(org2CloudAuthAtom);
+  const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
+  const cloudOrgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
+  const sidebarCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
+  const runtimeNavigationIntent = useAtomValue(runtimeNavigationIntentAtom);
+  const consumeRuntimeNavigationIntent = useAtomCallback(
+    useCallback((get, set, requestId: number) => {
+      const current = get(runtimeNavigationIntentAtom);
+      if (current?.requestId !== requestId) return null;
+      set(runtimeNavigationIntentAtom, null);
+      return current;
+    }, [])
+  );
+  const [scopeValue, setScopeValue] = useState(() =>
+    sidebarCloudOrgId
+      ? buildCloudOrgSelectorValue(sidebarCloudOrgId)
+      : DEFAULT_SESSION_ORG_ID
+  );
+  const [personalView, setPersonalView] =
+    useState<PersonalRuntimeSection>("usage");
+  const [organizationView, setOrganizationView] =
+    useState<OrganizationRuntimeSection>("today");
+
+  useEffect(() => {
+    if (!runtimeNavigationIntent || !cloudOrgsLoaded) return;
+
+    let cancelled = false;
+    const requestId = runtimeNavigationIntent.requestId;
+    const requestedOrgId = runtimeNavigationIntent.orgId;
+    const requestedView = runtimeNavigationIntent.view;
+    const requestedOrgExists = cloudOrgs.some(
+      (org) => org.orgId === requestedOrgId
+    );
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const consumedIntent = consumeRuntimeNavigationIntent(requestId);
+      if (!consumedIntent) return;
+      if (auth === null || !requestedOrgExists) return;
+      setScopeValue(buildCloudOrgSelectorValue(requestedOrgId));
+      setOrganizationView(requestedView);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    auth,
+    cloudOrgs,
+    cloudOrgsLoaded,
+    consumeRuntimeNavigationIntent,
+    runtimeNavigationIntent,
+  ]);
+
+  const requestedCloudOrgId = parseCloudOrgSelectorValue(scopeValue);
+  const requestedOrgExists =
+    requestedCloudOrgId === null ||
+    cloudOrgs.some((org) => org.orgId === requestedCloudOrgId);
+  const cloudScopeIsValid =
+    requestedCloudOrgId === null ||
+    (auth !== null && (!cloudOrgsLoaded || requestedOrgExists));
+  const effectiveScopeValue = cloudScopeIsValid
+    ? scopeValue
+    : DEFAULT_SESSION_ORG_ID;
+  const selectedCloudOrgId = parseCloudOrgSelectorValue(effectiveScopeValue);
+  const organizationScope = selectedCloudOrgId !== null;
+  const panelView: RuntimeSection = organizationScope
+    ? organizationView
+    : personalView;
+
+  const scopeOptions = useMemo<SelectOption[]>(() => {
+    const entries = buildOrgSelectorEntries({
+      personalOrgId: DEFAULT_SESSION_ORG_ID,
+      personalLabel: tProjects("orgs.personalOrg"),
+      localOrgs: [],
+      cloudOrgs,
+      localSuffix: "",
+    });
+    return entries.map((entry) => ({
+      value: entry.value,
+      label: entry.label,
+      icon:
+        entry.kind === "cloud" ? (
+          <Cloud size={13} strokeWidth={2} />
+        ) : (
+          <Laptop size={13} strokeWidth={2} />
+        ),
+      dataTestId: `runtime-scope-${entry.kind}-${entry.value}`,
+    }));
+  }, [cloudOrgs, tProjects]);
+
+  const handleViewChange = (view: RuntimeSection) => {
+    if (organizationScope) {
+      setOrganizationView(view as OrganizationRuntimeSection);
+    } else {
+      setPersonalView(view as PersonalRuntimeSection);
+    }
+  };
+  const handleScopeChange = (nextScopeValue: string) => {
+    if (parseCloudOrgSelectorValue(nextScopeValue) !== null) {
+      setOrganizationView("today");
+    }
+    setScopeValue(nextScopeValue);
+  };
+
   const loadingFallback = (
     <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
   );
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col overflow-hidden">
-      <InternalHeader
-        noPanelHeader
-        contentPadding
-        className={DETAIL_PANEL_TOKENS.headerWidth}
-        tabs={
-          <div className="flex w-full justify-center">
-            <RuntimeSectionTabs
-              activeView={panelView}
-              onChange={setPanelView}
-            />
-          </div>
+      <OrganizationScopeHeader
+        value={effectiveScopeValue}
+        options={scopeOptions}
+        onChange={handleScopeChange}
+        dataTestId="runtime-scope-header"
+        selectorDataTestId="runtime-scope-picker"
+        tabControl={
+          <RuntimeSectionTabs
+            activeView={panelView}
+            onChange={handleViewChange}
+            organizationScope={organizationScope}
+          />
         }
       />
 
@@ -162,15 +328,21 @@ const RuntimeDataSourcePanel: React.FC = () => {
         }
       >
         {SELF_MANAGED.has(panelView) ? (
-          <Suspense key={panelView} fallback={loadingFallback}>
-            <RuntimeSectionContent activeView={panelView} />
+          <Suspense key={effectiveScopeValue} fallback={loadingFallback}>
+            <RuntimeSectionContent
+              activeView={panelView}
+              orgId={selectedCloudOrgId}
+            />
           </Suspense>
         ) : (
           <div
             className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES}`}
           >
-            <Suspense key={panelView} fallback={loadingFallback}>
-              <RuntimeSectionContent activeView={panelView} />
+            <Suspense key={effectiveScopeValue} fallback={loadingFallback}>
+              <RuntimeSectionContent
+                activeView={panelView}
+                orgId={selectedCloudOrgId}
+              />
             </Suspense>
           </div>
         )}

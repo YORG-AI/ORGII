@@ -4,7 +4,9 @@ import { DIFF_STATS } from "@src/config/workstation/tokens";
 
 import {
   type DiffStatsBadgeSize,
+  type DiffStatsBadgeWeight,
   getDiffStatsSizeClass,
+  getDiffStatsWeightClass,
 } from "./diffStatsBadgeHelpers";
 
 type DiffStatsBadgeVariant = "default" | "compact" | "chat" | "plain";
@@ -20,6 +22,8 @@ export interface DiffStatsBadgeProps {
    * of re-specifying `text-[Npx]` externally.
    */
   size?: DiffStatsBadgeSize;
+  /** Named font weight. Defaults to `medium` for backwards compatibility. */
+  weight?: DiffStatsBadgeWeight;
   /**
    * Gap utility between the additions and deletions values. Defaults to
    * `"gap-1"`. Pass `"gap-0"` (or another gap token) to override — supplied
@@ -37,11 +41,11 @@ export interface DiffStatsBadgeProps {
 }
 
 const CONTAINER_CLASSES: Record<DiffStatsBadgeVariant, string> = {
-  default: `${DIFF_STATS.container} font-mono font-medium leading-none tabular-nums`,
-  compact: `${DIFF_STATS.containerCompact} font-mono font-medium leading-none tabular-nums`,
-  chat: "chat-block-xs flex shrink-0 items-center font-mono font-medium leading-none tabular-nums",
+  default: `${DIFF_STATS.container} font-mono leading-none tabular-nums`,
+  compact: `${DIFF_STATS.containerCompact} font-mono leading-none tabular-nums`,
+  chat: "chat-block-xs flex shrink-0 items-center font-mono leading-none tabular-nums",
   plain:
-    "inline-flex shrink-0 items-center font-mono font-medium leading-none tabular-nums",
+    "inline-flex shrink-0 items-center font-mono leading-none tabular-nums",
 };
 
 const VALUE_BASE_CLASSES = "inline-flex";
@@ -56,6 +60,7 @@ const DiffStatsBadge = memo(function DiffStatsBadge({
   deletions = 0,
   variant = "default",
   size = "inherit",
+  weight = "medium",
   gapClassName = "gap-1",
   reserveValueWidth = true,
   className,
@@ -77,6 +82,7 @@ const DiffStatsBadge = memo(function DiffStatsBadge({
         CONTAINER_CLASSES[variant],
         gapClassName,
         getDiffStatsSizeClass(size),
+        getDiffStatsWeightClass(weight),
         className
       )}
     >

@@ -1,0 +1,18 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "ALREADY_CLAIMED",
+    "message": "WorkItem work_01K0000000000000000000WORK0 is claimed by agent codex_app:reviewer-1",
+    "retryable": false,
+    "details": {
+      "claimedBy": {
+        "kind": "agent",
+        "id": "codex_app:reviewer-1"
+      }
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR10"
+  }
+}

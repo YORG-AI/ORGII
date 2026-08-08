@@ -1,0 +1,45 @@
+# Frontend UI Audit — Pill Control Surfaces
+
+## Scope
+
+Project and Work Item property pills plus every neutral composer pill/action:
+Skills & Tools, Add, work-item/org attachment, scroll navigation, plan and
+stack controls, context usage, Canvas, polish, voice, pinned actions, and
+selector pills, along with the start-page utility actions. Generic ellipsis
+action menus are intentionally excluded from the icon change.
+
+## Findings
+
+| Line                                                                                                 | Element                                                     | Verdict          | Reason                                                                                                                                     | Suggested change                                                |
+| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `CompoundPill/config.ts:22`                                                                          | Shared pill surface tokens                                  | abstract         | Property and composer pills need one semantic hover/open surface instead of independently choosing fill tokens.                            | Share `bg-bg-2`, `bg-surface-hover`, and active accent classes. |
+| `PropertyFieldEditable.tsx:79`                                                                       | Project/Work Item property pills                            | fix              | Outlined property pills changed only their border on hover.                                                                                | Apply the shared background states.                             |
+| `ProjectPropertyFields.tsx:373`                                                                      | Project More-properties trigger                             | fix              | The trigger used a generic ellipsis and a different active tint from sibling pills.                                                        | Use `ListChevronsUpDown` and the shared surface states.         |
+| `WorkItemProperties/index.tsx:342`                                                                   | Work Item More-properties trigger                           | fix              | The equivalent Work Item control lacked the shared open state.                                                                             | Use the shared icon and surface states.                         |
+| `ComposerBar/index.tsx:101`                                                                          | Skills & Tools trigger                                      | fix              | Its fill-based background differed from adjacent property and pinned-action controls.                                                      | Use the shared idle and hover surfaces.                         |
+| `AddActionsDropdown/index.tsx:81`                                                                    | Add trigger                                                 | fix              | The adjacent composer trigger did not share the same idle, hover, and open states.                                                         | Apply the shared idle and active-accent classes.                |
+| `PinnedActionsBar/index.tsx:80`                                                                      | Pinned skill/tool/built-in pills                            | fix              | Shared secondary buttons still lacked a background hover state.                                                                            | Apply the shared pill surface class to every pinned action.     |
+| `UserActionButton.tsx:22`                                                                            | Canvas action                                               | fix              | The action used a separate pill surface and a non-semantic clickable root.                                                                 | Use the shared surface and a native button.                     |
+| `SelectorPill/index.tsx:264`                                                                         | Mode/model/location selectors                               | fix              | Selector pills used `fill-2` while the unified controls use the semantic hover surface.                                                    | Use the shared hover and active surface classes.                |
+| `CompoundPill/index.tsx:129`                                                                         | Compound selector segments                                  | fix              | Segment hover and selected states did not match the standalone selectors.                                                                  | Apply the same shared hover and active surface classes.         |
+| `ChatFloatingComposer.tsx:211`, `useChatViewScrollToBottom.tsx:35`, `FloatingScrollNav/index.tsx:23` | Scroll and feed-navigation controls                         | fix              | Composer and reusable feed navigators relied on separate base surfaces, leaving the down-arrow and sibling controls visually inconsistent. | Apply the shared idle and hover surface in every host.          |
+| `WorkItemAttachmentControl.tsx:411`, `SessionCreatorChatPanelView.tsx:345`                           | Add Work Item and org controls                              | fix              | Session setup pills retained their own `fill-1` open state and default idle surface.                                                       | Resolve idle/open styling through the shared state helper.      |
+| `PlanTodoPill.tsx:131`, `CollapsedInlineRow.tsx:68`, `StackPill.tsx:78`                              | Plan, stack, Canvas, follow-agent, and browser-action pills | fix              | Top-row status and action controls mixed `chat-input`, `fill-1`, and base-button backgrounds.                                              | Use the shared idle/open surface for the complete top row.      |
+| `ContextInfoButton.tsx:307`                                                                          | Context usage control                                       | fix              | The context trigger used a separate transparent/`fill-2` treatment.                                                                        | Apply the shared state helper to compact and regular variants.  |
+| `PromptPolishButton.tsx:35`, `VoiceInputButton.tsx:104`                                              | Polish and voice controls                                   | fix              | Trailing neutral composer actions retained separate transparent, fill, and selected backgrounds.                                           | Share the neutral idle surface and active accent treatment.     |
+| `ChatPanelStartPage.tsx:38`                                                                          | Import Session and Add API Key actions                      | fix              | Neutral start-page actions retained a transparent outlined surface while adjacent neutral controls use the shared background states.       | Apply the shared idle and hover surface to neutral actions.     |
+| `projectContextMenu.tsx:401`                                                                         | Project “More properties” entry                             | fix              | The menu entry represents the same expand-properties concept as the inline trigger.                                                        | Keep its icon consistent with the inline control.               |
+| `WorkItems/config.ts:481`                                                                            | Work Item “More properties” entry                           | fix              | The canonical menu retained the old generic-action icon.                                                                                   | Keep its icon consistent with the inline control.               |
+| Other `MoreHorizontal` occurrences                                                                   | Generic row/sidebar action menus                            | keep with reason | Those controls expose heterogeneous actions rather than expanding property fields.                                                         | Retain the conventional ellipsis icon.                          |
+
+## Verdict counts
+
+- fix: 17
+- keep with reason: 1
+- abstract: 1
+
+## Accessibility and visual-system notes
+
+Existing accessible labels/titles, sizing tokens, and menu behavior remain
+intact. The Canvas action is now a native button. Backgrounds use existing
+semantic surface tokens, while open controls retain primary border/text cues.

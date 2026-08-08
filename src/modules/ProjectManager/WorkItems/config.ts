@@ -10,7 +10,7 @@ import {
   CircleDot,
   Diamond,
   Flag,
-  MoreHorizontal,
+  ListChevronsUpDown,
   Pencil,
   SignalHigh,
   Tag,
@@ -480,7 +480,7 @@ export const getContextMenuItems = (
     {
       id: "more-properties",
       label: tr("workItems.contextMenu.moreProperties", "More properties"),
-      icon: React.createElement(MoreHorizontal, {
+      icon: React.createElement(ListChevronsUpDown, {
         size: DROPDOWN_ITEM.iconSize,
       }),
       submenu: [

@@ -30,10 +30,58 @@ The CLI is only argument parsing, orchestration, and formatting over:
 3. `usage_dashboard::*` and `load_activity_chunks_for_session` — analyze &
    replay.
 
-Commands: `sources`, `scan`, `list`/`ls`, `search`, `usage`/`stats`, `show`.
-See the crate README for the full surface. Verified end-to-end against the local
-machine's real history (Claude Code + Codex: 289 listable sessions, 449
-token-bearing sessions, ~$5.5k of estimated spend, 97.8% cache-hit rate).
+Commands: `sources`, `scan`, `list`/`ls`, `search`, `usage`/`stats`, `show`,
+`resume`. See the crate README for the full surface. Verified end-to-end against
+the local machine's real history (Claude Code + Codex: 289 listable sessions,
+449 token-bearing sessions, ~$5.5k of estimated spend, 97.8% cache-hit rate).
+
+### `resume` — continue an imported session in its own CLI
+
+`orgtrack resume <session-id>` reopens an imported session in the CLI that
+owns it, sharing the desktop app's "Continue in CLI" plumbing
+(`orgtrack_core::sources::cli_resume`):
+
+- `claudecodeapp-<uuid>` → `claude --resume <uuid>`, executed from the
+  session's recorded workspace (Claude Code keys session storage on the
+  project path, so the original cwd is required — verified empirically:
+  resuming from another directory fails with "No conversation found").
+- `codexapp-rollout-<ts>-<uuid>` → `codex resume <uuid>` (bare thread uuid
+  extracted from the rollout stem; Codex looks sessions up globally).
+- `cursorcliapp-<id>` → `cursor-agent --resume <id>`.
+- `opencodeapp-ses_*` → `opencode --session <id>` (central db, global ids).
+- `mimocodeapp-ses_*` → `mimo --session <id>` (OpenCode fork, same flag —
+  verified against `mimo --help`).
+- `clineapp-<epoch>_<rand>` → `cline --id <id>` (global sessions.db).
+- `ompapp-<stem>` → `omp --session <transcript-path>` — oh-my-pi resolves
+  bare ids against the _current project's_ session dir, so the plan
+  addresses the session file by absolute path instead (works from anywhere).
+- `copilotapp-<uuid>` → `copilot --resume <uuid>` (the form documented by
+  the current CLI's `--help`).
+- `kimihistoryapp-cli/<group>/<id>` or
+  `kimihistoryapp-code/<workspace>/<id>/main` → `kimi --session <id>`,
+  executed from the recorded workspace when one is available (Kimi buckets
+  sessions per working directory).
+
+Only that session's provider is scanned. By default the process execs the
+CLI (the TUI takes over the terminal); `--print` emits the
+`cd <workspace> && <command>` line instead.
+
+Not resumable, and why: `cursor_ide` (composer ids share no space with
+`cursor-agent`'s chat store — checked empirically, zero overlap), `windsurf`
+/ `warp` / `trae` / `qoder` (app-bound stores, no CLI resume surface), and
+`zcode` / `qoder_cli` / `workbuddy` (their CLIs likely resume — OpenCode
+fork / documented `/resume` / Claude Code fork — but no binary was present
+to verify the exact flag shape; extend `cli_resume` once one is).
+
+### Importer notes: copilot (2026-07-29)
+
+- **copilot** — GitHub Copilot CLI 1.x stores one
+  `~/.copilot/session-state/<uuid>/` per session (`events.jsonl` event
+  stream + `workspace.yaml` sidecar), with repository/branch and
+  per-request token usage (cache + reasoning split) in the sibling
+  `session-store.db`. The reader treats the db as best-effort enrichment.
+  The metadata-only `data.db` (Projects/Workspaces surface) records
+  nothing for `-p`/interactive runs — sessions live in session-state.
 
 ## Why a Rust binary (not the TS stub)
 

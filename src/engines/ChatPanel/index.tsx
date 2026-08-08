@@ -24,12 +24,12 @@ import type { CreatedOrgResult } from "@src/features/TeamCollaboration/component
 import SessionForkHeaderExtras from "@src/features/TeamCollaboration/components/SessionForkHeaderExtras";
 import { useShouldOffsetChatPanelHeader } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { allAgentDefsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
-import { FocusedChatWorkstationRail } from "@src/modules/shared/layouts/FocusedChatWorkstationRail";
 import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
   closeOrganizationChatPanelTabAtom,
   closeProjectOrgChatPanelTabsAtom,
+  closeRevokedCloudChannelChatPanelTabsAtom,
   openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
   patchChatPanelWorkItemTabAtom,
@@ -45,6 +45,7 @@ import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import {
   CHAT_PANEL_CREATE_TARGET,
+  chatPanelCollabOrgCreateIntentAtom,
   chatPanelContentModeAtom,
   chatPanelCreateProjectContextAtom,
   chatPanelCreateTargetAtom,
@@ -72,11 +73,13 @@ import {
   ChatPanelTabBar,
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
+import SessionContinueCliHeaderExtras from "./SessionContinueCliHeaderExtras";
 import {
   SessionAlternateSurface,
   SessionHeaderViewControls,
   SessionRawToolbarActions,
 } from "./components/SessionViewSwitcher";
+import SessionWorkstationRail from "./components/SessionWorkstationRail";
 import { shouldMountFocusedChatWorkstationControls } from "./focusedChatWorkstationLayout";
 import { FocusedChatWorkstationMinimapPortalContext } from "./focusedChatWorkstationMinimapPortal";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
@@ -124,6 +127,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const [contentMode, setContentMode] = useAtom(chatPanelContentModeAtom);
     const [createTarget, setCreateTarget] = useAtom(chatPanelCreateTargetAtom);
+    const setCollabOrgCreateIntent = useSetAtom(
+      chatPanelCollabOrgCreateIntentAtom
+    );
     const startPageOpen = useAtomValue(chatPanelStartPageOpenAtom);
     const [workItemCreateDraft, setWorkItemCreateDraft] =
       useState<WorkItemDraft | null>(null);
@@ -143,6 +149,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const cloudOrgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
     const closeOrganizationTab = useSetAtom(closeOrganizationChatPanelTabAtom);
     const closeProjectOrgTabs = useSetAtom(closeProjectOrgChatPanelTabsAtom);
+    const closeRevokedCloudChannelTabs = useSetAtom(
+      closeRevokedCloudChannelChatPanelTabsAtom
+    );
     const exploreOpen = useAtomValue(chatPanelExploreOpenAtom);
     const createProjectContext = useAtomValue(
       chatPanelCreateProjectContextAtom
@@ -212,6 +221,15 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         cancelled = true;
       };
     }, [closeProjectOrgTabs, cloudOrgs, cloudOrgsLoaded]);
+
+    // Channel tabs live in the CLOUD org id space (unlike the project-org
+    // aliases above) and per-org reconciliation only covers the active
+    // sidebar scope; sweep revoked orgs' channel tabs here once the roster
+    // is authoritative.
+    useEffect(() => {
+      if (!cloudOrgsLoaded) return;
+      closeRevokedCloudChannelTabs(cloudOrgs.map((org) => org.orgId));
+    }, [closeRevokedCloudChannelTabs, cloudOrgs, cloudOrgsLoaded]);
     const chatWidthStyleValue =
       chatWidth > 0 ? `var(${CHAT_WIDTH_CSS_VAR})` : chatWidth;
     const { isDragging, panelRef, handleMouseDown } = useChatPanelResize({
@@ -371,6 +389,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       useChatPanelCreateTarget({
         allAgentDefs,
         sessionCreatorAvailable: Boolean(SessionCreatorSlot),
+        setCollabOrgCreateIntent,
         setCreateTarget,
         setCreatorState,
         setShowProjectAgentCreator,
@@ -405,6 +424,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleCancelWorkItemCreate,
       handleChatPanelProjectCreated,
       handleChatPanelWorkItemCreated,
+      handleProjectAgentCreatorToggle,
       handleWorkItemAgentCreatorToggle,
     } = useProjectWorkItemHandlers({
       bumpProjectListRefresh,
@@ -429,16 +449,11 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       allAgentDefs,
       createProjectContext,
       creatorState,
-      dispatchClearSession,
       setActiveSessionId,
-      setContentMode,
-      setCreateTarget,
       setSelectedProject,
       setSelectedWorkItem,
-      setShowWorkItemAgentCreator,
       setWorkItemCreateDraft,
       setWorkstationActiveSessionId,
-      sessionCreatorAvailable: Boolean(SessionCreatorSlot),
       workItemCreateDraft,
     });
 
@@ -490,6 +505,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         handleStartPageAddApiKey={handleStartPageAddApiKey}
         handleStartPageInstallLatestUpdate={handleStartPageInstallLatestUpdate}
         handleStartPageSessionStart={handleStartPageSessionStart}
+        handleProjectAgentCreatorToggle={handleProjectAgentCreatorToggle}
         handleWorkItemAgentCreatorToggle={handleWorkItemAgentCreatorToggle}
         resolveAiWorkItemContext={resolveAiWorkItemContext}
         SessionCreatorSlot={SessionCreatorSlot}
@@ -569,6 +585,11 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
             {/* Session-level cloud notes (Phase F) — renders null for
                   non-cloud sessions, exactly like the fork extras. */}
             <SessionCommentsHeaderExtras session={currentSession ?? null} />
+            <SessionContinueCliHeaderExtras
+              session={currentSession ?? null}
+              sessionId={currentSessionId ?? null}
+              onOpenCliTerminal={handleOpenCliTerminal}
+            />
             <SessionForkHeaderExtras session={currentSession ?? null} />
             <SessionRawToolbarActions
               view={sessionView}
@@ -636,9 +657,10 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           embedded={embedded}
           focusedWorkstationRail={
             showFocusedWorkstationControls ? (
-              <FocusedChatWorkstationRail
+              <SessionWorkstationRail
                 compactMenuHost={focusedWorkstationMenuHost}
                 conversationMinimapHostRef={focusedWorkstationMinimapHostRef}
+                session={currentSession}
               />
             ) : null
           }

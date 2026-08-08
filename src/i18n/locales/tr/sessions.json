@@ -878,6 +878,7 @@
     "multipleChoice": "Çoklu seçim",
     "typeYourAnswer": "Cevabınızı yazın…",
     "newSession": "Yeni oturum",
+    "muteNotifications": "Bildirimleri sessize al",
     "startPage": {
       "title": "Ne yapmak istersiniz?",
       "back": "Başlangıç sayfasına dön",
@@ -1199,6 +1200,9 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "Tüm durumlar",
+        "closeAsCompleted": "Tamamlandı olarak kapat",
+        "closeAsNotPlanned": "Planlanmadı olarak kapat",
+        "statusUpdateFailed": "GitHub durumu güncellenemedi",
         "assignedToMe": "Bana atananlar",
         "createdByMe": "Benim oluşturduklarım",
         "filters": "Filters",

@@ -853,13 +853,12 @@ fn exploration_tool_calls_from_shell_args(shell_args: &Value) -> Option<Vec<(Str
                     imported_history::FUNCTION_CODE_SEARCH.to_string(),
                     search_args,
                 )
-            } else if let Some(glob_args) = find_args_from_shell_args(&part_args) {
+            } else {
+                let glob_args = find_args_from_shell_args(&part_args)?;
                 (
                     imported_history::FUNCTION_GLOB_FILE_SEARCH.to_string(),
                     glob_args,
                 )
-            } else {
-                return None;
             };
 
         if command_count > 1 {

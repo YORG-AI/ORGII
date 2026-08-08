@@ -10,7 +10,7 @@ import {
   getIssueLocal,
   listIssueTimelineLocal,
   listIssuesLocal,
-  listRepoCollaboratorsLocal,
+  listRepoAssigneesLocal,
   listRepoLabelsLocal,
   updateIssueLocal,
 } from "@src/api/tauri/github";
@@ -225,13 +225,13 @@ export async function fetchRepoLabels(
   }
 }
 
-export async function fetchRepoCollaborators(
+export async function fetchRepoAssignees(
   remoteUrl: string
 ): Promise<IssueResult<GitHubIssueUser[]>> {
   try {
     const repoFullName = resolveRepoName(remoteUrl);
     if (!repoFullName) return { error: "not_authenticated" };
-    const data = await listRepoCollaboratorsLocal(repoFullName);
+    const data = await listRepoAssigneesLocal(repoFullName);
     return { data };
   } catch (e) {
     return { error: String(e) };

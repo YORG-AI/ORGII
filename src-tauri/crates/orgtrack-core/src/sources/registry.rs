@@ -32,8 +32,8 @@ use super::imported_history::{
     ImportedHistorySessionRow,
 };
 use super::{
-    claude_code, cline, codex, cursor_cli, cursor_ide, mimo_code, omp, opencode, qoder, qoder_cli,
-    trae, warp, windsurf, workbuddy, zcode,
+    claude_code, cline, codex, copilot, cursor_cli, cursor_ide, kimi, mimo_code, omp, opencode, pi,
+    qoder, qoder_cli, qwen_code, trae, warp, windsurf, workbuddy, zcode,
 };
 
 /// Signature every provider's paginated session loader shares. The `&mut
@@ -125,6 +125,12 @@ static REGISTERED: &[RegisteredSource] = &[
         continuation: None,
     },
     RegisteredSource {
+        id: metadata::SOURCE_COPILOT,
+        label: "Copilot CLI",
+        scan: copilot::history::list_copilot_history_sessions_paginated,
+        continuation: None,
+    },
+    RegisteredSource {
         id: metadata::SOURCE_WINDSURF,
         label: "Windsurf",
         scan: windsurf::history::list_windsurf_history_sessions_paginated,
@@ -161,6 +167,18 @@ static REGISTERED: &[RegisteredSource] = &[
         continuation: None,
     },
     RegisteredSource {
+        id: metadata::SOURCE_QWEN_CODE,
+        label: "Qwen Code",
+        scan: qwen_code::history::list_qwen_code_history_sessions_paginated,
+        continuation: None,
+    },
+    RegisteredSource {
+        id: metadata::SOURCE_KIMI,
+        label: "Kimi",
+        scan: kimi::history::list_kimi_history_sessions_paginated,
+        continuation: None,
+    },
+    RegisteredSource {
         id: metadata::SOURCE_MIMO_CODE,
         label: "Mimo Code",
         scan: mimo_code::history::list_mimo_code_history_sessions_paginated,
@@ -170,6 +188,12 @@ static REGISTERED: &[RegisteredSource] = &[
         id: metadata::SOURCE_OMP,
         label: "OMP",
         scan: omp::history::list_omp_history_sessions_paginated,
+        continuation: None,
+    },
+    RegisteredSource {
+        id: metadata::SOURCE_PI,
+        label: "Pi",
+        scan: pi::history::list_pi_history_sessions_paginated,
         continuation: None,
     },
     RegisteredSource {
@@ -303,6 +327,7 @@ mod tests {
     fn find_matches_registered_and_rejects_unknown() {
         assert!(is_registered(metadata::SOURCE_CLAUDE_CODE));
         assert!(find(metadata::SOURCE_WARP).is_some());
+        assert!(find(metadata::SOURCE_PI).is_some());
         assert!(!is_registered("definitely_not_a_source"));
         assert!(scan_source(
             &mut Connection::open_in_memory().unwrap(),

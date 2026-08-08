@@ -3,6 +3,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useRef,
 } from "react";
 
 import type {
@@ -21,6 +22,7 @@ interface UseLinearProjectsLoadersOptions {
   connectionId?: string;
   projectId?: string;
   project: LinearProjectSummary | null;
+  isActive: boolean;
   t: Translate;
   setProject: Dispatch<SetStateAction<LinearProjectSummary | null>>;
   setTeams: Dispatch<SetStateAction<LinearTeamSummary[]>>;
@@ -43,6 +45,7 @@ export function useLinearProjectsLoaders({
   connectionId,
   projectId,
   project,
+  isActive,
   t,
   setProject,
   setTeams,
@@ -53,8 +56,15 @@ export function useLinearProjectsLoaders({
   setLoadingWorkflowStates,
   setError,
 }: UseLinearProjectsLoadersOptions): LinearProjectsLoaders {
+  const projectLoadGenerationRef = useRef(0);
+  const issuesLoadGenerationRef = useRef(0);
+  const workflowLoadGenerationRef = useRef(0);
+
   const loadProject = useCallback(
     async (forceRefresh = false) => {
+      if (!isActive) return;
+      const generation = projectLoadGenerationRef.current + 1;
+      projectLoadGenerationRef.current = generation;
       if (!connectionId) {
         setProject(null);
         setTeams([]);
@@ -69,6 +79,7 @@ export function useLinearProjectsLoaders({
             forceRefresh,
           }
         );
+        if (projectLoadGenerationRef.current !== generation) return;
         setTeams(teamResult.teams);
         if (projectId) {
           const nextProject = await cachedLinearProjectsApi.getProject(
@@ -76,20 +87,25 @@ export function useLinearProjectsLoaders({
             projectId,
             { forceRefresh }
           );
+          if (projectLoadGenerationRef.current !== generation) return;
           setProject(nextProject);
         } else {
           setProject(null);
         }
       } catch (err) {
+        if (projectLoadGenerationRef.current !== generation) return;
         setProject(null);
         setTeams([]);
         setError(errorMessage(err, t("linearProjects.errors.loadProjects")));
       } finally {
-        setLoadingProject(false);
+        if (projectLoadGenerationRef.current === generation) {
+          setLoadingProject(false);
+        }
       }
     },
     [
       connectionId,
+      isActive,
       projectId,
       setError,
       setLoadingProject,
@@ -101,6 +117,9 @@ export function useLinearProjectsLoaders({
 
   const loadIssues = useCallback(
     async (forceRefresh = false) => {
+      if (!isActive) return;
+      const generation = issuesLoadGenerationRef.current + 1;
+      issuesLoadGenerationRef.current = generation;
       if (!connectionId || !projectId) {
         setIssues([]);
         return;
@@ -113,19 +132,34 @@ export function useLinearProjectsLoaders({
           projectId,
           { forceRefresh }
         );
+        if (issuesLoadGenerationRef.current !== generation) return;
         setIssues(result.issues);
       } catch (err) {
+        if (issuesLoadGenerationRef.current !== generation) return;
         setIssues([]);
         setError(errorMessage(err, t("linearProjects.errors.loadIssues")));
       } finally {
-        setLoadingIssues(false);
+        if (issuesLoadGenerationRef.current === generation) {
+          setLoadingIssues(false);
+        }
       }
     },
-    [connectionId, projectId, setError, setIssues, setLoadingIssues, t]
+    [
+      connectionId,
+      isActive,
+      projectId,
+      setError,
+      setIssues,
+      setLoadingIssues,
+      t,
+    ]
   );
 
   const loadWorkflowStates = useCallback(
     async (forceRefresh = false) => {
+      if (!isActive) return;
+      const generation = workflowLoadGenerationRef.current + 1;
+      workflowLoadGenerationRef.current = generation;
       const teamId = project?.teams[0]?.id;
       if (!connectionId || !teamId) {
         setWorkflowStates([]);
@@ -139,18 +173,23 @@ export function useLinearProjectsLoaders({
           teamId,
           { forceRefresh }
         );
+        if (workflowLoadGenerationRef.current !== generation) return;
         setWorkflowStates(result.states.filter((state) => !state.archived_at));
       } catch (err) {
+        if (workflowLoadGenerationRef.current !== generation) return;
         setWorkflowStates([]);
         setError(
           errorMessage(err, t("linearProjects.errors.loadWorkflowStates"))
         );
       } finally {
-        setLoadingWorkflowStates(false);
+        if (workflowLoadGenerationRef.current === generation) {
+          setLoadingWorkflowStates(false);
+        }
       }
     },
     [
       connectionId,
+      isActive,
       project?.teams,
       setError,
       setLoadingWorkflowStates,
@@ -166,16 +205,26 @@ export function useLinearProjectsLoaders({
   }, [loadIssues, loadProject, loadWorkflowStates]);
 
   useEffect(() => {
+    if (isActive) return;
+    projectLoadGenerationRef.current += 1;
+    issuesLoadGenerationRef.current += 1;
+    workflowLoadGenerationRef.current += 1;
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
     void loadProject();
-  }, [loadProject]);
+  }, [isActive, loadProject]);
 
   useEffect(() => {
+    if (!isActive) return;
     void loadIssues();
-  }, [loadIssues]);
+  }, [isActive, loadIssues]);
 
   useEffect(() => {
+    if (!isActive) return;
     void loadWorkflowStates();
-  }, [loadWorkflowStates]);
+  }, [isActive, loadWorkflowStates]);
 
   return {
     loadProject,

@@ -3,10 +3,12 @@
  *
  * Backend-owned fields (`created_at`, `updated_at`, and their `*_time`
  * aliases) MUST NOT drift through frontend-only writes. These tests
- * lock that contract for the two mutation entry points:
+ * lock that contract for the mutation entry points:
  *
  *   - `upsertSession` (insert + update)
  *   - `updateSessionStatus`
+ *   - `applyImportedSessionTimestamps` — the one sanctioned override,
+ *     narrowed to imported replay copies whose clock is the source's
  *
  * They are paranoid by design: the regression they protect against
  * (clicking an old session in WorkStation makes it appear in the 6h
@@ -31,10 +33,23 @@ async function loadModule() {
   return {
     upsertSession: mutations.upsertSession,
     updateSessionStatus: mutations.updateSessionStatus,
+    applyImportedSessionTimestamps: mutations.applyImportedSessionTimestamps,
     sessionsAtom: atoms.sessionsAtom,
     store: getInstrumentedStore(),
   };
 }
+
+const IMPORTED_FROM = {
+  orgId: "org-1",
+  sourceSessionId: "remote-1",
+  ownerMemberId: "m2",
+  ownerDisplayName: "Bob",
+  epoch: 1,
+  seq: 1,
+  count: 1,
+  frozenCount: 1,
+  importedAt: "2026-07-20T12:00:00.000Z",
+} as const;
 
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {
@@ -111,6 +126,74 @@ describe("upsertSession", () => {
     expect(after.name).toBe("after");
     // Spread preserves untouched fields.
     expect(after.model).toBe("claude-opus");
+  });
+});
+
+describe("applyImportedSessionTimestamps", () => {
+  const SOURCE_TIMES = {
+    created_at: "2026-06-01T09:30:00.000Z",
+    updated_at: "2026-06-01T09:30:00.000Z",
+    completed_at: "2026-06-01T09:30:00.000Z",
+  };
+
+  it("overrides the pinned timestamps on an imported replay copy", async () => {
+    const {
+      upsertSession,
+      applyImportedSessionTimestamps,
+      sessionsAtom,
+      store,
+    } = await loadModule();
+    // The pre-fix state: the copy carries the moment the viewer clicked it.
+    upsertSession(
+      makeSession({
+        session_id: "imported-1",
+        created_at: "2026-07-20T12:00:00.000Z",
+        updated_at: "2026-07-20T12:00:00.000Z",
+        completed_at: "2026-07-20T12:00:00.000Z",
+        importedFrom: IMPORTED_FROM,
+      })
+    );
+
+    applyImportedSessionTimestamps("imported-1", SOURCE_TIMES);
+
+    expect(store.get(sessionsAtom)[0]).toMatchObject(SOURCE_TIMES);
+  });
+
+  it("leaves a locally-owned session's timestamps pinned", async () => {
+    const {
+      upsertSession,
+      applyImportedSessionTimestamps,
+      sessionsAtom,
+      store,
+    } = await loadModule();
+    upsertSession(makeSession({ session_id: "local-1" }));
+
+    applyImportedSessionTimestamps("local-1", SOURCE_TIMES);
+
+    const after = store.get(sessionsAtom)[0];
+    expect(after.created_at).toBe("2026-01-01T00:00:00.000Z");
+    expect(after.updated_at).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  it("returns the same array when nothing changes", async () => {
+    const {
+      upsertSession,
+      applyImportedSessionTimestamps,
+      sessionsAtom,
+      store,
+    } = await loadModule();
+    upsertSession(
+      makeSession({
+        session_id: "imported-1",
+        ...SOURCE_TIMES,
+        importedFrom: IMPORTED_FROM,
+      })
+    );
+    const before = store.get(sessionsAtom);
+
+    applyImportedSessionTimestamps("imported-1", SOURCE_TIMES);
+
+    expect(store.get(sessionsAtom)).toBe(before);
   });
 });
 

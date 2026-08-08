@@ -692,21 +692,47 @@
     "agentApproval": "Agent 審批",
     "agentApprovalDesc": "當 Agent 操作需要您的批准時",
     "errors": "錯誤和警告",
+    "teamInbox": "團隊收件匣",
     "errorsDesc": "當發生錯誤或警告時",
     "sessionStatus": "Session 狀態",
     "sessionStatusDesc": "Session 開始、暫停和恢復更新",
     "gitOperations": "Git 操作",
     "gitOperationsDesc": "Git pull、push 和同步通知",
+    "soundPreset": "通知音效",
+    "soundPresetDesc": "選擇通知提醒時播放的聲音",
+    "previewSound": "試聽",
+    "soundPresets": {
+      "classic": "經典雙音",
+      "gentle": "柔和和弦",
+      "ascending": "上揚三音",
+      "bell": "鈴音"
+    },
     "volume": "音量",
     "testNotification": "測試通知",
     "notification": "通知",
     "sound": "聲音",
     "enabledSuccess": "通知已啓用",
     "permissionDenied": "通知權限被拒絕",
+    "criticalOnly": "僅關鍵提醒",
+    "criticalOnlyDesc": "僅在操作需要核准或任務失敗時提醒",
+    "quietHours": "免打擾時段",
+    "quietHoursDesc": "在每天指定的時間範圍內靜音一般通知",
+    "quietHoursSchedule": "靜音時間",
+    "quietHoursScheduleDesc": "使用裝置本地時間；開始與結束時間相同時不啟用此時段。",
+    "quietHoursStart": "開始",
+    "quietHoursEnd": "結束",
+    "allowCriticalDuringQuietHours": "允許關鍵提醒",
+    "allowCriticalDuringQuietHoursDesc": "核准與失敗可顯示系統通知，但不會播放聲音",
+    "backgroundCompletionSummary": "彙總背景任務完成提醒",
+    "backgroundCompletionSummaryDesc": "免打擾結束後只發送一則彙總提醒",
+    "mutedSessions": "已靜音的 Session",
+    "mutedSessionsDesc": "此裝置上已有 {{count}} 個 Session 靜音",
+    "clearMutedSessions": "全部清除",
     "test": {
       "sent": "測試通知已發送",
       "permissionWarning": "測試通知發送失敗，請檢查權限。",
-      "sendFailed": "無法發送測試通知。請檢查通知權限後重試。"
+      "sendFailed": "無法發送測試通知。請檢查通知權限後重試。",
+      "soundFailed": "無法播放通知音效，請檢查系統音量。"
     }
   },
   "editor": {
@@ -970,7 +996,13 @@
     "tableSize": "大小",
     "tablePercentage": "佔比",
     "scanFailed": "掃描磁盤佔用失敗",
-    "openFolderFailed": "打開文件夾失敗"
+    "openFolderFailed": "打開文件夾失敗",
+    "browserCache": "瀏覽器快取",
+    "browserCacheDesc": "已使用 {{used}} · 可安全清理 {{cleanable}}",
+    "cleanBrowserCache": "清理",
+    "browserCacheCleaned": "已釋放 {{size}} 瀏覽器儲存空間",
+    "browserCacheAlreadyClean": "瀏覽器快取已是乾淨狀態",
+    "browserCacheCleanFailed": "清理瀏覽器快取失敗"
   },
   "dependencies": {
     "systemDependencies": "系統 Dependencies",

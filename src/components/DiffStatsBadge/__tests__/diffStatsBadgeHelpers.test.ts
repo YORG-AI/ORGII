@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   DIFF_STATS_SIZE_CLASSES,
+  DIFF_STATS_WEIGHT_CLASSES,
   type DiffStatsBadgeSize,
+  type DiffStatsBadgeWeight,
   getDiffStatsSizeClass,
+  getDiffStatsWeightClass,
 } from "../diffStatsBadgeHelpers";
 
 describe("getDiffStatsSizeClass", () => {
@@ -37,5 +40,25 @@ describe("getDiffStatsSizeClass", () => {
   it("reuses the established 11px/12px diff-stat scale", () => {
     expect(DIFF_STATS_SIZE_CLASSES.xs).toContain("11px");
     expect(DIFF_STATS_SIZE_CLASSES.sm).toContain("12px");
+  });
+});
+
+describe("getDiffStatsWeightClass", () => {
+  it("maps named weights to typography tokens", () => {
+    expect(getDiffStatsWeightClass("normal")).toBe("font-normal");
+    expect(getDiffStatsWeightClass("medium")).toBe("font-medium");
+  });
+
+  it("defaults and falls back to the backwards-compatible medium weight", () => {
+    expect(getDiffStatsWeightClass()).toBe("font-medium");
+    const unknown = "bold" as unknown as DiffStatsBadgeWeight;
+    expect(getDiffStatsWeightClass(unknown)).toBe("font-medium");
+  });
+
+  it("keeps every weight mapping as a single token", () => {
+    for (const cls of Object.values(DIFF_STATS_WEIGHT_CLASSES)) {
+      expect(cls.trim()).toBe(cls);
+      expect(cls.split(" ").filter(Boolean)).toHaveLength(1);
+    }
   });
 });

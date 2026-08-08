@@ -7,59 +7,24 @@
 import {
   CheckCircle2,
   CircleSlash,
-  ExternalLink,
   Loader,
+  SquareArrowOutUpRight,
   XCircle,
 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  GitHubCheckRun,
-  GitHubChecksSummary,
-  GitHubStatusContext,
-} from "@src/api/tauri/github";
+import type { GitHubChecksSummary } from "@src/api/tauri/github";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  type CiCheckState,
+  checkRunState,
+  statusContextState,
+} from "@src/services/git/ciCheckState";
 
-type CheckState = "success" | "failure" | "pending" | "neutral";
-
-function checkRunState(run: GitHubCheckRun): CheckState {
-  if (run.status !== "completed") return "pending";
-  switch (run.conclusion) {
-    case "success":
-      return "success";
-    case "failure":
-    case "timed_out":
-    case "action_required":
-    case "cancelled":
-    case "startup_failure":
-      return "failure";
-    case "neutral":
-    case "skipped":
-    case "stale":
-      return "neutral";
-    default:
-      return "pending";
-  }
-}
-
-function statusState(status: GitHubStatusContext): CheckState {
-  switch (status.state) {
-    case "success":
-      return "success";
-    case "failure":
-    case "error":
-      return "failure";
-    case "pending":
-      return "pending";
-    default:
-      return "neutral";
-  }
-}
-
-function StateIcon({ state }: { state: CheckState }): React.ReactNode {
+function StateIcon({ state }: { state: CiCheckState }): React.ReactNode {
   switch (state) {
     case "success":
       return (
@@ -83,7 +48,7 @@ function StateIcon({ state }: { state: CheckState }): React.ReactNode {
 }
 
 interface CheckRowProps {
-  state: CheckState;
+  state: CiCheckState;
   name: string;
   description?: string | null;
   meta?: string | null;
@@ -97,6 +62,7 @@ function CheckRow({
   meta,
   detailsUrl,
 }: CheckRowProps): React.ReactNode {
+  const { t } = useTranslation("common");
   return (
     <div className="flex min-w-0 items-center gap-2.5 border-b border-border-1 px-3 py-2 last:border-b-0">
       <span className="shrink-0">
@@ -121,9 +87,9 @@ function CheckRow({
           target="_blank"
           rel="noopener noreferrer"
           className="shrink-0 text-text-3 hover:text-text-1"
-          title="Details"
+          title={t("git.pr.details", "Details")}
         >
-          <ExternalLink size={13} strokeWidth={1.9} />
+          <SquareArrowOutUpRight size={13} strokeWidth={1.9} />
         </a>
       ) : null}
     </div>
@@ -165,7 +131,7 @@ export const PrChecksTab: React.FC<PrChecksTabProps> = ({
     );
   }
 
-  const overall = (checks?.state ?? "pending") as CheckState;
+  const overall = (checks?.state ?? "pending") as CiCheckState;
   const summaryLabel =
     overall === "success"
       ? t("git.pr.checks.allPassed", "All checks passed")
@@ -203,7 +169,7 @@ export const PrChecksTab: React.FC<PrChecksTabProps> = ({
           {statuses.map((status) => (
             <CheckRow
               key={`status-${status.context}`}
-              state={statusState(status)}
+              state={statusContextState(status)}
               name={status.context}
               description={status.description}
               detailsUrl={status.target_url}

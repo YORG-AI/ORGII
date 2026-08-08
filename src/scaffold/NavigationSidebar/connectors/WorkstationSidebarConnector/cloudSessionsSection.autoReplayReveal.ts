@@ -32,6 +32,7 @@ import { atom, useAtomValue, useStore } from "jotai";
 import { useEffect } from "react";
 
 import { parseCloudRemoteItemId } from "@src/features/Org2Cloud/cloudRemoteItemId";
+import type { CloudSessionBusyEntry } from "@src/features/Org2Cloud/cloudSessionBusyAtom";
 import type { CloudRemoteSessionsFetchState } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import {
@@ -61,6 +62,13 @@ export type CloudAutoReplaySkipReason = "not-found" | "not-replayable";
 export type CloudAutoReplayDecision =
   | { kind: "replay"; requestId: number; row: RemoteTeammateSessionMetadata }
   | { kind: "reveal-local"; requestId: number; sessionId: string }
+  | {
+      /** The referenced row is already downloading: refocus its surface. */
+      kind: "focus-busy";
+      requestId: number;
+      row: RemoteTeammateSessionMetadata;
+      localSessionId?: string;
+    }
   | { kind: "refresh"; requestId: number; fetchedAt: number }
   | { kind: "skip"; requestId: number; reason: CloudAutoReplaySkipReason }
   | null;
@@ -73,7 +81,7 @@ export interface CloudAutoReplayInput {
   rows: readonly RemoteTeammateSessionMetadata[];
   state: CloudRemoteSessionsFetchState;
   fetchedAt: number;
-  busySessionRowId: string | null;
+  busySessionRows: ReadonlyMap<string, CloudSessionBusyEntry>;
   selfUserId: string | null;
   localOwnSessionIds: ReadonlySet<string>;
   nowMs: number;
@@ -92,7 +100,7 @@ export function decideCloudAutoReplay({
   rows,
   state,
   fetchedAt,
-  busySessionRowId,
+  busySessionRows,
   selfUserId,
   localOwnSessionIds,
   nowMs,
@@ -101,12 +109,26 @@ export function decideCloudAutoReplay({
   if (request.requestId <= consumedRequestId) return null;
   if (nowMs - request.issuedAt > AUTO_REPLAY_REQUEST_TTL_MS) return null;
   if (!orgId || request.cloudOrgId !== orgId) return null;
-  if (busySessionRowId) return null;
 
   const parsed = request.sidebarItemId
     ? parseCloudRemoteItemId(request.sidebarItemId)
     : null;
   if (!parsed || parsed.orgId !== orgId) return null;
+
+  // Busy-ness is per row: an unrelated in-flight download must not defer
+  // this reference. The referenced row itself being busy means the download
+  // the reference wants is already running — refocus it, consume the request.
+  const targetBusy = busySessionRows.get(parsed.rowId);
+  if (targetBusy) {
+    const busyRow = rows.find((candidate) => candidate.id === parsed.rowId);
+    if (!busyRow) return null;
+    return {
+      kind: "focus-busy",
+      requestId: request.requestId,
+      row: busyRow,
+      localSessionId: targetBusy.localSessionId,
+    };
+  }
 
   const row = rows.find((candidate) => candidate.id === parsed.rowId);
   if (!row) {
@@ -155,7 +177,7 @@ interface UseCloudSessionAutoReplayRevealParams {
   rows: readonly RemoteTeammateSessionMetadata[];
   state: CloudRemoteSessionsFetchState;
   fetchedAt: number;
-  busySessionRowId: string | null;
+  busySessionRows: ReadonlyMap<string, CloudSessionBusyEntry>;
   selfUserId: string | null;
   localOwnSessionIds: ReadonlySet<string>;
   refresh: () => void;
@@ -166,6 +188,11 @@ interface UseCloudSessionAutoReplayRevealParams {
    * the highlight path is gated on the session already being active.
    */
   onRevealLocal: (sessionId: string) => void;
+  /** The referenced row is already downloading — refocus its surface. */
+  onFocusBusy: (
+    row: RemoteTeammateSessionMetadata,
+    localSessionId?: string
+  ) => void;
   onSkip: (reason: CloudAutoReplaySkipReason) => void;
 }
 
@@ -174,12 +201,13 @@ export function useCloudSessionAutoReplayReveal({
   rows,
   state,
   fetchedAt,
-  busySessionRowId,
+  busySessionRows,
   selfUserId,
   localOwnSessionIds,
   refresh,
   runReplay,
   onRevealLocal,
+  onFocusBusy,
   onSkip,
 }: UseCloudSessionAutoReplayRevealParams): void {
   const store = useStore();
@@ -196,7 +224,7 @@ export function useCloudSessionAutoReplayReveal({
       rows,
       state,
       fetchedAt,
-      busySessionRowId,
+      busySessionRows,
       selfUserId,
       localOwnSessionIds,
       nowMs: Date.now(),
@@ -217,6 +245,10 @@ export function useCloudSessionAutoReplayReveal({
       runReplay(decision.row);
       return;
     }
+    if (decision.kind === "focus-busy") {
+      onFocusBusy(decision.row, decision.localSessionId);
+      return;
+    }
     if (decision.kind === "reveal-local") {
       store.set(requestSessionSidebarRevealAtom, {
         sessionId: decision.sessionId,
@@ -226,9 +258,10 @@ export function useCloudSessionAutoReplayReveal({
     }
     onSkip(decision.reason);
   }, [
-    busySessionRowId,
+    busySessionRows,
     fetchedAt,
     localOwnSessionIds,
+    onFocusBusy,
     onRevealLocal,
     onSkip,
     orgId,

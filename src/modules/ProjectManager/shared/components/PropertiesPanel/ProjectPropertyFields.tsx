@@ -6,10 +6,11 @@
  *
  * Meant to be rendered inside a <PropertiesPanel> shell.
  */
-import { Calendar, Circle, MoreHorizontal } from "lucide-react";
+import { Calendar, Circle, ListChevronsUpDown } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
 import Button from "@src/components/Button";
+import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
   FieldRow,
@@ -53,7 +54,7 @@ export interface ProjectPropertyFieldsProps {
   fieldVariant?: FieldRowVariant;
   /** Optional subset of fields rendered directly in the row/panel. */
   visibleFields?: ProjectPropertyFieldKey[];
-  /** Render hidden fields behind an ellipsis menu. */
+  /** Render hidden fields behind a more-properties menu. */
   showMoreMenu?: boolean;
 }
 
@@ -376,11 +377,11 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             size="small"
             shape="round"
             iconOnly
-            icon={<MoreHorizontal size={DROPDOWN_ITEM.iconSize} />}
+            icon={<ListChevronsUpDown size={DROPDOWN_ITEM.iconSize} />}
             onClick={handleMoreClick}
             title={t("common:actions.more")}
             htmlType="button"
-            className={`!px-3 ${moreMenuPosition ? "!border-primary-5 !bg-primary-1 !text-primary-6" : ""}`}
+            className={`!px-3 ${pillControlStateClass(Boolean(moreMenuPosition))}`}
           />
         )}
       </div>

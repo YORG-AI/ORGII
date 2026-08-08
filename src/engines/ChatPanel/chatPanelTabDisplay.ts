@@ -11,11 +11,10 @@ export interface ChatPanelTabDisplayLabels {
   teamInbox: string;
   workManagement: {
     kanban: string;
-    projects: string;
-    githubIssues: string;
-    githubPrs: string;
+    work: string;
   };
   sessionFallback: string;
+  channelFallback: string;
 }
 
 function resolveWorkManagementTabTitle(
@@ -24,11 +23,9 @@ function resolveWorkManagementTabTitle(
 ): string {
   switch (tab.managementSection) {
     case WORK_MANAGEMENT_SECTION.PROJECTS:
-      return labels.projects;
     case WORK_MANAGEMENT_SECTION.GITHUB_ISSUES:
-      return labels.githubIssues;
     case WORK_MANAGEMENT_SECTION.GITHUB_PRS:
-      return labels.githubPrs;
+      return labels.work;
     case WORK_MANAGEMENT_SECTION.KANBAN:
     default:
       return labels.kanban;
@@ -68,7 +65,14 @@ export function resolveChatPanelTabDisplayTitle(
       return tab.title;
     case "organization":
       return tab.title || labels.organization;
+    case "channel":
+      // Bare name: the pill already renders a #/lock icon, and a private
+      // channel with a lock icon must not carry a "#" glyph. The fallback
+      // only covers a payload-less persisted row.
+      return tab.channel ? tab.channel.name : labels.channelFallback;
     case "work-item":
+    case "github-issue":
+    case "github-pr":
     case "project":
     case "explore":
       // Each of these tabs stamps its entity / surface name onto `tab.title`

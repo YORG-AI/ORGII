@@ -17,7 +17,10 @@ import { loadSidebarSessionById } from "@src/store/session";
 import type { SessionSidebarRevealRequest } from "@src/store/ui/sidebarAtom";
 
 import { findSidebarSectionIdForMenuItem } from "../workstationSidebarData";
-import type { WorkstationSidebarKey } from "./types";
+import type {
+  WorkstationSidebarKey,
+  WorkstationSidebarSearchKey,
+} from "./types";
 import { buildCloudOrgSelectorValue } from "./useSidebarOrgScope";
 
 const logger = createLogger("WorkstationSidebar");
@@ -27,13 +30,14 @@ interface UseWorkstationSidebarRevealNavigationEffectsParams {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setActiveSidebarKey: (key: WorkstationSidebarKey) => void;
   setWorkItemsOpen: (open: boolean) => void;
+  setChannelsOpen: (open: boolean) => void;
   setSelectedOrgId: ReturnType<
     typeof useSetAtom<typeof sidebarSelectedOrgIdAtom>
   >;
   setSidebarSearchQueries: (
     updater: (
-      currentQueries: Record<WorkstationSidebarKey, string>
-    ) => Record<WorkstationSidebarKey, string>
+      currentQueries: Record<WorkstationSidebarSearchKey, string>
+    ) => Record<WorkstationSidebarSearchKey, string>
   ) => void;
   setExpandedSubagentParentIds: (
     updater: (previousIds: Set<string>) => Set<string>
@@ -50,6 +54,7 @@ export function useWorkstationSidebarRevealNavigationEffects({
   setSidebarCollapsed,
   setActiveSidebarKey,
   setWorkItemsOpen,
+  setChannelsOpen,
   setSelectedOrgId,
   setSidebarSearchQueries,
   setExpandedSubagentParentIds,
@@ -67,6 +72,7 @@ export function useWorkstationSidebarRevealNavigationEffects({
     const revealFrame = window.requestAnimationFrame(() => {
       setActiveSidebarKey("workstation");
       setWorkItemsOpen(false);
+      setChannelsOpen(false);
       if (sessionSidebarRevealRequest.cloudOrgId) {
         setSelectedOrgId(
           buildCloudOrgSelectorValue(sessionSidebarRevealRequest.cloudOrgId)
@@ -112,6 +118,7 @@ export function useWorkstationSidebarRevealNavigationEffects({
   }, [
     sessionSidebarRevealRequest,
     setActiveSidebarKey,
+    setChannelsOpen,
     setExpandedSubagentParentIds,
     setSelectedOrgId,
     setSidebarCollapsed,

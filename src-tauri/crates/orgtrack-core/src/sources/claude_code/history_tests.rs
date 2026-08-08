@@ -133,6 +133,23 @@ fn byte_index_discovers_rounds_without_parsing_tool_result_bodies() {
     assert!(!rendered.contains("third"));
     assert!(!rendered.contains(&large_output));
 
+    let full = load_claude_code_history_from_path("claudecodeapp-window", &path)
+        .expect("load full transcript");
+    let turn_ids = indexed
+        .iter()
+        .map(|turn| claude_window_turn_id(turn.start_offset))
+        .collect::<Vec<_>>();
+    let cloud =
+        load_claude_code_cloud_turn_windows_from_path("claudecodeapp-window", &path, &turn_ids, 0)
+            .expect("load exact cloud turns")
+            .into_iter()
+            .flat_map(|window| window.chunks)
+            .collect::<Vec<_>>();
+    assert_eq!(
+        serde_json::to_value(cloud).expect("serialize cloud chunks"),
+        serde_json::to_value(full).expect("serialize full chunks")
+    );
+
     // Body-size surrogate: round 1 is followed by tool_use + tool_result +
     // text (3 lines); rounds 2 and 3 by one assistant line each. Placeholder
     // rounds surface these as bodyEventCount — without them the flat-view
@@ -166,6 +183,170 @@ fn byte_index_discovers_rounds_without_parsing_tool_result_bodies() {
 }
 
 #[test]
+fn harness_injected_user_lines_do_not_open_rounds() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-synthetic-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-synthetic.jsonl");
+    let content = r#"{"type":"user","timestamp":"2026-04-01T07:00:00Z","origin":{"kind":"human"},"message":{"role":"user","content":"real prompt"}}
+{"type":"assistant","timestamp":"2026-04-01T07:00:01Z","message":{"role":"assistant","content":[{"type":"text","text":"working"}]}}
+{"type":"user","timestamp":"2026-04-01T07:00:02Z","origin":{"kind":"task-notification"},"message":{"role":"user","content":"<task-notification>\n<task-id>abc123</task-id>\n<status>completed</status>\n</task-notification>"}}
+{"type":"assistant","timestamp":"2026-04-01T07:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"task consumed"}]}}
+{"type":"user","timestamp":"2026-04-01T07:00:04Z","isMeta":true,"message":{"role":"user","content":"<local-command-caveat>Caveat: the following was run</local-command-caveat>"}}
+{"type":"assistant","timestamp":"2026-04-01T07:00:05Z","message":{"role":"assistant","content":[{"type":"text","text":"caveat consumed"}]}}
+{"type":"user","timestamp":"2026-04-01T07:01:00Z","message":{"role":"user","content":"second prompt"}}
+{"type":"assistant","timestamp":"2026-04-01T07:01:01Z","message":{"role":"assistant","content":[{"type":"text","text":"second done"}]}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let indexed =
+        index_claude_user_turns("claudecodeapp-synthetic", &path).expect("index user turns");
+    let previews = indexed
+        .iter()
+        .map(|turn| {
+            turn.user_chunk
+                .result
+                .get("message")
+                .and_then(|message| message.get("content"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(previews, vec!["real prompt", "second prompt"]);
+    assert_eq!(
+        indexed
+            .iter()
+            .map(|turn| turn.following_line_count)
+            .collect::<Vec<_>>(),
+        vec![5, 1]
+    );
+
+    let chunks =
+        load_claude_code_history_from_path("claudecodeapp-synthetic", &path).expect("parse");
+    let user_texts = chunks
+        .iter()
+        .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+        .map(|chunk| {
+            chunk
+                .result
+                .get("message")
+                .and_then(|message| message.get("content"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(user_texts, vec!["real prompt", "second prompt"]);
+    let rendered = chunks
+        .iter()
+        .map(|chunk| chunk.result.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(!rendered.contains("task-notification"));
+    assert!(!rendered.contains("local-command-caveat"));
+    assert!(rendered.contains("task consumed"));
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn user_image_blocks_surface_as_data_url_attachments() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-image-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-images.jsonl");
+    let content = r#"{"type":"user","timestamp":"2026-04-01T07:00:00Z","message":{"role":"user","content":[{"type":"text","text":"make a pet from this"},{"type":"image","source":{"type":"base64","media_type":"image/webp","data":"UklGRg=="}}]}}
+{"type":"assistant","timestamp":"2026-04-01T07:00:01Z","message":{"role":"assistant","content":[{"type":"text","text":"working"}]}}
+{"type":"user","timestamp":"2026-04-01T07:01:00Z","message":{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw=="}}]}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_claude_code_history_from_path("claudecodeapp-images", &path).expect("parse");
+    let user_chunks = chunks
+        .iter()
+        .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+        .collect::<Vec<_>>();
+    assert_eq!(user_chunks.len(), 2);
+
+    let first_images = user_chunks[0]
+        .result
+        .get("images")
+        .and_then(Value::as_array)
+        .expect("first user chunk images");
+    assert_eq!(
+        first_images
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["data:image/webp;base64,UklGRg=="]
+    );
+    assert_eq!(
+        user_chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("make a pet from this")
+    );
+
+    let second_images = user_chunks[1]
+        .result
+        .get("images")
+        .and_then(Value::as_array)
+        .expect("image-only user chunk images");
+    assert_eq!(
+        second_images
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["data:image/png;base64,iVBORw=="]
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn harness_injected_first_line_does_not_title_session() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-synthetic-title-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-synthetic-title.jsonl");
+    let content = r#"{"type":"user","timestamp":"2026-04-01T07:00:00Z","isMeta":true,"message":{"role":"user","content":"<local-command-caveat>Caveat: the following was run</local-command-caveat>"}}
+{"type":"user","timestamp":"2026-04-01T07:00:01Z","origin":{"kind":"human"},"message":{"role":"user","content":"actual request"}}
+{"type":"assistant","timestamp":"2026-04-01T07:00:02Z","message":{"role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":1,"output_tokens":1}}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Claude").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "claude-synthetic-title".to_string(),
+        source_path: path.clone(),
+        source_record_key: "claude-synthetic-title".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_claude_session_meta(&record)
+        .expect("parse")
+        .expect("session meta");
+
+    assert_eq!(meta.name, "actual request");
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
 fn claude_initial_window_placeholders_advertise_fetchable_bodies() {
     let temp_dir = std::env::temp_dir().join(format!(
         "orgii-claude-window-counts-test-{}",
@@ -184,8 +365,7 @@ fn claude_initial_window_placeholders_advertise_fetchable_bodies() {
     }
     std::fs::write(&path, content).expect("write fixture");
 
-    let indexed =
-        index_claude_user_turns("claudecodeapp-counts", &path).expect("index user turns");
+    let indexed = index_claude_user_turns("claudecodeapp-counts", &path).expect("index user turns");
     let file_len = std::fs::metadata(&path).expect("stat fixture").len();
     let mut file = std::fs::File::open(&path).expect("open fixture");
     let mut chunks = Vec::new();
@@ -506,6 +686,7 @@ fn maps_claude_subagent_sidechain_to_parent_session_id() {
         .expect("session meta");
 
     assert_eq!(meta.session_id, format!("claudecodeapp-{file_stem}"));
+    assert_eq!(meta.name, "explore the codebase");
     assert_eq!(
         meta.parent_session_id.as_deref(),
         Some(format!("claudecodeapp-{parent_uuid}").as_str())
@@ -519,6 +700,125 @@ fn maps_claude_subagent_sidechain_to_parent_session_id() {
     );
 
     std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn prefers_claude_subagent_metadata_description_over_prompt() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-subagent-title-test-{}",
+        std::process::id()
+    ));
+    std::fs::remove_dir_all(&temp_dir).ok();
+    let projects_dir = temp_dir.join("projects");
+    let parent_uuid = "59fd4d4f-d556-412f-8b56-88cb8feebb39";
+    let child_source_id = "agent-a45f5a98a73073100";
+    let child_path = projects_dir
+        .join("-Users-example-proj")
+        .join(parent_uuid)
+        .join("subagents")
+        .join(format!("{child_source_id}.jsonl"));
+    std::fs::create_dir_all(child_path.parent().expect("child parent"))
+        .expect("create subagents dir");
+    std::fs::write(
+        &child_path,
+        format!(
+            r#"{{"type":"user","isSidechain":true,"sessionId":"{parent_uuid}","timestamp":"2026-08-06T18:00:02Z","message":{{"role":"user","content":"You are auditing part of the codebase. Your domain: work service transaction boundaries."}}}}
+"#
+        ),
+    )
+    .expect("write child fixture");
+    std::fs::write(
+        child_path.with_extension("meta.json"),
+        r#"{"agentType":"general-purpose","description":"Audit work service transactions","spawnDepth":1}"#,
+    )
+    .expect("write child metadata fixture");
+
+    let previous = HashMap::new();
+    let mut walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&previous, "jsonl", "Claude");
+    let discovery =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut walker)
+            .expect("discover");
+    let record = discovery
+        .records
+        .iter()
+        .find(|record| record.source_session_id == child_source_id)
+        .expect("child record");
+    let title = discovery
+        .external_titles
+        .get(child_source_id)
+        .expect("metadata title");
+    assert_eq!(title, "Audit work service transactions");
+    assert_eq!(
+        record.source_fingerprint,
+        "subagent-meta:Audit work service transactions"
+    );
+
+    let meta = parse_claude_session_meta_with_title(record, None, title.clone())
+        .expect("parse child")
+        .meta
+        .expect("child meta");
+    assert_eq!(meta.name, "Audit work service transactions");
+    assert_eq!(
+        meta.parent_session_id.as_deref(),
+        Some(format!("claudecodeapp-{parent_uuid}").as_str())
+    );
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn claude_subagent_metadata_change_invalidates_fingerprint() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-subagent-title-fingerprint-test-{}",
+        std::process::id()
+    ));
+    std::fs::remove_dir_all(&temp_dir).ok();
+    let projects_dir = temp_dir.join("projects");
+    let child_path = projects_dir.join("-Users-example-proj/session/subagents/agent-a1.jsonl");
+    std::fs::create_dir_all(child_path.parent().expect("child parent"))
+        .expect("create subagents dir");
+    std::fs::write(
+        &child_path,
+        r#"{"type":"user","isSidechain":true,"sessionId":"parent","timestamp":"2026-08-06T18:00:02Z","message":{"role":"user","content":"shared prompt"}}
+"#,
+    )
+    .expect("write child fixture");
+    let metadata_path = child_path.with_extension("meta.json");
+    std::fs::write(
+        &metadata_path,
+        r#"{"description":"Audit work service transactions"}"#,
+    )
+    .expect("write first metadata");
+
+    let discover = || {
+        let previous = HashMap::new();
+        let mut walker =
+            imported_history::scan_snapshot::SnapshotDirWalker::new(&previous, "jsonl", "Claude");
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut walker)
+            .expect("discover")
+    };
+    let first = discover();
+    let first_fingerprint = first.records[0].source_fingerprint.clone();
+
+    std::fs::write(
+        &metadata_path,
+        r#"{"description":"Audit product mode implementation"}"#,
+    )
+    .expect("rewrite metadata");
+    let second = discover();
+    assert_ne!(first_fingerprint, second.records[0].source_fingerprint);
+    assert_eq!(
+        second.external_titles.get("agent-a1").map(String::as_str),
+        Some("Audit product mode implementation")
+    );
+
+    std::fs::write(&metadata_path, "{malformed").expect("write malformed metadata");
+    let malformed = discover();
+    assert!(!malformed.external_titles.contains_key("agent-a1"));
+    assert!(malformed.records[0].source_fingerprint.is_empty());
+
     std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }
 
@@ -694,6 +994,7 @@ fn captures_first_user_uuid_as_continuation_group_key() {
     // contribute a key.
     let content = r#"{"type":"custom-title","customTitle":"My convo","sessionId":"d0641111-1111-1111-1111-111111111111"}
 {"type":"user","uuid":"b7b5ae5f-0000-0000-0000-000000000001","sessionId":"d0641111-1111-1111-1111-111111111111","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-07-17T10:00:00.000Z","message":{"role":"user","content":"first message"}}
+{"type":"system","subtype":"compact_boundary","uuid":"eeb66522-0000-0000-0000-000000000001","sessionId":"d0641111-1111-1111-1111-111111111111","timestamp":"2026-07-17T10:00:30.000Z"}
 {"type":"user","uuid":"b7b5ae5f-0000-0000-0000-000000000002","sessionId":"d0641111-1111-1111-1111-111111111111","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-07-17T10:01:00.000Z","message":{"role":"user","content":"second message"}}
 "#;
     std::fs::write(&path, content).expect("write fixture");
@@ -716,6 +1017,10 @@ fn captures_first_user_uuid_as_continuation_group_key() {
         meta.first_user_uuid.as_deref(),
         Some("b7b5ae5f-0000-0000-0000-000000000001")
     );
+    assert_eq!(
+        meta.continuation_markers,
+        vec!["eeb66522-0000-0000-0000-000000000001"]
+    );
 
     let cache_input = session_meta_to_cache_input(meta);
     let metadata_json = cache_input.source_metadata_json.expect("metadata json");
@@ -725,6 +1030,19 @@ fn captures_first_user_uuid_as_continuation_group_key() {
             .get(imported_cache::CONTINUATION_GROUP_KEY_FIELD)
             .and_then(|value| value.as_str()),
         Some("b7b5ae5f-0000-0000-0000-000000000001")
+    );
+    assert_eq!(
+        parsed
+            .get(imported_cache::CONTINUATION_MARKERS_FIELD)
+            .and_then(Value::as_array)
+            .expect("continuation markers")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec![
+            "b7b5ae5f-0000-0000-0000-000000000001",
+            "eeb66522-0000-0000-0000-000000000001"
+        ]
     );
 
     std::fs::remove_file(&path).expect("remove fixture");

@@ -45,6 +45,7 @@ export function useApiSetupValidation({
       modelContextLengths,
       envVars,
       extractedConfig: config,
+      oauthCatalog,
     }) => {
       const effectiveModels = (() => {
         const validationModels = getEffectiveValidationModels(
@@ -59,12 +60,30 @@ export function useApiSetupValidation({
         }
         return mergedModels;
       })();
+      const catalogDefaults = oauthCatalog?.defaultEnabledModels.filter(
+        (model) => effectiveModels.includes(model)
+      );
+      const oauthEnabledModels =
+        catalogDefaults && catalogDefaults.length > 0
+          ? catalogDefaults
+          : effectiveModels.slice(0, 1);
       onChange({
         available_models: effectiveModels,
-        model_context_lengths: modelContextLengths,
+        model_context_lengths:
+          oauthCatalog?.modelContextLengths ?? modelContextLengths,
+        model_variants:
+          oauthCatalog?.modelVariants.map((variant) => ({
+            model: variant.model,
+            baseModel: variant.base_model,
+            reasoning: variant.reasoning ?? undefined,
+            fast: variant.fast,
+            contextWindow: variant.context_window ?? undefined,
+          })) ?? data.model_variants,
+        default_variants:
+          oauthCatalog?.defaultVariants ?? data.default_variants,
         enabled_models:
           isClaudeCode || isCodex
-            ? effectiveModels.slice(0, 1)
+            ? oauthEnabledModels
             : getDefaultEnabledModels(effectiveModels),
         model_aliases:
           data.agent_type === LOCAL_MODEL_PROVIDER ? data.model_aliases : [],

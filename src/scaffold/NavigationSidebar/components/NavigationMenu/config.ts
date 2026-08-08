@@ -55,6 +55,12 @@ export interface NavigationMenuItem {
   /** Indents the row and draws a vertical guide line for inline child rows. */
   showIndentGuide?: boolean;
   visualTone?: "default" | "secondary";
+  /**
+   * The viewer pinned this row. Set by the row builders (local and cloud) so
+   * grouping can lift pinned rows without inferring membership from which
+   * separator happens to precede them.
+   */
+  pinned?: boolean;
   /** Show hover-only row action buttons. */
   showMoreActions?: boolean;
   rowActions?: NavigationMenuRowAction[];
@@ -81,6 +87,8 @@ export interface NavigationMenuItem {
   shortcut?: string;
   disabled?: boolean;
   dataTestId?: string;
+  /** Stable target consumed by an in-product guided tour. */
+  tourTarget?: string;
   /**
    * When set, the row becomes draggable. Dropping it onto a chat input or
    * session creator inserts a context pill using the existing tab-drag-end

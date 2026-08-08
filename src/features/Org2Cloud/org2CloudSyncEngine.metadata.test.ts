@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { Session } from "@src/store/session/sessionAtom/types";
+
 import {
   buildCloudSessionMetadata,
   isCloudPushCandidate,
@@ -53,16 +55,19 @@ describe("isCloudPushCandidate", () => {
       })
     ).toBe(false);
     // The user's OWN external history (no importedFrom) is now shareable.
-    expect(
-      isCloudPushCandidate({ ...SESSION, category: "external_history" })
-    ).toBe(true);
+    // Annotated rather than passed inline: the predicate only reads
+    // `importedFrom`, so an inline literal trips the excess-property check on
+    // the narrowed parameter — `category` is the case under test, not noise.
+    const externalHistory: Session = {
+      ...SESSION,
+      category: "external_history",
+    };
+    expect(isCloudPushCandidate(externalHistory)).toBe(true);
     // External history that is ALSO an imported copy stays excluded.
-    expect(
-      isCloudPushCandidate({
-        ...SESSION,
-        category: "external_history",
-        importedFrom: { orgId: "x" } as never,
-      })
-    ).toBe(false);
+    const importedExternalHistory: Session = {
+      ...externalHistory,
+      importedFrom: { orgId: "x" } as never,
+    };
+    expect(isCloudPushCandidate(importedExternalHistory)).toBe(false);
   });
 });

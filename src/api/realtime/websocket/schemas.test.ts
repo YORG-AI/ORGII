@@ -47,6 +47,50 @@ describe("maybeParseCodeEditorWebSocketMessage", () => {
     });
   });
 
+  it("preserves native approval envelopes", () => {
+    const parsed = maybeParseCodeEditorWebSocketMessage(
+      JSON.stringify({
+        type: "permission:request",
+        payload: {
+          sessionId: "native-session",
+          requestId: "permission-1",
+          toolName: "run_shell",
+          toolArgs: { command: "private command" },
+        },
+      })
+    );
+
+    expect(parsed).toMatchObject({
+      type: "permission:request",
+      payload: {
+        sessionId: "native-session",
+        requestId: "permission-1",
+        toolName: "run_shell",
+        toolArgs: { command: "private command" },
+      },
+    });
+  });
+
+  it("preserves flat CLI plan approval broadcasts", () => {
+    const parsed = maybeParseCodeEditorWebSocketMessage(
+      JSON.stringify({
+        type: "agent:plan_ready_for_approval",
+        session_id: "cli-session",
+        planRevisionId: "revision-1",
+        planTitle: "Private release plan",
+        planEventSource: "create_plan",
+      })
+    );
+
+    expect(parsed).toMatchObject({
+      type: "agent:plan_ready_for_approval",
+      session_id: "cli-session",
+      planRevisionId: "revision-1",
+      planTitle: "Private release plan",
+      planEventSource: "create_plan",
+    });
+  });
+
   it("still accepts repo events with timestamps", () => {
     const raw = JSON.stringify({
       type: "repo:status_updated",

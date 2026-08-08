@@ -7,7 +7,11 @@
 - Changing the Markdown reveals the shared footer with Cancel and Save actions.
 - Cancel restores the saved Markdown and hides the footer.
 - Save sends the Markdown draft to the update handler and hides the footer.
-- GitHub-backed work-item descriptions use the rendered Markdown body rather than mounting an editor, even when an update handler is available.
+- GitHub-backed work-item descriptions remain rendered Markdown when no authorized GitHub interaction is available.
+- Repository managers and the issue author can open the GitHub issue body in the same inline Markdown editor used by the comment composer, save it through GitHub, or cancel without changing the body.
+- The GitHub body Edit control is an accessible pencil-only button; unauthorized viewers never receive the action.
+- Authorized users can create a previously empty body, clear an existing body, and submit with the editor keyboard shortcut.
+- A failed GitHub issue-body update keeps the editor draft mounted and shows a localized inline error.
 - GitHub-backed issue descriptions use the shared 15-line collapsed preview and expand/collapse control, matching issue bodies and timeline comments.
 - GitHub-backed work items load comments and activity events from the linked repository using their GitHub issue number.
 - GitHub comments and non-comment events reuse the same timeline renderer as the GitHub Issues page.
@@ -20,6 +24,7 @@
 - Refreshing the same Work Item preserves Discussion when open; switching to a different Work Item synchronously returns to its primary body.
 - The legacy default presentation keeps its expanded history behavior for callers that have not migrated to the shared thread surface.
 - Team Inbox and the full "Open work item" destination both use `WorkItemThreadSurface`, including the same ordered property pills and responsive wrapping policy.
+- Work Item thread descriptions use the shared 15-line measured Markdown preview and expand/collapse control used by pull-request descriptions and comments.
 - Both thread entry points pass one resolved project-member identity to the comment composer and history timeline.
 - Both thread entry points keep the description read-only until Edit and hide Preview/Raw tabs in the focused editor.
 - Legacy one-line descriptions containing escaped Markdown line breaks render and edit with real line breaks without being persisted merely by viewing.

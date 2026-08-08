@@ -20,6 +20,10 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 pub const SCAN_SNAPSHOT_VERSION: i64 = 1;
+const MAX_SNAPSHOT_DIRECTORIES: usize = 20_000;
+const MAX_SNAPSHOT_ENTRIES_PER_DIRECTORY: usize = 20_000;
+const MAX_SNAPSHOT_FILES: usize = 20_000;
+const MAX_BOUNDED_DISCOVERY_ENTRIES: usize = 50_000;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DirScanSnapshot {
@@ -115,6 +119,8 @@ pub struct SnapshotDirWalker<'a> {
     extension: &'static str,
     error_label: &'static str,
     now_ns: i64,
+    dirs_visited: usize,
+    bounded_entries_visited: usize,
     pub dirs_enumerated: usize,
     pub dirs_reused: usize,
 }
@@ -134,12 +140,53 @@ impl<'a> SnapshotDirWalker<'a> {
                 .duration_since(UNIX_EPOCH)
                 .map(|elapsed| elapsed.as_nanos() as i64)
                 .unwrap_or(0),
+            dirs_visited: 0,
+            bounded_entries_visited: 0,
             dirs_enumerated: 0,
             dirs_reused: 0,
         }
     }
 
     pub fn collect_files(&mut self, dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+        self.collect_files_inner(dir, out, None)
+    }
+
+    /// Collect matching files without walking below `max_depth` directory
+    /// edges from `dir`. A value of `1`, for example, inspects files directly
+    /// under each immediate child but never enters grandchildren. Callers
+    /// that require an exact leaf depth still filter shallower files.
+    ///
+    /// Bounded walks additionally reject symlink entries and share a global
+    /// 50,000-entry work budget across live enumeration and snapshot reuse.
+    pub fn collect_files_bounded(
+        &mut self,
+        dir: &Path,
+        out: &mut Vec<PathBuf>,
+        max_depth: usize,
+    ) -> Result<(), String> {
+        self.collect_files_inner(dir, out, Some(max_depth))
+    }
+
+    fn collect_files_inner(
+        &mut self,
+        dir: &Path,
+        out: &mut Vec<PathBuf>,
+        remaining_depth: Option<usize>,
+    ) -> Result<(), String> {
+        if remaining_depth.is_some()
+            && fs::symlink_metadata(dir)
+                .ok()
+                .is_some_and(|metadata| metadata.file_type().is_symlink())
+        {
+            return Ok(());
+        }
+        self.dirs_visited = self.dirs_visited.saturating_add(1);
+        if self.dirs_visited > MAX_SNAPSHOT_DIRECTORIES {
+            return Err(format!(
+                "{} discovery exceeds the {}-directory safety limit",
+                self.error_label, MAX_SNAPSHOT_DIRECTORIES
+            ));
+        }
         let key = dir.to_string_lossy().to_string();
         let dir_mtime_ns = fs::metadata(dir)
             .ok()
@@ -148,18 +195,41 @@ impl<'a> SnapshotDirWalker<'a> {
             .map(|elapsed| elapsed.as_nanos() as i64)
             .unwrap_or(0);
         if dir_mtime_ns > 0 {
-            if let Some(snapshot) = self.previous.get(&key) {
+            if let Some(snapshot) = self.previous.get(&key).cloned() {
                 if snapshot.dir_mtime_ns == dir_mtime_ns
                     && snapshot.dir_mtime_ns < snapshot.scanned_at_ns
+                    && snapshot.subdirs.len().saturating_add(snapshot.files.len())
+                        <= MAX_SNAPSHOT_ENTRIES_PER_DIRECTORY
+                    && snapshot
+                        .subdirs
+                        .iter()
+                        .chain(snapshot.files.iter())
+                        .all(|name| safe_entry_name(name))
                 {
+                    if remaining_depth.is_some() {
+                        self.charge_bounded_entries(
+                            snapshot.subdirs.len().saturating_add(snapshot.files.len()),
+                        )?;
+                    }
                     self.dirs_reused += 1;
                     for name in &snapshot.files {
-                        out.push(dir.join(name));
+                        let path = dir.join(name);
+                        if remaining_depth.is_some()
+                            && fs::symlink_metadata(&path).ok().is_some_and(|metadata| {
+                                metadata.file_type().is_symlink() || !metadata.is_file()
+                            })
+                        {
+                            continue;
+                        }
+                        push_bounded_file(out, path, self.error_label)?;
                     }
                     let subdirs = snapshot.subdirs.clone();
                     self.next.insert(key, snapshot.clone());
-                    for name in &subdirs {
-                        self.collect_files(&dir.join(name), out)?;
+                    if remaining_depth != Some(0) {
+                        let next_depth = remaining_depth.map(|depth| depth - 1);
+                        for name in &subdirs {
+                            self.collect_files_inner(&dir.join(name), out, next_depth)?;
+                        }
                     }
                     return Ok(());
                 }
@@ -172,9 +242,20 @@ impl<'a> SnapshotDirWalker<'a> {
             subdirs: Vec::new(),
             files: Vec::new(),
         };
+        let mut entries_seen = 0usize;
         for entry in fs::read_dir(dir)
             .map_err(|err| format!("Failed to read {} dir: {err}", self.error_label))?
         {
+            entries_seen = entries_seen.saturating_add(1);
+            if entries_seen > MAX_SNAPSHOT_ENTRIES_PER_DIRECTORY {
+                return Err(format!(
+                    "{} directory exceeds the {}-entry safety limit",
+                    self.error_label, MAX_SNAPSHOT_ENTRIES_PER_DIRECTORY
+                ));
+            }
+            if remaining_depth.is_some() {
+                self.charge_bounded_entries(1)?;
+            }
             let entry = entry
                 .map_err(|err| format!("Failed to read {} dir entry: {err}", self.error_label))?;
             let file_name = entry.file_name();
@@ -184,6 +265,9 @@ impl<'a> SnapshotDirWalker<'a> {
             let file_type = entry.file_type().map_err(|err| {
                 format!("Failed to read {} dir entry type: {err}", self.error_label)
             })?;
+            if remaining_depth.is_some() && file_type.is_symlink() {
+                continue;
+            }
             let is_dir = if file_type.is_symlink() {
                 entry.path().is_dir()
             } else {
@@ -201,12 +285,26 @@ impl<'a> SnapshotDirWalker<'a> {
         snapshot.subdirs.sort();
         snapshot.files.sort();
         for name in &snapshot.files {
-            out.push(dir.join(name));
+            push_bounded_file(out, dir.join(name), self.error_label)?;
         }
         let subdirs = snapshot.subdirs.clone();
         self.next.insert(key, snapshot);
-        for name in &subdirs {
-            self.collect_files(&dir.join(name), out)?;
+        if remaining_depth != Some(0) {
+            let next_depth = remaining_depth.map(|depth| depth - 1);
+            for name in &subdirs {
+                self.collect_files_inner(&dir.join(name), out, next_depth)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn charge_bounded_entries(&mut self, count: usize) -> Result<(), String> {
+        self.bounded_entries_visited = self.bounded_entries_visited.saturating_add(count);
+        if self.bounded_entries_visited > MAX_BOUNDED_DISCOVERY_ENTRIES {
+            return Err(format!(
+                "{} discovery exceeds the {}-entry global safety limit",
+                self.error_label, MAX_BOUNDED_DISCOVERY_ENTRIES
+            ));
         }
         Ok(())
     }
@@ -214,6 +312,29 @@ impl<'a> SnapshotDirWalker<'a> {
     pub fn into_snapshots(self) -> HashMap<String, DirScanSnapshot> {
         self.next
     }
+}
+
+fn safe_entry_name(name: &str) -> bool {
+    let path = Path::new(name);
+    path.components().count() == 1
+        && path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| value == name)
+}
+
+fn push_bounded_file(
+    out: &mut Vec<PathBuf>,
+    path: PathBuf,
+    error_label: &str,
+) -> Result<(), String> {
+    if out.len() >= MAX_SNAPSHOT_FILES {
+        return Err(format!(
+            "{error_label} discovery exceeds the {MAX_SNAPSHOT_FILES}-file safety limit"
+        ));
+    }
+    out.push(path);
+    Ok(())
 }
 
 #[cfg(test)]

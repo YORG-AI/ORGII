@@ -14,6 +14,7 @@ interface MetadataCellsProps {
   availableProjects: WorkItemProject[];
   onProjectSelect?: (project: WorkItemProject | null) => void;
   readonly?: boolean;
+  hideProjectCell?: boolean;
   t: (key: string) => string;
 }
 
@@ -23,11 +24,12 @@ export function MetadataCells({
   availableProjects,
   onProjectSelect,
   readonly = false,
+  hideProjectCell = false,
   t,
 }: MetadataCellsProps) {
   return (
     <>
-      {!compact && (
+      {!compact && !hideProjectCell && (
         <ProjectCell
           project={workItem.project}
           availableProjects={availableProjects}

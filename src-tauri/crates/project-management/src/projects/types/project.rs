@@ -179,6 +179,12 @@ pub struct ProjectData {
     pub description: String,
     /// Folder slug (directory name)
     pub slug: String,
+    /// Bound external sync adapter, omitted for local-only projects.
+    ///
+    /// The list UI needs only the adapter identity. Connection IDs and
+    /// adapter configuration remain private to the sync subsystem.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync_adapter_id: Option<String>,
 }
 
 // ============================================

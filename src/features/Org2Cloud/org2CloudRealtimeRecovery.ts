@@ -16,6 +16,10 @@ export const FULL_RECOVERY_DISCONNECT_MS = 5 * 60_000;
 /** Repeated edges within this window downgrade to delta (rejoin storms). */
 export const FULL_RECOVERY_COOLDOWN_MS = 30_000;
 
+/** Focus/visible-edge refetches share the same flap discipline: one full
+ * refresh per window, however fast the user alt-tabs. */
+export const FOCUS_REFRESH_COOLDOWN_MS = 30_000;
+
 export interface SubscribedEdgeRecoveryInput {
   nowMs: number;
   /** When this org's channels were last torn down; undefined = never seen. */

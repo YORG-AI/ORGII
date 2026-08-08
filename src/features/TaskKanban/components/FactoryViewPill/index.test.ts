@@ -101,7 +101,9 @@ describe("FactoryViewPill", () => {
       '[data-testid="kanban-data-source-runtime-icon"]'
     );
 
-    expect(icon?.classList.contains("lucide-arrow-up-right")).toBe(true);
+    expect(icon?.classList.contains("lucide-square-arrow-out-up-right")).toBe(
+      true
+    );
     expect(icon?.parentElement?.classList.contains("invisible")).toBe(true);
 
     await act(async () => {

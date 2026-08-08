@@ -88,9 +88,11 @@ export function resolveSelectedMenuItemIds({
         ? projectsSelectedMenuItemId
         : "";
   const selectedMenuItemId =
-    activeSidebarKey === "projects"
-      ? resolvedProjectsSelectedMenuItemId || projectsSelectedMenuItemId
-      : sessionSelectedMenuItemId;
+    activeChatPanelTabType === "team-inbox"
+      ? TEAM_INBOX_MENU_ITEM_ID
+      : activeSidebarKey === "projects"
+        ? resolvedProjectsSelectedMenuItemId || projectsSelectedMenuItemId
+        : sessionSelectedMenuItemId;
 
   return { selectedMenuItemId, sessionSelectedMenuItemId };
 }

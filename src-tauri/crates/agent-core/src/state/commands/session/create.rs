@@ -46,6 +46,7 @@ pub(crate) async fn create_session_impl(
     agent_definition_id: Option<String>,
     key_source: Option<String>,
     agent_exec_mode: Option<String>,
+    product_mode: Option<String>,
     native_harness_type: Option<String>,
     parent_session_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
@@ -137,6 +138,17 @@ pub(crate) async fn create_session_impl(
         // Empty/whitespace strings are treated as "no choice" so we don't trip
         // the dispatcher's mode parser with an empty value.
         agent_exec_mode: agent_exec_mode.filter(|m| !m.trim().is_empty()),
+        // Product-mode resolver (orgtrack/v1 frozen decisions §1), fixed
+        // precedence: launched from a WorkItem/Routine → project; the
+        // user's explicit launch-time choice; else NULL (= build). Never
+        // inferred from exec mode, query length or agent judgment.
+        product_mode: if wid_for_link.is_some() {
+            Some("project".to_string())
+        } else {
+            product_mode.filter(|m| {
+                matches!(m.as_str(), "build" | "plan" | "ask" | "project")
+            })
+        },
         native_harness_type: resolved_native_harness_type,
         ..Default::default()
     };

@@ -294,6 +294,7 @@ pub async fn test_session_launch_seed_only(
         apply_agent_org_member_overrides_for_future: false,
         isolate: false,
         mode,
+        product_mode: None,
         org_id: None,
         project_id: None,
         project_name: None,

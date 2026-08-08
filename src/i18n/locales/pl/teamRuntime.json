@@ -2,6 +2,20 @@
   "title": "Runtime zespołu",
   "refresh": "Odśwież",
   "loadError": "Nie udało się wczytać danych runtime zespołu",
+  "overview": {
+    "today": "Dzisiaj",
+    "everyone": "Wszyscy",
+    "activeMembers": "Aktywni członkowie",
+    "systemsCurrent": "Aktualne systemy: {{current}} z {{total}}",
+    "usageByAgent": "Użycie według agenta",
+    "recentSessions": "Najnowsze udostępnione sesje",
+    "recentLoading": "Wczytywanie udostępnionych sesji…",
+    "recentEmpty": "Brak udostępnionych sesji",
+    "members": "Podział według członka",
+    "activeToday": "Aktywni dzisiaj",
+    "inactiveToday": "Nieaktywni dzisiaj",
+    "sync": "Synchronizacja"
+  },
   "signedOut": {
     "title": "Zaloguj się, aby zobaczyć swój zespół",
     "subtitle": "Runtime współpracowników jest udostępniany przez ORG2 Cloud.",

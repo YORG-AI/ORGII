@@ -7,6 +7,11 @@ export const sessionAggregate = {
     .output(schemas.sessionAggregate.SessionListResponseSchema)
     .build(),
 
+  nativeSidebarPage: defineProcedure("session_native_sidebar_page")
+    .input(schemas.sessionAggregate.NativeSidebarSessionPageInput)
+    .output(schemas.sessionAggregate.NativeSidebarSessionPageResponseSchema)
+    .build(),
+
   externalHistorySidebarList: defineProcedure(
     "session_external_history_sidebar_list"
   )

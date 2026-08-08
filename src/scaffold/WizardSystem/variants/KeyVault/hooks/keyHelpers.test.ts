@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { OAuthModelCatalog } from "@src/api/services/keyValidation";
 import type { DetectedKey } from "@src/api/types/keys";
 
 import type { WizardData } from "../types";
@@ -98,5 +99,66 @@ describe("keyHelpers", () => {
     expect(merged.extracted_base_url).toBeUndefined();
     expect(merged.oauth_session_token).toBe("sk-ant-oat01-abc");
     expect(merged.auth_method).toBe("oauth");
+  });
+
+  it("uses the resolved OAuth catalog instead of a separate detected model list", () => {
+    const updates: Partial<WizardData>[] = [];
+    const catalog: OAuthModelCatalog = {
+      models: ["gpt-5.6-sol"],
+      defaultEnabledModels: ["gpt-5.6-sol"],
+      modelContextLengths: { "gpt-5.6-sol": 1_050_000 },
+      modelVariants: [
+        {
+          model: "gpt-5.6-sol-high",
+          base_model: "gpt-5.6-sol",
+          reasoning: "high",
+          fast: false,
+          context_window: 1_050_000,
+        },
+      ],
+      defaultVariants: [
+        { base_model: "gpt-5.6-sol", model: "gpt-5.6-sol-high" },
+      ],
+      source: "live",
+    };
+
+    applyKey(
+      {
+        id: "codex-oauth",
+        name: "OpenAI",
+        auth_method: "oauth",
+        session_token: "oauth-token",
+        available_models: ["gpt-5.4"],
+        validated: true,
+      },
+      {
+        onChange: (update) => updates.push(update),
+        setTokenDetected: () => {},
+        setCursorSessionToken: () => {},
+        setTokenError: () => {},
+        setShowKeySelection: () => {},
+        isCursor: false,
+        isOAuthAgent: true,
+        oauthCatalog: catalog,
+        noValidTokenMsg: "No valid token",
+        validationFailedMsg: "Validation failed",
+      }
+    );
+
+    expect(updates[0]?.available_models).toEqual(["gpt-5.6-sol"]);
+    expect(updates[0]?.enabled_models).toEqual(["gpt-5.6-sol"]);
+    expect(updates[0]?.model_context_lengths).toEqual({
+      "gpt-5.6-sol": 1_050_000,
+    });
+    expect(updates[0]?.model_variants).toEqual([
+      {
+        model: "gpt-5.6-sol-high",
+        baseModel: "gpt-5.6-sol",
+        reasoning: "high",
+        fast: false,
+        contextWindow: 1_050_000,
+      },
+    ]);
+    expect(updates[0]?.default_variants).toEqual(catalog.defaultVariants);
   });
 });

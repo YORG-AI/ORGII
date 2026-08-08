@@ -340,6 +340,7 @@
       "workitemView": "Workitem View",
       "githubIssues": "GitHub Issues",
       "githubPrs": "GitHub PRs",
+      "runs": "Runs",
       "views": "Views",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
@@ -932,6 +933,7 @@
     "multipleChoice": "Multiple Choice",
     "typeYourAnswer": "Type your answer…",
     "newSession": "New Session",
+    "muteNotifications": "Mute notifications",
     "startPage": {
       "title": "What would you like to do?",
       "back": "Back to start page",
@@ -1065,6 +1067,10 @@
       "entryCount_other": "{{count}} entries",
       "copySuccess": "Raw transcript copied",
       "copyFailed": "Could not copy the raw transcript"
+    },
+    "trackAsProject": {
+      "menuItem": "Track as Project",
+      "success": "Session is now tracked as a Project"
     },
     "linkWorkItem": {
       "menuItem": "Link to Work Item…",
@@ -1253,8 +1259,16 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "All states",
+        "closeAsCompleted": "Close as completed",
+        "closeAsNotPlanned": "Close as not planned",
+        "statusUpdateFailed": "Failed to update GitHub status",
         "assignedToMe": "Assigned to me",
         "createdByMe": "Created by me",
+        "pullRequests": {
+          "reviewRequested": "Review requested",
+          "authoredByMe": "Authored by me",
+          "otherTodos": "Other todos"
+        },
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -2411,7 +2425,8 @@
       "plan": "Plan",
       "debug": "Debug",
       "review": "Review",
-      "wingman": "Wingman"
+      "wingman": "Wingman",
+      "project": "Project"
     },
     "runningLocation": {
       "local": "This Mac",

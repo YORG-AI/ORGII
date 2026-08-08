@@ -79,16 +79,31 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
     onBrowserStateChange?.(hook.browserOpen);
   }, [hook.browserOpen, onBrowserStateChange]);
 
-  const parsedModelVariants = useMemo(
-    () =>
-      parseModelVariants(data.available_models ?? []).map((variant) => ({
+  const parsedModelVariants = useMemo(() => {
+    const variants = new Map(
+      (data.model_variants ?? []).map((variant) => [
+        variant.model,
+        {
+          model: variant.model,
+          base_model: variant.baseModel,
+          reasoning: variant.reasoning,
+          fast: variant.fast,
+          context_window: variant.contextWindow,
+        },
+      ])
+    );
+    for (const variant of parseModelVariants(data.available_models ?? [])) {
+      if (variants.has(variant.model)) continue;
+      variants.set(variant.model, {
         model: variant.model,
         base_model: variant.baseModel,
         reasoning: variant.reasoning,
         fast: variant.fast,
-      })),
-    [data.available_models]
-  );
+        context_window: data.model_context_lengths?.[variant.model],
+      });
+    }
+    return [...variants.values()];
+  }, [data.available_models, data.model_context_lengths, data.model_variants]);
 
   const hasAgent = !!data.agent_type;
 
@@ -404,6 +419,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
               setTokenDetected={hook.setTokenDetected}
               detectingToken={hook.detectingToken}
               tokenError={hook.tokenError}
+              setTokenError={hook.setTokenError}
               clearTokenError={hook.clearTokenError}
               useGuidedSetup={hook.useGuidedSetup}
               setUseGuidedSetup={hook.setUseGuidedSetup}

@@ -11,6 +11,11 @@
       "mentions": "Erwähnungen",
       "assigned": "Zugewiesen"
     },
+    "sections": {
+      "reviewRequested": "Überprüfung angefordert",
+      "authoredByMe": "Von mir erstellt",
+      "otherTodos": "Weitere Aufgaben"
+    },
     "status": {
       "read": "Gelesen",
       "unread": "Ungelesen"
@@ -33,10 +38,10 @@
       "title": "Noch nichts hier",
       "subtitle": "Erwähnungen und zugewiesene Arbeitselemente werden hier angezeigt.",
       "selectTitle": "Ein Element auswählen",
-      "selectSubtitle": "Kommentarkontext oder Details des Arbeitselements ansehen.",
+      "selectSubtitle": "Kommentarkontext oder Details des Arbeitselements ansehen",
       "mentions": {
         "title": "Keine Erwähnungen",
-        "subtitle": "Wenn dich ein Teammitglied in einem Kommentar mit @ erwähnt, erscheint es hier."
+        "subtitle": "Wenn dich ein Teammitglied in einem Kommentar mit @ erwähnt, erscheint es hier"
       },
       "assigned": {
         "title": "Dir ist nichts zugewiesen",
@@ -111,7 +116,9 @@
       "markUnread": "Dieses Element konnte nicht als ungelesen markiert werden. Versuche es erneut.",
       "markAllRead": "Alle Elemente konnten nicht als gelesen markiert werden. Versuche es erneut.",
       "identity": "Dein Konto konnte keinem Projektmitglied zugeordnet werden. Überprüfe die E-Mail-Adresse in deinem Projektprofil.",
-      "partialLoad": "Einige Quellen des Team-Posteingangs konnten nicht aktualisiert werden. Verfügbare Elemente werden weiterhin angezeigt.",
+      "partialLoad": "Einige Quellen des Team-Posteingangs konnten nicht aktualisiert werden. Verfügbare Elemente werden weiterhin angezeigt",
+      "pullRequestsPartialLoad": "Einige Pull Requests konnten nicht aktualisiert werden",
+      "pullRequestsPartialLoadHelp": "Verfügbare Elemente werden weiterhin angezeigt; aktualisiere erneut, um die fehlenden Pull Requests zu laden",
       "workItemContext": "Einiger Projektkontext ist nicht verfügbar. Das Arbeitselement bleibt nutzbar.",
       "workItemLoad": "Dieses Arbeitselement konnte nicht geladen werden. Versuche es erneut.",
       "workItemUpdate": "Die letzte Änderung am Arbeitselement konnte nicht gespeichert werden. Versuche es erneut."
@@ -155,6 +162,50 @@
       "medium": "Mittel",
       "high": "Hoch",
       "urgent": "Dringend"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Datei",
+      "edit": "Bearbeiten",
+      "view": "Ansicht",
+      "window": "Fenster",
+      "help": "Hilfe",
+      "aria": "Menü {{label}}"
+    },
+    "items": {
+      "quitOrg2": "ORG-2 beenden",
+      "newSession": "Neue Sitzung",
+      "openFolder": "Ordner öffnen...",
+      "addFolderToWorkspace": "Ordner zum Arbeitsbereich hinzufügen...",
+      "saveWorkspaceAs": "Arbeitsbereich speichern unter...",
+      "closeWindow": "Fenster schließen",
+      "undo": "Rückgängig",
+      "redo": "Wiederholen",
+      "cut": "Ausschneiden",
+      "copy": "Kopieren",
+      "paste": "Einfügen",
+      "selectAll": "Alles auswählen",
+      "commandPalette": "Befehlspalette",
+      "goToFile": "Zu Datei wechseln...",
+      "selectModel": "Modell auswählen...",
+      "switchWorkspace": "Arbeitsbereich wechseln...",
+      "switchBranch": "Branch wechseln...",
+      "switchRunningLocation": "Ausführungsort wechseln...",
+      "settings": "Einstellungen...",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "actualSize": "Originalgröße",
+      "minimize": "Minimieren",
+      "maximizeRestore": "Maximieren / Wiederherstellen",
+      "maximizeWorkstation": "Arbeitsstation maximieren",
+      "documentation": "Dokumentation",
+      "reportIssue": "Problem melden"
+    },
+    "controls": {
+      "minimizeWindow": "Fenster minimieren",
+      "maximizeRestoreWindow": "Fenster maximieren oder wiederherstellen",
+      "closeWindow": "Fenster schließen"
     }
   },
   "toasts": {
@@ -368,7 +419,8 @@
     "skipThisVersion": "Diese Version überspringen",
     "later": "Später",
     "link": "Verknüpfen",
-    "copyName": "Namen kopieren"
+    "copyName": "Namen kopieren",
+    "switchMethod": "Methode wechseln"
   },
   "refreshToast": {
     "successName": "{{name}} aktualisiert",
@@ -1358,8 +1410,59 @@
       "collapse": "Arbeitsbereichsinformationen einklappen"
     },
     "pr": {
+      "title": "Pull Request",
       "linkedBranch": "Pull Request #{{number}}",
+      "baseBranch": "Basis",
+      "noDescription": "Keine Beschreibung vorhanden.",
+      "loadingConversation": "Wird geladen…",
+      "reviewNoBody": "Hat Review-Kommentare hinterlassen.",
+      "submitReview": "Überprüfung einreichen",
+      "reviewHeadNotice": "Die Überprüfung wird nur angewendet, wenn der angezeigte Head-Commit weiterhin übereinstimmt.",
+      "reviewDecision": "Überprüfungsentscheidung",
+      "reviewComment": "Überprüfungskommentar",
+      "reviewCommentPlaceholder": "Einen Kommentar hinzufügen…",
+      "commentPlaceholder": "Kommentar hinterlassen…",
+      "comment": "Kommentieren",
+      "approve": "Genehmigen",
+      "requestChanges": "Änderungen anfordern",
+      "reply": "Antworten",
+      "replyPlaceholder": "Antworten…",
+      "reviewThreads": "Review-Kommentare",
+      "details": "Details",
+      "unknownAuthor": "Unbekannt",
+      "activity": {
+        "opened": "hat diesen Pull Request geöffnet",
+        "commented": "hat kommentiert",
+        "approved": "hat diese Änderungen genehmigt",
+        "changesRequested": "hat Änderungen angefordert",
+        "reviewDismissed": "hat ein Review verworfen",
+        "reviewed": "hat ein Review abgegeben"
+      },
+      "summary": {
+        "label": "Zusammenfassung zum pull request",
+        "branch": "Branch",
+        "reviewers": "Reviewer",
+        "noReviewers": "Keine Reviewer",
+        "comments": "Kommentare",
+        "commentCount_one": "{{count}} Kommentar",
+        "commentCount_other": "{{count}} Kommentare",
+        "checks": "Checks",
+        "noChecks": "Keine CI-Checks",
+        "checksFailed": "Checks fehlgeschlagen",
+        "status": "Status"
+      },
+      "tabs": {
+        "conversation": "Unterhaltung",
+        "commits": "Commits",
+        "checks": "Checks",
+        "changes": "Änderungen"
+      },
       "checks": {
+        "none": "Keine Checks gemeldet",
+        "noneHint": "Für den Head-Commit dieses Pull Requests wurden keine CI-Checks oder Statusprüfungen ausgeführt.",
+        "allPassed": "Alle Checks bestanden",
+        "someFailed": "Einige Checks fehlgeschlagen",
+        "pending": "Checks werden ausgeführt",
         "passedShort": "Bestanden",
         "failedShort": "Fehlgeschlagen",
         "runningShort": "Läuft",
@@ -1367,6 +1470,76 @@
         "noneShort": "Keine CI",
         "unavailableShort": "CI nicht verfügbar",
         "branchStatus": "CI für Pull Request #{{number}}: {{status}}"
+      },
+      "commits": {
+        "backToList": "Alle Commits",
+        "none": "Keine Commits"
+      },
+      "changes": {
+        "title": "Geänderte Dateien",
+        "noFiles": "Keine Dateiänderungen",
+        "tooLarge": "Datei ist zu groß für eine Diff-Ansicht",
+        "unavailable": "Änderungen nicht verfügbar",
+        "unavailableHint": "Basis- und Head-Commit des Pull Requests konnten nicht aufgelöst werden."
+      },
+      "status": {
+        "open": "Offen",
+        "merged": "Zusammengeführt",
+        "closed": "Geschlossen",
+        "draft": "Entwurf"
+      },
+      "actions": {
+        "label": "Pull-Request-Aktionen",
+        "confirmMergeTitle": "Pull Request zusammenführen?",
+        "confirmMergeMessage": "GitHub führt den Head des aktuellen Pull Requests mit dem Basis-Branch zusammen.",
+        "merge": "Pull Request zusammenführen",
+        "squash": "Squash und zusammenführen",
+        "rebase": "Rebase und zusammenführen",
+        "mergeSuccess": "Pull Request zusammengeführt",
+        "mergeRequested": "Zusammenführung angefordert",
+        "removedFromQueue": "Aus der Merge-Warteschlange entfernt",
+        "autoMergeEnabled": "Automatisches Zusammenführen aktiviert",
+        "autoMergeDisabled": "Automatisches Zusammenführen deaktiviert",
+        "confirmCloseTitle": "Pull Request schließen?",
+        "confirmCloseMessage": "Der Pull Request bleibt verfügbar und kann später erneut geöffnet werden.",
+        "close": "Pull Request schließen",
+        "closeSuccess": "Pull Request geschlossen",
+        "reopen": "Pull Request erneut öffnen",
+        "reopenSuccess": "Pull Request erneut geöffnet",
+        "enableAutoMerge": "Automatisches Zusammenführen aktivieren",
+        "mergeWhenReady": "Zusammenführen, sobald bereit",
+        "disableAutoMerge": "Automatisches Zusammenführen deaktivieren",
+        "removeFromMergeQueue": "Aus der Merge-Warteschlange entfernen",
+        "merged": "Zusammengeführt",
+        "closed": "Geschlossen",
+        "draft": "Entwurf",
+        "inMergeQueue": "In der Merge-Warteschlange",
+        "approvalRequired": "Genehmigung erforderlich",
+        "changesRequested": "Änderungen angefordert",
+        "resolveConflicts": "Konflikte beheben",
+        "checksFailed": "Checks fehlgeschlagen",
+        "checksPending": "Checks ausstehend",
+        "mergeBlocked": "Zusammenführung blockiert",
+        "searchReviewers": "Reviewer suchen",
+        "reviewersLoadFailed": "Reviewer konnten nicht geladen werden",
+        "noReviewers": "Keine Reviewer verfügbar",
+        "reviewersUpdated": "Reviewer aktualisiert",
+        "reviewersCount_one": "{{count}} Reviewer",
+        "reviewersCount_other": "{{count}} Reviewer",
+        "reviewers": "Reviewer",
+        "tooltips": {
+          "merge": "Diesen Pull Request auf GitHub zusammenführen",
+          "alreadyMerged": "Dieser Pull Request wurde bereits zusammengeführt",
+          "reopenBeforeMerging": "Diesen Pull Request vor dem Zusammenführen erneut öffnen",
+          "markReady": "Diesen Pull Request vor dem Zusammenführen als bereit zur Überprüfung markieren",
+          "mergeQueue": "GitHub führt diesen Pull Request über die Merge-Warteschlange zusammen",
+          "approvalRequired": "GitHub erfordert vor dem Zusammenführen eine Review-Genehmigung",
+          "changesRequested": "Angeforderte Änderungen müssen vor dem Zusammenführen erledigt werden",
+          "resolveConflicts": "Merge-Konflikte vor dem Zusammenführen beheben",
+          "checksFailed": "Erforderliche Checks müssen vor dem Zusammenführen bestehen",
+          "checksPending": "Auf erforderliche Checks warten oder automatisches Zusammenführen aktivieren",
+          "mergeBlocked": "GitHub meldet nicht erfüllte Merge-Anforderungen"
+        }
       }
     },
     "messages": {
@@ -1456,7 +1629,49 @@
         "unpinned": "hat dieses issue losgelöst",
         "transferred": "hat dieses issue übertragen",
         "convertedToDiscussion": "hat dieses issue in eine Diskussion umgewandelt",
-        "mentioned": "hat dieses issue erwähnt"
+        "mentioned": "hat dieses issue erwähnt",
+        "commentDeleted": "hat einen Kommentar gelöscht",
+        "subscribed": "hat dieses issue abonniert",
+        "unsubscribed": "hat dieses issue nicht mehr abonniert",
+        "addedToProject": "hat dieses issue zu einem Projekt hinzugefügt",
+        "movedInProject": "hat dieses issue in einem Projekt verschoben",
+        "removedFromProject": "hat dieses issue aus einem Projekt entfernt",
+        "archived": "hat dieses issue archiviert",
+        "unarchived": "hat die Archivierung dieses issues aufgehoben",
+        "merged": "hat diesen Pull Request zusammengeführt",
+        "committed": "hat zu diesem Pull Request committed",
+        "headRefDeleted": "hat den Head-Branch gelöscht",
+        "headRefRestored": "hat den Head-Branch wiederhergestellt",
+        "headRefForcePushed": "hat einen Force-Push auf den Head-Branch durchgeführt",
+        "baseRefChanged": "hat den Base-Branch geändert",
+        "automaticBaseChangeFailed": "konnte den Base-Branch nicht automatisch ändern",
+        "automaticBaseChangeSucceeded": "hat den Base-Branch automatisch geändert",
+        "deployed": "hat diesen Pull Request bereitgestellt",
+        "deploymentEnvironmentChanged": "hat die Bereitstellungsumgebung geändert",
+        "readyForReview": "hat diesen Pull Request zur Überprüfung freigegeben",
+        "reviewRequested": "hat eine Überprüfung angefordert",
+        "reviewRequestRemoved": "hat eine Überprüfungsanfrage entfernt",
+        "reviewed": "hat die Änderungen überprüft",
+        "reviewDismissed": "hat eine Überprüfung verworfen",
+        "userBlocked": "hat diesen Benutzer blockiert"
+      },
+      "composer": {
+        "addComment": "Kommentar hinzufügen",
+        "commentingAs": "Kommentieren als {{login}}",
+        "identityUnavailable": "GitHub-Identität nicht verfügbar",
+        "commentPlaceholder": "Kommentar schreiben…",
+        "submitComment": "Kommentieren",
+        "closeIssue": "Issue schließen",
+        "closeAsCompleted": "Als erledigt schließen",
+        "closeAsNotPlanned": "Als nicht geplant schließen",
+        "closeAsDuplicate": "Als Duplikat schließen",
+        "duplicateSearchPlaceholder": "Issues durchsuchen",
+        "duplicateEmpty": "Keine passenden Issues",
+        "duplicateLoadFailed": "Issues konnten nicht geladen werden",
+        "reopenIssue": "Issue erneut öffnen",
+        "commentFailed": "Kommentar konnte nicht hinzugefügt werden",
+        "bodyUpdateFailed": "Issue-Beschreibung konnte nicht aktualisiert werden",
+        "statusFailed": "Issue-Status konnte nicht aktualisiert werden"
       }
     }
   },
@@ -2468,8 +2683,8 @@
     "selectRepoToStart": "Repo auswählen, um zu starten"
   },
   "quitConfirmation": {
-    "title": "ORGII beenden?",
-    "subtitle": "Laufende Sitzungen behalten ihren aktuellen Zustand. Sie können ORGII später erneut öffnen.",
+    "title": "ORG-2 beenden?",
+    "subtitle": "Laufende Sitzungen behalten ihren aktuellen Zustand. Sie können ORG-2 später erneut öffnen.",
     "cancel": "Abbrechen",
     "confirm": "Beenden"
   },
@@ -2500,5 +2715,15 @@
     "downloadedOfTotal": "{{downloaded}} von {{total}}",
     "preparingDownload": "Download wird vorbereitet…",
     "downloadingAndInstalling": "Update wird heruntergeladen und installiert (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Titel / Kontext",
+      "status": "Status",
+      "assignee": "Zugewiesen an",
+      "updated": "Aktualisiert"
+    },
+    "selectRow": "{{id}} auswählen"
   }
 }

@@ -79,7 +79,7 @@
     "heading": "Crear un Project desde GitHub Issues",
     "description": "Elige un repositorio de GitHub, crea un Project de ORGII y mantén sus GitHub Issues sincronizadas como work items.",
     "importButton": "Importar GitHub Issues",
-    "projectDescription": "Sincronizado desde GitHub Issues en {{owner}}/{{repo}}.",
+    "projectDescription": "GitHub Issues · {{owner}}/{{repo}}",
     "fields": {
       "projectName": "Nombre del Project",
       "repo": "Repositorio de GitHub",

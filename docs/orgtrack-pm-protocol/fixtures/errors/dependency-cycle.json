@@ -1,0 +1,19 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "DEPENDENCY_CYCLE",
+    "message": "Adding depends_on work_01K0000000000000000000ROOT0 would create a cycle",
+    "retryable": false,
+    "details": {
+      "cycle": [
+        "work_01K0000000000000000000WORK0",
+        "work_01K000000000000000000COLL0",
+        "work_01K0000000000000000000WORK0"
+      ]
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR13"
+  }
+}

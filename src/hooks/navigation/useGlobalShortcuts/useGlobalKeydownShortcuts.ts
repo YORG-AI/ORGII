@@ -5,6 +5,7 @@ import { routeDebugModalOpenAtom } from "@src/store";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
+import { resolveDigitZeroShortcut } from "./digitZeroShortcut";
 import { isEditableElement, isEditableElementExtended } from "./types";
 
 function selectActiveTextControl(): boolean {
@@ -49,7 +50,6 @@ interface UseGlobalKeydownShortcutsOptions {
   handleInspectMoveDownLevel: () => Promise<boolean | undefined>;
   handleInspectToggleLabels: () => Promise<boolean>;
   handleInspectHideLabels: () => Promise<boolean>;
-  handleZoomReset: () => boolean;
   spotlightOpenRef: MutableRefObject<boolean>;
   handleOpenWorkStationFilePalette: () => void;
   handleOpenWorkStationSymbolPalette: () => void;
@@ -76,7 +76,6 @@ export function useGlobalKeydownShortcuts(
     handleInspectMoveDownLevel,
     handleInspectToggleLabels,
     handleInspectHideLabels,
-    handleZoomReset,
     spotlightOpenRef,
     handleOpenWorkStationFilePalette,
     handleOpenWorkStationSymbolPalette,
@@ -305,18 +304,22 @@ export function useGlobalKeydownShortcuts(
       }
 
       if (event.code === "Digit0") {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!event.shiftKey) {
-          handleZoomReset();
+        const target = resolveDigitZeroShortcut(event);
+        if (target) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        if (target === "open_global_preferences" || target === "zoom_reset") {
+          shortcutRegistry.dispatch(target);
           return;
         }
-
-        const store = getInstrumentedStore();
-        if (store.get(devModeEnabledAtom)) {
-          store.set(routeDebugModalOpenAtom, (prev) => !prev);
+        if (target === "route_debug_modal") {
+          const store = getInstrumentedStore();
+          if (store.get(devModeEnabledAtom)) {
+            store.set(routeDebugModalOpenAtom, (prev) => !prev);
+          }
+          return;
         }
-        return;
       }
 
       switch (event.key.toLowerCase()) {
@@ -504,7 +507,6 @@ export function useGlobalKeydownShortcuts(
       closeQuitConfirmation();
     };
   }, [
-    handleZoomReset,
     handleInspectMoveUpLevel,
     handleInspectMoveDownLevel,
     handleInspectToggleLabels,

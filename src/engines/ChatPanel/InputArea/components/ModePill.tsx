@@ -33,12 +33,19 @@ import SelectorPill from "@src/components/SelectorPill";
 import {
   AGENT_EXEC_MODES,
   type AgentExecMode,
+  COMPOSER_MODES,
+  type ComposerModeEntry,
   DEFAULT_AGENT_EXEC_MODE,
+  PRODUCT_MODE_PROJECT,
+  execModeForComposerSelection,
   normalizeAgentExecMode,
 } from "@src/config/sessionCreatorConfig";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { useSessionExecModeField } from "@src/hooks/session/useSessionPatch";
+import {
+  useSessionExecModeField,
+  useSessionProductModeField,
+} from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import {
   isAgentSession,
@@ -82,6 +89,9 @@ const ModePill: React.FC<ModePillProps> = memo(
     const setCreatorDefault = useSetAtom(creatorDefaultExecModeAtom);
     const { agentExecMode: sessionMode, setMode: setSessionMode } =
       useSessionExecModeField(sessionId ?? "");
+    const { productMode, setProductMode } = useSessionProductModeField(
+      sessionId ?? ""
+    );
 
     const isInSessionMode =
       !isControlled && !forceVisible && Boolean(sessionId);
@@ -91,12 +101,29 @@ const ModePill: React.FC<ModePillProps> = memo(
         ? (normalizeAgentExecMode(sessionMode) ?? creatorDefault)
         : creatorDefault;
 
-    const currentOption =
-      AGENT_EXEC_MODES.find((opt) => opt.id === mode) ?? AGENT_EXEC_MODES[0];
+    // Product-mode axis (orgtrack/v1 §5.2): when the session is in
+    // Project mode the pill displays Project regardless of the derived
+    // exec mode. Only agent sessions carry a product mode, and the
+    // creator/controlled variants stay exec-only until the Project
+    // bootstrap flow lands there.
+    const isProjectSession =
+      isInSessionMode && productMode === PRODUCT_MODE_PROJECT;
+    const pickerModes: ComposerModeEntry[] = isInSessionMode
+      ? COMPOSER_MODES
+      : AGENT_EXEC_MODES;
+
+    const currentOption = isProjectSession
+      ? (COMPOSER_MODES.find((opt) => opt.id === PRODUCT_MODE_PROJECT) ??
+        AGENT_EXEC_MODES[0])
+      : (AGENT_EXEC_MODES.find((opt) => opt.id === mode) ??
+        AGENT_EXEC_MODES[0]);
     const CurrentIcon = currentOption.icon;
-    const currentLabel = t(currentOption.i18nKey);
-    const toneClassName =
-      mode === "plan"
+    const currentLabel = t(currentOption.i18nKey, {
+      defaultValue: currentOption.name,
+    });
+    const toneClassName = isProjectSession
+      ? "mode-pill-tone-plan"
+      : mode === "plan"
         ? "mode-pill-tone-plan"
         : mode === "ask"
           ? "mode-pill-tone-ask"
@@ -117,33 +144,36 @@ const ModePill: React.FC<ModePillProps> = memo(
     });
 
     const setModeValue = useCallback(
-      (selected: AgentExecMode) => {
+      (selected: ComposerModeEntry["id"]) => {
+        const derivedExecMode = execModeForComposerSelection(selected);
         if (!isControlled) {
           if (isInSessionMode) {
-            // Fire-and-forget: useSessionExecModeField does the
-            // optimistic store write before awaiting the RPC, so the
-            // pill repaints with the new value on the same frame.
-            // Errors are surfaced via the hook's own state; we
-            // intentionally don't await here so the dropdown closes
-            // without waiting on IPC.
-            void setSessionMode(selected);
+            // §5.2: the selector writes the PRODUCT mode; the runtime
+            // exec mode is derived (project → build, identity
+            // otherwise). Both patches are fire-and-forget — the hooks
+            // do optimistic store writes before awaiting the RPC, so
+            // the pill repaints with the new value on the same frame.
+            // Errors are surfaced via the hooks' own state.
+            void setProductMode(selected);
+            void setSessionMode(derivedExecMode);
           } else {
-            setCreatorDefault(selected);
+            setCreatorDefault(derivedExecMode);
           }
         }
-        onModeChange?.(selected);
+        onModeChange?.(derivedExecMode);
       },
       [
         isControlled,
         isInSessionMode,
         setSessionMode,
+        setProductMode,
         setCreatorDefault,
         onModeChange,
       ]
     );
 
     const handleSelect = useCallback(
-      (selected: AgentExecMode) => {
+      (selected: ComposerModeEntry["id"]) => {
         setModeValue(selected);
         close();
       },
@@ -151,13 +181,24 @@ const ModePill: React.FC<ModePillProps> = memo(
     );
 
     const handleTriggerClick = useCallback(() => {
-      if (resetToDefaultOnClick && mode !== DEFAULT_AGENT_EXEC_MODE) {
+      if (
+        resetToDefaultOnClick &&
+        !isProjectSession &&
+        mode !== DEFAULT_AGENT_EXEC_MODE
+      ) {
         setModeValue(DEFAULT_AGENT_EXEC_MODE);
         close();
         return;
       }
       toggle();
-    }, [resetToDefaultOnClick, mode, setModeValue, close, toggle]);
+    }, [
+      resetToDefaultOnClick,
+      isProjectSession,
+      mode,
+      setModeValue,
+      close,
+      toggle,
+    ]);
 
     const isVisible =
       forceVisible ||
@@ -165,7 +206,7 @@ const ModePill: React.FC<ModePillProps> = memo(
     if (
       !isVisible ||
       (sessionId && isWingmanSession(sessionId)) ||
-      (hideWhenDefault && mode === DEFAULT_AGENT_EXEC_MODE)
+      (hideWhenDefault && !isProjectSession && mode === DEFAULT_AGENT_EXEC_MODE)
     ) {
       return null;
     }
@@ -211,9 +252,11 @@ const ModePill: React.FC<ModePillProps> = memo(
               }}
             >
               <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-                {AGENT_EXEC_MODES.map((option) => {
+                {pickerModes.map((option) => {
                   const Icon = option.icon;
-                  const isSelected = mode === option.id;
+                  const isSelected = isProjectSession
+                    ? option.id === PRODUCT_MODE_PROJECT
+                    : mode === option.id;
                   return (
                     <DropdownItem
                       key={option.id}
@@ -228,7 +271,7 @@ const ModePill: React.FC<ModePillProps> = memo(
                       dataTestId={`agent-exec-mode-option-${option.id}`}
                       onClick={() => handleSelect(option.id)}
                     >
-                      {t(option.i18nKey)}
+                      {t(option.i18nKey, { defaultValue: option.name })}
                     </DropdownItem>
                   );
                 })}

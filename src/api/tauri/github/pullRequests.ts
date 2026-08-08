@@ -7,7 +7,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { appendPullRequestAttributionFooter } from "@src/services/git/operations/commitAttribution";
 
 import { invokeWithAuth } from "./client";
-import type { LocalFindPRResponse, LocalPRResponse } from "./types";
+import type {
+  GitHubIssueUser,
+  LocalFindPRResponse,
+  LocalPRResponse,
+} from "./types";
 
 export async function createPRLocal(
   repoFullName: string,
@@ -32,6 +36,13 @@ export interface OpenPRItem {
   url: string;
   title: string;
   state: string;
+  author_login: string;
+  author_avatar_url: string | null;
+  /**
+   * Outstanding direct review requests. GitHub removes a reviewer after they
+   * submit a review unless another review is requested.
+   */
+  requested_reviewer_logins: string[];
   head_branch: string;
   base_branch: string;
   draft: boolean;
@@ -58,6 +69,87 @@ export async function listOpenPRsLocal(
   perPage?: number
 ): Promise<OpenPRItem[]> {
   return listPRsLocal(repoFullName, "open", perPage);
+}
+
+export async function updatePRStateLocal(
+  repoFullName: string,
+  prNumber: number,
+  state: PullRequestListState
+): Promise<OpenPRItem> {
+  return invokeWithAuth<OpenPRItem>("github_update_pr_state", {
+    repoFullName,
+    prNumber,
+    state,
+  });
+}
+
+export type PullRequestMergeMethod = "merge" | "squash" | "rebase";
+
+export interface PullRequestMergeResult {
+  sha: string;
+  merged: boolean;
+  message: string;
+}
+
+export interface PullRequestAutoMergeResult {
+  enabled: boolean;
+}
+
+export async function mergePRLocal(
+  repoFullName: string,
+  prNumber: number,
+  method: PullRequestMergeMethod,
+  expectedHeadSha?: string
+): Promise<PullRequestMergeResult> {
+  return invokeWithAuth<PullRequestMergeResult>("github_merge_pr", {
+    repoFullName,
+    prNumber,
+    method,
+    expectedHeadSha: expectedHeadSha ?? null,
+  });
+}
+
+export async function setPRAutoMergeLocal(
+  repoFullName: string,
+  prNumber: number,
+  enabled: boolean,
+  method?: PullRequestMergeMethod,
+  expectedHeadSha?: string
+): Promise<PullRequestAutoMergeResult> {
+  return invokeWithAuth<PullRequestAutoMergeResult>(
+    "github_set_pr_auto_merge",
+    {
+      repoFullName,
+      prNumber,
+      enabled,
+      method: method ?? null,
+      expectedHeadSha: expectedHeadSha ?? null,
+    }
+  );
+}
+
+export async function requestPRReviewersLocal(
+  repoFullName: string,
+  prNumber: number,
+  reviewers: string[]
+): Promise<GitHubIssueUser[]> {
+  return invokeWithAuth<GitHubIssueUser[]>("github_request_pr_reviewers", {
+    repoFullName,
+    prNumber,
+    reviewers,
+  });
+}
+
+export async function removePRReviewersLocal(
+  repoFullName: string,
+  prNumber: number,
+  reviewers: string[]
+): Promise<GitHubIssueUser[]> {
+  return invokeWithAuth<GitHubIssueUser[]>("github_remove_pr_reviewers", {
+    repoFullName,
+    prNumber,
+    reviewers,
+  });
 }
 
 /**

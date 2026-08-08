@@ -5,11 +5,11 @@
  */
 import {
   Code,
-  ExternalLink,
   Filter,
   Folder,
   FolderOpen,
   Lock,
+  SquareArrowOutUpRight,
 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -285,7 +285,7 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
               <Button
                 variant="secondary"
                 size="default"
-                icon={<ExternalLink size={14} />}
+                icon={<SquareArrowOutUpRight size={14} />}
                 iconPosition="right"
                 onClick={handleGoToSettings}
               >

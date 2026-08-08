@@ -69,21 +69,29 @@ impl AgentTool {
         ToolPolicyLayer { allow: None, deny }
     }
 
-    /// Layer the parent session's CURRENT exec mode onto a freshly-built
-    /// worker policy.
+    /// Layer the parent session's CURRENT exec mode and product mode onto
+    /// a freshly-built worker policy.
     ///
     /// `parent_policy` is the session's BASE policy captured at init — it
-    /// never carries the per-turn exec-mode deny overlay the parent itself
-    /// runs under (`ResolvedToolPolicy::with_exec_mode` composes that
-    /// per turn). Without re-applying it here, a Plan-mode parent could
-    /// escape its read-only guarantee by delegating writes to
-    /// `builtin:general` (which inherits edit_file/run_shell).
-    pub(super) fn overlay_parent_exec_mode(
+    /// never carries the per-turn deny overlays the parent itself runs
+    /// under (`ResolvedToolPolicy::with_modes` composes those per turn).
+    /// Without re-applying them here, a Plan-mode parent could escape its
+    /// read-only guarantee by delegating writes to `builtin:general`
+    /// (which inherits edit_file/run_shell), and a non-Project parent
+    /// could escape the PM deny-delta by delegating `manage_work_item` /
+    /// `manage_project` to a specialist subagent (both dispatch paths —
+    /// inherited and fresh-registry — flow through this overlay).
+    pub(super) fn overlay_parent_modes(
         policy: ResolvedToolPolicy,
         parent_exec_mode: Option<crate::session::AgentExecMode>,
+        parent_product_mode: Option<&str>,
     ) -> ResolvedToolPolicy {
-        match parent_exec_mode {
+        let policy = match parent_exec_mode {
             Some(mode) => policy.with_exec_mode(mode),
+            None => policy,
+        };
+        match ResolvedToolPolicy::product_mode_layer(parent_product_mode) {
+            Some(layer) => policy.with_extra_layer(layer),
             None => policy,
         }
     }

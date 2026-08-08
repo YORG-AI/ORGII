@@ -5,12 +5,32 @@
  * cluster gaps stay aligned when the bar layout changes.
  */
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
+
+/**
+ * Semantic typography roles shared by every workstation status bar.
+ *
+ * The bar owns the 11px secondary-text scale and compact line height once;
+ * consumers only opt into emphasis or numeric alignment. Keeping those roles
+ * here prevents repo, branch, cursor, and extension items from rebuilding the
+ * same typography with unrelated utility strings.
+ */
+export const STATUS_BAR_TYPOGRAPHY = {
+  /** Base status-bar text: 11px, normal weight, compact line height. */
+  root: `${TYPOGRAPHY.secondary} leading-none`,
+  /** Default labels inherit the root's normal weight. */
+  label: "font-normal",
+  /** Workspace, branch, action, and count emphasis. */
+  emphasis: "font-medium",
+  /** Stable-width digits for cursor positions and counts. */
+  numeric: "tabular-nums",
+} as const;
 
 export const STATUS_BAR_TOKENS = {
   /** Bar height (36px) */
   heightClass: "h-9",
-  /** Primary label size */
-  textSizeClass: "text-[11px]",
+  /** Shared semantic typography for the entire bar. */
+  typographyClass: STATUS_BAR_TYPOGRAPHY.root,
   /** Outer horizontal padding of the bar (outside left/right clusters) */
   barPaddingClass: "px-2",
 
@@ -39,8 +59,7 @@ export const STATUS_BAR_TOKENS = {
    * label. Matches the primary pill used in the selection dropdown so
    * status-bar CTAs read consistently.
    */
-  buttonPrimary:
-    "bg-primary-6 px-2.5 font-medium text-white hover:bg-primary-7",
+  buttonPrimary: `bg-primary-6 px-2.5 text-white hover:bg-primary-7 ${STATUS_BAR_TYPOGRAPHY.emphasis}`,
   /** Non-interactive block (icon + labels), e.g. indexing */
   segment:
     "flex h-full shrink-0 cursor-default select-none items-center gap-1.5 px-2",
@@ -49,6 +68,5 @@ export const STATUS_BAR_TOKENS = {
 
   /** Extension host items embedded in the bar */
   extensionRoot: "flex h-full min-h-0 items-center",
-  extensionItem:
-    "flex h-full min-h-0 shrink-0 items-center gap-1.5 px-2 text-[11px] leading-none transition-colors",
+  extensionItem: `flex h-full min-h-0 shrink-0 items-center gap-1.5 px-2 transition-colors ${STATUS_BAR_TYPOGRAPHY.root}`,
 } as const;

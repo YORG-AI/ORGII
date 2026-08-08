@@ -35,6 +35,7 @@ import type {
   WorkItemHandoffTransition,
   WorkItemPartialUpdate,
   WorkItemsViewData,
+  WorkspaceWorkItemsData,
 } from "./types";
 
 // ============================================
@@ -357,10 +358,19 @@ export async function readWorkItemsEnriched(
   );
 }
 
+export async function readWorkspaceWorkItemsData(
+  options?: WorkItemsReadOptions
+): Promise<WorkspaceWorkItemsData> {
+  return invoke("project_read_workspace_work_items_data", {
+    ...scopeInvokePayload(options),
+    readBucket: options?.readBucket ?? null,
+  });
+}
+
 /**
  * One-shot endpoint for the WorkItems page: enriched items + status
- * counts (computed before filtering, for the filter badges) + Kanban /
- * Gantt / Calendar projections + items grouped by status.
+ * counts (computed before filtering, for the filter badges) + only the
+ * requested view projection.
  *
  * Filter args bypass the cache so the dynamic search/status query
  * always hits Rust; the no-filter call is cached because it's the
@@ -369,13 +379,14 @@ export async function readWorkItemsEnriched(
 export interface WorkItemsViewOptions extends ProjectScopeOptions {
   statusFilter?: string;
   searchQuery?: string;
+  view?: "list" | "kanban" | "gantt" | "calendar";
 }
 
 export async function readWorkItemsViewData(
   projectSlug: string,
   options?: WorkItemsViewOptions
 ): Promise<WorkItemsViewData> {
-  const { statusFilter, searchQuery } = options ?? {};
+  const { statusFilter, searchQuery, view } = options ?? {};
   const scopePayload = scopeInvokePayload(options);
   const scopeSegment = scopeCacheSegment(options);
   const hasFilters =
@@ -388,16 +399,20 @@ export async function readWorkItemsViewData(
       ...scopePayload,
       statusFilter: statusFilter ?? null,
       searchQuery: searchQuery ?? null,
+      view: view ?? null,
     });
   }
 
-  return cachedRead(`${projectSlug}:workitems-view:${scopeSegment}`, () =>
-    invoke("project_read_work_items_view_data", {
-      projectSlug,
-      ...scopePayload,
-      statusFilter: null,
-      searchQuery: null,
-    })
+  return cachedRead(
+    `${projectSlug}:workitems-view:${scopeSegment}:${view ?? "all"}`,
+    () =>
+      invoke("project_read_work_items_view_data", {
+        projectSlug,
+        ...scopePayload,
+        statusFilter: null,
+        searchQuery: null,
+        view: view ?? null,
+      })
   );
 }
 
@@ -440,6 +455,67 @@ export async function readStandaloneWorkItem(
     shortId,
     ...scopeInvokePayload(options),
   });
+}
+
+/**
+ * Creation DTO for the canonical `work.create` service operation.
+ * Mirrors Rust `work_service::CreateWorkItemRequest` (camelCase wire).
+ */
+export interface WorkItemCreateRequest {
+  title: string;
+  body?: string;
+  projectId?: string;
+  status?: string;
+  priority?: string;
+  assignee?: string;
+  assigneeType?: string;
+  labels?: string[];
+  milestone?: string;
+  parent?: string;
+  startDate?: string;
+  targetDate?: string;
+  createdBy?: string;
+  starred?: boolean;
+  schedule?: WorkItemFrontmatter["schedule"];
+  orchestratorConfig?: WorkItemFrontmatter["orchestrator_config"];
+  todos?: WorkItemFrontmatter["todos"];
+  handoff?: WorkItemFrontmatter["handoff"];
+  linkedSessions?: WorkItemFrontmatter["linked_sessions"];
+}
+
+/**
+ * Canonical `work.create`: the service owns frontmatter construction;
+ * callers describe the work and supply a pre-allocated short id (collab
+ * orgs mint ids server-side). Prefer this over `writeWorkItem` for new
+ * items — the whole-row write is reserved for sync/merge internals.
+ */
+export async function createWorkItem(
+  projectSlug: string,
+  shortId: string,
+  request: WorkItemCreateRequest
+): Promise<WorkItemData> {
+  const result = await invoke<WorkItemData>("project_create_work_item", {
+    projectSlug,
+    shortId,
+    request,
+  });
+  invalidateCache();
+  return result;
+}
+
+/** Canonical `work.create` for an org-scoped standalone item. */
+export async function createStandaloneWorkItem(
+  shortId: string,
+  request: WorkItemCreateRequest,
+  options?: ProjectScopeOptions
+): Promise<WorkItemData> {
+  const result = await invoke<WorkItemData>("work_item_create_standalone", {
+    ...scopeInvokePayload(options),
+    shortId,
+    request,
+  });
+  invalidateCache();
+  return result;
 }
 
 export async function writeWorkItem(
@@ -675,6 +751,54 @@ export async function listRoutineFires(
   return cachedRead(`__routines__:${routineId}:fires`, () =>
     invoke("project_list_routine_fires", { routineId })
   );
+}
+
+/** A row from `pm_routine_runs` (portable Routine domain, orgtrack/v1). */
+export interface RoutineRunSummary {
+  id: string;
+  routineName: string;
+  routineRevision: number;
+  scopeId: string;
+  status: string;
+  rootWorkItemId?: string | null;
+  createdBy?: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Per-run projection: run row + generated WorkItems' portable states. */
+export interface RoutineRunStatus {
+  id: string;
+  routineName: string;
+  routineRevision: number;
+  snapshotHash: string;
+  scopeId: string;
+  status: string;
+  rootWorkItemId?: string | null;
+  workItems: Array<{
+    shortId: string;
+    title: string;
+    status: string;
+    portableState?: string | null;
+  }>;
+}
+
+/** List portable routine runs, newest first. Uncached: run status moves
+ *  with work-item transitions, and the surface refetches on focus. */
+export async function listRoutineRuns(options?: {
+  scopeId?: string;
+  limit?: number;
+}): Promise<RoutineRunSummary[]> {
+  return invoke("project_list_routine_runs", {
+    scopeId: options?.scopeId ?? null,
+    limit: options?.limit,
+  });
+}
+
+export async function routineRunStatus(
+  runId: string
+): Promise<RoutineRunStatus> {
+  return invoke("project_routine_run_status", { runId });
 }
 
 export async function fireRoutine(

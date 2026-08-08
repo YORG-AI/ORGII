@@ -35,6 +35,7 @@ export type {
   FullKeyResponse,
   HealthStatus,
   KeyInfo,
+  QuotaBalance,
   QuotaInfo,
   SaveKeyRequest,
   UsageItem,

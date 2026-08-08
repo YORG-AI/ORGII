@@ -8,8 +8,10 @@
  *
  * In-memory only, NOT persisted — refetched on each sign-in / app start via
  * `useOrg2CloudOrgs()` (mounted once in the router root next to
- * `useDeepLinkHandler`). Cleared to `[]` on sign-out. Offline / fetch
- * failure degrades to `[]` (no crash, no stale cache).
+ * `useDeepLinkHandler`). Focus/visibility edges plus one visible-only,
+ * five-minute safety timeout converge policy changes from inactive orgs.
+ * Cleared to `[]` on sign-out. Offline / fetch failure degrades to `[]` (no
+ * crash, no stale cache).
  */
 import { atom, createStore, useAtom, useStore } from "jotai";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
@@ -30,6 +32,7 @@ import {
   refreshOrgEntitlement,
   seedOrgEntitlement,
 } from "./org2CloudEntitlementCoordinator";
+import { startOrg2CloudRosterConvergence } from "./org2CloudRosterConvergence";
 
 const log = createLogger("Org2CloudOrgs");
 
@@ -67,6 +70,18 @@ export interface Org2CloudOrg {
    * push scheduler never runs for this org). Parsed tolerantly in
    * `listMyOrgs` — a malformed record degrades to absent. */
   runtimeTelemetry?: OrgRuntimeTelemetry | null;
+  /**
+   * 0013 legacy wire name for the org-level background-upload policy;
+   * absent ⇒ off. Keep the field name until the server contract migrates.
+   */
+  offlineSyncEnabled?: boolean;
+}
+
+/** Product-level meaning of the legacy 0013 roster field. */
+export function isOrgBackgroundUploadEnabled(
+  org: Pick<Org2CloudOrg, "offlineSyncEnabled">
+): boolean {
+  return org.offlineSyncEnabled === true;
 }
 
 export interface RefetchOrg2CloudOrgsOptions {
@@ -183,6 +198,18 @@ export function commitOrg2CloudOrgsRequest(
 export const org2CloudRosterVersionAtom = atom<Record<string, number>>({});
 org2CloudRosterVersionAtom.debugLabel = "org2CloudRosterVersionAtom";
 
+/**
+ * Per-org member-runtime CHANGE COUNTER, bumped when a teammate's telemetry
+ * upsert broadcasts the `member_runtime` signal kind. Team Runtime surfaces
+ * put their org's counter in a fetch-effect dependency so the roster
+ * refreshes live instead of waiting for a remount or visible edge.
+ */
+export const org2CloudMemberRuntimeVersionAtom = atom<Record<string, number>>(
+  {}
+);
+org2CloudMemberRuntimeVersionAtom.debugLabel =
+  "org2CloudMemberRuntimeVersionAtom";
+
 /** Active orgs whose member-roster Postgres Changes channel is subscribed. */
 export const org2CloudRosterRealtimeConnectedAtom = atom<
   Record<string, boolean>
@@ -228,6 +255,7 @@ export function parseCloudOrgSelectorValue(value: string): string | null {
 export function useOrg2CloudOrgs(): void {
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const store = useStore();
+  const refetchOrgs = useRefetchOrg2CloudOrgs();
   const authRef = useRef(auth);
   useEffect(() => {
     authRef.current = auth;
@@ -335,6 +363,16 @@ export function useOrg2CloudOrgs(): void {
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, [authIdentityKey, setAuth, store]);
+
+  useEffect(() => {
+    if (!authIdentityKey) return undefined;
+    return startOrg2CloudRosterConvergence({
+      refresh: refetchOrgs,
+      onError: (error) => {
+        log.warn("cloud org convergence refresh failed", error);
+      },
+    });
+  }, [authIdentityKey, refetchOrgs]);
 }
 
 /**

@@ -692,21 +692,47 @@
     "agentApproval": "Одобрение Agent",
     "agentApprovalDesc": "Когда действие Agent требует вашего одобрения",
     "errors": "Ошибки и предупреждения",
+    "teamInbox": "Командные входящие",
     "errorsDesc": "Когда возникают ошибки или предупреждения",
     "sessionStatus": "Статус Session",
     "sessionStatusDesc": "Обновления о запуске, паузе и возобновлении Session",
     "gitOperations": "Git операции",
     "gitOperationsDesc": "Уведомления о Git pull, push и синхронизации",
+    "soundPreset": "Звук уведомления",
+    "soundPresetDesc": "Выберите звук для слышимых уведомлений",
+    "previewSound": "Прослушать",
+    "soundPresets": {
+      "classic": "Классический",
+      "gentle": "Мягкий",
+      "ascending": "Восходящий",
+      "bell": "Колокольчик"
+    },
     "volume": "Громкость",
     "testNotification": "Тестовое уведомление",
     "notification": "Уведомление",
     "sound": "Звук",
     "enabledSuccess": "Уведомления включены",
     "permissionDenied": "В разрешении на уведомления отказано",
+    "criticalOnly": "Только важные оповещения",
+    "criticalOnlyDesc": "Уведомлять только когда действие требует подтверждения или задача завершилась ошибкой",
+    "quietHours": "Расписание «Не беспокоить»",
+    "quietHoursDesc": "Отключать обычные уведомления в заданном ежедневном интервале",
+    "quietHoursSchedule": "Тихие часы",
+    "quietHoursScheduleDesc": "Используется местное время устройства. Одинаковое время начала и окончания отключает интервал.",
+    "quietHoursStart": "С",
+    "quietHoursEnd": "До",
+    "allowCriticalDuringQuietHours": "Разрешить важные оповещения",
+    "allowCriticalDuringQuietHoursDesc": "Запросы подтверждения и ошибки могут показывать системное уведомление, но никогда не воспроизводят звук",
+    "backgroundCompletionSummary": "Сводка о завершении фоновых задач",
+    "backgroundCompletionSummaryDesc": "Отправлять одно сводное уведомление после окончания тихих часов",
+    "mutedSessions": "Session без уведомлений",
+    "mutedSessionsDesc": "На этом устройстве уведомления отключены для {{count}} Session",
+    "clearMutedSessions": "Очистить все",
     "test": {
       "sent": "Тестовое уведомление отправлено",
       "permissionWarning": "Не удалось отправить тестовое уведомление. Проверьте разрешения.",
-      "sendFailed": "Не удалось отправить тестовое уведомление. Проверьте разрешения на уведомления и повторите попытку."
+      "sendFailed": "Не удалось отправить тестовое уведомление. Проверьте разрешения на уведомления и повторите попытку.",
+      "soundFailed": "Не удалось воспроизвести звук уведомления. Проверьте системную громкость."
     }
   },
   "editor": {
@@ -997,7 +1023,13 @@
     "tableSize": "Размер",
     "tablePercentage": "Проц.",
     "scanFailed": "Не удалось проверить использование диска",
-    "openFolderFailed": "Не удалось открыть папку"
+    "openFolderFailed": "Не удалось открыть папку",
+    "browserCache": "Кэш браузера",
+    "browserCacheDesc": "Использовано {{used}} · {{cleanable}} можно безопасно очистить",
+    "cleanBrowserCache": "Очистить",
+    "browserCacheCleaned": "Освобождено {{size}} хранилища браузера",
+    "browserCacheAlreadyClean": "Кэш браузера уже очищен",
+    "browserCacheCleanFailed": "Не удалось очистить кэш браузера"
   },
   "agentSessions": {
     "title": "Agent Session",

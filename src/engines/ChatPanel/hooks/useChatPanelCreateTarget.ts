@@ -7,6 +7,7 @@ import { SESSION_TARGET_KIND } from "@src/store/session";
 import type { SessionCreatorState } from "@src/store/session/creatorStateAtom";
 import {
   CHAT_PANEL_CREATE_TARGET,
+  type ChatPanelCollabOrgCreateIntent,
   type ChatPanelCreateTarget,
 } from "@src/store/ui/chatPanelAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
@@ -17,6 +18,9 @@ interface UseChatPanelCreateTargetOptions {
   allAgentDefs: AgentDefinition[];
   sessionCreatorAvailable: boolean;
   setCreateTarget: (target: ChatPanelCreateTarget) => void;
+  setCollabOrgCreateIntent: (
+    intent: ChatPanelCollabOrgCreateIntent | null
+  ) => void;
   setCreatorState: (
     updater: (previous: SessionCreatorState) => SessionCreatorState
   ) => void;
@@ -30,6 +34,7 @@ export function useChatPanelCreateTarget({
   allAgentDefs,
   sessionCreatorAvailable,
   setCreateTarget,
+  setCollabOrgCreateIntent,
   setCreatorState,
   setShowProjectAgentCreator,
   setShowWorkItemAgentCreator,
@@ -66,6 +71,9 @@ export function useChatPanelCreateTarget({
     (value: string | number | (string | number)[]) => {
       if (Array.isArray(value)) return;
       const nextTarget = value as ChatPanelCreateTarget;
+      // Selector changes are ordinary navigation, not a continuation of a
+      // one-shot guide preset that may still be waiting on lazy rendering.
+      setCollabOrgCreateIntent(null);
 
       if (nextTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS) {
         const adeManagerDef = allAgentDefs.find(
@@ -102,6 +110,7 @@ export function useChatPanelCreateTarget({
     [
       allAgentDefs,
       sessionCreatorAvailable,
+      setCollabOrgCreateIntent,
       setCreateTarget,
       setCreatorState,
       setShowProjectAgentCreator,
