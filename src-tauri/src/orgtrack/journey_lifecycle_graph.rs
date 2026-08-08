@@ -430,3 +430,36 @@ pub fn append(conn: &Connection, g: &mut JourneyGraph, j: &SessionJourney) -> Re
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agent_core::core::journey_lifecycle::SessionJourney;
+
+    #[test]
+    fn lifecycle_nodes_attach_to_the_canonical_session_not_a_work_item() {
+        let conn = Connection::open_in_memory().unwrap();
+        let mut graph = JourneyGraph {
+            nodes: vec![JourneyNode {
+                id: "session/s".into(),
+                kind: JourneyNodeKind::Session,
+                evidence_class: EvidenceClass::Canonical,
+                source_ref: "canonical-session:s".into(),
+                display_timestamp: None,
+            }],
+            ..JourneyGraph::default()
+        };
+
+        append(&conn, &mut graph, &SessionJourney::new("s", "main")).unwrap();
+
+        assert!(graph.edges.iter().any(|edge| {
+            edge.from == "session/s"
+                && edge.to == "journey/s/branch/main"
+                && edge.kind == JourneyEdgeKind::Contains
+        }));
+        assert!(graph.edges.iter().all(|edge| {
+            !(edge.kind == JourneyEdgeKind::Contains
+                && (edge.from.starts_with("work_item/") || edge.to.starts_with("work_item/")))
+        }));
+    }
+}

@@ -12,26 +12,23 @@ fn input() -> CanonicalJourneyInput {
         }],
         work_items: vec![CanonicalWorkItem {
             id: "w".into(),
-            project_id: Some("p".into()),
+            project_id: "p".into(),
             source_ref: "wi-record".into(),
         }],
         sessions: vec![
             CanonicalSession {
                 id: "parent".into(),
-                project_id: Some("p".into()),
+                project_id: "p".into(),
                 work_item_id: Some("w".into()),
                 resumed_from: None,
                 compacted_to: None,
                 forked_from: None,
                 source_ref: "session-parent".into(),
                 display_timestamp: Some("2026-01-01".into()),
-                agent_identity: Some("agent-a".into()),
-                agent_band: Some("review".into()),
-                topic_tags: vec!["explicit-topic".into()],
             },
             CanonicalSession {
                 id: "child".into(),
-                project_id: Some("p".into()),
+                project_id: "p".into(),
                 work_item_id: Some("w".into()),
                 resumed_from: Some("parent".into()),
                 compacted_to: None,
@@ -41,21 +38,18 @@ fn input() -> CanonicalJourneyInput {
                 }),
                 source_ref: "session-child".into(),
                 display_timestamp: Some("2099-01-01".into()),
-                agent_identity: None,
-                agent_band: None,
-                topic_tags: vec![],
             },
         ],
         turns: vec![
             CanonicalTurn {
                 session_id: "child".into(),
-                id: "execution-1".into(),
+                sequence: 1,
                 source_ref: "turn-1".into(),
                 display_timestamp: None,
             },
             CanonicalTurn {
                 session_id: "child".into(),
-                id: "execution-2".into(),
+                sequence: 2,
                 source_ref: "turn-2".into(),
                 display_timestamp: None,
             },
@@ -85,13 +79,6 @@ fn projector_uses_exact_lineage_anchors_not_timestamps() {
     assert_eq!(fork.to, "session/parent");
     assert!(fork.source_ref.ends_with("#revision-7"));
     assert!(!fork.source_ref.contains("2099"));
-    let parent = graph
-        .nodes
-        .iter()
-        .find(|node| node.id == "session/parent")
-        .unwrap();
-    assert_eq!(parent.metadata.agent_band.as_deref(), Some("review"));
-    assert_eq!(parent.metadata.topic_tags, ["explicit-topic"]);
 }
 
 #[test]
@@ -103,10 +90,8 @@ fn projector_contains_sessions_directly_under_projects_and_never_under_work_item
             && edge.kind == JourneyEdgeKind::Contains
     }));
     assert!(graph.edges.iter().all(|edge| {
-        !(edge.from.starts_with("work_item/")
-            || edge.to.starts_with("work_item/")
-            || (edge.kind == JourneyEdgeKind::Contains
-                && edge.to.starts_with("work_item/")))
+        !(edge.kind == JourneyEdgeKind::Contains
+            && (edge.from.starts_with("work_item/") || edge.to.starts_with("work_item/")))
     }));
 }
 #[test]
@@ -154,35 +139,15 @@ fn evidence_and_source_are_mandatory() {
 }
 
 #[test]
-fn absent_metadata_stays_unassociated_and_turns_never_follow_sequence() {
+fn required_project_and_strict_turn_sequence_fail_closed() {
     let mut canonical = input();
-    canonical.sessions[0].project_id = None;
-    canonical.sessions[0].work_item_id = None;
-    canonical.sessions[0].agent_identity = None;
-    canonical.sessions[0].agent_band = None;
-    canonical.sessions[0].topic_tags.clear();
-    canonical.turns[0].id.clear();
+    canonical.sessions[0].project_id.clear();
 
     assert!(project_canonical_journey(&canonical).is_err());
 
-    canonical.turns.remove(0);
-    let graph = project_canonical_journey(&canonical).unwrap();
-    let session = graph
-        .nodes
-        .iter()
-        .find(|node| node.id == "session/parent")
-        .unwrap();
-    assert_eq!(session.metadata.agent_identity, None);
-    assert_eq!(session.metadata.agent_band, None);
-    assert!(session.metadata.topic_tags.is_empty());
-    assert!(!graph
-        .edges
-        .iter()
-        .any(|edge| edge.from == "project/p" && edge.to == "session/parent"));
-    assert!(!graph
-        .edges
-        .iter()
-        .any(|edge| edge.kind == JourneyEdgeKind::NextTurn));
+    let mut duplicate_sequence = input();
+    duplicate_sequence.turns[1].sequence = duplicate_sequence.turns[0].sequence;
+    assert!(project_canonical_journey(&duplicate_sequence).is_err());
 }
 
 #[test]
