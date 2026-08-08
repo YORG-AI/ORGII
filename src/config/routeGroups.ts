@@ -152,9 +152,16 @@ export const APP_SETTINGS_ROUTE = route(
 // JOURNEY ROUTES
 // ============================================================================
 
-// Dev Record (journey/record) has been retired. The route group is kept as an
-// empty object so `ROUTES.app.journey` and its re-exports remain valid.
-export const APP_JOURNEY_ROUTES = {} as const;
+// Journey Station is a first-class read-only application surface.
+export const APP_JOURNEY_ROUTES = {
+  station: {
+    path: "/journey",
+    label: "Journey Station",
+    viewMode: "mainApp",
+    tabType: "journey-station",
+    icon: "git-branch",
+  },
+} as const;
 
 // ============================================================================
 // IDEA ROUTES

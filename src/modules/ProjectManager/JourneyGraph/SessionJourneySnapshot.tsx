@@ -7,6 +7,27 @@ import {
 } from "@src/api/tauri/sessionJourney";
 import { requestJourneyMessageJump } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 
+const taskStateLabel = (state: string) =>
+  ({ active: "进行中", finished: "已结束", pending: "待开始" })[state] ?? state;
+const outcomeLabel = (outcome: string) =>
+  ({
+    completed: "完成",
+    partially_completed: "部分完成",
+    paused: "暂停",
+    abandoned: "放弃",
+    redirected: "转向",
+  })[outcome] ?? outcome;
+const forkStateLabel = (state: string) =>
+  ({ active: "进行中", closing: "审核中", closed: "已关闭" })[state] ?? state;
+const reviewStateLabel = (state: string) =>
+  ({
+    queued: "等待审核",
+    ready: "可审核",
+    confirmed: "已确认",
+    discarded: "已丢弃",
+    failed: "审核失败",
+  })[state] ?? state;
+
 export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
   sessionId,
 }) => {
@@ -46,8 +67,8 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
             <Flag size={14} className="mb-1 text-primary-6" />
             <strong>{task.name}</strong>
             <p className="mt-1 text-text-3">
-              {task.state}
-              {task.outcome ? ` · ${task.outcome}` : ""}
+              {taskStateLabel(task.state)}
+              {task.outcome ? ` · ${outcomeLabel(task.outcome)}` : ""}
             </p>
           </div>
         ))}
@@ -58,7 +79,7 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
               <GitFork size={14} className="mb-1 text-success-6" />
               <strong>{fork.id}</strong>
               <p className="mt-1 text-text-3">
-                锚点 {fork.anchor_sequence} · {fork.state}
+                锚点 {fork.anchor_sequence} · {forkStateLabel(fork.state)}
               </p>
             </div>
           ))}
@@ -81,7 +102,7 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
             <ListChecks size={14} className="mb-1 text-text-2" />
             <strong>审核</strong>
             <p className="mt-1 text-text-3">
-              {review.state} · {review.fork_id}
+              {reviewStateLabel(review.state)} · {review.fork_id}
             </p>
           </div>
         ))}

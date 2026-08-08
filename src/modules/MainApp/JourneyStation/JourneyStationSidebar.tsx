@@ -1,9 +1,8 @@
 /**
  * Journey Station sidebar
  *
- * Lists the two Journey scopes — Projects and Sessions — at the same nav
- * depth Ops Control gives its sidebar. Rows only select a scope; the main
- * surface renders the canonical `journey_graph_query` result for it.
+ * Projects own their sessions. Rows only select a scope; the main surface
+ * renders the canonical `journey_graph_query` result for it.
  * No lineage is inferred here: projects come from the project API and
  * sessions from the session store, both already canonical sources.
  */
@@ -23,8 +22,6 @@ import {
   journeyStationSelectionAtom,
 } from "@src/store/ui/journeyStationAtom";
 import { getSessionListDisplayName } from "@src/util/session/sessionSidebarRow";
-
-const SESSION_LIST_LIMIT = 30;
 
 interface JourneyRowProps {
   icon: React.ReactNode;
@@ -84,15 +81,15 @@ const JourneyStationSidebar: React.FC = () => {
     void reloadProjects();
   }, [reloadProjects]);
 
-  const recentSessions = useMemo(() => {
-    return sessions
-      .slice()
-      .sort((a, b) => {
-        const ta = new Date(a.updated_at || a.created_at || 0).getTime();
-        const tb = new Date(b.updated_at || b.created_at || 0).getTime();
-        return tb - ta;
-      })
-      .slice(0, SESSION_LIST_LIMIT);
+  const sessionsByProject = useMemo(() => {
+    const groups = new Map<string, typeof sessions>();
+    for (const session of sessions) {
+      const key = session.projectId || session.projectSlug || "";
+      const current = groups.get(key) ?? [];
+      current.push(session);
+      groups.set(key, current);
+    }
+    return groups;
   }, [sessions]);
 
   const select = useCallback(
@@ -134,72 +131,109 @@ const JourneyStationSidebar: React.FC = () => {
         {!loadingProjects && projects.length === 0 && !projectsError && (
           <div className="px-2 text-[11px] text-text-4">
             {t("navigation:journeyStation.noProjects", {
-              defaultValue: "No projects yet",
+              defaultValue: "暂无项目",
             })}
           </div>
         )}
         {projects.map((project) => {
           const identity = project.id || project.slug || "";
+          const projectSessions = [
+            ...(sessionsByProject.get(project.id) ?? []),
+            ...(project.slug && project.slug !== project.id
+              ? (sessionsByProject.get(project.slug) ?? [])
+              : []),
+          ].filter(
+            (session, index, all) =>
+              all.findIndex(
+                (item) => item.session_id === session.session_id
+              ) === index
+          );
           return (
-            <JourneyRow
-              key={identity}
-              icon={<Box size={13} className="text-primary-6" />}
-              label={project.name}
-              selected={
-                selection?.kind === "project" && selection.id === identity
-              }
-              onClick={() =>
-                select({ kind: "project", id: identity, name: project.name })
-              }
-              testId="journey-station-project-row"
-            />
+            <div key={identity} data-testid="journey-station-project-group">
+              <JourneyRow
+                icon={<Box size={13} className="text-primary-6" />}
+                label={project.name}
+                selected={
+                  selection?.kind === "project" && selection.id === identity
+                }
+                onClick={() =>
+                  select({ kind: "project", id: identity, name: project.name })
+                }
+                testId="journey-station-project-row"
+              />
+              <div className="ml-4 border-l border-border-2 pl-1">
+                {projectSessions.map((session) => {
+                  const label = getSessionListDisplayName(session, "会话");
+                  return (
+                    <JourneyRow
+                      key={session.session_id}
+                      icon={
+                        <GitBranch
+                          size={13}
+                          className={
+                            session.session_id === activeSessionId
+                              ? "text-success-6"
+                              : "text-text-3"
+                          }
+                        />
+                      }
+                      label={label}
+                      selected={
+                        selection?.kind === "session" &&
+                        selection.id === session.session_id
+                      }
+                      onClick={() =>
+                        select({
+                          kind: "session",
+                          id: session.session_id,
+                          name: label,
+                        })
+                      }
+                      testId="journey-station-session-row"
+                    />
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </section>
-
-      <section aria-label={t("navigation:routes.sessions")}>
-        <h3 className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
-          {t("navigation:routes.sessions")}
-        </h3>
-        {recentSessions.length === 0 && (
-          <div className="px-2 text-[11px] text-text-4">
-            {t("navigation:journeyStation.noSessions", {
-              defaultValue: "No sessions yet",
-            })}
-          </div>
-        )}
-        {recentSessions.map((session) => {
-          const label = getSessionListDisplayName(
-            session,
-            t("navigation:routes.session")
-          );
-          const isActive = session.session_id === activeSessionId;
-          return (
-            <JourneyRow
-              key={session.session_id}
-              icon={
-                <GitBranch
-                  size={13}
-                  className={isActive ? "text-success-6" : "text-text-3"}
-                />
-              }
-              label={isActive ? `${label} ·` : label}
-              selected={
-                selection?.kind === "session" &&
-                selection.id === session.session_id
-              }
-              onClick={() =>
-                select({
-                  kind: "session",
-                  id: session.session_id,
-                  name: label,
-                })
-              }
-              testId="journey-station-session-row"
-            />
-          );
-        })}
-      </section>
+      {Boolean(sessionsByProject.get("")?.length) && (
+        <section aria-label="未关联项目的会话">
+          <h3 className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+            未关联项目的会话
+          </h3>
+          {(sessionsByProject.get("") ?? []).map((session) => {
+            const label = getSessionListDisplayName(session, "会话");
+            return (
+              <JourneyRow
+                key={session.session_id}
+                icon={<GitBranch size={13} className="text-text-3" />}
+                label={label}
+                selected={
+                  selection?.kind === "session" &&
+                  selection.id === session.session_id
+                }
+                onClick={() =>
+                  select({
+                    kind: "session",
+                    id: session.session_id,
+                    name: label,
+                  })
+                }
+                testId="journey-station-session-row"
+              />
+            );
+          })}
+          {sessions.length === 0 && (
+            <div className="px-2 text-[11px] text-text-4">
+              {t("navigation:journeyStation.noSessions", {
+                defaultValue: "暂无会话",
+              })}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 };

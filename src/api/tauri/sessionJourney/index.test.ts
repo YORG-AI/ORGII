@@ -53,4 +53,29 @@ describe("session Journey typed desktop API", () => {
       "journey_return_parent",
     ]);
   });
+
+  it("exposes typed fork close and review retry commands", async () => {
+    await sessionJourneyApi.closeFork(
+      {
+        sessionId: "s",
+        expectedRevision: 3,
+        forkId: "f",
+        reviewId: "r",
+        outcome: "completed",
+        messageId: "m",
+      },
+      "job-r",
+      { modelId: "model", accountId: "account", protocol: "openai" }
+    );
+    await sessionJourneyApi.retryReview({
+      sessionId: "s",
+      expectedRevision: 4,
+      reviewId: "r",
+      jobId: "job-r",
+    });
+    expect(invoke.mock.calls.map(([command]) => command)).toEqual([
+      "journey_fork_close",
+      "journey_review_retry",
+    ]);
+  });
 });

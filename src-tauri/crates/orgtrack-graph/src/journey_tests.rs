@@ -93,6 +93,22 @@ fn projector_uses_exact_lineage_anchors_not_timestamps() {
     assert_eq!(parent.metadata.agent_band.as_deref(), Some("review"));
     assert_eq!(parent.metadata.topic_tags, ["explicit-topic"]);
 }
+
+#[test]
+fn projector_contains_sessions_directly_under_projects_and_never_under_work_items() {
+    let graph = project_canonical_journey(&input()).unwrap();
+    assert!(graph.edges.iter().any(|edge| {
+        edge.from == "project/p"
+            && edge.to == "session/parent"
+            && edge.kind == JourneyEdgeKind::Contains
+    }));
+    assert!(graph.edges.iter().all(|edge| {
+        !(edge.from.starts_with("work_item/")
+            || edge.to.starts_with("work_item/")
+            || (edge.kind == JourneyEdgeKind::Contains
+                && edge.to.starts_with("work_item/")))
+    }));
+}
 #[test]
 fn projector_rejects_missing_parent_revision_and_first_session_ownership() {
     let mut bad = input();

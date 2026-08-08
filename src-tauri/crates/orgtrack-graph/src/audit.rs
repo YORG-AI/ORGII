@@ -22,7 +22,9 @@ pub fn audit_canonical_journey(
         .projects
         .iter()
         .map(|x| x.source_ref.as_str())
-        .chain(input.work_items.iter().map(|x| x.source_ref.as_str()))
+        // Work items are independent metadata, rather than Journey containment
+        // units. Their source is validated by the projector but does not require
+        // a graph node or edge for Journey coverage.
         .chain(input.sessions.iter().map(|x| x.source_ref.as_str()))
         .chain(input.turns.iter().map(|x| x.source_ref.as_str()))
         .chain(input.artifacts.iter().map(|x| x.source_ref.as_str()))

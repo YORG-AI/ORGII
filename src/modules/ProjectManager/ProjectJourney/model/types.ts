@@ -2,7 +2,8 @@
  * Project Journey / Tree — shared types
  *
  * Narrative layer only. Does NOT own project/session membership truth.
- * Truth remains: Project → WorkItem → linkedSessions (+ todos as fine tasks).
+ * Truth remains: Project → Session → Journey. Work items are optional
+ * metadata associated with sessions, never a containment parent.
  */
 
 export type TreeNodeKind =
