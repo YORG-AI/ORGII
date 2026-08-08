@@ -771,8 +771,72 @@ pub fn run() {
                             err
                         ),
                     }
+                    // Orgtrack migration: convert legacy RoutineDefinitions
+                    // into portable pm_routines specs. Converted legacy rows
+                    // are disabled in the same pass so the legacy scheduler
+                    // can never double-fire them; the written report lands
+                    // next to the store for the operator.
+                    match tokio::task::spawn_blocking(|| {
+                        project_management::routine_service::convert::convert_all(true)
+                    })
+                    .await
+                    {
+                        Ok(Ok(report)) => {
+                            if !report.converted.is_empty() || !report.skipped.is_empty() {
+                                tracing::info!(
+                                    "[routine-migration] converted {} legacy routines, skipped {}",
+                                    report.converted.len(),
+                                    report.skipped.len()
+                                );
+                                let path = app_paths::orgii_root()
+                                    .join("routine-conversion-report.json");
+                                if let Ok(raw) = serde_json::to_string_pretty(&report) {
+                                    let _ = std::fs::write(path, raw);
+                                }
+                            }
+                        }
+                        Ok(Err(err)) => tracing::warn!(
+                            "[routine-migration] legacy routine conversion failed: {}",
+                            err
+                        ),
+                        Err(err) => tracing::warn!(
+                            "[routine-migration] conversion join error: {}",
+                            err
+                        ),
+                    }
                     agent_core::coordination::routine_scheduler::spawn(routine_handle);
                     tracing::info!("[scheduler] Routine scheduler started");
+                });
+            }
+
+            // Cross-process PM change watermark poller: external writers
+            // (the org2 PM CLI) bump pm_change_seq inside every mutation
+            // transaction; the desktop notices via this cheap single-row
+            // poll and refreshes the UI (design 13.0).
+            {
+                let watermark_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    use tauri::Emitter;
+                    let mut last_seq: i64 = -1;
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                        let seq = tokio::task::spawn_blocking(
+                            project_management::projects::io::read_pm_change_seq,
+                        )
+                        .await
+                        .ok()
+                        .and_then(Result::ok)
+                        .unwrap_or(-1);
+                        if seq >= 0 && last_seq >= 0 && seq != last_seq {
+                            let _ = watermark_handle.emit(
+                                project_management::projects::events::DATA_CHANGED_EVENT,
+                                serde_json::json!({ "source": "pm-watermark" }),
+                            );
+                        }
+                        if seq >= 0 {
+                            last_seq = seq;
+                        }
+                    }
                 });
             }
 

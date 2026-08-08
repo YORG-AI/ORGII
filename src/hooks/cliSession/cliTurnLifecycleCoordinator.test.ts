@@ -100,6 +100,37 @@ describe("CliTurnLifecycleCoordinator", () => {
     expect(coordinator.activeSessionCount).toBe(0);
   });
 
+  it("closes an optimistic resume turn from the resume intent's failure", () => {
+    // `resumeSession` opens an optimistic turn locally without publishing a
+    // dispatch, so `cli_agent_resume` mints the intent itself. Its `running` and
+    // asynchronous `failed` broadcasts must close that turn — an unattributed
+    // terminal is discarded while dispatching, which left the panel stuck in
+    // `running` with no failure notification (PR #540 review).
+    const coordinator = new CliTurnLifecycleCoordinator(vi.fn());
+    const sessionId = "cliagent-resume";
+    beginTurnDispatch(sessionId);
+    expect(getTurnPhase(sessionId)).toBe("dispatching");
+
+    expect(
+      coordinator.handleStatus({
+        sessionId,
+        status: "running",
+        turnIntentId: "resume-intent",
+      })
+    ).toBe(true);
+    expect(getTurnPhase(sessionId)).toBe("working");
+
+    expect(
+      coordinator.handleStatus({
+        sessionId,
+        status: "failed",
+        turnIntentId: "resume-intent",
+      })
+    ).toBe(true);
+    expect(getTurnPhase(sessionId)).toBe("idle");
+    expect(coordinator.activeSessionCount).toBe(0);
+  });
+
   it("rejects excess unknown intents without evicting active generations", () => {
     const coordinator = new CliTurnLifecycleCoordinator(vi.fn());
     for (let index = 0; index < 256; index += 1) {

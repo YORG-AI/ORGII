@@ -20,10 +20,7 @@ import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/Conte
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
 import { useComposerInput } from "@src/hooks/input";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
-import type {
-  RichMarkdownEditorMode,
-  RichMarkdownEditorRef,
-} from "@src/modules/shared/components/RichMarkdownEditor";
+import type { RichMarkdownEditorRef } from "@src/modules/shared/components/RichMarkdownEditor";
 import type { SlashItem } from "@src/types/extensions";
 
 export interface ProjectContentEditorRef {
@@ -70,8 +67,6 @@ export interface ProjectContentEditorProps {
   descriptionClassName?: string;
   descriptionMinHeight?: number;
   descriptionMaxHeight?: number | string;
-  descriptionDefaultMode?: RichMarkdownEditorMode;
-  descriptionShowTabs?: boolean;
   repoPath?: string | null;
   dataTestId?: string;
 }
@@ -144,8 +139,6 @@ const ProjectContentEditor = forwardRef<
       descriptionClassName = "",
       descriptionMinHeight = 200,
       descriptionMaxHeight,
-      descriptionDefaultMode,
-      descriptionShowTabs = true,
       repoPath,
       dataTestId,
     },
@@ -232,9 +225,7 @@ const ProjectContentEditor = forwardRef<
       (event: ReactMouseEvent<HTMLDivElement>) => {
         const target = event.target;
         if (target instanceof HTMLElement) {
-          if (
-            target.closest(".ProseMirror, button, [data-rich-markdown-preview]")
-          ) {
+          if (target.closest(".ProseMirror, button")) {
             return;
           }
         }
@@ -396,11 +387,11 @@ const ProjectContentEditor = forwardRef<
               onImageInsert={editable ? onImageInsert : undefined}
               minHeight={descriptionMinHeight}
               maxHeight={descriptionMaxHeight}
-              defaultMode={descriptionDefaultMode}
-              showTabs={descriptionShowTabs}
               editable={editable}
               toolbarClassName="work-item-toolbar"
-              className={`noDrag flex-1 cursor-text rounded-md text-[14px] text-text-1 ${descriptionClassName}`.trim()}
+              toolbarSize="mini"
+              toolbarDropdownPosition="top-start"
+              className={`noDrag flex-1 cursor-text rounded-md text-text-1 ${descriptionClassName}`.trim()}
             />
             <ContextMenuPortal
               visible={showContextMenu}

@@ -11,10 +11,17 @@ import {
   getGitHubWorkItemsPageCount,
 } from "./githubWorkItemsPagination";
 import {
+  GITHUB_QUERY_SCOPE,
   GITHUB_QUERY_STATE,
   getIssuePageStatesForQuery,
 } from "./githubWorkItemsSearchQuery";
 import type { ParsedGitHubSearchQuery } from "./githubWorkItemsSearchQuery";
+import {
+  DEFAULT_GITHUB_ISSUES_SORT,
+  DEFAULT_GITHUB_PULL_REQUESTS_SORT,
+  type GitHubWorkItemsSort,
+  sortManagedGitHubItems,
+} from "./githubWorkItemsSort";
 import type { GitHubRepoSource } from "./githubWorkItemsTypes";
 import {
   EMPTY_REPO_ISSUES,
@@ -36,6 +43,7 @@ export interface GitHubWorkItemsDerivedStateInput {
   currentPage: number;
   allReposValue: string;
   currentWorkstationValue: string;
+  sort?: GitHubWorkItemsSort;
 }
 
 export function deriveGitHubWorkItemsState({
@@ -48,6 +56,7 @@ export function deriveGitHubWorkItemsState({
   currentPage,
   allReposValue,
   currentWorkstationValue,
+  sort,
 }: GitHubWorkItemsDerivedStateInput) {
   const selectedWorkstationRepoSource =
     repoSources.find((source) => source.repoPath === selectedRepoPath) ?? null;
@@ -77,14 +86,21 @@ export function deriveGitHubWorkItemsState({
       mapPrToManagedItem(pr, source)
     );
   });
-  const allItems = [...issues, ...pullRequests].sort((left, right) =>
-    right.updatedAt.localeCompare(left.updatedAt)
+  const resolvedSort =
+    sort ??
+    (parsedSearchQuery.scope === GITHUB_QUERY_SCOPE.PR
+      ? DEFAULT_GITHUB_PULL_REQUESTS_SORT
+      : DEFAULT_GITHUB_ISSUES_SORT);
+  const allItems = sortManagedGitHubItems(
+    [...issues, ...pullRequests],
+    resolvedSort
   );
-  const filteredItems = allItems.filter(
+  const queryFilteredItems = allItems.filter(
     (item) =>
       managedItemMatchesRepo(item, effectiveSelectedRepo, allReposValue) &&
       managedItemMatchesQuery(item, parsedSearchQuery)
   );
+  const filteredItems = queryFilteredItems;
   const pageStates = getIssuePageStatesForQuery(parsedSearchQuery);
   const paginatedSources =
     effectiveSelectedRepo === allReposValue
@@ -176,6 +192,7 @@ export function useGitHubWorkItemsDerivedState({
   currentPage,
   allReposValue,
   currentWorkstationValue,
+  sort,
 }: GitHubWorkItemsDerivedStateInput) {
   return useMemo(
     () =>
@@ -189,6 +206,7 @@ export function useGitHubWorkItemsDerivedState({
         currentPage,
         allReposValue,
         currentWorkstationValue,
+        sort,
       }),
     [
       allReposValue,
@@ -200,6 +218,7 @@ export function useGitHubWorkItemsDerivedState({
       repoSources,
       selectedRepo,
       selectedRepoPath,
+      sort,
     ]
   );
 }

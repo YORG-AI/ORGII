@@ -1,4 +1,10 @@
-import { CheckCircle2, CircleDot, MessageSquare, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleDot,
+  Copy,
+  MessageSquare,
+  XCircle,
+} from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
@@ -21,7 +27,11 @@ export const IssueRow: React.FC<IssueRowProps> = memo(
   ({ issue, depth = 0, isSelected, onClick }) => {
     const isOpen = issue.state === "open";
     const isCompleted =
-      issue.state === "closed" && issue.state_reason !== "not_planned";
+      issue.state === "closed" &&
+      issue.state_reason !== "not_planned" &&
+      issue.state_reason !== "duplicate";
+    const isDuplicate =
+      issue.state === "closed" && issue.state_reason === "duplicate";
 
     const buildIssuePayload = useCallback(
       () => ({
@@ -61,6 +71,8 @@ export const IssueRow: React.FC<IssueRowProps> = memo(
       const iconClassName = isOpen ? "text-success-6" : "text-text-3";
       const icon = isOpen ? (
         <CircleDot size={14} strokeWidth={1.75} />
+      ) : isDuplicate ? (
+        <Copy size={14} strokeWidth={1.75} />
       ) : isCompleted ? (
         <CheckCircle2 size={14} strokeWidth={1.75} />
       ) : (
@@ -74,7 +86,14 @@ export const IssueRow: React.FC<IssueRowProps> = memo(
         type: "file",
         icon: <span className={iconClassName}>{icon}</span>,
       };
-    }, [isOpen, isCompleted, issue.html_url, issue.number, issue.title]);
+    }, [
+      isOpen,
+      isCompleted,
+      isDuplicate,
+      issue.html_url,
+      issue.number,
+      issue.title,
+    ]);
 
     return (
       <>

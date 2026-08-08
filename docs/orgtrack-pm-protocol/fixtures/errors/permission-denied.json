@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "PERMISSION_DENIED",
+    "message": "Actor codex_app:reviewer-1 lacks capability routine.apply in this scope",
+    "retryable": false,
+    "details": {
+      "actor": "codex_app:reviewer-1",
+      "missingCapability": "routine.apply"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR15"
+  }
+}

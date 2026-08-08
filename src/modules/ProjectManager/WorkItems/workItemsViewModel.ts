@@ -53,6 +53,27 @@ export function getWorkItemStatus(workItem: WorkItem): WorkItemStatus {
     WORK_ITEMS_DEFAULT_STATUS) as WorkItemStatus;
 }
 
+export function filterWorkItemsBySearchQuery<TWorkItem extends WorkItem>(
+  workItems: TWorkItem[],
+  query: string
+): TWorkItem[] {
+  const search = query.trim().toLowerCase();
+  if (!search) return workItems;
+
+  return workItems.filter((workItem) => {
+    const searchableValues = [
+      workItem.name,
+      workItem.shortId,
+      workItem.project?.name,
+      workItem.assignee?.name,
+      ...(workItem.labels ?? []).map((label) => label.name),
+    ];
+    return searchableValues.some((value) =>
+      value?.toLowerCase().includes(search)
+    );
+  });
+}
+
 export function filterWorkItemsByStatus<TWorkItem extends WorkItem>(
   workItems: TWorkItem[],
   statusFilter: StatusFilterType

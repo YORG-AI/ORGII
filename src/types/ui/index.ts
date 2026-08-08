@@ -8,3 +8,4 @@ export * from "./agentIcons";
 export * from "./chatPanel";
 export * from "./projectOrg";
 export * from "./workstation";
+export * from "./notification";

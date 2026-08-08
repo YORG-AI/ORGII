@@ -177,6 +177,28 @@ pub async fn debug_session_execute_tool(
         .clone()
         .ok_or_else(|| format!("session runtime not initialized: {session_id}"))?;
 
+    // Enforce the same per-turn policy composition the LLM path uses
+    // (exec-mode + product-mode layers over the base policy). Without
+    // this the debug hook silently bypasses the PM deny-delta and E2E
+    // runs prove nothing about the gated surface.
+    let session_record = crate::session::persistence::get_session(&session_id)
+        .map_err(|err| format!("failed to load session record {session_id}: {err}"))?;
+    let record_exec_mode = session_record
+        .as_ref()
+        .and_then(|record| record.agent_exec_mode.as_deref())
+        .and_then(crate::session::AgentExecMode::parse)
+        .unwrap_or_default();
+    let product_mode = session_record
+        .as_ref()
+        .and_then(|record| record.product_mode.as_deref());
+    let effective_policy = runtime.policy.with_modes(record_exec_mode, product_mode);
+    if !effective_policy.is_allowed(&tool_name) {
+        return Err(format!(
+            "tool '{tool_name}' is denied by the session's effective policy \
+             (exec_mode={record_exec_mode:?}, product_mode={product_mode:?})"
+        ));
+    }
+
     let mut result = runtime
         .tool_registry
         .execute(

@@ -127,7 +127,7 @@ pub fn upsert_imported_session_cache_from_conn(
     let updated_at = Utc::now().to_rfc3339();
     {
         let mut stmt = tx
-            .prepare(
+            .prepare(&format!(
                 "INSERT INTO imported_history_session_cache (
                     source, source_session_id, session_id, source_path, source_record_key,
                     source_mtime_ms, source_size_bytes, source_fingerprint, parser_version,
@@ -163,10 +163,22 @@ pub fn upsert_imported_session_cache_from_conn(
                     lines_removed = excluded.lines_removed,
                     touched_files_json = excluded.touched_files_json,
                     listable = excluded.listable,
-                    source_metadata_json = excluded.source_metadata_json,
+                    source_metadata_json = CASE
+                        WHEN json_valid(excluded.source_metadata_json)
+                             AND json_valid(imported_history_session_cache.source_metadata_json)
+                             AND json_extract(imported_history_session_cache.source_metadata_json,
+                                              '$.{CONTINUATION_LINEAGE_ID_FIELD}') IS NOT NULL
+                             AND json_extract(excluded.source_metadata_json,
+                                              '$.{CONTINUATION_LINEAGE_ID_FIELD}') IS NULL
+                        THEN json_set(excluded.source_metadata_json,
+                                      '$.{CONTINUATION_LINEAGE_ID_FIELD}',
+                                      json_extract(imported_history_session_cache.source_metadata_json,
+                                                   '$.{CONTINUATION_LINEAGE_ID_FIELD}'))
+                        ELSE excluded.source_metadata_json
+                    END,
                     parent_session_id = excluded.parent_session_id,
                     updated_at = excluded.updated_at",
-            )
+            ))
             .map_err(|err| format!("Failed to prepare imported history cache upsert: {err}"))?;
         for input in inputs {
             let touched_files_json = serde_json::to_string(&input.impact.touched_files)
@@ -406,7 +418,8 @@ pub fn query_imported_sidebar_page_from_conn(
         "SELECT session_id, name, created_at_ms, updated_at_ms, cache.repo_path,
                 model, files_changed, lines_added, lines_removed, touched_files_json,
                 input_tokens, output_tokens, source_path,
-                identity.repo_root_path, identity.remote_urls_json, cache.branch
+                identity.repo_root_path, identity.remote_urls_json, cache.branch,
+                cache.source_metadata_json
          FROM imported_history_session_cache cache
          LEFT JOIN imported_history_repo_identity identity
            ON identity.working_path = cache.repo_path
@@ -443,6 +456,7 @@ pub fn query_imported_sidebar_page_from_conn(
             // Stored as "" for sources that report no branch (the upsert
             // coalesces `None`), so normalize back to absent.
             let branch: String = row.get(15)?;
+            let source_metadata_json: String = row.get(16)?;
             Ok(ImportedHistorySidebarRow {
                 session_id: row.get(0)?,
                 name: row.get(1)?,
@@ -450,12 +464,19 @@ pub fn query_imported_sidebar_page_from_conn(
                 updated_at: super::epoch_ms_to_iso(row.get(3)?),
                 status: None,
                 is_active: None,
+                // Stamped by the desktop layer from the pin overlay, alongside
+                // the live-status decoration — the core query stays a pure
+                // projection of the imported cache.
+                pinned: false,
                 repo_path: non_empty_string(repo_path),
                 repo_root_path: repo_root_path.and_then(non_empty_string),
                 repo_remote_urls,
                 branch: non_empty_string(branch),
                 storage_path: non_empty_string(source_path),
                 model: non_empty_string(model),
+                continuation_lineage_id: continuation_lineage_id_from_metadata_json(
+                    &source_metadata_json,
+                ),
                 total_tokens: input_tokens + output_tokens,
                 files_changed: row.get(6)?,
                 lines_added: row.get(7)?,
@@ -811,6 +832,29 @@ pub fn query_cached_session_by_session_id_including_superseded_from_conn(
     query_cached_session_by_session_id_impl(conn, session_id, true)
 }
 
+/**
+ * Continuation-family status for one cached session id: its elected lineage
+ * (when stamped) and whether a strictly newer continuation sibling exists.
+ * `None` = the id is not in the imported cache at all — callers must treat
+ * that as "unknown", never as superseded (a rebuilding cache reads absent).
+ */
+pub fn cached_session_continuation_status_from_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Option<(Option<String>, bool)>, String> {
+    let Some((source, session)) =
+        query_cached_session_by_session_id_including_superseded_from_conn(conn, session_id)?
+    else {
+        return Ok(None);
+    };
+    let lineage = session
+        .source_metadata_json
+        .as_deref()
+        .and_then(continuation_lineage_id_from_metadata_json);
+    let superseded = has_newer_continuation_sibling(conn, &source, &session)?;
+    Ok(Some((lineage, superseded)))
+}
+
 fn query_cached_session_by_session_id_impl(
     conn: &Connection,
     session_id: &str,
@@ -863,17 +907,21 @@ fn has_newer_continuation_sibling(
     if session.parent_session_id.is_some() {
         return Ok(false);
     }
-    let Some(group_key) = session
+    let Some(metadata) = session
         .source_metadata_json
         .as_deref()
-        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
-        .as_ref()
-        .and_then(|metadata| metadata.get(CONTINUATION_GROUP_KEY_FIELD))
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|key| !key.is_empty())
-        .map(str::to_string)
+        .and_then(parse_continuation_metadata)
     else {
+        return Ok(false);
+    };
+    // Normal post-sync lookups use the elected lineage id. The group-key
+    // fallback preserves the pre-election/legacy behavior for rows written by
+    // older parsers that have not yet been reindexed.
+    let (field, family_key) = if let Some(lineage_id) = metadata.lineage_id {
+        (CONTINUATION_LINEAGE_ID_FIELD, lineage_id)
+    } else if let Some(group_key) = metadata.group_key {
+        (CONTINUATION_GROUP_KEY_FIELD, group_key)
+    } else {
         return Ok(false);
     };
     conn.query_row(
@@ -884,7 +932,7 @@ fn has_newer_continuation_sibling(
                   AND source_session_id != ?2
                   AND COALESCE(parent_session_id, '') = ''
                   AND CASE WHEN json_valid(source_metadata_json)
-                       THEN json_extract(source_metadata_json, '$.{CONTINUATION_GROUP_KEY_FIELD}')
+                       THEN json_extract(source_metadata_json, '$.{field}')
                        END = ?3
                   AND (updated_at_ms > ?4
                        OR (updated_at_ms = ?4 AND source_session_id > ?2))
@@ -893,7 +941,7 @@ fn has_newer_continuation_sibling(
         rusqlite::params![
             source,
             session.source_session_id,
-            group_key,
+            family_key,
             session.updated_at_ms
         ],
         |row| Ok(row.get::<_, i64>(0)? != 0),
@@ -1010,6 +1058,50 @@ where
         .collect())
 }
 
+/// Set or clear ORGII pin state for one imported session.
+///
+/// Pins live in their own table rather than on the cache row: the cache is a
+/// rebuildable projection whose rows a prune can legitimately delete, and a
+/// pin is user intent that must outlive any rescan.
+pub fn set_imported_session_pinned_from_conn(
+    conn: &Connection,
+    session_id: &str,
+    pinned: bool,
+    pinned_at: &str,
+) -> Result<(), String> {
+    let result = if pinned {
+        conn.execute(
+            "INSERT INTO imported_history_session_pin (session_id, pinned_at)
+             VALUES (?1, ?2)
+             ON CONFLICT(session_id) DO UPDATE SET pinned_at = excluded.pinned_at",
+            params![session_id, pinned_at],
+        )
+    } else {
+        conn.execute(
+            "DELETE FROM imported_history_session_pin WHERE session_id = ?1",
+            params![session_id],
+        )
+    };
+    result
+        .map(|_| ())
+        .map_err(|err| format!("Failed to persist imported session pin: {err}"))
+}
+
+/// The set of imported session ids the user has pinned.
+pub fn pinned_imported_session_ids_from_conn(conn: &Connection) -> Result<HashSet<String>, String> {
+    let mut statement = conn
+        .prepare("SELECT session_id FROM imported_history_session_pin")
+        .map_err(|err| format!("Failed to read imported session pins: {err}"))?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|err| format!("Failed to read imported session pins: {err}"))?;
+    let mut ids = HashSet::new();
+    for row in rows {
+        ids.insert(row.map_err(|err| format!("Failed to read imported session pins: {err}"))?);
+    }
+    Ok(ids)
+}
+
 pub fn live_ids_from_signatures(signatures: &[ImportedHistoryRecordSignature]) -> Vec<String> {
     let mut seen = HashSet::new();
     signatures
@@ -1039,6 +1131,72 @@ fn non_empty_string(value: String) -> Option<String> {
 /// file with no link field, so readers derive a family key from content that
 /// the rewrite preserves (Claude: the first user message's uuid).
 pub const CONTINUATION_GROUP_KEY_FIELD: &str = "continuationGroupKey";
+/// Bounded ancestry markers preserved across Claude Code compact rewrites.
+pub const CONTINUATION_MARKERS_FIELD: &str = "continuationMarkers";
+/// Stable component id elected after every source sync.
+pub const CONTINUATION_LINEAGE_ID_FIELD: &str = "continuationLineageId";
+/// Hard cap for source-controlled marker arrays read from cache metadata.
+pub const MAX_CONTINUATION_MARKERS: usize = 64;
+
+#[derive(Debug, Clone)]
+struct ContinuationMetadata {
+    value: serde_json::Value,
+    group_key: Option<String>,
+    markers: Vec<String>,
+    lineage_id: Option<String>,
+}
+
+fn metadata_string(value: Option<&serde_json::Value>) -> Option<String> {
+    value
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn parse_continuation_metadata(metadata_json: &str) -> Option<ContinuationMetadata> {
+    let value = serde_json::from_str::<serde_json::Value>(metadata_json).ok()?;
+    if !value.is_object() {
+        return None;
+    }
+    let group_key = metadata_string(value.get(CONTINUATION_GROUP_KEY_FIELD));
+    let lineage_id = metadata_string(value.get(CONTINUATION_LINEAGE_ID_FIELD));
+    let mut markers = Vec::with_capacity(MAX_CONTINUATION_MARKERS);
+    let mut seen = HashSet::new();
+    if let Some(group_key) = group_key.as_ref() {
+        seen.insert(group_key.clone());
+        markers.push(group_key.clone());
+    }
+    if let Some(values) = value
+        .get(CONTINUATION_MARKERS_FIELD)
+        .and_then(serde_json::Value::as_array)
+    {
+        for marker in values {
+            if markers.len() >= MAX_CONTINUATION_MARKERS {
+                break;
+            }
+            let Some(marker) = metadata_string(Some(marker)) else {
+                continue;
+            };
+            if seen.insert(marker.clone()) {
+                markers.push(marker);
+            }
+        }
+    }
+    if markers.is_empty() {
+        return None;
+    }
+    Some(ContinuationMetadata {
+        value,
+        group_key,
+        markers,
+        lineage_id,
+    })
+}
+
+pub fn continuation_lineage_id_from_metadata_json(metadata_json: &str) -> Option<String> {
+    parse_continuation_metadata(metadata_json)?.lineage_id
+}
 
 /// Serialize the continuation group key into `source_metadata_json` shape.
 pub fn continuation_group_metadata_json(group_key: Option<&str>) -> Option<String> {
@@ -1046,8 +1204,51 @@ pub fn continuation_group_metadata_json(group_key: Option<&str>) -> Option<Strin
     Some(serde_json::json!({ CONTINUATION_GROUP_KEY_FIELD: group_key }).to_string())
 }
 
+/// Serialize the legacy group key plus a bounded set of continuation ancestry
+/// markers. The group key is always included as the first marker when present.
+pub fn continuation_metadata_json(
+    group_key: Option<&str>,
+    ancestry_markers: &[String],
+) -> Option<String> {
+    let group_key = group_key
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+        .map(str::to_string);
+    let mut markers = Vec::with_capacity(MAX_CONTINUATION_MARKERS);
+    let mut seen = HashSet::new();
+    if let Some(group_key) = group_key.as_ref() {
+        seen.insert(group_key.clone());
+        markers.push(group_key.clone());
+    }
+    for marker in ancestry_markers {
+        if markers.len() >= MAX_CONTINUATION_MARKERS {
+            break;
+        }
+        let marker = marker.trim();
+        if !marker.is_empty() && seen.insert(marker.to_string()) {
+            markers.push(marker.to_string());
+        }
+    }
+    if markers.is_empty() {
+        return None;
+    }
+    let mut value = serde_json::Map::new();
+    if let Some(group_key) = group_key {
+        value.insert(
+            CONTINUATION_GROUP_KEY_FIELD.to_string(),
+            serde_json::Value::String(group_key),
+        );
+    }
+    value.insert(
+        CONTINUATION_MARKERS_FIELD.to_string(),
+        serde_json::Value::Array(markers.into_iter().map(serde_json::Value::String).collect()),
+    );
+    Some(serde_json::Value::Object(value).to_string())
+}
+
 /// Demote continuation-superseded sessions: within each group of top-level
-/// sessions sharing a continuation group key, only the newest sibling (by
+/// sessions whose bounded ancestry markers form a connected component, only
+/// the newest sibling (by
 /// `updated_at_ms`, then `source_session_id`) stays listable; every other
 /// currently-listable sibling flips to `listable = 0`.
 ///
@@ -1061,7 +1262,7 @@ pub fn demote_superseded_continuations_from_conn(
 ) -> Result<usize, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT source_session_id, source_metadata_json, updated_at_ms, listable
+            "SELECT source_session_id, source_metadata_json, created_at_ms, updated_at_ms, listable
              FROM imported_history_session_cache
              WHERE source = ?1
                AND COALESCE(parent_session_id, '') = ''
@@ -1074,54 +1275,160 @@ pub fn demote_superseded_continuations_from_conn(
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, i64>(2)?,
-                row.get::<_, i64>(3)? != 0,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)? != 0,
             ))
         })
         .map_err(|err| format!("Failed to query continuation election rows: {err}"))?;
 
-    // group key -> (winner-ordering key, listable losers seen so far)
-    struct Family {
-        winner: (i64, String),
-        listable_ids: Vec<(String, (i64, String))>,
+    struct ElectionRow {
+        source_session_id: String,
+        metadata: ContinuationMetadata,
+        created_at_ms: i64,
+        updated_at_ms: i64,
+        listable: bool,
     }
-    let mut families: HashMap<String, Family> = HashMap::new();
-    for row in rows {
-        let (source_session_id, metadata_json, updated_at_ms, listable) =
-            row.map_err(|err| format!("Failed to read continuation election row: {err}"))?;
-        let Some(group_key) = serde_json::from_str::<serde_json::Value>(&metadata_json)
-            .ok()
-            .as_ref()
-            .and_then(|metadata| metadata.get(CONTINUATION_GROUP_KEY_FIELD))
-            .and_then(serde_json::Value::as_str)
-            .map(str::trim)
-            .filter(|key| !key.is_empty())
-            .map(str::to_string)
-        else {
-            continue;
-        };
-        let ordering = (updated_at_ms, source_session_id.clone());
-        let family = families.entry(group_key).or_insert_with(|| Family {
-            winner: ordering.clone(),
-            listable_ids: Vec::new(),
-        });
-        if ordering > family.winner {
-            family.winner = ordering.clone();
+
+    struct DisjointSet {
+        parent: Vec<usize>,
+    }
+
+    impl DisjointSet {
+        fn new(len: usize) -> Self {
+            Self {
+                parent: (0..len).collect(),
+            }
         }
-        if listable {
-            family.listable_ids.push((source_session_id, ordering));
+
+        fn find(&mut self, index: usize) -> usize {
+            // Iterative with path compression: a pathological union order can
+            // chain O(component) parents, and recursing that deep on the sync
+            // thread is an avoidable stack risk.
+            let mut root = index;
+            while self.parent[root] != root {
+                root = self.parent[root];
+            }
+            let mut current = index;
+            while self.parent[current] != root {
+                let next = self.parent[current];
+                self.parent[current] = root;
+                current = next;
+            }
+            root
+        }
+
+        fn union(&mut self, left: usize, right: usize) {
+            let left_root = self.find(left);
+            let right_root = self.find(right);
+            if left_root != right_root {
+                self.parent[right_root] = left_root;
+            }
         }
     }
 
-    let losers = families
-        .values()
-        .flat_map(|family| {
-            family
-                .listable_ids
-                .iter()
-                .filter(|(_, ordering)| *ordering != family.winner)
-                .map(|(id, _)| id.clone())
-        })
-        .collect::<Vec<_>>();
+    let mut election_rows = Vec::new();
+    for row in rows {
+        let (source_session_id, metadata_json, created_at_ms, updated_at_ms, listable) =
+            row.map_err(|err| format!("Failed to read continuation election row: {err}"))?;
+        let Some(metadata) = parse_continuation_metadata(&metadata_json) else {
+            continue;
+        };
+        election_rows.push(ElectionRow {
+            source_session_id,
+            metadata,
+            created_at_ms,
+            updated_at_ms,
+            listable,
+        });
+    }
+
+    let mut sets = DisjointSet::new(election_rows.len());
+    let mut marker_owner: HashMap<String, usize> = HashMap::new();
+    for (index, row) in election_rows.iter().enumerate() {
+        // A stamped lineage id joins the connectivity keys alongside the raw
+        // ancestry markers. Deleting an intermediate transcript can split a
+        // family's marker graph into disconnected halves AFTER both halves
+        // were stamped; without this key the election would list both halves'
+        // winners (the duplicate row returns) while the exact-id lookup keeps
+        // treating them as one family via the shared lineage. Lineage ids are
+        // themselves member uuids (a canonical group key), so they share the
+        // marker namespace without colliding across conversations.
+        for marker in row
+            .metadata
+            .markers
+            .iter()
+            .chain(row.metadata.lineage_id.as_ref())
+        {
+            if let Some(owner) = marker_owner.get(marker).copied() {
+                sets.union(index, owner);
+            } else {
+                marker_owner.insert(marker.clone(), index);
+            }
+        }
+    }
+
+    let mut families: HashMap<usize, Vec<usize>> = HashMap::new();
+    for index in 0..election_rows.len() {
+        families.entry(sets.find(index)).or_default().push(index);
+    }
+
+    let mut losers = Vec::new();
+    let mut metadata_updates = Vec::new();
+    for member_indices in families.values() {
+        let winner_index = *member_indices
+            .iter()
+            .max_by_key(|index| {
+                let row = &election_rows[**index];
+                (row.updated_at_ms, row.source_session_id.as_str())
+            })
+            .expect("continuation family has at least one member");
+        let canonical_index = *member_indices
+            .iter()
+            .min_by_key(|index| {
+                let row = &election_rows[**index];
+                (row.created_at_ms, row.source_session_id.as_str())
+            })
+            .expect("continuation family has at least one member");
+        // Preserve an already-elected id when a new continuation joins the
+        // component. That keeps a force-revealed row already held by the
+        // frontend comparable with the newly elected roster winner. A parser
+        // migration has no elected ids yet, so it falls back to one canonical
+        // member and stamps the whole component once.
+        let lineage_id = member_indices
+            .iter()
+            .filter_map(|index| election_rows[*index].metadata.lineage_id.as_ref())
+            .min()
+            .cloned()
+            .or_else(|| election_rows[canonical_index].metadata.group_key.clone())
+            .unwrap_or_else(|| election_rows[canonical_index].metadata.markers[0].clone());
+
+        for index in member_indices {
+            let row = &election_rows[*index];
+            if row.listable && *index != winner_index {
+                losers.push(row.source_session_id.clone());
+            }
+            if row.metadata.lineage_id.as_deref() != Some(lineage_id.as_str()) {
+                let mut metadata = row.metadata.value.clone();
+                if let Some(object) = metadata.as_object_mut() {
+                    object.insert(
+                        CONTINUATION_LINEAGE_ID_FIELD.to_string(),
+                        serde_json::Value::String(lineage_id.clone()),
+                    );
+                    metadata_updates.push((row.source_session_id.clone(), metadata.to_string()));
+                }
+            }
+        }
+    }
+
+    for (source_session_id, metadata_json) in metadata_updates {
+        conn.execute(
+            "UPDATE imported_history_session_cache
+             SET source_metadata_json = ?3
+             WHERE source = ?1 AND source_session_id = ?2",
+            rusqlite::params![source, source_session_id, metadata_json],
+        )
+        .map_err(|err| format!("Failed to stamp continuation lineage: {err}"))?;
+    }
     for source_session_id in &losers {
         conn.execute(
             "UPDATE imported_history_session_cache

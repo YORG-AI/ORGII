@@ -24,7 +24,7 @@ import {
   createIssue,
   fetchIssueTimeline,
   fetchIssues,
-  fetchRepoCollaborators,
+  fetchRepoAssignees,
   fetchRepoLabels,
   issueCommentToTimelineItem,
   reopenIssue,
@@ -409,7 +409,7 @@ export function useWorkstationIssues({
     void (async () => {
       const [labelsResult, collabResult] = await Promise.all([
         fetchRepoLabels(resolvedRemoteUrl),
-        fetchRepoCollaborators(resolvedRemoteUrl),
+        fetchRepoAssignees(resolvedRemoteUrl),
       ]);
       if (cancelled) return;
       if (labelsResult.data) setRepoLabels(labelsResult.data);

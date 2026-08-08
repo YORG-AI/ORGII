@@ -62,6 +62,11 @@ interface UseContainerDragOptions {
   handleDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   composerInputRef: React.RefObject<ComposerInputRef | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  /**
+   * False on a composer that must refuse dragged tab/session references —
+   * the cloud channel composer, which has nothing to post them to.
+   */
+  acceptDraggedPills?: boolean;
 }
 
 interface UseContainerDragReturn {
@@ -77,16 +82,18 @@ export function useContainerDrag({
   handleDrop,
   composerInputRef,
   containerRef,
+  acceptDraggedPills = true,
 }: UseContainerDragOptions): UseContainerDragReturn {
   const isTabDragOver = useTabDragHover(containerRef);
   const isExternalDragOver = useExternalFileDragOver(containerRef);
-  const isDragOver = isTabDragOver || isExternalDragOver;
+  const isDragOver =
+    (acceptDraggedPills && isTabDragOver) || isExternalDragOver;
   // tab-drag-end listener — dnd-kit fires onDragEnd before the browser drop
   // event, so globals are already cleared by the time onDrop runs. Instead,
   // we listen for the custom event dispatched by useTabDrag and check whether
   // the pointer release landed inside our drop target using the pointer
   // coordinates forwarded in the event detail.
-  useTabDragEndToPill(containerRef, composerInputRef);
+  useTabDragEndToPill(containerRef, composerInputRef, acceptDraggedPills);
 
   // Handle drag events at container level to catch internal file drags early
   const handleContainerDragOver = useCallback(
@@ -134,9 +141,10 @@ export function useContainerDrag({
       if (reorderActiveRef.current) return;
 
       // Handle WorkStation tab drag-drop (dnd-kit pointer drag, no DataTransfer)
-      const rawData = isWorkstationTabDragActive()
-        ? consumeWorkstationTabDragData()
-        : undefined;
+      const rawData =
+        acceptDraggedPills && isWorkstationTabDragActive()
+          ? consumeWorkstationTabDragData()
+          : undefined;
       if (rawData) {
         e.preventDefault();
         e.stopPropagation();
@@ -179,7 +187,7 @@ export function useContainerDrag({
         handleDrop(e);
       }
     },
-    [handleDrop, composerInputRef]
+    [handleDrop, composerInputRef, acceptDraggedPills]
   );
 
   return {

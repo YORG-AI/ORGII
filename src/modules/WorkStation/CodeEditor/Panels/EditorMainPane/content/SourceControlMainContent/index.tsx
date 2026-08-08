@@ -8,18 +8,14 @@
  * In Focus mode with a loaded file, the file breadcrumb renders in its own
  * 40px header inside the main pane directly above the diff editor.
  */
-import { useAtomValue } from "jotai";
-import React, { Suspense, memo, useCallback, useMemo } from "react";
+import React, { Suspense, memo, useMemo } from "react";
 
 import {
   NoTabsPlaceholder,
   type QuickAction,
 } from "@src/modules/WorkStation/shared";
+import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import {
-  workstationIssueCallbackAtomFamily,
-  workstationSelectedIssueAtomFamily,
-} from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
@@ -96,33 +92,15 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
   emptyFocusActions,
 }) => {
   const scopeKey = workstationRepoScopeKey(repoId, repoPath);
-  const selectedIssueState = useAtomValue(
-    workstationSelectedIssueAtomFamily(scopeKey)
-  );
-  const issueCallbacks = useAtomValue(
-    workstationIssueCallbackAtomFamily(scopeKey)
-  );
-
-  const handleCloseIssue = useCallback(() => {
-    if (selectedIssueState.issue && issueCallbacks.closeIssue) {
-      void issueCallbacks.closeIssue(selectedIssueState.issue.number);
-    }
-  }, [selectedIssueState.issue, issueCallbacks]);
-
-  const handleReopenIssue = useCallback(() => {
-    if (selectedIssueState.issue && issueCallbacks.reopenIssue) {
-      void issueCallbacks.reopenIssue(selectedIssueState.issue.number);
-    }
-  }, [selectedIssueState.issue, issueCallbacks]);
-
-  const handleAddIssueComment = useCallback(
-    async (body: string) => {
-      if (selectedIssueState.issue && issueCallbacks.addComment) {
-        await issueCallbacks.addComment(selectedIssueState.issue.number, body);
-      }
-    },
-    [selectedIssueState.issue, issueCallbacks]
-  );
+  const {
+    selectedState: selectedIssueState,
+    interaction,
+    assigneeConfig,
+  } = useGitHubIssueDetailState({
+    repoPath: repoPath ?? "",
+    repoId,
+    stateScopeKey: scopeKey,
+  });
 
   // `historySelection` keeps a stable reference across renders (it comes from
   // the persisted tab payload), so memoizing on it directly gives a stable
@@ -168,11 +146,8 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
           issue={selectedIssueState.issue}
           timeline={selectedIssueState.timeline}
           timelineLoading={selectedIssueState.timelineLoading}
-          submittingComment={selectedIssueState.submittingComment}
-          onClose={() => undefined}
-          onCloseIssue={handleCloseIssue}
-          onReopenIssue={handleReopenIssue}
-          onAddComment={handleAddIssueComment}
+          interaction={interaction}
+          assigneeConfig={assigneeConfig}
         />
       </Suspense>
     );
@@ -231,7 +206,6 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
           onFileSelect={onFileSelect}
           onClose={onCloseFocus}
           onUnsavedChange={onGitDiffUnsavedChange}
-          emptyActions={emptyFocusActions}
         />
       ) : (
         <AllChangesView

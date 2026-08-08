@@ -260,6 +260,19 @@ pub fn get_default_branch(repo_path: &Path, remote: Option<&str>) -> Result<Stri
     Err("Could not determine default branch".to_string())
 }
 
+/// Get current branch with full info
+pub fn get_current_branch_info(repo_path: &Path) -> Result<GitBranchInfo, String> {
+    // Get all branches
+    let branches_data = list_branches(repo_path)?;
+
+    // Find and return the current branch
+    branches_data
+        .branches
+        .into_iter()
+        .find(|b| b.is_current)
+        .ok_or_else(|| "Current branch not found in branch list".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::remote_tracking_branch;
@@ -291,17 +304,4 @@ mod tests {
         assert_eq!(remote_tracking_branch("refs/remotes/origin/HEAD"), None);
         assert_eq!(remote_tracking_branch("develop"), None);
     }
-}
-
-/// Get current branch with full info
-pub fn get_current_branch_info(repo_path: &Path) -> Result<GitBranchInfo, String> {
-    // Get all branches
-    let branches_data = list_branches(repo_path)?;
-
-    // Find and return the current branch
-    branches_data
-        .branches
-        .into_iter()
-        .find(|b| b.is_current)
-        .ok_or_else(|| "Current branch not found in branch list".to_string())
 }

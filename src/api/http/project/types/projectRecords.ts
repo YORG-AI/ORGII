@@ -53,4 +53,6 @@ export interface ProjectData {
   meta: ProjectMeta;
   description: string;
   slug: string;
+  /** Bound external sync adapter. Absent for local-only projects. */
+  sync_adapter_id?: string;
 }

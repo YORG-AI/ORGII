@@ -56,24 +56,13 @@ export const AppUpdateDownloadNoticeContent: FC<{
 
   return (
     <div className="w-64 max-w-full pt-1">
-      <div
-        role="progressbar"
-        aria-label="Update download progress"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={progress.percent ?? undefined}
-        aria-valuetext={detail}
-      >
-        <ProgressBar
-          percent={progress.percent ?? 0}
-          height="h-1.5"
-          className={
-            progress.percent === null
-              ? "app-update-download-progress--indeterminate"
-              : undefined
-          }
-        />
-      </div>
+      <ProgressBar
+        percent={progress.percent ?? 0}
+        indeterminate={progress.percent === null}
+        height="h-1.5"
+        ariaLabel="Update download progress"
+        ariaValuetext={detail}
+      />
       <div className="mt-2 flex items-center justify-between gap-3 text-xs text-text-3">
         <span>{detail}</span>
         {progress.percent !== null && (

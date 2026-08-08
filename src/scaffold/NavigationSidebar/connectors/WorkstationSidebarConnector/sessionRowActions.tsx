@@ -108,6 +108,7 @@ export function useDecorateSessionRowActions({
             icon: MoreHorizontal,
             label: tCommon("actions.more"),
             active: activeSessionMoreMenuId === item.id,
+            dataTestId: `sidebar-session-more-${item.id}`,
             onClick: (event) => {
               setActiveSessionMoreMenuId(item.id);
               void handleMenuItemContextMenu(event, item.key, item).finally(

@@ -50,4 +50,43 @@ describe("Team Inbox API mapping", () => {
       workItemId: "WI-0001",
     });
   });
+
+  it("maps the owning project's synced repository onto Work Item targets", async () => {
+    vi.mocked(invoke).mockResolvedValue({
+      items: [
+        {
+          id: "work_item_assigned:work-item-1",
+          kind: "work_item_assigned",
+          occurredAt: Date.parse("2026-07-29T08:00:00.000Z"),
+          target: {
+            type: "work_item",
+            orgId: "org-invite-test",
+            projectId: "project-1",
+            projectSlug: "orgii-issues",
+            repository: "https://github.com/org2AI/ORG2.git",
+            workItemId: "work-item-1",
+            shortId: "WI-0001",
+          },
+          payload: {
+            type: "work_item_assigned",
+            title: "Fix issue source",
+            status: "planned",
+            priority: "medium",
+            assigneeMemberId: "ahanafish",
+          },
+        },
+      ],
+      unreadCount: 1,
+    });
+
+    const result = await listLocalTeamInboxPage(["ahanafish"], "assigned");
+
+    expect(result.page.items[0]?.target).toEqual({
+      kind: "work_item",
+      orgId: "org-invite-test",
+      projectId: "orgii-issues",
+      repository: "https://github.com/org2AI/ORG2.git",
+      workItemId: "WI-0001",
+    });
+  });
 });

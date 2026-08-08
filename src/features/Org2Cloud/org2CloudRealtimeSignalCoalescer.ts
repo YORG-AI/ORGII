@@ -7,6 +7,18 @@
  */
 export const REALTIME_SIGNAL_COALESCE_MS = 750;
 
+/**
+ * Storm-plane override: the server debounces broadcasts at one per second
+ * per (org, kind), so the default 750ms window gives zero sustained
+ * protection — every signal of a storm executes. Planes whose refresh is a
+ * full listing or a multi-RPC pass (sessions, comments, channels, inbound,
+ * coarse) use this wider window instead: the leading edge keeps an isolated
+ * change instant, a sustained storm costs 4 refreshes per minute instead of
+ * ~60. Live-chat deltas (channelMessages) and admin-paced planes
+ * (roster/policy) deliberately keep the short window.
+ */
+export const STORM_SIGNAL_COALESCE_MS = 15_000;
+
 interface TimerHost {
   now(): number;
   setTimeout(
@@ -43,16 +55,20 @@ export class Org2CloudRealtimeSignalCoalescer<Plane> {
     for (const plane of planes) this.handledAt.set(plane, now);
   }
 
-  schedule(plane: Plane, refresh: () => void): void {
+  schedule(
+    plane: Plane,
+    refresh: () => void,
+    windowMs: number = this.windowMs
+  ): void {
     const now = this.timers.now();
     const lastHandledAt = this.handledAt.get(plane);
     const elapsed =
-      lastHandledAt === undefined ? this.windowMs : now - lastHandledAt;
+      lastHandledAt === undefined ? windowMs : now - lastHandledAt;
     const run = () => {
       this.handledAt.set(plane, this.timers.now());
       refresh();
     };
-    if (elapsed >= this.windowMs) {
+    if (elapsed >= windowMs) {
       run();
       return;
     }
@@ -62,7 +78,7 @@ export class Org2CloudRealtimeSignalCoalescer<Plane> {
       this.timers.setTimeout(() => {
         this.trailingTimers.delete(plane);
         run();
-      }, this.windowMs - elapsed)
+      }, windowMs - elapsed)
     );
   }
 

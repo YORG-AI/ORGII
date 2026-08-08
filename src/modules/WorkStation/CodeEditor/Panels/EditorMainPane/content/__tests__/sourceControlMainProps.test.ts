@@ -26,6 +26,7 @@ function createInput(
     sourceControlFiles: [],
     sourceControlFilterMode: "uncommitted",
     repoPath: "/repo",
+    activeRepoRoot: "/repo",
     ...overrides,
   };
 }
@@ -129,6 +130,19 @@ describe("deriveSourceControlMainProps", () => {
     expect(result.allFiles).toEqual([s1, s2]);
   });
 
+  it("isolates All Changes to the active repo or worktree scope", () => {
+    const host = createGitFile({ path: "host.ts", repoRoot: "/repo" });
+    const worktree = createGitFile({ path: "wt.ts", repoRoot: "/wt" });
+    const result = deriveSourceControlMainProps(
+      createInput({
+        sourceControlFiles: [host, worktree],
+        activeRepoRoot: "/wt",
+      })
+    );
+
+    expect(result.allFiles).toEqual([worktree]);
+  });
+
   it("resolves the focus git file for the focus path", () => {
     const file = createGitFile({ path: "src/a.ts" });
     const result = deriveSourceControlMainProps(
@@ -139,5 +153,45 @@ describe("deriveSourceControlMainProps", () => {
     );
     expect(result.hasFocus).toBe(true);
     expect(result.focusGitFile).toBe(file);
+  });
+
+  it("does not render a remembered focus file from another scope", () => {
+    const host = createGitFile({ path: "src/a.ts", repoRoot: "/repo" });
+    const result = deriveSourceControlMainProps(
+      createInput({
+        tabData: { focusPath: "/repo/src/a.ts" },
+        gitFilesByPath: new Map([[host.path, host]]),
+        activeRepoRoot: "/wt",
+      })
+    );
+
+    expect(result.hasFocus).toBe(false);
+    expect(result.focusGitFile).toBeNull();
+  });
+
+  it("does not render a focus file excluded by the active staged filter", () => {
+    const unstaged = createGitFile({ path: "src/a.ts", staged: false });
+    const result = deriveSourceControlMainProps(
+      createInput({
+        tabData: { focusPath: "/repo/src/a.ts" },
+        gitFilesByPath: new Map([[unstaged.path, unstaged]]),
+        sourceControlFilterMode: "staged",
+      })
+    );
+
+    expect(result.hasFocus).toBe(false);
+    expect(result.focusGitFile).toBeNull();
+  });
+
+  it("keeps an in-scope focus path pending while its file is loading", () => {
+    const result = deriveSourceControlMainProps(
+      createInput({
+        tabData: { focusPath: "/wt/src/a.ts" },
+        activeRepoRoot: "/wt",
+      })
+    );
+
+    expect(result.hasFocus).toBe(true);
+    expect(result.focusGitFile).toBeNull();
   });
 });

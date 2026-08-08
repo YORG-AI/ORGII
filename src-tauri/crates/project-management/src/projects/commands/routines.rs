@@ -39,3 +39,28 @@ pub async fn project_list_routine_fires(routine_id: String) -> Result<Vec<Routin
         .await
         .map_err(|err| format!("Task join error: {}", err))?
 }
+
+/// List portable routine runs (`pm_routine_runs`), newest first. Backs
+/// the Runs navigation surface; per-run detail comes from
+/// [`project_routine_run_status`].
+#[tauri::command]
+pub async fn project_list_routine_runs(
+    scope_id: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<serde_json::Value>, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::routine_service::list_runs(scope_id.as_deref(), limit.unwrap_or(100))
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Durable run-status projection for one routine run: the run row plus
+/// each generated WorkItem's portable state (orgtrack/v1 §11 ordered
+/// decision procedure).
+#[tauri::command]
+pub async fn project_routine_run_status(run_id: String) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || crate::routine_service::run_status(&run_id))
+        .await
+        .map_err(|err| format!("Task join error: {}", err))?
+}

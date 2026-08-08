@@ -361,9 +361,23 @@ export function useSessionComments(
   useEffect(() => {
     if (!orgId || !sessionId || !signedIn) return undefined;
     if (entryState !== "error") return undefined;
-    const timer = setTimeout(() => {
-      void fetchComments(orgId, sessionId, {});
-    }, sessionCommentsErrorRetryDelayMs(entryConsecutiveFailures));
+    let timer: ReturnType<typeof setTimeout>;
+    const delayMs = sessionCommentsErrorRetryDelayMs(entryConsecutiveFailures);
+    const arm = () => {
+      timer = setTimeout(() => {
+        // Hidden windows stay network-silent: re-check after the same delay
+        // instead of retrying a fetch nobody is looking at.
+        if (
+          typeof document !== "undefined" &&
+          document.visibilityState === "hidden"
+        ) {
+          arm();
+          return;
+        }
+        void fetchComments(orgId, sessionId, {});
+      }, delayMs);
+    };
+    arm();
     return () => clearTimeout(timer);
   }, [
     orgId,

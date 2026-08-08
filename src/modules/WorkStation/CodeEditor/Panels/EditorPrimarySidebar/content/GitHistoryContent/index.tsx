@@ -32,6 +32,12 @@ import {
 import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
+  type GitHistoryRequest,
+  getCachedGitHistory,
+  loadGitHistory,
+  writeGitHistoryCache,
+} from "@src/services/git/gitHistoryResource";
+import {
   SOURCE_CONTROL_CHANGES_TAB_ID,
   type SourceControlHistorySelection,
   createGitCommitDetailTab,
@@ -258,14 +264,29 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
         ? activeHistorySelection.commitSha
         : null;
 
-  const [commits, setCommits] = useState<GitCommitInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const historyRequest = useMemo<GitHistoryRequest>(
+    () => ({
+      limit: COMMITS_PAGE_SIZE,
+      repoId,
+      repoPath,
+    }),
+    [repoId, repoPath]
+  );
+  const initialHistory = useMemo(
+    () => getCachedGitHistory(historyRequest),
+    [historyRequest]
+  );
+  const [commits, setCommits] = useState<GitCommitInfo[]>(
+    () => initialHistory?.commits ?? []
+  );
+  const [loading, setLoading] = useState(() => initialHistory === null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
+  const [hasMore, setHasMore] = useState(
+    () => initialHistory?.hasMore ?? false
+  );
   const [error, setError] = useState<string | null>(null);
   const [contextMenuCommit, setContextMenuCommit] =
     useState<GitCommitInfo | null>(null);
-  const lastLoadedKeyRef = useRef<string | null>(null);
   const loadGenerationRef = useRef(0);
   const loadingMoreRef = useRef(false);
 
@@ -273,29 +294,17 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
     async ({ force = false }: { force?: boolean } = {}) => {
       if (!repoId) return;
 
-      const loadKey = `${repoId}:${repoPath}`;
-      if (!force && lastLoadedKeyRef.current === loadKey) return;
-
       const requestId = ++loadGenerationRef.current;
       setLoading(true);
       setError(null);
 
       try {
-        const result = await getGitCommits({
-          repo_id: repoId,
-          repo_path: repoPath,
-          limit: COMMITS_PAGE_SIZE,
-        });
+        const result = await loadGitHistory(historyRequest, { force });
 
         if (requestId !== loadGenerationRef.current) return;
 
-        if (result?.commits) {
-          setCommits(result.commits);
-          setHasMore(result.commits.length >= COMMITS_PAGE_SIZE);
-          lastLoadedKeyRef.current = loadKey;
-        } else {
-          setError("Failed to load commit history");
-        }
+        setCommits(result.commits);
+        setHasMore(result.hasMore);
       } catch (err) {
         if (requestId !== loadGenerationRef.current) return;
 
@@ -306,7 +315,7 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
         }
       }
     },
-    [repoId, repoPath]
+    [historyRequest, repoId]
   );
 
   // Reset all component-owned history when the repository scope changes. The
@@ -314,10 +323,11 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
   // repurposed history view.
   useEffect(() => {
     loadGenerationRef.current += 1;
-    lastLoadedKeyRef.current = null;
     loadingMoreRef.current = false;
-    setCommits([]);
-    setHasMore(false);
+    const cachedHistory = getCachedGitHistory(historyRequest);
+    setCommits(cachedHistory?.commits ?? []);
+    setHasMore(cachedHistory?.hasMore ?? false);
+    setLoading(cachedHistory === null);
     setLoadingMore(false);
     setError(null);
     setContextMenuCommit(null);
@@ -325,18 +335,14 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
 
     return () => {
       loadGenerationRef.current += 1;
-      lastLoadedKeyRef.current = null;
       loadingMoreRef.current = false;
     };
-  }, [loadInitialCommits, repoId, repoPath]);
+  }, [historyRequest, loadInitialCommits]);
 
-  // Refresh: clear cache and re-fetch from scratch
+  // Refresh in place: keep the last successful rows visible while revalidating.
   const handleRefresh = useCallback(() => {
-    loadGenerationRef.current += 1;
-    lastLoadedKeyRef.current = null;
     loadingMoreRef.current = false;
     setLoadingMore(false);
-    setHasMore(false);
     setError(null);
     void loadInitialCommits({ force: true });
   }, [loadInitialCommits]);
@@ -365,8 +371,16 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
       if (requestGeneration !== loadGenerationRef.current) return;
 
       if (result?.commits) {
-        setCommits((prev) => [...prev, ...result.commits]);
-        setHasMore(result.commits.length >= COMMITS_PAGE_SIZE);
+        const nextHasMore = result.commits.length >= COMMITS_PAGE_SIZE;
+        setCommits((prev) => {
+          const nextCommits = [...prev, ...result.commits];
+          writeGitHistoryCache(historyRequest, {
+            commits: nextCommits,
+            hasMore: nextHasMore,
+          });
+          return nextCommits;
+        });
+        setHasMore(nextHasMore);
       } else {
         setHasMore(false);
       }
@@ -379,7 +393,7 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
         setLoadingMore(false);
       }
     }
-  }, [repoId, repoPath, commits.length, hasMore]);
+  }, [repoId, repoPath, commits.length, hasMore, historyRequest]);
 
   const filteredCommits = useMemo(() => {
     if (!filterQuery) return commits;
@@ -467,14 +481,14 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
   );
 
   // Loading state
-  if (loading) {
+  if (loading && commits.length === 0) {
     return (
       <Placeholder variant="loading" placement="sidebar" fillParentHeight />
     );
   }
 
   // Error state
-  if (error) {
+  if (error && commits.length === 0) {
     return (
       <Placeholder
         variant="error"

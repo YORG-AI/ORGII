@@ -22,6 +22,11 @@ import type {
   OpenPRItem,
   PrFile,
 } from "@src/api/tauri/github";
+import {
+  BROWSER_CACHE_STORAGE_KEYS,
+  estimateBrowserStorageEntryBytes,
+  setBrowserStorageItemWithRecovery,
+} from "@src/util/core/storage/quotaRecovery";
 
 const MAX_REPOS = 4;
 const MAX_ISSUES_PER_SECTION = 200;
@@ -29,6 +34,10 @@ const MAX_PRS = 100;
 const MAX_PR_LISTS = 8;
 /** Distinct PR detail snapshots retained (LRU across all repos). */
 const MAX_PR_DETAILS = 4;
+const MAX_PERSISTED_ISSUES_PER_SECTION = 50;
+const MAX_PERSISTED_PRS = 50;
+export const GITHUB_ISSUES_PERSISTED_BUDGET_BYTES = 512 * 1024;
+export const GITHUB_PRS_PERSISTED_BUDGET_BYTES = 256 * 1024;
 export const GITHUB_LIST_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export interface CachedIssues {
@@ -116,8 +125,10 @@ export function coalesceGitHubListRequest<T>(
 // a `304 Not Modified` back when nothing changed. Only the bounded list caches
 // are persisted (not the heavier per-PR detail cache).
 
-const STORAGE_KEY_ISSUES = "orgii.ghcache.issues.v1";
-const STORAGE_KEY_PRS = "orgii.ghcache.prs.v1";
+const STORAGE_KEY_ISSUES = BROWSER_CACHE_STORAGE_KEYS.githubIssues;
+// v2 adds author + outstanding-reviewer identity to every PR list item.
+// A key bump prevents v1 entries from being silently classified as unrelated.
+const STORAGE_KEY_PRS = BROWSER_CACHE_STORAGE_KEYS.githubPullRequests;
 
 function safeLocalStorage(): Storage | null {
   try {
@@ -147,14 +158,70 @@ function hydrate<T>(
   }
 }
 
-function persist<T>(storageKey: string, cache: Map<string, T>): void {
-  const store = safeLocalStorage();
-  if (!store) return;
+function serializeCacheWithinBudget<T>(
+  cache: Map<string, T>,
+  budgetBytes: number,
+  compact: (value: T) => T
+): string {
+  const entries = Array.from(cache.entries(), ([key, value]) => [
+    key,
+    compact(value),
+  ]) as [string, T][];
+
+  // Map order is least-recently-used first. Drop the oldest repo/list until
+  // the UTF-16 payload fits the explicit localStorage budget.
+  while (entries.length > 0) {
+    const serialized = JSON.stringify(entries);
+    if (estimateBrowserStorageEntryBytes("", serialized) <= budgetBytes) {
+      return serialized;
+    }
+    entries.shift();
+  }
+  return "[]";
+}
+
+function compactIssuesForPersistence(value: CachedIssues): CachedIssues {
+  return {
+    ...value,
+    openIssues: value.openIssues.slice(0, MAX_PERSISTED_ISSUES_PER_SECTION),
+    closedIssues: value.closedIssues.slice(0, MAX_PERSISTED_ISSUES_PER_SECTION),
+  };
+}
+
+function compactPrsForPersistence(value: CachedPrs): CachedPrs {
+  return { ...value, prs: value.prs.slice(0, MAX_PERSISTED_PRS) };
+}
+
+function persist(storageKey: string, serialize: () => string): void {
   try {
-    store.setItem(storageKey, JSON.stringify(Array.from(cache.entries())));
+    setBrowserStorageItemWithRecovery(storageKey, serialize());
   } catch {
     // Quota exceeded or serialization failure — the in-memory cache still works.
   }
+}
+
+const pendingPersistence = new Map<string, () => string>();
+let persistenceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushPendingPersistence(): void {
+  if (persistenceTimer) {
+    clearTimeout(persistenceTimer);
+    persistenceTimer = null;
+  }
+  for (const [storageKey, serialize] of pendingPersistence) {
+    persist(storageKey, serialize);
+  }
+  pendingPersistence.clear();
+}
+
+function schedulePersist(storageKey: string, serialize: () => string): void {
+  pendingPersistence.set(storageKey, serialize);
+  if (persistenceTimer) return;
+  persistenceTimer = setTimeout(flushPendingPersistence, 100);
+}
+
+export function flushGitHubListCachePersistence(): void {
+  flushPendingPersistence();
 }
 
 hydrate(STORAGE_KEY_ISSUES, issueCache, MAX_REPOS);
@@ -192,7 +259,13 @@ export function updateCachedOpenIssues(
     openCachedAt: Date.now(),
     closedCachedAt: existing?.closedCachedAt ?? null,
   });
-  persist(STORAGE_KEY_ISSUES, issueCache);
+  schedulePersist(STORAGE_KEY_ISSUES, () =>
+    serializeCacheWithinBudget(
+      issueCache,
+      GITHUB_ISSUES_PERSISTED_BUDGET_BYTES,
+      compactIssuesForPersistence
+    )
+  );
 }
 
 export function updateCachedClosedIssues(
@@ -206,7 +279,13 @@ export function updateCachedClosedIssues(
     openCachedAt: existing?.openCachedAt ?? null,
     closedCachedAt: Date.now(),
   });
-  persist(STORAGE_KEY_ISSUES, issueCache);
+  schedulePersist(STORAGE_KEY_ISSUES, () =>
+    serializeCacheWithinBudget(
+      issueCache,
+      GITHUB_ISSUES_PERSISTED_BUDGET_BYTES,
+      compactIssuesForPersistence
+    )
+  );
 }
 
 // ── Pull Requests ─────────────────────────────────────────────────────────────
@@ -247,7 +326,13 @@ export function setCachedPrs(
     },
     MAX_PR_LISTS
   );
-  persist(STORAGE_KEY_PRS, prCache);
+  schedulePersist(STORAGE_KEY_PRS, () =>
+    serializeCacheWithinBudget(
+      prCache,
+      GITHUB_PRS_PERSISTED_BUDGET_BYTES,
+      compactPrsForPersistence
+    )
+  );
 }
 
 // ── Pull Request detail ─────────────────────────────────────────────────────

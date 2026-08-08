@@ -216,6 +216,7 @@ export function useWorkspaceGitStatus(): void {
     let mounted = true;
     let unsubscribe: (() => void) | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryDelayMs = 1000;
 
     const folderPathById = new Map<string, string>();
     for (const folder of folders) {
@@ -227,7 +228,11 @@ export function useWorkspaceGitStatus(): void {
 
       const websocket = getCodeEditorWebSocket();
       if (!websocket) {
-        retryTimer = setTimeout(trySubscribe, 1000);
+        // The singleton normally appears within seconds of editor mount;
+        // back off toward a slow idle check instead of a 1s forever-loop
+        // when no editor ever opens in this workspace.
+        retryTimer = setTimeout(trySubscribe, retryDelayMs);
+        retryDelayMs = Math.min(retryDelayMs * 2, 30_000);
         return;
       }
 

@@ -7,7 +7,7 @@
  * - Writers never mutate the registry directly; they all route through
  *   `workstationLayoutAtom` so persistence and read paths stay coherent.
  */
-import { atom } from "jotai";
+import { type Getter, type Setter, atom } from "jotai";
 
 import {
   type PanelState,
@@ -15,6 +15,8 @@ import {
   closeOtherTabs as closeOtherTabsMutation,
   closeSavedTabs as closeSavedTabsMutation,
   closeTab as closeTabMutation,
+  closeWorkstationTabsAtom,
+  presentedWorkstationWorkspaceKeyAtom,
   reorderTabs as reorderTabsMutation,
   switchTab as switchTabMutation,
   workstationLayoutAtom,
@@ -53,6 +55,24 @@ function setMainPane(
   return { ...layout, mainPane: next };
 }
 
+function closePresentedTabs(
+  get: Getter,
+  set: Setter,
+  nextPane: PanelState,
+  previousPane: PanelState
+): void {
+  const nextIds = new Set(nextPane.tabs.map((tab) => tab.id));
+  const tabIds = previousPane.tabs
+    .filter((tab) => !nextIds.has(tab.id))
+    .map((tab) => tab.id);
+  if (tabIds.length === 0) return;
+  set(closeWorkstationTabsAtom, {
+    workspace: get(presentedWorkstationWorkspaceKeyAtom),
+    tabIds,
+    activeTabId: nextPane.activeTabId,
+  });
+}
+
 export const focusTabAtom = atom(null, (get, set, request: TabFocusRequest) => {
   const layout = get(workstationLayoutAtom);
   if (!layout) return;
@@ -67,9 +87,11 @@ focusTabAtom.debugLabel = "focusTabAtom";
 export const closeTabAtom = atom(null, (get, set, request: TabCloseRequest) => {
   const layout = get(workstationLayoutAtom);
   if (!layout) return;
-  set(
-    workstationLayoutAtom,
-    setMainPane(layout, closeTabMutation(layout.mainPane, request.tabId))
+  closePresentedTabs(
+    get,
+    set,
+    closeTabMutation(layout.mainPane, request.tabId),
+    layout.mainPane
   );
 });
 closeTabAtom.debugLabel = "closeTabAtom";
@@ -105,7 +127,7 @@ export const closeProjectOrgWorkStationTabsAtom = atom(
     for (const tabId of tabIds) {
       nextPane = closeTabMutation(nextPane, tabId);
     }
-    set(workstationLayoutAtom, setMainPane(layout, nextPane));
+    closePresentedTabs(get, set, nextPane, layout.mainPane);
   }
 );
 closeProjectOrgWorkStationTabsAtom.debugLabel =
@@ -138,12 +160,11 @@ export const closeOtherTabsAtom = atom(
   (get, set, request: TabCloseOtherRequest) => {
     const layout = get(workstationLayoutAtom);
     if (!layout) return;
-    set(
-      workstationLayoutAtom,
-      setMainPane(
-        layout,
-        closeOtherTabsMutation(layout.mainPane, request.keepTabId)
-      )
+    closePresentedTabs(
+      get,
+      set,
+      closeOtherTabsMutation(layout.mainPane, request.keepTabId),
+      layout.mainPane
     );
   }
 );
@@ -152,9 +173,11 @@ closeOtherTabsAtom.debugLabel = "closeOtherTabsAtom";
 export const closeSavedTabsAtom = atom(null, (get, set) => {
   const layout = get(workstationLayoutAtom);
   if (!layout) return;
-  set(
-    workstationLayoutAtom,
-    setMainPane(layout, closeSavedTabsMutation(layout.mainPane))
+  closePresentedTabs(
+    get,
+    set,
+    closeSavedTabsMutation(layout.mainPane),
+    layout.mainPane
   );
 });
 closeSavedTabsAtom.debugLabel = "closeSavedTabsAtom";

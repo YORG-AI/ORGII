@@ -139,7 +139,8 @@
       "workstation": "Workstation",
       "viewRam": "RAM 보기",
       "tutorials": "튜토리얼",
-      "openSettings": "설정 열기"
+      "openSettings": "설정 열기",
+      "setupChecklist": "빠른 설정"
     },
     "empty": {
       "noItems": "항목 없음",
@@ -162,6 +163,37 @@
       "duration1h": "1 시간",
       "duration2h": "2 시간",
       "durationTomorrow": "내일"
+    },
+    "guide": {
+      "trigger": "가이드 열기",
+      "title": "ORGII 시작하기",
+      "startSession": "세션 시작",
+      "quickSetup": "언어 및 모양",
+      "close": "가이드 닫기",
+      "progressLabel": "설정 {{total}}개 중 {{completed}}개 완료",
+      "localWorkspace": "로컬 작업 공간",
+      "connectOrganization": "조직 연결 또는 만들기",
+      "createOrganizationHint": "조직 이름을 입력한 다음 만들기를 선택하세요. 클라우드 조직이 생성되면 다음 단계로 진행합니다.",
+      "inviteTeammate": "팀원 초대",
+      "inviteTeammateHint": "여기에서 초대 링크를 만든 다음 팀원에게 보내세요.",
+      "invitePermissionHint": "여기에서 멤버 목록을 볼 수 있습니다. 초대는 조직 관리자 또는 소유자가 만들어야 합니다.",
+      "devPanelTitle": "Onboarding 테스트 상태",
+      "devPanelHint": "초대 흐름의 런타임 전용 미리보기입니다. 백엔드 조직 데이터는 변경되지 않습니다.",
+      "devScenarioLive": "실제 데이터",
+      "devScenarioNoOrganization": "조직 없음",
+      "devScenarioMember": "멤버 · 초대 권한 없음",
+      "devScenarioAdmin": "관리자 · 초대 권한 있음",
+      "devScenarioOwner": "소유자 · 초대 권한 있음",
+      "devScenarioRequiresOrganization": "역할 미리보기에는 실제 클라우드 조직이 하나 이상 필요합니다.",
+      "devSimulationActive": "개발 시뮬레이션 활성화됨",
+      "devSimulationReadOnly": "이 멤버 페이지 미리보기는 읽기 전용입니다. 조직 관리 작업이 비활성화되었습니다.",
+      "viewTeamActivity": "팀 사용량 보기",
+      "viewTeamActivityHint": "런타임의 멤버 화면을 열었습니다. 팀원을 선택해 Codex, Claude, Cursor 사용량을 확인하세요. 데이터가 없으면 먼저 팀 런타임 동기화를 활성화하세요.",
+      "exploreProduct": "주요 화면 둘러보기",
+      "nextStep": "다음 단계"
+    },
+    "developerTestPanel": {
+      "title": "개발 테스트 패널"
     }
   },
   "myRole": {
@@ -398,7 +430,17 @@
       "agentError": "Choose a local agent before forking.",
       "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
       "parentOpenUnavailable": "The source session could not be opened from this fork.",
-      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "openParentButton": "{{name}}의 원본 세션 열기"
+    },
+    "continueCli": {
+      "headerButton": "{{agent}}에서 계속",
+      "headerTooltip": "터미널 탭에서 {{agent}}(으)로 이 세션을 다시 엽니다 ({{command}})",
+      "notInstalled": "{{agent}}이(가) 이 컴퓨터에 설치되어 있지 않습니다",
+      "missingWorkspace": "세션의 원래 폴더가 없습니다 — {{agent}}은(는) 원래 폴더에서만 재개할 수 있습니다",
+      "sourceMissing": "원본 세션 데이터가 디스크에 없습니다",
+      "launchFailed": "{{agent}} 터미널을 열지 못했습니다",
+      "composerPlaceholder": "메시지를 입력해 새 ORGII 세션에서 계속하세요 — 헤더 버튼으로 {{agent}}에서 직접 재개할 수도 있습니다…"
     }
   },
   "cloud": {
@@ -487,6 +529,10 @@
         "manualRunning": "동기화 중…",
         "manualSuccess": "동기화 완료",
         "manualError": "동기화 실패: {{message}}",
+        "coverageTitle": "세션 커버리지",
+        "coverageSummary": "{{synced}}/{{syncable}} 동기화됨({{percent}}%)",
+        "coveragePercentLabel": "커버리지",
+        "coverageEmpty": "이 조직의 저장소 범위에 아직 세션이 없습니다",
         "logsTitle": "동기화 로그",
         "logsHelp": "이 기기에 기록된 최근 동기화 이벤트입니다. 재시작 시 지워지며 업로드되지 않습니다",
         "logsEmpty": "기록된 동기화 이벤트가 없습니다",
@@ -515,7 +561,10 @@
       "viewerOverflow": "외 {{count}}명이 보고 있습니다",
       "memberViewing": "보는 중: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "loadingSession": "세션 불러오는 중…",
+      "downloadProgress": "다운로드 중… {{percent}}%",
+      "downloadProgressEta": "다운로드 중… {{percent}}% · 약 {{eta}} 남음"
     },
     "sessionRef": {
       "chipLabel": "팀 세션",
@@ -523,7 +572,8 @@
       "signInRequired": "이 세션을 열려면 ORG2 Cloud에 로그인하세요.",
       "sessionNotFound": "해당 세션은 이 조직에 없습니다.",
       "notPublished": "참조를 복사하려면 먼저 이 세션을 조직과 공유하세요.",
-      "chooseOrg": "이 세션은 여러 조직에 속해 있습니다. 참조할 조직으로 전환한 후 다시 복사하세요."
+      "chooseOrg": "이 세션은 여러 조직에 속해 있습니다. 참조할 조직으로 전환한 후 다시 복사하세요.",
+      "opening": "팀 세션을 여는 중…"
     },
     "sync": {
       "quotaExceededToast": "ORG2 클라우드 동기화 일시 중지: 이 조직의 플랜 할당량을 초과했습니다",
@@ -761,6 +811,151 @@
     },
     "renameDisplayName": "표시 이름 수정",
     "renameSaved": "표시 이름이 변경되었습니다",
-    "renameFailed": "표시 이름을 업데이트하지 못했습니다"
+    "renameFailed": "표시 이름을 업데이트하지 못했습니다",
+    "download": {
+      "title": "팀 세션 다운로드 중…",
+      "events": "{{loaded}} / {{total}}개 이벤트",
+      "eta": "약 {{eta}} 남음",
+      "finalizing": "마무리 중…",
+      "complete": "다운로드 완료",
+      "estimate": "이 세션에는 다운로드할 이벤트가 {{count}}개 있습니다(약 {{eta}})",
+      "start": "다운로드",
+      "pause": "일시중지",
+      "paused": "일시중지됨",
+      "resume": "재개"
+    },
+    "channels": {
+      "title": "채널",
+      "createAction": "채널 만들기",
+      "createFirst": "채널을 만들어 보세요",
+      "manageMembers": "멤버 관리",
+      "archiveAction": "채널 보관",
+      "unarchive": "보관 해제",
+      "unarchiveFailed": "채널 보관을 해제하지 못했습니다",
+      "deleteAction": "채널 삭제",
+      "leave": "채널 나가기",
+      "archivedGroup": "보관됨",
+      "loadError": "채널을 불러오지 못했습니다",
+      "settings": {
+        "action": "채널 설정",
+        "title": "#{{name}} 설정",
+        "submit": "저장",
+        "managerRequired": "채널 관리자만 이 채널을 편집할 수 있습니다",
+        "error": "채널을 업데이트하지 못했습니다. 다시 시도해 주세요."
+      },
+      "local": {
+        "quotaExceeded": "이 기기의 채널 수가 한도에 도달했습니다",
+        "archiveBody": "보관하면 채널이 사이드바에서 숨겨집니다. 기록은 유지되며 나중에 언제든지 보관을 해제할 수 있습니다",
+        "deleteWarning": "이 작업은 채널을 이 기기에서 영구적으로 삭제합니다. 되돌릴 수 없습니다"
+      },
+      "cancel": "취소",
+      "create": {
+        "title": "채널 만들기",
+        "nameLabel": "이름",
+        "namePlaceholder": "예: code-review",
+        "topicLabel": "주제",
+        "topicOptional": "(선택)",
+        "topicPlaceholder": "이 채널은 무엇에 관한 것인가요?",
+        "visibilityLabel": "공개 범위",
+        "publicTitle": "공개",
+        "publicDesc": "조직의 누구나 대화를 보고 참여할 수 있습니다",
+        "privateTitle": "비공개",
+        "privateDesc": "초대된 사람만 이 채널을 볼 수 있습니다",
+        "membersLabel": "멤버 추가",
+        "membersHint": "회원님은 자동으로 채널 관리자가 됩니다",
+        "membersLoading": "멤버 불러오는 중…",
+        "membersEmpty": "조직에 아직 다른 멤버가 없습니다",
+        "postPolicyLabel": "게시 권한",
+        "postPolicyEveryone": "모두",
+        "postPolicyManagers": "채널 관리자만",
+        "submit": "만들기",
+        "nameTaken": "이미 사용 중인 이름입니다",
+        "quotaExceeded": "이 조직의 채널 수가 한도에 도달했습니다",
+        "error": "채널을 만들지 못했습니다. 다시 시도해 주세요."
+      },
+      "archive": {
+        "title": "#{{name}} 채널을 보관할까요?",
+        "body": "보관하면 채널이 모든 사람의 사이드바에서 숨겨집니다. 기록은 유지되며 나중에 언제든지 보관을 해제할 수 있습니다",
+        "confirm": "보관",
+        "managerRequired": "채널 관리자만 이 채널을 보관할 수 있습니다",
+        "error": "보관하지 못했습니다. 다시 시도해 주세요."
+      },
+      "delete": {
+        "title": "#{{name}} 채널을 삭제할까요?",
+        "warning": "이 작업은 모든 사람에게서 채널을 영구적으로 삭제합니다. 되돌릴 수 없습니다",
+        "acknowledge": "네, 채널을 영구적으로 삭제합니다",
+        "confirm": "삭제",
+        "adminRequired": "조직 관리자만 채널을 삭제할 수 있습니다",
+        "error": "삭제하지 못했습니다. 다시 시도해 주세요."
+      },
+      "members": {
+        "title": "#{{name}} 멤버",
+        "loading": "멤버 불러오는 중…",
+        "empty": "이 채널에는 아직 멤버가 없습니다",
+        "loadError": "채널 멤버를 불러오지 못했습니다. 다시 시도해 주세요.",
+        "managerBadge": "관리자",
+        "you": "나",
+        "addLabel": "멤버 추가",
+        "addEmpty": "조직의 모든 사람이 이미 이 채널에 있습니다",
+        "addSubmit": "추가",
+        "actions": "멤버 작업",
+        "remove": "채널에서 제거",
+        "makeManager": "채널 관리자로 지정",
+        "removeManager": "채널 관리자 해제",
+        "leave": "채널 나가기",
+        "lastManager": "먼저 다른 관리자를 지정해 주세요",
+        "error": "문제가 발생했습니다. 다시 시도해 주세요."
+      },
+      "feed": {
+        "composerPlaceholder": "#{{name}}에 메시지 보내기",
+        "save": "저장",
+        "edit": "메시지 편집",
+        "delete": "메시지 삭제",
+        "edited": "(편집됨)",
+        "deletedMessage": "삭제된 메시지입니다",
+        "today": "오늘",
+        "yesterday": "어제",
+        "you": "나",
+        "memberCount": "멤버 {{memberCount}}명",
+        "emptyTitle": "여기가 #{{name}}의 시작입니다",
+        "emptySubtitle": "첫 메시지를 보내 대화를 시작하세요",
+        "missingTitle": "채널을 더 이상 사용할 수 없음",
+        "missingSubtitle": "이 채널은 이 기기에서 삭제되었습니다",
+        "cloudPendingTitle": "아직 메시지가 없습니다",
+        "cloudPendingSubtitle": "클라우드 채널 기록은 다음 백엔드 업그레이드에서 제공됩니다",
+        "cloudComposerDisabled": "클라우드 채널에는 아직 메시지를 보낼 수 없습니다. 이번 릴리스에는 채널 생성과 멤버 관리만 포함되며, 메시지 전송은 다음 백엔드 업그레이드에서 제공됩니다",
+        "errorEmpty": "메시지를 먼저 입력하세요",
+        "errorTooLong": "메시지가 너무 깁니다(최대 4000자)",
+        "errorQuota": "이 채널은 이 기기에서 메시지 한도에 도달했습니다",
+        "errorGeneric": "메시지를 보내지 못했습니다. 다시 시도해 주세요.",
+        "dropSessionHint": "놓으면 이 세션이 참조로 추가됩니다",
+        "messageBodyLabel": "채널 메시지",
+        "sessionCardMissing": "이 기기에서는 사용할 수 없음",
+        "sessionCardOpen": "세션 {{name}} 열기",
+        "workItemCardMissing": "이 기기에서는 사용할 수 없음",
+        "workItemCardLoading": "불러오는 중…",
+        "workItemCardOpen": "작업 항목 {{name}} 열기",
+        "githubCardOpen": "GitHub에서 {{name}} 열기",
+        "githubIssue": "이슈",
+        "githubPullRequest": "Pull request",
+        "archivedComposerDisabled": "이 채널은 보관 처리되었습니다. 게시하려면 보관을 해제하세요.",
+        "errorPostForbidden": "채널 관리자만 이 채널에 글을 올릴 수 있습니다",
+        "errorArchived": "이 채널은 보관되어 새 메시지를 보낼 수 없습니다",
+        "errorChannelFull": "이 채널은 메시지 한도에 도달하여 새 메시지를 보낼 수 없습니다",
+        "errorChannelMissing": "이 채널은 더 이상 사용할 수 없습니다",
+        "errorMessageMissing": "이 메시지는 더 이상 사용할 수 없습니다",
+        "loadError": "메시지를 불러오지 못했습니다",
+        "loadingMessages": "메시지를 불러오는 중…",
+        "loadOlder": "이전 메시지 불러오기",
+        "unknownAuthor": "팀원"
+      }
+    },
+    "backgroundUpload": {
+      "label": "백그라운드 업로드",
+      "help": "이 조직이 활성 상태가 아니어도 조직의 최소 공유 수준과 각 세션 설정에 따라 해당 구성원 세션을 백그라운드에서 업로드합니다.",
+      "on": "켬",
+      "off": "끔",
+      "memberNote": "관리자가 활성화함 — 이 조직을 열지 않아도 해당 세션이 백그라운드에서 업로드됩니다."
+    }
   }
 }

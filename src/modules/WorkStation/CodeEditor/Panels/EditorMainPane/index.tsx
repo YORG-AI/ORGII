@@ -20,7 +20,7 @@
  * - types.ts     - TypeScript types
  * - config.ts    - Constants and configuration
  */
-import { useAtomValue } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import React, {
   Suspense,
   memo,
@@ -42,6 +42,7 @@ import UnifiedTabContent from "@src/modules/WorkStation/TabContent/UnifiedTabCon
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workStationPrimarySidebarCollapsedAtom } from "@src/store/ui/workStationAtom";
+import { diffViewModeAtom } from "@src/store/workstation/codeEditor";
 import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { GitFile } from "@src/types/git/types";
@@ -103,6 +104,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
     sourceControlHeaderLeadingSlot,
     sourceControlHeaderTrailingSlot,
     sourceControlFilterMode = "uncommitted",
+    sourceControlActiveRepoRoot = repoPath,
     showSourceControlModePill = true,
   }) => {
     // ============================================
@@ -116,6 +118,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
     const selectedIssueState = useAtomValue(
       workstationSelectedIssueAtomFamily(scopeKey)
     );
+    const [diffViewMode, setDiffViewMode] = useAtom(diffViewModeAtom);
 
     // ============================================
     // Pane State Management (extracted hook)
@@ -281,7 +284,9 @@ const EditorContent: React.FC<EditorContentProps> = memo(
           sourceControlHeaderLeadingSlot={sourceControlHeaderLeadingSlot}
           sourceControlHeaderTrailingSlot={sourceControlHeaderTrailingSlot}
           sourceControlRefreshSpinClass={sourceControlRefreshSpinClass}
+          diffViewMode={diffViewMode}
           t={t}
+          onDiffViewModeChange={setDiffViewMode}
           onModeChange={handleSourceControlModeChange}
           onOpenHistoryInNewTab={handleOpenSourceControlHistoryInNewTab}
           onReviewPrevFile={handleReviewPrevFile}
@@ -292,6 +297,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
       );
     }, [
       activeTab,
+      diffViewMode,
       gitReviewNavigation.total,
       handleOpenSourceControlHistoryInNewTab,
       handleReviewNextFile,
@@ -305,6 +311,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
       sourceControlHeaderLeadingSlot,
       sourceControlHeaderTrailingSlot,
       sourceControlRefreshSpinClass,
+      setDiffViewMode,
       t,
     ]);
 
@@ -464,6 +471,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
                     gitFilesByPath={gitFilesByPath}
                     sourceControlFiles={sourceControlBaseFiles}
                     sourceControlFilterMode={sourceControlFilterMode}
+                    activeRepoRoot={sourceControlActiveRepoRoot}
                     gitDiffLoading={gitDiffLoading}
                     sourceControlCollapseAllSignal={
                       sourceControlCollapseAllSignal

@@ -19,6 +19,7 @@ import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import type { PanelState } from "@src/store/workstation/tabs";
 import {
   removeSharedWorkstationTabAtom,
+  removeSharedWorkstationTabsAtom,
   workstationLayoutAtom,
   workstationTabsStateAtom,
 } from "@src/store/workstation/tabs/atoms";
@@ -373,7 +374,12 @@ export const closeOtherBrowserTabsAtom = atom(
   null,
   (get, set, tabId: string) => {
     const state = get(browserTabsAtom);
-    set(browserTabsAtom, closeOtherTabsMutation(state, tabId));
+    const next = closeOtherTabsMutation(state, tabId);
+    const nextIds = new Set(next.tabs.map((tab) => tab.id));
+    set(
+      removeSharedWorkstationTabsAtom,
+      state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)
+    );
   }
 );
 
@@ -382,7 +388,12 @@ export const closeOtherBrowserTabsAtom = atom(
  */
 export const closeSavedBrowserTabsAtom = atom(null, (get, set) => {
   const state = get(browserTabsAtom);
-  set(browserTabsAtom, closeSavedTabsMutation(state));
+  const next = closeSavedTabsMutation(state);
+  const nextIds = new Set(next.tabs.map((tab) => tab.id));
+  set(
+    removeSharedWorkstationTabsAtom,
+    state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)
+  );
 });
 
 /**

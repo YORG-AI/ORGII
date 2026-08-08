@@ -5,11 +5,12 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
 import {
+  GITHUB_QUERY_SCOPE,
+  GITHUB_QUERY_STATE,
   getIssuePageStatesForQuery,
   parseGitHubSearchQuery,
   serializeGitHubSearchQuery,
@@ -47,11 +48,38 @@ interface ViewState {
 
 type ViewStateByScope = Record<OpsGitHubViewScope, ViewState>;
 
+const GLUED_GITHUB_QUALIFIER_PATTERN =
+  /\b(is:(?:issue|pr|pull-request|open|closed|merged))(?=\S)/gi;
+
+function restoreGitHubQualifierBoundaries(rawQuery: string): string {
+  return rawQuery.replace(GLUED_GITHUB_QUALIFIER_PATTERN, "$1 ");
+}
+
+export function normalizeGitHubSearchQueryForScope(
+  scope: OpsGitHubViewScope,
+  rawQuery: string
+): string {
+  const repairedQuery = restoreGitHubQualifierBoundaries(rawQuery);
+  const query = parseGitHubSearchQuery(repairedQuery);
+  query.scope = scope;
+  if (scope === GITHUB_QUERY_SCOPE.PR) {
+    query.state = GITHUB_QUERY_STATE.OPEN;
+  }
+  const normalizedQuery = serializeGitHubSearchQuery(query);
+  const needsEditableSeparator =
+    query.freeText.length === 0 || /\s$/.test(repairedQuery);
+  return needsEditableSeparator ? `${normalizedQuery} ` : normalizedQuery;
+}
+
 function getInitialViewState(scope: OpsGitHubViewScope): ViewState {
   const cached = getCachedOpsGitHubView(scope);
   return {
-    searchQuery: cached?.searchQuery ?? `is:${scope} is:open`,
-    currentPage: cached?.currentPage ?? 1,
+    searchQuery: normalizeGitHubSearchQueryForScope(
+      scope,
+      cached?.searchQuery ?? `is:${scope} is:open`
+    ),
+    currentPage:
+      scope === GITHUB_QUERY_SCOPE.PR ? 1 : (cached?.currentPage ?? 1),
   };
 }
 
@@ -76,10 +104,8 @@ export function getSelectedGitHubPersonalFilters(
 
 export function useGitHubWorkItemsViewState({
   scope,
-  onScopeChange,
 }: {
   scope: Extract<GitHubQueryScope, "issue" | "pr">;
-  onScopeChange: () => void;
 }) {
   const [selectedRepo, setSelectedRepo] = useAtom(selectedRepoAtom);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -87,11 +113,13 @@ export function useGitHubWorkItemsViewState({
     issue: getInitialViewState("issue"),
     pr: getInitialViewState("pr"),
   }));
-  const previousScopeRef = useRef(scope);
   const { searchQuery, currentPage } = viewByScope[scope];
   const parsedSearchQuery = useMemo(() => {
     const query = parseGitHubSearchQuery(searchQuery);
     query.scope = scope;
+    if (scope === GITHUB_QUERY_SCOPE.PR) {
+      query.state = GITHUB_QUERY_STATE.OPEN;
+    }
     return query;
   }, [scope, searchQuery]);
   const selectedIssueListStates = useMemo(
@@ -106,13 +134,6 @@ export function useGitHubWorkItemsViewState({
     () => getSelectedGitHubPersonalFilters(parsedSearchQuery),
     [parsedSearchQuery]
   );
-
-  useEffect(() => {
-    if (previousScopeRef.current !== scope) {
-      previousScopeRef.current = scope;
-      onScopeChange();
-    }
-  }, [onScopeChange, scope]);
 
   useEffect(() => {
     setCachedOpsGitHubView(scope, { searchQuery, currentPage });
@@ -136,7 +157,10 @@ export function useGitHubWorkItemsViewState({
     (query: string) => {
       setViewByScope((current) => ({
         ...current,
-        [scope]: { searchQuery: query, currentPage: 1 },
+        [scope]: {
+          searchQuery: normalizeGitHubSearchQueryForScope(scope, query),
+          currentPage: 1,
+        },
       }));
     },
     [scope]
@@ -145,9 +169,14 @@ export function useGitHubWorkItemsViewState({
     (mutate: (query: ParsedGitHubSearchQuery) => void) => {
       const nextQuery = parseGitHubSearchQuery(searchQuery);
       mutate(nextQuery);
-      setScopedSearchQuery(serializeGitHubSearchQuery(nextQuery));
+      setScopedSearchQuery(
+        normalizeGitHubSearchQueryForScope(
+          scope,
+          serializeGitHubSearchQuery(nextQuery)
+        )
+      );
     },
-    [searchQuery, setScopedSearchQuery]
+    [scope, searchQuery, setScopedSearchQuery]
   );
   const selectRepo = useCallback(
     (repo: string) => {

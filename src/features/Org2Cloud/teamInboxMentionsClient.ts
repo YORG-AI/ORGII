@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import { createLogger } from "@src/hooks/logger";
+
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import { getCloudCapabilities } from "./org2CloudCapabilities";
 import { Org2CloudCommentError } from "./org2CloudCommentsClient";
@@ -7,6 +9,8 @@ import {
   fetchWithTransportRetry,
   runCloudRequestWithTimeout,
 } from "./org2CloudFetchRetry";
+
+const log = createLogger("TeamInboxMentionsClient");
 
 const TEAM_INBOX_MENTIONS_RPC = "cloud_list_team_inbox_mentions";
 const SET_TEAM_INBOX_MENTION_READ_RPC = "cloud_set_team_inbox_mention_read";
@@ -47,12 +51,51 @@ const TeamInboxMentionSchema = z.object({
 });
 
 const TeamInboxMentionsPageSchema = z.object({
-  mentions: z.array(TeamInboxMentionSchema).default([]),
+  // Rows parse individually in `parseMentionRows` — one malformed row must
+  // cost that row, not the whole inbox page (the tolerant-record rule).
+  mentions: z.array(z.unknown()).default([]),
   nextCursor: NullableStringSchema,
   unreadCount: z.number().int().nonnegative(),
 });
 
 export type TeamInboxMention = z.output<typeof TeamInboxMentionSchema>;
+
+/** Per-row salvage naming the first casualty (comment id + first zod issue). */
+function parseMentionRows(
+  orgId: string,
+  rows: readonly unknown[]
+): TeamInboxMention[] {
+  const parsed: TeamInboxMention[] = [];
+  let dropped = 0;
+  let firstDrop: string | undefined;
+  for (const row of rows) {
+    const result = TeamInboxMentionSchema.safeParse(row);
+    if (result.success) {
+      parsed.push(result.data);
+      continue;
+    }
+    dropped += 1;
+    if (dropped === 1) {
+      const record = row as { comment?: { id?: unknown } } | null;
+      const rowId =
+        typeof record?.comment?.id === "string" ? record.comment.id : "<no id>";
+      const issue = result.error.issues[0];
+      firstDrop = `${rowId.slice(0, 64)} (${
+        issue
+          ? `${issue.path.join(".") || "<root>"}: ${issue.message}`
+          : "unknown issue"
+      })`;
+    }
+  }
+  if (dropped > 0) {
+    log.rateLimited(
+      `inbox-malformed-${orgId}`,
+      60_000,
+      `${TEAM_INBOX_MENTIONS_RPC} dropped ${dropped} malformed row(s) for org ${orgId}, first: ${firstDrop}`
+    );
+  }
+  return parsed;
+}
 
 export interface TeamInboxMentionsPage {
   mentions: TeamInboxMention[];
@@ -146,7 +189,11 @@ export async function listTeamInboxMentions(
     },
     signal
   );
-  return TeamInboxMentionsPageSchema.parse(payload);
+  const page = TeamInboxMentionsPageSchema.parse(payload);
+  return {
+    ...page,
+    mentions: parseMentionRows(input.orgId, page.mentions),
+  };
 }
 
 /**

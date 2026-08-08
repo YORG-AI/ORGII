@@ -8,6 +8,10 @@ fn claude_fable_5_is_always_on() {
     let caps = resolve("claude-fable-5-20260601", None);
     assert_eq!(caps.thinking, ThinkingSupport::AlwaysOn);
     assert_eq!(caps.context_window, 1_000_000);
+
+    let opus = resolve("claude-opus-5", None);
+    assert_eq!(opus.thinking, ThinkingSupport::AlwaysOn);
+    assert_eq!(opus.context_window, 1_000_000);
 }
 
 #[test]
@@ -88,6 +92,10 @@ fn gpt5_is_always_on() {
     let gpt55 = resolve("gpt-5.5", None);
     assert_eq!(gpt55.thinking, ThinkingSupport::AlwaysOn);
     assert_eq!(gpt55.context_window, 1_050_000);
+
+    let gpt56 = resolve("gpt-5.6-sol", None);
+    assert_eq!(gpt56.thinking, ThinkingSupport::AlwaysOn);
+    assert_eq!(gpt56.context_window, 1_050_000);
 }
 
 #[test]

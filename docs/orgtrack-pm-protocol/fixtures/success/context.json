@@ -1,0 +1,38 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": true,
+  "data": {
+    "apiVersion": "orgtrack/v1",
+    "mode": "project",
+    "runtimeExecutionMode": "build",
+    "scopeId": "project_01K0000000000000000000SCOPE",
+    "orgId": "org_01K00000000000000000000ORG0",
+    "workspace": "/workspace/org2",
+    "actor": {
+      "kind": "agent",
+      "id": "codex_app:reviewer-1",
+      "displayName": "Reviewer"
+    },
+    "sessionRef": {
+      "provider": "org2",
+      "externalId": "session_abc",
+      "metadata": {
+        "nativeHarness": "codex_app"
+      }
+    },
+    "runtimeProvider": {
+      "id": "org2",
+      "profiles": ["execution", "provenance"]
+    },
+    "activeWorkItemId": "work_01K0000000000000000000WORK0",
+    "capabilities": [
+      "work.read",
+      "work.claim",
+      "work.transition",
+      "routine.run"
+    ]
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000CTX00"
+  }
+}

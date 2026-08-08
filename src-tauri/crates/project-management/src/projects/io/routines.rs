@@ -129,6 +129,21 @@ pub fn list_routines() -> Result<Vec<RoutineDefinition>, String> {
     Ok(routines)
 }
 
+/// Current cross-process PM change watermark (design §13.0). External
+/// writers (the org2 PM CLI) bump this inside every mutation
+/// transaction; the desktop host polls it to notice foreign commits.
+pub fn read_pm_change_seq() -> Result<i64, String> {
+    let connection = super::helpers::conn()?;
+    connection
+        .query_row("SELECT seq FROM pm_change_seq WHERE id = 1", [], |row| {
+            row.get(0)
+        })
+        .or_else(|err| match err {
+            rusqlite::Error::QueryReturnedNoRows => Ok(0),
+            other => Err(format!("pm_change_seq: {other}")),
+        })
+}
+
 /// List enabled routines for scheduler evaluation.
 pub fn list_enabled_routines() -> Result<Vec<RoutineDefinition>, String> {
     let connection = conn()?;

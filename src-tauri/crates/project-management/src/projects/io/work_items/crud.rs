@@ -5,13 +5,16 @@
 //! two strictly CRUD-flavored helpers (`resolve_project_id` and
 //! `max_existing_work_item_number`).
 
+use std::collections::HashMap;
+
 use rusqlite::{params, OptionalExtension};
 
 use super::super::helpers::{conn, from_iso8601, map_db, now_ms, to_iso8601};
 use super::extras::{ExtrasPayload, FieldRevision, REVISION_SOURCE_LOCAL};
 use super::history::{append_deleted_event, append_restored_event, ensure_created_event};
 use super::mapping::{
-    assemble_work_item, read_extras_for, read_labels_for, row_to_core, ConnectionLike,
+    assemble_work_item, parse_extras_json, read_extras_for, read_labels_for, row_to_core,
+    ConnectionLike, WorkItemCore,
 };
 use crate::projects::types::{
     ScheduledWorkItemCandidate, WorkItemData, WorkItemFrontmatter, WorkItemReadBucket,
@@ -120,26 +123,25 @@ pub fn read_all_work_items_scoped_filtered(
     let connection = conn()?;
     let project_id = resolve_project_id_scoped(&connection, project_slug, org_id)?;
 
-    let mut stmt = map_db(connection.prepare(
-        "SELECT id, project_id, short_id, title, body, status, priority, assignee, assignee_type,
-                milestone, parent, start_date, target_date, created_at, updated_at, deleted_at
-         FROM workitems
-         WHERE project_id = ?1
-         ORDER BY COALESCE(deleted_at, updated_at) DESC, created_at DESC",
-    ))?;
-    let rows = map_db(stmt.query_map(params![&project_id], row_to_core))?;
-
+    let rows = read_work_item_rows_with_extras(
+        &connection,
+        "WHERE w.project_id = ?1",
+        params![&project_id],
+    )?;
+    let mut labels_by_work_item = read_project_labels(&connection, &project_id)?;
     let mut out = Vec::new();
-    for entry in rows {
-        let core = map_db(entry)?;
+    for (core, extras_json) in rows {
         if read_bucket
             .map(|bucket| !bucket.matches(&core.status))
             .unwrap_or(false)
         {
             continue;
         }
-        let labels = read_labels_for(&connection, &core.work_item_id)?;
-        let extras = read_extras_for(&connection, &core.work_item_id)?;
+        let work_item_id = core.work_item_id.clone();
+        let labels = labels_by_work_item
+            .remove(&work_item_id)
+            .unwrap_or_default();
+        let extras = parse_extras_json(&work_item_id, extras_json.as_deref());
         out.push(assemble_work_item(core, labels, extras));
     }
     Ok(out)
@@ -187,29 +189,104 @@ pub fn read_standalone_work_items_filtered(
 ) -> Result<Vec<WorkItemData>, String> {
     let connection = conn()?;
     let org_id = org_id.unwrap_or("personal-org");
-    let mut stmt = map_db(connection.prepare(
-        "SELECT id, project_id, short_id, title, body, status, priority, assignee, assignee_type,
-                milestone, parent, start_date, target_date, created_at, updated_at, deleted_at
-         FROM workitems
-         WHERE org_id = ?1 AND project_id IS NULL
-         ORDER BY COALESCE(deleted_at, updated_at) DESC, created_at DESC",
-    ))?;
-    let rows = map_db(stmt.query_map(params![org_id], row_to_core))?;
-
+    let rows = read_work_item_rows_with_extras(
+        &connection,
+        "WHERE w.org_id = ?1 AND w.project_id IS NULL",
+        params![org_id],
+    )?;
+    let mut labels_by_work_item = read_standalone_labels(&connection, org_id)?;
     let mut out = Vec::new();
-    for entry in rows {
-        let core = map_db(entry)?;
+    for (core, extras_json) in rows {
         if read_bucket
             .map(|bucket| !bucket.matches(&core.status))
             .unwrap_or(false)
         {
             continue;
         }
-        let labels = read_labels_for(&connection, &core.work_item_id)?;
-        let extras = read_extras_for(&connection, &core.work_item_id)?;
+        let work_item_id = core.work_item_id.clone();
+        let labels = labels_by_work_item
+            .remove(&work_item_id)
+            .unwrap_or_default();
+        let extras = parse_extras_json(&work_item_id, extras_json.as_deref());
         out.push(assemble_work_item(core, labels, extras));
     }
     Ok(out)
+}
+
+fn read_work_item_rows_with_extras<P>(
+    connection: &rusqlite::Connection,
+    where_clause: &str,
+    query_params: P,
+) -> Result<Vec<(WorkItemCore, Option<String>)>, String>
+where
+    P: rusqlite::Params,
+{
+    let sql = format!(
+        "SELECT w.id, w.project_id, w.short_id, w.title, w.body, w.status, w.priority,
+                w.assignee, w.assignee_type, w.milestone, w.parent, w.start_date,
+                w.target_date, w.created_at, w.updated_at, w.deleted_at, e.extras_json
+         FROM workitems w
+         LEFT JOIN workitem_extras e ON e.work_item_id = w.id
+         {where_clause}
+         ORDER BY COALESCE(w.deleted_at, w.updated_at) DESC, w.created_at DESC"
+    );
+    let mut stmt = map_db(connection.prepare(&sql))?;
+    let rows = map_db(stmt.query_map(query_params, |row| {
+        Ok((row_to_core(row)?, row.get::<_, Option<String>>(16)?))
+    }))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(map_db(row)?);
+    }
+    Ok(out)
+}
+
+fn read_project_labels(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+) -> Result<HashMap<String, Vec<String>>, String> {
+    read_label_map(connection, "WHERE w.project_id = ?1", params![project_id])
+}
+
+fn read_standalone_labels(
+    connection: &rusqlite::Connection,
+    org_id: &str,
+) -> Result<HashMap<String, Vec<String>>, String> {
+    read_label_map(
+        connection,
+        "WHERE w.org_id = ?1 AND w.project_id IS NULL",
+        params![org_id],
+    )
+}
+
+fn read_label_map<P>(
+    connection: &rusqlite::Connection,
+    where_clause: &str,
+    query_params: P,
+) -> Result<HashMap<String, Vec<String>>, String>
+where
+    P: rusqlite::Params,
+{
+    let sql = format!(
+        "SELECT wl.work_item_id, wl.label_id
+         FROM workitem_labels wl
+         JOIN workitems w ON w.id = wl.work_item_id
+         {where_clause}
+         ORDER BY wl.work_item_id, wl.label_id"
+    );
+    let mut stmt = map_db(connection.prepare(&sql))?;
+    let rows = map_db(stmt.query_map(query_params, |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    }))?;
+    let mut labels_by_work_item: HashMap<String, Vec<String>> = HashMap::new();
+    for row in rows {
+        let (work_item_id, label_id) = map_db(row)?;
+        labels_by_work_item
+            .entry(work_item_id)
+            .or_default()
+            .push(label_id);
+    }
+    Ok(labels_by_work_item)
 }
 
 pub fn read_standalone_work_item(

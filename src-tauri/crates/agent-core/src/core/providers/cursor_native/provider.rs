@@ -534,6 +534,9 @@ impl LLMProvider for CursorNativeProvider {
 /// `tool_definitions` are the `McpToolDefinition` list we hand back when the
 /// server asks via `ExecServerMessage::RequestContextArgs`. Empty when the
 /// caller didn't pass tools.
+#[allow(clippy::too_many_arguments)]
+// A run combines owned stream state with borrowed execution callbacks. A
+// one-use relay struct would add indirection without creating a reusable domain.
 async fn drive_run(
     mut stream: RunStream,
     mut blobs: BlobStore,

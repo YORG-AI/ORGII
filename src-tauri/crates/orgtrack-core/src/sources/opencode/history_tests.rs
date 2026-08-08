@@ -172,13 +172,9 @@ fn includes_opencode_candidate_db_paths() {
 fn maps_opencode_session_metadata_to_cache_input() {
     let conn = fixture_conn();
 
-    let metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/opencode.db"),
-        1770000006000,
-        4096,
-    )
-    .expect("list session metadata");
+    let metas =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("list session metadata");
     let inputs = metas
         .into_iter()
         .map(|meta| session_meta_to_cache_input(meta, &HashSet::new(), &HashSet::new()))
@@ -221,6 +217,75 @@ fn maps_opencode_session_metadata_to_cache_input() {
 }
 
 #[test]
+fn opencode_metadata_signature_ignores_unrelated_session_writes() {
+    let conn = fixture_conn();
+    let before =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("initial metadata")
+            .into_iter()
+            .find(|meta| meta.source_session_id == "ses_1")
+            .map(|meta| opencode_meta_signature(&meta))
+            .expect("target signature");
+
+    conn.execute(
+        "INSERT INTO session (
+            id, title, directory, model, tokens_input, tokens_output,
+            tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated, time_archived
+         ) VALUES ('ses_other', 'Other', '/tmp/other', 'gpt-5', 0, 0, 0, 0, 0, 1, 2, NULL)",
+        [],
+    )
+    .expect("insert unrelated session");
+    conn.execute(
+        "INSERT INTO message (id, session_id, data)
+         VALUES ('msg_other', 'ses_other', '{\"role\":\"assistant\"}')",
+        [],
+    )
+    .expect("insert unrelated message");
+    conn.execute(
+        "INSERT INTO part (id, message_id, session_id, data, time_created)
+         VALUES ('prt_other', 'msg_other', 'ses_other', '{\"type\":\"text\",\"text\":\"tail\"}', 3)",
+        [],
+    )
+    .expect("insert unrelated part");
+    conn.execute(
+        "UPDATE part SET data = '{\"type\":\"text\",\"text\":\"longer unrelated tail\"}'
+         WHERE id = 'prt_other'",
+        [],
+    )
+    .expect("grow unrelated part");
+
+    let after_unrelated =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("metadata after unrelated write")
+            .into_iter()
+            .find(|meta| meta.source_session_id == "ses_1")
+            .map(|meta| opencode_meta_signature(&meta))
+            .expect("target signature after unrelated write");
+    assert!(imported_cache::record_matches_cached_signature(
+        &before,
+        &after_unrelated
+    ));
+
+    conn.execute(
+        "UPDATE part SET data = data || ' target growth' WHERE id = 'prt_text'",
+        [],
+    )
+    .expect("grow target part");
+    let after_target =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("metadata after target write")
+            .into_iter()
+            .find(|meta| meta.source_session_id == "ses_1")
+            .map(|meta| opencode_meta_signature(&meta))
+            .expect("target signature after target write");
+    assert!(!imported_cache::record_matches_cached_signature(
+        &before,
+        &after_target
+    ));
+}
+
+#[test]
 fn opencode_recent_paths_use_all_sessions_before_limiting() {
     let conn = fixture_conn();
     conn.execute(
@@ -240,7 +305,7 @@ fn opencode_recent_paths_use_all_sessions_before_limiting() {
     )
     .expect("insert newer session");
 
-    let rows = list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new(""), 0, 0)
+    let rows = list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new(""))
         .expect("list all sessions")
         .into_iter()
         .map(|meta| session_meta_to_cache_input(meta, &HashSet::new(), &HashSet::new()))
@@ -436,13 +501,9 @@ fn maps_opencode_parent_id_to_parent_session_id() {
     )
     .expect("insert child session");
 
-    let metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/opencode.db"),
-        0,
-        0,
-    )
-    .expect("list sessions");
+    let metas =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("list sessions");
 
     let container_parent_ids = container_parent_ids_from_metas(&metas);
 
@@ -510,13 +571,9 @@ fn reads_managed_opencode_source_session_ids_from_code_sessions() {
 #[test]
 fn managed_opencode_source_session_is_hidden_but_preserved() {
     let conn = fixture_conn();
-    let metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/opencode.db"),
-        0,
-        0,
-    )
-    .expect("list sessions");
+    let metas =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("list sessions");
     let managed_source_session_ids = ["ses_1".to_string()].into_iter().collect::<HashSet<_>>();
     let inputs = metas
         .into_iter()
@@ -533,13 +590,9 @@ fn managed_opencode_source_session_is_hidden_but_preserved() {
 #[test]
 fn external_unmanaged_opencode_source_session_stays_listable() {
     let conn = fixture_conn();
-    let metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/opencode.db"),
-        0,
-        0,
-    )
-    .expect("list sessions");
+    let metas =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("list sessions");
     let inputs = metas
         .into_iter()
         .map(|meta| session_meta_to_cache_input(meta, &HashSet::new(), &HashSet::new()))
@@ -571,13 +624,9 @@ fn ignores_missing_parent_id_so_orphan_history_stays_visible() {
     )
     .expect("insert orphan session");
 
-    let metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/opencode.db"),
-        0,
-        0,
-    )
-    .expect("list sessions");
+    let metas =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("list sessions");
     let container_parent_ids = container_parent_ids_from_metas(&metas);
     let orphan = metas
         .into_iter()
@@ -610,13 +659,9 @@ fn ignores_self_parent_id() {
     )
     .expect("insert self-parent session");
 
-    let metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/opencode.db"),
-        0,
-        0,
-    )
-    .expect("list sessions");
+    let metas =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("list sessions");
     let container_parent_ids = container_parent_ids_from_metas(&metas);
     let self_parent = metas
         .into_iter()
@@ -654,13 +699,9 @@ fn ignores_mutual_parent_cycle() {
         .expect("insert cycle session");
     }
 
-    let metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/opencode.db"),
-        0,
-        0,
-    )
-    .expect("list sessions");
+    let metas =
+        list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/opencode.db"))
+            .expect("list sessions");
     let container_parent_ids = container_parent_ids_from_metas(&metas);
     let inputs = metas
         .into_iter()

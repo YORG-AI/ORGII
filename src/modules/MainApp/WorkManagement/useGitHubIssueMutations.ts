@@ -10,9 +10,13 @@ import {
   createIssue,
   fetchIssues,
 } from "@src/services/git/operations/githubIssues";
+import { mapWithConcurrency } from "@src/util/collections/mapWithConcurrency";
 
 import type { GitHubIssuePageState } from "./githubWorkItemsSearchQuery";
-import type { GitHubRepoSource } from "./githubWorkItemsTypes";
+import {
+  type GitHubRepoSource,
+  getGitHubListCacheKey,
+} from "./githubWorkItemsTypes";
 import {
   EMPTY_REPO_ISSUES,
   ISSUE_PAGE_SIZE,
@@ -69,8 +73,10 @@ export function useGitHubIssueMutations({
         return hasMore && nextPage ? [{ source, pageState, nextPage }] : [];
       });
     });
-    const results = await Promise.all(
-      requests.map(async ({ source, pageState, nextPage }) => ({
+    const results = await mapWithConcurrency(
+      requests,
+      4,
+      async ({ source, pageState, nextPage }) => ({
         source,
         pageState,
         result: await fetchIssues(source.remoteUrl, {
@@ -78,7 +84,7 @@ export function useGitHubIssueMutations({
           page: nextPage,
           perPage: ISSUE_PAGE_SIZE,
         }),
-      }))
+      })
     );
     updateIssueMap((current) => {
       const next = { ...current };
@@ -97,7 +103,7 @@ export function useGitHubIssueMutations({
             openHasMore: result.data.has_more,
             openNextPage: result.data.next_page,
           };
-          updateCachedOpenIssues(source.repoPath, openIssues);
+          updateCachedOpenIssues(getGitHubListCacheKey(source), openIssues);
         } else {
           const closedIssues = mergeUniqueIssues(
             currentState.closedIssues,
@@ -109,7 +115,7 @@ export function useGitHubIssueMutations({
             closedHasMore: result.data.has_more,
             closedNextPage: result.data.next_page,
           };
-          updateCachedClosedIssues(source.repoPath, closedIssues);
+          updateCachedClosedIssues(getGitHubListCacheKey(source), closedIssues);
         }
       }
       return next;
@@ -149,7 +155,7 @@ export function useGitHubIssueMutations({
           [createdIssue],
           currentState.openIssues
         );
-        updateCachedOpenIssues(source.repoPath, openIssues);
+        updateCachedOpenIssues(getGitHubListCacheKey(source), openIssues);
         return {
           ...current,
           [key]: { ...currentState, openIssues },

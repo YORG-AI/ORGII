@@ -1,5 +1,7 @@
 .rich-text-editor {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   background: transparent;
   border: none;
@@ -8,16 +10,25 @@
     display: flex;
     align-items: center;
     justify-content: center;
-
-    .loading-placeholder {
-      color: var(--color-text-3);
-      font-size: 14px;
-    }
   }
 
   .rich-text-editor-wrapper {
     width: 100%;
     height: 100%;
+  }
+
+  &.rich-text-editor-scroll-contained {
+    .rich-text-editor-wrapper {
+      min-height: 0;
+      flex: 1 1 auto;
+      height: auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .rich-text-editor-toolbar-inline {
+      flex: 0 0 auto;
+    }
   }
 
   .ProseMirror {
@@ -223,7 +234,8 @@
     // editing mode that the shared Markdown renderer uses in Preview mode.
     &.rich-text-editor-markdown-preview {
       padding: 8px 12px;
-      line-height: 1.6;
+      font-size: var(--chat-font-size, 13px);
+      line-height: var(--chat-line-height, 1.6);
       letter-spacing: -0.01em;
 
       > *:first-child {
@@ -377,7 +389,7 @@
           "Consolas",
           monospace
         );
-        font-size: 12px;
+        font-size: var(--chat-code-font-size, 13px);
         font-weight: 500;
         white-space: break-spaces;
       }
@@ -455,8 +467,26 @@
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
   animation: rich-toolbar-fade-in 0.15s ease-out;
 
+  &.rich-text-editor-toolbar-inline {
+    width: 100%;
+    max-width: none;
+    min-height: 32px;
+    flex-wrap: wrap;
+    padding: 3px 6px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    animation: none;
+  }
+
   &.work-item-toolbar {
     border-radius: 9999px;
+  }
+
+  &.rich-text-editor-toolbar-mini .toolbar-btn {
+    width: 22px;
+    height: 22px;
   }
 
   .toolbar-btn {
@@ -496,113 +526,6 @@
         font-weight: 500;
         text-align: center;
       }
-    }
-  }
-
-  .toolbar-divider {
-    width: 1px;
-    height: 16px;
-    margin: 0 4px;
-    background: var(--color-border-2);
-  }
-
-  .toolbar-dropdown,
-  .toolbar-link-wrapper {
-    position: relative;
-  }
-
-  .dropdown-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    z-index: 100;
-    min-width: 160px;
-    padding: 4px;
-    border: 1px solid var(--color-border-2);
-    border-radius: 8px;
-    background: var(--color-bg-2);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-
-    &.dropdown-menu-right {
-      right: 0;
-      left: auto;
-    }
-  }
-
-  .dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 8px 10px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--color-text-2);
-    font-size: 13px;
-    text-align: left;
-    cursor: var(--interactive-cursor, default);
-
-    &:hover {
-      background: var(--color-fill-2);
-      color: var(--color-text-1);
-    }
-
-    &.active {
-      background: color-mix(in srgb, var(--color-primary-6) 10%, transparent);
-      color: var(--color-primary-6);
-    }
-
-    span {
-      flex: 1;
-    }
-  }
-
-  .dropdown-divider {
-    height: 1px;
-    margin: 4px 0;
-    background: var(--color-border-2);
-  }
-
-  .link-input-popup {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 50%;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 8px;
-    border: 1px solid var(--color-border-2);
-    border-radius: 8px;
-    background: var(--color-bg-2);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateX(-50%);
-
-    input {
-      width: 200px;
-      padding: 6px 10px;
-      border: 1px solid var(--color-border-2);
-      border-radius: 4px;
-      outline: none;
-      background: var(--color-fill-1);
-      color: var(--color-text-1);
-      font-size: 13px;
-
-      &:focus {
-        border-color: var(--color-primary-6);
-      }
-    }
-
-    button {
-      padding: 6px 12px;
-      border: none;
-      border-radius: 4px;
-      background: var(--color-primary-6);
-      color: white;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: var(--interactive-cursor, default);
     }
   }
 }

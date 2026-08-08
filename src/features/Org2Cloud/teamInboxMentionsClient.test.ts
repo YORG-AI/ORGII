@@ -201,12 +201,32 @@ describe("listTeamInboxMentions", () => {
     });
   });
 
-  it("rejects malformed response fields instead of leaking raw wire data", async () => {
+  it("drops a malformed mention row alone instead of leaking raw wire data", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
-        mentions: [{ ...WIRE_MENTION, commentCount: -1 }],
+        mentions: [
+          { ...WIRE_MENTION, commentCount: -1 },
+          { ...WIRE_MENTION, comment: { id: "comment-9", parentId: null } },
+        ],
         nextCursor: null,
         unreadCount: 1,
+      })
+    );
+
+    const page = await listTeamInboxMentions("jwt-viewer", "org-1", null, 25);
+
+    // The malformed row costs only itself — never surfaced raw, never fatal.
+    expect(page.mentions).toHaveLength(1);
+    expect(page.mentions[0].comment.id).toBe("comment-9");
+    expect(page.unreadCount).toBe(1);
+  });
+
+  it("rejects a malformed page envelope outright", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        mentions: [WIRE_MENTION],
+        nextCursor: null,
+        unreadCount: -1,
       })
     );
 

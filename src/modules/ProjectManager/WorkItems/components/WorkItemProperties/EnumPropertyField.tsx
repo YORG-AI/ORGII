@@ -10,6 +10,7 @@ interface EnumOption<T extends string> {
   value: T;
   icon?: React.ReactNode;
   color?: string;
+  disabled?: boolean;
 }
 
 interface EnumPropertyFieldProps<T extends string> {
@@ -51,6 +52,7 @@ export function EnumPropertyField<T extends string>({
       label: getLabel(option.value),
       icon: option.icon,
       iconColor: option.color,
+      disabled: option.disabled,
     })
   );
 

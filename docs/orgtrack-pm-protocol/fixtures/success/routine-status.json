@@ -1,0 +1,49 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": true,
+  "data": {
+    "run": {
+      "apiVersion": "orgtrack/v1",
+      "kind": "RoutineRun",
+      "id": "run_01K00000000000000000000RUN0",
+      "routineId": "routine_interaction_impact",
+      "routineRevision": 3,
+      "snapshotHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "scopeId": "project_01K0000000000000000000SCOPE",
+      "status": "running",
+      "inputs": {
+        "requirement_id": "REQ-20260803-001"
+      },
+      "rootWorkItemId": "work_01K0000000000000000000ROOT0",
+      "createdBy": {
+        "kind": "human",
+        "id": "org2:user:vince"
+      },
+      "createdAt": "2026-08-04T18:00:00Z",
+      "updatedAt": "2026-08-04T18:05:00Z"
+    },
+    "workItems": [
+      {
+        "id": "work_01K000000000000000000COLL0",
+        "stepId": "collect-deliverables",
+        "state": "completed",
+        "claimedBy": { "kind": "agent", "id": "org2:agent:extractor" }
+      },
+      {
+        "id": "work_01K0000000000000000000WORK0",
+        "stepId": "review-impact",
+        "state": "in_progress",
+        "claimedBy": { "kind": "agent", "id": "codex_app:reviewer-1" }
+      },
+      {
+        "id": "work_01K000000000000000000ARCH0",
+        "stepId": "archive-and-notify",
+        "state": "open",
+        "claimedBy": null
+      }
+    ]
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000RSTAT"
+  }
+}

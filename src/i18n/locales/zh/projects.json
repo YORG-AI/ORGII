@@ -79,7 +79,7 @@
     "heading": "从 GitHub Issues 创建 Project",
     "description": "选择一个 GitHub 仓库，创建 ORGII Project，并将其中的 GitHub Issues 同步为 work items。",
     "importButton": "导入 GitHub Issues",
-    "projectDescription": "从 {{owner}}/{{repo}} 的 GitHub Issues 同步。",
+    "projectDescription": "GitHub Issues · {{owner}}/{{repo}}",
     "fields": {
       "projectName": "Project 名称",
       "repo": "GitHub 仓库",
@@ -718,6 +718,11 @@
         "notAttached": "未绑定",
         "attach": "绑定",
         "detach": "解绑",
+        "detachProjectMenuLabel": "解除 GitHub 关联",
+        "detachProjectTitle": "解除 {{project}} 与 GitHub 的关联？",
+        "detachProjectDescription": "GitHub Issues 同步将停止。本地项目和已导入的工作项会保留在 ORGII 中。",
+        "detachProjectAction": "解除 {{project}} 与 GitHub 的关联",
+        "detachProjectSuccess": "已解除 {{project}} 与 GitHub 的关联",
         "changeWarning": "在绑定新适配器前，请先解绑当前适配器。"
       },
       "accountPicker": {

@@ -1,4 +1,3 @@
-import { readDir } from "@tauri-apps/plugin-fs";
 import React, {
   memo,
   useCallback,
@@ -10,38 +9,33 @@ import React, {
 import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 
-import { getGitCommits } from "@src/api/http/git";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { ComposerStackListRow } from "@src/engines/ChatPanel/blocks/primitives";
 import { FileHeader } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  type DirectoryEntryGitMeta,
+  type DirectoryEntryRow,
+  type DirectoryViewRequest,
+  getCachedDirectoryEntries,
+  getCachedDirectoryMetadata,
+  loadDirectoryEntries,
+  loadDirectoryMetadata,
+} from "@src/services/git/directoryViewResource";
 import {
   createDirectoryTab,
   openTab as openTabHelper,
   workstationLayoutAtom,
 } from "@src/store/workstation/tabs";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
-import { toFsPluginPath } from "@src/util/file/pathUtils";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
-const MAX_GIT_META_ENTRIES = 80;
 const DIRECTORY_ROW_HEIGHT = 34;
 
 interface DirectoryExplorerContentProps {
   directoryPath: string;
   repoPath: string;
   onFileSelect: (path: string) => void;
-}
-
-interface DirectoryEntryRow {
-  name: string;
-  path: string;
-  type: "directory" | "file";
-}
-
-interface DirectoryEntryGitMeta {
-  summary: string;
-  authorDate: string;
 }
 
 interface DirectoryListItem {
@@ -63,67 +57,6 @@ function getParentPath(path: string): string | null {
   return normalized.slice(0, separatorIndex);
 }
 
-async function loadDirectoryEntries(
-  directoryPath: string
-): Promise<DirectoryEntryRow[]> {
-  // On Windows the repo path arrives canonicalized as `\\?\C:\…`, which the
-  // Tauri fs plugin can't read (readDir returns nothing → "top level but no
-  // children"). Strip the verbatim prefix before reading, and build child
-  // paths from the cleaned dir so they're usable too.
-  const dir = toFsPluginPath(directoryPath).replace(/\/+$/, "");
-  const entries = await readDir(dir);
-  return entries
-    .map((entry) => ({
-      name: entry.name,
-      path: `${dir}/${entry.name}`,
-      type: entry.isDirectory ? ("directory" as const) : ("file" as const),
-    }))
-    .sort((left, right) => {
-      if (left.type !== right.type) {
-        return left.type === "directory" ? -1 : 1;
-      }
-      return left.name.localeCompare(right.name);
-    });
-}
-
-async function loadEntryGitMeta(
-  entryPath: string,
-  repoPath: string
-): Promise<DirectoryEntryGitMeta | undefined> {
-  const filePath = toRelativePath(entryPath, repoPath);
-  const result = await getGitCommits({
-    repo_id: repoPath,
-    repo_path: repoPath,
-    file_path: filePath,
-    limit: 1,
-  });
-  const commit = result?.commits[0];
-  if (!commit) return undefined;
-  return {
-    summary: commit.summary,
-    authorDate: commit.author.date,
-  };
-}
-
-async function loadEntryGitMetaMap(
-  entries: DirectoryEntryRow[],
-  repoPath: string
-): Promise<Map<string, DirectoryEntryGitMeta>> {
-  const pairs = await Promise.all(
-    entries.slice(0, MAX_GIT_META_ENTRIES).map(async (entry) => {
-      try {
-        const meta = await loadEntryGitMeta(entry.path, repoPath);
-        return meta ? ([entry.path, meta] as const) : null;
-      } catch {
-        return null;
-      }
-    })
-  );
-  return new Map(
-    pairs.filter((pair): pair is [string, DirectoryEntryGitMeta] => !!pair)
-  );
-}
-
 function openDirectoryTab(directoryPath: string): void {
   const store = getInstrumentedStore();
   const tab = createDirectoryTab(directoryPath);
@@ -139,11 +72,31 @@ function openDirectoryTab(directoryPath: string): void {
 const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
   ({ directoryPath, repoPath, onFileSelect }) => {
     const { t } = useTranslation("sessions");
-    const [entries, setEntries] = useState<DirectoryEntryRow[]>([]);
+    const request = useMemo<DirectoryViewRequest>(
+      () => ({ directoryPath, repoPath }),
+      [directoryPath, repoPath]
+    );
+    const initialEntries = useMemo(
+      () => getCachedDirectoryEntries(request),
+      [request]
+    );
+    const initialMetadata = useMemo(
+      () =>
+        initialEntries
+          ? getCachedDirectoryMetadata(request, initialEntries)
+          : null,
+      [initialEntries, request]
+    );
+    const [entries, setEntries] = useState<DirectoryEntryRow[]>(
+      () => initialEntries ?? []
+    );
     const [gitMetaMap, setGitMetaMap] = useState<
       Map<string, DirectoryEntryGitMeta>
-    >(new Map());
-    const [loading, setLoading] = useState(true);
+    >(() => initialMetadata ?? new Map());
+    const [hasLoadedEntries, setHasLoadedEntries] = useState(
+      () => initialEntries !== null
+    );
+    const [loading, setLoading] = useState(() => initialEntries === null);
     const [error, setError] = useState<string | null>(null);
     const loadGenerationRef = useRef(0);
 
@@ -176,25 +129,43 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
 
     useEffect(() => {
       const generation = ++loadGenerationRef.current;
-      setEntries([]);
-      setGitMetaMap(new Map());
-      setLoading(true);
+      const cachedEntries = getCachedDirectoryEntries(request);
+      const cachedMetadata = cachedEntries
+        ? getCachedDirectoryMetadata(request, cachedEntries)
+        : null;
+
+      setEntries(cachedEntries ?? []);
+      setGitMetaMap(cachedMetadata ?? new Map());
+      setHasLoadedEntries(cachedEntries !== null);
+      setLoading(cachedEntries === null);
       setError(null);
 
       void (async () => {
         try {
-          const loadedEntries = await loadDirectoryEntries(directoryPath);
-          if (generation !== loadGenerationRef.current) return;
-
-          const loadedGitMetaMap = await loadEntryGitMetaMap(
-            loadedEntries,
-            repoPath
-          );
+          const loadedEntries = await loadDirectoryEntries(request);
           if (generation !== loadGenerationRef.current) return;
 
           setEntries(loadedEntries);
-          setGitMetaMap(loadedGitMetaMap);
+          setHasLoadedEntries(true);
+          setLoading(false);
           setError(null);
+
+          const cachedLoadedMetadata = getCachedDirectoryMetadata(
+            request,
+            loadedEntries
+          );
+          if (cachedLoadedMetadata) {
+            setGitMetaMap(cachedLoadedMetadata);
+          } else if (cachedEntries !== loadedEntries) {
+            setGitMetaMap(new Map());
+          }
+
+          const loadedGitMetaMap = await loadDirectoryMetadata(
+            request,
+            loadedEntries
+          );
+          if (generation !== loadGenerationRef.current) return;
+          setGitMetaMap(loadedGitMetaMap);
         } catch (loadError: unknown) {
           if (generation !== loadGenerationRef.current) return;
           const message =
@@ -212,7 +183,7 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
           loadGenerationRef.current += 1;
         }
       };
-    }, [directoryPath, repoPath, t]);
+    }, [request, t]);
 
     const handleOpenItem = useCallback(
       (item: DirectoryListItem) => {
@@ -275,7 +246,7 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
       [handleOpenItem]
     );
 
-    if (loading) {
+    if (loading && !hasLoadedEntries) {
       return (
         <>
           <FileHeader
@@ -297,7 +268,7 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
       );
     }
 
-    if (error) {
+    if (error && !hasLoadedEntries) {
       return (
         <>
           <FileHeader

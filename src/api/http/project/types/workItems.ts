@@ -6,6 +6,7 @@ import type {
   ProofOfWork,
 } from "./agentWorkflow";
 import type { CommentEntry, TodoEntry } from "./common";
+import type { ProjectData, ProjectOrg } from "./projectRecords";
 import type { WorkItemRoutineSource, WorkItemSchedule } from "./routines";
 
 export const WORK_ITEM_HISTORY_ACTION = {
@@ -383,27 +384,26 @@ export interface StatusCounts {
   duplicate: number;
 }
 
-export interface GroupedWorkItems {
-  backlog: EnrichedWorkItem[];
-  planned: EnrichedWorkItem[];
-  inProgress: EnrichedWorkItem[];
-  inReview: EnrichedWorkItem[];
-  completed: EnrichedWorkItem[];
-  cancelled: EnrichedWorkItem[];
-  duplicate: EnrichedWorkItem[];
-}
-
 /**
- * Complete work items response with all pre-computed views.
- * Single IPC call returns everything needed for display.
+ * Work-items response with only the requested view projection.
  */
 export interface WorkItemsViewData {
   items: EnrichedWorkItem[];
   counts: StatusCounts;
-  kanbanTasks: RustKanbanTask[];
-  ganttTasks: RustGanttTask[];
-  calendarEvents: RustCalendarEvent[];
-  grouped: GroupedWorkItems;
+  kanbanTasks?: RustKanbanTask[];
+  ganttTasks?: RustGanttTask[];
+  calendarEvents?: RustCalendarEvent[];
+}
+
+export interface WorkspaceProjectWorkItems {
+  project: ProjectData;
+  workItems: EnrichedWorkItem[];
+}
+
+export interface WorkspaceWorkItemsData {
+  projectEntries: WorkspaceProjectWorkItems[];
+  standaloneWorkItems: WorkItemData[];
+  orgs: ProjectOrg[];
 }
 
 export interface BatchItemError {

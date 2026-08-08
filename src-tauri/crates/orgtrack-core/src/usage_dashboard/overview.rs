@@ -153,6 +153,9 @@ pub struct UsageOverview {
     pub has_unknown_round_model: bool,
 }
 
+#[allow(clippy::too_many_arguments)]
+// The overview executes one coordinated scan whose filters, page controls, and
+// requested sections must remain independently selectable by CLI and desktop callers.
 pub fn usage_overview(
     conn: &Connection,
     filter: &UsageFilter,

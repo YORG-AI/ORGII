@@ -85,10 +85,9 @@ fn parse_tsc_line(line: &str, workspace_path: &str) -> Option<WorkspaceDiagnosti
     // Parse "error TSxxxx: message" or "warning TSxxxx: message"
     let (severity, after_severity) = if let Some(after) = rest.strip_prefix("error ") {
         ("error", after)
-    } else if let Some(after) = rest.strip_prefix("warning ") {
-        ("warning", after)
     } else {
-        return None;
+        let after = rest.strip_prefix("warning ")?;
+        ("warning", after)
     };
 
     // Split "TS2322: message" into code and message

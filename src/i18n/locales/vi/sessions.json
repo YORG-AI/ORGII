@@ -875,6 +875,7 @@
     "multipleChoice": "Chọn nhiều",
     "typeYourAnswer": "Nhập câu trả lời của bạn…",
     "newSession": "Phiên mới",
+    "muteNotifications": "Tắt thông báo",
     "startPage": {
       "title": "Bạn muốn làm gì?",
       "back": "Quay lại trang bắt đầu",
@@ -1196,6 +1197,9 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "Tất cả trạng thái",
+        "closeAsCompleted": "Đóng là đã hoàn thành",
+        "closeAsNotPlanned": "Đóng là không lên kế hoạch",
+        "statusUpdateFailed": "Không thể cập nhật trạng thái GitHub",
         "assignedToMe": "Được giao cho tôi",
         "createdByMe": "Do tôi tạo",
         "filters": "Filters",

@@ -29,6 +29,7 @@ const INTERACTIVE_TABLE_TARGET_SELECTOR = [
   "input",
   "select",
   "textarea",
+  "[data-checkbox]",
   "[role='button']",
   "[role='combobox']",
   "[role='menuitem']",
@@ -37,7 +38,7 @@ const INTERACTIVE_TABLE_TARGET_SELECTOR = [
 ].join(", ");
 
 function isInteractiveTableTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement
+  return target instanceof Element
     ? target.closest(INTERACTIVE_TABLE_TARGET_SELECTOR) !== null
     : false;
 }

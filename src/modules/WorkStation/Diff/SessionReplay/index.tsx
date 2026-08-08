@@ -19,6 +19,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import TabPill from "@src/components/TabPill";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import { simulatorEventsAtom } from "@src/engines/SessionCore/derived/simulatorEvents";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
@@ -47,7 +48,9 @@ import {
   simulatorPrimarySidebarWidthAtom,
   simulatorPrimarySidebarWidthPersistAtom,
 } from "@src/store/ui/simulatorAtom";
+import { diffViewModeAtom } from "@src/store/workstation/codeEditor";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
+import type { DiffViewMode } from "@src/types/git/types";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { isDiffScopeActive, resolveScopedSelectedPath } from "./diffScope";
@@ -82,6 +85,7 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
   const [focusedDiffPath, setFocusedDiffPath] = useState<string | null>(null);
   const [focusedDiffNonce, setFocusedDiffNonce] = useState(0);
   const [collapseAllSignal, setCollapseAllSignal] = useState(0);
+  const [diffViewMode, setDiffViewMode] = useAtom(diffViewModeAtom);
   const simulatorEvents = useAtomValue(simulatorEventsAtom);
   const sessionId = useMemo(
     () =>
@@ -210,6 +214,23 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
       trailing:
         activeTab === "diff" ? (
           <div className="flex items-center gap-px">
+            <TabPill
+              activeTab={diffViewMode}
+              tabs={[
+                { key: "unified", label: tCommon("workstation.unified") },
+                { key: "split", label: tCommon("workstation.split") },
+              ]}
+              onChange={(key) => setDiffViewMode(key as DiffViewMode)}
+              variant="pill"
+              color="fill"
+              fillWidth={false}
+              size="small"
+            />
+            <div
+              className="mx-1.5 h-4 w-px shrink-0 bg-border-2"
+              role="separator"
+              aria-hidden
+            />
             {canUndoAll ? (
               <Button
                 htmlType="button"
@@ -236,7 +257,15 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
           </div>
         ) : undefined,
     }),
-    [activeTab, handleUndoAll, canUndoAll, handleCollapseAll, tCommon]
+    [
+      activeTab,
+      canUndoAll,
+      diffViewMode,
+      handleCollapseAll,
+      handleUndoAll,
+      setDiffViewMode,
+      tCommon,
+    ]
   );
 
   const hasSubmissions =
@@ -367,6 +396,7 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
     focusedDiffPath,
     focusedDiffNonce,
     collapseAllSignal,
+    diffViewMode,
   });
 
   // A commit-detail selection (or a pending navigation request from a chat

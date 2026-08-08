@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "PROVIDER_UNAVAILABLE",
+    "message": "Planning provider 'linear' is unreachable; the local mutation was preserved and queued in the outbox",
+    "retryable": true,
+    "details": {
+      "provider": "linear",
+      "outboxStatus": "pending"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR16"
+  }
+}

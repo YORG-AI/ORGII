@@ -15,11 +15,12 @@ import { ArrowDown, ArrowUp, CheckCheck, Crosshair } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
+import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 
-const ICON_BUTTON_CLASS = `flex ${INPUT_AREA_BUTTONS.iconButtonSizeClass} cursor-pointer items-center justify-center rounded-full border border-solid border-border-2 bg-bg-1 transition-all hover:bg-fill-2`;
+const ICON_BUTTON_CLASS = `flex ${INPUT_AREA_BUTTONS.iconButtonSizeClass} cursor-pointer items-center justify-center rounded-full border border-solid border-border-2 transition-all ${PILL_CONTROL_IDLE_SURFACE_CLASS}`;
 
 interface FloatingScrollNavProps {
   showScrollToBottom: boolean;
@@ -50,8 +51,7 @@ const FloatingScrollNav: React.FC<FloatingScrollNavProps> = ({
   if (!showScrollToBottom && !catchUp && !markAllAsRead && !followAgent)
     return null;
 
-  const markAllAsReadPillClassName =
-    "flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-solid border-border-2 bg-bg-1 pl-2 pr-3 transition-all hover:bg-fill-2";
+  const markAllAsReadPillClassName = `flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-solid border-border-2 pl-2 pr-3 transition-all ${PILL_CONTROL_IDLE_SURFACE_CLASS}`;
 
   return (
     <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
@@ -76,6 +76,7 @@ const FloatingScrollNav: React.FC<FloatingScrollNavProps> = ({
           icon={<ArrowUp size={13} strokeWidth={2} />}
           onClick={catchUp.onClick}
           aria-label={catchUp.label}
+          className={PILL_CONTROL_IDLE_SURFACE_CLASS}
         >
           {catchUp.label}
         </Button>
@@ -100,6 +101,7 @@ const FloatingScrollNav: React.FC<FloatingScrollNavProps> = ({
               icon={<Crosshair size={13} strokeWidth={2} />}
               onClick={followAgent.onClick}
               aria-label={followAgent.tooltipLabel ?? followAgent.label}
+              className={PILL_CONTROL_IDLE_SURFACE_CLASS}
             >
               {followAgent.label}
             </Button>

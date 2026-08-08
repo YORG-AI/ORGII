@@ -31,6 +31,8 @@ const EVENTS_CLEAN_TTL_MS = 10 * 60_000;
 export class Org2CloudSessionSyncState {
   /** `${orgId}:${sessionId}` to hash of the last upserted metadata. */
   protected readonly lastPushedMetadataHashes = new Map<string, string>();
+  /** `${orgId}:${sessionId}` to hash of the last published turn index (0012). */
+  protected readonly lastPushedTurnIndexHashes = new Map<string, string>();
   /** sessionId to orgId to time when the event plane was verified clean. */
   protected readonly cleanEventPlanes = new Map<
     string,
@@ -57,6 +59,7 @@ export class Org2CloudSessionSyncState {
 
   reset(): void {
     this.lastPushedMetadataHashes.clear();
+    this.lastPushedTurnIndexHashes.clear();
     this.cleanEventPlanes.clear();
     this.eventActivityStamps.clear();
     this.eventActivityAtMs.clear();
@@ -80,13 +83,19 @@ export class Org2CloudSessionSyncState {
     liveOrgIds: ReadonlySet<string>,
     liveSessionIds: ReadonlySet<string>
   ): void {
-    for (const key of this.lastPushedMetadataHashes.keys()) {
-      const separatorIndex = key.indexOf(":");
-      const orgId = separatorIndex === -1 ? key : key.slice(0, separatorIndex);
-      const sessionId =
-        separatorIndex === -1 ? "" : key.slice(separatorIndex + 1);
-      if (!liveOrgIds.has(orgId) || !liveSessionIds.has(sessionId)) {
-        this.lastPushedMetadataHashes.delete(key);
+    for (const hashes of [
+      this.lastPushedMetadataHashes,
+      this.lastPushedTurnIndexHashes,
+    ]) {
+      for (const key of hashes.keys()) {
+        const separatorIndex = key.indexOf(":");
+        const orgId =
+          separatorIndex === -1 ? key : key.slice(0, separatorIndex);
+        const sessionId =
+          separatorIndex === -1 ? "" : key.slice(separatorIndex + 1);
+        if (!liveOrgIds.has(orgId) || !liveSessionIds.has(sessionId)) {
+          hashes.delete(key);
+        }
       }
     }
     for (const key of this.remoteSeedAttemptedKeys) {
@@ -147,11 +156,17 @@ export class Org2CloudSessionSyncState {
     const now = Date.now();
     const observed = this.externalHistoryVersions.get(sessionId);
     if (!observed || observed.sourceUpdatedAt !== session.updated_at) {
+      // A sessionsAtom observer can stamp the source change before the first
+      // cloud pass that sees this version. Preserve that timestamp so the
+      // already-armed quiet-window pass may publish immediately instead of
+      // requiring an unrelated second trigger. Direct/manual passes without a
+      // source notification retain the conservative two-observation behavior.
+      const activityAt = this.eventActivityAtMs.get(sessionId) ?? now;
       this.externalHistoryVersions.set(sessionId, {
         sourceUpdatedAt: session.updated_at,
-        observedAt: now,
+        observedAt: activityAt,
       });
-      return false;
+      return now - activityAt >= EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS;
     }
     const changedAt = Math.max(
       observed.observedAt,
@@ -206,6 +221,13 @@ export class Org2CloudSessionSyncState {
       ...current,
       [`${cursor.orgId}:${cursor.sessionId}`]: cursor,
     }));
+  }
+
+  /** True when this device holds a replay cursor covering pushed events —
+   * the winner-side guard for superseded-continuation retraction. */
+  hasReplayPushed(orgId: string, sessionId: string): boolean {
+    const cursor = this.getCursor(orgId, sessionId);
+    return Boolean(cursor && cursor.pushedCount > 0);
   }
 
   protected async computeFrozenChainHash(

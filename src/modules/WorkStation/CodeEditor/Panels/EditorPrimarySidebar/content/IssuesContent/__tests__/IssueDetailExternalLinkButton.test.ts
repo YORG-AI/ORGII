@@ -1,14 +1,15 @@
-import { createElement } from "react";
+import { createElement, forwardRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
+import type { GitHubIssueInteractionConfig } from "@src/modules/ProjectManager/WorkItems/components/WorkItemContent/types";
 
 import {
   IssueDetailExternalLinkButton,
   IssueDetailPanel,
-  IssueTimelineItems,
 } from "../IssueDetailPanel";
+import { IssueTimelineItems } from "../IssueTimelineItems";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -27,7 +28,38 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("@src/components/IntegrationIcon", () => ({
+  default: ({ type }: { type: string }) =>
+    createElement("span", { "data-integration-icon": type }),
+}));
+
+vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
+  default: forwardRef(function MockRichMarkdownEditor(
+    {
+      appearance,
+      dataTestId,
+      placeholder,
+      toolbarMode,
+    }: {
+      appearance?: string;
+      dataTestId?: string;
+      placeholder?: string;
+      toolbarMode?: string;
+    },
+    _ref
+  ) {
+    return createElement("div", {
+      className: "rich-markdown-editor",
+      "data-testid": dataTestId,
+      "data-appearance": appearance,
+      "data-placeholder": placeholder,
+      "data-toolbar-mode": toolbarMode,
+    });
+  }),
+}));
+
 const issue: GitHubIssue = {
+  id: 100_042,
   number: 42,
   title: "Match the comment composer",
   body: "Issue body",
@@ -39,10 +71,33 @@ const issue: GitHubIssue = {
   closed_at: null,
   user: { login: "octocat", avatar_url: "" },
   labels: [],
-  assignees: [],
+  assignees: [{ login: "reviewer", avatar_url: "" }],
   comments: 0,
   milestone: null,
 };
+
+function createInteraction(): GitHubIssueInteractionConfig {
+  return {
+    viewer: issue.user,
+    issueState: issue.state,
+    duplicateCandidates: [],
+    duplicateCandidatesLoaded: false,
+    loadingDuplicateCandidates: false,
+    duplicateCandidatesError: false,
+    loading: false,
+    canComment: true,
+    canEditBody: true,
+    canManageStatus: true,
+    submittingComment: false,
+    updatingBody: false,
+    updatingStatus: false,
+    error: null,
+    onAddComment: vi.fn().mockResolvedValue(undefined),
+    onUpdateBody: vi.fn().mockResolvedValue(undefined),
+    onLoadDuplicateCandidates: vi.fn().mockResolvedValue(undefined),
+    onStatusChange: vi.fn().mockResolvedValue(undefined),
+  };
+}
 
 describe("IssueDetailExternalLinkButton", () => {
   it("renders a tertiary globe action for the specific GitHub issue", () => {
@@ -55,35 +110,34 @@ describe("IssueDetailExternalLinkButton", () => {
     );
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('aria-label="Open on GitHub"');
-    expect(markup).toContain('class="lucide lucide-globe');
+    expect(markup).toContain('class="lucide lucide-square-arrow-out-up-right');
     expect(markup).toContain("enabled:hover:bg-surface-hover");
   });
 
-  it("uses the shared textarea and session-creator button dimensions", () => {
+  it("uses the same inline Markdown issue UI as Inbox", () => {
     const markup = renderToStaticMarkup(
       createElement(IssueDetailPanel, {
         issue,
         timeline: [],
         timelineLoading: false,
-        submittingComment: false,
+        interaction: createInteraction(),
         showHeader: false,
-        onClose: vi.fn(),
-        onCloseIssue: vi.fn(),
-        onReopenIssue: vi.fn(),
-        onAddComment: vi.fn().mockResolvedValue(undefined),
       })
     );
 
-    expect(markup).toContain('<textarea placeholder="Leave a comment…"');
-    expect(markup).toContain('data-testid="issue-comment-editor"');
-    expect(markup).toContain("textarea-size-default");
-    expect(markup).not.toContain("rich-markdown-editor");
-    expect(markup).toContain(
-      "flex min-h-9 items-center justify-between gap-1 px-1"
+    expect(markup).toContain('data-testid="github-issue-inline-composer"');
+    expect(markup).toContain('data-testid="github-issue-comment-editor"');
+    expect(markup).toContain('data-testid="work-item-thread-section"');
+    expect(markup).toContain('data-testid="work-item-property-pills"');
+    expect(markup).not.toContain("example issues");
+    expect(markup).toContain("reviewer");
+    expect(markup).toContain('data-appearance="plain"');
+    expect(markup).toContain('data-toolbar-mode="inline"');
+    expect(markup).toContain("rich-markdown-editor");
+    expect(markup).not.toContain('data-testid="issue-comment-editor"');
+    expect(markup).not.toContain(
+      'data-testid="work-item-thread-secondary-navigation"'
     );
-    expect(markup.match(/border-radius:100px/g)).toHaveLength(2);
-    expect(markup.match(/height:28px/g)).toHaveLength(2);
-    expect(markup.match(/padding:0 12px/g)).toHaveLength(2);
   });
 
   it("shares GitHub comments and activity events as one timeline block", () => {

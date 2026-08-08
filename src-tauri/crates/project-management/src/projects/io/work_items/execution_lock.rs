@@ -10,7 +10,7 @@ use crate::projects::types::{
 };
 use core_types::session::PENDING_SESSION_PLACEHOLDER;
 
-use super::atomic::update_work_item_atomic;
+use super::atomic::{update_work_item_atomic_serviced, AtomicServiceOptions};
 
 pub fn acquire_execution_lock(
     project_slug: &str,
@@ -19,7 +19,13 @@ pub fn acquire_execution_lock(
     agent_role: Option<&str>,
     reason: WorkItemExecutionLockReason,
 ) -> Result<(), String> {
-    update_work_item_atomic(project_slug, short_id, |frontmatter, _body| {
+    // Audited as the claim operation: the execution lock IS the local
+    // claim record the portable `work.claim` op absorbs (design §9.4).
+    let service = AtomicServiceOptions {
+        operation: Some("work.claim"),
+        ..AtomicServiceOptions::default()
+    };
+    update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
         if let Some(lock) = frontmatter.execution_lock.as_ref() {
             if let Some(active_session_id) = lock.active_session_id.as_deref() {
                 if active_session_id != session_id {
@@ -95,7 +101,11 @@ pub fn release_execution_lock(
     short_id: &str,
     session_id: &str,
 ) -> Result<(), String> {
-    update_work_item_atomic(project_slug, short_id, |frontmatter, _body| {
+    let service = AtomicServiceOptions {
+        operation: Some("work.release"),
+        ..AtomicServiceOptions::default()
+    };
+    update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
         if frontmatter
             .execution_lock
             .as_ref()

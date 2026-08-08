@@ -5,7 +5,7 @@
 //! `ActivityChunk` shape for read-only replay through the existing
 //! external-history pipeline.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};

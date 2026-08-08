@@ -1,11 +1,4 @@
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
@@ -55,10 +48,6 @@ const TabPill: React.FC<TabPillProps> = ({
   const activeTab =
     controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const sliderRef = useRef<HTMLSpanElement>(null);
-  const hasSlider = variant === "pill" && !wrap && !isMulti && !buttonStyle;
-
   const handleTabClick = useCallback(
     (tab: TabPillItem) => {
       if (tab.disabled) return;
@@ -89,43 +78,6 @@ const TabPill: React.FC<TabPillProps> = ({
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
 
   const dropdownTab = normalizedTabs.find((tab) => tab.dropdown);
-
-  const syncSlider = useCallback(() => {
-    const container = containerRef.current;
-    const slider = sliderRef.current;
-    if (!container || !slider) return;
-
-    const buttons =
-      container.querySelectorAll<HTMLButtonElement>("button[data-seg]");
-    const tabKeys = tabs.map((tab) =>
-      typeof tab === "string" ? tab : tab.key
-    );
-    const activeIndex = tabKeys.indexOf(activeTab);
-    const activeButton = buttons[activeIndex];
-    if (!activeButton) return;
-
-    const firstButtonRect = buttons[0].getBoundingClientRect();
-    const activeRect = activeButton.getBoundingClientRect();
-    const offsetLeft = activeRect.left - firstButtonRect.left;
-    const width = activeRect.width;
-
-    slider.style.width = `${width}px`;
-    slider.style.transform = `translateX(${offsetLeft}px)`;
-  }, [tabs, activeTab]);
-
-  useLayoutEffect(() => {
-    if (!hasSlider) return;
-    syncSlider();
-  }, [syncSlider, hasSlider]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!hasSlider || !container) return;
-
-    const observer = new ResizeObserver(() => syncSlider());
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [hasSlider, syncSlider]);
 
   const closeDropdown = useCallback(() => {
     setDropdownOpen(false);
@@ -327,7 +279,6 @@ const TabPill: React.FC<TabPillProps> = ({
         key={tab.key}
         ref={hasDropdown ? dropdownTriggerRef : undefined}
         data-active={isActive ? "true" : "false"}
-        data-seg=""
         data-tab-key={tab.key}
         data-testid={tab.dataTestId}
         onClick={() => handleImmediateTabClick(tab, isActive)}
@@ -441,16 +392,8 @@ const TabPill: React.FC<TabPillProps> = ({
     );
   });
 
-  const sliderElement = hasSlider ? (
-    <span
-      ref={sliderRef}
-      className={`absolute bottom-0 left-0 top-0 z-[1] rounded-[100px] ${isFill ? "bg-fill-1" : colorScheme === "layout" ? "bg-fill-2" : colorScheme === "muted" ? "bg-fill-2" : colorScheme === "ghost" ? "bg-fill-1" : "bg-primary-1"}`}
-    />
-  ) : null;
-
   return (
     <div
-      ref={containerRef}
       style={height === undefined ? undefined : { height }}
       className={cn(
         "relative z-10 items-stretch",
@@ -477,7 +420,6 @@ const TabPill: React.FC<TabPillProps> = ({
         className
       )}
     >
-      {sliderElement}
       {tabButtons}
       {dropdownTab &&
         dropdownOpen &&

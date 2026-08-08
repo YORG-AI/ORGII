@@ -79,7 +79,7 @@
     "heading": "GitHub Issues üzerinden Project oluştur",
     "description": "Bir GitHub deposu seçin, ORGII Project oluşturun ve GitHub Issues öğelerini work items olarak senkronize tutun.",
     "importButton": "GitHub Issues içe aktar",
-    "projectDescription": "{{owner}}/{{repo}} içindeki GitHub Issues üzerinden senkronize edildi.",
+    "projectDescription": "GitHub Issues · {{owner}}/{{repo}}",
     "fields": {
       "projectName": "Project adı",
       "repo": "GitHub deposu",

@@ -1,3 +1,4 @@
+import { RUST_AGENT_TYPE } from "@src/api/tauri/agent/types";
 import {
   getImportedHistorySourceByListCategory,
   isImportedHistoryListCategory,
@@ -15,5 +16,6 @@ export function groupKeyToWireCategory(
   }
   if (groupKey === "cli") return "cli_agent";
   if (groupKey === "human") return "human_session";
-  return "rust_agent";
+  if (groupKey === RUST_AGENT_TYPE.OS) return "os_agent";
+  return "standalone_agent";
 }

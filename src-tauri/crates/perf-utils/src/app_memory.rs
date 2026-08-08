@@ -462,10 +462,13 @@ pub struct WebviewOwnershipObservation {
 impl WebviewOwnershipObservation {
     /// Mark the WebView creation as successful and begin a short, bounded
     /// observation period for late-spawned WebKit helpers.
-    pub fn commit(mut self) {
+    pub fn commit(self) {
         #[cfg(target_os = "macos")]
-        if let Some(id) = self.id.take() {
-            commit_macos_observation(id);
+        {
+            let mut observation = self;
+            if let Some(id) = observation.id.take() {
+                commit_macos_observation(id);
+            }
         }
     }
 }

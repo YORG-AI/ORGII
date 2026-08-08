@@ -219,7 +219,11 @@ const log = createLogger("Org2CloudSyncClient");
 
 const CloudOrgSessionsSchema = z.object({
   serverTime: z.string().optional(),
-  sessions: z.array(RemoteTeammateSessionMetadataSchema).default([]),
+  // Per-row tolerance: one malformed row (a newer client's shape, a bad
+  // owner payload) must cost that row, not the whole org listing — a failed
+  // listing reads as "org has no sessions" downstream, which the sidebar,
+  // background upload and the retract sweep treat as authoritative absence.
+  sessions: z.array(z.unknown()).default([]),
   // 0005 backends return a keyset cursor when a bounded page has more rows;
   // absent on legacy backends and on the final page. `.catch(undefined)`
   // degrades a malformed cursor to "no more pages" instead of failing the
@@ -229,6 +233,48 @@ const CloudOrgSessionsSchema = z.object({
     .nullish()
     .catch(undefined),
 });
+
+function parseListingRows(
+  orgId: string,
+  rows: readonly unknown[]
+): RemoteTeammateSessionMetadata[] {
+  const parsed: RemoteTeammateSessionMetadata[] = [];
+  let dropped = 0;
+  let firstDrop = "";
+  for (const row of rows) {
+    const result = RemoteTeammateSessionMetadataSchema.safeParse(row);
+    if (result.success) {
+      parsed.push(result.data);
+    } else {
+      dropped += 1;
+      // Name the first casualty: a bare count is unattributable once the
+      // row ages out of the listing, and "which session, which field" is
+      // the entire diagnosis (a dropped row is invisible to teammates).
+      if (dropped === 1) {
+        const record = row as Record<string, unknown> | null;
+        const rowId =
+          typeof record?.sourceSessionId === "string"
+            ? record.sourceSessionId
+            : typeof record?.id === "string"
+              ? record.id
+              : "<no id>";
+        const issue = result.error.issues[0];
+        firstDrop =
+          `${rowId.slice(0, 64)} ` +
+          `(${issue ? `${issue.path.join(".") || "<root>"}: ${issue.message}` : "unknown issue"})`;
+      }
+    }
+  }
+  if (dropped > 0) {
+    log.rateLimited(
+      `listing-malformed-${orgId}`,
+      60_000,
+      `cloud_list_org_sessions dropped ${dropped} malformed row(s) for ` +
+        `org ${orgId}; first: ${firstDrop}`
+    );
+  }
+  return parsed;
+}
 
 /** Read-side segment wire: inline (`payloadGz`) or offloaded (`storagePath`). */
 export interface CloudSegmentWire {
@@ -575,10 +621,14 @@ export async function listOrgSessions(
       signal,
       15_000
     );
-    return CloudOrgSessionsSchema.parse(payload);
+    const raw = CloudOrgSessionsSchema.parse(payload);
+    return {
+      ...(raw.serverTime !== undefined ? { serverTime: raw.serverTime } : {}),
+      sessions: parseListingRows(orgId, raw.sessions),
+    } satisfies CloudOrgSessions;
   };
 
-  let parsed: z.output<typeof CloudOrgSessionsSchema>;
+  let parsed: CloudOrgSessions;
   if (
     since !== undefined ||
     paginationUnsupportedEndpoints.has(endpoint.supabaseUrl)
@@ -619,19 +669,25 @@ export async function listOrgSessions(
         throw error;
       }
       const pageParsed = CloudOrgSessionsSchema.parse(payload);
-      sessions.push(...pageParsed.sessions);
+      sessions.push(...parseListingRows(orgId, pageParsed.sessions));
       serverTime = pageParsed.serverTime ?? serverTime;
       cursor = pageParsed.nextCursor ?? undefined;
       page += 1;
       if (!cursor) {
-        parsed = { serverTime, sessions };
+        parsed = {
+          ...(serverTime !== undefined ? { serverTime } : {}),
+          sessions,
+        };
         break;
       }
       if (page >= SESSION_LISTING_MAX_PAGES) {
         log.warn(
           `cloud_list_org_sessions stopped after ${page} pages for org ${orgId}`
         );
-        parsed = { serverTime, sessions };
+        parsed = {
+          ...(serverTime !== undefined ? { serverTime } : {}),
+          sessions,
+        };
         break;
       }
     }
@@ -861,4 +917,189 @@ export async function deleteSession(
     { p_org_id: orgId, p_session_id: sessionId },
     endpointForOrg(orgId)
   );
+}
+
+/**
+ * Admin-only (0013): flip the org-wide background-upload policy. The RPC
+ * keeps its legacy offline-sync name for wire compatibility. Server nudges
+ * the policy plane so open member clients refetch their roster live.
+ */
+export async function setOrgBackgroundUpload(
+  accessToken: string,
+  orgId: string,
+  enabled: boolean
+): Promise<void> {
+  await callSyncRpc(
+    "cloud_set_org_offline_sync",
+    accessToken,
+    { p_org_id: orgId, p_enabled: enabled },
+    endpointForOrg(orgId)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Session turn index (0012)
+// ---------------------------------------------------------------------------
+
+/**
+ * One owner-published round summary. The wire is an opaque jsonb array on
+ * the server; this is the client-side contract both the pusher and the
+ * viewer speak. `turnId` is the SOURCE event id of the round's user message
+ * (viewers namespace it into their local copy's id space).
+ */
+export interface CloudSessionTurnSummary {
+  turnId: string;
+  /** Truncated user-prompt preview — content, gated by the events ladder. */
+  prompt: string;
+  eventCount: number;
+  bodyEventCount: number;
+  startedAt?: string;
+  endedAt?: string;
+  durationMs?: number;
+  nextTurnId?: string;
+}
+
+const CloudSessionTurnSummarySchema = z.object({
+  turnId: z.string().min(1),
+  prompt: z.string().catch(""),
+  eventCount: z.number().int().nonnegative().catch(0),
+  bodyEventCount: z.number().int().nonnegative().catch(0),
+  startedAt: z.string().nullish().catch(undefined),
+  endedAt: z.string().nullish().catch(undefined),
+  durationMs: z.number().nullish().catch(undefined),
+  nextTurnId: z.string().nullish().catch(undefined),
+});
+
+const CloudSessionTurnIndexWireSchema = z.object({
+  epoch: z.number().nullish().default(null),
+  turns: z.array(z.unknown()).nullish().default(null),
+});
+
+export interface CloudSessionTurnIndex {
+  epoch: number | null;
+  /** null ⇒ no usable index (absent, stale epoch, or legacy backend). */
+  turns: CloudSessionTurnSummary[] | null;
+}
+
+const NO_TURN_INDEX: CloudSessionTurnIndex = { epoch: null, turns: null };
+
+/** supabaseUrl set of backends that rejected the 0012 signatures. */
+const turnIndexUnsupportedEndpoints = new Set<string>();
+
+export const __TURN_INDEX_INTERNALS = {
+  resetTurnIndexSupport: () => turnIndexUnsupportedEndpoints.clear(),
+};
+
+/**
+ * Owner-only: publish the compact per-round index for the session's current
+ * epoch. Returns false (a quiet no-op) on backends without 0012 — the
+ * feature is progressive enhancement, never a push failure.
+ */
+export async function upsertSessionTurnIndex(
+  accessToken: string,
+  orgId: string,
+  sessionId: string,
+  epoch: number,
+  turns: CloudSessionTurnSummary[]
+): Promise<boolean> {
+  const endpoint = endpointForOrg(orgId);
+  if (turnIndexUnsupportedEndpoints.has(endpoint.supabaseUrl)) return false;
+  if (!(await getCloudCapabilities(accessToken, endpoint)).sessionTurnIndex) {
+    return false;
+  }
+  try {
+    await callSyncRpc(
+      "cloud_upsert_session_turn_index",
+      accessToken,
+      {
+        p_org_id: orgId,
+        p_session_id: sessionId,
+        p_epoch: epoch,
+        p_turns: turns,
+      },
+      endpoint
+    );
+    return true;
+  } catch (error) {
+    if (isRpcSignatureUnsupported(error)) {
+      turnIndexUnsupportedEndpoints.add(endpoint.supabaseUrl);
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Viewer: fetch the owner-published round index. Gated server-side by the
+ * exact events-read ladder; absence (no index, stale epoch, legacy backend)
+ * is an advisory `turns: null`, never an error — callers fall back to the
+ * plain streamed download. Malformed individual rounds are skipped rather
+ * than failing the whole index.
+ */
+export async function getSessionTurnIndex(
+  accessToken: string,
+  orgId: string,
+  sessionId: string,
+  options?: {
+    shareToken?: string;
+    endpoint?: CloudEndpoint;
+    signal?: AbortSignal;
+  }
+): Promise<CloudSessionTurnIndex> {
+  const endpoint = options?.endpoint ?? endpointForOrg(orgId);
+  if (turnIndexUnsupportedEndpoints.has(endpoint.supabaseUrl)) {
+    return NO_TURN_INDEX;
+  }
+  if (!(await getCloudCapabilities(accessToken, endpoint)).sessionTurnIndex) {
+    return NO_TURN_INDEX;
+  }
+  let payload: unknown;
+  try {
+    payload = await callSyncRpc(
+      "cloud_get_session_turn_index",
+      accessToken,
+      {
+        p_org_id: orgId,
+        p_session_id: sessionId,
+        ...(options?.shareToken !== undefined
+          ? { p_share_token: options.shareToken }
+          : {}),
+      },
+      endpoint,
+      options?.signal
+    );
+  } catch (error) {
+    if (isRpcSignatureUnsupported(error)) {
+      turnIndexUnsupportedEndpoints.add(endpoint.supabaseUrl);
+      return NO_TURN_INDEX;
+    }
+    throw error;
+  }
+  const parsed = CloudSessionTurnIndexWireSchema.safeParse(payload);
+  if (!parsed.success) return NO_TURN_INDEX;
+  if (parsed.data.turns === null) {
+    return { epoch: parsed.data.epoch, turns: null };
+  }
+  const turns: CloudSessionTurnSummary[] = [];
+  for (const entry of parsed.data.turns) {
+    const turn = CloudSessionTurnSummarySchema.safeParse(entry);
+    if (!turn.success) continue;
+    turns.push({
+      turnId: turn.data.turnId,
+      prompt: turn.data.prompt,
+      eventCount: turn.data.eventCount,
+      bodyEventCount: turn.data.bodyEventCount,
+      ...(turn.data.startedAt != null
+        ? { startedAt: turn.data.startedAt }
+        : {}),
+      ...(turn.data.endedAt != null ? { endedAt: turn.data.endedAt } : {}),
+      ...(turn.data.durationMs != null
+        ? { durationMs: turn.data.durationMs }
+        : {}),
+      ...(turn.data.nextTurnId != null
+        ? { nextTurnId: turn.data.nextTurnId }
+        : {}),
+    });
+  }
+  return { epoch: parsed.data.epoch, turns };
 }

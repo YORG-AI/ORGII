@@ -692,21 +692,47 @@
     "agentApproval": "Agent 承認",
     "agentApprovalDesc": "Agent アクションが承認を必要とするとき",
     "errors": "エラーと警告",
+    "teamInbox": "チーム受信トレイ",
     "errorsDesc": "エラーまたは警告が発生したとき",
     "sessionStatus": "Session状態",
     "sessionStatusDesc": "Sessionの開始、一時停止、再開の更新",
     "gitOperations": "Git 操作",
     "gitOperationsDesc": "Git Pull、Push、同期の通知",
+    "soundPreset": "通知音",
+    "soundPresetDesc": "通知で再生する音を選択します",
+    "previewSound": "試聴",
+    "soundPresets": {
+      "classic": "クラシック",
+      "gentle": "やさしい",
+      "ascending": "上昇",
+      "bell": "ベル"
+    },
     "volume": "音量",
     "testNotification": "テスト通知",
     "notification": "通知",
     "sound": "サウンド",
     "enabledSuccess": "通知が有効になりました",
     "permissionDenied": "通知の許可が拒否されました",
+    "criticalOnly": "重要な通知のみ",
+    "criticalOnlyDesc": "承認が必要な操作、またはタスクの失敗のみ通知します",
+    "quietHours": "サイレントスケジュール",
+    "quietHoursDesc": "毎日の指定した時間帯は通常の通知を停止します",
+    "quietHoursSchedule": "サイレント時間",
+    "quietHoursScheduleDesc": "デバイスのローカル時刻を使用します。開始と終了が同じ時刻の場合は無効になります。",
+    "quietHoursStart": "開始",
+    "quietHoursEnd": "終了",
+    "allowCriticalDuringQuietHours": "重要な通知を許可",
+    "allowCriticalDuringQuietHoursDesc": "承認リクエストと失敗はシステム通知を表示できますが、音は鳴りません",
+    "backgroundCompletionSummary": "バックグラウンドの完了をまとめる",
+    "backgroundCompletionSummaryDesc": "サイレント時間の終了後にまとめて1件通知します",
+    "mutedSessions": "ミュート中のSession",
+    "mutedSessionsDesc": "このデバイスで {{count}} 件のSessionがミュートされています",
+    "clearMutedSessions": "すべて解除",
     "test": {
       "sent": "テスト通知を送信しました",
       "permissionWarning": "テスト通知の送信に失敗しました。権限を確認してください。",
-      "sendFailed": "テスト通知を送信できません。通知の権限を確認してから再試行してください。"
+      "sendFailed": "テスト通知を送信できません。通知の権限を確認してから再試行してください。",
+      "soundFailed": "通知音を再生できません。システムの音量を確認してください。"
     }
   },
   "editor": {
@@ -997,7 +1023,13 @@
     "tableSize": "サイズ",
     "tablePercentage": "割合",
     "scanFailed": "ディスク使用量のスキャンに失敗しました",
-    "openFolderFailed": "フォルダを開けませんでした"
+    "openFolderFailed": "フォルダを開けませんでした",
+    "browserCache": "ブラウザーキャッシュ",
+    "browserCacheDesc": "使用中 {{used}} · {{cleanable}} を安全に消去できます",
+    "cleanBrowserCache": "クリーンアップ",
+    "browserCacheCleaned": "ブラウザーストレージを {{size}} 解放しました",
+    "browserCacheAlreadyClean": "ブラウザーキャッシュはすでにクリーンです",
+    "browserCacheCleanFailed": "ブラウザーキャッシュを消去できませんでした"
   },
   "agentSessions": {
     "title": "Agent Session",

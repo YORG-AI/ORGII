@@ -23,8 +23,12 @@
  */
 import { z } from "zod/v4";
 
+import { createLogger } from "@src/hooks/logger";
+
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
+
+const log = createLogger("Org2CloudCommentsClient");
 
 /** RPC-enforced body bound (0014 SIZE note) — mirrored in composers. */
 export const CLOUD_COMMENT_MAX_BODY_LENGTH = 4000;
@@ -159,11 +163,15 @@ const CloudSessionCommentWireSchema = z.object({
     .nullish()
     .transform((value) => value ?? undefined)
     .optional(),
+  // The two enum fields degrade UNKNOWN values to undefined instead of
+  // failing: a newer backend introducing a verdict/kind must render as the
+  // absent-field fallback on this client, never brick the listing.
   resolution: z
     .enum(["resolved", "wont_fix"])
     .nullish()
     .transform((value) => value ?? undefined)
-    .optional(),
+    .optional()
+    .catch(undefined),
   /**
    * Agent-reply discriminator; absent on an older backend means `user`.
    * The server accepts `agent_report` only from the cloud-session owner.
@@ -172,9 +180,15 @@ const CloudSessionCommentWireSchema = z.object({
     .enum(["user", "agent_report"])
     .nullish()
     .transform((value) => value ?? undefined)
-    .optional(),
-  /** Explicit user ids targeted by the comment (0010 Team Inbox). */
-  mentionedUserIds: z.array(z.string()).max(50).optional(),
+    .optional()
+    .catch(undefined),
+  /**
+   * Explicit user ids targeted by the comment (0010 Team Inbox). Uncapped on
+   * READ — the 50-id bound is enforced where it protects something (this
+   * client's outbound request, the server RPC); re-checking it here would
+   * turn a future server-side cap raise into a bricked listing.
+   */
+  mentionedUserIds: z.array(z.string()).optional(),
 });
 
 export type CloudSessionComment = z.output<
@@ -186,7 +200,9 @@ const AddCommentResultSchema = z.object({
 });
 
 const ListCommentsResultSchema = z.object({
-  comments: z.array(CloudSessionCommentWireSchema).default([]),
+  // Rows parse individually in `parseCommentRows` — one malformed row must
+  // cost that row, not the whole thread listing (the tolerant-record rule).
+  comments: z.array(z.unknown()).default([]),
   /** Viewer-derived server capability; false for imports, forks and members. */
   viewerOwnsSession: z.boolean().default(false),
   /** 0004 delta anchor; absent on pre-delta backends. */
@@ -196,6 +212,47 @@ const ListCommentsResultSchema = z.object({
     .transform((value) => value ?? undefined)
     .optional(),
 });
+
+/**
+ * Per-row salvage for the listing: a malformed row is dropped alone and the
+ * FIRST casualty is named (id + first zod issue) so a live "dropped N"
+ * symptom stays attributable after the row ages out. Without this, one bad
+ * row pins the whole session's comment pane in error-retry for every member.
+ */
+function parseCommentRows(
+  sessionId: string,
+  rows: readonly unknown[]
+): CloudSessionComment[] {
+  const parsed: CloudSessionComment[] = [];
+  let dropped = 0;
+  let firstDrop: string | undefined;
+  for (const row of rows) {
+    const result = CloudSessionCommentWireSchema.safeParse(row);
+    if (result.success) {
+      parsed.push(result.data);
+      continue;
+    }
+    dropped += 1;
+    if (dropped === 1) {
+      const record = row as Record<string, unknown> | null;
+      const rowId = typeof record?.id === "string" ? record.id : "<no id>";
+      const issue = result.error.issues[0];
+      firstDrop = `${rowId.slice(0, 64)} (${
+        issue
+          ? `${issue.path.join(".") || "<root>"}: ${issue.message}`
+          : "unknown issue"
+      })`;
+    }
+  }
+  if (dropped > 0) {
+    log.rateLimited(
+      `comments-malformed-${sessionId}`,
+      60_000,
+      `cloud_list_session_comments dropped ${dropped} malformed row(s) for session ${sessionId}, first: ${firstDrop}`
+    );
+  }
+  return parsed;
+}
 
 const EditCommentResultSchema = z.object({
   editedAt: z.string(),
@@ -419,8 +476,10 @@ export async function listSessionComments(
           p_since: since,
         }
       );
+      const result = ListCommentsResultSchema.parse(payload);
       return {
-        ...ListCommentsResultSchema.parse(payload),
+        ...result,
+        comments: parseCommentRows(sessionId, result.comments),
         appliedSince: since,
       };
     } catch (error) {
@@ -436,5 +495,9 @@ export async function listSessionComments(
       p_session_id: sessionId,
     }
   );
-  return ListCommentsResultSchema.parse(payload);
+  const result = ListCommentsResultSchema.parse(payload);
+  return {
+    ...result,
+    comments: parseCommentRows(sessionId, result.comments),
+  };
 }

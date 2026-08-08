@@ -13,24 +13,44 @@ import {
   vi,
 } from "vitest";
 
+import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { settingsAtom } from "@src/store/settings/settingsAtom";
 
 import type { TeamInboxItem } from "../domain";
-import { teamInboxCacheAtom } from "../store";
+import { teamInboxCacheAtom, teamInboxItemFocusRequestAtom } from "../store";
 import { useTeamInboxNotifications } from "../useTeamInboxNotifications";
 
 const mocks = vi.hoisted(() => ({
   notifyTeamInbox: vi.fn(),
   setDockBadge: vi.fn(),
+  listenForSystemNotificationActions: vi.fn(),
+  registerTeamInboxNotificationActionType: vi.fn(),
+  messageInfo: vi.fn(),
+  windowShow: vi.fn(),
+  windowSetFocus: vi.fn(),
 }));
 
 vi.mock("@src/api/services/notification", () => ({
+  listenForSystemNotificationActions: mocks.listenForSystemNotificationActions,
   notifyTeamInbox: mocks.notifyTeamInbox,
+  registerTeamInboxNotificationActionType:
+    mocks.registerTeamInboxNotificationActionType,
   setDockBadge: mocks.setDockBadge,
 }));
 
 vi.mock("@src/hooks/logger", () => ({
-  createLogger: () => ({ error: vi.fn() }),
+  createLogger: () => ({ error: vi.fn(), warn: vi.fn() }),
+}));
+
+vi.mock("@src/components/Message", () => ({
+  default: { info: mocks.messageInfo },
+}));
+
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({
+    show: mocks.windowShow,
+    setFocus: mocks.windowSetFocus,
+  }),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -84,6 +104,15 @@ describe("useTeamInboxNotifications", () => {
       soundPlayed: true,
     });
     mocks.setDockBadge.mockReset().mockResolvedValue(true);
+    mocks.listenForSystemNotificationActions
+      .mockReset()
+      .mockResolvedValue(vi.fn());
+    mocks.registerTeamInboxNotificationActionType
+      .mockReset()
+      .mockResolvedValue(undefined);
+    mocks.messageInfo.mockReset();
+    mocks.windowShow.mockReset().mockResolvedValue(undefined);
+    mocks.windowSetFocus.mockReset().mockResolvedValue(undefined);
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -137,13 +166,100 @@ describe("useTeamInboxNotifications", () => {
 
     expect(mocks.notifyTeamInbox).toHaveBeenCalledTimes(1);
     expect(mocks.notifyTeamInbox).toHaveBeenCalledWith(
-      "teamInbox.notifications.assignmentTitle",
+      "Ada · teamInbox.notifications.assignmentTitle",
       "Work new",
       expect.objectContaining({
         categories: expect.objectContaining({ teamInbox: true }),
-      })
+      }),
+      {
+        orgiiTarget: "team-inbox",
+        teamInboxItemKey: "assigned_work_item:new",
+      }
     );
+    expect(mocks.messageInfo).toHaveBeenCalledOnce();
+    const toast = mocks.messageInfo.mock.calls[0]?.[0] as
+      | {
+          title?: string;
+          action?: { label: string; onClick: () => void };
+        }
+      | undefined;
+    expect(toast).toMatchObject({
+      title: "Ada · teamInbox.notifications.assignmentTitle",
+      action: { label: "common:actions.view" },
+    });
+
+    act(() => toast?.action?.onClick());
+    expect(store.get(teamInboxItemFocusRequestAtom)?.itemKey).toBe(
+      "assigned_work_item:new"
+    );
+    expect(
+      store.get(chatPanelTabsAtom).tabs.find((tab) => tab.type === "team-inbox")
+        ?.title
+    ).toBe("navigation:labels.inbox");
     expect(mocks.setDockBadge).toHaveBeenLastCalledWith(2);
+  });
+
+  it("opens and focuses the matching Inbox item from a native notification action", async () => {
+    const store = createStore();
+    store.set(settingsAtom, {
+      ...store.get(settingsAtom),
+      "notifications.enabled": true,
+      "notifications.categories.teamInbox": true,
+    });
+    store.set(teamInboxCacheAtom, {
+      items: [assignment("old", new Date().toISOString())],
+      unreadCount: 1,
+      unreadCounts: { all: 1, assigned: 1, mentions: 0 },
+      loading: false,
+      issue: null,
+      revision: 1,
+      loadedForViewerKey: "viewer::org-a",
+      hasMore: false,
+    });
+
+    await act(async () => {
+      root.render(createElement(Provider, { store }, createElement(Harness)));
+    });
+
+    const nativeHandler = mocks.listenForSystemNotificationActions.mock
+      .calls[0]?.[0] as
+      | ((action: { extra: Record<string, unknown> }) => void)
+      | undefined;
+    await act(async () => {
+      nativeHandler?.({
+        extra: {
+          orgiiTarget: "team-inbox",
+          teamInboxItemKey: "assigned_work_item:old",
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(store.get(teamInboxItemFocusRequestAtom)?.itemKey).toBe(
+      "assigned_work_item:old"
+    );
+    expect(
+      store.get(chatPanelTabsAtom).tabs.find((tab) => tab.type === "team-inbox")
+        ?.title
+    ).toBe("navigation:labels.inbox");
+    expect(mocks.windowShow).toHaveBeenCalledOnce();
+    expect(mocks.windowSetFocus).toHaveBeenCalledOnce();
+  });
+
+  it("releases the single native action listener when the global host unmounts", async () => {
+    const dispose = vi.fn();
+    mocks.listenForSystemNotificationActions.mockResolvedValueOnce(dispose);
+    const store = createStore();
+
+    await act(async () => {
+      root.render(createElement(Provider, { store }, createElement(Harness)));
+      await Promise.resolve();
+    });
+
+    act(() => root.unmount());
+    expect(dispose).toHaveBeenCalledOnce();
+
+    root = createRoot(container);
   });
 
   it("clears the badge and suppresses delivery when Team Inbox notifications are disabled", async () => {
@@ -171,5 +287,6 @@ describe("useTeamInboxNotifications", () => {
 
     expect(mocks.setDockBadge).toHaveBeenLastCalledWith(0);
     expect(mocks.notifyTeamInbox).not.toHaveBeenCalled();
+    expect(mocks.messageInfo).not.toHaveBeenCalled();
   });
 });

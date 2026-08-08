@@ -108,6 +108,9 @@ fn build_selection_query(user_message: &str, skills: &[SkillInfo]) -> String {
 ///
 /// Returns a `PrefetchResult` with selected skill names and their full content.
 /// On failure, returns an empty result (graceful fallback).
+#[allow(clippy::too_many_arguments)]
+// These values come from distinct runtime owners; wrapping them solely for
+// this call would create a relay request with no additional invariant.
 pub async fn select_skills(
     provider: &dyn LLMProvider,
     user_message: &str,

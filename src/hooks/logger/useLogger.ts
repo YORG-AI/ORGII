@@ -107,8 +107,15 @@ export function isTauriRuntimeHost(value: unknown): boolean {
   );
 }
 
-const isTauriRuntime =
-  typeof window !== "undefined" && isTauriRuntimeHost(window);
+// Lazily cached: the Tauri marker exists before any page script runs in the
+// webview, but import order must not freeze a false negative (test setups
+// import this module transitively before their environment stubs run).
+let tauriRuntimeCached: boolean | null = null;
+function isTauriRuntime(): boolean {
+  tauriRuntimeCached ??=
+    typeof window !== "undefined" && isTauriRuntimeHost(window);
+  return tauriRuntimeCached;
+}
 const isDev = process.env.NODE_ENV === "development";
 const forceDebugFromUrl =
   typeof window !== "undefined" &&
@@ -187,18 +194,42 @@ function formatArgs(args: unknown[]): string {
 // ============================================================================
 
 let backendUnavailable = false;
+let backendRetryAtMs = 0;
+
+/** Cooldown after a transient IPC failure before file logging resumes. */
+export const LOG_BACKEND_TRANSIENT_RETRY_MS = 5_000;
 
 function writeToBackend(
   level: LevelName,
   namespace: string,
   message: string
 ): void {
-  if (backendUnavailable || !isTauriRuntime) return;
-  invoke("write_frontend_log", { level, namespace, message }).catch(() => {
-    // The Rust command may not exist yet on first launch / older binary.
-    // Stop trying after the first failure so we don't spam the IPC bridge.
-    backendUnavailable = true;
-  });
+  if (backendUnavailable || !isTauriRuntime()) return;
+  if (Date.now() < backendRetryAtMs) return;
+  invoke("write_frontend_log", { level, namespace, message }).catch(
+    (error: unknown) => {
+      if (/\bcommand\b.*\bnot found\b/i.test(String(error))) {
+        // The Rust command does not exist (first launch / older binary) —
+        // that is permanent for this process, stop trying.
+        backendUnavailable = true;
+        return;
+      }
+      // Anything else is a TRANSIENT transport failure — e.g. the IPC
+      // custom-protocol → postMessage switchover throws one "Failed to
+      // fetch". Latching here killed file logging for the rest of the app's
+      // lifetime while every later invoke worked fine, which blinded every
+      // post-incident investigation. Drop this line, pause briefly, and
+      // keep the channel alive.
+      backendRetryAtMs = Date.now() + LOG_BACKEND_TRANSIENT_RETRY_MS;
+    }
+  );
+}
+
+/** Test seam: reset the backend-persistence latch/cooldown/runtime state. */
+export function __resetLogBackendStateForTests(): void {
+  backendUnavailable = false;
+  backendRetryAtMs = 0;
+  tauriRuntimeCached = null;
 }
 
 // ============================================================================

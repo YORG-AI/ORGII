@@ -10,6 +10,10 @@ import {
   FAMILIAR_LANGUAGE_TECH_STACKS,
   TECH_SAVVY_LEVELS,
 } from "@src/config/profile/userProfile";
+import {
+  DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
+  SetupWalkthroughProgressSchema,
+} from "@src/config/settingsSchema/setupWalkthroughProgress";
 import type { SettingDefinition } from "@src/config/settingsSchema/types";
 
 const USER_PROFILE_PRESET_SCHEMA = z.object({
@@ -262,6 +266,54 @@ export const GENERAL_SETTINGS_REGISTRY = {
     default: "auto",
     description:
       "Release channel for app updates. auto follows the installed build (prerelease builds track beta, release builds track stable); stable and beta pin the channel explicitly. Switching from beta to stable never downgrades — it takes effect at the next stable release",
+    category: "general",
+  },
+  "general.setupWalkthroughOutcome": {
+    schema: z.enum(["open", "completed", "dismissed"]),
+    default: "open",
+    description:
+      "First-use setup walkthrough outcome. Open shows the walkthrough automatically; completed and dismissed keep it closed",
+    category: "general",
+  },
+  "general.setupWalkthroughProgress": {
+    schema: SetupWalkthroughProgressSchema,
+    default: DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
+    description:
+      "Resumable, secret-free readiness state for the first-use setup walkthrough",
+    category: "general",
+  },
+  "general.githubStarPromptCompleted": {
+    schema: z.boolean(),
+    default: false,
+    description:
+      "Whether GitHub has confirmed that the current user starred the canonical ORG2 repository",
+    category: "general",
+  },
+  "general.githubStarPromptDisabled": {
+    schema: z.boolean(),
+    default: false,
+    description: "Permanently disable the optional GitHub Star reminder",
+    category: "general",
+  },
+  "general.githubStarPromptDeferredUntil": {
+    schema: z.number().nonnegative(),
+    default: 0,
+    description:
+      "Unix timestamp in milliseconds before the GitHub Star reminder may appear again",
+    category: "general",
+  },
+  "general.githubStarPromptLastShownAt": {
+    schema: z.number().nonnegative(),
+    default: 0,
+    description:
+      "Unix timestamp in milliseconds when the GitHub Star reminder was last shown",
+    category: "general",
+  },
+  "general.githubStarPromptNextEligibleValueCount": {
+    schema: z.number().int().positive(),
+    default: 1,
+    description:
+      "Value-moment count required before the optional GitHub Star reminder is eligible",
     category: "general",
   },
   "general.voiceInputEnabled": {

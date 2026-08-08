@@ -692,21 +692,47 @@
     "agentApproval": "Zatwierdzenie Agent",
     "agentApprovalDesc": "Gdy akcja Agent wymaga Twojego zatwierdzenia",
     "errors": "Błędy i ostrzeżenia",
+    "teamInbox": "Skrzynka odbiorcza zespołu",
     "errorsDesc": "Gdy występują błędy lub ostrzeżenia",
     "sessionStatus": "Status sesji",
     "sessionStatusDesc": "Aktualizacje rozpoczęcia, pauzy i wznowienia sesji",
     "gitOperations": "Operacje Git",
     "gitOperationsDesc": "Powiadomienia o git pull, push i synchronizacji",
+    "soundPreset": "Dźwięk powiadomienia",
+    "soundPresetDesc": "Wybierz dźwięk odtwarzany dla słyszalnych powiadomień",
+    "previewSound": "Odsłuchaj",
+    "soundPresets": {
+      "classic": "Klasyczny",
+      "gentle": "Łagodny",
+      "ascending": "Rosnący",
+      "bell": "Dzwonek"
+    },
     "volume": "Głośność",
     "testNotification": "Testowe powiadomienie",
     "notification": "Powiadomienie",
     "sound": "Dźwięk",
     "enabledSuccess": "Powiadomienia włączone",
     "permissionDenied": "Odmówiono uprawnienia do powiadomień",
+    "criticalOnly": "Tylko alerty krytyczne",
+    "criticalOnlyDesc": "Powiadamiaj tylko, gdy działanie wymaga zatwierdzenia lub zadanie się nie powiedzie",
+    "quietHours": "Harmonogram Nie przeszkadzać",
+    "quietHoursDesc": "Wyciszaj rutynowe powiadomienia w codziennym przedziale czasu",
+    "quietHoursSchedule": "Godziny ciszy",
+    "quietHoursScheduleDesc": "Używa czasu lokalnego urządzenia. Identyczna godzina początku i końca wyłącza przedział.",
+    "quietHoursStart": "Od",
+    "quietHoursEnd": "Do",
+    "allowCriticalDuringQuietHours": "Zezwalaj na alerty krytyczne",
+    "allowCriticalDuringQuietHoursDesc": "Prośby o zatwierdzenie i błędy mogą wyświetlać powiadomienie systemowe, ale nigdy nie odtwarzają dźwięku",
+    "backgroundCompletionSummary": "Podsumowuj zakończone zadania w tle",
+    "backgroundCompletionSummaryDesc": "Wyślij jedno zbiorcze powiadomienie po zakończeniu godzin ciszy",
+    "mutedSessions": "Wyciszone sesje",
+    "mutedSessionsDesc": "Na tym urządzeniu wyciszono {{count}} sesji",
+    "clearMutedSessions": "Wyczyść wszystko",
     "test": {
       "sent": "Wysłano testowe powiadomienie",
       "permissionWarning": "Nie udało się wysłać testowego powiadomienia. Sprawdź uprawnienia.",
-      "sendFailed": "Nie można wysłać testowego powiadomienia. Sprawdź uprawnienia do powiadomień i spróbuj ponownie."
+      "sendFailed": "Nie można wysłać testowego powiadomienia. Sprawdź uprawnienia do powiadomień i spróbuj ponownie.",
+      "soundFailed": "Nie można odtworzyć dźwięku powiadomienia. Sprawdź głośność systemu."
     }
   },
   "editor": {
@@ -1000,7 +1026,13 @@
     "tableSize": "Rozmiar",
     "tablePercentage": "Proc.",
     "scanFailed": "Nie udało się przeskanować zużycia dysku",
-    "openFolderFailed": "Nie udało się otworzyć folderu"
+    "openFolderFailed": "Nie udało się otworzyć folderu",
+    "browserCache": "Pamięć podręczna przeglądarki",
+    "browserCacheDesc": "Użyto {{used}} · {{cleanable}} można bezpiecznie wyczyścić",
+    "cleanBrowserCache": "Wyczyść",
+    "browserCacheCleaned": "Zwolniono {{size}} pamięci przeglądarki",
+    "browserCacheAlreadyClean": "Pamięć podręczna przeglądarki jest już czysta",
+    "browserCacheCleanFailed": "Nie udało się wyczyścić pamięci podręcznej przeglądarki"
   },
   "agentSessions": {
     "title": "Sesje Agent",

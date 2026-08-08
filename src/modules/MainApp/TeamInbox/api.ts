@@ -35,6 +35,7 @@ type TeamInboxWireTarget =
       orgId: string;
       projectId?: string;
       projectSlug?: string;
+      repository?: string;
     }
   | {
       type: "work_item_comment";
@@ -155,6 +156,9 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
         orgId: item.target.orgId,
         projectId: item.target.projectSlug ?? item.target.projectId ?? "",
         workItemId: item.target.shortId,
+        ...(item.target.repository
+          ? { repository: item.target.repository }
+          : {}),
       },
       payload: {
         title: item.payload.title,

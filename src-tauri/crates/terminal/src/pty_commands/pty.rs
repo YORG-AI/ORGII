@@ -1080,6 +1080,30 @@ mod tests {
     use super::{collect_sweep_sids, leader_is_sweep_candidate, pending_exit_session_leaders};
     use std::collections::HashMap;
 
+    #[cfg(target_os = "linux")]
+    mod parse_tpgid_tests {
+        use super::super::parse_tpgid_from_stat;
+
+        #[test]
+        fn parses_standard_stat() {
+            // pid (comm) state ppid pgrp session tty_nr tpgid ...
+            let stat = "12345 (bash) S 1 12345 12345 34816 12400 4194304";
+            assert_eq!(parse_tpgid_from_stat(stat), Some(12400));
+        }
+
+        #[test]
+        fn parses_comm_with_spaces() {
+            let stat = "12345 (my shell) S 1 12345 12345 34816 99999 4194304";
+            assert_eq!(parse_tpgid_from_stat(stat), Some(99999));
+        }
+
+        #[test]
+        fn rejects_invalid_stat() {
+            assert_eq!(parse_tpgid_from_stat("garbage"), None);
+            assert_eq!(parse_tpgid_from_stat(""), None);
+        }
+    }
+
     // The session-leader registry is a process-global static shared across
     // tests; this helper drains it so each case starts from a known state.
     fn reset_registry() {

@@ -60,6 +60,26 @@ export const SessionAggregateListInput = z.object({
   filter: SessionFilterInput.optional(),
 });
 
+export const NativeSidebarSessionStreamSchema = z.enum([
+  "pinnedNative",
+  "standaloneAgent",
+  "agentOrgRoot",
+  "osAgent",
+  "cliAgent",
+  "humanSession",
+]);
+
+export const NativeSidebarSessionCursorSchema = z.object({
+  updatedAt: z.string().min(1),
+  sessionId: z.string().min(1),
+});
+
+export const NativeSidebarSessionPageInput = z.object({
+  stream: NativeSidebarSessionStreamSchema,
+  cursor: NativeSidebarSessionCursorSchema.nullable().optional(),
+  limit: z.number().int().min(1).max(50),
+});
+
 export const ExternalHistorySidebarDateBucketSchema = z.enum([
   "today",
   "yesterday",
@@ -139,6 +159,9 @@ export const SessionPatchInput = z.object({
       model: z.string().optional(),
       accountId: z.string().optional(),
       agentExecMode: z.string().optional(),
+      // Product mode (orgtrack/v1 §5.2): build|plan|ask|project.
+      // Validated as a closed enum on the Rust side.
+      productMode: z.string().optional(),
       // `.nullable().optional()` is the zod equivalent of the Rust
       // `Option<Option<String>>`: undefined = leave alone, null = clear,
       // string = set.
@@ -152,6 +175,7 @@ export const SessionPatchInput = z.object({
         p.name !== undefined ||
         p.model !== undefined ||
         p.agentExecMode !== undefined ||
+        p.productMode !== undefined ||
         p.draftText !== undefined ||
         p.replyTargetEventId !== undefined ||
         p.pinned !== undefined,
@@ -214,6 +238,9 @@ export const SessionAggregateRecordSchema = z.object({
   // strict enum) so the wire format tolerates new modes added on the
   // Rust side without a coordinated frontend release.
   agentExecMode: z.string().optional(),
+  // Persistent product mode (orgtrack/v1 §5.2): build|plan|ask|project.
+  // Absent = build. Source of truth for the Project mutation surface.
+  productMode: z.string().optional(),
   // Per-session unsent draft text (P3). The chat composer mirrors this
   // into ComposerInput on session activation. Cleared on send. Persisted via
   // debounced `session_patch` calls — see `useSessionDraftField`.
@@ -232,6 +259,12 @@ export const SessionAggregateRecordSchema = z.object({
 
 export const SessionListResponseSchema = z.object({
   sessions: z.array(SessionAggregateRecordSchema),
+});
+
+export const NativeSidebarSessionPageResponseSchema = z.object({
+  sessions: z.array(SessionAggregateRecordSchema),
+  nextCursor: NativeSidebarSessionCursorSchema.nullable(),
+  hasMore: z.boolean(),
 });
 
 export const ExternalHistorySidebarRowSchema = z.object({
@@ -254,6 +287,11 @@ export const ExternalHistorySidebarRowSchema = z.object({
   // copy, so this is their only storage path.
   storagePath: z.string().optional(),
   model: z.string().optional(),
+  // Stable continuation-family identity elected by the imported-history
+  // cache. Used only for sidebar de-duplication of force-revealed siblings.
+  continuationLineageId: z.string().optional(),
+  /** ORGII-owned pin state; imported sessions carry no pin from their source. */
+  pinned: z.boolean().optional(),
   totalTokens: z.number().int().optional(),
   filesChanged: z.number().int().optional(),
   linesAdded: z.number().int().optional(),
@@ -270,6 +308,8 @@ export const ExternalHistorySidebarResponseSchema = z.object({
       hasMore: z.boolean(),
     })
   ),
+  /** Present when this source's store failed to read. Never treat it as empty. */
+  error: z.string().optional(),
 });
 
 export const ExternalHistorySidebarBatchResponseSchema = z.object({
@@ -281,6 +321,15 @@ export type SessionAggregateRecord = z.output<
   typeof SessionAggregateRecordSchema
 >;
 export type SessionListResponse = z.output<typeof SessionListResponseSchema>;
+export type NativeSidebarSessionStream = z.output<
+  typeof NativeSidebarSessionStreamSchema
+>;
+export type NativeSidebarSessionCursor = z.output<
+  typeof NativeSidebarSessionCursorSchema
+>;
+export type NativeSidebarSessionPageResponse = z.output<
+  typeof NativeSidebarSessionPageResponseSchema
+>;
 export type ExternalHistorySidebarDateBucket = z.output<
   typeof ExternalHistorySidebarDateBucketSchema
 >;

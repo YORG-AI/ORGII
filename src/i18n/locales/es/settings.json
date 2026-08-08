@@ -692,21 +692,47 @@
     "agentApproval": "Aprobación de Agent",
     "agentApprovalDesc": "Cuando una acción de Agent requiere tu aprobación",
     "errors": "Errores y advertencias",
+    "teamInbox": "Bandeja de entrada del equipo",
     "errorsDesc": "Cuando ocurren errores o advertencias",
     "sessionStatus": "Estado de Session",
     "sessionStatusDesc": "Actualizaciones de inicio, pausa y reanudación de Session",
     "gitOperations": "Operaciones Git",
     "gitOperationsDesc": "Notificaciones de Git pull, push y sincronización",
+    "soundPreset": "Sonido de notificación",
+    "soundPresetDesc": "Elige el sonido de las notificaciones audibles",
+    "previewSound": "Escuchar",
+    "soundPresets": {
+      "classic": "Clásico",
+      "gentle": "Suave",
+      "ascending": "Ascendente",
+      "bell": "Campana"
+    },
     "volume": "Volumen",
     "testNotification": "Notificación de prueba",
     "notification": "Notificación",
     "sound": "Sonido",
     "enabledSuccess": "Notificaciones habilitadas",
     "permissionDenied": "Permiso de notificación denegado",
+    "criticalOnly": "Solo alertas críticas",
+    "criticalOnlyDesc": "Notificar solo cuando una acción necesite aprobación o una tarea falle",
+    "quietHours": "Programación de no molestar",
+    "quietHoursDesc": "Silenciar las notificaciones rutinarias durante un intervalo diario",
+    "quietHoursSchedule": "Horas de silencio",
+    "quietHoursScheduleDesc": "Usa la hora local de tu dispositivo. Si la hora de inicio y de fin coinciden, el intervalo se desactiva.",
+    "quietHoursStart": "Desde",
+    "quietHoursEnd": "Hasta",
+    "allowCriticalDuringQuietHours": "Permitir alertas críticas",
+    "allowCriticalDuringQuietHoursDesc": "Las solicitudes de aprobación y los fallos pueden mostrar una notificación del sistema, pero nunca suenan",
+    "backgroundCompletionSummary": "Resumir las tareas completadas en segundo plano",
+    "backgroundCompletionSummaryDesc": "Enviar un único aviso combinado al terminar las horas de silencio",
+    "mutedSessions": "Sessions silenciadas",
+    "mutedSessionsDesc": "{{count}} Sessions están silenciadas en este dispositivo",
+    "clearMutedSessions": "Borrar todo",
     "test": {
       "sent": "Notificación de prueba enviada",
       "permissionWarning": "No se pudo enviar la notificación de prueba. Comprueba los permisos.",
-      "sendFailed": "No se puede enviar la notificación de prueba. Comprueba los permisos de notificación e inténtalo de nuevo."
+      "sendFailed": "No se puede enviar la notificación de prueba. Comprueba los permisos de notificación e inténtalo de nuevo.",
+      "soundFailed": "No se puede reproducir el sonido de notificación. Comprueba el volumen del sistema."
     }
   },
   "editor": {
@@ -962,7 +988,13 @@
     "tableSize": "Tamaño",
     "tablePercentage": "Porc.",
     "scanFailed": "Error al analizar el almacenamiento",
-    "openFolderFailed": "No se pudo abrir la carpeta"
+    "openFolderFailed": "No se pudo abrir la carpeta",
+    "browserCache": "Caché del navegador",
+    "browserCacheDesc": "{{used}} usados · {{cleanable}} se pueden limpiar de forma segura",
+    "cleanBrowserCache": "Limpiar",
+    "browserCacheCleaned": "Se liberaron {{size}} de almacenamiento del navegador",
+    "browserCacheAlreadyClean": "La caché del navegador ya está limpia",
+    "browserCacheCleanFailed": "No se pudo limpiar la caché del navegador"
   },
   "dependencies": {
     "systemDependencies": "Dependencies del sistema",

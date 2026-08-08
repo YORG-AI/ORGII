@@ -71,6 +71,13 @@ module.exports = {
         danger: colorScale("danger", COLOR_STEPS_6),
         success: colorScale("success", COLOR_STEPS_6),
         warning: colorScale("warning", COLOR_STEPS_6),
+        purple: colorScale("purple", COLOR_STEPS_7),
+        merged: {
+          DEFAULT: colorVariable("merged-button-bg"),
+          hover: colorVariable("merged-button-hover"),
+          active: colorVariable("merged-button-active"),
+          contrast: colorVariable("merged-button-contrast"),
+        },
       },
       spacing: {
         180: "180px",

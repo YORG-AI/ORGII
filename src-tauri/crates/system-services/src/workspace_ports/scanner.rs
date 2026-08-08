@@ -38,6 +38,7 @@ pub(crate) struct RawListeningPort {
 struct ProcessMetadata {
     process_name: Option<String>,
     command_line: Option<String>,
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     cwd: Option<String>,
 }
 
@@ -777,7 +778,6 @@ fn load_windows_process_metadata(pids: &HashSet<u32>) -> HashMap<u32, ProcessMet
                     .get("CommandLine")
                     .and_then(|value| value.as_str())
                     .map(str::to_string),
-                cwd: None,
             },
         );
     }

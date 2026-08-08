@@ -38,6 +38,8 @@ import {
   ClaudeCodeOauthStartResponseSchema,
   CodexOauthExchangeResponseSchema,
   CodexOauthStartResponseSchema,
+  CursorBillingUsagePageSchema,
+  CursorBillingUsageSnapshotSchema,
   CursorNativeOauthPollResponseSchema,
   CursorNativeOauthStartResponseSchema,
   HousekeeperHealthCheckRequestSchema,
@@ -47,6 +49,7 @@ import {
   HousekeeperUiContextSchema,
   HousekeeperUiIntentRequestSchema,
   HousekeeperUiIntentResponseSchema,
+  KeyQuotaRefreshStatusInfoSchema,
   PromptPolishRequestSchema,
   PromptPolishResponseSchema,
   SessionStepExplainRequestSchema,
@@ -60,6 +63,7 @@ import {
   ModelContextLengthsSchema,
   ModelVariantInfoSchema,
   ProviderProtocolSchema,
+  QuotaBalanceSchema,
   QuotaInfoSchema,
   SaveKeyRequestSchema,
   UsageItemSchema,
@@ -84,6 +88,7 @@ export type HealthStatus = z.infer<typeof HealthStatusSchema>;
 export type MergeStatus = z.infer<typeof MergeStatusSchema>;
 export type PriceTier = z.infer<typeof PriceTierSchema>;
 export type UsageItem = z.infer<typeof UsageItemSchema>;
+export type QuotaBalance = z.infer<typeof QuotaBalanceSchema>;
 export type QuotaInfo = z.infer<typeof QuotaInfoSchema>;
 export type ModelContextLengths = z.infer<typeof ModelContextLengthsSchema>;
 export type ValidationResult = z.infer<typeof ValidationResultSchema>;
@@ -130,6 +135,15 @@ export type HousekeeperUiIntentRequest = z.infer<
 >;
 export type HousekeeperUiIntentResponse = z.infer<
   typeof HousekeeperUiIntentResponseSchema
+>;
+export type KeyQuotaRefreshStatusInfo = z.infer<
+  typeof KeyQuotaRefreshStatusInfoSchema
+>;
+export type CursorBillingUsageSnapshot = z.infer<
+  typeof CursorBillingUsageSnapshotSchema
+>;
+export type CursorBillingUsagePage = z.infer<
+  typeof CursorBillingUsagePageSchema
 >;
 export type CursorNativeOauthStartResponse = z.infer<
   typeof CursorNativeOauthStartResponseSchema

@@ -998,12 +998,14 @@ impl Tool for AgentTool {
             parent_key_source,
             parent_agent_exec_mode,
             parent_native_harness_type,
+            parent_product_mode,
         ) = match crate::session::persistence::get_session(&parent_session_id) {
             Ok(Some(parent)) => (
                 parent.account_id,
                 parent.key_source,
                 parent.agent_exec_mode,
                 parent.native_harness_type,
+                parent.product_mode,
             ),
             Ok(None) => {
                 warn!(
@@ -1016,6 +1018,7 @@ impl Tool for AgentTool {
                 (
                     None,
                     core_types::key_source::KeySource::default(),
+                    None,
                     None,
                     None,
                 )
@@ -1032,20 +1035,23 @@ impl Tool for AgentTool {
                     core_types::key_source::KeySource::default(),
                     None,
                     None,
+                    None,
                 )
             }
         };
 
-        // Exec-mode overlay (see the comment above step 6): the worker's
-        // policy must reflect the parent's CURRENT mode, not the base
-        // policy snapshotted at init. A Plan-mode parent therefore spawns
-        // read-only workers (Plan's deny layer strips edit/shell/MCP
-        // write surfaces); Build/Wingman parents are unaffected.
-        let effective_policy = Self::overlay_parent_exec_mode(
+        // Mode overlay (see the comment above step 6): the worker's
+        // policy must reflect the parent's CURRENT exec + product modes,
+        // not the base policy snapshotted at init. A Plan-mode parent
+        // therefore spawns read-only workers, and a non-Project parent
+        // spawns workers with the PM mutation tools denied (deny-delta —
+        // delegation cannot escalate past the parent's own surface).
+        let effective_policy = Self::overlay_parent_modes(
             effective_policy,
             parent_agent_exec_mode
                 .as_deref()
                 .and_then(crate::session::AgentExecMode::parse),
+            parent_product_mode.as_deref(),
         );
 
         {

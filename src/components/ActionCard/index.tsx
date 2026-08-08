@@ -82,6 +82,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
   description,
   onClick,
   variant = "default",
+  layout = "inline",
   icon: Icon,
   iconElement,
   iconPreserveColor = false,
@@ -139,7 +140,45 @@ const ActionCard: React.FC<ActionCardProps> = ({
   const showTrailingCheck =
     showSelect && showSelectionCheck && !showCheckbox && !showRadio && selected;
 
-  const content = (
+  const leadingIcon = iconElement ? (
+    <div className={cn("flex-shrink-0", iconColorClass)}>{iconElement}</div>
+  ) : Icon ? (
+    <Icon size={layout === "stacked" ? 18 : 16} className={iconColorClass} />
+  ) : null;
+
+  const badgeElement = badge ? (
+    <span className="inline-flex flex-shrink-0 items-center rounded-full bg-primary-1 px-2 py-1 text-[10px] font-medium leading-none text-primary-6">
+      {badge}
+    </span>
+  ) : null;
+
+  const trailingCheck = showTrailingCheck ? (
+    tooltip ? (
+      <Tooltip content={tooltip} showArrow={false} position="top">
+        <span className="flex-shrink-0 cursor-help">
+          <Check size={14} className="text-primary-6" />
+        </span>
+      </Tooltip>
+    ) : (
+      <span className="flex size-6 flex-shrink-0 items-center justify-center rounded-full bg-primary-1">
+        <Check size={14} className="text-primary-6" />
+      </span>
+    )
+  ) : null;
+
+  const actionButton = hasButton ? (
+    <Button
+      variant={variant === "primary" ? "primary" : "secondary"}
+      size="small"
+      onClick={handleButtonClick}
+      disabled={disabled}
+      loading={buttonLoading}
+    >
+      {buttonText}
+    </Button>
+  ) : null;
+
+  const inlineContent = (
     <>
       <div className="flex items-center gap-2">
         {showCheckbox && !showRadio && (
@@ -147,22 +186,12 @@ const ActionCard: React.FC<ActionCardProps> = ({
         )}
         {showRadio && <RadioIndicator selected={selected} />}
 
-        {iconElement ? (
-          <div className={cn("flex-shrink-0", iconColorClass)}>
-            {iconElement}
-          </div>
-        ) : Icon ? (
-          <Icon size={16} className={iconColorClass} />
-        ) : null}
+        {leadingIcon}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className={titleClass}>{title}</p>
-            {badge && (
-              <span className="inline-flex flex-shrink-0 items-center rounded-full bg-primary-1 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-6">
-                {badge}
-              </span>
-            )}
+            {badgeElement}
           </div>
           {description && (
             <p className={variantConfig.descriptionClass}>{description}</p>
@@ -171,28 +200,8 @@ const ActionCard: React.FC<ActionCardProps> = ({
 
         {tooltip && !isSelected && <InfoTooltip content={tooltip} />}
 
-        {hasButton && (
-          <Button
-            variant={variant === "primary" ? "primary" : "secondary"}
-            size="small"
-            onClick={handleButtonClick}
-            disabled={disabled}
-            loading={buttonLoading}
-          >
-            {buttonText}
-          </Button>
-        )}
-
-        {showTrailingCheck &&
-          (tooltip ? (
-            <Tooltip content={tooltip} showArrow={false} position="top">
-              <span className="flex-shrink-0 cursor-help">
-                <Check size={14} className="text-primary-6" />
-              </span>
-            </Tooltip>
-          ) : (
-            <Check size={14} className="flex-shrink-0 text-primary-6" />
-          ))}
+        {actionButton}
+        {trailingCheck}
 
         {showArrow && (
           <ArrowRight
@@ -204,6 +213,60 @@ const ActionCard: React.FC<ActionCardProps> = ({
     </>
   );
 
+  const stackedContent = (
+    <div className="flex h-full min-w-0 flex-col">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-h-9 items-center gap-2">
+          {(showCheckbox || showRadio) && (
+            <>
+              {showCheckbox && !showRadio && (
+                <CheckboxIndicator selected={selected} />
+              )}
+              {showRadio && <RadioIndicator selected={selected} />}
+            </>
+          )}
+          {leadingIcon && (
+            <span
+              className={cn(
+                "flex size-9 flex-shrink-0 items-center justify-center rounded-xl border",
+                isSelected
+                  ? "border-primary-6/25 bg-primary-1"
+                  : "border-border-1 bg-fill-2"
+              )}
+            >
+              {leadingIcon}
+            </span>
+          )}
+        </div>
+
+        <div className="flex min-h-9 items-center gap-2">
+          {badgeElement}
+          {tooltip && !isSelected && <InfoTooltip content={tooltip} />}
+          {trailingCheck}
+          {showArrow && (
+            <ArrowRight
+              size={14}
+              className="invisible flex-shrink-0 text-text-1 group-hover:visible group-active:visible"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 min-w-0">
+        <p className={cn(titleClass, "text-sm leading-5")}>{title}</p>
+        {description && (
+          <p className={cn(variantConfig.descriptionClass, "mt-1.5 leading-5")}>
+            {description}
+          </p>
+        )}
+      </div>
+
+      {actionButton && <div className="mt-4">{actionButton}</div>}
+    </div>
+  );
+
+  const content = layout === "stacked" ? stackedContent : inlineContent;
+
   // A clickable card is an interactive control, not a generic div. Native
   // button semantics make every wizard/selection surface keyboard reachable
   // (Tab + Enter/Space) and expose the control to assistive technology. Cards
@@ -211,7 +274,11 @@ const ActionCard: React.FC<ActionCardProps> = ({
   // invalid nested buttons; only that explicit action performs the callback.
   if (hasButton) {
     return (
-      <div className={containerClass} data-testid={dataTestId}>
+      <div
+        className={containerClass}
+        data-action-card-layout={layout}
+        data-testid={dataTestId}
+      >
         {content}
       </div>
     );
@@ -227,6 +294,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
       onClick={handleCardClick}
       disabled={disabled}
       aria-pressed={hasSelector ? selected : undefined}
+      data-action-card-layout={layout}
       data-testid={dataTestId}
     >
       {content}
@@ -236,4 +304,8 @@ const ActionCard: React.FC<ActionCardProps> = ({
 
 export default ActionCard;
 export { SELECTION_CARD_CLASSES, getSelectionCardClass } from "./config";
-export type { ActionCardProps, ActionCardVariant } from "./types";
+export type {
+  ActionCardLayout,
+  ActionCardProps,
+  ActionCardVariant,
+} from "./types";

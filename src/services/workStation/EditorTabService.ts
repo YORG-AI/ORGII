@@ -13,6 +13,7 @@ import {
   closeOtherTabs as closeOtherTabsHelper,
   closeSavedTabs as closeSavedTabsHelper,
   closeWorkstationTabAtom,
+  closeWorkstationTabsAtom,
   createExplorerTab,
   focusWorkstationTabAtom,
   openWorkstationTabAtom,
@@ -34,30 +35,23 @@ function getMainPane(workspace = currentWorkspace()): PanelState {
   return selectWorkstationPanel(store.get(workstationTabsStateAtom), workspace);
 }
 
-function updateMainPane(
+function closeFromMainPane(
   updater: (state: PanelState) => PanelState,
   workspace = currentWorkspace()
 ): void {
   const before = getMainPane(workspace);
   const after = updater(before);
   if (after === before) return;
-  // Compatibility path for compound operations. Simple open/close/focus/reorder
-  // methods below use explicit scoped actions so delayed callers can freeze key.
   const store = getStore();
-  for (const tab of before.tabs) {
-    if (!after.tabs.some((candidate) => candidate.id === tab.id)) {
-      store.set(closeWorkstationTabAtom, { workspace, tabId: tab.id });
-    }
-  }
-  for (const tab of after.tabs) {
-    store.set(openWorkstationTabAtom, { workspace, tab });
-  }
-  if (after.activeTabId) {
-    store.set(focusWorkstationTabAtom, {
-      workspace,
-      tabId: after.activeTabId,
-    });
-  }
+  const remainingIds = new Set(after.tabs.map((tab) => tab.id));
+  const tabIds = before.tabs
+    .filter((tab) => !remainingIds.has(tab.id))
+    .map((tab) => tab.id);
+  store.set(closeWorkstationTabsAtom, {
+    workspace,
+    tabIds,
+    activeTabId: after.activeTabId,
+  });
 }
 
 export const EditorTabService = {
@@ -107,18 +101,18 @@ export const EditorTabService = {
   },
 
   closeAllTabs(): boolean {
-    updateMainPane(closeAllTabsHelper);
+    closeFromMainPane(closeAllTabsHelper);
     return true;
   },
 
   closeOtherTabs(tabId: string): boolean {
     if (!this.hasTab(tabId)) return false;
-    updateMainPane((paneState) => closeOtherTabsHelper(paneState, tabId));
+    closeFromMainPane((paneState) => closeOtherTabsHelper(paneState, tabId));
     return true;
   },
 
   closeSavedTabs(): boolean {
-    updateMainPane(closeSavedTabsHelper);
+    closeFromMainPane(closeSavedTabsHelper);
     return true;
   },
 

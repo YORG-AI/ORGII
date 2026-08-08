@@ -28,4 +28,18 @@ describe("LaunchButton", () => {
     expect(markup).toContain("<svg");
     expect(markup).not.toContain(">Save work item</span>");
   });
+
+  it("forwards a host-specific test id", () => {
+    const markup = renderToStaticMarkup(
+      createElement(LaunchButton, {
+        dataTestId: "create-project-submit",
+        disabled: false,
+        loading: false,
+        onClick: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('data-testid="create-project-submit"');
+    expect(markup).not.toContain('data-testid="chat-send-button"');
+  });
 });

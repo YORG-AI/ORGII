@@ -1,6 +1,7 @@
 import type { JSONContent } from "@tiptap/react";
 
 import type { PillIconType } from "@src/components/ComposerInput";
+import type { DropdownPosition } from "@src/components/Dropdown/types";
 
 export interface RichTextEditorRef {
   getText: () => string;
@@ -61,6 +62,12 @@ export interface RichTextEditorProps {
   autoFocus?: boolean;
   className?: string;
   toolbarClassName?: string;
+  /** Formatting toolbar placement. Defaults to selection-based floating controls. */
+  toolbarMode?: "floating" | "inline" | "none";
+  /** Formatting toolbar control size. Defaults to the 28px `small` size. */
+  toolbarSize?: "mini" | "small";
+  /** Preferred placement for toolbar dropdown panels. */
+  toolbarDropdownPosition?: DropdownPosition;
   /** Match the editable document typography to the shared Markdown preview. */
   matchMarkdownPreview?: boolean;
   minHeight?: number;

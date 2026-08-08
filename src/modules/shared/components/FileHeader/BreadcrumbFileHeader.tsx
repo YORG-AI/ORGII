@@ -195,7 +195,7 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`flex min-w-0 flex-1 items-center gap-0.5 ${
+      className={`flex min-w-0 flex-1 items-center gap-0 ${
         plainTitle
           ? "overflow-x-hidden"
           : "flex-nowrap overflow-x-auto scrollbar-hide"
@@ -278,7 +278,8 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
               <ChevronRight
                 size={14}
                 strokeWidth={1.75}
-                className="flex-shrink-0 text-fill-4"
+                className="mx-0.5 flex-shrink-0 text-fill-4"
+                aria-hidden="true"
               />
             )}
 

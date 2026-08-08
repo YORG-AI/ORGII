@@ -4,13 +4,13 @@ import {
   Gauge,
   Github,
   Inbox,
-  ListTodo,
   Plus,
   SquarePen,
 } from "lucide-react";
 import React from "react";
 
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
+import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import type { SessionCreatorDraft } from "@src/store/session";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
@@ -23,7 +23,6 @@ import {
   PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID,
   RUNTIME_MENU_ITEM_ID,
   TEAM_INBOX_MENU_ITEM_ID,
-  WORK_ITEMS_MENU_ITEM_ID,
   getDraftMenuItemId,
   getDraftPreviewText,
 } from "./sidebarConnectorUtils";
@@ -31,8 +30,6 @@ import {
 interface BuildPinnedMenuItemsParams {
   newSessionLabel: string;
   newSessionShortcut: string;
-  workItemsLabel: string;
-  workItemDestinations: NavigationMenuItem[];
   kanbanLabel: string;
   kanbanShortcut: string;
   runtimeLabel: string;
@@ -42,17 +39,51 @@ interface BuildPinnedMenuItemsParams {
 }
 
 interface BuildProjectsPinnedMenuItemsParams {
+  browseLabel: string;
   createProjectLabel: string;
   createWorkItemLabel: string;
   importGithubIssuesLabel: string;
+  teamInboxLabel: string;
+  teamInboxUnreadCount?: number;
+  teamInboxUnreadAriaLabel?: string;
   workItemDestinations: readonly NavigationMenuItem[];
+}
+
+interface BuildTeamInboxMenuItemParams {
+  teamInboxLabel: string;
+  teamInboxUnreadCount?: number;
+  teamInboxUnreadAriaLabel?: string;
+}
+
+export function buildTeamInboxMenuItem({
+  teamInboxLabel,
+  teamInboxUnreadCount = 0,
+  teamInboxUnreadAriaLabel,
+}: BuildTeamInboxMenuItemParams): NavigationMenuItem {
+  return {
+    id: TEAM_INBOX_MENU_ITEM_ID,
+    key: TEAM_INBOX_MENU_ITEM_ID,
+    label: teamInboxLabel,
+    icon: Inbox,
+    iconName: "inbox",
+    dataTestId: "sidebar-team-inbox",
+    trailingElement:
+      teamInboxUnreadCount > 0 ? (
+        <span
+          aria-label={
+            teamInboxUnreadAriaLabel ?? `${teamInboxUnreadCount} unread`
+          }
+          className="min-w-5 rounded-full bg-primary-6 px-1.5 text-center text-xs font-medium text-white"
+        >
+          {teamInboxUnreadCount > 99 ? "99+" : teamInboxUnreadCount}
+        </span>
+      ) : undefined,
+  };
 }
 
 export function buildPinnedMenuItems({
   newSessionLabel,
   newSessionShortcut,
-  workItemsLabel,
-  workItemDestinations,
   kanbanLabel,
   kanbanShortcut,
   runtimeLabel,
@@ -85,43 +116,24 @@ export function buildPinnedMenuItems({
       icon: Gauge,
       iconName: "gauge",
       dataTestId: "sidebar-runtime",
+      tourTarget: GENERAL_LAYOUT_TOUR_TARGETS.runtimeNavigation,
     },
-    {
-      id: TEAM_INBOX_MENU_ITEM_ID,
-      key: TEAM_INBOX_MENU_ITEM_ID,
-      label: teamInboxLabel,
-      icon: Inbox,
-      iconName: "inbox",
-      dataTestId: "sidebar-team-inbox",
-      trailingElement:
-        teamInboxUnreadCount > 0 ? (
-          <span
-            aria-label={
-              teamInboxUnreadAriaLabel ?? `${teamInboxUnreadCount} unread`
-            }
-            className="min-w-5 rounded-full bg-primary-6 px-1.5 text-center text-xs font-medium text-white"
-          >
-            {teamInboxUnreadCount > 99 ? "99+" : teamInboxUnreadCount}
-          </span>
-        ) : undefined,
-    },
-    {
-      id: WORK_ITEMS_MENU_ITEM_ID,
-      key: WORK_ITEMS_MENU_ITEM_ID,
-      label: workItemsLabel,
-      icon: ListTodo,
-      iconName: "list-todo",
-      children: workItemDestinations,
-      disclosureFollowsLabel: true,
-      dataTestId: "sidebar-toggle-work-items",
-    },
+    buildTeamInboxMenuItem({
+      teamInboxLabel,
+      teamInboxUnreadCount,
+      teamInboxUnreadAriaLabel,
+    }),
   ];
 }
 
 export function buildProjectsPinnedMenuItems({
+  browseLabel,
   createProjectLabel,
   createWorkItemLabel,
   importGithubIssuesLabel,
+  teamInboxLabel,
+  teamInboxUnreadCount,
+  teamInboxUnreadAriaLabel,
   workItemDestinations,
 }: BuildProjectsPinnedMenuItemsParams): NavigationMenuItem[] {
   return [
@@ -149,8 +161,24 @@ export function buildProjectsPinnedMenuItems({
       iconName: "github",
       dataTestId: "sidebar-import-github-issues",
     },
+    buildTeamInboxMenuItem({
+      teamInboxLabel,
+      teamInboxUnreadCount,
+      teamInboxUnreadAriaLabel,
+    }),
+    {
+      id: "separator-work-items-browse",
+      key: "separator-work-items-browse",
+      label: browseLabel,
+    },
     ...workItemDestinations,
   ];
+}
+
+export function buildChannelsPinnedMenuItems(
+  params: BuildTeamInboxMenuItemParams
+): NavigationMenuItem[] {
+  return [buildTeamInboxMenuItem(params)];
 }
 
 interface BuildDraftMenuItemsParams {

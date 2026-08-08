@@ -47,10 +47,28 @@ export interface WorkItemExternalStatusConfig {
   onChangeStatusId: (statusId: string) => void | Promise<void>;
 }
 
+export interface WorkItemExternalAssigneeOption {
+  id: string;
+  label: string;
+  avatar?: string;
+}
+
+export interface WorkItemExternalAssigneeConfig {
+  currentAssigneeIds: string[];
+  options: WorkItemExternalAssigneeOption[];
+  loading?: boolean;
+  error?: string | null;
+  disabled?: boolean;
+  readonlyReason?: string;
+  onOpen?: () => void | Promise<void>;
+  onChangeAssigneeIds: (assigneeIds: string[]) => void | Promise<void>;
+}
+
 export interface WorkItemPropertiesProps {
   workItem: WorkItemExtended;
   onUpdate: (updates: Partial<WorkItemExtended>) => void;
   externalStatusConfig?: WorkItemExternalStatusConfig;
+  externalAssigneeConfig?: WorkItemExternalAssigneeConfig;
   availableProjects?: WorkItemProject[];
   availableMilestones?: WorkItemMilestone[];
   availableLabels?: WorkItemLabel[];
@@ -61,6 +79,8 @@ export interface WorkItemPropertiesProps {
   projectIconType?: string;
   /** Show the current project without allowing it to be changed or cleared. */
   projectReadonly?: boolean;
+  /** Show the current assignee without offering a local-only picker. */
+  assigneeReadonly?: boolean;
   showTime?: boolean;
   fieldVariant?: FieldRowVariant;
   /**

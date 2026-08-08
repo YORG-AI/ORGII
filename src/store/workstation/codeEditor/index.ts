@@ -29,6 +29,9 @@ export * from "./workspacePortsAtom";
 // Git diff review bar (change list position)
 export * from "./gitReviewNavigationAtom";
 
+// Shared unified/split presentation preference for git diff surfaces
+export * from "./diffViewModeAtom";
+
 // Source Control focus target (sidebar click → scroll/expand in All Changes view)
 export * from "./sourceControlFocusTargetAtom";
 
@@ -37,6 +40,9 @@ export * from "./sourceControlFilterModeAtom";
 
 // Source Control worktree scope (host vs linked worktree)
 export * from "./sourceControlScopeAtom";
+
+// Source Control state contracts
+export * from "./sourceControlTypes";
 
 // Pinned Terminal tab target selection
 export * from "./terminalTargetAtom";

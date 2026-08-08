@@ -9,12 +9,17 @@ import {
   chatPanelSelectedProjectOrgAtom,
   chatPanelSelectedWorkItemAtom,
 } from "@src/store/ui/chatPanelAtom";
+import type { WorkManagementSection } from "@src/store/workstation";
 
 import { buildDefaultLaunchpadTab } from "./chatPanelTabFactories";
 import {
   activateChatPanelTabAtom,
   transitionChatPanelTabPresentationAtom,
 } from "./chatPanelTabPresentationAtoms";
+import {
+  type ChatPanelSelectedChannel,
+  getWorkManagementFallbackTitle,
+} from "./chatPanelTabsModel";
 import { chatPanelTabsAtom } from "./chatPanelTabsState";
 import { disposeWorkManagementStateAtom } from "./disposeWorkManagementStateAtom";
 
@@ -31,6 +36,33 @@ export const clearChatPanelTabCliCommandAtom = atom(
   }
 );
 clearChatPanelTabCliCommandAtom.debugLabel = "clearChatPanelTabCliCommand";
+
+/** Change the dataset shown by the active Work tab without opening another tab. */
+export const setActiveWorkManagementSectionAtom = atom(
+  null,
+  (
+    get,
+    set,
+    {
+      section,
+      title = getWorkManagementFallbackTitle(section),
+    }: { section: WorkManagementSection; title?: string }
+  ) => {
+    const state = get(chatPanelTabsAtom);
+    const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
+    if (activeTab?.type !== "work-management") return;
+    set(chatPanelTabsAtom, {
+      ...state,
+      tabs: state.tabs.map((tab) =>
+        tab.id === activeTab.id
+          ? { ...tab, managementSection: section, title }
+          : tab
+      ),
+    });
+  }
+);
+setActiveWorkManagementSectionAtom.debugLabel =
+  "setActiveWorkManagementSection";
 
 /** Close a tab by ID. If it was active, move to the nearest neighbour. */
 export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
@@ -176,6 +208,97 @@ export const closeProjectOrgChatPanelTabsAtom = atom(
   }
 );
 closeProjectOrgChatPanelTabsAtom.debugLabel = "closeProjectOrgChatPanelTabs";
+
+/**
+ * Close cloud channel tabs whose org is no longer in the authoritative
+ * roster. Per-org channel-tab reconciliation only runs while that org is the
+ * ACTIVE sidebar scope; a revoked org can never become active again, so its
+ * channel tabs (private ones included) would otherwise persist forever with
+ * cached names. Keyed by LIVE cloud org ids so an empty roster read cannot
+ * be distinguished from revocation — callers must gate on rosterLoaded.
+ */
+export const closeRevokedCloudChannelChatPanelTabsAtom = atom(
+  null,
+  (get, set, liveCloudOrgIds: readonly string[]) => {
+    const live = new Set(liveCloudOrgIds);
+    const tabIds = get(chatPanelTabsAtom)
+      .tabs.filter(
+        (tab) =>
+          tab.type === "channel" &&
+          tab.channel?.scope === "cloud" &&
+          !live.has(tab.channel.orgId)
+      )
+      .map((tab) => tab.id);
+    for (const tabId of tabIds) set(closeChatPanelTabAtom, tabId);
+  }
+);
+closeRevokedCloudChannelChatPanelTabsAtom.debugLabel =
+  "closeRevokedCloudChannelChatPanelTabs";
+
+export type ReconcileDiscussionChannelTabsInput =
+  | {
+      scope: "local";
+      channels: readonly Extract<
+        ChatPanelSelectedChannel,
+        { scope: "local" }
+      >[];
+    }
+  | {
+      scope: "cloud";
+      orgId: string;
+      channels: readonly Extract<
+        ChatPanelSelectedChannel,
+        { scope: "cloud" }
+      >[];
+    };
+
+/**
+ * Close discussion-channel tabs that disappeared from an authoritative full
+ * listing and refresh the payload/title of survivors. Cloud callers must
+ * include archived rows, so an archive remains readable while a membership
+ * revocation or hard delete closes the stale tab.
+ */
+export const reconcileDiscussionChannelTabsAtom = atom(
+  null,
+  (get, set, input: ReconcileDiscussionChannelTabsInput) => {
+    const accessible = new Map(
+      input.channels.map((channel) => [channel.channelId, channel])
+    );
+    const state = get(chatPanelTabsAtom);
+    const tabIds: string[] = [];
+    let payloadChanged = false;
+    const tabs = state.tabs.map((tab) => {
+      if (tab.type !== "channel" || !tab.channel) return tab;
+      const matchesScope =
+        input.scope === "local"
+          ? tab.channel.scope === "local"
+          : tab.channel.scope === "cloud" && tab.channel.orgId === input.orgId;
+      if (!matchesScope) return tab;
+
+      const channel = accessible.get(tab.channel.channelId);
+      if (!channel) {
+        tabIds.push(tab.id);
+        return tab;
+      }
+      const samePayload =
+        channel.scope === tab.channel.scope &&
+        channel.name === tab.channel.name &&
+        (channel.scope === "local" ||
+          (tab.channel.scope === "cloud" &&
+            channel.orgId === tab.channel.orgId &&
+            channel.visibility === tab.channel.visibility));
+      if (samePayload) return tab;
+      payloadChanged = true;
+      return { ...tab, title: channel.name, channel };
+    });
+
+    if (payloadChanged) set(chatPanelTabsAtom, { ...state, tabs });
+    for (const tabId of tabIds) set(closeChatPanelTabAtom, tabId);
+    return tabIds;
+  }
+);
+reconcileDiscussionChannelTabsAtom.debugLabel =
+  "reconcileDiscussionChannelTabs";
 
 /** Navigate to the next tab (wraps around) */
 export const nextChatPanelTabAtom = atom(null, (get, set) => {

@@ -52,6 +52,7 @@ async function loadModule() {
     workstationActiveSessionIdAtom: atoms.workstationActiveSessionIdAtom,
     sessionViewAtom: atoms.sessionViewAtom,
     applyWorkStationPipelineBridge: bridge.applyWorkStationPipelineBridge,
+    installWorkStationPipelineBridge: bridge.installWorkStationPipelineBridge,
   };
 }
 
@@ -128,11 +129,8 @@ describe("applyWorkStationPipelineBridge", () => {
   it("recovers from a non-WorkStation pipeline write while in WorkStation", async () => {
     // Scenario: user is in WorkStation (memory=A, pipeline=A). Some
     // overlay or background handler writes pipeline=B WITHOUT
-    // changing the view mode. Next time the effect runs (because the
-    // memory atom subscription triggers it, e.g. from an unrelated
-    // memory update OR a focus event), the bridge restores pipeline.
-    //
-    // We simulate "next run" by just calling the function again.
+    // changing the view mode. The pure reconciliation step restores A;
+    // the subscription lifecycle below verifies this runs automatically.
     const { activeSessionIdAtom, applyWorkStationPipelineBridge } =
       await loadModule();
     const store = createStore();
@@ -147,6 +145,41 @@ describe("applyWorkStationPipelineBridge", () => {
     // Bridge fires again — restores.
     expect(applyWorkStationPipelineBridge(true, "A", store)).toBe(true);
     expect(store.get(activeSessionIdAtom)).toBe("A");
+  });
+
+  it("continuously repairs a late pipeline release while WorkStation is active", async () => {
+    const {
+      activeSessionIdAtom,
+      installWorkStationPipelineBridge,
+      workstationActiveSessionIdAtom,
+    } = await loadModule();
+    const store = createStore();
+    const dispose = installWorkStationPipelineBridge(true, store);
+    store.set(workstationActiveSessionIdAtom, "session-A");
+    store.set(activeSessionIdAtom, "session-A");
+
+    // Models a stale secondary ChatView cleanup landing after the primary
+    // ChatPanel tab has already reclaimed session-A.
+    store.set(activeSessionIdAtom, null);
+
+    expect(store.get(activeSessionIdAtom)).toBe("session-A");
+    dispose();
+  });
+
+  it("stops reconciling after the visible-session lifecycle ends", async () => {
+    const {
+      activeSessionIdAtom,
+      installWorkStationPipelineBridge,
+      workstationActiveSessionIdAtom,
+    } = await loadModule();
+    const store = createStore();
+    const dispose = installWorkStationPipelineBridge(true, store);
+    store.set(workstationActiveSessionIdAtom, "session-A");
+    store.set(activeSessionIdAtom, "session-A");
+    dispose();
+    store.set(activeSessionIdAtom, "secondary-session");
+
+    expect(store.get(activeSessionIdAtom)).toBe("secondary-session");
   });
 
   it("(integration) reading workstationActiveSessionIdAtom + applying bridge round-trips correctly", async () => {

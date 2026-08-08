@@ -11,7 +11,7 @@
  * - Intersection observer for lazy syntax highlighting
  * - Virtual scrolling for large code blocks (>100 lines)
  */
-import { ArrowUpRight, Check, Copy, Eye, EyeOff } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -342,7 +342,7 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
                     className="ml-auto inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-event-block p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
                     onClick={handleOpenFile}
                   >
-                    <ArrowUpRight size={14} strokeWidth={1.75} />
+                    <SquareArrowOutUpRight size={14} strokeWidth={1.75} />
                   </button>
                 )}
 
@@ -414,7 +414,7 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
                   className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-event-block p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
                   onClick={handleOpenFile}
                 >
-                  <ArrowUpRight size={14} strokeWidth={1.75} />
+                  <SquareArrowOutUpRight size={14} strokeWidth={1.75} />
                 </button>
               )}
               {shouldShowCopyButton && (

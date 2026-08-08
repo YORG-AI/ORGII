@@ -85,7 +85,9 @@ export function buildCloudSessionMetadata(
 }
 
 /** True for local sessions that may ever be pushed to the cloud. */
-export function isCloudPushCandidate(session: Session): boolean {
+export function isCloudPushCandidate(
+  session: Pick<Session, "importedFrom">
+): boolean {
   // Imported teammate copies must never round-trip under the local user.
   // The user's own external history has no importedFrom and remains shareable.
   return !session.importedFrom;

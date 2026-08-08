@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { EnvScanResult, EnvVar, SetupStatus } from "../types";
+import { useFocusRegainedRescan } from "./useFocusRegainedRescan";
 
 const TEMPLATE_FILES = [
   ".env.example",
@@ -209,18 +210,9 @@ export function useEnvScan(repoPath: string | undefined) {
     };
   }, [repoPath, tick]);
 
-  // Re-scan when the window regains focus (e.g. after agent session)
-  useEffect(() => {
-    if (!repoPath) return;
-
-    const handleFocus = () => {
-      refresh();
-    };
-    window.addEventListener("focus", handleFocus);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [repoPath, refresh]);
+  // Re-scan when the window regains focus (e.g. after agent session).
+  // Flap-cooled.
+  useFocusRegainedRescan(Boolean(repoPath), refresh);
 
   const validResult =
     snapshot?.key === requestKey ? snapshot.result : EMPTY_RESULT;

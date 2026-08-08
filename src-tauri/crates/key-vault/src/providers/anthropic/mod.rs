@@ -19,15 +19,22 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{debug, info, warn};
 
-use crate::types::ValidationResult;
+use crate::types::{DiscoveredModel, ValidationResult};
 
 const DEFAULT_API_URL: &str = "https://api.anthropic.com";
 const DEFAULT_TIMEOUT_SECS: u64 = 10;
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+const CLAUDE_CODE_OAUTH_BETA: &str = "oauth-2025-04-20";
+const CLAUDE_CODE_OAUTH_USER_AGENT: &str = "claude-cli/2.1.78 (orgii, cli)";
 
 #[derive(Debug, Deserialize)]
 struct ModelsResponse {
+    #[serde(default)]
     data: Vec<ModelInfo>,
+    #[serde(default)]
+    has_more: bool,
+    #[serde(default)]
+    last_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,6 +44,98 @@ struct ModelInfo {
     /// official Anthropic omits it.
     #[serde(default)]
     context_length: Option<u64>,
+    #[serde(default)]
+    max_input_tokens: Option<u64>,
+    #[serde(default)]
+    max_tokens: Option<u64>,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    capabilities: Option<ModelCapabilities>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct ModelCapabilities {
+    #[serde(default)]
+    effort: Option<EffortCapability>,
+    #[serde(default)]
+    thinking: Option<ThinkingCapability>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct CapabilitySupport {
+    #[serde(default)]
+    supported: bool,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct EffortCapability {
+    #[serde(default)]
+    supported: bool,
+    #[serde(default)]
+    low: CapabilitySupport,
+    #[serde(default)]
+    medium: CapabilitySupport,
+    #[serde(default)]
+    high: CapabilitySupport,
+    #[serde(default)]
+    xhigh: CapabilitySupport,
+    #[serde(default)]
+    max: CapabilitySupport,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct ThinkingCapability {
+    #[serde(default)]
+    supported: bool,
+    #[serde(default)]
+    types: ThinkingTypes,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct ThinkingTypes {
+    #[serde(default)]
+    adaptive: CapabilitySupport,
+    #[serde(default)]
+    enabled: CapabilitySupport,
+}
+
+#[derive(Clone, Copy)]
+enum ModelsAuth<'a> {
+    ApiKey(&'a str),
+    ClaudeCodeOauth(&'a str),
+}
+
+fn discovered_model_from_anthropic(model: ModelInfo) -> DiscoveredModel {
+    let capabilities = model.capabilities.unwrap_or_default();
+    let effort = capabilities.effort.unwrap_or_default();
+    let thinking = capabilities.thinking.unwrap_or_default();
+    let mut supported_efforts = Vec::new();
+    if effort.supported {
+        for (name, support) in [
+            ("low", effort.low),
+            ("medium", effort.medium),
+            ("high", effort.high),
+            ("xhigh", effort.xhigh),
+            ("max", effort.max),
+        ] {
+            if support.supported {
+                supported_efforts.push(name.to_string());
+            }
+        }
+    }
+
+    DiscoveredModel {
+        id: model.id,
+        display_name: model.display_name,
+        context_window: model.max_input_tokens.or(model.context_length),
+        max_output_tokens: model.max_tokens,
+        supported_efforts,
+        default_effort: effort.supported.then(|| "high".to_string()),
+        supports_adaptive_thinking: thinking.supported && thinking.types.adaptive.supported,
+        supports_manual_thinking: thinking.supported && thinking.types.enabled.supported,
+        is_default: false,
+    }
 }
 
 /// Minimal messages request for proxy fallback validation
@@ -242,44 +341,106 @@ impl AnthropicValidator {
         api_key: &str,
         base_url: Option<&str>,
     ) -> Result<(Vec<String>, HashMap<String, u64>), String> {
-        let url = base_url.unwrap_or(DEFAULT_API_URL);
-        let endpoint = format!("{}/v1/models", url);
-        debug!("[Anthropic] Fetching models from: {}", endpoint);
-
-        let response = self
-            .client
-            .get(&endpoint)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", ANTHROPIC_VERSION)
-            .timeout(self.timeout)
-            .send()
-            .await
-            .map_err(|e| format!("Request failed: {}", e))?;
-
-        if response.status() == 401 {
-            return Err("Invalid API key".to_string());
-        }
-
-        if !response.status().is_success() {
-            return Err(format!("HTTP {}", response.status().as_u16()));
-        }
-
-        let data: ModelsResponse = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-        let models = data.data;
+        let models = self
+            .get_model_catalog(
+                base_url.unwrap_or(DEFAULT_API_URL),
+                ModelsAuth::ApiKey(api_key),
+            )
+            .await?;
         let mut ids: Vec<String> = Vec::with_capacity(models.len());
         let mut contexts: HashMap<String, u64> = HashMap::new();
         for m in models {
-            if let Some(ctx) = m.context_length.filter(|ctx| *ctx > 0) {
+            if let Some(ctx) = m.context_window.filter(|ctx| *ctx > 0) {
                 contexts.insert(m.id.clone(), ctx);
             }
             ids.push(m.id);
         }
 
         Ok((ids, contexts))
+    }
+
+    /// Fetch the account-visible Claude Code OAuth catalog with the same
+    /// pagination and capability parsing used by API-key validation.
+    pub async fn get_oauth_model_catalog(
+        &self,
+        access_token: &str,
+    ) -> Result<Vec<DiscoveredModel>, String> {
+        if access_token.trim().is_empty() {
+            return Err("Claude Code OAuth access token is empty".to_string());
+        }
+        self.get_model_catalog(
+            DEFAULT_API_URL,
+            ModelsAuth::ClaudeCodeOauth(access_token.trim()),
+        )
+        .await
+    }
+
+    async fn get_model_catalog(
+        &self,
+        base_url: &str,
+        auth: ModelsAuth<'_>,
+    ) -> Result<Vec<DiscoveredModel>, String> {
+        let endpoint = format!("{}/v1/models", base_url.trim_end_matches('/'));
+        debug!("[Anthropic] Fetching models from: {}", endpoint);
+
+        let mut after_id: Option<String> = None;
+        let mut models: Vec<DiscoveredModel> = Vec::new();
+        loop {
+            let mut request = self
+                .client
+                .get(&endpoint)
+                .query(&[("limit", "1000")])
+                .header("anthropic-version", ANTHROPIC_VERSION)
+                .timeout(self.timeout);
+            if let Some(cursor) = after_id.as_deref() {
+                request = request.query(&[("after_id", cursor)]);
+            }
+            request = match auth {
+                ModelsAuth::ApiKey(api_key) => request.header("x-api-key", api_key),
+                ModelsAuth::ClaudeCodeOauth(access_token) => request
+                    .header("Authorization", format!("Bearer {access_token}"))
+                    .header("anthropic-beta", CLAUDE_CODE_OAUTH_BETA)
+                    .header("User-Agent", CLAUDE_CODE_OAUTH_USER_AGENT)
+                    .header("x-app", "cli"),
+            };
+
+            let response = request
+                .send()
+                .await
+                .map_err(|e| format!("Request failed: {e}"))?;
+
+            if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+                return Err("Invalid Anthropic credential: HTTP 401".to_string());
+            }
+            if !response.status().is_success() {
+                return Err(format!("HTTP {}", response.status().as_u16()));
+            }
+
+            let page: ModelsResponse = response
+                .json()
+                .await
+                .map_err(|e| format!("Failed to parse response: {e}"))?;
+            for model in page.data {
+                if model.id.is_empty() || models.iter().any(|item| item.id == model.id) {
+                    continue;
+                }
+                models.push(discovered_model_from_anthropic(model));
+            }
+
+            if !page.has_more {
+                break;
+            }
+            let next = page
+                .last_id
+                .filter(|cursor| !cursor.is_empty())
+                .ok_or_else(|| "Anthropic model pagination omitted last_id".to_string())?;
+            if after_id.as_deref() == Some(next.as_str()) {
+                return Err("Anthropic model pagination cursor did not advance".to_string());
+            }
+            after_id = Some(next);
+        }
+
+        Ok(models)
     }
 
     /// Test the API key by sending a minimal messages request.

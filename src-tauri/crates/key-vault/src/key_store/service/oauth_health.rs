@@ -38,7 +38,15 @@ impl KeyService {
         error_message: &str,
     ) -> Result<Option<ModelKey>, String> {
         self.update_store(|store| {
-            let entry = store.keys.get_mut(key_id)?;
+            let Some(entry) = store.keys.get_mut(key_id) else {
+                return Ok(None);
+            };
+            if !entry.is_refreshable_native_oauth() {
+                return Err(format!(
+                    "Key {} ({:?}, {:?}) is not a native OAuth account",
+                    key_id, entry.model_type, entry.auth_method
+                ));
+            }
             let count = entry.oauth_refresh_failure_count.saturating_add(1);
             entry.oauth_refresh_failure_count = count;
             entry.last_oauth_refresh_failed_at = Some(Utc::now());
@@ -72,8 +80,8 @@ impl KeyService {
                     .map(|dt| dt.to_rfc3339()),
                 error_message
             );
-            Some(entry.clone())
-        })
+            Ok(Some(entry.clone()))
+        })?
     }
 
     pub fn mark_claude_oauth_upstream_health(

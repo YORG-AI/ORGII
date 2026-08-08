@@ -642,27 +642,6 @@ async fn ensure_session_initialized(
     Ok(runtime)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::is_model_override_strict;
-
-    #[test]
-    fn inherited_effective_model_matching_launch_model_is_not_strict_override() {
-        assert!(!is_model_override_strict(
-            Some("anthropic/claude-sonnet-4"),
-            "anthropic/claude-sonnet-4"
-        ));
-    }
-
-    #[test]
-    fn launch_model_different_from_effective_model_is_strict_override() {
-        assert!(is_model_override_strict(
-            Some("anthropic/claude-sonnet-4"),
-            "openai/gpt-4.1"
-        ));
-    }
-}
-
 /// Register an `AgentSession` object in the in-memory state and rehydrate
 /// any per-session managers whose state lives in sqlite between app runs.
 ///
@@ -715,5 +694,26 @@ pub async fn register_session_with_definition_and_rehydrate(
                 err
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_model_override_strict;
+
+    #[test]
+    fn inherited_effective_model_matching_launch_model_is_not_strict_override() {
+        assert!(!is_model_override_strict(
+            Some("anthropic/claude-sonnet-4"),
+            "anthropic/claude-sonnet-4"
+        ));
+    }
+
+    #[test]
+    fn launch_model_different_from_effective_model_is_strict_override() {
+        assert!(is_model_override_strict(
+            Some("anthropic/claude-sonnet-4"),
+            "openai/gpt-4.1"
+        ));
     }
 }

@@ -7,11 +7,13 @@
 
 use crate::providers::openai::OpenAIValidator;
 use crate::providers::quota_windows::{quota_from_windows, unix_seconds_to_rfc3339, QuotaWindow};
-use crate::types::{QuotaInfo, ValidationResult};
+use crate::types::{DiscoveredModel, QuotaInfo, ValidationResult};
+use integrations::cli_binary_resolver::{resolve_cli_binary_command, CliBinaryId};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 
 /// ChatGPT usage API endpoint
 const USAGE_API_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
@@ -19,6 +21,7 @@ const CODEX_MODELS_API_URL: &str = "https://chatgpt.com/backend-api/codex/models
 const CODEX_MODELS_CLIENT_VERSION: &str = "0.124.0";
 const CODEX_USER_AGENT: &str = "codex_cli_rs/0.124.0 (orgii, cli)";
 const APP_SERVER_TIMEOUT_SECS: u64 = 10;
+const APP_SERVER_SHUTDOWN_TIMEOUT_SECS: u64 = 2;
 
 #[derive(Debug, Deserialize)]
 struct CodexModelsResponse {
@@ -33,6 +36,37 @@ struct CodexModelInfo {
     visibility: Option<String>,
     #[serde(default)]
     supported_in_api: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexModelListResponse {
+    #[serde(default)]
+    data: Vec<CodexAppServerModelInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexAppServerModelInfo {
+    id: String,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    hidden: bool,
+    #[serde(default)]
+    default_reasoning_effort: Option<String>,
+    #[serde(default)]
+    supported_reasoning_efforts: Vec<CodexReasoningEffortInfo>,
+    #[serde(default)]
+    is_default: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexReasoningEffortInfo {
+    reasoning_effort: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -148,19 +182,10 @@ impl CodexValidator {
         match response {
             Ok(resp) => {
                 if resp.status().is_success() {
-                    let mut result = self.parse_usage_response(resp).await;
-                    if result.valid {
-                        match self.list_models(access_token, None).await {
-                            Ok(models) if !models.is_empty() => {
-                                result = result.with_models(models);
-                            }
-                            Ok(_) => {}
-                            Err(err) => {
-                                log::warn!("[CodexValidation] Model discovery failed: {}", err);
-                            }
-                        }
-                    }
-                    result
+                    // Authentication and model discovery are separate
+                    // boundaries. Wizard callers resolve the catalog exactly
+                    // once through `oauth_model_catalog` after this succeeds.
+                    self.parse_usage_response(resp).await
                 } else if resp.status() == reqwest::StatusCode::UNAUTHORIZED
                     || resp.status() == reqwest::StatusCode::FORBIDDEN
                 {
@@ -189,10 +214,89 @@ impl CodexValidator {
         access_token: &str,
         id_token: Option<&str>,
     ) -> Result<Vec<String>, String> {
+        self.discover_models(access_token, None, id_token)
+            .await
+            .map(|models| models.into_iter().map(|model| model.id).collect())
+    }
+
+    /// Discover the account-visible Codex catalog through the public
+    /// app-server protocol. The legacy private HTTP route is retained only as
+    /// a compatibility fallback for machines where the Codex binary cannot be
+    /// launched.
+    pub async fn discover_models(
+        &self,
+        access_token: &str,
+        refresh_token: Option<&str>,
+        id_token: Option<&str>,
+    ) -> Result<Vec<DiscoveredModel>, String> {
         let token = access_token.trim();
         if token.is_empty() {
             return Err("Codex OAuth access token is empty".to_string());
         }
+
+        let app_server_error = match self
+            .list_models_via_app_server(token, refresh_token, id_token)
+            .await
+        {
+            Ok(models) if !models.is_empty() => return Ok(models),
+            Ok(_) => {
+                log::warn!(
+                    "[CodexModels] app-server returned an empty model catalog; using compatibility fallback"
+                );
+                None
+            }
+            Err(err) => {
+                log::warn!(
+                    "[CodexModels] app-server model discovery failed ({err}); using compatibility fallback"
+                );
+                Some(err)
+            }
+        };
+
+        match self.list_models_via_private_backend(token, id_token).await {
+            Ok(models) => Ok(models
+                .into_iter()
+                .map(|id| DiscoveredModel {
+                    id,
+                    ..DiscoveredModel::default()
+                })
+                .collect()),
+            Err(private_error) => {
+                if let Some(auth_error) = app_server_error.filter(|error| {
+                    let lower = error.to_lowercase();
+                    lower.contains("401")
+                        || lower.contains("403")
+                        || lower.contains("unauthorized")
+                        || lower.contains("forbidden")
+                        || lower.contains("invalid token")
+                        || lower.contains("token expired")
+                }) {
+                    Err(auth_error)
+                } else {
+                    Err(private_error)
+                }
+            }
+        }
+    }
+
+    async fn list_models_via_app_server(
+        &self,
+        access_token: &str,
+        refresh_token: Option<&str>,
+        id_token: Option<&str>,
+    ) -> Result<Vec<DiscoveredModel>, String> {
+        let codex_home = write_temporary_codex_home(access_token, refresh_token, id_token).await?;
+        let discovery_result = run_codex_model_list_rpc(&codex_home).await;
+        cleanup_temporary_codex_home(&codex_home, "model discovery").await;
+        discovery_result
+    }
+
+    async fn list_models_via_private_backend(
+        &self,
+        access_token: &str,
+        id_token: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        let token = access_token.trim();
 
         let mut request = reqwest::Client::new()
             .get(CODEX_MODELS_API_URL)
@@ -306,14 +410,7 @@ impl CodexValidator {
 
         let codex_home = write_temporary_codex_home(token, refresh_token, id_token).await?;
         let quota_result = run_codex_rate_limits_rpc(&codex_home).await;
-        let cleanup_result = tokio::fs::remove_dir_all(&codex_home).await;
-        if let Err(err) = cleanup_result {
-            log::warn!(
-                "[CodexRateLimit] Failed to remove temporary Codex home {}: {}",
-                codex_home.display(),
-                err
-            );
-        }
+        cleanup_temporary_codex_home(&codex_home, "quota fetch").await;
         quota_result
     }
 
@@ -540,13 +637,43 @@ fn parse_codex_models_response(body: &str) -> Result<Vec<String>, String> {
     Ok(models)
 }
 
+fn discovered_models_from_app_server(response: CodexModelListResponse) -> Vec<DiscoveredModel> {
+    let mut models = Vec::new();
+    for model in response.data {
+        if model.hidden {
+            continue;
+        }
+        let id = model.model.filter(|id| !id.is_empty()).unwrap_or(model.id);
+        if id.is_empty() || models.iter().any(|item: &DiscoveredModel| item.id == id) {
+            continue;
+        }
+        let mut supported_efforts = Vec::new();
+        for effort in model.supported_reasoning_efforts {
+            if !effort.reasoning_effort.is_empty()
+                && !supported_efforts.contains(&effort.reasoning_effort)
+            {
+                supported_efforts.push(effort.reasoning_effort);
+            }
+        }
+        models.push(DiscoveredModel {
+            id,
+            display_name: model.display_name,
+            supported_efforts,
+            default_effort: model.default_reasoning_effort,
+            is_default: model.is_default,
+            ..DiscoveredModel::default()
+        });
+    }
+    models
+}
+
 async fn write_temporary_codex_home(
     access_token: &str,
     refresh_token: Option<&str>,
     id_token: Option<&str>,
 ) -> Result<PathBuf, String> {
     let codex_home =
-        std::env::temp_dir().join(format!("orgii-codex-quota-{}", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("orgii-codex-app-server-{}", uuid::Uuid::new_v4()));
     tokio::fs::create_dir_all(&codex_home)
         .await
         .map_err(|err| format!("Failed to create temporary Codex home: {err}"))?;
@@ -575,8 +702,47 @@ async fn write_temporary_codex_home(
     Ok(codex_home)
 }
 
+async fn cleanup_temporary_codex_home(codex_home: &PathBuf, operation: &str) {
+    if let Err(err) = tokio::fs::remove_dir_all(codex_home).await {
+        log::warn!(
+            "[CodexAppServer] Failed to remove temporary Codex home after {} ({}): {}",
+            operation,
+            codex_home.display(),
+            err
+        );
+    }
+}
+
 async fn run_codex_rate_limits_rpc(codex_home: &PathBuf) -> Result<QuotaInfo, String> {
-    let mut child = Command::new("codex");
+    let payload: CodexRateLimitsResponse = run_codex_app_server_rpc(
+        codex_home,
+        "account/rateLimits/read",
+        serde_json::json!({}),
+        "rate-limit request",
+    )
+    .await?;
+    Ok(quota_from_codex_rate_limits_response(payload))
+}
+
+async fn run_codex_model_list_rpc(codex_home: &PathBuf) -> Result<Vec<DiscoveredModel>, String> {
+    let payload: CodexModelListResponse = run_codex_app_server_rpc(
+        codex_home,
+        "model/list",
+        serde_json::json!({ "limit": 1000, "includeHidden": false }),
+        "model-list request",
+    )
+    .await?;
+    Ok(discovered_models_from_app_server(payload))
+}
+
+async fn run_codex_app_server_rpc<T: DeserializeOwned>(
+    codex_home: &PathBuf,
+    method: &str,
+    params: serde_json::Value,
+    operation: &str,
+) -> Result<T, String> {
+    let codex_binary = resolve_cli_binary_command(CliBinaryId::Codex);
+    let mut child = Command::new(&codex_binary);
     child
         .args(["-s", "read-only", "-a", "untrusted", "app-server"])
         .env("CODEX_HOME", codex_home)
@@ -585,12 +751,19 @@ async fn run_codex_rate_limits_rpc(codex_home: &PathBuf) -> Result<QuotaInfo, St
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
+    // npm's `codex` entry point launches the native binary as a descendant.
+    // Isolate the wrapper tree so timeout cleanup cannot orphan the native
+    // app-server with our stdout/stderr handles still open.
+    #[cfg(unix)]
+    child.process_group(0);
+
     #[cfg(windows)]
     child.creation_flags(app_platform::CREATE_NO_WINDOW);
 
     let mut child = child
         .spawn()
-        .map_err(|err| format!("Failed to start Codex app-server: {err}"))?;
+        .map_err(|err| format!("Failed to start Codex app-server via {codex_binary}: {err}"))?;
+    let child_pid = child.id();
 
     let mut stdin = child
         .stdin
@@ -631,16 +804,8 @@ async fn run_codex_rate_limits_rpc(codex_home: &PathBuf) -> Result<QuotaInfo, St
         wait_for_rpc_id::<serde_json::Value>(&mut reader, 1).await?;
 
         write_json_rpc_notification(&mut stdin, "initialized", serde_json::json!({})).await?;
-        write_json_rpc_request(
-            &mut stdin,
-            2,
-            "account/rateLimits/read",
-            serde_json::json!({}),
-        )
-        .await?;
-
-        let payload = wait_for_rpc_id::<CodexRateLimitsResponse>(&mut reader, 2).await?;
-        Ok::<QuotaInfo, String>(quota_from_codex_rate_limits_response(payload))
+        write_json_rpc_request(&mut stdin, 2, method, params).await?;
+        wait_for_rpc_id::<T>(&mut reader, 2).await
     };
 
     let mut result =
@@ -648,28 +813,199 @@ async fn run_codex_rate_limits_rpc(codex_home: &PathBuf) -> Result<QuotaInfo, St
             .await
         {
             Ok(result) => result,
-            Err(_) => Err("Codex app-server rate-limit request timed out".to_string()),
+            Err(_) => Err(format!("Codex app-server {operation} timed out")),
         };
 
-    if let Err(err) = child.kill().await {
-        log::debug!(
-            "[CodexRateLimit] Failed to kill Codex app-server after quota fetch: {}",
-            err
-        );
-    }
-    let _ = child.wait().await;
+    drop(stdin);
+    terminate_codex_app_server_tree(&mut child, child_pid, operation).await;
 
-    if let Some(task) = stderr_task {
-        if let Ok(stderr_output) = task.await {
-            if let Err(ref error_message) = result {
-                if !stderr_output.trim().is_empty() {
-                    result = Err(format!("{error_message}: {}", stderr_output.trim()));
+    if let Some(mut task) = stderr_task {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(APP_SERVER_SHUTDOWN_TIMEOUT_SECS),
+            &mut task,
+        )
+        .await
+        {
+            Ok(Ok(stderr_output)) => {
+                if let Err(ref error_message) = result {
+                    if !stderr_output.trim().is_empty() {
+                        result = Err(format!("{error_message}: {}", stderr_output.trim()));
+                    }
                 }
+            }
+            Ok(Err(err)) => log::debug!(
+                "[CodexAppServer] stderr reader failed after {}: {}",
+                operation,
+                err
+            ),
+            Err(_) => {
+                task.abort();
+                log::warn!(
+                    "[CodexAppServer] stderr pipe did not close after {}; reader aborted",
+                    operation
+                );
             }
         }
     }
 
     result
+}
+
+async fn terminate_codex_app_server_tree(
+    child: &mut Child,
+    child_pid: Option<u32>,
+    operation: &str,
+) {
+    #[cfg(unix)]
+    if let Some(pid) = child_pid {
+        // SAFETY: this child was spawned as the leader of a dedicated process
+        // group. Sending SIGKILL does not touch Rust-managed memory.
+        let status = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+        if status != 0 {
+            log::debug!(
+                "[CodexAppServer] Failed to kill process group after {}: {}",
+                operation,
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    if let Some(pid) = child_pid {
+        // The npm `cmd.exe` shim can exit before cleanup while node.exe and the
+        // native Codex binary keep its pipe handles open. A Toolhelp snapshot
+        // retains their original parent PIDs, so it can still find that orphaned
+        // tree after the wrapper is gone; `taskkill /T` cannot.
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(APP_SERVER_SHUTDOWN_TIMEOUT_SECS),
+            tokio::task::spawn_blocking(move || terminate_windows_process_tree(pid)),
+        )
+        .await
+        {
+            Ok(Ok(Ok(()))) => {}
+            Ok(Ok(Err(err))) => log::warn!(
+                "[CodexAppServer] Failed to terminate Windows process tree after {}: {}",
+                operation,
+                err
+            ),
+            Ok(Err(err)) => log::warn!(
+                "[CodexAppServer] Windows process cleanup task failed after {}: {}",
+                operation,
+                err
+            ),
+            Err(_) => log::warn!(
+                "[CodexAppServer] Windows process cleanup timed out after {}",
+                operation
+            ),
+        }
+    }
+
+    if let Err(err) = child.start_kill() {
+        log::debug!(
+            "[CodexAppServer] Direct child already stopped after {}: {}",
+            operation,
+            err
+        );
+    }
+    if tokio::time::timeout(
+        std::time::Duration::from_secs(APP_SERVER_SHUTDOWN_TIMEOUT_SECS),
+        child.wait(),
+    )
+    .await
+    .is_err()
+    {
+        log::warn!(
+            "[CodexAppServer] Direct child did not exit after {} within {}s",
+            operation,
+            APP_SERVER_SHUTDOWN_TIMEOUT_SECS
+        );
+    }
+}
+
+#[cfg(windows)]
+fn terminate_windows_process_tree(root_pid: u32) -> Result<(), String> {
+    use std::collections::HashSet;
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
+    };
+    use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+
+    const MAX_SNAPSHOT_PROCESSES: usize = 8_192;
+    const MAX_TREE_PROCESSES: usize = 32;
+
+    // SAFETY: the returned snapshot handle is checked and closed on every path.
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+    if snapshot == INVALID_HANDLE_VALUE {
+        return Err(format!(
+            "CreateToolhelp32Snapshot failed: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+
+    let mut processes = Vec::new();
+    let mut entry = PROCESSENTRY32W {
+        dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: `entry` has the required size and remains valid while the snapshot
+    // is enumerated.
+    let mut has_entry = unsafe { Process32FirstW(snapshot, &mut entry) } != 0;
+    while has_entry {
+        if processes.len() >= MAX_SNAPSHOT_PROCESSES {
+            // SAFETY: `snapshot` is a valid handle owned by this function.
+            unsafe { CloseHandle(snapshot) };
+            return Err(format!(
+                "process snapshot exceeded {MAX_SNAPSHOT_PROCESSES} entries"
+            ));
+        }
+        processes.push((entry.th32ProcessID, entry.th32ParentProcessID));
+        // SAFETY: same initialized entry and valid snapshot as above.
+        has_entry = unsafe { Process32NextW(snapshot, &mut entry) } != 0;
+    }
+    // SAFETY: `snapshot` is a valid handle owned by this function.
+    unsafe { CloseHandle(snapshot) };
+
+    // Seed the traversal with the captured wrapper PID even when the wrapper has
+    // already exited and is absent from the snapshot.
+    let mut known = HashSet::from([root_pid]);
+    let mut frontier = HashSet::from([root_pid]);
+    let mut descendants = Vec::new();
+    let mut depth = 0usize;
+    while !frontier.is_empty() {
+        let mut next_frontier = HashSet::new();
+        for &(pid, parent_pid) in &processes {
+            if frontier.contains(&parent_pid) && known.insert(pid) {
+                if descendants.len() >= MAX_TREE_PROCESSES {
+                    return Err(format!(
+                        "process tree rooted at {root_pid} exceeded {MAX_TREE_PROCESSES} entries"
+                    ));
+                }
+                descendants.push((pid, depth + 1));
+                next_frontier.insert(pid);
+            }
+        }
+        frontier = next_frontier;
+        depth += 1;
+    }
+
+    descendants.sort_unstable_by_key(|&(_, process_depth)| std::cmp::Reverse(process_depth));
+    for (pid, _) in descendants {
+        // SAFETY: the handle is checked before use and closed after termination.
+        let process = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
+        if process.is_null() {
+            continue;
+        }
+        // The process may exit between snapshot enumeration and this call. That
+        // is already the desired state, so termination failures are non-fatal.
+        unsafe {
+            TerminateProcess(process, 1);
+            CloseHandle(process);
+        }
+    }
+
+    Ok(())
 }
 
 async fn write_json_rpc_request<T: Serialize>(
@@ -741,7 +1077,7 @@ async fn wait_for_rpc_id<T: for<'de> Deserialize<'de>>(
             .ok_or_else(|| "Codex app-server RPC response omitted result".to_string());
     }
 
-    Err("Codex app-server exited before returning rate limits".to_string())
+    Err("Codex app-server exited before returning the requested response".to_string())
 }
 
 fn quota_from_codex_rate_limits_response(response: CodexRateLimitsResponse) -> QuotaInfo {
@@ -1009,5 +1345,163 @@ mod model_discovery_tests {
     fn codex_models_response_rejects_invalid_json() {
         let err = parse_codex_models_response("not json").unwrap_err();
         assert!(err.contains("parse failed"));
+    }
+
+    #[test]
+    fn app_server_models_preserve_efforts_defaults_and_visibility() {
+        let response: CodexModelListResponse = serde_json::from_value(serde_json::json!({
+            "data": [
+                {
+                    "id": "gpt-5.6-sol",
+                    "model": "gpt-5.6-sol",
+                    "displayName": "GPT-5.6 Sol",
+                    "defaultReasoningEffort": "high",
+                    "supportedReasoningEfforts": [
+                        { "reasoningEffort": "low" },
+                        { "reasoningEffort": "high" },
+                        { "reasoningEffort": "max" }
+                    ],
+                    "isDefault": true
+                },
+                {
+                    "id": "hidden-model",
+                    "hidden": true
+                }
+            ]
+        }))
+        .expect("Codex model/list response");
+
+        let models = discovered_models_from_app_server(response);
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, "gpt-5.6-sol");
+        assert_eq!(models[0].display_name.as_deref(), Some("GPT-5.6 Sol"));
+        assert_eq!(models[0].default_effort.as_deref(), Some("high"));
+        assert_eq!(models[0].supported_efforts, vec!["low", "high", "max"]);
+        assert!(models[0].is_default);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn app_server_shutdown_terminates_wrapper_descendants() {
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "sleep 60 & helper=$!; echo $helper; wait"])
+            .process_group(0)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        let mut child = command.spawn().expect("spawn wrapper process");
+        let child_pid = child.id();
+        let stdout = child.stdout.take().expect("wrapper stdout");
+        let mut reader = BufReader::new(stdout).lines();
+        let helper_pid: i32 = reader
+            .next_line()
+            .await
+            .expect("read helper pid")
+            .expect("helper pid line")
+            .trim()
+            .parse()
+            .expect("numeric helper pid");
+
+        tokio::time::timeout(
+            std::time::Duration::from_secs(8),
+            terminate_codex_app_server_tree(&mut child, child_pid, "test shutdown"),
+        )
+        .await
+        .expect("bounded wrapper shutdown");
+
+        let mut helper_alive = true;
+        for _ in 0..20 {
+            // SAFETY: signal 0 performs an existence check only.
+            helper_alive = unsafe { libc::kill(helper_pid, 0) == 0 };
+            if !helper_alive {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        assert!(!helper_alive, "descendant process {helper_pid} survived");
+    }
+
+    #[cfg(windows)]
+    async fn windows_process_is_alive(pid: u32) -> bool {
+        let script = format!(
+            "if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ exit 0 }} else {{ exit 1 }}"
+        );
+        let mut command = Command::new("powershell.exe");
+        command
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(app_platform::CREATE_NO_WINDOW);
+        command
+            .status()
+            .await
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn app_server_shutdown_terminates_windows_wrapper_descendants() {
+        let script = r#"
+$pingPath = Join-Path $env:SystemRoot 'System32\ping.exe'
+$descendant = Start-Process -FilePath $pingPath -ArgumentList '-t','127.0.0.1' -NoNewWindow -PassThru
+[Console]::Out.WriteLine($descendant.Id)
+[Console]::Out.Flush()
+"#;
+        let mut command = Command::new("powershell.exe");
+        command
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .creation_flags(app_platform::CREATE_NO_WINDOW)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        let mut child = command.spawn().expect("spawn Windows wrapper process");
+        let child_pid = child.id();
+        let stdout = child.stdout.take().expect("wrapper stdout");
+        let mut reader = BufReader::new(stdout).lines();
+        let descendant_pid: u32 = reader
+            .next_line()
+            .await
+            .expect("read descendant pid")
+            .expect("descendant pid line")
+            .trim()
+            .parse()
+            .expect("numeric descendant pid");
+        assert!(windows_process_is_alive(descendant_pid).await);
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), child.wait())
+            .await
+            .expect("wrapper wait stayed bounded")
+            .expect("wrapper exited");
+        assert!(
+            windows_process_is_alive(descendant_pid).await,
+            "test requires the descendant to outlive its wrapper"
+        );
+
+        tokio::time::timeout(
+            std::time::Duration::from_secs(8),
+            terminate_codex_app_server_tree(&mut child, child_pid, "test shutdown"),
+        )
+        .await
+        .expect("bounded Windows wrapper shutdown");
+
+        let mut descendant_alive = true;
+        for _ in 0..20 {
+            descendant_alive = windows_process_is_alive(descendant_pid).await;
+            if !descendant_alive {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        if descendant_alive {
+            let _ = Command::new("taskkill")
+                .args(["/PID", &descendant_pid.to_string(), "/T", "/F"])
+                .creation_flags(app_platform::CREATE_NO_WINDOW)
+                .output()
+                .await;
+        }
+        assert!(
+            !descendant_alive,
+            "descendant process {descendant_pid} survived"
+        );
     }
 }

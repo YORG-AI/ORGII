@@ -30,8 +30,8 @@ mod store;
 mod triggers;
 
 use crate::commands::{
-    cmd_check, cmd_list, cmd_plugins, cmd_scan, cmd_search_content, cmd_show, cmd_sources,
-    cmd_usage,
+    cmd_check, cmd_list, cmd_plugins, cmd_resume, cmd_scan, cmd_search_content, cmd_show,
+    cmd_sources, cmd_usage,
 };
 use crate::scan::validate_sources;
 
@@ -64,6 +64,8 @@ COMMANDS:
     usage                   Token & cost analytics (alias: stats)
     check                   Evaluate usage triggers; exit non-zero on error
     show <session-id>       Print a session's conversation/activity stream
+    resume <session-id>     Reopen an imported session in its own CLI (claude,
+                            codex, cursor-agent, opencode, mimo, cline, omp, copilot, kimi)
     plugins list            Show discovered loader plugins
     plugins trust <id>      Trust an exec plugin so it may run
     help                    Show this help (alias: --help, -h)
@@ -83,6 +85,7 @@ OPTIONS:
                             across machines). Shows in `list --json`.
     --no-scan               Skip disk scan; read an existing --db as-is.
     --no-plugins            Ignore discovered loader plugins.
+    --print                 `resume` only prints the command instead of running it.
     --format <fmt>          Output: table (default), json, md, csv, or a
                             formatter plugin id.
     --json                  Shorthand for --format json.
@@ -103,6 +106,8 @@ EXAMPLES:
     orgtrack list --format md > sessions.md
     orgtrack usage --format csv > usage.csv
     orgtrack show claude_code-4f1e... --format md > session.md
+    orgtrack resume claudecodeapp-4f1e...
+    orgtrack resume codexapp-rollout-2026-07-29T10-00-00-4f1e... --print
 ";
 
 fn main() {
@@ -136,6 +141,7 @@ pub(crate) struct Options {
     pub(crate) content: bool,
     pub(crate) strict: bool,
     pub(crate) json: bool,
+    pub(crate) print: bool,
 }
 
 impl Options {
@@ -222,6 +228,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 "usage" | "stats" => cmd_usage(&opts, loaders, formatters),
                 "check" => cmd_check(&opts, loaders, formatters, &discovered.hooks),
                 "show" => cmd_show(&opts, loaders, processors, formatters),
+                "resume" => cmd_resume(&opts),
                 _ => Err(format!(
                     "unknown command '{other}'. Run `orgtrack help` for usage."
                 )),
@@ -256,6 +263,7 @@ fn parse_options(args: &[String]) -> Result<Options, String> {
             "--triggers" => opts.triggers = Some(next_value(&mut iter, "--triggers")?.to_string()),
             "--content" => opts.content = true,
             "--strict" => opts.strict = true,
+            "--print" => opts.print = true,
             "--timeout" => {
                 let raw = next_value(&mut iter, "--timeout")?;
                 opts.timeout = Some(

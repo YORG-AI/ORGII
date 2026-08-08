@@ -6,15 +6,9 @@
  */
 import React from "react";
 
-import {
-  type OAuthModelCatalog,
-  getClaudeCodeOAuthModels as fetchClaudeCodeOAuthModels,
-  getCodexOAuthModels as fetchCodexOAuthModels,
-  getOAuthModelCatalog,
-} from "@src/api/services/keyValidation";
+import { getOAuthModelCatalog } from "@src/api/services/keyValidation";
 import { CLI_AGENT } from "@src/api/tauri/rpc/schemas/validation";
 import { LOCAL_MODEL_PROVIDER } from "@src/api/types/keys";
-import { createLogger } from "@src/hooks/logger";
 
 import { ApiKeyProviderSetup } from "./setup/ApiKeyProviderSetup";
 import { ClaudeCodeSetup } from "./setup/ClaudeCodeSetup";
@@ -31,8 +25,6 @@ import type {
   KiroSessionValues,
 } from "./setup/types";
 
-const log = createLogger("ApiSetup");
-
 interface AgentSetupRouterProps extends AgentSetupProps {
   agentCategory: string | null;
   isComplex: boolean;
@@ -43,6 +35,7 @@ interface AgentSetupRouterProps extends AgentSetupProps {
   setTokenDetected: (detected: boolean) => void;
   detectingToken: boolean;
   tokenError: string | null;
+  setTokenError: (error: string | null) => void;
   clearTokenError: () => void;
   useGuidedSetup: boolean;
   setUseGuidedSetup: (use: boolean) => void;
@@ -69,6 +62,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
   setTokenDetected,
   detectingToken,
   tokenError,
+  setTokenError,
   clearTokenError,
   useGuidedSetup,
   setUseGuidedSetup,
@@ -126,36 +120,26 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
           preselectedMethod={isComplex ? setupMethod : undefined}
           autoStartLogin={autoStartCodexLogin}
           onSessionCaptured={async (values: CodexSessionValues) => {
-            let catalog: OAuthModelCatalog = {
-              models: [],
-              defaultEnabledModels: [],
-            };
-            try {
-              catalog = await getOAuthModelCatalog(CLI_AGENT.CODEX);
-            } catch (err) {
-              log.warn("[ApiSetup] Codex OAuth catalog fetch failed:", err);
-            }
-            let discoveredModels: string[] = [];
-            try {
-              discoveredModels = await fetchCodexOAuthModels(
-                values.accessToken,
-                values.idToken
+            const catalog = await getOAuthModelCatalog(CLI_AGENT.CODEX, {
+              accessToken: values.accessToken,
+              refreshToken: values.refreshToken,
+              idToken: values.idToken,
+            }).catch((err: unknown) => {
+              setTokenError(
+                err instanceof Error
+                  ? err.message
+                  : "Codex model discovery failed"
               );
-            } catch (err) {
-              log.warn(
-                "[ApiSetup] Codex OAuth model discovery failed; falling back to catalog:",
-                err
-              );
-            }
-            const codexModels =
-              discoveredModels.length > 0 ? discoveredModels : catalog.models;
+              return undefined;
+            });
+            if (!catalog) return;
             const defaultEnabledModels = catalog.defaultEnabledModels.filter(
-              (modelId) => codexModels.includes(modelId)
+              (modelId) => catalog.models.includes(modelId)
             );
             const enabledModels =
               defaultEnabledModels.length > 0
                 ? defaultEnabledModels
-                : codexModels.slice(0, 1);
+                : catalog.models.slice(0, 1);
             onChange({
               // Intentionally do NOT set `name` here. Forcing "OpenAI" either
               // trips `isDuplicateName` (disabling Done) or shadows the
@@ -176,8 +160,16 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
                     ]
                   : []),
               ],
-              available_models: codexModels,
-              model_context_lengths: {},
+              available_models: catalog.models,
+              model_context_lengths: catalog.modelContextLengths,
+              model_variants: catalog.modelVariants.map((variant) => ({
+                model: variant.model,
+                baseModel: variant.base_model,
+                reasoning: variant.reasoning ?? undefined,
+                fast: variant.fast,
+                contextWindow: variant.context_window ?? undefined,
+              })),
+              default_variants: catalog.defaultVariants,
               enabled_models: enabledModels,
               validated: true,
             });
@@ -250,38 +242,25 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
           onClearTokenError={clearTokenError}
           preselectedMethod={isComplex ? setupMethod : undefined}
           onSessionCaptured={async (values: ClaudeCodeSessionValues) => {
-            let catalog: OAuthModelCatalog = {
-              models: [],
-              defaultEnabledModels: [],
-            };
-            try {
-              catalog = await getOAuthModelCatalog(CLI_AGENT.CLAUDE_CODE);
-            } catch (err) {
-              log.warn(
-                "[ApiSetup] Claude Code OAuth catalog fetch failed:",
-                err
+            const catalog = await getOAuthModelCatalog(CLI_AGENT.CLAUDE_CODE, {
+              accessToken: values.accessToken,
+              refreshToken: values.refreshToken,
+            }).catch((err: unknown) => {
+              setTokenError(
+                err instanceof Error
+                  ? err.message
+                  : "Claude Code model discovery failed"
               );
-            }
-            let discoveredModels: string[] = [];
-            try {
-              discoveredModels = await fetchClaudeCodeOAuthModels(
-                values.accessToken
-              );
-            } catch (err) {
-              log.warn(
-                "[ApiSetup] Claude Code OAuth model discovery failed; falling back to catalog:",
-                err
-              );
-            }
-            const claudeCodeModels =
-              discoveredModels.length > 0 ? discoveredModels : catalog.models;
+              return undefined;
+            });
+            if (!catalog) return;
             const defaultEnabledModels = catalog.defaultEnabledModels.filter(
-              (modelId) => claudeCodeModels.includes(modelId)
+              (modelId) => catalog.models.includes(modelId)
             );
             const enabledModels =
               defaultEnabledModels.length > 0
                 ? defaultEnabledModels
-                : claudeCodeModels.slice(0, 1);
+                : catalog.models.slice(0, 1);
             const expiresAt = values.expiresIn
               ? Date.now() + values.expiresIn * 1000
               : undefined;
@@ -321,8 +300,16 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
               // trips `isDuplicateName` (disabling Done) or shadows the
               // `nextDefaultName` dedupe in `submit()`. The wizard resolves
               // the account name itself (empty → brand label / "-1" / ...).
-              available_models: claudeCodeModels,
-              model_context_lengths: {},
+              available_models: catalog.models,
+              model_context_lengths: catalog.modelContextLengths,
+              model_variants: catalog.modelVariants.map((variant) => ({
+                model: variant.model,
+                baseModel: variant.base_model,
+                reasoning: variant.reasoning ?? undefined,
+                fast: variant.fast,
+                contextWindow: variant.context_window ?? undefined,
+              })),
+              default_variants: catalog.defaultVariants,
               enabled_models: enabledModels,
               validated: true,
             });

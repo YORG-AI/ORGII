@@ -697,16 +697,41 @@
     "sessionStatusDesc": "Session start, pause, and resume updates",
     "gitOperations": "Git Operations",
     "gitOperationsDesc": "Git pull, push, and sync notifications",
+    "soundPreset": "Notification sound",
+    "soundPresetDesc": "Choose the sound played for audible notifications",
+    "previewSound": "Preview",
+    "soundPresets": {
+      "classic": "Classic",
+      "gentle": "Gentle",
+      "ascending": "Ascending",
+      "bell": "Bell"
+    },
     "volume": "Volume",
     "testNotification": "Test Notification",
     "notification": "Notification",
     "sound": "Sound",
     "enabledSuccess": "Notifications enabled",
     "permissionDenied": "Notification permission denied",
+    "criticalOnly": "Critical alerts only",
+    "criticalOnlyDesc": "Only notify when an action needs approval or a task fails",
+    "quietHours": "Do not disturb schedule",
+    "quietHoursDesc": "Silence routine notifications during a daily time window",
+    "quietHoursSchedule": "Quiet hours",
+    "quietHoursScheduleDesc": "Uses your device local time. Identical start and end times disable the window.",
+    "quietHoursStart": "From",
+    "quietHoursEnd": "To",
+    "allowCriticalDuringQuietHours": "Allow critical alerts",
+    "allowCriticalDuringQuietHoursDesc": "Approval requests and failures may show a system notification, but never play sound",
+    "backgroundCompletionSummary": "Summarize background completions",
+    "backgroundCompletionSummaryDesc": "Send one combined alert when quiet hours end",
+    "mutedSessions": "Muted sessions",
+    "mutedSessionsDesc": "{{count}} sessions are muted on this device",
+    "clearMutedSessions": "Clear all",
     "test": {
       "sent": "Test notification sent",
       "permissionWarning": "Failed to send test notification. Check permissions.",
-      "sendFailed": "Unable to send test notification. Please check your notification permissions and try again."
+      "sendFailed": "Unable to send test notification. Please check your notification permissions and try again.",
+      "soundFailed": "Unable to play the notification sound. Check your system volume."
     },
     "teamInbox": "Team Inbox",
     "teamInboxDesc": "Assignments, mentions, and handoffs from teammates"
@@ -1015,7 +1040,13 @@
     "tableSize": "Size",
     "tablePercentage": "Perc.",
     "scanFailed": "Failed to scan disk usage",
-    "openFolderFailed": "Failed to open folder"
+    "openFolderFailed": "Failed to open folder",
+    "browserCache": "Browser cache",
+    "browserCacheDesc": "{{used}} used · {{cleanable}} can be safely cleaned",
+    "cleanBrowserCache": "Clean up",
+    "browserCacheCleaned": "Freed {{size}} of browser storage",
+    "browserCacheAlreadyClean": "Browser cache is already clean",
+    "browserCacheCleanFailed": "Failed to clean browser cache"
   },
   "agentSessions": {
     "title": "Agent Sessions",

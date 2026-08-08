@@ -231,11 +231,45 @@ pub async fn notify_orchestrator_session_terminal(
         use project_management::orchestrator::state_machine;
         use core_types::workflow::LinkedSessionStatus;
 
+        // Proof-of-work collection shells out to git and MUST run before
+        // the atomic mutation opens its BEGIN IMMEDIATE transaction — a
+        // hung subprocess inside the transaction holds the projects.db
+        // write lock indefinitely and starves every other writer (seen
+        // on-device). Bounded so a sick git also can't stall completion.
+        let collected_proof = if matches!(status, AgentSessionStatus::Completed) {
+            let diff_repo = worktree_path.as_deref().unwrap_or(&workspace_path);
+            collect_proof_of_work_data_bounded(
+                diff_repo,
+                std::time::Duration::from_secs(10),
+            )
+        } else {
+            None
+        };
+
         let apply_transition = |slug: &str| -> Result<state_machine::TransitionResult, String> {
             state_machine::mutate_work_item(
                 slug,
                 &work_item_id,
                 |frontmatter| {
+                    // Stale-signal rejection (design §12.4): a terminal
+                    // event from a session that no longer holds the
+                    // execution claim must not complete a newer episode.
+                    if let Some(active_session) = frontmatter
+                        .execution_lock
+                        .as_ref()
+                        .and_then(|lock| lock.active_session_id.as_deref())
+                    {
+                        if active_session != session_id_owned {
+                            tracing::warn!(
+                                "[orchestrator] ignoring stale terminal from session {} \
+                                 (active claim: {}) for work_item {}",
+                                session_id_owned,
+                                active_session,
+                                frontmatter.short_id
+                            );
+                            return state_machine::TransitionResult::Ignored;
+                        }
+                    }
                     let linked_status = match status {
                         AgentSessionStatus::Completed => {
                             LinkedSessionStatus::Completed
@@ -315,8 +349,9 @@ pub async fn notify_orchestrator_session_terminal(
                         },
                         _ => match status {
                             AgentSessionStatus::Completed => {
-                                let diff_repo = worktree_path.as_deref().unwrap_or(&workspace_path);
-                                collect_proof_of_work(frontmatter, diff_repo);
+                                if let Some(ref collected) = collected_proof {
+                                    apply_proof_of_work(frontmatter, collected);
+                                }
                                 state_machine::on_session_complete(frontmatter)
                             }
                             AgentSessionStatus::Failed => {
@@ -448,6 +483,10 @@ pub async fn notify_orchestrator_session_terminal(
                 TransitionResult::AwaitingUser => {
                     tracing::debug!("[orchestrator] Session {} awaiting user action", session_id);
                     notify_inbox_awaiting_user(&work_item_id_for_launch);
+                }
+                TransitionResult::Ignored => {
+                    // Stale terminal from a session that lost the claim —
+                    // already logged inside the mutator; no follow-on.
                 }
             }
         }
@@ -634,7 +673,9 @@ fn notify_inbox_awaiting_user(work_item_id: &str) {
 }
 
 mod handlers;
-use handlers::{collect_proof_of_work, extract_review_feedback};
+use handlers::{
+    apply_proof_of_work, collect_proof_of_work_data_bounded, extract_review_feedback,
+};
 
 #[cfg(test)]
 pub(crate) use handlers::{

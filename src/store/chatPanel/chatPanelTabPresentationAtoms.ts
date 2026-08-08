@@ -9,6 +9,8 @@ import {
 } from "@src/store/session/viewAtom";
 import {
   CHAT_PANEL_SURFACE_KIND,
+  DEFAULT_CHAT_PANEL_CREATE_TARGET,
+  chatPanelCreateTargetAtom,
   chatPanelMaximizedAtom,
   chatPanelNavigateAtom,
   chatPanelStartPageOpenAtom,
@@ -158,9 +160,14 @@ export const syncActiveChatPanelTabStateAtom = atom(null, (get, set) => {
     state.tabs.find((tab) => tab.id === state.activeTabId) ?? null;
   // A start-page tab is also the host for non-session project surfaces.
   // Navigation deliberately closes the Launchpad before selecting one of
-  // those surfaces. Do not let the React reconciliation pass erase that
-  // newer navigation command after a switch away from Work Management.
-  if (activeTab?.type !== "start-page" || get(chatPanelStartPageOpenAtom)) {
+  // those surfaces. It also owns its pinned creator navigation. Do not let
+  // the React reconciliation pass erase either newer intent after activating
+  // Launchpad from another tab.
+  const startPageOwnsExplicitNavigation =
+    activeTab?.type === "start-page" &&
+    (!get(chatPanelStartPageOpenAtom) ||
+      get(chatPanelCreateTargetAtom) !== DEFAULT_CHAT_PANEL_CREATE_TARGET);
+  if (!startPageOwnsExplicitNavigation) {
     set(syncChatPanelTabNavigationAtom, activeTab);
   }
 
@@ -225,6 +232,8 @@ export const activateChatPanelTabAtom = atom(
       tab.type === "workspace" ||
       tab.type === "organization" ||
       tab.type === "work-item" ||
+      tab.type === "github-issue" ||
+      tab.type === "github-pr" ||
       tab.type === "project" ||
       tab.type === "explore"
     ) {

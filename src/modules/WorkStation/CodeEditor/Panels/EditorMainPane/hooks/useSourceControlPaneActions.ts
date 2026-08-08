@@ -30,6 +30,10 @@ import {
 } from "@src/store/workstation/tabs";
 
 import {
+  type SourceControlMainMode,
+  setSourceControlMainMode,
+} from "../../../sourceControlStateTransitions";
+import {
   type SourceControlDestination,
   createSourceControlQuickActions,
 } from "../config";
@@ -51,7 +55,7 @@ export interface UseSourceControlPaneActionsReturn {
   handleSourceControlRefresh: () => void;
   /** Monotonic counter — bumping it tells All Changes to collapse every group */
   sourceControlCollapseAllSignal: number;
-  handleSourceControlModeChange: (mode: "focus" | "all-changes") => void;
+  handleSourceControlModeChange: (mode: SourceControlMainMode) => void;
   handleSourceControlCollapseAll: () => void;
   handleSourceControlCloseFocus: () => void;
   /** Current review-sequence snapshot (`{ current, total }`) */
@@ -94,28 +98,8 @@ export function useSourceControlPaneActions({
     useState(0);
 
   const handleSourceControlModeChange = useCallback(
-    (mode: "focus" | "all-changes") => {
-      updatePaneState((state) => {
-        const tabIndex = state.tabs.findIndex(
-          (item) => item.type === "source-control"
-        );
-        if (tabIndex === -1) return state;
-        const existing = state.tabs[tabIndex];
-        if (existing.data.mode === mode && !existing.data.historySelection) {
-          return state;
-        }
-        const nextTabs = [...state.tabs];
-        nextTabs[tabIndex] = {
-          ...existing,
-          data: {
-            ...existing.data,
-            mode,
-            historySelection: null,
-          },
-        };
-        return { ...state, tabs: nextTabs };
-      });
-    },
+    (mode: SourceControlMainMode) =>
+      updatePaneState((state) => setSourceControlMainMode(state, mode)),
     [updatePaneState]
   );
 

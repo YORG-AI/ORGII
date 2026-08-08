@@ -76,6 +76,11 @@ export function WorkItemsHeaderContent({
     : t("workItems.showProperties");
 
   if (section === "content") {
+    if (breadcrumbSegments.length === 0) {
+      return leadingControls ? (
+        <div className="contents">{leadingControls}</div>
+      ) : null;
+    }
     return (
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <ProjectManagerBreadcrumb

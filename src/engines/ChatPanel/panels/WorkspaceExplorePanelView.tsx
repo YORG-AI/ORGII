@@ -14,7 +14,13 @@
  */
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useAtomValue } from "jotai";
-import { ArrowUpRight, Download, GitFork, Search, Star } from "lucide-react";
+import {
+  Download,
+  GitFork,
+  Search,
+  SquareArrowOutUpRight,
+  Star,
+} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -150,7 +156,7 @@ const SearchRepoCard: React.FC<SearchRepoCardProps> = ({
             size="small"
             shape="circle"
             iconOnly
-            icon={<ArrowUpRight size={13} />}
+            icon={<SquareArrowOutUpRight size={13} />}
             onClick={() => onOpen(repo)}
             aria-label={t("explore.openOnGithub", { defaultValue: "GitHub" })}
           />

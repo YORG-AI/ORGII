@@ -167,6 +167,8 @@ export interface Session {
   repoRemoteUrls?: string[];
   /** Path to the file or directory where this session's persisted data lives. */
   storagePath?: string;
+  /** Imported-history continuation family used to suppress duplicate sidebar siblings. */
+  continuationLineageId?: string;
   /** Worktree path for isolated parallel sessions */
   worktreePath?: string;
   /** Branch name inside the worktree (e.g. `agent/abc123`) */
@@ -218,6 +220,15 @@ export interface Session {
    * `SessionAggregateRecord`.
    */
   agentExecMode?: string;
+  /**
+   * Persistent product mode (`orgtrack/v1` §5.2):
+   * `build | plan | ask | project`. The single source of truth for
+   * whether this session exposes the WorkItem/Routine mutation surface.
+   * `undefined` = build. Distinct from `agentExecMode` (the runtime
+   * tool-policy axis); resolved server-side (launch-from-work/routine →
+   * project) or set explicitly via `rpc.sessionAggregate.patch`.
+   */
+  productMode?: string;
   /**
    * Per-session unsent draft text (P3). The text the user has typed
    * into the chat composer for this session but not yet sent. `undefined`

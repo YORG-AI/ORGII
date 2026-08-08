@@ -26,6 +26,7 @@ import { useAtomValue, useStore } from "jotai";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { getImportedHistoryCliResume } from "@src/api/tauri/externalHistory";
 import Message from "@src/components/Message";
 import { useShowInteractArea } from "@src/contexts/workspace/ChatContext";
 import { forkExternalHistoryIntoOrgiiSession } from "@src/engines/ChatPanel/externalHistoryFork";
@@ -161,7 +162,12 @@ const ChatView: React.FC<ChatViewProps> = memo(
     // picker — it never writes back into Codex/Claude/Cursor/etc.
 
     const showInteractArea = useShowInteractArea();
-    const showExternalHistoryForkComposer = isImportedHistory && !readOnly;
+    // Sources whose CLI cannot reopen a session (Cursor IDE, Windsurf,
+    // Trae, …) are pure read-only replays: no composer, no continuation
+    // affordance. Only CLI-continuable histories offer the fork composer.
+    const importedCliResume = getImportedHistoryCliResume(sessionId);
+    const showExternalHistoryForkComposer =
+      isImportedHistory && !readOnly && Boolean(importedCliResume);
     const handleExternalHistoryForkSubmit = useCallback(
       async (input: SubmitOverrideInput) => {
         if (!isImportedHistory) return false;

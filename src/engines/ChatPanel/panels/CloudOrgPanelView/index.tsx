@@ -7,7 +7,7 @@
  * `useCloudOrgManagement` closed loop.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
@@ -25,14 +25,20 @@ import {
   DETAIL_PANEL_TOKENS,
   ScrollFadeContainer,
 } from "@src/modules/shared/layouts/blocks";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { openWorkManagementChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { ChatPanelSelectedCloudOrg } from "@src/store/ui/chatPanelAtom";
+import {
+  isSetupGuideRoleScenario,
+  resolveSetupGuideDevRole,
+  setupGuideDevScenarioAtom,
+} from "@src/store/ui/setupGuideDevScenarioAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 
 import CloudOrgPanelHeader from "./CloudOrgPanelHeader";
 import CloudOrgRepoScopesSection from "./CloudOrgRepoScopesSection";
 import CloudOrgSettingsSection from "./CloudOrgSettingsSection";
-import CloudOrgSyncSection from "./CloudOrgSyncSection";
+import CloudOrgSyncTab from "./CloudOrgSyncTab";
 import { CloudInvitesCard, CloudMembersSection } from "./ManagementSections";
 import {
   CLOUD_ORG_MANAGEMENT_TAB,
@@ -40,7 +46,7 @@ import {
 } from "./cloudOrgPanelTypes";
 import { useCloudOrgManagement } from "./useCloudOrgManagement";
 import { useCloudOrgPanelState } from "./useCloudOrgPanelState";
-import { useCloudOrgSyncStatus } from "./useCloudOrgSyncStatus";
+import { useOrgBackgroundUpload } from "./useOrgBackgroundUpload";
 import { useOrgRuntimeTelemetry } from "./useOrgRuntimeTelemetry";
 
 interface CloudOrgPanelViewProps {
@@ -56,25 +62,98 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
   const setSidebarSelectedOrgId = useSetAtom(sidebarSelectedOrgIdAtom);
   const openWorkManagementTab = useSetAtom(openWorkManagementChatPanelTabAtom);
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
-  const [activeTab, setActiveTab] = useState<CloudOrgManagementTab>(
-    CLOUD_ORG_MANAGEMENT_TAB.GENERAL
-  );
+  const setupGuideDevScenario = useAtomValue(setupGuideDevScenarioAtom);
   const orgId = selectedCloudOrg.orgId;
+  const requestedView =
+    selectedCloudOrg.initialView ?? CLOUD_ORG_MANAGEMENT_TAB.GENERAL;
+  const [tabState, setTabState] = useState<{
+    orgId: string;
+    requestId: number | undefined;
+    requestedView: CloudOrgManagementTab;
+    activeTab: CloudOrgManagementTab;
+  }>(() => ({
+    orgId,
+    requestId: selectedCloudOrg.initialViewRequestId,
+    requestedView,
+    activeTab: requestedView,
+  }));
+  const tabStateMatchesRequest =
+    tabState.orgId === orgId &&
+    tabState.requestId === selectedCloudOrg.initialViewRequestId &&
+    tabState.requestedView === requestedView;
+  const activeTab = tabStateMatchesRequest ? tabState.activeTab : requestedView;
+  const handleTabChange = useCallback(
+    (nextTab: CloudOrgManagementTab) => {
+      setTabState({
+        orgId,
+        requestId: selectedCloudOrg.initialViewRequestId,
+        requestedView,
+        activeTab: nextTab,
+      });
+    },
+    [orgId, requestedView, selectedCloudOrg.initialViewRequestId]
+  );
   const org = cloudOrgs.find((candidate) => candidate.orgId === orgId);
   const orgName = org?.name ?? "";
-  const isAdmin = org?.role === "admin" || org?.role === "owner";
-  const isOwner = org?.role === "owner";
+  const realIsAdmin = org?.role === "admin" || org?.role === "owner";
+  const realIsOwner = org?.role === "owner";
   const panelState = useCloudOrgPanelState(orgId);
   const runtimeSharing = useOrgRuntimeTelemetry(orgId);
-  const syncStatus = useCloudOrgSyncStatus(orgId);
+  const backgroundUpload = useOrgBackgroundUpload(orgId);
+  const memberRoleSimulationActive =
+    process.env.NODE_ENV === "development" &&
+    isSetupGuideRoleScenario(setupGuideDevScenario);
+  const presentationRole = memberRoleSimulationActive
+    ? resolveSetupGuideDevRole(org?.role, setupGuideDevScenario)
+    : (org?.role ?? null);
+  const presentationMemberRole =
+    presentationRole === "member" ||
+    presentationRole === "admin" ||
+    presentationRole === "owner"
+      ? presentationRole
+      : null;
+  const presentationIsAdmin =
+    presentationRole === "admin" || presentationRole === "owner";
+  const presentationIsOwner = presentationRole === "owner";
+  const presentationMembers = useMemo(() => {
+    if (!memberRoleSimulationActive || !panelState.currentUserId) {
+      return panelState.members;
+    }
+    return panelState.members.map((member) =>
+      member.userId === panelState.currentUserId
+        ? { ...member, role: presentationMemberRole ?? member.role }
+        : member
+    );
+  }, [
+    memberRoleSimulationActive,
+    panelState.currentUserId,
+    panelState.members,
+    presentationMemberRole,
+  ]);
   const management = useCloudOrgManagement({
     orgId,
     orgName,
-    isAdmin,
-    isOwner,
+    isAdmin: realIsAdmin,
+    isOwner: realIsOwner,
     members: panelState.members,
     setMembers: panelState.setMembers,
   });
+  const presentationManagement = useMemo(
+    () =>
+      memberRoleSimulationActive
+        ? {
+            ...management,
+            isAdmin: presentationIsAdmin,
+            isOwner: presentationIsOwner,
+          }
+        : management,
+    [
+      management,
+      memberRoleSimulationActive,
+      presentationIsAdmin,
+      presentationIsOwner,
+    ]
+  );
   const handleOpenSessions = useCallback(() => {
     setSidebarSelectedOrgId(buildCloudOrgSelectorValue(orgId));
     openWorkManagementTab({
@@ -91,7 +170,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
       <CloudOrgPanelHeader
         orgId={orgId}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       />
       <ScrollFadeContainer
         className={`scroll-fade-at-top ${DETAIL_PANEL_TOKENS.scrollContentNoTop}`}
@@ -117,6 +196,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
                     floorError={panelState.floorError}
                     onFloorChange={panelState.handleFloorChange}
                     runtimeSharing={runtimeSharing}
+                    backgroundUpload={backgroundUpload}
                     openCloudBillingPage={openCloudBillingPage}
                     orgName={orgName}
                     members={panelState.members}
@@ -126,7 +206,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
                   />
                   <CloudOrgRepoScopesSection
                     t={t}
-                    isAdmin={isAdmin}
+                    isAdmin={realIsAdmin}
                     savedScopes={panelState.savedScopes}
                     draftScopes={panelState.draftScopes}
                     setDraftScopes={panelState.setDraftScopes}
@@ -142,29 +222,50 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
               ) : null}
 
               {activeTab === CLOUD_ORG_MANAGEMENT_TAB.SYNC ? (
-                <CloudOrgSyncSection t={t} status={syncStatus} />
+                <CloudOrgSyncTab orgId={orgId} />
               ) : null}
 
               {activeTab === CLOUD_ORG_MANAGEMENT_TAB.MEMBERS ? (
                 <>
-                  {panelState.members.length === 0 ? (
-                    <SectionContainer title={t("cloud.orgPanel.membersTitle")}>
+                  {memberRoleSimulationActive ? (
+                    <SectionContainer
+                      title={t("sidebar.guide.devSimulationActive")}
+                    >
                       <SectionRow
-                        label={t("cloud.orgPanel.membersEmpty")}
+                        label={t("sidebar.guide.devSimulationReadOnly")}
                         light
                       />
                     </SectionContainer>
-                  ) : (
-                    <CloudMembersSection
+                  ) : null}
+                  <div
+                    data-guide-target={GUIDE_TARGETS.CLOUD_ORG_MEMBERS_SECTION}
+                  >
+                    {panelState.members.length === 0 ? (
+                      <SectionContainer
+                        title={t("cloud.orgPanel.membersTitle")}
+                      >
+                        <SectionRow
+                          label={t("cloud.orgPanel.membersEmpty")}
+                          light
+                        />
+                      </SectionContainer>
+                    ) : (
+                      <CloudMembersSection
+                        t={t}
+                        members={presentationMembers}
+                        currentUserId={panelState.currentUserId}
+                        management={presentationManagement}
+                        orgFloor={panelState.orgFloor}
+                        interactionDisabled={memberRoleSimulationActive}
+                      />
+                    )}
+                  </div>
+                  {presentationIsAdmin ? (
+                    <CloudInvitesCard
                       t={t}
-                      members={panelState.members}
-                      currentUserId={panelState.currentUserId}
-                      management={management}
-                      orgFloor={panelState.orgFloor}
+                      management={presentationManagement}
+                      interactionDisabled={memberRoleSimulationActive}
                     />
-                  )}
-                  {isAdmin ? (
-                    <CloudInvitesCard t={t} management={management} />
                   ) : null}
                 </>
               ) : null}

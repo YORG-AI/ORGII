@@ -692,21 +692,47 @@
     "agentApproval": "Aprovação do Agent",
     "agentApprovalDesc": "Quando uma ação do Agent requer sua aprovação",
     "errors": "Erros e Avisos",
+    "teamInbox": "Caixa de entrada da equipe",
     "errorsDesc": "Quando ocorrem erros ou avisos",
     "sessionStatus": "Status da Sessão",
     "sessionStatusDesc": "Atualizações de início, pausa e retomada de sessão",
     "gitOperations": "Operações Git",
     "gitOperationsDesc": "Notificações de Git pull, push e sincronização",
+    "soundPreset": "Som de notificação",
+    "soundPresetDesc": "Escolha o som das notificações audíveis",
+    "previewSound": "Ouvir",
+    "soundPresets": {
+      "classic": "Clássico",
+      "gentle": "Suave",
+      "ascending": "Ascendente",
+      "bell": "Sino"
+    },
     "volume": "Volume",
     "testNotification": "Notificação de Teste",
     "notification": "Notificação",
     "sound": "Som",
     "enabledSuccess": "Notificações habilitadas",
     "permissionDenied": "Permissão de notificação negada",
+    "criticalOnly": "Apenas alertas críticos",
+    "criticalOnlyDesc": "Notificar apenas quando uma ação precisa de aprovação ou uma tarefa falha",
+    "quietHours": "Agenda de não perturbar",
+    "quietHoursDesc": "Silenciar notificações de rotina durante um intervalo diário",
+    "quietHoursSchedule": "Horário silencioso",
+    "quietHoursScheduleDesc": "Usa a hora local do seu dispositivo. Horários de início e fim iguais desativam o intervalo.",
+    "quietHoursStart": "De",
+    "quietHoursEnd": "Até",
+    "allowCriticalDuringQuietHours": "Permitir alertas críticos",
+    "allowCriticalDuringQuietHoursDesc": "Pedidos de aprovação e falhas podem exibir uma notificação do sistema, mas nunca tocam som",
+    "backgroundCompletionSummary": "Resumir conclusões em segundo plano",
+    "backgroundCompletionSummaryDesc": "Enviar um único aviso combinado quando o horário silencioso terminar",
+    "mutedSessions": "Sessões silenciadas",
+    "mutedSessionsDesc": "{{count}} sessões estão silenciadas neste dispositivo",
+    "clearMutedSessions": "Limpar tudo",
     "test": {
       "sent": "Notificação de teste enviada",
       "permissionWarning": "Falha ao enviar notificação de teste. Verifique as permissões.",
-      "sendFailed": "Não foi possível enviar a notificação de teste. Verifique suas permissões de notificação e tente novamente."
+      "sendFailed": "Não foi possível enviar a notificação de teste. Verifique suas permissões de notificação e tente novamente.",
+      "soundFailed": "Não foi possível reproduzir o som de notificação. Verifique o volume do sistema."
     }
   },
   "editor": {
@@ -997,7 +1023,13 @@
     "tableSize": "Tamanho",
     "tablePercentage": "Perc.",
     "scanFailed": "Falha ao escanear o uso do disco",
-    "openFolderFailed": "Falha ao abrir a pasta"
+    "openFolderFailed": "Falha ao abrir a pasta",
+    "browserCache": "Cache do navegador",
+    "browserCacheDesc": "{{used}} usados · {{cleanable}} podem ser limpos com segurança",
+    "cleanBrowserCache": "Limpar",
+    "browserCacheCleaned": "Foram libertados {{size}} de armazenamento do navegador",
+    "browserCacheAlreadyClean": "O cache do navegador já está limpo",
+    "browserCacheCleanFailed": "Falha ao limpar o cache do navegador"
   },
   "agentSessions": {
     "title": "Sessões de Agent",

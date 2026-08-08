@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { invokeWithAuth } from "./client";
 import type {
   GitHubRepoNetworkIdentity,
+  GitHubRepoPermissions,
   LocalGitHubBranch,
   LocalGitHubRepo,
 } from "./types";
@@ -17,6 +18,14 @@ export async function listReposLocal(
   return invokeWithAuth<LocalGitHubRepo[]>("github_list_repos", {
     page: page ?? null,
     perPage: perPage ?? null,
+  });
+}
+
+export async function getGitHubRepoPermissionsLocal(
+  repoFullName: string
+): Promise<GitHubRepoPermissions> {
+  return invokeWithAuth<GitHubRepoPermissions>("github_get_repo_permissions", {
+    repoFullName,
   });
 }
 

@@ -5,20 +5,21 @@
  */
 import type React from "react";
 
-import type { projectApi } from "@src/api/http/project";
+import type {
+  WorkItemReadBucket,
+  WorkspaceWorkItemsData,
+} from "@src/api/http/project";
 import type { WorkstationTabHeaderHost } from "@src/hooks/workStation";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
+import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { WorkspaceWorkItem } from "@src/modules/ProjectManager/workspaceAggregate";
 
-import {
-  WORKSPACE_ACTIVE_READ_BUCKET,
-  WORKSPACE_COMPLETED_READ_BUCKET,
-} from "./ProjectWorkItemsTabContentConstants";
-
 export interface ProjectWorkItemsTabContentProps {
-  breadcrumbSegments?: readonly { label: string }[];
+  breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   workStationTabId?: string;
   workstationHeaderHost?: WorkstationTabHeaderHost;
+  /** Navigate from the breadcrumb root back to the Projects index. */
+  onOpenProjects?: () => void;
   onCreateProject?: () => void;
   onCreateWorkItem?: () => void;
   onOpenLinearProject?: (selection: LinearProjectSelection) => void;
@@ -58,16 +59,9 @@ export interface ProjectWorkItemSelection {
 export type WorkspaceSourceMode = "local_only" | "include_external";
 export type ProjectWorkItemsViewTab = "List" | "Kanban";
 
-export type WorkspaceProjectRecord = Awaited<
-  ReturnType<typeof projectApi.readProjects>
->[number];
-
 export interface ReadWorkspaceBucketOptions {
-  projects: WorkspaceProjectRecord[];
-  orgNameById: Map<string, string>;
+  workspaceData: WorkspaceWorkItemsData;
   orgId?: string;
-  readBucket:
-    | typeof WORKSPACE_ACTIVE_READ_BUCKET
-    | typeof WORKSPACE_COMPLETED_READ_BUCKET;
+  readBucket?: WorkItemReadBucket;
   linearWorkItems: WorkspaceWorkItem[];
 }

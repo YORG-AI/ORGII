@@ -25,6 +25,7 @@ import {
   primeShareableScopeKey,
   subscribeShareableScopeKeys,
 } from "../../repoScopeResolver";
+import { resolveForkModelPreselection } from "./modelPreselection";
 
 export interface ForkSessionSetupSelection {
   workspaceRepoPath: string | null;
@@ -182,14 +183,22 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
     accountHasModel(selectedAccount, selectedAgent.selectedModelId)
       ? selectedAgent.selectedModelId
       : undefined;
-  const model =
-    chosenModel ||
-    preferredAgentModel ||
-    (sourceModel &&
-    selectedAccount &&
-    accountHasModel(selectedAccount, sourceModel)
-      ? sourceModel
-      : String(modelOptions[0]?.value ?? ""));
+  const model = resolveForkModelPreselection({
+    chosenModel,
+    // A user pick or a source agent hint pins the agent's own model;
+    // otherwise the imported/remote session's model is "the right one".
+    agentChoiceExplicit: Boolean(
+      chosenAgentDefinitionId || sourceAgentDefinitionId
+    ),
+    preferredAgentModel,
+    sourceModelOnAccount:
+      sourceModel &&
+      selectedAccount &&
+      accountHasModel(selectedAccount, sourceModel)
+        ? sourceModel
+        : undefined,
+    fallbackModel: String(modelOptions[0]?.value ?? ""),
+  });
   const targetKey = request.sourceScopeKey
     ? normalizeRepoScopeKey(request.sourceScopeKey)
     : null;

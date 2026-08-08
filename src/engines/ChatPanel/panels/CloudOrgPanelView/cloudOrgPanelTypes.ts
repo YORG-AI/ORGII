@@ -1,9 +1,6 @@
-export type CloudOrgManagementTab = "general" | "sync" | "members";
-
-export const CLOUD_ORG_MANAGEMENT_TAB = {
-  GENERAL: "general",
-  SYNC: "sync",
-  MEMBERS: "members",
-} as const satisfies Record<string, CloudOrgManagementTab>;
+export {
+  CLOUD_ORG_MANAGEMENT_VIEW as CLOUD_ORG_MANAGEMENT_TAB,
+  type CloudOrgManagementView as CloudOrgManagementTab,
+} from "@src/store/ui/chatPanelAtom";
 
 export type SelectValue = string | number | (string | number)[];

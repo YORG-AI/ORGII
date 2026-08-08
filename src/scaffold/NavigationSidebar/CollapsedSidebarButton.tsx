@@ -7,9 +7,8 @@ import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { getCollapsedSidebarButtonLeft } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
-
-const COLLAPSED_SIDEBAR_BUTTON_LEFT = 88;
 
 const CollapsedSidebarButtonComponent: React.FC = () => {
   const { t } = useTranslation("sessions");
@@ -33,7 +32,7 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
       data-collapsed-sidebar-button
       style={
         {
-          left: COLLAPSED_SIDEBAR_BUTTON_LEFT,
+          left: getCollapsedSidebarButtonLeft(),
           top: "calc(50% + 4px)",
           WebkitAppRegion: "no-drag",
         } as React.CSSProperties & { WebkitAppRegion: string }

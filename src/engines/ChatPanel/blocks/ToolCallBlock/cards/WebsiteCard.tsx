@@ -1,4 +1,4 @@
-import { ArrowUpRight, Globe } from "lucide-react";
+import { Globe, SquareArrowOutUpRight } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -81,7 +81,7 @@ const WebsiteCard: React.FC<WebsiteCardProps> = ({ card }) => {
         title={t("cards.openLink")}
         aria-label={t("cards.openLink")}
       >
-        <ArrowUpRight size={14} />
+        <SquareArrowOutUpRight size={14} />
       </button>
     </div>
   );

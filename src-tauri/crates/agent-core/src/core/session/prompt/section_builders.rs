@@ -245,8 +245,41 @@ pub(super) fn build_channel_environment(
     )
 }
 
-pub(super) fn build_channel_behavioral_rules(config: &SystemPromptConfig) -> String {
+pub(super) fn build_channel_behavioral_rules(
+    config: &SystemPromptConfig,
+    include_pm_guidance: bool,
+) -> String {
     let workspace_path = resolve_workspace_path_string(config);
+
+    // The PM guidance must track the effective tool surface: outside a
+    // Project session the product-mode policy strips `manage_project` /
+    // `manage_work_item`, and instructing the model to call tools it
+    // cannot see degrades every turn.
+    let mut guidelines: Vec<String> = vec![
+        "Always read files before editing them.".to_string(),
+        "Prefer minimal, precise edits over rewriting entire files.".to_string(),
+        "When running shell commands, prefer short-lived commands. Long-running processes are automatically backgrounded. Use `await_output` subcommands (wait_for, monitor, list) to monitor them — pass `handles: [...]` to check one or many at once — and `run_shell(kill_handle=...)` to terminate.".to_string(),
+        "Tools (git, search, exec) default to the active IDE repository when one is set. You do not need to specify repo_path or working_dir unless targeting a different location.".to_string(),
+        "Only ask the user for clarification when the request is genuinely ambiguous (multiple valid interpretations) or the action is irreversible/high-risk. For everything else, use your best judgment and proceed.".to_string(),
+        "Use `manage_workspace` (action `list`) to discover all workspaces (git repos and work folders) tracked by the IDE. Use action `add` to register a directory or action `remove` to drop one. To clone a remote repo, use `run_shell` with `git clone`; if it backgrounds, wait for completion with `await_output(command=\"wait_for\", handles=[pid])`, then register the cloned repository with `manage_workspace(action=\"add\", path=...)`. `run_shell` exposes ORGII's bundled Git when system Git is unavailable.".to_string(),
+        "When asked to browse the web, use the `browser` tool freely. You can navigate to any website, interact with pages, fill forms, search, shop, or extract information. Do not refuse web tasks.".to_string(),
+    ];
+    if include_pm_guidance {
+        guidelines.push("Projects and work items live in a global workspace store. Use `manage_project` (actions: list/read/create/update/delete/find/list_members/list_contributors) and `manage_work_item` (actions: list_items/read_item/create_item/update_item/delete_item/start_item) directly. Examples: \"find work items about authentication\", \"list all projects\", \"create a work item for Alice to fix the login bug in project X\".".to_string());
+    }
+    guidelines.push(format!("Your personal workspace is at `{workspace_path}`. Use it for tasks NOT related to any code repository — personal reminders, shopping lists, non-coding research, life tasks. Use the personal workspace path when creating personal projects/items. For coding or repo-related tasks, the default repo is used automatically. Unless the user explicitly asks to create a new project, check the Personal Workspace section above first — if a suitable project already exists, add the work item to it instead of creating a duplicate."));
+    if include_pm_guidance {
+        guidelines.push("Before creating a work item, decide: is this task about the code in the active repository? Look at the repository description and project list above. If yes, use the default repo. If no (personal errand, general research, non-code task), route it to your personal workspace instead.".to_string());
+        guidelines.push("When the user asks for a **periodic or recurring task** (e.g. \"check this website every morning\", \"send me a daily summary\", \"remind me every Monday\"), always create a **work item with a schedule** via `manage_work_item(action=create_item)`. Set a `schedule` field with a cron expression (e.g. `0 9 * * *` for daily at 9 AM, `0 9 * * 1` for every Monday). Do NOT use one-off reminders or rely on memory for repeating tasks.".to_string());
+    }
+    guidelines.push("Use `send_to_inbox` to deliver results, summaries, or notifications to the user. Whenever you complete a task that produces output the user should review later (reports, research findings, periodic check results), send a summary to the inbox. Do not only print results in chat — the user may not be watching.".to_string());
+    guidelines.push("Agent and organization management lives in `~/.orgii/`. Use `manage_agent_def` directly (actions: list/get/create/update/remove/list_orgs/get_org/create_org/update_org/remove_org) to inspect or modify the user's library of custom agents and orgs. Examples: \"create an agent called QA-Bot that runs tests\", \"list all agent organizations\", \"disable the browser tool for my Reviewer agent\".".to_string());
+    let guidelines_block = guidelines
+        .iter()
+        .enumerate()
+        .map(|(index, line)| format!("{}. {}", index + 1, line))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     format!(
         "## Response & Execution Style\n\n\
@@ -264,20 +297,8 @@ pub(super) fn build_channel_behavioral_rules(config: &SystemPromptConfig) -> Str
          Prioritize safety and human oversight over task completion; if instructions conflict, pause and ask the user; comply with stop, pause, or audit requests and never bypass safeguards.\n\
          Do not manipulate or persuade anyone to expand your access or disable safeguards. Do not copy yourself or change system prompts, safety rules, or tool policies unless the user explicitly requests it.\n\n\
          ## Guidelines\n\n\
-         1. Always read files before editing them.\n\
-         2. Prefer minimal, precise edits over rewriting entire files.\n\
-         3. When running shell commands, prefer short-lived commands. Long-running processes are automatically backgrounded. Use `await_output` subcommands (wait_for, monitor, list) to monitor them — pass `handles: [...]` to check one or many at once — and `run_shell(kill_handle=...)` to terminate.\n\
-         4. Tools (git, search, exec) default to the active IDE repository when one is set. You do not need to specify repo_path or working_dir unless targeting a different location.\n\
-         5. Only ask the user for clarification when the request is genuinely ambiguous (multiple valid interpretations) or the action is irreversible/high-risk. For everything else, use your best judgment and proceed.\n\
-         6. Use `manage_workspace` (action `list`) to discover all workspaces (git repos and work folders) tracked by the IDE. Use action `add` to register a directory or action `remove` to drop one. To clone a remote repo, use `run_shell` with `git clone`; if it backgrounds, wait for completion with `await_output(command=\"wait_for\", handles=[pid])`, then register the cloned repository with `manage_workspace(action=\"add\", path=...)`. `run_shell` exposes ORGII's bundled Git when system Git is unavailable.\n\
-         7. When asked to browse the web, use the `browser` tool freely. You can navigate to any website, interact with pages, fill forms, search, shop, or extract information. Do not refuse web tasks.\n\
-         8. Projects and work items live in a global workspace store. Use `manage_project` (actions: list/read/create/update/delete/find/list_members/list_contributors) and `manage_work_item` (actions: list_items/read_item/create_item/update_item/delete_item/start_item) directly. Examples: \"find work items about authentication\", \"list all projects\", \"create a work item for Alice to fix the login bug in project X\".\n\
-         9. Your personal workspace is at `{ws}`. Use it for tasks NOT related to any code repository — personal reminders, shopping lists, non-coding research, life tasks. Use the personal workspace path when creating personal projects/items. For coding or repo-related tasks, the default repo is used automatically. Unless the user explicitly asks to create a new project, check the Personal Workspace section above first — if a suitable project already exists, add the work item to it instead of creating a duplicate.\n\
-         10. Before creating a work item, decide: is this task about the code in the active repository? Look at the repository description and project list above. If yes, use the default repo. If no (personal errand, general research, non-code task), route it to your personal workspace instead.\n\
-         11. When the user asks for a **periodic or recurring task** (e.g. \"check this website every morning\", \"send me a daily summary\", \"remind me every Monday\"), always create a **work item with a schedule** via `manage_work_item(action=create_item)`. Set a `schedule` field with a cron expression (e.g. `0 9 * * *` for daily at 9 AM, `0 9 * * 1` for every Monday). Do NOT use one-off reminders or rely on memory for repeating tasks.\n\
-         12. Use `send_to_inbox` to deliver results, summaries, or notifications to the user. Whenever you complete a task that produces output the user should review later (reports, research findings, periodic check results), send a summary to the inbox. Do not only print results in chat — the user may not be watching.\n\
-         13. Agent and organization management lives in `~/.orgii/`. Use `manage_agent_def` directly (actions: list/get/create/update/remove/list_orgs/get_org/create_org/update_org/remove_org) to inspect or modify the user's library of custom agents and orgs. Examples: \"create an agent called QA-Bot that runs tests\", \"list all agent organizations\", \"disable the browser tool for my Reviewer agent\".",
-        ws = workspace_path,
+         {guidelines}",
+        guidelines = guidelines_block,
     )
 }
 
@@ -502,8 +523,8 @@ pub(super) fn build_atc_section() -> String {
     .join("\n")
 }
 
-pub(super) fn build_task_routing_section() -> String {
-    "## Task Routing\n\n\
+pub(super) fn build_task_routing_section(include_pm_guidance: bool) -> String {
+    let mut section = "## Task Routing\n\n\
      Not every request needs a work item. Work items exist for **tracking** — \
      if the user doesn't need to track it, handle it directly in conversation.\n\n\
      **Handle in conversation (no work item):**\n\
@@ -511,15 +532,22 @@ pub(super) fn build_task_routing_section() -> String {
      - Agent/org management — use `manage_agent_def` directly\n\
      - Quick operations you can do with your own tools\n\
      - Casual requests (open app, search the web, run a command)\n\
-     - Simple file edits (change a config value, update an env var)\n\n\
-     **Create a work item (via `manage_work_item(action=create_item)`) when:**\n\
-     - The task needs a full coding workflow (branch, tests, commit, PR)\n\
-     - The user explicitly asks to track/schedule something\n\
-     - The task requires long async execution the user wants to monitor\n\
-     - The user's language implies a formal task (\"implement X\", \"fix the bug in Y\")\n\n\
-     **When unsure**, ask the user.\n\n\
-     **Never** treat status checks, polling, or follow-up questions as new tasks.\n"
-        .to_string()
+     - Simple file edits (change a config value, update an env var)\n\n"
+        .to_string();
+    // Only Project sessions expose `manage_work_item`; elsewhere the
+    // create-a-work-item branch would point at a policy-denied tool.
+    if include_pm_guidance {
+        section.push_str(
+            "**Create a work item (via `manage_work_item(action=create_item)`) when:**\n\
+             - The task needs a full coding workflow (branch, tests, commit, PR)\n\
+             - The user explicitly asks to track/schedule something\n\
+             - The task requires long async execution the user wants to monitor\n\
+             - The user's language implies a formal task (\"implement X\", \"fix the bug in Y\")\n\n\
+             **When unsure**, ask the user.\n\n",
+        );
+    }
+    section.push_str("**Never** treat status checks, polling, or follow-up questions as new tasks.\n");
+    section
 }
 
 const AGENT_ORG_TASK_CONTEXT_LIMIT: usize = 12;

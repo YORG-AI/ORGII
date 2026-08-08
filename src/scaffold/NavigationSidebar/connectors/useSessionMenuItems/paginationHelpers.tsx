@@ -20,6 +20,7 @@ export const UNIFIED_LOAD_MORE_ID = "load-more-unified";
 interface UnifiedLoadMoreState {
   visible: boolean;
   loading: boolean;
+  error: boolean;
   disabled: boolean;
   readyCategories: SessionListCategory[];
 }
@@ -27,7 +28,7 @@ interface UnifiedLoadMoreState {
 interface LoadUnifiedReadyCategoriesParams {
   disabled?: boolean;
   pagination: SessionPaginationMap;
-  loadCategory: (category: SessionListCategory) => Promise<void>;
+  loadCategory: (category: SessionListCategory) => Promise<unknown>;
 }
 
 export function loadMoreRow(
@@ -100,16 +101,24 @@ export function getUnifiedLoadMoreState(
 ): UnifiedLoadMoreState {
   let visible = false;
   let loading = false;
+  let error = false;
   const readyCategories: SessionListCategory[] = [];
 
   for (const category of LOAD_MORE_CATEGORIES) {
     const state = pagination[category];
-    if (state.loading) {
+    if (state.generation === 0) continue;
+    if (state.phase === "loading") {
       visible = true;
       loading = true;
       continue;
     }
-    if (state.hasMore) {
+    if (state.phase === "error") {
+      visible = true;
+      error = true;
+      readyCategories.push(category);
+      continue;
+    }
+    if (state.phase === "ready") {
       visible = true;
       readyCategories.push(category);
     }
@@ -118,20 +127,38 @@ export function getUnifiedLoadMoreState(
   return {
     visible,
     loading,
-    disabled: readyCategories.length === 0,
+    error,
+    disabled: loading || readyCategories.length === 0,
     readyCategories,
   };
 }
+
+const UNIFIED_LOAD_MORE_CONCURRENCY = 4;
 
 export function loadUnifiedReadyCategories({
   disabled,
   pagination,
   loadCategory,
-}: LoadUnifiedReadyCategoriesParams): Promise<void[]> | null {
-  if (disabled) return null;
-  const { readyCategories } = getUnifiedLoadMoreState(pagination);
-  if (readyCategories.length === 0) return null;
-  return Promise.all(readyCategories.map((category) => loadCategory(category)));
+}: LoadUnifiedReadyCategoriesParams): Promise<void> | null {
+  const state = getUnifiedLoadMoreState(pagination);
+  if (disabled || state.disabled) return null;
+  const { readyCategories } = state;
+  return (async () => {
+    let nextIndex = 0;
+    const workers = Array.from(
+      {
+        length: Math.min(UNIFIED_LOAD_MORE_CONCURRENCY, readyCategories.length),
+      },
+      async () => {
+        while (nextIndex < readyCategories.length) {
+          const category = readyCategories[nextIndex];
+          nextIndex += 1;
+          await loadCategory(category);
+        }
+      }
+    );
+    await Promise.all(workers);
+  })();
 }
 
 interface AppendSessionGroupParams {

@@ -1,0 +1,253 @@
+// @vitest-environment jsdom
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+import { PrConversationTab } from "./PrConversationTab";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (_key: string, fallback?: string) => fallback ?? _key,
+  }),
+}));
+
+vi.mock("@src/features/Org2Cloud/useSessionReferenceDropTarget", () => ({
+  useSessionReferenceDropTarget: () => ({ isDragOver: false }),
+}));
+
+vi.mock("@src/features/Org2Cloud/CloudSessionReferencePreview", () => ({
+  CloudSessionReferencePreview: () => null,
+}));
+
+vi.mock("@src/hooks/ui/layout/useElementDimensions", () => ({
+  useElementDimensions: () => 0,
+}));
+
+vi.mock("@src/modules/shared/components/RichMarkdownEditor", async () => {
+  const { forwardRef } = await import("react");
+  return {
+    default: forwardRef<HTMLDivElement, Record<string, unknown>>(
+      function MockRichMarkdownEditor(props, ref) {
+        return createElement("div", {
+          ref,
+          "data-testid": props.dataTestId,
+          "data-min-height": props.minHeight,
+          "data-max-height": props.maxHeight,
+          "data-appearance": props.appearance,
+          "data-toolbar-mode": props.toolbarMode,
+          "data-value": props.value,
+        });
+      }
+    ),
+  };
+});
+
+describe("PrConversationTab", () => {
+  const actEnvironment = globalThis as typeof globalThis & {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  };
+
+  beforeAll(() => {
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  afterAll(() => {
+    Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+  });
+
+  it("keeps the PR controls and composer floating below the scrolling timeline", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PrConversationTab, {
+        detail: null,
+        identity: {
+          number: 42,
+          title: "Match the issue composer",
+          url: "https://github.com/org/repo/pull/42",
+          status: "open",
+          headBranch: "feature/comments",
+        },
+        conversation: [],
+        reviews: [],
+        reviewComments: [],
+        loading: false,
+        submittingComment: false,
+        submittingReview: false,
+        levelActions: createElement(
+          "div",
+          { "data-testid": "pr-level-actions" },
+          "Enable auto-merge Reviewers Close pull request"
+        ),
+        onAddComment: vi.fn().mockResolvedValue(undefined),
+        onSubmitReview: vi.fn().mockResolvedValue(undefined),
+      })
+    );
+    const container = document.createElement("div");
+    container.innerHTML = markup;
+
+    const scrollRegion = container.querySelector(
+      '[data-testid="pr-conversation-scroll"]'
+    );
+    const composer = container.querySelector(
+      '[data-testid="pr-comment-composer"]'
+    );
+    const floatingComposer = container.querySelector(
+      '[data-testid="pr-floating-composer"]'
+    );
+    const editor = composer?.querySelector('[data-testid="pr-comment-editor"]');
+    const levelActions = composer?.querySelector(
+      '[data-testid="pr-level-actions"]'
+    );
+    const input = composer?.querySelector(
+      '[data-testid="pr-comment-drop-target"]'
+    );
+    const actionRow = input?.lastElementChild;
+
+    expect(composer).not.toBeNull();
+    expect(scrollRegion?.contains(composer)).toBe(false);
+    expect(floatingComposer?.contains(composer)).toBe(true);
+    expect(floatingComposer?.className).toContain("absolute");
+    expect(floatingComposer?.className).toContain("bottom-0");
+    expect(scrollRegion?.firstElementChild?.getAttribute("style")).toContain(
+      "padding-bottom:240px"
+    );
+    expect(editor?.getAttribute("data-min-height")).toBe("100");
+    expect(editor?.getAttribute("data-max-height")).toBe("500");
+    expect(editor?.getAttribute("data-appearance")).toBe("plain");
+    expect(editor?.getAttribute("data-toolbar-mode")).toBe("inline");
+    expect(composer?.querySelector(".flex-shrink-0")).toBeNull();
+    expect(levelActions?.compareDocumentPosition(input as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(input?.contains(levelActions as Node)).toBe(false);
+    expect(input?.textContent).toContain("Submit review");
+    expect(input?.textContent).toContain("Comment");
+    expect(actionRow?.className).not.toContain("border-t");
+    expect(levelActions?.textContent).toContain("Enable auto-merge");
+    expect(composer?.textContent).toContain("Submit review");
+    expect(composer?.textContent).toContain("Comment");
+  });
+
+  it("submits the selected review decision from the modal", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onSubmitReview = vi.fn().mockResolvedValue(undefined);
+    const onDraftChange = vi.fn();
+
+    try {
+      await act(async () => {
+        root.render(
+          createElement(PrConversationTab, {
+            detail: null,
+            identity: {
+              number: 42,
+              title: "Review in a modal",
+              url: "https://github.com/org/repo/pull/42",
+              status: "open",
+              headBranch: "feature/review-modal",
+            },
+            conversation: [],
+            reviews: [],
+            reviewComments: [],
+            loading: false,
+            submittingComment: false,
+            submittingReview: false,
+            draft: "Keep this conversation draft",
+            onDraftChange,
+            onAddComment: vi.fn().mockResolvedValue(undefined),
+            onSubmitReview,
+          })
+        );
+      });
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="pr-submit-review"]')
+          ?.click();
+      });
+
+      const dialog =
+        document.body.querySelector<HTMLElement>('[role="dialog"]');
+      expect(dialog?.textContent).toContain("Submit review");
+      expect(dialog?.textContent).toContain("Review decision");
+      expect(dialog?.textContent).toContain("Comment");
+      expect(dialog?.textContent).toContain("Approve");
+      expect(dialog?.textContent).toContain("Request changes");
+
+      const submitButton = Array.from(
+        dialog?.querySelectorAll<HTMLButtonElement>("button") ?? []
+      ).find((button) => button.textContent?.trim() === "Submit review");
+      expect(submitButton?.disabled).toBe(true);
+
+      await act(async () => {
+        dialog
+          ?.querySelector<HTMLInputElement>('input[value="REQUEST_CHANGES"]')
+          ?.click();
+      });
+
+      const reviewComment = dialog?.querySelector<HTMLTextAreaElement>(
+        '[data-testid="pr-review-comment"]'
+      );
+      await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set;
+        valueSetter?.call(reviewComment, "Please update the error handling.");
+        reviewComment?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+
+      expect(submitButton?.disabled).toBe(false);
+      await act(async () => {
+        submitButton?.click();
+        await Promise.resolve();
+      });
+
+      expect(onSubmitReview).toHaveBeenCalledWith(
+        "REQUEST_CHANGES",
+        "Please update the error handling."
+      );
+      expect(onDraftChange).not.toHaveBeenCalled();
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      container.remove();
+    }
+  });
+
+  it("restores a controlled conversation draft", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PrConversationTab, {
+        detail: null,
+        identity: {
+          number: 42,
+          title: "Preserve the draft",
+          url: "https://github.com/org/repo/pull/42",
+          status: "open",
+          headBranch: "feature/comments",
+        },
+        conversation: [],
+        reviews: [],
+        reviewComments: [],
+        loading: false,
+        submittingComment: false,
+        submittingReview: false,
+        draft: "Do not lose this review",
+        onDraftChange: vi.fn(),
+        onAddComment: vi.fn().mockResolvedValue(undefined),
+        onSubmitReview: vi.fn().mockResolvedValue(undefined),
+      })
+    );
+    const container = document.createElement("div");
+    container.innerHTML = markup;
+
+    expect(
+      container
+        .querySelector('[data-testid="pr-comment-editor"]')
+        ?.getAttribute("data-value")
+    ).toBe("Do not lose this review");
+  });
+});

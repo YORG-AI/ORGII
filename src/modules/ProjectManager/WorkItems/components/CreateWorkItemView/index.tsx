@@ -1,20 +1,27 @@
 import { emit } from "@tauri-apps/api/event";
 import { Info, X } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import ComposerBar from "@src/components/ComposerBar";
-import ComposerShell from "@src/components/ComposerShell";
 import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
-import { DetailSplitLayout } from "@src/modules/ProjectManager/shared";
+import {
+  CreateComposerAgentFrame,
+  CreateComposerHeader,
+  CreateComposerPinnedActions,
+  DetailSplitLayout,
+  ManualCreateComposer,
+} from "@src/modules/ProjectManager/shared";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
-import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks";
+import {
+  CreatorContentLayout,
+  PANEL_HEADER_TOKENS,
+} from "@src/modules/shared/layouts/blocks";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -123,7 +130,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   const [createMore, setCreateMore] = useState(false);
   const [localAiGenerateMode, setLocalAiGenerateMode] = useState(true);
   const [localPropertiesOpen, setLocalPropertiesOpen] = useState(false);
-  const manualFileInputRef = useRef<HTMLInputElement>(null);
 
   const resolvedPropertiesOpen = propertiesOpen ?? localPropertiesOpen;
   const resolvedAiGenerateMode =
@@ -212,16 +218,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     setLocalPropertiesOpen((current) => !current);
   }, [onToggleProperties]);
 
-  const handleManualFileUpload = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      Array.from(event.target.files ?? []).forEach((file) => {
-        editorRef.current?.insertFilePill(file.name, file.name);
-      });
-      event.target.value = "";
-    },
-    [editorRef]
-  );
-
   const handleCreate = useCallback(
     async (descriptionOverride?: string) => {
       if (!draft.name.trim() || saving) return;
@@ -265,23 +261,15 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   );
 
   const composerHeaderContent = (
-    <div data-testid="create-work-item-composer-header">
-      <div className="flex h-10 items-center px-1 py-0">
-        {inlineFields.titleSection}
-      </div>
-      <div className="px-2" aria-hidden>
-        <div className="border-t border-border-2" />
-      </div>
-    </div>
+    <CreateComposerHeader dataTestId="create-work-item-composer-header">
+      {inlineFields.titleSection}
+    </CreateComposerHeader>
   );
   const workItemPropertyPills = (
-    <div
-      className="flex min-w-0 flex-nowrap items-center gap-1.5"
-      data-testid="create-work-item-pinned-actions"
-    >
+    <CreateComposerPinnedActions dataTestId="create-work-item-pinned-actions">
       {inlineFields.workItemProjectPill}
       {inlineFields.inlinePropertyPills}
-    </div>
+    </CreateComposerPinnedActions>
   );
 
   return (
@@ -344,125 +332,61 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
         </>
       }
       leftContent={
-        <div
-          className={`flex h-full min-h-0 flex-col ${
-            centerLauncherContent ? "overflow-y-auto" : "overflow-hidden"
-          }`}
+        <CreatorContentLayout
+          centered={centerLauncherContent}
+          centeredDataTestId="create-work-item-centered-launcher"
         >
-          <div
-            className={
-              centerLauncherContent
-                ? "my-auto flex w-full shrink-0 flex-col"
-                : "contents"
-            }
-            data-testid={
-              centerLauncherContent
-                ? "create-work-item-centered-launcher"
-                : undefined
-            }
-          >
-            {showAiModePanel ? (
-              <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 py-2`}>
-                <div
-                  className="flex items-center justify-center gap-2 px-3 py-2"
-                  data-testid="create-work-item-mode-panel"
-                >
-                  <span className="text-[12px] font-medium text-text-1">
-                    Agent
-                  </span>
-                  <Switch
-                    size="small"
-                    checked={resolvedAiGenerateMode}
-                    onChange={handleAiGenerateModeChange}
-                    ariaLabel="Agent"
-                    dataTestId="create-work-item-mode-ai-switch"
-                  />
-                </div>
-              </div>
-            ) : null}
-            {resolvedAiGenerateMode && renderAgentComposer ? (
+          {showAiModePanel ? (
+            <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 py-2`}>
               <div
-                className={
-                  centerLauncherContent
-                    ? "shrink-0 pt-6"
-                    : "min-h-0 flex-1 overflow-hidden pt-6"
-                }
+                className="flex items-center justify-center gap-2 px-3 py-2"
+                data-testid="create-work-item-mode-panel"
               >
-                {renderAgentComposer(
-                  composerHeaderContent,
-                  workItemPropertyPills
-                )}
+                <span className="text-[12px] font-medium text-text-1">
+                  Agent
+                </span>
+                <Switch
+                  size="small"
+                  checked={resolvedAiGenerateMode}
+                  onChange={handleAiGenerateModeChange}
+                  ariaLabel="Agent"
+                  dataTestId="create-work-item-mode-ai-switch"
+                />
               </div>
-            ) : renderAgentComposer ? (
-              <div
-                className={`session-creator-chat-panel-wrapper pt-6 ${
-                  centerLauncherContent
-                    ? `${DETAIL_PANEL_TOKENS.headerWidth} shrink-0 px-4`
-                    : "min-h-0 flex-1 overflow-hidden"
-                }`}
-              >
-                <div
-                  className={`mx-auto flex min-h-0 w-full flex-col ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-                >
-                  <div className="session-creator-chat-panel-fullscreen-composer relative w-full">
-                    <ComposerShell className="session-creator-chat-panel-fullscreen-input-shell relative z-10 !pt-1.5">
-                      {composerHeaderContent}
-                      <div className="min-h-0 px-1">
-                        {inlineFields.descriptionSection}
-                      </div>
-                      <ComposerBar
-                        onAddContent={() =>
-                          editorRef.current?.triggerAtMention()
-                        }
-                        onUpload={() => manualFileInputRef.current?.click()}
-                        onOpenSkillsTools={() =>
-                          editorRef.current?.triggerSlashContext()
-                        }
-                        dropdownDirection="down"
-                        toolbarItemGap={false}
-                        showContextInfo={false}
-                        pills={
-                          <>
-                            <div
-                              aria-hidden
-                              className="mx-1 h-4 w-px shrink-0 bg-border-2"
-                            />
-                            <div className="flex min-w-0 items-center overflow-x-auto scrollbar-hide">
-                              {workItemPropertyPills}
-                            </div>
-                          </>
-                        }
-                        submitButton={
-                          <LaunchButton
-                            ariaLabel={t("common:actions.save")}
-                            disabled={!draft.name.trim() || saving}
-                            loading={saving}
-                            onClick={() => {
-                              void handleCreate();
-                            }}
-                          />
-                        }
-                      />
-                      <input
-                        ref={manualFileInputRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={handleManualFileUpload}
-                        tabIndex={-1}
-                        aria-hidden
-                      />
-                    </ComposerShell>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className={`${DETAIL_PANEL_TOKENS.headerWidth} h-full px-4`}>
-                <InlineCreateWorkItemFields state={inlineFields} />
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
+          ) : null}
+          {resolvedAiGenerateMode && renderAgentComposer ? (
+            <CreateComposerAgentFrame centered={centerLauncherContent}>
+              {renderAgentComposer(
+                composerHeaderContent,
+                workItemPropertyPills
+              )}
+            </CreateComposerAgentFrame>
+          ) : renderAgentComposer ? (
+            <ManualCreateComposer
+              centered={centerLauncherContent}
+              dataTestId="create-work-item-manual-composer"
+              editorRef={editorRef}
+              headerContent={composerHeaderContent}
+              editorContent={inlineFields.descriptionSection}
+              pinnedActionsContent={workItemPropertyPills}
+              submitButton={
+                <LaunchButton
+                  ariaLabel={t("common:actions.save")}
+                  disabled={!draft.name.trim() || saving}
+                  loading={saving}
+                  onClick={() => {
+                    void handleCreate();
+                  }}
+                />
+              }
+            />
+          ) : (
+            <div className={`${DETAIL_PANEL_TOKENS.headerWidth} h-full px-4`}>
+              <InlineCreateWorkItemFields state={inlineFields} />
+            </div>
+          )}
+        </CreatorContentLayout>
       }
       rightContent={
         resolvedPropertiesOpen ? (

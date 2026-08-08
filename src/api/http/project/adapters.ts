@@ -179,6 +179,7 @@ export function projectDataToUI(
     name: meta.name,
     description: projectData.description || meta.name,
     slug: projectData.slug,
+    syncAdapterId: projectData.sync_adapter_id,
     orgId: meta.org_id,
     workItemPrefix: meta.work_item_prefix,
     workItemPrefixCustom: meta.work_item_prefix_custom,

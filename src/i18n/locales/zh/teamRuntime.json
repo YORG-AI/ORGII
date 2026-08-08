@@ -2,6 +2,20 @@
   "title": "团队运行状态",
   "refresh": "刷新",
   "loadError": "团队运行状态加载失败",
+  "overview": {
+    "today": "今天",
+    "everyone": "所有人",
+    "activeMembers": "活跃成员",
+    "systemsCurrent": "{{total}} 台系统中有 {{current}} 台状态最新",
+    "usageByAgent": "按智能体统计用量",
+    "recentSessions": "最近共享的会话",
+    "recentLoading": "正在加载共享会话…",
+    "recentEmpty": "还没有共享会话",
+    "members": "成员明细",
+    "activeToday": "今日活跃",
+    "inactiveToday": "今日未活跃",
+    "sync": "同步"
+  },
   "signedOut": {
     "title": "登录后查看团队",
     "subtitle": "队友的运行状态通过 ORG2 Cloud 共享。",

@@ -203,6 +203,7 @@ mod tests {
             },
             description: "Project body".to_string(),
             slug: "demo".to_string(),
+            sync_adapter_id: None,
         };
         let work_item = WorkItemData {
             frontmatter: WorkItemFrontmatter {

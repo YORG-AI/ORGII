@@ -2,12 +2,12 @@
  * useProjectWorkItemsTabContentInteractions
  *
  * Owns work-item selection state, Kanban task/column derivation, and the
- * row/task mutation handlers (select, update, move, bulk delete, section
- * expand) for ProjectWorkItemsTabContent. Extracted to keep the tab-content
- * component under the 600-line limit.
+ * row/task mutation handlers (select, update, move, bulk delete) for
+ * ProjectWorkItemsTabContent. Extracted to keep the tab-content component
+ * under the 600-line limit.
  */
 import { emit } from "@tauri-apps/api/event";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useMemo, useState } from "react";
 
 import {
@@ -29,8 +29,8 @@ import {
   WORKSPACE_SOURCE,
   type WorkspaceWorkItem,
 } from "@src/modules/ProjectManager/workspaceAggregate";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
+import { mapWithConcurrency } from "@src/util/collections/mapWithConcurrency";
 
 import type {
   AggregatedWorkItem,
@@ -51,10 +51,6 @@ interface UseProjectWorkItemsTabContentInteractionsParams {
   }>;
   kanbanGroupBy: WorkItemsKanbanGroup;
   loadWorkItems: (cancelled?: () => boolean) => Promise<void>;
-  loadCompletedWorkItems: () => Promise<void>;
-  completedSectionExpandedRef: MutableRefObject<boolean>;
-  completedItemsLoading: boolean;
-  completedItemsError: string | null;
   onOpenLinearProject?: (selection: LinearProjectSelection) => void;
   onOpenWorkItem: (selection: ProjectWorkItemSelection) => void;
   onCreateWorkItem?: () => void;
@@ -69,16 +65,11 @@ export function useProjectWorkItemsTabContentInteractions({
   projectOptions,
   kanbanGroupBy,
   loadWorkItems,
-  loadCompletedWorkItems,
-  completedSectionExpandedRef,
-  completedItemsLoading,
-  completedItemsError,
   onOpenLinearProject,
   onOpenWorkItem,
   onCreateWorkItem,
   t,
 }: UseProjectWorkItemsTabContentInteractionsParams) {
-  const [collapseAllSignal, setCollapseAllSignal] = useState(0);
   const [selectedWorkItemIds, setSelectedWorkItemIds] = useState<Set<string>>(
     new Set()
   );
@@ -317,10 +308,11 @@ export function useProjectWorkItemsTabContentInteractions({
         entriesByProjectSlug.set(entry.project.slug, currentShortIds);
       }
 
-      await Promise.all(
-        [...entriesByProjectSlug].map(([projectSlug, shortIds]) =>
+      await mapWithConcurrency(
+        [...entriesByProjectSlug],
+        4,
+        ([projectSlug, shortIds]) =>
           projectApi.batchDeleteWorkItems(projectSlug, shortIds)
-        )
       );
       await emit("orgii-data-changed");
       setSelectedWorkItemIds(new Set());
@@ -330,54 +322,13 @@ export function useProjectWorkItemsTabContentInteractions({
     }
   }, [loadWorkItems, selectedWorkItemIds, workItemById]);
 
-  const handleCollapseAll = useCallback(() => {
-    setCollapseAllSignal((currentSignal) => currentSignal + 1);
-  }, []);
-
-  const handleSectionExpandedChange = useCallback(
-    (sectionStatus: string, expanded: boolean) => {
-      if (sectionStatus !== "completed") return;
-      completedSectionExpandedRef.current = expanded;
-      if (expanded) void loadCompletedWorkItems();
-    },
-    [loadCompletedWorkItems, completedSectionExpandedRef]
-  );
-
-  const renderSectionPlaceholder = useCallback(
-    (sectionStatus: string) => {
-      if (sectionStatus !== "completed") return undefined;
-      if (completedItemsLoading) {
-        return (
-          <Placeholder
-            variant="loading"
-            placement="sidebar"
-            className="min-h-16"
-          />
-        );
-      }
-      if (completedItemsError) {
-        return (
-          <Placeholder
-            variant="error"
-            placement="sidebar"
-            title={completedItemsError}
-            onRetry={() => void loadCompletedWorkItems()}
-            className="min-h-16"
-          />
-        );
-      }
-      return undefined;
-    },
-    [completedItemsError, completedItemsLoading, loadCompletedWorkItems]
-  );
-
   return {
     kanbanTasks,
     kanbanColumns,
+    workItemPeople,
     selectableFilteredWorkItemCount,
     selectedWorkItemIds,
     bulkDeleting,
-    collapseAllSignal,
     handleSelectWorkItem,
     handleUpdateWorkItem,
     handleKanbanTaskMove,
@@ -388,8 +339,5 @@ export function useProjectWorkItemsTabContentInteractions({
     handleSelectAll,
     handleUnselectAll,
     handleBulkDelete,
-    handleCollapseAll,
-    handleSectionExpandedChange,
-    renderSectionPlaceholder,
   };
 }

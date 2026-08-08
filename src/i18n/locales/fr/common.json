@@ -11,6 +11,11 @@
       "mentions": "Mentions",
       "assigned": "Assignés"
     },
+    "sections": {
+      "reviewRequested": "Révision demandée",
+      "authoredByMe": "Créées par moi",
+      "otherTodos": "Autres tâches"
+    },
     "status": {
       "read": "Lu",
       "unread": "Non lu"
@@ -33,10 +38,10 @@
       "title": "Rien ici pour l’instant",
       "subtitle": "Les mentions et les éléments de travail assignés apparaîtront ici.",
       "selectTitle": "Sélectionner un élément",
-      "selectSubtitle": "Voir le contexte du commentaire ou les détails de l’élément de travail.",
+      "selectSubtitle": "Voir le contexte du commentaire ou les détails de l’élément de travail",
       "mentions": {
         "title": "Aucune mention",
-        "subtitle": "Lorsqu’un coéquipier vous mentionne avec @ dans un commentaire, cela apparaît ici."
+        "subtitle": "Lorsqu’un coéquipier vous mentionne avec @ dans un commentaire, cela apparaît ici"
       },
       "assigned": {
         "title": "Rien ne vous est assigné",
@@ -111,7 +116,9 @@
       "markUnread": "Impossible de marquer cet élément comme non lu. Réessayez.",
       "markAllRead": "Impossible de marquer tous les éléments comme lus. Réessayez.",
       "identity": "Votre compte n’a pas pu être associé à un membre du projet. Vérifiez l’e-mail de votre profil de projet.",
-      "partialLoad": "Certaines sources de la boîte de réception d’équipe n’ont pas pu être actualisées. Les éléments disponibles restent affichés.",
+      "partialLoad": "Certaines sources de la boîte de réception d’équipe n’ont pas pu être actualisées. Les éléments disponibles restent affichés",
+      "pullRequestsPartialLoad": "Certaines pull requests n’ont pas pu être actualisées",
+      "pullRequestsPartialLoadHelp": "Les éléments disponibles restent affichés ; actualisez pour tenter de charger à nouveau les pull requests manquantes",
       "workItemContext": "Une partie du contexte du projet n’est pas disponible. L’élément de travail reste utilisable.",
       "workItemLoad": "Impossible de charger cet élément de travail. Réessayez.",
       "workItemUpdate": "Impossible d’enregistrer la dernière modification de l’élément de travail. Réessayez."
@@ -155,6 +162,50 @@
       "medium": "Moyenne",
       "high": "Haute",
       "urgent": "Urgente"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Fichier",
+      "edit": "Édition",
+      "view": "Affichage",
+      "window": "Fenêtre",
+      "help": "Aide",
+      "aria": "Menu {{label}}"
+    },
+    "items": {
+      "quitOrg2": "Quitter ORG-2",
+      "newSession": "Nouvelle session",
+      "openFolder": "Ouvrir un dossier...",
+      "addFolderToWorkspace": "Ajouter un dossier à l’espace de travail...",
+      "saveWorkspaceAs": "Enregistrer l’espace de travail sous...",
+      "closeWindow": "Fermer la fenêtre",
+      "undo": "Annuler",
+      "redo": "Rétablir",
+      "cut": "Couper",
+      "copy": "Copier",
+      "paste": "Coller",
+      "selectAll": "Tout sélectionner",
+      "commandPalette": "Palette de commandes",
+      "goToFile": "Accéder au fichier...",
+      "selectModel": "Sélectionner un modèle...",
+      "switchWorkspace": "Changer d’espace de travail...",
+      "switchBranch": "Changer de branche...",
+      "switchRunningLocation": "Changer d’emplacement d’exécution...",
+      "settings": "Paramètres...",
+      "zoomIn": "Zoom avant",
+      "zoomOut": "Zoom arrière",
+      "actualSize": "Taille réelle",
+      "minimize": "Réduire",
+      "maximizeRestore": "Agrandir / Restaurer",
+      "maximizeWorkstation": "Agrandir la station de travail",
+      "documentation": "Documentation",
+      "reportIssue": "Signaler un problème"
+    },
+    "controls": {
+      "minimizeWindow": "Réduire la fenêtre",
+      "maximizeRestoreWindow": "Agrandir ou restaurer la fenêtre",
+      "closeWindow": "Fermer la fenêtre"
     }
   },
   "toasts": {
@@ -368,7 +419,8 @@
     "skipThisVersion": "Ignorer cette version",
     "later": "Plus tard",
     "link": "Lier",
-    "copyName": "Copier le nom"
+    "copyName": "Copier le nom",
+    "switchMethod": "Changer de méthode"
   },
   "refreshToast": {
     "successName": "{{name}} actualisé",
@@ -1358,8 +1410,59 @@
       "collapse": "Réduire les informations de l’espace de travail"
     },
     "pr": {
+      "title": "Pull request",
       "linkedBranch": "Pull request n°{{number}}",
+      "baseBranch": "Base",
+      "noDescription": "Aucune description fournie.",
+      "loadingConversation": "Chargement…",
+      "reviewNoBody": "A laissé des commentaires de revue.",
+      "submitReview": "Envoyer la revue",
+      "reviewHeadNotice": "La revue ne s’applique que si le commit de tête affiché correspond toujours.",
+      "reviewDecision": "Décision de revue",
+      "reviewComment": "Commentaire de revue",
+      "reviewCommentPlaceholder": "Ajouter un commentaire…",
+      "commentPlaceholder": "Laisser un commentaire…",
+      "comment": "Commenter",
+      "approve": "Approuver",
+      "requestChanges": "Demander des modifications",
+      "reply": "Répondre",
+      "replyPlaceholder": "Répondre…",
+      "reviewThreads": "Commentaires de revue",
+      "details": "Détails",
+      "unknownAuthor": "Inconnu",
+      "activity": {
+        "opened": "a ouvert cette pull request",
+        "commented": "a commenté",
+        "approved": "a approuvé ces modifications",
+        "changesRequested": "a demandé des modifications",
+        "reviewDismissed": "a rejeté une revue",
+        "reviewed": "a effectué une revue"
+      },
+      "summary": {
+        "label": "Résumé de la pull request",
+        "branch": "Branche",
+        "reviewers": "Relecteurs",
+        "noReviewers": "Aucun relecteur",
+        "comments": "Commentaires",
+        "commentCount_one": "{{count}} commentaire",
+        "commentCount_other": "{{count}} commentaires",
+        "checks": "Vérifications",
+        "noChecks": "Aucune vérification CI",
+        "checksFailed": "Échec des vérifications",
+        "status": "Statut"
+      },
+      "tabs": {
+        "conversation": "Conversation",
+        "commits": "Commits",
+        "checks": "Vérifications",
+        "changes": "Modifications"
+      },
       "checks": {
+        "none": "Aucune vérification signalée",
+        "noneHint": "Aucune vérification CI ni aucun statut n’a été exécuté sur le commit de tête de cette pull request.",
+        "allPassed": "Toutes les vérifications ont réussi",
+        "someFailed": "Certaines vérifications ont échoué",
+        "pending": "Vérifications en cours",
         "passedShort": "Réussi",
         "failedShort": "Échec",
         "runningShort": "En cours",
@@ -1367,6 +1470,76 @@
         "noneShort": "Aucune CI",
         "unavailableShort": "CI indisponible",
         "branchStatus": "CI de la pull request n°{{number}} : {{status}}"
+      },
+      "commits": {
+        "backToList": "Tous les commits",
+        "none": "Aucun commit"
+      },
+      "changes": {
+        "title": "Fichiers modifiés",
+        "noFiles": "Aucune modification de fichier",
+        "tooLarge": "Fichier trop volumineux pour afficher le diff",
+        "unavailable": "Modifications indisponibles",
+        "unavailableHint": "Impossible de résoudre les commits de base et de tête de la pull request."
+      },
+      "status": {
+        "open": "Ouverte",
+        "merged": "Fusionnée",
+        "closed": "Fermée",
+        "draft": "Brouillon"
+      },
+      "actions": {
+        "label": "Actions de la pull request",
+        "confirmMergeTitle": "Fusionner la pull request ?",
+        "confirmMergeMessage": "GitHub fusionnera la branche source de la pull request actuelle dans la branche de base.",
+        "merge": "Fusionner la pull request",
+        "squash": "Squash et fusionner",
+        "rebase": "Rebase et fusionner",
+        "mergeSuccess": "Pull request fusionnée",
+        "mergeRequested": "Fusion demandée",
+        "removedFromQueue": "Retirée de la file de fusion",
+        "autoMergeEnabled": "Fusion automatique activée",
+        "autoMergeDisabled": "Fusion automatique désactivée",
+        "confirmCloseTitle": "Fermer la pull request ?",
+        "confirmCloseMessage": "La pull request restera disponible et pourra être rouverte ultérieurement.",
+        "close": "Fermer la pull request",
+        "closeSuccess": "Pull request fermée",
+        "reopen": "Rouvrir la pull request",
+        "reopenSuccess": "Pull request rouverte",
+        "enableAutoMerge": "Activer la fusion automatique",
+        "mergeWhenReady": "Fusionner lorsqu’elle est prête",
+        "disableAutoMerge": "Désactiver la fusion automatique",
+        "removeFromMergeQueue": "Retirer de la file de fusion",
+        "merged": "Fusionnée",
+        "closed": "Fermée",
+        "draft": "Brouillon",
+        "inMergeQueue": "Dans la file de fusion",
+        "approvalRequired": "Approbation requise",
+        "changesRequested": "Modifications demandées",
+        "resolveConflicts": "Résoudre les conflits",
+        "checksFailed": "Vérifications échouées",
+        "checksPending": "Vérifications en attente",
+        "mergeBlocked": "Fusion bloquée",
+        "searchReviewers": "Rechercher des réviseurs",
+        "reviewersLoadFailed": "Impossible de charger les réviseurs",
+        "noReviewers": "Aucun réviseur disponible",
+        "reviewersUpdated": "Réviseurs mis à jour",
+        "reviewersCount_one": "{{count}} réviseur",
+        "reviewersCount_other": "{{count}} réviseurs",
+        "reviewers": "Réviseurs",
+        "tooltips": {
+          "merge": "Fusionner cette pull request sur GitHub",
+          "alreadyMerged": "Cette pull request est déjà fusionnée",
+          "reopenBeforeMerging": "Rouvrez cette pull request avant de la fusionner",
+          "markReady": "Marquez cette pull request comme prête pour la revue avant de la fusionner",
+          "mergeQueue": "GitHub fusionnera cette pull request via la file de fusion",
+          "approvalRequired": "GitHub exige l’approbation d’une revue avant la fusion",
+          "changesRequested": "Les modifications demandées doivent être résolues avant la fusion",
+          "resolveConflicts": "Résolvez les conflits avant la fusion",
+          "checksFailed": "Les vérifications requises doivent réussir avant la fusion",
+          "checksPending": "Attendez les vérifications requises ou activez la fusion automatique",
+          "mergeBlocked": "GitHub signale des exigences de fusion non satisfaites"
+        }
       }
     },
     "messages": {
@@ -1456,7 +1629,49 @@
         "unpinned": "a désépinglé cette issue",
         "transferred": "a transféré cette issue",
         "convertedToDiscussion": "a converti cette issue en discussion",
-        "mentioned": "a mentionné cette issue"
+        "mentioned": "a mentionné cette issue",
+        "commentDeleted": "a supprimé un commentaire",
+        "subscribed": "s’est abonné à cette issue",
+        "unsubscribed": "s’est désabonné de cette issue",
+        "addedToProject": "a ajouté cette issue à un projet",
+        "movedInProject": "a déplacé cette issue dans un projet",
+        "removedFromProject": "a retiré cette issue d’un projet",
+        "archived": "a archivé cette issue",
+        "unarchived": "a désarchivé cette issue",
+        "merged": "a fusionné cette pull request",
+        "committed": "a ajouté un commit à cette pull request",
+        "headRefDeleted": "a supprimé la branche source",
+        "headRefRestored": "a restauré la branche source",
+        "headRefForcePushed": "a forcé la mise à jour de la branche source",
+        "baseRefChanged": "a modifié la branche de base",
+        "automaticBaseChangeFailed": "n’a pas pu modifier automatiquement la branche de base",
+        "automaticBaseChangeSucceeded": "a modifié automatiquement la branche de base",
+        "deployed": "a déployé cette pull request",
+        "deploymentEnvironmentChanged": "a modifié l’environnement de déploiement",
+        "readyForReview": "a marqué cette pull request comme prête à être révisée",
+        "reviewRequested": "a demandé une révision",
+        "reviewRequestRemoved": "a supprimé une demande de révision",
+        "reviewed": "a révisé ces modifications",
+        "reviewDismissed": "a rejeté une révision",
+        "userBlocked": "a bloqué cet utilisateur"
+      },
+      "composer": {
+        "addComment": "Ajouter un commentaire",
+        "commentingAs": "Commentaire en tant que {{login}}",
+        "identityUnavailable": "Identité GitHub indisponible",
+        "commentPlaceholder": "Écrivez un commentaire…",
+        "submitComment": "Commenter",
+        "closeIssue": "Fermer l’issue",
+        "closeAsCompleted": "Fermer comme terminé",
+        "closeAsNotPlanned": "Fermer comme non planifié",
+        "closeAsDuplicate": "Fermer comme doublon",
+        "duplicateSearchPlaceholder": "Rechercher des issues",
+        "duplicateEmpty": "Aucune issue correspondante",
+        "duplicateLoadFailed": "Impossible de charger les issues",
+        "reopenIssue": "Rouvrir l’issue",
+        "commentFailed": "Impossible d’ajouter le commentaire",
+        "bodyUpdateFailed": "Impossible de mettre à jour la description de l’issue",
+        "statusFailed": "Impossible de mettre à jour le statut de l’issue"
       }
     }
   },
@@ -2463,8 +2678,8 @@
     "selectRepoToStart": "Sélectionnez un Repo pour commencer"
   },
   "quitConfirmation": {
-    "title": "Quitter ORGII ?",
-    "subtitle": "Les sessions en cours conserveront leur état actuel. Vous pourrez rouvrir ORGII plus tard.",
+    "title": "Quitter ORG-2 ?",
+    "subtitle": "Les sessions en cours conserveront leur état actuel. Vous pourrez rouvrir ORG-2 plus tard.",
     "cancel": "Annuler",
     "confirm": "Quitter"
   },
@@ -2495,5 +2710,15 @@
     "downloadedOfTotal": "{{downloaded}} sur {{total}}",
     "preparingDownload": "Préparation du téléchargement…",
     "downloadingAndInstalling": "Téléchargement et installation de la mise à jour (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Titre / contexte",
+      "status": "Statut",
+      "assignee": "Responsable",
+      "updated": "Mis à jour"
+    },
+    "selectRow": "Sélectionner {{id}}"
   }
 }

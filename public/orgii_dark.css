@@ -97,6 +97,7 @@
 body {
   --color-bg-1: #0f0f0f;
   --color-bg-2: #141414;
+  --windows-native-chrome-opacity: 82%;
   --color-bg-3: #2a2a2b;
   --color-bg-4: #313132;
   --color-neutral-1: #f7f8fa;
@@ -175,6 +176,17 @@ body {
   --color-primary-5: #349afd;
   --color-primary-6: #43aafd;
   --color-primary-7: #6ec2fe;
+  --color-purple-1: #271052;
+  --color-purple-2: #3c1e70;
+  --color-purple-3: #553098;
+  --color-purple-4: #6e40c9;
+  --color-purple-5: #8957e5;
+  --color-purple-6: #a371f7;
+  --color-purple-7: #bc8cff;
+  --color-merged-button-bg: #a371f7;
+  --color-merged-button-hover: #bc8cff;
+  --color-merged-button-active: #d8b9ff;
+  --color-merged-button-contrast: #0d1117;
   --color-danger-1: #4d0000;
   --color-danger-2: #6f0f0f;
   --color-danger-3: #942020;

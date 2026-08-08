@@ -7,7 +7,7 @@
  * Uses the same useInlineWebview hook as the Browser module to create
  * native webviews that bypass X-Frame-Options restrictions.
  */
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { RefreshCw, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -113,7 +113,7 @@ const UrlPreviewContent: React.FC<UrlPreviewContentProps> = memo(
             variant="tertiary"
             size="small"
             onClick={handleOpenExternal}
-            icon={<ExternalLink size={14} />}
+            icon={<SquareArrowOutUpRight size={14} />}
             title={t("previews.openInBrowser")}
           />
         </div>

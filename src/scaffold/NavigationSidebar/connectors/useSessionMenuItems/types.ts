@@ -58,7 +58,10 @@ export type AppendGroupSessions = (
   groupSessions: readonly Session[]
 ) => boolean;
 
-export type AppendPinnedSessions = (items: NavigationMenuItem[]) => boolean;
+export type AppendPinnedSessions = (
+  items: NavigationMenuItem[],
+  includeBackendPager?: boolean
+) => boolean;
 
 export type AppendTrailingLoadMoreItems = (items: NavigationMenuItem[]) => void;
 

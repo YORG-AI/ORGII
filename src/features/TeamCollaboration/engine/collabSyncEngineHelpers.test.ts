@@ -38,6 +38,7 @@ vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
     subscribe: vi.fn(),
     getEvents: vi.fn(),
     getPersistedEvents: vi.fn(),
+    countPersistedEvents: vi.fn(),
     set: vi.fn(),
     persistEventsBatch: vi.fn(),
     finalizePersistedImport: vi.fn(),
@@ -166,6 +167,135 @@ describe("computeFrozenEventCount frozen line + stuck-sentinel skip-over", () =>
     const recent = { createdAt: "2026-07-25T11:59:00Z" };
     const events = Array.from({ length: 60 }, () => event(recent));
     expect(computeFrozenEventCount(events, now)).toBe(20);
+  });
+
+  function unresolvedToolStart(createdAt: string): SessionEvent {
+    // Rust stamps unpaired starts "completed" (orphan kindness); the pairing
+    // merge can still land and rewrite this event in place.
+    return event({
+      functionName: "run_shell",
+      uiCanonical: "run_shell",
+      actionType: "tool_call",
+      callId: "call-bg-1",
+      args: { command: "sleep 600" },
+      result: {},
+      displayStatus: "completed",
+      createdAt,
+    });
+  }
+
+  it("holds the freeze line at an unresolved tool start while the session is appending", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = "2026-07-25T11:00:00Z";
+    const events = [
+      event({ createdAt: old }),
+      unresolvedToolStart(old),
+      event({ createdAt: old }),
+      event({ createdAt: "2026-07-25T11:55:00Z" }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(1);
+  });
+
+  it("treats a null result like an empty one for pairing detection", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = "2026-07-25T11:00:00Z";
+    const events = [
+      event({
+        actionType: "tool_call",
+        result: null as never,
+        createdAt: old,
+      }),
+      event({ createdAt: "2026-07-25T11:55:00Z" }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(0);
+  });
+
+  it("freezes through unresolved tool starts once the session is quiescent", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = "2026-07-25T11:00:00Z";
+    const events = [
+      event({ createdAt: old }),
+      unresolvedToolStart(old),
+      event({ createdAt: old }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(3);
+  });
+
+  it("does not hold the line for a tool call whose pairing already merged", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = "2026-07-25T11:00:00Z";
+    const events = [
+      event({ createdAt: old }),
+      event({
+        actionType: "tool_call",
+        callId: "call-bg-1",
+        args: { command: "echo hi" },
+        result: { content: "hi" },
+        createdAt: old,
+      }),
+      event({ createdAt: old }),
+      event({ createdAt: "2026-07-25T11:55:00Z" }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(3);
+  });
+
+  it("bounds unresolved-start holdback so a deep abandoned call cannot pin a live session", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = "2026-07-25T11:00:00Z";
+    const events = [
+      unresolvedToolStart(old),
+      ...Array.from({ length: 200 }, () => event({ createdAt: old })),
+      event({ createdAt: "2026-07-25T11:59:00Z" }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(201);
+  });
+
+  it("never freezes a floating trailing event sitting far before its neighbors", () => {
+    // Reader-emitted synthetic chunks float at the stream end: their
+    // createdAt is hours old but their position tracks the growing tail,
+    // so freezing one guarantees a chain mismatch on the next read.
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const events = [
+      event({ createdAt: "2026-07-25T10:00:00Z" }),
+      event({ createdAt: "2026-07-25T10:30:00Z" }),
+      event({ createdAt: "2026-07-25T11:00:00Z" }),
+      event({
+        functionName: "task_create",
+        createdAt: "2026-07-25T08:00:00Z",
+        result: { status: "created" },
+      }),
+      event({ createdAt: "2026-07-25T11:55:00Z" }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(3);
+  });
+
+  it("holds a floater back even when the session is quiescent", () => {
+    // A floater frozen while the session sleeps still moves (and pays an
+    // epoch rewrite) on the next reactivation append — hold it always.
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const events = [
+      event({ createdAt: "2026-07-25T09:00:00Z" }),
+      event({ createdAt: "2026-07-25T10:00:00Z" }),
+      event({
+        functionName: "task_create",
+        createdAt: "2026-07-25T07:00:00Z",
+        result: { status: "created" },
+      }),
+      event({ createdAt: "2026-07-25T10:00:05Z" }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(2);
+  });
+
+  it("tolerates small timestamp inversions from interleaved writers", () => {
+    // ms/second-level inversions are normal (parallel writers, clock
+    // jitter); only horizon-scale displacement marks a floater.
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const events = [
+      event({ createdAt: "2026-07-25T11:00:10Z" }),
+      event({ createdAt: "2026-07-25T11:00:09Z" }),
+      event({ createdAt: "2026-07-25T11:00:11Z" }),
+    ];
+    expect(computeFrozenEventCount(events, now)).toBe(3);
   });
 
   it("counts a missing displayStatus as terminal (hash chain catches mutation)", () => {
@@ -434,6 +564,7 @@ describe("importRemoteSession", () => {
     eventStoreMock.clear.mockResolvedValue(undefined);
     eventStoreMock.clearPersistedHistory.mockResolvedValue(undefined);
     eventStoreMock.getPersistedEvents.mockResolvedValue([]);
+    eventStoreMock.countPersistedEvents.mockResolvedValue(0);
     eventStoreMock.persistEventsBatch.mockImplementation(
       async (events: SessionEvent[]) => events.length
     );
@@ -682,6 +813,7 @@ describe("importRemoteSession", () => {
     eventStoreMock.getPersistedEvents.mockResolvedValue([
       { id: "e1" } as unknown as SessionEvent,
     ]);
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
 
     const result = await importRemoteSession({
       client,
@@ -726,6 +858,7 @@ describe("importRemoteSession", () => {
     eventStoreMock.getPersistedEvents.mockResolvedValue([
       { id: "e1" } as unknown as SessionEvent,
     ]);
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
 
     await importRemoteSession({
       client,
@@ -772,6 +905,7 @@ describe("importRemoteSession", () => {
     eventStoreMock.getPersistedEvents.mockResolvedValue([
       { id: "e1" } as unknown as SessionEvent,
     ]);
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
 
     const result = await importRemoteSession({
       client,
@@ -802,6 +936,148 @@ describe("importRemoteSession", () => {
       agentDisplayName: "Codex App",
       agentIconId: "codex",
     });
+  });
+
+  it("stamps the imported copy with the source's activity time, not the click", async () => {
+    // Regression: a fresh import stamped created_at/updated_at/completed_at
+    // with `now`, so opening a cloud card in Kanban flipped its Started /
+    // Last updated to the moment of the click and dragged the row to the top
+    // of List/Diary.
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({ lastActivityAt: "2026-06-01T09:30:00.000Z" }),
+    });
+
+    const record = (store.get(sessionsAtom) as Session[]).find(
+      (session) => session.session_id === result!.localSessionId
+    )!;
+    expect(record.created_at).toBe("2026-06-01T09:30:00.000Z");
+    expect(record.updated_at).toBe("2026-06-01T09:30:00.000Z");
+    expect(record.completed_at).toBe("2026-06-01T09:30:00.000Z");
+    // The import moment still belongs on the provenance cursor.
+    expect(record.importedFrom?.importedAt).not.toBe(
+      "2026-06-01T09:30:00.000Z"
+    );
+  });
+
+  it("falls back to the import moment when the row carries no activity time", async () => {
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({ lastActivityAt: undefined }),
+    });
+
+    const record = (store.get(sessionsAtom) as Session[]).find(
+      (session) => session.session_id === result!.localSessionId
+    )!;
+    expect(record.updated_at).toBe(record.importedFrom?.importedAt);
+    expect(record.created_at).toBe(record.updated_at);
+  });
+
+  it("heals an import-click timestamp on a refresh-only reopen", async () => {
+    // Copies imported before the fix above carry the click stamp, and a
+    // cursor-current reopen never reaches the write path — heal them here or
+    // they show the wrong Started / Last updated forever.
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+    const expectedId = await deriveImportedSessionId("org-1", "remote-1");
+    store.set(sessionsAtom, [
+      {
+        session_id: expectedId,
+        status: "completed",
+        created_at: "2026-07-20T12:00:00.000Z",
+        updated_at: "2026-07-20T12:00:00.000Z",
+        completed_at: "2026-07-20T12:00:00.000Z",
+        name: "Remote session",
+        orgId: "cloud:org-1",
+        importedFrom: {
+          orgId: "org-1",
+          sourceSessionId: "remote-1",
+          ownerMemberId: "m2",
+          ownerDisplayName: "Bob",
+          epoch: 1,
+          seq: 1,
+          count: 1,
+          frozenCount: 1,
+          tailHash: undefined,
+          importedAt: "2026-07-20T12:00:00.000Z",
+        },
+      },
+    ]);
+    eventStoreMock.getPersistedEvents.mockResolvedValue([
+      { id: "e1" } as unknown as SessionEvent,
+    ]);
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({ lastActivityAt: "2026-06-01T09:30:00.000Z" }),
+    });
+
+    const record = (store.get(sessionsAtom) as Session[]).find(
+      (session) => session.session_id === expectedId
+    )!;
+    expect(result?.updated).toBe(false);
+    expect(client.getSessionEventSegments).not.toHaveBeenCalled();
+    expect(record.created_at).toBe("2026-06-01T09:30:00.000Z");
+    expect(record.updated_at).toBe("2026-06-01T09:30:00.000Z");
+    expect(record.completed_at).toBe("2026-06-01T09:30:00.000Z");
+  });
+
+  it("keeps a created_at that predates the source's last activity", async () => {
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+    const expectedId = await deriveImportedSessionId("org-1", "remote-1");
+    store.set(sessionsAtom, [
+      {
+        session_id: expectedId,
+        status: "completed",
+        created_at: "2026-05-01T08:00:00.000Z",
+        updated_at: "2026-06-01T09:30:00.000Z",
+        completed_at: "2026-06-01T09:30:00.000Z",
+        name: "Remote session",
+        orgId: "cloud:org-1",
+        importedFrom: {
+          orgId: "org-1",
+          sourceSessionId: "remote-1",
+          ownerMemberId: "m2",
+          ownerDisplayName: "Bob",
+          epoch: 1,
+          seq: 1,
+          count: 1,
+          frozenCount: 1,
+          tailHash: undefined,
+          importedAt: "2026-06-01T10:00:00.000Z",
+        },
+      },
+    ]);
+    eventStoreMock.getPersistedEvents.mockResolvedValue([
+      { id: "e1" } as unknown as SessionEvent,
+    ]);
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
+
+    await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({ lastActivityAt: "2026-06-01T09:30:00.000Z" }),
+    });
+
+    const record = (store.get(sessionsAtom) as Session[]).find(
+      (session) => session.session_id === expectedId
+    )!;
+    expect(record.created_at).toBe("2026-05-01T08:00:00.000Z");
   });
 
   it("stamps Session.orgId on a MEMBER import so the sidebar org filter matches", async () => {
@@ -1274,6 +1550,7 @@ describe("forkSession (design §16.11, fork & continue)", () => {
     eventStoreMock.set.mockResolvedValue(undefined);
     eventStoreMock.clear.mockResolvedValue(undefined);
     eventStoreMock.getPersistedEvents.mockResolvedValue([]);
+    eventStoreMock.countPersistedEvents.mockResolvedValue(0);
     eventStoreMock.saveToCache.mockResolvedValue(1);
   });
 

@@ -70,5 +70,271 @@
     "skipSetup": "Omitir configuraci?n",
     "getStarted": "Comenzar",
     "goToSettings": "Ir a Ajustes"
+  },
+  "readiness": {
+    "hero": {
+      "title": "Configuremos tu <brand>ORGII</brand>",
+      "description": "Unas pocas opciones rápidas para personalizar tu espacio de trabajo."
+    },
+    "presentation": {
+      "label": "Vista previa del diseño",
+      "compact": "Versión compacta actual",
+      "mascot": "Versión con mascota",
+      "native": "Nativo de la app",
+      "cinematic": "Tarjeta cinematográfica",
+      "classic": "Panel clásico"
+    },
+    "classicPanel": {
+      "title": "Adapta ORGII a tu estilo",
+      "description": "Elige el idioma, la apariencia, el tema y el color de énfasis. Puedes cambiarlos en cualquier momento."
+    },
+    "sidebar": {
+      "brandTag": "Configuración",
+      "subtitle": "Elige el idioma y la apariencia. Todo lo demás seguirá disponible en la aplicación.",
+      "ariaLabel": "Progreso de la configuración",
+      "stepProgress": "Paso {{current}} de {{total}}",
+      "saved": "Progreso guardado automáticamente",
+      "help": "Los pasos completados permanecen editables. Los pasos futuros se desbloquearán a medida que termines."
+    },
+    "goal": {
+      "title": "¿Qué deseas lograr primero?",
+      "description": "ORGII adaptará la configuración y te llevará a la superficie correcta del producto cuando termines.",
+      "recommended": "Recomendado",
+      "hint": "Esto cambia la ruta de configuración; no limita permanentemente lo que puede usar.",
+      "personal": {
+        "title": "Iniciar una sesión de agente",
+        "description": "Configurar un flujo de trabajo de codificación personal y abrir el Launchpad."
+      },
+      "team": {
+        "title": "Ver la actividad del Codex del equipo",
+        "description": "Conectar una organización, elegir la visibilidad del repositorio y abrir la Bandeja de entrada del equipo."
+      },
+      "work": {
+        "title": "Administrar el trabajo",
+        "description": "Comprenda proyectos y elementos de trabajo, luego cree el primer elemento."
+      }
+    },
+    "tools": {
+      "title": "Detecta tus herramientas de codificación",
+      "description": "Comprueba Codex, Claude Code y Cursor utilizando el servicio de validación local existente.",
+      "detectedDescription": "Estado de suscripción o credencial local",
+      "found": "{{count}} cuenta(s) encontrada(s) · {{validated}} validada",
+      "notFound": "No se detectó ninguna cuenta utilizable",
+      "notScanned": "Aún no escaneada",
+      "detect": "Herramientas de detección",
+      "importHistory": "Importar historial de Codex",
+      "historyImported": "{{count}} Las sesiones de Codex están disponibles localmente",
+      "privacy": "Los secretos nunca ingresan a la configuración estado. Solo se conservan el estado del proveedor, el recuento y la validación."
+    },
+    "organization": {
+      "title": "Conecta la organización del equipo",
+      "description": "Inicia sesión una vez, luego selecciona una organización existente, crea una o únete con una invitación.",
+      "signInHint": "La actividad del equipo utiliza una cuenta de ORG2 Cloud para que los miembros compartan los mismos límites de la organización.",
+      "signIn": "Iniciar sesión/Registrarse",
+      "existing": "Tus organizaciones",
+      "role": "Rol: {{role}}",
+      "mode": "Acción de la organización",
+      "create": "Crear organización",
+      "join": "Unirse a la organización",
+      "orgName": "Nombre de la organización",
+      "orgNamePlaceholder": "p.ej. Acme Engineering",
+      "invite": "Enlace o código de invitación",
+      "invitePlaceholder": "Pegue el enlace que compartió su administrador",
+      "selected": "{{org}} está seleccionado para la configuración del equipo",
+      "roles": {
+        "owner": "Propietario",
+        "admin": "Administrador",
+        "member": "Miembro",
+        "guest": "Invitado"
+      }
+    },
+    "sharing": {
+      "title": "Elija lo que el equipo puede ver",
+      "description": "El repositorio remoto es el límite de visibilidad. El nivel de uso compartido controla la cantidad de detalles de la sesión que se publican.",
+      "workspace": "Espacio de trabajo",
+      "workspaceDescription": "La carpeta local donde se ejecuta su agente",
+      "noWorkspace": "No hay espacio de trabajo abierto",
+      "openWorkspace": "Abrir espacio de trabajo",
+      "repoScope": "Alcance del repositorio",
+      "repoScopeDescription": "Resolver controles remotos de Git normalizados desde el espacio de trabajo actual",
+      "detectScope": "Detectar repositorio alcance",
+      "remote": "Remoto compartible",
+      "level": "Nivel mínimo de uso compartido",
+      "levelDescription": "Aplicado por la organización a sesiones coincidentes",
+      "off": "Desactivado",
+      "metadata": "Solo metadatos",
+      "replay": "Reproducción completa",
+      "save": "Guardar y verificar política",
+      "createInvite": "Crear invitación de miembro",
+      "copy": "Copiar",
+      "verified": "El servidor aceptó esta política de repositorio y la cola de sincronización drenado.",
+      "memberHint": "{{org}} es administrado por un administrador. Su historial local de Codex está listo para sincronizarse según su política de repositorio.",
+      "verifyMember": "Verifique mi ruta de sincronización",
+      "memberVerified": "La selección de su organización está activa y la solicitud de sincronización actual está agotada."
+    },
+    "basics": {
+      "title": "Preferencias básicas",
+      "description": "Siempre puedes cambiarlas más tarde.",
+      "workspace": "Predeterminado espacio de trabajo",
+      "workspaceDescription": "Las sesiones se ejecutan en archivos en un espacio de trabajo; los proyectos y elementos de trabajo organizan el trabajo en lugar de reemplazar el sistema de archivos.",
+      "openWorkspace": "Abrir espacio de trabajo",
+      "changeWorkspace": "Cambiar espacio de trabajo",
+      "settingsHint": "Las herramientas, los espacios de trabajo, las organizaciones, la visibilidad del equipo y los tutoriales se pueden configurar más adelante en la aplicación."
+    },
+    "tutorial": {
+      "title": "Elija un tutorial contextual",
+      "description": "Comienza después de la configuración, en la superficie real del producto donde existen los controles.",
+      "hint": "Puede reproducir cualquiera de los tutoriales más adelante desde el menú Configuración."
+    },
+    "model": {
+      "title": "Cómo funciona ORGII encaja",
+      "description": "Estos objetos resuelven diferentes problemas; ninguno de ellos es otro nombre para una carpeta.",
+      "session": {
+        "title": "Sesión",
+        "description": "Un contexto de conversación y ejecución para un agente. Puede hacer referencia a un espacio de trabajo."
+      },
+      "workItem": {
+        "title": "Elemento de trabajo",
+        "description": "Una tarea rastreable con estado, responsable, discusión y sesiones vinculadas."
+      },
+      "project": {
+        "title": "Proyecto",
+        "description": "Un contenedor de planificación para elementos de trabajo. Puede coordinar el trabajo entre repositorios."
+      },
+      "workspace": {
+        "title": "Espacio de trabajo/sistema de archivos",
+        "description": "Las carpetas y archivos locales reales que los agentes leen y modifican."
+      },
+      "relationship": "Proyecto → Elemento de trabajo → Sesión → Archivos del espacio de trabajo"
+    },
+    "ready": {
+      "title": "La configuración está lista",
+      "description": "Revise las comprobaciones duraderas a continuación y luego abra la superficie que coincida con su objetivo original.",
+      "toolsReady": "Acceso del agente detectado",
+      "toolsLater": "El acceso del agente se puede agregar más tarde",
+      "workspaceReady": "Espacio de trabajo seleccionado",
+      "workspaceLater": "El espacio de trabajo se puede abrir a continuación",
+      "teamPolicyReady": "Política de visibilidad del equipo confirmada",
+      "memberSyncReady": "Ruta de sincronización de miembros confirmada",
+      "teamDestination": "Abrir bandeja de entrada del equipo",
+      "workDestination": "Crear el primer elemento de trabajo",
+      "personalDestination": "Iniciar una sesión de agente",
+      "destinationHint": "El progreso de su configuración persiste después reiniciar.",
+      "teamDestinationHint": "La organización seleccionada y el progreso de configuración persisten después del reinicio.",
+      "openDestination": "Finalice y abra"
+    },
+    "destinations": {
+      "teamInbox": "Bandeja de entrada del equipo",
+      "launchpad": "Launchpad"
+    },
+    "errors": {
+      "signInRequired": "Inicie sesión en ORG2 Cloud primero.",
+      "sessionExpired": "Su sesión de ORG2 Cloud expiró. Inicie sesión nuevamente.",
+      "invalidInvite": "Este enlace o código de invitación no es válido.",
+      "rosterNotConverged": "La organización aún no está visible en su lista de miembros actualizada.",
+      "cloudUnavailable": "ORG2 Cloud no está disponible. Inténtalo de nuevo.",
+      "unknown": "La operación de configuración falló. Inténtalo de nuevo.",
+      "workspaceRequired": "Abre un espacio de trabajo antes de configurar el alcance del equipo.",
+      "gitRemoteRequired": "Este espacio de trabajo no tiene control remoto Git. Agregue un control remoto y vuelva a intentarlo.",
+      "orgAndScopeRequired": "Primero seleccione una organización y el alcance del repositorio.",
+      "orgRequired": "Primero seleccione una organización.",
+      "policyChanged": "La configuración del equipo cambió al guardar. Revíselos y verifíquelos nuevamente.",
+      "inviteOrgChanged": "La organización seleccionada cambió al crear la invitación. Inténtalo de nuevo.",
+      "syncOrgChanged": "La organización seleccionada cambió mientras se verificaba la sincronización. Inténtalo de nuevo."
+    }
+  },
+  "tutorials": {
+    "modalTitle": "Tutoriales",
+    "start": "Iniciar",
+    "chrome": {
+      "stepProgress": "Paso {{current}} de {{total}}",
+      "close": "Cerrar",
+      "previous": "Paso anterior",
+      "next": "Siguiente paso",
+      "finish": "Finalizar recorrido",
+      "keyboardHint": "Usa ← / → o < / >",
+      "desktop": "Escritorio",
+      "myStation": "Mi estación",
+      "infinity": "Infinity",
+      "agentStation": "Estación de agente"
+    },
+    "generalLayout": {
+      "title": "Recorrido general por el diseño",
+      "description": "Conozca la barra lateral de sesión, el panel de chat, el conmutador de modo de estación, la estación de trabajo, la base y las áreas de aplicaciones.",
+      "duration": "1 min",
+      "steps": {
+        "chat-panel": {
+          "title": "Panel de chat",
+          "body": "Aquí es donde los usuarios conversan con los agentes, revisan la actividad y envían instrucciones de seguimiento."
+        },
+        "runtime": {
+          "title": "Tiempo de ejecución",
+          "body": "Consulta aquí tu uso y el estado de ejecución. En una organización, también puedes revisar la sincronización de los miembros y abrir sus detalles de uso de Codex, Claude y Cursor."
+        },
+        "station-mode-pill": {
+          "title": "Cambiar de estación modos",
+          "body": "Utilice esta pastilla para cambiar los modos de estación. Escritorio significa My Station, tu espacio de trabajo. Infinito significa Agent Station, la vista de actividad del agente."
+        },
+        "dock": {
+          "title": "Base de Agent Station",
+          "body": "La base cambia de aplicaciones dentro de la estación. El recorrido desactiva temporalmente la ocultación automática para que estos controles permanezcan visibles."
+        },
+        "all-tabs": {
+          "title": "Todas las pestañas",
+          "body": "El primer ícono del Dock muestra todas las pestañas abiertas juntas, independientemente de qué aplicación de estación de trabajo las posee."
+        },
+        "code-editor": {
+          "title": "Editor de código",
+          "body": "Utilice el Editor de código para archivos, diferencias, terminales, control de fuente y cambios de codificación realizados durante un sesión."
+        },
+        "browser": {
+          "title": "Navegador",
+          "body": "Utilice el navegador para páginas web, vistas previas, pruebas de aplicaciones e investigación basada en navegador junto con el chat."
+        },
+        "projects": {
+          "title": "Proyectos",
+          "body": "Utilice Proyectos para realizar un seguimiento de los elementos de trabajo, los planes y el estado del proyecto conectados al espacio de trabajo actual."
+        }
+      }
+    },
+    "codeEditor": {
+      "title": "Recorrido por el editor de código",
+      "description": "Aprenda sobre pestañas, cambio de repositorio y rama, control de código fuente, historial de Git y el panel del proyecto.",
+      "duration": "2 minutos",
+      "steps": {
+        "tabs": {
+          "title": "Pestañas del editor de código",
+          "body": "Las pestañas recopilan los archivos, diferencias, terminales, vistas de control de código fuente y paneles que abre mientras trabaja en el repositorio."
+        },
+        "repo-selector": {
+          "title": "Crear o cambiar repositorios",
+          "body": "Utilice el selector de repositorio para cambiar el repositorio activo o agregar otro repositorio o espacio de trabajo."
+        },
+        "branch-selector": {
+          "title": "Cambiar ramas",
+          "body": "El selector de ramas muestra la rama Git actual y abre el cambio de rama o crea flujo para este repositorio."
+        },
+        "editor-surface": {
+          "title": "Espacio de trabajo del editor",
+          "body": "Esta es la superficie principal del Editor de código. Abra archivos, inspeccione diferencias, ejecute terminales y revise los cambios generados aquí."
+        },
+        "create-tabs": {
+          "title": "Crear nuevas pestañas",
+          "body": "Utilice el menú más en Todas las pestañas para crear terminales, pestañas del navegador, archivos, paneles y utilidades de repositorio."
+        },
+        "source-control": {
+          "title": "Cambios de Git",
+          "body": "Control de código abierto para revisar archivos modificados, preparar o cancelar el trabajo, confirmar, extraer, enviar, recuperar y sincronizar con el control remoto."
+        },
+        "git-history": {
+          "title": "Historial de Git",
+          "body": "Historial de Git cambia el Control de fuente al modo de historial de confirmaciones para que puedas inspeccionar confirmaciones anteriores y cambios relacionados."
+        },
+        "dashboard": {
+          "title": "Panel del Editor de código",
+          "body": "El panel es la pestaña de inicio del Editor de código para los espacios de trabajo. Úselo para agregar repositorios, abrir detalles del repositorio y comenzar a trabajar en el proyecto."
+        }
+      }
+    }
   }
 }

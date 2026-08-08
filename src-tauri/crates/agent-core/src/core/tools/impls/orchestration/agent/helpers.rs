@@ -607,6 +607,8 @@ pub(super) fn with_full_result_pointer(session_id: &str, result: String) -> Stri
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
+// The fixture exposes each optional model field as a separate scenario input.
 mod resolve_subagent_model_tests {
     use super::*;
     use crate::core::config::ReliabilityConfig;

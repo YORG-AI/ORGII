@@ -270,6 +270,37 @@ pub async fn debug_seed_child_session(
         .map_err(|e| e.to_string())
 }
 
+/// Debug-only: seed one top-level coding session for rendered sidebar
+/// pagination specs. The command uses the production upsert path; tests only
+/// establish durable preconditions and still click the real rendered pager.
+#[tauri::command]
+pub async fn debug_seed_sidebar_coding_session(
+    session_id: String,
+    name: String,
+    status: String,
+    created_at: String,
+    updated_at: String,
+    pinned: Option<bool>,
+) -> Result<(), String> {
+    if !cfg!(debug_assertions) {
+        return Err("debug_seed_sidebar_coding_session is only available in debug builds".into());
+    }
+    let record = UnifiedSessionRecord {
+        session_id,
+        name,
+        status,
+        created_at,
+        updated_at,
+        session_type: agent_core::session::persistence::session_type::CODING.to_string(),
+        pinned: pinned.unwrap_or(false),
+        ..Default::default()
+    };
+    tokio::task::spawn_blocking(move || agent_core::session::persistence::upsert_session(&record))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::clip_fields;

@@ -692,21 +692,47 @@
     "agentApproval": "Approbation Agent",
     "agentApprovalDesc": "Lorsqu'une action Agent nécessite votre approbation",
     "errors": "Erreurs et avertissements",
+    "teamInbox": "Boîte de réception de l’équipe",
     "errorsDesc": "Lorsque des erreurs ou avertissements se produisent",
     "sessionStatus": "État de la Session",
     "sessionStatusDesc": "Mises à jour de démarrage, pause et reprise de Session",
     "gitOperations": "Opérations Git",
     "gitOperationsDesc": "Notifications de Git pull, push et synchronisation",
+    "soundPreset": "Son de notification",
+    "soundPresetDesc": "Choisissez le son des notifications audibles",
+    "previewSound": "Écouter",
+    "soundPresets": {
+      "classic": "Classique",
+      "gentle": "Doux",
+      "ascending": "Ascendant",
+      "bell": "Cloche"
+    },
     "volume": "Volume",
     "testNotification": "Notification de test",
     "notification": "Notification",
     "sound": "Son",
     "enabledSuccess": "Notifications activées",
     "permissionDenied": "Autorisation de notification refusée",
+    "criticalOnly": "Alertes critiques uniquement",
+    "criticalOnlyDesc": "Notifier uniquement lorsqu'une action doit être approuvée ou qu'une tâche échoue",
+    "quietHours": "Programmation Ne pas déranger",
+    "quietHoursDesc": "Couper les notifications de routine pendant une plage horaire quotidienne",
+    "quietHoursSchedule": "Heures silencieuses",
+    "quietHoursScheduleDesc": "Utilise l'heure locale de votre appareil. Des heures de début et de fin identiques désactivent la plage.",
+    "quietHoursStart": "De",
+    "quietHoursEnd": "À",
+    "allowCriticalDuringQuietHours": "Autoriser les alertes critiques",
+    "allowCriticalDuringQuietHoursDesc": "Les demandes d'approbation et les échecs peuvent afficher une notification système, mais n'émettent jamais de son",
+    "backgroundCompletionSummary": "Regrouper les tâches d'arrière-plan terminées",
+    "backgroundCompletionSummaryDesc": "Envoyer une seule alerte groupée à la fin des heures silencieuses",
+    "mutedSessions": "Sessions en sourdine",
+    "mutedSessionsDesc": "{{count}} Sessions sont en sourdine sur cet appareil",
+    "clearMutedSessions": "Tout effacer",
     "test": {
       "sent": "Notification de test envoyée",
       "permissionWarning": "Échec de l'envoi de la notification de test. Vérifiez les autorisations.",
-      "sendFailed": "Impossible d'envoyer la notification de test. Veuillez vérifier vos autorisations de notification et réessayer."
+      "sendFailed": "Impossible d'envoyer la notification de test. Veuillez vérifier vos autorisations de notification et réessayer.",
+      "soundFailed": "Impossible de lire le son de notification. Vérifiez le volume du système."
     }
   },
   "editor": {
@@ -962,7 +988,13 @@
     "tableSize": "Taille",
     "tablePercentage": "Pourc.",
     "scanFailed": "Échec de l'analyse du stockage",
-    "openFolderFailed": "Impossible d'ouvrir le dossier"
+    "openFolderFailed": "Impossible d'ouvrir le dossier",
+    "browserCache": "Cache du navigateur",
+    "browserCacheDesc": "{{used}} utilisés · {{cleanable}} peuvent être nettoyés en toute sécurité",
+    "cleanBrowserCache": "Nettoyer",
+    "browserCacheCleaned": "{{size}} de stockage du navigateur libérés",
+    "browserCacheAlreadyClean": "Le cache du navigateur est déjà propre",
+    "browserCacheCleanFailed": "Impossible de nettoyer le cache du navigateur"
   },
   "dependencies": {
     "systemDependencies": "Dependencies système",

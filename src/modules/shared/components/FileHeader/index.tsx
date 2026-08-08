@@ -28,6 +28,7 @@ import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { type WorkstationTabHeaderHost } from "@src/hooks/workStation";
 import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks/PanelHeader";
+import type { DiffViewMode } from "@src/types/git/types";
 import { copyText } from "@src/util/data/clipboard";
 
 import BreadcrumbFileHeader from "./BreadcrumbFileHeader";
@@ -36,7 +37,7 @@ import { FileHeaderShell } from "./FileHeaderShell";
 
 const RELOAD_MENU_COOLDOWN_MS = 1200;
 
-export type DiffViewMode = "unified" | "split";
+export type { DiffViewMode } from "@src/types/git/types";
 
 export interface ToggleOption {
   value: string;

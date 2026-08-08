@@ -11,9 +11,10 @@
  *    re-lists collab state under the new identity instead of trusting
  *    another account's in-memory cursors for the same org ids.
  */
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect } from "react";
 
+import { externalHistoryBackgroundScanEnabledAtom } from "@src/store/session/dataSourceConfigAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { memberRuntimePushScheduler } from "./memberRuntime/memberRuntimePushScheduler";
@@ -22,21 +23,68 @@ import {
   org2CloudAuthIdentityKey,
 } from "./org2CloudAuthAtom";
 import {
+  isOrgBackgroundUploadEnabled,
   org2CloudOrgsAtom,
   org2CloudOrgsLoadedAtom,
 } from "./org2CloudOrgsAtom";
+import type { Org2CloudOrg } from "./org2CloudOrgsAtom";
 import { org2CloudSyncEngine } from "./org2CloudSyncEngine";
+
+/**
+ * Stable lifecycle key for org properties that change session-sync
+ * eligibility. In particular, an admin toggling background upload must
+ * schedule a pass even when membership, role, and name are unchanged.
+ */
+export function buildOrg2CloudSyncRosterKey(
+  orgs: readonly Org2CloudOrg[]
+): string {
+  return JSON.stringify(
+    orgs
+      .map((org) => ({
+        orgId: org.orgId,
+        role: org.role,
+        name: org.name,
+        backgroundUploadEnabled: isOrgBackgroundUploadEnabled(org),
+      }))
+      .sort((left, right) => left.orgId.localeCompare(right.orgId))
+  );
+}
+
+export function shouldEnableExternalHistoryBackgroundScan(
+  authIdentityKey: string | null,
+  orgsLoaded: boolean,
+  orgs: readonly Org2CloudOrg[]
+): boolean {
+  return Boolean(
+    authIdentityKey && orgsLoaded && orgs.some(isOrgBackgroundUploadEnabled)
+  );
+}
 
 export function useOrg2CloudSyncEngine(): void {
   const auth = useAtomValue(org2CloudAuthAtom);
   const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const orgs = useAtomValue(org2CloudOrgsAtom);
   const orgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
-  const rosterKey = JSON.stringify(
-    orgs
-      .map(({ orgId, role, name }) => ({ orgId, role, name }))
-      .sort((left, right) => left.orgId.localeCompare(right.orgId))
+  const setExternalHistoryBackgroundScanEnabled = useSetAtom(
+    externalHistoryBackgroundScanEnabledAtom
   );
+  const rosterKey = buildOrg2CloudSyncRosterKey(orgs);
+  const externalHistoryBackgroundScanEnabled =
+    shouldEnableExternalHistoryBackgroundScan(
+      authIdentityKey,
+      orgsLoaded,
+      orgs
+    );
+
+  useEffect(() => {
+    setExternalHistoryBackgroundScanEnabled(
+      externalHistoryBackgroundScanEnabled
+    );
+    return () => setExternalHistoryBackgroundScanEnabled(false);
+  }, [
+    externalHistoryBackgroundScanEnabled,
+    setExternalHistoryBackgroundScanEnabled,
+  ]);
 
   useEffect(() => {
     // stop() is idempotent and also covers the A→B switch (no null between):

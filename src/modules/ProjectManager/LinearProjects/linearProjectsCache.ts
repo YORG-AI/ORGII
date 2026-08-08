@@ -8,10 +8,12 @@ import type {
 } from "@src/api/http/integrations";
 
 const MAX_LINEAR_PROJECTS_CACHE_ENTRIES = 120;
+export const LINEAR_PROJECTS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 interface LinearCacheEntry<T> {
   value?: T;
   promise?: Promise<T>;
+  cachedAt?: number;
 }
 
 const linearProjectsCache = new Map<string, LinearCacheEntry<unknown>>();
@@ -29,17 +31,24 @@ async function readCached<T>(
   loader: () => Promise<T>,
   forceRefresh = false
 ): Promise<T> {
+  const existing = linearProjectsCache.get(key) as
+    | LinearCacheEntry<T>
+    | undefined;
+  if (existing?.promise) return existing.promise;
+
   if (!forceRefresh) {
-    const existing = linearProjectsCache.get(key) as
-      | LinearCacheEntry<T>
-      | undefined;
-    if (existing?.value !== undefined) return existing.value;
-    if (existing?.promise) return existing.promise;
+    if (
+      existing?.value !== undefined &&
+      typeof existing.cachedAt === "number" &&
+      Date.now() - existing.cachedAt < LINEAR_PROJECTS_CACHE_TTL_MS
+    ) {
+      return existing.value;
+    }
   }
 
   const promise = loader()
     .then((value) => {
-      linearProjectsCache.set(key, { value });
+      linearProjectsCache.set(key, { value, cachedAt: Date.now() });
       trimCache();
       return value;
     })
@@ -172,6 +181,7 @@ export const cachedLinearProjectsApi = {
   rememberProject(connectionId: string, project: LinearProjectSummary): void {
     linearProjectsCache.set(projectKey(connectionId, project.id), {
       value: project,
+      cachedAt: Date.now(),
     });
     deleteCacheKey(projectsListKey(connectionId));
     trimCache();

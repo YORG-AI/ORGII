@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "IDEMPOTENCY_CONFLICT",
+    "message": "Idempotency key 'session_abc:complete' was already used with a different canonical request body",
+    "retryable": false,
+    "details": {
+      "idempotencyKey": "session_abc:complete",
+      "operation": "work.transition"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR08"
+  }
+}

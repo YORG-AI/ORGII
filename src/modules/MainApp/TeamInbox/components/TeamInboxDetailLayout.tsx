@@ -3,6 +3,7 @@ import { Check, Mail } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
+import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -12,10 +13,15 @@ import {
 } from "@src/modules/shared/layouts/blocks";
 import type { InfoCardRow } from "@src/modules/shared/layouts/blocks";
 
+import TeamInboxHeaderIconAction from "./TeamInboxHeaderIconAction";
+import type { TeamInboxHeaderIconActionProps } from "./TeamInboxHeaderIconAction";
+
 export interface TeamInboxDetailLayoutProps {
   title: string;
   subtitle: string;
   icon: LucideIcon;
+  /** Custom shared header content, such as the canonical GitHub issue strip. */
+  headerContent?: React.ReactNode;
   metadata?: InfoCardRow[];
   /**
    * `scroll` owns a padded detail column. `fill` lets a nested Work Item own
@@ -27,6 +33,7 @@ export interface TeamInboxDetailLayoutProps {
   markUnreadLabel?: string;
   openLabel: string;
   openIcon: React.ReactNode;
+  headerAuxiliaryAction?: TeamInboxHeaderIconActionProps;
   onMarkRead?: () => void;
   onMarkUnread?: () => void;
   onOpen?: () => void;
@@ -38,6 +45,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   title,
   subtitle,
   icon,
+  headerContent,
   metadata,
   contentLayout = "scroll",
   unread,
@@ -45,6 +53,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   markUnreadLabel,
   openLabel,
   openIcon,
+  headerAuxiliaryAction,
   onMarkRead,
   onMarkUnread,
   onOpen,
@@ -53,39 +62,49 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
 }) => {
   const readAction = unread ? (
     onMarkRead ? (
-      <Button
-        variant="tertiary"
-        appearance="ghost"
-        size="mini"
-        icon={<Check size={14} aria-hidden />}
-        onClick={onMarkRead}
-      >
-        {markReadLabel}
-      </Button>
+      <WorkstationToolbarTooltip label={markReadLabel} position="bottom-end">
+        <Button
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          iconOnly
+          icon={<Check size={14} strokeWidth={2} aria-hidden />}
+          aria-label={markReadLabel}
+          onClick={onMarkRead}
+        />
+      </WorkstationToolbarTooltip>
     ) : null
   ) : onMarkUnread && markUnreadLabel ? (
-    <Button
-      variant="tertiary"
-      appearance="ghost"
-      size="mini"
-      icon={<Mail size={14} aria-hidden />}
-      onClick={onMarkUnread}
-    >
-      {markUnreadLabel}
-    </Button>
+    <WorkstationToolbarTooltip label={markUnreadLabel} position="bottom-end">
+      <Button
+        htmlType="button"
+        variant="tertiary"
+        size="small"
+        iconOnly
+        icon={<Mail size={14} strokeWidth={2} aria-hidden />}
+        aria-label={markUnreadLabel}
+        onClick={onMarkUnread}
+      />
+    </WorkstationToolbarTooltip>
   ) : null;
   const headerOpenAction =
     onOpen && openPlacement === "header" ? (
-      <Button
-        variant="secondary"
-        size="mini"
-        icon={openIcon}
-        onClick={onOpen}
-        data-testid="team-inbox-open-source"
-      >
-        {openLabel}
-      </Button>
+      <WorkstationToolbarTooltip label={openLabel} position="bottom-end">
+        <Button
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          iconOnly
+          icon={openIcon}
+          aria-label={openLabel}
+          onClick={onOpen}
+          data-testid="team-inbox-open-source"
+        />
+      </WorkstationToolbarTooltip>
     ) : null;
+  const auxiliaryAction = headerAuxiliaryAction ? (
+    <TeamInboxHeaderIconAction {...headerAuxiliaryAction} />
+  ) : null;
 
   return (
     <DetailPanelContainer>
@@ -94,15 +113,22 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
         subtitle={subtitle}
         icon={icon}
         borderBottom
+        className={DETAIL_PANEL_TOKENS.headerPadding}
         actions={
-          readAction || headerOpenAction ? (
-            <div className="flex items-center gap-1">
+          readAction || auxiliaryAction || headerOpenAction ? (
+            <div
+              className="flex items-center gap-px"
+              data-testid="team-inbox-detail-actions"
+            >
               {readAction}
+              {auxiliaryAction}
               {headerOpenAction}
             </div>
           ) : undefined
         }
-      />
+      >
+        {headerContent}
+      </PanelHeader>
 
       {contentLayout === "fill" ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden @container">

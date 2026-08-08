@@ -3,6 +3,8 @@
  *
  * Fetch, pull, and push operations.
  */
+import { announceBranchRemoteMutation } from "@src/util/git/branchRemoteMutation";
+
 import { fetchRustApi, gitRepoUrl } from "./client";
 import type { GitErrorType } from "./streaming";
 import type { GitOperationResponse, GitPullResponse } from "./types";
@@ -149,6 +151,13 @@ export const gitPush = async (params: {
   if (result && !result.success) {
     throwGitRemoteOperationError(result, "Push failed");
   }
+
+  announceBranchRemoteMutation({
+    repoId: params.repo_id,
+    repoPath: params.repo_path,
+    branchName: params.branch,
+    reason: "push",
+  });
 
   return result;
 };

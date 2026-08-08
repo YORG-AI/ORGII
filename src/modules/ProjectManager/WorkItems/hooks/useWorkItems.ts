@@ -64,6 +64,7 @@ export function useWorkItems(options: UseWorkItemsOptions = {}) {
     sharedLabels: projectData.rawLabels,
     sharedMembers: projectData.rawMembers,
     isActive,
+    activeView: state.activeTab,
   });
 
   const {

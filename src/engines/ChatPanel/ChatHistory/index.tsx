@@ -6,6 +6,7 @@
 import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useState } from "react";
 
+import { loadEventComponent } from "@src/engines/SessionCore/rendering/registry/events";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
@@ -79,6 +80,14 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   const historyState = useChatHistoryState();
   const isAgentWorking = useAtomValue(isSessionActiveAtom);
   const groupChat = useGroupChatContext();
+
+  useEffect(() => {
+    // Canvas payloads can reach the WorkStation as soon as the tool call is
+    // stored. Warm the chat renderer while the user is still waiting for the
+    // agent so the persisted canvas event can take over without a Suspense
+    // placeholder between the live and historical render paths.
+    void loadEventComponent("canvas_inline");
+  }, []);
 
   const [planningIndicatorCount, setPlanningIndicatorCount] = useState<0 | 1>(
     0

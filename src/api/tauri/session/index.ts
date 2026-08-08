@@ -11,6 +11,9 @@ import type {
   ExternalHistorySidebarListRequest,
   ExternalHistorySidebarResponse,
   ExternalHistorySidebarSourceRequest,
+  NativeSidebarSessionCursor,
+  NativeSidebarSessionPageResponse,
+  NativeSidebarSessionStream,
   SessionAggregateRecord,
   SessionFilter,
   SessionListResponse,
@@ -47,6 +50,9 @@ export type {
   ExternalHistorySidebarListRequest,
   ExternalHistorySidebarResponse,
   ExternalHistorySidebarSourceRequest,
+  NativeSidebarSessionCursor,
+  NativeSidebarSessionPageResponse,
+  NativeSidebarSessionStream,
   SessionAggregateRecord,
   SessionFilter,
   SessionListResponse,
@@ -66,6 +72,14 @@ export async function sessionAggregateList(
   filter?: SessionFilter
 ): Promise<SessionListResponse> {
   return rpc.sessionAggregate.list({ filter }) as Promise<SessionListResponse>;
+}
+
+export async function nativeSidebarSessionPage(
+  stream: NativeSidebarSessionStream,
+  cursor: NativeSidebarSessionCursor | null,
+  limit: number
+): Promise<NativeSidebarSessionPageResponse> {
+  return rpc.sessionAggregate.nativeSidebarPage({ stream, cursor, limit });
 }
 
 export async function externalHistorySidebarList(
@@ -93,7 +107,20 @@ function getFrontendDispatchCategory(
       ? "cursor_ide"
       : "external_history";
   }
-  return record.category;
+
+  // Zod describes the post-transform category type, but production RPC calls
+  // intentionally skip output parsing. Normalize the Rust wire value here so
+  // native rows do not disappear from frontend category filters in builds.
+  const category = record.category as
+    | DispatchCategory
+    | "cli"
+    | "agent"
+    | "os"
+    | "human";
+  if (category === "cli") return "cli_agent";
+  if (category === "human") return "human_session";
+  if (category === "agent" || category === "os") return "rust_agent";
+  return category;
 }
 
 export function toFrontendSession(record: SessionAggregateRecord): Session {
@@ -146,6 +173,7 @@ export function toFrontendSession(record: SessionAggregateRecord): Session {
     agentIconId: importedSource?.iconId ?? record.agentIconId,
     agentDisplayName: importedSource?.displayName ?? record.agentDisplayName,
     agentExecMode: normalizeAgentExecMode(record.agentExecMode) ?? undefined,
+    productMode: record.productMode,
     draftText: record.draftText,
     replyTargetEventId: record.replyTargetEventId,
     pinned: record.pinned,

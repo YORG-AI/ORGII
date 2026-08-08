@@ -7,15 +7,16 @@
 //! proxy / proxy token / synced skill files. Extracted from
 //! `session::run_session`.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
 use key_vault::key_store::{ModelType, KEY_SERVICE};
 
+use super::super::parsers::{canonicalize_cli_error_message, is_codex_fallback_metadata_notice};
 use super::super::persistence::{self, CodeSession};
-use super::super::types::{KeySource, SessionStatus};
+use super::super::types::SessionStatus;
 use super::cursor_usage::fetch_cursor_usage_for_session;
 use super::helpers::{clear_live_status, flush_and_broadcast};
 use super::oauth_setup::is_cli_oauth_failure_message;
@@ -31,8 +32,94 @@ pub(super) struct SessionRunOutcome {
     /// App-server transport: whether the turn reached a non-failed
     /// `turn/completed`.
     pub codex_app_server_turn_ok: bool,
-    pub suppressed_oauth_error: Option<String>,
+    /// OAuth error that is terminal after refresh failed or the one retry was
+    /// exhausted. A successfully refreshed first-attempt error is never kept.
+    pub terminal_oauth_error: Option<String>,
+    /// Structured error emitted by the CLI transport. This is authoritative
+    /// over stderr, which may contain only launch/progress notices.
+    pub terminal_error_message: Option<String>,
     pub stderr_lines: Arc<Mutex<VecDeque<String>>>,
+}
+
+fn is_meaningful_stderr_line(line: &str) -> bool {
+    // Keep this fallback in step with what the structured parsers suppress.
+    // `not found` below would otherwise re-promote a notice the parser
+    // deliberately dropped into the persisted failure message.
+    if is_codex_fallback_metadata_notice(line) {
+        return false;
+    }
+
+    let lower = line.to_lowercase();
+    lower.contains("error")
+        || lower.contains("fatal")
+        || lower.contains("panic")
+        || lower.contains("fail")
+        || lower.contains("exception")
+        || lower.contains("timed out")
+        || lower.contains("timeout")
+        || lower.contains("refused")
+        || lower.contains("denied")
+        || lower.contains("not found")
+        || lower.contains("refresh token")
+        || lower.contains("access token")
+        || lower.contains("oauth")
+        || lower.contains("unauthorized")
+        || lower.contains("not authenticated")
+        || lower.contains("authentication")
+        || lower.contains("login required")
+        || lower.contains("please log in")
+        || lower.contains("please login")
+        || lower.contains("revoked")
+        || lower.contains("invalid_grant")
+}
+
+/// Collapse retry diagnostics into one persisted error string. Structured CLI
+/// logs prefix every retry with a fresh timestamp, so exact-line dedup alone
+/// still rendered the same failure many times.
+pub(super) fn summarize_cli_stderr(stderr_lines: &VecDeque<String>) -> Option<String> {
+    let mut seen = HashSet::new();
+    let mut meaningful = Vec::new();
+
+    for line in stderr_lines
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && is_meaningful_stderr_line(line))
+    {
+        let diagnostic = [" ERROR ", " WARN ", " FATAL "]
+            .iter()
+            .find_map(|marker| line.find(marker).map(|index| &line[index + marker.len()..]))
+            .unwrap_or(line)
+            .trim();
+        let diagnostic = canonicalize_cli_error_message(diagnostic);
+        if seen.insert(diagnostic.clone()) {
+            meaningful.push(diagnostic);
+        }
+    }
+
+    if meaningful.is_empty() {
+        // Nothing looked like a failure. Fall back to the last real line, but
+        // still never to a notice the parser deliberately suppressed —
+        // otherwise the filter above only holds while some *other* line
+        // happens to match, which is not a property worth having.
+        stderr_lines
+            .iter()
+            .rev()
+            .map(|line| line.trim())
+            .find(|line| !line.is_empty() && !is_codex_fallback_metadata_notice(line))
+            .map(str::to_string)
+    } else {
+        Some(meaningful.join("\n"))
+    }
+}
+
+pub(super) fn resolve_cli_failure_message(
+    terminal_oauth_error: Option<String>,
+    terminal_error_message: Option<String>,
+    stderr_lines: &VecDeque<String>,
+) -> Option<String> {
+    terminal_oauth_error
+        .or(terminal_error_message)
+        .or_else(|| summarize_cli_stderr(stderr_lines))
 }
 
 /// Finalize a completed (or timed-out) session run: derive and persist the
@@ -42,6 +129,7 @@ pub(super) struct SessionRunOutcome {
 pub(super) async fn finalize_session_run(
     session: &CodeSession,
     agent: &ModelType,
+    oauth_retry_eligible: bool,
     env_vars: &std::collections::HashMap<String, String>,
     run_started_at: chrono::DateTime<chrono::Utc>,
     needs_mitm: bool,
@@ -56,21 +144,21 @@ pub(super) async fn finalize_session_run(
         cli_session_id_out,
         cli_plan_approval_gate_reached,
         codex_app_server_turn_ok,
-        suppressed_oauth_error,
+        terminal_oauth_error,
+        terminal_error_message,
         stderr_lines,
     } = outcome;
 
     let session_id = session.session_id.as_str();
     let account_id = session.account_id.as_deref();
 
-    let setup_is_codex_own_key =
-        *agent == ModelType::Codex && session.key_source == KeySource::OwnKey;
+    let setup_is_codex_oauth = *agent == ModelType::Codex && oauth_retry_eligible;
     let setup_access_token = env_vars.get("OPENAI_API_KEY").cloned();
     let setup_account_id = account_id.map(str::to_string);
     let setup_session_id = session_id.to_string();
     let setup_cli_session_id = cli_session_id_out.clone();
     let _ = tokio::task::spawn_blocking(move || {
-        if setup_is_codex_own_key {
+        if setup_is_codex_oauth {
             if let Err(err) = sync_codex_cli_auth_to_key_vault(
                 setup_account_id.as_deref(),
                 setup_access_token.as_deref(),
@@ -136,50 +224,14 @@ pub(super) async fn finalize_session_run(
     };
 
     let error_message: Option<String> = if final_status == SessionStatus::Failed {
-        if let Some(message) = suppressed_oauth_error.clone() {
-            Some(message)
-        } else {
-            let buf = stderr_lines.lock().await;
-            let meaningful: Vec<&str> = buf
-                .iter()
-                .map(|s| s.as_str())
-                .filter(|line| {
-                    let lower = line.to_lowercase();
-                    lower.contains("error")
-                        || lower.contains("fatal")
-                        || lower.contains("panic")
-                        || lower.contains("fail")
-                        || lower.contains("exception")
-                        || lower.contains("timed out")
-                        || lower.contains("timeout")
-                        || lower.contains("refused")
-                        || lower.contains("denied")
-                        || lower.contains("not found")
-                        || lower.contains("refresh token")
-                        || lower.contains("access token")
-                        || lower.contains("oauth")
-                        || lower.contains("unauthorized")
-                        || lower.contains("not authenticated")
-                        || lower.contains("authentication")
-                        || lower.contains("login required")
-                        || lower.contains("please log in")
-                        || lower.contains("please login")
-                        || lower.contains("revoked")
-                        || lower.contains("invalid_grant")
-                })
-                .collect();
-            if meaningful.is_empty() {
-                buf.back().map(|s| s.to_string())
-            } else {
-                Some(meaningful.join("\n"))
-            }
-        }
+        let buf = stderr_lines.lock().await;
+        resolve_cli_failure_message(terminal_oauth_error.clone(), terminal_error_message, &buf)
     } else {
         None
     };
 
     let should_record_oauth_failure = *agent == ModelType::Codex
-        && session.key_source == KeySource::OwnKey
+        && oauth_retry_eligible
         && error_message
             .as_deref()
             .is_some_and(is_cli_oauth_failure_message);
@@ -260,6 +312,7 @@ pub(super) async fn finalize_session_run(
         "exit_code": exit_code,
         "background": session.background,
         "session_name": session.name,
+        "plan_gate": cli_plan_approval_gate_reached,
     });
     if let Some(ref err_msg) = error_message {
         status_msg["error_message"] = serde_json::Value::String(err_msg.clone());

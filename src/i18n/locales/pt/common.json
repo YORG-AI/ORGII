@@ -11,6 +11,11 @@
       "mentions": "Menções",
       "assigned": "Atribuídos"
     },
+    "sections": {
+      "reviewRequested": "Revisão solicitada",
+      "authoredByMe": "Criados por mim",
+      "otherTodos": "Outras tarefas"
+    },
     "status": {
       "read": "Lido",
       "unread": "Não lido"
@@ -33,10 +38,10 @@
       "title": "Ainda não há nada aqui",
       "subtitle": "Menções e itens de trabalho atribuídos aparecerão aqui.",
       "selectTitle": "Selecione um item",
-      "selectSubtitle": "Veja o contexto do comentário ou os detalhes do item de trabalho.",
+      "selectSubtitle": "Veja o contexto do comentário ou os detalhes do item de trabalho",
       "mentions": {
         "title": "Nenhuma menção",
-        "subtitle": "Quando um colega de equipe mencionar você com @ em um comentário, isso aparecerá aqui."
+        "subtitle": "Quando um colega de equipe mencionar você com @ em um comentário, isso aparecerá aqui"
       },
       "assigned": {
         "title": "Nada atribuído a você",
@@ -111,7 +116,9 @@
       "markUnread": "Não foi possível marcar este item como não lido. Tente novamente.",
       "markAllRead": "Não foi possível marcar todos os itens como lidos. Tente novamente.",
       "identity": "Sua conta não pôde ser associada a um membro do projeto. Verifique o e-mail no seu perfil do projeto.",
-      "partialLoad": "Algumas fontes da caixa de entrada da equipe não puderam ser atualizadas. Os itens disponíveis continuam sendo exibidos.",
+      "partialLoad": "Algumas fontes da caixa de entrada da equipe não puderam ser atualizadas. Os itens disponíveis continuam sendo exibidos",
+      "pullRequestsPartialLoad": "Algumas pull requests não puderam ser atualizadas",
+      "pullRequestsPartialLoadHelp": "Os itens disponíveis continuam sendo exibidos; atualize para tentar carregar novamente as pull requests ausentes",
       "workItemContext": "Parte do contexto do projeto não está disponível. O item de trabalho continua utilizável.",
       "workItemLoad": "Não foi possível carregar este item de trabalho. Tente novamente.",
       "workItemUpdate": "Não foi possível salvar a última alteração do item de trabalho. Tente novamente."
@@ -155,6 +162,50 @@
       "medium": "Média",
       "high": "Alta",
       "urgent": "Urgente"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Arquivo",
+      "edit": "Editar",
+      "view": "Exibir",
+      "window": "Janela",
+      "help": "Ajuda",
+      "aria": "Menu {{label}}"
+    },
+    "items": {
+      "quitOrg2": "Sair do ORG-2",
+      "newSession": "Nova sessão",
+      "openFolder": "Abrir pasta...",
+      "addFolderToWorkspace": "Adicionar pasta ao espaço de trabalho...",
+      "saveWorkspaceAs": "Salvar espaço de trabalho como...",
+      "closeWindow": "Fechar janela",
+      "undo": "Desfazer",
+      "redo": "Refazer",
+      "cut": "Recortar",
+      "copy": "Copiar",
+      "paste": "Colar",
+      "selectAll": "Selecionar tudo",
+      "commandPalette": "Paleta de comandos",
+      "goToFile": "Ir para arquivo...",
+      "selectModel": "Selecionar modelo...",
+      "switchWorkspace": "Alternar espaço de trabalho...",
+      "switchBranch": "Alternar branch...",
+      "switchRunningLocation": "Alternar local de execução...",
+      "settings": "Configurações...",
+      "zoomIn": "Ampliar",
+      "zoomOut": "Reduzir",
+      "actualSize": "Tamanho real",
+      "minimize": "Minimizar",
+      "maximizeRestore": "Maximizar / Restaurar",
+      "maximizeWorkstation": "Maximizar estação de trabalho",
+      "documentation": "Documentação",
+      "reportIssue": "Relatar problema"
+    },
+    "controls": {
+      "minimizeWindow": "Minimizar janela",
+      "maximizeRestoreWindow": "Maximizar ou restaurar janela",
+      "closeWindow": "Fechar janela"
     }
   },
   "toasts": {
@@ -368,7 +419,8 @@
     "skipThisVersion": "Ignorar esta versão",
     "later": "Mais tarde",
     "link": "Vincular",
-    "copyName": "Copiar nome"
+    "copyName": "Copiar nome",
+    "switchMethod": "Alterar método"
   },
   "refreshToast": {
     "successName": "{{name}} atualizado",
@@ -1358,8 +1410,59 @@
       "collapse": "Recolher informações da área de trabalho"
     },
     "pr": {
+      "title": "Pull request",
       "linkedBranch": "Pull request nº {{number}}",
+      "baseBranch": "Base",
+      "noDescription": "Nenhuma descrição fornecida.",
+      "loadingConversation": "Carregando…",
+      "reviewNoBody": "Deixou comentários de revisão.",
+      "submitReview": "Enviar revisão",
+      "reviewHeadNotice": "A revisão só será aplicada se o commit de cabeçalho exibido ainda corresponder.",
+      "reviewDecision": "Decisão da revisão",
+      "reviewComment": "Comentário da revisão",
+      "reviewCommentPlaceholder": "Adicionar um comentário…",
+      "commentPlaceholder": "Deixar um comentário…",
+      "comment": "Comentar",
+      "approve": "Aprovar",
+      "requestChanges": "Solicitar alterações",
+      "reply": "Responder",
+      "replyPlaceholder": "Responder…",
+      "reviewThreads": "Comentários da revisão",
+      "details": "Detalhes",
+      "unknownAuthor": "Desconhecido",
+      "activity": {
+        "opened": "abriu este pull request",
+        "commented": "comentou",
+        "approved": "aprovou estas alterações",
+        "changesRequested": "solicitou alterações",
+        "reviewDismissed": "descartou uma revisão",
+        "reviewed": "revisou"
+      },
+      "summary": {
+        "label": "Resumo do pull request",
+        "branch": "Branch",
+        "reviewers": "Revisores",
+        "noReviewers": "Sem revisores",
+        "comments": "Comentários",
+        "commentCount_one": "{{count}} comentário",
+        "commentCount_other": "{{count}} comentários",
+        "checks": "Verificações",
+        "noChecks": "Sem verificações de CI",
+        "checksFailed": "Falha nas verificações",
+        "status": "Status"
+      },
+      "tabs": {
+        "conversation": "Conversa",
+        "commits": "Commits",
+        "checks": "Verificações",
+        "changes": "Alterações"
+      },
       "checks": {
+        "none": "Nenhuma verificação relatada",
+        "noneHint": "Nenhuma verificação de CI ou status foi executado no commit principal deste pull request.",
+        "allPassed": "Todas as verificações passaram",
+        "someFailed": "Algumas verificações falharam",
+        "pending": "Verificações em andamento",
         "passedShort": "Aprovado",
         "failedShort": "Falhou",
         "runningShort": "Em execução",
@@ -1367,6 +1470,76 @@
         "noneShort": "Sem CI",
         "unavailableShort": "CI indisponível",
         "branchStatus": "CI do pull request nº {{number}}: {{status}}"
+      },
+      "commits": {
+        "backToList": "Todos os commits",
+        "none": "Sem commits"
+      },
+      "changes": {
+        "title": "Arquivos alterados",
+        "noFiles": "Nenhuma alteração de arquivo",
+        "tooLarge": "Arquivo grande demais para exibir o diff",
+        "unavailable": "Alterações indisponíveis",
+        "unavailableHint": "Não foi possível resolver os commits base e principal do pull request."
+      },
+      "status": {
+        "open": "Aberto",
+        "merged": "Mesclado",
+        "closed": "Fechado",
+        "draft": "Rascunho"
+      },
+      "actions": {
+        "label": "Ações do pull request",
+        "confirmMergeTitle": "Mesclar o pull request?",
+        "confirmMergeMessage": "O GitHub mesclará o branch de origem do pull request atual no branch base.",
+        "merge": "Mesclar pull request",
+        "squash": "Combinar commits e mesclar",
+        "rebase": "Rebase e mesclar",
+        "mergeSuccess": "Pull request mesclado",
+        "mergeRequested": "Mesclagem solicitada",
+        "removedFromQueue": "Removido da fila de mesclagem",
+        "autoMergeEnabled": "Mesclagem automática ativada",
+        "autoMergeDisabled": "Mesclagem automática desativada",
+        "confirmCloseTitle": "Fechar o pull request?",
+        "confirmCloseMessage": "O pull request continuará disponível e poderá ser reaberto depois.",
+        "close": "Fechar pull request",
+        "closeSuccess": "Pull request fechado",
+        "reopen": "Reabrir pull request",
+        "reopenSuccess": "Pull request reaberto",
+        "enableAutoMerge": "Ativar mesclagem automática",
+        "mergeWhenReady": "Mesclar quando estiver pronto",
+        "disableAutoMerge": "Desativar mesclagem automática",
+        "removeFromMergeQueue": "Remover da fila de mesclagem",
+        "merged": "Mesclado",
+        "closed": "Fechado",
+        "draft": "Rascunho",
+        "inMergeQueue": "Na fila de mesclagem",
+        "approvalRequired": "Aprovação necessária",
+        "changesRequested": "Alterações solicitadas",
+        "resolveConflicts": "Resolver conflitos",
+        "checksFailed": "Verificações falharam",
+        "checksPending": "Verificações pendentes",
+        "mergeBlocked": "Mesclagem bloqueada",
+        "searchReviewers": "Pesquisar revisores",
+        "reviewersLoadFailed": "Não foi possível carregar os revisores",
+        "noReviewers": "Nenhum revisor disponível",
+        "reviewersUpdated": "Revisores atualizados",
+        "reviewersCount_one": "{{count}} revisor",
+        "reviewersCount_other": "{{count}} revisores",
+        "reviewers": "Revisores",
+        "tooltips": {
+          "merge": "Mesclar este pull request no GitHub",
+          "alreadyMerged": "Este pull request já foi mesclado",
+          "reopenBeforeMerging": "Reabra este pull request antes de mesclar",
+          "markReady": "Marque este pull request como pronto para revisão antes de mesclar",
+          "mergeQueue": "O GitHub mesclará este pull request pela fila de mesclagem",
+          "approvalRequired": "O GitHub exige aprovação de revisão antes da mesclagem",
+          "changesRequested": "As alterações solicitadas devem ser resolvidas antes da mesclagem",
+          "resolveConflicts": "Resolva os conflitos antes da mesclagem",
+          "checksFailed": "As verificações obrigatórias devem passar antes da mesclagem",
+          "checksPending": "Aguarde as verificações obrigatórias ou ative a mesclagem automática",
+          "mergeBlocked": "O GitHub informa requisitos de mesclagem não atendidos"
+        }
       }
     },
     "messages": {
@@ -1456,7 +1629,49 @@
         "unpinned": "desafixou esta issue",
         "transferred": "transferiu esta issue",
         "convertedToDiscussion": "converteu esta issue em uma discussão",
-        "mentioned": "mencionou esta issue"
+        "mentioned": "mencionou esta issue",
+        "commentDeleted": "excluiu um comentário",
+        "subscribed": "assinou esta issue",
+        "unsubscribed": "cancelou a assinatura desta issue",
+        "addedToProject": "adicionou esta issue a um projeto",
+        "movedInProject": "moveu esta issue em um projeto",
+        "removedFromProject": "removeu esta issue de um projeto",
+        "archived": "arquivou esta issue",
+        "unarchived": "desarquivou esta issue",
+        "merged": "mesclou esta pull request",
+        "committed": "fez commit nesta pull request",
+        "headRefDeleted": "excluiu a branch de origem",
+        "headRefRestored": "restaurou a branch de origem",
+        "headRefForcePushed": "forçou o push da branch de origem",
+        "baseRefChanged": "alterou a branch base",
+        "automaticBaseChangeFailed": "não conseguiu alterar automaticamente a branch base",
+        "automaticBaseChangeSucceeded": "alterou automaticamente a branch base",
+        "deployed": "implantou esta pull request",
+        "deploymentEnvironmentChanged": "alterou o ambiente de implantação",
+        "readyForReview": "marcou esta pull request como pronta para revisão",
+        "reviewRequested": "solicitou uma revisão",
+        "reviewRequestRemoved": "removeu uma solicitação de revisão",
+        "reviewed": "revisou estas alterações",
+        "reviewDismissed": "dispensou uma revisão",
+        "userBlocked": "bloqueou este usuário"
+      },
+      "composer": {
+        "addComment": "Adicionar um comentário",
+        "commentingAs": "Comentando como {{login}}",
+        "identityUnavailable": "Identidade do GitHub indisponível",
+        "commentPlaceholder": "Escreva um comentário…",
+        "submitComment": "Comentar",
+        "closeIssue": "Fechar issue",
+        "closeAsCompleted": "Fechar como concluído",
+        "closeAsNotPlanned": "Fechar como não planejado",
+        "closeAsDuplicate": "Fechar como duplicado",
+        "duplicateSearchPlaceholder": "Pesquisar issues",
+        "duplicateEmpty": "Nenhuma issue correspondente",
+        "duplicateLoadFailed": "Falha ao carregar issues",
+        "reopenIssue": "Reabrir issue",
+        "commentFailed": "Não foi possível adicionar o comentário",
+        "bodyUpdateFailed": "Não foi possível atualizar a descrição da issue",
+        "statusFailed": "Não foi possível atualizar o status da issue"
       }
     }
   },
@@ -2460,8 +2675,8 @@
     "selectRepoToStart": "Selecione um Repo para começar"
   },
   "quitConfirmation": {
-    "title": "Sair do ORGII?",
-    "subtitle": "As sessões em execução manterão o estado atual. Você poderá reabrir o ORGII mais tarde.",
+    "title": "Sair do ORG-2?",
+    "subtitle": "As sessões em execução manterão o estado atual. Você poderá reabrir o ORG-2 mais tarde.",
     "cancel": "Cancelar",
     "confirm": "Sair"
   },
@@ -2492,5 +2707,15 @@
     "downloadedOfTotal": "{{downloaded}} de {{total}}",
     "preparingDownload": "Preparando download…",
     "downloadingAndInstalling": "Baixando e instalando atualização (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Título / contexto",
+      "status": "Status",
+      "assignee": "Responsável",
+      "updated": "Atualizado"
+    },
+    "selectRow": "Selecionar {{id}}"
   }
 }

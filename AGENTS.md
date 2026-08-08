@@ -32,6 +32,24 @@ If the skill block isn't already prefetched in your context, read its `SKILL.md`
 
 ---
 
+## Root-Cause-First Bug Fixing
+
+When malformed, stale, duplicated, or unexpected data appears in the UI:
+
+1. **Do not start with a UI filter, hidden row, fallback label, or string-pattern special case.** First determine whether the value is real persisted/remote domain data or only a presentation defect.
+2. Identify the authoritative source, inspect the actual stored payload, and trace every transformation and writer back to the earliest boundary that created the invalid state.
+3. Fix the invariant at that authoritative boundary: user-input parsing, API/RPC ingestion, persistence write, sync reconciliation, or canonical state projection.
+4. Add a regression test at the producing boundary proving the invalid state can no longer be created. A selector/render test alone is not sufficient.
+5. Treat historical pollution separately: inventory dependent data, get confirmation before destructive cleanup, perform the narrowest cleanup, then read back the authoritative source.
+6. UI filtering is allowed only when exclusion is an explicit product requirement or defense-in-depth **after** the source fix. It must never be the sole fix for invalid upstream data.
+7. Do not change adjacent valid behavior unless the user explicitly requests it.
+
+Before declaring the issue fixed, report the authoritative source, root cause, producing write path, source-level invariant, historical remediation, and verification evidence.
+
+Review gate: any UI predicate introduced to hide malformed data must cite an explicit product requirement. If the value violates the domain model, reject the UI-only patch until the producing path is fixed and covered by a regression test.
+
+---
+
 ## Default Delivery Flow
 
 ### Touching `*.tsx` files (UI work)
@@ -57,6 +75,104 @@ Run every applicable skill. Keep architecture, React performance, and UI-consist
 ### Touching background work or retained state
 
 Run `org2-performance-guard` whenever a change adds or modifies polling, timers, retries, subscriptions, workers, streaming hot paths, caches, scans, sync loops, pagination, or multi-instance state. Apply its lifecycle matrix and rejection rules even when performance is not the feature's headline. State the performance verdict and concrete verification in the delivery message.
+
+### Pull request contract
+
+Every pull request created or updated by an agent MUST follow these rules.
+
+#### Single responsibility
+
+- One PR solves one problem or delivers one feature. Do not combine multiple
+  features, unrelated bug fixes, opportunistic refactors, cleanup, formatting,
+  or documentation changes in the same PR.
+- Supporting tests and documentation belong in the same PR only when they
+  directly verify or explain that PR's single change.
+- If requested work contains independent changes, split them into separate
+  branches/worktrees and separate PRs.
+- If a new unrelated request arrives after a PR has been opened, do not append
+  it to the existing branch. Create a separate PR.
+- Before handoff, compare the branch against its base and confirm every changed
+  file maps directly to the PR's stated problem or solution.
+
+#### Description format
+
+The PR description MUST begin with these top-level sections in this exact
+order:
+
+```markdown
+## Problem
+
+<What is wrong, who or what is affected, and the root cause.>
+
+## Solution
+
+<What changed, the resulting invariant or behavior, and why this approach was chosen.>
+
+## Potential risks
+
+<Concrete regressions, compatibility concerns, unverified paths, or operational tradeoffs.>
+```
+
+- Do not replace these sections with `Summary`, `Overview`, or `Test plan`.
+- Do not leave a required section blank. If no material risk remains, state
+  that explicitly and explain why.
+- Additional sections such as `Audit`, `Verification`, screenshots, or rollout
+  notes may follow the three required sections.
+- Before handing off a PR, read back the published description (for example
+  with `gh pr view`) and verify the section names and order.
+
+#### Base and diff integrity
+
+- Start from the intended target branch. Before handoff, fetch its latest state
+  and check whether the PR needs to be updated or conflicts resolved.
+- After resolving conflicts or incorporating target-branch changes, rerun the
+  checks affected by that integration.
+- Keep the published description synchronized with the final diff. Remove
+  claims about approaches, files, or behavior that are no longer present.
+- Avoid unrelated merge commits and generated churn. Do not rewrite published
+  history after review begins unless necessary; if history must change, use the
+  safest available method and tell reviewers what changed.
+
+#### Verification evidence
+
+- List the exact commands and meaningful manual checks that actually ran,
+  together with their outcomes.
+- State which relevant checks were not run and why. Do not write unsupported
+  claims such as "all tests pass" or infer runtime/performance improvement from
+  typecheck or code shape alone.
+- Verification must be proportional to risk and cover the changed behavior at
+  its owning boundary, not only a helper or selector.
+
+#### Risk, compatibility, and rollback
+
+- `Potential risks` must name concrete compatibility, data, concurrency,
+  lifecycle, platform, rollout, and unverified-path concerns that apply. Do not
+  use a generic "no risk" statement to avoid analysis.
+- Dependency or lockfile changes, database/schema migrations, configuration or
+  persistence format changes, and public API/IPC/wire changes must state why
+  they are necessary, how compatibility is handled, and how to roll back or
+  recover.
+- Destructive or difficult-to-reverse behavior requires an explicit rollback
+  or recovery plan before the PR is ready for review.
+
+#### UI and security evidence
+
+- User-visible UI changes should include screenshots or recordings appropriate
+  to the change, including relevant themes, viewport constraints, and
+  loading/empty/error states. If visual evidence is not useful, say why.
+- Before handoff, inspect the diff for secrets, tokens, personal paths, private
+  configuration, debug logs, build artifacts, caches, and unrelated formatting
+  changes. None may be included.
+
+#### Draft, ready, and review lifecycle
+
+- Keep the PR in Draft while material design choices, known blockers, required
+  migrations, or risk-proportionate verification remain incomplete.
+- Mark the PR ready only when its acceptance criteria are met and the
+  description reflects the current implementation.
+- If scope, behavior, or the chosen solution changes materially after review
+  begins, update the description and notify reviewers instead of silently
+  changing direction.
 
 ---
 

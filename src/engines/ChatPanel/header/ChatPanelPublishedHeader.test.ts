@@ -23,7 +23,7 @@ describe("ChatPanelPublishedHeader", () => {
 
     expect(markup).toContain('data-testid="chat-panel-published-header"');
     expect(markup).toContain("h-10");
-    expect(markup).toContain("pl-2");
+    expect(markup).toContain("pl-[15px]");
     expect(markup).toContain("border-b border-border-2");
     expect(markup).toContain("Leading");
     expect(markup).toContain("Content");

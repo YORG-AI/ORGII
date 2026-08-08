@@ -13,6 +13,10 @@ import { BrushCleaning, Layout, Plus } from "lucide-react";
 import React, { memo, useState } from "react";
 
 import Button from "@src/components/Button";
+import {
+  PILL_CONTROL_IDLE_SURFACE_CLASS,
+  pillControlStateClass,
+} from "@src/components/CompoundPill/config";
 import Dropdown from "@src/components/Dropdown";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
@@ -58,11 +62,10 @@ function renderSectionContent(section: InlineSection) {
   return section.label ?? section.count;
 }
 
-function getButtonClassName(section: InlineSection) {
-  const activeClassName = section.active ? "!bg-fill-1 !text-primary-6" : "";
+function getButtonClassName(section: InlineSection, menuOpen: boolean) {
   const primaryClassName =
     section.variant === "primary" ? "!border-primary-5 !text-primary-6" : "";
-  return `${activeClassName} ${primaryClassName}`.trim();
+  return `${pillControlStateClass(section.active || menuOpen)} ${primaryClassName}`.trim();
 }
 
 const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
@@ -103,7 +106,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
                 onClick={scrollNav!.onAddToConversation}
                 aria-label={scrollNav!.addToConversationTooltipLabel}
                 data-testid="browser-add-to-conversation-pill"
-                className="max-w-[190px] !text-primary-6"
+                className={`max-w-[190px] !text-primary-6 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
               >
                 {scrollNav!.addToConversationLabel}
               </Button>
@@ -118,7 +121,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
                 aria-label={scrollNav!.cancelAddToConversationLabel}
                 title={scrollNav!.cancelAddToConversationLabel}
                 data-testid="browser-cancel-add-to-conversation-pill"
-                className="!text-primary-6"
+                className={`!text-primary-6 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
               />
               <span className="mx-0.5 h-4 w-px bg-border-2" />
             </span>
@@ -126,6 +129,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
         )}
 
         {sections.map((section) => {
+          const isOpen = openMenuKey === section.key;
           const button = (
             <Button
               key={section.key}
@@ -137,7 +141,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
               iconOnly={section.iconOnly}
               onClick={section.onExpand}
               data-testid={section.testId}
-              className={getButtonClassName(section)}
+              className={getButtonClassName(section, isOpen)}
             >
               {renderSectionContent(section)}
             </Button>
@@ -145,7 +149,6 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
 
           if (!section.droplist) return button;
 
-          const isOpen = openMenuKey === section.key;
           const droplist = React.isValidElement(section.droplist)
             ? React.cloneElement(
                 section.droplist as React.ReactElement<{
@@ -182,6 +185,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
             icon={<Layout size={13} strokeWidth={2} />}
             onClick={canvasPreview.onOpen}
             aria-label={canvasPreview.label}
+            className={PILL_CONTROL_IDLE_SURFACE_CLASS}
           >
             {canvasPreview.label}
           </Button>
@@ -207,6 +211,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
                 shape="round"
                 onClick={scrollNav!.onFollowAgent}
                 aria-label={scrollNav!.followAgentTooltipLabel}
+                className={PILL_CONTROL_IDLE_SURFACE_CLASS}
               >
                 {scrollNav!.followAgentLabel}
               </Button>

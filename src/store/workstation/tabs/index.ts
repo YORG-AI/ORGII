@@ -33,10 +33,13 @@ export type {
   ToolTabType,
 } from "./types";
 
+export type { CloseWorkstationTabsRequest } from "./atoms";
+
 export {
   FILE_TAB_TYPES,
   TOOL_TAB_TYPES,
   getWorkstationTabOwnership,
+  closesSharedResourceOnDismiss,
 } from "./types";
 
 // ============================================
@@ -52,7 +55,9 @@ export {
   claimLegacyWorkstationSeedAtom,
   disposeWorkstationWorkspaceAtom,
   openWorkstationTabAtom,
+  closeWorkstationTabsAtom,
   closeWorkstationTabAtom,
+  removeSharedWorkstationTabsAtom,
   removeSharedWorkstationTabAtom,
   focusWorkstationTabAtom,
   updateWorkstationTabDataAtom,

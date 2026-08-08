@@ -147,9 +147,14 @@ describe("HumanSessionView", () => {
     });
 
     const cards = container.querySelectorAll(
-      ".rounded-xl.border-border-1.bg-primary-container"
+      ".rounded-xl.border-border-1.bg-chat-pane"
     );
     expect(cards).toHaveLength(2);
+    expect(
+      container.querySelectorAll(
+        ".rounded-xl.border-border-1.bg-chat-pane > .bg-primary-container"
+      )
+    ).toHaveLength(2);
     expect(container.querySelectorAll("time")).toHaveLength(2);
     expect(
       container.querySelectorAll('[data-testid="human-session-entry-body"]')

@@ -106,28 +106,25 @@ impl Tool for ProjectTool {
             }
 
             // ── Work item actions ──
-            "list_items" => {
-                let slug = Self::resolve_slug(&params)?;
-                work_items::list(&slug).await
-            }
-            "read_item" => {
-                let slug = Self::resolve_slug(&params)?;
-                let short_id = required_string(&params, "short_id")?;
-                work_items::read(&slug, &short_id).await
-            }
-            "create_item" => {
-                let slug = Self::resolve_slug(&params)?;
-                work_items::create(&slug, &params).await
-            }
-            "update_item" => {
-                let slug = Self::resolve_slug(&params)?;
-                let short_id = required_string(&params, "short_id")?;
-                work_items::update(&slug, &short_id, &params).await
-            }
-            "delete_item" => {
-                let slug = Self::resolve_slug(&params)?;
-                let short_id = required_string(&params, "short_id")?;
-                work_items::delete(&slug, &short_id).await
+            //
+            // The duplicate CRUD surface (list_items/read_item/create_item/
+            // update_item/delete_item) was consolidated into
+            // `manage_work_item` (Orgtrack migration Phase 8) — one tool
+            // owns work-item CRUD. Recoverable misuse returns structured
+            // guidance instead of a trajectory-visible execution error so
+            // the model self-corrects in one step.
+            "list_items" | "read_item" | "create_item" | "update_item" | "delete_item" => {
+                let equivalent = match action.as_str() {
+                    "list_items" => "list",
+                    "read_item" => "read",
+                    "create_item" => "create",
+                    "update_item" => "update",
+                    _ => "delete",
+                };
+                Ok(format!(
+                    "{{\"guidance\": \"work-item CRUD moved to the manage_work_item tool; call manage_work_item with action='{}' and the same parameters\", \"movedTo\": \"manage_work_item\"}}",
+                    equivalent
+                ))
             }
             "start_item" => {
                 let slug = Self::resolve_slug(&params)?;

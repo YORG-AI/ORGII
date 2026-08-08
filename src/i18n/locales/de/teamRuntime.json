@@ -2,6 +2,20 @@
   "title": "Team-Runtime",
   "refresh": "Aktualisieren",
   "loadError": "Team-Runtime konnte nicht geladen werden",
+  "overview": {
+    "today": "Heute",
+    "everyone": "Alle",
+    "activeMembers": "Aktive Mitglieder",
+    "systemsCurrent": "{{current}} von {{total}} Systemen aktuell",
+    "usageByAgent": "Nutzung nach Agent",
+    "recentSessions": "Neueste geteilte Sessions",
+    "recentLoading": "Geteilte Sessions werden geladen…",
+    "recentEmpty": "Noch keine geteilten Sessions",
+    "members": "Aufschlüsselung nach Mitglied",
+    "activeToday": "Heute aktiv",
+    "inactiveToday": "Heute inaktiv",
+    "sync": "Sync"
+  },
   "signedOut": {
     "title": "Melde dich an, um dein Team zu sehen",
     "subtitle": "Die Runtime deiner Teamkollegen wird über ORG2 Cloud geteilt.",

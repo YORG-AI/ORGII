@@ -12,7 +12,12 @@ import { AlertTriangle, BrushCleaning, Plus, XCircle } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { BaseStatusBar, StatusBarButton, StatusBarText } from "./StatusBarBase";
+import {
+  BaseStatusBar,
+  StatusBarButton,
+  StatusBarLabel,
+  StatusBarText,
+} from "./StatusBarBase";
 
 export interface BrowserStatusBarProps {
   /** Current page URL */
@@ -79,13 +84,17 @@ const BrowserStatusBar: React.FC<BrowserStatusBarProps> = memo(
               {errorCount > 0 && (
                 <span className={`flex items-center gap-1 ${itemTextClass}`}>
                   <XCircle size={13} />
-                  <span className="font-medium">{errorCount}</span>
+                  <StatusBarLabel emphasis numeric>
+                    {errorCount}
+                  </StatusBarLabel>
                 </span>
               )}
               {warningCount > 0 && (
                 <span className={`flex items-center gap-1 ${itemTextClass}`}>
                   <AlertTriangle size={13} />
-                  <span className="font-medium">{warningCount}</span>
+                  <StatusBarLabel emphasis numeric>
+                    {warningCount}
+                  </StatusBarLabel>
                 </span>
               )}
             </StatusBarButton>

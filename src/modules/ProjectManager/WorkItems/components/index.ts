@@ -12,6 +12,7 @@ export {
   WORK_ITEM_THREAD_PROPERTY_FIELDS,
 } from "./WorkItemProperties";
 export { default as WorkItemThreadSurface } from "./WorkItemThreadSurface";
+export { default as GitHubIssueThreadSurface } from "./GitHubIssueThreadSurface";
 export { default as WorkItemRow } from "./WorkItemRow";
 export { default as WorkItemSection } from "./WorkItemSection";
 export { default as WorkItemsListContent } from "./WorkItemsListContent";

@@ -341,7 +341,11 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
         )}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <MainContentArea className="relative min-h-0 flex-1">
+          <MainContentArea
+            className={`relative min-h-0 flex-1 ${
+              windowsHost ? "windows-main-page-surface" : ""
+            }`}
+          >
             {contentArea}
           </MainContentArea>
 

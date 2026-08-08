@@ -427,8 +427,6 @@
   &.table-settings-pin-last-column {
     .table-thead tr > .table-th:last-child,
     .table-row > .table-td:last-child {
-      // Avoid position:sticky;right + CSS zoom: WebKit miscalculates sticky
-      // positions inside overflow-x:auto when the root has style.zoom set.
       position: relative;
       background: var(--settings-table-surface);
 
@@ -583,6 +581,19 @@
 
 .settings-table-root {
   container-type: inline-size;
+}
+
+// Keep compact tables' final action/status column reachable while the wider
+// title/context columns scroll underneath it. The app now uses native WebView
+// zoom rather than CSS root zoom, so right-sticky table cells are stable here.
+@media (max-width: 1300px) {
+  .table-settings.table-settings-pin-last-column {
+    .table-thead tr > .table-th:last-child,
+    .table-row > .table-td:last-child {
+      position: sticky;
+      right: 0;
+    }
+  }
 }
 
 // Keep the search/filter toolbar pinned above the table's fixed column header.
@@ -740,6 +751,16 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: auto;
+  }
+
+  &.table-has-empty-state {
+    .table,
+    .table-tbody,
+    .table-tbody > tr,
+    .table-tbody > tr > td,
+    .table-empty {
+      height: 100%;
+    }
   }
 }
 

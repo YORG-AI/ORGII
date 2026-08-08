@@ -57,7 +57,7 @@ const log = createLogger("SidebarBase");
 const HOST_DESKTOP_KIND = resolveHostDesktop();
 const IS_MACOS_HOST = HOST_DESKTOP_KIND === HOST_DESKTOP.MACOS;
 const IS_WINDOWS_HOST = HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS;
-const SHOW_HOST_TITLE =
+const IS_WINDOWS_OR_LINUX_HOST =
   HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS ||
   HOST_DESKTOP_KIND === HOST_DESKTOP.LINUX;
 
@@ -89,6 +89,8 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     addTooltipContent,
     beforeAddNewActions,
     headerActions,
+    hostTopBarLeadingContent,
+    macTopBarFollowingContent,
   }) => {
     const sidebarContainerRef = useRef<HTMLDivElement>(null);
     const {
@@ -269,11 +271,13 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
 
       // In fullscreen mode, traffic lights are hidden, so no padding needed
       const trafficLightPadding =
-        IS_WINDOWS_HOST || isFullscreen
+        IS_WINDOWS_OR_LINUX_HOST || isFullscreen
           ? 0
           : SIDEBAR_STYLE.trafficLightsPadding;
-      const alignmentClassName = IS_WINDOWS_HOST
-        ? "justify-between pl-5 pr-2"
+      const alignmentClassName = IS_WINDOWS_OR_LINUX_HOST
+        ? hostTopBarLeadingContent
+          ? "justify-between pl-3 pr-2"
+          : "justify-between pl-5 pr-2"
         : "justify-end pr-2";
 
       return (
@@ -290,13 +294,22 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
             } as React.CSSProperties
           }
         >
-          {SHOW_HOST_TITLE ? (
-            <span className="select-none text-[13px] font-semibold tracking-wide text-text-2">
-              ORG2
-            </span>
+          {IS_WINDOWS_OR_LINUX_HOST ? (
+            hostTopBarLeadingContent ? (
+              <div
+                className="min-w-0 flex-1"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              >
+                {hostTopBarLeadingContent}
+              </div>
+            ) : (
+              <span className="select-none text-[13px] font-semibold tracking-wide text-text-2">
+                ORG2
+              </span>
+            )
           ) : null}
           <div
-            className={`flex items-center gap-1 ${sidebarTopChromeClassName}`}
+            className={`flex shrink-0 items-center gap-1 ${sidebarTopChromeClassName}`}
           >
             {beforeAddNewActions ? (
               <div
@@ -458,6 +471,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           />
         )}
         {renderTrafficLightsSpace()}
+        {IS_MACOS_HOST ? macTopBarFollowingContent : null}
         {header}
         <div className="flex flex-1 flex-col overflow-hidden">
           {resolvedChildren}
@@ -480,7 +494,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     // current layout mode so it visually detaches from the workspace.
     const sidebarBoxShadow = shouldForceVisible
       ? "var(--sidebar-shadow)"
-      : IS_MACOS_HOST && sidebarEdgeDepthEnabled
+      : IS_WINDOWS_HOST || (IS_MACOS_HOST && sidebarEdgeDepthEnabled)
         ? "var(--sidebar-edge-shadow)"
         : "none";
     const sidebarBackdropFilter = "none";
@@ -496,7 +510,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           ...floatingSurfaceOverride,
         }
       : {
-          backgroundColor: "var(--sidebar-bg)",
+          backgroundColor: IS_WINDOWS_HOST
+            ? "color-mix(in srgb, var(--color-bg-2) var(--windows-native-chrome-opacity, 30%), transparent)"
+            : "var(--sidebar-bg)",
           borderColor: "var(--sidebar-border)",
           boxShadow: sidebarBoxShadow,
           backdropFilter: sidebarBackdropFilter,
@@ -516,7 +532,10 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     // Modern chrome keeps the sidebar flush against the rounded window edge,
     // with only a separator where it meets the content panel.
     const modernSurfaceStyle = {
-      borderTopLeftRadius: "var(--border-radius-window)",
+      // The Windows header spans the full native top edge and owns both top
+      // radii. Rounding the sidebar again below it creates a detached inner
+      // curve; macOS has no HTML topbar, so its sidebar still owns this corner.
+      borderTopLeftRadius: IS_WINDOWS_HOST ? 0 : "var(--border-radius-window)",
       borderBottomLeftRadius: "var(--border-radius-window)",
       borderTopRightRadius: 0,
       borderBottomRightRadius: 0,

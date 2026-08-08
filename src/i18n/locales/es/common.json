@@ -11,6 +11,11 @@
       "mentions": "Menciones",
       "assigned": "Asignados"
     },
+    "sections": {
+      "reviewRequested": "Revisión solicitada",
+      "authoredByMe": "Creadas por mí",
+      "otherTodos": "Otras tareas"
+    },
     "status": {
       "read": "Leído",
       "unread": "Sin leer"
@@ -33,10 +38,10 @@
       "title": "Todavía no hay nada aquí",
       "subtitle": "Las menciones y los elementos de trabajo asignados aparecerán aquí.",
       "selectTitle": "Selecciona un elemento",
-      "selectSubtitle": "Consulta el contexto del comentario o los detalles del elemento de trabajo.",
+      "selectSubtitle": "Consulta el contexto del comentario o los detalles del elemento de trabajo",
       "mentions": {
         "title": "Sin menciones",
-        "subtitle": "Cuando un compañero te mencione con @ en un comentario, aparecerá aquí."
+        "subtitle": "Cuando un compañero te mencione con @ en un comentario, aparecerá aquí"
       },
       "assigned": {
         "title": "No tienes nada asignado",
@@ -111,7 +116,9 @@
       "markUnread": "No se pudo marcar este elemento como no leído. Inténtalo de nuevo.",
       "markAllRead": "No se pudieron marcar todos los elementos como leídos. Inténtalo de nuevo.",
       "identity": "Tu cuenta no se pudo asociar a ningún miembro del proyecto. Revisa el correo electrónico de tu perfil de proyecto.",
-      "partialLoad": "Algunas fuentes de la bandeja del equipo no se pudieron actualizar. Los elementos disponibles se siguen mostrando.",
+      "partialLoad": "Algunas fuentes de la bandeja del equipo no se pudieron actualizar. Los elementos disponibles se siguen mostrando",
+      "pullRequestsPartialLoad": "No se pudieron actualizar algunas pull requests",
+      "pullRequestsPartialLoadHelp": "Los elementos disponibles se siguen mostrando; actualiza para intentar cargar de nuevo las pull requests que faltan",
       "workItemContext": "Parte del contexto del proyecto no está disponible. El elemento de trabajo sigue siendo utilizable.",
       "workItemLoad": "No se pudo cargar este elemento de trabajo. Inténtalo de nuevo.",
       "workItemUpdate": "No se pudo guardar el último cambio del elemento de trabajo. Inténtalo de nuevo."
@@ -155,6 +162,50 @@
       "medium": "Media",
       "high": "Alta",
       "urgent": "Urgente"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Archivo",
+      "edit": "Editar",
+      "view": "Ver",
+      "window": "Ventana",
+      "help": "Ayuda",
+      "aria": "Menú {{label}}"
+    },
+    "items": {
+      "quitOrg2": "Salir de ORG-2",
+      "newSession": "Nueva sesión",
+      "openFolder": "Abrir carpeta...",
+      "addFolderToWorkspace": "Añadir carpeta al espacio de trabajo...",
+      "saveWorkspaceAs": "Guardar espacio de trabajo como...",
+      "closeWindow": "Cerrar ventana",
+      "undo": "Deshacer",
+      "redo": "Rehacer",
+      "cut": "Cortar",
+      "copy": "Copiar",
+      "paste": "Pegar",
+      "selectAll": "Seleccionar todo",
+      "commandPalette": "Paleta de comandos",
+      "goToFile": "Ir al archivo...",
+      "selectModel": "Seleccionar modelo...",
+      "switchWorkspace": "Cambiar espacio de trabajo...",
+      "switchBranch": "Cambiar rama...",
+      "switchRunningLocation": "Cambiar ubicación de ejecución...",
+      "settings": "Configuración...",
+      "zoomIn": "Acercar",
+      "zoomOut": "Alejar",
+      "actualSize": "Tamaño real",
+      "minimize": "Minimizar",
+      "maximizeRestore": "Maximizar / Restaurar",
+      "maximizeWorkstation": "Maximizar estación de trabajo",
+      "documentation": "Documentación",
+      "reportIssue": "Informar de un problema"
+    },
+    "controls": {
+      "minimizeWindow": "Minimizar ventana",
+      "maximizeRestoreWindow": "Maximizar o restaurar ventana",
+      "closeWindow": "Cerrar ventana"
     }
   },
   "toasts": {
@@ -368,7 +419,8 @@
     "skipThisVersion": "Omitir esta versión",
     "later": "Más tarde",
     "link": "Vincular",
-    "copyName": "Copiar nombre"
+    "copyName": "Copiar nombre",
+    "switchMethod": "Cambiar método"
   },
   "refreshToast": {
     "successName": "{{name}} actualizado",
@@ -1358,8 +1410,59 @@
       "collapse": "Contraer la información del espacio de trabajo"
     },
     "pr": {
+      "title": "Pull request",
       "linkedBranch": "Pull request #{{number}}",
+      "baseBranch": "Base",
+      "noDescription": "No se proporcionó una descripción.",
+      "loadingConversation": "Cargando…",
+      "reviewNoBody": "Dejó comentarios de revisión.",
+      "submitReview": "Enviar revisión",
+      "reviewHeadNotice": "La revisión se aplica solo si el commit principal mostrado sigue coincidiendo.",
+      "reviewDecision": "Decisión de revisión",
+      "reviewComment": "Comentario de revisión",
+      "reviewCommentPlaceholder": "Añadir un comentario…",
+      "commentPlaceholder": "Dejar un comentario…",
+      "comment": "Comentar",
+      "approve": "Aprobar",
+      "requestChanges": "Solicitar cambios",
+      "reply": "Responder",
+      "replyPlaceholder": "Responder…",
+      "reviewThreads": "Comentarios de revisión",
+      "details": "Detalles",
+      "unknownAuthor": "Desconocido",
+      "activity": {
+        "opened": "abrió esta pull request",
+        "commented": "comentó",
+        "approved": "aprobó estos cambios",
+        "changesRequested": "solicitó cambios",
+        "reviewDismissed": "descartó una revisión",
+        "reviewed": "revisó"
+      },
+      "summary": {
+        "label": "Resumen de la pull request",
+        "branch": "Rama",
+        "reviewers": "Revisores",
+        "noReviewers": "Sin revisores",
+        "comments": "Comentarios",
+        "commentCount_one": "{{count}} comentario",
+        "commentCount_other": "{{count}} comentarios",
+        "checks": "Comprobaciones",
+        "noChecks": "Sin comprobaciones de CI",
+        "checksFailed": "Las comprobaciones fallaron",
+        "status": "Estado"
+      },
+      "tabs": {
+        "conversation": "Conversación",
+        "commits": "Commits",
+        "checks": "Comprobaciones",
+        "changes": "Cambios"
+      },
       "checks": {
+        "none": "No se informaron comprobaciones",
+        "noneHint": "No se ejecutaron comprobaciones de CI ni estados en el commit de cabecera de esta pull request.",
+        "allPassed": "Todas las comprobaciones pasaron",
+        "someFailed": "Algunas comprobaciones fallaron",
+        "pending": "Comprobaciones en curso",
         "passedShort": "Superada",
         "failedShort": "Fallida",
         "runningShort": "En curso",
@@ -1367,6 +1470,76 @@
         "noneShort": "Sin CI",
         "unavailableShort": "CI no disponible",
         "branchStatus": "CI de la pull request #{{number}}: {{status}}"
+      },
+      "commits": {
+        "backToList": "Todos los commits",
+        "none": "Sin commits"
+      },
+      "changes": {
+        "title": "Archivos modificados",
+        "noFiles": "No hay cambios de archivos",
+        "tooLarge": "El archivo es demasiado grande para mostrar el diff",
+        "unavailable": "Cambios no disponibles",
+        "unavailableHint": "No se pudieron resolver los commits base y de cabecera de la pull request."
+      },
+      "status": {
+        "open": "Abierta",
+        "merged": "Fusionada",
+        "closed": "Cerrada",
+        "draft": "Borrador"
+      },
+      "actions": {
+        "label": "Acciones del pull request",
+        "confirmMergeTitle": "¿Fusionar el pull request?",
+        "confirmMergeMessage": "GitHub fusionará la rama de origen del pull request actual con la rama base.",
+        "merge": "Fusionar pull request",
+        "squash": "Combinar commits y fusionar",
+        "rebase": "Rebase y fusionar",
+        "mergeSuccess": "Pull request fusionado",
+        "mergeRequested": "Fusión solicitada",
+        "removedFromQueue": "Eliminado de la cola de fusión",
+        "autoMergeEnabled": "Fusión automática activada",
+        "autoMergeDisabled": "Fusión automática desactivada",
+        "confirmCloseTitle": "¿Cerrar el pull request?",
+        "confirmCloseMessage": "El pull request seguirá disponible y podrá reabrirse más adelante.",
+        "close": "Cerrar pull request",
+        "closeSuccess": "Pull request cerrado",
+        "reopen": "Reabrir pull request",
+        "reopenSuccess": "Pull request reabierto",
+        "enableAutoMerge": "Activar fusión automática",
+        "mergeWhenReady": "Fusionar cuando esté listo",
+        "disableAutoMerge": "Desactivar fusión automática",
+        "removeFromMergeQueue": "Eliminar de la cola de fusión",
+        "merged": "Fusionado",
+        "closed": "Cerrado",
+        "draft": "Borrador",
+        "inMergeQueue": "En la cola de fusión",
+        "approvalRequired": "Se requiere aprobación",
+        "changesRequested": "Cambios solicitados",
+        "resolveConflicts": "Resolver conflictos",
+        "checksFailed": "Comprobaciones fallidas",
+        "checksPending": "Comprobaciones pendientes",
+        "mergeBlocked": "Fusión bloqueada",
+        "searchReviewers": "Buscar revisores",
+        "reviewersLoadFailed": "No se pudieron cargar los revisores",
+        "noReviewers": "No hay revisores disponibles",
+        "reviewersUpdated": "Revisores actualizados",
+        "reviewersCount_one": "{{count}} revisor",
+        "reviewersCount_other": "{{count}} revisores",
+        "reviewers": "Revisores",
+        "tooltips": {
+          "merge": "Fusionar este pull request en GitHub",
+          "alreadyMerged": "Este pull request ya está fusionado",
+          "reopenBeforeMerging": "Reabre este pull request antes de fusionarlo",
+          "markReady": "Marca este pull request como listo para revisión antes de fusionarlo",
+          "mergeQueue": "GitHub fusionará este pull request mediante la cola de fusión",
+          "approvalRequired": "GitHub requiere la aprobación de una revisión antes de fusionar",
+          "changesRequested": "Los cambios solicitados deben resolverse antes de fusionar",
+          "resolveConflicts": "Resuelve los conflictos antes de fusionar",
+          "checksFailed": "Las comprobaciones obligatorias deben superarse antes de fusionar",
+          "checksPending": "Espera las comprobaciones obligatorias o activa la fusión automática",
+          "mergeBlocked": "GitHub informa de requisitos de fusión pendientes"
+        }
       }
     },
     "messages": {
@@ -1456,7 +1629,49 @@
         "unpinned": "dejó de fijar este issue",
         "transferred": "transfirió este issue",
         "convertedToDiscussion": "convirtió este issue en una discusión",
-        "mentioned": "mencionó este issue"
+        "mentioned": "mencionó este issue",
+        "commentDeleted": "eliminó un comentario",
+        "subscribed": "se suscribió a este issue",
+        "unsubscribed": "canceló la suscripción a este issue",
+        "addedToProject": "añadió este issue a un proyecto",
+        "movedInProject": "movió este issue en un proyecto",
+        "removedFromProject": "eliminó este issue de un proyecto",
+        "archived": "archivó este issue",
+        "unarchived": "desarchivó este issue",
+        "merged": "fusionó esta pull request",
+        "committed": "hizo un commit en esta pull request",
+        "headRefDeleted": "eliminó la rama de origen",
+        "headRefRestored": "restauró la rama de origen",
+        "headRefForcePushed": "forzó el envío de la rama de origen",
+        "baseRefChanged": "cambió la rama base",
+        "automaticBaseChangeFailed": "no pudo cambiar automáticamente la rama base",
+        "automaticBaseChangeSucceeded": "cambió automáticamente la rama base",
+        "deployed": "desplegó esta pull request",
+        "deploymentEnvironmentChanged": "cambió el entorno de despliegue",
+        "readyForReview": "marcó esta pull request como lista para revisión",
+        "reviewRequested": "solicitó una revisión",
+        "reviewRequestRemoved": "eliminó una solicitud de revisión",
+        "reviewed": "revisó estos cambios",
+        "reviewDismissed": "descartó una revisión",
+        "userBlocked": "bloqueó a este usuario"
+      },
+      "composer": {
+        "addComment": "Añadir un comentario",
+        "commentingAs": "Comentando como {{login}}",
+        "identityUnavailable": "Identidad de GitHub no disponible",
+        "commentPlaceholder": "Escribe un comentario…",
+        "submitComment": "Comentar",
+        "closeIssue": "Cerrar issue",
+        "closeAsCompleted": "Cerrar como completado",
+        "closeAsNotPlanned": "Cerrar como no planificado",
+        "closeAsDuplicate": "Cerrar como duplicado",
+        "duplicateSearchPlaceholder": "Buscar issues",
+        "duplicateEmpty": "No hay issues coincidentes",
+        "duplicateLoadFailed": "No se pudieron cargar los issues",
+        "reopenIssue": "Reabrir issue",
+        "commentFailed": "No se pudo añadir el comentario",
+        "bodyUpdateFailed": "No se pudo actualizar la descripción del issue",
+        "statusFailed": "No se pudo actualizar el estado del issue"
       }
     }
   },
@@ -2460,8 +2675,8 @@
     "selectRepoToStart": "Selecciona un Repo para empezar"
   },
   "quitConfirmation": {
-    "title": "¿Salir de ORGII?",
-    "subtitle": "Las sesiones en ejecución conservarán su estado actual. Puedes volver a abrir ORGII más tarde.",
+    "title": "¿Salir de ORG-2?",
+    "subtitle": "Las sesiones en ejecución conservarán su estado actual. Puedes volver a abrir ORG-2 más tarde.",
     "cancel": "Cancelar",
     "confirm": "Salir"
   },
@@ -2492,5 +2707,15 @@
     "downloadedOfTotal": "{{downloaded}} de {{total}}",
     "preparingDownload": "Preparando descarga…",
     "downloadingAndInstalling": "Descargando e instalando actualización (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Título / contexto",
+      "status": "Estado",
+      "assignee": "Responsable",
+      "updated": "Actualizado"
+    },
+    "selectRow": "Seleccionar {{id}}"
   }
 }

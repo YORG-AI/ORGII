@@ -15,11 +15,11 @@
 import { useAtomValue } from "jotai";
 import {
   CloudOff,
-  ExternalLink,
   Globe,
   HatGlasses,
   Monitor,
   RefreshCw,
+  SquareArrowOutUpRight,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -373,7 +373,9 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
                     <Button
                       variant="primary"
                       size="small"
-                      icon={<ExternalLink size={14} strokeWidth={1.75} />}
+                      icon={
+                        <SquareArrowOutUpRight size={14} strokeWidth={1.75} />
+                      }
                       htmlType="button"
                       onClick={handleOpenExternal}
                     >

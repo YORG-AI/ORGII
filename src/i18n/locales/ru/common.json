@@ -11,6 +11,11 @@
       "mentions": "Упоминания",
       "assigned": "Назначенные"
     },
+    "sections": {
+      "reviewRequested": "Запрошено ревью",
+      "authoredByMe": "Созданные мной",
+      "otherTodos": "Другие задачи"
+    },
     "status": {
       "read": "Прочитано",
       "unread": "Не прочитано"
@@ -33,10 +38,10 @@
       "title": "Здесь пока ничего нет",
       "subtitle": "Упоминания и назначенные рабочие задачи будут отображаться здесь.",
       "selectTitle": "Выберите элемент",
-      "selectSubtitle": "Просмотрите контекст комментария или детали рабочей задачи.",
+      "selectSubtitle": "Просмотрите контекст комментария или детали рабочей задачи",
       "mentions": {
         "title": "Нет упоминаний",
-        "subtitle": "Когда коллега упомянет вас через @ в комментарии, это появится здесь."
+        "subtitle": "Когда коллега упомянет вас через @ в комментарии, это появится здесь"
       },
       "assigned": {
         "title": "Вам ничего не назначено",
@@ -113,7 +118,9 @@
       "markUnread": "Не удалось отметить этот элемент как непрочитанный. Повторите попытку.",
       "markAllRead": "Не удалось отметить все элементы как прочитанные. Повторите попытку.",
       "identity": "Не удалось сопоставить вашу учётную запись с участником проекта. Проверьте адрес электронной почты в профиле проекта.",
-      "partialLoad": "Некоторые источники общего почтового ящика команды не удалось обновить. Доступные элементы по-прежнему отображаются.",
+      "partialLoad": "Не удалось обновить некоторые источники общего почтового ящика команды. Доступные элементы по-прежнему отображаются",
+      "pullRequestsPartialLoad": "Не удалось обновить некоторые pull requests",
+      "pullRequestsPartialLoadHelp": "Доступные элементы по-прежнему отображаются; обновите список, чтобы повторно загрузить отсутствующие pull requests",
       "workItemContext": "Часть контекста проекта недоступна. Рабочая задача остаётся доступной для использования.",
       "workItemLoad": "Не удалось загрузить эту рабочую задачу. Повторите попытку.",
       "workItemUpdate": "Не удалось сохранить последнее изменение рабочей задачи. Повторите попытку."
@@ -159,6 +166,50 @@
       "medium": "Средний",
       "high": "Высокий",
       "urgent": "Срочный"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Файл",
+      "edit": "Правка",
+      "view": "Вид",
+      "window": "Окно",
+      "help": "Справка",
+      "aria": "Меню «{{label}}»"
+    },
+    "items": {
+      "quitOrg2": "Выйти из ORG-2",
+      "newSession": "Новый сеанс",
+      "openFolder": "Открыть папку...",
+      "addFolderToWorkspace": "Добавить папку в рабочую область...",
+      "saveWorkspaceAs": "Сохранить рабочую область как...",
+      "closeWindow": "Закрыть окно",
+      "undo": "Отменить",
+      "redo": "Повторить",
+      "cut": "Вырезать",
+      "copy": "Копировать",
+      "paste": "Вставить",
+      "selectAll": "Выделить всё",
+      "commandPalette": "Палитра команд",
+      "goToFile": "Перейти к файлу...",
+      "selectModel": "Выбрать модель...",
+      "switchWorkspace": "Сменить рабочую область...",
+      "switchBranch": "Сменить ветку...",
+      "switchRunningLocation": "Сменить место выполнения...",
+      "settings": "Настройки...",
+      "zoomIn": "Увеличить",
+      "zoomOut": "Уменьшить",
+      "actualSize": "Фактический размер",
+      "minimize": "Свернуть",
+      "maximizeRestore": "Развернуть / Восстановить",
+      "maximizeWorkstation": "Развернуть рабочую станцию",
+      "documentation": "Документация",
+      "reportIssue": "Сообщить о проблеме"
+    },
+    "controls": {
+      "minimizeWindow": "Свернуть окно",
+      "maximizeRestoreWindow": "Развернуть или восстановить окно",
+      "closeWindow": "Закрыть окно"
     }
   },
   "toasts": {
@@ -372,7 +423,8 @@
     "skipThisVersion": "Пропустить эту версию",
     "later": "Позже",
     "link": "Связать",
-    "copyName": "Копировать имя"
+    "copyName": "Копировать имя",
+    "switchMethod": "Сменить способ"
   },
   "refreshToast": {
     "successName": "{{name}} обновлено",
@@ -555,8 +607,8 @@
     "history": "История",
     "execution": "Выполнение",
     "gitHistory": "История Git",
-    "noPullRequest": "Нет пул-реквеста",
-    "pullRequest": "Пул-реквест",
+    "noPullRequest": "Нет pull request",
+    "pullRequest": "Pull request",
     "operationLog": "Журнал операций",
     "gitDashboard": "Панель",
     "changedFiles": "Изменённые файлы",
@@ -1362,8 +1414,61 @@
       "collapse": "Свернуть сведения о рабочей области"
     },
     "pr": {
+      "title": "Pull request",
       "linkedBranch": "Pull request №{{number}}",
+      "baseBranch": "База",
+      "noDescription": "Описание отсутствует.",
+      "loadingConversation": "Загрузка…",
+      "reviewNoBody": "Оставлены комментарии к ревью.",
+      "submitReview": "Отправить ревью",
+      "reviewHeadNotice": "Ревью будет применено, только если отображаемый головной коммит по-прежнему совпадает.",
+      "reviewDecision": "Решение по ревью",
+      "reviewComment": "Комментарий к ревью",
+      "reviewCommentPlaceholder": "Добавить комментарий…",
+      "commentPlaceholder": "Оставьте комментарий…",
+      "comment": "Комментировать",
+      "approve": "Одобрить",
+      "requestChanges": "Запросить изменения",
+      "reply": "Ответить",
+      "replyPlaceholder": "Ответить…",
+      "reviewThreads": "Комментарии к ревью",
+      "details": "Подробнее",
+      "unknownAuthor": "Неизвестно",
+      "activity": {
+        "opened": "открыл(а) этот pull request",
+        "commented": "оставил(а) комментарий",
+        "approved": "одобрил(а) эти изменения",
+        "changesRequested": "запросил(а) изменения",
+        "reviewDismissed": "отклонил(а) ревью",
+        "reviewed": "провёл(а) ревью"
+      },
+      "summary": {
+        "label": "Сводка pull request",
+        "branch": "Ветка",
+        "reviewers": "Ревьюеры",
+        "noReviewers": "Нет ревьюеров",
+        "comments": "Комментарии",
+        "commentCount_one": "{{count}} комментарий",
+        "commentCount_few": "{{count}} комментария",
+        "commentCount_many": "{{count}} комментариев",
+        "commentCount_other": "{{count}} комментария",
+        "checks": "Проверки",
+        "noChecks": "Нет проверок CI",
+        "checksFailed": "Проверки не пройдены",
+        "status": "Статус"
+      },
+      "tabs": {
+        "conversation": "Обсуждение",
+        "commits": "Коммиты",
+        "checks": "Проверки",
+        "changes": "Изменения"
+      },
       "checks": {
+        "none": "Проверки не найдены",
+        "noneHint": "Для головного коммита этого pull request не запускались проверки CI или статусы.",
+        "allPassed": "Все проверки пройдены",
+        "someFailed": "Некоторые проверки не пройдены",
+        "pending": "Проверки выполняются",
         "passedShort": "Пройдено",
         "failedShort": "Ошибка",
         "runningShort": "Выполняется",
@@ -1371,6 +1476,78 @@
         "noneShort": "Нет CI",
         "unavailableShort": "CI недоступен",
         "branchStatus": "CI для pull request №{{number}}: {{status}}"
+      },
+      "commits": {
+        "backToList": "Все коммиты",
+        "none": "Нет коммитов"
+      },
+      "changes": {
+        "title": "Изменённые файлы",
+        "noFiles": "Нет изменений файлов",
+        "tooLarge": "Файл слишком велик для отображения различий",
+        "unavailable": "Изменения недоступны",
+        "unavailableHint": "Не удалось определить базовый и головной коммиты pull request."
+      },
+      "status": {
+        "open": "Открыт",
+        "merged": "Слит",
+        "closed": "Закрыт",
+        "draft": "Черновик"
+      },
+      "actions": {
+        "label": "Действия с pull request",
+        "confirmMergeTitle": "Выполнить слияние pull request?",
+        "confirmMergeMessage": "GitHub выполнит слияние исходной ветки текущего pull request с базовой веткой.",
+        "merge": "Выполнить слияние pull request",
+        "squash": "Объединить коммиты и выполнить слияние",
+        "rebase": "Выполнить rebase и слияние",
+        "mergeSuccess": "Pull request объединён",
+        "mergeRequested": "Слияние запрошено",
+        "removedFromQueue": "Удалено из очереди слияния",
+        "autoMergeEnabled": "Автоматическое слияние включено",
+        "autoMergeDisabled": "Автоматическое слияние отключено",
+        "confirmCloseTitle": "Закрыть pull request?",
+        "confirmCloseMessage": "Pull request останется доступным, и его можно будет открыть снова.",
+        "close": "Закрыть pull request",
+        "closeSuccess": "Pull request закрыт",
+        "reopen": "Открыть pull request снова",
+        "reopenSuccess": "Pull request открыт снова",
+        "enableAutoMerge": "Включить автоматическое слияние",
+        "mergeWhenReady": "Выполнить слияние, когда всё готово",
+        "disableAutoMerge": "Отключить автоматическое слияние",
+        "removeFromMergeQueue": "Удалить из очереди слияния",
+        "merged": "Объединён",
+        "closed": "Закрыт",
+        "draft": "Черновик",
+        "inMergeQueue": "В очереди слияния",
+        "approvalRequired": "Требуется одобрение",
+        "changesRequested": "Запрошены изменения",
+        "resolveConflicts": "Разрешить конфликты",
+        "checksFailed": "Проверки не пройдены",
+        "checksPending": "Проверки ожидаются",
+        "mergeBlocked": "Слияние заблокировано",
+        "searchReviewers": "Поиск ревьюеров",
+        "reviewersLoadFailed": "Не удалось загрузить ревьюеров",
+        "noReviewers": "Нет доступных ревьюеров",
+        "reviewersUpdated": "Ревьюеры обновлены",
+        "reviewersCount_one": "{{count}} ревьюер",
+        "reviewersCount_few": "{{count}} ревьюера",
+        "reviewersCount_many": "{{count}} ревьюеров",
+        "reviewersCount_other": "{{count}} ревьюера",
+        "reviewers": "Ревьюеры",
+        "tooltips": {
+          "merge": "Выполнить слияние этого pull request на GitHub",
+          "alreadyMerged": "Этот pull request уже объединён",
+          "reopenBeforeMerging": "Перед слиянием снова откройте этот pull request",
+          "markReady": "Перед слиянием отметьте этот pull request как готовый к ревью",
+          "mergeQueue": "GitHub выполнит слияние этого pull request через очередь слияния",
+          "approvalRequired": "GitHub требует одобрения ревью перед слиянием",
+          "changesRequested": "Перед слиянием необходимо внести запрошенные изменения",
+          "resolveConflicts": "Перед слиянием разрешите конфликты",
+          "checksFailed": "Перед слиянием необходимо пройти обязательные проверки",
+          "checksPending": "Дождитесь обязательных проверок или включите автоматическое слияние",
+          "mergeBlocked": "GitHub сообщает о невыполненных требованиях для слияния"
+        }
       }
     },
     "messages": {
@@ -1462,7 +1639,49 @@
         "unpinned": "открепил(а) этот issue",
         "transferred": "перенёс(ла) этот issue",
         "convertedToDiscussion": "преобразовал(а) этот issue в обсуждение",
-        "mentioned": "упомянул(а) этот issue"
+        "mentioned": "упомянул(а) этот issue",
+        "commentDeleted": "удалил(а) комментарий",
+        "subscribed": "подписался(-ась) на этот issue",
+        "unsubscribed": "отписался(-ась) от этого issue",
+        "addedToProject": "добавил(а) этот issue в проект",
+        "movedInProject": "переместил(а) этот issue в проекте",
+        "removedFromProject": "удалил(а) этот issue из проекта",
+        "archived": "архивировал(а) этот issue",
+        "unarchived": "разархивировал(а) этот issue",
+        "merged": "объединил(а) этот pull request",
+        "committed": "добавил(а) коммит в этот pull request",
+        "headRefDeleted": "удалил(а) исходную ветку",
+        "headRefRestored": "восстановил(а) исходную ветку",
+        "headRefForcePushed": "принудительно отправил(а) исходную ветку",
+        "baseRefChanged": "изменил(а) базовую ветку",
+        "automaticBaseChangeFailed": "не смог(ла) автоматически изменить базовую ветку",
+        "automaticBaseChangeSucceeded": "автоматически изменил(а) базовую ветку",
+        "deployed": "развернул(а) этот pull request",
+        "deploymentEnvironmentChanged": "изменил(а) среду развертывания",
+        "readyForReview": "пометил(а) этот pull request как готовый к проверке",
+        "reviewRequested": "запросил(а) проверку",
+        "reviewRequestRemoved": "удалил(а) запрос на проверку",
+        "reviewed": "проверил(а) эти изменения",
+        "reviewDismissed": "отклонил(а) проверку",
+        "userBlocked": "заблокировал(а) этого пользователя"
+      },
+      "composer": {
+        "addComment": "Добавить комментарий",
+        "commentingAs": "Вы действуете как {{login}}",
+        "identityUnavailable": "Профиль GitHub недоступен",
+        "commentPlaceholder": "Напишите комментарий…",
+        "submitComment": "Комментировать",
+        "closeIssue": "Закрыть issue",
+        "closeAsCompleted": "Закрыть как выполненную",
+        "closeAsNotPlanned": "Закрыть как незапланированную",
+        "closeAsDuplicate": "Закрыть как дубликат",
+        "duplicateSearchPlaceholder": "Искать issue",
+        "duplicateEmpty": "Нет подходящих issue",
+        "duplicateLoadFailed": "Не удалось загрузить issue",
+        "reopenIssue": "Открыть issue снова",
+        "commentFailed": "Не удалось добавить комментарий",
+        "bodyUpdateFailed": "Не удалось обновить описание issue",
+        "statusFailed": "Не удалось обновить статус issue"
       }
     }
   },
@@ -2468,8 +2687,8 @@
     "selectRepoToStart": "Выберите Repo, чтобы начать"
   },
   "quitConfirmation": {
-    "title": "Выйти из ORGII?",
-    "subtitle": "Запущенные сеансы сохранят текущее состояние. Вы сможете открыть ORGII позже.",
+    "title": "Выйти из ORG-2?",
+    "subtitle": "Запущенные сеансы сохранят текущее состояние. Вы сможете открыть ORG-2 позже.",
     "cancel": "Отмена",
     "confirm": "Выйти"
   },
@@ -2500,5 +2719,15 @@
     "downloadedOfTotal": "{{downloaded}} из {{total}}",
     "preparingDownload": "Подготовка загрузки…",
     "downloadingAndInstalling": "Загрузка и установка обновления (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Заголовок / контекст",
+      "status": "Статус",
+      "assignee": "Исполнитель",
+      "updated": "Обновлено"
+    },
+    "selectRow": "Выбрать {{id}}"
   }
 }

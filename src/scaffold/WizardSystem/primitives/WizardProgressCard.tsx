@@ -18,6 +18,7 @@ import { Loader2 } from "lucide-react";
 import React from "react";
 
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 export interface WizardProgressCardProps {
@@ -42,7 +43,11 @@ const WizardProgressCard: React.FC<WizardProgressCardProps> = ({
         size={SPINNER_TOKENS.default}
         className="shrink-0 animate-spin text-primary-6"
       />
-      {children ?? <span className="text-sm text-text-2">{message}</span>}
+      {children ?? (
+        <span className={`${TYPOGRAPHY.contentSubtitle} text-text-2`}>
+          {message}
+        </span>
+      )}
     </div>
   );
 };

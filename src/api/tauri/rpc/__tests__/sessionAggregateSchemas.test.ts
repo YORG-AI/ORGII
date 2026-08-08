@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   ExternalHistorySidebarBatchResponseSchema,
   ExternalHistorySidebarListInput,
+  NativeSidebarSessionPageInput,
+  NativeSidebarSessionPageResponseSchema,
   SessionAggregateRecordSchema,
 } from "../schemas/sessionAggregate";
 
@@ -22,6 +24,40 @@ describe("session aggregate category schemas", () => {
     });
 
     expect(parsed.category).toBe("human_session");
+  });
+});
+
+describe("native sidebar pagination schemas", () => {
+  it("accepts the camelCase stream and keyset cursor contract", () => {
+    const parsed = NativeSidebarSessionPageInput.parse({
+      stream: "standaloneAgent",
+      cursor: {
+        updatedAt: "2026-07-30T12:00:00Z",
+        sessionId: "sdeagent-10",
+      },
+      limit: 10,
+    });
+    expect(parsed.cursor?.sessionId).toBe("sdeagent-10");
+
+    const response = NativeSidebarSessionPageResponseSchema.parse({
+      sessions: [],
+      nextCursor: {
+        updatedAt: "2026-07-30T11:00:00Z",
+        sessionId: "sdeagent-20",
+      },
+      hasMore: true,
+    });
+    expect(response.nextCursor?.updatedAt).toBe("2026-07-30T11:00:00Z");
+  });
+
+  it("rejects unknown streams instead of falling back to a default", () => {
+    expect(() =>
+      NativeSidebarSessionPageInput.parse({
+        stream: "someFutureDefault",
+        cursor: null,
+        limit: 10,
+      })
+    ).toThrow();
   });
 });
 

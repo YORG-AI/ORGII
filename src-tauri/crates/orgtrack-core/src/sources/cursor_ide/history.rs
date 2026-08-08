@@ -249,16 +249,24 @@ fn cached_rows_to_session_page(
 /// (`cursoride-{uuid}`); the prefix is stripped here before reading from
 /// Cursor's DB.
 ///
-/// Returns `Ok(vec![])` if Cursor's DB is missing or the composer is unknown
-/// — read-only history is best-effort by definition; we don't synthesize
-/// errors for missing data. Returns `Err` only on IO/SQL failures we cannot
-/// recover from.
+/// An unreadable source is an `Err`, never an empty transcript: this is the
+/// full-transcript loader behind cloud push and fork, and a locked/replaced
+/// `state.vscdb` or a composer row missing mid-rebuild reported as
+/// `Ok(vec![])` reads upstream as "this session has 0 events" — the exact
+/// hollow read that erased a session's cloud copy (301 → 0) before the push
+/// plane's hollow guard existed. Preview/listing paths keep their own
+/// best-effort behavior.
 pub fn load_history_for_session(session_id: &str) -> Result<Vec<ActivityChunk>, String> {
     let composer_id = strip_session_prefix(session_id);
 
     let cursor_conn = match open_cursor_db() {
         Some(conn) => conn,
-        None => return Ok(vec![]),
+        None => {
+            return Err(format!(
+                "Cursor state.vscdb is not readable right now; \
+                 refusing to report session {session_id} as empty"
+            ))
+        }
     };
 
     let composer = load_composer_for_order(&cursor_conn, composer_id)?;
@@ -269,7 +277,11 @@ pub fn load_history_for_session(session_id: &str) -> Result<Vec<ActivityChunk>, 
         &composer.full_conversation_headers_only,
     )?;
     if order.is_empty() {
-        return Ok(vec![]);
+        return Err(format!(
+            "Cursor composer {composer_id} has no readable bubbles \
+             (missing or mid-rebuild); refusing to report session \
+             {session_id} as empty"
+        ));
     }
 
     let bubbles = load_bubbles_by_id(&cursor_conn, composer_id, &order)?;
@@ -596,6 +608,24 @@ pub fn load_turn_window_for_session(
         next_user_bubble_id,
         loaded_bubble_count: turn_headers.len(),
     })
+}
+
+pub fn load_turn_ids_for_session(session_id: &str) -> Result<Vec<String>, String> {
+    let composer_id = strip_session_prefix(session_id);
+    let Some(cursor_conn) = open_cursor_db() else {
+        return Ok(Vec::new());
+    };
+    let composer = load_composer_for_order(&cursor_conn, composer_id)?;
+    let order = load_complete_bubble_order(
+        &cursor_conn,
+        composer_id,
+        &composer.full_conversation_headers_only,
+    )?;
+    Ok(order
+        .into_iter()
+        .filter(|header| header.bubble_type == CURSOR_BUBBLE_TYPE_USER)
+        .map(|header| header.bubble_id)
+        .collect())
 }
 
 #[cfg(test)]

@@ -25,6 +25,7 @@ conversation comments, submitted review bodies, and inline review threads.
 | 3   | Click the `Open on GitHub` icon button.                     | Opens `detail.htmlUrl` (falls back to `prUrl`) in a new tab (`target="_blank"`, `rel="noreferrer"`). No in-app navigation/regression.                                                                     |
 | 4   | Read the stats row for additions=104, deletions=45, files=3 | Shows `+104` (green) `-45` (red) in a subtle pill, then a `FileDiff` icon + "3 files".                                                                                                                    |
 | 5   | Select a commit in the list below.                          | Existing behavior unchanged — row highlights, `onHistorySelectionChange` fires with the commit selection.                                                                                                 |
+| 6   | Open a GitHub PR detail in WorkStation or Team Inbox.       | A permanent borderless right-side trail is visible; Conversation markers navigate the description, comments, reviews, and composer.                                                                       |
 
 ## Edge Cases
 
@@ -61,6 +62,22 @@ conversation comments, submitted review bodies, and inline review threads.
 | 2   | Long comment or review body     | Open Conversation with a body taller than 15 lines       | Each body truncates with a visible control and expands independently without changing adjacent timeline cards              |
 | 3   | Long inline review-thread reply | Expand Review comments and open a reply over 15 lines    | Reply uses the same 15-line preview and always-visible expand/collapse control                                             |
 | 4   | Conversation container styling  | Open a PR with description, comments, and review threads | Timeline and review-thread cards use the Settings container background, rounded border, and no shadow                      |
+| 5   | PR trail across tabs            | Switch among Conversation, Commits, Checks, and Changes  | The right-side trail rail remains mounted; sparse tabs retain an always-visible root marker                                |
+
+## PR-level actions
+
+| #   | Scenario                      | Steps                                                          | Expected Result                                                                                                                  |
+| --- | ----------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Clean mergeable PR            | Open an open PR with passing checks                            | Shared action row shows the repository's enabled merge methods; the primary action confirms and merges the current head SHA      |
+| 2   | Pending checks or policy gate | Open an open PR with pending checks or unmet merge policy      | Direct methods are disabled and `Enable auto-merge` asks GitHub to merge after requirements pass                                 |
+| 3   | Existing auto-merge request   | Open a PR whose `auto_merge` field is populated                | Primary action and menu offer `Disable auto-merge`                                                                               |
+| 4   | Merge conflict                | Open a PR with `mergeable=false` or `mergeable_state=dirty`    | Direct merge is disabled with a conflict explanation; no unsafe merge request is sent                                            |
+| 5   | Reviewer management           | Open Reviewers, select or remove a direct user                 | Searchable picker requests/removes that reviewer and refreshes authoritative PR detail                                           |
+| 6   | Close and reopen              | Close an open PR, then reopen the resulting closed PR          | Close requires confirmation; both mutations refresh the header, status summary, and action row                                   |
+| 7   | Whole-PR review               | Enter an optional review body and click Approve or changes     | Existing whole-PR review submission remains available in Conversation; request-changes requires a non-empty body                 |
+| 8   | Shared hosts                  | Open the PR from Source Control, My Station, or the Chat panel | The same shared action row is present and status changes reconcile through the scoped PR atom rather than host-specific handlers |
+| 9   | Visual treatment              | Inspect the PR action row in light and dark themes             | The row adds no background or enclosing border; controls use design-system Button and Dropdown components                        |
+| 10  | Merge queue branch            | Open a PR whose base branch requires GitHub merge queue        | Direct merge methods are disabled; `Merge when ready` enables waiting or queues a ready PR, and a queued PR can be removed       |
 
 ## Accessibility
 
@@ -71,6 +88,7 @@ conversation comments, submitted review bodies, and inline review threads.
 - [ ] Title and branch chip expose full text via `title` when visually
       truncated.
 - [ ] Color is not the only signal — each status also has a distinct text label.
+- [ ] The PR navigation trail is a labeled `<nav>` with keyboard-focusable markers and `aria-current` on the active destination.
 
 ## Acceptance Criteria
 
@@ -85,3 +103,5 @@ conversation comments, submitted review bodies, and inline review threads.
       empty states) is unchanged from before the polish.
 - [ ] Reduced motion: card uses only color/opacity hover transitions — no
       motion-dependent affordances.
+- [ ] GitHub Issue and PR details use the same always-visible, backgroundless,
+      borderless trail treatment in WorkStation, Chat tabs, and Team Inbox.

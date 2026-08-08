@@ -13,11 +13,20 @@
  * Uses shared domain adapters for repo/branch item building.
  */
 import { useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { CloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import { useFilteredItems } from "@src/hooks/search";
 import type { LanguagePreference } from "@src/i18n";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
+import {
+  type Session,
+  sessionsAtom,
+  visitedSessionsAtom,
+} from "@src/store/session";
 import {
   chatPanelMaximizedAtom,
   chatTurnPaginationEnabledAtom,
@@ -36,6 +45,7 @@ import {
   workStationPrimarySidebarCollapsedAtom,
 } from "@src/store/ui/workStationAtom";
 import { activeStatusBarCallbacksAtom } from "@src/store/ui/workStationLayout/statusBarAtoms";
+import { getSessionSearchText } from "@src/util/session/sessionSearch";
 
 import { NAV_DESTINATIONS } from "../../config";
 import {
@@ -75,6 +85,14 @@ import {
   buildStaticActionItems,
 } from "./spotlightItemBuilders";
 import { buildSearchModeItems } from "./spotlightSearchBuilder";
+import {
+  buildCloudSessionReferenceItem,
+  buildSpotlightSessionItems,
+  resolveAgentSessionSearchInput,
+  resolveSpotlightCloudSessionPresentation,
+} from "./spotlightSessionSearch";
+
+const GENERAL_SPOTLIGHT_SESSION_RESULT_LIMIT = 8;
 
 // ============================================
 // Public type re-exports
@@ -102,6 +120,8 @@ interface SpotlightItemsHandlers {
   onSelectRepo: (repo: RepoItem) => void;
   onSelectBranch: (branch: BranchItem) => void;
   onSelectLanguage: (language: LanguagePreference, label: string) => void;
+  onSelectSession: (session: Session, sessionName: string) => void;
+  onSelectCloudSessionReference: (reference: CloudSessionReference) => void;
   onSelectPath: (
     path: string,
     label: string,
@@ -140,6 +160,10 @@ export function useSpotlightItems(
   const workstationSidebarPosition = useAtomValue(workStationLayoutModeAtom);
   const currentLanguage = useAtomValue(languageAtom);
   const recentActionIds = useAtomValue(spotlightRecentActionsAtom);
+  const sessions = useAtomValue(sessionsAtom);
+  const visitedSessions = useAtomValue(visitedSessionsAtom);
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const cloudRemoteSessions = useAtomValue(org2CloudRemoteSessionsAtom);
   const { t } = useTranslation();
   const translate: Translator = t;
 
@@ -150,6 +174,8 @@ export function useSpotlightItems(
     onSelectRepo,
     onSelectBranch,
     onSelectLanguage,
+    onSelectSession,
+    onSelectCloudSessionReference,
     onSelectPath,
     currentRepoId,
     isEditorRoute,
@@ -161,6 +187,40 @@ export function useSpotlightItems(
   // change (e.g. selectedIndex).
   const { stage, path, currentAction, missingParam, searchQuery, isComplete } =
     state;
+  const hasAction = path.some((segment) => segment.type === "action");
+  const hasRepo = path.some((segment) => segment.type === "repo");
+  const isGeneralSearch = Boolean(searchQuery) && !hasAction && !hasRepo;
+  const resolvedSessionSearchInput = useMemo(
+    () => resolveAgentSessionSearchInput(searchQuery),
+    [searchQuery]
+  );
+  const generalSessionSearchQuery = isGeneralSearch
+    ? resolvedSessionSearchInput.query
+    : "";
+  const sortedSessions = useMemo(() => {
+    if (!isGeneralSearch || resolvedSessionSearchInput.reference) return [];
+    return sessions
+      .slice()
+      .sort((sessionA, sessionB) =>
+        (sessionB.updated_at || sessionB.updated_time || "").localeCompare(
+          sessionA.updated_at || sessionA.updated_time || ""
+        )
+      );
+  }, [isGeneralSearch, resolvedSessionSearchInput.reference, sessions]);
+  const fallbackSessionLabel = t("navigation:routes.session", "Session");
+  const cloudSessionLabel = t(
+    "navigation:cloud.sessionRef.chipLabel",
+    "Team session"
+  );
+  const getSessionText = useCallback(
+    (session: Session) => getSessionSearchText(session, fallbackSessionLabel),
+    [fallbackSessionLabel]
+  );
+  const { filteredItems: matchingSessions } = useFilteredItems({
+    items: sortedSessions,
+    searchQuery: generalSessionSearchQuery,
+    getSearchText: getSessionText,
+  });
 
   const items = useMemo((): SpotlightItem[] => {
     const viewActions = buildViewActions(
@@ -189,11 +249,33 @@ export function useSpotlightItems(
       return [];
     }
 
-    const hasAction = path.some((segment) => segment.type === "action");
-    const hasRepo = path.some((segment) => segment.type === "repo");
-
     // ========== SEARCH MODE (Global Search) ==========
     if (searchQuery && !hasAction && !hasRepo) {
+      const sessionItems = resolvedSessionSearchInput.reference
+        ? [
+            buildCloudSessionReferenceItem({
+              reference: resolvedSessionSearchInput.reference,
+              ...resolveSpotlightCloudSessionPresentation({
+                reference: resolvedSessionSearchInput.reference,
+                fallbackLabel: cloudSessionLabel,
+                auth: cloudAuth,
+                remoteEntries: cloudRemoteSessions,
+                localSessions: sessions,
+              }),
+              onSelect: onSelectCloudSessionReference,
+              idPrefix: "general-cloud-session",
+            }),
+          ]
+        : buildSpotlightSessionItems({
+            sessions: matchingSessions,
+            fallbackSessionLabel,
+            visitedSessions,
+            query: resolvedSessionSearchInput.query,
+            onSelect: onSelectSession,
+            limit: GENERAL_SPOTLIGHT_SESSION_RESULT_LIMIT,
+            idPrefix: "general-session",
+          });
+
       return buildSearchModeItems({
         searchQuery,
         isEditorRoute,
@@ -211,6 +293,7 @@ export function useSpotlightItems(
         onSelectEditorAction,
         onSelectPath,
         translate,
+        sessionItems,
         devModeEnabled,
       });
     }
@@ -323,11 +406,12 @@ export function useSpotlightItems(
     );
   }, [
     stage,
-    path,
     currentAction,
     missingParam,
     searchQuery,
     isComplete,
+    hasAction,
+    hasRepo,
     isSidebarCollapsed,
     isWorkstationSidebarCollapsed,
     isBottomPanelCollapsed,
@@ -341,6 +425,14 @@ export function useSpotlightItems(
     workstationSidebarPosition,
     currentLanguage,
     recentActionIds,
+    matchingSessions,
+    fallbackSessionLabel,
+    cloudSessionLabel,
+    cloudAuth,
+    cloudRemoteSessions,
+    sessions,
+    visitedSessions,
+    resolvedSessionSearchInput,
     devModeEnabled,
     isEditorRoute,
     isWorkStationRoute,
@@ -353,6 +445,8 @@ export function useSpotlightItems(
     onSelectRepo,
     onSelectBranch,
     onSelectLanguage,
+    onSelectSession,
+    onSelectCloudSessionReference,
     onSelectPath,
     translate,
   ]);

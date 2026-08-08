@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { RepoScript, RepoType, ScriptCategory } from "../types";
+import { useFocusRegainedRescan } from "./useFocusRegainedRescan";
 
 // ============================================
 // Category inference from script name
@@ -557,13 +558,8 @@ export function useScriptDiscovery(
   }, [repoPath, repoType, tick]);
 
   // Re-discover when the window regains focus (e.g. after an agent session
-  // writes new scripts or package.json entries to the repo).
-  useEffect(() => {
-    if (!repoPath) return;
-    const handleFocus = () => refresh();
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [repoPath, refresh]);
+  // writes new scripts or package.json entries to the repo). Flap-cooled.
+  useFocusRegainedRescan(Boolean(repoPath), refresh);
 
   const scripts = snapshot?.key === requestKey ? snapshot.scripts : [];
   const loading = repoPath ? snapshot?.key !== requestKey : false;

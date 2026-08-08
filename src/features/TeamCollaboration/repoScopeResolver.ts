@@ -22,6 +22,7 @@ import { useSyncExternalStore } from "react";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import { resolveGitHubRepoNetworkIdentityLocal } from "@src/api/tauri/github";
+import { createLogger } from "@src/hooks/logger";
 
 import {
   isLocalRepoPath,
@@ -48,15 +49,43 @@ import {
 export const MAX_RESOLVER_CACHE_ENTRIES = 256;
 const shareableScopeKeyCache = new Map<string, string[] | null>();
 const shareableScopeKeyInFlight = new Map<string, Promise<string[] | null>>();
+// Transport failures are deliberately NOT cached as results, but a short
+// negative-cache window keeps a render-path caller from re-firing the
+// git-remotes IPC on every external re-render while the backend is down.
+const SHAREABLE_SCOPE_FAILURE_TTL_MS = 30_000;
+const shareableScopeKeyFailureAtMs = new Map<string, number>();
 
 interface RepoNetworkScopeCacheEntry {
   value: string | null;
+  /**
+   * True when the provider lookup FAILED (transport/API error) rather than
+   * answering "no network identity". A failed entry rate-limits retries for
+   * its TTL but must never be read as proof of no identity: scope matching
+   * that would need this key reports UNKNOWN instead of no-match, because
+   * no-match retracts live shared rows and drops org tags.
+   */
+  failed: boolean;
   expiresAt: number;
 }
 
 const repoNetworkScopeCache = new Map<string, RepoNetworkScopeCacheEntry>();
 const repoNetworkScopeInFlight = new Map<string, Promise<string | null>>();
 const NETWORK_LOOKUP_FAILURE_TTL_MS = 30_000;
+/**
+ * Repeated failures back off geometrically (30s → 2m → 8m → 30m cap). An
+ * unauthenticated client gets 60 GitHub requests/hour; a flat 30s retry on
+ * just two failing repos burns ~240/hour, so the failure becomes
+ * self-sustaining for the rest of every rate-limit window.
+ */
+const NETWORK_LOOKUP_FAILURE_TTL_MAX_MS = 30 * 60_000;
+const networkLookupFailureStreaks = new Map<string, number>();
+const log = createLogger("RepoScopeResolver");
+
+function networkLookupFailureTtlMs(streak: number): number {
+  const ttl =
+    NETWORK_LOOKUP_FAILURE_TTL_MS * 4 ** Math.max(0, Math.min(streak - 1, 5));
+  return Math.min(ttl, NETWORK_LOOKUP_FAILURE_TTL_MAX_MS);
+}
 
 function readLruEntry<K, V>(cache: Map<K, V>, key: K): V | undefined {
   const value = cache.get(key);
@@ -177,6 +206,13 @@ export async function resolveShareableScopeKeys(
   if (cached !== undefined) return cached;
   const pending = shareableScopeKeyInFlight.get(normalizedInput);
   if (pending) return pending;
+  const failedAtMs = shareableScopeKeyFailureAtMs.get(normalizedInput);
+  if (
+    failedAtMs !== undefined &&
+    Date.now() - failedAtMs < SHAREABLE_SCOPE_FAILURE_TTL_MS
+  ) {
+    return null;
+  }
 
   // Deferred body (then-callback, not an IIFE) so the closure can compare
   // against `task` itself without tripping TS2454 (used before assigned).
@@ -188,9 +224,12 @@ export async function resolveShareableScopeKeys(
       });
       if (data === undefined) {
         // Transport failure (git server down / repo unknown): report "no
-        // keys" but do NOT cache — the next consumer retries.
+        // keys" but do NOT cache the result — retries resume after the
+        // short negative-cache window.
+        shareableScopeKeyFailureAtMs.set(normalizedInput, Date.now());
         return null;
       }
+      shareableScopeKeyFailureAtMs.delete(normalizedInput);
       const remotes = data.remotes ?? [];
       // Origin-first ordering: the checkout's own remote stays the PRIMARY
       // identity (single-key consumers, fork-relay preference); the rest
@@ -245,8 +284,10 @@ export function primeShareableScopeKey(input: string): void {
 export function clearShareableScopeKeyCache(): void {
   shareableScopeKeyCache.clear();
   shareableScopeKeyInFlight.clear();
+  shareableScopeKeyFailureAtMs.clear();
   repoNetworkScopeCache.clear();
   repoNetworkScopeInFlight.clear();
+  networkLookupFailureStreaks.clear();
 }
 
 // ============================================================================
@@ -301,16 +342,38 @@ export async function resolveRepoNetworkScopeKey(
       const sourceKey = normalizeRepoScopeKey(
         `github.com/${identity.source_full_name}`
       );
-      return sourceKey && !isLocalRepoPath(sourceKey) ? sourceKey : null;
+      return {
+        value: sourceKey && !isLocalRepoPath(sourceKey) ? sourceKey : null,
+        failed: false,
+      };
     })
-    .catch(() => null)
-    .then((value) => {
+    .catch((error: unknown) => {
+      const streak = (networkLookupFailureStreaks.get(normalized) ?? 0) + 1;
+      networkLookupFailureStreaks.set(normalized, streak);
+      log.rateLimited(
+        `network-identity-${normalized}`,
+        60_000,
+        `GitHub network identity lookup failed for ${fullName} ` +
+          `(streak ${streak}, next retry in ` +
+          `${Math.round(networkLookupFailureTtlMs(streak) / 1000)}s): ` +
+          `${error instanceof Error ? error.message : String(error)}`
+      );
+      return { value: null, failed: true };
+    })
+    .then(({ value, failed }) => {
+      if (!failed) networkLookupFailureStreaks.delete(normalized);
       if (repoNetworkScopeInFlight.get(normalized) === task) {
         writeLruEntry(repoNetworkScopeCache, normalized, {
           value,
+          failed,
           expiresAt:
             value === null
-              ? Date.now() + NETWORK_LOOKUP_FAILURE_TTL_MS
+              ? Date.now() +
+                networkLookupFailureTtlMs(
+                  failed
+                    ? (networkLookupFailureStreaks.get(normalized) ?? 1)
+                    : 1
+                )
               : Number.POSITIVE_INFINITY,
         });
         // Reuse the existing cache-version subscription: repo pickers and
@@ -371,18 +434,44 @@ export function peekMatchingOrgRepoScope(
   return unresolved ? undefined : null;
 }
 
+/** True when a cached network lookup for `input` is a rate-limited FAILURE. */
+function peekRepoNetworkLookupFailed(input: string): boolean {
+  const normalized = normalizeRepoScopeKey(input);
+  if (!normalized || isLocalRepoPath(normalized)) return false;
+  if (!githubRepoFullName(normalized)) return false;
+  const entry = readLruEntry(repoNetworkScopeCache, normalized);
+  return Boolean(entry && entry.failed && entry.expiresAt > Date.now());
+}
+
+/**
+ * `undefined` ⇒ UNKNOWN: no direct match, and at least one network-identity
+ * lookup that a match could hinge on has FAILED (transient GitHub/API
+ * error). Callers on destructive paths (out-of-scope retract/untag) must
+ * defer on unknown — treating a failed lookup as "no match" retracted live
+ * rows and dropped org tags whenever the identity API blipped, then pushed
+ * them again once the 30s failure TTL expired (scope flapping).
+ */
 export async function resolveMatchingOrgRepoScope(
   repoScopeKeys: string[] | null | undefined,
   orgScopes: string[] | null | undefined
-): Promise<string | null> {
+): Promise<string | null | undefined> {
   const immediate = peekMatchingOrgRepoScope(repoScopeKeys, orgScopes);
-  if (immediate !== undefined) return immediate;
+  if (immediate != null) return immediate;
   await Promise.all(
     [...(repoScopeKeys ?? []), ...(orgScopes ?? [])].map((key) =>
       resolveRepoNetworkScopeKey(key)
     )
   );
-  return peekMatchingOrgRepoScope(repoScopeKeys, orgScopes) ?? null;
+  const matched = peekMatchingOrgRepoScope(repoScopeKeys, orgScopes) ?? null;
+  if (matched !== null) return matched;
+  if (
+    [...(repoScopeKeys ?? []), ...(orgScopes ?? [])].some(
+      peekRepoNetworkLookupFailed
+    )
+  ) {
+    return undefined;
+  }
+  return null;
 }
 
 // ============================================================================
@@ -429,7 +518,7 @@ export async function resolveLocalCheckoutForScopeKey(
       const candidateKeys = await resolve(normalizedPath);
       if (
         candidateKeys?.includes(normalizedKey) ||
-        (await resolveMatchingOrgRepoScope(candidateKeys, [normalizedKey])) !==
+        (await resolveMatchingOrgRepoScope(candidateKeys, [normalizedKey])) !=
           null
       ) {
         return normalizedPath;

@@ -6,7 +6,10 @@ import type {
   GitHubIssueTimelineItem,
 } from "@src/api/tauri/github";
 
-import { DEFAULT_WORKSTATION_REPO_SCOPE } from "./workstationPrAtom";
+import {
+  DEFAULT_WORKSTATION_REPO_SCOPE,
+  workstationRepoScopeKey,
+} from "./workstationPrAtom";
 
 export type IssueFilterState = "open" | "closed" | "all";
 
@@ -77,6 +80,13 @@ export const workstationSelectedIssueAtomFamily = atomFamily(
 export const workstationSelectedIssueAtom = workstationSelectedIssueAtomFamily(
   DEFAULT_WORKSTATION_REPO_SCOPE
 );
+
+export function workstationIssueDetailScopeKey(
+  repoPath: string,
+  issueNumber: number
+): string {
+  return `${workstationRepoScopeKey(undefined, repoPath)}:issue:${issueNumber}`;
+}
 
 export type WorkstationIssueCallbacks = {
   openNewIssueForm: (() => void) | null;

@@ -4,14 +4,13 @@
 //! `{message:{role,content}}` representation. Keeping discovery configurable
 //! and conversion shared prevents their replay semantics from drifting.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
 use rusqlite::Connection;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::sources::imported_history::{
@@ -19,11 +18,18 @@ use crate::sources::imported_history::{
     metadata::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
     },
-    paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
-    ImportedToolCall,
+    paths as imported_paths, scan_snapshot,
+    watermark::{self, ImportedParseWatermark, WatermarkedTranscriptReader},
+    ImportedHistoryRecentPath, ImportedHistorySessionPage, ImportedToolCall,
 };
 
 const MAX_TOOL_OUTPUT_CHARS: usize = 50_000;
+const MAX_INCREMENTAL_STATE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_PENDING_EDIT_IMPACTS: usize = 1_024;
+const MAX_TOUCHED_FILES: usize = 4_096;
+const MAX_STATE_ID_BYTES: usize = 1_024;
+const MAX_STATE_PATH_BYTES: usize = 4_096;
+const MAX_STATE_LABEL_BYTES: usize = 1_024;
 
 /// Config for the generic Anthropic/Claude-style JSONL transcript reader. Any
 /// tool that writes newline-delimited JSON transcripts under a set of root
@@ -43,6 +49,15 @@ pub struct AnthropicJsonlSource {
     pub parser_version: i64,
     pub candidate_roots: Vec<PathBuf>,
     pub exclude_subagent_dirs: bool,
+    /// Exact directory depth for sources with a documented leaf shape.
+    /// `Some(1)` accepts `<root>/<one-dir>/*.jsonl` and rejects both root
+    /// files and deeper descendants. `None` retains legacy recursive
+    /// discovery.
+    pub max_discovery_depth: Option<usize>,
+    /// Use the shared append watermark for metadata-only cache refreshes.
+    pub incremental_metadata: bool,
+    /// Prefer the session header's stable id for the canonical ORGII id.
+    pub session_id_from_header: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -71,11 +86,27 @@ struct SessionMeta {
 struct JsonlLine {
     #[serde(rename = "type")]
     line_type: String,
+    id: String,
     timestamp: Value,
     cwd: String,
     model_id: String,
     git_branch: String,
     message: Option<JsonlMessage>,
+    is_meta: bool,
+    origin: Option<JsonlOrigin>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct JsonlOrigin {
+    kind: String,
+}
+
+fn is_harness_injected_line(parsed: &JsonlLine) -> bool {
+    imported_history::is_harness_injected_user_marker(
+        parsed.is_meta,
+        parsed.origin.as_ref().map(|origin| origin.kind.as_str()),
+    )
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -90,6 +121,7 @@ struct JsonlMessage {
 struct TranscriptTurn {
     created_at: String,
     message: JsonlMessage,
+    harness_injected: bool,
 }
 
 #[derive(Default)]
@@ -105,6 +137,40 @@ struct TranscriptRead {
     cache_read_tokens: i64,
     cache_write_tokens: i64,
     first_user_text: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct PendingEditImpact {
+    call_id: String,
+    impact: ImportedHistoryImpactStats,
+}
+
+/// Compact metadata accumulator persisted behind the append watermark. It
+/// deliberately stores no chat text or tool output. Only unresolved edit-call
+/// impacts remain pending until their result arrives; completed calls collapse
+/// into aggregate counters and a de-duplicated touched-file set.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct SessionMetaState {
+    declared_session_id: Option<String>,
+    created_at_ms: i64,
+    updated_at_ms: i64,
+    repo_path: Option<String>,
+    branch: Option<String>,
+    model: Option<String>,
+    input_tokens: i64,
+    output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_write_tokens: i64,
+    first_user_text: Option<String>,
+    impact: ImportedHistoryImpactStats,
+    pending_edits: Vec<PendingEditImpact>,
+}
+
+struct IncrementalSessionMetaParse {
+    meta: SessionMeta,
+    watermark: ImportedParseWatermark,
 }
 
 pub fn list_sessions_paginated(
@@ -131,20 +197,20 @@ pub fn load_session(
     conn: &Connection,
     session_id: &str,
 ) -> Result<Vec<ActivityChunk>, String> {
-    let source_session_id = source_id_from_session_id(config, session_id)?;
-    let cached =
+    let cached = if config.session_id_from_header {
+        imported_cache::query_cached_session_by_session_id_from_conn(conn, session_id)?
+            .filter(|(source, _)| source == config.source)
+            .map(|(_, cached)| cached)
+    } else {
+        let source_session_id = source_id_from_session_id(config, session_id)?;
         imported_cache::query_cached_session_from_conn(conn, config.source, source_session_id)?
-            .ok_or_else(|| {
-                format!(
-                    "{} session not found: {source_session_id}",
-                    config.display_name
-                )
-            })?;
+    }
+    .ok_or_else(|| format!("{} session not found: {session_id}", config.display_name))?;
     load_from_path(config, session_id, Path::new(&cached.source_path))
 }
 
 fn sync_cache(config: &AnthropicJsonlSource, conn: &mut Connection) -> Result<(), String> {
-    let discovered = discover_records(config)?;
+    let discovered = discover_records(config, conn)?;
     let signatures = discovered
         .iter()
         .map(ImportedHistoryDiscoveredRecord::signature)
@@ -157,10 +223,37 @@ fn sync_cache(config: &AnthropicJsonlSource, conn: &mut Connection) -> Result<()
     )?;
     let mut inputs = Vec::new();
     for record in changed {
-        inputs.push(meta_to_cache_input(
-            config,
-            parse_session_meta(config, record)?,
-        ));
+        let meta = if config.incremental_metadata {
+            let stored = watermark::read_parse_watermark_from_conn(
+                conn,
+                config.source,
+                &record.source_session_id,
+            )?;
+            let Some(parse) = imported_history::skip_unparsable_record(
+                config.source,
+                &record.source_session_id,
+                parse_session_meta_incremental(config, record, stored.as_ref()),
+            ) else {
+                continue;
+            };
+            watermark::write_parse_watermark_from_conn(
+                conn,
+                config.source,
+                &record.source_session_id,
+                &parse.watermark,
+            )?;
+            parse.meta
+        } else {
+            let Some(meta) = imported_history::skip_unparsable_record(
+                config.source,
+                &record.source_session_id,
+                parse_session_meta(config, record),
+            ) else {
+                continue;
+            };
+            meta
+        };
+        inputs.push(meta_to_cache_input(config, meta));
     }
     imported_cache::sync_source_cache_from_conn(
         conn,
@@ -172,20 +265,37 @@ fn sync_cache(config: &AnthropicJsonlSource, conn: &mut Connection) -> Result<()
 
 fn discover_records(
     config: &AnthropicJsonlSource,
+    conn: &Connection,
 ) -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
     let mut records = Vec::new();
     let mut seen_paths = HashSet::new();
+    let previous_snapshots = config
+        .max_discovery_depth
+        .map(|_| scan_snapshot::read_dir_snapshots_from_conn(conn, config.source));
+    let mut walker = previous_snapshots.as_ref().map(|previous| {
+        scan_snapshot::SnapshotDirWalker::new(previous, "jsonl", config.display_name)
+    });
     for root in config.candidate_roots.clone() {
         if !root.is_dir() {
             continue;
         }
         let mut files = Vec::new();
-        collect_jsonl_files(&root, config.exclude_subagent_dirs, &mut files)?;
+        if let (Some(max_depth), Some(walker)) = (config.max_discovery_depth, walker.as_mut()) {
+            walker.collect_files_bounded(&root, &mut files, max_depth)?;
+        } else {
+            collect_jsonl_files(&root, config.exclude_subagent_dirs, &mut files)?;
+        }
         for path in files {
             if !seen_paths.insert(path.clone()) {
                 continue;
             }
             let relative = path.strip_prefix(&root).unwrap_or(&path);
+            if config
+                .max_discovery_depth
+                .is_some_and(|expected| relative.components().count().saturating_sub(1) != expected)
+            {
+                continue;
+            }
             let mut source_session_id = relative.with_extension("").to_string_lossy().to_string();
             if std::path::MAIN_SEPARATOR != '/' {
                 source_session_id = source_session_id.replace(std::path::MAIN_SEPARATOR, "/");
@@ -205,6 +315,10 @@ fn discover_records(
                 parser_version: config.parser_version,
             });
         }
+    }
+    if let (Some(previous), Some(walker)) = (previous_snapshots.as_ref(), walker) {
+        let next = walker.into_snapshots();
+        scan_snapshot::persist_dir_snapshots_if_changed(conn, config.source, previous, &next)?;
     }
     Ok(records)
 }
@@ -285,6 +399,330 @@ fn parse_session_meta(
     })
 }
 
+impl SessionMetaState {
+    fn feed(&mut self, line: &str) -> Result<(), String> {
+        let Ok(parsed) = serde_json::from_str::<JsonlLine>(line) else {
+            return Ok(());
+        };
+        if parsed.line_type == "session" && !parsed.id.trim().is_empty() {
+            ensure_bounded_state_value("session id", parsed.id.trim(), MAX_STATE_ID_BYTES)?;
+            self.declared_session_id = Some(parsed.id.trim().to_string());
+        }
+        if let Some(ms) = timestamp_ms(&parsed.timestamp) {
+            if self.created_at_ms == 0 || ms < self.created_at_ms {
+                self.created_at_ms = ms;
+            }
+            self.updated_at_ms = self.updated_at_ms.max(ms);
+        }
+        if self.repo_path.is_none() && !parsed.cwd.trim().is_empty() {
+            ensure_bounded_state_value("repository path", parsed.cwd.trim(), MAX_STATE_PATH_BYTES)?;
+            self.repo_path = Some(parsed.cwd.trim().to_string());
+        }
+        if self.branch.is_none() && !parsed.git_branch.trim().is_empty() {
+            ensure_bounded_state_value("branch", parsed.git_branch.trim(), MAX_STATE_LABEL_BYTES)?;
+            self.branch = Some(parsed.git_branch.trim().to_string());
+        }
+        if self.model.is_none() && !parsed.model_id.trim().is_empty() {
+            ensure_bounded_state_value("model", parsed.model_id.trim(), MAX_STATE_LABEL_BYTES)?;
+            self.model = Some(parsed.model_id.trim().to_string());
+        }
+        let harness_injected = is_harness_injected_line(&parsed);
+        let Some(message) = parsed.message else {
+            return Ok(());
+        };
+        if self.model.is_none() && !message.model.trim().is_empty() {
+            ensure_bounded_state_value("model", message.model.trim(), MAX_STATE_LABEL_BYTES)?;
+            self.model = Some(message.model.trim().to_string());
+        }
+        let (input, output, cache_read, cache_write) = usage_tokens(&message.usage);
+        self.input_tokens = self.input_tokens.saturating_add(input);
+        self.output_tokens = self.output_tokens.saturating_add(output);
+        self.cache_read_tokens = self.cache_read_tokens.saturating_add(cache_read);
+        self.cache_write_tokens = self.cache_write_tokens.saturating_add(cache_write);
+        let role = effective_role(&parsed.line_type, &message.role);
+        if self.first_user_text.is_none() && role == "user" && !harness_injected {
+            self.first_user_text = first_content_text(&message.content)
+                .map(|text| imported_history::truncate_name(&text, 200));
+        }
+        self.feed_tool_impacts(&message.content)
+    }
+
+    fn feed_tool_impacts(&mut self, content: &Value) -> Result<(), String> {
+        for block in content_blocks(content) {
+            match block_type(&block) {
+                "tool_result" => {
+                    let Some(call_id) = block
+                        .get("tool_use_id")
+                        .and_then(Value::as_str)
+                        .filter(|value| !value.is_empty())
+                    else {
+                        continue;
+                    };
+                    let Some(index) = self
+                        .pending_edits
+                        .iter()
+                        .position(|pending| pending.call_id == call_id)
+                    else {
+                        continue;
+                    };
+                    let pending = self.pending_edits.remove(index);
+                    if block.get("is_error").and_then(Value::as_bool) != Some(true) {
+                        merge_impact(&mut self.impact, &pending.impact)?;
+                    }
+                }
+                "tool_use" => {
+                    let raw_name = block.get("name").and_then(Value::as_str).unwrap_or("tool");
+                    let (canonical_name, args) = normalize_tool_call(
+                        raw_name,
+                        block.get("input").cloned().unwrap_or(Value::Null),
+                    );
+                    if canonical_name != imported_history::FUNCTION_EDIT_FILE {
+                        continue;
+                    }
+                    let call_id = block
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string();
+                    ensure_bounded_state_value("tool call id", &call_id, MAX_STATE_ID_BYTES)?;
+                    let call = ImportedToolCall {
+                        call_id: call_id.clone(),
+                        raw_name: raw_name.to_string(),
+                        canonical_name,
+                        args,
+                        created_at: String::new(),
+                    };
+                    let chunk = imported_history::tool_call_chunk("", "", 0, &call, "");
+                    let impact = imported_history::impact_from_edit_chunks(&[chunk]);
+                    validate_impact_bounds(&impact)?;
+                    if call_id.is_empty() {
+                        merge_impact(&mut self.impact, &impact)?;
+                    } else {
+                        self.pending_edits
+                            .retain(|pending| pending.call_id != call_id);
+                        if self.pending_edits.len() >= MAX_PENDING_EDIT_IMPACTS {
+                            return Err(format!(
+                                "Incremental history state exceeds the \
+                                 {MAX_PENDING_EDIT_IMPACTS}-pending-edit safety limit"
+                            ));
+                        }
+                        self.pending_edits
+                            .push(PendingEditImpact { call_id, impact });
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_bounds(&self) -> Result<(), String> {
+        if [
+            self.input_tokens,
+            self.output_tokens,
+            self.cache_read_tokens,
+            self.cache_write_tokens,
+        ]
+        .into_iter()
+        .any(|value| value < 0)
+        {
+            return Err("Incremental history state contains negative token totals".to_string());
+        }
+        if let Some(value) = self.declared_session_id.as_deref() {
+            ensure_bounded_state_value("session id", value, MAX_STATE_ID_BYTES)?;
+        }
+        if let Some(value) = self.repo_path.as_deref() {
+            ensure_bounded_state_value("repository path", value, MAX_STATE_PATH_BYTES)?;
+        }
+        if let Some(value) = self.branch.as_deref() {
+            ensure_bounded_state_value("branch", value, MAX_STATE_LABEL_BYTES)?;
+        }
+        if let Some(value) = self.model.as_deref() {
+            ensure_bounded_state_value("model", value, MAX_STATE_LABEL_BYTES)?;
+        }
+        if self.pending_edits.len() > MAX_PENDING_EDIT_IMPACTS {
+            return Err("Incremental history state has too many pending edits".to_string());
+        }
+        validate_impact_bounds(&self.impact)?;
+        for pending in &self.pending_edits {
+            ensure_bounded_state_value("tool call id", &pending.call_id, MAX_STATE_ID_BYTES)?;
+            validate_impact_bounds(&pending.impact)?;
+        }
+        Ok(())
+    }
+
+    fn finish(
+        mut self,
+        config: &AnthropicJsonlSource,
+        record: &ImportedHistoryDiscoveredRecord,
+    ) -> Result<SessionMeta, String> {
+        for pending in std::mem::take(&mut self.pending_edits) {
+            merge_impact(&mut self.impact, &pending.impact)?;
+        }
+        let fallback_ms = record.source_mtime_ms / 1_000_000;
+        let identity = if config.session_id_from_header {
+            self.declared_session_id
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| record.source_session_id.clone())
+        } else {
+            record.source_session_id.clone()
+        };
+        Ok(SessionMeta {
+            source_session_id: record.source_session_id.clone(),
+            session_id: format!("{}{}", config.session_prefix, identity),
+            source_path: record.source_path.to_string_lossy().to_string(),
+            source_record_key: record.source_record_key.clone(),
+            source_mtime_ms: record.source_mtime_ms,
+            source_size_bytes: record.source_size_bytes,
+            name: self
+                .first_user_text
+                .map(|value| imported_history::truncate_name(&value, 200))
+                .unwrap_or_else(|| record.source_record_key.clone()),
+            created_at_ms: if self.created_at_ms > 0 {
+                self.created_at_ms
+            } else {
+                fallback_ms
+            },
+            updated_at_ms: if self.updated_at_ms > 0 {
+                self.updated_at_ms
+            } else {
+                fallback_ms
+            },
+            model: self.model,
+            input_tokens: self.input_tokens,
+            output_tokens: self.output_tokens,
+            cache_read_tokens: self.cache_read_tokens,
+            cache_write_tokens: self.cache_write_tokens,
+            repo_path: self.repo_path,
+            branch: self.branch,
+            impact: self.impact,
+        })
+    }
+}
+
+fn ensure_bounded_state_value(label: &str, value: &str, max_bytes: usize) -> Result<(), String> {
+    if value.len() > max_bytes {
+        return Err(format!(
+            "Incremental history {label} exceeds the {max_bytes}-byte safety limit"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_impact_bounds(impact: &ImportedHistoryImpactStats) -> Result<(), String> {
+    if impact.touched_files.len() > MAX_TOUCHED_FILES {
+        return Err(format!(
+            "Incremental history state exceeds the {MAX_TOUCHED_FILES}-file safety limit"
+        ));
+    }
+    if impact
+        .touched_files
+        .iter()
+        .any(|path| path.len() > MAX_STATE_PATH_BYTES)
+    {
+        return Err(format!(
+            "Incremental history touched path exceeds the {MAX_STATE_PATH_BYTES}-byte safety limit"
+        ));
+    }
+    Ok(())
+}
+
+fn merge_impact(
+    target: &mut ImportedHistoryImpactStats,
+    incoming: &ImportedHistoryImpactStats,
+) -> Result<(), String> {
+    validate_impact_bounds(target)?;
+    validate_impact_bounds(incoming)?;
+    target.lines_added = target.lines_added.saturating_add(incoming.lines_added);
+    target.lines_removed = target.lines_removed.saturating_add(incoming.lines_removed);
+    let mut paths = target
+        .touched_files
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    paths.extend(incoming.touched_files.iter().cloned());
+    if paths.len() > MAX_TOUCHED_FILES {
+        return Err(format!(
+            "Incremental history state exceeds the {MAX_TOUCHED_FILES}-file safety limit"
+        ));
+    }
+    target.touched_files = paths.into_iter().collect();
+    target.files_changed = target.touched_files.len() as i64;
+    Ok(())
+}
+
+fn parse_session_meta_incremental(
+    config: &AnthropicJsonlSource,
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+) -> Result<IncrementalSessionMetaParse, String> {
+    let mut reader = WatermarkedTranscriptReader::open(
+        &record.source_path,
+        config.display_name,
+        watermark,
+        config.parser_version,
+        record.source_mtime_ms,
+        record.source_size_bytes,
+    )?;
+    let mut state = SessionMetaState::default();
+    if let Some(state_json) = reader.resume_state_json() {
+        match (state_json.len() <= MAX_INCREMENTAL_STATE_BYTES)
+            .then(|| serde_json::from_str::<SessionMetaState>(state_json))
+        {
+            Some(Ok(parsed)) if parsed.validate_bounds().is_ok() => {
+                state = parsed;
+            }
+            _ => {
+                reader = WatermarkedTranscriptReader::open(
+                    &record.source_path,
+                    config.display_name,
+                    None,
+                    config.parser_version,
+                    record.source_mtime_ms,
+                    record.source_size_bytes,
+                )?;
+            }
+        }
+    }
+    let mut tail_state = None;
+    while let Some(line) = reader.next_line()? {
+        let trimmed = line.text.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if line.terminated {
+            state.feed(trimmed)?;
+        } else {
+            let mut snapshot = state.clone();
+            snapshot.feed(trimmed)?;
+            tail_state = Some(snapshot);
+        }
+    }
+    let state_json = serde_json::to_string(&state).map_err(|err| {
+        format!(
+            "Failed to serialize {} parse state: {err}",
+            config.display_name
+        )
+    })?;
+    if state_json.len() > MAX_INCREMENTAL_STATE_BYTES {
+        return Err(format!(
+            "{} incremental parse state exceeds the {}-byte safety limit",
+            config.display_name, MAX_INCREMENTAL_STATE_BYTES
+        ));
+    }
+    let next_watermark = reader.into_watermark(
+        config.parser_version,
+        record.source_mtime_ms,
+        record.source_size_bytes,
+        state_json,
+    );
+    let meta = tail_state.unwrap_or(state).finish(config, record)?;
+    Ok(IncrementalSessionMetaParse {
+        meta,
+        watermark: next_watermark,
+    })
+}
+
 fn meta_to_cache_input(
     config: &AnthropicJsonlSource,
     meta: SessionMeta,
@@ -326,18 +764,18 @@ fn load_from_path(
 }
 
 fn read_transcript(config: &AnthropicJsonlSource, path: &Path) -> Result<TranscriptRead, String> {
-    let file = fs::File::open(path).map_err(|err| {
-        format!(
-            "Failed to open {} history {}: {err}",
-            config.display_name,
-            path.display()
-        )
-    })?;
+    let (mtime, size) = imported_paths::file_metadata_signature(path, config.display_name)?;
+    let mut reader = WatermarkedTranscriptReader::open(
+        path,
+        config.display_name,
+        None,
+        config.parser_version,
+        mtime,
+        size,
+    )?;
     let mut read = TranscriptRead::default();
-    for line in BufReader::new(file).lines() {
-        let line = line
-            .map_err(|err| format!("Failed to read {} history line: {err}", config.display_name))?;
-        let Ok(mut parsed) = serde_json::from_str::<JsonlLine>(line.trim()) else {
+    while let Some(line) = reader.next_line()? {
+        let Ok(mut parsed) = serde_json::from_str::<JsonlLine>(line.text.trim()) else {
             continue;
         };
         let created_at = normalized_timestamp(&parsed.timestamp);
@@ -361,15 +799,19 @@ fn read_transcript(config: &AnthropicJsonlSource, path: &Path) -> Result<Transcr
                 read.model = Some(message.model.trim().to_string());
             }
             let (input, output, cache_read, cache_write) = usage_tokens(&message.usage);
-            read.input_tokens += input;
-            read.output_tokens += output;
-            read.cache_read_tokens += cache_read;
-            read.cache_write_tokens += cache_write;
+            read.input_tokens = read.input_tokens.saturating_add(input);
+            read.output_tokens = read.output_tokens.saturating_add(output);
+            read.cache_read_tokens = read.cache_read_tokens.saturating_add(cache_read);
+            read.cache_write_tokens = read.cache_write_tokens.saturating_add(cache_write);
             let role = effective_role(&parsed.line_type, &message.role);
-            if read.first_user_text.is_none() && role == "user" {
+            if read.first_user_text.is_none()
+                && role == "user"
+                && !is_harness_injected_line(&parsed)
+            {
                 read.first_user_text = first_content_text(&message.content);
             }
         }
+        let harness_injected = is_harness_injected_line(&parsed);
         match parsed.line_type.as_str() {
             "message" | "user" | "assistant" => {
                 if let Some(mut message) = parsed.message.take() {
@@ -379,6 +821,7 @@ fn read_transcript(config: &AnthropicJsonlSource, path: &Path) -> Result<Transcr
                     read.turns.push(TranscriptTurn {
                         created_at,
                         message,
+                        harness_injected,
                     });
                 }
             }
@@ -392,6 +835,7 @@ fn read_transcript(config: &AnthropicJsonlSource, path: &Path) -> Result<Transcr
                             content: json!([{ "type": "thinking", "thinking": text }]),
                             ..JsonlMessage::default()
                         },
+                        harness_injected: false,
                     });
                 }
             }
@@ -435,6 +879,9 @@ fn messages_to_chunks(
         for block in content_blocks(&turn.message.content) {
             match block_type(&block) {
                 "text" => {
+                    if is_user && turn.harness_injected {
+                        continue;
+                    }
                     let text = block
                         .get("text")
                         .and_then(Value::as_str)
@@ -591,7 +1038,7 @@ fn normalize_epoch(value: i64) -> Option<i64> {
     if value <= 0 {
         None
     } else if value < 10_000_000_000 {
-        Some(value * 1_000)
+        value.checked_mul(1_000)
     } else {
         Some(value)
     }
@@ -613,19 +1060,24 @@ fn usage_tokens(usage: &Value) -> (i64, i64, i64, i64) {
     let read = |keys: &[&str]| {
         keys.iter()
             .find_map(|key| usage.get(*key).and_then(Value::as_i64))
+            .filter(|value| *value >= 0)
             .unwrap_or_default()
     };
     let cache_read = read(&[
         "cache_read_input_tokens",
         "cacheReadInputTokens",
+        "cacheRead",
         "cache_read",
     ]);
     let cache_write = read(&[
         "cache_creation_input_tokens",
         "cacheCreationInputTokens",
+        "cacheWrite",
         "cache_write",
     ]);
-    let input = read(&["input_tokens", "inputTokens", "input"]) + cache_read + cache_write;
+    let input = read(&["input_tokens", "inputTokens", "input"])
+        .saturating_add(cache_read)
+        .saturating_add(cache_write);
     let output = read(&["output_tokens", "outputTokens", "output"]);
     (input, output, cache_read, cache_write)
 }
@@ -718,6 +1170,9 @@ mod tests {
             parser_version: 1,
             candidate_roots: Vec::new(),
             exclude_subagent_dirs: false,
+            max_discovery_depth: None,
+            incremental_metadata: false,
+            session_id_from_header: false,
         }
     }
 
@@ -732,6 +1187,43 @@ mod tests {
     }
 
     #[test]
+    fn harness_injected_user_lines_emit_no_bubble_and_no_title() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "orgii-anthropic-jsonl-synthetic-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let path = temp_dir.join("synthetic.jsonl");
+        let content = r#"{"type":"user","timestamp":"2026-04-01T07:00:00Z","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"<local-command-caveat>Caveat</local-command-caveat>"}]}}
+{"type":"user","timestamp":"2026-04-01T07:00:01Z","origin":{"kind":"task-notification"},"message":{"role":"user","content":[{"type":"text","text":"<task-notification><task-id>t1</task-id></task-notification>"}]}}
+{"type":"user","timestamp":"2026-04-01T07:00:02Z","origin":{"kind":"human"},"message":{"role":"user","content":[{"type":"text","text":"real prompt"}]}}
+{"type":"assistant","timestamp":"2026-04-01T07:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}
+"#;
+        std::fs::write(&path, content).expect("write fixture");
+
+        let read = read_transcript(&test_config(), &path).expect("read transcript");
+        assert_eq!(read.first_user_text.as_deref(), Some("real prompt"));
+
+        let chunks = messages_to_chunks(&test_config(), "testapp-session", &read.turns);
+        let user_texts = chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+            .map(|chunk| {
+                chunk
+                    .result
+                    .pointer("/message/content")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(user_texts, vec!["real prompt"]);
+
+        std::fs::remove_file(&path).expect("remove fixture");
+        std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+    }
+
+    #[test]
     fn tool_results_are_paired_with_calls() {
         let turns = vec![
             TranscriptTurn {
@@ -741,6 +1233,7 @@ mod tests {
                     content: json!([{"type":"tool_use","id":"call-1","name":"bash","input":{"command":"pwd"}}]),
                     ..JsonlMessage::default()
                 },
+                harness_injected: false,
             },
             TranscriptTurn {
                 created_at: String::new(),
@@ -749,10 +1242,41 @@ mod tests {
                     content: json!([{"type":"tool_result","tool_use_id":"call-1","content":"/repo"}]),
                     ..JsonlMessage::default()
                 },
+                harness_injected: false,
             },
         ];
         let chunks = messages_to_chunks(&test_config(), "testapp-session", &turns);
         assert_eq!(chunks.len(), 1);
         assert!(chunks[0].result.to_string().contains("/repo"));
+    }
+
+    #[test]
+    fn token_metadata_ignores_negatives_and_saturates() {
+        assert_eq!(
+            usage_tokens(&json!({
+                "input": i64::MAX,
+                "output": -1,
+                "cacheRead": 10,
+                "cacheWrite": 20
+            })),
+            (i64::MAX, 0, 10, 20)
+        );
+    }
+
+    #[test]
+    fn incremental_state_rejects_oversized_identity_and_pending_sets() {
+        let mut state = SessionMetaState::default();
+        let oversized_id = "x".repeat(MAX_STATE_ID_BYTES + 1);
+        let line = json!({"type":"session","id":oversized_id}).to_string();
+        assert!(state
+            .feed(&line)
+            .expect_err("oversized id")
+            .contains("session id"));
+
+        state.pending_edits = vec![PendingEditImpact::default(); MAX_PENDING_EDIT_IMPACTS + 1];
+        assert!(state
+            .validate_bounds()
+            .expect_err("oversized pending state")
+            .contains("pending edits"));
     }
 }

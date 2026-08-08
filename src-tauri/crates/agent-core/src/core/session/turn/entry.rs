@@ -99,38 +99,6 @@ fn expand_skill_slash_command(content: &str, workspace: Option<&std::path::Path>
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::expand_skill_slash_command;
-
-    #[test]
-    fn skill_slash_command_accepts_newline_after_name() {
-        let workspace = tempfile::tempdir().expect("create temporary workspace");
-        let skill_dir = workspace.path().join(".orgii/skills/newline-skill");
-        std::fs::create_dir_all(&skill_dir).expect("create temporary skill directory");
-        std::fs::write(
-            skill_dir.join("SKILL.md"),
-            "# Newline Skill\n\nFollow the test instructions.",
-        )
-        .expect("write temporary skill");
-
-        let expanded = expand_skill_slash_command(
-            "/newline-skill\nrun the relevant frontend spec",
-            Some(workspace.path()),
-        );
-
-        assert!(
-            expanded.contains("# Newline Skill"),
-            "expected workspace skill content, got prefix: {:?}",
-            &expanded[..expanded.len().min(120)]
-        );
-        assert!(
-            expanded.contains("User task: run the relevant frontend spec"),
-            "expected newline tail to become the user task"
-        );
-    }
-}
-
 // ============================================
 // Unified Process Function
 // ============================================
@@ -245,4 +213,36 @@ pub async fn process_message(
     processor
         .process(&session.id, &content, processing_context)
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_skill_slash_command;
+
+    #[test]
+    fn skill_slash_command_accepts_newline_after_name() {
+        let workspace = tempfile::tempdir().expect("create temporary workspace");
+        let skill_dir = workspace.path().join(".orgii/skills/newline-skill");
+        std::fs::create_dir_all(&skill_dir).expect("create temporary skill directory");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "# Newline Skill\n\nFollow the test instructions.",
+        )
+        .expect("write temporary skill");
+
+        let expanded = expand_skill_slash_command(
+            "/newline-skill\nrun the relevant frontend spec",
+            Some(workspace.path()),
+        );
+
+        assert!(
+            expanded.contains("# Newline Skill"),
+            "expected workspace skill content, got prefix: {:?}",
+            &expanded[..expanded.len().min(120)]
+        );
+        assert!(
+            expanded.contains("User task: run the relevant frontend spec"),
+            "expected newline tail to become the user task"
+        );
+    }
 }

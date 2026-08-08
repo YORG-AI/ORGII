@@ -27,6 +27,7 @@ import {
   org2CloudAuthIdentityKey,
 } from "./org2CloudAuthAtom";
 import { ensureFreshSession } from "./org2CloudClient";
+import { FOCUS_REFRESH_COOLDOWN_MS } from "./org2CloudRealtimeRecovery";
 import { listOrgSessions } from "./org2CloudSyncClient";
 
 const log = createLogger("Org2CloudRemoteSessions");
@@ -490,7 +491,9 @@ export function useCloudOrgRemoteSessions(
   // A foreground transition is an explicit recovery boundary: the Realtime
   // lease was released while unfocused/hidden, so replace the listing once
   // after focus returns. This also gives a timed-out initial RPC a deterministic
-  // user-driven retry without introducing a timer loop.
+  // user-driven retry without introducing a timer loop. Flap-cooled: the
+  // recovery is a FULL paged listing, so alt-tab bursts pay for one.
+  const lastFocusRecoverAtRef = useRef(0);
   useEffect(() => {
     if (
       !orgId ||
@@ -516,6 +519,13 @@ export function useCloudOrgRemoteSessions(
         return;
       }
       if (requestState.inFlightKeys.has(`${authIdentityKey}|${orgId}`)) return;
+      if (
+        Date.now() - lastFocusRecoverAtRef.current <
+        FOCUS_REFRESH_COOLDOWN_MS
+      ) {
+        return;
+      }
+      lastFocusRecoverAtRef.current = Date.now();
       void fetchOrgSessions(orgId, { full: true });
     };
     window.addEventListener("focus", recover);

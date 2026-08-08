@@ -2,6 +2,20 @@
   "title": "Runtime của nhóm",
   "refresh": "Làm mới",
   "loadError": "Không thể tải runtime của nhóm",
+  "overview": {
+    "today": "Hôm nay",
+    "everyone": "Mọi người",
+    "activeMembers": "Thành viên hoạt động",
+    "systemsCurrent": "{{current}}/{{total}} hệ thống đang cập nhật",
+    "usageByAgent": "Mức sử dụng theo tác tử",
+    "recentSessions": "Phiên được chia sẻ gần đây",
+    "recentLoading": "Đang tải các phiên được chia sẻ…",
+    "recentEmpty": "Chưa có phiên nào được chia sẻ",
+    "members": "Chi tiết theo thành viên",
+    "activeToday": "Hoạt động hôm nay",
+    "inactiveToday": "Không hoạt động hôm nay",
+    "sync": "Đồng bộ"
+  },
   "signedOut": {
     "title": "Đăng nhập để xem nhóm của bạn",
     "subtitle": "Runtime của đồng đội được chia sẻ qua ORG2 Cloud.",

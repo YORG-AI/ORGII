@@ -10,8 +10,6 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
-import Input from "@src/components/Input";
-import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import type { PropertyDropdownOption } from "@src/components/PropertyField/PropertyDropdownField";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
@@ -32,6 +30,7 @@ import type {
   OrgMember,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import {
+  CreateComposerTitleInput,
   ProjectContentEditor,
   type ProjectContentEditorRef,
 } from "@src/modules/ProjectManager/shared";
@@ -439,8 +438,7 @@ export function useInlineCreateWorkItemFields({
   const workItemTitlePlaceholder = t("workItems.titlePlaceholder");
   const optionalWorkItemTitlePlaceholder = `${workItemTitlePlaceholder} (${t("common:optional")})`;
   const titleSection = (
-    <Input
-      type="text"
+    <CreateComposerTitleInput
       value={draft.name}
       onChange={handleTitleChange}
       placeholder={
@@ -448,12 +446,7 @@ export function useInlineCreateWorkItemFields({
           ? optionalWorkItemTitlePlaceholder
           : workItemTitlePlaceholder
       }
-      autoFocus
-      fieldVariant="ghost"
-      size="small"
-      className="flex-1 focus-within:!bg-transparent hover:!bg-transparent"
-      inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
-      data-testid="create-work-item-title-input"
+      dataTestId="create-work-item-title-input"
     />
   );
 
@@ -471,7 +464,7 @@ export function useInlineCreateWorkItemFields({
       separatorVisible={false}
       descriptionPlaceholder={tSessions("creator.placeholderDefault")}
       onImageInsert={handleImageInsert}
-      descriptionClassName="no-bottom-border"
+      descriptionClassName="no-bottom-border [&_.ProseMirror]:!pl-1.5"
       descriptionMaxHeight="100%"
       repoPath={repoPath}
       className="flex min-h-0 flex-1 flex-col"

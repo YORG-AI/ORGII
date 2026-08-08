@@ -157,7 +157,7 @@ impl GoogleValidator {
                     let proxy_url = base_url.unwrap();
                     info!(
                         "[Google] Proxy mode — verifying auth via completion test with model: {}",
-                        &models[0]
+                        models[0]
                     );
                     match self.test_completion(api_key, proxy_url, &models[0]).await {
                         Ok(()) => {

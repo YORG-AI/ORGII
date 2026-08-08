@@ -12,6 +12,7 @@ import type {
   RepoType,
 } from "../types";
 import { REPO_TYPES } from "../types";
+import { useFocusRegainedRescan } from "./useFocusRegainedRescan";
 
 const EMPTY_RESULT: RepoDetectionResult = {
   repoType: "unknown",
@@ -132,13 +133,8 @@ export function useRepoDetection(repoPath: string | undefined) {
   }, [repoPath, tick]);
 
   // Re-detect when the window regains focus (e.g. after an agent session
-  // adds new config files to the repo).
-  useEffect(() => {
-    if (!repoPath) return;
-    const handleFocus = () => refresh();
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [repoPath, refresh]);
+  // adds new config files to the repo). Flap-cooled.
+  useFocusRegainedRescan(Boolean(repoPath), refresh);
 
   const validResult =
     snapshot?.key === requestKey ? snapshot.result : EMPTY_RESULT;

@@ -83,7 +83,8 @@ async function decodeCloudSegments(
   segments: readonly CloudSegmentWire[],
   afterSeq: number,
   downloadObject: SegmentObjectDownload,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onSegmentDecoded?: (eventCount: number) => void
 ): Promise<SessionEventSegmentRecord[]> {
   return mapSegmentsBounded(
     segments.filter((segment) => {
@@ -92,10 +93,18 @@ async function decodeCloudSegments(
     }),
     async (segment) => {
       const seq = segment.seq ?? 0;
+      const events = await decodeCloudSegmentEvents(
+        segment,
+        downloadObject,
+        signal
+      );
+      // Per-segment tick: a page can hold 64 storage objects, so page-level
+      // progress alone leaves the bar frozen through most of the transfer.
+      onSegmentDecoded?.(events.length);
       return {
         seq,
         isTail: seq === 0,
-        events: await decodeCloudSegmentEvents(segment, downloadObject, signal),
+        events,
         eventCount: segment.eventCount,
         segmentHash: segment.segmentHash,
       };
@@ -132,9 +141,23 @@ export function cloudSessionIdFromRowId(sessionRowId: string): string {
  * A backend without the authorize RPC falls back to the member download so
  * the import surfaces exactly the failure it had before the signer existed.
  */
+export interface CloudSessionFetchClientOptions {
+  /**
+   * Segment-granular transfer progress for the page-streamed wire. Reports
+   * cumulative decoded events against the server-reported session total —
+   * finer than the importer's per-page persistence progress, which only
+   * ticks after a whole 64-segment page lands.
+   */
+  onTransferProgress?: (progress: {
+    decodedEvents: number;
+    totalEvents: number | null;
+  }) => void;
+}
+
 export function buildCloudSessionFetchClient(
   accessToken: string,
-  endpoint?: CloudEndpoint
+  endpoint?: CloudEndpoint,
+  options?: CloudSessionFetchClientOptions
 ): CloudSessionFetchClient {
   const guestReaders = new Map<string, GuestReplayObjectReader>();
   const downloadForInput = (input: {
@@ -223,6 +246,7 @@ export function buildCloudSessionFetchClient(
     async streamSessionEventSegments(input, onPage) {
       const afterSeq = input.afterSeq ?? 0;
       const downloadObject = downloadForInput(input);
+      let decodedEvents = 0;
       return streamSessionEvents(
         accessToken,
         input.orgId,
@@ -237,7 +261,16 @@ export function buildCloudSessionFetchClient(
               page.segments,
               afterSeq,
               downloadObject,
-              input.signal
+              input.signal,
+              options?.onTransferProgress
+                ? (segmentEventCount) => {
+                    decodedEvents += segmentEventCount;
+                    options.onTransferProgress?.({
+                      decodedEvents,
+                      totalEvents: page.count ?? null,
+                    });
+                  }
+                : undefined
             ),
           });
         },

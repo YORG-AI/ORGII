@@ -1,21 +1,11 @@
 /**
  * Types for SetupWalkthrough module
  */
-import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentType } from "react";
 
-// ============================================
-// AnimatedTitle Types
-// ============================================
+import type { WizardStepIcon } from "@src/scaffold/WizardSystem";
 
-export interface AnimatedTitleProps {
-  title: string;
-  subtitle?: string;
-  /** If true, title stays visible (doesn't fade out) */
-  persistent?: boolean;
-  /** If true, hide the small header at top */
-  hideSmallTitle?: boolean;
-}
+import type { SetupWalkthroughController } from "./useSetupWalkthroughController";
 
 // ============================================
 // Step Configuration Types
@@ -23,9 +13,9 @@ export interface AnimatedTitleProps {
 
 /** Step config with translation keys instead of static strings */
 export interface StepConfig {
-  id: string;
+  id: import("./flow").SetupStepId;
   /** Translation key under steps.{key}.title */
   i18nKey: string;
-  icon: LucideIcon;
-  content: ReactNode;
+  icon: WizardStepIcon;
+  component: ComponentType<{ controller: SetupWalkthroughController }>;
 }

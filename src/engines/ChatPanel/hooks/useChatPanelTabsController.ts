@@ -2,6 +2,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import {
+  activateChatPanelTabAtom,
   activeChatPanelTabAtom,
   addChatPanelTerminalTabAtom,
   chatPanelTabsAtom,
@@ -10,8 +11,10 @@ import {
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { createChatPanelTerminalAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
+import { terminalSessionsAtom } from "@src/store/workstation/codeEditor/terminal";
 
 import type { ChatPanelCliTerminalLaunchOptions } from "../types";
+import { findOpenCliTerminalTab } from "./chatPanelTerminalTabLookup";
 
 interface UseChatPanelTabsControllerOptions {
   launchpadTitle: string;
@@ -26,10 +29,12 @@ export function useChatPanelTabsController({
 }: UseChatPanelTabsControllerOptions) {
   const activeTab = useAtomValue(activeChatPanelTabAtom);
   const allTabs = useAtomValue(chatPanelTabsAtom).tabs;
+  const terminalSessions = useAtomValue(terminalSessionsAtom);
   const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
   const addTerminalTab = useSetAtom(addChatPanelTerminalTabAtom);
   const openKanbanTab = useSetAtom(openWorkManagementChatPanelTabAtom);
   const createTerminalSession = useSetAtom(createChatPanelTerminalAtom);
+  const activateTab = useSetAtom(activateChatPanelTabAtom);
 
   const handleNewTerminalTab = useCallback(() => {
     const terminalSessionId = createTerminalSession("Terminal");
@@ -38,6 +43,22 @@ export function useChatPanelTabsController({
 
   const handleOpenCliTerminal = useCallback(
     (options: ChatPanelCliTerminalLaunchOptions) => {
+      // A CLI resume (or a repeat "Launch" of the same agent/cwd) that's
+      // already open in a terminal tab should be focused, not relaunched —
+      // the backend mints a fresh managed session on every call, so without
+      // this check a second click spawns a second CLI process against the
+      // same resumed conversation.
+      const existingTab = findOpenCliTerminalTab(allTabs, terminalSessions, {
+        cliAgentType: options.cliAgentType,
+        command: options.command,
+        cwd: options.cwd,
+      });
+      if (existingTab) {
+        activateTab(existingTab.id);
+        showSessionSurface();
+        return;
+      }
+
       const terminalSessionId = createTerminalSession({
         name: options.title,
         cwd: options.cwd,
@@ -53,7 +74,14 @@ export function useChatPanelTabsController({
       });
       showSessionSurface();
     },
-    [addTerminalTab, createTerminalSession, showSessionSurface]
+    [
+      activateTab,
+      addTerminalTab,
+      allTabs,
+      createTerminalSession,
+      showSessionSurface,
+      terminalSessions,
+    ]
   );
 
   // New-session and launchpad both open the singleton start page (Work

@@ -1,18 +1,59 @@
 /** Shared activity timeline primitives used by work items, work logs, issues, and PRs. */
-import { Check, Clipboard } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
+import Button, { type ButtonProps } from "@src/components/Button";
 import { useCopyCheck } from "@src/hooks/ui";
+import { normalizeScrollTrailLabel } from "@src/modules/shared/layouts/blocks/ScrollTrail";
 import { copyText } from "@src/util/data/clipboard";
-import { formatDate } from "@src/util/data/formatters/date";
+import {
+  formatDate,
+  formatSmartDateTime,
+  toIntlLocaleTag,
+} from "@src/util/data/formatters/date";
 
 export {
   MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT,
   MarkdownContent,
   normalizeMarkdownContent,
 } from "@src/modules/shared/components/MarkdownContent";
+
+export interface ActivityHeaderActionButtonProps extends Omit<
+  ButtonProps,
+  | "variant"
+  | "appearance"
+  | "size"
+  | "iconOnly"
+  | "children"
+  | "title"
+  | "aria-label"
+> {
+  icon: React.ReactNode;
+  label: string;
+}
+
+/** Canonical icon action for activity-card and thread-section headers. */
+export function ActivityHeaderActionButton({
+  icon,
+  label,
+  className = "",
+  ...buttonProps
+}: ActivityHeaderActionButtonProps): React.ReactNode {
+  return (
+    <Button
+      variant="tertiary"
+      appearance="ghost"
+      size="mini"
+      iconOnly
+      icon={icon}
+      title={label}
+      aria-label={label}
+      className={`shrink-0 text-text-3 hover:bg-fill-2 hover:text-text-1 ${className}`.trim()}
+      {...buttonProps}
+    />
+  );
+}
 
 export function TimelineCopyButton({
   body,
@@ -28,21 +69,16 @@ export function TimelineCopyButton({
   if (!body.trim()) return null;
 
   return (
-    <Button
-      variant="tertiary"
-      appearance="ghost"
-      size="mini"
-      iconOnly
+    <ActivityHeaderActionButton
       icon={
         copied ? (
           <Check size={12} strokeWidth={1.75} />
         ) : (
-          <Clipboard size={12} strokeWidth={1.75} />
+          <Copy size={12} strokeWidth={1.75} />
         )
       }
-      title={copied ? t("status.copied") : t("actions.copy")}
-      aria-label={copied ? t("status.copied") : t("actions.copy")}
-      className="shrink-0 text-text-3 hover:bg-fill-2 hover:text-text-1"
+      label={copied ? t("status.copied") : t("actions.copy")}
+      data-testid="timeline-copy-button"
       onClick={(event) => {
         event.stopPropagation();
         handleCopy();
@@ -59,10 +95,19 @@ export function ActivityTimestamp({
   timestamp: string;
   label?: string;
 }): React.ReactNode {
+  const { t, i18n } = useTranslation("common");
   const fullLabel = formatDate(timestamp);
+  const displayLabel =
+    label ??
+    formatSmartDateTime(timestamp, {
+      yesterdayLabel: t("relativeDate.yesterday", {
+        defaultValue: "Yesterday",
+      }),
+      locale: toIntlLocaleTag(i18n?.resolvedLanguage),
+    });
   return (
     <time dateTime={timestamp} title={fullLabel} className="whitespace-nowrap">
-      {label ?? fullLabel}
+      {displayLabel}
     </time>
   );
 }
@@ -109,20 +154,61 @@ export function TimelineStack({
   return <div className="flex min-w-0 flex-col">{children}</div>;
 }
 
+/** Text-free loading frame that mirrors a full timeline card. */
+export function TimelineLoadingSkeleton({
+  label,
+}: {
+  label: string;
+}): React.ReactNode {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      className="min-w-0 animate-pulse overflow-hidden rounded-xl border border-border-1 bg-chat-pane motion-reduce:animate-none"
+      data-testid="timeline-loading-skeleton"
+    >
+      <div className="flex h-10 items-center gap-2 border-b border-border-1 bg-primary-container px-3">
+        <span aria-hidden className="size-5 rounded-full bg-fill-2" />
+        <span aria-hidden className="h-3 w-28 rounded bg-fill-2" />
+        <span aria-hidden className="h-3 w-16 rounded bg-fill-2" />
+      </div>
+      <div className="space-y-2.5 px-3 py-3">
+        <span aria-hidden className="block h-3 w-full rounded bg-fill-2" />
+        <span aria-hidden className="block h-3 w-11/12 rounded bg-fill-2" />
+        <span aria-hidden className="block h-3 w-2/3 rounded bg-fill-2" />
+      </div>
+    </div>
+  );
+}
+
 /** A timeline entry with an optional connecting rail to the next item. */
 export function ConnectedTimelineItem({
   children,
   isLast,
+  trailLabel,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   isLast?: boolean;
+  trailLabel?: string;
 }): React.ReactNode {
   return (
-    <div className="flex min-w-0 flex-col">
-      {children}
+    <div
+      className="relative flex min-w-0 flex-col"
+      data-scroll-trail-target={trailLabel ? true : undefined}
+      data-scroll-trail-label={
+        trailLabel ? normalizeScrollTrailLabel(trailLabel) : undefined
+      }
+    >
       {!isLast ? (
-        <div className="-mt-px ml-5 h-3 border-l border-border-1" aria-hidden />
+        <div
+          className="pointer-events-none absolute bottom-0 left-5 top-5 border-l border-border-1"
+          data-testid="timeline-connector"
+          aria-hidden
+        />
       ) : null}
+      <div className="relative z-10 min-w-0">{children}</div>
+      {!isLast ? <div className="-mt-px h-3 shrink-0" aria-hidden /> : null}
     </div>
   );
 }
@@ -147,9 +233,9 @@ export function TimelineCard({
 }): React.ReactNode {
   return (
     <div
-      className={`flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-1 bg-primary-container ${className}`.trim()}
+      className={`flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-1 bg-chat-pane ${className}`.trim()}
     >
-      <div className="flex min-w-0 select-text items-center justify-between gap-3 border-b border-border-1 px-3 py-2">
+      <div className="flex min-w-0 select-text items-center justify-between gap-3 border-b border-border-1 bg-primary-container px-3 py-2">
         {header}
         {copyBody || actions ? (
           <div className="flex shrink-0 items-center gap-1">
@@ -166,7 +252,7 @@ export function TimelineCard({
   );
 }
 
-/** Compact bordered event row used between full timeline cards. */
+/** Compact event row used between full timeline cards. */
 export function TimelineEventCard({
   icon,
   children,
@@ -175,11 +261,11 @@ export function TimelineEventCard({
   children?: React.ReactNode;
 }): React.ReactNode {
   return (
-    <div className="flex min-w-0 items-start gap-2 rounded-lg border border-border-1 bg-primary-container px-3 py-2 text-[12px] text-text-3">
+    <div className="flex min-w-0 items-center gap-2 px-2.5 text-[11px] text-text-3">
       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-fill-2 text-text-2">
         {icon}
       </span>
-      <div className="min-w-0 flex-1 leading-5">{children}</div>
+      <div className="min-w-0 flex-1 leading-4">{children}</div>
     </div>
   );
 }

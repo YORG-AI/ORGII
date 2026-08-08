@@ -52,6 +52,7 @@ describe("COMPONENT_LOADERS", () => {
     "turn_summary",
     "worktree",
     "setup_repo",
+    "canvas_inline",
     "rate_limit_hint",
     "tool_call",
   ] as const;

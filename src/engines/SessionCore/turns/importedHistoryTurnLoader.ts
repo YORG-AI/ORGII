@@ -12,7 +12,8 @@ import type { SessionTurnLoader } from "./types";
 interface PendingImportedTurnBatch {
   turnIds: Set<string>;
   waiters: Array<{
-    resolve: () => void;
+    turnId: string;
+    resolve: (loaded: boolean) => void;
     reject: (error: unknown) => void;
   }>;
   flushing: boolean;
@@ -36,13 +37,26 @@ async function flushPendingBatch(sessionId: string): Promise<void> {
         turnIds,
       });
       const chunks = windows.flatMap((window) => window.chunks);
+      let merged = false;
       if (chunks.length > 0) {
         const events = await processChunksRust(chunks, sessionId);
         if (events.length > 0) {
           await eventStoreProxy.mergeRoundWindowEvents(events, sessionId);
+          merged = true;
         }
       }
-      for (const waiter of waiters) waiter.resolve();
+      // Per-turn resolution: the wire names each window's turn, so a turn
+      // whose window came back empty must NOT be marked loaded by its
+      // batch-mates — that would disarm exactly the retry affordance the
+      // loader contract exists to preserve.
+      const loadedTurnIds = new Set(
+        windows
+          .filter((window) => window.chunks.length > 0)
+          .map((window) => window.turnId)
+      );
+      for (const waiter of waiters) {
+        waiter.resolve(merged && loadedTurnIds.has(waiter.turnId));
+      }
     } catch (error) {
       for (const waiter of waiters) waiter.reject(error);
     }
@@ -54,18 +68,18 @@ async function flushPendingBatch(sessionId: string): Promise<void> {
 function enqueueImportedTurnLoad(
   sessionId: string,
   turnId: string
-): Promise<void> {
+): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const existing = pendingBatches.get(sessionId);
     if (existing) {
       existing.turnIds.add(turnId);
-      existing.waiters.push({ resolve, reject });
+      existing.waiters.push({ turnId, resolve, reject });
       return;
     }
 
     pendingBatches.set(sessionId, {
       turnIds: new Set([turnId]),
-      waiters: [{ resolve, reject }],
+      waiters: [{ turnId, resolve, reject }],
       flushing: false,
     });
     queueMicrotask(() => {
@@ -81,8 +95,8 @@ export const importedHistoryTurnLoader: SessionTurnLoader = {
       isCodexAppSession(sessionId) ||
       isCursorIdeSession(sessionId)
     ) {
-      return;
+      return false;
     }
-    await enqueueImportedTurnLoad(sessionId, turnId);
+    return enqueueImportedTurnLoad(sessionId, turnId);
   },
 };

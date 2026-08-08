@@ -527,11 +527,13 @@ fn interaction_strength(
     )
 }
 
+type ResolvedInteractionActor = (Option<String>, Option<SessionRecord>, Option<String>);
+
 fn resolve_interaction_actor(
     store: &dyn RecordStore,
     session_cache: &mut HashMap<String, Option<SessionRecord>>,
     interaction: &ResourceInteractionRecord,
-) -> Result<(Option<String>, Option<SessionRecord>, Option<String>), String> {
+) -> Result<ResolvedInteractionActor, String> {
     if let Some(actor_id) = interaction.actor_id.as_deref() {
         let actor_record = match store.get_session_actor(
             &interaction.source,

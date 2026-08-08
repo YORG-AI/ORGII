@@ -108,7 +108,7 @@ const DiffLeft: React.FC<DiffModeProps> = ({ oldImage, newImage, status }) => {
           {oldImage.width} × {oldImage.height} · {formatFileSize(oldImage.size)}
         </span>
       ) : (
-        <span>{isAdded ? "New file" : "N/A"}</span>
+        <span>{isAdded ? "New file" : "—"}</span>
       )}
       <ArrowRight size={12} className="text-text-3" />
       {newImage ? (
@@ -116,7 +116,7 @@ const DiffLeft: React.FC<DiffModeProps> = ({ oldImage, newImage, status }) => {
           {newImage.width} × {newImage.height} · {formatFileSize(newImage.size)}
         </span>
       ) : (
-        <span>{isDeleted ? "Deleted" : "N/A"}</span>
+        <span>{isDeleted ? "Deleted" : "—"}</span>
       )}
     </div>
   );

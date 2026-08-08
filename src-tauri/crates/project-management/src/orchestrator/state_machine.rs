@@ -292,7 +292,17 @@ pub fn mutate_work_item(
     short_id: &str,
     mutator: impl FnOnce(&mut WorkItemFrontmatter) -> TransitionResult,
 ) -> Result<TransitionResult, String> {
-    io::update_work_item_atomic(project_slug, short_id, |frontmatter, _body| {
+    // Orchestrator session-terminal handling is the DEFAULT COMPLETION
+    // POLICY of the Orgtrack migration (design §17): the status change is
+    // audited as an explicit work.transition with a policy reason, not a
+    // silent side effect. FSM stays flag-only here — orchestrator flows
+    // legitimately move through the legacy vocabulary until Phase 7.
+    let service = io::AtomicServiceOptions {
+        operation: Some("work.transition"),
+        reason: Some("completion policy: orchestrator session terminal".to_string()),
+        ..Default::default()
+    };
+    io::update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
         let result = mutator(frontmatter);
         frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
         Ok(result)
@@ -310,4 +320,7 @@ pub enum TransitionResult {
     Failed,
     CreateFollowUp,
     AwaitingUser,
+    /// Stale terminal signal from a session that no longer owns the
+    /// item's execution claim — the mutation was skipped entirely.
+    Ignored,
 }

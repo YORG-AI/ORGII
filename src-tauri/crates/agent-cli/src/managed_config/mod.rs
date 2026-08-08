@@ -34,6 +34,38 @@ use operations::{
 use registry::{supported_agent, unavailable_agent_message, MANAGED_CONFIG_ADAPTERS};
 use transaction::recover_pending_transaction_unlocked;
 
+/// Keep a small amount of Codex-native recovery without combining it with
+/// ORGII's whole-process overload replay.
+pub const CODEX_REQUEST_MAX_RETRIES: i64 = 2;
+pub const CODEX_STREAM_MAX_RETRIES: i64 = 2;
+
+/// Write the complete, ORGII-owned Codex profile used by one hosted session.
+///
+/// This deliberately does not merge with the user's global Codex config: the
+/// caller points `CODEX_HOME` at a session-scoped directory, eliminating
+/// cross-session and cross-instance last-writer-wins routing.
+pub fn write_codex_hosted_profile(
+    profile_dir: &std::path::Path,
+    proxy_url: &str,
+) -> Result<(), String> {
+    let content = generators::generate_codex_hosted_profile(proxy_url)?;
+    let config_path = profile_dir.join("config.toml");
+    if std::fs::read_to_string(&config_path).ok().as_deref() == Some(content.as_str()) {
+        return Ok(());
+    }
+    file_io::write_sensitive_file_atomic(&config_path, content.as_bytes())
+}
+
+/// Crash-safe replace of a CLI profile file: write an owner-only sibling temp
+/// file, fsync, then rename over the target. The payload is never on disk
+/// group- or world-readable, so callers holding credentials only need
+/// [`app_paths::set_sensitive_file_permissions`] to pin the destination's
+/// permissions (and to cover Windows ACLs) — and get to decide for themselves
+/// whether a failure there is fatal.
+pub fn write_cli_profile_file_atomic(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    file_io::write_file_atomic(path, bytes)
+}
+
 pub use dto::{
     CliConfigManagedStatus, CliConfigMode, CliConfigProfileManifest,
     CliConfigShutdownRestoreReport, CliConfigTargetFileManifest, CliConfigTargetFileStatus,

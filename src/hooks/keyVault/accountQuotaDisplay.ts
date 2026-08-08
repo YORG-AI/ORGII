@@ -19,12 +19,24 @@ const WINDOW_PROVIDER_TYPES = new Set<KeyVaultAccount["modelType"]>([
   CLI_AGENT.CODEX,
 ]);
 
-export interface AccountQuotaMetric {
+export interface AccountQuotaPercentageMetric {
+  kind: "percentage";
   key: string;
   label: string;
   remainingPercent: number;
   resetTime?: string | null;
 }
+
+export interface AccountQuotaValueMetric {
+  kind: "value";
+  key: string;
+  label: string;
+  value: string;
+}
+
+export type AccountQuotaMetric =
+  | AccountQuotaPercentageMetric
+  | AccountQuotaValueMetric;
 
 export interface AccountQuotaCard {
   id: string;
@@ -239,11 +251,25 @@ function toMetric(
   label: string
 ): AccountQuotaMetric {
   return {
+    kind: "percentage",
     key,
     label,
     remainingPercent: item.remaining_percentage,
     resetTime: item.reset_time,
   };
+}
+
+function formatBalanceValue(amount: number, currency: string): string {
+  const normalizedCurrency = currency.trim().toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: normalizedCurrency,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${normalizedCurrency}`.trim();
+  }
 }
 
 function formatQuotaResetDurationUntil(
@@ -459,9 +485,33 @@ export function collectAccountQuotaCards(
             tIntegrations
           )
         : [];
+    const balance =
+      "balance" in account.quotaInfo ? account.quotaInfo.balance : undefined;
+    if (
+      balance &&
+      Number.isFinite(balance.amount) &&
+      balance.amount >= 0 &&
+      balance.currency.trim()
+    ) {
+      metrics.unshift({
+        kind: "value",
+        key: "balance",
+        label: tIntegrations("keyVault.quota.balance", {
+          defaultValue: "Balance",
+        }),
+        value: formatBalanceValue(balance.amount, balance.currency),
+      });
+    }
 
     if (metrics.length === 0) {
-      const remainingPercent = account.quotaInfo.remaining_percentage ?? 0;
+      const remainingPercent = account.quotaInfo.remaining_percentage;
+      if (
+        typeof remainingPercent !== "number" ||
+        !Number.isFinite(remainingPercent) ||
+        remainingPercent < 0
+      ) {
+        continue;
+      }
       cards.push({
         id: account.id,
         accountName: accountLabels.accountName,
@@ -469,6 +519,7 @@ export function collectAccountQuotaCards(
         modelType: account.modelType,
         metrics: [
           {
+            kind: "percentage",
             key: "overall",
             label: tIntegrations("keyVault.quota.quotaUsage"),
             remainingPercent,

@@ -145,6 +145,12 @@ mod tests {
             "{tool} must be in SDE Agent's default excluded set \
              (it's a coding agent, not a desktop driver)"
         );
+        assert!(
+            !excluded
+                .iter()
+                .any(|tool| tool == tool_names::RENDER_INLINE_CANVAS),
+            "SDE Agent must keep render_inline_canvas available for interactive sketches"
+        );
     }
 
     #[test]
@@ -182,5 +188,20 @@ mod tests {
                 "SDE Agent must not list runtime primitive {forbidden} as a sub-agent"
             );
         }
+    }
+
+    #[test]
+    fn sde_prompt_treats_interactive_sketches_as_canvas_not_implementation() {
+        let prompt = sde_agent()
+            .soul_content
+            .expect("SDE Agent declares a soul prompt");
+
+        assert!(prompt.contains("## Interactive sketches"));
+        assert!(prompt.contains("not authorization to implement"));
+        assert!(prompt.contains("render_inline_canvas"));
+        assert!(prompt.contains("mode: \"react\""));
+        assert!(prompt.contains("React.useState"));
+        assert!(prompt.contains("Do not add imports"));
+        assert!(prompt.contains("instead of implementing the product"));
     }
 }

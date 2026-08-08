@@ -48,6 +48,7 @@ export const AGENT_TYPE_LIST: CliAgentType[] = [
 /** API key provider types in alphabetical order by label */
 export const API_KEY_PROVIDER_LIST: ApiProviderType[] = [
   "anthropic_api", // Anthropic
+  "atlascloud_api", // Atlas Cloud
   "azure_anthropic_api", // Azure Anthropic
   "azure_openai_api", // Azure OpenAI
   "deepseek_api", // DeepSeek

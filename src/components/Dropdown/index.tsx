@@ -36,6 +36,7 @@ import React, {
 } from "react";
 
 import { useDropdownAutoKeyboard } from "@src/hooks/dropdown";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 import DropdownMenuSurface from "./DropdownMenuSurface";
 import DropdownOptionsContent from "./DropdownOptionsContent";
@@ -71,7 +72,7 @@ export interface DropdownProps {
   /**
    * Placement relative to the trigger. Vertical placements flip to their
    * mirror side automatically when the requested side cannot fit the panel.
-   * @default 'bottom-start'
+   * @default 'bottom-end'
    */
   position?: DropdownPosition;
 
@@ -147,7 +148,7 @@ export interface DropdownProps {
 const Dropdown: React.FC<DropdownProps> = ({
   droplist,
   children,
-  position = "bottom-start",
+  position = "bottom-end",
   trigger = "click",
   hoverCloseDelayMs = 100,
   popupVisible: controlledVisible,
@@ -191,6 +192,8 @@ const Dropdown: React.FC<DropdownProps> = ({
 
   const isControlled = controlledVisible !== undefined;
   const visible = isControlled ? controlledVisible : internalVisible;
+
+  useOverlayLayer(visible);
 
   const setVisible = useCallback(
     (newVisible: boolean) => {

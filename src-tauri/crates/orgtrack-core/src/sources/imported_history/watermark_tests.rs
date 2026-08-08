@@ -150,6 +150,319 @@ fn prefix_mutation_forces_a_full_reparse() {
 }
 
 #[test]
+fn same_size_mtime_change_forces_a_full_reparse() {
+    let path = temp_transcript("same-size-rewrite", "aa\nbb\n");
+    let (mtime, size) = stat(&path);
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
+    read_all(&mut reader);
+    let watermark = reader.into_watermark(1, mtime, size, "state-1".to_string());
+
+    fs::write(&path, "cc\ndd\n").expect("same-size rewrite");
+    let mut reopened =
+        WatermarkedTranscriptReader::open(&path, "Test", Some(&watermark), 1, mtime + 1, size)
+            .expect("open rewritten");
+    assert!(reopened.resume_state_json().is_none());
+    assert_eq!(
+        read_all(&mut reopened),
+        vec![("cc".to_string(), true), ("dd".to_string(), true)]
+    );
+
+    cleanup(&path);
+}
+
+#[test]
+fn rotated_file_identity_forces_a_full_reparse() {
+    let path = temp_transcript("rotation", "old\n");
+    let old_path = path.with_extension("old");
+    let (mtime, size) = stat(&path);
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
+    read_all(&mut reader);
+    let watermark = reader.into_watermark(1, mtime, size, "state-1".to_string());
+
+    fs::rename(&path, &old_path).expect("rotate old file");
+    fs::write(&path, "new\nappended\n").expect("create replacement");
+    let (rotated_mtime, rotated_size) = stat(&path);
+    let mut reopened = WatermarkedTranscriptReader::open(
+        &path,
+        "Test",
+        Some(&watermark),
+        1,
+        rotated_mtime.max(mtime),
+        rotated_size,
+    )
+    .expect("open replacement");
+    assert!(reopened.resume_state_json().is_none());
+    assert_eq!(
+        read_all(&mut reopened),
+        vec![("new".to_string(), true), ("appended".to_string(), true)]
+    );
+
+    fs::remove_file(&old_path).ok();
+    cleanup(&path);
+}
+
+/// A record whose JSON structure alone blows the buffer cannot be salvaged by
+/// truncating string values, so it is skipped — but the parse must continue,
+/// with the watermark landing past it so a resume does not re-read it.
+#[test]
+fn unsalvageable_line_is_skipped_without_stopping_the_parse() {
+    let path = temp_transcript("oversized", "stable\n");
+    let (mtime, size) = stat(&path);
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
+    assert_eq!(
+        reader.next_line().expect("read stable"),
+        Some(TranscriptLine {
+            text: "stable".to_string(),
+            terminated: true,
+        })
+    );
+    let watermark = reader.into_watermark(1, mtime, size, "stable-state".to_string());
+
+    let oversized = vec![b'x'; MAX_JSONL_LINE_BYTES + 1];
+    fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .and_then(|mut file| {
+            std::io::Write::write_all(&mut file, &oversized)?;
+            std::io::Write::write_all(&mut file, b"\nafter\n")
+        })
+        .expect("append oversized record");
+    let (mtime_after, size_after) = stat(&path);
+    let mut resumed = WatermarkedTranscriptReader::open(
+        &path,
+        "Test",
+        Some(&watermark),
+        1,
+        mtime_after,
+        size_after,
+    )
+    .expect("open appended file");
+    assert_eq!(resumed.resume_state_json(), Some("stable-state"));
+    assert_eq!(read_all(&mut resumed), vec![("after".to_string(), true)]);
+    let after_skip = resumed.into_watermark(1, mtime_after, size_after, "after-state".to_string());
+    assert_eq!(after_skip.byte_offset, size_after);
+
+    // The seam the skip left behind must still validate, or the next scan
+    // would cold-reparse the whole file and skip the same record again.
+    let mut reopened = WatermarkedTranscriptReader::open(
+        &path,
+        "Test",
+        Some(&after_skip),
+        1,
+        mtime_after,
+        size_after,
+    )
+    .expect("reopen after skip");
+    assert_eq!(reopened.resume_state_json(), Some("after-state"));
+    assert!(read_all(&mut reopened).is_empty());
+
+    cleanup(&path);
+}
+
+/// The common real-world case: one record carrying a multi-megabyte string
+/// value — a base64 image in a `tool_result`, a long command's output. It must
+/// survive as a parseable record with every structural field intact; only the
+/// oversized value shortens.
+#[test]
+fn oversized_string_value_is_truncated_and_the_record_still_parses() {
+    let payload = "A".repeat(MAX_JSON_STRING_BYTES + 4096);
+    let record = format!(
+        r#"{{"type":"user","uuid":"abc-123","message":{{"role":"user","content":[{{"type":"tool_result","data":"{payload}"}}]}},"tail":"kept"}}"#
+    );
+    let path = temp_transcript("truncate-string", &format!("{record}\n"));
+    let (mtime, size) = stat(&path);
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
+    let line = reader.next_line().expect("read record").expect("one record");
+
+    let value: serde_json::Value =
+        serde_json::from_str(&line.text).expect("truncated record is valid JSON");
+    assert_eq!(value["type"], "user");
+    assert_eq!(value["uuid"], "abc-123");
+    assert_eq!(value["message"]["role"], "user");
+    // Everything after the truncated value survives — truncation consumes the
+    // value's interior, never the structure around it.
+    assert_eq!(value["tail"], "kept");
+    let data = value["message"]["content"][0]["data"]
+        .as_str()
+        .expect("data is a string");
+    assert!(data.starts_with("AAA"));
+    assert!(data.ends_with("...[truncated]"));
+    assert!(data.len() < payload.len());
+    assert_eq!(reader.next_line().expect("read eof"), None);
+
+    cleanup(&path);
+}
+
+/// A record can blow the buffer in aggregate while every single value stays
+/// under budget — the real Claude `tool_result` carrying several images has
+/// exactly this shape. A per-value budget alone would skip it; the allowance
+/// has to tighten as the record fills so it still parses.
+#[test]
+fn many_under_budget_values_are_truncated_rather_than_overflowing() {
+    let value = "B".repeat(MAX_JSON_STRING_BYTES - 1);
+    let values = (0..24)
+        .map(|index| format!(r#""k{index}":"{value}""#))
+        .collect::<Vec<_>>()
+        .join(",");
+    let record = format!(r#"{{{values},"tail":"kept"}}"#);
+    // Every value is legal on its own, and together they far exceed the cap.
+    assert!(record.len() > MAX_JSONL_LINE_BYTES);
+    let path = temp_transcript("aggregate", &format!("{record}\n"));
+    let (mtime, size) = stat(&path);
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
+    let line = reader.next_line().expect("read record").expect("one record");
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&line.text).expect("truncated record is valid JSON");
+    // The record survives with all 24 keys and the trailing field intact.
+    assert_eq!(parsed["tail"], "kept");
+    assert_eq!(parsed["k0"].as_str().expect("k0").len(), value.len());
+    assert!(parsed["k23"].as_str().expect("k23").ends_with("...[truncated]"));
+    assert!(line.text.len() <= MAX_JSONL_LINE_BYTES);
+    assert_eq!(reader.next_line().expect("read eof"), None);
+
+    cleanup(&path);
+}
+
+/// Cuts have to land between complete units. Splitting `\"` leaves a dangling
+/// backslash and splitting `é` leaves half an escape — either one makes
+/// the entire record unparseable. Alignment is swept so the budget runs out at
+/// every offset within the repeating unit.
+#[test]
+fn truncation_never_splits_an_escape_sequence() {
+    let unit = r#"\"é"#;
+    for offset in 0..unit.len() {
+        let payload = format!(
+            "{}{}",
+            "z".repeat(offset),
+            unit.repeat(MAX_JSON_STRING_BYTES / unit.len() + 64)
+        );
+        let record = format!(r#"{{"v":"{payload}","tail":"kept"}}"#);
+        let path = temp_transcript(&format!("escape-{offset}"), &format!("{record}\n"));
+        let (mtime, size) = stat(&path);
+        let mut reader =
+            WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
+        let line = reader.next_line().expect("read record").expect("one record");
+        let value: serde_json::Value = serde_json::from_str(&line.text).unwrap_or_else(|err| {
+            panic!("offset {offset}: truncated record must stay valid JSON: {err}")
+        });
+        assert_eq!(value["tail"], "kept");
+        assert!(value["v"].as_str().expect("v").ends_with("...[truncated]"));
+        cleanup(&path);
+    }
+}
+
+/// Cutting inside a multi-byte character would make the record invalid UTF-8,
+/// which fails the whole read rather than just that value. Alignment is swept
+/// so the budget runs out at every byte of a 4-byte character.
+#[test]
+fn truncation_never_splits_a_multibyte_character() {
+    for offset in 0..4 {
+        let payload = format!(
+            "{}{}",
+            "z".repeat(offset),
+            "🌍".repeat(MAX_JSON_STRING_BYTES / 4 + 64)
+        );
+        let record = format!(r#"{{"v":"{payload}","tail":"kept"}}"#);
+        let path = temp_transcript(&format!("utf8-{offset}"), &format!("{record}\n"));
+        let (mtime, size) = stat(&path);
+        let mut reader =
+            WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
+        let line = reader
+            .next_line()
+            .unwrap_or_else(|err| panic!("offset {offset}: must stay valid UTF-8: {err}"))
+            .expect("one record");
+        let value: serde_json::Value =
+            serde_json::from_str(&line.text).expect("truncated record is valid JSON");
+        assert_eq!(value["tail"], "kept");
+        cleanup(&path);
+    }
+}
+
+/// Values under the budget must come through byte for byte — truncation is
+/// strictly an over-budget path, not a lossy default.
+#[test]
+fn values_under_the_budget_pass_through_untouched() {
+    let record = r#"{"type":"user","v":"short \"quoted\" é value","n":42}"#;
+    let path = temp_transcript("untouched", &format!("{record}\n"));
+    let (mtime, size) = stat(&path);
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
+    assert_eq!(
+        reader.next_line().expect("read record"),
+        Some(TranscriptLine {
+            text: record.to_string(),
+            terminated: true,
+        })
+    );
+
+    cleanup(&path);
+}
+
+/// The cap bounds the reader's buffer; it must not silently truncate a record
+/// that merely happens to be large.
+#[test]
+fn a_record_at_the_size_limit_is_still_returned_whole() {
+    let body = "y".repeat(MAX_JSONL_LINE_BYTES - 1);
+    let path = temp_transcript("at-limit", &format!("{body}\n"));
+    let (mtime, size) = stat(&path);
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
+    assert_eq!(
+        reader.next_line().expect("read at-limit record"),
+        Some(TranscriptLine {
+            text: body,
+            terminated: true,
+        })
+    );
+    assert_eq!(reader.next_line().expect("read eof"), None);
+
+    cleanup(&path);
+}
+
+/// A live writer part-way through appending a huge record: the tail is not yet
+/// complete, so it must not advance the watermark past bytes a later append
+/// will extend.
+#[test]
+fn unterminated_oversized_tail_does_not_advance_the_watermark() {
+    let path = temp_transcript("oversized-tail", "stable\n");
+    let (mtime, size) = stat(&path);
+    let committed = {
+        let mut reader = WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size)
+            .expect("open full");
+        assert!(read_all(&mut reader).len() == 1);
+        reader.into_watermark(1, mtime, size, "stable-state".to_string())
+    };
+
+    let oversized = vec![b'x'; MAX_JSONL_LINE_BYTES + 1];
+    fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .and_then(|mut file| std::io::Write::write_all(&mut file, &oversized))
+        .expect("append unterminated oversized record");
+    let (mtime_after, size_after) = stat(&path);
+    let mut resumed = WatermarkedTranscriptReader::open(
+        &path,
+        "Test",
+        Some(&committed),
+        1,
+        mtime_after,
+        size_after,
+    )
+    .expect("open appended file");
+    assert!(read_all(&mut resumed).is_empty());
+    let after = resumed.into_watermark(1, mtime_after, size_after, "stable-state".to_string());
+    assert_eq!(after.byte_offset, committed.byte_offset);
+
+    cleanup(&path);
+}
+
+#[test]
 fn size_regression_and_parser_version_change_force_a_full_reparse() {
     let path = temp_transcript("invalidate", "aa\nbb\n");
     let (mtime, size) = stat(&path);

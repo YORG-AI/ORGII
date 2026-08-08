@@ -8,6 +8,8 @@ export function getSessionSearchText(
 ): string {
   return [
     getSessionListDisplayName(session, fallback),
+    session.session_id,
+    session.importedFrom?.sourceSessionId,
     session.user_input,
     session.repo_name,
     session.repoPath,

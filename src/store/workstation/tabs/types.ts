@@ -208,6 +208,17 @@ export interface WorkstationTabsStateV3 {
 export type WorkstationTabOwnership = "workspace-local" | "shared-resource";
 
 /**
+ * Closing most shared tabs only hides them from the current task workspace.
+ * Browser and Terminal tabs are different: they own live sessions, so an
+ * explicit user close must tear the resource down globally as well.
+ */
+export function closesSharedResourceOnDismiss(
+  type: WorkStationTabType
+): boolean {
+  return type === "browser-session" || type === "terminal";
+}
+
+/**
  * Exhaustive ownership policy. There is intentionally no default: adding a
  * tab type must include an explicit product decision about its owner.
  */

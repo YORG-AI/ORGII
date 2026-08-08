@@ -19,6 +19,9 @@ import type {
   CliVersionSnapshot,
   CodexOauthExchangeResponse,
   CodexOauthStartResponse,
+  CursorBillingUsagePage,
+  CursorBillingUsageSnapshot,
+  DefaultVariantInfo,
   FullKeyResponse,
   HealthStatus,
   HousekeeperHealthCheckResponse,
@@ -26,8 +29,10 @@ import type {
   HousekeeperUiContext,
   HousekeeperUiIntentResponse,
   KeyInfo,
+  KeyQuotaRefreshStatusInfo,
   ModelContextLengths,
   ModelType,
+  ModelVariantInfo,
   PromptPolishResponse,
   ProviderProtocol,
   QuotaInfo,
@@ -46,6 +51,8 @@ export type {
   ClaudeCodeOauthStartResponse,
   CodexOauthExchangeResponse,
   CodexOauthStartResponse,
+  CursorBillingUsagePage,
+  CursorBillingUsageSnapshot,
   DetectedKey,
   DetectedQuotaInfo,
   FullKeyResponse,
@@ -58,6 +65,7 @@ export type {
   HousekeeperUiIntentRequest,
   HousekeeperUiIntentResponse,
   KeyInfo,
+  KeyQuotaRefreshStatusInfo,
   ModelContextLengths,
   ProviderProtocol,
   PromptPolishRequest,
@@ -135,9 +143,66 @@ export async function fetchKeyQuota(
   });
 }
 
-/** Refresh quota for a stored key without exposing secrets to the frontend. */
-export async function refreshKeyQuota(keyId: string): Promise<KeyInfo | null> {
-  return rpc.validation.refreshKeyQuota({ keyId });
+/**
+ * Refresh quota for a stored key without exposing secrets to the frontend.
+ * `force` bypasses the backend freshness TTL, but not an already-running
+ * single-flight refresh for the same account.
+ */
+export async function refreshKeyQuota(
+  keyId: string,
+  force = false
+): Promise<KeyInfo | null> {
+  return rpc.validation.refreshKeyQuota({ keyId, force });
+}
+
+/** Read quota freshness/last-good diagnostics without provider I/O. */
+export async function getKeyQuotaRefreshStatus(
+  keyId: string
+): Promise<KeyQuotaRefreshStatusInfo | null> {
+  return rpc.validation.getKeyQuotaRefreshStatus({ keyId });
+}
+
+/**
+ * Sync Cursor's exact account-level billing export and return its bounded
+ * aggregate summary. Event rows remain in the private raw cache and must be
+ * read through `readCursorBillingUsagePage`.
+ *
+ * This source is intentionally separate from local Cursor session context
+ * history so callers cannot accidentally double-count both datasets.
+ */
+export async function syncCursorBillingUsage(
+  accountId: string,
+  force = false
+): Promise<CursorBillingUsageSnapshot> {
+  return rpc.validation.cursorSyncBillingUsage({ accountId, force });
+}
+
+/**
+ * Read one bounded page from the current Cursor billing last-good cache.
+ *
+ * `cursor` is opaque and only valid for the same account/credential snapshot.
+ * The backend enforces a hard maximum of 200 events per IPC response.
+ */
+export async function readCursorBillingUsagePage(
+  accountId: string,
+  cursor: string | null = null,
+  limit = 100
+): Promise<CursorBillingUsagePage> {
+  return rpc.validation.cursorReadBillingUsagePage({
+    accountId,
+    cursor,
+    limit: Math.min(200, Math.max(1, Math.trunc(limit))),
+  });
+}
+
+/** Archive the active account cache during logout/removal. */
+export async function archiveCursorBillingUsageCache(
+  accountId: string
+): Promise<{
+  archivedLastGood: boolean;
+  archivedAttemptMarker: boolean;
+}> {
+  return rpc.validation.cursorArchiveBillingUsageCache({ accountId });
 }
 
 /**
@@ -168,36 +233,38 @@ export async function getCursorNativeModels(
 export interface OAuthModelCatalog {
   models: string[];
   defaultEnabledModels: string[];
+  modelContextLengths: ModelContextLengths;
+  modelVariants: ModelVariantInfo[];
+  defaultVariants: DefaultVariantInfo[];
+  source: "live" | "fallback";
+}
+
+export interface OAuthModelCatalogCredentials {
+  accessToken?: string;
+  refreshToken?: string;
+  idToken?: string;
 }
 
 export async function getOAuthModelCatalog(
-  agentType: string
+  agentType: string,
+  credentials: OAuthModelCatalogCredentials = {}
 ): Promise<OAuthModelCatalog> {
   const catalog = await rpc.validation.oauthModelCatalog({
-    request: { agent_type: agentType },
+    request: {
+      agent_type: agentType,
+      access_token: credentials.accessToken ?? null,
+      refresh_token: credentials.refreshToken ?? null,
+      id_token: credentials.idToken ?? null,
+    },
   });
   return {
     models: catalog.models,
     defaultEnabledModels: catalog.default_enabled_models,
+    modelContextLengths: catalog.model_context_lengths,
+    modelVariants: catalog.model_variants,
+    defaultVariants: catalog.default_variants,
+    source: catalog.source,
   };
-}
-
-export async function getClaudeCodeOAuthModels(
-  accessToken: string
-): Promise<string[]> {
-  return rpc.validation.claudeCodeOauthListModels({ accessToken });
-}
-
-export async function getCodexOAuthModels(
-  accessToken: string,
-  idToken?: string
-): Promise<string[]> {
-  return rpc.validation.codexOauthListModels({
-    request: {
-      access_token: accessToken,
-      id_token: idToken ?? null,
-    },
-  });
 }
 
 /**

@@ -13,6 +13,19 @@ use database::db::{get_connection, with_sessions_writer};
 use super::super::super::types::{SessionListFilter, SessionStatus};
 use super::record::{row_to_record, session_type, UnifiedSessionRecord, UNIFIED_SESSION_SELECT};
 
+const SESSION_DELETE_TABLES: &[&str] = &[
+    "agent_messages",
+    "agent_todos",
+    "agent_snapshots",
+    "agent_file_resolutions",
+    "session_token_usage",
+    "session_llm_usage_spans",
+    "session_tool_usage",
+    "events",
+    "pending_plan_approvals",
+    "agent_sessions",
+];
+
 /// Process-global mirror hook, registered once at app startup (see
 /// `lib.rs` setup). Fired after a successful write to any column the
 /// orgtrack canonical session store carries (name, status, model,
@@ -70,9 +83,9 @@ INSERT INTO agent_sessions (
     worktree_branch, base_branch, merge_status,
     project_slug, agent_definition_id, org_member_id, parent_session_id, parent_event_id,
     workspace_additional_json, key_source, agent_exec_mode, native_harness_type,
-    draft_text, reply_target_event_id, pinned
+    draft_text, reply_target_event_id, pinned, product_mode
 )
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34)
 ON CONFLICT(session_id) DO UPDATE SET
     name                       = excluded.name,
     status                     = excluded.status,
@@ -137,7 +150,12 @@ ON CONFLICT(session_id) DO UPDATE SET
     reply_target_event_id      = agent_sessions.reply_target_event_id,
     -- `pinned` is user-set metadata. Only the explicit `update_pinned`
     -- helper writes it; upserts must preserve whatever the user set last.
-    pinned                     = agent_sessions.pinned
+    pinned                     = agent_sessions.pinned,
+    -- `product_mode` (orgtrack/v1 §5.2) is resolved once at create
+    -- (launch-from-work/routine → 'project') or by the explicit
+    -- `update_product_mode` path; background upserts must never
+    -- downgrade a Project session — same posture as agent_exec_mode.
+    product_mode               = COALESCE(agent_sessions.product_mode, excluded.product_mode)
 "#;
 
 /// Upsert a unified session.
@@ -181,6 +199,7 @@ pub fn upsert_session(record: &UnifiedSessionRecord) -> SqliteResult<()> {
                 record.draft_text,
                 record.reply_target_event_id,
                 record.pinned as i64,
+                record.product_mode,
             ],
         )?;
         Ok(())
@@ -418,13 +437,19 @@ pub fn update_work_item_link(
     with_sessions_writer(|| {
         let conn = get_connection()?;
         let updated = conn.execute(
+            // Linking to a Work Item makes this a Project session — the same
+            // rule the launch resolver applies when work_item_id is present.
+            // Without this, a post-hoc-linked session keeps product_mode NULL
+            // and the PM tools stay policy-denied while the linked-work-item
+            // prompt block tells the model to call them.
             "UPDATE agent_sessions
              SET org_id = ?2,
                  project_id = COALESCE(?3, project_id),
                  project_name = COALESCE(?4, project_name),
                  work_item_id = ?5,
                  project_slug = ?6,
-                 agent_role = COALESCE(?7, agent_role)
+                 agent_role = COALESCE(?7, agent_role),
+                 product_mode = 'project'
              WHERE session_id = ?1",
             params![
                 session_id,
@@ -435,6 +460,25 @@ pub fn update_work_item_link(
                 project_slug,
                 agent_role
             ],
+        )?;
+        Ok(updated > 0)
+    })
+}
+
+/// Link the bootstrap-created root WorkItem to a Project session
+/// (orgtrack/v1 §7.2). Narrower than [`update_work_item_link`]: the
+/// session is already `product_mode='project'` and carries its own
+/// org/project fields; only the missing `work_item_id` is filled, and
+/// only if still unset — a concurrent link wins and this becomes a
+/// no-op.
+pub fn link_bootstrap_work_item(session_id: &str, work_item_id: &str) -> SqliteResult<bool> {
+    with_sessions_writer(|| {
+        let conn = get_connection()?;
+        let updated = conn.execute(
+            "UPDATE agent_sessions
+             SET work_item_id = ?2
+             WHERE session_id = ?1 AND work_item_id IS NULL",
+            params![session_id, work_item_id],
         )?;
         Ok(updated > 0)
     })
@@ -572,6 +616,27 @@ pub fn update_agent_exec_mode(session_id: &str, mode: &str) -> SqliteResult<bool
         let conn = get_connection()?;
         let affected = conn.execute(
             "UPDATE agent_sessions SET agent_exec_mode = ?2 WHERE session_id = ?1",
+            params![session_id, mode],
+        )?;
+        Ok(affected > 0)
+    })?;
+    if changed {
+        notify_session_mirror(session_id);
+    }
+    Ok(changed)
+}
+
+/// Explicitly set the session's product mode (`orgtrack/v1` §5.2:
+/// build | plan | ask | project). Only user selection and the
+/// launch-from-work/routine resolver drive this — never exec mode,
+/// never background upserts (which preserve the column on conflict).
+///
+/// Does not bump `updated_at` (see invariant note above).
+pub fn update_product_mode(session_id: &str, mode: &str) -> SqliteResult<bool> {
+    let changed = with_sessions_writer(|| -> SqliteResult<bool> {
+        let conn = get_connection()?;
+        let affected = conn.execute(
+            "UPDATE agent_sessions SET product_mode = ?2 WHERE session_id = ?1",
             params![session_id, mode],
         )?;
         Ok(affected > 0)
@@ -727,6 +792,47 @@ pub fn backfill_agent_definition_id(session_id: &str, definition_id: &str) -> Re
 /// run_deferred_cleanup` instead, which can delete DB rows without
 /// racing the runtime because the cache rehydrates from DB at startup.
 pub fn delete_session(session_id: &str) -> SqliteResult<()> {
+    prepare_session_delete(session_id)?;
+    shared::delete_session_cascade(session_id, SESSION_DELETE_TABLES)?;
+    notify_session_delete_mirror(session_id);
+
+    // Lineage tables can't ride the generic cascade: `commit_lineage` is keyed
+    // by `provenance_id` (FK into `node_provenance`), not `session_id`, so the
+    // generic `DELETE FROM commit_lineage WHERE session_id = ?1` fails at
+    // prepare time. Walk the join explicitly and drop both tables here.
+    if let Err(err) = project_management::lineage::delete_session_lineage(session_id) {
+        warn!(
+            "Failed to delete lineage rows for session {}: {}",
+            session_id, err
+        );
+    }
+
+    // Soft-unlink learnings produced by this session: keep the learning
+    // itself (it is a knowledge artefact, not session transient state) but
+    // null the back-pointer so it no longer dangles to a deleted session.
+    let unlink_result = with_sessions_writer(|| -> SqliteResult<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "UPDATE learnings SET source_session_id = NULL WHERE source_session_id = ?1",
+            [session_id],
+        )?;
+        Ok(())
+    });
+    if let Err(err) = unlink_result {
+        warn!(
+            "Failed to null learnings.source_session_id for deleted session {}: {}",
+            session_id, err
+        );
+    }
+
+    cleanup_session_derived_resources(session_id);
+    Ok(())
+}
+
+/// Validate and perform the existing pre-database resource cleanup for a
+/// session. Agent Org hierarchy deletion calls this for every Rust session
+/// before opening its shared SQLite transaction.
+pub(crate) fn prepare_session_delete(session_id: &str) -> SqliteResult<()> {
     if let Err(error) =
         crate::tools::impls::coding::exec::shell_replay::ensure_session_replays_deletable(
             session_id,
@@ -776,53 +882,42 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
             ));
         }
     }
+    Ok(())
+}
 
-    shared::delete_session_cascade(
-        session_id,
-        &[
-            "agent_messages",
-            "agent_todos",
-            "agent_snapshots",
-            "agent_file_resolutions",
-            "session_token_usage",
-            "session_llm_usage_spans",
-            "session_tool_usage",
-            "events",
-            "pending_plan_approvals",
-            "agent_sessions",
-        ],
+/// Delete the SQLite-owned data for one session through a caller-owned
+/// transaction. Unlike ordinary SDE deletion, hierarchy deletion treats
+/// lineage and learning unlink failures as transaction failures so no subset
+/// of the Agent Org tree can commit.
+pub(crate) fn delete_session_with_connection(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> SqliteResult<()> {
+    let exists = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM agent_sessions WHERE session_id=?1)",
+        [session_id],
+        |row| row.get::<_, bool>(0),
     )?;
+    if !exists {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
+    shared::delete_session_cascade_with_connection(conn, session_id, SESSION_DELETE_TABLES)?;
+    project_management::lineage::delete_session_lineage_with_connection(conn, session_id)?;
+    conn.execute(
+        "UPDATE learnings SET source_session_id = NULL WHERE source_session_id = ?1",
+        [session_id],
+    )?;
+    Ok(())
+}
+
+/// Run post-commit mirrors and derived filesystem cleanup for one deleted
+/// session.
+pub(crate) fn finish_session_delete(session_id: &str) {
     notify_session_delete_mirror(session_id);
+    cleanup_session_derived_resources(session_id);
+}
 
-    // Lineage tables can't ride the generic cascade: `commit_lineage` is keyed
-    // by `provenance_id` (FK into `node_provenance`), not `session_id`, so the
-    // generic `DELETE FROM commit_lineage WHERE session_id = ?1` fails at
-    // prepare time. Walk the join explicitly and drop both tables here.
-    if let Err(err) = project_management::lineage::delete_session_lineage(session_id) {
-        warn!(
-            "Failed to delete lineage rows for session {}: {}",
-            session_id, err
-        );
-    }
-
-    // Soft-unlink learnings produced by this session: keep the learning
-    // itself (it is a knowledge artefact, not session transient state) but
-    // null the back-pointer so it no longer dangles to a deleted session.
-    let unlink_result = with_sessions_writer(|| -> SqliteResult<()> {
-        let conn = get_connection()?;
-        conn.execute(
-            "UPDATE learnings SET source_session_id = NULL WHERE source_session_id = ?1",
-            [session_id],
-        )?;
-        Ok(())
-    });
-    if let Err(err) = unlink_result {
-        warn!(
-            "Failed to null learnings.source_session_id for deleted session {}: {}",
-            session_id, err
-        );
-    }
-
+fn cleanup_session_derived_resources(session_id: &str) {
     // Per-session file-history is addressed by session_id alone, so drop the
     // whole directory regardless of workspace_path. Other sessions on the same
     // project are untouched.
@@ -843,7 +938,6 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
             session_id, err
         );
     }
-    Ok(())
 }
 
 /// Get all child sessions for a given parent session.
@@ -912,7 +1006,8 @@ mod tests {
             native_harness_type TEXT,
             draft_text TEXT,
             reply_target_event_id TEXT,
-            pinned INTEGER NOT NULL DEFAULT 0
+            pinned INTEGER NOT NULL DEFAULT 0,
+            product_mode TEXT
         );
         CREATE TABLE session_token_usage (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

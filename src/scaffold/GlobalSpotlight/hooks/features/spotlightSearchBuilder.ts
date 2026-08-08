@@ -41,6 +41,7 @@ interface BuildSearchModeItemsArgs {
     icon: SpotlightItem["icon"]
   ) => void;
   translate: Translator;
+  sessionItems?: SpotlightItem[];
   devModeEnabled?: boolean;
 }
 
@@ -53,6 +54,7 @@ export function buildSearchModeItems({
   onSelectEditorAction,
   onSelectPath,
   translate,
+  sessionItems = [],
   devModeEnabled = false,
 }: BuildSearchModeItemsArgs): SpotlightItem[] {
   const commandFilterActive = searchQuery.startsWith(">");
@@ -68,8 +70,8 @@ export function buildSearchModeItems({
     return buildEditorMatches(queryLower, onSelectEditorAction, translate);
   }
 
-  const results: SpotlightItem[] = [];
-  results.push(
+  const actionResults: SpotlightItem[] = [];
+  actionResults.push(
     ...buildStaticMatches(
       staticCommandActions,
       queryLower,
@@ -77,15 +79,38 @@ export function buildSearchModeItems({
       translate
     )
   );
-  results.push(
+  actionResults.push(
     ...buildDynamicActionMatches(queryLower, onSelectAction, translate)
   );
 
   if (isEditorRoute) {
-    results.push(
+    actionResults.push(
       ...buildEditorMatches(queryLower, onSelectEditorAction, translate)
     );
   }
+
+  const results: SpotlightItem[] = [];
+  if (sessionItems.length > 0) {
+    results.push(
+      {
+        id: "section-search-sessions",
+        label: translate("common:sessions.title"),
+        type: "option",
+        data: { isHeader: true },
+      },
+      ...sessionItems
+    );
+
+    if (actionResults.length > 0) {
+      results.push({
+        id: "section-search-actions",
+        label: translate("selectors.spotlight.groups.actions"),
+        type: "option",
+        data: { isHeader: true },
+      });
+    }
+  }
+  results.push(...actionResults);
 
   // Surface navigation destinations directly in global search so users can
   // type e.g. "mcp" and jump straight to "Manage MCP" without having to pick

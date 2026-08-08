@@ -27,23 +27,46 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_error_event() {
+    fn test_codex_error_event_is_deferred_until_terminal_exit() {
         let mut parser = CodexParser::new("test-session");
-        let chunks = parser.parse_line(
-            r#"{"type":"error","message":"Quota exceeded. Check your plan and billing details."}"#,
+        let metadata_fallback = parser.parse_line(
+            r#"{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `z-ai/glm-5.2` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}"#,
         );
+        assert!(metadata_fallback.is_empty());
 
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].action_type, "error");
-        assert_eq!(chunks[0].function, "error");
-        let result = &chunks[0].result;
-        assert_eq!(result["success"], false);
-        assert!(result["error"].as_str().unwrap().contains("Quota exceeded"));
+        let retry = parser.parse_line(
+            r#"{"type":"error","message":"Reconnecting... 1/5 (unexpected status 402 Payment Required, url: https://zenmux.ai/api/v1/responses, cf-ray: first)"}"#,
+        );
+        assert!(retry.is_empty());
+
+        let chunks = parser.parse_line(
+            r#"{"type":"error","message":"unexpected status 402 Payment Required, url: https://zenmux.ai/api/v1/responses, cf-ray: final"}"#,
+        );
+        assert!(chunks.is_empty());
+
+        let duplicate = parser.parse_line(
+            r#"{"type":"error","message":"unexpected status 402 Payment Required, url: https://zenmux.ai/api/v1/responses, cf-ray: another"}"#,
+        );
+        assert!(duplicate.is_empty());
+
+        let terminal = parser.on_exit(1);
+        assert_eq!(terminal.len(), 1);
+        assert_eq!(terminal[0].action_type, "session_end");
+        assert_eq!(terminal[0].result["success"], false);
+        assert_eq!(
+            terminal[0].result["error_message"],
+            "unexpected status 402 Payment Required, url: https://zenmux.ai/api/v1/responses"
+        );
     }
 
     #[test]
     fn test_codex_turn_failed() {
         let mut parser = CodexParser::new("test-session");
+        let provisional = parser.parse_line(
+            r#"{"type":"error","message":"earlier transport error, request-id: provisional"}"#,
+        );
+        assert!(provisional.is_empty());
+
         let chunks = parser.parse_line(
             r#"{"type":"turn.failed","error":{"message":"unexpected status 401 Unauthorized: "}}"#,
         );
@@ -55,10 +78,51 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("401 Unauthorized"));
+        assert_ne!(chunks[0].result["error_message"], "earlier transport error");
 
         // on_exit should not produce another session_end after turn.failed
         let exit_chunks = parser.on_exit(1);
         assert!(exit_chunks.is_empty());
+    }
+
+    #[test]
+    fn test_codex_turn_failed_without_body_falls_back_to_the_retry_notice() {
+        let mut parser = CodexParser::new("test-session");
+        let retry = parser.parse_line(
+            r#"{"type":"error","message":"Reconnecting... (upstream 503 Service Unavailable)"}"#,
+        );
+        assert!(retry.is_empty(), "a retry notice is progress, not an error");
+
+        let chunks = parser.parse_line(r#"{"type":"turn.failed"}"#);
+
+        // Without this fallback the only thing the user sees is "Turn failed".
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].result["success"], false);
+        assert_eq!(
+            chunks[0].result["error_message"],
+            "upstream 503 Service Unavailable"
+        );
+    }
+
+    #[test]
+    fn test_codex_retry_notice_is_dropped_once_the_turn_recovers() {
+        let mut parser = CodexParser::new("test-session");
+        parser.parse_line(r#"{"type":"error","message":"Reconnecting... (upstream 503)"}"#);
+        parser.parse_line(r#"{"type":"turn.completed"}"#);
+
+        let exit_chunks = parser.on_exit(0);
+        assert!(
+            exit_chunks.is_empty(),
+            "a recovered turn must not resurface the notice"
+        );
+
+        // A later turn that dies without ever reconnecting keeps the generic
+        // exit reporting rather than inheriting the previous turn's notice.
+        let mut parser = CodexParser::new("test-session");
+        parser.parse_line(r#"{"type":"error","message":"Reconnecting... (upstream 503)"}"#);
+        let exit_chunks = parser.on_exit(0);
+        assert_eq!(exit_chunks[0].result["success"], true);
+        assert!(exit_chunks[0].result.get("error_message").is_none());
     }
 
     #[test]

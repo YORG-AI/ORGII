@@ -116,6 +116,20 @@ function errorItem(message: string): OptimizedChatItem {
   );
 }
 
+/** Shape emitted by normalized Codex CLI and native-transcript error chunks. */
+function cliErrorItem(message: string): OptimizedChatItem {
+  return item(
+    makeEvent({
+      functionName: "error",
+      actionType: "error",
+      displayText: message,
+      displayStatus: "failed",
+      displayVariant: "error",
+      result: { error: message, success: false },
+    })
+  );
+}
+
 /** Shape stamped by persistedMessageToSessionEvent for a compact-boundary row. */
 function boundaryItem(summary: string): OptimizedChatItem {
   return item(
@@ -272,6 +286,22 @@ describe("useChatGroups collapse — terminal error survival", () => {
     expect(texts.filter((text) => text === "run_shell")).toHaveLength(0);
     // No structural-only placeholder for turn 1 — the error IS the survivor.
     expect(result.flatItems.some((entry) => entry.structuralOnly)).toBe(false);
+  });
+
+  it("keeps a normalized CLI error when its historical turn is collapsed", () => {
+    const history = [
+      userItem("first turn"),
+      toolItem(),
+      cliErrorItem("unexpected status 402 Payment Required"),
+      userItem("second turn"),
+      assistantItem("second reply"),
+    ];
+
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
+
+    expect(flatTexts(result.flatItems)).toContain(
+      "unexpected status 402 Payment Required"
+    );
   });
 
   it("keeps both the final reply and the trailing error in a collapsed turn", () => {

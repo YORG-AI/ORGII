@@ -14,7 +14,7 @@ const fn home_config(
     CliConfigFileEntry {
         id,
         label,
-        path_kind: CliConfigPathKind::HomeRelative,
+        path_kind: CliConfigPathKind::Home,
         relative_path,
         format,
         secret_bearing,
@@ -31,7 +31,7 @@ const fn xdg_config(
     CliConfigFileEntry {
         id,
         label,
-        path_kind: CliConfigPathKind::XdgConfigRelative,
+        path_kind: CliConfigPathKind::XdgConfig,
         relative_path,
         format,
         secret_bearing,
@@ -48,7 +48,7 @@ const fn app_data_config(
     CliConfigFileEntry {
         id,
         label,
-        path_kind: CliConfigPathKind::AppDataRelative,
+        path_kind: CliConfigPathKind::AppData,
         relative_path,
         format,
         secret_bearing,
@@ -102,6 +102,7 @@ pub(crate) fn cli_agent_registry() -> Vec<CliAgentEntry> {
             has_subscription_plan: true,
             compatible_api_providers: &[
                 "anthropic_api",
+                "atlascloud_api",
                 "moonshot_api",
                 "zenmux_api",
                 "longcat_api",
@@ -124,19 +125,11 @@ pub(crate) fn cli_agent_registry() -> Vec<CliAgentEntry> {
             brand_color: "#10A37F",
             docs_url: "https://developers.openai.com/codex/config-basic",
             has_subscription_plan: true,
-            compatible_api_providers: &[
-                "openai_api",
-                "openrouter_api",
-                "azure_openai_api",
-                "deepseek_api",
-                "groq_api",
-                "xai_api",
-                "dashscope_api",
-                "moonshot_api",
-                "zenmux_api",
-                "longcat_api",
-                "vllm_api",
-            ],
+            // Codex requires the Responses wire API. Generic OpenAI Chat
+            // compatibility is insufficient; keep this list limited to
+            // providers whose `/responses` route is explicitly supported or
+            // has been verified by ORGII.
+            compatible_api_providers: &["openai_api", "zenmux_api"],
             config_files: vec![home_config("config", "Config", ".codex/config.toml", CliConfigFormat::Toml, false)],
             is_complex_setup: false,
             default_setup_method: None,
@@ -221,6 +214,7 @@ pub(crate) fn cli_agent_registry() -> Vec<CliAgentEntry> {
             compatible_api_providers: &[
                 "anthropic_api",
                 "openai_api",
+                "atlascloud_api",
                 "gemini_api",
                 "openrouter_api",
                 "groq_api",

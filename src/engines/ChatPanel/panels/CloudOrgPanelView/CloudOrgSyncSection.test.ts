@@ -39,9 +39,33 @@ function status(
       homeEndpoints: false,
       teamInboxMentions: true,
       memberRuntime: true,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     },
     capabilitiesLoading: false,
     lastSync: { lastPassAtMs: null, lastSuccessAtMs: null },
+    coverage: {
+      repos: [
+        {
+          repoScope: "github.com/acme/alpha",
+          syncable: 6,
+          synced: 2,
+          percent: 33,
+        },
+        {
+          repoScope: "github.com/acme/beta",
+          syncable: 2,
+          synced: 2,
+          percent: 100,
+        },
+      ],
+      syncable: 8,
+      synced: 4,
+      percent: 50,
+    },
     entries: [],
     running: false,
     runSucceeded: false,
@@ -184,6 +208,130 @@ describe("CloudOrgSyncSection connection block", () => {
   });
 });
 
+describe("CloudOrgSyncSection coverage block", () => {
+  it("shows a loading row instead of a false empty state during the full scan", () => {
+    const root = renderSection({
+      coverageLoading: true,
+    });
+
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-coverage-loading"]')
+        ?.textContent
+    ).toContain("cloud.orgPanel.loading");
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-coverage-empty"]')
+    ).toBeNull();
+    expect(root.textContent).not.toContain(
+      "cloud.orgPanel.sync.coverageSummary"
+    );
+  });
+
+  it("reports an unavailable aggregate instead of a false empty state", () => {
+    const root = renderSection({
+      coverageUnavailable: true,
+      coverage: { repos: [], syncable: 0, synced: 0, percent: null },
+    });
+
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-coverage-unavailable"]')
+        ?.textContent
+    ).toContain("cloud.orgPanel.loadError");
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-coverage-empty"]')
+    ).toBeNull();
+  });
+
+  it("renders exactly one row per org repo scope, in order", () => {
+    const root = renderSection();
+
+    const rows = root.querySelectorAll(
+      '[data-testid="cloud-org-sync-coverage-repo"]'
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.textContent).toContain("github.com/acme/alpha");
+    expect(rows[1]?.textContent).toContain("github.com/acme/beta");
+
+    const counts = root.querySelectorAll(
+      '[data-testid="cloud-org-sync-coverage-repo-count"]'
+    );
+    expect(counts[0]?.textContent).toBe("2/6");
+    expect(counts[1]?.textContent).toBe("2/2");
+
+    const percents = root.querySelectorAll(
+      '[data-testid="cloud-org-sync-coverage-repo-percent"]'
+    );
+    expect(percents[0]?.textContent).toBe("33%");
+    expect(percents[1]?.textContent).toBe("100%");
+
+    const bars = root.querySelectorAll('[role="progressbar"]');
+    expect(bars).toHaveLength(2);
+    expect(bars[0]?.getAttribute("aria-valuenow")).toBe("33");
+    expect(bars[1]?.getAttribute("aria-valuenow")).toBe("100");
+  });
+
+  it("shows an empty state when no scoped repo has sessions", () => {
+    const root = renderSection({
+      coverage: { repos: [], syncable: 0, synced: 0, percent: null },
+    });
+
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-coverage-empty"]')
+        ?.textContent
+    ).toContain("cloud.orgPanel.sync.coverageEmpty");
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-coverage-repo"]')
+    ).toBeNull();
+    expect(root.querySelector('[role="progressbar"]')).toBeNull();
+  });
+
+  it("keeps a sliver of bar visible for a non-zero but tiny percentage", () => {
+    const root = renderSection({
+      coverage: {
+        repos: [
+          {
+            repoScope: "github.com/acme/alpha",
+            syncable: 400,
+            synced: 1,
+            percent: 0,
+          },
+        ],
+        syncable: 400,
+        synced: 1,
+        percent: 0,
+      },
+    });
+
+    // Rounds to 0% but IS synced — a fully empty bar would read as "none".
+    const fill = root
+      .querySelector('[role="progressbar"]')
+      ?.querySelector("div");
+    expect(fill?.getAttribute("style")).toContain("width:2%");
+  });
+
+  it("leaves the bar truly empty when nothing in the repo is synced", () => {
+    const root = renderSection({
+      coverage: {
+        repos: [
+          {
+            repoScope: "github.com/acme/alpha",
+            syncable: 9,
+            synced: 0,
+            percent: 0,
+          },
+        ],
+        syncable: 9,
+        synced: 0,
+        percent: 0,
+      },
+    });
+
+    const fill = root
+      .querySelector('[role="progressbar"]')
+      ?.querySelector("div");
+    expect(fill?.getAttribute("style")).toContain("width:0%");
+  });
+});
+
 describe("CloudOrgSyncSection last-sync block", () => {
   it("shows the never-synced empty state", () => {
     const root = renderSection();
@@ -256,6 +404,22 @@ describe("CloudOrgSyncSection manual sync", () => {
     expect(
       failed.querySelector('[data-testid="cloud-org-sync-run-success"]')
     ).toBeNull();
+  });
+
+  it("places the outcome note to the LEFT of the primary button", () => {
+    // The control cell right-aligns, so DOM order is what puts the note on
+    // the left and keeps the button pinned to the edge.
+    for (const [testId, root] of [
+      ["cloud-org-sync-run-success", renderSection({ runSucceeded: true })],
+      ["cloud-org-sync-run-error", renderSection({ runError: "network down" })],
+    ] as const) {
+      const note = root.querySelector(`[data-testid="${testId}"]`);
+      const button = root.querySelector('[data-testid="cloud-org-sync-run"]');
+      if (!note || !button) throw new Error(`missing ${testId} or run button`);
+      expect(note.parentElement).toBe(button.parentElement);
+      const siblings = Array.from(note.parentElement?.children ?? []);
+      expect(siblings.indexOf(note)).toBeLessThan(siblings.indexOf(button));
+    }
   });
 
   it("invokes runSync on click without throwing", async () => {
@@ -338,6 +502,94 @@ describe("CloudOrgSyncSection bug logs", () => {
     ).toBeNull();
   });
 
+  it("renders an attributed member as a compact pill with the stable id in its tooltip", () => {
+    const root = renderSection({
+      entries: [
+        entry({
+          kind: "member_runtime",
+          member: { userId: "user-vanta", displayName: "VantaNode" },
+          message: "Runtime push failed; retrying in 300s",
+        }),
+      ],
+    });
+
+    const pill = root.querySelector(
+      '[data-testid="cloud-org-sync-log-member"]'
+    );
+    expect(pill?.textContent).toBe("VVantaNode");
+    expect(pill?.getAttribute("title")).toBe("VantaNode (user-vanta)");
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-log-entry"]')
+        ?.textContent
+    ).toContain("VantaNode:Runtime push failed; retrying in 300s");
+    expect(
+      root.querySelector('[data-testid="cloud-org-sync-logs-member-filter"]')
+        ?.textContent
+    ).toContain("cloud.sidebar.everyone");
+  });
+
+  it("filters the rendered and copied slice by the selected member", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const root = createSmokeRoot();
+    try {
+      await root.render(
+        createElement(CloudOrgSyncSection, {
+          t,
+          status: status({
+            entries: [
+              entry({
+                id: "sync-vanta",
+                member: { userId: "user-vanta", displayName: "VantaNode" },
+                message: "vanta failure",
+              }),
+              entry({
+                id: "sync-ada",
+                member: { userId: "user-ada", displayName: "Ada" },
+                message: "ada failure",
+              }),
+              entry({ id: "sync-system", message: "system failure" }),
+            ],
+          }),
+        })
+      );
+
+      const filter = root.container.querySelector<HTMLElement>(
+        '[data-testid="cloud-org-sync-logs-member-filter"]'
+      );
+      await dispatch(() => filter?.click());
+      const adaOption = document.body.querySelector<HTMLElement>(
+        '[data-testid="cloud-org-sync-logs-member-user-ada"]'
+      );
+      expect(adaOption).not.toBeNull();
+      await dispatch(() => adaOption?.click());
+
+      const items = root.container.querySelectorAll(
+        '[data-testid="cloud-org-sync-log-entry"]'
+      );
+      expect(items).toHaveLength(1);
+      expect(items[0]?.textContent).toContain("Ada:ada failure");
+      expect(root.container.textContent).not.toContain("vanta failure");
+      expect(root.container.textContent).not.toContain("system failure");
+
+      const copyButton = root.container.querySelector<HTMLButtonElement>(
+        '[data-testid="cloud-org-sync-logs-copy"]'
+      );
+      await dispatch(() => copyButton?.click());
+      await vi.waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      const copiedText = String(writeText.mock.calls[0]?.[0]);
+      expect(copiedText).toContain("member Ada (user-ada)");
+      expect(copiedText).toContain("ada failure");
+      expect(copiedText).not.toContain("vanta failure");
+      expect(copiedText).not.toContain("system failure");
+    } finally {
+      await root.unmount();
+    }
+  });
+
   it("renders at most the newest 50 entries", () => {
     const root = renderSection({
       entries: Array.from({ length: 100 }, (_, index) =>
@@ -383,6 +635,7 @@ describe("formatSyncJournalForCopy", () => {
         level: "warn",
         kind: "org_backoff",
         orgId: "org-1",
+        member: { userId: "user-vanta", displayName: "VantaNode" },
         code: "ORG2_SYNC_DISABLED",
         message: "backed off",
       }),
@@ -392,7 +645,7 @@ describe("formatSyncJournalForCopy", () => {
     const lines = text.split("\n");
     expect(lines).toHaveLength(2);
     expect(lines[0]).toContain(
-      "WARN | org_backoff | org-1 | ORG2_SYNC_DISABLED"
+      "WARN | org_backoff | org-1 | member VantaNode (user-vanta) | ORG2_SYNC_DISABLED"
     );
     expect(lines[0]?.endsWith("backed off")).toBe(true);
     expect(lines[1]).toContain("INFO | sync_pass");

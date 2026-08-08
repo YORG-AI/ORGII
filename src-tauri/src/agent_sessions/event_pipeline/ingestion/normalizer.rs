@@ -144,6 +144,20 @@ fn infer_display_variant(
     function_name: &str,
     result: &serde_json::Value,
 ) -> EventDisplayVariant {
+    let is_failed_session_end = (action_type == "session_end" || function_name == "session_end")
+        && result.get("success").and_then(|value| value.as_bool()) == Some(false)
+        && ["error", "error_message", "observation"]
+            .iter()
+            .any(|field| {
+                result
+                    .get(*field)
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|message| !message.trim().is_empty())
+            });
+    if is_failed_session_end {
+        return EventDisplayVariant::Error;
+    }
+
     // User messages
     if (action_type == "raw" || action_type == "raw_event") && raw_message_text(result).is_some() {
         return EventDisplayVariant::Message;
@@ -497,7 +511,13 @@ fn infer_display_text(
             {
                 "Session completed".to_string()
             } else {
-                "Session ended".to_string()
+                result_obj
+                    .and_then(|o| {
+                        str_field(o, "error")
+                            .or_else(|| str_field(o, "error_message"))
+                            .or_else(|| str_field(o, "observation"))
+                    })
+                    .unwrap_or_else(|| "Session ended".to_string())
             }
         }
 

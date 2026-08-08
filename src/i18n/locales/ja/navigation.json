@@ -139,7 +139,8 @@
       "workstation": "ワークステーション",
       "viewRam": "RAM を表示",
       "tutorials": "チュートリアル",
-      "openSettings": "設定を開く"
+      "openSettings": "設定を開く",
+      "setupChecklist": "クイックセットアップ"
     },
     "empty": {
       "noItems": "アイテムがありません",
@@ -162,6 +163,37 @@
       "duration1h": "1 時間",
       "duration2h": "2 時間",
       "durationTomorrow": "明日"
+    },
+    "guide": {
+      "trigger": "ガイドを開く",
+      "title": "ORGII を使い始める",
+      "startSession": "セッションを開始",
+      "quickSetup": "言語と外観",
+      "close": "ガイドを閉じる",
+      "progressLabel": "{{total}} 件中 {{completed}} 件の設定が完了",
+      "localWorkspace": "ローカルワークスペース",
+      "connectOrganization": "組織を接続または作成",
+      "createOrganizationHint": "組織名を入力して「作成」を選択してください。クラウド組織の作成が完了すると次の手順に進みます。",
+      "inviteTeammate": "チームメンバーを招待",
+      "inviteTeammateHint": "ここで招待リンクを作成し、チームメンバーに送信します。",
+      "invitePermissionHint": "ここでメンバー一覧を確認できます。招待は組織の管理者またはオーナーが作成する必要があります。",
+      "devPanelTitle": "Onboarding テスト状態",
+      "devPanelHint": "招待フローの実行時プレビューです。バックエンドの組織データは変更されません。",
+      "devScenarioLive": "実データ",
+      "devScenarioNoOrganization": "組織なし",
+      "devScenarioMember": "メンバー · 招待権限なし",
+      "devScenarioAdmin": "管理者 · 招待権限あり",
+      "devScenarioOwner": "オーナー · 招待権限あり",
+      "devScenarioRequiresOrganization": "ロールのプレビューには実在するクラウド組織が必要です。",
+      "devSimulationActive": "開発シミュレーションが有効です",
+      "devSimulationReadOnly": "このメンバーページは読み取り専用プレビューです。組織管理操作は無効です。",
+      "viewTeamActivity": "チームの使用状況を表示",
+      "viewTeamActivityHint": "「ランタイム > メンバー」を開きました。メンバーを選ぶと Codex、Claude、Cursor の使用状況を確認できます。データがない場合は、先にチームランタイム同期を有効にしてください。",
+      "exploreProduct": "主要画面を見る",
+      "nextStep": "次のステップ"
+    },
+    "developerTestPanel": {
+      "title": "開発テストパネル"
     }
   },
   "myRole": {
@@ -398,7 +430,17 @@
       "agentError": "Choose a local agent before forking.",
       "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
       "parentOpenUnavailable": "The source session could not be opened from this fork.",
-      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "openParentButton": "{{name}} の元セッションを開く"
+    },
+    "continueCli": {
+      "headerButton": "{{agent}} で続行",
+      "headerTooltip": "ターミナルタブで {{agent}} を使ってこのセッションを再開します（{{command}}）",
+      "notInstalled": "{{agent}} はこのマシンにインストールされていません",
+      "missingWorkspace": "セッションの元のフォルダが存在しません — {{agent}} は元のフォルダからのみ再開できます",
+      "sourceMissing": "元のセッションデータがディスク上に見つかりません",
+      "launchFailed": "{{agent}} ターミナルの起動に失敗しました",
+      "composerPlaceholder": "メッセージを送って新しい ORGII セッションで続行 — ヘッダーのボタンで {{agent}} でも再開できます…"
     }
   },
   "cloud": {
@@ -487,6 +529,10 @@
         "manualRunning": "同期中…",
         "manualSuccess": "同期が完了しました",
         "manualError": "同期に失敗しました: {{message}}",
+        "coverageTitle": "セッションのカバー率",
+        "coverageSummary": "{{synced}}/{{syncable}} 同期済み（{{percent}}%）",
+        "coveragePercentLabel": "カバー率",
+        "coverageEmpty": "この組織のリポジトリ範囲にはまだセッションがありません",
         "logsTitle": "同期ログ",
         "logsHelp": "このデバイスに記録された最近の同期イベント。再起動でクリアされ、アップロードされることはありません",
         "logsEmpty": "同期イベントの記録はまだありません",
@@ -515,7 +561,10 @@
       "viewerOverflow": "他 {{count}} 人が見ています",
       "memberViewing": "閲覧中: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "loadingSession": "セッションを読み込み中…",
+      "downloadProgress": "ダウンロード中… {{percent}}%",
+      "downloadProgressEta": "ダウンロード中… {{percent}}% · 残り約 {{eta}}"
     },
     "sessionRef": {
       "chipLabel": "チームセッション",
@@ -523,7 +572,8 @@
       "signInRequired": "このセッションを開くには ORG2 Cloud にサインインしてください。",
       "sessionNotFound": "そのセッションはこの組織に属していません。",
       "notPublished": "参照をコピーする前に、このセッションを組織と共有してください。",
-      "chooseOrg": "このセッションは複数の組織に属しています。参照したい組織に切り替えてから、もう一度コピーしてください。"
+      "chooseOrg": "このセッションは複数の組織に属しています。参照したい組織に切り替えてから、もう一度コピーしてください。",
+      "opening": "チームセッションを開いています…"
     },
     "sync": {
       "quotaExceededToast": "ORG2 クラウド同期を一時停止しました：この組織のプランのクォータを超過しています",
@@ -761,6 +811,151 @@
     },
     "renameDisplayName": "表示名を編集",
     "renameSaved": "表示名を更新しました",
-    "renameFailed": "表示名を更新できませんでした"
+    "renameFailed": "表示名を更新できませんでした",
+    "download": {
+      "title": "チームセッションをダウンロード中…",
+      "events": "{{loaded}} / {{total}} 件のイベント",
+      "eta": "残り約 {{eta}}",
+      "finalizing": "仕上げ処理中…",
+      "complete": "ダウンロード完了",
+      "estimate": "このセッションには {{count}} 件のイベントがあります（約 {{eta}}）",
+      "start": "ダウンロード",
+      "pause": "一時停止",
+      "paused": "一時停止中",
+      "resume": "再開"
+    },
+    "channels": {
+      "title": "チャンネル",
+      "createAction": "チャンネルを作成",
+      "createFirst": "チャンネルを作成する",
+      "manageMembers": "メンバーを管理",
+      "archiveAction": "チャンネルをアーカイブ",
+      "unarchive": "アーカイブを解除",
+      "unarchiveFailed": "アーカイブを解除できませんでした",
+      "deleteAction": "チャンネルを削除",
+      "leave": "チャンネルを退出",
+      "archivedGroup": "アーカイブ済み",
+      "loadError": "チャンネルを読み込めませんでした",
+      "settings": {
+        "action": "チャンネル設定",
+        "title": "#{{name}} の設定",
+        "submit": "保存",
+        "managerRequired": "このチャンネルを編集できるのはチャンネル管理者のみです",
+        "error": "チャンネルを更新できませんでした。もう一度お試しください。"
+      },
+      "local": {
+        "quotaExceeded": "このデバイスのチャンネル数が上限に達しました",
+        "archiveBody": "アーカイブするとチャンネルはサイドバーから非表示になります。履歴は保持され、後でいつでも復元できます",
+        "deleteWarning": "この操作はチャンネルをこのデバイスから完全に削除します。元に戻すことはできません"
+      },
+      "cancel": "キャンセル",
+      "create": {
+        "title": "チャンネルを作成",
+        "nameLabel": "名前",
+        "namePlaceholder": "例: code-review",
+        "topicLabel": "トピック",
+        "topicOptional": "（任意）",
+        "topicPlaceholder": "このチャンネルの目的は？",
+        "visibilityLabel": "公開範囲",
+        "publicTitle": "パブリック",
+        "publicDesc": "組織のメンバー全員が閲覧・参加できます",
+        "privateTitle": "プライベート",
+        "privateDesc": "招待されたメンバーのみ閲覧できます",
+        "membersLabel": "メンバーを追加",
+        "membersHint": "あなたは自動的にチャンネル管理者になります",
+        "membersLoading": "メンバーを読み込み中…",
+        "membersEmpty": "組織にはまだ他のメンバーがいません",
+        "postPolicyLabel": "投稿できる人",
+        "postPolicyEveryone": "全員",
+        "postPolicyManagers": "チャンネル管理者のみ",
+        "submit": "作成",
+        "nameTaken": "この名前はすでに使われています",
+        "quotaExceeded": "この組織のチャンネル数が上限に達しました",
+        "error": "チャンネルを作成できませんでした。もう一度お試しください。"
+      },
+      "archive": {
+        "title": "#{{name}} をアーカイブしますか？",
+        "body": "アーカイブするとチャンネルは全員のサイドバーから非表示になります。履歴は保持され、後でいつでも復元できます",
+        "confirm": "アーカイブ",
+        "managerRequired": "このチャンネルをアーカイブできるのはチャンネル管理者のみです",
+        "error": "アーカイブできませんでした。もう一度お試しください。"
+      },
+      "delete": {
+        "title": "#{{name}} を削除しますか？",
+        "warning": "この操作はチャンネルを全員に対して完全に削除します。元に戻すことはできません",
+        "acknowledge": "はい、チャンネルを完全に削除します",
+        "confirm": "削除",
+        "adminRequired": "チャンネルを削除できるのは組織の管理者のみです",
+        "error": "削除できませんでした。もう一度お試しください。"
+      },
+      "members": {
+        "title": "#{{name}} のメンバー",
+        "loading": "メンバーを読み込み中…",
+        "empty": "このチャンネルにはまだメンバーがいません",
+        "loadError": "チャンネルメンバーを読み込めませんでした。もう一度お試しください。",
+        "managerBadge": "管理者",
+        "you": "自分",
+        "addLabel": "メンバーを追加",
+        "addEmpty": "組織の全員がすでにこのチャンネルに参加しています",
+        "addSubmit": "追加",
+        "actions": "メンバー操作",
+        "remove": "チャンネルから外す",
+        "makeManager": "チャンネル管理者にする",
+        "removeManager": "チャンネル管理者を解除",
+        "leave": "チャンネルを退出",
+        "lastManager": "先に別の管理者を指定してください",
+        "error": "エラーが発生しました。もう一度お試しください。"
+      },
+      "feed": {
+        "composerPlaceholder": "#{{name}} にメッセージを送信",
+        "save": "保存",
+        "edit": "メッセージを編集",
+        "delete": "メッセージを削除",
+        "edited": "（編集済み）",
+        "deletedMessage": "メッセージは削除されました",
+        "today": "今日",
+        "yesterday": "昨日",
+        "you": "あなた",
+        "memberCount": "メンバー {{memberCount}} 人",
+        "emptyTitle": "ここが #{{name}} の始まりです",
+        "emptySubtitle": "最初のメッセージを送って会話を始めましょう",
+        "missingTitle": "チャンネルは利用できません",
+        "missingSubtitle": "このチャンネルはこの端末から削除されました",
+        "cloudPendingTitle": "メッセージはまだありません",
+        "cloudPendingSubtitle": "クラウドチャンネルの履歴は次回のバックエンド更新で利用できるようになります",
+        "cloudComposerDisabled": "クラウドチャンネルへの投稿はまだ利用できません。今回のリリースにはチャンネルの作成とメンバー管理のみが含まれます。投稿機能は次回のバックエンド更新で提供されます",
+        "errorEmpty": "先にメッセージを入力してください",
+        "errorTooLong": "メッセージが長すぎます（最大 4000 文字）",
+        "errorQuota": "このチャンネルはこの端末でのメッセージ上限に達しました",
+        "errorGeneric": "メッセージを送信できませんでした。もう一度お試しください。",
+        "dropSessionHint": "ドロップしてこのセッションを参照として追加",
+        "messageBodyLabel": "チャンネルメッセージ",
+        "sessionCardMissing": "このデバイスでは利用できません",
+        "sessionCardOpen": "セッション {{name}} を開く",
+        "workItemCardMissing": "このデバイスでは利用できません",
+        "workItemCardLoading": "読み込み中…",
+        "workItemCardOpen": "作業項目 {{name}} を開く",
+        "githubCardOpen": "{{name}} を GitHub で開く",
+        "githubIssue": "Issue",
+        "githubPullRequest": "Pull request",
+        "archivedComposerDisabled": "このチャンネルはアーカイブされています。投稿するにはアーカイブを解除してください。",
+        "errorPostForbidden": "このチャンネルに投稿できるのはチャンネル管理者のみです",
+        "errorArchived": "このチャンネルはアーカイブ済みのため投稿できません",
+        "errorChannelFull": "このチャンネルはメッセージ数の上限に達したため投稿できません",
+        "errorChannelMissing": "このチャンネルは利用できなくなりました",
+        "errorMessageMissing": "このメッセージは利用できなくなりました",
+        "loadError": "メッセージを読み込めませんでした",
+        "loadingMessages": "メッセージを読み込み中…",
+        "loadOlder": "以前のメッセージを読み込む",
+        "unknownAuthor": "メンバー"
+      }
+    },
+    "backgroundUpload": {
+      "label": "バックグラウンドアップロード",
+      "help": "この組織がアクティブでない場合も、組織の最低共有レベルと各セッションの設定に従って、対象のメンバーセッションをバックグラウンドでアップロードします。",
+      "on": "オン",
+      "off": "オフ",
+      "memberNote": "管理者が有効化 — この組織を開かなくても、対象セッションがバックグラウンドでアップロードされます。"
+    }
   }
 }

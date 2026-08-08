@@ -9,7 +9,7 @@
  * survives navigation and can be bookmarked/shared. Defaults to "kanban".
  */
 import { useSetAtom } from "jotai";
-import { ArrowUpRight } from "lucide-react";
+import { SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -50,7 +50,7 @@ const FactoryViewPill: React.FC = () => {
         label: t("kanban.view.dataSource"),
         dataTestId: "kanban-view-data-source-runtime",
         hoverBadge: (
-          <ArrowUpRight
+          <SquareArrowOutUpRight
             size={11}
             strokeWidth={1.75}
             aria-hidden="true"

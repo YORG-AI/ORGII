@@ -2,7 +2,7 @@
 
 use project_management::projects::{
     io,
-    types::{OrchestratorConfig, TodoEntry, WorkItemFrontmatter, WorkItemSchedule},
+    types::{OrchestratorConfig, TodoEntry, WorkItemSchedule},
 };
 
 use super::helpers::{now_iso, run_blocking, truncate_preview, OrchestratorConfigOverrides};
@@ -325,14 +325,14 @@ pub async fn create_work_item(
             config
         });
 
-        let now = now_iso();
-        let frontmatter = WorkItemFrontmatter {
-            id: short_id.clone(),
-            short_id: short_id.clone(),
+        // Canonical work.create: the application service owns row
+        // construction and audits the creation.
+        let request = project_management::work_service::CreateWorkItemRequest {
             title: title.clone(),
-            project,
-            status,
-            priority,
+            body: body.clone(),
+            project_id: project,
+            status: Some(status),
+            priority: Some(priority),
             assignee,
             assignee_type,
             labels,
@@ -341,30 +341,18 @@ pub async fn create_work_item(
             start_date,
             target_date,
             created_by: Some("agent".to_string()),
-            created_at: now.clone(),
-            updated_at: now,
-            deleted_at: None,
             starred,
-            todos: todo_entries,
-            comments: vec![],
-            history: vec![],
-            delegations: vec![],
-            linked_sessions: vec![],
-            handoff: None,
-            proof_of_work: None,
-            orchestrator_config,
-            orchestrator_state: None,
-            follow_up_items: vec![],
             schedule,
-            routine_source: None,
-            execution_lock: None,
-            close_out: None,
-            work_products: vec![],
+            orchestrator_config,
+            todos: todo_entries,
+            handoff: None,
+            linked_sessions: vec![],
         };
+        let created = project_management::work_service::create_project_work_item(
+            &slug, &short_id, &request, None,
+        )?;
 
-        io::write_work_item(&slug, &short_id, &frontmatter, &body)?;
-
-        let schedule_info = if let Some(sched) = frontmatter.schedule.as_ref() {
+        let schedule_info = if let Some(sched) = created.frontmatter.schedule.as_ref() {
             if let Some(ref at) = sched.at {
                 format!(" (scheduled at {})", at)
             } else if let Some(ref cron_expr) = sched.cron {

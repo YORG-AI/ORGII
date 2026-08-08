@@ -53,12 +53,14 @@ interface WorkItemActivityTimelineProps {
   entries: TimelineEntry[];
   currentUser: Person;
   compact?: boolean;
+  navigationEnabled?: boolean;
 }
 
 export function WorkItemActivityTimeline({
   entries,
   currentUser,
   compact = false,
+  navigationEnabled = false,
 }: WorkItemActivityTimelineProps): React.ReactNode {
   const items = useMemo(() => groupActivityTimelineEntries(entries), [entries]);
 
@@ -71,6 +73,11 @@ export function WorkItemActivityTimeline({
           <ConnectedTimelineItem
             key={item.id}
             isLast={itemIndex === items.length - 1}
+            trailLabel={
+              navigationEnabled
+                ? getActivityTimelineTrailLabel(item)
+                : undefined
+            }
           >
             <ActivityTimelineItemView item={item} currentUser={currentUser} />
           </ConnectedTimelineItem>
@@ -78,6 +85,16 @@ export function WorkItemActivityTimeline({
       </TimelineStack>
     </div>
   );
+}
+
+function getActivityTimelineTrailLabel(item: ActivityTimelineItem): string {
+  if (item.kind === "change-group") {
+    return `${item.actor.userName}: ${item.fieldLabels.join(", ")}`;
+  }
+  const description = item.entry.descriptions.join("; ");
+  return description
+    ? `${item.entry.userName}: ${description}`
+    : item.entry.userName;
 }
 
 function ActivityTimelineItemView({
@@ -142,7 +159,7 @@ function SingleTimelineEntry({
           />
         }
       >
-        <MarkdownContent body={body} />
+        <MarkdownContent body={body} fadeFrom="from-chat-pane" />
       </TimelineCard>
     );
   }

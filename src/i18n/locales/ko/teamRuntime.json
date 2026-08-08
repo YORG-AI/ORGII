@@ -2,6 +2,20 @@
   "title": "팀 런타임",
   "refresh": "새로 고침",
   "loadError": "팀 런타임을 불러오지 못했습니다",
+  "overview": {
+    "today": "오늘",
+    "everyone": "모두",
+    "activeMembers": "활성 구성원",
+    "systemsCurrent": "{{total}}개 시스템 중 {{current}}개가 최신 상태",
+    "usageByAgent": "에이전트별 사용량",
+    "recentSessions": "최근 공유 세션",
+    "recentLoading": "공유 세션을 불러오는 중…",
+    "recentEmpty": "아직 공유된 세션이 없습니다",
+    "members": "구성원별 내역",
+    "activeToday": "오늘 활동함",
+    "inactiveToday": "오늘 활동 없음",
+    "sync": "동기화"
+  },
   "signedOut": {
     "title": "로그인하고 팀을 확인하세요",
     "subtitle": "팀원의 런타임은 ORG2 Cloud를 통해 공유됩니다.",

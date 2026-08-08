@@ -27,6 +27,7 @@ pub mod provider_id {
     // Standard providers
     pub const ANTHROPIC: &str = "anthropic";
     pub const OPENAI: &str = "openai";
+    pub const ATLASCLOUD: &str = "atlascloud";
     pub const DEEPSEEK: &str = "deepseek";
     pub const GEMINI: &str = "gemini";
     pub const GROQ: &str = "groq";
@@ -149,6 +150,17 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("OPENAI_API_KEY"),
+    },
+    ProviderSpec {
+        name: provider_id::ATLASCLOUD,
+        display_name: "Atlas Cloud",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &["atlascloud/"],
+        default_api_base: Some("https://api.atlascloud.ai/v1"),
+        default_anthropic_api_base: Some("https://api.atlascloud.ai"),
+        is_local: false,
+        env_key: Some("ATLASCLOUD_API_KEY"),
     },
     ProviderSpec {
         name: provider_id::DEEPSEEK,

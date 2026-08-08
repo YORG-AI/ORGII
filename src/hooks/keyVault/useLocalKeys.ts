@@ -7,9 +7,10 @@
  * - Load keys from local credentials store
  * - Save, delete, validate, and refresh quotas per key
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  archiveCursorBillingUsageCache,
   deleteKey as deleteKeyRpc,
   getFullKey,
   getKey,
@@ -25,6 +26,7 @@ import type {
 } from "@src/api/services/keyValidation";
 import { createLogger } from "@src/hooks/logger";
 
+import { runSharedQuotaRefresh } from "./quotaRefreshCoordinator";
 import {
   getSharedLocalKeys,
   loadSharedLocalKeys,
@@ -88,9 +90,6 @@ export function useLocalKeys(
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Track in-flight validations to prevent duplicates
-  const pendingValidations = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubscribe = subscribeSharedLocalKeys(setAllKeys);
@@ -259,6 +258,13 @@ export function useLocalKeys(
       try {
         const deleted = await deleteKeyRpc(agentType, keyId);
         if (deleted) {
+          if (agentType === "cursor_cli" && keyId) {
+            try {
+              await archiveCursorBillingUsageCache(keyId);
+            } catch (err) {
+              log.warn("Failed to archive Cursor billing cache:", err);
+            }
+          }
           updateSharedLocalKeys((prev) => {
             const next = keyId
               ? prev.filter((k) => k.id !== keyId)
@@ -291,92 +297,86 @@ export function useLocalKeys(
     async (
       agentType: ModelType,
       keyId?: string,
-      _force?: boolean
+      force = false
     ): Promise<boolean> => {
       const validationKey = `${agentType}:${keyId || "default"}`;
 
-      if (pendingValidations.current.has(validationKey)) {
-        return false;
-      }
+      return runSharedQuotaRefresh(validationKey, force, async () => {
+        try {
+          if (keyId) {
+            const refreshed = await refreshKeyQuota(keyId, force);
+            if (!refreshed) {
+              return false;
+            }
 
-      pendingValidations.current.add(validationKey);
+            const updated = refreshed;
+            updateSharedLocalKeys((prev) => {
+              const idx = prev.findIndex((key) => key.id === updated.id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = updated;
+                return next;
+              }
+              return [...prev, updated];
+            });
+            return true;
+          }
 
-      try {
-        if (keyId) {
-          const refreshed = await refreshKeyQuota(keyId);
-          if (!refreshed) {
+          const fullKey = await getFullKey(agentType, keyId);
+          if (!fullKey) return false;
+
+          if (fullKey.api_key) {
+            const testModel =
+              fullKey.model_aliases && fullKey.model_aliases.length > 0
+                ? fullKey.model_aliases[0].alias
+                : undefined;
+
+            const result = await validateKeyRpc(
+              agentType,
+              fullKey.api_key,
+              fullKey.base_url ?? undefined,
+              undefined,
+              testModel,
+              fullKey.protocol ?? undefined
+            );
+
+            const modelsToSave =
+              result.models_available && result.models_available.length > 0
+                ? result.models_available
+                : undefined;
+
+            await updateKeyHealth(
+              fullKey.id,
+              result.valid ? "valid" : "invalid",
+              result.valid ? undefined : result.message,
+              modelsToSave,
+              undefined,
+              undefined,
+              result.model_context_lengths
+            );
+          } else {
             return false;
           }
 
-          const updated = (await getKey(agentType, keyId)) ?? refreshed;
-          updateSharedLocalKeys((prev) => {
-            const idx = prev.findIndex((key) => key.id === updated.id);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = updated;
-              return next;
-            }
-            return [...prev, updated];
-          });
+          const updated = await getKey(agentType, keyId);
+          if (updated) {
+            updateSharedLocalKeys((prev) => {
+              const idx = prev.findIndex((k) => k.id === updated.id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = updated;
+                return next;
+              }
+              return prev;
+            });
+          }
+
           return true;
+        } catch (err) {
+          log.error(`[Refresh] Error:`, err);
+          throw err;
         }
-
-        const fullKey = await getFullKey(agentType, keyId);
-        if (!fullKey) return false;
-
-        if (fullKey.api_key) {
-          const testModel =
-            fullKey.model_aliases && fullKey.model_aliases.length > 0
-              ? fullKey.model_aliases[0].alias
-              : undefined;
-
-          const result = await validateKeyRpc(
-            agentType,
-            fullKey.api_key,
-            fullKey.base_url ?? undefined,
-            undefined,
-            testModel,
-            fullKey.protocol ?? undefined
-          );
-
-          const modelsToSave =
-            result.models_available && result.models_available.length > 0
-              ? result.models_available
-              : undefined;
-
-          await updateKeyHealth(
-            fullKey.id,
-            result.valid ? "valid" : "invalid",
-            result.valid ? undefined : result.message,
-            modelsToSave,
-            undefined,
-            undefined,
-            result.model_context_lengths
-          );
-        } else {
-          return false;
-        }
-
-        const updated = await getKey(agentType, keyId);
-        if (updated) {
-          updateSharedLocalKeys((prev) => {
-            const idx = prev.findIndex((k) => k.id === updated.id);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = updated;
-              return next;
-            }
-            return prev;
-          });
-        }
-
-        return true;
-      } catch (err) {
-        log.error(`[Refresh] Error:`, err);
-        throw err;
-      } finally {
-        pendingValidations.current.delete(validationKey);
-      }
+      });
     },
     []
   );

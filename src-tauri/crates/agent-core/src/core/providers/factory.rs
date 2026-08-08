@@ -281,6 +281,7 @@ fn api_key_model_type_for_spec(spec: &ProviderSpec) -> Option<ModelType> {
     match spec.name {
         provider_id::ANTHROPIC => Some(ModelType::AnthropicApi),
         provider_id::OPENAI => Some(ModelType::OpenaiApi),
+        provider_id::ATLASCLOUD => Some(ModelType::AtlascloudApi),
         provider_id::DEEPSEEK => Some(ModelType::DeepseekApi),
         provider_id::GEMINI => Some(ModelType::GeminiApi),
         provider_id::GROQ => Some(ModelType::GroqApi),
@@ -308,6 +309,7 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
     let provider_name = match model_type {
         ModelType::AnthropicApi | ModelType::AzureAnthropicApi => provider_id::ANTHROPIC,
         ModelType::Codex | ModelType::OpenaiApi => provider_id::OPENAI,
+        ModelType::AtlascloudApi => provider_id::ATLASCLOUD,
         ModelType::GeminiApi => provider_id::GEMINI,
         ModelType::MoonshotApi => provider_id::MOONSHOT,
         ModelType::DeepseekApi => provider_id::DEEPSEEK,
@@ -919,18 +921,17 @@ fn find_api_key_for_provider(
     )))
 }
 
+type AvailableModelCredential = (
+    &'static ProviderSpec,
+    String,
+    Option<String>,
+    ProviderProtocol,
+);
+
 fn find_credential_by_available_model(
     model: &str,
     creds: &[ModelKey],
-) -> Result<
-    Option<(
-        &'static ProviderSpec,
-        String,
-        Option<String>,
-        ProviderProtocol,
-    )>,
-    ProviderError,
-> {
+) -> Result<Option<AvailableModelCredential>, ProviderError> {
     let model_lower = model.to_lowercase();
     for cred in creds {
         if !cred.enabled {
@@ -982,6 +983,7 @@ mod tests {
         provider_id::OPENCODE,
         provider_id::ANTHROPIC,
         provider_id::OPENAI,
+        provider_id::ATLASCLOUD,
         provider_id::DEEPSEEK,
         provider_id::GEMINI,
         provider_id::GROQ,
@@ -1009,6 +1011,7 @@ mod tests {
         const KEYMAP_COVERED: &[&str] = &[
             provider_id::ANTHROPIC,
             provider_id::OPENAI,
+            provider_id::ATLASCLOUD,
             provider_id::DEEPSEEK,
             provider_id::GEMINI,
             provider_id::GROQ,
@@ -1184,6 +1187,7 @@ mod tests {
             ModelType::CherryinApi,
             ModelType::BedrockApi,
             ModelType::CustomApi,
+            ModelType::AtlascloudApi,
         ] {
             let spec = spec_for_model_type(&model_type).unwrap_or_else(|| {
                 panic!("{model_type:?} has no ProviderSpec in the agent-core registry")

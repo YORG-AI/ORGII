@@ -1,4 +1,4 @@
-import { Circle } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { useState } from "react";
 
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
@@ -63,9 +63,15 @@ export function StatusPrioritySection({
     externalStatusConfig?.options.map((option) => ({
       value: option.id,
       color: option.color,
-      icon: (
-        <Circle size={12} fill={option.color ?? "#6B7280"} strokeWidth={1.5} />
-      ),
+      disabled: option.id === externalStatusConfig.currentStatusId,
+      icon:
+        option.id === "open" ? (
+          <CircleDot size={13} strokeWidth={1.8} aria-hidden />
+        ) : option.id === "closed" ? (
+          <CheckCircle2 size={13} strokeWidth={1.8} aria-hidden />
+        ) : (
+          <Circle size={13} strokeWidth={1.8} aria-hidden />
+        ),
     })) ?? [];
   const currentExternalStatusOption = externalStatusConfig
     ? externalStatusOptions.find(

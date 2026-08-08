@@ -12,13 +12,14 @@
  */
 
 // Layout tokens (Tailwind class strings for bar height, clusters, segments)
-export { STATUS_BAR_TOKENS } from "./statusBarTokens";
+export { STATUS_BAR_TOKENS, STATUS_BAR_TYPOGRAPHY } from "./statusBarTokens";
 
 // Base components
 export {
   BaseStatusBar,
   StatusBarButton,
   StatusBarDivider,
+  StatusBarLabel,
   StatusBarSegment,
   StatusBarText,
 } from "./StatusBarBase";
@@ -26,6 +27,7 @@ export type {
   BaseStatusBarProps,
   StatusBarButtonProps,
   StatusBarDividerProps,
+  StatusBarLabelProps,
   StatusBarSegmentProps,
   StatusBarTextProps,
 } from "./StatusBarBase";
@@ -39,6 +41,7 @@ export type {
   LspStatus,
 } from "./EditorStatusBar";
 
+export { CiStatusMenu } from "./CiStatusMenu";
 export { PortsStatusMenu } from "./PortsStatusMenu";
 export { WorkspacePortScanner } from "./WorkspacePortScanner";
 

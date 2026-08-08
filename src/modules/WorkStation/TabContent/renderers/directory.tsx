@@ -35,7 +35,7 @@ const DirectoryTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     return (
       <Suspense fallback={<LazyFallback />}>
         <DirectoryExplorerContent
-          key={directoryPath}
+          key={`${repoPath}:${directoryPath}`}
           directoryPath={directoryPath}
           repoPath={repoPath}
           onFileSelect={onFileSelect}

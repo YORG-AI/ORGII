@@ -31,9 +31,9 @@ export const COLLAB_LISTING_SHARE_WINDOW_MS = 2_000;
  * Vanished-session GC cadence per org. The sweep's suspect set is dominated
  * by push-marked sessions that merely fell out of the paginated roster, and
  * each of those costs a confirming backend lookup — running that on every
- * 60s pass would be recurring waste for a condition (a marked session truly
- * disappearing locally) that is rare. Ten minutes still clears ghosts well
- * before a teammate would act on one.
+ * event-driven pass would be recurring waste for a condition (a marked
+ * session truly disappearing locally) that is rare. Ten minutes still
+ * clears ghosts well before a teammate would act on one.
  */
 export const VANISHED_SESSION_SWEEP_INTERVAL_MS = 10 * 60_000;
 

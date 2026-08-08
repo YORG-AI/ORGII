@@ -1,10 +1,101 @@
 use crate::key_store::{
     AuthMethod, CliOAuthTokenSync, CliOAuthTokenSyncOutcome, HealthStatus, KeyService, KeyStore,
-    ModelKey, ModelType, KEY_SERVICE,
+    ModelKey, ModelType, OAuthRefreshOutcome, KEY_SERVICE,
 };
 use chrono::{TimeZone, Utc};
 use std::collections::HashMap;
 use tempfile::tempdir;
+
+#[test]
+fn api_key_rejects_oauth_refresh_failure_bookkeeping_without_mutation() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    for model_type in [
+        ModelType::Codex,
+        ModelType::ClaudeCode,
+        ModelType::ZhipuApi,
+        ModelType::ZenmuxApi,
+    ] {
+        let mut key = ModelKey::new(model_type);
+        key.api_key = Some("provider-test-key".to_string());
+        let key_id = key.id.clone();
+        service.save_key(key).unwrap();
+
+        assert!(service
+            .record_oauth_refresh_failure(&key_id, "401 Unauthorized: invalid API key")
+            .is_err());
+
+        let stored = service.get_key_by_id(&key_id).unwrap();
+        assert_eq!(stored.oauth_refresh_failure_count, 0);
+        assert!(stored.last_oauth_refresh_failed_at.is_none());
+        assert!(stored.temporary_unavailable_until.is_none());
+        assert_eq!(stored.health_status, HealthStatus::Unknown);
+        assert!(stored.enabled);
+    }
+}
+
+#[tokio::test]
+async fn api_key_and_cross_provider_refreshes_are_not_applicable() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let mut codex_api_key = ModelKey::new(ModelType::Codex);
+    codex_api_key.api_key = Some("codex-api-key".to_string());
+    let codex_api_key_id = codex_api_key.id.clone();
+    service.save_key(codex_api_key).unwrap();
+
+    let mut claude_api_key = ModelKey::new(ModelType::ClaudeCode);
+    claude_api_key.api_key = Some("claude-api-key".to_string());
+    let claude_api_key_id = claude_api_key.id.clone();
+    service.save_key(claude_api_key).unwrap();
+
+    let mut zhipu_key = ModelKey::new(ModelType::ZhipuApi);
+    zhipu_key.api_key = Some("zhipu-api-key".to_string());
+    let zhipu_key_id = zhipu_key.id.clone();
+    service.save_key(zhipu_key).unwrap();
+
+    let mut zenmux_key = ModelKey::new(ModelType::ZenmuxApi);
+    zenmux_key.api_key = Some("zenmux-api-key".to_string());
+    let zenmux_key_id = zenmux_key.id.clone();
+    service.save_key(zenmux_key).unwrap();
+
+    let mut atlas_key = ModelKey::new(ModelType::AtlascloudApi);
+    atlas_key.api_key = Some("atlas-api-key".to_string());
+    let atlas_key_id = atlas_key.id.clone();
+    service.save_key(atlas_key).unwrap();
+
+    assert!(matches!(
+        service
+            .refresh_codex_oauth_key(&codex_api_key_id, "codex-api-key")
+            .await
+            .unwrap(),
+        OAuthRefreshOutcome::NotApplicable
+    ));
+    assert!(matches!(
+        service
+            .refresh_claude_code_oauth_key(&claude_api_key_id, "claude-api-key")
+            .await
+            .unwrap(),
+        OAuthRefreshOutcome::NotApplicable
+    ));
+    for cross_provider_id in [&zhipu_key_id, &zenmux_key_id, &atlas_key_id] {
+        assert!(matches!(
+            service
+                .refresh_codex_oauth_key(cross_provider_id, "provider-api-key")
+                .await
+                .unwrap(),
+            OAuthRefreshOutcome::NotApplicable
+        ));
+        assert!(matches!(
+            service
+                .refresh_claude_code_oauth_key(cross_provider_id, "provider-api-key")
+                .await
+                .unwrap(),
+            OAuthRefreshOutcome::NotApplicable
+        ));
+    }
+}
 
 #[test]
 fn test_agent_type_conversion() {
@@ -884,6 +975,18 @@ async fn test_claude_concurrent_refreshes_once_without_consuming_rotating_token_
 
     let first = first.unwrap();
     let second = second.unwrap();
+    assert!(matches!(
+        (&first, &second),
+        (
+            OAuthRefreshOutcome::Refreshed(_),
+            OAuthRefreshOutcome::AlreadyRotated(_)
+        ) | (
+            OAuthRefreshOutcome::AlreadyRotated(_),
+            OAuthRefreshOutcome::Refreshed(_)
+        )
+    ));
+    let first = first.into_key().unwrap();
+    let second = second.into_key().unwrap();
     assert_eq!(request_count.load(Ordering::SeqCst), 1);
     assert_eq!(first.session_token.as_deref(), Some("fresh-claude-access"));
     assert_eq!(second.session_token.as_deref(), Some("fresh-claude-access"));
@@ -966,6 +1069,18 @@ async fn test_codex_refresh_uses_form_body_and_concurrent_refreshes_once() {
 
     let first = first.unwrap();
     let second = second.unwrap();
+    assert!(matches!(
+        (&first, &second),
+        (
+            OAuthRefreshOutcome::Refreshed(_),
+            OAuthRefreshOutcome::AlreadyRotated(_)
+        ) | (
+            OAuthRefreshOutcome::AlreadyRotated(_),
+            OAuthRefreshOutcome::Refreshed(_)
+        )
+    ));
+    let first = first.into_key().unwrap();
+    let second = second.into_key().unwrap();
     assert_eq!(request_count.load(Ordering::SeqCst), 1);
     assert_eq!(first.session_token.as_deref(), Some("fresh-codex-access"));
     assert_eq!(second.session_token.as_deref(), Some("fresh-codex-access"));
@@ -1226,6 +1341,64 @@ fn test_cross_type_env_zenmux_as_codex_uses_openai_endpoint() {
         Some("https://zenmux.ai/api/v1"),
     );
     assert!(!env.contains_key("ZENMUX_API_KEY"));
+}
+
+#[test]
+fn test_cross_type_env_atlascloud_as_claude_code_uses_anthropic_endpoint() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let mut atlas_key = ModelKey::new(ModelType::AtlascloudApi);
+    atlas_key.api_key = Some("atlas-test-key".to_string());
+    atlas_key.enabled_models = vec!["zai-org/glm-5.1".to_string()];
+    // The stored /v1 URL is OpenAI-protocol; the Anthropic export must
+    // ignore it and use the bare host instead.
+    atlas_key.base_url = Some("https://api.atlascloud.ai/v1".to_string());
+    let key_id = atlas_key.id.clone();
+    service.save_key(atlas_key).unwrap();
+
+    let env = service.get_env_for_agent(&ModelType::ClaudeCode, Some(&key_id));
+    assert_eq!(
+        env.get("ANTHROPIC_API_KEY").map(String::as_str),
+        Some("atlas-test-key"),
+    );
+    assert_eq!(
+        env.get("ANTHROPIC_BASE_URL").map(String::as_str),
+        Some("https://api.atlascloud.ai"),
+    );
+    assert_eq!(
+        env.get("ANTHROPIC_MODEL").map(String::as_str),
+        Some("zai-org/glm-5.1"),
+    );
+    assert_eq!(
+        env.get("CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS")
+            .map(String::as_str),
+        Some("1"),
+    );
+    assert!(!env.contains_key("ATLASCLOUD_API_KEY"));
+}
+
+#[test]
+fn test_atlascloud_provider_exports_canonical_environment() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let mut atlas_key = ModelKey::new(ModelType::AtlascloudApi);
+    atlas_key.api_key = Some("atlas-test-key".to_string());
+    atlas_key.base_url = Some("https://api.atlascloud.ai/v1".to_string());
+    let key_id = atlas_key.id.clone();
+    service.save_key(atlas_key).unwrap();
+
+    let env = service.get_env_for_agent(&ModelType::AtlascloudApi, Some(&key_id));
+    assert_eq!(
+        env.get("ATLASCLOUD_API_KEY").map(String::as_str),
+        Some("atlas-test-key")
+    );
+    assert_eq!(
+        env.get("ATLASCLOUD_BASE_URL").map(String::as_str),
+        Some("https://api.atlascloud.ai/v1")
+    );
+    assert!(!env.contains_key("ATLASCLOUD_API_BASE"));
 }
 
 #[test]

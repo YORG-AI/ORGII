@@ -329,6 +329,7 @@
       "manageItems": "管理项目",
       "sessionsView": "Sessions View",
       "workitemView": "Workitem View",
+      "runs": "运行记录",
       "views": "视图",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
@@ -923,6 +924,7 @@
     "multipleChoice": "多选",
     "typeYourAnswer": "输入您的回答…",
     "newSession": "新建会话",
+    "muteNotifications": "静音此会话通知",
     "startPage": {
       "title": "你想做什么？",
       "back": "返回起始页",
@@ -1056,6 +1058,10 @@
       "entryCount_other": "{{count}} 条记录",
       "copySuccess": "已复制原始记录",
       "copyFailed": "无法复制原始记录"
+    },
+    "trackAsProject": {
+      "menuItem": "追踪为项目",
+      "success": "会话已作为项目追踪"
     },
     "linkWorkItem": {
       "menuItem": "关联到工作项…",
@@ -1244,6 +1250,9 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "所有状态",
+        "closeAsCompleted": "以已完成关闭",
+        "closeAsNotPlanned": "以不计划关闭",
+        "statusUpdateFailed": "无法更新 GitHub 状态",
         "assignedToMe": "分配给我的",
         "createdByMe": "由我创建",
         "filters": "Filters",
@@ -2389,7 +2398,8 @@
       "plan": "Plan",
       "debug": "Debug",
       "review": "Review",
-      "wingman": "僚机"
+      "wingman": "僚机",
+      "project": "Project"
     },
     "runningLocation": {
       "local": "本机",

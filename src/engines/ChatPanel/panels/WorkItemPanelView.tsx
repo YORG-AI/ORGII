@@ -1,6 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ExternalLink, ListChecks, Trash2, X } from "lucide-react";
+import { ListChecks, SquareArrowOutUpRight, Trash2, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -182,14 +182,13 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             selectedWorkItem.workItem,
             updates
           );
-          // Keep the item under its owning org — the Rust upsert
-          // overwrites org_id on conflict, so an orgless write would
-          // re-home a collab-org item to personal-org and detach it
-          // from sync.
-          await projectApi.writeStandaloneWorkItem(
+          // Atomic partial update, kept under the owning org — an orgless
+          // whole-row write would re-home a collab-org item to
+          // personal-org and detach it from sync, and a client-side merge
+          // could silently drop concurrent edits.
+          await projectApi.updateStandaloneWorkItemPartial(
             selectedWorkItem.shortId,
-            toStandaloneFrontmatter(updatedWorkItem, selectedWorkItem.shortId),
-            updatedWorkItem.spec ?? "",
+            payload,
             selectedWorkItem.orgId
               ? { orgId: selectedWorkItem.orgId }
               : undefined
@@ -515,7 +514,10 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         >
           <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border-1 bg-bg-1/95 px-3 backdrop-blur">
             <div className="flex min-w-0 items-center gap-2">
-              <ExternalLink size={14} className="shrink-0 text-text-3" />
+              <SquareArrowOutUpRight
+                size={14}
+                className="shrink-0 text-text-3"
+              />
               <div className="min-w-0">
                 <div className="truncate text-[12px] font-semibold text-text-1">
                   {floatingSession?.result_preview ||

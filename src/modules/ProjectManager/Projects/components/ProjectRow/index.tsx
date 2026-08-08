@@ -3,17 +3,37 @@
  *
  * Individual row for displaying a project in the list view.
  */
-import { CalendarClock, FolderKanban, ListChecks } from "lucide-react";
+import {
+  CalendarClock,
+  FolderKanban,
+  Link2Off,
+  ListChecks,
+} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
+import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
+import IntegrationIcon from "@src/components/IntegrationIcon";
 import WorkItemContextMenu from "@src/modules/ProjectManager/WorkItems/components/WorkItemContextMenu";
 import type { Project } from "@src/types/core/project";
 import { copyText } from "@src/util/data/clipboard";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { getProjectContextMenuItems } from "../../projectContextMenu";
+
+const GITHUB_REPOSITORY_PATTERN = /([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/;
+
+function formatGitHubProjectDescription(description?: string) {
+  if (!description) return description;
+  const repository = description
+    .match(GITHUB_REPOSITORY_PATTERN)?.[1]
+    .replace(/[.。]+$/, "");
+  return repository
+    ? `GitHub Issues · ${repository}`
+    : description.replace(/[.。]+$/, "");
+}
 
 export interface ProjectRowProps {
   project: Project;
@@ -22,8 +42,11 @@ export interface ProjectRowProps {
   showCheckboxes?: boolean;
   onSelect: (id: string) => void;
   onCheckedChange?: (id: string, checked: boolean) => void;
+  onUnlinkSource?: (project: Project) => void;
+  unlinkingSource?: boolean;
   onDelete?: (project: Project) => void;
   readonly?: boolean;
+  variant?: "card" | "table";
 }
 
 const ProjectRow: React.FC<ProjectRowProps> = ({
@@ -33,10 +56,17 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
   showCheckboxes = false,
   onSelect,
   onCheckedChange,
+  onUnlinkSource,
+  unlinkingSource = false,
   onDelete,
   readonly = false,
+  variant = "card",
 }) => {
   const { t } = useTranslation("projects");
+  const isGitHubSource = project.syncAdapterId === STORY_SYNC_ADAPTER.GITHUB;
+  const displayedDescription = isGitHubSource
+    ? formatGitHubProjectDescription(project.description)
+    : project.description;
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     x: number;
     y: number;
@@ -98,16 +128,23 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
         onCopy: () => {
           void copyText(project.name);
         },
+        onUnlinkSource: onUnlinkSource
+          ? () => onUnlinkSource(project)
+          : undefined,
         onDelete: onDelete ? () => void handleDelete() : undefined,
       }),
-    [handleDelete, onDelete, onSelect, project, t]
+    [handleDelete, onDelete, onSelect, onUnlinkSource, project, t]
   );
 
   return (
     <>
       <div
         data-testid={`project-row-${project.id}`}
-        className={`flex min-h-[40px] items-center gap-1 rounded-lg py-0 pl-2 pr-5 transition-colors ${
+        className={`flex min-h-[40px] items-center gap-1 py-0 pl-2 pr-5 transition-colors ${
+          variant === "table"
+            ? "rounded-none border-b border-border-1"
+            : "rounded-lg"
+        } ${
           readonly
             ? "cursor-default hover:bg-transparent"
             : "group/projectRow cursor-pointer hover:bg-fill-1"
@@ -131,8 +168,19 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
             />
           </div>
 
-          <div className="flex h-7 w-7 items-center justify-center text-text-3">
-            <FolderKanban size={14} strokeWidth={1.75} />
+          <div
+            className="flex h-7 w-7 items-center justify-center text-text-3"
+            data-project-source-icon={isGitHubSource ? "github" : "local"}
+          >
+            {isGitHubSource ? (
+              <IntegrationIcon
+                type={STORY_SYNC_ADAPTER.GITHUB}
+                size={14}
+                className="text-text-2"
+              />
+            ) : (
+              <FolderKanban size={14} strokeWidth={1.75} />
+            )}
           </div>
         </div>
 
@@ -140,14 +188,35 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
           <span className="truncate whitespace-nowrap text-[13px] font-medium text-text-1">
             {project.name}
           </span>
-          {project.description && (
+          {displayedDescription && (
             <span className="min-w-0 truncate whitespace-nowrap text-xs text-text-3">
-              {project.description}
+              {displayedDescription}
             </span>
           )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2.5 text-xs text-text-3">
+          {onUnlinkSource && (
+            <Button
+              variant="tertiary"
+              appearance="ghost"
+              size="mini"
+              icon={<Link2Off size={13} strokeWidth={1.75} />}
+              iconOnly
+              loading={unlinkingSource}
+              aria-label={t("settings.sync.adapterPicker.detachProjectAction", {
+                project: project.name,
+              })}
+              title={t("settings.sync.adapterPicker.detachProjectAction", {
+                project: project.name,
+              })}
+              data-testid={`project-unlink-source-${project.id}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onUnlinkSource(project);
+              }}
+            />
+          )}
           <span className="inline-flex items-center gap-1 whitespace-nowrap">
             <ListChecks size={13} strokeWidth={1.75} />
             {project.workItemCount ?? 0}

@@ -110,6 +110,14 @@ pub fn ensure_unified_schema(conn: &Connection) -> SqliteResult<()> {
         conn,
         "ALTER TABLE agent_sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
     );
+    try_migrate(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_agent_sessions_sidebar
+         ON agent_sessions(
+             pinned, session_type, parent_session_id,
+             updated_at DESC, session_id DESC
+         )",
+    );
 
     // Durable marker for the latest backend-observed terminal turn. This is
     // intentionally on `agent_sessions`, not only in transient websocket
@@ -126,6 +134,14 @@ pub fn ensure_unified_schema(conn: &Connection) -> SqliteResult<()> {
     try_migrate(
         conn,
         "ALTER TABLE agent_sessions ADD COLUMN last_terminal_turn_at TEXT",
+    );
+
+    // Orgtrack product mode (orgtrack/v1 §5.2): build|plan|ask|project.
+    // NULL = never resolved = build. The only source of truth for
+    // persistent WorkItem/Routine mutation intent.
+    try_migrate(
+        conn,
+        "ALTER TABLE agent_sessions ADD COLUMN product_mode TEXT",
     );
 
     Ok(())

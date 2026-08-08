@@ -51,13 +51,15 @@ mod mapping;
 pub mod orchestrator_view;
 pub mod sync_metadata;
 mod views;
+mod workspace;
 
-pub use atomic::{
-    update_standalone_work_item_partial, update_work_item_atomic, update_work_item_atomic_as,
-    update_work_item_atomic_with_revisions, update_work_item_partial,
-    update_work_item_partial_with_revisions,
-};
 pub(crate) use atomic::update_standalone_work_item_partial_with_revisions;
+pub use atomic::{
+    update_standalone_work_item_atomic, update_standalone_work_item_partial,
+    update_work_item_atomic, update_work_item_atomic_as, update_work_item_atomic_serviced,
+    update_work_item_atomic_with_revisions, update_work_item_partial,
+    update_work_item_partial_with_revisions, AtomicServiceOptions,
+};
 pub use batch::{batch_delete_work_items, batch_update_work_items};
 pub(crate) use crud::purge_work_item;
 pub(crate) use crud::write_work_item_remote;
@@ -76,9 +78,13 @@ pub use enrichment::{
 };
 pub use execution_lock::{acquire_execution_lock, release_execution_lock};
 pub use handoff::{transition_standalone_work_item_handoff, transition_work_item_handoff};
+pub(crate) use sync_metadata::read_standalone_sync_metadata;
 pub use sync_metadata::{
     apply_remote_merge, find_by_external_ref, read_sync_metadata, FieldRevision, SyncMetadata,
     REVISION_SOURCE_LOCAL,
 };
-pub(crate) use sync_metadata::read_standalone_sync_metadata;
-pub use views::{read_work_items_view_data, read_work_items_view_data_scoped};
+pub use views::{
+    read_work_items_view_data, read_work_items_view_data_scoped,
+    read_work_items_view_data_scoped_for_view,
+};
+pub use workspace::read_workspace_work_items_data;

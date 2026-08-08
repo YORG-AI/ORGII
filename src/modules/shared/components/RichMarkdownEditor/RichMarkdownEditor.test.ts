@@ -18,23 +18,12 @@ const editorMocks = vi.hoisted(() => ({
   insertText: vi.fn(),
 }));
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string) =>
-      ({
-        "common.preview": "Preview",
-        "common.raw": "Raw",
-        "common.nothingToPreview": "Nothing to preview",
-      })[key] ?? key,
-  }),
-}));
-
 vi.mock("@src/components/RichTextEditor", async () => {
   const { createElement, forwardRef, useImperativeHandle } =
     await import("react");
   return {
     default: forwardRef(function MockRichTextEditor(
-      props: { matchMarkdownPreview?: boolean },
+      props: { editable?: boolean; matchMarkdownPreview?: boolean },
       ref
     ) {
       useImperativeHandle(ref, () => ({
@@ -56,48 +45,10 @@ vi.mock("@src/components/RichTextEditor", async () => {
       }));
       return createElement("div", {
         "data-testid": "mock-rich-text-editor",
+        "data-editable": String(props.editable),
         "data-match-markdown-preview": String(props.matchMarkdownPreview),
       });
     }),
-  };
-});
-
-vi.mock("@src/components/TabPill", async () => {
-  const { createElement } = await import("react");
-  return {
-    default: ({
-      tabs,
-      activeTab,
-      onChange,
-    }: {
-      tabs: Array<{ key: string; label: string }>;
-      activeTab: string;
-      onChange: (key: string) => void;
-    }) =>
-      createElement(
-        "div",
-        { "data-active-tab": activeTab },
-        tabs.map((tab) =>
-          createElement(
-            "button",
-            {
-              key: tab.key,
-              type: "button",
-              "data-mode": tab.key,
-              onClick: () => onChange(tab.key),
-            },
-            tab.label
-          )
-        )
-      ),
-  };
-});
-
-vi.mock("@src/modules/shared/components/MarkdownContent", async () => {
-  const { createElement } = await import("react");
-  return {
-    MarkdownContent: ({ body }: { body: string }) =>
-      createElement("div", { "data-testid": "mock-markdown-preview" }, body),
   };
 });
 
@@ -128,55 +79,39 @@ describe("RichMarkdownEditor", () => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("switches between the Raw rich editor and shared Preview renderer", () => {
+  it("renders the rich Markdown editor directly without mode controls", () => {
     act(() => {
       root.render(
         React.createElement(RichMarkdownEditor, { value: "**Hello**" })
       );
     });
 
-    expect(container.textContent).toContain("Preview");
-    expect(container.textContent).toContain("Raw");
     expect(
-      container.querySelector("[data-rich-markdown-raw]")?.className
-    ).toContain("block");
-    expect(container.querySelector("[data-rich-markdown-preview]")).toBeNull();
+      container.querySelector("[data-rich-markdown-editor]")
+    ).not.toBeNull();
+    expect(container.querySelector("button")).toBeNull();
     expect(
       container
         .querySelector("[data-testid='mock-rich-text-editor']")
         ?.getAttribute("data-match-markdown-preview")
     ).toBe("true");
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('button[data-mode="preview"]')
-        ?.click();
-    });
-
-    expect(container.querySelector("[data-rich-markdown-raw]")?.className).toBe(
-      "hidden"
-    );
-    expect(
-      container.querySelector("[data-rich-markdown-preview]")?.textContent
-    ).toBe("**Hello**");
   });
 
-  it("supports Preview as the initial read mode", () => {
+  it("uses the rich Markdown editor for read-only content", () => {
     act(() => {
       root.render(
         React.createElement(RichMarkdownEditor, {
           value: "**Hello**",
-          defaultMode: "preview",
+          editable: false,
         })
       );
     });
 
-    expect(container.querySelector("[data-rich-markdown-raw]")?.className).toBe(
-      "hidden"
-    );
     expect(
-      container.querySelector("[data-rich-markdown-preview]")?.textContent
-    ).toBe("**Hello**");
+      container
+        .querySelector("[data-testid='mock-rich-text-editor']")
+        ?.getAttribute("data-editable")
+    ).toBe("false");
   });
 
   it("forwards plain-text insertion to the rich editor selection", () => {
@@ -202,49 +137,7 @@ describe("RichMarkdownEditor", () => {
     );
   });
 
-  it("switches Preview to Raw before inserting a drop that lands while Preview is active, dropping the now-meaningless drop coordinates", () => {
-    const ref = React.createRef<React.ElementRef<typeof RichMarkdownEditor>>();
-    act(() => {
-      root.render(
-        React.createElement(RichMarkdownEditor, {
-          ref,
-          value: "",
-          defaultMode: "preview",
-        })
-      );
-    });
-
-    // Preview is active and the raw editor is hidden — same as when a drop
-    // lands on the composer while the Preview tab is showing.
-    expect(container.querySelector("[data-rich-markdown-raw]")?.className).toBe(
-      "hidden"
-    );
-
-    act(() => {
-      ref.current?.insertText("orgii://cloud/session/ref?v=1", {
-        separateFromAdjacentText: true,
-        clientX: 123,
-        clientY: 456,
-      });
-    });
-
-    // The drop coordinates were resolved against a hidden, unlaid-out
-    // editor and mean nothing there, so they must not reach the real
-    // editor's insertText — only the fallback (selection collapsed to its
-    // end) applies.
-    expect(editorMocks.insertText).toHaveBeenCalledWith(
-      "orgii://cloud/session/ref?v=1",
-      { separateFromAdjacentText: true }
-    );
-
-    // The Raw tab is now visible so the user can see the result land.
-    expect(
-      container.querySelector("[data-rich-markdown-raw]")?.className
-    ).toContain("block");
-    expect(container.querySelector("[data-rich-markdown-preview]")).toBeNull();
-  });
-
-  it("passes drop coordinates through unchanged when already on the Raw tab", () => {
+  it("passes drop coordinates through to the always-visible editor", () => {
     const ref = React.createRef<React.ElementRef<typeof RichMarkdownEditor>>();
     act(() => {
       root.render(

@@ -15,12 +15,10 @@
 //! Users can import rules from `.cursor/rules/*.mdc` (workspace-scoped only).
 
 pub(crate) mod activation;
-mod behavior;
 mod commands;
 pub mod config;
 pub(crate) mod metadata;
 
-pub use behavior::{generate_automation_md, remove_automation_md_by_id};
 // Wildcard re-export needed: #[tauri::command] generates hidden __cmd__* items
 pub use commands::*;
 

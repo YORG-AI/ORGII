@@ -85,7 +85,7 @@ pub fn read_all_projects_scoped(org_id: Option<&str>) -> Result<Vec<ProjectData>
         let mut stmt = map_db(connection.prepare(
             "SELECT id, name, slug, org_id, status, priority, health, lead, description,
                     short_id_prefix, next_work_item_id, start_date, target_date,
-                    linked_repos_json, agent_defaults_json, created_at, updated_at
+                    linked_repos_json, agent_defaults_json, created_at, updated_at, sync_kind
              FROM projects
              WHERE org_id = ?1
              ORDER BY updated_at DESC, created_at DESC",
@@ -100,7 +100,7 @@ pub fn read_all_projects_scoped(org_id: Option<&str>) -> Result<Vec<ProjectData>
     let mut stmt = map_db(connection.prepare(
         "SELECT id, name, slug, org_id, status, priority, health, lead, description,
                 short_id_prefix, next_work_item_id, start_date, target_date,
-                linked_repos_json, agent_defaults_json, created_at, updated_at
+                linked_repos_json, agent_defaults_json, created_at, updated_at, sync_kind
          FROM projects
          ORDER BY updated_at DESC, created_at DESC",
     ))?;
@@ -124,7 +124,7 @@ pub fn read_project_scoped(slug: &str, org_id: Option<&str>) -> Result<ProjectDa
                 .query_row(
                     "SELECT id, name, slug, org_id, status, priority, health, lead, description,
                             short_id_prefix, next_work_item_id, start_date, target_date,
-                            linked_repos_json, agent_defaults_json, created_at, updated_at
+                            linked_repos_json, agent_defaults_json, created_at, updated_at, sync_kind
                      FROM projects WHERE slug = ?1 AND org_id = ?2",
                     params![slug, org_id],
                     row_to_project_data,
@@ -137,7 +137,7 @@ pub fn read_project_scoped(slug: &str, org_id: Option<&str>) -> Result<ProjectDa
                 .query_row(
                     "SELECT id, name, slug, org_id, status, priority, health, lead, description,
                             short_id_prefix, next_work_item_id, start_date, target_date,
-                            linked_repos_json, agent_defaults_json, created_at, updated_at
+                            linked_repos_json, agent_defaults_json, created_at, updated_at, sync_kind
                      FROM projects WHERE slug = ?1",
                     params![slug],
                     row_to_project_data,
@@ -529,6 +529,9 @@ fn row_to_project_data(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectData>
     let agent_defaults_json: Option<String> = row.get(14)?;
     let created_at_ms: i64 = row.get(15)?;
     let updated_at_ms: i64 = row.get(16)?;
+    let sync_adapter_id = row
+        .get::<_, Option<String>>(17)?
+        .filter(|adapter_id| adapter_id != "none");
 
     // `linked_repos_json` is a DB-stored JSON array of repo paths. Silent
     // empty fallback would make a project's repo links disappear from the
@@ -592,6 +595,7 @@ fn row_to_project_data(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectData>
         meta,
         description,
         slug,
+        sync_adapter_id,
     })
 }
 
@@ -660,6 +664,44 @@ mod tests {
         assert_eq!(projects.len(), 2);
         assert_eq!(projects[0].meta.id, "p2", "newest first");
         assert_eq!(projects[1].meta.id, "p1");
+    }
+
+    #[test]
+    fn reads_bound_sync_adapter_without_exposing_unbound_none() {
+        let _sandbox = test_env::sandbox();
+        let (slug, meta) = fixture("p1", "GitHub Project", "github-project");
+        write_project(&slug, &meta, "", true).expect("project");
+
+        assert_eq!(
+            read_project(&slug)
+                .expect("unbound project")
+                .sync_adapter_id,
+            None
+        );
+
+        let connection = crate::sync::io::conn().expect("sync connection");
+        crate::sync::io::attach_adapter(&connection, &slug, "github", "{}", "github-connection")
+            .expect("attach adapter");
+        drop(connection);
+
+        assert_eq!(
+            read_project(&slug)
+                .expect("bound project")
+                .sync_adapter_id
+                .as_deref(),
+            Some("github")
+        );
+
+        let connection = crate::sync::io::conn().expect("sync connection");
+        crate::sync::io::detach_adapter(&connection, &slug).expect("detach adapter");
+        drop(connection);
+
+        assert_eq!(
+            read_project(&slug)
+                .expect("detached project")
+                .sync_adapter_id,
+            None
+        );
     }
 
     #[test]

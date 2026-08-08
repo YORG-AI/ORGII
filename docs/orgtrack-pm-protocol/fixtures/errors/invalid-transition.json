@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "INVALID_TRANSITION",
+    "message": "completed -> in_progress is not allowed; in_progress is only entered via work.claim or blocked -> in_progress",
+    "retryable": false,
+    "details": {
+      "from": "completed",
+      "to": "in_progress"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR11"
+  }
+}

@@ -8,6 +8,8 @@ export type AvatarChipSize = "xs" | "sm";
 
 interface AvatarChipProps {
   avatarSrc?: string;
+  /** Initials or icon shown when no avatar image is available. */
+  avatarFallback?: ReactNode;
   avatarSize?: number;
   label: ReactNode;
   variant?: AvatarChipVariant;
@@ -53,6 +55,7 @@ function getVisualClassName(
 
 const AvatarChip = memo(function AvatarChip({
   avatarSrc,
+  avatarFallback,
   avatarSize = 14,
   label,
   variant = "display",
@@ -74,7 +77,9 @@ const AvatarChip = memo(function AvatarChip({
 
   const content = (
     <>
-      <Avatar size={avatarSize} src={avatarSrc} />
+      <Avatar size={avatarSize} src={avatarSrc}>
+        {avatarFallback}
+      </Avatar>
       <span className={labelClass}>{label}</span>
     </>
   );

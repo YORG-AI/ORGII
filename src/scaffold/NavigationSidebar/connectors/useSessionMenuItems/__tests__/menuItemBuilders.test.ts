@@ -100,7 +100,7 @@ describe("buildSessionMenuItem PR state", () => {
   it.each([
     ["open", "Open PR #42: feature-x", "--color-success-6"],
     ["draft", "Draft PR #42: feature-x", "--color-text-3"],
-    ["merged", "Merged PR #42: feature-x", "--color-primary-6"],
+    ["merged", "Merged PR #42: feature-x", "--color-purple-6"],
     ["closed", "Closed PR #42: feature-x", "--color-danger-6"],
   ])("renders %s with its own icon color", (status, label, color) => {
     const html = prMarkup(status);

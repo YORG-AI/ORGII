@@ -25,6 +25,11 @@ const cache = {
     .output(schemas.sessionCore.SessionEventArraySchema)
     .build(),
 
+  countEvents: defineProcedure("cache_count_session_events")
+    .input(schemas.sessionCore.SessionIdInput)
+    .output(z.number())
+    .build(),
+
   saveCachedEvents: defineProcedure("cache_save_events")
     .input(schemas.sessionCore.SaveCachedEventsInput)
     .build(),

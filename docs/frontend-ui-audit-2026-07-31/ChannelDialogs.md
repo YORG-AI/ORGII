@@ -1,0 +1,20 @@
+# Channel dialogs UI audit
+
+The configured `frontend-ui-audit` skill was unavailable in both the user and
+workspace skill locations. This fallback audit applies the repository routing
+criteria directly to the channel-dialog files changed in this batch.
+
+| Line                                                                     | Element                  | Verdict          | Reason                                                                                                                                                                                                                                   | Suggested change                                                                                       |
+| ------------------------------------------------------------------------ | ------------------------ | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ChannelDialogPrimitives.tsx:197-232`; eight cloud/local channel dialogs | Modal action footer      | fix              | Action buttons were rendered inside each scrollable modal body with duplicated layout. The shared channel footer now composes `PanelFooter`, which owns consistent spacing, border, disabled state, loading state, and button hierarchy. | Applied: render `ChannelDialogFooter` through each modal's fixed `footer` slot.                        |
+| `CreateChannelDialog.tsx:237-268`                                        | Visibility control       | fix              | The custom radio-card buttons duplicated selection semantics and styling already owned by the design-system `Radio` component.                                                                                                           | Applied: use `Radio.Group` and `Radio` without decorative public/private icons.                        |
+| `ManageChannelMembersDialog.tsx` footer                                  | Member-management footer | fix              | The Add action sat inside the scrolling member list instead of the dialog action region. This caused its position to vary with list content.                                                                                             | Applied: use `PanelFooter` in the modal's fixed footer slot for Cancel/Add.                            |
+| `ChannelDialogPrimitives.tsx:29-116`; `CreateChannelDialog.tsx:219-360`  | 112px form-label grid    | keep with reason | A fixed label rail is specific to the supplied Lark-style reference and keeps mixed inputs aligned. The shared name/topic fields expose the layout without duplicating their input behavior.                                             | Keep the layout option on the shared fields; extract a generic form row only if another form needs it. |
+| `CreateChannelDialog.tsx:270-350`                                        | Two-pane member picker   | keep with reason | No existing design-system component owns an available-versus-selected roster. The implementation composes existing `Checkbox` and `Avatar` primitives, preserves the channel selection limit, and leaves the roster surface transparent. | Keep local to channel creation; abstract only when a second two-pane roster picker appears.            |
+| `ChannelDialogPrimitives.tsx:121-145`                                    | Inline error treatment   | keep with reason | The shared danger notice is consistent across the channel family and includes live-region semantics. Broadening it into a general alert primitive would exceed this PR's channel-dialog scope.                                           | Consider a separate design-system alert sweep if this pattern needs consolidation across features.     |
+
+## Verdict summary
+
+- fix: 3
+- keep with reason: 3
+- abstract: 0

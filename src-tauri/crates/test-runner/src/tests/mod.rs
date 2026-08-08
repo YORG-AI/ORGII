@@ -1,6 +1,3 @@
-pub mod detection_tests;
-pub mod discovery_tests;
-
 const SOURCE_FILES: &[(&str, &str)] = &[
     ("commands.rs", include_str!("../commands.rs")),
     ("discovery.rs", include_str!("../discovery.rs")),

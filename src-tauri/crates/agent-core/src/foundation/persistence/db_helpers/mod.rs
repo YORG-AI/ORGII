@@ -96,6 +96,14 @@ mod tests {
 /// Collect all image file paths referenced by messages in a session.
 fn collect_session_image_paths(prefix: &str, session_id: &str) -> SqliteResult<Vec<String>> {
     let conn = get_connection()?;
+    collect_session_image_paths_with_connection(&conn, prefix, session_id)
+}
+
+fn collect_session_image_paths_with_connection(
+    conn: &rusqlite::Connection,
+    prefix: &str,
+    session_id: &str,
+) -> SqliteResult<Vec<String>> {
     let sql = format!(
         "SELECT images FROM {prefix}_messages WHERE session_id = ?1 AND images IS NOT NULL"
     );
@@ -138,33 +146,71 @@ pub fn delete_session_cascade(session_id: &str, tables: &[&str]) -> SqliteResult
     with_sessions_writer(|| {
         let mut conn = get_connection()?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if tables.contains(&"agent_messages") {
-            let receipts_exist: bool = tx.query_row(
-                "SELECT EXISTS(
-                     SELECT 1 FROM sqlite_master
-                     WHERE type='table' AND name='agent_inbox_materializations'
-                 )",
-                [],
-                |row| row.get(0),
-            )?;
-            if receipts_exist {
-                // Keep the source Inbox rows unread while atomically removing
-                // receipts for transcript rows deleted by this cascade.
-                tx.execute(
-                    "DELETE FROM agent_inbox_materializations WHERE session_id=?1",
-                    [session_id],
-                )?;
-            }
-        }
-        for table in tables {
-            tx.execute(
-                &format!("DELETE FROM {table} WHERE session_id = ?1"),
-                [session_id],
-            )?;
-        }
+        delete_session_rows_with_connection(&tx, session_id, tables)?;
         tx.commit()?;
         Ok(())
     })
+}
+
+/// Transaction-aware form of [`delete_session_cascade`].
+///
+/// The caller owns the transaction boundary. This is used when several Rust
+/// Agent Org sessions and their run-owned rows must commit or roll back as one
+/// hierarchy. Ordinary single-session deletion continues to use
+/// [`delete_session_cascade`] and therefore keeps its existing transaction
+/// behavior.
+pub(crate) fn delete_session_cascade_with_connection(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    tables: &[&str],
+) -> SqliteResult<()> {
+    // Collect image file paths before deleting the rows. Infer the
+    // prefix from the first table that ends with "_messages".
+    let prefix = tables
+        .iter()
+        .find(|t| t.ends_with("_messages"))
+        .and_then(|t| t.strip_suffix("_messages"));
+
+    if let Some(prefix) = prefix {
+        let image_paths = collect_session_image_paths_with_connection(conn, prefix, session_id)?;
+        if !image_paths.is_empty() {
+            super::images::delete_image_files(&image_paths);
+        }
+    }
+
+    delete_session_rows_with_connection(conn, session_id, tables)
+}
+
+fn delete_session_rows_with_connection(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    tables: &[&str],
+) -> SqliteResult<()> {
+    if tables.contains(&"agent_messages") {
+        let receipts_exist: bool = conn.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sqlite_master
+                 WHERE type='table' AND name='agent_inbox_materializations'
+             )",
+            [],
+            |row| row.get(0),
+        )?;
+        if receipts_exist {
+            // Keep the source Inbox rows unread while atomically removing
+            // receipts for transcript rows deleted by this cascade.
+            conn.execute(
+                "DELETE FROM agent_inbox_materializations WHERE session_id=?1",
+                [session_id],
+            )?;
+        }
+    }
+    for table in tables {
+        conn.execute(
+            &format!("DELETE FROM {table} WHERE session_id = ?1"),
+            [session_id],
+        )?;
+    }
+    Ok(())
 }
 
 // ============================================

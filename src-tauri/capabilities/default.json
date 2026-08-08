@@ -47,6 +47,7 @@
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-set-decorations",
+    "core:window:allow-set-theme",
     "core:window:allow-set-size",
     "core:window:allow-center",
     "core:window:allow-set-background-color",

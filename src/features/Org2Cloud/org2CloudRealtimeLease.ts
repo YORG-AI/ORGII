@@ -1,5 +1,7 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, useState } from "react";
 
+import { isTauriRuntimeHost } from "@src/hooks/logger/useLogger";
 import { isWindowFocused } from "@src/util/core/windowFocus";
 
 /**
@@ -98,6 +100,61 @@ export function createOrg2CloudRealtimeLeaseController({
 }
 
 /**
+ * Windows/WebView2 keeps `document.visibilityState` at "visible" across a
+ * minimize (verified on real hardware 2026-08-07), so the lease's
+ * immediate-release branch is unreachable there and a minimized window held
+ * its billable socket for the full blur grace. The bridge tracks OS-level
+ * minimize through the Tauri window handle instead: a blur re-probes
+ * asynchronously, a focus clears synchronously (a focused window is never
+ * minimized). The generation counter drops probe results that resolve after
+ * a newer probe or an intervening focus — a stale `true` from a rapid
+ * minimize→restore must not release a re-focused lease's socket.
+ */
+export interface Org2CloudLeaseMinimizeBridge {
+  /** Current belief; feeds the lease's `isHidden` alongside visibility. */
+  isMinimized(): boolean;
+  /** Async re-read of the OS minimize state; call on blur (and at setup). */
+  probe(): void;
+  /** Synchronous reset on focus; invalidates in-flight probes. */
+  clearOnFocus(): void;
+}
+
+export function createOrg2CloudLeaseMinimizeBridge(
+  readIsMinimized: () => Promise<boolean>,
+  onChange: () => void
+): Org2CloudLeaseMinimizeBridge {
+  let minimized = false;
+  let probeGeneration = 0;
+  return {
+    isMinimized: () => minimized,
+    probe: () => {
+      const generation = ++probeGeneration;
+      readIsMinimized().then(
+        (next) => {
+          if (generation !== probeGeneration || next === minimized) return;
+          minimized = next;
+          onChange();
+        },
+        () => undefined
+      );
+    },
+    clearOnFocus: () => {
+      probeGeneration += 1;
+      if (!minimized) return;
+      minimized = false;
+      onChange();
+    },
+  };
+}
+
+function readWindowMinimized(): Promise<boolean> {
+  if (typeof window === "undefined" || !isTauriRuntimeHost(window)) {
+    return Promise.resolve(false);
+  }
+  return getCurrentWindow().isMinimized();
+}
+
+/**
  * React binding for the connection lease. This hook owns browser lifecycle
  * listeners only; the caller remains the single owner of the Supabase client
  * and all of its channels.
@@ -110,9 +167,17 @@ export function useOrg2CloudRealtimeLease(): boolean {
     if (typeof window === "undefined" || typeof document === "undefined") {
       return undefined;
     }
+    // The bridge's change callback closes over `controller` declared below;
+    // probe resolutions are always asynchronous, so the reference is live by
+    // the time it can run.
+    const minimizeBridge = createOrg2CloudLeaseMinimizeBridge(
+      readWindowMinimized,
+      () => controller.refresh()
+    );
     const controller = createOrg2CloudRealtimeLeaseController({
       isForeground: isWindowFocused,
-      isHidden: () => document.visibilityState === "hidden",
+      isHidden: () =>
+        document.visibilityState === "hidden" || minimizeBridge.isMinimized(),
       // Preserve the render-time truth so a focus transition between render
       // and effect setup is reconciled instead of silently skipped.
       initialHeld: initialHeldRef.current,
@@ -121,16 +186,25 @@ export function useOrg2CloudRealtimeLease(): boolean {
 
     const refresh = () => controller.refresh();
     const release = () => controller.releaseImmediately();
-    window.addEventListener("focus", refresh);
-    window.addEventListener("blur", refresh);
+    const handleFocus = () => {
+      minimizeBridge.clearOnFocus();
+      controller.refresh();
+    };
+    const handleBlur = () => {
+      controller.refresh();
+      minimizeBridge.probe();
+    };
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("blur", handleBlur);
     window.addEventListener("pagehide", release);
     window.addEventListener("pageshow", refresh);
     document.addEventListener("visibilitychange", refresh);
+    minimizeBridge.probe();
     controller.refresh();
 
     return () => {
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("blur", refresh);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("blur", handleBlur);
       window.removeEventListener("pagehide", release);
       window.removeEventListener("pageshow", refresh);
       document.removeEventListener("visibilitychange", refresh);

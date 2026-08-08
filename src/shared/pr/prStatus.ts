@@ -13,7 +13,7 @@
  * tokens, the label key onto `t(...)`, and the icon name onto a real icon.
  *
  * Semantic colors per PR state (kept consistent across every surface):
- *   open → success (green), merged → primary, closed → danger (red),
+ *   open → success (green), merged → GitHub purple, closed → danger (red),
  *   draft → warning (amber), unknown → neutral.
  */
 import type { PrStatus } from "@src/api/http/project/types/agentWorkflow";
@@ -24,6 +24,8 @@ export interface PrStatusVariant {
   badgeClass: string;
   /** Tailwind classes for the small leading status dot. */
   dotClass: string;
+  /** Tailwind class for status text and status glyphs. */
+  textClass: string;
 }
 
 /**
@@ -34,15 +36,25 @@ export interface PrStatusVariant {
 export type PrStatusIconName = "pull-request" | "merge" | "closed" | "draft";
 
 const PR_STATUS_VARIANTS: Record<string, PrStatusVariant> = {
-  open: { badgeClass: "bg-success-1 text-success-6", dotClass: "bg-success-6" },
-  merged: {
-    badgeClass: "bg-primary-1 text-primary-6",
-    dotClass: "bg-primary-6",
+  open: {
+    badgeClass: "bg-success-1 text-success-6",
+    dotClass: "bg-success-6",
+    textClass: "text-success-6",
   },
-  closed: { badgeClass: "bg-danger-1 text-danger-6", dotClass: "bg-danger-6" },
+  merged: {
+    badgeClass: "bg-purple-1 text-purple-6",
+    dotClass: "bg-purple-6",
+    textClass: "text-purple-6",
+  },
+  closed: {
+    badgeClass: "bg-danger-1 text-danger-6",
+    dotClass: "bg-danger-6",
+    textClass: "text-danger-6",
+  },
   draft: {
     badgeClass: "bg-warning-1 text-warning-6",
     dotClass: "bg-warning-6",
+    textClass: "text-warning-6",
   },
 };
 
@@ -50,6 +62,7 @@ const PR_STATUS_VARIANTS: Record<string, PrStatusVariant> = {
 const FALLBACK_STATUS_VARIANT: PrStatusVariant = {
   badgeClass: "bg-fill-2 text-text-3",
   dotClass: "bg-text-3",
+  textClass: "text-text-3",
 };
 
 const PR_STATUS_ICONS: Record<string, PrStatusIconName> = {

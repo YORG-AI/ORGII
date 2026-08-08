@@ -60,6 +60,23 @@ describe("resolveSelectedMenuItemIds", () => {
     ).toBe("team-inbox");
   });
 
+  it("keeps Team Inbox selected from the Work Items sidebar", () => {
+    expect(
+      resolveSelectedMenuItemIds({
+        activeSessionCreatorDraftId: null,
+        activeSessionId: "session-1",
+        activeSidebarKey: "projects",
+        activeChatPanelTabType: "team-inbox",
+        chatPanelContentMode: CHAT_PANEL_CONTENT_MODE.SESSION,
+        chatPanelCreateTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
+        chatPanelSelectedProject: null,
+        chatPanelSelectedWorkItem: null,
+        projectsSelectedMenuItemId: "project-1",
+        sessionCreatorDrafts: [],
+      }).selectedMenuItemId
+    ).toBe("team-inbox");
+  });
+
   it("selects Add Org by default on the projects sidebar for the collab org create target", () => {
     expect(
       resolveSelectedMenuItemIds({

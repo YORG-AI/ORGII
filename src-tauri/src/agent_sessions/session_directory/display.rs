@@ -21,11 +21,10 @@ pub fn generate_display_label(name: &str, user_input: Option<&str>) -> Option<St
     // Prefer name if it's not the default
     let raw_text = if !name.is_empty() && name != DEFAULT_SESSION_NAME {
         name.to_string()
-    } else if let Some(input) = user_input {
+    } else {
+        let input = user_input?;
         // Truncate user_input to ~80 chars (UTF-8 safe)
         truncate_utf8(input, 80)
-    } else {
-        return None;
     };
 
     // Strip pill references (e.g., @file.ts, @folder/)
@@ -167,6 +166,7 @@ mod tests {
             agent_icon_id: None,
             agent_display_name: None,
             agent_exec_mode: None,
+            product_mode: None,
             draft_text: None,
             reply_target_event_id: None,
             pinned: false,

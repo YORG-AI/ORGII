@@ -230,6 +230,9 @@ export interface PanelHeaderProps {
   /** Additional className */
   className?: string;
 
+  /** Stable selector for focused layout and interaction tests. */
+  dataTestId?: string;
+
   /** When true, draws a bottom border under the header row (separator against content below). */
   borderBottom?: boolean;
 
@@ -270,6 +273,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
     searchQuery,
     children,
     className = "",
+    dataTestId,
     borderBottom = false,
     background,
     variant = "default",
@@ -376,6 +380,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
     const headerRow = (
       <div
         className={`${baseClasses} ${borderClasses} ${bgClasses} ${className}`}
+        data-testid={dataTestId}
       >
         {/* Back button */}
         {onBack && (

@@ -8,6 +8,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 use tauri::command;
 
 use git::tokio_git_command;
@@ -100,13 +101,50 @@ fn get_home_dir() -> Option<PathBuf> {
 async fn detect_gh_cli() -> Option<GhCliCredential> {
     let home = get_home_dir()?;
     let config_path = home.join(".config/gh/hosts.yml");
-
-    let content = fs::read_to_string(&config_path).ok()?;
-
-    let token = extract_gh_cli_token(&content)?;
+    let content = fs::read_to_string(&config_path).unwrap_or_default();
+    let token = resolve_gh_cli_token().await?;
     let username = extract_gh_cli_username(&content).unwrap_or_default();
 
     Some(GhCliCredential { username, token })
+}
+
+/// Resolve the active GitHub CLI credential without persisting or logging it.
+///
+/// Modern `gh` installs keep OAuth tokens in the OS keychain, so `hosts.yml`
+/// often contains only the username. Asking `gh` itself works for keychain and
+/// file-backed installs while preserving the CLI's active-host behavior.
+pub(crate) async fn resolve_gh_cli_token() -> Option<String> {
+    let mut executables = vec![PathBuf::from("gh")];
+    #[cfg(target_os = "macos")]
+    executables.extend([
+        PathBuf::from("/opt/homebrew/bin/gh"),
+        PathBuf::from("/usr/local/bin/gh"),
+    ]);
+
+    for executable in executables {
+        let mut command = tokio::process::Command::new(executable);
+        command
+            .args(["auth", "token", "--hostname", "github.com"])
+            .env_remove("GH_TOKEN")
+            .env_remove("GITHUB_TOKEN")
+            .env_remove("GH_ENTERPRISE_TOKEN")
+            .env_remove("GITHUB_ENTERPRISE_TOKEN")
+            .env("GH_PROMPT_DISABLED", "1");
+        let Ok(Ok(output)) = tokio::time::timeout(Duration::from_secs(5), command.output()).await
+        else {
+            continue;
+        };
+        if output.status.success() {
+            let token = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !token.is_empty() {
+                return Some(token);
+            }
+        }
+    }
+
+    let home = get_home_dir()?;
+    let content = fs::read_to_string(home.join(".config/gh/hosts.yml")).ok()?;
+    extract_gh_cli_token(&content)
 }
 
 pub(crate) fn extract_gh_cli_token(content: &str) -> Option<String> {

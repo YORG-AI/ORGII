@@ -17,3 +17,16 @@ export const PILL_SM_HEIGHT_CLASS = "h-[28px]";
 
 /** Label line-height that visually centers 12–13px text in 28px pills. */
 export const PILL_SM_LABEL_CLASS = "leading-[16px]";
+
+/** Semantic surface states shared by property and composer pill controls. */
+export const PILL_CONTROL_HOVER_CLASS = "enabled:hover:!bg-surface-hover";
+export const PILL_CONTROL_IDLE_SURFACE_CLASS = `!bg-bg-2 !shadow-none ${PILL_CONTROL_HOVER_CLASS}`;
+export const PILL_CONTROL_ACTIVE_SURFACE_CLASS = "!bg-surface-hover";
+export const PILL_CONTROL_ACTIVE_ACCENT_CLASS = `${PILL_CONTROL_ACTIVE_SURFACE_CLASS} !border-primary-6 !text-primary-6`;
+
+/** Resolve the standard idle/open treatment for outlined pill controls. */
+export function pillControlStateClass(isActive: boolean): string {
+  return isActive
+    ? PILL_CONTROL_ACTIVE_ACCENT_CLASS
+    : PILL_CONTROL_IDLE_SURFACE_CLASS;
+}

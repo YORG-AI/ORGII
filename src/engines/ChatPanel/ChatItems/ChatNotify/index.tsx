@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChevronRight, Eye } from "lucide-react";
+import { ChevronRight, Eye, SquareArrowOutUpRight } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -148,7 +148,7 @@ const ChatNotify: React.FC<ChatNotifyProps> = ({
                         className="flex cursor-pointer items-center justify-center border-none bg-transparent p-0 text-text-2 hover:text-text-1"
                         onClick={handleItemRedirect}
                       >
-                        <ArrowUpRight size={12} />
+                        <SquareArrowOutUpRight size={12} />
                       </button>
                     </div>
                   </div>

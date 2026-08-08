@@ -22,6 +22,9 @@ export {
 } from "./sessionTableItem";
 export type { BrowseCardProps } from "./BrowseCard";
 
+export { default as CreatorContentLayout } from "./CreatorContentLayout";
+export type { CreatorContentLayoutProps } from "./CreatorContentLayout";
+
 export { default as CollapsibleSection } from "./CollapsibleSection";
 export type { CollapsibleSectionProps } from "./CollapsibleSection";
 export { default as CollapsibleTableSection } from "./CollapsibleTableSection";
@@ -40,6 +43,17 @@ export {
 export { SESSION_HISTORY_LIST_TOKENS } from "./sessionHistoryListTokens";
 export { default as ScrollFadeContainer } from "./ScrollFadeContainer";
 export { default as ScrollPreservation } from "./ScrollPreservation";
+export {
+  default as ScrollTrail,
+  MAX_SCROLL_TRAIL_MARKERS,
+  SCROLL_TRAIL_TARGET_SELECTOR,
+  ScrollTrailTarget,
+  getScrollTrailMarkerWidthClass,
+  normalizeScrollTrailLabel,
+  resolveActiveScrollTrailIndex,
+  sampleScrollTrailIndices,
+} from "./ScrollTrail";
+export type { ScrollTrailProps, ScrollTrailTargetProps } from "./ScrollTrail";
 export type { ScrollPreservationProps } from "./ScrollPreservation";
 export type { ScrollFadeContainerProps } from "./ScrollFadeContainer";
 export { SCROLL_FADE_TOKENS } from "../tokens/scrollFadeTokens";
@@ -128,6 +142,9 @@ export type { ListPanelTabPillRowProps } from "./ListPanelTabPillRow";
 
 export { default as ListPanelScrollArea } from "./ListPanelScrollArea";
 export type { ListPanelScrollAreaProps } from "./ListPanelScrollArea";
+
+export { default as LoadingBar } from "./LoadingBar";
+export type { LoadingBarProps } from "./LoadingBar";
 
 export { Placeholder, PLACEHOLDER_TOKENS } from "./Placeholder";
 export type {

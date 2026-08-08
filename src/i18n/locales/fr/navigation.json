@@ -141,7 +141,8 @@
       "workstation": "Poste de travail",
       "viewRam": "Voir la RAM",
       "tutorials": "Tutoriels",
-      "openSettings": "Ouvrir les paramètres"
+      "openSettings": "Ouvrir les paramètres",
+      "setupChecklist": "Configuration rapide"
     },
     "empty": {
       "noItems": "Aucun élément",
@@ -164,6 +165,37 @@
       "duration1h": "1 heure",
       "duration2h": "2 heures",
       "durationTomorrow": "Demain"
+    },
+    "guide": {
+      "trigger": "Ouvrir le guide",
+      "title": "Bien démarrer avec ORGII",
+      "startSession": "Démarrer une session",
+      "quickSetup": "Langue et apparence",
+      "close": "Fermer le guide",
+      "progressLabel": "{{completed}} étapes sur {{total}} terminées",
+      "localWorkspace": "Espace de travail local",
+      "connectOrganization": "Connecter ou créer une organisation",
+      "createOrganizationHint": "Saisissez un nom d’organisation, puis sélectionnez Créer. Le guide continuera après la création de l’organisation cloud.",
+      "inviteTeammate": "Inviter un membre de l’équipe",
+      "inviteTeammateHint": "Créez ici un lien d’invitation, puis envoyez-le à votre coéquipier.",
+      "invitePermissionHint": "Vous pouvez consulter la liste des membres ici. Un administrateur ou propriétaire de l’organisation doit créer l’invitation.",
+      "devPanelTitle": "États de test de l’onboarding",
+      "devPanelHint": "Aperçu temporaire du parcours d’invitation. Les données de l’organisation ne sont jamais modifiées.",
+      "devScenarioLive": "Données réelles",
+      "devScenarioNoOrganization": "Aucune organisation",
+      "devScenarioMember": "Membre · aucun accès aux invitations",
+      "devScenarioAdmin": "Administrateur · accès aux invitations",
+      "devScenarioOwner": "Propriétaire · accès aux invitations",
+      "devScenarioRequiresOrganization": "Les aperçus de rôle nécessitent au moins une organisation cloud réelle.",
+      "devSimulationActive": "Simulation de développement active",
+      "devSimulationReadOnly": "Cet aperçu de la page Membres est en lecture seule. Les actions de gestion sont désactivées.",
+      "viewTeamActivity": "Voir l’utilisation de l’équipe",
+      "viewTeamActivityHint": "Runtime est ouvert sur Membres. Choisissez un membre pour voir son utilisation de Codex, Claude et Cursor ; si aucune donnée n’apparaît, activez d’abord la synchronisation Runtime de l’équipe.",
+      "exploreProduct": "Découvrir les pages principales",
+      "nextStep": "Étape suivante"
+    },
+    "developerTestPanel": {
+      "title": "Panneau de test de développement"
     }
   },
   "myRole": {
@@ -400,7 +432,17 @@
       "agentError": "Choose a local agent before forking.",
       "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
       "parentOpenUnavailable": "The source session could not be opened from this fork.",
-      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "openParentButton": "Ouvrir la session source de {{name}}"
+    },
+    "continueCli": {
+      "headerButton": "Continuer dans {{agent}}",
+      "headerTooltip": "Rouvrir cette session dans {{agent}} dans un onglet de terminal ({{command}})",
+      "notInstalled": "{{agent}} n'est pas installé sur cette machine",
+      "missingWorkspace": "Le dossier d'origine de la session n'existe plus — {{agent}} ne peut la reprendre que depuis ce dossier",
+      "sourceMissing": "Les données d'origine de la session ne sont plus sur le disque",
+      "launchFailed": "Échec de l'ouverture du terminal {{agent}}",
+      "composerPlaceholder": "Écrivez pour continuer dans une nouvelle session ORGII — ou reprenez dans {{agent}} depuis l'en-tête…"
     }
   },
   "cloud": {
@@ -489,6 +531,10 @@
         "manualRunning": "Synchronisation…",
         "manualSuccess": "Synchronisation terminée",
         "manualError": "Échec de la synchronisation : {{message}}",
+        "coverageTitle": "Couverture des sessions",
+        "coverageSummary": "{{synced}}/{{syncable}} synchronisées ({{percent}} %)",
+        "coveragePercentLabel": "Couverture",
+        "coverageEmpty": "Aucune session dans les portées de dépôt de cette organisation",
         "logsTitle": "Journal de synchronisation",
         "logsHelp": "Événements de synchronisation récents enregistrés sur cet appareil. Effacés au redémarrage et jamais envoyés",
         "logsEmpty": "Aucun événement de synchronisation enregistré",
@@ -517,7 +563,10 @@
       "viewerOverflow": "et {{count}} autres spectateurs",
       "memberViewing": "regarde : {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "loadingSession": "Chargement de la session…",
+      "downloadProgress": "Téléchargement… {{percent}}%",
+      "downloadProgressEta": "Téléchargement… {{percent}}% · ~{{eta}} restant"
     },
     "sessionRef": {
       "chipLabel": "Session d'équipe",
@@ -525,7 +574,8 @@
       "signInRequired": "Connectez-vous à ORG2 Cloud pour ouvrir cette session.",
       "sessionNotFound": "Cette session n'appartient pas à cette organisation.",
       "notPublished": "Partagez cette session avec une organisation avant de copier une référence.",
-      "chooseOrg": "Cette session appartient à plusieurs organisations. Passez à l'organisation que vous voulez référencer, puis copiez de nouveau."
+      "chooseOrg": "Cette session appartient à plusieurs organisations. Passez à l'organisation que vous voulez référencer, puis copiez de nouveau.",
+      "opening": "Ouverture de la session d'équipe…"
     },
     "sync": {
       "quotaExceededToast": "Synchro ORG2 Cloud en pause : le quota du forfait de cette organisation est dépassé",
@@ -763,6 +813,151 @@
     },
     "renameDisplayName": "Modifier le nom d'affichage",
     "renameSaved": "Nom d'affichage mis à jour",
-    "renameFailed": "Impossible de mettre à jour le nom d'affichage"
+    "renameFailed": "Impossible de mettre à jour le nom d'affichage",
+    "download": {
+      "title": "Téléchargement de la session d'équipe…",
+      "events": "{{loaded}} / {{total}} événements",
+      "eta": "Environ {{eta}} restant",
+      "finalizing": "Finalisation…",
+      "complete": "Téléchargement terminé",
+      "estimate": "Cette session compte {{count}} événements à télécharger (environ {{eta}})",
+      "start": "Télécharger",
+      "pause": "Suspendre",
+      "paused": "En pause",
+      "resume": "Reprendre"
+    },
+    "channels": {
+      "title": "Canaux",
+      "createAction": "Créer un canal",
+      "createFirst": "Créer un canal",
+      "manageMembers": "Gérer les membres",
+      "archiveAction": "Archiver le canal",
+      "unarchive": "Désarchiver",
+      "unarchiveFailed": "Impossible de désarchiver le canal",
+      "deleteAction": "Supprimer le canal",
+      "leave": "Quitter le canal",
+      "archivedGroup": "Archivés",
+      "loadError": "Impossible de charger les canaux",
+      "settings": {
+        "action": "Paramètres du canal",
+        "title": "Paramètres de #{{name}}",
+        "submit": "Enregistrer",
+        "managerRequired": "Seuls les gestionnaires du canal peuvent le modifier",
+        "error": "Impossible de mettre à jour le canal. Veuillez réessayer."
+      },
+      "local": {
+        "quotaExceeded": "Vous avez atteint la limite de canaux sur cet appareil",
+        "archiveBody": "L'archivage masque le canal de la barre latérale. Son historique est conservé et il pourra être désarchivé plus tard",
+        "deleteWarning": "Le canal sera définitivement supprimé de cet appareil. Cette action est irréversible"
+      },
+      "cancel": "Annuler",
+      "create": {
+        "title": "Créer un canal",
+        "nameLabel": "Nom",
+        "namePlaceholder": "ex. code-review",
+        "topicLabel": "Sujet",
+        "topicOptional": "(facultatif)",
+        "topicPlaceholder": "De quoi s'agit-il ?",
+        "visibilityLabel": "Visibilité",
+        "publicTitle": "Public",
+        "publicDesc": "Tous les membres de l'organisation peuvent voir la conversation et la rejoindre",
+        "privateTitle": "Privé",
+        "privateDesc": "Seules les personnes invitées peuvent voir ce canal",
+        "membersLabel": "Ajouter des membres",
+        "membersHint": "Vous serez automatiquement ajouté comme gestionnaire du canal",
+        "membersLoading": "Chargement des membres…",
+        "membersEmpty": "Pas encore d'autres membres dans cette organisation",
+        "postPolicyLabel": "Qui peut publier",
+        "postPolicyEveryone": "Tout le monde",
+        "postPolicyManagers": "Uniquement les gestionnaires du canal",
+        "submit": "Créer",
+        "nameTaken": "Ce nom est déjà utilisé",
+        "quotaExceeded": "Cette organisation a atteint sa limite de canaux",
+        "error": "Impossible de créer le canal. Veuillez réessayer."
+      },
+      "archive": {
+        "title": "Archiver #{{name}} ?",
+        "body": "L'archivage masque le canal de la barre latérale pour tout le monde. Son historique est conservé et il pourra être désarchivé plus tard",
+        "confirm": "Archiver",
+        "managerRequired": "Seuls les gestionnaires du canal peuvent l'archiver",
+        "error": "Impossible d'archiver le canal. Veuillez réessayer."
+      },
+      "delete": {
+        "title": "Supprimer #{{name}} ?",
+        "warning": "Le canal sera définitivement supprimé pour tout le monde. Cette action est irréversible",
+        "acknowledge": "Oui, supprimer définitivement le canal",
+        "confirm": "Supprimer",
+        "adminRequired": "Seuls les administrateurs de l'organisation peuvent supprimer des canaux",
+        "error": "Impossible de supprimer le canal. Veuillez réessayer."
+      },
+      "members": {
+        "title": "Membres de #{{name}}",
+        "loading": "Chargement des membres…",
+        "empty": "Pas encore de membres dans ce canal",
+        "loadError": "Impossible de charger les membres du canal. Veuillez réessayer.",
+        "managerBadge": "Gestionnaire",
+        "you": "Vous",
+        "addLabel": "Ajouter des membres",
+        "addEmpty": "Tous les membres de l'organisation sont déjà dans ce canal",
+        "addSubmit": "Ajouter",
+        "actions": "Actions sur le membre",
+        "remove": "Retirer du canal",
+        "makeManager": "Nommer gestionnaire du canal",
+        "removeManager": "Retirer le rôle de gestionnaire",
+        "leave": "Quitter le canal",
+        "lastManager": "Désignez d'abord un autre gestionnaire",
+        "error": "Une erreur est survenue. Veuillez réessayer."
+      },
+      "feed": {
+        "composerPlaceholder": "Envoyer un message à #{{name}}",
+        "save": "Enregistrer",
+        "edit": "Modifier le message",
+        "delete": "Supprimer le message",
+        "edited": "(modifié)",
+        "deletedMessage": "message supprimé",
+        "today": "Aujourd'hui",
+        "yesterday": "Hier",
+        "you": "Vous",
+        "memberCount": "{{memberCount}} membres",
+        "emptyTitle": "C'est le début de #{{name}}",
+        "emptySubtitle": "Envoyez le premier message pour lancer la conversation",
+        "missingTitle": "Canal indisponible",
+        "missingSubtitle": "Ce canal a été supprimé de cet appareil",
+        "cloudPendingTitle": "Aucun message pour l'instant",
+        "cloudPendingSubtitle": "L'historique des canaux cloud arrivera avec la prochaine mise à niveau du backend",
+        "cloudComposerDisabled": "L'envoi de messages n'est pas encore disponible pour les canaux cloud — cette version ne comprend que la création de canaux et la gestion des membres. L'envoi arrivera avec la prochaine mise à niveau du backend",
+        "errorEmpty": "Saisissez d'abord un message",
+        "errorTooLong": "Ce message est trop long (4000 caractères maximum)",
+        "errorQuota": "Ce canal a atteint sa limite de messages sur cet appareil",
+        "errorGeneric": "Impossible d'envoyer le message. Veuillez réessayer.",
+        "dropSessionHint": "Déposez pour ajouter cette session en référence",
+        "messageBodyLabel": "Message du canal",
+        "sessionCardMissing": "Indisponible sur cet appareil",
+        "sessionCardOpen": "Ouvrir la session {{name}}",
+        "workItemCardMissing": "Indisponible sur cet appareil",
+        "workItemCardLoading": "Chargement…",
+        "workItemCardOpen": "Ouvrir l’élément de travail {{name}}",
+        "githubCardOpen": "Ouvrir {{name}} sur GitHub",
+        "githubIssue": "Ticket",
+        "githubPullRequest": "Pull request",
+        "archivedComposerDisabled": "Ce canal est archivé. Désarchivez-le pour publier.",
+        "errorPostForbidden": "Seuls les gestionnaires du canal peuvent y publier",
+        "errorArchived": "Ce canal est archivé, la publication est désactivée",
+        "errorChannelFull": "Ce canal a atteint sa limite de messages, la publication est désactivée",
+        "errorChannelMissing": "Ce canal n'est plus disponible",
+        "errorMessageMissing": "Ce message n'est plus disponible",
+        "loadError": "Impossible de charger les messages",
+        "loadingMessages": "Chargement des messages…",
+        "loadOlder": "Charger les messages précédents",
+        "unknownAuthor": "Coéquipier"
+      }
+    },
+    "backgroundUpload": {
+      "label": "Envoi en arrière-plan",
+      "help": "Envoie les sessions de membres éligibles selon le niveau de partage minimal de l'organisation et les réglages de chaque session, même lorsque cette organisation n'est pas active.",
+      "on": "Activé",
+      "off": "Désactivé",
+      "memberNote": "Activé par un administrateur — les sessions éligibles sont envoyées en arrière-plan sans devoir ouvrir cette organisation."
+    }
   }
 }

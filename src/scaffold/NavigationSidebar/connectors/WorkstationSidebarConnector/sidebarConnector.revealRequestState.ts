@@ -16,6 +16,23 @@ interface UseWorkstationSidebarRevealRequestStateParams {
   clearSessionSidebarReveal: (requestId: number) => void;
 }
 
+export function buildSidebarOverlaySessionIds(
+  activeSessionId: string,
+  activeRevealRequest: SessionSidebarRevealRequest | null
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  if (activeSessionId) {
+    ids.add(activeSessionId);
+  }
+  if (activeRevealRequest?.sessionId) {
+    ids.add(activeRevealRequest.sessionId);
+  }
+  if (activeRevealRequest?.parentSessionId) {
+    ids.add(activeRevealRequest.parentSessionId);
+  }
+  return ids;
+}
+
 export function useWorkstationSidebarRevealRequestState({
   sessionSidebarRevealRequest,
   activeSessionId,
@@ -44,16 +61,14 @@ export function useWorkstationSidebarRevealRequestState({
       activatedRevealRequestIdRef.current = null;
     }
   }, [activeSessionId, clearSessionSidebarReveal, sessionSidebarRevealRequest]);
-  const revealedSessionIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (activeSessionSidebarRevealRequest?.sessionId) {
-      ids.add(activeSessionSidebarRevealRequest.sessionId);
-    }
-    if (activeSessionSidebarRevealRequest?.parentSessionId) {
-      ids.add(activeSessionSidebarRevealRequest.parentSessionId);
-    }
-    return ids;
-  }, [activeSessionSidebarRevealRequest]);
+  const revealedSessionIds = useMemo(
+    () =>
+      buildSidebarOverlaySessionIds(
+        activeSessionId,
+        activeSessionSidebarRevealRequest
+      ),
+    [activeSessionId, activeSessionSidebarRevealRequest]
+  );
 
   return { activeSessionSidebarRevealRequest, revealedSessionIds };
 }

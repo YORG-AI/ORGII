@@ -28,13 +28,6 @@ export type PlanApprovalChoice = "approve" | "approve_with_edits" | "reject";
 
 export type FileResolutionValue = "accepted" | "rejected" | "reverted";
 
-/** Metadata row from `agent_list_modes` (Rust `AgentExecMode` catalog). */
-export interface AgentExecModeConfig {
-  id: string;
-  name: string;
-  description: string;
-}
-
 export interface AgentStatusInfo {
   running: boolean;
   gatewayRunning: boolean;
@@ -199,6 +192,10 @@ export interface SessionMeta {
   totalTokens?: number;
   /** Error message from the last failed turn, if any. */
   errorMessage?: string | null;
+}
+
+export interface DeleteSessionReceipt {
+  deletedSessionIds: string[];
 }
 
 export interface SnapshotRecord {

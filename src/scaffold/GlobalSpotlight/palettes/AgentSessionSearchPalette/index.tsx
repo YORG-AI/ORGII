@@ -9,16 +9,12 @@ import { Search } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { CloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import { useOpenCloudSessionReference } from "@src/features/Org2Cloud/useOpenCloudSessionReference";
 import { useFilteredItems } from "@src/hooks/search";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
-import {
-  isSessionCompletedUnread,
-  isSessionPendingAsking,
-} from "@src/scaffold/NavigationSidebar/connectors/useSessionMenuItems/menuItemBuilders";
-import {
-  renderBreathingStatusDot,
-  renderStatusDot,
-} from "@src/scaffold/NavigationSidebar/connectors/useSessionMenuItems/statusIndicators";
 import {
   loadSidebarSessions,
   sessionLoadingAtom,
@@ -26,13 +22,15 @@ import {
   visitedSessionsAtom,
 } from "@src/store/session";
 import type { Session } from "@src/store/session";
-import { isSessionInProgress } from "@src/util/session/sessionInProgress";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
-import {
-  getSessionListDisplayName,
-  resolveSessionRowIcon,
-} from "@src/util/session/sessionSidebarRow";
+import { getSessionListDisplayName } from "@src/util/session/sessionSidebarRow";
 
+import {
+  buildCloudSessionReferenceItem,
+  buildSpotlightSessionItems,
+  resolveAgentSessionSearchInput,
+  resolveSpotlightCloudSessionPresentation,
+} from "../../hooks/features/spotlightSessionSearch";
 import type { BasePaletteProps } from "../../shared";
 import { PaletteBody, SpotlightShell } from "../../shell";
 import type { PathSegment, SpotlightItem } from "../../types";
@@ -51,10 +49,17 @@ export const AgentSessionSearchPalette: React.FC<
 > = ({ isOpen, onClose, onGoBackToParent, asBody = false }) => {
   const { t } = useTranslation();
   const { openSession } = useSessionView();
+  const openCloudSessionReference = useOpenCloudSessionReference();
   const sessions = useAtomValue(sessionsAtom);
   const sessionsLoading = useAtomValue(sessionLoadingAtom);
   const visitedSessions = useAtomValue(visitedSessionsAtom);
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const cloudRemoteSessions = useAtomValue(org2CloudRemoteSessionsAtom);
   const [query, setQuery] = useState("");
+  const resolvedSearchInput = useMemo(
+    () => resolveAgentSessionSearchInput(query),
+    [query]
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -76,7 +81,7 @@ export const AgentSessionSearchPalette: React.FC<
   const fallbackSessionLabel = t("navigation:routes.session", "Session");
   const { filteredItems } = useFilteredItems({
     items: sortedSessions,
-    searchQuery: query,
+    searchQuery: resolvedSearchInput.query,
     getSearchText: (session) =>
       getSessionSearchText(session, fallbackSessionLabel),
   });
@@ -101,39 +106,56 @@ export const AgentSessionSearchPalette: React.FC<
     [fallbackSessionLabel, onClose, openSession]
   );
 
-  const items = useMemo<SpotlightItem[]>(
-    () =>
-      filteredItems.map((session) => {
-        const sessionName = getSessionListDisplayName(
-          session,
-          fallbackSessionLabel
-        );
-        const inProgress = isSessionInProgress(session.status, session);
-        const pendingAsking = isSessionPendingAsking(session);
-        const unread = isSessionCompletedUnread(session, visitedSessions);
-        const statusDotTone = pendingAsking
-          ? "asking"
-          : unread
-            ? "unread"
-            : "default";
-
-        return {
-          id: session.session_id,
-          label: sessionName,
-          icon: resolveSessionRowIcon(session),
-          type: "option" as const,
-          data: {
-            statusContent:
-              inProgress && !pendingAsking
-                ? renderBreathingStatusDot()
-                : renderStatusDot(statusDotTone),
-            iconTone: "text1",
-          },
-          action: () => handleOpenSession(session),
-        };
-      }),
-    [fallbackSessionLabel, filteredItems, handleOpenSession, visitedSessions]
+  const handleOpenCloudReference = useCallback(
+    (reference: CloudSessionReference) => {
+      if (openCloudSessionReference(reference, { autoReplay: true })) {
+        onClose();
+      }
+    },
+    [onClose, openCloudSessionReference]
   );
+
+  const items = useMemo<SpotlightItem[]>(() => {
+    if (resolvedSearchInput.reference) {
+      const reference = resolvedSearchInput.reference;
+      return [
+        buildCloudSessionReferenceItem({
+          reference,
+          ...resolveSpotlightCloudSessionPresentation({
+            reference,
+            fallbackLabel: t(
+              "navigation:cloud.sessionRef.chipLabel",
+              "Team session"
+            ),
+            auth: cloudAuth,
+            remoteEntries: cloudRemoteSessions,
+            localSessions: sessions,
+          }),
+          onSelect: handleOpenCloudReference,
+        }),
+      ];
+    }
+
+    return buildSpotlightSessionItems({
+      sessions: filteredItems,
+      fallbackSessionLabel,
+      visitedSessions,
+      query: resolvedSearchInput.query,
+      onSelect: handleOpenSession,
+    });
+  }, [
+    fallbackSessionLabel,
+    filteredItems,
+    cloudAuth,
+    cloudRemoteSessions,
+    handleOpenCloudReference,
+    handleOpenSession,
+    resolvedSearchInput.query,
+    resolvedSearchInput.reference,
+    sessions,
+    t,
+    visitedSessions,
+  ]);
 
   const isItemSelectable = useCallback((item: SpotlightItem) => {
     return !item.data?.isHeader && !item.data?.disabled;

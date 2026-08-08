@@ -1,6 +1,9 @@
+import { useAtomValue } from "jotai";
 import {
+  BellOff,
   Braces,
   Clipboard,
+  FolderKanban,
   FolderOutput,
   Link2,
   MoreHorizontal,
@@ -14,15 +17,20 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { trackSessionAsProject } from "@src/api/tauri/agent/session";
 import Button from "@src/components/Button";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
+import { useSessionNotificationMute } from "@src/hooks/notifications/useSessionNotificationMute";
+import { sessionByIdAtom, upsertSession } from "@src/store/session";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
+import { isAgentSession } from "@src/util/session/sessionDispatch";
 
 const HEADER_ICON_SIZE = 14;
 
@@ -96,6 +104,37 @@ export const SessionHeaderActionsMenu: React.FC<
 }) => {
   const { t } = useTranslation(["sessions", "common", "navigation"]);
   const moveToWorkstation = moveTarget === "workstation";
+  const { isMuted: sessionNotificationsMuted, setMuted } =
+    useSessionNotificationMute(currentSessionId);
+
+  // Track this / Convert to Project (orgtrack/v1 §7.2). Self-contained:
+  // the backend command persists the switch + root WorkItem; only the
+  // local store row needs a merge afterwards.
+  const trackableSession = useAtomValue(
+    sessionByIdAtom(currentSessionId ?? "")
+  );
+  const canTrackAsProject =
+    !!currentSessionId &&
+    isAgentSession(currentSessionId) &&
+    trackableSession?.productMode !== "project";
+  const handleTrackAsProject = React.useCallback(async () => {
+    if (!currentSessionId) return;
+    toggleHeaderActionsMenu();
+    try {
+      const result = await trackSessionAsProject(currentSessionId);
+      if (trackableSession) {
+        upsertSession({
+          ...trackableSession,
+          productMode: result.productMode,
+          agentExecMode: result.agentExecMode,
+          workItemId: result.workItemId ?? trackableSession.workItemId,
+        });
+      }
+      Message.success(t("sessions:chat.trackAsProject.success"));
+    } catch (err) {
+      Message.error(err instanceof Error ? err.message : String(err));
+    }
+  }, [currentSessionId, toggleHeaderActionsMenu, trackableSession, t]);
 
   return (
     <>
@@ -211,6 +250,18 @@ export const SessionHeaderActionsMenu: React.FC<
             <button
               type="button"
               className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
+              onClick={handleTrackAsProject}
+              disabled={!canTrackAsProject}
+              data-testid="session-track-as-project-button"
+            >
+              <FolderKanban size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+              <span className="flex-1 truncate">
+                {t("sessions:chat.trackAsProject.menuItem")}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
               onClick={handleOpenLinkWorkItem}
               disabled={!currentSessionId}
               data-testid="session-link-work-item-button"
@@ -220,6 +271,26 @@ export const SessionHeaderActionsMenu: React.FC<
                 {t("chat.linkWorkItem.menuItem")}
               </span>
             </button>
+            <div
+              className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+              data-testid="session-notification-mute-row"
+            >
+              <BellOff size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+              <span className="flex-1 truncate">
+                {t("chat.muteNotifications", {
+                  defaultValue: "Mute notifications",
+                })}
+              </span>
+              <Switch
+                checked={sessionNotificationsMuted}
+                disabled={!currentSessionId}
+                onChange={setMuted}
+                size="small"
+                ariaLabel={t("chat.muteNotifications", {
+                  defaultValue: "Mute notifications",
+                })}
+              />
+            </div>
             {showCloudShareSettings && (
               <button
                 type="button"

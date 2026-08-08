@@ -22,7 +22,7 @@ export function getWorkItemSourceIntegration(
   return null;
 }
 
-/** Render a GitHub issue as `#42`, or `REP#42` when its repository is known. */
+/** Render a GitHub issue as `#42`, or `REP #42` when its repository is known. */
 export function formatWorkItemShortId(
   shortId: string | null | undefined,
   status?: string | null,
@@ -45,5 +45,5 @@ export function formatWorkItemShortId(
     .toUpperCase()
     .padEnd(3, "X");
 
-  return `${repositoryPrefix}#${issueNumber}`;
+  return `${repositoryPrefix} #${issueNumber}`;
 }

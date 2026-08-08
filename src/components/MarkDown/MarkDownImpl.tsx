@@ -13,7 +13,7 @@
  * react-markdown + react-syntax-highlighter into the initial bundle.
  */
 import { useAtomValue } from "jotai";
-import { ArrowUpRight, Check, Copy } from "lucide-react";
+import { Check, Copy, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -34,8 +34,10 @@ import { copyText } from "@src/util/data/clipboard";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
 import LinkHoverCard from "./LinkHoverCard";
+import MarkdownLocalImage, { openLocalMarkdownRef } from "./MarkdownLocalImage";
 import MermaidBlock from "./MermaidBlock";
 import "./index.scss";
+import { classifyMarkdownImageSrc } from "./markdownImageSrc";
 import { markdownUrlTransform } from "./markdownUrlTransform";
 import {
   detectCodeType,
@@ -257,7 +259,7 @@ const CodeBlock = memo<CodeBlockProps>(
               className="code-block-open-button inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-fill-2 p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
               onClick={handleOpenFile}
             >
-              <ArrowUpRight size={14} strokeWidth={1.75} />
+              <SquareArrowOutUpRight size={14} strokeWidth={1.75} />
             </button>
           )}
           <button
@@ -409,6 +411,18 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
     (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
       event.preventDefault();
       event.stopPropagation();
+      // Local filesystem hrefs (agents link generated artifacts by path)
+      // open in the WorkStation / editor — the browser app cannot load a
+      // filesystem path. Workspace-relative hrefs are deliberately not
+      // resolved here: only unambiguous local refs are rerouted.
+      const localSource = classifyMarkdownImageSrc(href);
+      if (localSource.kind === "local") {
+        void openLocalMarkdownRef(
+          localSource.path,
+          localSource.homeRelative === true
+        );
+        return;
+      }
       openUrlInBrowserApp(href);
     },
     []
@@ -600,6 +614,15 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
 
         // Regular inline code
         return <code {...props}>{children}</code>;
+      },
+      img({ src, alt }) {
+        return (
+          <MarkdownLocalImage
+            src={typeof src === "string" ? src : undefined}
+            alt={typeof alt === "string" ? alt : undefined}
+            workspaceRootPath={activeWorkspaceRootPath}
+          />
+        );
       },
       a({ children, href, ...props }) {
         const url = href ?? "";

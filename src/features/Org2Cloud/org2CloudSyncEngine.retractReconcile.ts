@@ -1,17 +1,18 @@
 /**
  * Retract-only reconcile for orgs the user is NOT looking at (P2).
  *
- * The session plane follows visible-org demand: a full pass — and with it
- * every retract — runs only for the active workspace. A session that loses
- * admission in a background org therefore stays published until the user
- * happens to reopen that org, which may be never. This module closes that
- * hole with the cheapest sound sweep: once per engine run, for each
- * NON-ACTIVE org where THIS client holds persisted push markers, re-run the
- * SAME admission decision (`decidePushAdmission`) and the SAME
- * server-confirmed scope boundary over the marked sessions, retracting the
- * rows this client can prove it pushed. No pushes, no replay hydration, no
- * listing RPC — per org this costs one scope fetch (TTL-shared with the
- * main pass) plus local work.
+ * Full session passes run for the active workspace and for background-upload-
+ * enabled orgs. A session that loses admission in any remaining
+ * inactive org would otherwise stay published until the user happens to
+ * reopen it, which may be never; a background-upload org can also fall out of
+ * the main target set after its final scope or tag disappears. This module
+ * closes both holes with the cheapest sound sweep: once per engine run, for
+ * each NON-ACTIVE org where THIS client holds persisted push markers, re-run
+ * the SAME admission decision (`decidePushAdmission`) and the SAME server-
+ * confirmed scope boundary over the marked sessions, retracting the rows this
+ * client can prove it pushed. No pushes, no replay hydration, no listing RPC
+ * — per org this costs one scope fetch (TTL-shared with the main pass) plus
+ * local work.
  *
  * Safety rails carried over verbatim from the main pass:
  * - only rows with LOCAL push markers are touched — never someone else's;

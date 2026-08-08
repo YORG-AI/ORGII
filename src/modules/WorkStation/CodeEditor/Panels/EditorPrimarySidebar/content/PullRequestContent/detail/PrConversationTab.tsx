@@ -9,6 +9,7 @@
  * Reuses the shared timeline primitives so it renders identically to the Issue
  * detail view.
  */
+import type { TFunction } from "i18next";
 import { CheckCircle2, FileDiff, XCircle } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,19 +22,25 @@ import type {
 } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
+import ComposerShell from "@src/components/ComposerShell";
+import Radio from "@src/components/Radio";
+import type { RadioValue } from "@src/components/Radio";
+import Textarea from "@src/components/Textarea";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
+import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
 import {
   ConnectedTimelineItem,
   MarkdownContent,
   TimelineCard,
   TimelineCardHeader,
+  TimelineLoadingSkeleton,
   TimelineStack,
 } from "@src/modules/shared/components/ActivityTimeline";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 import type { RichMarkdownEditorRef } from "@src/modules/shared/components/RichMarkdownEditor";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import Modal from "@src/scaffold/ModalSystem";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
 interface PrAuthor {
@@ -59,11 +66,14 @@ function readString(
 
 // ── Review presentation ──────────────────────────────────────────────────────
 
-function reviewVerb(state: string): { label: string; icon: React.ReactNode } {
+function reviewVerb(
+  state: string,
+  t: TFunction
+): { label: string; icon: React.ReactNode } {
   switch (state) {
     case "APPROVED":
       return {
-        label: "approved these changes",
+        label: t("git.pr.activity.approved", "approved these changes"),
         icon: (
           <CheckCircle2
             size={14}
@@ -74,17 +84,17 @@ function reviewVerb(state: string): { label: string; icon: React.ReactNode } {
       };
     case "CHANGES_REQUESTED":
       return {
-        label: "requested changes",
+        label: t("git.pr.activity.changesRequested", "requested changes"),
         icon: <XCircle size={14} strokeWidth={1.9} className="text-danger-6" />,
       };
     case "DISMISSED":
       return {
-        label: "dismissed a review",
+        label: t("git.pr.activity.reviewDismissed", "dismissed a review"),
         icon: <FileDiff size={14} strokeWidth={1.9} className="text-text-3" />,
       };
     default:
       return {
-        label: "reviewed",
+        label: t("git.pr.activity.reviewed", "reviewed"),
         icon: <FileDiff size={14} strokeWidth={1.9} className="text-text-3" />,
       };
   }
@@ -123,6 +133,8 @@ type TimelineEntry =
   | { kind: "review"; at: string; review: GitHubPrReview };
 
 interface PrConversationTabProps {
+  summary?: React.ReactNode;
+  levelActions?: React.ReactNode;
   detail: Record<string, unknown> | null;
   identity: PrIdentity;
   conversation: GitHubIssueComment[];
@@ -131,11 +143,17 @@ interface PrConversationTabProps {
   loading: boolean;
   submittingComment: boolean;
   submittingReview: boolean;
+  draft?: string;
+  onDraftChange?: (draft: string) => void;
   onAddComment: (body: string) => Promise<void>;
   onSubmitReview: (event: PrReviewEvent, body: string) => Promise<void>;
+  trailScrollContainerRef?: (node: HTMLDivElement | null) => void;
+  trailContentRef?: (node: HTMLDivElement | null) => void;
 }
 
 export const PrConversationTab: React.FC<PrConversationTabProps> = ({
+  summary,
+  levelActions,
   detail,
   identity,
   conversation,
@@ -144,13 +162,37 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   loading,
   submittingComment,
   submittingReview,
+  draft: controlledDraft,
+  onDraftChange,
   onAddComment,
   onSubmitReview,
+  trailScrollContainerRef,
+  trailContentRef,
 }) => {
   const { t } = useTranslation("common");
-  const [draft, setDraft] = useState("");
+  const [internalDraft, setInternalDraft] = useState("");
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [reviewDecision, setReviewDecision] =
+    useState<PrReviewEvent>("COMMENT");
+  const [reviewBody, setReviewBody] = useState("");
+  const draft = controlledDraft ?? internalDraft;
+  const updateDraft = useCallback(
+    (nextDraft: string) => {
+      if (controlledDraft !== undefined) {
+        onDraftChange?.(nextDraft);
+        return;
+      }
+      setInternalDraft(nextDraft);
+    },
+    [controlledDraft, onDraftChange]
+  );
   const editorRef = useRef<RichMarkdownEditorRef>(null);
   const dropTargetRef = useRef<HTMLDivElement>(null);
+  const composerDockRef = useRef<HTMLDivElement>(null);
+  const measuredComposerHeight = useElementDimensions(composerDockRef, {
+    dimension: "height",
+  });
+  const composerBottomInset = Math.max(240, measuredComposerHeight);
   const insertDroppedReference = useCallback(
     (text: string, dropPoint?: { clientX: number; clientY: number }) => {
       editorRef.current?.insertText(text, {
@@ -208,185 +250,332 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
     const value = draft.trim();
     if (!value || submittingComment) return;
     await onAddComment(value);
-    setDraft("");
-  }, [draft, submittingComment, onAddComment]);
+    updateDraft("");
+  }, [draft, submittingComment, onAddComment, updateDraft]);
 
-  const handleReview = useCallback(
-    async (event: PrReviewEvent) => {
-      if (submittingReview) return;
-      await onSubmitReview(event, draft.trim());
-      setDraft("");
-    },
-    [draft, submittingReview, onSubmitReview]
-  );
+  const resetReviewModal = useCallback(() => {
+    setReviewDecision("COMMENT");
+    setReviewBody("");
+  }, []);
+
+  const closeReviewModal = useCallback(() => {
+    if (submittingReview) return;
+    setReviewModalVisible(false);
+    resetReviewModal();
+  }, [resetReviewModal, submittingReview]);
+
+  const handleReviewDecisionChange = useCallback((value: RadioValue) => {
+    setReviewDecision(value as PrReviewEvent);
+  }, []);
+
+  const handleReview = useCallback(async () => {
+    const body = reviewBody.trim();
+    if (
+      submittingReview ||
+      (reviewDecision !== "APPROVE" && body.length === 0)
+    ) {
+      return;
+    }
+    await onSubmitReview(reviewDecision, body);
+    setReviewModalVisible(false);
+    resetReviewModal();
+  }, [
+    onSubmitReview,
+    resetReviewModal,
+    reviewBody,
+    reviewDecision,
+    submittingReview,
+  ]);
+
+  const reviewBodyRequired = reviewDecision !== "APPROVE";
+  const submitReviewDisabled =
+    submittingReview || (reviewBodyRequired && !reviewBody.trim());
 
   const lastIndex = timeline.length; // description card is index -1 conceptually
 
   return (
-    <div className="allow-select-deep flex h-full min-h-0 select-text flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+    <div className="allow-select-deep relative flex h-full min-h-0 select-text flex-col overflow-hidden">
+      <div
+        ref={trailScrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"
+        data-testid="pr-conversation-scroll"
+      >
         <div
-          className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col px-4 py-4`}
+          ref={trailContentRef}
+          style={{ paddingBottom: composerBottomInset }}
         >
-          <TimelineStack>
-            {/* PR description */}
-            <ConnectedTimelineItem isLast={timeline.length === 0 && !loading}>
-              <TimelineCard
-                copyBody={body}
-                header={
-                  <TimelineCardHeader
-                    avatar={<Avatar size={18} src={author.avatarUrl} />}
-                    actor={author.login || identity.title}
-                    action="opened this pull request"
-                    timestamp={createdAt}
-                  />
-                }
+          {summary}
+          <div
+            className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col px-4 py-4`}
+          >
+            <TimelineStack>
+              {/* PR description */}
+              <ConnectedTimelineItem
+                isLast={timeline.length === 0 && !loading}
+                trailLabel={identity.title}
               >
-                <MarkdownContent
-                  body={body}
-                  emptyText={t(
-                    "git.pr.noDescription",
-                    "No description provided."
-                  )}
-                />
-              </TimelineCard>
-            </ConnectedTimelineItem>
-
-            {loading && timeline.length === 0 ? (
-              <ConnectedTimelineItem isLast>
-                <Placeholder
-                  variant="loading"
-                  placement="sidebar"
-                  title={t("git.pr.loadingConversation", "Loading…")}
-                />
+                <TimelineCard
+                  copyBody={body}
+                  header={
+                    <TimelineCardHeader
+                      avatar={<Avatar size={18} src={author.avatarUrl} />}
+                      actor={author.login || identity.title}
+                      action={t(
+                        "git.pr.activity.opened",
+                        "opened this pull request"
+                      )}
+                      timestamp={createdAt}
+                    />
+                  }
+                >
+                  <MarkdownContent
+                    body={body}
+                    emptyText={t(
+                      "git.pr.noDescription",
+                      "No description provided."
+                    )}
+                    fadeFrom="from-chat-pane"
+                  />
+                </TimelineCard>
               </ConnectedTimelineItem>
-            ) : (
-              timeline.map((entry, index) => {
-                const isLast = index === lastIndex - 1;
-                if (entry.kind === "comment") {
-                  const { comment } = entry;
+
+              {loading && timeline.length === 0 ? (
+                <ConnectedTimelineItem isLast>
+                  <TimelineLoadingSkeleton
+                    label={t("git.pr.loadingConversation", "Loading…")}
+                  />
+                </ConnectedTimelineItem>
+              ) : (
+                timeline.map((entry, index) => {
+                  const isLast = index === lastIndex - 1;
+                  if (entry.kind === "comment") {
+                    const { comment } = entry;
+                    return (
+                      <ConnectedTimelineItem
+                        key={`c-${comment.id}`}
+                        isLast={isLast}
+                        trailLabel={`${comment.user.login}: ${comment.body}`}
+                      >
+                        <TimelineCard
+                          copyBody={comment.body}
+                          header={
+                            <TimelineCardHeader
+                              avatar={
+                                <Avatar
+                                  size={18}
+                                  src={comment.user.avatar_url}
+                                />
+                              }
+                              actor={comment.user.login}
+                              action={t(
+                                "git.pr.activity.commented",
+                                "commented"
+                              )}
+                              timestamp={comment.created_at}
+                            />
+                          }
+                        >
+                          <MarkdownContent
+                            body={comment.body}
+                            fadeFrom="from-chat-pane"
+                          />
+                        </TimelineCard>
+                      </ConnectedTimelineItem>
+                    );
+                  }
+                  const { review } = entry;
+                  const verb = reviewVerb(review.state, t);
+                  const inline = commentsByReview.get(review.id) ?? [];
                   return (
                     <ConnectedTimelineItem
-                      key={`c-${comment.id}`}
+                      key={`r-${review.id}`}
                       isLast={isLast}
+                      trailLabel={`${review.user.login}: ${verb.label}`}
                     >
                       <TimelineCard
-                        copyBody={comment.body}
+                        copyBody={review.body}
                         header={
                           <TimelineCardHeader
                             avatar={
-                              <Avatar size={18} src={comment.user.avatar_url} />
+                              <Avatar size={18} src={review.user.avatar_url} />
                             }
-                            actor={comment.user.login}
-                            action="commented"
-                            timestamp={comment.created_at}
+                            indicator={
+                              <span className="shrink-0">{verb.icon}</span>
+                            }
+                            actor={review.user.login}
+                            action={verb.label}
+                            timestamp={review.submitted_at}
                           />
                         }
                       >
-                        <MarkdownContent body={comment.body} />
+                        {review.body.trim() ? (
+                          <MarkdownContent
+                            body={review.body}
+                            fadeFrom="from-chat-pane"
+                          />
+                        ) : (
+                          <div className="text-[12px] italic text-text-3">
+                            {t("git.pr.reviewNoBody", "Left review comments.")}
+                          </div>
+                        )}
+                        <ReviewCommentSummary comments={inline} />
                       </TimelineCard>
                     </ConnectedTimelineItem>
                   );
-                }
-                const { review } = entry;
-                const verb = reviewVerb(review.state);
-                const inline = commentsByReview.get(review.id) ?? [];
-                return (
-                  <ConnectedTimelineItem key={`r-${review.id}`} isLast={isLast}>
-                    <TimelineCard
-                      copyBody={review.body}
-                      header={
-                        <TimelineCardHeader
-                          avatar={
-                            <Avatar size={18} src={review.user.avatar_url} />
-                          }
-                          indicator={
-                            <span className="shrink-0">{verb.icon}</span>
-                          }
-                          actor={review.user.login}
-                          action={verb.label}
-                          timestamp={review.submitted_at}
-                        />
-                      }
-                    >
-                      {review.body.trim() ? (
-                        <MarkdownContent body={review.body} />
-                      ) : (
-                        <div className="text-[12px] italic text-text-3">
-                          {t("git.pr.reviewNoBody", "Left review comments.")}
-                        </div>
-                      )}
-                      <ReviewCommentSummary comments={inline} />
-                    </TimelineCard>
-                  </ConnectedTimelineItem>
-                );
-              })
-            )}
-          </TimelineStack>
+                })
+              )}
+            </TimelineStack>
+          </div>
         </div>
       </div>
 
-      {/* Composer */}
-      <div className="bg-surface-1 flex-shrink-0 border-t border-border-1 px-4 py-3">
+      <div
+        ref={composerDockRef}
+        className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pb-2 pt-1"
+        data-testid="pr-floating-composer"
+      >
         <div
-          className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col gap-2`}
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+        />
+        <div
+          className={`${DETAIL_PANEL_TOKENS.headerWidth} relative z-10 w-full px-2`}
         >
-          <div
-            ref={dropTargetRef}
-            className={`rounded-md ${
-              isDragOver ? "ring-2 ring-primary-6" : ""
-            }`.trim()}
-            data-testid="pr-comment-drop-target"
+          <section
+            data-testid="pr-comment-composer"
+            aria-label={t("git.pr.commentPlaceholder", "Leave a comment…")}
+            className="flex flex-col gap-2"
           >
-            <RichMarkdownEditor
-              ref={editorRef}
-              value={draft}
-              onChange={(markdown) => setDraft(markdown)}
-              placeholder={t("git.pr.commentPlaceholder", "Leave a comment…")}
-              minHeight={64}
-              maxHeight={180}
-              appearance="outlined"
-              onSubmit={() => void handleComment()}
-              dataTestId="pr-comment-editor"
-            />
-          </div>
-          <CloudSessionReferencePreview text={draft} />
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Button
-                htmlType="button"
-                variant="secondary"
-                size="mini"
-                loading={submittingReview}
-                disabled={submittingReview}
-                onClick={() => void handleReview("APPROVE")}
-              >
-                {t("git.pr.approve", "Approve")}
-              </Button>
-              <Button
-                htmlType="button"
-                variant="secondary"
-                size="mini"
-                loading={submittingReview}
-                disabled={submittingReview || !draft.trim()}
-                onClick={() => void handleReview("REQUEST_CHANGES")}
-              >
-                {t("git.pr.requestChanges", "Request changes")}
-              </Button>
-            </div>
-            <Button
-              htmlType="button"
-              variant="primary"
-              size="mini"
-              loading={submittingComment}
-              disabled={!draft.trim() || submittingComment}
-              onClick={() => void handleComment()}
+            {levelActions}
+
+            <ComposerShell
+              ref={dropTargetRef}
+              variant="default"
+              className={`!gap-0 overflow-visible !p-0 ${
+                isDragOver ? "!ring-2 !ring-primary-6" : ""
+              }`.trim()}
+              data-testid="pr-comment-drop-target"
             >
-              {t("git.pr.comment", "Comment")}
-            </Button>
-          </div>
+              <RichMarkdownEditor
+                ref={editorRef}
+                value={draft}
+                onChange={updateDraft}
+                placeholder={t("git.pr.commentPlaceholder", "Leave a comment…")}
+                minHeight={100}
+                maxHeight={500}
+                appearance="plain"
+                toolbarMode="inline"
+                toolbarSize="mini"
+                toolbarDropdownPosition="top-start"
+                editable={!submittingComment && !submittingReview}
+                onSubmit={() => void handleComment()}
+                dataTestId="pr-comment-editor"
+              />
+              <div className="px-3 pb-2">
+                <CloudSessionReferencePreview text={draft} />
+              </div>
+              <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    htmlType="button"
+                    variant="secondary"
+                    size="default"
+                    shape="round"
+                    disabled={submittingReview}
+                    onClick={() => setReviewModalVisible(true)}
+                    data-testid="pr-submit-review"
+                  >
+                    {t("git.pr.submitReview", "Submit review")}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    htmlType="button"
+                    variant="primary"
+                    size="default"
+                    shape="round"
+                    loading={submittingComment}
+                    disabled={!draft.trim() || submittingComment}
+                    onClick={() => void handleComment()}
+                  >
+                    {t("git.pr.comment", "Comment")}
+                  </Button>
+                </div>
+              </div>
+            </ComposerShell>
+          </section>
         </div>
       </div>
+
+      <Modal
+        visible={reviewModalVisible}
+        title={t("git.pr.submitReview", "Submit review")}
+        width={640}
+        bodyClassName="px-5 py-4"
+        footerTopBorder={false}
+        primaryButtonSize="default"
+        secondaryButtonSize="default"
+        okText={t("git.pr.submitReview", "Submit review")}
+        cancelText={t("actions.cancel", "Cancel")}
+        onCancel={closeReviewModal}
+        onOk={handleReview}
+        closable={!submittingReview}
+        maskClosable={!submittingReview}
+        escToExit={!submittingReview}
+        okButtonProps={{
+          loading: submittingReview,
+          disabled: submitReviewDisabled,
+        }}
+        cancelButtonProps={{ disabled: submittingReview }}
+      >
+        <div className="flex flex-col gap-5">
+          <p className="text-[13px] leading-5 text-text-3">
+            {t(
+              "git.pr.reviewHeadNotice",
+              "The review applies only if the displayed head commit still matches."
+            )}
+          </p>
+
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 text-[13px] font-medium text-text-1">
+              {t("git.pr.reviewDecision", "Review decision")}
+            </legend>
+            <Radio.Group
+              value={reviewDecision}
+              onChange={handleReviewDecisionChange}
+              disabled={submittingReview}
+              direction="horizontal"
+              className="flex-wrap gap-x-5 gap-y-2"
+            >
+              <Radio value="COMMENT">{t("git.pr.comment", "Comment")}</Radio>
+              <Radio value="APPROVE">{t("git.pr.approve", "Approve")}</Radio>
+              <Radio value="REQUEST_CHANGES">
+                {t("git.pr.requestChanges", "Request changes")}
+              </Radio>
+            </Radio.Group>
+          </fieldset>
+
+          <label
+            htmlFor="pr-review-comment"
+            className="flex flex-col gap-2 text-[13px] font-medium text-text-1"
+          >
+            {t("git.pr.reviewComment", "Review comment")}
+            <Textarea
+              id="pr-review-comment"
+              data-testid="pr-review-comment"
+              value={reviewBody}
+              onChange={setReviewBody}
+              placeholder={t(
+                "git.pr.reviewCommentPlaceholder",
+                "Add a comment…"
+              )}
+              rows={7}
+              resize="vertical"
+              disabled={submittingReview}
+            />
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 };

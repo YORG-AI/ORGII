@@ -10,7 +10,7 @@
     "Consolas",
     monospace
   );
-  font-size: 12px;
+  font-size: var(--chat-code-font-size, 13px);
 }
 
 .chat-markdown-body pre {
@@ -24,7 +24,7 @@
     Consolas,
     Liberation Mono,
     monospace;
-  font-size: 12px;
+  font-size: var(--chat-code-font-size, 13px);
   word-wrap: normal;
   width: 100%;
   max-width: 100%;

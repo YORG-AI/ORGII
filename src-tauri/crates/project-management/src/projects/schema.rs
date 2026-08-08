@@ -44,6 +44,123 @@ pub fn init_project_tables(conn: &Connection) -> SqliteResult<()> {
     init_import_progress_table(conn)?;
     init_outbox_conflicts_table(conn)?;
     init_linear_metadata_cache_table(conn)?;
+    init_pm_service_tables(conn)?;
+    Ok(())
+}
+
+/// Work application service tables (`orgtrack/v1` Phase 2a).
+///
+/// - `pm_change_seq`: single-row cross-process change watermark. Every PM
+///   mutation bumps it in the same transaction; desktop hosts poll it (or
+///   watch the db file) to detect commits from other processes such as
+///   the PM CLI, then reconcile incrementally.
+/// - `pm_audit_events`: append-only audit stream. NOT the legacy
+///   `extras_json.history` array (which is rewritten wholesale per
+///   mutation) — this table is insert-only and queryable.
+/// - `pm_idempotency`: idempotency records scoped by
+///   `(actor, operation, scope, key)` per the frozen wire contract §14.4.
+pub fn init_pm_service_tables(conn: &Connection) -> SqliteResult<()> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS pm_change_seq (
+            id  INTEGER PRIMARY KEY CHECK (id = 1),
+            seq INTEGER NOT NULL
+        );
+        INSERT OR IGNORE INTO pm_change_seq (id, seq) VALUES (1, 0);
+
+        CREATE TABLE IF NOT EXISTS pm_audit_events (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            occurred_at  INTEGER NOT NULL,          -- unix ms
+            actor_kind   TEXT,                      -- protocol ActorRef.kind (Phase 3+)
+            actor_id     TEXT,
+            actor_name   TEXT,
+            operation    TEXT NOT NULL,             -- canonical op, e.g. work.transition
+            entity_type  TEXT NOT NULL,             -- work_item | routine | routine_run
+            entity_id    TEXT NOT NULL,
+            project_slug TEXT,
+            org_id       TEXT,
+            revision     INTEGER,                   -- entity revision after the mutation
+            seq          INTEGER,                   -- pm_change_seq value at commit
+            payload_json TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_audit_entity
+            ON pm_audit_events(entity_type, entity_id);
+        CREATE INDEX IF NOT EXISTS idx_pm_audit_seq
+            ON pm_audit_events(seq);
+
+        CREATE TABLE IF NOT EXISTS pm_routines (
+            name        TEXT PRIMARY KEY,            -- portable unique name
+            routine_id  TEXT NOT NULL,               -- metadata.id (stable)
+            spec_json   TEXT NOT NULL,               -- canonical portable spec
+            spec_hash   TEXT NOT NULL,
+            revision    INTEGER NOT NULL,
+            enabled     INTEGER NOT NULL DEFAULT 1,  -- gates automatic activations only
+            -- Host-local execution binding (NOT part of the portable spec
+            -- or its hash): the project scope scheduled invokes run in.
+            default_scope     TEXT,
+            -- Scheduler watermarks (unix ms).
+            last_evaluated_at INTEGER,
+            next_fire_at      INTEGER,
+            created_at  INTEGER NOT NULL,            -- unix ms
+            updated_at  INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS pm_routine_runs (
+            id               TEXT PRIMARY KEY,        -- run_<ulid-ish>
+            routine_name     TEXT NOT NULL,
+            routine_revision INTEGER NOT NULL,
+            snapshot_json    TEXT NOT NULL,           -- immutable canonical spec
+            snapshot_hash    TEXT NOT NULL,
+            scope_id         TEXT NOT NULL,           -- project slug (v1 local)
+            status           TEXT NOT NULL,           -- ordered projection, design §11
+            inputs_json      TEXT,
+            root_work_item_id TEXT,
+            created_by       TEXT,
+            created_at       INTEGER NOT NULL,
+            updated_at       INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_routine_runs_routine
+            ON pm_routine_runs(routine_name);
+
+        CREATE TABLE IF NOT EXISTS pm_provider_bindings (
+            work_item_id      TEXT NOT NULL,          -- workitems.id
+            provider          TEXT NOT NULL,          -- adapter id (linear/github/...)
+            external_id       TEXT NOT NULL,
+            role              TEXT NOT NULL DEFAULT 'primary',
+            authority         TEXT NOT NULL DEFAULT 'provider',
+            provider_revision TEXT,
+            sync_state        TEXT NOT NULL DEFAULT 'clean',
+            created_at        INTEGER NOT NULL,       -- unix ms
+            updated_at        INTEGER NOT NULL,
+            PRIMARY KEY (work_item_id, provider)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_bindings_external
+            ON pm_provider_bindings(provider, external_id);
+
+        CREATE TABLE IF NOT EXISTS pm_relations (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            entity_type TEXT NOT NULL,               -- work_item
+            entity_id   TEXT NOT NULL,               -- store id (short_id scoped)
+            kind        TEXT NOT NULL,               -- portable relation kind
+            target_ref  TEXT NOT NULL,               -- e.g. session://codex_app/abc
+            created_at  INTEGER NOT NULL,            -- unix ms
+            actor_id    TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_relations_entity
+            ON pm_relations(entity_type, entity_id);
+
+        CREATE TABLE IF NOT EXISTS pm_idempotency (
+            actor_id      TEXT NOT NULL,
+            operation     TEXT NOT NULL,
+            scope_id      TEXT NOT NULL,
+            idem_key      TEXT NOT NULL,
+            request_hash  TEXT NOT NULL,
+            response_json TEXT,
+            created_at    INTEGER NOT NULL,          -- unix ms
+            PRIMARY KEY (actor_id, operation, scope_id, idem_key)
+        );
+        "#,
+    )?;
     Ok(())
 }
 

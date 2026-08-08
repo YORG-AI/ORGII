@@ -80,6 +80,11 @@ export const ISSUE_PANEL_WIDTH_TOKENS = {
 export const DETAIL_PANEL_TOKENS = {
   /** Outer container */
   container: "flex h-full flex-col",
+  /**
+   * Detail identity rows use a roomier left inset while actions stay compact.
+   * The 7px trailing inset matches the shared workspace-header action grid.
+   */
+  headerPadding: "!pl-4 !pr-[7px]",
   /** Horizontal content inset (px-4) — shared by detail panels and wizards; no vertical padding so sticky headers can pin flush to the scrollport top */
   contentPadding: "px-4",
   /** Content bottom padding (pb-2) — reduced when footer follows */

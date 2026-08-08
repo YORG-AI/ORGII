@@ -536,6 +536,9 @@ fn routine_to_launch_request(
             routine_fire_id: fire_id.to_string(),
         },
         mode: routine.run_template.mode.clone(),
+        // Non-interactive routine invokes are Project context by the
+        // frozen resolver (orgtrack/v1 §5.1).
+        product_mode: Some("project".to_string()),
         name: routine
             .run_template
             .name

@@ -35,7 +35,8 @@ const logger = createLogger("StartPageQuotaGrid");
 const START_PAGE_QUOTA_SURFACE_CLASS =
   "rounded-lg border border-border-1 bg-primary-container";
 
-const QUOTA_REFRESH_GAP_MS = 1_000;
+const QUOTA_REFRESH_MAX_CONCURRENCY = 3;
+const AUTOMATIC_REFRESH_COALESCE_MS = 50;
 
 function StartPageQuotaCard({
   entry,
@@ -66,6 +67,21 @@ function StartPageQuotaCard({
       </div>
       <div className="space-y-2.5">
         {entry.metrics.map((metric) => {
+          if (metric.kind === "value") {
+            return (
+              <div
+                key={metric.key}
+                className="flex items-center justify-between gap-2 text-[11px] leading-4"
+              >
+                <span className="min-w-0 truncate text-text-3">
+                  {metric.label}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums text-text-1">
+                  {metric.value}
+                </span>
+              </div>
+            );
+          }
           const textColorClass = getQuotaTextColorClass(
             metric.remainingPercent
           );
@@ -116,25 +132,15 @@ export function StartPageQuotaGrid({
 }: StartPageQuotaGridProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const { t: tIntegrations } = useTranslation("integrations");
-  const { accounts, getAccount, refresh, refreshAccount } = useKeyVault({
+  const { accounts, getAccount, refreshAccount } = useKeyVault({
     autoLoad: true,
   });
   const [refreshing, setRefreshing] = useState(false);
   const refreshRunRef = useRef(0);
-  const refreshWaitRef = useRef<{
-    timeoutId: number;
-    resolve: () => void;
-  } | null>(null);
 
   useEffect(
     () => () => {
       refreshRunRef.current += 1;
-      const pendingWait = refreshWaitRef.current;
-      if (pendingWait) {
-        window.clearTimeout(pendingWait.timeoutId);
-        refreshWaitRef.current = null;
-        pendingWait.resolve();
-      }
     },
     []
   );
@@ -146,55 +152,150 @@ export function StartPageQuotaGrid({
     [accounts, t, tIntegrations]
   );
 
-  const handleRefreshAll = useCallback(async () => {
-    const refreshRun = refreshRunRef.current + 1;
-    refreshRunRef.current = refreshRun;
-    setRefreshing(true);
-    let refreshedCount = 0;
-    try {
-      for (let index = 0; index < entries.length; index += 1) {
-        if (refreshRunRef.current !== refreshRun) return;
-        const entry = entries[index];
-        if (index > 0) {
-          await new Promise<void>((resolve) => {
-            const timeoutId = window.setTimeout(() => {
-              refreshWaitRef.current = null;
-              resolve();
-            }, QUOTA_REFRESH_GAP_MS);
-            refreshWaitRef.current = { timeoutId, resolve };
-          });
-          if (refreshRunRef.current !== refreshRun) return;
-        }
-        try {
-          const refreshed = await refreshAccount(entry.id, true);
-          if (refreshRunRef.current !== refreshRun) return;
-          if (!refreshed) {
-            throw new Error("Usage refresh failed");
-          }
-          refreshedCount += 1;
-        } catch (err) {
-          if (refreshRunRef.current !== refreshRun) return;
-          const name = getAccount(entry.id)?.name || entry.accountName;
-          const detail = err instanceof Error ? err.message : String(err);
-          Message.error(
-            tIntegrations("keyVault.toasts.refreshError", {
-              name,
-              error: detail,
-            }),
-            5000
-          );
-          logger.error("[RefreshUsage] Error:", err);
-        }
-      }
-      if (refreshedCount > 0 && refreshRunRef.current === refreshRun) {
-        await refresh();
-      }
-    } finally {
-      if (refreshRunRef.current === refreshRun) {
-        setRefreshing(false);
+  const refreshCandidates = useMemo(() => {
+    const candidates = new Map(
+      entries.map((entry) => [
+        entry.id,
+        { id: entry.id, accountName: entry.accountName },
+      ])
+    );
+    for (const account of accounts) {
+      if (
+        account.status === "ready" &&
+        account.canRefreshQuota &&
+        !candidates.has(account.id)
+      ) {
+        candidates.set(account.id, {
+          id: account.id,
+          accountName: account.name,
+        });
       }
     }
-  }, [entries, getAccount, refresh, refreshAccount, tIntegrations]);
+    return Array.from(candidates.values());
+  }, [accounts, entries]);
+
+  const refreshAllAccounts = useCallback(
+    async ({
+      force,
+      notifyErrors,
+      showBusy,
+    }: {
+      force: boolean;
+      notifyErrors: boolean;
+      showBusy: boolean;
+    }) => {
+      const refreshRun = refreshRunRef.current + 1;
+      refreshRunRef.current = refreshRun;
+      if (showBusy) setRefreshing(true);
+      let nextIndex = 0;
+
+      const refreshNext = async (): Promise<void> => {
+        while (refreshRunRef.current === refreshRun) {
+          const index = nextIndex;
+          nextIndex += 1;
+          if (index >= refreshCandidates.length) return;
+
+          const entry = refreshCandidates[index];
+          try {
+            const refreshed = await refreshAccount(entry.id, force);
+            if (refreshRunRef.current !== refreshRun) return;
+            if (!refreshed) throw new Error("Usage refresh failed");
+          } catch (err) {
+            if (refreshRunRef.current !== refreshRun) return;
+            if (notifyErrors) {
+              const name = getAccount(entry.id)?.name || entry.accountName;
+              const detail = err instanceof Error ? err.message : String(err);
+              Message.error(
+                tIntegrations("keyVault.toasts.refreshError", {
+                  name,
+                  error: detail,
+                }),
+                5000
+              );
+            }
+            logger.error("[RefreshUsage] Error:", err);
+          }
+        }
+      };
+
+      try {
+        const workerCount = Math.min(
+          QUOTA_REFRESH_MAX_CONCURRENCY,
+          refreshCandidates.length
+        );
+        await Promise.all(
+          Array.from({ length: workerCount }, () => refreshNext())
+        );
+      } finally {
+        if (showBusy && refreshRunRef.current === refreshRun) {
+          setRefreshing(false);
+        }
+      }
+    },
+    [getAccount, refreshAccount, refreshCandidates, tIntegrations]
+  );
+
+  const handleRefreshAll = useCallback(
+    () =>
+      refreshAllAccounts({
+        force: true,
+        notifyErrors: true,
+        showBusy: true,
+      }),
+    [refreshAllAccounts]
+  );
+
+  useEffect(() => {
+    const refreshIfVisible = () => {
+      if (
+        document.visibilityState !== "visible" ||
+        refreshCandidates.length === 0
+      )
+        return;
+      void refreshAllAccounts({
+        force: false,
+        notifyErrors: false,
+        showBusy: false,
+      });
+    };
+    let activityTimer: number | undefined;
+    const scheduleVisibleRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (activityTimer !== undefined) window.clearTimeout(activityTimer);
+      activityTimer = window.setTimeout(() => {
+        activityTimer = undefined;
+        refreshIfVisible();
+      }, AUTOMATIC_REFRESH_COALESCE_MS);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") scheduleVisibleRefresh();
+    };
+    const now = Date.now();
+    const nextResetAt = entries
+      .flatMap((entry) => entry.metrics)
+      .filter((metric) => metric.kind === "percentage")
+      .map((metric) =>
+        metric.resetTime ? Date.parse(metric.resetTime) : Number.NaN
+      )
+      .filter((resetAt) => Number.isFinite(resetAt) && resetAt > now)
+      .sort((left, right) => left - right)[0];
+    const resetTimer =
+      nextResetAt === undefined
+        ? undefined
+        : window.setTimeout(
+            refreshIfVisible,
+            Math.min(nextResetAt - now + 1_000, 2_147_483_647)
+          );
+
+    window.addEventListener("focus", scheduleVisibleRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      if (activityTimer !== undefined) window.clearTimeout(activityTimer);
+      if (resetTimer !== undefined) window.clearTimeout(resetTimer);
+      window.removeEventListener("focus", scheduleVisibleRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [entries, refreshAllAccounts, refreshCandidates.length]);
 
   const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
     handleRefreshAll,
@@ -218,7 +319,7 @@ export function StartPageQuotaGrid({
             variant="tertiary"
             appearance="ghost"
             size="small"
-            disabled={refreshing || entries.length === 0}
+            disabled={refreshing || refreshCandidates.length === 0}
             aria-label={t("chat.startPage.quota.refresh")}
             title={t("chat.startPage.quota.refresh")}
             onClick={handleRefreshClick}

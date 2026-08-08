@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { standaloneWorkItemDataToEnriched } from "./adapters";
-import type { LinkedSession, WorkItemData } from "./types";
+import { projectDataToUI, standaloneWorkItemDataToEnriched } from "./adapters";
+import type { LinkedSession, ProjectData, WorkItemData } from "./types";
+
+function buildProjectData(overrides: Partial<ProjectData> = {}): ProjectData {
+  return {
+    meta: {
+      id: "project-1",
+      name: "GitHub Project",
+      org_id: "personal-org",
+      status: "backlog",
+      priority: "none",
+      health: "no_updates",
+      members: [],
+      labels: [],
+      linked_repos: [],
+      created_at: "2026-07-01T00:00:00.000Z",
+      updated_at: "2026-07-01T00:00:00.000Z",
+      next_work_item_id: 1,
+      work_item_prefix: "GIT",
+      work_item_prefix_custom: false,
+    },
+    description: "Synced GitHub issues",
+    slug: "github-project",
+    ...overrides,
+  };
+}
 
 function buildStandaloneItem(
   overrides: Partial<WorkItemData["frontmatter"]> = {}
@@ -82,5 +106,17 @@ describe("standaloneWorkItemDataToEnriched", () => {
     expect(enriched.followUpItems).toEqual([]);
     expect(enriched.workProducts).toEqual([]);
     expect(enriched.assignee).toBeUndefined();
+  });
+});
+
+describe("projectDataToUI", () => {
+  it("preserves the sync adapter identity without requiring connection data", () => {
+    const project = projectDataToUI(
+      buildProjectData({ sync_adapter_id: "github" }),
+      { labelMap: new Map(), memberMap: new Map() }
+    );
+
+    expect(project.syncAdapterId).toBe("github");
+    expect(project).not.toHaveProperty("syncConnectionId");
   });
 });

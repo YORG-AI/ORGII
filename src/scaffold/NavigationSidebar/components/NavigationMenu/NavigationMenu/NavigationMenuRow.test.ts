@@ -1,7 +1,9 @@
+// @vitest-environment jsdom
 import { RefreshCw } from "lucide-react";
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { REFRESH_ICON_TOKENS } from "@src/components/RefreshIcon/tokens";
 
@@ -17,7 +19,19 @@ const baseItem: NavigationMenuItem = {
   label: "Sidebar row",
 };
 
+const reactActEnvironment = globalThis as typeof globalThis & {
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+
 describe("NavigationMenuRow", () => {
+  beforeAll(() => {
+    reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  afterAll(() => {
+    Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+  });
+
   it("uses one fixed 32px height for parent and leaf rows", () => {
     const parentMarkup = renderToStaticMarkup(
       createElement(NavigationMenuParentRow, {
@@ -86,6 +100,105 @@ describe("NavigationMenuRow", () => {
     expect(markup).toContain(
       `lucide-refresh-cw ${REFRESH_ICON_TOKENS.oneShot}`
     );
+  });
+
+  it("exposes disabled leaf rows to rendered UI drivers", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationMenuLeafRow, {
+        item: { ...baseItem, disabled: true },
+        isChild: false,
+        isSelected: false,
+        collapsed: false,
+        t: (key: string) => key,
+        renderIcon: () => null,
+        onMenuItemClick: vi.fn(),
+        onRowMouseEnter: vi.fn(),
+        onRowActionClick: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('role="button"');
+    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).toContain('tabindex="-1"');
+  });
+
+  it("renders guided-tour targets on parent and leaf rows", () => {
+    const item = { ...baseItem, tourTarget: "runtime-navigation" };
+    const parentMarkup = renderToStaticMarkup(
+      createElement(NavigationMenuParentRow, {
+        item: {
+          ...item,
+          children: [{ ...baseItem, id: "child", key: "child" }],
+        },
+        isChild: false,
+        isOpen: false,
+        submenuSelected: false,
+        collapsed: false,
+        t: (key: string) => key,
+        renderIcon: () => null,
+        renderMenuItem: () => createElement("div"),
+        onRowMouseEnter: vi.fn(),
+        onRowActionClick: vi.fn(),
+        onToggleSubmenu: vi.fn(),
+      })
+    );
+    const leafMarkup = renderToStaticMarkup(
+      createElement(NavigationMenuLeafRow, {
+        item,
+        isChild: false,
+        isSelected: false,
+        collapsed: false,
+        t: (key: string) => key,
+        renderIcon: () => null,
+        onMenuItemClick: vi.fn(),
+        onRowMouseEnter: vi.fn(),
+        onRowActionClick: vi.fn(),
+      })
+    );
+
+    for (const markup of [parentMarkup, leafMarkup]) {
+      expect(markup).toContain('data-tour-target="runtime-navigation"');
+    }
+  });
+
+  it("activates enabled leaf rows with Enter and Space", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onMenuItemClick = vi.fn();
+
+    await act(async () => {
+      root.render(
+        createElement(NavigationMenuLeafRow, {
+          item: baseItem,
+          isChild: false,
+          isSelected: false,
+          collapsed: false,
+          t: (key: string) => key,
+          renderIcon: () => null,
+          onMenuItemClick,
+          onRowMouseEnter: vi.fn(),
+          onRowActionClick: vi.fn(),
+        })
+      );
+    });
+
+    const row = container.querySelector<HTMLElement>('[role="button"]');
+    expect(row).not.toBeNull();
+
+    await act(async () => {
+      row?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      );
+      row?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: " ", bubbles: true })
+      );
+    });
+
+    expect(onMenuItemClick).toHaveBeenCalledTimes(2);
+
+    act(() => root.unmount());
+    container.remove();
   });
 
   it("swaps the accessory slot instantly, with no reveal animation", () => {

@@ -140,6 +140,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
         <WorkstationToolbarTooltip
           label={t("collaboration.switchOrg")}
           position="bottom"
+          mouseEnterDelay={1500}
           disabled={menuOpen}
         >
           <div className="w-full min-w-0">

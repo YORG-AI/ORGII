@@ -169,6 +169,39 @@ const FREEZE_MUTATION_HORIZON_MS = 10 * 60_000;
  * beyond this cap freeze even while the session is live. */
 const FREEZE_HORIZON_MAX_EVENTS = 40;
 
+/**
+ * Rust stamps an unpaired tool_call start (no result chunk in the file yet)
+ * as "completed" so historical sessions never render a permanent spinner
+ * (`infer_display_status`, normalizer.rs). That stamp is a UI kindness, not
+ * an immutability proof: when the result lands in a later scan,
+ * `merge_tool_call_pairs` rewrites the START event in place (args and result
+ * fuse, the end chunk vanishes, later indices shift). Freezing such an event
+ * turns every late tool completion into a full O(total) epoch rewrite —
+ * background shells, subagents, and task notifications routinely complete
+ * tens of minutes and dozens of events after their start, far beyond the
+ * mutation horizon; live external-history sessions paid one rewrite per boot
+ * this way (diagnosed 2026-08-07 on real transcripts). While the session is
+ * still appending, the freeze line therefore stops at the first unresolved
+ * pairing. A quiescent session freezes through them: results only arrive
+ * while the file is growing, so its orphans are permanent. The cap bounds
+ * the holdback so one abandoned call inside a busy live session cannot pin
+ * the line into quadratic tail re-uploads — deeper orphans freeze, and a
+ * late completion there pays the (rare) epoch rewrite as before.
+ */
+const FREEZE_PENDING_TOOL_MAX_HOLDBACK_EVENTS = 200;
+
+/** A tool-call start whose pairing merge may still arrive (mirrors the Rust
+ * merger's `is_tool_call_start`: call identity present, result still empty). */
+function isUnresolvedToolCallStart(event: SessionEvent): boolean {
+  const isToolCallLike =
+    event.actionType === "tool_call" ||
+    (typeof event.callId === "string" && event.callId.length > 0);
+  if (!isToolCallLike) return false;
+  const result = event.result as Record<string, unknown> | null | undefined;
+  if (result == null) return true;
+  return Object.keys(result).length === 0;
+}
+
 export function computeFrozenEventCount(
   events: SessionEvent[],
   nowMs: number = Date.now()
@@ -187,6 +220,46 @@ export function computeFrozenEventCount(
     }
   }
   const horizonFloor = nowMs - FREEZE_MUTATION_HORIZON_MS;
+  const lastCreatedAt = Date.parse(events[events.length - 1]?.createdAt ?? "");
+  const sessionStillAppending =
+    Number.isFinite(lastCreatedAt) && lastCreatedAt >= horizonFloor;
+  const holdbackScanFloor = Math.max(
+    0,
+    events.length - FREEZE_PENDING_TOOL_MAX_HOLDBACK_EVENTS
+  );
+  // Position-unstable trailing events must never freeze. Some reader-emitted
+  // chunks FLOAT at the stream end (observed: a synthetic task_create pinned
+  // at count-2 whose positional seq — embedded in the event id — shifts on
+  // every append); freezing one guarantees a chain mismatch on the next read
+  // while the file grows, which is exactly the every-pass epoch-rewrite
+  // bleed. Floaters betray themselves by timestamp inversion: an event
+  // created long before the maximum createdAt already seen upstream is
+  // sitting far from its chronological position. The horizon-sized slack
+  // keeps ms-level interleaving inversions (parallel writers, clock jitter)
+  // from triggering. This holdback applies even to quiescent sessions — a
+  // floater frozen while quiet would still move (and pay a rewrite) on the
+  // next reactivation append.
+  let maxSeenCreatedAtMs = 0;
+  for (let index = 0; index < holdbackScanFloor; index += 1) {
+    const t = Date.parse(events[index]?.createdAt ?? "");
+    if (Number.isFinite(t) && t > maxSeenCreatedAtMs) maxSeenCreatedAtMs = t;
+  }
+  for (let index = holdbackScanFloor; index < line; index += 1) {
+    const event = events[index];
+    const t = Date.parse(event?.createdAt ?? "");
+    const floating =
+      Number.isFinite(t) &&
+      maxSeenCreatedAtMs > 0 &&
+      t < maxSeenCreatedAtMs - FREEZE_MUTATION_HORIZON_MS;
+    if (
+      floating ||
+      (sessionStillAppending && isUnresolvedToolCallStart(event))
+    ) {
+      line = index;
+      break;
+    }
+    if (Number.isFinite(t) && t > maxSeenCreatedAtMs) maxSeenCreatedAtMs = t;
+  }
   let held = 0;
   while (line > 0 && held < FREEZE_HORIZON_MAX_EVENTS) {
     // Only a PROVABLY recent event is held back; a missing/invalid

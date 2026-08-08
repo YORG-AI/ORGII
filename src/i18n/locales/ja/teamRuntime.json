@@ -2,6 +2,20 @@
   "title": "チームランタイム",
   "refresh": "更新",
   "loadError": "チームランタイムの読み込みに失敗しました",
+  "overview": {
+    "today": "今日",
+    "everyone": "全員",
+    "activeMembers": "アクティブなメンバー",
+    "systemsCurrent": "{{total}} 台中 {{current}} 台が最新",
+    "usageByAgent": "エージェント別の使用量",
+    "recentSessions": "最近共有されたセッション",
+    "recentLoading": "共有セッションを読み込み中…",
+    "recentEmpty": "共有セッションはまだありません",
+    "members": "メンバー別の内訳",
+    "activeToday": "今日アクティブ",
+    "inactiveToday": "今日非アクティブ",
+    "sync": "同期"
+  },
   "signedOut": {
     "title": "ログインしてチームを表示",
     "subtitle": "チームメイトのランタイムは ORG2 Cloud 経由で共有されます。",

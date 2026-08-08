@@ -136,6 +136,8 @@ function ReviewThread({
             minHeight={56}
             maxHeight={144}
             appearance="outlined"
+            toolbarSize="mini"
+            toolbarDropdownPosition="top-start"
             onSubmit={() => void handleReply()}
             dataTestId={`pr-review-reply-editor-${thread.rootId}`}
           />

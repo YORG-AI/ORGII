@@ -9,6 +9,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
+import type { SpotlightItem } from "../../../types";
 import { APP_ACTIONS } from "../spotlightActionDefinitions";
 import { buildSearchModeItems } from "../spotlightSearchBuilder";
 
@@ -19,7 +20,11 @@ const BUILT_IN_TOOLS_DESTINATION_ID = "nav-integrations-nav-int-tools";
 // independent of the loaded i18n bundle.
 const echoTranslate = (key: string) => key;
 
-function runSearch(searchQuery: string, devModeEnabled = false) {
+function runSearch(
+  searchQuery: string,
+  devModeEnabled = false,
+  sessionItems: SpotlightItem[] = []
+) {
   const onSelectStaticAction = vi.fn();
   const items = buildSearchModeItems({
     searchQuery,
@@ -30,6 +35,7 @@ function runSearch(searchQuery: string, devModeEnabled = false) {
     onSelectEditorAction: vi.fn(),
     onSelectPath: vi.fn(),
     translate: echoTranslate,
+    sessionItems,
     devModeEnabled,
   });
   return { items, onSelectStaticAction };
@@ -77,5 +83,21 @@ describe("buildSearchModeItems — app commands", () => {
         (item) => item.id === BUILT_IN_TOOLS_DESTINATION_ID
       )
     ).toBe(true);
+  });
+
+  it("groups general Spotlight session matches ahead of commands", () => {
+    const sessionItem = {
+      id: "general-session:session-1",
+      label: "Rollout notes",
+      type: "option" as const,
+    };
+    const { items } = runSearch("update", false, [sessionItem]);
+
+    expect(items.slice(0, 4).map((item) => item.id)).toEqual([
+      "section-search-sessions",
+      sessionItem.id,
+      "section-search-actions",
+      DETECT_UPDATE_ID,
+    ]);
   });
 });

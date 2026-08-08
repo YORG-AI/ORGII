@@ -10,6 +10,7 @@ const ZENMUX_OPENAI_BASE_URL: &str = "https://zenmux.ai/api/v1";
 const ZENMUX_ANTHROPIC_BASE_URL: &str = "https://zenmux.ai/api/anthropic";
 const LONGCAT_OPENAI_BASE_URL: &str = "https://api.longcat.chat/openai";
 const LONGCAT_ANTHROPIC_BASE_URL: &str = "https://api.longcat.chat/anthropic";
+const ATLASCLOUD_ANTHROPIC_BASE_URL: &str = "https://api.atlascloud.ai";
 
 impl KeyService {
     /// Get environment variables for running an agent
@@ -115,6 +116,14 @@ impl KeyService {
                          official OAuth tokens only authenticate at api.anthropic.com — not exporting ANTHROPIC_BASE_URL",
                         entry.id,
                         entry.base_url
+                    );
+                } else if entry.model_type == ModelType::AtlascloudApi {
+                    // Atlas keys persist the OpenAI-protocol /v1 URL; its
+                    // Anthropic surface lives at the bare host, so the stored
+                    // URL must never reach Claude Code.
+                    env.insert(
+                        "ANTHROPIC_BASE_URL".to_string(),
+                        ATLASCLOUD_ANTHROPIC_BASE_URL.to_string(),
                     );
                 } else if let Some(ref url) = entry.base_url {
                     env.insert("ANTHROPIC_BASE_URL".to_string(), url.clone());
@@ -368,6 +377,7 @@ impl KeyService {
             // API key providers: store api_key under the provider's env var name
             ModelType::AnthropicApi
             | ModelType::OpenaiApi
+            | ModelType::AtlascloudApi
             | ModelType::DeepseekApi
             | ModelType::GeminiApi
             | ModelType::GroqApi
@@ -400,6 +410,7 @@ impl KeyService {
                 let env_key = match agent_type {
                     ModelType::AnthropicApi => "ANTHROPIC_API_KEY",
                     ModelType::OpenaiApi => "OPENAI_API_KEY",
+                    ModelType::AtlascloudApi => "ATLASCLOUD_API_KEY",
                     ModelType::DeepseekApi => "DEEPSEEK_API_KEY",
                     ModelType::GeminiApi => "GEMINI_API_KEY",
                     ModelType::GroqApi => "GROQ_API_KEY",
@@ -472,8 +483,9 @@ impl KeyService {
                 env.insert("OPENAI_API_KEY".to_string(), proxy_token.to_string());
                 env.insert("PROXY_TOKEN".to_string(), proxy_token.to_string());
                 // Note: OPENAI_BASE_URL is NOT set for proxy mode.
-                // The base URL is configured in ~/.codex/config.toml under
-                // [model_providers.proxy], and selected via `-c model_provider="proxy"`.
+                // The base URL is configured in the hosted session's isolated
+                // CODEX_HOME under [model_providers.proxy], and selected via
+                // `-c model_provider="proxy"`.
                 // This matches the market-worker's approach.
             }
             ModelType::Copilot => {
@@ -534,6 +546,7 @@ impl KeyService {
             // API key providers — must mirror the list in get_env_for_agent
             ModelType::AnthropicApi
             | ModelType::OpenaiApi
+            | ModelType::AtlascloudApi
             | ModelType::DeepseekApi
             | ModelType::GeminiApi
             | ModelType::GroqApi
@@ -565,6 +578,7 @@ impl KeyService {
                 let env_key = match agent_type {
                     ModelType::AnthropicApi => "ANTHROPIC_API_KEY",
                     ModelType::OpenaiApi => "OPENAI_API_KEY",
+                    ModelType::AtlascloudApi => "ATLASCLOUD_API_KEY",
                     ModelType::DeepseekApi => "DEEPSEEK_API_KEY",
                     ModelType::GeminiApi => "GEMINI_API_KEY",
                     ModelType::GroqApi => "GROQ_API_KEY",

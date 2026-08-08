@@ -692,21 +692,47 @@
     "agentApproval": "Agent-Genehmigung",
     "agentApprovalDesc": "Wenn eine Agent-Aktion Ihre Genehmigung erfordert",
     "errors": "Fehler & Warnungen",
+    "teamInbox": "Team-Posteingang",
     "errorsDesc": "Wenn Fehler oder Warnungen auftreten",
     "sessionStatus": "Session-Status",
     "sessionStatusDesc": "Session-Start, Pause und Fortsetzung",
     "gitOperations": "Git-Operationen",
     "gitOperationsDesc": "Git Pull, Push und Sync-Benachrichtigungen",
+    "soundPreset": "Benachrichtigungston",
+    "soundPresetDesc": "Wähle den Ton für hörbare Benachrichtigungen",
+    "previewSound": "Anhören",
+    "soundPresets": {
+      "classic": "Klassisch",
+      "gentle": "Sanft",
+      "ascending": "Ansteigend",
+      "bell": "Glocke"
+    },
     "volume": "Lautstärke",
     "testNotification": "Testbenachrichtigung",
     "notification": "Benachrichtigung",
     "sound": "Ton",
     "enabledSuccess": "Benachrichtigungen aktiviert",
     "permissionDenied": "Benachrichtigungsberechtigung verweigert",
+    "criticalOnly": "Nur kritische Hinweise",
+    "criticalOnlyDesc": "Nur benachrichtigen, wenn eine Aktion freigegeben werden muss oder eine Aufgabe fehlschlägt",
+    "quietHours": "Nicht-stören-Zeitplan",
+    "quietHoursDesc": "Routinebenachrichtigungen in einem täglichen Zeitfenster stummschalten",
+    "quietHoursSchedule": "Ruhezeiten",
+    "quietHoursScheduleDesc": "Verwendet die lokale Zeit deines Geräts. Gleiche Start- und Endzeit deaktiviert das Zeitfenster.",
+    "quietHoursStart": "Von",
+    "quietHoursEnd": "Bis",
+    "allowCriticalDuringQuietHours": "Kritische Hinweise zulassen",
+    "allowCriticalDuringQuietHoursDesc": "Freigabeanfragen und Fehler dürfen eine Systembenachrichtigung zeigen, aber niemals einen Ton abspielen",
+    "backgroundCompletionSummary": "Hintergrundabschlüsse zusammenfassen",
+    "backgroundCompletionSummaryDesc": "Nach Ende der Ruhezeiten einen gesammelten Hinweis senden",
+    "mutedSessions": "Stummgeschaltete Sessions",
+    "mutedSessionsDesc": "{{count}} Sessions sind auf diesem Gerät stummgeschaltet",
+    "clearMutedSessions": "Alle aufheben",
     "test": {
       "sent": "Testbenachrichtigung gesendet",
       "permissionWarning": "Testbenachrichtigung konnte nicht gesendet werden. Berechtigungen prüfen.",
-      "sendFailed": "Testbenachrichtigung konnte nicht gesendet werden. Bitte Berechtigungen prüfen und erneut versuchen."
+      "sendFailed": "Testbenachrichtigung konnte nicht gesendet werden. Bitte Berechtigungen prüfen und erneut versuchen.",
+      "soundFailed": "Der Benachrichtigungston konnte nicht wiedergegeben werden. Prüfen Sie die Systemlautstärke."
     }
   },
   "editor": {
@@ -997,7 +1023,13 @@
     "tableSize": "Größe",
     "tablePercentage": "Proz.",
     "scanFailed": "Speichernutzung konnte nicht geprüft werden",
-    "openFolderFailed": "Ordner konnte nicht geöffnet werden"
+    "openFolderFailed": "Ordner konnte nicht geöffnet werden",
+    "browserCache": "Browser-Cache",
+    "browserCacheDesc": "{{used}} verwendet · {{cleanable}} können sicher bereinigt werden",
+    "cleanBrowserCache": "Bereinigen",
+    "browserCacheCleaned": "{{size}} Browserspeicher freigegeben",
+    "browserCacheAlreadyClean": "Der Browser-Cache ist bereits bereinigt",
+    "browserCacheCleanFailed": "Browser-Cache konnte nicht bereinigt werden"
   },
   "agentSessions": {
     "title": "Agent Session",

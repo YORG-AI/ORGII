@@ -1,0 +1,24 @@
+[package]
+name = "orgtrack-pm-cli"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Orgtrack PM protocol CLI (orgtrack/v1): context/work commands for external agents. Installed on PATH as `org2` by the distribution; the cargo bin name org2-pm stays workspace-unique (frozen decision docs/orgtrack-pm-protocol/decisions.md §4)."
+
+[[bin]]
+name = "org2-pm"
+path = "src/main.rs"
+
+[dependencies]
+project_management = { path = "../project-management" }
+database = { path = "../database" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+test_helpers = { path = "../test-helpers" }
+rusqlite = { workspace = true }
+# database is already a normal dependency; integration tests reuse it for
+# sandbox schema init.

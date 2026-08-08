@@ -11,27 +11,27 @@
 
 ## D1 — Raw HTML vs Design System
 
-| Line | Element | Verdict | Reason | Suggested change |
-| --- | --- | --- | --- | --- |
-| — | No raw interactive HTML introduced or retained in the changed surfaces | keep with reason | The composer and drop surface continue to use the existing design-system controls | — |
+| Line | Element                                                                | Verdict          | Reason                                                                            | Suggested change |
+| ---- | ---------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------- | ---------------- |
+| —    | No raw interactive HTML introduced or retained in the changed surfaces | keep with reason | The composer and drop surface continue to use the existing design-system controls | —                |
 
 ## D2 — Arbitrary Tailwind Value vs Token
 
-| Line | Value | Verdict | Reason | Suggested change |
-| --- | --- | --- | --- | --- |
-| — | No arbitrary color/token values found | keep with reason | The changed surfaces use existing semantic classes and components | — |
+| Line | Value                                 | Verdict          | Reason                                                            | Suggested change |
+| ---- | ------------------------------------- | ---------------- | ----------------------------------------------------------------- | ---------------- |
+| —    | No arbitrary color/token values found | keep with reason | The changed surfaces use existing semantic classes and components | —                |
 
 ## D3 — Hardcoded Sizes / Colors
 
-| Line | Value | Verdict | Reason | Suggested change |
-| --- | --- | --- | --- | --- |
-| — | No new hardcoded pixel sizes or raw colors found | keep with reason | Identity and destination changes are expressed through existing layout primitives | — |
+| Line | Value                                            | Verdict          | Reason                                                                            | Suggested change |
+| ---- | ------------------------------------------------ | ---------------- | --------------------------------------------------------------------------------- | ---------------- |
+| —    | No new hardcoded pixel sizes or raw colors found | keep with reason | Identity and destination changes are expressed through existing layout primitives | —                |
 
 ## D4 — Accessibility
 
-| Line | Element | Verdict | Reason | Suggested change |
-| --- | --- | --- | --- | --- |
-| — | Destination and recipient controls | keep with reason | Existing design-system controls preserve accessible names, keyboard behavior, and status semantics | — |
+| Line | Element                            | Verdict          | Reason                                                                                             | Suggested change |
+| ---- | ---------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------- | ---------------- |
+| —    | Destination and recipient controls | keep with reason | Existing design-system controls preserve accessible names, keyboard behavior, and status semantics | —                |
 
 ## D5 — Visual Patterns Observed
 

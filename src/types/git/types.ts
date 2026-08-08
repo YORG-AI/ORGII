@@ -11,6 +11,9 @@
  */
 import type { GitFileStatus } from "@src/config/gitStatus";
 
+/** Shared presentation mode for Git review diff surfaces. */
+export type DiffViewMode = "unified" | "split";
+
 // Re-export GitFileStatus for convenience
 export type { GitFileStatus } from "@src/config/gitStatus";
 

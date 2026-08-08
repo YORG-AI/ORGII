@@ -6,20 +6,12 @@
  * renderer reuses the Source Control `PrDetailPanel`, so the PR opens as a
  * first-class My Station tab rather than in the Source Control sidebar.
  */
+import type { GitHubPrDetailTabData } from "@src/types/githubDetail";
+
 import { defineTabFactory } from "../tabFactory";
 import type { WorkStationTab } from "../types";
 
-export interface GitHubPrDetailTabData {
-  prNumber: number;
-  prTitle: string;
-  prUrl: string;
-  /** open | closed | merged | draft */
-  prStatus: string;
-  headBranch: string;
-  baseBranch?: string;
-  repoPath: string;
-  repoId?: string;
-}
+export type { GitHubPrDetailTabData } from "@src/types/githubDetail";
 
 export const githubPrDetailTabFactory = defineTabFactory<GitHubPrDetailTabData>(
   {

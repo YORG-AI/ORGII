@@ -6,6 +6,8 @@
  */
 import type { CSSProperties } from "react";
 
+import { HEADER_ICON_SIZE, TYPOGRAPHY } from "@src/config/workstation/tokens";
+
 // ============================================
 // Sizing Constants
 // ============================================
@@ -55,6 +57,21 @@ export const SECTION_SUBHEADING_CLASSES =
 
 /** Wrapper gap between a section heading and its content containers */
 export const SECTION_GAP_CLASSES = "flex flex-col gap-3";
+
+/**
+ * Intro heading used at the top of a structured content surface.
+ * Composes the app typography and icon-size tokens so feature modules do not
+ * rebuild the title/description hierarchy locally.
+ */
+export const SECTION_INTRO_TOKENS = {
+  container: SECTION_GAP_CLASSES,
+  header: "flex items-start gap-3",
+  icon: "mt-1 shrink-0 text-text-3",
+  iconSize: HEADER_ICON_SIZE.md,
+  title: `m-0 leading-5 tracking-tight text-text-1 ${TYPOGRAPHY.contentTitle}`,
+  description: `m-0 mt-1 max-w-2xl leading-5 text-text-3 ${TYPOGRAPHY.contentSubtitle}`,
+  body: SECTION_GAP_CLASSES,
+} as const;
 
 // ============================================
 // Container Tokens

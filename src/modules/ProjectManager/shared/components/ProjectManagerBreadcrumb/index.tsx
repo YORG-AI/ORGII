@@ -80,7 +80,7 @@ export const ProjectManagerBreadcrumb: React.FC<
         />
       )}
       {trailingNode && (
-        <span className="inline-flex h-6 flex-shrink-0 items-center">
+        <span className="inline-flex h-6 flex-shrink-0 items-center gap-2">
           {trailingNode}
         </span>
       )}

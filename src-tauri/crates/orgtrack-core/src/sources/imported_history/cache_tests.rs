@@ -404,6 +404,177 @@ fn continuation_election_demotes_all_but_newest_sibling() {
 }
 
 #[test]
+fn continuation_election_connects_compaction_epochs_transitively() {
+    let mut conn = fixture_conn();
+    let mut root = input(SOURCE_CODEX_APP, "root", 100);
+    root.source_metadata_json =
+        continuation_metadata_json(Some("first-user-root"), &["compact-a".to_string()]);
+    let mut middle = input(SOURCE_CODEX_APP, "middle", 200);
+    middle.source_metadata_json = continuation_metadata_json(
+        Some("first-user-middle"),
+        &["compact-a".to_string(), "compact-b".to_string()],
+    );
+    let mut newest = input(SOURCE_CODEX_APP, "newest", 300);
+    newest.source_metadata_json =
+        continuation_metadata_json(Some("first-user-newest"), &["compact-b".to_string()]);
+    upsert_imported_session_cache_from_conn(&mut conn, &[root, middle, newest]).expect("upsert");
+
+    let demoted =
+        demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("election");
+
+    assert_eq!(demoted, 2);
+    assert!(!listable_of(&conn, SOURCE_CODEX_APP, "root"));
+    assert!(!listable_of(&conn, SOURCE_CODEX_APP, "middle"));
+    assert!(listable_of(&conn, SOURCE_CODEX_APP, "newest"));
+    for source_session_id in ["root", "middle", "newest"] {
+        let metadata_json: String = conn
+            .query_row(
+                "SELECT source_metadata_json FROM imported_history_session_cache
+                 WHERE source = ?1 AND source_session_id = ?2",
+                rusqlite::params![SOURCE_CODEX_APP, source_session_id],
+                |row| row.get(0),
+            )
+            .expect("metadata");
+        assert_eq!(
+            continuation_lineage_id_from_metadata_json(&metadata_json).as_deref(),
+            Some("first-user-root")
+        );
+    }
+
+    let page = query_imported_sidebar_page_from_conn(&conn, SOURCE_CODEX_APP, None, None, 10, 0)
+        .expect("sidebar page");
+    assert_eq!(page.sessions.len(), 1);
+    assert_eq!(page.sessions[0].session_id, "codex_app-newest");
+    assert_eq!(
+        page.sessions[0].continuation_lineage_id.as_deref(),
+        Some("first-user-root")
+    );
+
+    // A later continuation preserves the elected id even when its own group
+    // key would sort before the original id.
+    let mut later = input(SOURCE_CODEX_APP, "later", 400);
+    later.source_metadata_json =
+        continuation_metadata_json(Some("000-new-first-user"), &["compact-b".to_string()]);
+    upsert_imported_session_cache_from_conn(&mut conn, &[later]).expect("upsert later");
+    demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("second election");
+    let later_metadata: String = conn
+        .query_row(
+            "SELECT source_metadata_json FROM imported_history_session_cache
+             WHERE source = ?1 AND source_session_id = 'later'",
+            [SOURCE_CODEX_APP],
+            |row| row.get(0),
+        )
+        .expect("later metadata");
+    assert_eq!(
+        continuation_lineage_id_from_metadata_json(&later_metadata).as_deref(),
+        Some("first-user-root")
+    );
+}
+
+#[test]
+fn continuation_election_survives_a_family_split_after_stamping() {
+    // Deleting intermediate transcripts can disconnect a family's marker
+    // graph AFTER the lineage was stamped. A later rescan reinserts an old
+    // sibling as a fresh listable row with no stamp to inherit; only the
+    // stamped lineage on the surviving member (whose value is the canonical
+    // member's group key) reconnects the halves. Without lineage as a
+    // connectivity key the election would list both halves' winners and the
+    // duplicate row this feature removes would return.
+    let mut conn = fixture_conn();
+    let mut root = input(SOURCE_CODEX_APP, "root", 100);
+    root.source_metadata_json =
+        continuation_metadata_json(Some("first-user-root"), &["compact-a".to_string()]);
+    let mut middle = input(SOURCE_CODEX_APP, "middle", 200);
+    middle.source_metadata_json = continuation_metadata_json(
+        Some("first-user-middle"),
+        &["compact-a".to_string(), "compact-b".to_string()],
+    );
+    let mut newest = input(SOURCE_CODEX_APP, "newest", 300);
+    newest.source_metadata_json =
+        continuation_metadata_json(Some("first-user-newest"), &["compact-b".to_string()]);
+    upsert_imported_session_cache_from_conn(&mut conn, &[root.clone(), middle, newest])
+        .expect("upsert");
+    demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("first election");
+
+    // The intermediate transcript ages out and the old sibling's row is
+    // dropped with it; a later rescan reinserts the old sibling from its
+    // still-present file as a brand-new listable row without any stamp.
+    for gone in ["middle", "root"] {
+        conn.execute(
+            "DELETE FROM imported_history_session_cache
+             WHERE source = ?1 AND source_session_id = ?2",
+            rusqlite::params![SOURCE_CODEX_APP, gone],
+        )
+        .expect("drop row");
+    }
+    upsert_imported_session_cache_from_conn(&mut conn, &[root]).expect("reinsert root");
+
+    demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("second election");
+
+    assert!(!listable_of(&conn, SOURCE_CODEX_APP, "root"));
+    assert!(listable_of(&conn, SOURCE_CODEX_APP, "newest"));
+    let root_metadata: String = conn
+        .query_row(
+            "SELECT source_metadata_json FROM imported_history_session_cache
+             WHERE source = ?1 AND source_session_id = 'root'",
+            [SOURCE_CODEX_APP],
+            |row| row.get(0),
+        )
+        .expect("root metadata");
+    assert_eq!(
+        continuation_lineage_id_from_metadata_json(&root_metadata).as_deref(),
+        Some("first-user-root")
+    );
+}
+
+#[test]
+fn rescan_upsert_preserves_a_stamped_lineage_id() {
+    // A rescan replaces `source_metadata_json` with freshly parsed metadata
+    // that never carries the elected lineage. The upsert must carry the stamp
+    // over, or every rescan erodes the id the reveal/dedupe paths compare.
+    let mut conn = fixture_conn();
+    let mut row = input(SOURCE_CODEX_APP, "stamped", 100);
+    row.source_metadata_json = Some(
+        serde_json::json!({
+            CONTINUATION_GROUP_KEY_FIELD: "first-user-a",
+            CONTINUATION_MARKERS_FIELD: ["first-user-a", "compact-a"],
+            CONTINUATION_LINEAGE_ID_FIELD: "elected-lineage",
+        })
+        .to_string(),
+    );
+    upsert_imported_session_cache_from_conn(&mut conn, &[row.clone()]).expect("initial upsert");
+
+    row.source_metadata_json =
+        continuation_metadata_json(Some("first-user-a"), &["compact-a".to_string()]);
+    upsert_imported_session_cache_from_conn(&mut conn, &[row.clone()]).expect("rescan upsert");
+    let metadata: String = conn
+        .query_row(
+            "SELECT source_metadata_json FROM imported_history_session_cache
+             WHERE source = ?1 AND source_session_id = 'stamped'",
+            [SOURCE_CODEX_APP],
+            |row| row.get(0),
+        )
+        .expect("metadata");
+    assert_eq!(
+        continuation_lineage_id_from_metadata_json(&metadata).as_deref(),
+        Some("elected-lineage")
+    );
+
+    // A rewrite that loses continuation identity drops the stamp with it.
+    row.source_metadata_json = None;
+    upsert_imported_session_cache_from_conn(&mut conn, &[row]).expect("keyless upsert");
+    let metadata: String = conn
+        .query_row(
+            "SELECT source_metadata_json FROM imported_history_session_cache
+             WHERE source = ?1 AND source_session_id = 'stamped'",
+            [SOURCE_CODEX_APP],
+            |row| row.get(0),
+        )
+        .expect("metadata");
+    assert_eq!(metadata, "");
+}
+
+#[test]
 fn continuation_election_never_promotes_and_skips_subagents() {
     let mut conn = fixture_conn();
     let group = continuation_group_metadata_json(Some("family-a"));
@@ -630,6 +801,28 @@ fn continuation_group_metadata_json_shapes() {
     );
 }
 
+#[test]
+fn continuation_metadata_bounds_and_deduplicates_markers() {
+    let markers = (0..100)
+        .map(|index| format!("marker-{index}"))
+        .collect::<Vec<_>>();
+    let json = continuation_metadata_json(Some("marker-0"), &markers).expect("metadata");
+    let parsed: serde_json::Value = serde_json::from_str(&json).expect("parse");
+    let stored = parsed
+        .get(CONTINUATION_MARKERS_FIELD)
+        .and_then(serde_json::Value::as_array)
+        .expect("markers");
+    assert_eq!(stored.len(), MAX_CONTINUATION_MARKERS);
+    assert_eq!(stored[0].as_str(), Some("marker-0"));
+    assert_eq!(
+        stored
+            .iter()
+            .filter(|marker| marker.as_str() == Some("marker-0"))
+            .count(),
+        1
+    );
+}
+
 fn table_has_column(conn: &Connection, table: &str, column: &str) -> bool {
     let mut stmt = conn
         .prepare(&format!("PRAGMA table_info({table})"))
@@ -735,5 +928,70 @@ fn init_source_cache_tables_upgrades_legacy_table_missing_columns() {
     assert!(
         query_plan.contains("idx_imported_history_parent_created"),
         "child-session lookup should use its parent index: {query_plan}"
+    );
+}
+
+#[test]
+fn imported_pins_round_trip_and_clear() {
+    let conn = fixture_conn();
+    let ids = super::pinned_imported_session_ids_from_conn(&conn).expect("read pins");
+    assert!(ids.is_empty(), "a fresh store has no pins");
+
+    super::set_imported_session_pinned_from_conn(
+        &conn,
+        "claudecodeapp-abc",
+        true,
+        "2026-08-03T12:00:00Z",
+    )
+    .expect("set pin");
+    let ids = super::pinned_imported_session_ids_from_conn(&conn).expect("read pins");
+    assert!(ids.contains("claudecodeapp-abc"));
+
+    // Re-pinning must not duplicate the row (PRIMARY KEY + upsert).
+    super::set_imported_session_pinned_from_conn(
+        &conn,
+        "claudecodeapp-abc",
+        true,
+        "2026-08-03T13:00:00Z",
+    )
+    .expect("re-pin");
+    assert_eq!(
+        super::pinned_imported_session_ids_from_conn(&conn)
+            .expect("read pins")
+            .len(),
+        1
+    );
+
+    super::set_imported_session_pinned_from_conn(&conn, "claudecodeapp-abc", false, "")
+        .expect("unpin");
+    assert!(super::pinned_imported_session_ids_from_conn(&conn)
+        .expect("read pins")
+        .is_empty());
+}
+
+#[test]
+fn a_source_wide_prune_does_not_erase_pins() {
+    // The whole reason pins live in their own table: `prune_missing_records_from_conn`
+    // deletes every cache row of a source whose store momentarily reads as empty
+    // (unreadable directory, provider not installed yet). A `pinned` column on the
+    // cache row would let that wipe the user's pins.
+    let mut conn = fixture_conn();
+    upsert_imported_session_cache_from_conn(&mut conn, &[input(SOURCE_CODEX_APP, "s1", 10)])
+        .expect("seed cache row");
+    super::set_imported_session_pinned_from_conn(
+        &conn,
+        "codexapp-s1",
+        true,
+        "2026-08-03T12:00:00Z",
+    )
+    .expect("pin");
+
+    super::prune_missing_records_from_conn(&conn, SOURCE_CODEX_APP, &[])
+        .expect("prune everything for the source");
+
+    let pins = super::pinned_imported_session_ids_from_conn(&conn).expect("read pins");
+    assert!(
+        pins.contains("codexapp-s1"),
+        "a prune of the rebuildable projection must not take user pin state with it"
     );
 }

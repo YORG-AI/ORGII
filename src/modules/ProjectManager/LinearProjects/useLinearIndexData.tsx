@@ -35,6 +35,7 @@ import type {
   ProjectStatus,
 } from "@src/types/core/project";
 import type { WorkItem } from "@src/types/core/workItem";
+import { mapWithConcurrency } from "@src/util/collections/mapWithConcurrency";
 
 import { cachedLinearProjectsApi } from "./linearProjectsCache";
 import {
@@ -110,6 +111,7 @@ function getProjectStatusLabelKey(status: ProjectStatus): string {
 }
 
 const SECTION_BASE_CONFIG = getProjectStatusConfig("planned");
+const LINEAR_PROJECT_ISSUE_CONCURRENCY = 4;
 
 // ============================================
 // Hook
@@ -121,6 +123,7 @@ interface UseLinearIndexDataOptions {
   projectId: string | undefined;
   surface: "projects" | "work-items";
   teamId: string | undefined;
+  isActive: boolean;
 }
 
 export interface LinearIndexData {
@@ -160,6 +163,7 @@ export function useLinearIndexData({
   projectId,
   surface,
   teamId,
+  isActive,
 }: UseLinearIndexDataOptions): LinearIndexData {
   const { t } = useTranslation(["projects", "common"]);
 
@@ -173,7 +177,7 @@ export function useLinearIndexData({
   );
 
   useEffect(() => {
-    if (connectionId) return;
+    if (!isActive || connectionId) return;
 
     let cancelled = false;
     setLoadingConnections(true);
@@ -200,7 +204,7 @@ export function useLinearIndexData({
     return () => {
       cancelled = true;
     };
-  }, [connectionId]);
+  }, [connectionId, isActive]);
 
   const effectiveConnectionId =
     connectionId ?? defaultConnectionId ?? undefined;
@@ -240,14 +244,15 @@ export function useLinearIndexData({
         setIndexProjects(visibleProjects);
 
         if (surface === "work-items") {
-          const issueResults = await Promise.all(
-            visibleProjects.map((linearProject) =>
+          const issueResults = await mapWithConcurrency(
+            visibleProjects,
+            LINEAR_PROJECT_ISSUE_CONCURRENCY,
+            (linearProject) =>
               cachedLinearProjectsApi.listProjectIssues(
                 effectiveConnectionId,
                 linearProject.id,
                 { forceRefresh: options.forceRefresh }
               )
-            )
           );
           if (cancelled?.()) return;
           setIndexWorkItems(
@@ -280,12 +285,13 @@ export function useLinearIndexData({
   );
 
   useEffect(() => {
+    if (!isActive) return;
     let cancelled = false;
     void loadIndexData(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [loadIndexData]);
+  }, [isActive, loadIndexData]);
 
   const handleIndexRefresh = useCallback(() => {
     void loadIndexData(undefined, { forceRefresh: true });

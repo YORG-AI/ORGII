@@ -281,6 +281,38 @@ fn is_pathological_worktree_checkout(files: u32, additions: u32, deletions: u32)
     files > 100 && deletions > 100_000 && additions < deletions / 100
 }
 
+fn validate_new_worktree_path(path: &str) -> GitApiResult<PathBuf> {
+    if path.contains("..") {
+        return Err(GitApiError::InvalidPath {
+            path: path.to_string(),
+            reason: "Path traversal is not allowed".to_string(),
+        });
+    }
+    let target = PathBuf::from(path);
+    let Some(parent) = target.parent() else {
+        return Err(GitApiError::InvalidPath {
+            path: path.to_string(),
+            reason: "Worktree path must have a parent directory".to_string(),
+        });
+    };
+    let Some(name) = target.file_name() else {
+        return Err(GitApiError::InvalidPath {
+            path: path.to_string(),
+            reason: "Worktree path must have a directory name".to_string(),
+        });
+    };
+    let parent = validate_path(&parent.to_string_lossy())?;
+    Ok(parent.join(name))
+}
+
+fn resolve_repo_path(repo_id: &str, query_path: Option<&str>) -> GitApiResult<std::path::PathBuf> {
+    if let Some(path) = query_path {
+        validate_path(path)
+    } else {
+        lookup_repo_path(repo_id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -315,37 +347,5 @@ mod tests {
             );
         }
         assert_eq!(cache.len(), DIFF_CACHE_MAX_ENTRIES);
-    }
-}
-
-fn validate_new_worktree_path(path: &str) -> GitApiResult<PathBuf> {
-    if path.contains("..") {
-        return Err(GitApiError::InvalidPath {
-            path: path.to_string(),
-            reason: "Path traversal is not allowed".to_string(),
-        });
-    }
-    let target = PathBuf::from(path);
-    let Some(parent) = target.parent() else {
-        return Err(GitApiError::InvalidPath {
-            path: path.to_string(),
-            reason: "Worktree path must have a parent directory".to_string(),
-        });
-    };
-    let Some(name) = target.file_name() else {
-        return Err(GitApiError::InvalidPath {
-            path: path.to_string(),
-            reason: "Worktree path must have a directory name".to_string(),
-        });
-    };
-    let parent = validate_path(&parent.to_string_lossy())?;
-    Ok(parent.join(name))
-}
-
-fn resolve_repo_path(repo_id: &str, query_path: Option<&str>) -> GitApiResult<std::path::PathBuf> {
-    if let Some(path) = query_path {
-        validate_path(path)
-    } else {
-        lookup_repo_path(repo_id)
     }
 }
