@@ -73,6 +73,12 @@ export interface ForkCompareItem {
   branch_id: string;
   branch_name: string;
   state: string;
+  tasks: Array<{
+    task_id: string;
+    name: string;
+    state: string;
+    outcome: TaskOutcome | null;
+  }>;
   task_outcome: TaskOutcome | null;
   conclusion: string | null;
   unresolved: string[];
