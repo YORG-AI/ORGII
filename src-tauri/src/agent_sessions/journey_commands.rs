@@ -189,8 +189,9 @@ mod tests {
     use super::service_error;
     use agent_core::session::journey_application_service::{
         CreateCheckpointRequest, CreateForkRequest, CreateTaskRequest, DiscardForkRequest,
-        FinishTaskRequest, PromoteFactRequest, RequestForkCloseRequest, RetryReviewRequest,
-        ReturnToParentRequest, TaskStartPosition,
+        FinishTaskRequest, ForkCompareGroup, ForkCompareItem, ForkCompareResponse, ForkCompareTask,
+        PromoteFactRequest, RequestForkCloseRequest, RetryReviewRequest, ReturnToParentRequest,
+        TaskStartPosition,
     };
 
     #[test]
@@ -294,6 +295,48 @@ mod tests {
             assert!(serialized.contains("sessionId"), "{serialized}");
             assert!(serialized.contains("expectedRevision"), "{serialized}");
         }
+    }
+
+    #[test]
+    fn fork_compare_dto_uses_the_same_snake_case_fields_as_the_typed_client() {
+        let payload = serde_json::to_value(ForkCompareResponse {
+            groups: vec![ForkCompareGroup {
+                parent_branch_id: "main".into(),
+                parent_anchor_message_id: Some("message-1".into()),
+                anchor_sequence: 1,
+                forks: vec![ForkCompareItem {
+                    branch_id: "fork-a".into(),
+                    branch_name: "fork-a".into(),
+                    state: agent_core::core::journey_lifecycle::ForkState::Active,
+                    tasks: vec![ForkCompareTask {
+                        task_id: "task-a".into(),
+                        name: "核对".into(),
+                        state: agent_core::core::journey_lifecycle::TaskState::Active,
+                        outcome: None,
+                    }],
+                    task_outcome: None,
+                    conclusion: None,
+                    unresolved: vec![],
+                    evidence: vec![],
+                }],
+            }],
+        })
+        .unwrap();
+        let group = &payload["groups"][0];
+        let fork = &group["forks"][0];
+        let task = &fork["tasks"][0];
+        for key in [
+            "parent_branch_id",
+            "parent_anchor_message_id",
+            "anchor_sequence",
+        ] {
+            assert!(group.get(key).is_some(), "missing group key {key}");
+        }
+        for key in ["branch_id", "branch_name", "task_outcome"] {
+            assert!(fork.get(key).is_some(), "missing fork key {key}");
+        }
+        assert!(task.get("task_id").is_some());
+        assert!(task.get("taskId").is_none());
     }
 
     #[test]

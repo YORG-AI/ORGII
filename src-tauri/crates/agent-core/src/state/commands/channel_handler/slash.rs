@@ -38,12 +38,12 @@ pub(super) async fn handle_command(
                         let record = crate::session::persistence::get_session(&session_id)
                             .map_err(|error| error.to_string())?
                             .ok_or_else(|| "未找到当前绑定会话，无法解析审核路由。".to_string())?;
-                        let model_id = record
-                            .model
-                            .ok_or_else(|| "当前会话没有固定模型，禁止关闭分叉后 fallback。".to_string())?;
-                        let account_id = record
-                            .account_id
-                            .ok_or_else(|| "当前会话没有固定账户，禁止关闭分叉后 fallback。".to_string())?;
+                        let model_id = record.model.ok_or_else(|| {
+                            "当前会话没有固定模型，禁止关闭分叉后 fallback。".to_string()
+                        })?;
+                        let account_id = record.account_id.ok_or_else(|| {
+                            "当前会话没有固定账户，禁止关闭分叉后 fallback。".to_string()
+                        })?;
                         let protocol = crate::providers::factory::resolve_account_protocol(
                             &model_id,
                             &account_id,
@@ -58,22 +58,16 @@ pub(super) async fn handle_command(
                         None
                     };
                     database::db::with_sessions_writer(|| {
-                        let mut conn = database::db::get_connection()
-                            .map_err(|error| error.to_string())?;
-                        crate::core::journey_lifecycle::JourneyApplicationService::execute_with_provenance(
-                            &mut conn,
-                            &session_id,
-                            None,
-                            command,
-                            provenance,
-                        )
+                        let mut conn =
+                            database::db::get_connection().map_err(|error| error.to_string())?;
+                        execute_bound_journey_command(&mut conn, &session_id, command, provenance)
                     })
                 })
                 .await
                 {
                     Ok(Ok(reply)) => reply,
-                    Ok(Err(error)) => format!("Journey 操作未完成：{error}"),
-                    Err(error) => format!("Journey 操作未完成：{error}"),
+                    Ok(Err(error)) => format!("会话旅程操作未完成：{error}"),
+                    Err(error) => format!("会话旅程操作未完成：{error}"),
                 }
             }
         },
@@ -195,6 +189,20 @@ pub(super) async fn handle_command(
     #[cfg(debug_assertions)]
     push_debug_outbound(state, &reply).await;
     Ok(None)
+}
+
+/// Execute a parsed Journey command at the gateway boundary. This is kept
+/// separate from binding lookup and outbound delivery so every channel uses
+/// the same provider-free lifecycle path.
+fn execute_bound_journey_command(
+    conn: &mut rusqlite::Connection,
+    session_id: &str,
+    command: crate::core::journey_lifecycle::JourneyCommand,
+    provenance: Option<crate::core::journey_lifecycle::RuntimeProvenance>,
+) -> Result<String, String> {
+    crate::core::journey_lifecycle::JourneyApplicationService::execute_with_provenance(
+        conn, session_id, None, command, provenance,
+    )
 }
 pub(super) async fn handle_browse_selection(
     state: &AgentAppState,
@@ -1324,5 +1332,61 @@ mod help_text_tests {
         // Hermes caps at 4096 (Telegram limit). 1KB is plenty of head-room
         // for a static list and forces us to revisit if we balloon.
         assert!(build_help_text().len() < 1024);
+    }
+}
+
+#[cfg(test)]
+mod journey_dispatch_tests {
+    use super::execute_bound_journey_command;
+    use crate::core::session::journey_application_service::{
+        CreateTaskRequest, JourneyApplicationError, SessionJourneyApplicationService,
+        TaskStartPosition,
+    };
+    use crate::gateway::{parse_command, GatewayCommand};
+
+    #[test]
+    fn feishu_journey_inbound_dispatch_uses_no_provider_and_shares_durable_cas() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE agent_sessions (session_id TEXT PRIMARY KEY);
+             CREATE TABLE agent_messages (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user'
+             );
+             INSERT INTO agent_sessions (session_id) VALUES ('feishu:chat-1:user-1');
+             INSERT INTO agent_messages (id, session_id, sequence, role)
+             VALUES ('message-1', 'feishu:chat-1:user-1', 1, 'user');",
+        )
+        .unwrap();
+
+        let GatewayCommand::Journey(command) = parse_command("/task start 飞书核对 recent")
+            .expect("Feishu inbound text must parse as a Journey command")
+        else {
+            panic!("Journey control input must not be routed to a provider");
+        };
+        let reply = execute_bound_journey_command(&mut conn, "feishu:chat-1:user-1", command, None)
+            .expect("Journey dispatch must complete without a configured provider");
+        assert!(reply.contains("最近一条用户消息"));
+
+        let error = SessionJourneyApplicationService::create_task(
+            &mut conn,
+            CreateTaskRequest {
+                session_id: "feishu:chat-1:user-1".into(),
+                expected_revision: 0,
+                task_id: "desktop-stale".into(),
+                name: "桌面旧修订".into(),
+                position: TaskStartPosition::下一条用户消息,
+            },
+        )
+        .expect_err("desktop must observe the revision written by the Feishu adapter");
+        assert!(matches!(
+            error,
+            JourneyApplicationError::修订冲突 {
+                expected: 0,
+                actual: 1
+            }
+        ));
     }
 }

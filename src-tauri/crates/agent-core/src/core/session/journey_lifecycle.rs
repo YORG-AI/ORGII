@@ -481,30 +481,43 @@ impl SessionJourney {
             let branch_id = s.active_branch_id.clone();
             let task = s
                 .tasks
-                .get_mut(&task_id)
+                .get(&task_id)
                 .ok_or_else(|| JourneyError::UnknownTask(task_id.clone()))?;
             if task.state != TaskState::Active {
                 return Err(JourneyError::InvalidState("任务尚未激活"));
             }
-            task.state = TaskState::Finished;
-            task.outcome = Some(outcome);
-            task.finish_sequence = Some(finish_sequence);
-            s.active_task_id = None;
-            if disposition == FinishDisposition::CloseFork {
+            let close_work_id = if disposition == FinishDisposition::CloseFork {
+                let work = close_work_id.ok_or(JourneyError::InvalidState("缺少关闭工作 ID"))?;
+                provenance
+                    .as_ref()
+                    .ok_or(JourneyError::MissingRuntimeProvenance)?
+                    .validate()?;
                 let branch = s
                     .branches
-                    .get_mut(&branch_id)
+                    .get(&branch_id)
                     .ok_or_else(|| JourneyError::UnknownBranch(branch_id.clone()))?;
                 if branch.parent_branch_id == branch.id {
                     return Err(JourneyError::InvalidState("主分支不可关闭"));
                 }
-                let work = close_work_id.ok_or(JourneyError::InvalidState("缺少关闭工作 ID"))?;
-                provenance
-                    .ok_or(JourneyError::MissingRuntimeProvenance)?
-                    .validate()?;
-                branch.state = ForkState::Closing;
-                branch.frozen_end_sequence = Some(finish_sequence);
-                branch.close_work_id = Some(work);
+                Some(work)
+            } else {
+                None
+            };
+
+            let task = s
+                .tasks
+                .get_mut(&task_id)
+                .ok_or_else(|| JourneyError::UnknownTask(task_id.clone()))?;
+            task.state = TaskState::Finished;
+            task.outcome = Some(outcome);
+            task.finish_sequence = Some(finish_sequence);
+            s.active_task_id = None;
+            if let Some(work) = close_work_id {
+                if let Some(branch) = s.branches.get_mut(&branch_id) {
+                    branch.state = ForkState::Closing;
+                    branch.frozen_end_sequence = Some(finish_sequence);
+                    branch.close_work_id = Some(work);
+                }
             }
             Ok(())
         })
@@ -1462,7 +1475,7 @@ fn service_snapshot(conn: &Connection, session_id: &str) -> Result<SessionJourne
 fn journey_status_text(journey: &SessionJourney) -> String {
     let task = journey.active_task_id.as_deref().unwrap_or("无");
     format!(
-        "Journey：修订 {}；活动分支 `{}`；活动任务 `{task}`；审阅项 {} 个。",
+        "会话旅程：修订 {}；活动分支 `{}`；活动任务 `{task}`；审阅项 {} 个。",
         journey.revision,
         journey.active_branch_id,
         journey.reviews.len()
@@ -1529,9 +1542,9 @@ fn review_list_text(journey: &SessionJourney) -> String {
 fn journey_error_text(error: JourneyError) -> String {
     match error {
         JourneyError::RevisionConflict { expected, actual } => {
-            format!("Journey 修订冲突：期望 {expected}，当前 {actual}。")
+            format!("会话旅程修订冲突：期望 {expected}，当前 {actual}。")
         }
-        JourneyError::DuplicateId(id) => format!("Journey ID 已存在：{id}。"),
+        JourneyError::DuplicateId(id) => format!("会话旅程 ID 已存在：{id}。"),
         JourneyError::UnknownBranch(id) => format!("未知分叉：{id}。"),
         JourneyError::UnknownTask(id) => format!("未知任务：{id}。"),
         JourneyError::UnknownReview(id) => format!("未知审阅项：{id}。"),
@@ -1585,7 +1598,7 @@ impl SqliteJourneyRepository {
         session_id: &str,
     ) -> Result<Option<SessionJourney>, JourneyError> {
         Self::ensure_schema(conn)
-            .map_err(|_| JourneyError::InvalidState("无法初始化 Journey 存储"))?;
+            .map_err(|_| JourneyError::InvalidState("无法初始化会话旅程存储"))?;
         Self::load_existing(conn, session_id)
     }
 
@@ -1606,7 +1619,7 @@ impl SqliteJourneyRepository {
                 |row| row.get(0),
             )
             .optional()
-            .map_err(|_| JourneyError::InvalidState("无法读取 Journey 存储"))?;
+            .map_err(|_| JourneyError::InvalidState("无法读取会话旅程存储"))?;
         if has_table.is_none() {
             return Ok(None);
         }
@@ -1617,10 +1630,10 @@ impl SqliteJourneyRepository {
                 |row| row.get(0),
             )
             .optional()
-            .map_err(|_| JourneyError::InvalidState("无法读取 Journey 存储"))?;
+            .map_err(|_| JourneyError::InvalidState("无法读取会话旅程存储"))?;
         json.map(|value| {
             serde_json::from_str(&value)
-                .map_err(|_| JourneyError::InvalidState("Journey 存储已损坏"))
+                .map_err(|_| JourneyError::InvalidState("会话旅程存储已损坏"))
         })
         .transpose()
     }
@@ -1631,7 +1644,7 @@ impl SqliteJourneyRepository {
         expected_previous_revision: u64,
     ) -> Result<(), JourneyError> {
         Self::ensure_schema(conn)
-            .map_err(|_| JourneyError::InvalidState("无法初始化 Journey 存储"))?;
+            .map_err(|_| JourneyError::InvalidState("无法初始化会话旅程存储"))?;
         if journey.revision != expected_previous_revision.saturating_add(1) {
             return Err(JourneyError::RevisionConflict {
                 expected: expected_previous_revision.saturating_add(1),
@@ -1640,7 +1653,7 @@ impl SqliteJourneyRepository {
         }
         let tx = conn
             .transaction()
-            .map_err(|_| JourneyError::InvalidState("无法开启 Journey 事务"))?;
+            .map_err(|_| JourneyError::InvalidState("无法开启会话旅程事务"))?;
         let current: Option<u64> = tx
             .query_row(
                 "SELECT revision FROM session_journeys WHERE session_id = ?1",
@@ -1648,7 +1661,7 @@ impl SqliteJourneyRepository {
                 |row| row.get(0),
             )
             .optional()
-            .map_err(|_| JourneyError::InvalidState("无法读取 Journey 修订"))?;
+            .map_err(|_| JourneyError::InvalidState("无法读取会话旅程修订"))?;
         let actual = current.unwrap_or(0);
         if current.is_some() && actual != expected_previous_revision {
             return Err(JourneyError::RevisionConflict {
@@ -1663,14 +1676,14 @@ impl SqliteJourneyRepository {
             });
         }
         let state_json = serde_json::to_string(journey)
-            .map_err(|_| JourneyError::InvalidState("无法序列化 Journey"))?;
+            .map_err(|_| JourneyError::InvalidState("无法序列化会话旅程"))?;
         tx.execute(
             "INSERT INTO session_journeys (session_id, revision, state_json) VALUES (?1, ?2, ?3)
              ON CONFLICT(session_id) DO UPDATE SET revision = excluded.revision, state_json = excluded.state_json",
             params![journey.session_id, journey.revision, state_json],
-        ).map_err(|_| JourneyError::InvalidState("无法写入 Journey"))?;
+        ).map_err(|_| JourneyError::InvalidState("无法写入会话旅程"))?;
         tx.commit()
-            .map_err(|_| JourneyError::InvalidState("无法提交 Journey"))?;
+            .map_err(|_| JourneyError::InvalidState("无法提交会话旅程"))?;
         Ok(())
     }
 
@@ -1688,7 +1701,7 @@ impl SqliteJourneyRepository {
                 |row| row.get(0),
             )
             .optional()
-            .map_err(|_| JourneyError::InvalidState("无法读取 Journey 修订"))?;
+            .map_err(|_| JourneyError::InvalidState("无法读取会话旅程修订"))?;
         let actual = current.unwrap_or(0);
         if current.is_some() && actual != expected_previous_revision {
             return Err(JourneyError::RevisionConflict {
@@ -1703,13 +1716,13 @@ impl SqliteJourneyRepository {
             });
         }
         let state_json = serde_json::to_string(journey)
-            .map_err(|_| JourneyError::InvalidState("无法序列化 Journey"))?;
+            .map_err(|_| JourneyError::InvalidState("无法序列化会话旅程"))?;
         tx.execute(
             "INSERT INTO session_journeys (session_id, revision, state_json) VALUES (?1, ?2, ?3)
              ON CONFLICT(session_id) DO UPDATE SET revision = excluded.revision, state_json = excluded.state_json",
             params![journey.session_id, journey.revision, state_json],
         )
-        .map_err(|_| JourneyError::InvalidState("无法写入 Journey"))?;
+        .map_err(|_| JourneyError::InvalidState("无法写入会话旅程"))?;
         Ok(())
     }
 }
@@ -1836,6 +1849,56 @@ mod tests {
         )
         .unwrap();
         assert_eq!(j.reviews["r"].state, ReviewState::Queued);
+    }
+
+    #[test]
+    fn task_finish_stays_in_fork_but_close_requires_provenance_before_mutating() {
+        let mut stay = forked();
+        stay.finish_task(
+            1,
+            TaskOutcome::Completed,
+            15,
+            FinishDisposition::StayInFork,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(stay.active_branch_id, "f1");
+        assert_eq!(stay.branches["f1"].state, ForkState::Active);
+        assert_eq!(stay.tasks["t1"].state, TaskState::Finished);
+
+        let mut close = forked();
+        assert_eq!(
+            close.finish_task(
+                1,
+                TaskOutcome::Completed,
+                15,
+                FinishDisposition::CloseFork,
+                Some("work".into()),
+                None,
+            ),
+            Err(JourneyError::MissingRuntimeProvenance)
+        );
+        assert_eq!(close.revision, 1);
+        assert_eq!(close.active_task_id.as_deref(), Some("t1"));
+        assert_eq!(close.tasks["t1"].state, TaskState::Active);
+        assert_eq!(close.branches["f1"].state, ForkState::Active);
+
+        let mut main = SessionJourney::new("s", "main");
+        main.task_start(0, "t1".into(), "主任务".into(), 1).unwrap();
+        assert_eq!(
+            main.finish_task(
+                1,
+                TaskOutcome::Completed,
+                2,
+                FinishDisposition::CloseFork,
+                Some("work".into()),
+                Some(provenance()),
+            ),
+            Err(JourneyError::InvalidState("主分支不可关闭"))
+        );
+        assert_eq!(main.revision, 1);
+        assert_eq!(main.tasks["t1"].state, TaskState::Active);
     }
     #[test]
     fn discard_returns_exact_anchor_and_removes_promotions() {
@@ -1999,7 +2062,7 @@ mod tests {
         .unwrap();
         assert!(matches!(
             SqliteJourneyRepository::load_existing(&conn, "s"),
-            Err(JourneyError::InvalidState("Journey 存储已损坏"))
+            Err(JourneyError::InvalidState("会话旅程存储已损坏"))
         ));
     }
 

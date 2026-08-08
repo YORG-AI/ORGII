@@ -158,11 +158,13 @@ pub struct JourneySnapshotResponse {
 /// Provider-neutral fork comparison.  Every adapter receives the same durable
 /// fields; presentation layers only translate/render this response.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ForkCompareResponse {
     pub groups: Vec<ForkCompareGroup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ForkCompareGroup {
     pub parent_branch_id: String,
     pub parent_anchor_message_id: Option<String>,
@@ -171,6 +173,7 @@ pub struct ForkCompareGroup {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ForkCompareItem {
     pub branch_id: String,
     pub branch_name: String,
@@ -187,6 +190,7 @@ pub struct ForkCompareItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ForkCompareTask {
     pub task_id: String,
     pub name: String,
@@ -858,7 +862,7 @@ impl SessionJourneyApplicationService {
         session_id: &str,
     ) -> JourneyApplicationResult<SessionJourney> {
         SqliteJourneyRepository::ensure_schema(conn).map_err(|_| {
-            JourneyApplicationError::存储失败("无法初始化 Journey 存储。".into())
+            JourneyApplicationError::存储失败("无法初始化会话旅程存储。".into())
         })?;
         SqliteJourneyRepository::load(conn, session_id)
             .map_err(Self::domain_error)
@@ -1144,6 +1148,34 @@ mod tests {
                 .to_string(),
             "未知会话：不存在。"
         );
+    }
+
+    #[test]
+    fn finishing_a_task_explicitly_stays_in_the_current_fork() {
+        let mut conn = conn();
+        SessionJourneyApplicationService::create_fork(&mut conn, fork_request(0)).unwrap();
+        assign_anchor(&conn, "f1", "t1");
+        SessionJourneyApplicationService::finish_task(
+            &mut conn,
+            FinishTaskRequest {
+                session_id: "s".into(),
+                expected_revision: 1,
+                outcome: TaskOutcome::Completed,
+                message_id: "a1".into(),
+            },
+        )
+        .unwrap();
+        let snapshot = SessionJourneyApplicationService::snapshot(&conn, "s")
+            .unwrap()
+            .snapshot;
+        assert_eq!(snapshot.active_branch_id, "f1");
+        assert!(snapshot.active_task_id.is_none());
+        assert_eq!(snapshot.tasks["t1"].outcome, Some(TaskOutcome::Completed));
+        assert_eq!(
+            snapshot.branches["f1"].state,
+            crate::core::journey_lifecycle::ForkState::Active
+        );
+        assert!(snapshot.reviews.is_empty());
     }
 
     #[test]

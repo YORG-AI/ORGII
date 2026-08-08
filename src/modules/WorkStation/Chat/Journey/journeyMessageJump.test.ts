@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -32,15 +33,11 @@ describe("Journey exact message jump", () => {
   });
 
   it("registers a listener that scrolls and highlights the exact rendered message", () => {
-    const target = {
-      dataset: { journeyMessageId: "checkpoint-message-42" } as DOMStringMap,
-      scrollIntoView: vi.fn(),
-    } as unknown as HTMLElement;
-    vi.stubGlobal("document", {
-      querySelectorAll: () => [target],
-    });
     const scrollIntoView = vi.fn();
+    const target = document.createElement("article");
+    target.dataset.journeyMessageId = "checkpoint-message-42";
     target.scrollIntoView = scrollIntoView;
+    document.body.append(target);
     let listener: ((event: Event) => void) | undefined;
     const addEventListener = vi
       .spyOn(window, "addEventListener")
@@ -65,6 +62,6 @@ describe("Journey exact message jump", () => {
       behavior: "smooth",
     });
     addEventListener.mockRestore();
-    vi.unstubAllGlobals();
+    target.remove();
   });
 });

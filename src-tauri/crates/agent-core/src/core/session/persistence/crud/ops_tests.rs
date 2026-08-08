@@ -206,25 +206,43 @@ fn project_link_persists_project_metadata_and_clears_work_item() {
 }
 
 #[test]
-fn reconcile_repairs_running_rows_with_terminal_turn_markers() {
+fn restart_reconciliation_repairs_orphaned_terminal_turn_rows_only() {
     let _sandbox = test_env::sandbox();
 
-    seed_session("sid-reconcile", SessionStatus::Running);
-    finalize_terminal_turn_status(
-        "sid-reconcile",
-        "turn-456",
-        "completed",
-        SessionStatus::Running,
-        "2026-06-05T12:30:00.000Z",
-    )
-    .expect("seed mismatched terminal marker");
+    for (session_id, terminal_status) in [
+        ("sid-completed", "completed"),
+        ("sid-cancelled", "cancelled"),
+        ("sid-failed", "failed"),
+    ] {
+        seed_session(session_id, SessionStatus::Running);
+        finalize_terminal_turn_status(
+            session_id,
+            &format!("turn-{session_id}"),
+            terminal_status,
+            SessionStatus::Running,
+            "2026-06-05T12:30:00.000Z",
+        )
+        .expect("seed mismatched terminal marker");
+
+        let row = super::ops::get_session(session_id)
+            .expect("get seeded session")
+            .expect("seeded session exists");
+        assert_eq!(row.status, SessionStatus::Running.as_str());
+    }
+    seed_session("sid-idle", SessionStatus::Idle);
 
     let updated = reconcile_sessions_with_terminal_turn_markers().expect("reconcile markers");
 
-    assert_eq!(updated, 1);
-    let row = super::ops::get_session("sid-reconcile")
-        .expect("get session")
-        .expect("session exists");
-    assert_eq!(row.status, SessionStatus::Completed.as_str());
-    assert_eq!(row.updated_at, "2026-06-05T12:30:00.000Z");
+    assert_eq!(updated, 3);
+    for (session_id, expected_status) in [
+        ("sid-completed", SessionStatus::Completed),
+        ("sid-cancelled", SessionStatus::Cancelled),
+        ("sid-failed", SessionStatus::Failed),
+        ("sid-idle", SessionStatus::Idle),
+    ] {
+        let row = super::ops::get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(row.status, expected_status.as_str());
+    }
 }
