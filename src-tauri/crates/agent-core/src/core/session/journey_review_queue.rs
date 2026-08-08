@@ -110,14 +110,18 @@ impl JourneyReviewExecutorHandle {
         Self { inner }
     }
 
-    /// Initialize the durable queue before the worker starts accepting wakes.
-    /// A missing database must not prevent the desktop application from
-    /// launching; the periodic worker recovery path will retry later.
+    /// Initialize the durable queue and release work claimed by the previous
+    /// process before this host starts accepting wakes. A missing database
+    /// must not prevent the desktop application from launching; the periodic
+    /// worker recovery path will retry later.
     pub fn ensure_schema_at_startup() {
         match crate::foundation::db_bridge::get_connection()
             .map_err(|error| QueueError::Storage(format!("无法打开审核队列数据库：{error}")))
-            .and_then(|conn| ReviewJobRepository::ensure_schema(&conn))
-        {
+            .and_then(|conn| {
+                ReviewJobRepository::ensure_schema(&conn)?;
+                ReviewJobRepository::requeue_orphaned_running_jobs(&conn)?;
+                Ok(())
+            }) {
             Ok(()) => {}
             Err(error) => tracing::error!(error = %error, "[journey-review] 审核队列表初始化失败"),
         }
@@ -368,6 +372,20 @@ impl ReviewJobRepository {
             .ok_or_else(|| QueueError::Conflict("审核任务在认领时消失。".into()))?;
         job.error = Some(format!("worker={worker_id}"));
         Ok(Some(job))
+    }
+
+    /// Startup recovery releases jobs that were claimed by a process which
+    /// exited before it could commit a terminal state. Call this only while
+    /// bringing up the single host executor, before it begins processing.
+    pub fn requeue_orphaned_running_jobs(conn: &Connection) -> Result<usize, QueueError> {
+        Self::ensure_schema(conn)?;
+        conn.execute(
+            "UPDATE session_journey_review_jobs
+             SET state='queued', started_at=NULL, error=NULL, finished_at=NULL
+             WHERE state='running'",
+            [],
+        )
+        .map_err(|e| QueueError::Storage(format!("无法恢复遗留审核任务：{e}")))
     }
 
     pub fn complete(conn: &Connection, job_id: &str) -> Result<(), QueueError> {
@@ -1111,6 +1129,29 @@ mod tests {
         assert!(ReviewJobRepository::claim(&mut conn, "worker-other", 60)
             .unwrap()
             .is_none());
+    }
+
+    #[test]
+    fn startup_reconciliation_requeues_orphaned_running_jobs_immediately() {
+        let mut conn = worker_conn();
+        let job = enqueue(&conn);
+        ReviewJobRepository::claim(&mut conn, "worker-before-restart", 60)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            ReviewJobRepository::requeue_orphaned_running_jobs(&conn).unwrap(),
+            1
+        );
+        let requeued = ReviewJobRepository::get(&conn, "r").unwrap().unwrap();
+        assert_eq!(requeued.state, ReviewJobState::Queued);
+        assert_eq!(requeued.started_at, None);
+
+        let reclaimed = ReviewJobRepository::claim(&mut conn, "worker-after-restart", 60)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reclaimed.job_id, job.job_id);
+        assert_eq!(reclaimed.attempt, 2);
     }
 
     #[derive(Default)]

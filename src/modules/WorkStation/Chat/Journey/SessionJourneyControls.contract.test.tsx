@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionJourneyControls } from "./SessionJourneyControls";
 
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
 const api = vi.hoisted(() => ({
   snapshot: vi.fn(),
   forkCompare: vi.fn(),
@@ -62,12 +64,15 @@ const snapshot = {
   },
 };
 
-function click(container: HTMLElement, text: string) {
+async function click(container: HTMLElement, text: string) {
   const button = Array.from(container.querySelectorAll("button")).find(
-    (element) => element.textContent?.trim() === text
+    (element) => element.textContent?.trim().startsWith(text)
   );
   expect(button, `button ${text}`).toBeTruthy();
-  act(() => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await act(async () => {
+    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+  });
 }
 
 function Harness() {
@@ -93,6 +98,8 @@ describe("SessionJourneyControls rendered behavior", () => {
 
   beforeEach(async () => {
     vi.useFakeTimers();
+    localStorage.clear();
+    sessionStorage.clear();
     Object.values(api).forEach((mock) => mock.mockReset());
     api.snapshot.mockResolvedValue({ snapshot });
     api.forkCompare.mockResolvedValue({ groups: [] });
@@ -103,7 +110,16 @@ describe("SessionJourneyControls rendered behavior", () => {
     root = createRoot(container);
     await act(async () => {
       root.render(<Harness />);
-      await vi.runAllTimersAsync();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      // `reload` commits after both snapshot promises resolve. Flush that
+      // microtask before asserting real rendered controls.
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
     });
   });
 
@@ -114,8 +130,8 @@ describe("SessionJourneyControls rendered behavior", () => {
   });
 
   it("closes a fork through the durable close command and retries a failed review", async () => {
-    click(container, "关闭分叉");
-    click(document.body, "确认");
+    await click(container, "关闭分叉");
+    await click(document.body, "确认");
     await act(async () => {});
     expect(api.closeFork).toHaveBeenCalledWith(
       expect.objectContaining({ forkId: "fork-a", messageId: "message-6" }),
@@ -123,8 +139,8 @@ describe("SessionJourneyControls rendered behavior", () => {
       { modelId: "m", accountId: "a", protocol: "p" }
     );
 
-    click(container, "审核");
-    click(container, "重试审核");
+    await click(container, "审核");
+    await click(container, "重试审核");
     await act(async () => {});
     expect(api.retryReview).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -134,15 +150,17 @@ describe("SessionJourneyControls rendered behavior", () => {
     );
   });
 
-  it("docks in the WorkStation pane, floats, hides, and reopens", () => {
-    click(container, "审核");
+  it("docks in the WorkStation pane, floats, hides, and reopens", async () => {
+    await click(container, "审核");
     const dock = container.querySelector('[data-testid="dock"]');
     expect(
       dock?.querySelector('[data-testid="journey-review-panel"]')
     ).toBeTruthy();
-    expect(dock?.className).toContain("work-station-shell__secondary-panel");
+    expect(
+      dock?.querySelector('[data-testid="journey-review-panel"]')?.className
+    ).not.toContain("fixed");
 
-    click(container, "浮动");
+    await click(container, "浮动");
     expect(
       dock?.querySelector('[data-testid="journey-review-panel"]')
     ).toBeFalsy();
@@ -150,13 +168,19 @@ describe("SessionJourneyControls rendered behavior", () => {
       container.querySelector('[data-testid="journey-review-panel"]')?.className
     ).toContain("fixed");
 
-    click(container, "隐藏");
+    await click(container, "隐藏");
     expect(
       container.querySelector('[data-testid="journey-review-panel"]')
     ).toBeFalsy();
-    click(container, "审核");
+    await click(container, "审核");
     expect(
       dock?.querySelector('[data-testid="journey-review-panel"]')
     ).toBeTruthy();
+  });
+
+  it("offers recovery from durable active Journey state", async () => {
+    expect(document.body.textContent).toContain("恢复会话旅程");
+    await click(document.body, "继续当前会话");
+    expect(document.body.textContent).not.toContain("恢复会话旅程");
   });
 });
