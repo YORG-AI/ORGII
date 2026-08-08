@@ -74,6 +74,7 @@ describe("useApiSetupTokenDetection", () => {
 
     const setDetectingToken = vi.fn();
     const setTokenError = vi.fn();
+    const dispatchCredentialDetection = vi.fn();
     const options: HookOptions = {
       data: { agent_type: CLI_AGENT.CODEX } as WizardData,
       onChange: vi.fn(),
@@ -91,6 +92,7 @@ describe("useApiSetupTokenDetection", () => {
       setShowKeySelection: vi.fn(),
       setDetectedKeys: vi.fn(),
       setSelectedCredentialIndex: vi.fn(),
+      dispatchCredentialDetection,
     };
 
     const container = document.createElement("div");
@@ -121,9 +123,11 @@ describe("useApiSetupTokenDetection", () => {
       await Promise.all([firstDetection, duplicateDetection]);
     });
 
-    expect(setTokenError).toHaveBeenLastCalledWith(
-      "keyVault.failedToDetectKeys"
-    );
+    expect(setTokenError).toHaveBeenLastCalledWith("catalog unavailable");
+    expect(dispatchCredentialDetection).toHaveBeenLastCalledWith({
+      type: "failed",
+      message: "catalog unavailable",
+    });
     expect(setDetectingToken.mock.calls.map(([value]) => value)).toEqual([
       true,
       false,
