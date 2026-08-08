@@ -179,7 +179,11 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
         void WorkStationViewService.openKanbanTab();
       }),
       shortcutRegistry.on("open_journey", () => {
-        void WorkStationViewService.openStationMode("journey");
+        window.dispatchEvent(
+          new CustomEvent("action-system-navigate", {
+            detail: { path: "/orgii/app/journey" },
+          })
+        );
       }),
       shortcutRegistry.on(
         "open_file_folder_tab",

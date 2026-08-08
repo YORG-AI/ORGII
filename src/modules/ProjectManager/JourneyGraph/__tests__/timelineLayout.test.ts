@@ -17,7 +17,7 @@ import {
 const MIN = 60 * 1000;
 
 function milestone(id: string, ts: string | null, kind = "turn", sequence: number | null = null) {
-  return { id, title: id.split("/").slice(1).join("/") || id, kind, evidenceClass: "canonical" as const, sourceRef: `src:${id}`, displayTimestamp: ts, sequence };
+  return { id, title: id.split("/").slice(1).join("/") || id, kind, evidenceClass: "canonical" as const, sourceRef: `src:${id}`, displayTimestamp: ts, sequence, topicTags: [] };
 }
 
 const base: StorylineViewModel = {

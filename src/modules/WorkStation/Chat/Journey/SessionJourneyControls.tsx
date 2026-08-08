@@ -140,7 +140,7 @@ export const SessionJourneyControls: React.FC<{
           reviews={reviews}
           snapshot={snapshot}
           comparison={comparison}
-          sessionId={sessionId}
+          sessionId={sessionId ?? ""}
           selectedEvidenceMessageId={messageId ?? null}
           onMode={setMode}
           onReload={reload}
@@ -371,7 +371,7 @@ export const SessionJourneyControls: React.FC<{
           reviews={reviews}
           snapshot={snapshot}
           comparison={comparison}
-          sessionId={sessionId}
+          sessionId={sessionId ?? ""}
           selectedEvidenceMessageId={messageId ?? null}
           onMode={setMode}
           onReload={reload}

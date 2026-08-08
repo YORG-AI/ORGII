@@ -239,7 +239,11 @@ export function useSpotlight(
           void WorkStationViewService.openKanbanTab();
         },
         "open-journey": () => {
-          void WorkStationViewService.openStationMode("journey");
+          window.dispatchEvent(
+            new CustomEvent("action-system-navigate", {
+              detail: { path: "/orgii/app/journey" },
+            })
+          );
         },
         "open-search-sidebar": () => {
           void WorkStationViewService.openSearchSidebar();

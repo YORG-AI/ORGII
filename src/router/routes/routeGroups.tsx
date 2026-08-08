@@ -17,6 +17,7 @@ import {
   ConsumerWallet,
   DelegationHistoryPage,
   FlowAwarenessTestPage,
+  JourneyStationPage,
   LoginPage,
   ModeSelectionWindow,
   Profile,
@@ -229,6 +230,7 @@ export const mainAppRouteGroup: RouteObject = {
       element: <Navigate to={ROUTES.workStation.code.path} replace />,
     },
     { path: "changelog", element: lazy(<ChangelogPage />) },
+    { path: "journey", element: lazy(<JourneyStationPage />) },
     { path: "ideas", element: <ComingSoonRoutePage /> },
   ],
 };

@@ -155,8 +155,8 @@ export const APP_SETTINGS_ROUTE = route(
 // Journey Station is a first-class read-only application surface.
 export const APP_JOURNEY_ROUTES = {
   station: {
-    path: "/journey",
-    label: "Journey Station",
+    path: "/orgii/app/journey",
+    label: "会话旅程",
     viewMode: "mainApp",
     tabType: "journey-station",
     icon: "git-branch",

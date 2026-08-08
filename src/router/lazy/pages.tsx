@@ -21,6 +21,13 @@ export const ChangelogPage = React.lazy(
     import(/* webpackChunkName: "changelog" */ "@src/modules/MainApp/Changelog")
 );
 
+export const JourneyStationPage = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "journey-station" */ "@src/modules/MainApp/JourneyStation"
+    )
+);
+
 export const Settings = React.lazy(
   () =>
     import(/* webpackChunkName: "settings" */ "@/src/modules/MainApp/Settings")

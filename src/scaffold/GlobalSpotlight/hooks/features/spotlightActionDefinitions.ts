@@ -117,6 +117,7 @@ export type SpotlightStaticActionFallback =
   | "open-my-station"
   | "open-agent-station"
   | "open-kanban"
+  | "open-journey"
   | "open-search-sidebar"
   | "open-source-control-tab"
   | "open-terminal-tab"

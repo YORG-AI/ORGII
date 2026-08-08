@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { COLLAB_ADD_ORG_MENU_ITEM_ID, JOURNEY_MENU_ITEM_ID } from "@src/scaffold/NavigationSidebar/connectors/sidebarConnectorUtils";
+import { COLLAB_ADD_ORG_MENU_ITEM_ID } from "@src/scaffold/NavigationSidebar/connectors/sidebarConnectorUtils";
 import {
   CHAT_PANEL_CONTENT_MODE,
   CHAT_PANEL_CREATE_TARGET,
@@ -43,46 +43,20 @@ describe("resolveSelectedMenuItemIds", () => {
     ).toBe(COLLAB_ADD_ORG_MENU_ITEM_ID);
   });
 
-  it("selects the Journey pinned item when pathname is inside the journey route", () => {
+  it("keeps the active session selected because Journey is a main-app route", () => {
     expect(
       resolveSelectedMenuItemIds({
         activeSessionCreatorDraftId: null,
         activeSessionId: "session-1",
         activeSidebarKey: "workstation",
+        activeChatPanelTabType: null,
         chatPanelContentMode: CHAT_PANEL_CONTENT_MODE.SESSION,
         chatPanelCreateTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
         chatPanelSelectedProject: null,
         chatPanelSelectedWorkItem: null,
-        chatPanelSelectedWorkspace: null,
-        chatPanelWorkspaceDashboardOpen: false,
-        chatPanelExploreOpen: false,
-        opsControlRoutePath: "/ops-control",
-        journeyRoutePath: "/workstation/journey",
-        pathname: "/workstation/journey",
         projectsSelectedMenuItemId: "",
         sessionCreatorDrafts: [],
       }).selectedMenuItemId
-    ).toBe(JOURNEY_MENU_ITEM_ID);
-  });
-
-  it("does not select the Journey item when journeyRoutePath is not provided", () => {
-    expect(
-      resolveSelectedMenuItemIds({
-        activeSessionCreatorDraftId: null,
-        activeSessionId: "session-1",
-        activeSidebarKey: "workstation",
-        chatPanelContentMode: CHAT_PANEL_CONTENT_MODE.SESSION,
-        chatPanelCreateTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
-        chatPanelSelectedProject: null,
-        chatPanelSelectedWorkItem: null,
-        chatPanelSelectedWorkspace: null,
-        chatPanelWorkspaceDashboardOpen: false,
-        chatPanelExploreOpen: false,
-        opsControlRoutePath: "/ops-control",
-        pathname: "/workstation/journey",
-        projectsSelectedMenuItemId: "",
-        sessionCreatorDrafts: [],
-      }).selectedMenuItemId
-    ).not.toBe(JOURNEY_MENU_ITEM_ID);
+    ).toBe("session-1");
   });
 });

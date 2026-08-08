@@ -15,25 +15,17 @@ pub const PAGE_SIZE: usize = 8;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BrowseLevel {
-    Workspace,
     Project,
-    WorkItem,
     Session,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BrowseOption {
-    Workspace {
-        workspace_id: Option<String>,
-    },
     Project {
+        workspace_id: Option<String>,
         project_slug: String,
         name: String,
-    },
-    WorkItem {
-        work_item_id: String,
-        title: String,
     },
     Session {
         session_id: String,
@@ -48,7 +40,6 @@ pub struct BrowseState {
     pub level: BrowseLevel,
     pub workspace_id: Option<String>,
     pub project_slug: Option<String>,
-    pub work_item_id: Option<String>,
     pub page: usize,
     pub options: Vec<BrowseOption>,
     pub updated_at: String,
@@ -81,7 +72,6 @@ pub fn new_state(
     level: BrowseLevel,
     workspace_id: Option<String>,
     project_slug: Option<String>,
-    work_item_id: Option<String>,
     options: Vec<BrowseOption>,
 ) -> BrowseState {
     BrowseState {
@@ -89,7 +79,6 @@ pub fn new_state(
         level,
         workspace_id,
         project_slug,
-        work_item_id,
         page: 0,
         options,
         updated_at: Utc::now().to_rfc3339(),
@@ -149,9 +138,7 @@ fn load_from(conn: &Connection, session_key: &str) -> SqliteResult<Option<Browse
         [session_key],
         |row| {
             let level = match row.get::<_, String>(1)?.as_str() {
-                "workspace" => BrowseLevel::Workspace,
                 "project" => BrowseLevel::Project,
-                "work_item" => BrowseLevel::WorkItem,
                 "session" => BrowseLevel::Session,
                 other => {
                     return Err(rusqlite::Error::FromSqlConversionFailure(
@@ -174,7 +161,6 @@ fn load_from(conn: &Connection, session_key: &str) -> SqliteResult<Option<Browse
                 level,
                 workspace_id: row.get(2)?,
                 project_slug: row.get(3)?,
-                work_item_id: row.get(4)?,
                 page: row.get::<_, i64>(5)?.max(0) as usize,
                 options,
                 updated_at: row.get(7)?,
@@ -186,9 +172,7 @@ fn load_from(conn: &Connection, session_key: &str) -> SqliteResult<Option<Browse
 
 fn save_to(conn: &Connection, state: &BrowseState) -> SqliteResult<()> {
     let level = match state.level {
-        BrowseLevel::Workspace => "workspace",
         BrowseLevel::Project => "project",
-        BrowseLevel::WorkItem => "work_item",
         BrowseLevel::Session => "session",
     };
     let snapshot = serde_json::to_string(&state.options)
@@ -211,7 +195,7 @@ fn save_to(conn: &Connection, state: &BrowseState) -> SqliteResult<()> {
             level,
             state.workspace_id,
             state.project_slug,
-            state.work_item_id,
+            Option::<String>::None,
             state.page as i64,
             snapshot,
             state.updated_at,
@@ -233,7 +217,6 @@ mod tests {
             level: BrowseLevel::Session,
             workspace_id: Some("workspace-1".to_string()),
             project_slug: Some("org2".to_string()),
-            work_item_id: Some("ORG-1".to_string()),
             page: 0,
             options: vec![BrowseOption::Session {
                 session_id: "session-1".to_string(),
@@ -247,17 +230,33 @@ mod tests {
     }
 
     #[test]
+    fn legacy_work_item_snapshot_fails_closed_instead_of_restoring_old_hierarchy() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_schema(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO gateway_browse_state
+             (session_key, level, workspace_id, project_slug, work_item_id, page,
+              option_snapshot_json, updated_at)
+             VALUES (?1, 'work_item', NULL, 'org2', 'ORG-1', 0, '[]', ?2)",
+            params!["feishu:legacy", "2026-08-08T00:00:00Z"],
+        )
+        .unwrap();
+        assert!(load_from(&conn, "feishu:legacy").is_err());
+    }
+
+    #[test]
     fn selection_is_scoped_to_the_current_page() {
         let key = SessionKey("feishu:chat-1".to_string());
         let mut state = new_state(
             &key,
-            BrowseLevel::Workspace,
-            None,
+            BrowseLevel::Project,
             None,
             None,
             (0..9)
-                .map(|n| BrowseOption::Workspace {
+                .map(|n| BrowseOption::Project {
                     workspace_id: Some(format!("workspace-{n}")),
+                    project_slug: format!("project-{n}"),
+                    name: format!("项目 {n}"),
                 })
                 .collect(),
         );
