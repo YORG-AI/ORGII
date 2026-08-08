@@ -11,8 +11,8 @@
  * - Entries expire after `CACHE_TTL_MS` (2 seconds).
  * - In-flight promises are shared (request deduplication).
  * - `invalidateCache(slug)` drops every key starting with `${slug}:`;
- *   `invalidateCache()` flushes the whole cache (used by the global
- *   `orgii-data-changed` listener since the event doesn't carry a slug).
+ *   `invalidateCache()` flushes the whole cache for legacy/unscoped
+ *   `orgii-data-changed` events.
  * - Max 50 entries with FIFO eviction.
  */
 
@@ -32,7 +32,31 @@ const inflight = new Map<string, Promise<unknown>>();
  * still resolve later, repopulate the cache with its pre-mutation snapshot,
  * and hand that stale snapshot to an open Work Item detail.
  */
-let invalidationGeneration = 0;
+let globalInvalidationGeneration = 0;
+const scopedInvalidationGenerations = new Map<string, number>();
+const activeReadsByScope = new Map<string, number>();
+
+function cacheScope(cacheKey: string): string {
+  const separatorIndex = cacheKey.indexOf(":");
+  return separatorIndex >= 0 ? cacheKey.slice(0, separatorIndex) : cacheKey;
+}
+
+function beginScopedRead(scope: string): void {
+  activeReadsByScope.set(scope, (activeReadsByScope.get(scope) ?? 0) + 1);
+}
+
+function endScopedRead(scope: string): void {
+  const remaining = (activeReadsByScope.get(scope) ?? 1) - 1;
+  if (remaining > 0) {
+    activeReadsByScope.set(scope, remaining);
+    return;
+  }
+  activeReadsByScope.delete(scope);
+  // A scoped generation only fences requests that crossed its mutation.
+  // Once all requests in that scope have settled, retaining it has no value
+  // and would turn project slugs into an unbounded registry.
+  scopedInvalidationGenerations.delete(scope);
+}
 
 function evictIfNeeded(): void {
   if (cache.size < MAX_ENTRIES) return;
@@ -55,10 +79,24 @@ export async function cachedRead<T>(
     return pending as Promise<T>;
   }
 
-  const requestGeneration = invalidationGeneration;
-  const promise = fetcher()
+  const scope = cacheScope(cacheKey);
+  const requestGlobalGeneration = globalInvalidationGeneration;
+  const requestScopedGeneration = scopedInvalidationGenerations.get(scope) ?? 0;
+  beginScopedRead(scope);
+  let fetchPromise: Promise<T>;
+  try {
+    fetchPromise = fetcher();
+  } catch (error) {
+    endScopedRead(scope);
+    throw error;
+  }
+  const promise = fetchPromise
     .then(async (result): Promise<T> => {
-      if (requestGeneration !== invalidationGeneration) {
+      if (
+        requestGlobalGeneration !== globalInvalidationGeneration ||
+        requestScopedGeneration !==
+          (scopedInvalidationGenerations.get(scope) ?? 0)
+      ) {
         // This request crossed a mutation boundary. Never expose/cache its
         // stale snapshot; converge the original waiter onto the post-change
         // read (or its already-running shared Promise) instead.
@@ -75,6 +113,9 @@ export async function cachedRead<T>(
       // under the same key after invalidation.
       if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
       throw err;
+    })
+    .finally(() => {
+      endScopedRead(scope);
     });
 
   inflight.set(cacheKey, promise);
@@ -83,14 +124,21 @@ export async function cachedRead<T>(
 
 /**
  * Drop cached entries scoped to `slug`. Pass no argument to flush the
- * whole cache (used by the project-data-changed event listener).
+ * whole cache when a project-data-changed event has no safe scope.
  */
 export function invalidateCache(slug?: string): void {
-  invalidationGeneration += 1;
   if (!slug) {
+    globalInvalidationGeneration += 1;
+    scopedInvalidationGenerations.clear();
     cache.clear();
     inflight.clear();
     return;
+  }
+  if ((activeReadsByScope.get(slug) ?? 0) > 0) {
+    scopedInvalidationGenerations.set(
+      slug,
+      (scopedInvalidationGenerations.get(slug) ?? 0) + 1
+    );
   }
   const prefix = `${slug}:`;
   for (const key of cache.keys()) {

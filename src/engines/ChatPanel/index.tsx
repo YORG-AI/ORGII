@@ -30,10 +30,13 @@ import {
   closeOrganizationChatPanelTabAtom,
   closeProjectOrgChatPanelTabsAtom,
   closeRevokedCloudChannelChatPanelTabsAtom,
+  isChatPanelTabStationAvailable,
   openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
   patchChatPanelWorkItemTabAtom,
+  resolveChatPanelMaximizedForLayout,
   syncActiveChatPanelTabStateAtom,
+  toggleActiveChatPanelMaximizedAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import { sessionCreatorStateAtom } from "@src/store/session";
@@ -58,7 +61,6 @@ import {
   chatPanelSelectedWorkspaceAtom,
   chatPanelStartPageOpenAtom,
   chatWidthAtom,
-  toggleChatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import { isHumanSession } from "@src/util/session/sessionDispatch";
@@ -93,11 +95,11 @@ import { useChatPanelTabsController } from "./hooks/useChatPanelTabsController";
 import { usePanelTitle } from "./hooks/usePanelTitle";
 import { useProjectWorkItemHandlers } from "./hooks/useProjectWorkItemHandlers";
 import { useSessionViewMode } from "./hooks/useSessionViewMode";
-import { useViewportWidth } from "./hooks/useViewportWidth";
 import type { ChatPanelProps, ChatPanelRegionNotice } from "./types";
 
 const ChatPanel: React.FC<ChatPanelProps> = memo(
   ({
+    viewportWidth,
     useExternalWidth = false,
     embedded = false,
     active = true,
@@ -125,7 +127,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       humanSession: humanSessionActive,
     });
 
-    const [contentMode, setContentMode] = useAtom(chatPanelContentModeAtom);
+    const contentMode = useAtomValue(chatPanelContentModeAtom);
     const [createTarget, setCreateTarget] = useAtom(chatPanelCreateTargetAtom);
     const setCollabOrgCreateIntent = useSetAtom(
       chatPanelCollabOrgCreateIntentAtom
@@ -167,12 +169,10 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       if (selectedWorkItem) patchWorkItemTab(selectedWorkItem);
     }, [selectedWorkItem, patchWorkItemTab]);
 
-    const isChatFocus = useAtomValue(chatPanelMaximizedAtom);
+    const userChatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
     const syncActiveTabState = useSetAtom(syncActiveChatPanelTabStateAtom);
-    const toggleChatFocus = useSetAtom(toggleChatPanelMaximizedAtom);
-    const showChatFocusToggle = true;
+    const toggleChatFocus = useSetAtom(toggleActiveChatPanelMaximizedAtom);
     const rawChatWidth = useAtomValue(chatWidthAtom);
-    const viewportWidth = useViewportWidth();
     const chatMaxWidth = getChatMaxWidth(viewportWidth);
     const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
     const chatPanelOpacityStyle = React.useMemo(
@@ -238,8 +238,8 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     });
 
     const handleChatFocusToggle = useCallback(() => {
-      toggleChatFocus();
-    }, [toggleChatFocus]);
+      toggleChatFocus(viewportWidth);
+    }, [toggleChatFocus, viewportWidth]);
 
     const isCliAgentSession = currentSession?.category === "cli_agent";
     const [tuiMode, setTuiMode] = useAtom(tuiModeAtom(currentSessionId ?? ""));
@@ -282,6 +282,15 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     });
     const isStandaloneToolTabActive =
       activeTab?.type === "work-management" || activeTab?.type === "runtime";
+    const stationAvailable = isChatPanelTabStationAvailable(
+      activeTab,
+      viewportWidth
+    );
+    const isChatFocus = resolveChatPanelMaximizedForLayout(
+      userChatPanelMaximized,
+      activeTab,
+      viewportWidth
+    );
     const [focusedWorkstationMenuHost, setFocusedWorkstationMenuHost] =
       useState<HTMLSpanElement | null>(null);
     const focusedWorkstationMenuHostRef = useCallback(
@@ -567,7 +576,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         shouldOffsetHeaderForCollapsedSidebar={
           shouldOffsetHeaderForCollapsedSidebar
         }
-        showChatFocusToggle={showChatFocusToggle}
+        stationAvailable={stationAvailable}
         showHeader={contentState.showHeader || isStandaloneToolTabActive}
         showSessionContent={
           contentState.showSessionContent && !isStandaloneToolTabActive

@@ -32,6 +32,8 @@ export {
   useProjectDataChanged,
   projectDataChangedSignalAtom,
   projectDataChangedRepoPathAtom,
+  projectDataChangedChangeAtom,
+  type ProjectDataChange,
 } from "./useProjectDataChanged";
 
 export { useAllRepoProjects } from "./useAllRepoProjects";

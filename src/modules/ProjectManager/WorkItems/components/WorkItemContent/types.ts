@@ -23,8 +23,9 @@ export type SessionTab = (typeof SESSION_TAB_KEYS)[number];
 export interface WorkItemContentProps {
   workItem: WorkItemExtended;
   /**
-   * `thread` presents the task as the primary view and Discussion as a drill-in.
-   * It omits the legacy lower tab strip and linked-session table.
+   * `thread` presents the task as the primary view. Local Work Items retain
+   * Discussion as a drill-in; GitHub issues use their floating comment composer.
+   * The presentation omits the legacy lower tab strip and linked-session table.
    */
   presentation?: WorkItemContentPresentation;
   onUpdateWorkItem?: (updates: Partial<WorkItemExtended>) => void;

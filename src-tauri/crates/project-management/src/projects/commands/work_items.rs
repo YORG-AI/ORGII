@@ -120,6 +120,22 @@ pub async fn project_read_work_item(
     .map_err(|err| format!("Task join error: {}", err))?
 }
 
+/// Read one work item with its labels, members, project, and milestone already
+/// resolved. Detail surfaces should prefer this over reading the entire project
+/// collection and filtering it in JavaScript.
+#[tauri::command]
+pub async fn project_read_work_item_enriched(
+    project_slug: String,
+    short_id: String,
+    org_id: Option<String>,
+) -> Result<EnrichedWorkItem, String> {
+    tokio::task::spawn_blocking(move || {
+        io::read_work_item_enriched_scoped(&project_slug, &short_id, org_id.as_deref())
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))?
+}
+
 #[tauri::command]
 pub async fn work_item_read_standalone_items(
     org_id: Option<String>,

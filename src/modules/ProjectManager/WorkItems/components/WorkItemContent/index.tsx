@@ -764,7 +764,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               {todosSection}
             </ScrollTrailTarget>
             {threadLowerSection}
-            {!isGitHubWorkItem || !githubIssueInteraction ? (
+            {!isGitHubWorkItem ? (
               <ScrollTrailTarget
                 label={t("workItems.activity.discussionTitle")}
               >

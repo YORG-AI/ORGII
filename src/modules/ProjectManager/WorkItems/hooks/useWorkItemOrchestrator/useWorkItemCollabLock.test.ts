@@ -25,6 +25,7 @@ import {
 
 import type { ResolvedCollabOrgResolution } from "./useWorkItemCollabLock";
 import {
+  getSharedCollabResolutionWatchCount,
   resolveLockHolder,
   watchCollabOrgResolution,
 } from "./useWorkItemCollabLock";
@@ -109,6 +110,28 @@ describe("resolveLockHolder", () => {
 });
 
 describe("watchCollabOrgResolution", () => {
+  it("shares one project probe across concurrent detail surfaces", async () => {
+    const first: ResolvedCollabOrgResolution[] = [];
+    const second: ResolvedCollabOrgResolution[] = [];
+    const releaseFirst = watchCollabOrgResolution("proj-shared", (resolution) =>
+      first.push(resolution)
+    );
+    const releaseSecond = watchCollabOrgResolution(
+      "proj-shared",
+      (resolution) => second.push(resolution)
+    );
+
+    await settle();
+    expect(projectApiMock.readProject).toHaveBeenCalledOnce();
+    expect(first.at(-1)).toEqual(second.at(-1));
+    expect(getSharedCollabResolutionWatchCount()).toBe(1);
+
+    releaseFirst();
+    expect(getSharedCollabResolutionWatchCount()).toBe(1);
+    releaseSecond();
+    expect(getSharedCollabResolutionWatchCount()).toBe(0);
+  });
+
   it("re-resolves the cloud alias when org2CloudOrgsAtom hydrates LATE", async () => {
     const resolutions: ResolvedCollabOrgResolution[] = [];
     const unwatch = watchCollabOrgResolution("proj-1", (resolution) =>

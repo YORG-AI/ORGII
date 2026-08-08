@@ -17,6 +17,10 @@ import type {
   PullRequestListState,
 } from "@src/api/tauri/github";
 import {
+  loadGitHubDetailAuthScope,
+  loadGitHubViewer,
+} from "@src/modules/shared/githubIssueDetailCoordinator";
+import {
   GITHUB_LIST_CACHE_TTL_MS,
   coalesceGitHubListRequest,
   getCachedIssues,
@@ -291,6 +295,7 @@ async function resolveGitHubRepoSource(
     repoFullName,
     viewerLogin: null,
     permissions: null,
+    authScope: null,
   };
 }
 
@@ -518,14 +523,22 @@ export function useGitHubWorkItemsLoadLifecycle({
         setLoading(false);
         return;
       }
-      const [viewerResult, sources] = await Promise.all([
-        coalesceGitHubListRequest(
-          "work-management:viewer-login",
+      const authScopePromise = loadGitHubDetailAuthScope(store).catch(
+        () => null
+      );
+      const viewerResultPromise = authScopePromise.then((authScope) =>
+        loadGitHubViewer(
+          store,
+          authScope ?? "github.com:unresolved",
           getGitHubViewerLogin
         ).then(
           (login) => ({ login, error: null }),
           (error: unknown) => ({ login: null, error: String(error) })
-        ),
+        )
+      );
+      const [authScope, viewerResult, sources] = await Promise.all([
+        authScopePromise,
+        viewerResultPromise,
         mapWithConcurrency(
           gitRepos,
           GITHUB_SOURCE_CONCURRENCY,
@@ -536,7 +549,11 @@ export function useGitHubWorkItemsLoadLifecycle({
       const viewerLoginError = viewerResult.error;
       const resolvedSources = sources
         .filter((source): source is GitHubRepoSource => Boolean(source))
-        .map((source) => ({ ...source, viewerLogin: viewerResult.login }));
+        .map((source) => ({
+          ...source,
+          viewerLogin: viewerResult.login,
+          authScope,
+        }));
       if (cancelled) return;
       if (!viewerResult.login) {
         permissionViewerRef.current = null;

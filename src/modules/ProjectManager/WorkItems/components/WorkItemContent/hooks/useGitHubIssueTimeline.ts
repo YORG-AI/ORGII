@@ -1,9 +1,17 @@
+import { useStore } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 
-import { getGitRemotes } from "@src/api/http/git/remotes";
 import type { GitHubIssueTimelineItem } from "@src/api/tauri/github";
+import {
+  githubIssueResourceKey,
+  loadGitHubDetailAuthScope,
+  loadGitHubIssueTimeline,
+  loadGitHubRemoteUrl,
+} from "@src/modules/shared/githubIssueDetailCoordinator";
 import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
 import { fetchIssueTimeline } from "@src/services/git/operations/githubIssues";
+
+import { resolveGitHubIssueRemoteUrl } from "../../../githubIssueRemote";
 
 interface GitHubIssueTimelineState {
   requestKey: string;
@@ -30,24 +38,6 @@ export function parseGitHubIssueNumber(
     : null;
 }
 
-async function resolveRemoteUrl(repoPath: string): Promise<string | null> {
-  if (parseGithubRepoFullName(repoPath)) return repoPath;
-
-  const remotes = await getGitRemotes({
-    repo_id: "default",
-    repo_path: repoPath,
-  });
-  const origin = remotes?.remotes?.find((remote) => remote.name === "origin");
-  const fallback = remotes?.remotes?.[0];
-  return (
-    origin?.url ||
-    origin?.fetch_url ||
-    fallback?.url ||
-    fallback?.fetch_url ||
-    null
-  );
-}
-
 export function useGitHubIssueTimeline({
   enabled,
   repoPath,
@@ -57,6 +47,7 @@ export function useGitHubIssueTimeline({
   timelineLoading: boolean;
   timelineError: string | null;
 } {
+  const store = useStore();
   const issueNumber = useMemo(() => parseGitHubIssueNumber(shortId), [shortId]);
   const requestKey =
     enabled && repoPath && issueNumber ? `${repoPath}:${issueNumber}` : "";
@@ -69,7 +60,12 @@ export function useGitHubIssueTimeline({
     let cancelled = false;
 
     void (async () => {
-      const remoteUrl = await resolveRemoteUrl(repoPath);
+      const [remoteUrl, authScope] = await Promise.all([
+        loadGitHubRemoteUrl(store, repoPath, () =>
+          resolveGitHubIssueRemoteUrl(repoPath)
+        ),
+        loadGitHubDetailAuthScope(store),
+      ]);
       if (!remoteUrl) {
         if (!cancelled) {
           setState({
@@ -82,21 +78,47 @@ export function useGitHubIssueTimeline({
         return;
       }
 
-      const result = await fetchIssueTimeline({ remoteUrl, issueNumber });
+      const repoFullName = parseGithubRepoFullName(remoteUrl);
+      if (!repoFullName) {
+        throw new Error("no_github_remote");
+      }
+      const resourceKey = githubIssueResourceKey(
+        authScope,
+        repoFullName,
+        issueNumber
+      );
+      const timeline = await loadGitHubIssueTimeline(
+        store,
+        resourceKey,
+        async () => {
+          const result = await fetchIssueTimeline({ remoteUrl, issueNumber });
+          if (result.error) throw new Error(result.error);
+          return result.data ?? [];
+        }
+      );
       if (!cancelled) {
         setState({
           requestKey,
-          timeline: result.data ?? [],
+          timeline,
           loading: false,
-          error: result.error ?? null,
+          error: null,
         });
       }
-    })();
+    })().catch((error: unknown) => {
+      if (!cancelled) {
+        setState({
+          requestKey,
+          timeline: [],
+          loading: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [issueNumber, repoPath, requestKey]);
+  }, [issueNumber, repoPath, requestKey, store]);
 
   return {
     timeline: currentState?.timeline ?? [],

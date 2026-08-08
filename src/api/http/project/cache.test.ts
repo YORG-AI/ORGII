@@ -51,4 +51,39 @@ describe("project read cache invalidation fencing", () => {
     );
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it("does not restart an unrelated project read after scoped invalidation", async () => {
+    let resolveStaleAlpha: ((value: string) => void) | undefined;
+    let resolveBeta: ((value: string) => void) | undefined;
+    const alphaFetcher = vi
+      .fn<() => Promise<string>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveStaleAlpha = resolve;
+          })
+      )
+      .mockResolvedValue("alpha-fresh");
+    const betaFetcher = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveBeta = resolve;
+        })
+    );
+
+    const alphaBeforeMutation = cachedRead("alpha:workitems", alphaFetcher);
+    const betaBeforeMutation = cachedRead("beta:workitems", betaFetcher);
+    await Promise.resolve();
+    invalidateCache("alpha");
+    const alphaAfterMutation = cachedRead("alpha:workitems", alphaFetcher);
+
+    resolveBeta?.("beta-current");
+    await expect(betaBeforeMutation).resolves.toBe("beta-current");
+    expect(betaFetcher).toHaveBeenCalledTimes(1);
+
+    await expect(alphaAfterMutation).resolves.toBe("alpha-fresh");
+    resolveStaleAlpha?.("alpha-stale");
+    await expect(alphaBeforeMutation).resolves.toBe("alpha-fresh");
+    expect(alphaFetcher).toHaveBeenCalledTimes(2);
+  });
 });

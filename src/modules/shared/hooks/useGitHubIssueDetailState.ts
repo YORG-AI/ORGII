@@ -1,10 +1,11 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   createIssueCommentLocal,
   getGitHubRepoPermissionsLocal,
   getGitHubViewerLogin,
+  getIssueLocal,
   listIssueTimelineLocal,
   listIssuesLocal,
   listRepoAssigneesLocal,
@@ -25,6 +26,22 @@ import {
   issueHasAssigneeLogins,
   resolveGitHubAssigneeUsers,
 } from "@src/modules/shared/githubIssueAssignees";
+import {
+  githubIssueResourceKey,
+  invalidateGitHubIssueDetailBundle,
+  invalidateGitHubIssueTimeline,
+  loadGitHubAssignableUsers,
+  loadGitHubDetailAuthScope,
+  loadGitHubDuplicateCandidates,
+  loadGitHubIssueDetailBundle,
+  loadGitHubIssueTimeline,
+  loadGitHubRepoPermissions,
+  loadGitHubViewer,
+  primeGitHubIssueDetailBundle,
+  primeGitHubIssueTimeline,
+  primeGitHubRepoPermissions,
+  primeGitHubViewer,
+} from "@src/modules/shared/githubIssueDetailCoordinator";
 import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
 import {
   fetchIssue,
@@ -32,6 +49,7 @@ import {
   issueCommentToTimelineItem,
 } from "@src/services/git/operations/githubIssues";
 import {
+  retainWorkstationIssueDetailScope,
   workstationIssueCallbackAtomFamily,
   workstationSelectedIssueAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
@@ -44,6 +62,10 @@ export interface GitHubIssueDetailStateOptions {
   repoId?: string;
   remoteUrl?: string;
   stateScopeKey?: string;
+  /** Identity-scoped list data can provide these to skip duplicate requests. */
+  authScope?: string;
+  viewerLogin?: string | null;
+  repoPermissions?: GitHubRepoPermissions | null;
 }
 
 interface GitHubIssueInteractionResolution {
@@ -90,13 +112,14 @@ function resolveViewer(
 }
 
 function isRepoFullName(value: string | null): value is string {
-  return Boolean(value && /^[^/\s]+\/[^/\s]+$/.test(value));
+  return Boolean(value && /^[^/:@\s]+\/[^/\s]+$/.test(value));
 }
 
 export function resolveGitHubIssueRepoFullName(
   remoteUrl: string | undefined,
   issueUrl: string | undefined
 ): string | null {
+  if (isRepoFullName(remoteUrl ?? null)) return remoteUrl ?? null;
   const remoteRepo = remoteUrl ? parseGithubRepoFullName(remoteUrl) : null;
   if (isRepoFullName(remoteRepo)) return remoteRepo;
 
@@ -132,7 +155,11 @@ export function useGitHubIssueDetailState({
   repoId,
   remoteUrl,
   stateScopeKey: requestedStateScopeKey,
+  authScope: providedAuthScope,
+  viewerLogin: providedViewerLogin,
+  repoPermissions: providedRepoPermissions,
 }: GitHubIssueDetailStateOptions) {
+  const store = useStore();
   const repoScopeKey = workstationRepoScopeKey(repoId, repoPath);
   const stateScopeKey = requestedStateScopeKey ?? repoScopeKey;
   const selectedState = useAtomValue(
@@ -147,19 +174,17 @@ export function useGitHubIssueDetailState({
   );
   const [resolution, setResolution] =
     useState<GitHubIssueInteractionResolution | null>(null);
+  const authResolutionKey = `${repoPath}|${remoteUrl ?? ""}`;
+  const [resolvedAuth, setResolvedAuth] = useState<{
+    key: string;
+    scope: string | null;
+  } | null>(null);
+  const authScope =
+    providedAuthScope ??
+    (resolvedAuth?.key === authResolutionKey ? resolvedAuth.scope : null);
   const selectedIssueRef = useRef(selectedState.issue);
   const selectedTimelineRef = useRef(selectedState.timeline);
   const requestGenerationRef = useRef(0);
-  const duplicateRequestRef = useRef<{
-    key: string;
-    generation: number;
-    promise: Promise<void>;
-  } | null>(null);
-  const assigneeRequestRef = useRef<{
-    key: string;
-    generation: number;
-    promise: Promise<void>;
-  } | null>(null);
   const assigneeMutationRef = useRef<{
     key: string;
     generation: number;
@@ -171,60 +196,176 @@ export function useGitHubIssueDetailState({
   }, [selectedState.issue, selectedState.timeline]);
 
   useEffect(() => {
-    if (
-      issueNumber <= 0 ||
-      selectedState.issue?.number === issueNumber ||
-      !remoteUrl
-    ) {
-      return;
-    }
-    let cancelled = false;
-    setSelectedState((prev) => ({
-      ...prev,
-      loading: true,
-      timelineLoading: true,
-      error: null,
-    }));
-    void Promise.all([
-      fetchIssue(remoteUrl, issueNumber),
-      fetchIssueTimeline({ remoteUrl, issueNumber }),
-    ]).then(([issueResult, timelineResult]) => {
-      if (cancelled) return;
-      setSelectedState((prev) => ({
-        ...prev,
-        issue: issueResult.data ?? null,
-        timeline: timelineResult.data ?? [],
-        loading: false,
-        timelineLoading: false,
-        error: issueResult.error ?? timelineResult.error ?? null,
-      }));
+    // Repo-scoped Source Control state owns the user's current selection and
+    // must survive switching editor panes. Standalone detail scopes are
+    // disposable and otherwise grow the primitive-key atom family forever.
+    const preserveSelection = stateScopeKey === repoScopeKey;
+    const release = retainWorkstationIssueDetailScope(stateScopeKey, {
+      evictOnFinalRelease: !preserveSelection,
     });
+    return () => {
+      if (release() && preserveSelection) {
+        // The issue remains selected for the next Source Control visit, but
+        // the potentially large timeline has a bounded mounted lifetime.
+        setSelectedState((current) => ({
+          ...current,
+          resourceKey: null,
+          timeline: [],
+          timelineLoading: false,
+        }));
+      }
+    };
+  }, [repoScopeKey, setSelectedState, stateScopeKey]);
+
+  useEffect(() => {
+    if (providedAuthScope || (!repoPath && !remoteUrl)) return;
+    let cancelled = false;
+    void loadGitHubDetailAuthScope(store)
+      .then((scope) => {
+        if (!cancelled) setResolvedAuth({ key: authResolutionKey, scope });
+      })
+      .catch(() => {
+        if (!cancelled)
+          setResolvedAuth({ key: authResolutionKey, scope: null });
+      });
     return () => {
       cancelled = true;
     };
-  }, [issueNumber, remoteUrl, selectedState.issue?.number, setSelectedState]);
+  }, [authResolutionKey, providedAuthScope, remoteUrl, repoPath, store]);
 
   const repoFullName = resolveGitHubIssueRepoFullName(
     remoteUrl,
     selectedState.issue?.html_url
   );
   const requestKey =
-    repoFullName && issueNumber > 0 ? `${repoFullName}#${issueNumber}` : null;
+    authScope && repoFullName && issueNumber > 0
+      ? githubIssueResourceKey(authScope, repoFullName, issueNumber)
+      : null;
+  const selectedStateMatches =
+    Boolean(requestKey) &&
+    selectedState.resourceKey === requestKey &&
+    selectedState.issue?.number === issueNumber;
   const currentResolution = resolution?.key === requestKey ? resolution : null;
 
   useEffect(() => {
-    const generation = ++requestGenerationRef.current;
-    if (!requestKey || !repoFullName) {
-      duplicateRequestRef.current = null;
+    if (!requestKey || issueNumber <= 0 || selectedStateMatches) {
       return;
     }
     let cancelled = false;
-    const currentIssue = selectedIssueRef.current;
-    const currentTimeline = selectedTimelineRef.current;
+    setSelectedState((prev) => ({
+      ...prev,
+      resourceKey: requestKey,
+      issue: null,
+      timeline: [],
+      loading: true,
+      timelineLoading: true,
+      error: null,
+    }));
+    void loadGitHubIssueDetailBundle(store, requestKey, async () => {
+      const issueResultPromise = remoteUrl
+        ? fetchIssue(remoteUrl, issueNumber)
+        : getIssueLocal(repoFullName!, issueNumber).then((issue) => ({
+            data: issue,
+            error: null,
+          }));
+      let timeline: GitHubIssueTimelineItem[] = [];
+      let timelineError: string | null = null;
+      try {
+        timeline = await loadGitHubIssueTimeline(
+          store,
+          requestKey,
+          async () => {
+            if (!remoteUrl) {
+              return listIssueTimelineLocal(repoFullName!, issueNumber);
+            }
+            const timelineResult = await fetchIssueTimeline({
+              remoteUrl,
+              issueNumber,
+            });
+            if (timelineResult.error) throw new Error(timelineResult.error);
+            return timelineResult.data ?? [];
+          }
+        );
+      } catch (error) {
+        timelineError = error instanceof Error ? error.message : String(error);
+      }
+      const issueResult = await issueResultPromise;
+      return {
+        issue: issueResult.data ?? null,
+        timeline,
+        error: issueResult.error ?? timelineError,
+      };
+    })
+      .then((bundle) => {
+        if (cancelled) return;
+        setSelectedState((prev) =>
+          prev.resourceKey === requestKey
+            ? {
+                ...prev,
+                issue: bundle.issue,
+                timeline: bundle.timeline,
+                loading: false,
+                timelineLoading: false,
+                error: bundle.error,
+              }
+            : prev
+        );
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setSelectedState((prev) =>
+          prev.resourceKey === requestKey
+            ? {
+                ...prev,
+                loading: false,
+                timelineLoading: false,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            : prev
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    issueNumber,
+    repoFullName,
+    remoteUrl,
+    requestKey,
+    selectedStateMatches,
+    setSelectedState,
+    store,
+  ]);
 
+  useEffect(() => {
+    const generation = ++requestGenerationRef.current;
+    if (!requestKey || !repoFullName || !authScope) return;
+    let cancelled = false;
+    const currentIssue =
+      selectedState.resourceKey === requestKey
+        ? selectedIssueRef.current
+        : null;
+    const currentTimeline =
+      selectedState.resourceKey === requestKey
+        ? selectedTimelineRef.current
+        : [];
+
+    if (providedViewerLogin) {
+      primeGitHubViewer(store, authScope, providedViewerLogin);
+    }
+    if (providedRepoPermissions) {
+      primeGitHubRepoPermissions(
+        store,
+        authScope,
+        repoFullName,
+        providedRepoPermissions
+      );
+    }
     void Promise.allSettled([
-      getGitHubViewerLogin(),
-      getGitHubRepoPermissionsLocal(repoFullName),
+      loadGitHubViewer(store, authScope, getGitHubViewerLogin),
+      loadGitHubRepoPermissions(store, authScope, repoFullName, () =>
+        getGitHubRepoPermissionsLocal(repoFullName)
+      ),
     ]).then(([viewerResult, permissionsResult]) => {
       if (cancelled || requestGenerationRef.current !== generation) return;
       setResolution({
@@ -258,29 +399,25 @@ export function useGitHubIssueDetailState({
       if (requestGenerationRef.current === generation) {
         requestGenerationRef.current += 1;
       }
-      if (duplicateRequestRef.current?.key === requestKey) {
-        duplicateRequestRef.current = null;
-      }
-      if (assigneeRequestRef.current?.key === requestKey) {
-        assigneeRequestRef.current = null;
-      }
     };
-  }, [repoFullName, requestKey]);
+  }, [
+    authScope,
+    providedRepoPermissions,
+    providedViewerLogin,
+    repoFullName,
+    requestKey,
+    selectedState.resourceKey,
+    store,
+  ]);
 
   const loadDuplicateCandidates = useCallback((): Promise<void> => {
-    if (!requestKey || !repoFullName || !currentResolution) {
+    if (!requestKey || !repoFullName || !authScope || !currentResolution) {
       return Promise.reject(new Error("github_duplicate_issues_unavailable"));
     }
     if (currentResolution.duplicateCandidatesLoaded) {
       return Promise.resolve();
     }
     const generation = requestGenerationRef.current;
-    if (
-      duplicateRequestRef.current?.key === requestKey &&
-      duplicateRequestRef.current.generation === generation
-    ) {
-      return duplicateRequestRef.current.promise;
-    }
 
     setResolution((current) =>
       current?.key === requestKey
@@ -292,19 +429,27 @@ export function useGitHubIssueDetailState({
         : current
     );
 
-    const promise = listIssuesLocal(repoFullName, {
-      state: "all",
-      page: 1,
-      perPage: 100,
-      includeLinkedPullRequests: false,
-    })
-      .then(({ issues }) => {
-        const candidates = issues.filter(
+    return loadGitHubDuplicateCandidates(
+      store,
+      authScope,
+      repoFullName,
+      issueNumber,
+      async () => {
+        const { issues } = await listIssuesLocal(repoFullName, {
+          state: "all",
+          page: 1,
+          perPage: 100,
+          includeLinkedPullRequests: false,
+        });
+        return issues.filter(
           (candidate) =>
             candidate.number !== issueNumber &&
             typeof candidate.id === "number" &&
             candidate.id > 0
         );
+      }
+    )
+      .then((candidates) => {
         setResolution((current) =>
           current?.key === requestKey &&
           requestGenerationRef.current === generation
@@ -330,21 +475,21 @@ export function useGitHubIssueDetailState({
             : current
         );
         throw error;
-      })
-      .finally(() => {
-        if (duplicateRequestRef.current?.promise === promise) {
-          duplicateRequestRef.current = null;
-        }
       });
-
-    duplicateRequestRef.current = { key: requestKey, generation, promise };
-    return promise;
-  }, [currentResolution, issueNumber, repoFullName, requestKey]);
+  }, [
+    authScope,
+    currentResolution,
+    issueNumber,
+    repoFullName,
+    requestKey,
+    store,
+  ]);
 
   const loadAssignableUsers = useCallback((): Promise<void> => {
     if (
       !requestKey ||
       !repoFullName ||
+      !authScope ||
       !currentResolution ||
       currentResolution.permissions?.can_manage_issues !== true
     ) {
@@ -354,12 +499,6 @@ export function useGitHubIssueDetailState({
       return Promise.resolve();
     }
     const generation = requestGenerationRef.current;
-    if (
-      assigneeRequestRef.current?.key === requestKey &&
-      assigneeRequestRef.current.generation === generation
-    ) {
-      return assigneeRequestRef.current.promise;
-    }
 
     setResolution((current) =>
       current?.key === requestKey
@@ -371,7 +510,9 @@ export function useGitHubIssueDetailState({
         : current
     );
 
-    const promise = listRepoAssigneesLocal(repoFullName)
+    return loadGitHubAssignableUsers(store, authScope, repoFullName, () =>
+      listRepoAssigneesLocal(repoFullName)
+    )
       .then((users) => {
         setResolution((current) =>
           current?.key === requestKey &&
@@ -398,16 +539,8 @@ export function useGitHubIssueDetailState({
               }
             : current
         );
-      })
-      .finally(() => {
-        if (assigneeRequestRef.current?.promise === promise) {
-          assigneeRequestRef.current = null;
-        }
       });
-
-    assigneeRequestRef.current = { key: requestKey, generation, promise };
-    return promise;
-  }, [currentResolution, repoFullName, requestKey]);
+  }, [authScope, currentResolution, repoFullName, requestKey, store]);
 
   const changeAssignees = useCallback(
     async (assigneeLogins: string[]): Promise<void> => {
@@ -462,6 +595,7 @@ export function useGitHubIssueDetailState({
         if (!issueHasAssigneeLogins(updatedIssue, assigneeLogins)) {
           throw new Error("GitHub did not apply the assignee update.");
         }
+        invalidateGitHubIssueDetailBundle(store, requestKey);
         setSelectedState((current) =>
           requestGenerationRef.current === generation &&
           current.issue?.id === issue.id
@@ -516,6 +650,7 @@ export function useGitHubIssueDetailState({
       requestKey,
       selectedState.issue,
       setSelectedState,
+      store,
     ]
   );
 
@@ -543,6 +678,8 @@ export function useGitHubIssueDetailState({
           issue.number,
           body
         );
+        invalidateGitHubIssueDetailBundle(store, requestKey);
+        invalidateGitHubIssueTimeline(store, requestKey);
         setSelectedState((current) =>
           current.issue?.number === issue.number
             ? {
@@ -578,6 +715,7 @@ export function useGitHubIssueDetailState({
       requestKey,
       selectedState.issue,
       setSelectedState,
+      store,
     ]
   );
 
@@ -609,6 +747,7 @@ export function useGitHubIssueDetailState({
           issue.number,
           { body }
         );
+        invalidateGitHubIssueDetailBundle(store, requestKey);
         setSelectedState((current) =>
           current.issue?.number === issue.number
             ? { ...current, issue: updatedIssue }
@@ -636,6 +775,7 @@ export function useGitHubIssueDetailState({
       requestKey,
       selectedState.issue,
       setSelectedState,
+      store,
     ]
   );
 
@@ -684,10 +824,18 @@ export function useGitHubIssueDetailState({
               : {}),
           }
         );
-        const timeline = await listIssueTimelineLocal(
-          repoFullName,
-          issue.number
+        const timeline = await loadGitHubIssueTimeline(
+          store,
+          requestKey,
+          () => listIssueTimelineLocal(repoFullName, issue.number),
+          { force: true }
         ).catch(() => selectedState.timeline);
+        primeGitHubIssueTimeline(store, requestKey, timeline);
+        primeGitHubIssueDetailBundle(store, requestKey, {
+          issue: updatedIssue,
+          timeline,
+          error: null,
+        });
         setSelectedState((current) =>
           current.issue?.number === issue.number
             ? { ...current, issue: updatedIssue, timeline }
@@ -716,15 +864,23 @@ export function useGitHubIssueDetailState({
       selectedState.issue,
       selectedState.timeline,
       setSelectedState,
+      store,
     ]
   );
 
   const interaction = useMemo<GitHubIssueInteractionConfig>(() => {
     const issue = selectedState.issue;
     const canManageStatus = canEditIssue(currentResolution, issue);
+    const viewer = currentResolution?.viewer
+      ? resolveViewer(
+          currentResolution.viewer.login,
+          issue,
+          selectedState.timeline
+        )
+      : null;
 
     return {
-      viewer: currentResolution?.viewer ?? null,
+      viewer,
       issueState: issue?.state ?? "open",
       duplicateCandidates: currentResolution?.duplicateCandidates ?? [],
       duplicateCandidatesLoaded:
@@ -733,7 +889,9 @@ export function useGitHubIssueDetailState({
         currentResolution?.loadingDuplicateCandidates ?? false,
       duplicateCandidatesError:
         currentResolution?.duplicateCandidatesError ?? false,
-      loading: Boolean(requestKey) && !currentResolution,
+      loading:
+        Boolean(requestedIssueNumber && remoteUrl) &&
+        (!authScope || !selectedStateMatches || !currentResolution),
       canComment: Boolean(currentResolution?.viewer),
       canEditBody: canManageStatus,
       canManageStatus,
@@ -751,8 +909,12 @@ export function useGitHubIssueDetailState({
     changeStatus,
     currentResolution,
     loadDuplicateCandidates,
-    requestKey,
+    authScope,
+    remoteUrl,
+    requestedIssueNumber,
+    selectedStateMatches,
     selectedState.issue,
+    selectedState.timeline,
     updateBody,
   ]);
 
@@ -796,5 +958,17 @@ export function useGitHubIssueDetailState({
     selectedState.issue,
   ]);
 
-  return { selectedState, interaction, assigneeConfig };
+  const visibleSelectedState =
+    requestedIssueNumber && remoteUrl && !selectedStateMatches
+      ? {
+          ...selectedState,
+          issue: null,
+          timeline: [],
+          loading: true,
+          timelineLoading: true,
+          error: null,
+        }
+      : selectedState;
+
+  return { selectedState: visibleSelectedState, interaction, assigneeConfig };
 }

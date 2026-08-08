@@ -25,7 +25,7 @@ import {
 } from "@src/store/project/allProjectsAtom";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 
-import { projectDataChangedSignalAtom } from "./useProjectDataChanged";
+import { useProjectDataChanged } from "./useProjectDataChanged";
 
 export interface UseAllRepoProjectsReturn {
   entry: ProjectListEntry;
@@ -34,7 +34,6 @@ export interface UseAllRepoProjectsReturn {
 
 export function useAllRepoProjects(): UseAllRepoProjectsReturn {
   const refreshSignal = useAtomValue(projectListRefreshAtom);
-  const dataChangedSignal = useAtomValue(projectDataChangedSignalAtom);
   const entry = useAtomValue(allProjectsEntryAtom);
   const updateEntry = useSetAtom(updateAllProjectsEntryAtom);
   const signalRef = useRef<{ cancelled: boolean }>({ cancelled: false });
@@ -84,7 +83,21 @@ export function useAllRepoProjects(): UseAllRepoProjectsReturn {
     return () => {
       signalRef.current.cancelled = true;
     };
-  }, [loadProjects, refreshSignal, dataChangedSignal]);
+  }, [loadProjects, refreshSignal]);
+
+  useProjectDataChanged(
+    useCallback(
+      (change) => {
+        // The global project collection contains project metadata, labels,
+        // and members—not Work Item payloads. A scoped item mutation is
+        // already handled by the owning list/detail surfaces and must not
+        // fan out into a read of every project plus every label/member set.
+        if (change?.workItemId) return;
+        void loadProjects();
+      },
+      [loadProjects]
+    )
+  );
 
   return {
     entry,

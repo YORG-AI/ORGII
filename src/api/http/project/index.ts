@@ -82,6 +82,7 @@ export const projectApi = {
   writeMembers: client.writeMembers,
   // Work items
   readWorkItem: client.readWorkItem,
+  readWorkItemEnriched: client.readWorkItemEnriched,
   readStandaloneWorkItem: client.readStandaloneWorkItem,
   readStandaloneWorkItems: client.readStandaloneWorkItems,
   readWorkItems: client.readWorkItems,

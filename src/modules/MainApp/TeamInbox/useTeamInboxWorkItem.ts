@@ -87,11 +87,14 @@ export function useTeamInboxWorkItem(
     let cancelled = false;
 
     const request = projectId
-      ? projectApi.readWorkItem(projectId, workItemId).then(async (data) => {
-          const [projectResult, membersResult] = await Promise.allSettled([
-            projectApi.readProject(projectId),
-            projectApi.readMembers(projectId),
-          ]);
+      ? Promise.allSettled([
+          projectApi.readWorkItem(projectId, workItemId),
+          projectApi.readProject(projectId),
+          projectApi.readMembers(projectId),
+        ]).then(([workItemResult, projectResult, membersResult]) => {
+          if (workItemResult.status === "rejected") {
+            throw workItemResult.reason;
+          }
           const issue =
             projectResult.status === "rejected" ||
             membersResult.status === "rejected"
@@ -108,7 +111,7 @@ export function useTeamInboxWorkItem(
             );
           }
           return {
-            data,
+            data: workItemResult.value,
             project:
               projectResult.status === "fulfilled" ? projectResult.value : null,
             memberEntries:

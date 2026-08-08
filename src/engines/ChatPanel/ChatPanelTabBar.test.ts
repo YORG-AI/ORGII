@@ -45,6 +45,9 @@ describe("ChatPanelTabBar", () => {
       /<div[^>]*work-station-editor-tab[^>]*role="tab"[^>]*>.*<button type="button"/s
     );
     expect(markup.match(/<button type="button"/g)).toHaveLength(1);
+    expect(markup).toMatch(
+      /bg-gradient-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
+    );
   });
 
   it("uses the GitHub SVG for a GitHub-imported project tab", () => {
