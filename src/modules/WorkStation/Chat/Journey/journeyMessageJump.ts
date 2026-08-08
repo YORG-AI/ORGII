@@ -1,18 +1,28 @@
 const JOURNEY_MESSAGE_JUMP_EVENT = "orgii:journey-message-jump";
 
-export function requestJourneyMessageJump(messageId: string): void {
-  if (messageId)
+export interface JourneyMessageJump {
+  sessionId: string;
+  messageId: string;
+}
+
+export function requestJourneyMessageJump(
+  sessionId: string,
+  messageId: string
+): void {
+  if (sessionId && messageId)
     window.dispatchEvent(
-      new window.CustomEvent(JOURNEY_MESSAGE_JUMP_EVENT, { detail: messageId })
+      new window.CustomEvent<JourneyMessageJump>(JOURNEY_MESSAGE_JUMP_EVENT, {
+        detail: { sessionId, messageId },
+      })
     );
 }
 
 export function listenForJourneyMessageJump(
-  onJump: (messageId: string) => void
+  onJump: (jump: JourneyMessageJump) => void
 ): () => void {
   const listener = (event: Event) => {
-    const messageId = (event as CustomEvent<string>).detail;
-    if (typeof messageId === "string" && messageId) onJump(messageId);
+    const jump = (event as CustomEvent<JourneyMessageJump>).detail;
+    if (jump?.sessionId && jump.messageId) onJump(jump);
   };
   window.addEventListener(JOURNEY_MESSAGE_JUMP_EVENT, listener);
   return () => window.removeEventListener(JOURNEY_MESSAGE_JUMP_EVENT, listener);

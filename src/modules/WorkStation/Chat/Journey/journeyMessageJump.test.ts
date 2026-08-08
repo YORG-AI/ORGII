@@ -21,10 +21,10 @@ describe("Journey exact message jump", () => {
         listener?.(event);
         return true;
       });
-    const stop = listenForJourneyMessageJump((messageId) => {
-      received = messageId;
+    const stop = listenForJourneyMessageJump((jump) => {
+      received = jump.messageId;
     });
-    requestJourneyMessageJump("message-exact-42");
+    requestJourneyMessageJump("session-exact", "message-exact-42");
     stop();
     addEventListener.mockRestore();
     dispatchEvent.mockRestore();
@@ -48,10 +48,15 @@ describe("Journey exact message jump", () => {
         listener = callback as (event: Event) => void;
       });
 
-    const stop = listenForJourneyMessageJump((messageId) => {
-      focusJourneyMessage(messageId);
+    const stop = listenForJourneyMessageJump((jump) => {
+      focusJourneyMessage(jump.messageId);
     });
-    listener?.({ detail: "checkpoint-message-42" } as CustomEvent<string>);
+    listener?.({
+      detail: {
+        sessionId: "session-exact",
+        messageId: "checkpoint-message-42",
+      },
+    } as CustomEvent<{ sessionId: string; messageId: string }>);
     stop();
 
     expect(target.dataset.journeyHighlight).toBe("true");

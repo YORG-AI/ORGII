@@ -35,7 +35,10 @@ import type { SimulatorAppBaseState } from "@src/engines/Simulator/apps/core/typ
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { matchesCanvasEvent } from "@src/modules/WorkStation/Canvas/config";
 import { SessionJourneyControls } from "@src/modules/WorkStation/Chat/Journey/SessionJourneyControls";
-import { listenForJourneyMessageJump } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
+import {
+  type JourneyMessageJump,
+  listenForJourneyMessageJump,
+} from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   TextSelectionDropdown,
@@ -46,6 +49,7 @@ import {
   chatFontSizeAtom,
   chatLineHeightAtom,
 } from "@src/store/config/configAtom";
+import { openSessionAtom } from "@src/store/session";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import { simulatorEffectiveDockAppAtom } from "@src/store/ui/simulatorAtom";
 import type { BackendEvent } from "@src/types/session/steps";
@@ -56,6 +60,7 @@ import {
   SimulatorReplayChrome,
   WorkStationShell,
   buildPrimarySidebarConfig,
+  buildSecondaryPanelConfig,
 } from "../../shared";
 import MessageViewer from "./MessageViewer";
 import PlanApprovalActions from "./PlanApprovalActions";
@@ -96,7 +101,16 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
   const { t } = useTranslation("sessions");
   const effectiveDockApp = useAtomValue(simulatorEffectiveDockAppAtom);
   const setAddToAgent = useSetAtom(addToAgentAtom);
+  const openSession = useSetAtom(openSessionAtom);
   const selectionContainerRef = useRef<HTMLDivElement>(null);
+  const [dockedJourneyReviewPanel, setDockedJourneyReviewPanel] =
+    useState<React.ReactNode | null>(null);
+  const [pendingJourneyJump, setPendingJourneyJump] =
+    useState<JourneyMessageJump | null>(null);
+  const atomSessionId = useAtomValue(sessionIdAtom);
+  // Prefer the explicitly passed sessionId (WorkStation Build context) over
+  // the global atom, which may lag while a Journey jump changes sessions.
+  const sessionId = propSessionId ?? atomSessionId;
   const chatFontSize = useAtomValue(chatFontSizeAtom);
   const chatCodeFontSize = useAtomValue(chatCodeFontSizeAtom);
   const chatLineHeight = useAtomValue(chatLineHeightAtom);
@@ -286,11 +300,34 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
     },
     [jumpToMessage, previewMessages, handleViewModeChange]
   );
+  const handleDockedJourneyReviewPanel = useCallback(
+    (panel: React.ReactNode | null) => setDockedJourneyReviewPanel(panel),
+    []
+  );
 
   useEffect(
-    () => listenForJourneyMessageJump(handleMessageClick),
-    [handleMessageClick]
+    () =>
+      listenForJourneyMessageJump(
+        ({ sessionId: targetSessionId, messageId }) => {
+          if (targetSessionId !== sessionId) {
+            openSession({ sessionId: targetSessionId });
+            setPendingJourneyJump({ sessionId: targetSessionId, messageId });
+            return;
+          }
+          handleMessageClick(messageId);
+        }
+      ),
+    [handleMessageClick, openSession, sessionId]
   );
+  useEffect(() => {
+    if (!pendingJourneyJump || pendingJourneyJump.sessionId !== sessionId)
+      return;
+    // `jumpToMessage` stores the exact ID. Once the session switch makes its
+    // transcript available, MessageViewer expands the window and focuses that
+    // row rather than accepting a positional fallback.
+    handleMessageClick(pendingJourneyJump.messageId);
+    setPendingJourneyJump(null);
+  }, [handleMessageClick, pendingJourneyJump, sessionId]);
 
   // Entering edit forces the preview surface so the plan textarea is actually
   // rendered (the plan doc only mounts in "preview" view).
@@ -313,11 +350,6 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
         />
       </div>
     ) : null;
-
-  const atomSessionId = useAtomValue(sessionIdAtom);
-  // Prefer the explicitly passed sessionId (WorkStation Build context) over the
-  // global atom, which may lag or point to a different surface's active session.
-  const sessionId = propSessionId ?? atomSessionId;
 
   // Resolve org-run member info so simulator message bubbles can show the
   // correct sender label (e.g. "Planner updated task" instead of the
@@ -442,6 +474,7 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
                 sessionId={sessionId}
                 messageId={state.currentEventId}
                 onJumpToMessage={handleMessageClick}
+                onDockedReviewPanelChange={handleDockedJourneyReviewPanel}
               />
             </>
           }
@@ -449,6 +482,19 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
         <div className="flex min-h-0 flex-1">
           <WorkStationShell
             primarySidebarConfig={HIDDEN_PRIMARY_SIDEBAR_CONFIG}
+            secondaryPanelConfig={
+              dockedJourneyReviewPanel
+                ? buildSecondaryPanelConfig({
+                    content: dockedJourneyReviewPanel,
+                    position: "right",
+                    size: 320,
+                    minSize: 260,
+                    maxSize: 480,
+                    resetSize: 320,
+                    onClose: () => setDockedJourneyReviewPanel(null),
+                  })
+                : undefined
+            }
             content={mainContent}
             statusBar={null}
             appClassName="session-replay-messages"

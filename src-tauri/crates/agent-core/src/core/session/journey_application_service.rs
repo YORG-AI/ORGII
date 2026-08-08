@@ -175,10 +175,23 @@ pub struct ForkCompareItem {
     pub branch_id: String,
     pub branch_name: String,
     pub state: crate::core::journey_lifecycle::ForkState,
+    /// Every task on this branch, retained in durable creation order by id.
+    /// Consumers must not infer task names/outcomes from a rendered transcript.
+    pub tasks: Vec<ForkCompareTask>,
+    /// Compatibility summary for compact clients. The complete source is
+    /// `tasks`; this is the final task outcome when one exists.
     pub task_outcome: Option<TaskOutcome>,
     pub conclusion: Option<String>,
     pub unresolved: Vec<String>,
     pub evidence: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForkCompareTask {
+    pub task_id: String,
+    pub name: String,
+    pub state: crate::core::journey_lifecycle::TaskState,
+    pub outcome: Option<TaskOutcome>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -566,11 +579,18 @@ impl SessionJourneyApplicationService {
             .values()
             .filter(|fork| fork.id != fork.parent_branch_id)
         {
-            let task_outcome = snapshot
+            let tasks: Vec<ForkCompareTask> = snapshot
                 .tasks
                 .values()
-                .find(|task| task.branch_id == fork.id)
-                .and_then(|task| task.outcome.clone());
+                .filter(|task| task.branch_id == fork.id)
+                .map(|task| ForkCompareTask {
+                    task_id: task.id.clone(),
+                    name: task.name.clone(),
+                    state: task.state.clone(),
+                    outcome: task.outcome.clone(),
+                })
+                .collect();
+            let task_outcome = tasks.iter().rev().find_map(|task| task.outcome.clone());
             let (conclusion, unresolved, evidence) = fork
                 .handoff_capsule
                 .as_ref()
@@ -593,6 +613,7 @@ impl SessionJourneyApplicationService {
                     branch_id: fork.id.clone(),
                     branch_name: fork.id.clone(),
                     state: fork.state.clone(),
+                    tasks,
                     task_outcome,
                     conclusion,
                     unresolved,

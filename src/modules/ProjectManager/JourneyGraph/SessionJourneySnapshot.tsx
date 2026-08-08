@@ -88,7 +88,9 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
             type="button"
             className="border border-border-2 p-2 text-left text-xs hover:bg-fill-2"
             key={checkpoint.id}
-            onClick={() => requestJourneyMessageJump(checkpoint.message_id)}
+            onClick={() =>
+              requestJourneyMessageJump(sessionId, checkpoint.message_id)
+            }
           >
             <MapPin size={14} className="mb-1 text-warning-6" />
             <strong>{checkpoint.name}</strong>

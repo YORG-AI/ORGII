@@ -10,9 +10,9 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  type ForkCompareResponse,
   type JourneyReview,
   type JourneySnapshot,
-  type ForkCompareResponse,
   type TaskOutcome,
   sessionJourneyApi,
 } from "@src/api/tauri/sessionJourney";
@@ -48,9 +48,19 @@ export const SessionJourneyControls: React.FC<{
     protocol: string;
   } | null;
   onJumpToMessage?: (messageId: string) => void;
-}> = ({ sessionId, messageId, forkCloseProvenance, onJumpToMessage }) => {
+  /** Docked content is rendered by the Communication WorkStation secondary pane. */
+  onDockedReviewPanelChange?: (panel: React.ReactNode | null) => void;
+}> = ({
+  sessionId,
+  messageId,
+  forkCloseProvenance,
+  onJumpToMessage,
+  onDockedReviewPanelChange,
+}) => {
   const [snapshot, setSnapshot] = useState<JourneySnapshot | null>(null);
-  const [comparison, setComparison] = useState<ForkCompareResponse | null>(null);
+  const [comparison, setComparison] = useState<ForkCompareResponse | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<
     "task" | "checkpoint" | "finish" | "fork" | "closeFork" | null
@@ -118,9 +128,38 @@ export const SessionJourneyControls: React.FC<{
     }
   };
   const task = activeTask(snapshot);
-  const reviews = visibleReviews(snapshot);
+  const reviews = useMemo(() => visibleReviews(snapshot), [snapshot]);
   const revision = snapshot?.revision ?? 0;
   const needsAnchor = !messageId;
+  useEffect(() => {
+    if (!onDockedReviewPanelChange) return;
+    onDockedReviewPanelChange(
+      panelMode === "dock" ? (
+        <ReviewPanel
+          mode={panelMode}
+          reviews={reviews}
+          snapshot={snapshot}
+          comparison={comparison}
+          sessionId={sessionId}
+          selectedEvidenceMessageId={messageId ?? null}
+          onMode={setMode}
+          onReload={reload}
+          onJump={onJumpToMessage}
+        />
+      ) : null
+    );
+    return () => onDockedReviewPanelChange(null);
+  }, [
+    comparison,
+    messageId,
+    onDockedReviewPanelChange,
+    onJumpToMessage,
+    panelMode,
+    reload,
+    reviews,
+    sessionId,
+    snapshot,
+  ]);
   const action = useMemo(() => {
     if (!sessionId) return null;
     if (dialog === "task")
@@ -326,7 +365,7 @@ export const SessionJourneyControls: React.FC<{
           后再决定。
         </p>
       </Modal>
-      {panelMode !== "hidden" && (
+      {panelMode !== "hidden" && panelMode !== "dock" && (
         <ReviewPanel
           mode={panelMode}
           reviews={reviews}
@@ -629,6 +668,13 @@ const ReviewPanel: React.FC<{
           {group.forks.map((fork) => (
             <p key={fork.branch_id} className="mt-1">
               {fork.branch_name}：{fork.conclusion ?? "尚无结构化结论"}
+              {fork.tasks.length
+                ? `（${fork.tasks
+                    .map(
+                      (task) => `${task.name}：${task.outcome ?? task.state}`
+                    )
+                    .join("；")}）`
+                : ""}
             </p>
           ))}
         </section>
