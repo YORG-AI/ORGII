@@ -22,6 +22,7 @@ const api = vi.hoisted(() => ({
   confirm: vi.fn(),
   discard: vi.fn(),
   returnToParent: vi.fn(),
+  onJump: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/sessionJourney", () => ({ sessionJourneyApi: api }));
@@ -84,8 +85,8 @@ function Harness() {
       <SessionJourneyControls
         sessionId="session-a"
         messageId="message-6"
-        forkCloseProvenance={{ modelId: "m", accountId: "a", protocol: "p" }}
         onDockedReviewPanelChange={setPanel}
+        onJumpToMessage={api.onJump}
       />
       <div className="work-station-shell__secondary-panel" data-testid="dock">
         {panel}
@@ -107,6 +108,10 @@ describe("SessionJourneyControls rendered behavior", () => {
     api.forkCompare.mockResolvedValue({ groups: [] });
     api.closeFork.mockResolvedValue({ job_id: "job", state: "queued" });
     api.retryReview.mockResolvedValue({ revision: 8 });
+    api.discard.mockResolvedValue({ parent_anchor_message_id: "anchor-1" });
+    api.returnToParent.mockResolvedValue({
+      parent_anchor_message_id: "anchor-1",
+    });
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -137,8 +142,7 @@ describe("SessionJourneyControls rendered behavior", () => {
     await act(async () => {});
     expect(api.closeFork).toHaveBeenCalledWith(
       expect.objectContaining({ forkId: "fork-a", messageId: "message-6" }),
-      expect.any(String),
-      { modelId: "m", accountId: "a", protocol: "p" }
+      expect.any(String)
     );
 
     await click(container, "审核");
@@ -147,9 +151,21 @@ describe("SessionJourneyControls rendered behavior", () => {
     expect(api.retryReview).toHaveBeenCalledWith(
       expect.objectContaining({
         reviewId: "review-a",
-        jobId: "review-job:review-a",
       })
     );
+  });
+
+  it("jumps to the exact parent anchor after discard and return", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await click(container, "审核");
+    await click(container, "丢弃");
+    await act(async () => {});
+    expect(api.onJump).toHaveBeenLastCalledWith("anchor-1");
+
+    api.onJump.mockClear();
+    await click(container, "返回主干");
+    await act(async () => {});
+    expect(api.onJump).toHaveBeenLastCalledWith("anchor-1");
   });
 
   it("docks in the WorkStation pane, floats, hides, and reopens", async () => {

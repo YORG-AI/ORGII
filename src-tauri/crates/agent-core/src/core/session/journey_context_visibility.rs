@@ -26,6 +26,58 @@ pub struct JourneyMessageMembership {
 /// provider prompt. Once a session has any Journey memberships, an unassigned
 /// or sequence-mismatched row is denied rather than guessed from timestamps.
 /// A session with no memberships is a legacy transcript and remains intact.
+/// Provider prompt visibility is intentionally stricter than user browsing.
+/// The parent branch keeps only its own transcript prefix; closed/discarded
+/// child transcripts are represented exclusively by reviewed capsules.
+pub fn project_prompt_message_ids(
+    journey: &SessionJourney,
+    viewer_branch_id: &str,
+    messages: &[PersistedContextMessage],
+    memberships: &[JourneyMessageMembership],
+) -> Result<BTreeSet<String>, JourneyError> {
+    if memberships.is_empty() {
+        return Ok(messages
+            .iter()
+            .map(|message| message.message_id.clone())
+            .collect());
+    }
+    let membership_by_id: BTreeMap<&str, &JourneyMessageMembership> = memberships
+        .iter()
+        .map(|membership| (membership.message_id.as_str(), membership))
+        .collect();
+    let mut ancestor_cutoffs = BTreeMap::new();
+    let mut branch_id = viewer_branch_id;
+    loop {
+        let branch = journey
+            .branches
+            .get(branch_id)
+            .ok_or_else(|| JourneyError::UnknownBranch(branch_id.into()))?;
+        if branch.parent_branch_id == branch.id {
+            break;
+        }
+        ancestor_cutoffs.insert(branch.parent_branch_id.as_str(), branch.anchor_sequence);
+        branch_id = branch.parent_branch_id.as_str();
+    }
+
+    let mut visible = BTreeSet::new();
+    for message in messages {
+        let Some(membership) = membership_by_id.get(message.message_id.as_str()) else {
+            continue;
+        };
+        if membership.sequence != message.sequence {
+            continue;
+        }
+        let allowed = membership.branch_id == viewer_branch_id
+            || ancestor_cutoffs
+                .get(membership.branch_id.as_str())
+                .is_some_and(|cutoff| membership.sequence <= *cutoff);
+        if allowed {
+            visible.insert(message.message_id.clone());
+        }
+    }
+    Ok(visible)
+}
+
 pub fn project_visible_message_ids(
     journey: &SessionJourney,
     viewer_branch_id: &str,
@@ -119,6 +171,120 @@ mod tests {
             )
             .unwrap();
         journey
+    }
+
+    #[test]
+    fn provider_prompt_excludes_child_transcript_from_parent_and_preserves_child_prefix() {
+        let journey = journey();
+        let messages = [
+            message("main-prefix", 9),
+            message("parent-anchor", 10),
+            message("parent-future", 11),
+            message("child", 12),
+            message("sibling", 12),
+        ];
+        let memberships = [
+            membership("main-prefix", 9, "main"),
+            membership("parent-anchor", 10, "main"),
+            membership("parent-future", 11, "main"),
+            membership("child", 12, "fork-a"),
+            membership("sibling", 12, "fork-b"),
+        ];
+
+        let main = project_prompt_message_ids(&journey, "main", &messages, &memberships)
+            .expect("main prompt projection");
+        assert_eq!(
+            main,
+            BTreeSet::from([
+                "main-prefix".into(),
+                "parent-anchor".into(),
+                "parent-future".into(),
+            ])
+        );
+
+        let child = project_prompt_message_ids(&journey, "fork-a", &messages, &memberships)
+            .expect("child prompt projection");
+        assert_eq!(
+            child,
+            BTreeSet::from(["main-prefix".into(), "parent-anchor".into(), "child".into(),])
+        );
+    }
+
+    #[test]
+    fn nested_fork_prompt_preserves_each_ancestor_prefix_at_its_exact_cutoff() {
+        let mut journey = SessionJourney::new("s", "main");
+        journey
+            .start_fork(
+                0,
+                "parent".into(),
+                "parent-task".into(),
+                "父分叉".into(),
+                "main-anchor".into(),
+                10,
+            )
+            .unwrap();
+        journey.active_task_id = None;
+        journey
+            .start_fork(
+                1,
+                "child".into(),
+                "child-task".into(),
+                "子分叉".into(),
+                "parent-anchor".into(),
+                20,
+            )
+            .unwrap();
+        let messages = [
+            message("main-prefix", 9),
+            message("main-after-parent-anchor", 11),
+            message("parent-prefix", 19),
+            message("parent-after-child-anchor", 21),
+            message("child-message", 22),
+        ];
+        let memberships = [
+            membership("main-prefix", 9, "main"),
+            membership("main-after-parent-anchor", 11, "main"),
+            membership("parent-prefix", 19, "parent"),
+            membership("parent-after-child-anchor", 21, "parent"),
+            membership("child-message", 22, "child"),
+        ];
+
+        let visible = project_prompt_message_ids(&journey, "child", &messages, &memberships)
+            .expect("nested prompt projection");
+        assert_eq!(
+            visible,
+            BTreeSet::from([
+                "main-prefix".into(),
+                "parent-prefix".into(),
+                "child-message".into(),
+            ])
+        );
+    }
+
+    #[test]
+    fn provider_prompt_keeps_legacy_transcript_and_denies_unknown_or_mismatched_rows() {
+        let journey = journey();
+        let messages = [message("legacy", 1), message("bad", 2)];
+        let legacy = project_prompt_message_ids(&journey, "fork-a", &messages, &[]).unwrap();
+        assert_eq!(legacy, BTreeSet::from(["bad".into(), "legacy".into()]));
+
+        let denied = project_prompt_message_ids(
+            &journey,
+            "fork-a",
+            &messages,
+            &[membership("bad", 3, "fork-a")],
+        )
+        .unwrap();
+        assert!(denied.is_empty());
+        assert!(matches!(
+            project_prompt_message_ids(
+                &journey,
+                "missing",
+                &messages,
+                &[membership("bad", 2, "main")]
+            ),
+            Err(JourneyError::UnknownBranch(_))
+        ));
     }
 
     #[test]

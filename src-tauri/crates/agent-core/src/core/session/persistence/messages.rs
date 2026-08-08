@@ -487,7 +487,7 @@ pub fn load_llm_history_for_active_journey(
             },
         )
         .collect::<Vec<_>>();
-    let visible_ids = crate::session::journey_context_visibility::project_visible_message_ids(
+    let visible_ids = crate::session::journey_context_visibility::project_prompt_message_ids(
         &journey,
         &journey.active_branch_id,
         &persisted,
@@ -1658,7 +1658,10 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(contents.contains(&"parent anchor"));
         assert!(contents.contains(&"fork a"));
-        assert!(contents.contains(&"fork b"));
+        assert!(
+            !contents.contains(&"fork b"),
+            "provider prompt must not inherit sibling fork transcript"
+        );
         assert!(!contents.contains(&"parent future"));
         assert!(!contents.contains(&"fork c"));
     }

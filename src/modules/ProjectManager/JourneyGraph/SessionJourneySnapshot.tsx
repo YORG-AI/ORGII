@@ -8,7 +8,12 @@ import {
 import { requestJourneyMessageJump } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 
 const taskStateLabel = (state: string) =>
-  ({ active: "进行中", finished: "已结束", pending: "待开始" })[state] ?? state;
+  ({
+    active: "进行中",
+    finished: "已结束",
+    pending: "待开始",
+    pending_next_user: "等待下一条用户消息",
+  })[state] ?? state;
 const outcomeLabel = (outcome: string) =>
   ({
     completed: "完成",
@@ -18,7 +23,13 @@ const outcomeLabel = (outcome: string) =>
     redirected: "转向",
   })[outcome] ?? outcome;
 const forkStateLabel = (state: string) =>
-  ({ active: "进行中", closing: "审核中", closed: "已关闭" })[state] ?? state;
+  ({
+    active: "进行中",
+    closing: "审核中",
+    close_failed: "关闭失败",
+    closed: "已关闭",
+    discarded: "已丢弃",
+  })[state] ?? state;
 const reviewStateLabel = (state: string) =>
   ({
     queued: "等待审核",
