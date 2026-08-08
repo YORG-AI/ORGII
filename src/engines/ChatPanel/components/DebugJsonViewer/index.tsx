@@ -123,7 +123,7 @@ const JsonNode: React.FC<JsonNodeProps> = memo(
       <div className="json-node" style={{ paddingLeft: depth * 16 }}>
         <div
           className="json-node__row"
-          onClick={toggleExpand}
+          onClick={isExpandable ? toggleExpand : undefined}
           {...interactiveRowProps}
         >
           {/* Expand/Collapse Arrow */}

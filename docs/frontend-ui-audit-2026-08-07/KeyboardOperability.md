@@ -1,40 +1,56 @@
-# Frontend UI Audit — Keyboard Operability (repeated click-only controls)
+# Frontend UI Audit — Keyboard Operability
 
-**Scope:** 7 click-only interactive sites flagged by the D4 (accessibility) sweep — non-semantic elements (`div`/`span` + `onClick`) with no keyboard path.
-**Date:** 2026-08-07
-**Auditor:** fix(a11y) keyboard-operability session (branch `junyu/fix-a11y-keyboard-controls`)
-**Baseline:** line numbers refer to `origin/develop` (b83a28ad6) _before_ the fix landed.
+**Files:** seven visible control sites listed below
+**Date:** 2026-08-08
+**Auditor:** Codex follow-up on `junyu/fix-a11y-keyboard-controls`
 
-All 7 sites reuse the existing `createKeyboardActivationHandler` / native `<button>` semantics; no new shared component was introduced (only 2 collapse-row sites exist — below the ≥3 abstraction threshold).
+The D4 sweep found seven mouse-only controls. All reuse native button semantics or the existing `createKeyboardActivationHandler`; no new shared UI abstraction was needed.
 
-## D4 — Accessibility (keyboard operability)
+## D1 — Raw HTML vs Design System
 
-| Line                                                                                                   | Element                                                              | Verdict | Reason                                                                                                                                                                                            | Suggested change (applied)                                                                                                                                                                                                                                                               |
-| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/features/CodeViewer/components/CollapseRow.tsx` L31                                               | `div.split-row-collapse` + `onClick` (expand collapsed lines)        | **fix** | Multi-column split-diff row layout (left pane / gutter / right pane) — DS `Button` does not cover this layout, so the `div` stays but must carry full keyboard semantics                          | Added `role="button"`, `tabIndex={0}`, Enter/Space via `createKeyboardActivationHandler`, `aria-expanded={false}`, `aria-label="Expand N unchanged lines"`; `:focus-visible` outline in `ModernSplitDiff.scss`                                                                           |
-| `src/engines/GitWorkflow/GitHubDiff/DiffRow.tsx` L233 (`CollapsedSection`, div at L236)                | `div.diff-collapsed-section` + `onClick` (show/hide unchanged lines) | **fix** | Diff-row cluster exception (engines rule allows custom element for diff rows) but keyboard semantics were missing entirely                                                                        | Added `role="button"`, `tabIndex={0}`, Enter/Space handler, `aria-expanded={isExpanded}`; visible text ("Show/Hide N unchanged lines") is the accessible name; `:focus-visible` outline in `index.scss`                                                                                  |
-| `src/engines/ChatPanel/components/DebugJsonViewer/index.tsx` L105 (row div at L107)                    | `div.json-node__row` + `onClick` (JSON tree node toggle)             | **fix** | Tree-row layout; only expandable nodes are interactive — primitive rows keep a no-op `onClick` and must stay inert (no phantom tab stops)                                                         | `role="button"` / `tabIndex={0}` / `aria-expanded` / Enter-Space handler applied **conditionally** (`isExpandable` only); key/value text is the accessible name; `:focus-visible` outline in `index.scss`                                                                                |
-| `src/components/SearchInput/index.tsx` L208 (chevron div at L213)                                      | `div` + `onClick` (expand/collapse replace row chevron)              | **fix** | Inside `src/components/**` native elements are allowed — the `div` had no justification; sibling option toggles in the same file are already native buttons                                       | Promoted to `<button type="button">` with `aria-expanded={expanded}`, `aria-label`/`title` reusing existing `tooltips.replace` i18n key, focus-visible ring (`ring-primary-6/30` house style)                                                                                            |
-| `src/components/DateRangeSelector/index.tsx` L94 (trigger div at L96)                                  | `div` + `onClick` (date-range picker trigger)                        | **fix** | Same as above — DS-internal component must use a semantically correct native trigger                                                                                                              | Promoted to `<button type="button">` with `aria-expanded={isOpen}`; visible date-range text is the accessible name; focus-visible ring added to the trigger classes                                                                                                                      |
-| `src/engines/Simulator/components/ListPanelSidebar/index.tsx` L145 (`DefaultListItem` row div at L149) | `div` + `onClick` (list row select)                                  | **fix** | Row hosts an interactive `Checkbox` child — wrapping in a native `<button>` would nest interactive controls (invalid HTML), so the `div` stays with full keyboard semantics instead               | Added `role="button"`, `tabIndex={0}`, Enter/Space handler (bypasses the mouse-only checkbox-exclusion guard), inset focus-visible ring                                                                                                                                                  |
-| `src/modules/shared/layouts/blocks/BrowseCard.tsx` L89 (actionButton branch div at L91)                | `div` + `onClick` + nested `actionButton` (card primary click)       | **fix** | Primary card action was mouse-only whenever `actionButton` was present; nesting a `<button>` inside a `<button>` is invalid, so the primary action becomes a stretched **sibling** overlay button | Overlay `<button aria-label={title}>` with `absolute inset-0`; `actionButton` wrapper gets `relative z-10` so it sits above the overlay and receives its own clicks; both branches get focus-visible rings. No callers exist yet (barrel export only), so no behavior regression surface |
+| Line                             | Element                         | Verdict          | Reason                                                                                                                                                | Suggested change |
+| -------------------------------- | ------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `DateRangeSelector/index.tsx:95` | native date trigger `<button>`  | keep with reason | This DS-internal compound trigger owns a third-party range picker and has no covering DS button shape.                                                | —                |
+| `SearchInput/index.tsx:213`      | native chevron `<button>`       | keep with reason | Icon-only disclosure lives inside the DS component and reuses its compact header-control sizing.                                                      | —                |
+| `DebugJsonViewer/index.tsx:110`  | interactive tree-row `<div>`    | keep with reason | A JSON tree row has key/value layout and is interactive only for expandable values; a generic DS button does not cover the tree-row shape.            | —                |
+| `GitHubDiff/DiffRow.tsx:238`     | collapsed diff-row `<div>`      | keep with reason | The diff engine uses a specialized full-width row/gutter layout; DS Button cannot host it.                                                            | —                |
+| `ListPanelSidebar/index.tsx:153` | selectable list-row `<div>`     | keep with reason | The row may contain a separately interactive Checkbox, so a native outer button would create invalid nested controls.                                 | —                |
+| `CollapseRow.tsx:33`             | split-diff collapse-row `<div>` | keep with reason | The control spans left pane, center gutter, and right pane; DS Button cannot represent this grid.                                                     | —                |
+| `BrowseCard.tsx:88`              | stretched sibling `<button>`    | keep with reason | The absolute overlay is the primary card hit area while the action button remains a non-nested sibling; DS Button does not cover a stretched overlay. | —                |
 
-No click-outside / modal-backdrop hits were among these 7 sites — none needed a keep-with-reason verdict in this batch.
+## D2 — Arbitrary Tailwind Value vs Token
 
-## D5 — Visual patterns observed
+No new arbitrary CSS-variable or raw-color classes were added. All new focus treatment uses existing `ring-primary-6/30`, `outline-none`, and layout tokens.
 
-- "Collapsed unchanged-lines row" pattern: `CollapseRow.tsx` + `DiffRow.tsx CollapsedSection` — **2 occurrences**, below the ≥3 abstraction threshold. Watch-list only; both now share `createKeyboardActivationHandler` for behavior.
+## D3 — Hardcoded Sizes / Colors
 
-## Out-of-scope hits noticed (not fixed — follow-up candidates)
+No new hardcoded pixel sizes or raw colors were added. Existing `text-[14px]`, `rounded-[8px]`, and similar values in the touched components predate this accessibility change and were not expanded.
 
-| Where                             | Element                                                                                | Note                                                                                                                                                                       |
-| --------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DiffRow.tsx` L93 / L175 / L199   | `UnifiedDiffRow` / `SplitDiffRowComponent` per-line `div` + `onClick` (line highlight) | Per-line `tabIndex` would create hundreds of tab stops; proper fix is container-level roving tabindex / grid keyboard navigation — separate design, out of this PR's scope |
-| `ListPanelSidebar/index.tsx` L269 | `renderItem` custom-render wrapper `div` + `onClick`                                   | Same row-select concern for the custom-render branch; the wrapper delegates to caller-rendered content, needs per-caller audit                                             |
+## D4 — Accessibility
+
+| Line                             | Element                                   | Verdict | Reason                                                                                              | Suggested change                                                                                                             |
+| -------------------------------- | ----------------------------------------- | ------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `CollapseRow.tsx:33`             | collapsed split-diff row                  | fix     | Mouse-only expansion had no focus stop, keyboard path, name, or expanded state.                     | Added `role="button"`, `tabIndex`, Enter/Space, `aria-expanded`, an explicit label, and focus-visible outline.               |
+| `GitHubDiff/DiffRow.tsx:238`     | collapsed unchanged-lines row             | fix     | Mouse-only show/hide control.                                                                       | Added button role, `tabIndex`, Enter/Space, `aria-expanded`, and focus-visible outline; visible text supplies the name.      |
+| `DebugJsonViewer/index.tsx:110`  | expandable JSON node row                  | fix     | Expandable nodes had only click activation; primitive rows carried a no-op handler.                 | Interactive props and click/keyboard handlers are now conditional on expandability; primitive rows stay fully inert.         |
+| `SearchInput/index.tsx:213`      | replace-row chevron                       | fix     | Non-semantic icon click target had no accessible name or state.                                     | Promoted to native button with localized label/title, `aria-expanded`, and focus ring.                                       |
+| `DateRangeSelector/index.tsx:95` | date-range trigger                        | fix     | Non-semantic trigger had no keyboard activation or expanded state.                                  | Promoted to native button with `aria-expanded`; visible date text supplies the name.                                         |
+| `ListPanelSidebar/index.tsx:153` | default list item                         | fix     | Row selection was mouse-only.                                                                       | Added button role, `tabIndex`, Enter/Space, and inset focus ring while preserving the child Checkbox path.                   |
+| `BrowseCard.tsx:88`              | card primary action with secondary action | fix     | The action-button branch made the primary card action mouse-only; nesting buttons would be invalid. | Added a named stretched sibling button and lifted the secondary action above it; both branches have focus-visible treatment. |
+
+## D5 — Visual Patterns Observed
+
+- Collapsed unchanged-lines row: `CollapseRow.tsx` and `DiffRow.tsx` — two occurrences, below the three-site abstraction threshold.
+- Focus-visible treatment consistently uses the existing primary ring token; no new visual primitive is needed.
+
+## Next-refactor candidates
+
+- Per-line diff selection needs a container-level roving-tabindex/grid design; adding hundreds of individual tab stops would be worse.
+- The custom-render branch of `ListPanelSidebar` needs a caller-aware keyboard contract and remains outside this focused batch.
 
 ## Summary
 
-- **7 fixes** applied (all 7 flagged sites)
-- **0 keep-with-reason** (no backdrop/decorative hits in this batch)
-- **0 abstract candidates** (collapse pattern at 2 occurrences — watch-list)
-- Keyboard handler logic covered by `src/util/dom/__tests__/keyboardActivation.test.ts` (extended with Space-activation + preventDefault cases in this PR)
+- 7 accessibility fixes
+- 7 raw-element decisions kept with documented design-system reasons
+- 0 arbitrary-token or new hardcoded-size findings
+- 0 abstraction candidates
