@@ -128,10 +128,11 @@ describe("session Journey UI model", () => {
     expect(activeTask(finished)?.outcome).toBe("partially_completed");
   });
 
-  it("shows queued, ready, and failed reviews without exposing discarded rows", () => {
+  it("keeps every review state visible as durable Journey history", () => {
     expect(visibleReviews(snapshot()).map((review) => review.id)).toEqual([
       "queued",
       "ready",
+      "done",
     ]);
   });
 

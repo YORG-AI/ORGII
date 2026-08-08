@@ -15,12 +15,9 @@ export function activeTask(snapshot: JourneySnapshot | null) {
 export function visibleReviews(
   snapshot: JourneySnapshot | null
 ): JourneyReview[] {
-  return Object.values(snapshot?.reviews ?? {}).filter(
-    (review) =>
-      review.state === "queued" ||
-      review.state === "ready" ||
-      review.state === "failed"
-  );
+  // The Journey is an audit trail: confirmed and discarded reviews remain
+  // inspectable rather than disappearing from the Desktop surface.
+  return Object.values(snapshot?.reviews ?? {});
 }
 
 export function isRevisionConflict(error: unknown): boolean {

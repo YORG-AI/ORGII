@@ -14,7 +14,7 @@ export const SessionJourneyPage: React.FC<{
     <div className="min-h-0 flex-1">
       <JourneyContainer
         scope={`session/${sessionId}` as JourneyScope}
-        title={`Session Journey${sessionName ? ` · ${sessionName}` : ""}`}
+        title={`会话旅程${sessionName ? ` · ${sessionName}` : ""}`}
       />
     </div>
   </div>

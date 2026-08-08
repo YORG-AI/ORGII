@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 
 use crate::core::journey_lifecycle::{
@@ -164,6 +164,7 @@ pub struct JourneyWriteResponse {
 pub struct DiscardForkResponse {
     pub revision: u64,
     pub parent_branch_id: String,
+    pub parent_anchor_message_id: String,
     pub parent_anchor_sequence: u64,
 }
 
@@ -283,19 +284,37 @@ impl SessionJourneyApplicationService {
         conn: &mut Connection,
         request: RetryReviewRequest,
     ) -> JourneyApplicationResult<JourneyWriteResponse> {
-        let response = Self::write(
-            conn,
-            &request.session_id,
-            request.expected_revision,
-            |_conn, journey, revision| {
-                journey
-                    .retry_review(revision, &request.review_id)
-                    .map_err(Self::domain_error)
-            },
-        )?;
-        ReviewJobRepository::retry(conn, &request.job_id)
+        Self::ensure_session(conn, &request.session_id)?;
+        SqliteJourneyRepository::ensure_schema(conn).map_err(Self::domain_error)?;
+        ReviewJobRepository::ensure_schema(conn)
             .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
-        Ok(response)
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let mut snapshot = Self::load_snapshot(&tx, &request.session_id)?;
+        if snapshot.revision != request.expected_revision {
+            return Err(JourneyApplicationError::修订冲突 {
+                expected: request.expected_revision,
+                actual: snapshot.revision,
+            });
+        }
+        snapshot
+            .retry_review(snapshot.revision, &request.review_id)
+            .map_err(Self::domain_error)?;
+        SqliteJourneyRepository::compare_and_store_in_transaction(
+            &tx,
+            &snapshot,
+            request.expected_revision,
+        )
+        .map_err(Self::domain_error)?;
+        ReviewJobRepository::retry(&tx, &request.job_id)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        tx.commit()
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        crate::core::session::journey_review_queue::notify_review_queue();
+        Ok(JourneyWriteResponse {
+            revision: snapshot.revision,
+        })
     }
     pub fn snapshot(
         conn: &Connection,
@@ -459,16 +478,42 @@ impl SessionJourneyApplicationService {
         job_id: String,
         provenance: RuntimeProvenance,
     ) -> JourneyApplicationResult<ReviewJob> {
-        let response = Self::request_fork_close(conn, request.clone())?;
-        let snapshot = Self::snapshot(conn, &request.session_id)?.snapshot;
+        Self::ensure_session(conn, &request.session_id)?;
+        SqliteJourneyRepository::ensure_schema(conn).map_err(Self::domain_error)?;
+        ReviewJobRepository::ensure_schema(conn)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let anchor = Self::message_anchor(conn, &request.session_id, &request.message_id)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let mut snapshot = Self::load_snapshot(&tx, &request.session_id)?;
+        if snapshot.revision != request.expected_revision {
+            return Err(JourneyApplicationError::修订冲突 {
+                expected: request.expected_revision,
+                actual: snapshot.revision,
+            });
+        }
+        Self::validate_active_task_anchor(&tx, &request.session_id, &anchor, &snapshot)?;
+        snapshot
+            .request_fork_close(
+                snapshot.revision,
+                &request.fork_id,
+                request.review_id.clone(),
+                request.outcome,
+                anchor.sequence,
+            )
+            .map_err(Self::domain_error)?;
+        SqliteJourneyRepository::compare_and_store_in_transaction(
+            &tx,
+            &snapshot,
+            request.expected_revision,
+        )
+        .map_err(Self::domain_error)?;
         let job =
-            ReviewJobRepository::enqueue(conn, &snapshot, job_id, &request.review_id, &provenance)
-                .map_err(|error| {
-                    JourneyApplicationError::存储失败(format!(
-                        "{}（修订 {}）",
-                        error, response.revision
-                    ))
-                })?;
+            ReviewJobRepository::enqueue(&tx, &snapshot, job_id, &request.review_id, &provenance)
+                .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        tx.commit()
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         crate::core::session::journey_review_queue::notify_review_queue();
         Ok(job)
     }
@@ -478,18 +523,7 @@ impl SessionJourneyApplicationService {
         session_id: &str,
     ) -> JourneyApplicationResult<Vec<ReviewItem>> {
         let snapshot = Self::snapshot(conn, session_id)?;
-        Ok(snapshot
-            .snapshot
-            .reviews
-            .values()
-            .filter(|item| {
-                matches!(
-                    item.state,
-                    crate::core::journey_lifecycle::ReviewState::Queued
-                )
-            })
-            .cloned()
-            .collect())
+        Ok(snapshot.snapshot.reviews.into_values().collect())
     }
 
     pub fn promote_confirmed_fact(
@@ -503,34 +537,52 @@ impl SessionJourneyApplicationService {
         )?;
         let end =
             Self::message_anchor(conn, &request.session_id, &request.evidence_end_message_id)?;
-        let fact_id = request.fact_id.clone();
-        let fact_text = request.text.clone();
-        let response = Self::write(
-            conn,
+        Self::ensure_session(conn, &request.session_id)?;
+        SqliteJourneyRepository::ensure_schema(conn).map_err(Self::domain_error)?;
+        crate::core::session::journey_embedding::ensure_schema(conn)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let mut snapshot = Self::load_snapshot(&tx, &request.session_id)?;
+        if snapshot.revision != request.expected_revision {
+            return Err(JourneyApplicationError::修订冲突 {
+                expected: request.expected_revision,
+                actual: snapshot.revision,
+            });
+        }
+        Self::validate_review_evidence(
+            &tx,
             &request.session_id,
-            request.expected_revision,
-            |_conn, journey, revision| {
-                journey
-                    .promote_fact(
-                        revision,
-                        &request.review_id,
-                        fact_id.clone(),
-                        fact_text.clone(),
-                        start.message_id.clone(),
-                        start.sequence,
-                        end.message_id.clone(),
-                        end.sequence,
-                    )
-                    .map_err(Self::domain_error)
-            },
+            &snapshot,
+            &request.review_id,
+            &start,
+            &end,
         )?;
-        let snapshot = Self::load_snapshot(conn, &request.session_id)?;
+        snapshot
+            .promote_fact(
+                snapshot.revision,
+                &request.review_id,
+                request.fact_id.clone(),
+                request.text.clone(),
+                start.message_id.clone(),
+                start.sequence,
+                end.message_id.clone(),
+                end.sequence,
+            )
+            .map_err(Self::domain_error)?;
         let review = snapshot
             .reviews
             .get(&request.review_id)
             .ok_or_else(|| JourneyApplicationError::校验失败("未知审阅项。".into()))?;
+        SqliteJourneyRepository::compare_and_store_in_transaction(
+            &tx,
+            &snapshot,
+            request.expected_revision,
+        )
+        .map_err(Self::domain_error)?;
         crate::core::session::journey_embedding::enqueue(
-            conn,
+            &tx,
             &format!("fact:{}", request.fact_id),
             crate::core::session::journey_embedding::JourneyEmbeddingKind::ConfirmedFact,
             &request.session_id,
@@ -541,7 +593,11 @@ impl SessionJourneyApplicationService {
         .map_err(|error| {
             JourneyApplicationError::存储失败(format!("无法排队事实 embedding：{error}"))
         })?;
-        Ok(response)
+        tx.commit()
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        Ok(JourneyWriteResponse {
+            revision: snapshot.revision,
+        })
     }
 
     pub fn discard_fork(
@@ -549,7 +605,10 @@ impl SessionJourneyApplicationService {
         request: DiscardForkRequest,
     ) -> JourneyApplicationResult<DiscardForkResponse> {
         Self::ensure_session(conn, &request.session_id)?;
-        let mut snapshot = Self::load_snapshot(conn, &request.session_id)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let mut snapshot = Self::load_snapshot(&tx, &request.session_id)?;
         if snapshot.revision != request.expected_revision {
             return Err(JourneyApplicationError::修订冲突 {
                 expected: request.expected_revision,
@@ -563,21 +622,29 @@ impl SessionJourneyApplicationService {
             JourneyApplicationError::校验失败(format!("未知分叉：{}。", review.fork_id))
         })?;
         let parent_branch_id = branch.parent_branch_id.clone();
+        let parent_anchor_message_id =
+            branch.parent_anchor_message_id.clone().ok_or_else(|| {
+                JourneyApplicationError::校验失败("分叉缺少精确父消息锚点。".into())
+            })?;
         let parent_anchor_sequence = snapshot
             .discard_fork(snapshot.revision, &request.review_id)
             .map_err(Self::domain_error)?;
-        SqliteJourneyRepository::compare_and_store(conn, &snapshot, request.expected_revision)
-            .map_err(Self::domain_error)?;
-        crate::core::session::journey_embedding::discard_review_annotation(
-            conn,
-            &request.review_id,
+        SqliteJourneyRepository::compare_and_store_in_transaction(
+            &tx,
+            &snapshot,
+            request.expected_revision,
         )
-        .map_err(|error| {
-            JourneyApplicationError::存储失败(format!("无法清理审核 embedding：{error}"))
-        })?;
+        .map_err(Self::domain_error)?;
+        crate::core::session::journey_embedding::discard_review_annotation(&tx, &request.review_id)
+            .map_err(|error| {
+                JourneyApplicationError::存储失败(format!("无法清理审核 embedding：{error}"))
+            })?;
+        tx.commit()
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         Ok(DiscardForkResponse {
             revision: snapshot.revision,
             parent_branch_id,
+            parent_anchor_message_id,
             parent_anchor_sequence,
         })
     }
@@ -624,7 +691,10 @@ impl SessionJourneyApplicationService {
         request: ReturnToParentRequest,
     ) -> JourneyApplicationResult<ReturnToParentResponse> {
         Self::ensure_session(conn, &request.session_id)?;
-        let mut snapshot = Self::load_snapshot(conn, &request.session_id)?;
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let mut snapshot = Self::load_snapshot(&tx, &request.session_id)?;
         if snapshot.revision != request.expected_revision {
             return Err(JourneyApplicationError::修订冲突 {
                 expected: request.expected_revision,
@@ -634,8 +704,14 @@ impl SessionJourneyApplicationService {
         let (parent_branch_id, parent_anchor_message_id, parent_anchor_sequence) = snapshot
             .return_to_parent(snapshot.revision, &request.review_id)
             .map_err(Self::domain_error)?;
-        SqliteJourneyRepository::compare_and_store(conn, &snapshot, request.expected_revision)
-            .map_err(Self::domain_error)?;
+        SqliteJourneyRepository::compare_and_store_in_transaction(
+            &tx,
+            &snapshot,
+            request.expected_revision,
+        )
+        .map_err(Self::domain_error)?;
+        tx.commit()
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         Ok(ReturnToParentResponse {
             revision: snapshot.revision,
             parent_branch_id,
@@ -743,10 +819,7 @@ impl SessionJourneyApplicationService {
             "SELECT branch_id FROM session_journey_memberships WHERE session_id = ?1 AND message_id = ?2",
             params![session_id, anchor.message_id], |row| row.get(0),
         ).optional().map_err(|_| JourneyApplicationError::存储失败("无法校验分叉锚点。".into()))?;
-        if membership
-            .as_deref()
-            .is_some_and(|branch| branch != branch_id)
-        {
+        if membership.as_deref() != Some(branch_id) {
             return Err(JourneyApplicationError::校验失败(
                 "精确消息锚点不属于当前分叉。".into(),
             ));
@@ -765,12 +838,14 @@ impl SessionJourneyApplicationService {
             "SELECT branch_id, task_id FROM session_journey_memberships WHERE session_id = ?1 AND message_id = ?2",
             params![session_id, anchor.message_id], |row| Ok((row.get(0)?, row.get(1)?)),
         ).optional().map_err(|_| JourneyApplicationError::存储失败("无法校验任务锚点。".into()))?;
-        if let Some((branch, task)) = membership {
-            if branch != branch_id || task.as_deref() != Some(task_id) {
-                return Err(JourneyApplicationError::校验失败(
-                    "精确消息锚点不属于当前任务。".into(),
-                ));
-            }
+        let belongs_to_task = matches!(
+            membership.as_ref(),
+            Some((branch, task)) if branch == branch_id && task.as_deref() == Some(task_id)
+        );
+        if !belongs_to_task {
+            return Err(JourneyApplicationError::校验失败(
+                "精确消息锚点不属于当前任务。".into(),
+            ));
         }
         Ok(())
     }
@@ -786,6 +861,46 @@ impl SessionJourneyApplicationService {
             .as_deref()
             .ok_or_else(|| JourneyApplicationError::校验失败("当前没有活动任务。".into()))?;
         Self::validate_task_anchor(conn, session_id, anchor, &journey.active_branch_id, task_id)
+    }
+
+    fn validate_review_evidence(
+        conn: &Connection,
+        session_id: &str,
+        journey: &SessionJourney,
+        review_id: &str,
+        start: &MessageAnchor,
+        end: &MessageAnchor,
+    ) -> JourneyApplicationResult<()> {
+        let review = journey.reviews.get(review_id).ok_or_else(|| {
+            JourneyApplicationError::校验失败(format!("未知审阅项：{review_id}。"))
+        })?;
+        for anchor in [start, end] {
+            let membership: Option<(String, u64)> = conn
+                .query_row(
+                    "SELECT branch_id, sequence FROM session_journey_memberships
+                     WHERE session_id = ?1 AND message_id = ?2",
+                    params![session_id, anchor.message_id],
+                    |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as u64)),
+                )
+                .optional()
+                .map_err(|_| {
+                    JourneyApplicationError::存储失败("无法校验事实证据锚点。".into())
+                })?;
+            let belongs_to_review = matches!(
+                membership.as_ref(),
+                Some((branch, sequence))
+                    if branch == &review.fork_id
+                        && *sequence == anchor.sequence
+                        && *sequence >= review.source_start_sequence
+                        && *sequence <= review.source_end_sequence
+            );
+            if !belongs_to_review {
+                return Err(JourneyApplicationError::校验失败(
+                    "事实证据必须是审阅分叉范围内的精确成员消息。".into(),
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn domain_error(error: JourneyError) -> JourneyApplicationError {
@@ -852,7 +967,23 @@ mod tests {
             .unwrap();
         conn.execute("INSERT INTO agent_messages (id, session_id, role, sequence) VALUES ('u1', 's', 'user', 4)", []).unwrap();
         conn.execute("INSERT INTO agent_messages (id, session_id, role, sequence) VALUES ('a1', 's', 'assistant', 5)", []).unwrap();
+        SqliteJourneyRepository::ensure_schema(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO session_journey_memberships (session_id, message_id, sequence, branch_id, task_id)
+             VALUES ('s', 'u1', 4, 'main', NULL), ('s', 'a1', 5, 'main', NULL)",
+            [],
+        )
+        .unwrap();
         conn
+    }
+
+    fn assign_anchor(conn: &Connection, branch_id: &str, task_id: &str) {
+        conn.execute(
+            "UPDATE session_journey_memberships SET branch_id = ?1, task_id = ?2
+             WHERE session_id = 's' AND message_id = 'a1'",
+            params![branch_id, task_id],
+        )
+        .unwrap();
     }
 
     fn fork_request(revision: u64) -> CreateForkRequest {
@@ -929,6 +1060,7 @@ mod tests {
             .on_user_message_persisted(current.revision, 6)
             .unwrap();
         SqliteJourneyRepository::compare_and_store(&mut conn, &current, 1).unwrap();
+        assign_anchor(&conn, "main", "next");
         SessionJourneyApplicationService::create_checkpoint(
             &mut conn,
             CreateCheckpointRequest {
@@ -949,6 +1081,7 @@ mod tests {
     fn fork_creates_active_task_and_close_only_queues_review() {
         let mut conn = conn();
         SessionJourneyApplicationService::create_fork(&mut conn, fork_request(0)).unwrap();
+        assign_anchor(&conn, "f1", "t1");
         let snapshot = SessionJourneyApplicationService::snapshot(&conn, "s").unwrap();
         assert_eq!(snapshot.snapshot.active_task_id.as_deref(), Some("t1"));
         SessionJourneyApplicationService::request_fork_close(
@@ -973,9 +1106,61 @@ mod tests {
     }
 
     #[test]
+    fn close_and_enqueue_roll_back_together_when_queue_rejects_provenance() {
+        let mut conn = conn();
+        SessionJourneyApplicationService::create_fork(&mut conn, fork_request(0)).unwrap();
+        assign_anchor(&conn, "f1", "t1");
+
+        let error = SessionJourneyApplicationService::request_fork_close_and_enqueue(
+            &mut conn,
+            RequestForkCloseRequest {
+                session_id: "s".into(),
+                expected_revision: 1,
+                fork_id: "f1".into(),
+                review_id: "r1".into(),
+                outcome: TaskOutcome::Completed,
+                message_id: "a1".into(),
+            },
+            "job-r1".into(),
+            RuntimeProvenance {
+                model_id: "".into(),
+                account_id: "account".into(),
+                protocol: "openai".into(),
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("provenance"));
+
+        let reopened = SessionJourneyApplicationService::snapshot(&conn, "s").unwrap();
+        assert_eq!(reopened.revision, 1);
+        assert_eq!(reopened.snapshot.active_task_id.as_deref(), Some("t1"));
+        assert!(reopened.snapshot.reviews.is_empty());
+        assert!(
+            SessionJourneyApplicationService::get_review_job(&conn, "r1")
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn fork_anchor_without_durable_membership_fails_closed() {
+        let mut conn = conn();
+        conn.execute(
+            "DELETE FROM session_journey_memberships WHERE session_id = 's' AND message_id = 'u1'",
+            [],
+        )
+        .unwrap();
+        assert!(matches!(
+            SessionJourneyApplicationService::create_fork(&mut conn, fork_request(0)),
+            Err(JourneyApplicationError::校验失败(_))
+        ));
+    }
+
+    #[test]
     fn discard_returns_parent_anchor_and_promotion_requires_confirmable_review() {
         let mut conn = conn();
         SessionJourneyApplicationService::create_fork(&mut conn, fork_request(0)).unwrap();
+        assign_anchor(&conn, "f1", "t1");
         SessionJourneyApplicationService::request_fork_close(
             &mut conn,
             RequestForkCloseRequest {
@@ -1015,9 +1200,10 @@ mod tests {
         assert_eq!(
             (
                 discard.parent_branch_id.as_str(),
+                discard.parent_anchor_message_id.as_str(),
                 discard.parent_anchor_sequence
             ),
-            ("main", 4)
+            ("main", "u1", 4)
         );
     }
 
@@ -1025,6 +1211,7 @@ mod tests {
     fn ready_review_can_be_explicitly_promoted_after_confirmation() {
         let mut conn = conn();
         SessionJourneyApplicationService::create_fork(&mut conn, fork_request(0)).unwrap();
+        assign_anchor(&conn, "f1", "t1");
         SessionJourneyApplicationService::request_fork_close(
             &mut conn,
             RequestForkCloseRequest {
@@ -1080,6 +1267,7 @@ mod tests {
     fn reviewed_capsule_preserves_provenance_and_returns_to_exact_parent_with_cas() {
         let mut conn = conn();
         SessionJourneyApplicationService::create_fork(&mut conn, fork_request(0)).unwrap();
+        assign_anchor(&conn, "f1", "t1");
         SessionJourneyApplicationService::request_fork_close(
             &mut conn,
             RequestForkCloseRequest {

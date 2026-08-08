@@ -10,6 +10,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  type JourneyReview,
   type JourneySnapshot,
   type TaskOutcome,
   sessionJourneyApi,
@@ -419,7 +420,7 @@ const ReviewPanel: React.FC<{
         </Button>
       </div>
       {!reviews.length && (
-        <p className="text-xs text-text-3">当前没有待处理审核。</p>
+        <p className="text-xs text-text-3">当前没有审核记录。</p>
       )}
       {reviews.map((review) => {
         const fork = snapshot?.branches[review.fork_id];
@@ -429,13 +430,7 @@ const ReviewPanel: React.FC<{
             key={review.id}
             className="mb-2 border-t border-border-2 pt-2"
           >
-            <div className="font-medium">
-              {review.state === "ready"
-                ? "可审核"
-                : review.state === "failed"
-                  ? "审核失败"
-                  : "等待审核"}
-            </div>
+            <div className="font-medium">{reviewStateLabel(review.state)}</div>
             <p className="mt-1 text-xs text-text-2">
               {capsule?.conclusion ??
                 review.annotation ??
@@ -534,6 +529,37 @@ const ReviewPanel: React.FC<{
           ))}
         </section>
       ))}
+      {Object.values(snapshot?.checkpoints ?? {}).map((checkpoint) => (
+        <section
+          key={checkpoint.id}
+          className="border-t border-border-2 pt-2 text-xs"
+        >
+          <strong>检查点：{checkpoint.name}</strong>
+          <Button
+            size="small"
+            appearance="ghost"
+            className="ml-2"
+            onClick={() => onJump?.(checkpoint.message_id)}
+          >
+            跳转
+          </Button>
+        </section>
+      ))}
     </aside>
   );
 };
+
+function reviewStateLabel(state: JourneyReview["state"]) {
+  switch (state) {
+    case "queued":
+      return "等待审核";
+    case "ready":
+      return "可审核";
+    case "confirmed":
+      return "已确认";
+    case "discarded":
+      return "已丢弃";
+    case "failed":
+      return "审核失败";
+  }
+}
