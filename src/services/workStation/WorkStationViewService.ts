@@ -109,26 +109,24 @@ async function shouldToggleMaximizedForActiveTab(
 
 export const WorkStationViewService = {
   /**
-   * Toggle the chat-panel slot's maximized state. Slot mode (session vs.
-   * settings) is left untouched — un-maximize returns the user to whatever
-   * the underlying workbench was showing, without a "previous mode" round-trip.
+   * Toggle the chat-panel slot's maximized state when the active tab permits
+   * Station access. Slot mode (session vs. settings) is left untouched.
    */
   async toggleChatPanelMaximized(): Promise<boolean> {
     if (!isWorkbenchRoute()) return false;
 
-    const [{ toggleChatPanelMaximizedAtom }] = await Promise.all([
-      import("@src/store/ui/chatPanelAtom"),
-    ]);
+    const { toggleActiveChatPanelMaximizedAtom } =
+      await import("@src/store/chatPanel/chatPanelTabsAtom");
 
     const store = getStore();
-    store.set(toggleChatPanelMaximizedAtom);
-    return true;
+    return store.set(toggleActiveChatPanelMaximizedAtom, window.innerWidth);
   },
 
   async showWorkStation(): Promise<boolean> {
     if (!isWorkbenchRoute()) return false;
 
     const [
+      { activeChatPanelTabAtom, isChatPanelTabStationAvailable },
       { stationModeAtom },
       {
         activeStationChatVisibleAtom,
@@ -136,11 +134,20 @@ export const WorkStationViewService = {
         stationChatVisibilityAtom,
       },
     ] = await Promise.all([
+      import("@src/store/chatPanel/chatPanelTabsAtom"),
       import("@src/store/ui/simulatorAtom"),
       import("@src/store/ui/chatPanelAtom"),
     ]);
 
     const store = getStore();
+    if (
+      !isChatPanelTabStationAvailable(
+        store.get(activeChatPanelTabAtom),
+        window.innerWidth
+      )
+    ) {
+      return false;
+    }
     if (store.get(chatPanelMaximizedAtom)) {
       store.set(chatPanelMaximizedAtom, false);
     }
@@ -175,13 +182,26 @@ export const WorkStationViewService = {
   },
 
   async openStationMode(mode: StationMode): Promise<boolean> {
-    const [{ activeStationChatVisibleAtom }, { stationModeAtom }] =
-      await Promise.all([
-        import("@src/store/ui/chatPanelAtom"),
-        import("@src/store/ui/simulatorAtom"),
-      ]);
+    const [
+      { activeChatPanelTabAtom, isChatPanelTabStationAvailable },
+      { activeStationChatVisibleAtom },
+      { stationModeAtom },
+    ] = await Promise.all([
+      import("@src/store/chatPanel/chatPanelTabsAtom"),
+      import("@src/store/ui/chatPanelAtom"),
+      import("@src/store/ui/simulatorAtom"),
+    ]);
 
     const store = getStore();
+    if (
+      isWorkbenchRoute() &&
+      !isChatPanelTabStationAvailable(
+        store.get(activeChatPanelTabAtom),
+        window.innerWidth
+      )
+    ) {
+      return false;
+    }
 
     store.set(stationModeAtom, mode);
 

@@ -4,6 +4,11 @@ export interface GitHubIssueDetailTabData {
   repoPath: string;
   remoteUrl?: string;
   stateScopeKey?: string;
+  authScope?: string;
+  viewerLogin?: string | null;
+  repoPermissions?:
+    | import("@src/api/tauri/github").GitHubRepoPermissions
+    | null;
 }
 
 export interface GitHubPrDetailTabData {

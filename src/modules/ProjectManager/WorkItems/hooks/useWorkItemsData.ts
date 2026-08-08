@@ -217,11 +217,17 @@ export function useWorkItemsData({
 
   // Listen for orgii-data-changed events
   useProjectDataChanged(
-    useCallback(() => {
-      if (isActive) {
-        fetchViewData();
-      }
-    }, [isActive, fetchViewData])
+    useCallback(
+      (change) => {
+        if (
+          isActive &&
+          (!change?.projectSlug || change.projectSlug === projectSlug)
+        ) {
+          fetchViewData();
+        }
+      },
+      [isActive, fetchViewData, projectSlug]
+    )
   );
 
   // ============================================

@@ -18,6 +18,9 @@ import type { AgentRole } from "../../constants";
 const logger = createLogger("useAutoReview");
 
 interface UseAutoReviewOptions {
+  enabled: boolean;
+  claimLaunch: () => boolean;
+  releaseLaunchClaim: () => void;
   workItem: WorkItemExtended;
   projectRepoPath: string | null;
   accountId: string | null;
@@ -41,6 +44,9 @@ interface UseAutoReviewOptions {
  */
 export function useAutoReview(options: UseAutoReviewOptions): void {
   const {
+    enabled,
+    claimLaunch,
+    releaseLaunchClaim,
     workItem,
     projectRepoPath,
     accountId,
@@ -63,8 +69,13 @@ export function useAutoReview(options: UseAutoReviewOptions): void {
 
   useEffect(() => {
     const phase = workItem.orchestratorState?.current_phase;
+    if (!enabled) {
+      reviewLaunchRef.current = false;
+      return;
+    }
     if (phase !== ORCHESTRATOR_PHASE.Review) {
       reviewLaunchRef.current = false;
+      releaseLaunchClaim();
       return;
     }
     if (reviewLaunchRef.current || isStartingAgentRef.current) return;
@@ -82,6 +93,7 @@ export function useAutoReview(options: UseAutoReviewOptions): void {
     // retry on the next render when params become available.
     if (!projectRepoPath || !accountId || !shortId) return;
 
+    if (!claimLaunch()) return;
     reviewLaunchRef.current = true;
 
     let cancelled = false;
@@ -136,6 +148,9 @@ export function useAutoReview(options: UseAutoReviewOptions): void {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    enabled,
+    claimLaunch,
+    releaseLaunchClaim,
     workItem.orchestratorState?.current_phase,
     workItem.linkedSessions,
     workItem.name,

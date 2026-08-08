@@ -15,9 +15,13 @@ export interface GitHubRepoSource {
   repoFullName: string;
   viewerLogin: string | null;
   permissions: GitHubRepoPermissions | null;
+  authScope?: string | null;
 }
 
 export function getGitHubListCacheKey(source: GitHubRepoSource): string {
-  const identity = source.viewerLogin?.trim().toLowerCase() || "unknown-viewer";
+  const identity =
+    source.authScope ||
+    source.viewerLogin?.trim().toLowerCase() ||
+    "unknown-viewer";
   return `${identity}:${source.repoPath}`;
 }

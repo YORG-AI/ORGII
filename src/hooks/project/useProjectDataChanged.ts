@@ -20,16 +20,65 @@ import { useEffect, useRef } from "react";
 
 import { invalidateProjectCache } from "@src/api/http/project";
 
+export interface ProjectDataChange {
+  projectSlug?: string;
+  workItemId?: string;
+  repoPath?: string;
+  source?: string;
+}
+
+type ProjectDataChangedWirePayload =
+  | {
+      project_slug?: string;
+      work_item_id?: string;
+      repo_path?: string;
+      source?: string;
+    }
+  | string
+  | null;
+
+export function parseProjectDataChange(
+  payload: ProjectDataChangedWirePayload
+): ProjectDataChange | null {
+  if (!payload || typeof payload !== "object") return null;
+  return {
+    projectSlug: payload.project_slug,
+    workItemId: payload.work_item_id,
+    repoPath: payload.repo_path,
+    source: payload.source,
+  };
+}
+
+export function invalidateProjectDataChangeCaches(
+  change: ProjectDataChange | null
+): void {
+  if (change?.projectSlug) {
+    invalidateProjectCache(change.projectSlug);
+    // Project summaries include mutable work-item counts and timestamps.
+    invalidateProjectCache("__projects__");
+    return;
+  }
+  // Legacy/unscoped events cannot be mapped safely to a slug. A repo path is
+  // not a project-cache key, so passing it here would leave relevant entries
+  // stale.
+  invalidateProjectCache();
+}
+
 // Signal atom: bumped on every project-data-changed event.
 // Subscribers read this to trigger their own refresh logic.
 export const projectDataChangedSignalAtom = atom(0);
 projectDataChangedSignalAtom.debugLabel = "projectDataChangedSignalAtom";
 
-// Payload atom: stores the most recent repo_path from the event (if any).
-// Kept as repoPath (not slug) because the Tauri event payload is a filesystem
-// path matched against repo.path / repo.fs_uri in useAllRepoProjects.
+// Compatibility payload for consumers that still match filesystem repos.
+// New project-store consumers should use projectDataChangedChangeAtom so they
+// can filter on projectSlug/workItemId without translating a repo path.
 export const projectDataChangedRepoPathAtom = atom<string | null>(null);
 projectDataChangedRepoPathAtom.debugLabel = "projectDataChangedRepoPathAtom";
+
+export const projectDataChangedChangeAtom = atom<ProjectDataChange | null>(
+  null
+);
+projectDataChangedChangeAtom.debugLabel = "projectDataChangedChangeAtom";
 
 /**
  * Sets up the single Tauri listener for "orgii-data-changed".
@@ -38,17 +87,18 @@ projectDataChangedRepoPathAtom.debugLabel = "projectDataChangedRepoPathAtom";
 export function useProjectDataChangedListener(): void {
   const bumpSignal = useSetAtom(projectDataChangedSignalAtom);
   const setRepoPath = useSetAtom(projectDataChangedRepoPathAtom);
+  const setChange = useSetAtom(projectDataChangedChangeAtom);
 
   useEffect(() => {
-    const unlistenPromise = listen<{ repo_path?: string } | string>(
+    const unlistenPromise = listen<ProjectDataChangedWirePayload>(
       "orgii-data-changed",
       (event) => {
         const payload = event.payload;
-        const repoPath =
-          typeof payload === "object" ? payload?.repo_path : undefined;
+        const change = parseProjectDataChange(payload);
 
-        invalidateProjectCache(repoPath);
-        setRepoPath(repoPath ?? null);
+        invalidateProjectDataChangeCaches(change);
+        setRepoPath(change?.repoPath ?? null);
+        setChange(change);
         bumpSignal((prev) => prev + 1);
       }
     );
@@ -56,7 +106,7 @@ export function useProjectDataChangedListener(): void {
     return () => {
       unlistenPromise.then((unlisten) => unlisten());
     };
-  }, [bumpSignal, setRepoPath]);
+  }, [bumpSignal, setChange, setRepoPath]);
 }
 
 /**
@@ -64,12 +114,14 @@ export function useProjectDataChangedListener(): void {
  * The callback fires after the API cache has been invalidated.
  */
 export function useProjectDataChanged(
-  callback: () => void,
+  callback: (change: ProjectDataChange | null) => void,
   options?: { fireOnMount?: boolean }
 ): void {
   const signal = useAtomValue(projectDataChangedSignalAtom);
+  const change = useAtomValue(projectDataChangedChangeAtom);
   const isFirstRender = useRef(true);
   const callbackRef = useRef(callback);
+  const changeRef = useRef(change);
   const fireOnMount = options?.fireOnMount === true;
 
   useEffect(() => {
@@ -77,10 +129,14 @@ export function useProjectDataChanged(
   }, [callback]);
 
   useEffect(() => {
+    changeRef.current = change;
+  }, [change]);
+
+  useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       if (!fireOnMount) return;
     }
-    callbackRef.current();
+    callbackRef.current(changeRef.current);
   }, [signal, fireOnMount]);
 }

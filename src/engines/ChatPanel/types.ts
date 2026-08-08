@@ -32,6 +32,8 @@ export interface ChatPanelCliTerminalLaunchOptions {
  * Props for the main ChatPanel component
  */
 export interface ChatPanelProps {
+  /** Current window viewport width shared by the parent layout. */
+  viewportWidth: number | undefined;
   /** Whether to use external width management */
   useExternalWidth?: boolean;
   /** Session sidebar width for layout calculations */

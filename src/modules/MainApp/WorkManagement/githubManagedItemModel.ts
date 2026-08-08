@@ -24,6 +24,8 @@ export interface ManagedIssueItem {
   repoPath: string;
   remoteUrl: string;
   viewerLogin: string | null;
+  authScope?: string | null;
+  repoPermissions?: GitHubRepoSource["permissions"];
   rawIssue: GitHubIssue;
   author: string;
   timeAgo: string;
@@ -97,6 +99,8 @@ export function mapIssueToManagedItem(
     repoPath: source.repoPath,
     remoteUrl: source.remoteUrl,
     viewerLogin: source.viewerLogin,
+    authScope: source.authScope,
+    repoPermissions: source.permissions,
     rawIssue: issue,
     author: issue.user.login,
     timeAgo: formatGitHubItemTimeAgo(issue.updated_at),

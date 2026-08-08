@@ -1,4 +1,4 @@
-import { useAtomValue } from "jotai";
+import { useAtomValue, useStore } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +26,11 @@ import {
   isCollabMembershipUnresolvedError,
   useWorkItemCollabLock,
 } from "./useWorkItemCollabLock";
+import {
+  claimWorkItemOrchestratorAction,
+  releaseWorkItemOrchestratorAction,
+  useWorkItemOrchestratorOwnership,
+} from "./workItemOrchestratorOwnership";
 
 const logger = createLogger("useWorkItemOrchestrator");
 const RUNNING_LINKED_SESSION_STATUS = "running" as const;
@@ -76,6 +81,37 @@ export function useWorkItemOrchestrator(
   } = options;
 
   const { t } = useTranslation("projects");
+  const store = useStore();
+  const ownershipKey =
+    projectSlug && shortId
+      ? `${projectSlug}:${shortId}:${workItem.session_id}`
+      : null;
+  const ownsAutomaticSideEffects = useWorkItemOrchestratorOwnership(
+    store,
+    ownershipKey
+  );
+  const claimAutoReviewLaunch = useCallback(
+    () =>
+      Boolean(
+        ownershipKey &&
+        ownsAutomaticSideEffects &&
+        claimWorkItemOrchestratorAction(
+          store,
+          ownershipKey,
+          "auto-review-launch"
+        )
+      ),
+    [ownershipKey, ownsAutomaticSideEffects, store]
+  );
+  const releaseAutoReviewLaunchClaim = useCallback(() => {
+    if (ownershipKey) {
+      releaseWorkItemOrchestratorAction(
+        store,
+        ownershipKey,
+        "auto-review-launch"
+      );
+    }
+  }, [ownershipKey, store]);
 
   const [isStartingAgent, setIsStartingAgent] = useState(false);
   const [activeAgentSessionId, setActiveAgentSessionId] = useState<
@@ -420,7 +456,7 @@ export function useWorkItemOrchestrator(
         // §16.6). The Rust side clears the LOCAL execution_lock; this drops
         // the collab holder so teammates can start next (best-effort — the
         // synced payload also reconciles it).
-        if (wasActive) {
+        if (wasActive && ownsAutomaticSideEffects) {
           void collabLock.releaseLock();
         }
       }
@@ -430,9 +466,13 @@ export function useWorkItemOrchestrator(
     activeAgentSessionId,
     persistedActiveSessionId,
     collabLock,
+    ownsAutomaticSideEffects,
   ]);
 
   useAutoReview({
+    enabled: ownsAutomaticSideEffects,
+    claimLaunch: claimAutoReviewLaunch,
+    releaseLaunchClaim: releaseAutoReviewLaunchClaim,
     workItem,
     projectRepoPath,
     accountId,
@@ -448,6 +488,7 @@ export function useWorkItemOrchestrator(
   });
 
   useStaleSessionDetection({
+    enabled: ownsAutomaticSideEffects,
     workItem,
     projectRepoPath,
     projectSlug: projectSlug ?? null,

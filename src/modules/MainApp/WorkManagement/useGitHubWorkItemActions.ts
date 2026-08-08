@@ -5,6 +5,11 @@ import { useTranslation } from "react-i18next";
 import type { GitHubIssue } from "@src/api/tauri/github";
 import Message from "@src/components/Message";
 import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
+import {
+  githubIssueResourceKey,
+  loadGitHubIssueTimeline,
+  primeGitHubIssueDetailBundle,
+} from "@src/modules/shared/githubIssueDetailCoordinator";
 import { fetchIssueTimeline } from "@src/services/git/operations/githubIssues";
 import {
   openGitHubIssueInChatPanelTabAtom,
@@ -59,9 +64,13 @@ export function useGitHubWorkItemActions({
         issue.repoPath,
         issue.id
       );
+      const resourceKey = issue.authScope
+        ? githubIssueResourceKey(issue.authScope, issue.repo, issue.id)
+        : null;
       const selectedIssueAtom =
         workstationSelectedIssueAtomFamily(stateScopeKey);
       store.set(selectedIssueAtom, {
+        resourceKey,
         issue: issue.rawIssue,
         timeline: [],
         loading: false,
@@ -76,6 +85,9 @@ export function useGitHubWorkItemActions({
           repoPath: issue.repoPath,
           remoteUrl: issue.remoteUrl,
           stateScopeKey,
+          authScope: issue.authScope ?? undefined,
+          viewerLogin: issue.viewerLogin,
+          repoPermissions: issue.repoPermissions,
         });
       } else {
         openTab(
@@ -84,25 +96,50 @@ export function useGitHubWorkItemActions({
             issue.title,
             issue.repoPath,
             issue.remoteUrl,
-            stateScopeKey
+            stateScopeKey,
+            issue.authScope ?? undefined,
+            issue.viewerLogin,
+            issue.repoPermissions
           )
         );
       }
-      void fetchIssueTimeline({
-        remoteUrl: issue.remoteUrl,
-        issueNumber: issue.id,
-      }).then((result) => {
-        store.set(selectedIssueAtom, (current) => {
-          if (current.issue?.html_url !== issue.rawIssue.html_url)
-            return current;
-          return {
-            ...current,
-            timeline: result.data ?? [],
-            timelineLoading: false,
-            error: result.error ?? null,
-          };
+      if (!resourceKey) return;
+      void loadGitHubIssueTimeline(store, resourceKey, async () => {
+        const result = await fetchIssueTimeline({
+          remoteUrl: issue.remoteUrl,
+          issueNumber: issue.id,
         });
-      });
+        if (result.error) throw new Error(result.error);
+        return result.data ?? [];
+      })
+        .then((timeline) => {
+          store.set(selectedIssueAtom, (current) => {
+            if (current.issue?.html_url !== issue.rawIssue.html_url)
+              return current;
+            return {
+              ...current,
+              timeline,
+              timelineLoading: false,
+              error: null,
+            };
+          });
+          primeGitHubIssueDetailBundle(store, resourceKey, {
+            issue: issue.rawIssue,
+            timeline,
+            error: null,
+          });
+        })
+        .catch((error: unknown) => {
+          store.set(selectedIssueAtom, (current) =>
+            current.resourceKey === resourceKey
+              ? {
+                  ...current,
+                  timelineLoading: false,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              : current
+          );
+        });
     },
     [detailHost, openIssueInChatPanel, openTab, store]
   );

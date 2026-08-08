@@ -6,12 +6,21 @@ export function useViewportWidth(): number | undefined {
   );
 
   useEffect(() => {
+    let frameId: number | null = null;
+
     const handleResize = () => {
-      setViewportWidth(window.innerWidth);
+      if (frameId !== null) return;
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        setViewportWidth(window.innerWidth);
+      });
     };
 
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   return viewportWidth;

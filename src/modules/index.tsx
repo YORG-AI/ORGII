@@ -27,6 +27,7 @@ import {
   resolveHostDesktop,
 } from "@src/config/windowChromeRadius";
 import { BrowserProvider, TerminalProvider } from "@src/contexts/workstation";
+import { useViewportWidth } from "@src/engines/ChatPanel/hooks/useViewportWidth";
 import { useAgentADEActions } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import { useProjectDataChangedListener } from "@src/hooks/project";
 import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
@@ -42,7 +43,10 @@ import {
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
 import { resolvedBackgroundConfigAtom } from "@src/store";
-import { activeChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import {
+  activeChatPanelTabAtom,
+  resolveChatPanelMaximizedForLayout,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import { useSyncStatusBridge } from "@src/store/sync";
 import {
   type ChatPanelMode,
@@ -190,6 +194,7 @@ const AppShell = () => {
 
   const stationMode = useAtomValue(stationModeAtom);
   const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
+  const viewportWidth = useViewportWidth();
   const stationChatVisibility = useAtomValue(stationChatVisibilityAtom);
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
@@ -386,7 +391,11 @@ const AppShell = () => {
       ? sidebarWidth || DEFAULT_SIDEBAR_WIDTH
       : 0;
 
-  const effectiveChatFocus = chatPanelMaximized;
+  const effectiveChatFocus = resolveChatPanelMaximizedForLayout(
+    chatPanelMaximized,
+    activeChatPanelTab,
+    viewportWidth
+  );
 
   return (
     <TerminalProvider>
@@ -404,6 +413,7 @@ const AppShell = () => {
 
           {/* Main layout with sidebar, toolbar, content, and chat panel */}
           <AppLayout
+            viewportWidth={viewportWidth}
             sidebar={<SidebarSelector />}
             floatingSidebar={<FloatingSidebar />}
             showChatPanel

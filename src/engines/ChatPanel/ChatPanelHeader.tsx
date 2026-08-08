@@ -61,7 +61,8 @@ interface ChatPanelHeaderProps {
   tokenUsageVisible: boolean;
   turnMetadataVisible: boolean;
   shouldOffsetHeaderForCollapsedSidebar: boolean;
-  showChatFocusToggle: boolean;
+  /** Whether the active tab may reveal a Station beside the chat pane. */
+  stationAvailable: boolean;
   showHeader: boolean;
   showSessionContent: boolean;
   /** Owner-side share entry gate (design §6.3): own session + org in scope. */
@@ -112,7 +113,7 @@ export function ChatPanelHeader({
   tokenUsageVisible,
   turnMetadataVisible,
   shouldOffsetHeaderForCollapsedSidebar,
-  showChatFocusToggle,
+  stationAvailable,
   showHeader,
   showSessionContent,
   showCloudShareSettings,
@@ -253,23 +254,22 @@ export function ChatPanelHeader({
       style={CHAT_PANEL_HEADER_NO_DRAG_STYLE}
     >
       {tabStripPlus}
-      {showChatFocusToggle && (
-        <span className="inline-flex">
-          <TabBarTrailingIconButton
-            title={isChatFocus ? shrinkToWorkstationLabel : chatFocusLabel}
-            shortcutId="maximize_chat"
-            tooltipPosition="bottom-end"
-            nativeTitle={false}
-            onClick={handleChatFocusToggle}
-          >
-            {isChatFocus ? (
-              <PanelRight size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
-            ) : (
-              <Maximize2 size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
-            )}
-          </TabBarTrailingIconButton>
-        </span>
-      )}
+      <span className="inline-flex">
+        <TabBarTrailingIconButton
+          title={isChatFocus ? shrinkToWorkstationLabel : chatFocusLabel}
+          shortcutId={stationAvailable ? "maximize_chat" : undefined}
+          tooltipPosition="bottom-end"
+          nativeTitle={false}
+          onClick={stationAvailable ? handleChatFocusToggle : undefined}
+          disabled={!stationAvailable}
+        >
+          {isChatFocus ? (
+            <PanelRight size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+          ) : (
+            <Maximize2 size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+          )}
+        </TabBarTrailingIconButton>
+      </span>
     </div>
   );
 

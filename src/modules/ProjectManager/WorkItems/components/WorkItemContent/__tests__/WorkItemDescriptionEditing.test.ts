@@ -958,6 +958,32 @@ describe("WorkItemContent description editing", () => {
     ).toBeNull();
   });
 
+  it("does not restore dead local Discussion navigation while GitHub state hydrates", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            status: "open",
+            workItemStatus: "open",
+          },
+          presentation: "thread",
+        })
+      );
+    });
+
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-thread-secondary-navigation']"
+      )
+    ).toBeNull();
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-thread-open-discussion']"
+      )
+    ).toBeNull();
+  });
+
   it("keeps the current secondary view on refresh and resets on item switch", () => {
     const renderThread = (workItem: WorkItem) =>
       root.render(

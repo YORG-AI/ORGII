@@ -169,10 +169,25 @@ export function useProjectData(
     };
   }, [autoLoad, isActive, loadFromFiles, selectedProjectId]);
 
-  const activeLoadFromFiles = useCallback(() => {
-    if (!isActive) return;
-    loadFromFiles();
-  }, [isActive, loadFromFiles]);
+  const activeLoadFromFiles = useCallback(
+    (
+      change?: {
+        projectSlug?: string;
+      } | null
+    ) => {
+      if (!isActive) return;
+      const activeProjectSlug = projectRef.current?.slug;
+      if (
+        change?.projectSlug &&
+        activeProjectSlug &&
+        change.projectSlug !== activeProjectSlug
+      ) {
+        return;
+      }
+      loadFromFiles();
+    },
+    [isActive, loadFromFiles]
+  );
 
   useProjectDataChanged(activeLoadFromFiles);
 

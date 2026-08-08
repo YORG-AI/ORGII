@@ -17,6 +17,7 @@ const logger = createLogger("useStaleSessionDetection");
 const STALE_GRACE_PERIOD_MS = 5000;
 
 interface UseStaleSessionDetectionOptions {
+  enabled: boolean;
   workItem: WorkItemExtended;
   projectRepoPath: string | null;
   projectSlug: string | null;
@@ -39,6 +40,7 @@ export function useStaleSessionDetection(
   options: UseStaleSessionDetectionOptions
 ): void {
   const {
+    enabled,
     workItem,
     projectRepoPath,
     projectSlug,
@@ -50,6 +52,10 @@ export function useStaleSessionDetection(
 
   const syncCheckDoneRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!enabled) {
+      syncCheckDoneRef.current = null;
+      return;
+    }
     if (!projectRepoPath || !projectSlug || !shortId) return;
     if (syncCheckDoneRef.current === workItem.session_id) return;
     syncCheckDoneRef.current = workItem.session_id;
@@ -86,6 +92,7 @@ export function useStaleSessionDetection(
       cancelled = true;
     };
   }, [
+    enabled,
     workItem.session_id,
     workItem.orchestratorState?.current_phase,
     projectRepoPath,
@@ -145,6 +152,10 @@ export function useStaleSessionDetection(
 
   const staleCheckDoneRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!enabled) {
+      staleCheckDoneRef.current = null;
+      return;
+    }
     if (isStartingAgent) return;
 
     const phase = workItem.orchestratorState?.current_phase;
@@ -218,6 +229,7 @@ export function useStaleSessionDetection(
       cancelledRef.current = true;
     };
   }, [
+    enabled,
     workItem.orchestratorState?.current_phase,
     workItem.linkedSessions,
     linkedSessionKey,
