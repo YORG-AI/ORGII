@@ -100,7 +100,7 @@ describe("CreateComposerScaffold", () => {
       "absolute inset-x-0 flex -translate-y-1/2 items-center justify-center"
     );
     expect(markup).toContain("top:clamp(9rem, 42%, calc(100% - 20rem))");
-    expect(markup).toContain("w-full shrink-0 flex-col py-4");
+    expect(markup).toContain("w-full shrink-0 flex-col pb-4 pt-4");
     expect(markup.indexOf("Suggestions")).toBeLessThan(
       markup.indexOf('data-testid="bottom-create-content"')
     );

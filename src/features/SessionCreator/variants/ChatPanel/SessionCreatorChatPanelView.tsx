@@ -14,7 +14,10 @@ import type { ScrollNavState } from "@src/engines/ChatPanel/ChatHistory";
 import CollapsedInlineRow from "@src/engines/ChatPanel/InputArea/components/CollapsedInlineRow";
 import PinnedActionsBar from "@src/engines/ChatPanel/InputArea/components/PinnedActionsBar";
 import type { SessionLaunchWorkItemContext } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
-import { CREATOR_MIDDLE_POSITION_STYLE } from "@src/modules/shared/layouts/blocks";
+import {
+  CREATOR_BOTTOM_DOCK_PADDING_CLASS,
+  CREATOR_MIDDLE_POSITION_STYLE,
+} from "@src/modules/shared/layouts/blocks";
 import {
   type AgentSelection,
   DispatchCategoryPalette,
@@ -302,7 +305,7 @@ const SessionCreatorChatPanelView: React.FC<
       <div
         className={`session-creator-chat-panel-content flex min-h-0 flex-1 px-4 ${DETAIL_PANEL_TOKENS.headerWidth} ${
           isLaunchpadLayout
-            ? "session-creator-chat-panel-launchpad-content flex-col py-4"
+            ? `session-creator-chat-panel-launchpad-content flex-col ${CREATOR_BOTTOM_DOCK_PADDING_CLASS}`
             : `items-center justify-center ${
                 innerClassName ??
                 (isFullScreenVariant

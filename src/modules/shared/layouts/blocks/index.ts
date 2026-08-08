@@ -23,6 +23,7 @@ export {
 export type { BrowseCardProps } from "./BrowseCard";
 
 export {
+  CREATOR_BOTTOM_DOCK_PADDING_CLASS,
   CREATOR_MIDDLE_POSITION_STYLE,
   default as CreatorContentLayout,
 } from "./CreatorContentLayout";

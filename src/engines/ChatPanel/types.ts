@@ -62,8 +62,10 @@ export interface ChatPanelProps {
   sessionCreatorSlot?: ComponentType<{
     className?: string;
     variant?: "default" | "fullScreen";
+    layout?: "default" | "launchpad";
     centerFullScreenContent?: boolean;
     composerHeaderContent?: ReactNode;
+    heroFooterSlot?: ReactNode;
     pinnedActionsContent?: ReactNode;
     footerSlot?: ReactNode;
     innerClassName?: string;

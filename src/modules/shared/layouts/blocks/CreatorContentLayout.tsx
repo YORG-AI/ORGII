@@ -8,6 +8,11 @@ export const CREATOR_MIDDLE_POSITION_STYLE: CSSProperties = {
   top: "clamp(9rem, 42%, calc(100% - 20rem))",
 };
 
+/**
+ * Keep every launchpad composer the same distance from the bottom edge.
+ */
+export const CREATOR_BOTTOM_DOCK_PADDING_CLASS = "pb-4 pt-4";
+
 export interface CreatorContentLayoutProps {
   children?: ReactNode;
   contentDataTestId?: string;
@@ -47,7 +52,7 @@ export default function CreatorContentLayout({
         {middleContent}
       </div>
       <div
-        className="relative z-10 mt-auto flex w-full shrink-0 flex-col py-4"
+        className={`relative z-10 mt-auto flex w-full shrink-0 flex-col ${CREATOR_BOTTOM_DOCK_PADDING_CLASS}`}
         data-testid={contentDataTestId}
       >
         {children}

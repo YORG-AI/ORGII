@@ -9,7 +9,7 @@ export function PropertyDropdownDirectionProvider({
   children,
   direction,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   direction: PropertyDropdownDirection;
 }) {
   return (
