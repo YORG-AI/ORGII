@@ -391,7 +391,10 @@ export async function importSessionExportFile(
     pinned: false,
     error_message: JSON.stringify(importMetadata),
   };
-  registerCreatedSession(importedSession);
+  registerCreatedSession(importedSession, {
+    rosterCategory: "standalone_agent",
+    ownership: "local",
+  });
   persistSessions(getInstrumentedStore().get(sessionsAtom));
   return { ...preview, importedEventCount: remappedEvents.length };
 }

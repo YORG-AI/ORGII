@@ -47,11 +47,20 @@ import {
   sessionLastLoadedAtom,
   sessionsAtom,
 } from "./atoms";
-import { removeGuestImportedSession } from "./guestImportRegistry";
-import { sessionPaginationAtom } from "./paginationAtoms";
 import {
-  registerCreatedSessionWithNativeRoster,
+  type ClientCreatedSessionOwnership,
+  recordClientCreatedSession,
+  removeClientCreatedSession,
+} from "./createdSessionRegistry";
+import {
+  BASE_SESSION_LIST_CATEGORIES,
+  type BaseSessionListCategory,
+  sessionPaginationAtom,
+} from "./paginationAtoms";
+import {
+  registerCreatedSessionWithRoster,
   removeSessionFromRosters,
+  sidebarCategoryForSession,
   syncSessionWithNativeRosters,
 } from "./sidebarRoster";
 import type { Session, SessionStatus } from "./types";
@@ -89,11 +98,19 @@ function upsertSessionInList(prev: Session[], session: Session): Session[] {
 
 const registerCreatedSessionStateAtom = atom(
   null,
-  (_get, set, session: Session) => {
+  (
+    _get,
+    set,
+    registration: {
+      session: Session;
+      rosterCategory: BaseSessionListCategory | null;
+    }
+  ) => {
+    const { session, rosterCategory } = registration;
     set(sessionsAtom, (prev) => upsertSessionInList(prev, session));
-    if (isPrimarySessionListSession(session)) {
+    if (isPrimarySessionListSession(session) && rosterCategory) {
       set(sessionPaginationAtom, (previous) =>
-        registerCreatedSessionWithNativeRoster(previous, session)
+        registerCreatedSessionWithRoster(previous, session, rosterCategory)
       );
     }
   }
@@ -121,8 +138,39 @@ export const upsertSession = (session: Session) => {
  * Call this only after the owning persistence boundary succeeds. Cache-only
  * reconciliation of an existing row must continue to use `upsertSession`.
  */
-export const registerCreatedSession = (session: Session) => {
-  getStore().set(registerCreatedSessionStateAtom, session);
+export interface RegisterCreatedSessionOptions {
+  /**
+   * Native rows leave the registry once a backend roster confirms them.
+   * Local rows remain until deletion or bounded oldest-first eviction.
+   */
+  ownership?: ClientCreatedSessionOwnership;
+  /** Explicit projection for rows whose Session shape has no native owner. */
+  rosterCategory?: BaseSessionListCategory;
+}
+
+export const registerCreatedSession = (
+  session: Session,
+  options: RegisterCreatedSessionOptions = {}
+) => {
+  const inferredCategory = sidebarCategoryForSession(session);
+  const rosterCategory =
+    options.rosterCategory ??
+    (inferredCategory &&
+    BASE_SESSION_LIST_CATEGORIES.includes(
+      inferredCategory as BaseSessionListCategory
+    )
+      ? (inferredCategory as BaseSessionListCategory)
+      : null);
+  if (isPrimarySessionListSession(session) && rosterCategory) {
+    recordClientCreatedSession(session, {
+      category: rosterCategory,
+      ownership: options.ownership ?? "native",
+    });
+  }
+  getStore().set(registerCreatedSessionStateAtom, {
+    session,
+    rosterCategory,
+  });
 };
 
 /** Keep an existing native row visible while its roster category changes. */
@@ -227,7 +275,7 @@ export const removeSession = (sessionId: string) => {
     localStorage.removeItem(`orgii:tuiMode:${sessionId}`);
   }
   store.set(clearTodosForSessionAtom, sessionId);
-  removeGuestImportedSession(sessionId);
+  removeClientCreatedSession(sessionId);
   // Rust-agent streaming-stop state (per-turn stop markers etc.). This single
   // chokepoint covers every removal path — sidebar delete, cloud remove, fork
   // rollback, guest-share remove — so callers need not dispose it themselves.

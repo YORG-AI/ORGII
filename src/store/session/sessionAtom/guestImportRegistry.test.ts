@@ -8,8 +8,11 @@ import {
 } from "./guestImportRegistry";
 import type { Session } from "./types";
 
-const { GUEST_IMPORT_REGISTRY_STORAGE_KEY, MAX_REGISTRY_ENTRIES } =
-  __GUEST_IMPORT_REGISTRY_INTERNALS;
+const {
+  GUEST_IMPORT_REGISTRY_STORAGE_KEY,
+  LEGACY_GUEST_IMPORT_REGISTRY_STORAGE_KEY,
+  MAX_REGISTRY_ENTRIES,
+} = __GUEST_IMPORT_REGISTRY_INTERNALS;
 
 function guestSession(id: string, updatedAt = "2026-07-17T10:00:00Z"): Session {
   return {
@@ -69,6 +72,7 @@ function nativeSession(id: string): Session {
 describe("guestImportRegistry", () => {
   beforeEach(() => {
     localStorage.removeItem(GUEST_IMPORT_REGISTRY_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_GUEST_IMPORT_REGISTRY_STORAGE_KEY);
   });
 
   it("re-materializes a recorded guest row after an authoritative replace", () => {

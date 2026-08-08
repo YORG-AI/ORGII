@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Session } from "../..";
 import {
@@ -8,7 +8,7 @@ import {
 import {
   acknowledgeCreatedSessionsInNativeRoster,
   createSidebarRosterMatcher,
-  registerCreatedSessionWithNativeRoster,
+  registerCreatedSessionWithRoster,
   removeSessionFromRosters,
   sidebarCategoryForSession,
   syncSessionWithNativeRosters,
@@ -48,6 +48,11 @@ function withStandaloneRoster(
 }
 
 describe("sidebar roster ownership", () => {
+  beforeEach(() => {
+    localStorage.removeItem("orgii:clientCreatedSessions:v1");
+    localStorage.removeItem("orgii:guestShareImports:v1");
+  });
+
   it("shows cached rows provisionally, then trusts only the backend page", () => {
     const cached = Array.from({ length: 30 }, (_, index) =>
       makeSession(`sdeagent-${index + 1}`)
@@ -146,8 +151,8 @@ describe("sidebar roster ownership", () => {
       updated_at: "2026-07-29T23:59:59Z",
     });
 
-    const registered = registerCreatedSessionWithNativeRoster(base, created);
-    const registeredAgain = registerCreatedSessionWithNativeRoster(
+    const registered = registerCreatedSessionWithRoster(base, created);
+    const registeredAgain = registerCreatedSessionWithRoster(
       registered,
       created
     );

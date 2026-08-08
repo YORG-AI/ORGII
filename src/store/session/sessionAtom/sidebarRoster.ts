@@ -47,6 +47,7 @@ export function createSidebarRosterMatcher(
   pagination: SessionPaginationMap
 ): (session: Session) => boolean {
   const idsByCategory = new Map<SessionListCategory, ReadonlySet<string>>();
+  const localCategoryById = new Map<string, BaseSessionListCategory>();
   const nativeIds = new Set<string>();
   for (const [category, state] of Object.entries(pagination) as Array<
     [SessionListCategory, SessionPaginationMap[SessionListCategory]]
@@ -54,6 +55,7 @@ export function createSidebarRosterMatcher(
     if (isNativeCategory(category)) {
       for (const sessionId of state.localSessionIds) {
         nativeIds.add(sessionId);
+        localCategoryById.set(sessionId, category);
       }
     }
     if (state.generation > 0) {
@@ -66,7 +68,9 @@ export function createSidebarRosterMatcher(
     }
   }
   return (session: Session): boolean => {
-    const category = sidebarCategoryForSession(session);
+    const category =
+      localCategoryById.get(session.session_id) ??
+      sidebarCategoryForSession(session);
     if (!category) return false;
     const authoritativeIds = idsByCategory.get(category);
     if (!authoritativeIds) {
@@ -87,11 +91,12 @@ export function createSidebarRosterMatcher(
  * page/cursor. The overlay survives an older in-flight roster response and is
  * removed only after a native roster read returns the same ID.
  */
-export function registerCreatedSessionWithNativeRoster(
+export function registerCreatedSessionWithRoster(
   pagination: SessionPaginationMap,
-  session: Session
+  session: Session,
+  explicitTarget?: BaseSessionListCategory
 ): SessionPaginationMap {
-  const target = sidebarCategoryForSession(session);
+  const target = explicitTarget ?? sidebarCategoryForSession(session);
   if (!target || !isNativeCategory(target)) return pagination;
 
   const alreadyKnown = BASE_SESSION_LIST_CATEGORIES.some((category) => {

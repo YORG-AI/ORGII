@@ -342,40 +342,46 @@ export async function forkSession(
       remoteSession.forkedFrom?.rootSessionId ?? remoteSession.sourceSessionId,
   };
   const name = buildForkedSessionName(remoteSession.title);
-  registerCreatedSession({
-    session_id: localSessionId,
-    status: "completed",
-    created_at: now,
-    updated_at: now,
-    name,
-    repoPath,
-    branch: remoteSession.branch,
-    // Runnable category (NOT "external_history"): the fork must be
-    // dispatchable and eligible for collab push as this member's own session.
-    category: DISPATCH_CATEGORY.RUST_AGENT,
-    // Inherit the source's agent/model identity: the fork continues that
-    // conversation, and teammate hover cards read these off the pushed
-    // metadata. A later run with a different model overwrites them. The
-    // model itself is only kept when it is runnable on the forker's OWN
-    // keys (resolveForkModel) — otherwise the creator default, or unset.
-    cliAgentType: remoteSession.cliAgentType as Session["cliAgentType"],
-    agentDisplayName: remoteSession.agentDisplayName,
-    model: resolvedModel.model,
-    accountId: options.execution?.accountId,
-    agentDefinitionId: options.execution?.agentDefinitionId,
-    pinned: false,
-    // Ownership stamp, same rule as importRemoteSession: a member's fork is
-    // filed under the source org so the sidebar org selector lists it; a
-    // guest (share-token) fork stays under Personal. Today forks only run in
-    // member context (panel fork action), so the guard is future-proofing.
-    // `Session.orgId` is a SELECTOR value (`cloud:<uuid>`), not a bare org
-    // uuid: a bare value fails `parseCloudOrgSelectorValue`, so the share
-    // dialog saw no owning org and never offered link sharing for a fork.
-    orgId: shareToken ? undefined : buildCloudOrgSelectorValue(orgId),
-    forkedFrom,
-    // Deliberately NO importedFrom: that field marks read-only replay copies
-    // and excludes them from push (isSessionPushAllowed).
-  });
+  registerCreatedSession(
+    {
+      session_id: localSessionId,
+      status: "completed",
+      created_at: now,
+      updated_at: now,
+      name,
+      repoPath,
+      branch: remoteSession.branch,
+      // Runnable category (NOT "external_history"): the fork must be
+      // dispatchable and eligible for collab push as this member's own session.
+      category: DISPATCH_CATEGORY.RUST_AGENT,
+      // Inherit the source's agent/model identity: the fork continues that
+      // conversation, and teammate hover cards read these off the pushed
+      // metadata. A later run with a different model overwrites them. The
+      // model itself is only kept when it is runnable on the forker's OWN
+      // keys (resolveForkModel) — otherwise the creator default, or unset.
+      cliAgentType: remoteSession.cliAgentType as Session["cliAgentType"],
+      agentDisplayName: remoteSession.agentDisplayName,
+      model: resolvedModel.model,
+      accountId: options.execution?.accountId,
+      agentDefinitionId: options.execution?.agentDefinitionId,
+      pinned: false,
+      // Ownership stamp, same rule as importRemoteSession: a member's fork is
+      // filed under the source org so the sidebar org selector lists it; a
+      // guest (share-token) fork stays under Personal. Today forks only run in
+      // member context (panel fork action), so the guard is future-proofing.
+      // `Session.orgId` is a SELECTOR value (`cloud:<uuid>`), not a bare org
+      // uuid: a bare value fails `parseCloudOrgSelectorValue`, so the share
+      // dialog saw no owning org and never offered link sharing for a fork.
+      orgId: shareToken ? undefined : buildCloudOrgSelectorValue(orgId),
+      forkedFrom,
+      // Deliberately NO importedFrom: that field marks read-only replay copies
+      // and excludes them from push (isSessionPushAllowed).
+    },
+    {
+      rosterCategory: "standalone_agent",
+      ownership: "native",
+    }
+  );
   if (!shareToken) {
     inheritCloudShareLadderForFork(
       store,

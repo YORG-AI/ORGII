@@ -20,6 +20,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "../types";
 
 beforeEach(() => {
+  localStorage.removeItem("orgii:clientCreatedSessions:v1");
+  localStorage.removeItem("orgii:guestShareImports:v1");
   vi.resetModules();
 });
 
@@ -303,6 +305,7 @@ describe("removeSession", () => {
     const mutations = await import("../mutations");
     const streamHelpers =
       await import("@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers");
+    const registry = await import("../createdSessionRegistry");
 
     registerCreatedSession(makeSession({ session_id: "sess-x" }));
 
@@ -326,5 +329,6 @@ describe("removeSession", () => {
         (state) => state.localSessionIds
       )
     ).not.toContain("sess-x");
+    expect(registry.loadClientCreatedRosterProjections()).toEqual([]);
   });
 });

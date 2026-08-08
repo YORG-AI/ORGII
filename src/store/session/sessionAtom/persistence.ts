@@ -18,6 +18,7 @@
  *
  * Failure modes are silent: a corrupt cache yields `[]` and a fresh fetch.
  */
+import { syncClientCreatedSessionRecords } from "./createdSessionRegistry";
 import type { Session } from "./types";
 
 const STORAGE_KEY = "orgii:sessionsAtom:v1";
@@ -65,6 +66,8 @@ export function loadPersistedSessions(): Session[] {
 
 export function persistSessions(sessions: Session[]): void {
   if (typeof localStorage === "undefined") return;
+
+  syncClientCreatedSessionRecords(sessions);
 
   // Sort + truncate before serializing so the persisted slice is the most
   // recently active rows. We don't mutate the caller's array.

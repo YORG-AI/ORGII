@@ -5,17 +5,22 @@ import { IMPORTED_HISTORY_SOURCES } from "@src/api/tauri/externalHistory";
 
 import { dataSourceConfigAtom } from "../../dataSourceConfigAtom";
 import { sessionsAtom } from "../atoms";
+import { __CLIENT_CREATED_SESSION_REGISTRY_INTERNALS } from "../createdSessionRegistry";
 import {
   __TESTS_ONLY,
   loadMoreCategory,
   loadSessionRoster,
+  loadSessions,
   loadSidebarSessionById,
   loadSidebarSessions,
   loadSidebarSessionsByIds,
   refreshRecentNativeSessions,
 } from "../loaders";
 import { registerCreatedSession, syncSidebarSessionRoster } from "../mutations";
-import { sessionPaginationAtom } from "../paginationAtoms";
+import {
+  resetPaginationState,
+  sessionPaginationAtom,
+} from "../paginationAtoms";
 import { createSidebarRosterMatcher } from "../sidebarRoster";
 
 const mocks = vi.hoisted(() => ({
@@ -63,6 +68,12 @@ function makeRow(
 
 describe("loadSidebarSessions", () => {
   beforeEach(() => {
+    localStorage.removeItem(
+      __CLIENT_CREATED_SESSION_REGISTRY_INTERNALS.CLIENT_CREATED_SESSION_REGISTRY_STORAGE_KEY
+    );
+    localStorage.removeItem(
+      __CLIENT_CREATED_SESSION_REGISTRY_INTERNALS.LEGACY_GUEST_IMPORT_REGISTRY_STORAGE_KEY
+    );
     mocks.store = createStore();
     mocks.externalHistorySidebarList.mockReset();
     mocks.nativeSidebarSessionPage.mockReset();
@@ -120,6 +131,129 @@ describe("loadSidebarSessions", () => {
     expect(createSidebarRosterMatcher(pagination)(launchedSession)).toBe(true);
     expect(mocks.nativeSidebarSessionPage).not.toHaveBeenCalled();
     expect(mocks.sessionAggregateList).not.toHaveBeenCalled();
+  });
+
+  it("projects a collaboration replay after an authoritative roster page", async () => {
+    if (!mocks.store) throw new Error("missing test store");
+    mocks.externalHistorySidebarList.mockResolvedValue({ sources: [] });
+
+    await loadSessionRoster({ forceRefresh: true });
+
+    const imported = {
+      session_id: "imported-session-collaboration",
+      name: "Teammate replay",
+      status: "completed",
+      category: "external_history" as const,
+      created_at: "2026-08-05T11:00:00Z",
+      updated_at: "2026-08-05T11:00:00Z",
+    };
+    registerCreatedSession(imported, {
+      rosterCategory: "standalone_agent",
+      ownership: "local",
+    });
+
+    const pagination = mocks.store.get(sessionPaginationAtom);
+    expect(pagination.standalone_agent.generation).toBeGreaterThan(0);
+    expect(pagination.standalone_agent.localSessionIds).toContain(
+      imported.session_id
+    );
+    expect(createSidebarRosterMatcher(pagination)(imported)).toBe(true);
+  });
+
+  it("rehydrates JSON imports and pending collaboration forks across flat replacement", async () => {
+    if (!mocks.store) throw new Error("missing test store");
+    const importedJson = {
+      session_id: "imported-session-json",
+      name: "JSON snapshot",
+      status: "completed",
+      category: "rust_agent" as const,
+      created_at: "2026-08-05T11:00:00Z",
+      updated_at: "2026-08-05T11:00:00Z",
+    };
+    const pendingFork = {
+      session_id: "agentsession-collaboration-fork",
+      name: "Collaboration fork",
+      status: "completed",
+      category: "rust_agent" as const,
+      created_at: "2026-08-05T12:00:00Z",
+      updated_at: "2026-08-05T12:00:00Z",
+    };
+    registerCreatedSession(importedJson, {
+      rosterCategory: "standalone_agent",
+      ownership: "local",
+    });
+    registerCreatedSession(pendingFork, {
+      rosterCategory: "standalone_agent",
+      ownership: "native",
+    });
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+
+    await loadSessions({ forceRefresh: true });
+
+    expect(
+      mocks.store
+        .get(sessionsAtom)
+        .map((session) => session.session_id)
+        .sort()
+    ).toEqual([importedJson.session_id, pendingFork.session_id].sort());
+    const restartedPagination = resetPaginationState();
+    expect(restartedPagination.standalone_agent.localSessionIds).toEqual(
+      expect.arrayContaining([importedJson.session_id, pendingFork.session_id])
+    );
+
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [pendingFork] });
+    await loadSessions({ forceRefresh: true });
+
+    const acknowledgedPagination = resetPaginationState();
+    expect(acknowledgedPagination.standalone_agent.localSessionIds).toContain(
+      importedJson.session_id
+    );
+    expect(
+      acknowledgedPagination.standalone_agent.localSessionIds
+    ).not.toContain(pendingFork.session_id);
+  });
+
+  it("keeps a creation registered after its stale roster request has started", async () => {
+    if (!mocks.store) throw new Error("missing test store");
+    let resolveStandalone: ((value: unknown) => void) | undefined;
+    const standalonePage = new Promise((resolve) => {
+      resolveStandalone = resolve;
+    });
+    mocks.externalHistorySidebarList.mockResolvedValue({ sources: [] });
+    mocks.nativeSidebarSessionPage.mockImplementation((stream: string) =>
+      stream === "standaloneAgent"
+        ? standalonePage
+        : Promise.resolve({ sessions: [], nextCursor: null, hasMore: false })
+    );
+
+    const loading = loadSessionRoster({ forceRefresh: true });
+    await vi.waitFor(() =>
+      expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledWith(
+        "standaloneAgent",
+        null,
+        expect.any(Number)
+      )
+    );
+    const created = {
+      session_id: "sdeagent-created-after-request-start",
+      status: "running",
+      category: "rust_agent" as const,
+      created_at: "2026-08-05T12:00:00Z",
+      updated_at: "2026-08-05T12:00:00Z",
+    };
+    registerCreatedSession(created);
+    resolveStandalone?.({
+      sessions: [],
+      nextCursor: null,
+      hasMore: false,
+    });
+    await loading;
+
+    const pagination = mocks.store.get(sessionPaginationAtom);
+    expect(pagination.standalone_agent.localSessionIds).toContain(
+      created.session_id
+    );
+    expect(createSidebarRosterMatcher(pagination)(created)).toBe(true);
   });
 
   it("promotes a recent local creation when the safety refresh confirms it", async () => {

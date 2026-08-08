@@ -16,27 +16,20 @@ import {
   type SessionDateBucket,
 } from "@src/util/session/sessionDateBuckets";
 
-export type BaseSessionListCategory =
-  | "pinned_native"
-  | "cli_agent"
-  | "standalone_agent"
-  | "agent_org_root"
-  | "os_agent"
-  | "human_session";
+import { loadClientCreatedRosterProjections } from "./createdSessionRegistry";
+import {
+  BASE_SESSION_LIST_CATEGORIES,
+  type BaseSessionListCategory,
+} from "./sessionRosterCategories";
+
+export {
+  BASE_SESSION_LIST_CATEGORIES,
+  type BaseSessionListCategory,
+} from "./sessionRosterCategories";
 
 export type SessionListCategory =
   | BaseSessionListCategory
   | ImportedHistoryListCategory;
-
-export const BASE_SESSION_LIST_CATEGORIES: readonly BaseSessionListCategory[] =
-  [
-    "pinned_native",
-    "cli_agent",
-    "standalone_agent",
-    "agent_org_root",
-    "os_agent",
-    "human_session",
-  ];
 
 export const SESSION_LIST_CATEGORIES: readonly SessionListCategory[] = [
   ...BASE_SESSION_LIST_CATEGORIES,
@@ -107,10 +100,20 @@ export type SessionPaginationMap = Readonly<
 >;
 
 function makeInitialMap(): SessionPaginationMap {
+  const projections = loadClientCreatedRosterProjections();
   const entries = SESSION_LIST_CATEGORIES.map(
-    (category) => [category, { ...DEFAULT_STATE }] as const
+    (category) =>
+      [
+        category,
+        {
+          ...DEFAULT_STATE,
+          localSessionIds: projections
+            .filter((projection) => projection.category === category)
+            .map((projection) => projection.sessionId),
+        },
+      ] as const
   );
-  return Object.fromEntries(entries) as SessionPaginationMap;
+  return Object.fromEntries(entries) as unknown as SessionPaginationMap;
 }
 
 export const sessionPaginationAtom =

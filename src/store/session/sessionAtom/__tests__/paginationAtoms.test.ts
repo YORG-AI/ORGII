@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { IMPORTED_HISTORY_SOURCES } from "@src/api/tauri/externalHistory";
 
@@ -8,6 +8,11 @@ import {
 } from "../paginationAtoms";
 
 describe("session pagination categories", () => {
+  beforeEach(() => {
+    localStorage.removeItem("orgii:clientCreatedSessions:v1");
+    localStorage.removeItem("orgii:guestShareImports:v1");
+  });
+
   it("includes one source-aware category per imported history source", () => {
     const importedCategories = IMPORTED_HISTORY_SOURCES.map(
       (source) => source.listCategory

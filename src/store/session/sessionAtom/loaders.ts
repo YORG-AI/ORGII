@@ -51,7 +51,11 @@ import {
   sessionLoadingAtom,
   sessionsAtom,
 } from "./atoms";
-import { mergeGuestImportedSessions } from "./guestImportRegistry";
+import {
+  acknowledgeNativeCreatedSessions,
+  getPendingNativeCreatedSessionIds,
+  mergeClientCreatedSessions,
+} from "./createdSessionRegistry";
 import {
   BASE_SESSION_LIST_CATEGORIES,
   type DateBucketPaginationMap,
@@ -402,9 +406,24 @@ export const loadSessions = async (options?: LoadSessionsOptions) => {
         disabledSources.length > 0 ? disabledSources : undefined,
     });
 
-    const fetched: Session[] = mergeGuestImportedSessions(
-      toFrontendSessions((response as SessionListResponse).sessions)
+    const authoritative = toFrontendSessions(
+      (response as SessionListResponse).sessions
     );
+    const acknowledgedIds = new Set(
+      acknowledgeNativeCreatedSessions(authoritative)
+    );
+    const fetched: Session[] = mergeClientCreatedSessions(authoritative);
+
+    if (acknowledgedIds.size > 0) {
+      store.set(sessionPaginationAtom, (previous) =>
+        acknowledgeCreatedSessionsInNativeRoster(
+          previous,
+          authoritative.filter((session) =>
+            acknowledgedIds.has(session.session_id)
+          )
+        )
+      );
+    }
 
     fetched.sort((sessionA, sessionB) =>
       (sessionB.updated_at || "").localeCompare(sessionA.updated_at || "")
@@ -555,8 +574,16 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
       dateBuckets,
     });
     if (!isImportedHistoryListCategory(category)) {
+      const acknowledgedIds = new Set(
+        acknowledgeNativeCreatedSessions(primarySessions)
+      );
       store.set(sessionPaginationAtom, (previous) =>
-        acknowledgeCreatedSessionsInNativeRoster(previous, primarySessions)
+        acknowledgeCreatedSessionsInNativeRoster(
+          previous,
+          primarySessions.filter((session) =>
+            acknowledgedIds.has(session.session_id)
+          )
+        )
       );
     }
   };
@@ -735,11 +762,7 @@ export function refreshRecentNativeSessions(): Promise<void> {
       .get(sessionsAtom)
       .map((session) => [session.session_id, session] as const)
   );
-  const locallyRegisteredIds = new Set(
-    BASE_SESSION_LIST_CATEGORIES.flatMap((category) =>
-      store.get(sessionPaginationAtom)[category].localSessionIds.slice()
-    )
-  );
+  const locallyRegisteredIds = getPendingNativeCreatedSessionIds();
   const refresh = (async () => {
     const response = await sessionAggregateList({
       includeExternalHistory: false,
@@ -775,6 +798,7 @@ export function refreshRecentNativeSessions(): Promise<void> {
         )
       );
     }
+    acknowledgeNativeCreatedSessions(incoming);
     persistSessions(merged);
   })().finally(() => {
     if (recentNativeRefreshesByStore.get(store) === refresh) {
@@ -941,8 +965,16 @@ export const loadMoreCategory = async (
       dateBuckets,
     });
     if (!imported) {
+      const acknowledgedIds = new Set(
+        acknowledgeNativeCreatedSessions(primarySessions)
+      );
       store.set(sessionPaginationAtom, (previous) =>
-        acknowledgeCreatedSessionsInNativeRoster(previous, primarySessions)
+        acknowledgeCreatedSessionsInNativeRoster(
+          previous,
+          primarySessions.filter((session) =>
+            acknowledgedIds.has(session.session_id)
+          )
+        )
       );
     }
     persistSessions(store.get(sessionsAtom));

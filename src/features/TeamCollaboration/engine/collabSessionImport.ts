@@ -1005,7 +1005,10 @@ async function importRemoteSessionInner(
     throwIfAborted(options.signal);
     // No await after the final abort check: the session row, guest registry
     // and persisted list commit synchronously as one local critical section.
-    registerCreatedSession(importedRow);
+    registerCreatedSession(importedRow, {
+      rosterCategory: "standalone_agent",
+      ownership: "local",
+    });
     // Re-import of an existing copy: upsertSession pins timestamps against
     // careless reconcile writes, but this row's clock belongs to the source.
     applyImportedSessionTimestamps(localSessionId, {

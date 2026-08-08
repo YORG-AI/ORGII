@@ -7,6 +7,7 @@ import { type Atom, atom } from "jotai";
 
 import { isActiveStatus, isTerminalStatus } from "@src/types/session/session";
 
+import { mergeClientCreatedSessions } from "./createdSessionRegistry";
 import { loadPersistedSessions } from "./persistence";
 import type { Session, SessionGroups } from "./types";
 
@@ -30,7 +31,11 @@ export const SESSION_CACHE_INVALIDATED_EVENT = "session-cache-invalidated";
 // synchronously from localStorage so known sessions can render on cold start;
 // paginated list membership lives in `sessionPaginationAtom` and is combined
 // with these records by the Sidebar projection.
-export const sessionsAtom = atom<Session[]>(loadPersistedSessions());
+export const sessionsAtom = atom<Session[]>(
+  mergeClientCreatedSessions(loadPersistedSessions(), {
+    acknowledgeNative: false,
+  })
+);
 sessionsAtom.debugLabel = "sessionsAtom";
 
 export const sessionLoadingAtom = atom<boolean>(false);
