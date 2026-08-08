@@ -4,7 +4,7 @@
  * Displays web search results as a structured list with link icons.
  * Same pattern as GlobBlock: EventBlockExpandableStackList + ComposerStackListRow.
  */
-import { ExternalLink } from "lucide-react";
+import { SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 
 import { getToolIcon } from "@src/config/toolIcons";
@@ -59,7 +59,9 @@ const WebSearchResultRow: React.FC<{ result: WebSearchResult }> = React.memo(
     return (
       <ComposerStackListRow
         title={result.snippet || result.url}
-        leading={<ExternalLink size={14} className="shrink-0 text-text-3" />}
+        leading={
+          <SquareArrowOutUpRight size={14} className="shrink-0 text-text-3" />
+        }
         primary={displayTitle}
         secondary={domain}
       />

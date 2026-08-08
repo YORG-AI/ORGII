@@ -1,4 +1,9 @@
-import { ChevronDown, ChevronRight, ExternalLink, Files } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Files,
+  SquareArrowOutUpRight,
+} from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -121,7 +126,7 @@ const SessionRunCard: React.FC<SessionRunCardProps> = ({
               className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
               onClick={() => onOpenSession(sessionId)}
             >
-              <ExternalLink size={12} />
+              <SquareArrowOutUpRight size={12} />
               <span>
                 {isActive
                   ? t("workItems.agentWorkflow.viewLiveChat")

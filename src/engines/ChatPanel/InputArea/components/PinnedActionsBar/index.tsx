@@ -23,6 +23,10 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
+import {
+  PILL_CONTROL_IDLE_SURFACE_CLASS,
+  pillControlStateClass,
+} from "@src/components/CompoundPill/config";
 import { FileTreeHoverPreview } from "@src/components/FileTreePreview/exports";
 import UserActionButton from "@src/engines/ChatPanel/InputArea/components/UserActionButton";
 import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
@@ -73,7 +77,7 @@ const ActionPill: React.FC<ActionPillProps> = memo(
         shape="round"
         title={action.name}
         onClick={(event) => onClick(action, event)}
-        className="max-w-180 shrink-0 select-none"
+        className={`max-w-180 shrink-0 select-none ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
       >
         {action.name}
       </Button>
@@ -321,9 +325,7 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
         title={t("input.pinnedActions.manage")}
         aria-label={t("input.pinnedActions.manage")}
         onClick={handleOpenPanel}
-        className={
-          panelOpen ? "shrink-0 !bg-fill-1 !text-primary-6" : "shrink-0"
-        }
+        className={`shrink-0 ${pillControlStateClass(panelOpen)}`}
       />
     );
 

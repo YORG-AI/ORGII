@@ -28,6 +28,11 @@ export const UsageItemSchema = z.object({
   reset_time: z.string().nullable().optional(),
 });
 
+export const QuotaBalanceSchema = z.object({
+  amount: z.number(),
+  currency: z.string(),
+});
+
 export const QuotaInfoSchema = z.object({
   remaining_percentage: z.number(),
   used: z.number().nullable(),
@@ -40,6 +45,7 @@ export const QuotaInfoSchema = z.object({
   is_unlimited: z.boolean(),
   quota_source: z.string().nullable(),
   usage_items: z.array(UsageItemSchema),
+  balance: QuotaBalanceSchema.nullable().optional(),
   auto_message: z.string().nullable(),
   named_message: z.string().nullable(),
 });
@@ -119,6 +125,7 @@ export const KeyInfoSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   enabled: z.boolean(),
+  can_refresh_quota: z.boolean().default(false),
   supports_rust_agents: z.boolean(),
   can_launch_cli: z.boolean(),
   can_use_native_harness: z.boolean(),

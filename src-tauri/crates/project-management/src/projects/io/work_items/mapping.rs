@@ -128,13 +128,17 @@ where
         params![work_item_id],
         |row| row.get::<_, String>(0),
     )?;
+    Ok(parse_extras_json(work_item_id, raw.as_deref()))
+}
+
+pub(super) fn parse_extras_json(work_item_id: &str, raw: Option<&str>) -> ExtrasPayload {
     // Silent fallback to `ExtrasPayload::default()` on a corrupt row
     // is a data-loss path: the orchestrator/atomic mutators read this
     // payload, mutate it, then write it back — overwriting the corrupt
     // row with a default that has no `field_revisions` / `external_refs`
     // / `orchestrator_state`. Warn so DB corruption / schema drift is
     // visible before the next mutator overwrites the recoverable row.
-    let extras = match raw.as_deref() {
+    match raw {
         Some(json) => match serde_json::from_str::<ExtrasPayload>(json) {
             Ok(v) => v,
             Err(err) => {
@@ -148,8 +152,7 @@ where
             }
         },
         None => ExtrasPayload::default(),
-    };
-    Ok(extras)
+    }
 }
 
 /// Minimal abstraction over `Connection` and `Transaction` so read

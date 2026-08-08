@@ -44,6 +44,18 @@ export function endpointForOrg(orgId: string): CloudEndpoint {
   return shardKey ? { ...endpoint, anonKey: shardKey } : endpoint;
 }
 
+/**
+ * Endpoint for a connection that is already pinned to an https origin (the
+ * realtime socket follows `auth.supabaseUrl`, not an org id). Falls back to
+ * the official endpoint when the origin is not a routed shard.
+ */
+export function endpointForOrigin(supabaseUrl: string): CloudEndpoint {
+  const official = getCloudEndpoint();
+  const anonKey = anonKeyByOrigin.get(supabaseUrl);
+  if (supabaseUrl === official.supabaseUrl) return official;
+  return { ...official, supabaseUrl, anonKey: anonKey ?? official.anonKey };
+}
+
 export function resetOrgEndpointDirectory(): void {
   orgEndpoints.clear();
   anonKeyByOrigin.clear();

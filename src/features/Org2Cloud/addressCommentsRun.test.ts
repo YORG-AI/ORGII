@@ -226,6 +226,77 @@ describe("runAddressCommentsRound", () => {
     expect(result).toEqual({ status: "ran", threadCount: 1, replyCount: 1 });
   });
 
+  it("serializes overlapping rounds so replies validate against their own run", async () => {
+    const order: string[] = [];
+    let releaseFirst = (): void => {};
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    vi.mocked(listSessionComments).mockResolvedValue({
+      comments: [comment({ id: "c-1" }), comment({ id: "c-2" })],
+      viewerOwnsSession: true,
+    });
+    const first = runAddressCommentsRound({
+      orgId: "org-1",
+      cloudSessionId: "local-1",
+      localSessionId: "local-1",
+      selectedHeadIds: ["c-1"],
+      dispatchTurn: async ({ turnIntentId }) => {
+        order.push("dispatch-1");
+        const generation = beginTurnDispatch("local-1");
+        publishTurnIntentDispatch(turnIntentId, {
+          sessionId: "local-1",
+          generation,
+        });
+        void firstBlocked.then(async () => {
+          const reply = await replyViaActiveAddressRun(
+            "c-1",
+            "done",
+            "local-1"
+          );
+          order.push(`reply-1:${String(reply.success)}`);
+          markTurnTerminal("local-1", "completed", { generation });
+        });
+      },
+    });
+    await vi.waitFor(() => {
+      expect(order).toContain("dispatch-1");
+    });
+    // Second round starts while the first turn is still running. Without
+    // per-session serialization it would overwrite the first round's
+    // registration and the first run's reply would be rejected as unknown.
+    const second = runAddressCommentsRound({
+      orgId: "org-1",
+      cloudSessionId: "local-1",
+      localSessionId: "local-1",
+      selectedHeadIds: ["c-2"],
+      dispatchTurn: async ({ turnIntentId }) => {
+        order.push("dispatch-2");
+        const generation = beginTurnDispatch("local-1");
+        publishTurnIntentDispatch(turnIntentId, {
+          sessionId: "local-1",
+          generation,
+        });
+        markTurnTerminal("local-1", "completed", { generation });
+      },
+    });
+    releaseFirst();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult).toEqual({
+      status: "ran",
+      threadCount: 1,
+      replyCount: 1,
+    });
+    expect(secondResult).toEqual({
+      status: "ran",
+      threadCount: 1,
+      replyCount: 0,
+    });
+    expect(order.indexOf("dispatch-2")).toBeGreaterThan(
+      order.indexOf("reply-1:true")
+    );
+  });
+
   it("does not dispatch when no unresolved selected thread exists", async () => {
     vi.mocked(listSessionComments).mockResolvedValue({
       comments: [comment({ id: "c-1", resolvedAt: "2026-07-11T10:00:00Z" })],

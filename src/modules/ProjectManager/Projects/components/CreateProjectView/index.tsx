@@ -8,11 +8,8 @@
  * Handles its own centralized project-store write logic so the layout doesn't need
  * to pass persistence callbacks.
  *
- * Split layout:
- *   - Header: title
- *   - Left: project metadata pills + ProjectContentEditor
- *   - Right: PropertiesPanel
- *   - Footer: Create with Agent stub / Create project
+ * The manual and Agent variants share the same composer structure as Work Item
+ * creation: title header, editor body, pinned property pills, and submit bar.
  */
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -26,27 +23,29 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
-import Button from "@src/components/Button";
-import Input from "@src/components/Input";
-import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
-import WorkItemContentStack from "@src/modules/ProjectManager/WorkItems/components/WorkItemContentStack";
 import {
+  CreateComposerAgentFrame,
+  CreateComposerHeader,
+  CreateComposerPinnedActions,
+  CreateComposerTitleInput,
   DetailSplitLayout,
   type LinkedRepoOption,
+  ManualCreateComposer,
   PROJECT_PROPERTY_CONCISE_FIELDS,
   ProjectContentEditor,
   type ProjectContentEditorRef,
   type ProjectData,
   ProjectPropertyFields,
 } from "@src/modules/ProjectManager/shared";
+import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
 import { reposAtom } from "@src/store/repo";
 import {
   type ProjectDraft,
@@ -83,10 +82,15 @@ export interface CreateProjectViewProps {
   onSetUnsaved: (hasUnsaved: boolean) => void;
   /** Called after project is successfully created */
   onProjectCreated: (options?: { keepOpen?: boolean }) => void;
-  /** Hide manual description/footer while an agent creator is shown. */
+  /** Show the Agent composer instead of the manual Project composer. */
   aiGenerateMode?: boolean;
-  /** Render the create footer. */
-  showFooter?: boolean;
+  /** Center the creator composer within the available launcher space. */
+  centerLauncherContent?: boolean;
+  /** Render Session Creator in Agent mode with Project fields in its composer. */
+  renderAgentComposer?: (
+    headerContent: React.ReactNode,
+    pinnedActionsContent: React.ReactNode
+  ) => React.ReactNode;
   /** Publish page header into the global WorkstationTabHeader. */
   publishHeaderToWorkstation?: boolean;
 }
@@ -106,14 +110,14 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   onSetUnsaved,
   onProjectCreated,
   aiGenerateMode = false,
-  showFooter = true,
+  centerLauncherContent = false,
+  renderAgentComposer,
   publishHeaderToWorkstation = false,
 }) => {
   const { t } = useTranslation("projects");
   const [saving, setSaving] = useState(false);
   const [availableOrgs, setAvailableOrgs] = useState<ProjectOrg[]>([]);
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
-  const [editorResetKey, setEditorResetKey] = useState(0);
 
   // Read draft from atom (survives tab switches)
   const draftsMap = useAtomValue(projectDraftsAtom);
@@ -188,11 +192,6 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     [updateDraft]
   );
 
-  const handleSummaryChange = useCallback(
-    (summary: string) => updateDraft({ summary }),
-    [updateDraft]
-  );
-
   const handleDescriptionChange = useCallback(
     (markdown: string, _text: string) => updateDraft({ description: markdown }),
     [updateDraft]
@@ -257,10 +256,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     setSaving(true);
     try {
       const name = draft.name.trim();
-      const descriptionMarkdown =
-        editorRef.current?.getMarkdown()?.trim() ?? "";
-      const parts = [draft.summary.trim(), descriptionMarkdown].filter(Boolean);
-      const description = parts.join("\n\n");
+      const description = editorRef.current?.getMarkdown()?.trim() ?? "";
 
       const slug = name
         .toLowerCase()
@@ -309,16 +305,10 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     }
   }, [draft, onProjectCreated, removeDraft, saving, tabId]);
 
-  const handleReset = useCallback(() => {
-    const nextDraft = createDefaultProjectDraft();
-    nextDraft.orgId = orgId;
-    if (repoPath) nextDraft.linkedRepoPaths = [repoPath];
-    setDraft({ tabId, draft: nextDraft });
-    onSetUnsaved(false);
-    setEditorResetKey((value) => value + 1);
-  }, [onSetUnsaved, orgId, repoPath, setDraft, tabId]);
-
-  useKeyboardSave(handleCreate, !saving && !!draft.name.trim());
+  useKeyboardSave(
+    handleCreate,
+    !aiGenerateMode && !saving && !!draft.name.trim()
+  );
 
   const selectableOrgs = useMemo(
     () => filterSelectableProjectOrgs(availableOrgs, cloudOrgs),
@@ -387,82 +377,81 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   );
 
   const titleSection = (
-    <Input
-      type="text"
+    <CreateComposerTitleInput
       value={draft.name}
       onChange={handleTitleChange}
       placeholder={t("projects.editor.titlePlaceholder")}
-      autoFocus
-      fieldVariant="ghost"
-      size="small"
-      className="flex-1"
-      inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
-      data-testid="create-project-title-input"
+      dataTestId="create-project-title-input"
+    />
+  );
+
+  const composerHeaderContent = (
+    <CreateComposerHeader dataTestId="create-project-composer-header">
+      {titleSection}
+    </CreateComposerHeader>
+  );
+
+  const projectPinnedActions = (
+    <CreateComposerPinnedActions dataTestId="create-project-pinned-actions">
+      {orgBreadcrumbPill}
+      {propertyPills}
+    </CreateComposerPinnedActions>
+  );
+
+  const projectEditor = (
+    <ProjectContentEditor
+      ref={editorRef}
+      title={draft.name}
+      onTitleChange={handleTitleChange}
+      initialDescription={draft.description || undefined}
+      onDescriptionChange={handleDescriptionChange}
+      titleVisible={false}
+      separatorVisible={false}
+      descriptionClassName="no-bottom-border [&_.ProseMirror]:!pl-1.5"
+      descriptionMaxHeight="100%"
+      repoPath={repoPath}
+      className="flex min-h-0 flex-1 flex-col"
+      dataTestId="create-project-editor"
     />
   );
 
   return (
     <DetailSplitLayout
       title={t("projects.newProject")}
+      borderlessHeader
       hideHeader
       publishHeaderToWorkstation={publishHeaderToWorkstation}
       leftContent={
-        <div className={`${DETAIL_PANEL_TOKENS.headerWidth} h-full px-4`}>
-          <WorkItemContentStack
-            className="h-full w-full"
-            titleContent={titleSection}
-            pathContent={orgBreadcrumbPill}
-            propertiesContent={propertyPills}
-            descriptionContent={
-              !aiGenerateMode ? (
-                <ProjectContentEditor
-                  key={editorResetKey}
-                  ref={editorRef}
-                  title={draft.name}
-                  onTitleChange={handleTitleChange}
-                  summary={draft.summary}
-                  onSummaryChange={handleSummaryChange}
-                  initialDescription={draft.description || undefined}
-                  onDescriptionChange={handleDescriptionChange}
-                  titleVisible={false}
-                  separatorVisible={false}
-                  descriptionClassName="no-bottom-border"
-                  descriptionMaxHeight="100%"
-                  repoPath={repoPath}
-                  className="flex h-full min-h-0 flex-col"
+        <CreatorContentLayout
+          centered={centerLauncherContent}
+          centeredDataTestId="create-project-centered-launcher"
+        >
+          {aiGenerateMode && renderAgentComposer ? (
+            <CreateComposerAgentFrame centered={centerLauncherContent}>
+              {renderAgentComposer(composerHeaderContent, projectPinnedActions)}
+            </CreateComposerAgentFrame>
+          ) : (
+            <ManualCreateComposer
+              centered={centerLauncherContent}
+              dataTestId="create-project-manual-composer"
+              editorRef={editorRef}
+              headerContent={composerHeaderContent}
+              editorContent={projectEditor}
+              pinnedActionsContent={projectPinnedActions}
+              submitButton={
+                <LaunchButton
+                  ariaLabel={t("projects.createProject")}
+                  dataTestId="create-project-submit"
+                  disabled={!draft.name.trim() || saving}
+                  loading={saving}
+                  onClick={() => {
+                    void handleCreate();
+                  }}
                 />
-              ) : undefined
-            }
-            descriptionFlexible={!aiGenerateMode}
-            metaClassName="py-2"
-            titleClassName="flex h-10 items-center py-0"
-            descriptionClassName={
-              aiGenerateMode
-                ? "flex shrink-0 justify-center pt-4"
-                : "min-h-0 overflow-hidden pt-2"
-            }
-            separatorClassName=""
-            scrollable
-          />
-        </div>
-      }
-      footer={
-        showFooter && !aiGenerateMode ? (
-          <>
-            <Button variant="secondary" size="small" onClick={handleReset}>
-              {t("common:actions.reset")}
-            </Button>
-            <Button
-              variant="primary"
-              size="small"
-              onClick={handleCreate}
-              disabled={!draft.name.trim() || saving}
-              data-testid="create-project-submit"
-            >
-              {saving ? t("common:status.saving") : t("projects.createProject")}
-            </Button>
-          </>
-        ) : undefined
+              }
+            />
+          )}
+        </CreatorContentLayout>
       }
     />
   );

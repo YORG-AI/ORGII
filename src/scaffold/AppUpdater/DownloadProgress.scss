@@ -1,8 +1,3 @@
-.app-update-download-progress--indeterminate > div {
-  width: 36% !important;
-  animation: app-update-progress-slide 1.2s ease-in-out infinite;
-}
-
 .app-update-download-orb {
   position: fixed;
   right: 1rem;
@@ -78,15 +73,6 @@
   animation: app-update-liquid-breathe 1.5s ease-in-out infinite alternate;
 }
 
-@keyframes app-update-progress-slide {
-  0% {
-    transform: translateX(-110%);
-  }
-  100% {
-    transform: translateX(280%);
-  }
-}
-
 @keyframes app-update-liquid-wave {
   to {
     transform: rotate(360deg);
@@ -110,7 +96,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-update-download-progress--indeterminate > div,
   .app-update-download-orb__wave,
   .app-update-download-orb--indeterminate .app-update-download-orb__liquid {
     animation: none;

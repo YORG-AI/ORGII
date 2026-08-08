@@ -1,13 +1,18 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { Search } from "lucide-react";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { ROUTES } from "@src/config/routes";
+import { normalizeSetupWalkthroughProgress } from "@src/config/settingsSchema/setupWalkthroughProgress";
+import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
+import { isDeveloperTestPanelEnabled } from "@src/scaffold/DeveloperTestPanel";
+import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
@@ -20,6 +25,25 @@ import {
   visitedSessionsAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
+import { settingsAtom } from "@src/store/settings/settingsAtom";
+import {
+  SETUP_GUIDE_PERSISTED_MILESTONE,
+  completeSetupGuideMilestone,
+  consumeSetupGuideHandoff,
+  hasCompletedSetupGuideMilestone,
+} from "@src/store/settings/setupGuideProgress";
+import { saveSetupGuideProgressAtom } from "@src/store/settings/setupGuideProgressAtom";
+import {
+  CHAT_PANEL_CREATE_TARGET,
+  CLOUD_ORG_MANAGEMENT_VIEW,
+} from "@src/store/ui/chatPanelAtom";
+import { showGuideHighlightAtom } from "@src/store/ui/guideHighlightAtom";
+import { runtimeNavigationIntentAtom } from "@src/store/ui/runtimeNavigationAtom";
+import {
+  SETUP_GUIDE_DEV_SCENARIO,
+  resolveSetupGuideDevCloudOrg,
+  setupGuideDevScenarioAtom,
+} from "@src/store/ui/setupGuideDevScenarioAtom";
 import {
   clearSessionSidebarRevealAtom,
   sessionSidebarRevealRequestAtom,
@@ -29,8 +53,18 @@ import {
 import { SidebarBottomBar, SidebarMenuSearchInput } from "../../blocks";
 import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
 import NavigationSidebar from "../../variants/NavigationSidebar";
+import SidebarGuideButton from "../SidebarGuideButton";
+import {
+  SIDEBAR_GUIDE_MILESTONE,
+  type SidebarGuideCompletion,
+} from "../sidebarGuideProgress";
 import { DEFAULT_COLLAPSED_SECTION_IDS } from "../workstationSidebarData";
 import { SidebarDialogs } from "./SidebarDialogs";
+import {
+  type WorkstationSidebarViewKey,
+  WorkstationSidebarViewSwitcher,
+} from "./WorkstationSidebarViewSwitcher";
+import { useLocalChannelsSection } from "./localChannelsSection";
 import { useWorkstationSidebarBottomActions } from "./sidebarConnector.bottomActions";
 import { useWorkstationSidebarChatPanelAtoms } from "./sidebarConnector.chatPanelAtoms";
 import { useWorkstationSidebarChrome } from "./sidebarConnector.chrome";
@@ -44,8 +78,17 @@ import { useWorkstationSidebarScopeAndPagination } from "./sidebarConnector.scop
 import { useWorkstationSidebarSelectionAndNavigation } from "./sidebarConnector.selectionAndNavigation";
 import { useWorkstationSidebarSessionAndProjectMenuItems } from "./sidebarConnector.sessionAndProjectMenuItems";
 import { useWorkstationSidebarSessionInteractionHandlers } from "./sidebarConnector.sessionInteractionHandlers";
+import { resolveSidebarGuideInviteSpotlight } from "./sidebarGuideInviteNavigation";
+import { resolveSidebarGuideOrganizationNavigation } from "./sidebarGuideOrganizationNavigation";
+import { startSidebarGuideProductTour } from "./sidebarGuideProductTour";
+import { resolveSidebarGuideTeamUsageNavigation } from "./sidebarGuideTeamUsageNavigation";
 import { SidebarSearchShortcutTooltip } from "./sidebarTabs";
-import type { WorkstationSidebarKey } from "./types";
+import type {
+  WorkstationSidebarKey,
+  WorkstationSidebarSearchKey,
+} from "./types";
+
+const logger = createLogger("WorkstationSidebarGuide");
 
 /**
  * Workstation sidebar coordinator. The bulk of this connector's state,
@@ -67,6 +110,18 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const sessions = useAtomValue(sessionsAtom);
+  const setupGuideProgress = normalizeSetupWalkthroughProgress(
+    useAtomValue(settingsAtom)["general.setupWalkthroughProgress"]
+  );
+  const saveSetupGuideProgress = useSetAtom(saveSetupGuideProgressAtom);
+  const showGuideHighlight = useSetAtom(showGuideHighlightAtom);
+  const setRuntimeNavigationIntent = useSetAtom(runtimeNavigationIntentAtom);
+  const setupGuideDevScenario = useAtomValue(setupGuideDevScenarioAtom);
+  const setupGuideDevToolsEnabled = isDeveloperTestPanelEnabled();
+  const activeSetupGuideDevScenario = setupGuideDevToolsEnabled
+    ? setupGuideDevScenario
+    : SETUP_GUIDE_DEV_SCENARIO.LIVE;
+  const guideNavigationRequestId = useRef(0);
   useTeamInboxDataSource();
   const teamInboxUnreadCount = useAtomValue(teamInboxUnreadCountAtom);
   const sessionsLoading = useAtomValue(sessionLoadingAtom);
@@ -116,23 +171,35 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const { goToNewSession, navigateTo } = useAppNavigation();
   const [activeSidebarKey, setActiveSidebarKey] =
     useState<WorkstationSidebarKey>("workstation");
+  const [channelsOpen, setChannelsOpen] = useState(false);
   const [activeSessionMoreMenuId, setActiveSessionMoreMenuId] = useState("");
   const [projectsSelectedMenuItemId, setProjectsSelectedMenuItemId] =
     useState("");
   const [workItemsOpen, setWorkItemsOpen] = useState(false);
   const workItemsContentVisible =
     activeSidebarKey === "workstation" && workItemsOpen;
-  const projectsSidebarVisible =
-    activeSidebarKey === "projects" || workItemsContentVisible;
-  const activeSidebarSearchKey: WorkstationSidebarKey = workItemsContentVisible
-    ? "projects"
-    : activeSidebarKey;
+  const channelSidebarVisible =
+    activeSidebarKey === "workstation" && channelsOpen;
+  const activeSidebarSearchKey: WorkstationSidebarSearchKey =
+    workItemsContentVisible
+      ? "projects"
+      : channelSidebarVisible
+        ? "channels"
+        : activeSidebarKey;
   const [sidebarSearchQueries, setSidebarSearchQueries] = useState<
-    Record<WorkstationSidebarKey, string>
-  >({ workstation: "", projects: "" });
-  const handleSidebarLayerChange = useCallback((key: WorkstationSidebarKey) => {
-    setActiveSidebarKey(key);
+    Record<WorkstationSidebarSearchKey, string>
+  >({ workstation: "", projects: "", channels: "" });
+  const handleViewChange = useCallback((key: WorkstationSidebarViewKey) => {
+    setActiveSidebarKey("workstation");
+    setChannelsOpen(key === "channels");
+    setWorkItemsOpen(key === "work-items");
   }, []);
+  const activeViewKey: WorkstationSidebarViewKey =
+    activeSidebarKey === "projects" || workItemsContentVisible
+      ? "work-items"
+      : channelSidebarVisible
+        ? "channels"
+        : "sessions";
 
   const handleSidebarSearchChange = useCallback(
     (value: string) => {
@@ -176,6 +243,14 @@ export const WorkstationSidebarConnector: React.FC = () => {
     sessions,
     workstationSearchQuery: sidebarSearchQueries.workstation,
   });
+  const guideCloudOrg = useMemo(
+    () =>
+      resolveSetupGuideDevCloudOrg(
+        manageableCloudOrg,
+        activeSetupGuideDevScenario
+      ),
+    [activeSetupGuideDevScenario, manageableCloudOrg]
+  );
 
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Map<string, number>
@@ -206,7 +281,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     unpinFolderLabel,
     createProjectLabel,
     createWorkItemLabel,
-    workItemsLabel,
     runtimeLabel,
     teamInboxLabel,
     importGithubIssuesLabel,
@@ -218,6 +292,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
 
   const {
     cloudMenuItems,
+    cloudSessionMenuItems,
+    channelMenuItems,
     selectedCloudMenuItemId,
     handleCloudSessionItemClick,
     resetCloudTeamPagination,
@@ -227,6 +303,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     cloudRemoteViewerMap,
     sessionListExcludedIds,
     cloudScopedExtraSessionIds,
+    cloudChannelsDialogs,
   } = useWorkstationSidebarCloudMenuData({
     activeCloudOrgId,
     sessions,
@@ -239,6 +316,23 @@ export const WorkstationSidebarConnector: React.FC = () => {
     personalHiddenCloudTaggedIds,
     cloudTaggedSessionIds,
   });
+
+  // Local-scope Channels (this-machine, single-user): the mirror of the
+  // cloud channels section, mounted only while no cloud org is active.
+  const {
+    localChannelsMenuItems,
+    handleLocalChannelsItemClick,
+    selectedLocalChannelMenuItemId,
+    localChannelsDialogs,
+  } = useLocalChannelsSection({ enabled: activeCloudOrgId === null });
+
+  // Local channel rows resolve first (their ids can never collide with
+  // session/cloud ids) — the cloudMenuData composition idiom.
+  const handleScopedSessionItemClick = useCallback(
+    (item: NavigationMenuItem): boolean =>
+      handleLocalChannelsItemClick(item) || handleCloudSessionItemClick(item),
+    [handleLocalChannelsItemClick, handleCloudSessionItemClick]
+  );
 
   const {
     menuItems,
@@ -295,8 +389,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     cloudMenuItems,
     menuItems,
     sessionCreatorDrafts,
-    projectsSidebarVisible,
-    activeSidebarKey,
+    activeViewKey,
     createProjectLabel,
     createWorkItemLabel,
     importGithubIssuesLabel,
@@ -313,6 +406,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     setSidebarCollapsed,
     setActiveSidebarKey,
     setWorkItemsOpen,
+    setChannelsOpen,
     setSelectedOrgId,
     setSidebarSearchQueries,
     setExpandedSubagentParentIds,
@@ -375,7 +469,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleOpenLinkedWorkItemSession,
     handleToggleSubagentExpansion,
   } = useWorkstationSidebarSessionInteractionHandlers({
-    handleCloudSessionItemClick,
+    handleCloudSessionItemClick: handleScopedSessionItemClick,
     cloudMySessionsVisibleCount,
     cloudMyPaginationScopeKey,
     setCloudMyPagination,
@@ -390,6 +484,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     navigateTo,
     openSession,
     promoteActiveSessionCreatorDraft,
+    groupByMode,
     setGroupVisibleCounts,
     tCommon,
     activateChatPanelTab,
@@ -428,7 +523,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
     unpinFolderLabel,
     setActiveSessionMoreMenuId,
     subagentParentIds,
-    cloudMenuItems,
+    cloudSessionMenuItems,
+    channelSidebarMenuItems:
+      channelMenuItems.length > 0 ? channelMenuItems : localChannelsMenuItems,
+    channelSidebarVisible,
     sessionSidebarMenuItems,
     cloudMySessionsVisibleCount,
     activeSidebarKey,
@@ -456,17 +554,11 @@ export const WorkstationSidebarConnector: React.FC = () => {
 
   const {
     handleOpenSpotlight,
-    handleSubmenuOpenChange,
-    sidebarLayerHeader,
     sidebarOrgSelector,
     resolvedMenuItemClick,
     resolvedMenuItemContextMenu,
     resolvedRenderMenuItemWrapper,
   } = useWorkstationSidebarChrome({
-    setWorkItemsOpen,
-    handleSidebarLayerChange,
-    projectsSidebarVisible,
-    workItemsLabel,
     activeOrgId,
     orgSelectorOptions,
     addOrgLabel,
@@ -496,7 +588,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     openRuntimeTab,
     runtimeLabel,
     openTeamInboxTab,
-    teamInboxLabel,
     activateChatPanelTab,
     handleMenuItemClick,
     handleProjectsMenuItemClick,
@@ -509,6 +600,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
       resolvedOnCollapsedSectionIdsChange,
       sessions,
       workItemsContentVisible,
+      channelSidebarVisible,
       activeSidebarKey,
       projectsWorkItemsLoading,
       projectsSidebarMenuItems,
@@ -517,12 +609,161 @@ export const WorkstationSidebarConnector: React.FC = () => {
       includeExternal,
       setGroupByMode,
       setIncludeExternal,
-      selectedCloudMenuItemId,
+      // In the local scope `selectedCloudMenuItemId` is null, so the open
+      // local-channel row lands in the same slot the cloud section uses.
+      selectedCloudMenuItemId:
+        selectedLocalChannelMenuItemId ?? selectedCloudMenuItemId,
       selectedMenuItemId,
       activeSessionId,
       collapsedSectionIds,
       pinnedMenuItems,
     });
+
+  const handleGuideConnectOrganization = useCallback(() => {
+    guideNavigationRequestId.current = Math.max(
+      guideNavigationRequestId.current + 1,
+      Date.now()
+    );
+    const navigation = resolveSidebarGuideOrganizationNavigation(
+      guideNavigationRequestId.current
+    );
+    openCreateTargetInStartPage({
+      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
+      title: t("routes.launchpad"),
+      collabOrgCreateIntent: navigation.createIntent,
+    });
+    showGuideHighlight({
+      targetId: navigation.spotlight.targetId,
+      title: t("sidebar.guide.connectOrganization"),
+      message: t(navigation.spotlight.messageKey),
+    });
+  }, [openCreateTargetInStartPage, showGuideHighlight, t]);
+
+  const handleGuideInviteTeammate = useCallback(() => {
+    if (!guideCloudOrg) {
+      handleGuideConnectOrganization();
+      return;
+    }
+    guideNavigationRequestId.current = Math.max(
+      guideNavigationRequestId.current + 1,
+      Date.now()
+    );
+    openOrganizationTab({
+      organization: {
+        kind: "cloud",
+        cloudOrg: {
+          orgId: guideCloudOrg.orgId,
+          initialView: CLOUD_ORG_MANAGEMENT_VIEW.MEMBERS,
+          initialViewRequestId: guideNavigationRequestId.current,
+        },
+      },
+      title: t("collaboration.manageOrg"),
+    });
+    const spotlight = resolveSidebarGuideInviteSpotlight(guideCloudOrg.role);
+    showGuideHighlight({
+      targetId: spotlight.targetId,
+      title: t("sidebar.guide.inviteTeammate"),
+      message: t(spotlight.messageKey),
+    });
+  }, [
+    handleGuideConnectOrganization,
+    guideCloudOrg,
+    openOrganizationTab,
+    showGuideHighlight,
+    t,
+  ]);
+
+  const handleGuideExploreProduct = useCallback(() => {
+    startSidebarGuideProductTour();
+    void saveSetupGuideProgress((progress) =>
+      completeSetupGuideMilestone(
+        progress,
+        SETUP_GUIDE_PERSISTED_MILESTONE.PRODUCT_TOUR_STARTED
+      )
+    ).catch((error: unknown) => {
+      logger.warn("failed to persist product tour guide milestone", error);
+    });
+  }, [saveSetupGuideProgress]);
+
+  const handleGuideViewTeamUsage = useCallback(() => {
+    guideNavigationRequestId.current = Math.max(
+      guideNavigationRequestId.current + 1,
+      Date.now()
+    );
+    const navigation = resolveSidebarGuideTeamUsageNavigation(
+      guideNavigationRequestId.current,
+      guideCloudOrg?.orgId
+    );
+    if (!navigation) {
+      handleGuideConnectOrganization();
+      return;
+    }
+    setRuntimeNavigationIntent(navigation.intent);
+    openRuntimeTab(runtimeLabel);
+    showGuideHighlight({
+      targetId: navigation.spotlight.targetId,
+      title: t("sidebar.guide.viewTeamActivity"),
+      message: t(navigation.spotlight.messageKey),
+    });
+    void saveSetupGuideProgress((progress) =>
+      completeSetupGuideMilestone(
+        progress,
+        SETUP_GUIDE_PERSISTED_MILESTONE.TEAM_ACTIVITY_VIEWED
+      )
+    ).catch((error: unknown) => {
+      logger.warn("failed to persist team usage guide milestone", error);
+    });
+  }, [
+    guideCloudOrg,
+    handleGuideConnectOrganization,
+    openRuntimeTab,
+    runtimeLabel,
+    saveSetupGuideProgress,
+    setRuntimeNavigationIntent,
+    showGuideHighlight,
+    t,
+  ]);
+
+  const handleGuideAutoOpenConsumed = useCallback(() => {
+    void saveSetupGuideProgress(consumeSetupGuideHandoff).catch(
+      (error: unknown) => {
+        logger.warn("failed to persist setup guide handoff", error);
+      }
+    );
+  }, [saveSetupGuideProgress]);
+
+  const handleGuideOpenQuickSetup = useCallback(() => {
+    navigateTo(ROUTES.auth.setup.path);
+  }, [navigateTo]);
+
+  const guideCompletion = useMemo<SidebarGuideCompletion>(
+    () => ({
+      [SIDEBAR_GUIDE_MILESTONE.SESSION]: sessions.length > 0,
+      [SIDEBAR_GUIDE_MILESTONE.ORGANIZATION]: Boolean(guideCloudOrg),
+      [SIDEBAR_GUIDE_MILESTONE.TEAMMATE]: hasCompletedSetupGuideMilestone(
+        setupGuideProgress,
+        SETUP_GUIDE_PERSISTED_MILESTONE.TEAMMATE_INVITED
+      ),
+      [SIDEBAR_GUIDE_MILESTONE.TEAM_USAGE]: hasCompletedSetupGuideMilestone(
+        setupGuideProgress,
+        SETUP_GUIDE_PERSISTED_MILESTONE.TEAM_ACTIVITY_VIEWED
+      ),
+      [SIDEBAR_GUIDE_MILESTONE.PRODUCT_TOUR]: hasCompletedSetupGuideMilestone(
+        setupGuideProgress,
+        SETUP_GUIDE_PERSISTED_MILESTONE.PRODUCT_TOUR_STARTED
+      ),
+    }),
+    [guideCloudOrg, sessions.length, setupGuideProgress]
+  );
+
+  const guideScopeLabel = useMemo(() => {
+    const activeOption = orgSelectorOptions.find(
+      (option) => String(option.value) === String(activeOrgId)
+    );
+    return typeof activeOption?.label === "string"
+      ? activeOption.label
+      : t("sidebar.guide.localWorkspace");
+  }, [activeOrgId, orgSelectorOptions, t]);
 
   return (
     <>
@@ -534,14 +775,17 @@ export const WorkstationSidebarConnector: React.FC = () => {
         pinnedMenuItems={pinnedMenuItems}
         selectedKey={resolvedSelectedMenuItemId}
         onMenuItemClick={resolvedMenuItemClick}
-        onSubmenuOpenChange={handleSubmenuOpenChange}
         onMenuItemContextMenu={resolvedMenuItemContextMenu}
         renderMenuItemWrapper={resolvedRenderMenuItemWrapper}
+        hostTopBarLeadingContent={sidebarOrgSelector}
+        macTopBarFollowingContent={
+          <div className="shrink-0 px-3 pt-1">{sidebarOrgSelector}</div>
+        }
         preListContent={
-          <>
-            <div className="shrink-0 px-3 pt-1">{sidebarOrgSelector}</div>
-            {sidebarLayerHeader}
-          </>
+          <WorkstationSidebarViewSwitcher
+            activeKey={activeViewKey}
+            onChange={handleViewChange}
+          />
         }
         onAddNew={handleOpenSpotlight}
         addIcon={Search}
@@ -562,7 +806,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
           noResultsTitle: noSearchResultsTitle,
           showInput: false,
         }}
-        listTopPadding={!workItemsContentVisible}
+        listTopPadding
         bottomContent={
           <SidebarBottomBar
             leftContent={
@@ -573,7 +817,25 @@ export const WorkstationSidebarConnector: React.FC = () => {
                 compact
               />
             }
-            rightActions={sidebarBottomRightActions}
+            rightActions={
+              <>
+                <SidebarGuideButton
+                  completion={guideCompletion}
+                  scopeLabel={guideScopeLabel}
+                  autoOpenRequested={
+                    setupGuideProgress.guideHandoff === "pending"
+                  }
+                  onAutoOpenConsumed={handleGuideAutoOpenConsumed}
+                  onStartSession={handleGoToNewSession}
+                  onConnectOrganization={handleGuideConnectOrganization}
+                  onInviteTeammate={handleGuideInviteTeammate}
+                  onViewTeamUsage={handleGuideViewTeamUsage}
+                  onExploreProduct={handleGuideExploreProduct}
+                  onOpenQuickSetup={handleGuideOpenQuickSetup}
+                />
+                {sidebarBottomRightActions}
+              </>
+            }
             settingsAction={<SidebarSettingsMenuButton />}
           />
         }
@@ -593,6 +855,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
         }
       />
       <SidebarDialogs
+        cloudChannelsDialogs={cloudChannelsDialogs}
+        localChannelsDialogs={localChannelsDialogs}
         cloudMemberFilterDropdown={cloudMemberFilterDropdown}
         cloudShare={cloudShare}
         cloudSyncLevel={cloudSyncLevel}

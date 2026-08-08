@@ -25,24 +25,81 @@
 - Exact account IDs, verified full email addresses, linked emails, and provider usernames may resolve a viewer; matching display names or equal email local-parts across domains never does.
 - Reassigning a Work Item changes `assigned_human_id` and deletes the prior assignment episode's read receipt in the same SQLite transaction; agent assignments never enter the human-assignment projection.
 - Failed read/unread persistence rolls back the coordinator-owned optimistic snapshot, while a newer per-item mutation supersedes an older response.
+- With a Cloud Org active, pull requests are loaded only from repositories in that Org's persisted synced-repository scopes; another Org's scopes are ignored and an active Org with no scopes starts no PR repository loads.
+- Project-scoped assigned Work Items carry the first repository from the owning project's persisted synced-repository scope through the Rust/TypeScript wire boundary; projectless Work Items omit it.
 
 ## Presentation / polish
 
 1. Filter tabs (`All` / `Mentions` / `Assigned`) show a primary count badge only when that surface has unread items; badge clamps to `99+`.
 2. Unread rows render a leading primary dot and bold title; read rows drop the dot and use medium weight.
-3. Assigned rows show one title line, at most two plain-text excerpt lines, and a localized `status · priority` metadata line; Markdown syntax, escaped newlines, and redundant assignee names do not leak into the card.
-4. Successful edits in the selected Work Item immediately update the matching list row's title, summary, status, priority, and assignee; reassigning away from the viewer removes the stale assigned row.
-5. The list excerpt and detail Markdown body use the same `text-text-1` content token; hierarchy comes from size and weight rather than mismatched foreground colors.
+3. Assigned Work Item rows show one title line and a localized assignment/handoff metadata line with the compact synced-repository source (`Assigned to me · ORG2 issue`); the project slug, body excerpts, Markdown syntax, escaped newlines, and redundant assignee names do not appear in the row.
+4. Successful edits in the selected Work Item immediately update the matching list row's title and assignment state; reassigning away from the viewer removes the stale assigned row.
+5. Mention previews and detail Markdown bodies retain the `text-text-1` content token; assignment/repository metadata uses `text-text-2`.
 6. Assigned detail shows localized `Status` and `Priority` rows and no misleading `Assigned by` row when no assigner is known.
 7. `Mark all as read` in the header marks **only the active filter's** unread items (Mentions view never marks Assigned, and vice versa).
 8. Empty state copy is filter-specific (`No mentions` vs `Nothing assigned to you`), falling back to the generic empty copy for `All`.
 9. A `SearchInput` toolbar row filters the loaded items live; typing a non-matching query shows a dedicated `No matches` empty state (distinct from the filter-empty copy); clearing the query restores the list.
-10. Rows are grouped under recency headers (`Today` / `Yesterday` / `This week` / `Earlier`); empty groups are hidden, and Arrow/Home/End keyboard navigation still traverses the flat visible order across group boundaries.
-11. Selecting an assigned item lazily loads the full Work Item body and renders it as Markdown; while loading / on failure / when empty it falls back to the short list excerpt. Selecting a mention renders the comment body as Markdown. Stale body responses are discarded when the selection changes.
+10. In the `All` filter, mentions and assigned Work Items render under their localized source headers after the actionable PR sections, without date-based subgroups; Arrow/Home/End keyboard navigation follows that visible section order. The dedicated `Mentions` and `Assigned` filters keep a flat list because the active filter already names the source.
+11. Selecting an assigned item lazily loads the full Work Item body and renders it as Markdown; while loading / on failure / when empty it falls back to the stored summary even though that summary is not duplicated in the list row. Selecting a mention renders the comment body as Markdown. Stale body responses are discarded when the selection changes.
 12. A read item's detail exposes a `Mark as unread` action; invoking it returns the row + Sidebar unread badge to the unread state (local assignment deletes the SQLite receipt; cloud mention deletes the managed-cloud receipt). Re-marking read still works after refresh or on another device.
 13. When a source still has a next page, the list shows a `Load more` control—even when the active filter/search has no visible first-page result; invoking it appends the next page (local cursor round-trips with the `work_item_assigned:` prefix intact) and de-duplicates against the loaded set. The control hides once no source has more.
 14. Activating Retry after an initial load error calls the backing source's refresh boundary before reading a new snapshot; it never loops on the same failed cache entry.
 15. Partial-source degradation uses a warning treatment and preserves readable results; a total failure uses the blocking error state.
+16. Pull requests and Work Items use the same Team Inbox list-row primitive, including selected/hover tokens and shared title, metadata, and optional preview overflow rules; PR-specific status icons and Work Item-specific icons remain semantic variations inside that shared shell.
+17. Pull request rows show the author's avatar followed by `#number · repository · source branch` when GitHub supplies a working image URL; the author login is not repeated, and a missing or failed image is omitted without a broken-image placeholder or layout-only avatar layer.
+18. The resizable Team Inbox list pane defaults to 360px and may expand to 480px, leaving enough room for PR branch and repository context while preserving a usable detail pane.
+19. Row timestamps use the shared compact units (`5m`, `5h`, `3d`, `1mo`, `1y`) with no trailing `ago` and use `text-text-3`; row metadata remains `text-text-2`.
+20. Top-level section headers follow the sidebar Session hierarchy with a denser treatment: 28px headers, uppercase 10px `text-text-2` labels, hover/focus disclosure chevrons, and 8px gaps between sections.
+21. Repository/source labels use only the final path segment (never `owner/repository`), strip URL/query/`.git` decoration, and are capped at the first 10 characters for both pull requests and Work Items. A projectless Work Item falls back to the localized `Issue` type without inventing a repository.
+
+## Assignment notification lifecycle
+
+### Preconditions
+
+- Two users resolve to distinct active member identities in the same project or Cloud Org.
+- Team Inbox notifications are enabled; native delivery additionally requires OS permission.
+- The recipient application is running so its push-driven Team Inbox coordinator can observe the assignment.
+
+### Happy Path
+
+| #   | Steps                                                                 | Expected Result                                                                                                                                                            |
+| --- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | User A assigns a Work Item to user B.                                 | B receives one right-bottom in-app toast naming A and the Work Item, plus the configured native notification/sound and updated Sidebar/Dock unread badges.                 |
+| 2   | B activates `View` in the toast.                                      | The singleton Team Inbox tab opens or focuses, clears an obstructing filter/search, selects only that assignment, and marks it read through the existing receipt boundary. |
+| 3   | B activates the native notification while ORGII is running.           | The app window shows/focuses and the same Team Inbox target is selected; no parallel navigation path is created.                                                           |
+| 4   | B opens Team Inbox manually without activating a notification or row. | No unread assignment is implicitly selected or marked read.                                                                                                                |
+
+### Edge Cases
+
+| #   | Scenario               | Steps                                                         | Expected Result                                                                                                                        |
+| --- | ---------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Historical unread rows | Start ORGII with existing unread assignments.                 | Rows and badges hydrate, but no toast/native notification is replayed.                                                                 |
+| 2   | Batched assignments    | Two new assignments arrive in one cache revision.             | One aggregate notification and toast open Team Inbox without pretending one row is the unique target.                                  |
+| 3   | Duplicate/remount      | Re-emit the same item or remount the notification host.       | The store-scoped tracker suppresses duplicate delivery.                                                                                |
+| 4   | Disabled category      | Disable Team Inbox notifications, then receive an assignment. | The Inbox row remains authoritative, but no toast, native notification, or sound is produced and the configured Dock badge is cleared. |
+| 5   | Long names/titles      | Assign an item with a long sender name or body.               | Existing toast wrapping applies and the native body is whitespace-folded and capped at 180 characters.                                 |
+
+### Error / Degraded States
+
+| #   | Scenario                       | Steps                                                                | Expected Result                                                                                                                                                      |
+| --- | ------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Native permission/send failure | Receive an assignment while OS notification delivery is unavailable. | The in-app toast, Inbox row, and Sidebar badge remain usable; failure is logged without rolling back domain state.                                                   |
+| 2   | Native action-listener failure | Listener registration rejects.                                       | Assignment delivery continues; the in-app `View` action remains available.                                                                                           |
+| 3   | App fully exited               | Assign while the recipient process is not running.                   | The assignment hydrates as unread on next launch without a fabricated late popup; realtime closed-app delivery remains a server-push/background-runtime requirement. |
+
+### Accessibility
+
+- [ ] Toast `View` is a native keyboard-focusable button with a visible localized label.
+- [ ] The close button retains its accessible name and does not trigger navigation.
+- [ ] Notification-driven selection lands on the existing Inbox detail without creating a second modal/focus trap.
+
+### Acceptance Criteria
+
+- [ ] Ordinary assignment notifications identify the assigning user.
+- [ ] Toast and native activation converge on one Team Inbox focus request.
+- [ ] Manual Inbox opening never marks the first unread row by default.
+- [ ] Only fresh unread arrivals notify; historical, duplicate, read, and unrelated native actions do not.
+- [ ] Listener lifecycle is single-owner and disposed on unmount.
 
 ## Session → Work Item drop
 

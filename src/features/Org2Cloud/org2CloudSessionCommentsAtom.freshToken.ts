@@ -13,11 +13,9 @@ import { ensureFreshSession } from "./org2CloudClient";
  * stable callback: a fresh JWT per RPC batch, committed compare-and-set so
  * a signed-out auth atom is never resurrected. This is the blessed
  * React-side variant of the idiom, shared by `useSessionComments` and the
- * task surfaces (`SessionCommentsContext`'s create/reopen/reset wrappers);
- * the headless runner carries its own store-backed copy inside
- * `buildDefaultCommentTaskRunnerDeps`. Reads auth through a ref so the
- * token-refresh write inside a batch never retriggers the callers' effects
- * (org2CloudRemoteSessionsAtom idiom).
+ * task surfaces (`SessionCommentsContext`'s create/reopen/reset wrappers).
+ * Reads auth through a ref so the token-refresh write inside a batch never
+ * retriggers the callers' effects (org2CloudRemoteSessionsAtom idiom).
  */
 export function useCloudFreshAccessToken(): () => Promise<string> {
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);

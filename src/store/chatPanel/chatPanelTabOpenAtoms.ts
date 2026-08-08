@@ -2,6 +2,7 @@ import { atom } from "jotai";
 
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import {
+  type ChatPanelCollabOrgCreateIntent,
   type ChatPanelCreateProjectContext,
   type ChatPanelCreateTarget,
   type ChatPanelSelectedOrganization,
@@ -9,6 +10,7 @@ import {
   type ChatPanelSelectedWorkItem,
   type ChatPanelSelectedWorkspace,
   type WorkspaceOverviewTab,
+  chatPanelCollabOrgCreateIntentAtom,
   chatPanelCreateProjectContextAtom,
   chatPanelCreateTargetAtom,
   chatPanelStartPageOpenAtom,
@@ -18,9 +20,17 @@ import {
   WORK_MANAGEMENT_SECTION,
   type WorkManagementSection,
 } from "@src/store/workstation/workstationTabBarAtoms";
+import type {
+  GitHubIssueDetailTabData,
+  GitHubPrDetailTabData,
+} from "@src/types/githubDetail";
 
 import {
+  buildChannelTabKey,
+  createChannelTab,
   createExploreTab,
+  createGitHubIssueTab,
+  createGitHubPrTab,
   createLaunchpadTab,
   createOrganizationTab,
   createProjectTab,
@@ -37,8 +47,10 @@ import {
   appendAndActivateChatPanelTabAtom,
 } from "./chatPanelTabPresentationAtoms";
 import {
+  type ChatPanelSelectedChannel,
   type ChatPanelTab,
   getWorkManagementFallbackTitle,
+  isWorkManagementListSection,
 } from "./chatPanelTabsModel";
 import { chatPanelTabsAtom } from "./chatPanelTabsState";
 
@@ -84,6 +96,7 @@ interface OpenCreateTargetInStartPageOptions {
   target: ChatPanelCreateTarget;
   title?: string;
   createProjectContext?: ChatPanelCreateProjectContext | null;
+  collabOrgCreateIntent?: ChatPanelCollabOrgCreateIntent | null;
 }
 
 /** Focus Launchpad and show a creator inside its pinned inner navigation. */
@@ -97,6 +110,10 @@ export const openCreateTargetInChatPanelStartPageAtom = atom(
     set(
       chatPanelCreateProjectContextAtom,
       options.createProjectContext ?? null
+    );
+    set(
+      chatPanelCollabOrgCreateIntentAtom,
+      options.collabOrgCreateIntent ?? null
     );
     set(chatPanelStartPageOpenAtom, true);
     return tabId;
@@ -127,11 +144,18 @@ openRuntimeInChatPanelTabAtom.debugLabel = "openRuntimeInChatPanelTab";
 /** Open or focus the singleton Team Inbox tab. */
 export const openTeamInboxInChatPanelTabAtom = atom(
   null,
-  (get, set, title: string = "Team Inbox") => {
-    const existingTab = get(chatPanelTabsAtom).tabs.find(
-      (tab) => tab.type === "team-inbox"
-    );
+  (get, set, title: string = "Inbox") => {
+    const state = get(chatPanelTabsAtom);
+    const existingTab = state.tabs.find((tab) => tab.type === "team-inbox");
     if (existingTab) {
+      if (existingTab.title !== title) {
+        set(chatPanelTabsAtom, {
+          ...state,
+          tabs: state.tabs.map((tab) =>
+            tab.id === existingTab.id ? { ...tab, title } : tab
+          ),
+        });
+      }
       set(activateChatPanelTabAtom, existingTab.id);
       return existingTab.id;
     }
@@ -148,7 +172,7 @@ interface OpenWorkManagementTabOptions {
   title?: string;
 }
 
-/** Open or focus the Work Management tab for the requested sidebar section. */
+/** Open or focus Kanban, or reuse the single Work tab for a list dataset. */
 export const openWorkManagementChatPanelTabAtom = atom(
   null,
   (get, set, options: OpenWorkManagementTabOptions = {}) => {
@@ -157,16 +181,37 @@ export const openWorkManagementChatPanelTabAtom = atom(
       title = getWorkManagementFallbackTitle(section),
     } = options;
     const state = get(chatPanelTabsAtom);
-    const existingTab = state.tabs.find(
-      (tab) =>
-        tab.type === "work-management" && tab.managementSection === section
-    );
+    const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
+    const requestedListSection = isWorkManagementListSection(section);
+    const activeWorkListTab =
+      activeTab?.type === "work-management" &&
+      activeTab.managementSection &&
+      isWorkManagementListSection(activeTab.managementSection)
+        ? activeTab
+        : undefined;
+    const existingTab =
+      (requestedListSection ? activeWorkListTab : undefined) ??
+      state.tabs.find(
+        (tab) =>
+          tab.type === "work-management" &&
+          (requestedListSection
+            ? Boolean(
+                tab.managementSection &&
+                isWorkManagementListSection(tab.managementSection)
+              )
+            : tab.managementSection === WORK_MANAGEMENT_SECTION.KANBAN)
+      );
     if (existingTab) {
-      if (existingTab.title !== title) {
+      if (
+        existingTab.title !== title ||
+        existingTab.managementSection !== section
+      ) {
         set(chatPanelTabsAtom, {
           ...state,
           tabs: state.tabs.map((tab) =>
-            tab.id === existingTab.id ? { ...tab, title } : tab
+            tab.id === existingTab.id
+              ? { ...tab, title, managementSection: section }
+              : tab
           ),
         });
       }
@@ -428,6 +473,72 @@ export const openWorkItemInChatPanelTabAtom = atom(
 );
 openWorkItemInChatPanelTabAtom.debugLabel = "openWorkItemInChatPanelTab";
 
+/** Open or focus a GitHub issue detail tab inside the chat pane. */
+export const openGitHubIssueInChatPanelTabAtom = atom(
+  null,
+  (get, set, issue: GitHubIssueDetailTabData) => {
+    const existingTab = get(chatPanelTabsAtom).tabs.find(
+      (tab) =>
+        tab.type === "github-issue" &&
+        tab.githubIssue?.repoPath === issue.repoPath &&
+        tab.githubIssue.issueNumber === issue.issueNumber
+    );
+    if (existingTab) {
+      set(chatPanelTabsAtom, (prev) => ({
+        ...prev,
+        tabs: prev.tabs.map((tab) =>
+          tab.id === existingTab.id
+            ? {
+                ...tab,
+                title: `#${issue.issueNumber} ${issue.issueTitle}`,
+                githubIssue: issue,
+              }
+            : tab
+        ),
+      }));
+      set(activateChatPanelTabAtom, existingTab.id);
+      return existingTab.id;
+    }
+    const tab = createGitHubIssueTab(issue);
+    set(appendAndActivateChatPanelTabAtom, { tab });
+    return tab.id;
+  }
+);
+openGitHubIssueInChatPanelTabAtom.debugLabel = "openGitHubIssueInChatPanelTab";
+
+/** Open or focus a GitHub pull-request detail tab inside the chat pane. */
+export const openGitHubPrInChatPanelTabAtom = atom(
+  null,
+  (get, set, pr: GitHubPrDetailTabData) => {
+    const existingTab = get(chatPanelTabsAtom).tabs.find(
+      (tab) =>
+        tab.type === "github-pr" &&
+        tab.githubPr?.repoPath === pr.repoPath &&
+        tab.githubPr.prNumber === pr.prNumber
+    );
+    if (existingTab) {
+      set(chatPanelTabsAtom, (prev) => ({
+        ...prev,
+        tabs: prev.tabs.map((tab) =>
+          tab.id === existingTab.id
+            ? {
+                ...tab,
+                title: `#${pr.prNumber} ${pr.prTitle}`,
+                githubPr: pr,
+              }
+            : tab
+        ),
+      }));
+      set(activateChatPanelTabAtom, existingTab.id);
+      return existingTab.id;
+    }
+    const tab = createGitHubPrTab(pr);
+    set(appendAndActivateChatPanelTabAtom, { tab });
+    return tab.id;
+  }
+);
+openGitHubPrInChatPanelTabAtom.debugLabel = "openGitHubPrInChatPanelTab";
+
 /** Open or focus a dedicated tab for a project (deduped by slug). */
 export const openProjectInChatPanelTabAtom = atom(
   null,
@@ -455,6 +566,43 @@ export const openProjectInChatPanelTabAtom = atom(
   }
 );
 openProjectInChatPanelTabAtom.debugLabel = "openProjectInChatPanelTab";
+
+/**
+ * Open — or focus, if already open — a dedicated tab for a channel's message
+ * surface. Deduped per composite key (`cloud:orgId:channelId` /
+ * `local:channelId`, see `buildChannelTabKey`), the `openWorkItemInChatPanelTab`
+ * shape: re-opening refreshes the stored payload (a rename, or a cloud
+ * channel flipping visibility, would otherwise leave the pill stale) before
+ * focusing instead of stacking a second pill.
+ */
+export const openChannelInChatPanelTabAtom = atom(
+  null,
+  (get, set, channel: ChatPanelSelectedChannel) => {
+    const key = buildChannelTabKey(channel);
+    const existingTab = get(chatPanelTabsAtom).tabs.find(
+      (tab) =>
+        tab.type === "channel" &&
+        tab.channel !== undefined &&
+        buildChannelTabKey(tab.channel) === key
+    );
+    if (existingTab) {
+      set(chatPanelTabsAtom, (prev) => ({
+        ...prev,
+        tabs: prev.tabs.map((tab) =>
+          tab.id === existingTab.id
+            ? { ...tab, title: channel.name, channel }
+            : tab
+        ),
+      }));
+      set(activateChatPanelTabAtom, existingTab.id);
+      return existingTab.id;
+    }
+    const tab = createChannelTab({ channel });
+    set(appendAndActivateChatPanelTabAtom, { tab });
+    return tab.id;
+  }
+);
+openChannelInChatPanelTabAtom.debugLabel = "openChannelInChatPanelTab";
 
 /** Open or focus the singleton Explore tab. */
 export const openExploreInChatPanelTabAtom = atom(null, (get, set) => {

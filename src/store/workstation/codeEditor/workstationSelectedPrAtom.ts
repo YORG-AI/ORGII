@@ -8,6 +8,7 @@ import type {
   GitHubReviewComment,
   PrFile,
   PrReviewEvent,
+  PullRequestMergeMethod,
 } from "@src/api/tauri/github";
 
 import {
@@ -51,7 +52,23 @@ export interface PrIdentity {
   baseBranch?: string;
 }
 
+export interface WorkstationPrDetailViewState {
+  activeTab: PrDetailTab;
+  conversationDraft: string;
+  selectedCommitSha: string | null;
+  selectedChangedFilePath: string | null;
+}
+
+export const initialPrDetailViewState: WorkstationPrDetailViewState = {
+  activeTab: "conversation",
+  conversationDraft: "",
+  selectedCommitSha: null,
+  selectedChangedFilePath: null,
+};
+
 export interface WorkstationSelectedPrState {
+  /** Small navigation/draft state retained when the rendered surface unmounts. */
+  viewState: WorkstationPrDetailViewState;
   identity: PrIdentity | null;
   /** Raw `github_get_pr` JSON (head.sha, additions, changed_files, merged, …). */
   detail: Record<string, unknown> | null;
@@ -79,6 +96,7 @@ export interface WorkstationSelectedPrState {
 }
 
 export const initialSelectedPrState: WorkstationSelectedPrState = {
+  viewState: initialPrDetailViewState,
   identity: null,
   detail: null,
   headSha: null,
@@ -113,7 +131,17 @@ export const workstationSelectedPrAtom = workstationSelectedPrAtomFamily(
 /** Active PR-detail sub-tab (Conversation / Commits / Checks / Changes). */
 export const workstationPrDetailTabAtomFamily = atomFamily(
   (scopeKey: string) => {
-    const scopedAtom = atom<PrDetailTab>("conversation");
+    const selectedPrAtom = workstationSelectedPrAtomFamily(scopeKey);
+    const scopedAtom = atom(
+      (get) => get(selectedPrAtom).viewState.activeTab,
+      (get, set, activeTab: PrDetailTab) => {
+        const current = get(selectedPrAtom);
+        set(selectedPrAtom, {
+          ...current,
+          viewState: { ...current.viewState, activeTab },
+        });
+      }
+    );
     scopedAtom.debugLabel = `workstationPrDetailTabAtom(${scopeKey})`;
     return scopedAtom;
   }
@@ -139,6 +167,12 @@ export interface WorkstationPrDetailCallbacks {
   replyInlineComment:
     | ((commentId: number, body: string) => Promise<void>)
     | null;
+  mergePullRequest: ((method: PullRequestMergeMethod) => Promise<void>) | null;
+  setPullRequestAutoMerge:
+    | ((enabled: boolean, method: PullRequestMergeMethod) => Promise<void>)
+    | null;
+  updatePullRequestState: ((state: "open" | "closed") => Promise<void>) | null;
+  updateRequestedReviewers: ((reviewers: string[]) => Promise<void>) | null;
   refresh: (() => void) | null;
 }
 
@@ -147,6 +181,10 @@ const initialPrDetailCallbacks: WorkstationPrDetailCallbacks = {
   submitReview: null,
   addInlineComment: null,
   replyInlineComment: null,
+  mergePullRequest: null,
+  setPullRequestAutoMerge: null,
+  updatePullRequestState: null,
+  updateRequestedReviewers: null,
   refresh: null,
 };
 

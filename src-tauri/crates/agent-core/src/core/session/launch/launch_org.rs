@@ -167,6 +167,12 @@ pub(super) async fn materialize_org_member_sessions(
                     updated_at: now.clone(),
                     session_type: session_type::ORG_MEMBER.to_string(),
                     work_item_id: rust_work_item_id.clone(),
+                    // Same rule as the launch resolver: a work-item-linked
+                    // session is a Project session. Members inherit it so the
+                    // PM tools aren't policy-denied for the team doing the work.
+                    product_mode: rust_work_item_id
+                        .as_ref()
+                        .map(|_| "project".to_string()),
                     agent_role: Some(member.role.clone()),
                     project_slug: rust_project_slug.clone(),
                     agent_definition_id: Some(member.agent_id.clone()),

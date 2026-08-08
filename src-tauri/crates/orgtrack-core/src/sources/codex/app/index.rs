@@ -21,11 +21,12 @@ use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
 use super::meta::{
     parse_codex_session_meta_with_title, resolve_codex_transcript_for_thread_id_near_path,
-    session_meta_to_cache_input,
+    resume_codex_session_meta_with_title, session_meta_to_cache_input, CodexSessionMetaParse,
 };
 use super::transcript::{
-    load_codex_app_from_path, load_codex_app_initial_window_from_path,
-    load_codex_app_turn_from_path, CodexAppInitialWindow, CodexAppTurnWindow,
+    load_codex_app_cloud_turn_from_path, load_codex_app_from_path,
+    load_codex_app_initial_window_from_path, load_codex_app_turn_from_path,
+    load_codex_app_turn_ids_from_path, CodexAppInitialWindow, CodexAppTurnWindow,
 };
 use super::{
     CodexAppRecentPath, CodexAppSessionPage, CodexAppSourceMetadata,
@@ -35,7 +36,8 @@ use super::{
 /// Metadata discovery normally parses changed rollouts to derive repo, title,
 /// and rounds. Re-reading a very large rollout while Codex is still appending
 /// can allocate several times the file size and immediately become stale.
-/// Keep its existing cached row (if any) and parse it once after a quiet window.
+/// Such files may advance only through their validated incremental watermark;
+/// without one, keep the existing cached row and retry after a quiet window.
 const MAX_EAGER_ACTIVE_CODEX_METADATA_BYTES: i64 = 32 * 1024 * 1024;
 const ACTIVE_CODEX_METADATA_QUIET_NS: i64 = 10 * 60 * 1_000_000_000;
 
@@ -113,6 +115,26 @@ pub fn load_codex_app_turn_for_session(
     let mut window = load_codex_app_turn_from_path(session_id, &path, turn_id)?;
     link_codex_subagent_chunks(conn, session_id, &mut window.chunks)?;
     Ok(window)
+}
+
+pub fn load_codex_app_turn_ids_for_session(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Vec<String>, String> {
+    let file_stem = codex_file_stem_from_session_id(session_id)?;
+    let path = resolve_codex_session_path(conn, file_stem)?;
+    load_codex_app_turn_ids_from_path(&path)
+}
+
+pub fn load_codex_app_cloud_turn_for_session(
+    conn: &Connection,
+    session_id: &str,
+    turn_id: &str,
+    start_sequence: usize,
+) -> Result<Vec<ActivityChunk>, String> {
+    let file_stem = codex_file_stem_from_session_id(session_id)?;
+    let path = resolve_codex_session_path(conn, file_stem)?;
+    load_codex_app_cloud_turn_from_path(session_id, &path, turn_id, start_sequence)
 }
 
 #[derive(Debug, Clone)]
@@ -307,9 +329,6 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
     let mut reparsed_ids = Vec::new();
     let now_ns = unix_epoch_now_ns();
     for record in changed {
-        if should_defer_active_codex_metadata(record, now_ns) {
-            continue;
-        }
         let stored_watermark = imported_history::watermark::read_parse_watermark_from_conn(
             conn,
             SOURCE_CODEX_APP,
@@ -319,8 +338,14 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
             .get(&record.source_session_id)
             .cloned()
             .unwrap_or_default();
-        let parse =
-            parse_codex_session_meta_with_title(record, stored_watermark.as_ref(), external_title)?;
+        let Some(parse) = imported_history::skip_unparsable_record(
+            SOURCE_CODEX_APP,
+            &record.source_session_id,
+            parse_changed_codex_metadata(record, stored_watermark.as_ref(), external_title, now_ns),
+        )
+        .flatten() else {
+            continue;
+        };
         imported_history::watermark::write_parse_watermark_from_conn(
             conn,
             SOURCE_CODEX_APP,
@@ -357,7 +382,20 @@ fn unix_epoch_now_ns() -> i64 {
         .unwrap_or(i64::MAX)
 }
 
-fn should_defer_active_codex_metadata(
+fn parse_changed_codex_metadata(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&imported_history::watermark::ImportedParseWatermark>,
+    external_title: String,
+    now_ns: i64,
+) -> Result<Option<CodexSessionMetaParse>, String> {
+    if requires_resumable_active_codex_metadata(record, now_ns) {
+        resume_codex_session_meta_with_title(record, watermark, external_title)
+    } else {
+        parse_codex_session_meta_with_title(record, watermark, external_title).map(Some)
+    }
+}
+
+fn requires_resumable_active_codex_metadata(
     record: &ImportedHistoryDiscoveredRecord,
     now_ns: i64,
 ) -> bool {
@@ -658,16 +696,30 @@ fn resolve_codex_session_path(conn: &Connection, file_stem: &str) -> Result<Path
 fn codex_sessions_dirs() -> Result<Vec<PathBuf>, String> {
     let home = app_paths::external_history_home_dir();
     let mut dirs = codex_sessions_dir_candidates(&home);
-    // ORGII-managed own-key Codex runs redirect CODEX_HOME into per-account
-    // profile dirs; native-transcript mode reads those rollouts back here.
-    // (Hosted-key Codex keeps the system CODEX_HOME and is covered above.)
+    // ORGII-managed Codex runs redirect CODEX_HOME into isolated profile
+    // directories; native-transcript mode reads those rollouts back here.
+    dirs.extend(codex_managed_sessions_dirs(
+        &app_paths::codex_cli_profile_root(),
+        &app_paths::codex_hosted_cli_profile_root(),
+    ));
+    Ok(dirs)
+}
+
+pub(crate) fn codex_managed_sessions_dirs(
+    account_profiles_root: &Path,
+    hosted_profiles_root: &Path,
+) -> Vec<PathBuf> {
+    let mut dirs = crate::sources::imported_history::managed_roots::profile_root_children(
+        account_profiles_root,
+        &["sessions"],
+    );
     dirs.extend(
         crate::sources::imported_history::managed_roots::profile_root_children(
-            &app_paths::codex_cli_profile_root(),
+            hosted_profiles_root,
             &["sessions"],
         ),
     );
-    Ok(dirs)
+    dirs
 }
 
 pub(crate) fn codex_sessions_dir_candidates(home: &Path) -> Vec<PathBuf> {
@@ -731,15 +783,15 @@ mod tests {
     }
 
     #[test]
-    fn giant_active_codex_metadata_is_deferred_until_quiet() {
+    fn giant_active_codex_metadata_requires_a_valid_resume() {
         let now_ns = 1_750_000_000_000_000_000;
         let record = discovered_record(
             MAX_EAGER_ACTIVE_CODEX_METADATA_BYTES + 1,
             now_ns - ACTIVE_CODEX_METADATA_QUIET_NS + 1,
         );
 
-        assert!(should_defer_active_codex_metadata(&record, now_ns));
-        assert!(!should_defer_active_codex_metadata(
+        assert!(requires_resumable_active_codex_metadata(&record, now_ns));
+        assert!(!requires_resumable_active_codex_metadata(
             &discovered_record(
                 record.source_size_bytes,
                 now_ns - ACTIVE_CODEX_METADATA_QUIET_NS
@@ -753,7 +805,109 @@ mod tests {
         let now_ns = 1_750_000_000_000_000_000;
         let record = discovered_record(MAX_EAGER_ACTIVE_CODEX_METADATA_BYTES, now_ns);
 
-        assert!(!should_defer_active_codex_metadata(&record, now_ns));
+        assert!(!requires_resumable_active_codex_metadata(&record, now_ns));
+    }
+
+    #[test]
+    fn giant_active_codex_metadata_advances_from_its_watermark() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "orgii-codex-active-watermark-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let path = temp_dir.join("rollout-active-watermark.jsonl");
+        let prefix = concat!(
+            r#"{"timestamp":"2026-08-05T15:00:00.000Z","type":"session_meta","payload":{"cwd":"/tmp/org2","id":"active"}}"#,
+            "\n",
+            r#"{"timestamp":"2026-08-05T15:00:01.000Z","type":"event_msg","payload":{"type":"user_message","message":"start"}}"#,
+            "\n"
+        );
+        std::fs::write(&path, prefix).expect("write prefix");
+
+        let record_for = |source_size_bytes: Option<i64>, source_mtime_ms: Option<i64>| {
+            let (actual_mtime_ms, actual_size_bytes) =
+                imported_paths::file_metadata_signature(&path, "Codex").expect("metadata");
+            ImportedHistoryDiscoveredRecord {
+                source_session_id: "rollout-active-watermark".to_string(),
+                source_path: path.clone(),
+                source_record_key: "rollout-active-watermark".to_string(),
+                source_mtime_ms: source_mtime_ms.unwrap_or(actual_mtime_ms),
+                source_size_bytes: source_size_bytes.unwrap_or(actual_size_bytes),
+                source_fingerprint: String::new(),
+                parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+            }
+        };
+
+        let first_record = record_for(None, None);
+        let first = parse_changed_codex_metadata(
+            &first_record,
+            None,
+            String::new(),
+            first_record.source_mtime_ms + ACTIVE_CODEX_METADATA_QUIET_NS,
+        )
+        .expect("initial parse")
+        .expect("initial metadata");
+        assert!(!first.resumed);
+
+        let suffix = concat!(
+            r#"{"timestamp":"2026-08-05T15:01:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"still active"}}"#,
+            "\n"
+        );
+        std::fs::write(&path, format!("{prefix}{suffix}")).expect("append suffix");
+        let now_ns = unix_epoch_now_ns();
+        // The logical size selects the exact >32 MiB production branch without
+        // making the unit fixture allocate a giant file. The reader still
+        // validates the real prefix seam and reads only the appended suffix.
+        let active_record = record_for(
+            Some(MAX_EAGER_ACTIVE_CODEX_METADATA_BYTES + 1),
+            Some(now_ns),
+        );
+        let resumed = parse_changed_codex_metadata(
+            &active_record,
+            Some(&first.watermark),
+            String::new(),
+            now_ns,
+        )
+        .expect("resume active parse")
+        .expect("resumed metadata");
+
+        assert!(resumed.resumed);
+        assert_eq!(
+            resumed.meta.expect("session metadata").updated_at_ms,
+            imported_history::parse_iso_to_epoch_ms_opt("2026-08-05T15:01:00.000Z")
+                .expect("fixture timestamp")
+        );
+
+        // If the file was rewritten instead of appended, the boundary check
+        // rejects the watermark and the active-file path must defer rather
+        // than silently rewind and parse the whole giant rollout.
+        let mutated = format!("{prefix}{suffix}").replace("start", "START");
+        std::fs::write(&path, mutated).expect("mutate prefix");
+        let mutated_record = record_for(
+            Some(MAX_EAGER_ACTIVE_CODEX_METADATA_BYTES + 1),
+            Some(now_ns + 1),
+        );
+        let rejected = parse_changed_codex_metadata(
+            &mutated_record,
+            Some(&resumed.watermark),
+            String::new(),
+            now_ns + 1,
+        )
+        .expect("reject invalid resume");
+        assert!(rejected.is_none());
+
+        std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+    }
+
+    #[test]
+    fn giant_active_codex_metadata_without_a_watermark_stays_deferred() {
+        let now_ns = unix_epoch_now_ns();
+        let record = discovered_record(MAX_EAGER_ACTIVE_CODEX_METADATA_BYTES + 1, now_ns);
+
+        let parsed = parse_changed_codex_metadata(&record, None, String::new(), now_ns)
+            .expect("defer without opening the missing fixture");
+
+        assert!(parsed.is_none());
     }
 
     #[test]

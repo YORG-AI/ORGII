@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -80,7 +80,7 @@ const IterationHistory: React.FC<IterationHistoryProps> = ({
                 <Button
                   variant="tertiary"
                   size="mini"
-                  icon={<ExternalLink size={10} />}
+                  icon={<SquareArrowOutUpRight size={10} />}
                   className="ml-auto"
                   onClick={(event) => {
                     event.stopPropagation();

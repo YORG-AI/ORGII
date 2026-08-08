@@ -16,6 +16,17 @@ pub(crate) fn api_provider_registry() -> Vec<ApiProviderEntry> {
             supports_rust_agents: true,
         },
         ApiProviderEntry {
+            name: "atlascloud_api",
+            display_name: "Atlas Cloud",
+            description: "Atlas Cloud OpenAI-compatible models via API",
+            brand_color: "#111827",
+            docs_url: "https://www.atlascloud.ai/console/api-keys",
+            icon_provider: "atlascloud",
+            paired_cli_agent: None,
+            popular: false,
+            supports_rust_agents: true,
+        },
+        ApiProviderEntry {
             name: "anthropic_api",
             display_name: "Anthropic",
             description: "Anthropic's Claude models via API",

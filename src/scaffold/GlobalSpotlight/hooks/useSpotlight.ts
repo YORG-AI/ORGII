@@ -18,9 +18,12 @@ import {
   type ActionId,
   useActionSystemOptional,
 } from "@src/ActionSystem";
+import type { CloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
+import { useOpenCloudSessionReference } from "@src/features/Org2Cloud/useOpenCloudSessionReference";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { showScaleMessage } from "@src/hooks/navigation/useGlobalShortcuts/types";
 import { useFilteredItems } from "@src/hooks/search";
+import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import type { LanguagePreference } from "@src/i18n";
 import { checkForUpdatesManually } from "@src/scaffold/AppUpdater";
 import {
@@ -32,6 +35,7 @@ import { PanelService } from "@src/services/panel";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { selectedRepoAtom } from "@src/store/repo";
 import { REPO_KIND } from "@src/store/repo/types";
+import type { Session } from "@src/store/session";
 import { spotlightRecentActionsAtom } from "@src/store/ui/spotlightRecentActionsAtom";
 import { UI_SCALE_CONFIG, uiScaleAtom } from "@src/store/ui/uiAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
@@ -97,6 +101,8 @@ export function useSpotlight(
   const state = useSpotlightState();
   const currentRepo = useAtomValue(selectedRepoAtom);
   const { navigateTo } = useAppNavigation();
+  const { openSession } = useSessionView();
+  const openCloudSessionReference = useOpenCloudSessionReference();
   const actionSystem = useActionSystemOptional();
   const dispatch = useSpotlightDispatch();
   const setRecentActionIds = useSetAtom(spotlightRecentActionsAtom);
@@ -381,6 +387,24 @@ export function useSpotlight(
     [closeModal, dispatch, dispatchActionOrFallback]
   );
 
+  const handleSelectSession = useCallback(
+    (session: Session, sessionName: string) => {
+      openSession(session.session_id, sessionName, session.repoPath);
+      closeModal?.();
+      dispatch({ type: "RESET_TO_IDLE" });
+    },
+    [closeModal, dispatch, openSession]
+  );
+
+  const handleSelectCloudSessionReference = useCallback(
+    (reference: CloudSessionReference) => {
+      if (!openCloudSessionReference(reference, { autoReplay: true })) return;
+      closeModal?.();
+      dispatch({ type: "RESET_TO_IDLE" });
+    },
+    [closeModal, dispatch, openCloudSessionReference]
+  );
+
   const handleSelectPath = useCallback(
     (
       path: string,
@@ -406,6 +430,8 @@ export function useSpotlight(
     onSelectRepo: handleSelectRepo,
     onSelectBranch: handleSelectBranch,
     onSelectLanguage: handleSelectLanguage,
+    onSelectSession: handleSelectSession,
+    onSelectCloudSessionReference: handleSelectCloudSessionReference,
     onSelectPath: handleSelectPath,
     isEditorRoute,
     isWorkStationRoute,

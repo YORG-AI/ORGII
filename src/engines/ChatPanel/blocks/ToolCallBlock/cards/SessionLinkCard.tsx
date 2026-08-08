@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
@@ -88,7 +88,7 @@ const SessionLinkCard: React.FC<SessionLinkCardProps> = ({ card }) => {
           )}
         </div>
 
-        <ExternalLink
+        <SquareArrowOutUpRight
           size={13}
           className="mt-0.5 shrink-0 text-text-4 transition-colors hover:text-text-2"
           aria-hidden="true"

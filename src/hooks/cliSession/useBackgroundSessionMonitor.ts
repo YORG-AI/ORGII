@@ -1,15 +1,6 @@
 /**
- * useBackgroundSessionMonitor Hook
- *
- * Owns the single window-level CLI lifecycle status subscription. It routes
- * every CLI status through the global coordinator and additionally delivers
- * notifications for background ("fire and forget") sessions.
- *
- * This hook runs at the app root level (via GlobalSessionSync) so it is
- * always active, regardless of which view the user is on.
- *
- * Active adapters remain responsible for transcript/UI mirroring only; turn
- * finality for active and background sessions is owned here.
+ * Owns the single window-level CLI lifecycle subscription, coordinator
+ * reconciliation, and notification runtime.
  */
 import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
@@ -17,7 +8,21 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getCodeEditorWebSocket } from "@src/api/realtime/codeEditorWebSocket";
-import { deliverBackgroundSessionTerminalNotification } from "@src/hooks/session/backgroundSessionNotifications";
+import {
+  configureNotificationRuntime,
+  disposeNotificationRuntime,
+  isPrimaryNotificationWindow,
+  markNotificationRunStarted,
+  setBackgroundCompletionSummaryListener,
+  terminalNotificationEventKey,
+} from "@src/api/services/notification";
+import {
+  isNotificationAttentionRequired,
+  isSuccessfulNotificationTurnStatus,
+} from "@src/api/services/notificationPolicy";
+import { registerNotificationSoundUnlock } from "@src/api/services/notificationSound";
+import Message from "@src/components/Message";
+import { deliverSessionTerminalNotification } from "@src/hooks/session/sessionTerminalNotifications";
 import { sessionByIdAtom } from "@src/store/session";
 import {
   type NotificationSettings,
@@ -40,20 +45,68 @@ interface BackgroundStatusMessage {
   error_message?: string;
   exit_code?: number;
   turn_intent_id?: string;
+  plan_gate?: boolean;
 }
 
 export function useBackgroundSessionMonitor(): void {
   const { t } = useTranslation();
   const notificationSettings = useAtomValue(notificationSettingsAtom);
-
   const settingsRef = useRef(notificationSettings);
+  const translationRef = useRef(t);
+
   useEffect(() => {
     settingsRef.current = notificationSettings;
+    configureNotificationRuntime(notificationSettings);
   }, [notificationSettings]);
-  const translationRef = useRef(t);
+
   useEffect(() => {
     translationRef.current = t;
   }, [t]);
+
+  useEffect(() => {
+    const unregisterSoundUnlock = isPrimaryNotificationWindow()
+      ? registerNotificationSoundUnlock({
+          shouldUnlock: () => settingsRef.current.soundEnabled,
+        })
+      : () => undefined;
+    const reconcileRuntime = () => {
+      configureNotificationRuntime(settingsRef.current);
+    };
+    const handleRuntimeVisibilityChange = () => {
+      if (document.visibilityState === "visible") reconcileRuntime();
+    };
+    const unsubscribeSummary = setBackgroundCompletionSummaryListener(
+      (summary) => {
+        const names = summary.sessionNames.join(", ");
+        const suffix = names ? `: ${names}` : "";
+        Message.success({
+          content: `${summary.count} background task${summary.count === 1 ? "" : "s"} completed${suffix}`,
+          duration: 8000,
+          closable: true,
+        });
+      }
+    );
+
+    configureNotificationRuntime(settingsRef.current);
+    window.addEventListener("focus", reconcileRuntime);
+    window.addEventListener("pageshow", reconcileRuntime);
+    document.addEventListener(
+      "visibilitychange",
+      handleRuntimeVisibilityChange
+    );
+
+    return () => {
+      unregisterSoundUnlock();
+      unsubscribeSummary();
+      disposeNotificationRuntime();
+      window.removeEventListener("focus", reconcileRuntime);
+      window.removeEventListener("pageshow", reconcileRuntime);
+      document.removeEventListener(
+        "visibilitychange",
+        handleRuntimeVisibilityChange
+      );
+    };
+  }, []);
 
   useEffect(() => {
     const wsClient = getCodeEditorWebSocket();
@@ -67,20 +120,32 @@ export function useBackgroundSessionMonitor(): void {
         turnIntentId: msg.turn_intent_id,
       });
 
-      if (!isTerminalStatus(msg.status)) return;
-      if (!applied) return;
-      deliverBackgroundTerminal(
+      if (msg.status === "running") {
+        markNotificationRunStarted(msg.session_id);
+        return;
+      }
+
+      const completedTurn = isSuccessfulNotificationTurnStatus(msg.status);
+      const terminal = isTerminalStatus(msg.status);
+      if (!completedTurn && !terminal) return;
+      if (terminal && !applied) return;
+
+      deliverCliStatus(
         msg,
         settingsRef.current,
-        translationRef.current
+        translationRef.current,
+        completedTurn
       );
     });
 
     const reconcile = () => {
       void cliTurnLifecycleCoordinator.reconcile().then((appliedStatuses) => {
         for (const status of appliedStatuses) {
-          if (!isTerminalStatus(status.status)) continue;
-          deliverBackgroundTerminal(
+          const completedTurn = isSuccessfulNotificationTurnStatus(
+            status.status
+          );
+          if (!completedTurn && !isTerminalStatus(status.status)) continue;
+          deliverCliStatus(
             {
               type: "code_session.status_changed",
               session_id: status.sessionId,
@@ -88,7 +153,8 @@ export function useBackgroundSessionMonitor(): void {
               turn_intent_id: status.turnIntentId,
             },
             settingsRef.current,
-            translationRef.current
+            translationRef.current,
+            completedTurn
           );
         }
       });
@@ -109,25 +175,39 @@ export function useBackgroundSessionMonitor(): void {
   }, []);
 }
 
-function deliverBackgroundTerminal(
+function deliverCliStatus(
   msg: BackgroundStatusMessage,
   settings: NotificationSettings,
-  t: TFunction
+  t: TFunction,
+  completedTurn: boolean
 ): void {
   const session = isStoreInitialized()
     ? getInstrumentedStore().get(sessionByIdAtom(msg.session_id))
     : undefined;
-  const background = msg.background ?? session?.background ?? false;
-  if (!background) return;
-
+  const sessionInBackground = msg.background ?? session?.background ?? false;
+  const attentionRequired =
+    isNotificationAttentionRequired(sessionInBackground);
   const sessionName =
     msg.session_name || session?.name || t("notifications.backgroundSession");
 
-  deliverBackgroundSessionTerminalNotification(
+  if (completedTurn && msg.plan_gate) {
+    terminalNotificationEventKey(msg.session_id, "completed");
+    return;
+  }
+
+  deliverSessionTerminalNotification(
     {
-      status: msg.status,
+      sessionId: msg.session_id,
+      status: completedTurn ? "completed" : msg.status,
       sessionName,
+      attentionRequired,
       errorMessage: msg.error_message ?? session?.error_message,
+      eventKey:
+        msg.status === "failed"
+          ? terminalNotificationEventKey(msg.session_id, "failed")
+          : completedTurn
+            ? terminalNotificationEventKey(msg.session_id, "completed")
+            : undefined,
     },
     settings,
     t

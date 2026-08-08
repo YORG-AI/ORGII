@@ -227,6 +227,13 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
         [],
     )
     .ok();
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_code_sessions_sidebar
+            ON code_sessions(
+                pinned, parent_session_id, updated_at DESC, session_id DESC
+            )",
+        [],
+    )?;
 
     // Multi-root extra workspace folders. JSON array of absolute paths,
     // forwarded as `--add-dir <path>` for `claude_code` / `codex` and

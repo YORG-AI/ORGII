@@ -118,11 +118,7 @@ export const appStandaloneRouteGroup: RouteObject[] = [
   { path: "app/select-repo", element: lazy(<SelectRepoPage />, false) },
   {
     path: "app/walkthrough",
-    element: lazy(
-      <HostedLoginRoute>
-        <SetupWalkthrough />
-      </HostedLoginRoute>
-    ),
+    element: lazy(<SetupWalkthrough />),
   },
   { path: "marketplace/callback", element: lazy(<AuthCallback />) },
 ];

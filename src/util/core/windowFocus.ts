@@ -15,14 +15,27 @@ export function isWindowFocused(): boolean {
  * Invoke `handler` whenever focus returns to the window (window regains
  * focus, or the document becomes visible again). Returns an unsubscribe
  * function for effect cleanup.
+ *
+ * One physical regain raises BOTH events (a hidden window refocused fires
+ * `focus` and `visibilitychange`); a short per-subscription window collapses
+ * them so "one catch-up per edge" holds instead of consumers double-fetching.
  */
+const FOCUS_REGAIN_COALESCE_MS = 500;
+
 export function onWindowFocusRegained(handler: () => void): () => void {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return () => {};
   }
-  const onFocus = () => handler();
+  let lastFiredAtMs = 0;
+  const fire = () => {
+    const now = Date.now();
+    if (now - lastFiredAtMs < FOCUS_REGAIN_COALESCE_MS) return;
+    lastFiredAtMs = now;
+    handler();
+  };
+  const onFocus = () => fire();
   const onVisibility = () => {
-    if (!document.hidden) handler();
+    if (!document.hidden) fire();
   };
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibility);

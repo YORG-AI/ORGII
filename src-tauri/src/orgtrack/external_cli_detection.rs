@@ -63,7 +63,11 @@ const IMPORTABLE_HISTORY_SOURCE_IDS: &[&str] = &[
     "qoder",
     "mimo_code",
     "omp",
+    "pi",
     "qoder_cli",
+    "qwen_code",
+    "copilot",
+    "kimi",
 ];
 
 /// On-disk store format for a source's session history — the "file type" shown
@@ -74,14 +78,13 @@ const IMPORTABLE_HISTORY_SOURCE_IDS: &[&str] = &[
 fn store_kind_for(source_id: &str) -> &'static str {
     match source_id {
         // Importable — ORGII parses these.
-        "claude_code" | "codex_app" | "workbuddy" | "trae" | "cline" | "qoder" | "omp"
-        | "qoder_cli" => "jsonl",
-        "cursor_ide" | "cursor_cli" | "opencode" | "windsurf" | "warp" | "zcode" | "mimo_code" => {
-            "sqlite"
-        }
+        "claude_code" | "codex_app" | "workbuddy" | "trae" | "cline" | "qoder" | "omp" | "pi"
+        | "qoder_cli" | "qwen_code" | "kimi" => "jsonl",
+        "cursor_ide" | "cursor_cli" | "opencode" | "windsurf" | "warp" | "zcode" | "mimo_code"
+        | "copilot" => "sqlite",
         // Known store format, not yet imported.
-        "qwen_code" | "kimi" | "pi" | "droid" => "jsonl",
-        "copilot" | "goose" | "grok" | "openclaw" => "sqlite",
+        "droid" => "jsonl",
+        "goose" | "grok" | "openclaw" => "sqlite",
         "aider" => "markdown",
         _ => "",
     }
@@ -172,7 +175,17 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
         true,
         &[".config/mimocode", ".local/share/mimocode"],
     ),
-    source("pi", "Pi", "pi", "pi", &[], "pi", "pi", false, &[".pi"]),
+    source(
+        "pi",
+        "Pi",
+        "pi",
+        "pi",
+        &[],
+        "pi",
+        "pi",
+        true,
+        &[".pi/agent/sessions"],
+    ),
     source(
         "omp",
         "OMP",
@@ -316,8 +329,8 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
         &[],
         "kimi",
         "kimi",
-        false,
-        &[".kimi"],
+        true,
+        &[".kimi/sessions", ".kimi-code/sessions"],
     ),
     source(
         "mistral_vibe",
@@ -338,8 +351,8 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
         &[],
         "qwen",
         "qwen",
-        false,
-        &[".qwen"],
+        true,
+        &[".qwen/projects"],
     ),
     source(
         "hermes",
@@ -371,8 +384,10 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
         &[],
         "copilot",
         "copilot",
-        false,
-        &[".copilot"],
+        // Session history under ~/.copilot/session-state is now
+        // parsed by `orgtrack_core::sources::copilot`.
+        true,
+        &[".copilot/session-state"],
     ),
     source(
         "grok",
@@ -475,6 +490,9 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
     ),
 ];
 
+#[allow(clippy::too_many_arguments)]
+// The const constructor keeps every registry column visible in the static
+// source table; a second builder layer would hide omissions at compile time.
 const fn source(
     source_id: &'static str,
     display_name: &'static str,
@@ -605,9 +623,13 @@ fn importable_history_candidates(source_id: &str) -> Vec<PathBuf> {
             orgtrack_core::sources::mimo_code::history::mimo_code_history_candidate_paths()
         }
         "omp" => orgtrack_core::sources::omp::history::omp_history_candidate_paths(),
+        "pi" => orgtrack_core::sources::pi::history::pi_history_candidate_paths(),
         "qoder_cli" => {
             orgtrack_core::sources::qoder_cli::history::qoder_cli_history_candidate_paths()
         }
+        "qwen_code" => vec![orgtrack_core::sources::qwen_code::history::qwen_code_history_root()],
+        "copilot" => home_candidates(&[".copilot/session-state"]),
+        "kimi" => orgtrack_core::sources::kimi::history::kimi_history_candidate_paths(),
         _ => Vec::new(),
     }
 }
@@ -740,6 +762,20 @@ mod tests {
     }
 
     #[test]
+    fn every_importable_catalog_source_is_registered_for_history_scans() {
+        for source in EXTERNAL_CLI_SOURCES
+            .iter()
+            .filter(|source| source.history_import)
+        {
+            assert!(
+                IMPORTABLE_HISTORY_SOURCE_IDS.contains(&source.source_id),
+                "{} is marked importable but missing from the scan registry",
+                source.source_id
+            );
+        }
+    }
+
+    #[test]
     fn catalog_source_ids_are_unique() {
         let mut seen = BTreeSet::new();
         for source in EXTERNAL_CLI_SOURCES {
@@ -764,7 +800,9 @@ mod tests {
         for (source_id, command, store_kind) in [
             ("mimo_code", "mimo", "sqlite"),
             ("omp", "omp", "jsonl"),
+            ("pi", "pi", "jsonl"),
             ("qoder_cli", "qodercli", "jsonl"),
+            ("copilot", "copilot", "sqlite"),
         ] {
             let source = EXTERNAL_CLI_SOURCES
                 .iter()
@@ -775,12 +813,45 @@ mod tests {
             assert_eq!(store_kind_for(source_id), store_kind);
         }
 
+        let pi = EXTERNAL_CLI_SOURCES
+            .iter()
+            .find(|source| source.source_id == "pi")
+            .expect("Pi source entry");
+        assert_eq!(pi.history_dirs, &[".pi/agent/sessions"]);
+        assert_eq!(
+            importable_history_candidates("pi"),
+            orgtrack_core::sources::pi::history::pi_history_candidate_paths()
+        );
+
         let trae = EXTERNAL_CLI_SOURCES
             .iter()
             .find(|source| source.source_id == "trae_cli")
             .expect("Trae CLI source");
         assert_eq!(trae.detect_cmd, "trae-cli");
         assert_eq!(trae.launch_cmd, "trae-cli interactive");
+
+        let qwen = EXTERNAL_CLI_SOURCES
+            .iter()
+            .find(|source| source.source_id == "qwen_code")
+            .expect("Qwen Code source");
+        assert!(qwen.history_import);
+        assert_eq!(qwen.history_dirs, &[".qwen/projects"]);
+        assert_eq!(store_kind_for("qwen_code"), "jsonl");
+
+        let kimi = EXTERNAL_CLI_SOURCES
+            .iter()
+            .find(|source| source.source_id == "kimi")
+            .expect("Kimi source");
+        assert!(kimi.history_import);
+        assert_eq!(
+            kimi.history_dirs,
+            &[".kimi/sessions", ".kimi-code/sessions"]
+        );
+        assert_eq!(store_kind_for("kimi"), "jsonl");
+        assert_eq!(
+            importable_history_candidates("kimi"),
+            orgtrack_core::sources::kimi::history::kimi_history_candidate_paths()
+        );
     }
 
     #[test]

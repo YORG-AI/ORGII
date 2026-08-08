@@ -25,3 +25,14 @@ export const clearGuideHighlightAtom = atom(null, (_get, set) => {
   set(guideHighlightAtom, null);
 });
 clearGuideHighlightAtom.debugLabel = "clearGuideHighlightAtom";
+
+/** Clear a guide only when the caller still owns the highlighted target. */
+export const clearGuideHighlightTargetAtom = atom(
+  null,
+  (get, set, targetId: string) => {
+    if (get(guideHighlightAtom)?.targetId === targetId) {
+      set(guideHighlightAtom, null);
+    }
+  }
+);
+clearGuideHighlightTargetAtom.debugLabel = "clearGuideHighlightTargetAtom";

@@ -13,7 +13,8 @@ pub(super) fn load_workbuddy_history_from_path(
     let reader = BufReader::new(file);
 
     let mut chunks = Vec::new();
-    let mut pending_tool_calls: HashMap<String, ImportedToolCall> = HashMap::new();
+    let mut pending_tool_calls: imported_history::PendingCallMap<ImportedToolCall> =
+        imported_history::PendingCallMap::new();
     let mut sequence = 0usize;
 
     for line in reader.lines() {
@@ -152,7 +153,7 @@ pub(super) fn load_workbuddy_history_from_path(
         }
     }
 
-    for call in pending_tool_calls.into_values() {
+    for call in pending_tool_calls.drain_in_file_order() {
         chunks.push(imported_history::tool_call_chunk(
             session_id,
             WORKBUDDY_PROVIDER_SLUG,

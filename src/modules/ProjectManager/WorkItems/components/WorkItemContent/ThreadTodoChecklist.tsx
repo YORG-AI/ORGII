@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import Input from "@src/components/Input";
+import { ActivityHeaderActionButton } from "@src/modules/shared/components/ActivityTimeline";
 import type { TodoItem } from "@src/types/core/workItem";
 
 import { WorkItemThreadSection } from "../WorkItemThread";
@@ -75,17 +76,13 @@ const ThreadTodoChecklist: React.FC<ThreadTodoChecklistProps> = ({
       }
       action={
         !disabled ? (
-          <Button
-            variant="tertiary"
-            appearance="ghost"
-            size="mini"
-            icon={<Plus size={13} aria-hidden />}
+          <ActivityHeaderActionButton
+            icon={<Plus size={12} aria-hidden />}
+            label={t("common:actions.add")}
             onClick={() => setAdding(true)}
             disabled={adding}
             data-testid="work-item-thread-todo-add"
-          >
-            {t("common:actions.add")}
-          </Button>
+          />
         ) : null
       }
     >

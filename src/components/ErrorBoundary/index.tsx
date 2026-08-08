@@ -7,6 +7,10 @@ import {
   isAppQuittingAtom,
 } from "@src/store/ui/overlayAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import {
+  cleanUpBrowserStorage,
+  isStorageQuotaError,
+} from "@src/util/core/storage/quotaRecovery";
 
 const log = createLogger("ErrorBoundary");
 
@@ -110,8 +114,22 @@ const GlobalErrorHandler: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [globalError, setGlobalError] = React.useState<Error | null>(null);
+  const hasLoggedQuotaRecovery = React.useRef(false);
 
   React.useEffect(() => {
+    const recoverQuotaError = (error: unknown): boolean => {
+      if (!isStorageQuotaError(error)) return false;
+      const cleanup = cleanUpBrowserStorage("quota-recovery");
+      if (!hasLoggedQuotaRecovery.current) {
+        hasLoggedQuotaRecovery.current = true;
+        log.warn(
+          `[GlobalErrorHandler] Suppressed a recoverable browser-storage quota error; released ${cleanup.freedBytes} bytes of regenerable cache data.`,
+          error
+        );
+      }
+      return true;
+    };
+
     const shouldSuppressError = (message?: string): boolean => {
       if (!message) return false;
       return (
@@ -158,6 +176,12 @@ const GlobalErrorHandler: React.FC<{ children: ReactNode }> = ({
         return;
       }
 
+      if (recoverQuotaError(event.error ?? event.message)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       if (shouldSuppressError(event.message)) {
         event.preventDefault();
         event.stopPropagation();
@@ -182,6 +206,11 @@ const GlobalErrorHandler: React.FC<{ children: ReactNode }> = ({
       }
 
       const message = event.reason?.message;
+
+      if (recoverQuotaError(event.reason ?? message)) {
+        event.preventDefault();
+        return;
+      }
 
       if (shouldSuppressError(message)) {
         event.preventDefault();

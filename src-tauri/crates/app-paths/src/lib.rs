@@ -1077,6 +1077,16 @@ pub fn codex_cli_profile_dir(account_id: &str) -> PathBuf {
     codex_cli_profile_root().join(sanitize_path_segment(account_id))
 }
 
+/// Session-scoped Codex CLI profile root for hosted-key sessions.
+pub fn codex_hosted_cli_profile_root() -> PathBuf {
+    orgii_root().join("codex-hosted-cli-profiles")
+}
+
+/// Session-scoped Codex CLI profile dir for one hosted-key session.
+pub fn codex_hosted_cli_profile_dir(session_id: &str) -> PathBuf {
+    codex_hosted_cli_profile_root().join(sanitize_path_segment(session_id))
+}
+
 /// Account-scoped Kiro CLI profile root: `~/.orgii/kiro-cli-profiles/`.
 pub fn kiro_cli_profile_root() -> PathBuf {
     orgii_root().join("kiro-cli-profiles")

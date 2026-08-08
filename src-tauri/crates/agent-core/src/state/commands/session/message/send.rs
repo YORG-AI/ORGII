@@ -22,7 +22,10 @@ use crate::state::commands::session::org_tasks;
 use crate::state::AgentAppState;
 
 use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
-use super::org_wake::{promote_agent_org_wake_session_to_running, resolve_agent_org_wake_mode};
+use super::org_wake::{
+    promote_agent_org_direct_session_to_running, promote_agent_org_wake_session_to_running,
+    resolve_agent_org_wake_mode,
+};
 
 pub(super) fn should_divert_to_mid_turn_steering(
     source: TurnIntentBridgeSource,
@@ -353,6 +356,15 @@ pub(crate) async fn send_message_impl(
         }
     }
 
+    // ── 4b. Project root WorkItem bootstrap (orgtrack/v1 §7.2) ──────────
+    //
+    // The first accepted non-empty submission of a Project session with
+    // no active WorkItem creates and links its root. Resumes replay an
+    // already-accepted submission, so they never bootstrap.
+    if !is_resume {
+        super::project_bootstrap::ensure_project_root_work_item(&session_id, &content).await;
+    }
+
     // ── 5. Build the processing closure ──────────────────────────────────
     let sid_for_closure = session_id.clone();
     let content_for_closure = content.clone();
@@ -360,6 +372,7 @@ pub(crate) async fn send_message_impl(
     let workspace_root_for_closure = effective_workspace_root.clone();
     let turn_intent_id_for_closure = effective_turn_intent_id.clone();
     let direct_user_intervention_for_closure = direct_user_intervention;
+    let intent_org_run_id_for_closure = effective_intent_org_run_id.clone();
     // Resolve durable mode-control rows from exactly the bounded inbox batch
     // this background wake will drain. A control row in a later batch must
     // not change the mode of earlier work; rows become one-shot only when the
@@ -413,26 +426,43 @@ pub(crate) async fn send_message_impl(
         let turn_intent_id = turn_intent_id_for_closure;
         let direct_user_intervention = direct_user_intervention_for_closure;
         let org_wake_run_id = org_wake_run_id;
+        let intent_org_run_id = intent_org_run_id_for_closure;
 
         Box::pin(async move {
+            // Clear a stale pre-turn cancel signal before the durable
+            // Agent Org gate. This must happen before that gate: deletion may
+            // establish its cancelled fence immediately after the DB claim
+            // and then set the cancel flag while `active_turn` is not yet
+            // registered. Clearing later would erase that deletion signal.
+            //
+            // Messages that reach this closure have already passed the
+            // scheduler generation check, so queued work invalidated by Stop
+            // or hierarchy deletion is discarded before this callback runs.
+            cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+
             // The scheduler now owns this accepted turn. Intervention is a
             // turn-start side effect, not submit preflight: queued work that is
             // invalidated before execution must never leave a takeover row.
             persist_direct_user_intervention(direct_user_intervention).await?;
+
             // Queued and coalesced messages are not running sessions. Promote
             // the DB state only when the scheduler actually begins execution.
-            // For Agent Org wakes, re-check the run and update the session in
-            // the same writer transaction used by run finality.
+            // Agent Org wakes require a running run. Direct Agent Org turns
+            // retain their historical-run behavior but refuse the terminal
+            // `cancelled` fence established by hierarchy deletion.
             let status_sid = sid.clone();
-            let status_run_id = org_wake_run_id.clone();
+            let status_wake_run_id = org_wake_run_id.clone();
+            let status_intent_run_id = intent_org_run_id.clone();
             match tokio::task::spawn_blocking(move || {
                 database::db::with_sessions_writer(|| -> Result<bool, String> {
                     let mut conn = database::db::get_connection().map_err(|err| err.to_string())?;
                     let tx = conn
                         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                         .map_err(|err| err.to_string())?;
-                    let updated = if let Some(run_id) = status_run_id.as_deref() {
+                    let updated = if let Some(run_id) = status_wake_run_id.as_deref() {
                         promote_agent_org_wake_session_to_running(&tx, run_id, &status_sid)?
+                    } else if let Some(run_id) = status_intent_run_id.as_deref() {
+                        promote_agent_org_direct_session_to_running(&tx, run_id, &status_sid)?
                     } else {
                         tx.execute(
                             "UPDATE agent_sessions SET status=?1, updated_at=?2 WHERE session_id=?3",
@@ -445,7 +475,7 @@ pub(crate) async fn send_message_impl(
                         .map_err(|err| err.to_string())?
                     };
                     if updated != 1 {
-                        if status_run_id.is_some() {
+                        if status_wake_run_id.is_some() || status_intent_run_id.is_some() {
                             tx.commit().map_err(|err| err.to_string())?;
                             return Ok(false);
                         }
@@ -462,18 +492,6 @@ pub(crate) async fn send_message_impl(
                 Ok(Err(err)) => return Err(format!("failed to persist running status: {err}")),
                 Err(err) => return Err(format!("running-status task failed: {err}")),
             }
-
-            // Clear any stale pre-turn cancel signal before starting a fresh
-            // turn. A UserStop that lands while the session is idle (e.g. only
-            // a background subagent is still running, the parent turn already
-            // finished) takes the `keep_pre_turn_cancel_when_idle` branch in
-            // `cancel_active_turn` and leaves `cancel_flag = true`. Without
-            // this reset the *next* user message inherits that flag and the
-            // turn loop self-cancels on iteration 1 (0 tokens, no response).
-            // Messages that reach this closure have already passed the
-            // scheduler's generation check, so a still-queued Send-Now that
-            // Stop meant to discard was dropped as stale before getting here.
-            cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
             let turn_id = session.begin_turn(content.clone()).await;
 

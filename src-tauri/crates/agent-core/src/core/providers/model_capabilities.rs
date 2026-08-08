@@ -246,6 +246,11 @@ const FAMILY_RULES: &[FamilyRule] = &[
     },
     // ── OpenAI ──
     FamilyRule {
+        pattern: "gpt-5.6",
+        context_window: 1_050_000,
+        thinking: ThinkingSupport::AlwaysOn,
+    },
+    FamilyRule {
         pattern: "gpt-5.5",
         context_window: 1_050_000,
         thinking: ThinkingSupport::AlwaysOn,

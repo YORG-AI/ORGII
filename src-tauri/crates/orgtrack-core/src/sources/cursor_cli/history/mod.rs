@@ -38,7 +38,7 @@
 //! input/output token split (field 5 only exposes context usage, surfaced
 //! here as the session's token total).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 

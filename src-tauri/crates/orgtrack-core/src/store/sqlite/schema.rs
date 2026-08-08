@@ -486,6 +486,19 @@ impl SqliteRecordStore<'_> {
             );
             CREATE INDEX IF NOT EXISTS idx_imported_history_repo_identity_refresh
                 ON imported_history_repo_identity(next_refresh_at_ms);
+
+            -- ORGII-owned pin state for imported sessions. Deliberately NOT a
+            -- column on imported_history_session_cache: that table is a
+            -- rebuildable projection of external files, and
+            -- `prune_missing_records_from_conn` deletes every row of a source
+            -- whose store reads as empty — a momentarily unreadable provider
+            -- directory would silently erase the user's pins. Keyed on the
+            -- canonical `session_id` (PREFIX + source id), which is
+            -- deterministic and survives rescans and parser_version bumps.
+            CREATE TABLE IF NOT EXISTS imported_history_session_pin (
+                session_id  TEXT PRIMARY KEY,
+                pinned_at   TEXT NOT NULL DEFAULT ''
+            );
             ",
         )?;
         ensure_column(

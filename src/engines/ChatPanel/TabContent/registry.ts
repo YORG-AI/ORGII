@@ -13,7 +13,10 @@
  * a dedicated, self-sufficient component that reads its tab payload directly.
  */
 import {
+  ChannelSurfaceRenderer,
   ExploreSurfaceRenderer,
+  GitHubIssueSurfaceRenderer,
+  GitHubPrSurfaceRenderer,
   OrganizationSurfaceRenderer,
   ProjectSurfaceRenderer,
   RuntimeSurfaceRenderer,
@@ -59,6 +62,16 @@ export const CHAT_PANEL_TAB_SURFACE_REGISTRY: ChatPanelTabSurfaceRegistry = {
     Component: WorkItemSurfaceRenderer,
     debugLabel: "work-item",
   },
+  "github-issue": {
+    render: "component",
+    Component: GitHubIssueSurfaceRenderer,
+    debugLabel: "github-issue",
+  },
+  "github-pr": {
+    render: "component",
+    Component: GitHubPrSurfaceRenderer,
+    debugLabel: "github-pr",
+  },
   project: {
     render: "component",
     Component: ProjectSurfaceRenderer,
@@ -68,6 +81,11 @@ export const CHAT_PANEL_TAB_SURFACE_REGISTRY: ChatPanelTabSurfaceRegistry = {
     render: "component",
     Component: ExploreSurfaceRenderer,
     debugLabel: "explore",
+  },
+  channel: {
+    render: "component",
+    Component: ChannelSurfaceRenderer,
+    debugLabel: "channel",
   },
 };
 

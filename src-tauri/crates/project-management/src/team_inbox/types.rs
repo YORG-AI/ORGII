@@ -59,6 +59,8 @@ pub enum TeamInboxTarget {
         project_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         project_slug: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        repository: Option<String>,
     },
 }
 

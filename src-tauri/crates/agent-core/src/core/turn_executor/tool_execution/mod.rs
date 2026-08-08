@@ -359,6 +359,8 @@ pub(crate) async fn execute_tool_calls(
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
+// Budget tests mutate the one field whose boundary behavior they exercise.
 mod tests {
     use super::*;
     use crate::tools::traits::{Tool, ToolError};

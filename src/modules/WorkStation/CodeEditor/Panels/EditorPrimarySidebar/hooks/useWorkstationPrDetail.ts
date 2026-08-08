@@ -18,7 +18,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import {
   type GitHubChecksSummary,
+  type GitHubIssueUser,
   type PrReviewEvent,
+  type PullRequestMergeMethod,
   createIssueCommentLocal,
   createPrReviewCommentLocal,
   createPrReviewLocal,
@@ -29,7 +31,13 @@ import {
   listPRFilesLocal,
   listPrReviewCommentsLocal,
   listPrReviewsLocal,
+  listRepoAssigneesLocal,
+  mergePRLocal,
+  removePRReviewersLocal,
   replyPrReviewCommentLocal,
+  requestPRReviewersLocal,
+  setPRAutoMergeLocal,
+  updatePRStateLocal,
 } from "@src/api/tauri/github";
 import {
   type CachedPrDetail,
@@ -40,6 +48,7 @@ import {
   updateCachedPrDetail,
 } from "@src/services/git/githubListCache";
 import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
+import { readRequestedReviewers } from "@src/shared/pr/prLevelActions";
 import {
   type PrIdentity,
   initialSelectedPrState,
@@ -188,6 +197,19 @@ export function useWorkstationPrDetail({
   // Freshest PR head SHA, kept in a ref so inline-comment creation can read it
   // without re-subscribing its callback on every atom write.
   const latestHeadShaRef = useRef<string | null>(null);
+  const latestRequestedReviewersRef = useRef<GitHubIssueUser[]>([]);
+  const latestAuthorLoginRef = useRef<string | null>(null);
+  const prActionPendingRef = useRef(false);
+  const reviewerCandidatesAttemptedRef = useRef(false);
+  const [prActionPending, setPrActionPending] = useState(false);
+  const [reviewerCandidates, setReviewerCandidates] = useState<
+    GitHubIssueUser[]
+  >([]);
+  const [loadingReviewerCandidates, setLoadingReviewerCandidates] =
+    useState(false);
+  const [reviewerCandidatesError, setReviewerCandidatesError] = useState<
+    string | null
+  >(null);
 
   // ── Resolve owner/repo from the origin remote ─────────────────────────────
   const [repoFullName, setRepoFullName] = useState<string | null>(null);
@@ -215,6 +237,13 @@ export function useWorkstationPrDetail({
     };
   }, [repoPath, repoId]);
 
+  useEffect(() => {
+    reviewerCandidatesAttemptedRef.current = false;
+    setReviewerCandidates([]);
+    setLoadingReviewerCandidates(false);
+    setReviewerCandidatesError(null);
+  }, [repoFullName]);
+
   // Per-PR request-id counters — see `bumpRequestId` above for why this is a
   // Map keyed by PR rather than a single instance-wide counter.
   const requestIdsRef = useRef(new Map<string, number>());
@@ -222,6 +251,13 @@ export function useWorkstationPrDetail({
   const applyBundle = useCallback(
     (identity: PrIdentity, bundle: PrDetailBundle) => {
       latestHeadShaRef.current = bundle.headSha;
+      latestRequestedReviewersRef.current = readRequestedReviewers(
+        bundle.detail
+      );
+      latestAuthorLoginRef.current = readString(bundle.detail, [
+        "user",
+        "login",
+      ]);
       setSelectedPr((prev) => ({
         ...prev,
         identity,
@@ -370,7 +406,8 @@ export function useWorkstationPrDetail({
           repoFullName,
           pr.number,
           event,
-          body || undefined
+          body || undefined,
+          latestHeadShaRef.current ?? undefined
         );
         updateCachedPrDetail(key, (cached) => ({
           reviews: upsertById(cached.reviews, review),
@@ -481,6 +518,143 @@ export function useWorkstationPrDetail({
     [repoFullName, pr, setSelectedPr, loadDetail]
   );
 
+  const runPrMutation = useCallback(
+    async (mutation: () => Promise<unknown>): Promise<void> => {
+      if (!repoFullName || !pr) {
+        throw new Error("GitHub repository context is unavailable");
+      }
+      if (prActionPendingRef.current) {
+        throw new Error("Another pull request action is still running");
+      }
+      prActionPendingRef.current = true;
+      setPrActionPending(true);
+      setSelectedPr((current) => ({ ...current, error: null }));
+      try {
+        await mutation();
+        loadDetail(pr, { reconcile: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setSelectedPr((current) => ({ ...current, error: message }));
+        loadDetail(pr, { reconcile: true });
+        throw error;
+      } finally {
+        prActionPendingRef.current = false;
+        setPrActionPending(false);
+      }
+    },
+    [repoFullName, pr, setSelectedPr, loadDetail]
+  );
+
+  const mergePullRequest = useCallback(
+    async (method: PullRequestMergeMethod): Promise<void> => {
+      if (!repoFullName || !pr) {
+        throw new Error("GitHub repository context is unavailable");
+      }
+      await runPrMutation(() =>
+        mergePRLocal(
+          repoFullName,
+          pr.number,
+          method,
+          latestHeadShaRef.current ?? undefined
+        )
+      );
+    },
+    [repoFullName, pr, runPrMutation]
+  );
+
+  const setPullRequestAutoMerge = useCallback(
+    async (enabled: boolean, method: PullRequestMergeMethod): Promise<void> => {
+      if (!repoFullName || !pr) {
+        throw new Error("GitHub repository context is unavailable");
+      }
+      await runPrMutation(() =>
+        setPRAutoMergeLocal(
+          repoFullName,
+          pr.number,
+          enabled,
+          method,
+          latestHeadShaRef.current ?? undefined
+        )
+      );
+    },
+    [repoFullName, pr, runPrMutation]
+  );
+
+  const updatePullRequestState = useCallback(
+    async (state: "open" | "closed"): Promise<void> => {
+      if (!repoFullName || !pr) {
+        throw new Error("GitHub repository context is unavailable");
+      }
+      await runPrMutation(() =>
+        updatePRStateLocal(repoFullName, pr.number, state)
+      );
+    },
+    [repoFullName, pr, runPrMutation]
+  );
+
+  const updateRequestedReviewers = useCallback(
+    async (reviewers: string[]): Promise<void> => {
+      if (!repoFullName || !pr) {
+        throw new Error("GitHub repository context is unavailable");
+      }
+      const current = new Map(
+        latestRequestedReviewersRef.current.map((reviewer) => [
+          reviewer.login.toLowerCase(),
+          reviewer.login,
+        ])
+      );
+      const next = new Map(
+        reviewers.map((reviewer) => [reviewer.toLowerCase(), reviewer])
+      );
+      const added = [...next]
+        .filter(([normalized]) => !current.has(normalized))
+        .map(([, login]) => login);
+      const removed = [...current]
+        .filter(([normalized]) => !next.has(normalized))
+        .map(([, login]) => login);
+      if (added.length === 0 && removed.length === 0) return;
+
+      await runPrMutation(async () => {
+        if (added.length > 0) {
+          await requestPRReviewersLocal(repoFullName, pr.number, added);
+        }
+        if (removed.length > 0) {
+          await removePRReviewersLocal(repoFullName, pr.number, removed);
+        }
+        latestRequestedReviewersRef.current = reviewers.map((login) => {
+          const candidate = reviewerCandidates.find(
+            (reviewer) => reviewer.login.toLowerCase() === login.toLowerCase()
+          );
+          return candidate ?? { login, avatar_url: "" };
+        });
+      });
+    },
+    [repoFullName, pr, reviewerCandidates, runPrMutation]
+  );
+
+  const loadReviewerCandidates = useCallback(async (): Promise<void> => {
+    if (!repoFullName || reviewerCandidatesAttemptedRef.current) return;
+    reviewerCandidatesAttemptedRef.current = true;
+    setLoadingReviewerCandidates(true);
+    setReviewerCandidatesError(null);
+    try {
+      const authorLogin = latestAuthorLoginRef.current?.toLowerCase();
+      const candidates = await listRepoAssigneesLocal(repoFullName);
+      setReviewerCandidates(
+        candidates.filter(
+          (candidate) => candidate.login.toLowerCase() !== authorLogin
+        )
+      );
+    } catch (error) {
+      reviewerCandidatesAttemptedRef.current = false;
+      setReviewerCandidatesError(
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      setLoadingReviewerCandidates(false);
+    }
+  }, [repoFullName]);
+
   const refresh = useCallback(() => {
     if (pr) loadDetail(pr, { force: true });
   }, [pr, loadDetail]);
@@ -492,6 +666,10 @@ export function useWorkstationPrDetail({
       submitReview,
       addInlineComment,
       replyInlineComment,
+      mergePullRequest,
+      setPullRequestAutoMerge,
+      updatePullRequestState,
+      updateRequestedReviewers,
       refresh,
     });
   }, [
@@ -499,6 +677,10 @@ export function useWorkstationPrDetail({
     submitReview,
     addInlineComment,
     replyInlineComment,
+    mergePullRequest,
+    setPullRequestAutoMerge,
+    updatePullRequestState,
+    updateRequestedReviewers,
     refresh,
     setCallbacks,
   ]);
@@ -506,12 +688,19 @@ export function useWorkstationPrDetail({
   // Cleanup on unmount.
   useEffect(() => {
     return () => {
-      setSelectedPr(initialSelectedPrState);
+      setSelectedPr((current) => ({
+        ...initialSelectedPrState,
+        viewState: current.viewState,
+      }));
       setCallbacks({
         addComment: null,
         submitReview: null,
         addInlineComment: null,
         replyInlineComment: null,
+        mergePullRequest: null,
+        setPullRequestAutoMerge: null,
+        updatePullRequestState: null,
+        updateRequestedReviewers: null,
         refresh: null,
       });
     };
@@ -524,6 +713,15 @@ export function useWorkstationPrDetail({
       submitReview,
       addInlineComment,
       replyInlineComment,
+      mergePullRequest,
+      setPullRequestAutoMerge,
+      updatePullRequestState,
+      updateRequestedReviewers,
+      loadReviewerCandidates,
+      reviewerCandidates,
+      loadingReviewerCandidates,
+      reviewerCandidatesError,
+      prActionPending,
       refresh,
       latestHeadShaRef,
     }),
@@ -533,6 +731,15 @@ export function useWorkstationPrDetail({
       submitReview,
       addInlineComment,
       replyInlineComment,
+      mergePullRequest,
+      setPullRequestAutoMerge,
+      updatePullRequestState,
+      updateRequestedReviewers,
+      loadReviewerCandidates,
+      reviewerCandidates,
+      loadingReviewerCandidates,
+      reviewerCandidatesError,
+      prActionPending,
       refresh,
     ]
   );

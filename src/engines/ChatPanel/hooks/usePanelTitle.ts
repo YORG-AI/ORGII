@@ -25,6 +25,36 @@ export interface UsePanelTitleResult {
   currentSession: Session | null;
 }
 
+interface ResolvePanelTitleInput {
+  currentSessionId: string | null;
+  currentSession: Pick<Session, "name" | "user_input"> | null;
+  activeTabTitle?: string | null;
+  defaultTitle: string;
+  newSessionTitle: string;
+}
+
+export function resolvePanelTitle({
+  currentSessionId,
+  currentSession,
+  activeTabTitle,
+  defaultTitle,
+  newSessionTitle,
+}: ResolvePanelTitleInput): string {
+  if (!currentSessionId) return newSessionTitle;
+  if (!currentSession) return activeTabTitle?.trim() || defaultTitle;
+
+  const effectiveName =
+    currentSession.name &&
+    currentSession.name !== SESSION_CONFIG.DEFAULT_SESSION_NAME
+      ? currentSession.name
+      : undefined;
+  return (
+    effectiveName ||
+    stripPillReferences(currentSession.user_input || "") ||
+    defaultTitle
+  );
+}
+
 /**
  * Hook to get the current panel title based on active session
  */
@@ -49,22 +79,25 @@ export function usePanelTitle(): UsePanelTitleResult {
       | undefined) ?? null;
 
   const defaultTitle = t("chat.defaultTitle");
+  const newSessionTitle = t("chat.newSession");
 
-  const panelTitle = useMemo(() => {
-    if (!currentSessionId) return t("chat.newSession");
-    if (!currentSession) return defaultTitle;
-
-    const effectiveName =
-      currentSession.name &&
-      currentSession.name !== SESSION_CONFIG.DEFAULT_SESSION_NAME
-        ? currentSession.name
-        : undefined;
-    return (
-      effectiveName ||
-      stripPillReferences(currentSession.user_input || "") ||
-      defaultTitle
-    );
-  }, [currentSessionId, currentSession, defaultTitle, t]);
+  const panelTitle = useMemo(
+    () =>
+      resolvePanelTitle({
+        currentSessionId,
+        currentSession,
+        activeTabTitle: activeTab?.title,
+        defaultTitle,
+        newSessionTitle,
+      }),
+    [
+      activeTab?.title,
+      currentSession,
+      currentSessionId,
+      defaultTitle,
+      newSessionTitle,
+    ]
+  );
 
   return {
     currentSessionId,

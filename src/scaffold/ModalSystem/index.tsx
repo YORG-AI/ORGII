@@ -27,6 +27,13 @@ import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 import "./index.scss";
 
+/**
+ * z-index for popup panels (Select dropdowns etc.) that must stack above a
+ * Modal's default overlay (9999). One canonical value — per-dialog copies of
+ * this constant kept drifting into magic numbers.
+ */
+export const MODAL_SELECT_Z_INDEX = 10_000;
+
 export interface ModalProps {
   /** Controls modal visibility */
   visible: boolean;

@@ -81,21 +81,35 @@ describe("resolveShareableScopeKey (git-remote-only sharing, design §8.3)", () 
     expect(remotesMock).not.toHaveBeenCalled();
   });
 
-  it("does NOT cache a transport failure — the next call retries and heals", async () => {
+  it("negative-caches a transport failure briefly, then retries and heals", async () => {
     // getGitRemotes swallows transport errors and reports undefined; a repo
     // must never be permanently marked unshareable by a hiccup (e.g. the
-    // git server still booting at app start).
-    remotesMock.mockResolvedValueOnce(undefined);
-    await expect(resolveShareableScopeKey("/repo/alpha")).resolves.toBe(null);
-    expect(peekShareableScopeKey("/repo/alpha")).toBeUndefined();
+    // git server still booting at app start). Within the short failure
+    // window callers get "no keys" without re-firing the IPC (render-path
+    // callers would otherwise retry per re-render); after it, retry heals.
+    vi.useFakeTimers();
+    try {
+      remotesMock.mockResolvedValueOnce(undefined);
+      await expect(resolveShareableScopeKey("/repo/alpha")).resolves.toBe(null);
+      expect(peekShareableScopeKey("/repo/alpha")).toBeUndefined();
 
-    remotesMock.mockResolvedValue({
-      remotes: [remoteEntry("origin", "git@github.com:acme/alpha.git")],
-    });
-    await expect(resolveShareableScopeKey("/repo/alpha")).resolves.toBe(
-      "github.com/acme/alpha"
-    );
-    expect(peekShareableScopeKey("/repo/alpha")).toBe("github.com/acme/alpha");
+      remotesMock.mockClear();
+      remotesMock.mockResolvedValue({
+        remotes: [remoteEntry("origin", "git@github.com:acme/alpha.git")],
+      });
+      await expect(resolveShareableScopeKey("/repo/alpha")).resolves.toBe(null);
+      expect(remotesMock).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(30_000);
+      await expect(resolveShareableScopeKey("/repo/alpha")).resolves.toBe(
+        "github.com/acme/alpha"
+      );
+      expect(peekShareableScopeKey("/repo/alpha")).toBe(
+        "github.com/acme/alpha"
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("dedupes concurrent lookups for one path and notifies subscribers once", async () => {

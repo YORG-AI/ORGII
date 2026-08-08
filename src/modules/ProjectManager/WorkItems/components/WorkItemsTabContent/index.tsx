@@ -318,6 +318,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
           hidePropertiesPanel={hidePropertiesPanel}
           collapseAllSignal={collapseAllSignal}
           workItemPrefix={workItemPrefix}
+          hideProjectCell={hideProjectPropertiesRow}
         />
       );
   }

@@ -945,3 +945,131 @@ pub(crate) fn chunk_role(chunk: &ActivityChunk) -> String {
         other => other.to_string(),
     }
 }
+
+/// Imported sources whose owning CLI can reopen a session by id.
+/// Maps a canonical (prefixed) session id back to its source so `resume`
+/// scans exactly one provider instead of all of them.
+fn resume_source_for_session_id(session_id: &str) -> Option<&'static str> {
+    use orgtrack_core::sources::imported_history::metadata;
+    use orgtrack_core::sources::{
+        claude_code, cline, codex, copilot, cursor_cli, kimi, mimo_code, omp, opencode,
+    };
+    if session_id.starts_with(claude_code::SESSION_PREFIX) {
+        Some(metadata::SOURCE_CLAUDE_CODE)
+    } else if session_id.starts_with(codex::SESSION_PREFIX) {
+        Some(metadata::SOURCE_CODEX_APP)
+    } else if session_id.starts_with(cursor_cli::SESSION_PREFIX) {
+        Some(metadata::SOURCE_CURSOR_CLI)
+    } else if session_id.starts_with(opencode::history::OPENCODE_SESSION_PREFIX) {
+        Some(metadata::SOURCE_OPENCODE)
+    } else if session_id.starts_with(mimo_code::history::MIMO_CODE_SESSION_PREFIX) {
+        Some(metadata::SOURCE_MIMO_CODE)
+    } else if session_id.starts_with(cline::history::CLINE_SESSION_PREFIX) {
+        Some(metadata::SOURCE_CLINE)
+    } else if session_id.starts_with(omp::history::OMP_SESSION_PREFIX) {
+        Some(metadata::SOURCE_OMP)
+    } else if session_id.starts_with(copilot::SESSION_PREFIX) {
+        Some(metadata::SOURCE_COPILOT)
+    } else if session_id.starts_with(kimi::history::KIMI_SESSION_PREFIX) {
+        Some(metadata::SOURCE_KIMI)
+    } else {
+        None
+    }
+}
+
+/// `orgtrack resume <session-id>` — reopen an imported session in the CLI
+/// that owns it (`claude --resume`, `codex resume`, `cursor-agent --resume`).
+/// Scans only that session's provider into the index, plans the invocation
+/// via core's `cli_resume`, then either prints it (`--print`) or replaces
+/// this process with it so the CLI's TUI takes over the terminal.
+pub(crate) fn cmd_resume(opts: &Options) -> Result<(), String> {
+    use orgtrack_core::sources::cli_resume::{cli_resume_plan_for_cached_session, shell_quote};
+
+    let Some(session_id) = opts.positionals.first().cloned() else {
+        return Err(
+            "resume needs a session id, e.g. `orgtrack resume claudecodeapp-<uuid>` \
+             (ids come from `orgtrack list`)"
+                .into(),
+        );
+    };
+    let Some(source) = resume_source_for_session_id(&session_id) else {
+        return Err(format!(
+            "'{session_id}' is not from a CLI-resumable source — resume supports \
+             claude_code, codex_app, cursor_cli, opencode, mimo_code, cline, omp, \
+             copilot, and kimi session ids"
+        ));
+    };
+
+    let target = db_target(opts)?;
+    if !opts.no_scan {
+        // Scope the scan to the one provider that owns this id; resume never
+        // needs the other tools' sessions in the index.
+        let scoped = Options {
+            sources: vec![source.to_string()],
+            db: opts.db.clone(),
+            timeout: opts.timeout,
+            no_plugins: true,
+            ..Options::default()
+        };
+        scan_all(&target.path, &scoped, &[]);
+    }
+    let conn = open_conn(&target.path)?;
+    let Some((plan, _session)) = cli_resume_plan_for_cached_session(&conn, &session_id)? else {
+        return Err(format!(
+            "'{session_id}' was not found in {source}'s local history (or is a \
+             subagent transcript). Run `orgtrack list --source {source}` to see ids."
+        ));
+    };
+
+    let cwd = plan
+        .cwd
+        .as_deref()
+        .filter(|path| std::path::Path::new(path).is_dir());
+    let command_line = match cwd {
+        Some(dir) => format!("cd {} && {}", shell_quote(dir), plan.display_command()),
+        None => plan.display_command(),
+    };
+
+    if opts.print {
+        println!("{command_line}");
+        return Ok(());
+    }
+
+    if plan.requires_cwd && cwd.is_none() {
+        return Err(format!(
+            "{} can only resume this session from its original folder, which no \
+             longer exists ({}). Use --print to get the command anyway.",
+            plan.default_binary,
+            plan.cwd.as_deref().unwrap_or("unknown")
+        ));
+    }
+
+    eprintln!(
+        "Resuming {source} session {} …\n$ {command_line}",
+        plan.native_session_id
+    );
+    let mut command = std::process::Command::new(plan.default_binary);
+    command.args(&plan.resume_args);
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // exec never returns on success — the owning CLI takes over the tty.
+        let err = command.exec();
+        Err(format!("failed to launch {}: {err}", plan.default_binary))
+    }
+    #[cfg(not(unix))]
+    {
+        let status = command
+            .status()
+            .map_err(|err| format!("failed to launch {}: {err}", plan.default_binary))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("{} exited with {status}", plan.default_binary))
+        }
+    }
+}

@@ -227,41 +227,6 @@ export function createConfigHelpers() {
     }
   };
 
-  const listAutomationRules = async (): Promise<Result<{ rules: Json[] }>> => {
-    try {
-      const rules = (await invoke("agent_automation_list_rules")) as Json[];
-      return { ok: true, rules };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const addAutomationRule = async (
-    ruleJson: string
-  ): Promise<Result<{ ruleId: string }>> => {
-    try {
-      const ruleId = (await invoke("agent_automation_add_rule", {
-        ruleJson,
-      })) as string;
-      return { ok: true, ruleId };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const removeAutomationRule = async (
-    ruleId: string
-  ): Promise<Result<{ removed: boolean }>> => {
-    try {
-      const removed = (await invoke("agent_automation_remove_rule", {
-        ruleId,
-      })) as boolean;
-      return { ok: true, removed };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
   return {
     getAgentDef,
     updateAgentDefPatch,
@@ -280,8 +245,5 @@ export function createConfigHelpers() {
     getSettingsRegistryKeys,
     getDesktopConfig,
     setDesktopConfig,
-    listAutomationRules,
-    addAutomationRule,
-    removeAutomationRule,
   };
 }

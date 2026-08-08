@@ -1,6 +1,6 @@
 {
   "name": "orgii",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Self-evolving agentic development framework — ORGII desktop app",
   "main": "src/index.tsx",
   "scripts": {
@@ -43,7 +43,7 @@
     "cargo:test:work_station": "cd src-tauri && cargo test --lib work_station::",
     "cargo:test:agent_variants": "cd src-tauri && cargo test --lib agent_variants::",
     "cargo:test:tool_service": "cd src-tauri && cargo test --lib tool_service::",
-    "check:circular": "npx madge --circular --extensions ts,tsx --ts-config tsconfig.json src/",
+    "check:circular": "node scripts/quality/check-circular-dependencies.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -207,6 +207,7 @@
     "husky": "^8.0.3",
     "jsdom": "^29.1.1",
     "lint-staged": "^15.2.0",
+    "madge": "8.0.0",
     "mini-css-extract-plugin": "^2.9.2",
     "postcss": "^8.4.32",
     "postcss-loader": "^8.2.1",

@@ -7,7 +7,7 @@ import {
   filterItemKind,
   filterTeamInboxItems,
   getTeamInboxItemKey,
-  groupTeamInboxItemsByRecency,
+  isActionableTeamInboxItem,
   searchTeamInboxItems,
   selectTeamInboxItems,
   sortTeamInboxItems,
@@ -115,6 +115,45 @@ describe("Team Inbox selectors", () => {
     expect(filterTeamInboxItems(items, "all")).not.toBe(items);
   });
 
+  it("excludes terminal assignments from the actionable inbox surface", () => {
+    const active = assignment({ id: "active", readAt: null });
+    const terminal = [
+      "completed",
+      "cancelled",
+      "canceled",
+      "duplicate",
+      "closed",
+      "done",
+      "Done",
+    ].map((status, index) =>
+      assignment({
+        id: `terminal-${index}`,
+        readAt: null,
+        payload: {
+          ...assignment().payload,
+          status,
+        },
+      })
+    );
+
+    expect(terminal.every((item) => !isActionableTeamInboxItem(item))).toBe(
+      true
+    );
+    expect(
+      selectTeamInboxItems([mention(), active, ...terminal], "all").map(
+        getTeamInboxItemKey
+      )
+    ).toEqual(["assigned_work_item:active", "comment_mention:comment-1"]);
+    expect(
+      selectTeamInboxItems([active, ...terminal], "assigned").map(
+        getTeamInboxItemKey
+      )
+    ).toEqual(["assigned_work_item:active"]);
+    expect(
+      countUnreadTeamInboxItemsByFilter([mention(), active, ...terminal])
+    ).toEqual({ all: 2, mentions: 1, assigned: 1 });
+  });
+
   it("dedupes, sorts, then filters through the composed selector", () => {
     const duplicate = mention({ readAt: "2026-07-23T09:10:00.000Z" });
     expect(
@@ -194,41 +233,5 @@ describe("Team Inbox selectors", () => {
 
   it("returns no items when nothing matches", () => {
     expect(searchTeamInboxItems([mention(), assignment()], "zzzz")).toEqual([]);
-  });
-
-  it("buckets items into ordered recency groups relative to now", () => {
-    const now = Date.parse("2026-07-24T12:00:00.000Z");
-    const DAY = 86_400_000;
-    const at = (offsetMs: number) => new Date(now - offsetMs).toISOString();
-    const items = [
-      mention({ id: "today", occurredAt: at(0) }),
-      assignment({ id: "yesterday", occurredAt: at(DAY) }),
-      mention({ id: "week", occurredAt: at(3 * DAY) }),
-      assignment({ id: "old", occurredAt: at(30 * DAY) }),
-      mention({ id: "bad", occurredAt: "not-a-date" }),
-    ];
-
-    const groups = groupTeamInboxItemsByRecency(items, now);
-    expect(groups.map((group) => group.key)).toEqual([
-      "today",
-      "yesterday",
-      "thisWeek",
-      "earlier",
-    ]);
-    expect(groups[3]!.items.map((item) => item.id)).toEqual(["old", "bad"]);
-  });
-
-  it("omits empty recency groups and keeps input order within a group", () => {
-    const now = Date.parse("2026-07-24T12:00:00.000Z");
-    const at = (offsetMs: number) => new Date(now - offsetMs).toISOString();
-    const groups = groupTeamInboxItemsByRecency(
-      [
-        mention({ id: "a", occurredAt: at(0) }),
-        mention({ id: "b", occurredAt: at(1000) }),
-      ],
-      now
-    );
-    expect(groups.map((group) => group.key)).toEqual(["today"]);
-    expect(groups[0]!.items.map((item) => item.id)).toEqual(["a", "b"]);
   });
 });

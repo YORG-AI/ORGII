@@ -17,6 +17,14 @@ import * as client from "./client";
 
 export * from "./types";
 export type {
+  ProjectScopeOptions,
+  RoutineRunStatus,
+  RoutineRunSummary,
+  WorkItemReadBucket,
+  WorkItemsReadOptions,
+  WorkItemsViewOptions,
+} from "./client";
+export type {
   AdapterAuthMethod,
   AdapterDescriptor,
   OAuthDeviceFlow,
@@ -78,7 +86,10 @@ export const projectApi = {
   readStandaloneWorkItems: client.readStandaloneWorkItems,
   readWorkItems: client.readWorkItems,
   readWorkItemsEnriched: client.readWorkItemsEnriched,
+  readWorkspaceWorkItemsData: client.readWorkspaceWorkItemsData,
   readWorkItemsViewData: client.readWorkItemsViewData,
+  createWorkItem: client.createWorkItem,
+  createStandaloneWorkItem: client.createStandaloneWorkItem,
   writeWorkItem: client.writeWorkItem,
   writeStandaloneWorkItem: client.writeStandaloneWorkItem,
   deleteWorkItem: client.deleteWorkItem,
@@ -99,6 +110,8 @@ export const projectApi = {
   deleteRoutine: client.deleteRoutine,
   listRoutineFires: client.listRoutineFires,
   fireRoutine: client.fireRoutine,
+  listRoutineRuns: client.listRoutineRuns,
+  routineRunStatus: client.routineRunStatus,
   // Batch
   batchDeleteWorkItems: client.batchDeleteWorkItems,
   batchUpdateWorkItems: client.batchUpdateWorkItems,

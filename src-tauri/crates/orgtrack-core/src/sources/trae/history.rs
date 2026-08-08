@@ -131,7 +131,14 @@ fn sync_trae_history_cache(conn: &mut Connection) -> Result<(), String> {
     };
     let mut inputs = Vec::new();
     for record in changed {
-        if let Some(meta) = parse_trae_session_meta(record, &session_index)? {
+        let Some(parsed) = imported_history::skip_unparsable_record(
+            SOURCE_TRAE,
+            &record.source_session_id,
+            parse_trae_session_meta(record, &session_index),
+        ) else {
+            continue;
+        };
+        if let Some(meta) = parsed {
             inputs.push(session_meta_to_cache_input(meta));
         }
     }

@@ -291,6 +291,38 @@ export const chatPanelCreateTargetAtom = atom<ChatPanelCreateTarget>(
 );
 chatPanelCreateTargetAtom.debugLabel = "chatPanelCreateTargetAtom";
 
+export const CHAT_PANEL_COLLAB_ORG_SOURCE = {
+  LOCAL: "local",
+  CLOUD: "cloud",
+} as const;
+
+export type ChatPanelCollabOrgSource =
+  (typeof CHAT_PANEL_COLLAB_ORG_SOURCE)[keyof typeof CHAT_PANEL_COLLAB_ORG_SOURCE];
+
+export const CHAT_PANEL_COLLAB_ORG_MODE = {
+  CREATE: "create",
+  JOIN: "join",
+} as const;
+
+export type ChatPanelCollabOrgMode =
+  (typeof CHAT_PANEL_COLLAB_ORG_MODE)[keyof typeof CHAT_PANEL_COLLAB_ORG_MODE];
+
+/**
+ * One-shot navigation intent for an explicitly requested Add ORG form state.
+ * The creator consumes and clears it; authoritative organization state remains
+ * owned by the local/cloud organization stores.
+ */
+export interface ChatPanelCollabOrgCreateIntent {
+  requestId: number;
+  source: ChatPanelCollabOrgSource;
+  mode: ChatPanelCollabOrgMode;
+}
+
+export const chatPanelCollabOrgCreateIntentAtom =
+  atom<ChatPanelCollabOrgCreateIntent | null>(null);
+chatPanelCollabOrgCreateIntentAtom.debugLabel =
+  "chatPanelCollabOrgCreateIntentAtom";
+
 export const chatPanelStartPageOpenAtom = atom<boolean>(true);
 chatPanelStartPageOpenAtom.debugLabel = "chatPanelStartPageOpenAtom";
 
@@ -384,7 +416,19 @@ chatPanelSelectedWorkspaceAtom.debugLabel = "chatPanelSelectedWorkspaceAtom";
  */
 export interface ChatPanelSelectedCloudOrg {
   orgId: string;
+  /** Optional management surface requested by the action opening this ORG. */
+  initialView?: CloudOrgManagementView;
+  /** Changes when an opener explicitly requests `initialView` again. */
+  initialViewRequestId?: number;
 }
+
+export type CloudOrgManagementView = "general" | "sync" | "members";
+
+export const CLOUD_ORG_MANAGEMENT_VIEW = {
+  GENERAL: "general",
+  SYNC: "sync",
+  MEMBERS: "members",
+} as const satisfies Record<string, CloudOrgManagementView>;
 
 /** The explicit provider variant owned by the shared organization tab. */
 export type ChatPanelSelectedOrganization =
@@ -518,6 +562,7 @@ function resetChatPanelSurfaceState(set: SetAtom): void {
   set(chatPanelSelectedCloudOrgAtom, null);
   set(chatPanelExploreOpenAtom, false);
   set(chatPanelCreateProjectContextAtom, null);
+  set(chatPanelCollabOrgCreateIntentAtom, null);
   set(chatPanelCreateTargetAtom, DEFAULT_CHAT_PANEL_CREATE_TARGET);
   set(chatPanelWorkspaceOverviewTabAtom, WORKSPACE_OVERVIEW_TAB.OVERVIEW);
 }

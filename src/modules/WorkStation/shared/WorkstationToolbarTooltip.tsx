@@ -10,6 +10,7 @@ export interface WorkstationToolbarTooltipProps {
   shortcut?: string;
   shortcutId?: string;
   position?: TooltipProps["position"];
+  mouseEnterDelay?: TooltipProps["mouseEnterDelay"];
   disabled?: boolean;
   children: ReactNode;
 }
@@ -21,6 +22,7 @@ export const WorkstationToolbarTooltip: React.FC<WorkstationToolbarTooltipProps>
       shortcut,
       shortcutId,
       position = "bottom",
+      mouseEnterDelay = 200,
       disabled = false,
       children,
     }) => {
@@ -37,7 +39,7 @@ export const WorkstationToolbarTooltip: React.FC<WorkstationToolbarTooltipProps>
             />
           }
           position={position}
-          mouseEnterDelay={200}
+          mouseEnterDelay={mouseEnterDelay}
           framedPanel
           disabled={disabled}
           smartPlacement

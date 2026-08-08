@@ -20,6 +20,7 @@ import {
   presentedWorkstationWorkspaceKeyAtom,
 } from "@src/store/workstation/tabs";
 import { STORY_PERSONAL_ORG_FILTER_ID } from "@src/store/workstation/tabs/factories/project";
+import { mapWithConcurrency } from "@src/util/collections/mapWithConcurrency";
 
 import { toChatPanelProject, toChatPanelWorkItem } from "./chatPanelMapping";
 import { buildByOrgMenuItems } from "./groupingBuilders";
@@ -145,11 +146,13 @@ export function useProjectsWorkItemMenuItems({
         [STORY_PERSONAL_ORG_FILTER_ID, t("projects:orgs.personalOrg")],
         ...orgs.map((org) => [org.id, org.name] as const),
       ]);
-      const projectResults = await Promise.all(
-        projects.map(async (project) => {
+      const projectResults = await mapWithConcurrency(
+        projects,
+        4,
+        async (project) => {
           const [viewData, labelsFile, membersFile, syncStatus] =
             await Promise.all([
-              projectApi.readWorkItemsViewData(project.slug),
+              projectApi.readWorkItemsViewData(project.slug, { view: "list" }),
               projectApi.readLabels(project.slug),
               projectApi.readMembers(project.slug),
               projectSyncApi.status(project.slug).catch(() => null),
@@ -187,7 +190,7 @@ export function useProjectsWorkItemMenuItems({
               source: "local",
             }));
           return { projectEntry, projectWorkItems };
-        })
+        }
       );
       setLocalProjects(
         projectResults.map((projectResult) => projectResult.projectEntry)
@@ -225,14 +228,16 @@ export function useProjectsWorkItemMenuItems({
         const visibleProjects = projectsResult.projects.filter((project) =>
           project.teams.some((team) => team.id === org.teamId)
         );
-        const issueResults = await Promise.all(
-          visibleProjects.map(async (project) => {
+        const issueResults = await mapWithConcurrency(
+          visibleProjects,
+          4,
+          async (project) => {
             const issueResult = await cachedLinearProjectsApi.listProjectIssues(
               org.connectionId,
               project.id
             );
             return { project, issues: issueResult.issues };
-          })
+          }
         );
         const nextWorkItems = issueResults.flatMap(({ project, issues }) =>
           issues.map((issue) => {

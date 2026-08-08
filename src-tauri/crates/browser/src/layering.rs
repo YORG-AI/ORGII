@@ -71,7 +71,7 @@ pub fn browser_webviews_set_layer_for_all(
     };
     let mut reordered: Vec<String> = Vec::new();
 
-    for (label, _webview) in app.webviews().iter() {
+    for label in app.webviews().keys() {
         if !label.starts_with("browser-session-") {
             continue;
         }

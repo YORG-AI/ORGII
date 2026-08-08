@@ -4,12 +4,12 @@
  * Form for cloning a repo from connected GitHub accounts
  */
 import {
-  ExternalLink,
   Filter,
   Folder,
   FolderOpen,
   Globe,
   Lock,
+  SquareArrowOutUpRight,
 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -233,7 +233,7 @@ const CloneGitHubForm: React.FC<CloneGitHubFormProps> = ({
               <Button
                 variant="secondary"
                 size="default"
-                icon={<ExternalLink size={14} />}
+                icon={<SquareArrowOutUpRight size={14} />}
                 iconPosition="right"
                 onClick={handleGoToSettings}
               >

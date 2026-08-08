@@ -1,8 +1,3 @@
-import {
-  type SessionDateBucket,
-  getSessionDateBucketRanges,
-} from "@src/util/session/sessionDateBuckets";
-
 import type {
   TeamInboxFilter,
   TeamInboxItem,
@@ -10,6 +5,14 @@ import type {
 } from "./types";
 
 const INVALID_TIMESTAMP = Number.NEGATIVE_INFINITY;
+const TERMINAL_ASSIGNED_WORK_ITEM_STATUSES = new Set([
+  "completed",
+  "cancelled",
+  "canceled",
+  "duplicate",
+  "closed",
+  "done",
+]);
 
 function timestamp(value: string): number {
   const parsed = Date.parse(value);
@@ -18,6 +21,20 @@ function timestamp(value: string): number {
 
 export function getTeamInboxItemKey(item: TeamInboxItem): string {
   return `${item.kind}:${item.id}`;
+}
+
+/**
+ * Team Inbox is an actionable surface rather than a Work Item history view.
+ * Assignment rows stop being actionable as soon as their current status is
+ * terminal; comment mentions remain visible until the user handles them.
+ */
+export function isActionableTeamInboxItem(item: TeamInboxItem): boolean {
+  if (item.kind !== "assigned_work_item") return true;
+  const status = item.payload.status
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  return !TERMINAL_ASSIGNED_WORK_ITEM_STATUSES.has(status);
 }
 
 /**
@@ -59,9 +76,10 @@ export function filterTeamInboxItems(
   items: readonly TeamInboxItem[],
   filter: TeamInboxFilter
 ): TeamInboxItem[] {
-  if (filter === "all") return [...items];
+  const actionableItems = items.filter(isActionableTeamInboxItem);
+  if (filter === "all") return actionableItems;
   const kind = filter === "mentions" ? "comment_mention" : "assigned_work_item";
-  return items.filter((item) => item.kind === kind);
+  return actionableItems.filter((item) => item.kind === kind);
 }
 
 export function selectTeamInboxItems(
@@ -112,86 +130,12 @@ export function searchTeamInboxItems(
   );
 }
 
-export type TeamInboxRecencyGroupKey =
-  | "today"
-  | "yesterday"
-  | "thisWeek"
-  | "earlier";
-
-export interface TeamInboxRecencyGroup {
-  key: TeamInboxRecencyGroupKey;
-  items: TeamInboxItem[];
-}
-
-const RECENCY_GROUP_ORDER: TeamInboxRecencyGroupKey[] = [
-  "today",
-  "yesterday",
-  "thisWeek",
-  "earlier",
-];
-
-/**
- * Maps the shared session date-bucket keys onto the Team Inbox recency keys, so
- * both surfaces derive day boundaries from one source of truth
- * (`getSessionDateBucketRanges`). Only the presentation key name differs
- * ("earlier" here vs "older" in the shared helper).
- */
-const SESSION_BUCKET_TO_RECENCY: Record<
-  SessionDateBucket,
-  TeamInboxRecencyGroupKey
-> = {
-  today: "today",
-  yesterday: "yesterday",
-  thisWeek: "thisWeek",
-  older: "earlier",
-};
-
-/**
- * Buckets already-ordered items into recency sections relative to `nowMs`
- * (Today / Yesterday / This week / Earlier). Day boundaries are reused from the
- * shared `getSessionDateBucketRanges` helper so the "this week" window stays
- * consistent with the rest of the app. Empty groups are omitted and group order
- * is stable; unparseable timestamps fall into "earlier".
- */
-export function groupTeamInboxItemsByRecency(
-  items: readonly TeamInboxItem[],
-  nowMs: number
-): TeamInboxRecencyGroup[] {
-  const ranges = getSessionDateBucketRanges(new Date(nowMs));
-
-  const buckets: Record<TeamInboxRecencyGroupKey, TeamInboxItem[]> = {
-    today: [],
-    yesterday: [],
-    thisWeek: [],
-    earlier: [],
-  };
-
-  for (const item of items) {
-    const occurred = Date.parse(item.occurredAt);
-    let key: TeamInboxRecencyGroupKey = "earlier";
-    if (!Number.isNaN(occurred)) {
-      const match = ranges.find(
-        ({ startMs, endMs }) =>
-          (startMs === undefined || occurred >= startMs) &&
-          (endMs === undefined || occurred < endMs)
-      );
-      if (match) key = SESSION_BUCKET_TO_RECENCY[match.bucket];
-    }
-    buckets[key].push(item);
-  }
-
-  return RECENCY_GROUP_ORDER.filter((key) => buckets[key].length > 0).map(
-    (key) => ({ key, items: buckets[key] })
-  );
-}
-
 export function countUnreadTeamInboxItems(
   items: readonly TeamInboxItem[]
 ): number {
-  return dedupeTeamInboxItems(items).reduce(
-    (count, item) => count + (item.readAt === null ? 1 : 0),
-    0
-  );
+  return dedupeTeamInboxItems(items)
+    .filter(isActionableTeamInboxItem)
+    .reduce((count, item) => count + (item.readAt === null ? 1 : 0), 0);
 }
 
 export interface TeamInboxUnreadCounts {
@@ -207,16 +151,18 @@ export interface TeamInboxUnreadCounts {
 export function countUnreadTeamInboxItemsByFilter(
   items: readonly TeamInboxItem[]
 ): TeamInboxUnreadCounts {
-  return dedupeTeamInboxItems(items).reduce<TeamInboxUnreadCounts>(
-    (counts, item) => {
-      if (item.readAt !== null) return counts;
-      counts.all += 1;
-      if (item.kind === "comment_mention") counts.mentions += 1;
-      else counts.assigned += 1;
-      return counts;
-    },
-    { all: 0, mentions: 0, assigned: 0 }
-  );
+  return dedupeTeamInboxItems(items)
+    .filter(isActionableTeamInboxItem)
+    .reduce<TeamInboxUnreadCounts>(
+      (counts, item) => {
+        if (item.readAt !== null) return counts;
+        counts.all += 1;
+        if (item.kind === "comment_mention") counts.mentions += 1;
+        else counts.assigned += 1;
+        return counts;
+      },
+      { all: 0, mentions: 0, assigned: 0 }
+    );
 }
 
 /** Maps a filter tab to the item kind it exposes, or null for the combined view. */

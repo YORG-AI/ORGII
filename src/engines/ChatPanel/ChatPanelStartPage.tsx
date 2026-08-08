@@ -10,10 +10,12 @@ import {
 import React, { useCallback, useState } from "react";
 
 import Button from "@src/components/Button";
+import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
 import Select, { type SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import ImportSharedSessionDialog from "@src/features/Org2Cloud/ImportSharedSessionDialog";
+import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
 import { useAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
   CHAT_PANEL_CREATE_TARGET,
@@ -34,7 +36,7 @@ interface ChatPanelStartPageAction {
 const START_PAGE_ACTION_TONE_CLASS: Record<StartPageActionTone, string> = {
   primary:
     "border-primary-6/20 bg-primary-6/5 hover:border-primary-6/30 hover:bg-primary-6/10",
-  neutral: "border-border-2 hover:border-border-3",
+  neutral: `border-border-2 hover:border-border-3 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
   success:
     "border-success-6/20 bg-success-6/5 hover:border-success-6/30 hover:bg-success-6/10",
   warning:
@@ -56,11 +58,57 @@ interface ChatPanelStartPageProps {
   onAddApiKey: () => void;
   onCreateTarget: (target: ChatPanelCreateTarget) => void;
   onInstallLatestUpdate: () => void;
+  onProjectAgentModeChange: (enabled: boolean) => void;
   onWorkItemAgentModeChange: (enabled: boolean) => void;
+  projectAgentMode: boolean;
   sessionLauncher?: React.ReactNode;
   t: TFunction<["sessions", "common", "projects", "navigation"]>;
   workItemAgentMode: boolean;
   workItemLauncher?: React.ReactNode;
+}
+
+interface StartPageCreatorModeToggleProps {
+  agentMode: boolean;
+  dataTestId: string;
+  onChange: (enabled: boolean) => void;
+  separatorDataTestId: string;
+  t: TFunction<["sessions", "common", "projects", "navigation"]>;
+}
+
+function StartPageCreatorModeToggle({
+  agentMode,
+  dataTestId,
+  onChange,
+  separatorDataTestId,
+  t,
+}: StartPageCreatorModeToggleProps): React.ReactNode {
+  return (
+    <>
+      <span
+        className="h-5 w-px shrink-0 bg-border-2"
+        role="separator"
+        aria-hidden
+        data-testid={separatorDataTestId}
+      />
+      <Button
+        htmlType="button"
+        variant="tertiary"
+        appearance="ghost"
+        size="large"
+        shape="round"
+        iconPosition="right"
+        icon={<ArrowLeftRight size={12} strokeWidth={1.8} aria-hidden />}
+        onClick={() => onChange(!agentMode)}
+        className="!h-9 !px-1 !text-[16px] !font-normal text-text-2"
+        aria-pressed={agentMode}
+        data-testid={dataTestId}
+      >
+        {agentMode
+          ? t("common:terminology.agent")
+          : t("common:tooltips.manual")}
+      </Button>
+    </>
+  );
 }
 
 const START_PAGE_HINTS: StartPageHint[] = [
@@ -201,7 +249,9 @@ export function ChatPanelStartPage({
   onAddApiKey,
   onCreateTarget,
   onInstallLatestUpdate,
+  onProjectAgentModeChange,
   onWorkItemAgentModeChange,
+  projectAgentMode,
   sessionLauncher,
   t,
   workItemAgentMode,
@@ -313,62 +363,55 @@ export function ChatPanelStartPage({
               className="flex -translate-y-1 items-center gap-2"
               data-testid="chat-panel-start-page-trailing-control"
             >
-              <span
-                className="h-5 w-px shrink-0 bg-border-2"
-                role="separator"
-                aria-hidden
-                data-testid="chat-panel-start-page-trailing-separator"
-              />
               {activeView === "more" ? (
-                <Select
-                  value={selectedMoreTarget}
-                  options={createTargetOptions}
-                  onChange={(value) => {
-                    if (!Array.isArray(value)) {
-                      onCreateTarget(value as ChatPanelCreateTarget);
-                    }
-                  }}
-                  size="large"
-                  variant="ghost"
-                  radius="pill"
-                  dropdownMinWidth={168}
-                  dropdownWidthMode="auto"
-                  className="w-auto"
-                  selectorClassName="max-w-[240px] !gap-2 !px-1 !text-[16px] !leading-6 [&_.select-suffix]:!ml-0"
-                  dataTestId="chat-panel-start-page-create-target-select"
-                />
+                <>
+                  <span
+                    className="h-5 w-px shrink-0 bg-border-2"
+                    role="separator"
+                    aria-hidden
+                    data-testid="chat-panel-start-page-trailing-separator"
+                  />
+                  <Select
+                    value={selectedMoreTarget}
+                    options={createTargetOptions}
+                    onChange={(value) => {
+                      if (!Array.isArray(value)) {
+                        onCreateTarget(value as ChatPanelCreateTarget);
+                      }
+                    }}
+                    size="large"
+                    variant="ghost"
+                    radius="pill"
+                    dropdownMinWidth={168}
+                    dropdownWidthMode="auto"
+                    className="w-auto"
+                    selectorClassName="max-w-[240px] !gap-2 !px-1 !text-[16px] !leading-6 [&_.select-suffix]:!ml-0"
+                    dataTestId="chat-panel-start-page-create-target-select"
+                  />
+                  {createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ? (
+                    <StartPageCreatorModeToggle
+                      agentMode={projectAgentMode}
+                      dataTestId="chat-panel-start-page-project-mode-toggle"
+                      onChange={onProjectAgentModeChange}
+                      separatorDataTestId="chat-panel-start-page-project-mode-separator"
+                      t={t}
+                    />
+                  ) : null}
+                </>
               ) : (
-                <Button
-                  htmlType="button"
-                  variant="tertiary"
-                  appearance="ghost"
-                  size="large"
-                  shape="round"
-                  iconPosition="right"
-                  icon={
-                    <ArrowLeftRight size={12} strokeWidth={1.8} aria-hidden />
-                  }
-                  onClick={() => onWorkItemAgentModeChange(!workItemAgentMode)}
-                  className="!h-9 !px-1 !text-[16px] !font-normal text-text-2"
-                  aria-pressed={workItemAgentMode}
-                  data-testid="chat-panel-start-page-work-item-mode-toggle"
-                >
-                  {workItemAgentMode
-                    ? t("common:terminology.agent")
-                    : t("common:tooltips.manual")}
-                </Button>
+                <StartPageCreatorModeToggle
+                  agentMode={workItemAgentMode}
+                  dataTestId="chat-panel-start-page-work-item-mode-toggle"
+                  onChange={onWorkItemAgentModeChange}
+                  separatorDataTestId="chat-panel-start-page-trailing-separator"
+                  t={t}
+                />
               )}
             </div>
           ) : null}
         </div>
       </div>
-      <div
-        className={`min-h-0 flex-1 ${
-          activeView === "work-item" || activeView === "more"
-            ? "overflow-hidden"
-            : "overflow-y-auto"
-        }`}
-      >
+      <div className="min-h-0 flex-1 overflow-hidden">
         {activeView === "work-item" ? (
           <div
             className="flex h-full min-h-0 w-full"
@@ -381,10 +424,13 @@ export function ChatPanelStartPage({
             className="flex h-full min-h-0 w-full flex-col overflow-hidden"
             data-testid="chat-panel-start-page-more-launcher"
           >
-            <div className="min-h-0 flex-1 overflow-hidden">{moreLauncher}</div>
+            {moreLauncher}
           </div>
         ) : (
-          <div className="flex min-h-full items-center justify-center">
+          <CreatorContentLayout
+            centered
+            centeredDataTestId="chat-panel-start-page-session-centered-launcher"
+          >
             {sessionLauncher ? (
               <div
                 className="w-full"
@@ -393,7 +439,7 @@ export function ChatPanelStartPage({
                 {sessionLauncher}
               </div>
             ) : null}
-          </div>
+          </CreatorContentLayout>
         )}
       </div>
       <div

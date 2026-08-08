@@ -14,7 +14,11 @@ export const IMPORTED_HISTORY_SOURCE_IDS = [
   "qoder",
   "mimo_code",
   "omp",
+  "pi",
   "qoder_cli",
+  "qwen_code",
+  "copilot",
+  "kimi",
 ] as const;
 
 export type ImportedHistorySourceId =

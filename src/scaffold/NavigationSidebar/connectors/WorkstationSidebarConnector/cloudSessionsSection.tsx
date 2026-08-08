@@ -28,17 +28,29 @@
  * header comments).
  */
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
 import Message from "@src/components/Message";
 import {
+  hiddenRemoteSessionKey,
+  readHiddenRemoteSessionIds,
+  writeHiddenRemoteSessionIds,
+} from "@src/features/Org2Cloud/cloudHiddenRemoteSessions";
+import {
+  readPinnedRemoteSessionIds,
+  togglePinnedRemoteSession,
+  writePinnedRemoteSessionIds,
+} from "@src/features/Org2Cloud/cloudPinnedRemoteSessions";
+import { dismissCloudReferenceOpeningToast } from "@src/features/Org2Cloud/cloudReferenceOpeningToast";
+import {
   buildCloudRemoteItemId,
   includeRevealedCloudRow,
   parseCloudRemoteItemId,
 } from "@src/features/Org2Cloud/cloudRemoteItemId";
+import { cloudDownloadStartRequestAtom } from "@src/features/Org2Cloud/cloudSessionDownloadControlAtoms";
 import { filterCloudSessionRows } from "@src/features/Org2Cloud/cloudSessionFilter";
 import {
   buildCloudSessionThreads,
@@ -69,11 +81,6 @@ import {
   type CloudAutoReplaySkipReason,
   useCloudSessionAutoReplayReveal,
 } from "./cloudSessionsSection.autoReplayReveal";
-import {
-  HIDDEN_REMOTE_SESSIONS_STORAGE_KEY,
-  hiddenRemoteSessionKey,
-  readHiddenRemoteSessionIds,
-} from "./cloudSessionsSection.hiddenRemoteSessions";
 import { useCloudLocalSessionHydration } from "./cloudSessionsSection.localHydration";
 import { useCloudTeamSessionMenuItems } from "./cloudSessionsSection.menuItems";
 import { useCloudRemoteRowMaps } from "./cloudSessionsSection.remoteRowMaps";
@@ -106,7 +113,7 @@ export function useCloudSessionsSection({
       false,
       orgId ? `cloud-team-sessions:${orgId}` : undefined
     );
-  const { replaySession, forkSession, busySessionRowId } =
+  const { replaySession, forkSession, busySessionRows } =
     useCloudSessionActions(orgId);
   const presenceMap = useAtomValue(org2CloudPresenceAtom);
   const pushedMetadata = useAtomValue(org2CloudPushedMetadataAtom);
@@ -124,6 +131,9 @@ export function useCloudSessionsSection({
   );
   const [hiddenRemoteSessionIds, setHiddenRemoteSessionIds] = useState(
     readHiddenRemoteSessionIds
+  );
+  const [pinnedRemoteSessionIds, setPinnedRemoteSessionIds] = useState(
+    readPinnedRemoteSessionIds
   );
 
   const { localOwnSessionIds, cloudLocalSessionIds } =
@@ -242,12 +252,61 @@ export function useCloudSessionsSection({
     [rows]
   );
 
-  const runReplay = useCallback(
+  // Starting a manual replay for a hidden row clears its local hide marker so
+  // the imported replay and teammate row become visible again.
+  const resubscribeRemoteRow = useCallback(
     (row: RemoteTeammateSessionMetadata) => {
-      void replaySession(row);
+      setHiddenRemoteSessionIds((current) => {
+        const key = hiddenRemoteSessionKey(row.orgId, row.id);
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        writeHiddenRemoteSessionIds(next);
+        return next;
+      });
     },
-    [replaySession]
+    []
   );
+
+  const runReplay = useCallback(
+    (row: RemoteTeammateSessionMetadata, options?: { skipGate?: boolean }) => {
+      // The replay is starting: the pre-phase toast has served its purpose
+      // (a no-op for sidebar-origin clicks that never showed one).
+      dismissCloudReferenceOpeningToast();
+      resubscribeRemoteRow(row);
+      void replaySession(
+        row,
+        options?.skipGate ? { skipDownloadGate: true } : undefined
+      );
+    },
+    [replaySession, resubscribeRemoteRow]
+  );
+
+  // The pane's play/resume cards cannot reach the replay hook; they park a
+  // start request here. First mounted consumer wins (the store re-read makes
+  // the second connector's effect a no-op), and the busy registry dedups any
+  // race that slips through.
+  const downloadStartRequest = useAtomValue(cloudDownloadStartRequestAtom);
+  useEffect(() => {
+    if (!downloadStartRequest || downloadStartRequest.orgId !== orgId) return;
+    if (store.get(cloudDownloadStartRequestAtom) !== downloadStartRequest) {
+      return;
+    }
+    const row = findRow(downloadStartRequest.rowId);
+    if (!row) return;
+    const startKind = downloadStartRequest.kind;
+    store.set(cloudDownloadStartRequestAtom, null);
+    // queueMicrotask to satisfy react-hooks/set-state-in-effect: the
+    // resubscribe inside runReplay touches React state, and the request
+    // slot was already consumed synchronously above.
+    queueMicrotask(() => {
+      if (startKind === "fork") {
+        void forkSession(row, { skipDownloadGate: true });
+      } else {
+        runReplay(row, { skipGate: true });
+      }
+    });
+  }, [downloadStartRequest, findRow, forkSession, orgId, runReplay, store]);
 
   const runFork = useCallback(
     (row: RemoteTeammateSessionMetadata) => {
@@ -273,6 +332,7 @@ export function useCloudSessionsSection({
   // missing cloud row would.
   const handleRevealLocal = useCallback(
     (sessionId: string) => {
+      dismissCloudReferenceOpeningToast();
       void loadSidebarSessionById(sessionId).then((local) => {
         if (!local) {
           Message.error(t("cloud.sessionRef.sessionNotFound"), {
@@ -291,6 +351,7 @@ export function useCloudSessionsSection({
 
   const handleAutoReplaySkip = useCallback(
     (reason: CloudAutoReplaySkipReason) => {
+      dismissCloudReferenceOpeningToast();
       // Same rationale as the admission refusal toast: this skip is the ONLY
       // visible outcome of the click, and the 1s default reads as a dead chip.
       Message.error(
@@ -303,17 +364,34 @@ export function useCloudSessionsSection({
     [t]
   );
 
+  // A reference aimed at a row that is ALREADY downloading refocuses the
+  // tab that download opened — same contract as clicking the busy row.
+  const handleAutoReplayFocusBusy = useCallback(
+    (row: RemoteTeammateSessionMetadata, localSessionId?: string) => {
+      dismissCloudReferenceOpeningToast();
+      if (!localSessionId) return;
+      openOrReplaceSessionTab({
+        sessionId: localSessionId,
+        sessionName: row.title,
+      });
+    },
+    [openOrReplaceSessionTab]
+  );
+
   useCloudSessionAutoReplayReveal({
     orgId,
     rows,
     state,
     fetchedAt,
-    busySessionRowId,
+    busySessionRows,
     selfUserId,
     localOwnSessionIds,
-    refresh,
+    // The spin wrapper, not the raw refresh: the freshness probe a chip
+    // triggers should be visible on the section's refresh icon.
+    refresh: handleRefreshClick,
     runReplay,
     onRevealLocal: handleRevealLocal,
+    onFocusBusy: handleAutoReplayFocusBusy,
     onSkip: handleAutoReplaySkip,
   });
 
@@ -333,14 +411,32 @@ export function useCloudSessionsSection({
       const parsed = parseCloudRemoteItemId(item.id);
       if (!parsed) return false;
       const row = findRow(parsed.rowId);
-      // Busy / unpublished / vanished rows swallow the click (no-op).
-      if (!row || busySessionRowId || row.eventsEpoch === undefined) {
+      // Unpublished / vanished rows swallow the click (no-op).
+      if (!row || row.eventsEpoch === undefined) {
+        return true;
+      }
+      // A row already downloading refocuses its tab instead of a dead click;
+      // other rows are NOT blocked by someone else's in-flight action.
+      const busy = busySessionRows.get(row.id);
+      if (busy) {
+        if (busy.kind === "replay" && busy.localSessionId) {
+          openOrReplaceSessionTab({
+            sessionId: busy.localSessionId,
+            sessionName: row.title,
+          });
+        }
         return true;
       }
       runReplay(row);
       return true;
     },
-    [busySessionRowId, findRow, runReplay, teamPaginationScopeKey]
+    [
+      busySessionRows,
+      findRow,
+      openOrReplaceSessionTab,
+      runReplay,
+      teamPaginationScopeKey,
+    ]
   );
 
   const hideRemoteSession = useCallback(
@@ -370,15 +466,22 @@ export function useCloudSessionsSection({
       setHiddenRemoteSessionIds((current) => {
         const next = new Set(current);
         next.add(hiddenRemoteSessionKey(row.orgId, row.id));
-        localStorage.setItem(
-          HIDDEN_REMOTE_SESSIONS_STORAGE_KEY,
-          JSON.stringify([...next])
-        );
+        writeHiddenRemoteSessionIds(next);
         return next;
       });
     },
     [sessions]
   );
+
+  // A pin is the viewer's own view state: it never touches the shared cloud
+  // row, and two viewers of the same session pin independently.
+  const toggleRemoteSessionPin = useCallback((orgId: string, rowId: string) => {
+    setPinnedRemoteSessionIds((current) => {
+      const next = togglePinnedRemoteSession(current, orgId, rowId);
+      writePinnedRemoteSessionIds(next);
+      return next;
+    });
+  }, []);
 
   const handleCloudRemoteItemRemove = useCallback(
     (item: NavigationMenuItem): boolean => {
@@ -398,6 +501,9 @@ export function useCloudSessionsSection({
     tCommon,
     runFork,
     hideRemoteSession,
+    busySessionRows,
+    pinnedRemoteSessionIds,
+    toggleRemoteSessionPin,
   });
 
   const cloudMenuItems = useCloudTeamSessionMenuItems({

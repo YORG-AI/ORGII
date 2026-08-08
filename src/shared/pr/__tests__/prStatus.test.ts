@@ -42,18 +42,22 @@ describe("getPrStatusVariant", () => {
     expect(getPrStatusVariant("open")).toEqual({
       badgeClass: "bg-success-1 text-success-6",
       dotClass: "bg-success-6",
+      textClass: "text-success-6",
     });
     expect(getPrStatusVariant("merged")).toEqual({
-      badgeClass: "bg-primary-1 text-primary-6",
-      dotClass: "bg-primary-6",
+      badgeClass: "bg-purple-1 text-purple-6",
+      dotClass: "bg-purple-6",
+      textClass: "text-purple-6",
     });
     expect(getPrStatusVariant("closed")).toEqual({
       badgeClass: "bg-danger-1 text-danger-6",
       dotClass: "bg-danger-6",
+      textClass: "text-danger-6",
     });
     expect(getPrStatusVariant("draft")).toEqual({
       badgeClass: "bg-warning-1 text-warning-6",
       dotClass: "bg-warning-6",
+      textClass: "text-warning-6",
     });
   });
 
@@ -61,6 +65,7 @@ describe("getPrStatusVariant", () => {
     expect(getPrStatusVariant("pending_review")).toEqual({
       badgeClass: "bg-fill-2 text-text-3",
       dotClass: "bg-text-3",
+      textClass: "text-text-3",
     });
   });
 
@@ -68,6 +73,7 @@ describe("getPrStatusVariant", () => {
     expect(getPrStatusVariant("")).toEqual({
       badgeClass: "bg-fill-2 text-text-3",
       dotClass: "bg-text-3",
+      textClass: "text-text-3",
     });
   });
 });

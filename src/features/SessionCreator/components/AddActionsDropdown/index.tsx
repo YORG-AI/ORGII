@@ -12,6 +12,7 @@ import React, { useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -77,14 +78,14 @@ const AddActionsDropdown: React.FC<AddActionsDropdownProps> = ({
     [onAddContent, onUpload, close]
   );
 
-  const triggerStateClass = isOpen ? "bg-fill-2" : "bg-fill-1 hover:bg-fill-2";
+  const triggerStateClass = pillControlStateClass(isOpen);
 
   const triggerButton = (
     <button
       ref={triggerRef}
       onClick={toggle}
       className={[
-        "flex items-center justify-center rounded-full border border-solid text-text-1 transition-all duration-200 focus:outline-none",
+        "flex items-center justify-center rounded-full border border-solid border-border-2 text-text-1 transition-all duration-200 focus:outline-none",
         INPUT_AREA_BUTTONS.iconButtonSizeClass,
         triggerStateClass,
       ].join(" ")}

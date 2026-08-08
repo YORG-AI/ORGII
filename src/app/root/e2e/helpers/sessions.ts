@@ -47,6 +47,7 @@ import {
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { loadSessions } from "@src/store/session/sessionAtom/loaders";
 import { upsertSession } from "@src/store/session/sessionAtom/mutations";
+import { sessionPaginationAtom } from "@src/store/session/sessionAtom/paginationAtoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import {
   activeSessionIdAtom,
@@ -393,6 +394,9 @@ export function createSessionHelpers(store: E2EStore) {
           launchParams.agentDefinitionId ?? launchParams.agent_definition_id,
         agent_org_id: launchParams.agentOrgId ?? launchParams.agent_org_id,
         work_item_id: launchParams.workItemId ?? launchParams.work_item_id,
+        // The wire name for the exec mode is `mode`; specs historically
+        // pass `agentExecMode`, which serde would silently drop.
+        mode: launchParams.mode ?? launchParams.agentExecMode,
         agent_role: launchParams.agentRole ?? launchParams.agent_role,
         worktree_path: launchParams.worktreePath ?? launchParams.worktree_path,
         project_slug: launchParams.projectSlug ?? launchParams.project_slug,
@@ -775,6 +779,50 @@ export function createSessionHelpers(store: E2EStore) {
     }
   };
 
+  const primeSidebarEntityCache = async (): Promise<
+    Result<{ count: number }>
+  > => {
+    try {
+      await loadSessions({ forceRefresh: true });
+      return {
+        ok: true,
+        count: (store.get(sessionsAtom) as Session[]).length,
+      };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
+  const inspectSidebarPagination = async (
+    sessionIds: string[] = []
+  ): Promise<Result<{ pagination: Json; sessions: Json[] }>> => {
+    try {
+      const requestedIds = new Set(sessionIds);
+      const sessions = (store.get(sessionsAtom) as Session[])
+        .filter(
+          (session) =>
+            requestedIds.size === 0 || requestedIds.has(session.session_id)
+        )
+        .map((session) => ({
+          sessionId: session.session_id,
+          updatedAt: session.updated_at,
+          pinned: session.pinned ?? false,
+          category: session.category,
+          agentOrgId: session.agentOrgId,
+          agentOrgName: session.agentOrgName,
+          orgId: session.orgId,
+          parentSessionId: session.parentSessionId,
+        }));
+      return {
+        ok: true,
+        pagination: store.get(sessionPaginationAtom) as unknown as Json,
+        sessions: sessions as Json[],
+      };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
   return {
     promptDump: promptDumpHelper,
     getActiveSessionId,
@@ -785,6 +833,8 @@ export function createSessionHelpers(store: E2EStore) {
     resetToNewSession,
     openSession,
     reloadSessionList,
+    primeSidebarEntityCache,
+    inspectSidebarPagination,
     launchSession,
     getSessionAggregateRow,
     getSessionAggregateRowFromList,
@@ -805,6 +855,8 @@ export function createSessionHelpers(store: E2EStore) {
     killSubagentJobWire: seeders.killSubagentJobWire,
     listRunningSubagentJobsWire: seeders.listRunningSubagentJobsWire,
     debugSeedChildSessionWire: seeders.debugSeedChildSessionWire,
+    debugSeedSidebarCodingSessionWire:
+      seeders.debugSeedSidebarCodingSessionWire,
     debugSeedPendingPlanWire: seeders.debugSeedPendingPlanWire,
     deleteSessionWire: seeders.deleteSessionWire,
     patchSessionExecModeWire,

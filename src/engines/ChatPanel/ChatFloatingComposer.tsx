@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type { AgentOrgMemberIntervention } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
+import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import {
   ChatRetryBanner,
@@ -207,7 +208,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
         aria-label={t("common:chat.scrollToBottom")}
         title={t("common:chat.scrollToBottom")}
         onClick={scrollNav.onScrollToBottom}
-        className="shrink-0"
+        className={`shrink-0 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
       />
     ) : null;
 

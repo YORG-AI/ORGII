@@ -205,6 +205,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
     const {
       sourceControlFilterMode,
       sourceControlFilterCounts,
+      sourceControlActiveRepoRoot,
       sourceControlHeaderFilter,
       sourceControlHeaderScopePicker,
       tabSidebarExtraContext,
@@ -449,6 +450,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
             sourceControlHeaderLeadingSlot={editorSourceControlScopePicker}
             sourceControlHeaderTrailingSlot={editorSourceControlHeaderSlot}
             sourceControlFilterMode={editorSourceControlFilterMode}
+            sourceControlActiveRepoRoot={sourceControlActiveRepoRoot}
             showSourceControlModePill={editorShowSourceControlModePill}
           />
         </div>
@@ -479,6 +481,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
         editorSourceControlScopePicker,
         editorSourceControlHeaderSlot,
         editorSourceControlFilterMode,
+        sourceControlActiveRepoRoot,
         editorShowSourceControlModePill,
       ]
     );

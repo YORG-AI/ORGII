@@ -15,9 +15,16 @@ import {
 import { StartPageQuotaGrid } from "./StartPageQuotaGrid";
 
 const keyVaultMocks = vi.hoisted(() => ({
+  accounts: [] as Array<{
+    id: string;
+    name: string;
+    status: "ready" | "needs_setup";
+    canRefreshQuota?: boolean;
+  }>,
   getAccount: vi.fn(),
   refresh: vi.fn(),
   refreshAccount: vi.fn(),
+  resetTime: null as string | null,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -31,7 +38,6 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@src/hooks/keyVault", () => ({
   useKeyVault: () => ({
-    accounts: [],
     ...keyVaultMocks,
   }),
 }));
@@ -48,11 +54,22 @@ vi.mock("@src/hooks/keyVault/accountQuotaDisplay", () => ({
       accountPlan: "Plus",
       modelType: "codex",
       metrics: [
+        ...(index === 0
+          ? [
+              {
+                kind: "value" as const,
+                key: "balance",
+                label: "Balance",
+                value: "$12.34",
+              },
+            ]
+          : []),
         {
+          kind: "percentage" as const,
           key: "weekly",
           label: "Weekly",
           remainingPercent: 75,
-          resetTime: null,
+          resetTime: keyVaultMocks.resetTime,
         },
       ],
     })),
@@ -71,6 +88,8 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
+  keyVaultMocks.accounts = [];
+  keyVaultMocks.resetTime = null;
 });
 
 afterAll(() => {
@@ -103,6 +122,8 @@ describe("StartPageQuotaGrid", () => {
     expect(markup).toContain("min-w-0 p-3 rounded-lg");
     expect(markup).toContain("mb-2 flex min-w-0 items-center gap-2");
     expect(markup).toContain("space-y-2.5");
+    expect(markup).toContain("Balance");
+    expect(markup).toContain("$12.34");
     expect(markup).toContain('class="space-y-1"');
     expect(markup).toContain(
       "grid grid-cols-1 gap-3 @[640px]/quota:grid-cols-2"
@@ -122,7 +143,7 @@ describe("StartPageQuotaGrid", () => {
     expect(markup).not.toContain("1 / 2");
   });
 
-  it("stops a queued account refresh when the section unmounts", async () => {
+  it("bounds account refreshes and stops queued work when unmounted", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
       window.setTimeout(() => callback(performance.now()), 0)
@@ -130,7 +151,13 @@ describe("StartPageQuotaGrid", () => {
     vi.stubGlobal("cancelAnimationFrame", (handle: number) =>
       window.clearTimeout(handle)
     );
-    keyVaultMocks.refreshAccount.mockResolvedValue(true);
+    const pendingRefreshes: Array<() => void> = [];
+    keyVaultMocks.refreshAccount.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          pendingRefreshes.push(() => resolve(true));
+        })
+    );
 
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -148,15 +175,107 @@ describe("StartPageQuotaGrid", () => {
       refreshButton?.click();
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(1);
+    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(3);
+    expect(keyVaultMocks.refreshAccount).toHaveBeenNthCalledWith(
+      1,
+      "account-1",
+      true
+    );
 
     act(() => root.unmount());
+    await act(async () => {
+      pendingRefreshes.forEach((resolve) => resolve());
+      await Promise.resolve();
+    });
+
+    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(3);
+    expect(keyVaultMocks.refresh).not.toHaveBeenCalled();
+    container.remove();
+  });
+
+  it("uses the freshness cache for automatic visible-window refreshes", async () => {
+    vi.useFakeTimers();
+    keyVaultMocks.refreshAccount.mockResolvedValue(true);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(createElement(StartPageQuotaGrid));
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(5);
+    for (const call of keyVaultMocks.refreshAccount.mock.calls) {
+      expect(call[1]).toBe(false);
+    }
+    expect(keyVaultMocks.refresh).not.toHaveBeenCalled();
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("discovers refreshable accounts before they have quota cards", async () => {
+    vi.useFakeTimers();
+    keyVaultMocks.accounts = [
+      {
+        id: "deepseek-without-quota",
+        name: "DeepSeek",
+        status: "ready",
+        canRefreshQuota: true,
+      },
+    ];
+    keyVaultMocks.refreshAccount.mockResolvedValue(true);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(createElement(StartPageQuotaGrid));
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledWith(
+      "deepseek-without-quota",
+      false
+    );
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it("refreshes through the cache just after the next quota reset", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-31T00:00:00.000Z"));
+    keyVaultMocks.resetTime = "2026-07-31T00:00:01.000Z";
+    keyVaultMocks.refreshAccount.mockResolvedValue(true);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(createElement(StartPageQuotaGrid));
+    });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(1);
-    expect(keyVaultMocks.refresh).not.toHaveBeenCalled();
+    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(5);
+    for (const call of keyVaultMocks.refreshAccount.mock.calls) {
+      expect(call[1]).toBe(false);
+    }
+
+    act(() => root.unmount());
     container.remove();
   });
 });

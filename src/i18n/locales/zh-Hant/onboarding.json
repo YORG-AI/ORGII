@@ -44,7 +44,7 @@
   },
   "github": {
     "title": "連接 GitHub",
-    "description": "連接您的 GitHub 賬戶，直接從 ORGII 訪問倉庫、創建提交和管理拉取請求。",
+    "description": "連接您的 GitHub 賬戶，直接從 ORGII 訪問倉庫、創建提交和管理 pull request。",
     "connectButton": "連接 GitHub 賬戶",
     "hint": "您也可以稍後在設置 > 集成中連接 GitHub"
   },
@@ -70,5 +70,271 @@
     "skipSetup": "跳過設置",
     "getStarted": "開始使用",
     "goToSettings": "前往設置"
+  },
+  "readiness": {
+    "hero": {
+      "title": "一起設定你的 <brand>ORGII</brand>",
+      "description": "透過幾個快速選項，打造更適合你的工作空間。"
+    },
+    "presentation": {
+      "label": "預覽樣式",
+      "compact": "目前簡潔版",
+      "mascot": "卡通角色版",
+      "native": "App 原生",
+      "cinematic": "沉浸卡片",
+      "classic": "經典面板"
+    },
+    "classicPanel": {
+      "title": "讓 ORGII 更適合你",
+      "description": "選擇順手的語言、外觀、主題和強調色；這些設定之後都可以隨時修改。"
+    },
+    "sidebar": {
+      "brandTag": "設定",
+      "subtitle": "選擇語言與外觀即可開始使用，其他設定之後仍可在應用程式內完成。",
+      "ariaLabel": "設定進度",
+      "stepProgress": "第 {{current}} / {{total}} 步",
+      "saved": "進度已自動儲存",
+      "help": "已完成步驟可隨時返回；後續步驟會按完成進度解鎖。"
+    },
+    "goal": {
+      "title": "你首先想完成什麼？",
+      "description": "ORGII 會據此調整設定流程，並在完成後帶你到正確的產品頁面。",
+      "recommended": "推薦",
+      "hint": "這個選擇只調整首次設定路徑，不會永久限制你能使用的功能。",
+      "personal": {
+        "title": "啟動 Agent 會話",
+        "description": "完成個人編碼工作流程設定並開啟 Launchpad。"
+      },
+      "team": {
+        "title": "查看團隊 Codex 活動",
+        "description": "連結組織、設定倉庫可見性，然後開啟 Team Inbox。"
+      },
+      "work": {
+        "title": "管理工作",
+        "description": "瞭解專案和工作項，然後建立第一個工作項。"
+      }
+    },
+    "tools": {
+      "title": "偵測你的程式設計工具",
+      "description": "使用現有本機驗證服務檢查 Codex、Claude Code 和 Cursor。",
+      "detectedDescription": "本機憑證或訂閱狀態",
+      "found": "發現 {{count}} 個帳戶 · {{validated}} 個已驗證",
+      "notFound": "沒有偵測到可用帳戶",
+      "notScanned": "尚未偵測",
+      "detect": "偵測工具",
+      "importHistory": "匯入 Codex 歷史",
+      "historyImported": "本機已有 {{count}} 條 Codex 會話可用",
+      "privacy": "金鑰不會進入設定狀態；只保留工具、數量和驗證結果。"
+    },
+    "organization": {
+      "title": "連結團隊組織",
+      "description": "登入一次，然後選擇現有組織、建立組織，或透過邀請加入。",
+      "signInHint": "團隊活動使用 ORG2 Cloud 帳戶，讓成員處於同一個組織邊界。",
+      "signIn": "登入 / 註冊",
+      "existing": "你的組織",
+      "role": "角色：{{role}}",
+      "mode": "組織作業",
+      "create": "建立組織",
+      "join": "加入組織",
+      "orgName": "組織名稱",
+      "orgNamePlaceholder": "例如：Acme Engineering",
+      "invite": "邀請連結或邀請碼",
+      "invitePlaceholder": "貼上管理員分享的連結",
+      "selected": "已選擇 {{org}} 用於團隊設定",
+      "roles": {
+        "owner": "所有者",
+        "admin": "管理員",
+        "member": "成員",
+        "guest": "訪客"
+      }
+    },
+    "sharing": {
+      "title": "選擇團隊能看到什麼",
+      "description": "Git 遠端倉庫是可見性邊界；分享等級決定發布多少會話細節。",
+      "workspace": "Workspace",
+      "workspaceDescription": "Agent 實際運作的本機目錄",
+      "noWorkspace": "尚未開啟 Workspace",
+      "openWorkspace": "開啟 Workspace",
+      "repoScope": "倉庫範圍",
+      "repoScopeDescription": "從目前 Workspace 解析規範化的 Git remote",
+      "detectScope": "偵測倉庫範圍",
+      "remote": "可分享 remote",
+      "level": "最低分享等級",
+      "levelDescription": "套用於該組織中符合倉庫的會話",
+      "off": "關閉",
+      "metadata": "僅元資料",
+      "replay": "完整回放",
+      "save": "儲存並驗證策略",
+      "createInvite": "建立成員邀請",
+      "copy": "複製",
+      "verified": "服務端已接受倉庫策略，同步佇列也已完成本輪處理。",
+      "memberHint": "{{org}} 的策略由管理者管理；你的本機 Codex 歷史會依照管理員設定的倉庫策略同步。",
+      "verifyMember": "驗證我的同步連結",
+      "memberVerified": "組織選擇已生效，本輪同步請求已處理完畢。"
+    },
+    "basics": {
+      "title": "基礎偏好",
+      "description": "之後隨時都可以變更。",
+      "workspace": "預設 Workspace",
+      "workspaceDescription": "會話在 Workspace 檔案中運作；專案和工作項目用於組織工作，不會取代檔案系統。",
+      "openWorkspace": "開啟 Workspace",
+      "changeWorkspace": "切換 Workspace",
+      "settingsHint": "工具、Workspace、組織、團隊可見性和教學都可以之後在應用程式內按需設定。"
+    },
+    "tutorial": {
+      "title": "選擇一個頁面教學",
+      "description": "設定完成後，教學會在控制項真實存在的產品頁面中啟動。",
+      "hint": "之後也可以從設定選單重複播放任意教學。"
+    },
+    "model": {
+      "title": "ORGII 的工作物件如何配合",
+      "description": "這些物件解決不同問題；它們都不是資料夾的另一種叫法。",
+      "session": {
+        "title": "會話 Session",
+        "description": "Agent 的對話與執行上下文，可以關聯一個 Workspace。"
+      },
+      "workItem": {
+        "title": "工作項 Work Item",
+        "description": "可追蹤的任務，包含狀態、負責人、討論和關聯會話。"
+      },
+      "project": {
+        "title": "專案 Project",
+        "description": "工作項目的規劃容器，也可以協調跨倉庫工作。"
+      },
+      "workspace": {
+        "title": "Workspace / 檔案系統",
+        "description": "Agent 實際讀取和修改的本機目錄與檔案。"
+      },
+      "relationship": "專案 → 工作項 → 會話 → Workspace 檔案"
+    },
+    "ready": {
+      "title": "設定已準備好",
+      "description": "檢查下面已落盤的結果，然後開啟與你最初目標一致的頁面。",
+      "toolsReady": "已偵測 Agent 權限",
+      "toolsLater": "可以稍後新增 Agent 權限",
+      "workspaceReady": "已選擇 Workspace",
+      "workspaceLater": "下一步可開啟 Workspace",
+      "teamPolicyReady": "團隊可見性策略已確認",
+      "memberSyncReady": "成員同步連結已確認",
+      "teamDestination": "開啟 Team Inbox",
+      "workDestination": "建立第一個工作項目",
+      "personalDestination": "啟動 Agent 會話",
+      "destinationHint": "設定進度在重新啟動後仍會保留。",
+      "teamDestinationHint": "所選的組織和設定進度在重新啟動後仍會保留。",
+      "openDestination": "完成並開啟"
+    },
+    "destinations": {
+      "teamInbox": "Team Inbox",
+      "launchpad": "Launchpad"
+    },
+    "errors": {
+      "signInRequired": "請先登入 ORG2 Cloud。",
+      "sessionExpired": "ORG2 Cloud 登入已過期，請重新登入。",
+      "invalidInvite": "邀請連結或邀請碼無效。",
+      "rosterNotConverged": "刷新後的組織清單中暫時還沒有該組織。",
+      "cloudUnavailable": "ORG2 Cloud 暫時無法使用，請重試。",
+      "unknown": "設定操作失敗，請重試。",
+      "workspaceRequired": "設定團隊範圍前，請先開啟一個 Workspace。",
+      "gitRemoteRequired": "目前 Workspace 沒有 Git remote，請新增後重試。",
+      "orgAndScopeRequired": "請先選擇組織和倉庫範圍。",
+      "orgRequired": "請先選擇組織。",
+      "policyChanged": "儲存期間團隊設定發生變化，請檢查後重新驗證。",
+      "inviteOrgChanged": "建立邀請期間所選組織發生變化，請重試。",
+      "syncOrgChanged": "驗證同步期間所選組織發生變化，請重試。"
+    }
+  },
+  "tutorials": {
+    "modalTitle": "頁面教學",
+    "start": "開始",
+    "chrome": {
+      "stepProgress": "第 {{current}} / {{total}} 步",
+      "close": "關閉",
+      "previous": "上一步",
+      "next": "下一步",
+      "finish": "完成教學",
+      "keyboardHint": "使用 ← / → 或 < / >",
+      "desktop": "桌面",
+      "myStation": "我的工作站",
+      "infinity": "無限",
+      "agentStation": "Agent 工作站"
+    },
+    "generalLayout": {
+      "title": "整體佈局教學",
+      "description": "了解會話側欄、聊天面板、工作站模式切換、Workstation、Dock 與應用程式區域。",
+      "duration": "1 分鐘",
+      "steps": {
+        "chat-panel": {
+          "title": "聊天面板",
+          "body": "在這裡與 Agent 對話、查看活動，並發送後續指示。"
+        },
+        "runtime": {
+          "title": "執行階段",
+          "body": "在這裡查看個人用量與執行狀態；切換到組織後，還可以查看成員同步狀態，並進入成員詳情查看 Codex、Claude 和 Cursor 用量。"
+        },
+        "station-mode-pill": {
+          "title": "切換工作站模式",
+          "body": "使用此按鈕切換工作站模式。桌面代表“我的工作站”，也就是你的 Workspace；無限代表“Agent 工作站”，用於查看 Agent 活動。"
+        },
+        "dock": {
+          "title": "Agent 工作站 Dock",
+          "body": "Dock 用於切換工作站內的應用。教學期間會暫時關閉自動隱藏，讓這些控制項保持可見。"
+        },
+        "all-tabs": {
+          "title": "全部標籤頁",
+          "body": "第一個 Dock 圖示會集中顯示所有已開啟的標籤頁，不受其所屬工作站應用程式限制。"
+        },
+        "code-editor": {
+          "title": "程式碼編輯器",
+          "body": "在程式碼編輯器中處理檔案、Diff、終端機、原始碼管理，以及在會話中產生的程式碼變更。"
+        },
+        "browser": {
+          "title": "瀏覽器",
+          "body": "在聊天的同時使用瀏覽器查看網頁與預覽、測試應用，並進行基於瀏覽器的調查。"
+        },
+        "projects": {
+          "title": "專案",
+          "body": "使用專案追蹤與目前 Workspace 相關的工作項、計畫和專案狀態。"
+        }
+      }
+    },
+    "codeEditor": {
+      "title": "程式碼編輯器教學",
+      "description": "了解標籤頁、倉庫與分支切換、原始碼管理、Git 歷史和專案看板。",
+      "duration": "2 分鐘",
+      "steps": {
+        "tabs": {
+          "title": "程式碼編輯器標籤頁",
+          "body": "標籤頁集中承載你在倉庫工作時開啟的檔案、Diff、終端機、原始碼管理檢視和看板。"
+        },
+        "repo-selector": {
+          "title": "建立或切換倉庫",
+          "body": "使用倉庫選擇器切換目前倉庫，或新增另一個倉庫或 Workspace。"
+        },
+        "branch-selector": {
+          "title": "切換分支",
+          "body": "分支選擇器會顯示目前 Git 分支，並開啟該倉庫的分支切換或建立流程。"
+        },
+        "editor-surface": {
+          "title": "編輯器 Workspace",
+          "body": "這是程式碼編輯器的主要工作區。你可以在這裡開啟檔案、檢查 Diff、執行終端並審核產生的變更。"
+        },
+        "create-tabs": {
+          "title": "建立新標籤頁",
+          "body": "使用「全部標籤頁」中的加號選單建立終端機、瀏覽器標籤頁、檔案、看板和倉庫工具。"
+        },
+        "source-control": {
+          "title": "Git 變更",
+          "body": "開啟原始碼管理以查看變更檔案、暫存或取消暫存、提交，以及執行拉取、推送、取得和遠端同步。"
+        },
+        "git-history": {
+          "title": "Git 歷史",
+          "body": "Git 歷史會把原始碼管理切換到提交歷史模式，供你檢查過去的提交及相關變更。"
+        },
+        "dashboard": {
+          "title": "程式碼編輯器看板",
+          "body": "看板是程式碼編輯器面向 Workspace 的首頁標籤頁，可用於新增倉庫、查看倉庫詳情並進入專案工作。"
+        }
+      }
+    }
   }
 }

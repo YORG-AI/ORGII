@@ -17,9 +17,12 @@ fn config() -> AnthropicJsonlSource {
         session_prefix: OMP_SESSION_PREFIX,
         provider_slug: "omp",
         display_name: "OMP",
-        parser_version: 1,
+        parser_version: 2,
         candidate_roots: omp_history_candidate_paths(),
         exclude_subagent_dirs: false,
+        max_discovery_depth: None,
+        incremental_metadata: false,
+        session_id_from_header: false,
     }
 }
 

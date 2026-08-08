@@ -11,6 +11,7 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
 
 import { type ScrollNavState } from "../ChatHistory";
 
@@ -31,7 +32,7 @@ export function useChatViewScrollToBottom() {
       aria-label={t("common:chat.scrollToBottom")}
       title={t("common:chat.scrollToBottom")}
       onClick={scrollNav.onScrollToBottom}
-      className="shrink-0"
+      className={`shrink-0 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
     />
   ) : null;
 

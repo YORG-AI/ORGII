@@ -15,10 +15,10 @@ import {
 import { LOCAL_MODEL_PROVIDER, type ModelType } from "@src/api/types/keys";
 import { isPlaceholderModelName } from "@src/components/ModelTable/unifiedCustomFlatExtras";
 import { useUndoableState } from "@src/hooks/ui";
-import { parseModelVariants } from "@src/util/modelVariants";
 
 import { DEFAULT_WIZARD_DATA } from "../config";
 import type { WizardData } from "../types";
+import { buildModelVariantsForSave } from "./wizardModelMetadata";
 
 // Per-agent env-var names that hold OAuth tokens after a successful sign-in.
 // Adding a new OAuth-capable provider requires only a row here.
@@ -220,19 +220,7 @@ export function useWizard(options: UseWizardOptions): UseWizardReturn {
         .map((alias) => alias.alias);
     })();
 
-    const variantMetadata = parseModelVariants(allAvailableModels);
-    const variantMetadataByModel = new Map(
-      variantMetadata.map((variant) => [variant.model, variant])
-    );
-    const contextModels = new Set(
-      Object.keys(data.model_context_lengths ?? {}).filter((model) =>
-        allAvailableModels.includes(model)
-      )
-    );
-    const modelVariantIds = new Set([
-      ...variantMetadata.map((variant) => variant.model),
-      ...contextModels,
-    ]);
+    const modelVariants = buildModelVariantsForSave(data, allAvailableModels);
 
     const request: SaveKeyRequest = {
       name: resolvedName,
@@ -264,19 +252,7 @@ export function useWizard(options: UseWizardOptions): UseWizardReturn {
                 icon: alias.icon,
               }))
           : undefined,
-      model_variants:
-        modelVariantIds.size > 0
-          ? [...modelVariantIds].map((model) => {
-              const variant = variantMetadataByModel.get(model);
-              return {
-                model,
-                base_model: variant?.baseModel ?? model,
-                reasoning: variant?.reasoning,
-                fast: variant?.fast ?? false,
-                context_window: data.model_context_lengths?.[model],
-              };
-            })
-          : undefined,
+      model_variants: modelVariants.length > 0 ? modelVariants : undefined,
       default_variants:
         data.default_variants.length > 0 ? data.default_variants : undefined,
       auth_method: isOAuth ? "oauth" : data.auth_method || "api_key",

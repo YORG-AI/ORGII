@@ -28,6 +28,8 @@ struct ResolvedRef {
     content: String,
 }
 
+type SkillLoader<'a> = dyn Fn(&str) -> Option<String> + 'a;
+
 /// Expand pill references in a user message, returning the enriched message.
 ///
 /// - `message`: the raw user message containing `[type:path]` references
@@ -42,7 +44,7 @@ pub fn expand_pill_references(
     workspace: &Path,
     ide_repo_path: Option<&str>,
     workspace_folders: &[String],
-    skill_loader: Option<&dyn Fn(&str) -> Option<String>>,
+    skill_loader: Option<&SkillLoader<'_>>,
 ) -> String {
     let mut resolved: Vec<ResolvedRef> = Vec::new();
 
@@ -201,10 +203,7 @@ fn resolve_project_ref(slug: &str) -> Option<String> {
 /// The leading `/` is stripped to get the bare skill name. The actual loading
 /// is delegated to `skill_loader` to avoid a downward dependency from the
 /// foundation layer into the intelligence layer.
-fn resolve_skill_ref(
-    path: &str,
-    skill_loader: Option<&dyn Fn(&str) -> Option<String>>,
-) -> Option<String> {
+fn resolve_skill_ref(path: &str, skill_loader: Option<&SkillLoader<'_>>) -> Option<String> {
     let skill_name = path.trim_start_matches('/');
     if skill_name.is_empty() {
         return None;

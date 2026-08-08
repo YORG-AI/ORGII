@@ -11,6 +11,11 @@
       "mentions": "メンション",
       "assigned": "自分の担当"
     },
+    "sections": {
+      "reviewRequested": "レビュー依頼",
+      "authoredByMe": "自分が作成",
+      "otherTodos": "その他のタスク"
+    },
     "status": {
       "read": "既読",
       "unread": "未読"
@@ -33,10 +38,10 @@
       "title": "まだ何もありません",
       "subtitle": "メンションや割り当てられた作業項目がここに表示されます。",
       "selectTitle": "項目を選択してください",
-      "selectSubtitle": "コメントの文脈や作業項目の詳細を確認できます。",
+      "selectSubtitle": "コメントの文脈や作業項目の詳細を確認できます",
       "mentions": {
         "title": "メンションはありません",
-        "subtitle": "チームメンバーがコメントで @ メンションすると、ここに表示されます。"
+        "subtitle": "チームメンバーがコメントで @ メンションすると、ここに表示されます"
       },
       "assigned": {
         "title": "自分に割り当てられた項目はありません",
@@ -110,7 +115,9 @@
       "markUnread": "この項目を未読にできませんでした。再試行してください。",
       "markAllRead": "すべての項目を既読にできませんでした。再試行してください。",
       "identity": "アカウントをプロジェクトメンバーに一致させられませんでした。プロジェクトのプロフィールのメールアドレスを確認してください。",
-      "partialLoad": "一部のチーム受信トレイのソースを更新できませんでした。利用可能な項目は引き続き表示されます。",
+      "partialLoad": "一部のチーム受信トレイのソースを更新できませんでした。利用可能な項目は引き続き表示されます",
+      "pullRequestsPartialLoad": "一部の pull request を更新できませんでした",
+      "pullRequestsPartialLoadHelp": "利用可能な項目は引き続き表示されます。更新して不足している pull request の再読み込みを試してください",
       "workItemContext": "一部のプロジェクト情報が利用できません。作業項目は引き続き使用できます。",
       "workItemLoad": "この作業項目を読み込めませんでした。再試行してください。",
       "workItemUpdate": "作業項目への最新の変更を保存できませんでした。再試行してください。"
@@ -153,6 +160,50 @@
       "medium": "中",
       "high": "高",
       "urgent": "緊急"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "ファイル",
+      "edit": "編集",
+      "view": "表示",
+      "window": "ウィンドウ",
+      "help": "ヘルプ",
+      "aria": "{{label}}メニュー"
+    },
+    "items": {
+      "quitOrg2": "ORG-2を終了",
+      "newSession": "新しいセッション",
+      "openFolder": "フォルダーを開く...",
+      "addFolderToWorkspace": "ワークスペースにフォルダーを追加...",
+      "saveWorkspaceAs": "ワークスペースに名前を付けて保存...",
+      "closeWindow": "ウィンドウを閉じる",
+      "undo": "元に戻す",
+      "redo": "やり直す",
+      "cut": "切り取り",
+      "copy": "コピー",
+      "paste": "貼り付け",
+      "selectAll": "すべて選択",
+      "commandPalette": "コマンドパレット",
+      "goToFile": "ファイルに移動...",
+      "selectModel": "モデルを選択...",
+      "switchWorkspace": "ワークスペースを切り替え...",
+      "switchBranch": "ブランチを切り替え...",
+      "switchRunningLocation": "実行場所を切り替え...",
+      "settings": "設定...",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "actualSize": "実際のサイズ",
+      "minimize": "最小化",
+      "maximizeRestore": "最大化 / 元に戻す",
+      "maximizeWorkstation": "ワークステーションを最大化",
+      "documentation": "ドキュメント",
+      "reportIssue": "問題を報告"
+    },
+    "controls": {
+      "minimizeWindow": "ウィンドウを最小化",
+      "maximizeRestoreWindow": "ウィンドウを最大化または元に戻す",
+      "closeWindow": "ウィンドウを閉じる"
     }
   },
   "toasts": {
@@ -366,7 +417,8 @@
     "skipThisVersion": "このバージョンをスキップ",
     "later": "後で",
     "link": "リンク",
-    "copyName": "名前をコピー"
+    "copyName": "名前をコピー",
+    "switchMethod": "方法を切り替える"
   },
   "refreshToast": {
     "successName": "{{name}} を更新しました",
@@ -549,8 +601,8 @@
     "history": "履歴",
     "execution": "実行",
     "gitHistory": "Git 履歴",
-    "noPullRequest": "プルリクエストがありません",
-    "pullRequest": "プルリクエスト",
+    "noPullRequest": "pull request がありません",
+    "pullRequest": "Pull request",
     "operationLog": "操作ログ",
     "gitDashboard": "ダッシュボード",
     "changedFiles": "変更されたファイル",
@@ -1357,15 +1409,136 @@
       "collapse": "ワークステーション情報を折りたたむ"
     },
     "pr": {
-      "linkedBranch": "プルリクエスト #{{number}}",
+      "title": "Pull request",
+      "linkedBranch": "Pull request #{{number}}",
+      "baseBranch": "ベース",
+      "noDescription": "説明はありません。",
+      "loadingConversation": "読み込み中…",
+      "reviewNoBody": "レビューコメントを残しました。",
+      "submitReview": "レビューを送信",
+      "reviewHeadNotice": "表示されているヘッドコミットが引き続き一致する場合にのみ、レビューが適用されます。",
+      "reviewDecision": "レビューの判断",
+      "reviewComment": "レビューコメント",
+      "reviewCommentPlaceholder": "コメントを追加…",
+      "commentPlaceholder": "コメントを入力…",
+      "comment": "コメント",
+      "approve": "承認",
+      "requestChanges": "変更をリクエスト",
+      "reply": "返信",
+      "replyPlaceholder": "返信…",
+      "reviewThreads": "レビューコメント",
+      "details": "詳細",
+      "unknownAuthor": "不明",
+      "activity": {
+        "opened": "この pull request をオープンしました",
+        "commented": "コメントしました",
+        "approved": "変更を承認しました",
+        "changesRequested": "変更をリクエストしました",
+        "reviewDismissed": "レビューを却下しました",
+        "reviewed": "レビューしました"
+      },
+      "summary": {
+        "label": "pull request の概要",
+        "branch": "ブランチ",
+        "reviewers": "レビュアー",
+        "noReviewers": "レビュアーなし",
+        "comments": "コメント",
+        "commentCount_one": "{{count}} 件のコメント",
+        "commentCount_other": "{{count}} 件のコメント",
+        "checks": "チェック",
+        "noChecks": "CI チェックなし",
+        "checksFailed": "チェックに失敗しました",
+        "status": "ステータス"
+      },
+      "tabs": {
+        "conversation": "会話",
+        "commits": "コミット",
+        "checks": "チェック",
+        "changes": "変更"
+      },
       "checks": {
+        "none": "チェックは報告されていません",
+        "noneHint": "この pull request の先頭コミットでは CI チェックやステータスが実行されていません。",
+        "allPassed": "すべてのチェックに合格しました",
+        "someFailed": "一部のチェックに失敗しました",
+        "pending": "チェック実行中",
         "passedShort": "成功",
         "failedShort": "失敗",
         "runningShort": "実行中",
         "checkingShort": "確認中",
         "noneShort": "CI なし",
         "unavailableShort": "CI を利用できません",
-        "branchStatus": "プルリクエスト #{{number}} CI：{{status}}"
+        "branchStatus": "Pull request #{{number}} CI：{{status}}"
+      },
+      "commits": {
+        "backToList": "すべてのコミット",
+        "none": "コミットなし"
+      },
+      "changes": {
+        "title": "変更されたファイル",
+        "noFiles": "ファイルの変更なし",
+        "tooLarge": "ファイルが大きすぎるため差分を表示できません",
+        "unavailable": "変更を利用できません",
+        "unavailableHint": "pull request のベースコミットと先頭コミットを解決できませんでした。"
+      },
+      "status": {
+        "open": "オープン",
+        "merged": "マージ済み",
+        "closed": "クローズ",
+        "draft": "下書き"
+      },
+      "actions": {
+        "label": "pull request の操作",
+        "confirmMergeTitle": "pull request をマージしますか？",
+        "confirmMergeMessage": "GitHub は現在の pull request のソースブランチをベースブランチにマージします。",
+        "merge": "pull request をマージ",
+        "squash": "スカッシュしてマージ",
+        "rebase": "リベースしてマージ",
+        "mergeSuccess": "pull request をマージしました",
+        "mergeRequested": "マージをリクエストしました",
+        "removedFromQueue": "マージキューから削除しました",
+        "autoMergeEnabled": "自動マージを有効にしました",
+        "autoMergeDisabled": "自動マージを無効にしました",
+        "confirmCloseTitle": "pull request を閉じますか？",
+        "confirmCloseMessage": "pull request は引き続き利用でき、後で再度開くことができます。",
+        "close": "pull request を閉じる",
+        "closeSuccess": "pull request を閉じました",
+        "reopen": "pull request を再度開く",
+        "reopenSuccess": "pull request を再度開きました",
+        "enableAutoMerge": "自動マージを有効にする",
+        "mergeWhenReady": "準備ができたらマージ",
+        "disableAutoMerge": "自動マージを無効にする",
+        "removeFromMergeQueue": "マージキューから削除",
+        "merged": "マージ済み",
+        "closed": "クローズ済み",
+        "draft": "下書き",
+        "inMergeQueue": "マージキュー内",
+        "approvalRequired": "承認が必要",
+        "changesRequested": "変更がリクエストされました",
+        "resolveConflicts": "競合を解決",
+        "checksFailed": "チェックに失敗しました",
+        "checksPending": "チェック待ち",
+        "mergeBlocked": "マージがブロックされています",
+        "searchReviewers": "レビュアーを検索",
+        "reviewersLoadFailed": "レビュアーを読み込めませんでした",
+        "noReviewers": "利用可能なレビュアーはいません",
+        "reviewersUpdated": "レビュアーを更新しました",
+        "reviewersCount_one": "{{count}} 人のレビュアー",
+        "reviewersCount_other": "{{count}} 人のレビュアー",
+        "reviewers": "レビュアー",
+        "tooltips": {
+          "merge": "この pull request を GitHub でマージ",
+          "alreadyMerged": "この pull request はすでにマージされています",
+          "reopenBeforeMerging": "マージする前にこの pull request を再度開いてください",
+          "markReady": "マージする前にこの pull request をレビュー可能としてマークしてください",
+          "mergeQueue": "GitHub はマージキューを通じてこの pull request をマージします",
+          "approvalRequired": "GitHub ではマージ前にレビューの承認が必要です",
+          "changesRequested": "マージする前にリクエストされた変更を解決する必要があります",
+          "resolveConflicts": "マージする前に競合を解決してください",
+          "checksFailed": "マージする前に必須チェックに合格する必要があります",
+          "checksPending": "必須チェックを待つか、自動マージを有効にしてください",
+          "mergeBlocked": "GitHub から未達成のマージ要件が報告されています"
+        }
       }
     },
     "messages": {
@@ -1455,7 +1628,49 @@
         "unpinned": "がこの issue の固定を解除しました",
         "transferred": "がこの issue を移管しました",
         "convertedToDiscussion": "がこの issue をディスカッションに変換しました",
-        "mentioned": "がこの issue に言及しました"
+        "mentioned": "がこの issue に言及しました",
+        "commentDeleted": "がコメントを削除しました",
+        "subscribed": "がこの issue を購読しました",
+        "unsubscribed": "がこの issue の購読を解除しました",
+        "addedToProject": "がこの issue をプロジェクトに追加しました",
+        "movedInProject": "がプロジェクト内でこの issue を移動しました",
+        "removedFromProject": "がこの issue をプロジェクトから削除しました",
+        "archived": "がこの issue をアーカイブしました",
+        "unarchived": "がこの issue のアーカイブを解除しました",
+        "merged": "がこの pull request をマージしました",
+        "committed": "がこの pull request にコミットしました",
+        "headRefDeleted": "がヘッドブランチを削除しました",
+        "headRefRestored": "がヘッドブランチを復元しました",
+        "headRefForcePushed": "がヘッドブランチを強制プッシュしました",
+        "baseRefChanged": "がベースブランチを変更しました",
+        "automaticBaseChangeFailed": "がベースブランチを自動変更できませんでした",
+        "automaticBaseChangeSucceeded": "がベースブランチを自動変更しました",
+        "deployed": "がこの pull request をデプロイしました",
+        "deploymentEnvironmentChanged": "がデプロイ環境を変更しました",
+        "readyForReview": "がこの pull request をレビュー可能にしました",
+        "reviewRequested": "がレビューをリクエストしました",
+        "reviewRequestRemoved": "がレビューリクエストを削除しました",
+        "reviewed": "がこれらの変更をレビューしました",
+        "reviewDismissed": "がレビューを却下しました",
+        "userBlocked": "がこのユーザーをブロックしました"
+      },
+      "composer": {
+        "addComment": "コメントを追加",
+        "commentingAs": "{{login}} として操作中",
+        "identityUnavailable": "GitHub のユーザー情報を取得できません",
+        "commentPlaceholder": "コメントを入力…",
+        "submitComment": "コメント",
+        "closeIssue": "issue を閉じる",
+        "closeAsCompleted": "完了として閉じる",
+        "closeAsNotPlanned": "計画外として閉じる",
+        "closeAsDuplicate": "重複として閉じる",
+        "duplicateSearchPlaceholder": "issue を検索",
+        "duplicateEmpty": "一致する issue はありません",
+        "duplicateLoadFailed": "issue の読み込みに失敗しました",
+        "reopenIssue": "issue を再度開く",
+        "commentFailed": "コメントを追加できませんでした",
+        "bodyUpdateFailed": "issue の説明を更新できませんでした",
+        "statusFailed": "issue のステータスを更新できませんでした"
       }
     }
   },
@@ -2463,8 +2678,8 @@
     "selectRepoToStart": "Repo を選択して開始"
   },
   "quitConfirmation": {
-    "title": "ORGII を終了しますか？",
-    "subtitle": "実行中のセッションは現在の状態を保持します。後で ORGII を再度開くことができます。",
+    "title": "ORG-2 を終了しますか？",
+    "subtitle": "実行中のセッションは現在の状態を保持します。後で ORG-2 を再度開くことができます。",
     "cancel": "キャンセル",
     "confirm": "終了"
   },
@@ -2495,5 +2710,15 @@
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "ダウンロードを準備中…",
     "downloadingAndInstalling": "アップデートをダウンロードしてインストール中 (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "タイトル / コンテキスト",
+      "status": "ステータス",
+      "assignee": "担当者",
+      "updated": "更新"
+    },
+    "selectRow": "{{id}} を選択"
   }
 }

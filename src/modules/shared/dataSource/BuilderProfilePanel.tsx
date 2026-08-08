@@ -240,6 +240,13 @@ export default function BuilderProfilePanel() {
     let batches = 0;
     const tick = async () => {
       if (cancelled || !aliveRef.current) return;
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        timer = setTimeout(() => void tick(), EXTRACT_TICK_MS);
+        return;
+      }
       try {
         const progress = await builderProfileExtract();
         if (cancelled || !aliveRef.current) return;

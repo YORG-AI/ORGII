@@ -98,6 +98,12 @@ export interface InlineAlertProps {
   closeIcon?: React.ReactNode;
   /** Accessible label for close button */
   closeAriaLabel?: string;
+  /** Automatically invoke onClose after this delay. Requires onClose. */
+  autoCloseMs?: number;
+  /** Accessible landmark/live-region role for the alert container. */
+  role?: React.AriaRole;
+  /** Stable test hook for the alert container. */
+  dataTestId?: string;
 }
 
 const InlineAlert: React.FC<InlineAlertProps> = ({
@@ -113,6 +119,9 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   onClose,
   closeIcon,
   closeAriaLabel = "Close",
+  autoCloseMs,
+  role,
+  dataTestId,
 }) => {
   const styles = STYLE_MAP[type];
   const [expanded, setExpanded] = React.useState(presentation !== "pill");
@@ -133,6 +142,12 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
     <X size={14} className="flex-shrink-0" />
   );
   const hasTitle = Boolean(title);
+
+  React.useEffect(() => {
+    if (!onClose || !autoCloseMs || autoCloseMs <= 0) return;
+    const timeout = window.setTimeout(onClose, autoCloseMs);
+    return () => window.clearTimeout(timeout);
+  }, [autoCloseMs, onClose]);
 
   const actionNode =
     action &&
@@ -178,6 +193,8 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
 
   return (
     <div
+      role={role}
+      data-testid={dataTestId}
       className={`border border-solid ${styles.border} ${isPill ? `inline-block w-fit max-w-full ${expanded ? "rounded-lg" : "rounded-full"} px-3 py-2` : "rounded-lg p-3"} ${styles.text} ${className ?? ""}`}
     >
       <div className={`flex items-center ${isPill ? "gap-1" : "gap-3"}`}>

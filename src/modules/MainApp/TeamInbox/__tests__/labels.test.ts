@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   humanizeToken,
   isGitHubIssueStatus,
+  parseGitHubIssueNumber,
   workItemPriorityLabelKey,
   workItemStatusLabelKey,
 } from "../domain/labels";
@@ -18,6 +19,18 @@ describe("isGitHubIssueStatus", () => {
     expect(isGitHubIssueStatus("in_progress")).toBe(false);
     expect(isGitHubIssueStatus("completed")).toBe(false);
     expect(isGitHubIssueStatus("")).toBe(false);
+  });
+});
+
+describe("parseGitHubIssueNumber", () => {
+  it("accepts plain and hash-prefixed issue numbers", () => {
+    expect(parseGitHubIssueNumber("61")).toBe(61);
+    expect(parseGitHubIssueNumber(" #61 ")).toBe(61);
+  });
+
+  it("rejects local Work Item identifiers", () => {
+    expect(parseGitHubIssueNumber("AAA-0001")).toBeUndefined();
+    expect(parseGitHubIssueNumber(undefined)).toBeUndefined();
   });
 });
 

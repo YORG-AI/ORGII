@@ -149,6 +149,51 @@ const MemberUsageDayWireSchema = z.object({
   requests: z.number().catch(0),
 });
 
+const NonNegativeNumberWireSchema = z.number().nonnegative().catch(0);
+
+const UsageBucketSummaryWireSchema = z.object({
+  bucket: z.string(),
+  sessionCount: NonNegativeNumberWireSchema,
+  realTotalTokens: NonNegativeNumberWireSchema,
+  costUsd: NonNegativeNumberWireSchema,
+});
+
+const UsageSummaryWireSchema = z.object({
+  sessionCount: NonNegativeNumberWireSchema,
+  requestCount: NonNegativeNumberWireSchema,
+  inputTokens: NonNegativeNumberWireSchema,
+  outputTokens: NonNegativeNumberWireSchema,
+  cacheReadTokens: NonNegativeNumberWireSchema,
+  cacheWriteTokens: NonNegativeNumberWireSchema,
+  realTotalTokens: NonNegativeNumberWireSchema,
+  totalTokens: NonNegativeNumberWireSchema,
+  costUsd: NonNegativeNumberWireSchema,
+  estimatedCostUsd: NonNegativeNumberWireSchema,
+  recordedCostUsd: NonNegativeNumberWireSchema,
+  cacheHitRate: z.number().min(0).max(1).catch(0),
+  byBucket: z
+    .array(UsageBucketSummaryWireSchema)
+    .max(TEAM_USAGE_BUCKETS.length)
+    .catch([])
+    .default([]),
+});
+
+const UsageTrendPointWireSchema = z.object({
+  bucketMs: z.number().nonnegative(),
+  inputTokens: NonNegativeNumberWireSchema,
+  outputTokens: NonNegativeNumberWireSchema,
+  cacheReadTokens: NonNegativeNumberWireSchema,
+  cacheWriteTokens: NonNegativeNumberWireSchema,
+  costUsd: NonNegativeNumberWireSchema,
+});
+
+const RecentUsageSnapshotWireSchema = z.object({
+  startMs: z.number().nonnegative(),
+  endMs: z.number().nonnegative(),
+  summary: UsageSummaryWireSchema,
+  trends: z.array(UsageTrendPointWireSchema).max(25).catch([]).default([]),
+});
+
 const optionalString = z
   .string()
   .nullish()
@@ -214,7 +259,13 @@ const MemberRuntimeListEntryWireSchema = z.object({
   reportedAt: z.string().nullish().catch(undefined),
   machine: MemberRuntimeMachineWireSchema.nullish().catch(undefined),
   sample: MemberRuntimeSampleWireSchema.nullish().catch(undefined),
-  stats: z.object({ totalSessions: z.number() }).nullish().catch(undefined),
+  stats: z
+    .object({
+      totalSessions: z.number(),
+      recentUsage24h: RecentUsageSnapshotWireSchema.optional().catch(undefined),
+    })
+    .nullish()
+    .catch(undefined),
   builderTypeCode: z.string().nullish().catch(undefined),
   profile: MemberBuilderProfileWireSchema.nullish().catch(undefined),
   installedAgents: z

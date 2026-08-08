@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CLI_AGENT } from "@src/api/types/keys";
 import InlineAlert from "@src/components/InlineAlert";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { AccountInlineDetails } from "@src/modules/shared/keyVault/AccountInlineDetails";
@@ -42,33 +41,6 @@ export type AccountInlineTab =
 
 function getAccountModelToggleKey(accountId: string, model: string): string {
   return `${accountId}|${model}`;
-}
-
-const ACCOUNT_AUTH_METHOD = {
-  OAUTH: "oauth",
-} as const;
-
-function supportsQuotaRefresh(account: KeyVaultAccount): boolean {
-  switch (account.modelType) {
-    case CLI_AGENT.CURSOR:
-      return account.hasSessionToken;
-    case CLI_AGENT.COPILOT:
-      return account.hasApiKey;
-    case CLI_AGENT.CLAUDE_CODE:
-    case CLI_AGENT.CODEX:
-      return (
-        account.authMethod === ACCOUNT_AUTH_METHOD.OAUTH &&
-        account.hasSessionToken
-      );
-    case CLI_AGENT.OPENCODE:
-      return account.hasKey;
-    // Zhipu (GLM Coding Plan) exposes a quota API; pay-as-you-go keys still
-    // resolve to a "Pay-as-you-go" QuotaInfo (no bar) rather than an error.
-    case "zhipu_api":
-      return account.hasApiKey;
-    default:
-      return false;
-  }
 }
 
 interface AccountInlineExpandedCardProps {
@@ -194,7 +166,7 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
     await onRefresh();
   }, [onRefresh]);
 
-  const showQuotaRefresh = onRefresh && supportsQuotaRefresh(account);
+  const showQuotaRefresh = Boolean(onRefresh && account.canRefreshQuota);
   const showModelRefresh = Boolean(onRevalidateAccount);
 
   const handleEditFormSave = useCallback(

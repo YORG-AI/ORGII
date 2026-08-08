@@ -5,14 +5,17 @@ import type { WorkItemContentProps } from "../WorkItemContent/types";
 import WorkItemProperties, {
   WORK_ITEM_THREAD_PROPERTY_FIELDS,
 } from "../WorkItemProperties";
-import type { WorkItemPropertiesProps } from "../WorkItemProperties/types";
+import type {
+  WorkItemPropertiesProps,
+  WorkItemPropertyFieldKey,
+} from "../WorkItemProperties/types";
 
 type ThreadPropertyProps = Omit<
   WorkItemPropertiesProps,
-  "workItem" | "fieldVariant" | "pillLayout" | "visibleFields" | "showMoreMenu"
+  "workItem" | "fieldVariant" | "pillLayout" | "visibleFields"
 >;
 
-export interface WorkItemThreadSurfaceProps extends Omit<
+interface WorkItemThreadSurfaceProps extends Omit<
   WorkItemContentProps,
   "presentation" | "headerProperties"
 > {
@@ -21,6 +24,8 @@ export interface WorkItemThreadSurfaceProps extends Omit<
    * The content remains readable and keeps the same thread presentation.
    */
   propertyProps?: ThreadPropertyProps;
+  /** Limit the canonical pill row to fields backed by this data source. */
+  propertyFields?: WorkItemPropertyFieldKey[];
 }
 
 /**
@@ -31,6 +36,7 @@ export interface WorkItemThreadSurfaceProps extends Omit<
 const WorkItemThreadSurface: React.FC<WorkItemThreadSurfaceProps> = ({
   workItem,
   propertyProps,
+  propertyFields = WORK_ITEM_THREAD_PROPERTY_FIELDS,
   ...contentProps
 }) => {
   const headerProperties = propertyProps ? (
@@ -39,8 +45,8 @@ const WorkItemThreadSurface: React.FC<WorkItemThreadSurfaceProps> = ({
       workItem={workItem}
       fieldVariant="pill"
       pillLayout="wrap"
-      visibleFields={WORK_ITEM_THREAD_PROPERTY_FIELDS}
-      showMoreMenu
+      visibleFields={propertyFields}
+      showMoreMenu={propertyProps.showMoreMenu ?? true}
     />
   ) : undefined;
 

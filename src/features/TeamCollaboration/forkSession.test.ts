@@ -5,6 +5,7 @@ import { deleteSession, saveSession } from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { org2CloudAccessSettingsAtom } from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { COLLAB_IDENTITY_KIND } from "@src/store/collaboration/types";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
@@ -175,12 +176,15 @@ beforeEach(() => {
   resolveScopeKeysMock.mockResolvedValue([]);
   existsMock.mockResolvedValue(true);
   saveSessionMock.mockResolvedValue(undefined);
-  deleteSessionMock.mockResolvedValue(undefined);
+  deleteSessionMock.mockResolvedValue({
+    deletedSessionIds: ["agentsession-fork-1"],
+  });
   eventStoreMock.clear.mockResolvedValue(undefined);
   eventStoreMock.getPersistedEvents.mockResolvedValue([]);
   store.set(sessionsAtom, []);
   store.set(reposAtom, []);
   store.set(org2CloudOrgsAtom, []);
+  store.set(org2CloudAccessSettingsAtom, {});
   store.set(sessionOrgTagsAtom, {});
   store.set(forkCheckoutRequestAtom, null);
   store.set(forkSessionSetupRequestAtom, null);
@@ -389,6 +393,37 @@ describe("forkTeammateSession (design §16.11 relay completion)", () => {
     expect(
       tokensForSession(store.get(sessionOrgTagsAtom), "agentsession-fork-1")
     ).toEqual(["cloud:org-1"]);
+  });
+
+  it("inherits the SOURCE's sharing level as the fork's per-session intent", async () => {
+    store.set(org2CloudOrgsAtom, [
+      { orgId: "org-1", name: "Cloud Team", role: "member" },
+    ]);
+
+    await forkTeammateSession(makeForkOptions({ accessMode: "full_replay" }));
+
+    // Without this stamp a fork in a floor=off org has no ladder entry,
+    // floors to metadata_only on the wire, and teammates can never open
+    // its replay — with no error anywhere.
+    expect(
+      store.get(org2CloudAccessSettingsAtom)["org-1"]?.sessionModes?.[
+        "agentsession-fork-1"
+      ]
+    ).toBe("full_replay");
+  });
+
+  it("stamps no sharing level when the source row carries none", async () => {
+    store.set(org2CloudOrgsAtom, [
+      { orgId: "org-1", name: "Cloud Team", role: "member" },
+    ]);
+
+    await forkTeammateSession(makeForkOptions({ accessMode: undefined }));
+
+    expect(
+      store.get(org2CloudAccessSettingsAtom)["org-1"]?.sessionModes?.[
+        "agentsession-fork-1"
+      ]
+    ).toBeUndefined();
   });
 
   it("NEVER auto-tags a GUEST (share-token) fork to the owner's org", async () => {

@@ -27,6 +27,11 @@ import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
+import {
+  type InputActionGuardState,
+  shouldSuppressOppositeInputAction,
+} from "./inputActionClickGuard";
+
 interface InputActionsProps {
   isInputEmpty: boolean;
   isWpGeneWorking: boolean;
@@ -69,7 +74,7 @@ const InputActions: React.FC<InputActionsProps> = memo(
   }) => {
     const { t } = useTranslation();
     const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
-    const suppressSubmitClickUntilRef = useRef(0);
+    const lastInputActionRef = useRef<InputActionGuardState | null>(null);
 
     // Non-empty input ALWAYS wins over the working indicator: the user can
     // type a new message while the agent is running, and it will be silently
@@ -89,15 +94,33 @@ const InputActions: React.FC<InputActionsProps> = memo(
         if (submitDisabled) {
           return;
         }
-        if (Date.now() < suppressSubmitClickUntilRef.current) {
+        const now = Date.now();
+        if (
+          shouldSuppressOppositeInputAction(
+            lastInputActionRef.current,
+            "submit",
+            now
+          )
+        ) {
           return;
         }
+        lastInputActionRef.current = { action: "submit", at: now };
         onSubmit();
         return;
       }
       if (showStop) {
         if (canStopAgent) {
-          suppressSubmitClickUntilRef.current = Date.now() + 700;
+          const now = Date.now();
+          if (
+            shouldSuppressOppositeInputAction(
+              lastInputActionRef.current,
+              "stop",
+              now
+            )
+          ) {
+            return;
+          }
+          lastInputActionRef.current = { action: "stop", at: now };
           void onInterrupt();
         } else {
           Message.info(t("sessions:chat.workspaceIsWorking"));

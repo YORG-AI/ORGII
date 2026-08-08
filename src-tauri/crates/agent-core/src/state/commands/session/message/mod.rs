@@ -23,6 +23,7 @@
 mod entry_points;
 mod exec_mode;
 mod org_wake;
+pub(crate) mod project_bootstrap;
 mod send;
 
 /// Kept under its historical module name so the `resolve_agent_mode` invariant

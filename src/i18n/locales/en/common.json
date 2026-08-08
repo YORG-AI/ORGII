@@ -1,4 +1,48 @@
-﻿{
+{
+  "windowChrome": {
+    "menus": {
+      "file": "File",
+      "edit": "Edit",
+      "view": "View",
+      "window": "Window",
+      "help": "Help",
+      "aria": "{{label}} menu"
+    },
+    "items": {
+      "quitOrg2": "Quit ORG-2",
+      "newSession": "New Session",
+      "openFolder": "Open Folder...",
+      "addFolderToWorkspace": "Add Folder to Workspace...",
+      "saveWorkspaceAs": "Save Workspace As...",
+      "closeWindow": "Close Window",
+      "undo": "Undo",
+      "redo": "Redo",
+      "cut": "Cut",
+      "copy": "Copy",
+      "paste": "Paste",
+      "selectAll": "Select All",
+      "commandPalette": "Command Palette",
+      "goToFile": "Go to File...",
+      "selectModel": "Select Model...",
+      "switchWorkspace": "Switch Workspace...",
+      "switchBranch": "Switch Branch...",
+      "switchRunningLocation": "Switch Running Location...",
+      "settings": "Settings...",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "actualSize": "Actual Size",
+      "minimize": "Minimize",
+      "maximizeRestore": "Maximize / Restore",
+      "maximizeWorkstation": "Maximize Workstation",
+      "documentation": "Documentation",
+      "reportIssue": "Report Issue"
+    },
+    "controls": {
+      "minimizeWindow": "Minimize window",
+      "maximizeRestoreWindow": "Maximize or restore window",
+      "closeWindow": "Close window"
+    }
+  },
   "toasts": {
     "replyEmpty": "Reply cannot be empty",
     "sessionNotFound": "Session not found",
@@ -169,6 +213,7 @@
     "goToSettings": "Go to Settings",
     "restart": "Restart",
     "switchToStation": "Switch to {{station}}",
+    "switchMethod": "Switch method",
     "rate": "Rate",
     "openInTab": "Open in Tab",
     "insert": "Insert",
@@ -287,6 +332,16 @@
     "testing": "Testing...",
     "empty": "Empty",
     "launching": "Launching..."
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Title / Context",
+      "status": "Status",
+      "assignee": "Assignee",
+      "updated": "Updated"
+    },
+    "selectRow": "Select {{id}}"
   },
   "pagination": {
     "totalItems": "{{count}} items",
@@ -1098,6 +1153,18 @@
       "searchPlaceholder": "Search ports…",
       "noSearchResults": "No matching ports"
     },
+    "ci": {
+      "openPullRequest": "Open pull request on GitHub",
+      "viewDetails": "View check details",
+      "refresh": "Refresh checks",
+      "unavailable": "Checks could not be read",
+      "sections": {
+        "failed": "Failed",
+        "running": "Running",
+        "skipped": "Skipped",
+        "passed": "Passed"
+      }
+    },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
     "charsSelected": "{{count}} selected",
@@ -1272,6 +1339,11 @@
       "noDescription": "No description provided.",
       "loadingConversation": "Loading…",
       "reviewNoBody": "Left review comments.",
+      "submitReview": "Submit review",
+      "reviewHeadNotice": "The review applies only if the displayed head commit still matches.",
+      "reviewDecision": "Review decision",
+      "reviewComment": "Review comment",
+      "reviewCommentPlaceholder": "Add a comment…",
       "commentPlaceholder": "Leave a comment…",
       "comment": "Comment",
       "approve": "Approve",
@@ -1279,6 +1351,82 @@
       "reply": "Reply",
       "replyPlaceholder": "Reply…",
       "reviewThreads": "Review comments",
+      "details": "Details",
+      "unknownAuthor": "Unknown",
+      "actions": {
+        "label": "Pull request actions",
+        "confirmMergeTitle": "Merge pull request?",
+        "confirmMergeMessage": "GitHub will merge the current pull request head into the base branch.",
+        "merge": "Merge pull request",
+        "squash": "Squash and merge",
+        "rebase": "Rebase and merge",
+        "mergeSuccess": "Pull request merged",
+        "mergeRequested": "Merge requested",
+        "removedFromQueue": "Removed from merge queue",
+        "autoMergeEnabled": "Auto-merge enabled",
+        "autoMergeDisabled": "Auto-merge disabled",
+        "confirmCloseTitle": "Close pull request?",
+        "confirmCloseMessage": "The pull request will remain available and can be reopened later.",
+        "close": "Close pull request",
+        "closeSuccess": "Pull request closed",
+        "reopen": "Reopen pull request",
+        "reopenSuccess": "Pull request reopened",
+        "enableAutoMerge": "Enable auto-merge",
+        "mergeWhenReady": "Merge when ready",
+        "disableAutoMerge": "Disable auto-merge",
+        "removeFromMergeQueue": "Remove from merge queue",
+        "merged": "Merged",
+        "closed": "Closed",
+        "draft": "Draft",
+        "inMergeQueue": "In merge queue",
+        "approvalRequired": "Approval required",
+        "changesRequested": "Changes requested",
+        "resolveConflicts": "Resolve conflicts",
+        "checksFailed": "Checks failed",
+        "checksPending": "Checks pending",
+        "mergeBlocked": "Merge blocked",
+        "searchReviewers": "Search reviewers",
+        "reviewersLoadFailed": "Could not load reviewers",
+        "noReviewers": "No reviewers available",
+        "reviewersUpdated": "Reviewers updated",
+        "reviewersCount_one": "{{count}} reviewer",
+        "reviewersCount_other": "{{count}} reviewers",
+        "reviewers": "Reviewers",
+        "tooltips": {
+          "merge": "Merge this pull request on GitHub",
+          "alreadyMerged": "This pull request is already merged",
+          "reopenBeforeMerging": "Reopen this pull request before merging",
+          "markReady": "Mark this pull request ready for review before merging",
+          "mergeQueue": "GitHub will merge this pull request through the merge queue",
+          "approvalRequired": "GitHub requires review approval before merging",
+          "changesRequested": "Requested changes must be resolved before merging",
+          "resolveConflicts": "Resolve merge conflicts before merging",
+          "checksFailed": "Required checks must pass before merging",
+          "checksPending": "Wait for required checks or enable auto-merge",
+          "mergeBlocked": "GitHub reports unmet merge requirements"
+        }
+      },
+      "activity": {
+        "opened": "opened this pull request",
+        "commented": "commented",
+        "approved": "approved these changes",
+        "changesRequested": "requested changes",
+        "reviewDismissed": "dismissed a review",
+        "reviewed": "reviewed"
+      },
+      "summary": {
+        "label": "Pull request summary",
+        "branch": "Branch",
+        "reviewers": "Reviewers",
+        "noReviewers": "No reviewers",
+        "comments": "Comments",
+        "commentCount_one": "{{count}} comment",
+        "commentCount_other": "{{count}} comments",
+        "checks": "Checks",
+        "noChecks": "No CI checks",
+        "checksFailed": "Checks failed",
+        "status": "Status"
+      },
       "tabs": {
         "conversation": "Conversation",
         "commits": "Commits",
@@ -1392,7 +1540,49 @@
         "unpinned": "unpinned this issue",
         "transferred": "transferred this issue",
         "convertedToDiscussion": "converted this issue to a discussion",
-        "mentioned": "mentioned this issue"
+        "mentioned": "mentioned this issue",
+        "commentDeleted": "deleted a comment",
+        "subscribed": "subscribed to this issue",
+        "unsubscribed": "unsubscribed from this issue",
+        "addedToProject": "added this issue to a project",
+        "movedInProject": "moved this issue in a project",
+        "removedFromProject": "removed this issue from a project",
+        "archived": "archived this issue",
+        "unarchived": "unarchived this issue",
+        "merged": "merged this pull request",
+        "committed": "committed to this pull request",
+        "headRefDeleted": "deleted the head branch",
+        "headRefRestored": "restored the head branch",
+        "headRefForcePushed": "force-pushed the head branch",
+        "baseRefChanged": "changed the base branch",
+        "automaticBaseChangeFailed": "could not automatically change the base branch",
+        "automaticBaseChangeSucceeded": "automatically changed the base branch",
+        "deployed": "deployed this pull request",
+        "deploymentEnvironmentChanged": "changed the deployment environment",
+        "readyForReview": "marked this pull request ready",
+        "reviewRequested": "requested a review",
+        "reviewRequestRemoved": "removed a review request",
+        "reviewed": "reviewed these changes",
+        "reviewDismissed": "dismissed a review",
+        "userBlocked": "blocked this user"
+      },
+      "composer": {
+        "addComment": "Add a comment",
+        "commentingAs": "Commenting as {{login}}",
+        "identityUnavailable": "GitHub identity unavailable",
+        "commentPlaceholder": "Write a comment…",
+        "submitComment": "Comment",
+        "closeIssue": "Close issue",
+        "closeAsCompleted": "Close as completed",
+        "closeAsNotPlanned": "Close as not planned",
+        "closeAsDuplicate": "Close as duplicate",
+        "duplicateSearchPlaceholder": "Search issues",
+        "duplicateEmpty": "No matching issues",
+        "duplicateLoadFailed": "Failed to load issues",
+        "reopenIssue": "Reopen issue",
+        "commentFailed": "Failed to add comment",
+        "bodyUpdateFailed": "Failed to update issue description",
+        "statusFailed": "Failed to update issue status"
       },
       "authRequired": {
         "title": "Connect GitHub",
@@ -2469,6 +2659,7 @@
     "taskCompletedTitle": "Task completed",
     "taskCompletedBody": "“{{name}}” completed — ready for review",
     "taskCompletedToast": "“{{name}}” completed. Open the Session to review the result.",
+    "openSessionAction": "Open Session",
     "taskFailedTitle": "Task failed",
     "taskFailedBody": "“{{name}}” failed{{detail}}",
     "taskCancelledToast": "“{{name}}” was cancelled"
@@ -2483,7 +2674,12 @@
     "filters": {
       "all": "All",
       "mentions": "Mentions",
-      "assigned": "Assigned"
+      "assigned": "Assigned to me"
+    },
+    "sections": {
+      "reviewRequested": "Review requested",
+      "authoredByMe": "Authored by me",
+      "otherTodos": "Other todos"
     },
     "status": {
       "read": "Read",
@@ -2498,6 +2694,8 @@
     },
     "row": {
       "assignedSummary": "{{status}} · {{priority}}",
+      "issueSource": "{{repository}} issue",
+      "issueSourceFallback": "Issue",
       "ariaLabel": "{{title}}, {{status}}"
     },
     "search": {
@@ -2514,10 +2712,10 @@
       "title": "Nothing here yet",
       "subtitle": "Mentions and assigned work items will appear here.",
       "selectTitle": "Select an item",
-      "selectSubtitle": "View its comment context or work item details.",
+      "selectSubtitle": "View its comment context or work item details",
       "mentions": {
         "title": "No mentions",
-        "subtitle": "When a teammate @mentions you in a comment, it shows up here."
+        "subtitle": "When a teammate @mentions you in a comment, it shows up here"
       },
       "assigned": {
         "title": "Nothing assigned to you",
@@ -2604,7 +2802,9 @@
       "markUnread": "Unable to mark this item as unread. Try again.",
       "markAllRead": "Unable to mark all items as read. Try again.",
       "identity": "Your account could not be matched to a project member. Check your project profile email.",
-      "partialLoad": "Some Team Inbox sources could not be refreshed. Available items are still shown.",
+      "partialLoad": "Some Team Inbox sources could not be refreshed. Available items are still shown",
+      "pullRequestsPartialLoad": "Some pull requests could not be refreshed",
+      "pullRequestsPartialLoadHelp": "Available items are still shown; refresh to try loading the missing pull requests again",
       "workItemContext": "Some project context is unavailable. The work item remains usable.",
       "workItemLoad": "Unable to load this work item. Try again.",
       "workItemUpdate": "Unable to save the latest work item change. Try again."
@@ -2675,8 +2875,8 @@
     "previewAlt": "Preview"
   },
   "quitConfirmation": {
-    "title": "Quit ORGII?",
-    "subtitle": "Any running sessions will keep their current state. You can reopen ORGII later.",
+    "title": "Quit ORG-2?",
+    "subtitle": "Any running sessions will keep their current state. You can reopen ORG-2 later.",
     "cancel": "Cancel",
     "confirm": "Quit"
   },

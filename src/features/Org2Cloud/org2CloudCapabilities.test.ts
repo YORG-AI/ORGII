@@ -30,6 +30,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
@@ -37,6 +42,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -52,7 +62,27 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
+  });
+
+  it("carries the 0016 idempotency flag through the wire rebuild", async () => {
+    // Regression guard for the flag-stripping trap this layer creates: the
+    // probe REBUILDS the object from enumerated fields, so a new wire flag a
+    // consumer reads structurally is silently dropped until it is modeled
+    // here. The 0016 rollout shipped exactly that bug — posts never keyed —
+    // and only the live dual-instance pass caught it.
+    rawMock.mockResolvedValueOnce({
+      orgChannels: true,
+      orgChannelMessages: true,
+      orgChannelMessagesIdempotency: true,
+    });
+    const capabilities = await getCloudCapabilities("jwt-1");
+    expect(capabilities.orgChannelMessagesIdempotency).toBe(true);
   });
 
   it("parses the 0007 homeEndpoints flag", async () => {
@@ -67,6 +97,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: true,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
   });
 
@@ -83,6 +118,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: true,
       teamInboxMentions: true,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
   });
 
@@ -93,6 +133,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: true,
       teamInboxMentions: true,
       memberRuntime: true,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
@@ -100,6 +145,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: true,
       teamInboxMentions: true,
       memberRuntime: true,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
   });
 
@@ -111,6 +161,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     rawMock.mockResolvedValueOnce({ broadcastSignals: true });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
@@ -119,6 +174,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(2);
   });
@@ -135,6 +195,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: false,
@@ -142,6 +207,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -162,6 +232,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(await second).toEqual({
       broadcastSignals: true,
@@ -169,6 +244,11 @@ describe("getCloudCapabilities", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -185,6 +265,11 @@ describe("getCloudCapabilitiesConfirmed", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
   });
 
@@ -195,6 +280,11 @@ describe("getCloudCapabilitiesConfirmed", () => {
       homeEndpoints: true,
       teamInboxMentions: true,
       memberRuntime: true,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     const result = await getCloudCapabilitiesConfirmed("jwt-1");
     expect(result.confirmed).toBe(true);
@@ -211,6 +301,11 @@ describe("getCloudCapabilitiesConfirmed", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
   });
 
@@ -239,6 +334,11 @@ describe("getCloudCapabilitiesConfirmed", () => {
       homeEndpoints: false,
       teamInboxMentions: false,
       memberRuntime: false,
+      sessionTurnIndex: false,
+      offlineSync: false,
+      orgChannels: false,
+      orgChannelMessages: false,
+      orgChannelMessagesIdempotency: false,
     });
     // A cached hit is, by definition, a confirmed read — no second RPC.
     const result = await getCloudCapabilitiesConfirmed("jwt-1");

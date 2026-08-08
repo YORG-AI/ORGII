@@ -12,6 +12,7 @@ import { type RefObject, useCallback, useRef, useState } from "react";
 
 import {
   cliAgentCreateTuiSession,
+  deriveExpectedProcess,
   resolveCliTuiCommand,
 } from "@src/api/tauri/agent/cliTerminalSession";
 import { createHumanSession } from "@src/api/tauri/humanSession";
@@ -32,11 +33,6 @@ import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
 import { loadSessions } from "@src/store/session/sessionAtom/loaders";
 
 const log = createLogger("ChatPanel");
-
-function deriveExpectedProcess(command: string): string | undefined {
-  const [binary] = command.trim().split(/\s+/);
-  return binary || undefined;
-}
 
 function isCliAgentType(
   value: string | null | undefined

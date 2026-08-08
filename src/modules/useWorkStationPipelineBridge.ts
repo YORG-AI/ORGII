@@ -36,13 +36,13 @@ import {
 } from "@src/store/session";
 
 /**
- * Minimal store interface used by `applyWorkStationPipelineBridge` so
- * the same logic can be unit-tested with a vanilla Jotai store.
+ * Minimal store interface used by the bridge so the same production
+ * subscription lifecycle can be tested with a vanilla Jotai store.
  */
-export interface PipelineBridgeStore {
-  get<T>(atom: { read: unknown }): T;
-  set<T>(atom: { write: unknown }, value: T): void;
-}
+export type PipelineBridgeStore = Pick<
+  ReturnType<typeof import("jotai/vanilla").createStore>,
+  "get" | "set" | "sub"
+>;
 
 /**
  * Pure, sync logic of the bridge — extracted so it can be exercised
@@ -55,22 +55,61 @@ export function applyWorkStationPipelineBridge(
   store: PipelineBridgeStore
 ): boolean {
   if (!isWorkStationViewActive) return false;
-  const pipeline = store.get<string | null>(activeSessionIdAtom);
+  const pipeline = store.get(activeSessionIdAtom);
   if (remembered === pipeline) return false;
   store.set(activeSessionIdAtom, remembered);
   return true;
+}
+
+/**
+ * Keep the WorkStation invariant alive for the whole visible-session
+ * lifecycle, not only when the view or remembered selection changes.
+ *
+ * A secondary ChatView can finish unmounting after the primary session tab
+ * has already reclaimed the same pipeline. Its stale cleanup writes `null`
+ * without changing WorkStation memory. Subscribing to both sides lets the
+ * bridge repair that late write immediately while avoiding a React render for
+ * every pipeline transition.
+ */
+export function installWorkStationPipelineBridge(
+  isWorkStationViewActive: boolean,
+  store: PipelineBridgeStore
+): () => void {
+  if (!isWorkStationViewActive) return () => undefined;
+
+  const reconcile = () => {
+    applyWorkStationPipelineBridge(
+      true,
+      store.get(workstationActiveSessionIdAtom),
+      store
+    );
+  };
+
+  // Subscribe before the initial reconciliation so no write can land in the
+  // gap between reading the remembered selection and installing the guard.
+  const unsubscribeMemory = store.sub(
+    workstationActiveSessionIdAtom,
+    reconcile
+  );
+  const unsubscribePipeline = store.sub(activeSessionIdAtom, reconcile);
+  reconcile();
+
+  return () => {
+    unsubscribePipeline();
+    unsubscribeMemory();
+  };
 }
 
 export function useWorkStationPipelineBridge(
   isWorkStationViewActive: boolean
 ): void {
   const store = useStore();
-  const remembered = useAtomValue(workstationActiveSessionIdAtom);
-  useEffect(() => {
-    applyWorkStationPipelineBridge(
-      isWorkStationViewActive,
-      remembered,
-      store as unknown as PipelineBridgeStore
-    );
-  }, [isWorkStationViewActive, remembered, store]);
+  // Keep the persisted memory atom hydrated before the imperative bridge
+  // subscription mounts. This preserves the cold-start ordering guaranteed by
+  // the previous hook while pipeline-only changes stay outside React renders.
+  useAtomValue(workstationActiveSessionIdAtom);
+  useEffect(
+    () => installWorkStationPipelineBridge(isWorkStationViewActive, store),
+    [isWorkStationViewActive, store]
+  );
 }

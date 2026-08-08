@@ -175,8 +175,11 @@ const SettingsSidebar: React.FC = () => {
           searchLabel={t("common:actions.search")}
         />
       }
+      hostTopBarLeadingContent={settingsReturnItem}
+      macTopBarFollowingContent={
+        <div className="shrink-0 px-3">{settingsReturnItem}</div>
+      }
     >
-      <div className="shrink-0 px-3">{settingsReturnItem}</div>
       <SettingsRootBody devModeEnabled={devModeEnabled} />
       <SidebarBottomBar
         rightActions={

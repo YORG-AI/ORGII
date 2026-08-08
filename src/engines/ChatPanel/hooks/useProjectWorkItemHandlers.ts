@@ -98,6 +98,13 @@ export function useProjectWorkItemHandlers({
     [sessionCreatorAvailable, setShowWorkItemAgentCreator]
   );
 
+  const handleProjectAgentCreatorToggle = useCallback(
+    (enabled: boolean) => {
+      setShowProjectAgentCreator(sessionCreatorAvailable && enabled);
+    },
+    [sessionCreatorAvailable, setShowProjectAgentCreator]
+  );
+
   const handleChatPanelWorkItemCreated = useCallback(
     (result?: CreatedWorkItemResult) => {
       if (!result) return;
@@ -168,6 +175,7 @@ export function useProjectWorkItemHandlers({
     handleCancelWorkItemCreate,
     handleChatPanelProjectCreated,
     handleChatPanelWorkItemCreated,
+    handleProjectAgentCreatorToggle,
     handleWorkItemAgentCreatorToggle,
   };
 }

@@ -16,6 +16,10 @@ import type { useRenameSessionModal } from "@src/scaffold/NavigationSidebar/conn
 import type { Session } from "@src/store/session";
 
 interface SidebarDialogsProps {
+  /** Org-channel dialogs (create/settings/archive/delete/members) — mounted once. */
+  cloudChannelsDialogs: React.ReactNode;
+  /** Local-channel dialogs (create/settings/archive/delete) — mounted once. */
+  localChannelsDialogs: React.ReactNode;
   cloudMemberFilterDropdown: React.ReactNode;
   cloudShare: ReturnType<typeof useCloudSessionShareDialog>;
   cloudSyncLevel: ReturnType<typeof useCloudSyncLevelDialog>;
@@ -25,6 +29,8 @@ interface SidebarDialogsProps {
 }
 
 export const SidebarDialogs: React.FC<SidebarDialogsProps> = ({
+  cloudChannelsDialogs,
+  localChannelsDialogs,
   cloudMemberFilterDropdown,
   cloudShare,
   cloudSyncLevel,
@@ -63,6 +69,8 @@ export const SidebarDialogs: React.FC<SidebarDialogsProps> = ({
       <JoinCloudOrgDialog />
       <ForkCheckoutPickerDialog />
       <ForkSessionSetupDialog />
+      {cloudChannelsDialogs}
+      {localChannelsDialogs}
       {cloudMemberFilterDropdown}
     </>
   );

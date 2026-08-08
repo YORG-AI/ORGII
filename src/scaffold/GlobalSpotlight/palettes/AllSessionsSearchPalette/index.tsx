@@ -6,7 +6,6 @@
  * action. Uses `cache_search_all_sessions`.
  */
 import { useAtomValue } from "jotai";
-import { Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -22,15 +21,23 @@ import { useDebouncedCallback } from "@src/hooks/perf";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { sessionMapAtom } from "@src/store/session/sessionAtom";
 
+import { ALL_SESSIONS_SEARCH_ICON } from "../../hooks/features/spotlightActionDefinitions.navigation";
 import type { BasePaletteProps } from "../../shared";
 import { PaletteBody, SpotlightShell } from "../../shell";
 import type { PathSegment, SpotlightItem } from "../../types";
 import { useSelectorKernel } from "../core";
+import { buildAllSessionsSearchItems } from "./allSessionsSearchItems";
+import { createLatestOnlySearchRunner } from "./latestOnlySearchRunner";
 
 // ============ PROPS ============
 
 export interface AllSessionsSearchPaletteProps extends BasePaletteProps {
   asBody?: boolean;
+}
+
+interface SearchRequest {
+  query: string;
+  generation: number;
 }
 
 // ============ COMPONENT ============
@@ -46,35 +53,88 @@ export const AllSessionsSearchPalette: React.FC<
   const [hits, setHits] = useState<CrossSessionSearchHit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const prevIsOpenRef = useRef(isOpen);
+  const searchGenerationRef = useRef(0);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const debouncedSearch = useDebouncedCallback((q: string) => {
-    if (!q.trim()) {
-      setHits([]);
-      return;
-    }
-    setIsLoading(true);
-    rpc.sessionCore.cache
-      .searchAllSessions({ query: q, limit: 30 })
-      .then((results) => setHits(results))
-      .catch(() => setHits([]))
-      .finally(() => setIsLoading(false));
-  }, 200);
+  const executeSearch = useCallback(
+    async ({ query: requestedQuery, generation }: SearchRequest) => {
+      if (searchGenerationRef.current !== generation) return;
+
+      setIsLoading(true);
+      try {
+        const results = await rpc.sessionCore.cache.searchAllSessions({
+          query: requestedQuery,
+          limit: 30,
+        });
+        if (searchGenerationRef.current === generation) {
+          setHits(results);
+        }
+      } catch {
+        if (searchGenerationRef.current === generation) {
+          setHits([]);
+        }
+      } finally {
+        if (searchGenerationRef.current === generation) {
+          setIsLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  const searchRunner = useMemo(
+    () => createLatestOnlySearchRunner(executeSearch),
+    [executeSearch]
+  );
+
+  const debouncedSearch = useDebouncedCallback(
+    (q: string, generation: number) => {
+      if (searchGenerationRef.current !== generation) return;
+
+      if (!q.trim()) {
+        searchRunner.clearPending();
+        setHits([]);
+        setIsLoading(false);
+        return;
+      }
+      void searchRunner.submit({ query: q, generation });
+    },
+    200
+  );
+
+  useEffect(
+    () => () => {
+      searchGenerationRef.current += 1;
+      searchRunner.dispose();
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+        resetTimerRef.current = null;
+      }
+    },
+    [searchRunner]
+  );
 
   // Reset state when palette closes. Using a ref comparison avoids calling
   // setState synchronously inside an effect body (react-hooks/set-state-in-effect).
   useEffect(() => {
     if (prevIsOpenRef.current && !isOpen) {
+      searchGenerationRef.current += 1;
       debouncedSearch.cancel();
-      setTimeout(() => {
+      searchRunner.clearPending();
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = setTimeout(() => {
+        resetTimerRef.current = null;
         setQuery("");
         setHits([]);
+        setIsLoading(false);
       }, 0);
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, debouncedSearch]);
+  }, [isOpen, debouncedSearch, searchRunner]);
 
   useEffect(() => {
-    debouncedSearch(query);
+    searchGenerationRef.current += 1;
+    debouncedSearch(query, searchGenerationRef.current);
   }, [query, debouncedSearch]);
 
   const handleGoBack = useCallback(() => {
@@ -95,17 +155,11 @@ export const AllSessionsSearchPalette: React.FC<
 
   const items = useMemo<SpotlightItem[]>(
     () =>
-      hits.map((hit) => {
-        const session = sessionMap.get(hit.sessionId);
-        const sessionName = session?.name ?? t("chat.session", "Session");
-        const cleanSnippet = hit.snippet.replace(/<\/?mark>/g, "");
-        return {
-          id: hit.sessionId,
-          label: sessionName,
-          description: cleanSnippet,
-          action: () =>
-            handleNavigate(hit.sessionId, sessionName, session?.repoPath ?? ""),
-        };
+      buildAllSessionsSearchItems({
+        hits,
+        sessionMap,
+        fallbackSessionLabel: t("chat.session", "Session"),
+        onNavigate: handleNavigate,
       }),
     [handleNavigate, hits, sessionMap, t]
   );
@@ -150,7 +204,7 @@ export const AllSessionsSearchPalette: React.FC<
           "common:selectors.spotlight.actions.searchAllSessions.pillLabel",
           "Search All Sessions"
         ),
-        icon: Search,
+        icon: ALL_SESSIONS_SEARCH_ICON,
         color: "primary",
       },
     ],

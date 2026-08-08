@@ -1,3 +1,5 @@
+import { ListChevronsUpDown } from "lucide-react";
+import { isValidElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ProjectData } from "../shared/components/PropertiesPanel/types";
@@ -20,5 +22,30 @@ describe("getProjectContextMenuItems", () => {
     expect(item?.disabled).not.toBe(true);
     item?.action?.();
     expect(onDelete).toHaveBeenCalledOnce();
+  });
+
+  it("includes unlink only when the row provides a synced-source handler", () => {
+    const onUnlinkSource = vi.fn();
+    const items = getProjectContextMenuItems({
+      project,
+      t,
+      onUnlinkSource,
+    });
+    const item = items.find((candidate) => candidate.id === "unlink-source");
+
+    expect(item?.label).toBe(
+      "settings.sync.adapterPicker.detachProjectMenuLabel"
+    );
+    item?.action?.();
+    expect(onUnlinkSource).toHaveBeenCalledOnce();
+  });
+
+  it("uses the expand-properties icon for the More properties entry", () => {
+    const items = getProjectContextMenuItems({ project, t });
+    const moreProperties = items.find((item) => item.id === "more-properties");
+
+    expect(isValidElement(moreProperties?.icon)).toBe(true);
+    if (!isValidElement(moreProperties?.icon)) return;
+    expect(moreProperties.icon.type).toBe(ListChevronsUpDown);
   });
 });

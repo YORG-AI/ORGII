@@ -31,3 +31,21 @@ export function formatDuration(ms: number): string {
   }
   return `${hours}h ${remainingMinutes}m`;
 }
+
+/**
+ * Compact locale-neutral duration for tight UI slots: "8s", "1m20s",
+ * "2h05m". Rounds to the nearest second and clamps at "1s" — an estimate of
+ * "0s" reads as done while work is still visibly running.
+ */
+export function formatDurationCompact(ms: number): string {
+  const totalSeconds = Math.max(1, Math.round(ms / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (totalMinutes < 60) {
+    return seconds > 0 ? `${totalMinutes}m${seconds}s` : `${totalMinutes}m`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h${String(minutes).padStart(2, "0")}m`;
+}

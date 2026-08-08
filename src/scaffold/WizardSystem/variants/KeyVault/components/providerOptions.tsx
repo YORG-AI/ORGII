@@ -40,7 +40,7 @@ export function resolveVariantLabel(
   if (variant.mode === "api_key") {
     return t("wizard.variantApiKey", "API Key");
   }
-  return t("wizard.variantSubscription", "Subscription");
+  return variant.label;
 }
 
 function variantIconNode(

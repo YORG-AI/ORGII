@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "orgtrack/v1/envelope.schema.json",
+  "title": "Orgtrack v1 CLI response envelopes",
+  "oneOf": [
+    { "$ref": "#/definitions/successEnvelope" },
+    { "$ref": "#/definitions/errorEnvelope" }
+  ],
+  "definitions": {
+    "requestId": {
+      "type": "string",
+      "pattern": "^req_[A-Za-z0-9]+$"
+    },
+    "errorCode": {
+      "type": "string",
+      "enum": [
+        "INVALID_ARGUMENT",
+        "CONTEXT_REQUIRED",
+        "ACTOR_REQUIRED",
+        "PROJECT_MODE_REQUIRED",
+        "NOT_FOUND",
+        "ALREADY_EXISTS",
+        "REVISION_CONFLICT",
+        "IDEMPOTENCY_CONFLICT",
+        "NOT_READY",
+        "ALREADY_CLAIMED",
+        "INVALID_TRANSITION",
+        "RESULT_SCHEMA_MISMATCH",
+        "DEPENDENCY_CYCLE",
+        "SCOPE_VIOLATION",
+        "PERMISSION_DENIED",
+        "PROVIDER_UNAVAILABLE",
+        "UNSUPPORTED_CAPABILITY",
+        "STORE_UNAVAILABLE"
+      ]
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestId"],
+      "properties": {
+        "requestId": { "$ref": "#/definitions/requestId" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "nextCursor": {
+          "type": "string",
+          "description": "Present on list responses when more pages exist."
+        }
+      }
+    },
+    "successEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "ok", "data", "meta"],
+      "properties": {
+        "apiVersion": { "const": "orgtrack/v1" },
+        "ok": { "const": true },
+        "data": { "type": "object" },
+        "meta": { "$ref": "#/definitions/meta" }
+      }
+    },
+    "errorEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiVersion", "ok", "error", "meta"],
+      "properties": {
+        "apiVersion": { "const": "orgtrack/v1" },
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": { "$ref": "#/definitions/errorCode" },
+            "message": { "type": "string" },
+            "retryable": { "type": "boolean" },
+            "details": { "type": "object" }
+          }
+        },
+        "meta": { "$ref": "#/definitions/meta" }
+      }
+    }
+  }
+}

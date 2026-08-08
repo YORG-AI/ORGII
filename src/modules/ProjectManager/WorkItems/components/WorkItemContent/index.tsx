@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { type WorkItemHandoff, projectApi } from "@src/api/http/project";
 import Avatar from "@src/components/Avatar";
-import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useWorkItemImageInsert } from "@src/hooks/project";
@@ -12,17 +11,20 @@ import {
   ProjectContentEditor,
   type ProjectContentEditorRef,
 } from "@src/modules/ProjectManager/shared";
-import { IssueTimelineItems } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
+import { IssueTimelineItems } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueTimelineItems";
 import {
+  ActivityHeaderActionButton,
   ConnectedTimelineItem,
   MarkdownContent,
   TimelineCard,
   TimelineCardHeader,
   TimelineStack,
 } from "@src/modules/shared/components/ActivityTimeline";
+import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 import {
   DetailPanelContainer,
   PanelFooter,
+  ScrollTrailTarget,
   SessionTable,
   type SessionTableItem,
 } from "@src/modules/shared/layouts/blocks";
@@ -45,6 +47,7 @@ import {
   type WorkItemThreadView,
   WorkItemThreadViewAction,
 } from "../WorkItemThread";
+import GitHubIssueComposer from "./GitHubIssueComposer";
 import HistoryTab from "./HistoryTab";
 import OutputTab from "./OutputTab";
 import ThreadTodoChecklist from "./ThreadTodoChecklist";
@@ -173,6 +176,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   repoPath,
   projectSlug,
   shortId,
+  githubIssueTimeline,
+  githubIssueInteraction,
   onStartAgent,
   isStartingAgent,
   onCancelAgent,
@@ -247,13 +252,18 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   const isGitHubWorkItem =
     displayStatus === WORK_ITEM_STATUS.GITHUB_OPEN ||
     displayStatus === WORK_ITEM_STATUS.GITHUB_CLOSED;
-  const canEditDescription = Boolean(onUpdateWorkItem) && !isGitHubWorkItem;
-  const { timeline: githubTimeline, timelineLoading: githubTimelineLoading } =
-    useGitHubIssueTimeline({
-      enabled: isGitHubWorkItem,
-      repoPath,
-      shortId: shortId ?? workItem.shortId,
-    });
+  const canEditDescription = isGitHubWorkItem
+    ? Boolean(githubIssueInteraction?.canEditBody)
+    : Boolean(onUpdateWorkItem);
+  const loadedGitHubTimeline = useGitHubIssueTimeline({
+    enabled: isGitHubWorkItem && !githubIssueTimeline,
+    repoPath,
+    shortId: shortId ?? workItem.shortId,
+  });
+  const githubTimeline =
+    githubIssueTimeline?.items ?? loadedGitHubTimeline.timeline;
+  const githubTimelineLoading =
+    githubIssueTimeline?.loading ?? loadedGitHubTimeline.timelineLoading;
   const [descriptionDraftState, setDescriptionDraftState] = useState<{
     workItemId: string;
     base: string;
@@ -262,6 +272,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   const [descriptionEditWorkItemId, setDescriptionEditWorkItemId] = useState<
     string | null
   >(null);
+  const [descriptionSaveErrorWorkItemId, setDescriptionSaveErrorWorkItemId] =
+    useState<string | null>(null);
   const [threadViewSelection, setThreadViewSelection] = useState<{
     workItemId: string;
     view: WorkItemThreadView;
@@ -287,7 +299,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   );
   const isThread = presentation === "thread";
   const activeThreadView =
-    threadViewSelection.workItemId === workItem.session_id
+    !isGitHubWorkItem && threadViewSelection.workItemId === workItem.session_id
       ? threadViewSelection.view
       : "overview";
   const isEditingThreadDescription =
@@ -377,6 +389,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   ) : null;
 
   const handleDescriptionDraftChange = (markdown: string) => {
+    setDescriptionSaveErrorWorkItemId(null);
     setDescriptionDraftState((current) => {
       if (current?.workItemId === workItem.session_id) {
         return { ...current, value: markdown };
@@ -392,26 +405,45 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   const handleCancelDescription = () => {
     setDescriptionDraftState(null);
     setDescriptionEditWorkItemId(null);
+    setDescriptionSaveErrorWorkItemId(null);
   };
 
-  const handleSaveDescription = () => {
+  const handleSaveDescription = async () => {
+    if (!descriptionHasChanges) return;
+    if (isGitHubWorkItem) {
+      if (
+        !githubIssueInteraction?.canEditBody ||
+        githubIssueInteraction.updatingBody
+      ) {
+        return;
+      }
+      try {
+        await githubIssueInteraction.onUpdateBody(descriptionDraft);
+        setDescriptionDraftState(null);
+        setDescriptionEditWorkItemId(null);
+        setDescriptionSaveErrorWorkItemId(null);
+      } catch {
+        setDescriptionSaveErrorWorkItemId(workItem.session_id);
+      }
+      return;
+    }
     handleDescriptionChange(descriptionDraft);
     setDescriptionDraftState(null);
     setDescriptionEditWorkItemId(null);
+    setDescriptionSaveErrorWorkItemId(null);
   };
 
   const descriptionActions =
     isThread && canEditDescription && !isEditingThreadDescription ? (
-      <Button
-        variant="tertiary"
-        appearance="ghost"
-        size="mini"
+      <ActivityHeaderActionButton
         icon={<Pencil size={12} aria-hidden />}
-        onClick={() => setDescriptionEditWorkItemId(workItem.session_id)}
+        label={t("common:actions.edit")}
+        onClick={() => {
+          setDescriptionSaveErrorWorkItemId(null);
+          setDescriptionEditWorkItemId(workItem.session_id);
+        }}
         data-testid="work-item-description-edit"
-      >
-        {t("common:actions.edit")}
-      </Button>
+      />
     ) : null;
 
   const descriptionSection = (
@@ -420,6 +452,14 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         isLast={
           !isGitHubWorkItem ||
           (!githubTimelineLoading && githubTimeline.length === 0)
+        }
+        trailLabel={
+          isThread
+            ? workItem.name ||
+              t("common:labels.description", {
+                defaultValue: "Description",
+              })
+            : undefined
         }
       >
         <TimelineCard
@@ -435,13 +475,17 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
                   {
                     label: t("common:actions.cancel"),
                     onClick: handleCancelDescription,
+                    disabled: githubIssueInteraction?.updatingBody,
                     dataTestId: "work-item-description-cancel",
                   },
                 ]}
                 primaryAction={{
                   label: t("common:actions.save"),
-                  onClick: handleSaveDescription,
-                  disabled: !descriptionHasChanges,
+                  onClick: () => void handleSaveDescription(),
+                  disabled:
+                    !descriptionHasChanges ||
+                    githubIssueInteraction?.updatingBody,
+                  loading: githubIssueInteraction?.updatingBody,
                   dataTestId: "work-item-description-save",
                 }}
               />
@@ -492,13 +536,36 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               </span>
             </div>
           )}
-          {isGitHubWorkItem || (isThread && !isEditingThreadDescription) ? (
+          {(isGitHubWorkItem || isThread) && !isEditingThreadDescription ? (
             <MarkdownContent
               body={displayedDescription}
               emptyText="No description provided."
-              clamped={!isThread}
-              className="text-[14px] leading-6 text-text-1 [&_.chat-markdown-body]:text-[14px] [&_.chat-markdown-body]:leading-6"
+              fadeFrom="from-chat-pane"
             />
+          ) : isGitHubWorkItem ? (
+            <>
+              <RichMarkdownEditor
+                value={descriptionDraft}
+                onChange={handleDescriptionDraftChange}
+                onSubmit={() => void handleSaveDescription()}
+                placeholder={t("workItems.descriptionPlaceholder")}
+                minHeight={120}
+                maxHeight={360}
+                appearance="plain"
+                toolbarMode="inline"
+                toolbarSize="mini"
+                toolbarDropdownPosition="top-start"
+                editable={
+                  canEditDescription && !githubIssueInteraction?.updatingBody
+                }
+                dataTestId="github-issue-description-editor"
+              />
+              {descriptionSaveErrorWorkItemId === workItem.session_id ? (
+                <p className="px-3 pb-2 text-xs text-danger-6" role="status">
+                  {t("common:git.issues.composer.bodyUpdateFailed")}
+                </p>
+              ) : null}
+            </>
           ) : (
             <ProjectContentEditor
               key={workItem.session_id}
@@ -514,8 +581,6 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               editable={canEditDescription}
               descriptionMinHeight={isThread ? 120 : 200}
               descriptionMaxHeight={isThread ? 360 : 600}
-              descriptionDefaultMode={isThread ? "raw" : undefined}
-              descriptionShowTabs={!isThread}
               descriptionClassName="no-bottom-border"
               repoPath={repoPath}
               className="w-full"
@@ -528,6 +593,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         <IssueTimelineItems
           timeline={githubTimeline}
           timelineLoading={githubTimelineLoading}
+          navigationEnabled={isThread}
         />
       ) : null}
     </TimelineStack>
@@ -657,35 +723,68 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
   const threadLowerSection = (
     <>
-      {sectionPolicy.showInlineWorkflow ? agentWorkflow : null}
-      {sectionPolicy.showInlineOutput ? outputContent : null}
+      {sectionPolicy.showInlineWorkflow ? (
+        <ScrollTrailTarget
+          enabled={isThread}
+          label={t("workItems.agentWorkflow.title")}
+        >
+          {agentWorkflow}
+        </ScrollTrailTarget>
+      ) : null}
+      {sectionPolicy.showInlineOutput ? (
+        <ScrollTrailTarget
+          enabled={isThread}
+          label={t("common:labels.output", { defaultValue: "Output" })}
+        >
+          {outputContent}
+        </ScrollTrailTarget>
+      ) : null}
     </>
   );
 
   if (isThread) {
+    const githubIssueComposer =
+      activeThreadView === "overview" &&
+      isGitHubWorkItem &&
+      githubIssueInteraction ? (
+        <GitHubIssueComposer interaction={githubIssueInteraction} />
+      ) : undefined;
+
     return (
-      <WorkItemThreadLayout path={headerPath} properties={headerProperties}>
+      <WorkItemThreadLayout
+        path={headerPath}
+        properties={headerProperties}
+        floatingFooter={githubIssueComposer}
+      >
         {activeThreadView === "overview" ? (
           <>
             {handoffNotice}
             {descriptionSection}
-            {todosSection}
+            <ScrollTrailTarget label={t("workItems.todos.title")}>
+              {todosSection}
+            </ScrollTrailTarget>
             {threadLowerSection}
-            <nav
-              className="flex min-h-8 items-center justify-end"
-              aria-label={t("workItems.activity.discussionTitle")}
-              data-testid="work-item-thread-secondary-navigation"
-            >
-              <WorkItemThreadViewAction
-                activeView="overview"
-                onChange={(view) =>
-                  setThreadViewSelection({
-                    workItemId: workItem.session_id,
-                    view,
-                  })
-                }
-              />
-            </nav>
+            {!isGitHubWorkItem || !githubIssueInteraction ? (
+              <ScrollTrailTarget
+                label={t("workItems.activity.discussionTitle")}
+              >
+                <nav
+                  className="flex min-h-8 items-center justify-end"
+                  aria-label={t("workItems.activity.discussionTitle")}
+                  data-testid="work-item-thread-secondary-navigation"
+                >
+                  <WorkItemThreadViewAction
+                    activeView="overview"
+                    onChange={(view) =>
+                      setThreadViewSelection({
+                        workItemId: workItem.session_id,
+                        view,
+                      })
+                    }
+                  />
+                </nav>
+              </ScrollTrailTarget>
+            ) : null}
           </>
         ) : (
           historyContent

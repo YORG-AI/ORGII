@@ -877,6 +877,7 @@
     "multipleChoice": "다중 선택",
     "typeYourAnswer": "답변을 입력하세요…",
     "newSession": "새 세션",
+    "muteNotifications": "알림 음소거",
     "startPage": {
       "title": "무엇을 할까요?",
       "back": "시작 페이지로 돌아가기",
@@ -1198,6 +1199,9 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "모든 상태",
+        "closeAsCompleted": "완료로 닫기",
+        "closeAsNotPlanned": "계획되지 않음으로 닫기",
+        "statusUpdateFailed": "GitHub 상태를 업데이트하지 못했습니다",
         "assignedToMe": "나에게 할당됨",
         "createdByMe": "내가 생성함",
         "filters": "Filters",

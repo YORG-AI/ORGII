@@ -36,6 +36,7 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import {
   DEFAULT_INVITE_EXPIRY_DAYS,
   PANEL_INVITE_USAGE_LIMIT,
@@ -109,9 +110,14 @@ function CloudMemberLabel({
 interface CloudInvitesCardProps {
   t: TFunction<"navigation">;
   management: CloudOrgManagement;
+  interactionDisabled?: boolean;
 }
 
-export function CloudInvitesCard({ t, management }: CloudInvitesCardProps) {
+export function CloudInvitesCard({
+  t,
+  management,
+  interactionDisabled = false,
+}: CloudInvitesCardProps) {
   const {
     invites,
     inviteListError,
@@ -173,10 +179,12 @@ export function CloudInvitesCard({ t, management }: CloudInvitesCardProps) {
   // interaction). Revoking an invite is low-stakes — a new one is one click
   // away — so the loading state on the button is confirmation enough.
   const handleRevoke = (invite: CloudInviteRecord) => {
+    if (interactionDisabled) return;
     void handleRevokeInvite(invite);
   };
 
   const handleCreate = () => {
+    if (interactionDisabled) return;
     const options: CreateCloudInviteOptions = {
       usageLimit,
       expiresInDays: expiresInDays === 0 ? null : expiresInDays,
@@ -197,6 +205,7 @@ export function CloudInvitesCard({ t, management }: CloudInvitesCardProps) {
               value={usageLimit}
               options={usageOptions}
               style={SECTION_CONTROL_STYLE}
+              disabled={interactionDisabled}
               dataTestId="cloud-org-invite-usage-select"
               onChange={(value) => setUsageLimit(Number(value))}
             />
@@ -207,6 +216,7 @@ export function CloudInvitesCard({ t, management }: CloudInvitesCardProps) {
               value={expiresInDays}
               options={expiryOptions}
               style={SECTION_CONTROL_STYLE}
+              disabled={interactionDisabled}
               dataTestId="cloud-org-invite-expiry-select"
               onChange={(value) => setExpiresInDays(Number(value))}
             />
@@ -217,6 +227,7 @@ export function CloudInvitesCard({ t, management }: CloudInvitesCardProps) {
               value={role}
               options={roleOptions}
               style={SECTION_CONTROL_STYLE}
+              disabled={interactionDisabled}
               dataTestId="cloud-org-invite-role-select"
               onChange={(value) => {
                 if (isCloudAssignableRole(value)) setRole(value);
@@ -230,8 +241,9 @@ export function CloudInvitesCard({ t, management }: CloudInvitesCardProps) {
                 htmlType="button"
                 size="default"
                 variant="primary"
-                disabled={creatingInvite}
+                disabled={interactionDisabled || creatingInvite}
                 loading={creatingInvite}
+                data-guide-target={GUIDE_TARGETS.CLOUD_ORG_INVITE_ACTION}
                 data-testid="cloud-org-create-invite"
                 onClick={handleCreate}
               >
@@ -362,6 +374,7 @@ interface CloudMembersSectionProps {
   management: CloudOrgManagement;
   /** Org-wide sharing floor; composed into the per-member override display. */
   orgFloor: CollabSessionAccessMode;
+  interactionDisabled?: boolean;
 }
 
 export function CloudMembersSection({
@@ -370,6 +383,7 @@ export function CloudMembersSection({
   currentUserId,
   management,
   orgFloor,
+  interactionDisabled = false,
 }: CloudMembersSectionProps) {
   const {
     isAdmin,
@@ -441,6 +455,7 @@ export function CloudMembersSection({
     member: CloudOrgMember,
     role: CloudAssignableRole
   ) => {
+    if (interactionDisabled) return;
     if (role === member.role) return;
     const confirmed = await confirmDestructiveAction({
       title: t("cloud.orgManagement.members.roleChangeTitle"),
@@ -456,6 +471,7 @@ export function CloudMembersSection({
   };
 
   const handleRemove = async (member: CloudOrgMember) => {
+    if (interactionDisabled) return;
     const confirmed = await confirmDestructiveAction({
       title: t("cloud.orgManagement.members.removeTitle"),
       message: t("cloud.orgManagement.members.removeConfirm", {
@@ -466,6 +482,14 @@ export function CloudMembersSection({
     });
     if (!confirmed) return;
     void handleRemoveMember(member);
+  };
+
+  const handleFloorChange = (
+    member: CloudOrgMember,
+    value: CollabSessionAccessMode
+  ) => {
+    if (interactionDisabled) return;
+    void handleUpdateMemberFloor(member, value);
   };
 
   const activeMembers = members.filter((member) => member.status === "active");
@@ -494,7 +518,9 @@ export function CloudMembersSection({
                     size="default"
                     variant="danger"
                     appearance="outline"
-                    disabled={leavingOrg || confirmingLeave}
+                    disabled={
+                      interactionDisabled || leavingOrg || confirmingLeave
+                    }
                     data-testid="cloud-org-leave"
                     onClick={() => setConfirmingLeave(true)}
                   >
@@ -514,7 +540,7 @@ export function CloudMembersSection({
                     htmlType="button"
                     size="default"
                     variant="danger"
-                    disabled={leavingOrg}
+                    disabled={interactionDisabled || leavingOrg}
                     loading={leavingOrg}
                     data-testid="cloud-org-leave-confirm"
                     onClick={() => void handleLeaveOrg()}
@@ -525,7 +551,7 @@ export function CloudMembersSection({
                     htmlType="button"
                     size="default"
                     variant="secondary"
-                    disabled={leavingOrg}
+                    disabled={interactionDisabled || leavingOrg}
                     onClick={() => setConfirmingLeave(false)}
                   >
                     {t("cloud.orgManagement.leave.cancel")}
@@ -593,12 +619,14 @@ export function CloudMembersSection({
                               options={memberFloorOptions}
                               style={MEMBER_ROLE_CONTROL_STYLE}
                               disabled={
-                                targetIsOwner || Boolean(updatingFloorUserId)
+                                interactionDisabled ||
+                                targetIsOwner ||
+                                Boolean(updatingFloorUserId)
                               }
                               loading={updatingFloorUserId === member.userId}
                               dataTestId={`cloud-org-member-floor-${member.userId}`}
                               onChange={(value) =>
-                                void handleUpdateMemberFloor(
+                                handleFloorChange(
                                   member,
                                   value as CollabSessionAccessMode
                                 )
@@ -611,7 +639,9 @@ export function CloudMembersSection({
                             options={roleOptions}
                             style={MEMBER_ROLE_CONTROL_STYLE}
                             disabled={
-                              targetIsOwner || Boolean(updatingRoleUserId)
+                              interactionDisabled ||
+                              targetIsOwner ||
+                              Boolean(updatingRoleUserId)
                             }
                             loading={updatingRoleUserId === member.userId}
                             dataTestId={`cloud-org-member-role-${member.userId}`}
@@ -625,7 +655,11 @@ export function CloudMembersSection({
                             htmlType="button"
                             size="default"
                             variant="secondary"
-                            disabled={targetIsOwner || Boolean(removingUserId)}
+                            disabled={
+                              interactionDisabled ||
+                              targetIsOwner ||
+                              Boolean(removingUserId)
+                            }
                             loading={removingUserId === member.userId}
                             data-testid={`cloud-org-member-remove-${member.userId}`}
                             onClick={() => void handleRemove(member)}

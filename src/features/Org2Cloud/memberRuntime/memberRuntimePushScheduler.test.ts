@@ -23,6 +23,10 @@ import type { Org2CloudAuthState } from "../org2CloudAuthAtom";
 import { org2CloudAuthAtom } from "../org2CloudAuthAtom";
 import type { CloudCapabilitiesProbeResult } from "../org2CloudCapabilities";
 import { type Org2CloudOrg, org2CloudOrgsAtom } from "../org2CloudOrgsAtom";
+import {
+  getSyncJournalSnapshot,
+  resetSyncJournalForTests,
+} from "../org2CloudSyncJournal";
 import { MemberRuntimeError } from "./memberRuntimeClient";
 import {
   UTC_DAY_MS,
@@ -35,6 +39,7 @@ import {
   type MemberRuntimeSchedulerDeps,
 } from "./memberRuntimePushScheduler";
 import {
+  MEMBER_STATUS_MAX_BYTES,
   MEMBER_USAGE_DAYS_MAX_PER_PUSH,
   SHARE_RUNTIME_SETTING_KEY,
 } from "./types";
@@ -94,6 +99,11 @@ const CONFIRMED_MEMBER_RUNTIME_TRUE: CloudCapabilitiesProbeResult = {
     homeEndpoints: false,
     teamInboxMentions: false,
     memberRuntime: true,
+    sessionTurnIndex: false,
+    offlineSync: false,
+    orgChannels: false,
+    orgChannelMessages: false,
+    orgChannelMessagesIdempotency: false,
   },
   confirmed: true,
 };
@@ -140,6 +150,32 @@ function makeRollupDays(count: number): DailyRollupResult["days"] {
   }));
 }
 
+function makeRecentUsage24h(
+  overrides: Partial<DailyRollupResult["recentUsage24h"]> = {}
+): DailyRollupResult["recentUsage24h"] {
+  return {
+    startMs: NOW - UTC_DAY_MS,
+    endMs: NOW,
+    summary: {
+      sessionCount: 0,
+      requestCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      realTotalTokens: 0,
+      totalTokens: 0,
+      costUsd: 0,
+      estimatedCostUsd: 0,
+      recordedCostUsd: 0,
+      cacheHitRate: 0,
+      byBucket: [],
+    },
+    trends: [],
+    ...overrides,
+  };
+}
+
 function makeDeps(
   overrides: Partial<MemberRuntimeSchedulerDeps> = {}
 ): MemberRuntimeSchedulerDeps {
@@ -162,7 +198,11 @@ function makeDeps(
       sampledOverMs: 1000,
       sampledAtMs: NOW,
     }),
-    getDailyRollup: vi.fn().mockResolvedValue({ days: [], totalSessions: 0 }),
+    getDailyRollup: vi.fn().mockResolvedValue({
+      days: [],
+      totalSessions: 0,
+      recentUsage24h: makeRecentUsage24h(),
+    }),
     getProfileOverview: vi.fn().mockResolvedValue(makeProfileOverview()),
     detectInstalledAgents: vi.fn().mockResolvedValue([]),
     upsert: vi.fn().mockResolvedValue(undefined),
@@ -207,7 +247,11 @@ interface SchedulerTestAccess {
   capabilityRecheckAtMs: number;
   capabilityUnconfirmedFailures: number;
   runPass: (generation: number) => Promise<void>;
-  noteOrgFailure: (org: Org2CloudOrg, error: unknown) => void;
+  noteOrgFailure: (
+    org: Org2CloudOrg,
+    auth: Org2CloudAuthState,
+    error: unknown
+  ) => void;
   pushOrg: (
     accessToken: string,
     identityKey: string,
@@ -222,6 +266,7 @@ function asPrivate(scheduler: MemberRuntimePushScheduler): SchedulerTestAccess {
 
 beforeEach(() => {
   localStorage.clear();
+  resetSyncJournalForTests();
   mocks.logWarn.mockClear();
 });
 
@@ -312,6 +357,11 @@ describe("capability blackout: confirmed vs. unconfirmed", () => {
         homeEndpoints: false,
         teamInboxMentions: false,
         memberRuntime: false,
+        sessionTurnIndex: false,
+        offlineSync: false,
+        orgChannels: false,
+        orgChannelMessages: false,
+        orgChannelMessagesIdempotency: false,
       },
       confirmed: true,
     } satisfies CloudCapabilitiesProbeResult);
@@ -341,6 +391,11 @@ describe("capability blackout: confirmed vs. unconfirmed", () => {
         homeEndpoints: false,
         teamInboxMentions: false,
         memberRuntime: false,
+        sessionTurnIndex: false,
+        offlineSync: false,
+        orgChannels: false,
+        orgChannelMessages: false,
+        orgChannelMessagesIdempotency: false,
       },
       confirmed: false,
     } satisfies CloudCapabilitiesProbeResult);
@@ -383,6 +438,11 @@ describe("capability blackout: confirmed vs. unconfirmed", () => {
           homeEndpoints: false,
           teamInboxMentions: false,
           memberRuntime: false,
+          sessionTurnIndex: false,
+          offlineSync: false,
+          orgChannels: false,
+          orgChannelMessages: false,
+          orgChannelMessagesIdempotency: false,
         },
         confirmed: false,
       } satisfies CloudCapabilitiesProbeResult)
@@ -404,6 +464,64 @@ describe("capability blackout: confirmed vs. unconfirmed", () => {
   });
 });
 
+describe("failure diagnostics", () => {
+  it("identifies the member at the scheduler boundary by display name and stable user id", async () => {
+    const clock = makeControllableClock(NOW);
+    const auth: Org2CloudAuthState = {
+      ...AUTH,
+      profile: {
+        displayName: "Ada Lovelace",
+        primaryEmail: "ada@example.test",
+      },
+    };
+    const deps = makeDeps({
+      now: clock.now,
+      upsert: vi
+        .fn()
+        .mockRejectedValue(new Error("Cloud request timed out after 15000ms.")),
+    });
+    const store = makeStore([makeOrg()]);
+    store.set(org2CloudAuthAtom, auth);
+    const scheduler = asPrivate(new MemberRuntimePushScheduler(deps));
+
+    scheduler.start(store);
+    clock.advanceBy(30_000);
+    await scheduler.runPass(scheduler.generation);
+
+    expect(getSyncJournalSnapshot()[0]).toMatchObject({
+      member: { userId: "user-1", displayName: "Ada Lovelace" },
+      message:
+        "Member runtime push failed; retrying in 300s: Cloud request timed out after 15000ms.",
+    });
+    expect(mocks.logWarn.mock.calls[0]?.[0]).toContain(
+      "member runtime push failed for Ada Lovelace (user-1) in org org-1"
+    );
+  });
+
+  it("falls back to the stable user id without exposing a profile email", () => {
+    const scheduler = asPrivate(new MemberRuntimePushScheduler(makeDeps()));
+    const authWithoutDisplayName: Org2CloudAuthState = {
+      ...AUTH,
+      profile: { primaryEmail: "private@example.test" },
+    };
+
+    scheduler.noteOrgFailure(
+      makeOrg(),
+      authWithoutDisplayName,
+      new Error("Cloud request timed out after 15000ms.")
+    );
+
+    expect(getSyncJournalSnapshot()[0]).toMatchObject({
+      member: { userId: "user-1" },
+      message:
+        "Member runtime push failed; retrying in 300s: Cloud request timed out after 15000ms.",
+    });
+    expect(mocks.logWarn.mock.calls[0]?.[0]).not.toContain(
+      "private@example.test"
+    );
+  });
+});
+
 describe("ORG2_RUNTIME_TOO_LARGE mitigation", () => {
   it("halves the org's usage-days cap on each TOO_LARGE failure, floored at 1", () => {
     // Guard against silent drift of the constant this test's expectations
@@ -418,7 +536,7 @@ describe("ORG2_RUNTIME_TOO_LARGE mitigation", () => {
 
     const expectedCaps = [20, 10, 5, 2, 1, 1];
     for (const expectedCap of expectedCaps) {
-      scheduler.noteOrgFailure(org, tooLarge);
+      scheduler.noteOrgFailure(org, AUTH, tooLarge);
       expect(scheduler.usageDaysCapByOrg.get("org-1")).toBe(expectedCap);
     }
   });
@@ -438,17 +556,19 @@ describe("ORG2_RUNTIME_TOO_LARGE mitigation", () => {
 
     // Five failures walk the cap 40 -> 20 -> 10 -> 5 -> 2 -> 1; none of
     // these should touch the optional-sections drop yet.
-    for (let i = 0; i < 5; i += 1) scheduler.noteOrgFailure(org, tooLarge);
+    for (let i = 0; i < 5; i += 1) {
+      scheduler.noteOrgFailure(org, AUTH, tooLarge);
+    }
     expect(scheduler.dropOptionalSectionsByOrg.has("org-1")).toBe(false);
     expect(dropWarnings()).toHaveLength(0);
 
     // Sixth failure: already at the floor (1) and still too large.
-    scheduler.noteOrgFailure(org, tooLarge);
+    scheduler.noteOrgFailure(org, AUTH, tooLarge);
     expect(scheduler.dropOptionalSectionsByOrg.has("org-1")).toBe(true);
     expect(dropWarnings()).toHaveLength(1);
 
     // A further failure at the floor must not log the transition again.
-    scheduler.noteOrgFailure(org, tooLarge);
+    scheduler.noteOrgFailure(org, AUTH, tooLarge);
     expect(dropWarnings()).toHaveLength(1);
   });
 
@@ -456,9 +576,11 @@ describe("ORG2_RUNTIME_TOO_LARGE mitigation", () => {
     const upsert = vi.fn().mockResolvedValue(undefined);
     const deps = makeDeps({
       now: () => NOW,
-      getDailyRollup: vi
-        .fn()
-        .mockResolvedValue({ days: makeRollupDays(5), totalSessions: 5 }),
+      getDailyRollup: vi.fn().mockResolvedValue({
+        days: makeRollupDays(5),
+        totalSessions: 5,
+        recentUsage24h: makeRecentUsage24h(),
+      }),
       upsert,
     });
     const scheduler = asPrivate(new MemberRuntimePushScheduler(deps));
@@ -476,13 +598,127 @@ describe("ORG2_RUNTIME_TOO_LARGE mitigation", () => {
     expect(input.usageDays).toHaveLength(2);
   });
 
+  it("shares the bounded rolling-24h snapshot inside status stats", async () => {
+    const upsert = vi.fn().mockResolvedValue(undefined);
+    const trends = Array.from({ length: 25 }, (_, index) => ({
+      bucketMs: NOW - (24 - index) * 60 * 60_000,
+      inputTokens: 999_999_999,
+      outputTokens: 999_999_999,
+      cacheReadTokens: 999_999_999,
+      cacheWriteTokens: 999_999_999,
+      costUsd: 999_999.1234,
+    }));
+    const recentUsage24h = makeRecentUsage24h({
+      summary: {
+        sessionCount: 999_999,
+        requestCount: 999_999,
+        inputTokens: 999_999_999,
+        outputTokens: 999_999_999,
+        cacheReadTokens: 999_999_999,
+        cacheWriteTokens: 999_999_999,
+        realTotalTokens: 3_999_999_996,
+        totalTokens: 3_999_999_996,
+        costUsd: 999_999.1234,
+        estimatedCostUsd: 999_999.1234,
+        recordedCostUsd: 0,
+        cacheHitRate: 0.5,
+        byBucket: ["claude", "codex", "cursor", "org2", "other"].map(
+          (bucket) => ({
+            bucket,
+            sessionCount: 999_999,
+            realTotalTokens: 999_999_999,
+            costUsd: 999_999.1234,
+          })
+        ),
+      },
+      trends,
+    });
+    const deps = makeDeps({
+      now: () => NOW,
+      getDailyRollup: vi.fn().mockResolvedValue({
+        days: [],
+        totalSessions: 42,
+        recentUsage24h,
+      }),
+      upsert,
+    });
+    const scheduler = asPrivate(new MemberRuntimePushScheduler(deps));
+
+    await scheduler.pushOrg(
+      "token-1",
+      "identity-recent-usage",
+      makeOrg(),
+      async () => null
+    );
+
+    const input = upsert.mock.calls[0][2] as {
+      status?: { stats?: unknown };
+    };
+    expect(input.status?.stats).toEqual({
+      totalSessions: 42,
+      recentUsage24h,
+    });
+    expect(
+      new TextEncoder().encode(JSON.stringify(input.status)).byteLength
+    ).toBeLessThan(MEMBER_STATUS_MAX_BYTES);
+  });
+
+  it("drops only the additive snapshot when status would approach the server cap", async () => {
+    const upsert = vi.fn().mockResolvedValue(undefined);
+    const recentUsage24h = makeRecentUsage24h({
+      trends: Array.from({ length: 25 }, (_, index) => ({
+        bucketMs: NOW - index * 60 * 60_000,
+        inputTokens: 10,
+        outputTokens: 10,
+        cacheReadTokens: 10,
+        cacheWriteTokens: 10,
+        costUsd: 1,
+      })),
+    });
+    const deps = makeDeps({
+      now: () => NOW,
+      getMachine: vi.fn().mockResolvedValue({
+        deviceId: "device-1",
+        machineLabel: "x".repeat(5_000),
+        osName: "macOS",
+        osVersion: "15.0",
+        chipType: "Apple M3",
+        appVersion: "1.0.0",
+      }),
+      getDailyRollup: vi.fn().mockResolvedValue({
+        days: [],
+        totalSessions: 42,
+        recentUsage24h,
+      }),
+      upsert,
+    });
+    const scheduler = asPrivate(new MemberRuntimePushScheduler(deps));
+
+    await scheduler.pushOrg(
+      "token-1",
+      "identity-large-status",
+      makeOrg(),
+      async () => null
+    );
+
+    const status = upsert.mock.calls[0][2].status as {
+      stats?: { totalSessions: number; recentUsage24h?: unknown };
+    };
+    expect(status.stats).toEqual({ totalSessions: 42 });
+    expect(
+      new TextEncoder().encode(JSON.stringify(status)).byteLength
+    ).toBeLessThan(MEMBER_STATUS_MAX_BYTES);
+  });
+
   it("pushOrg drops profile/installed-agents once flagged, even though both changed", async () => {
     const upsert = vi.fn().mockResolvedValue(undefined);
     const deps = makeDeps({
       now: () => NOW,
-      getDailyRollup: vi
-        .fn()
-        .mockResolvedValue({ days: makeRollupDays(1), totalSessions: 1 }),
+      getDailyRollup: vi.fn().mockResolvedValue({
+        days: makeRollupDays(1),
+        totalSessions: 1,
+        recentUsage24h: makeRecentUsage24h(),
+      }),
       getProfileOverview: vi
         .fn()
         .mockResolvedValue(makeProfileOverview({ code: "EAWH", sessions: 10 })),

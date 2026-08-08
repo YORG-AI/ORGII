@@ -12,7 +12,7 @@ use database::db::get_projects_connection;
 /// handles concurrent access cheaply, and SQLite's connection cost is
 /// dominated by the file-open syscall — negligible for an interactive
 /// app.
-pub(super) fn conn() -> Result<rusqlite::Connection, String> {
+pub(crate) fn conn() -> Result<rusqlite::Connection, String> {
     let connection = get_projects_connection().map_err(|err| format!("DB error: {}", err))?;
     #[cfg(test)]
     crate::projects::schema::init_project_tables(&connection)
@@ -24,7 +24,7 @@ pub(super) fn conn() -> Result<rusqlite::Connection, String> {
 /// `updated_at` columns, which are stored as integers (the legacy file
 /// layer used ISO-8601 strings; the wire types continue to expose
 /// strings via `to_iso8601`).
-pub(super) fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|dur| dur.as_millis() as i64)

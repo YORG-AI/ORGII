@@ -29,6 +29,8 @@ export interface LaunchButtonProps {
   onClick: () => void;
   /** Accessible action name when the icon-only button performs a custom submit. */
   ariaLabel?: string;
+  /** Optional stable selector for host-specific submit actions. */
+  dataTestId?: string;
 }
 
 // ============================================
@@ -51,6 +53,7 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
   loading,
   onClick,
   ariaLabel: customAriaLabel,
+  dataTestId = "chat-send-button",
 }) => {
   const { t } = useTranslation();
   const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
@@ -75,7 +78,7 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
       onClick={disabled ? undefined : onClick}
       disabled={disabled && !loading}
       aria-label={ariaLabel}
-      data-testid="chat-send-button"
+      data-testid={dataTestId}
       data-state={loading ? "working" : "submit"}
     >
       {loading ? (

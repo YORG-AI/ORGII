@@ -11,6 +11,11 @@
       "mentions": "Được nhắc đến",
       "assigned": "Được giao"
     },
+    "sections": {
+      "reviewRequested": "Yêu cầu đánh giá",
+      "authoredByMe": "Do tôi tạo",
+      "otherTodos": "Việc cần làm khác"
+    },
     "status": {
       "read": "Đã đọc",
       "unread": "Chưa đọc"
@@ -33,10 +38,10 @@
       "title": "Chưa có gì ở đây",
       "subtitle": "Các lượt nhắc đến và mục công việc được giao sẽ xuất hiện ở đây.",
       "selectTitle": "Chọn một mục",
-      "selectSubtitle": "Xem ngữ cảnh bình luận hoặc chi tiết mục công việc.",
+      "selectSubtitle": "Xem ngữ cảnh bình luận hoặc chi tiết mục công việc",
       "mentions": {
         "title": "Không có lượt nhắc đến nào",
-        "subtitle": "Khi đồng đội nhắc đến bạn bằng @ trong bình luận, mục đó sẽ xuất hiện ở đây."
+        "subtitle": "Khi đồng đội nhắc đến bạn bằng @ trong bình luận, mục đó sẽ xuất hiện ở đây"
       },
       "assigned": {
         "title": "Không có gì được giao cho bạn",
@@ -110,7 +115,9 @@
       "markUnread": "Không thể đánh dấu mục này là chưa đọc. Hãy thử lại.",
       "markAllRead": "Không thể đánh dấu tất cả mục là đã đọc. Hãy thử lại.",
       "identity": "Không thể khớp tài khoản của bạn với thành viên dự án. Hãy kiểm tra email trong hồ sơ dự án của bạn.",
-      "partialLoad": "Một số nguồn của hộp thư nhóm không thể làm mới. Các mục khả dụng vẫn được hiển thị.",
+      "partialLoad": "Một số nguồn của hộp thư nhóm không thể làm mới. Các mục khả dụng vẫn được hiển thị",
+      "pullRequestsPartialLoad": "Không thể làm mới một số pull request",
+      "pullRequestsPartialLoadHelp": "Các mục khả dụng vẫn được hiển thị; hãy làm mới để thử tải lại các pull request còn thiếu",
       "workItemContext": "Một phần ngữ cảnh dự án không khả dụng. Mục công việc vẫn có thể sử dụng được.",
       "workItemLoad": "Không thể tải mục công việc này. Hãy thử lại.",
       "workItemUpdate": "Không thể lưu thay đổi mới nhất của mục công việc. Hãy thử lại."
@@ -153,6 +160,50 @@
       "medium": "Trung bình",
       "high": "Cao",
       "urgent": "Khẩn cấp"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Tệp",
+      "edit": "Chỉnh sửa",
+      "view": "Xem",
+      "window": "Cửa sổ",
+      "help": "Trợ giúp",
+      "aria": "Trình đơn {{label}}"
+    },
+    "items": {
+      "quitOrg2": "Thoát ORG-2",
+      "newSession": "Phiên mới",
+      "openFolder": "Mở thư mục...",
+      "addFolderToWorkspace": "Thêm thư mục vào không gian làm việc...",
+      "saveWorkspaceAs": "Lưu không gian làm việc thành...",
+      "closeWindow": "Đóng cửa sổ",
+      "undo": "Hoàn tác",
+      "redo": "Làm lại",
+      "cut": "Cắt",
+      "copy": "Sao chép",
+      "paste": "Dán",
+      "selectAll": "Chọn tất cả",
+      "commandPalette": "Bảng lệnh",
+      "goToFile": "Đi tới tệp...",
+      "selectModel": "Chọn mô hình...",
+      "switchWorkspace": "Chuyển không gian làm việc...",
+      "switchBranch": "Chuyển nhánh...",
+      "switchRunningLocation": "Chuyển vị trí chạy...",
+      "settings": "Cài đặt...",
+      "zoomIn": "Phóng to",
+      "zoomOut": "Thu nhỏ",
+      "actualSize": "Kích thước thực",
+      "minimize": "Thu nhỏ",
+      "maximizeRestore": "Phóng to / Khôi phục",
+      "maximizeWorkstation": "Phóng to trạm làm việc",
+      "documentation": "Tài liệu",
+      "reportIssue": "Báo cáo sự cố"
+    },
+    "controls": {
+      "minimizeWindow": "Thu nhỏ cửa sổ",
+      "maximizeRestoreWindow": "Phóng to hoặc khôi phục cửa sổ",
+      "closeWindow": "Đóng cửa sổ"
     }
   },
   "toasts": {
@@ -366,7 +417,8 @@
     "skipThisVersion": "Bỏ qua phiên bản này",
     "later": "Để sau",
     "link": "Liên kết",
-    "copyName": "Sao chép tên"
+    "copyName": "Sao chép tên",
+    "switchMethod": "Đổi phương thức"
   },
   "refreshToast": {
     "successName": "Đã làm mới {{name}}",
@@ -1357,8 +1409,59 @@
       "collapse": "Thu gọn thông tin không gian làm việc"
     },
     "pr": {
+      "title": "Pull request",
       "linkedBranch": "Pull request #{{number}}",
+      "baseBranch": "Nhánh gốc",
+      "noDescription": "Không có mô tả.",
+      "loadingConversation": "Đang tải…",
+      "reviewNoBody": "Đã để lại nhận xét đánh giá.",
+      "submitReview": "Gửi bản xem xét",
+      "reviewHeadNotice": "Bản xem xét chỉ được áp dụng nếu commit đầu được hiển thị vẫn khớp.",
+      "reviewDecision": "Quyết định xem xét",
+      "reviewComment": "Nhận xét xem xét",
+      "reviewCommentPlaceholder": "Thêm nhận xét…",
+      "commentPlaceholder": "Để lại bình luận…",
+      "comment": "Bình luận",
+      "approve": "Phê duyệt",
+      "requestChanges": "Yêu cầu thay đổi",
+      "reply": "Trả lời",
+      "replyPlaceholder": "Trả lời…",
+      "reviewThreads": "Nhận xét đánh giá",
+      "details": "Chi tiết",
+      "unknownAuthor": "Không rõ",
+      "activity": {
+        "opened": "đã mở pull request này",
+        "commented": "đã bình luận",
+        "approved": "đã phê duyệt các thay đổi này",
+        "changesRequested": "đã yêu cầu thay đổi",
+        "reviewDismissed": "đã bỏ qua một đánh giá",
+        "reviewed": "đã đánh giá"
+      },
+      "summary": {
+        "label": "Tóm tắt pull request",
+        "branch": "Nhánh",
+        "reviewers": "Người đánh giá",
+        "noReviewers": "Không có người đánh giá",
+        "comments": "Bình luận",
+        "commentCount_one": "{{count}} bình luận",
+        "commentCount_other": "{{count}} bình luận",
+        "checks": "Kiểm tra",
+        "noChecks": "Không có kiểm tra CI",
+        "checksFailed": "Kiểm tra thất bại",
+        "status": "Trạng thái"
+      },
+      "tabs": {
+        "conversation": "Thảo luận",
+        "commits": "Commit",
+        "checks": "Kiểm tra",
+        "changes": "Thay đổi"
+      },
       "checks": {
+        "none": "Không có kiểm tra nào được báo cáo",
+        "noneHint": "Không có kiểm tra CI hoặc trạng thái nào chạy trên commit đầu của pull request này.",
+        "allPassed": "Tất cả kiểm tra đều đạt",
+        "someFailed": "Một số kiểm tra thất bại",
+        "pending": "Đang kiểm tra",
         "passedShort": "Đạt",
         "failedShort": "Thất bại",
         "runningShort": "Đang chạy",
@@ -1366,6 +1469,76 @@
         "noneShort": "Không có CI",
         "unavailableShort": "CI không khả dụng",
         "branchStatus": "CI của pull request #{{number}}: {{status}}"
+      },
+      "commits": {
+        "backToList": "Tất cả commit",
+        "none": "Không có commit"
+      },
+      "changes": {
+        "title": "Tệp đã thay đổi",
+        "noFiles": "Không có thay đổi tệp",
+        "tooLarge": "Tệp quá lớn để hiển thị diff",
+        "unavailable": "Không thể xem thay đổi",
+        "unavailableHint": "Không thể xác định commit gốc và commit đầu của pull request."
+      },
+      "status": {
+        "open": "Đang mở",
+        "merged": "Đã hợp nhất",
+        "closed": "Đã đóng",
+        "draft": "Bản nháp"
+      },
+      "actions": {
+        "label": "Thao tác pull request",
+        "confirmMergeTitle": "Hợp nhất pull request?",
+        "confirmMergeMessage": "GitHub sẽ hợp nhất nhánh nguồn của pull request hiện tại vào nhánh gốc.",
+        "merge": "Hợp nhất pull request",
+        "squash": "Gộp commit và hợp nhất",
+        "rebase": "Rebase và hợp nhất",
+        "mergeSuccess": "Đã hợp nhất pull request",
+        "mergeRequested": "Đã yêu cầu hợp nhất",
+        "removedFromQueue": "Đã xóa khỏi hàng đợi hợp nhất",
+        "autoMergeEnabled": "Đã bật tự động hợp nhất",
+        "autoMergeDisabled": "Đã tắt tự động hợp nhất",
+        "confirmCloseTitle": "Đóng pull request?",
+        "confirmCloseMessage": "Pull request vẫn sẽ khả dụng và có thể được mở lại sau.",
+        "close": "Đóng pull request",
+        "closeSuccess": "Đã đóng pull request",
+        "reopen": "Mở lại pull request",
+        "reopenSuccess": "Đã mở lại pull request",
+        "enableAutoMerge": "Bật tự động hợp nhất",
+        "mergeWhenReady": "Hợp nhất khi sẵn sàng",
+        "disableAutoMerge": "Tắt tự động hợp nhất",
+        "removeFromMergeQueue": "Xóa khỏi hàng đợi hợp nhất",
+        "merged": "Đã hợp nhất",
+        "closed": "Đã đóng",
+        "draft": "Bản nháp",
+        "inMergeQueue": "Trong hàng đợi hợp nhất",
+        "approvalRequired": "Cần phê duyệt",
+        "changesRequested": "Đã yêu cầu thay đổi",
+        "resolveConflicts": "Giải quyết xung đột",
+        "checksFailed": "Kiểm tra thất bại",
+        "checksPending": "Đang chờ kiểm tra",
+        "mergeBlocked": "Hợp nhất bị chặn",
+        "searchReviewers": "Tìm người đánh giá",
+        "reviewersLoadFailed": "Không thể tải người đánh giá",
+        "noReviewers": "Không có người đánh giá khả dụng",
+        "reviewersUpdated": "Đã cập nhật người đánh giá",
+        "reviewersCount_one": "{{count}} người đánh giá",
+        "reviewersCount_other": "{{count}} người đánh giá",
+        "reviewers": "Người đánh giá",
+        "tooltips": {
+          "merge": "Hợp nhất pull request này trên GitHub",
+          "alreadyMerged": "Pull request này đã được hợp nhất",
+          "reopenBeforeMerging": "Mở lại pull request này trước khi hợp nhất",
+          "markReady": "Đánh dấu pull request này là sẵn sàng để đánh giá trước khi hợp nhất",
+          "mergeQueue": "GitHub sẽ hợp nhất pull request này qua hàng đợi hợp nhất",
+          "approvalRequired": "GitHub yêu cầu phê duyệt đánh giá trước khi hợp nhất",
+          "changesRequested": "Phải giải quyết các thay đổi được yêu cầu trước khi hợp nhất",
+          "resolveConflicts": "Giải quyết xung đột trước khi hợp nhất",
+          "checksFailed": "Các kiểm tra bắt buộc phải đạt trước khi hợp nhất",
+          "checksPending": "Chờ kiểm tra bắt buộc hoặc bật tự động hợp nhất",
+          "mergeBlocked": "GitHub báo cáo các yêu cầu hợp nhất chưa được đáp ứng"
+        }
       }
     },
     "messages": {
@@ -1455,7 +1628,49 @@
         "unpinned": "đã bỏ ghim issue này",
         "transferred": "đã chuyển issue này",
         "convertedToDiscussion": "đã chuyển issue này thành cuộc thảo luận",
-        "mentioned": "đã đề cập đến issue này"
+        "mentioned": "đã đề cập đến issue này",
+        "commentDeleted": "đã xóa một bình luận",
+        "subscribed": "đã theo dõi issue này",
+        "unsubscribed": "đã ngừng theo dõi issue này",
+        "addedToProject": "đã thêm issue này vào một dự án",
+        "movedInProject": "đã di chuyển issue này trong một dự án",
+        "removedFromProject": "đã xóa issue này khỏi một dự án",
+        "archived": "đã lưu trữ issue này",
+        "unarchived": "đã bỏ lưu trữ issue này",
+        "merged": "đã hợp nhất pull request này",
+        "committed": "đã commit vào pull request này",
+        "headRefDeleted": "đã xóa nhánh nguồn",
+        "headRefRestored": "đã khôi phục nhánh nguồn",
+        "headRefForcePushed": "đã force-push nhánh nguồn",
+        "baseRefChanged": "đã thay đổi nhánh đích",
+        "automaticBaseChangeFailed": "không thể tự động thay đổi nhánh đích",
+        "automaticBaseChangeSucceeded": "đã tự động thay đổi nhánh đích",
+        "deployed": "đã triển khai pull request này",
+        "deploymentEnvironmentChanged": "đã thay đổi môi trường triển khai",
+        "readyForReview": "đã đánh dấu pull request này là sẵn sàng để review",
+        "reviewRequested": "đã yêu cầu review",
+        "reviewRequestRemoved": "đã xóa yêu cầu review",
+        "reviewed": "đã review các thay đổi này",
+        "reviewDismissed": "đã hủy một review",
+        "userBlocked": "đã chặn người dùng này"
+      },
+      "composer": {
+        "addComment": "Thêm bình luận",
+        "commentingAs": "Đang thao tác với tư cách {{login}}",
+        "identityUnavailable": "Không thể tải danh tính GitHub",
+        "commentPlaceholder": "Viết bình luận…",
+        "submitComment": "Bình luận",
+        "closeIssue": "Đóng issue",
+        "closeAsCompleted": "Đóng là đã hoàn thành",
+        "closeAsNotPlanned": "Đóng là không lên kế hoạch",
+        "closeAsDuplicate": "Đóng là trùng lặp",
+        "duplicateSearchPlaceholder": "Tìm kiếm issue",
+        "duplicateEmpty": "Không có issue phù hợp",
+        "duplicateLoadFailed": "Không thể tải issue",
+        "reopenIssue": "Mở lại issue",
+        "commentFailed": "Không thể thêm bình luận",
+        "bodyUpdateFailed": "Không thể cập nhật mô tả issue",
+        "statusFailed": "Không thể cập nhật trạng thái issue"
       }
     }
   },
@@ -2458,8 +2673,8 @@
     "selectRepoToStart": "Chọn một Repo để bắt đầu"
   },
   "quitConfirmation": {
-    "title": "Thoát ORGII?",
-    "subtitle": "Các phiên đang chạy sẽ giữ nguyên trạng thái hiện tại. Bạn có thể mở lại ORGII sau.",
+    "title": "Thoát ORG-2?",
+    "subtitle": "Các phiên đang chạy sẽ giữ nguyên trạng thái hiện tại. Bạn có thể mở lại ORG-2 sau.",
     "cancel": "Hủy",
     "confirm": "Thoát"
   },
@@ -2490,5 +2705,15 @@
     "downloadedOfTotal": "{{downloaded}} trên {{total}}",
     "preparingDownload": "Đang chuẩn bị tải xuống…",
     "downloadingAndInstalling": "Đang tải và cài đặt bản cập nhật (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Tiêu đề / ngữ cảnh",
+      "status": "Trạng thái",
+      "assignee": "Người phụ trách",
+      "updated": "Đã cập nhật"
+    },
+    "selectRow": "Chọn {{id}}"
   }
 }

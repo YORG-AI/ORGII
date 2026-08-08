@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { CloudOrgMember } from "@src/features/Org2Cloud/org2CloudClient";
 import type { CloudInviteRecord } from "@src/features/Org2Cloud/org2CloudOrgManagement";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 
 import { CloudInvitesCard, CloudMembersSection } from "./ManagementSections";
@@ -74,7 +75,8 @@ function management(
 function renderMembers(
   members: CloudOrgMember[],
   currentUserId: string,
-  overrides: Partial<CloudOrgManagement> = {}
+  overrides: Partial<CloudOrgManagement> = {},
+  interactionDisabled = false
 ): string {
   return renderToStaticMarkup(
     createElement(CloudMembersSection, {
@@ -83,6 +85,7 @@ function renderMembers(
       currentUserId,
       management: management(overrides),
       orgFloor: COLLAB_SESSION_ACCESS_MODE.OFF,
+      interactionDisabled,
     })
   );
 }
@@ -223,5 +226,106 @@ describe("CloudMembersSection layout", () => {
     expect(roleSelect).toContain("select-disabled");
     expect(roleSelect).toContain('tabindex="-1"');
     expect(removeButton).toContain("disabled");
+  });
+
+  it("disables every member mutation while a development role is simulated", () => {
+    const markup = renderMembers(
+      [
+        member("self", "Current admin", "admin"),
+        member("other", "Teammate", "member"),
+      ],
+      "self",
+      { isAdmin: true },
+      true
+    );
+
+    expect(
+      markup.match(/<button[^>]*data-testid="cloud-org-leave"[^>]*>/)?.[0]
+    ).toContain("disabled");
+    expect(
+      markup.match(
+        /<div[^>]*data-testid="cloud-org-member-floor-other"[^>]*>/
+      )?.[0]
+    ).toContain("select-disabled");
+    expect(
+      markup.match(
+        /<div[^>]*data-testid="cloud-org-member-role-other"[^>]*>/
+      )?.[0]
+    ).toContain("select-disabled");
+    expect(
+      markup.match(
+        /<button[^>]*data-testid="cloud-org-member-remove-other"[^>]*>/
+      )?.[0]
+    ).toContain("disabled");
+  });
+});
+
+describe("CloudInvitesCard guide target", () => {
+  it("anchors the invite spotlight to the create button only", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CloudInvitesCard, {
+        t,
+        management: management({
+          invites: [],
+          inviteListError: null,
+          creatingInvite: false,
+          copyingInvite: false,
+          inviteError: null,
+          revokingInviteId: null,
+          latestCreatedInvite: null,
+          handleCreateInvite: vi.fn(),
+          handleCopyInvite: vi.fn(),
+          handleRevokeInvite: vi.fn(),
+        }),
+      })
+    );
+
+    const createButton = markup.match(
+      /<button[^>]*data-testid="cloud-org-create-invite"[^>]*>/
+    )?.[0];
+
+    expect(createButton).toBeDefined();
+    expect(createButton).toContain(
+      `data-guide-target="${GUIDE_TARGETS.CLOUD_ORG_INVITE_ACTION}"`
+    );
+    expect(markup).not.toMatch(
+      /<div[^>]*data-guide-target="cloudOrg\.inviteAction"/
+    );
+  });
+
+  it("disables invite mutations while a development role is simulated", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CloudInvitesCard, {
+        t,
+        interactionDisabled: true,
+        management: management({
+          invites: [],
+          inviteListError: null,
+          creatingInvite: false,
+          copyingInvite: false,
+          inviteError: null,
+          revokingInviteId: null,
+          latestCreatedInvite: null,
+          handleCreateInvite: vi.fn(),
+          handleCopyInvite: vi.fn(),
+          handleRevokeInvite: vi.fn(),
+        }),
+      })
+    );
+
+    expect(
+      markup.match(
+        /<button[^>]*data-testid="cloud-org-create-invite"[^>]*>/
+      )?.[0]
+    ).toContain("disabled");
+    for (const testId of [
+      "cloud-org-invite-usage-select",
+      "cloud-org-invite-expiry-select",
+      "cloud-org-invite-role-select",
+    ]) {
+      expect(
+        markup.match(new RegExp(`<div[^>]*data-testid="${testId}"[^>]*>`))?.[0]
+      ).toContain("select-disabled");
+    }
   });
 });

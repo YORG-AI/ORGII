@@ -10,11 +10,11 @@
 import {
   ChevronDown,
   ChevronRight,
-  ExternalLink,
   FileCode,
   Layers,
   Loader2,
   Search,
+  SquareArrowOutUpRight,
 } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -231,7 +231,10 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                     {getRelativePath(definition.path)}
                   </div>
                 </div>
-                <ExternalLink size={10} className="mt-1 shrink-0 text-text-3" />
+                <SquareArrowOutUpRight
+                  size={10}
+                  className="mt-1 shrink-0 text-text-3"
+                />
               </div>
             </CollapsibleSection>
           )}
@@ -284,7 +287,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                           {getRelativePath(usage.path)}
                         </div>
                       </div>
-                      <ExternalLink
+                      <SquareArrowOutUpRight
                         size={10}
                         className="mt-1 shrink-0 text-text-3"
                       />
@@ -364,7 +367,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                               {getRelativePath(result.path)}
                             </div>
                           </div>
-                          <ExternalLink
+                          <SquareArrowOutUpRight
                             size={10}
                             className="shrink-0 text-text-3"
                           />

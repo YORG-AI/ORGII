@@ -1,4 +1,48 @@
-﻿{
+{
+  "windowChrome": {
+    "menus": {
+      "file": "文件",
+      "edit": "编辑",
+      "view": "查看",
+      "window": "窗口",
+      "help": "帮助",
+      "aria": "{{label}}菜单"
+    },
+    "items": {
+      "quitOrg2": "退出 ORG-2",
+      "newSession": "新建会话",
+      "openFolder": "打开文件夹...",
+      "addFolderToWorkspace": "将文件夹添加到工作区...",
+      "saveWorkspaceAs": "工作区另存为...",
+      "closeWindow": "关闭窗口",
+      "undo": "撤销",
+      "redo": "重做",
+      "cut": "剪切",
+      "copy": "复制",
+      "paste": "粘贴",
+      "selectAll": "全选",
+      "commandPalette": "命令面板",
+      "goToFile": "转到文件...",
+      "selectModel": "选择模型...",
+      "switchWorkspace": "切换工作区...",
+      "switchBranch": "切换分支...",
+      "switchRunningLocation": "切换运行位置...",
+      "settings": "设置...",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "actualSize": "实际大小",
+      "minimize": "最小化",
+      "maximizeRestore": "最大化 / 还原",
+      "maximizeWorkstation": "最大化工作台",
+      "documentation": "文档",
+      "reportIssue": "报告问题"
+    },
+    "controls": {
+      "minimizeWindow": "最小化窗口",
+      "maximizeRestoreWindow": "最大化或还原窗口",
+      "closeWindow": "关闭窗口"
+    }
+  },
   "toasts": {
     "replyEmpty": "回复不能为空",
     "sessionNotFound": "未找到会话",
@@ -169,6 +213,7 @@
     "goToSettings": "前往设置",
     "restart": "重新启动",
     "switchToStation": "切换到{{station}}",
+    "switchMethod": "切换方式",
     "rate": "评分",
     "openInTab": "在标签页中打开",
     "insert": "插入",
@@ -282,6 +327,16 @@
     "testing": "测试中...",
     "empty": "空",
     "launching": "启动中..."
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "标题 / 上下文",
+      "status": "状态",
+      "assignee": "负责人",
+      "updated": "更新时间"
+    },
+    "selectRow": "选择 {{id}}"
   },
   "pagination": {
     "totalItems": "共 {{count}} 项",
@@ -1086,6 +1141,18 @@
       "searchPlaceholder": "搜索端口…",
       "noSearchResults": "没有匹配的端口"
     },
+    "ci": {
+      "openPullRequest": "在 GitHub 中打开 Pull Request",
+      "viewDetails": "查看检查详情",
+      "refresh": "刷新检查",
+      "unavailable": "无法读取检查状态",
+      "sections": {
+        "failed": "失败",
+        "running": "运行中",
+        "skipped": "已跳过",
+        "passed": "已通过"
+      }
+    },
     "noLanguageServicesActive": "没有活跃的 Language Service",
     "linesSelected": "已选择 {{count}} 行",
     "charsSelected": "已选择 {{count}} 个字符",
@@ -1218,15 +1285,136 @@
       "collapse": "折叠工作区信息"
     },
     "pr": {
-      "linkedBranch": "拉取请求 #{{number}}",
+      "title": "Pull request",
+      "linkedBranch": "Pull request #{{number}}",
+      "baseBranch": "基准",
+      "noDescription": "未提供描述。",
+      "loadingConversation": "正在加载…",
+      "reviewNoBody": "留下了审查评论。",
+      "submitReview": "提交审查",
+      "reviewHeadNotice": "仅当显示的头部提交仍然匹配时，此审查才会生效。",
+      "reviewDecision": "审查决定",
+      "reviewComment": "审查评论",
+      "reviewCommentPlaceholder": "添加评论…",
+      "commentPlaceholder": "发表评论…",
+      "comment": "评论",
+      "approve": "批准",
+      "requestChanges": "请求更改",
+      "reply": "回复",
+      "replyPlaceholder": "回复…",
+      "reviewThreads": "审查评论",
+      "details": "详情",
+      "unknownAuthor": "未知",
+      "actions": {
+        "label": "pull request 操作",
+        "confirmMergeTitle": "合并 pull request？",
+        "confirmMergeMessage": "GitHub 会将当前 pull request 的源分支合并到目标分支。",
+        "merge": "合并 pull request",
+        "squash": "压缩并合并",
+        "rebase": "变基并合并",
+        "mergeSuccess": "pull request 已合并",
+        "mergeRequested": "已请求合并",
+        "removedFromQueue": "已从合并队列中移除",
+        "autoMergeEnabled": "已启用自动合并",
+        "autoMergeDisabled": "已禁用自动合并",
+        "confirmCloseTitle": "关闭 pull request？",
+        "confirmCloseMessage": "此 pull request 将保留，稍后可重新打开。",
+        "close": "关闭 pull request",
+        "closeSuccess": "pull request 已关闭",
+        "reopen": "重新打开 pull request",
+        "reopenSuccess": "pull request 已重新打开",
+        "enableAutoMerge": "启用自动合并",
+        "mergeWhenReady": "准备好后合并",
+        "disableAutoMerge": "禁用自动合并",
+        "removeFromMergeQueue": "从合并队列中移除",
+        "merged": "已合并",
+        "closed": "已关闭",
+        "draft": "草稿",
+        "inMergeQueue": "在合并队列中",
+        "approvalRequired": "需要批准",
+        "changesRequested": "已请求更改",
+        "resolveConflicts": "解决冲突",
+        "checksFailed": "检查失败",
+        "checksPending": "检查待定",
+        "mergeBlocked": "合并受阻",
+        "searchReviewers": "搜索审查者",
+        "reviewersLoadFailed": "无法加载审查者",
+        "noReviewers": "没有可用的审查者",
+        "reviewersUpdated": "审查者已更新",
+        "reviewersCount_one": "{{count}} 名审查者",
+        "reviewersCount_other": "{{count}} 名审查者",
+        "reviewers": "审查者",
+        "tooltips": {
+          "merge": "在 GitHub 上合并此 pull request",
+          "alreadyMerged": "此 pull request 已合并",
+          "reopenBeforeMerging": "请先重新打开此 pull request 再进行合并",
+          "markReady": "请先将此 pull request 标记为可供审查再进行合并",
+          "mergeQueue": "GitHub 将通过合并队列合并此 pull request",
+          "approvalRequired": "GitHub 要求审查批准后才能合并",
+          "changesRequested": "必须解决请求的更改后才能合并",
+          "resolveConflicts": "请先解决合并冲突",
+          "checksFailed": "必须通过必要检查后才能合并",
+          "checksPending": "等待必要检查完成或启用自动合并",
+          "mergeBlocked": "GitHub 报告存在未满足的合并要求"
+        }
+      },
+      "activity": {
+        "opened": "打开了此 pull request",
+        "commented": "发表了评论",
+        "approved": "批准了这些更改",
+        "changesRequested": "请求了更改",
+        "reviewDismissed": "驳回了审查",
+        "reviewed": "进行了审查"
+      },
+      "summary": {
+        "label": "pull request 摘要",
+        "branch": "分支",
+        "reviewers": "审查者",
+        "noReviewers": "无审查者",
+        "comments": "评论",
+        "commentCount_one": "{{count}} 条评论",
+        "commentCount_other": "{{count}} 条评论",
+        "checks": "检查",
+        "noChecks": "无 CI 检查",
+        "checksFailed": "检查失败",
+        "status": "状态"
+      },
+      "tabs": {
+        "conversation": "对话",
+        "commits": "提交",
+        "checks": "检查",
+        "changes": "更改"
+      },
       "checks": {
+        "none": "未报告检查",
+        "noneHint": "此 pull request 的头提交未运行任何 CI 检查或状态。",
+        "allPassed": "所有检查均已通过",
+        "someFailed": "部分检查失败",
+        "pending": "检查进行中",
         "passedShort": "已通过",
         "failedShort": "失败",
         "runningShort": "运行中",
         "checkingShort": "检查中",
         "noneShort": "无 CI",
         "unavailableShort": "CI 不可用",
-        "branchStatus": "拉取请求 #{{number}} CI：{{status}}"
+        "branchStatus": "Pull request #{{number}} CI：{{status}}"
+      },
+      "commits": {
+        "backToList": "全部提交",
+        "none": "无提交"
+      },
+      "changes": {
+        "title": "文件更改",
+        "noFiles": "无文件更改",
+        "tooLarge": "文件太大，无法显示差异",
+        "unavailable": "更改不可用",
+        "unavailableHint": "无法解析 pull request 的基准提交和头提交。"
+      },
+      "status": {
+        "open": "打开",
+        "merged": "已合并",
+        "closed": "已关闭",
+        "draft": "草稿"
       }
     },
     "messages": {
@@ -1288,12 +1476,12 @@
         "timelineItemCount_one": "{{count}} 个时间线项目",
         "timelineItemCount_other": "{{count}} 个时间线项目",
         "noDescription": "未提供描述。",
-        "assigned": "指派了：",
+        "assigned": "指派了",
         "assignedIssue": "指派了此 issue",
-        "unassigned": "取消指派了：",
+        "unassigned": "取消指派了",
         "removedAssignee": "移除了一名受理人",
-        "added": "添加了：",
-        "removed": "移除了：",
+        "added": "添加了",
+        "removed": "移除了",
         "label": "一个标签",
         "milestoned": "将此 issue 添加到里程碑 {{milestone}}",
         "demilestoned": "将此 issue 从里程碑 {{milestone}} 中移除",
@@ -1317,7 +1505,49 @@
         "unpinned": "取消置顶了此 issue",
         "transferred": "转移了此 issue",
         "convertedToDiscussion": "将此 issue 转换为讨论",
-        "mentioned": "提及了此 issue"
+        "mentioned": "提及了此 issue",
+        "commentDeleted": "删除了一条评论",
+        "subscribed": "订阅了此 issue",
+        "unsubscribed": "取消订阅了此 issue",
+        "addedToProject": "将此 issue 添加到项目",
+        "movedInProject": "在项目中移动了此 issue",
+        "removedFromProject": "将此 issue 从项目中移除",
+        "archived": "归档了此 issue",
+        "unarchived": "取消归档了此 issue",
+        "merged": "合并了此 pull request",
+        "committed": "向此 pull request 提交了更改",
+        "headRefDeleted": "删除了头部分支",
+        "headRefRestored": "恢复了头部分支",
+        "headRefForcePushed": "强制推送了头部分支",
+        "baseRefChanged": "更改了基础分支",
+        "automaticBaseChangeFailed": "无法自动更改基础分支",
+        "automaticBaseChangeSucceeded": "自动更改了基础分支",
+        "deployed": "部署了此 pull request",
+        "deploymentEnvironmentChanged": "更改了部署环境",
+        "readyForReview": "将此 pull request 标记为可供审查",
+        "reviewRequested": "请求了审查",
+        "reviewRequestRemoved": "移除了审查请求",
+        "reviewed": "审查了这些更改",
+        "reviewDismissed": "驳回了审查",
+        "userBlocked": "屏蔽了此用户"
+      },
+      "composer": {
+        "addComment": "添加评论",
+        "commentingAs": "正在以 {{login}} 身份操作",
+        "identityUnavailable": "GitHub 身份不可用",
+        "commentPlaceholder": "撰写评论…",
+        "submitComment": "评论",
+        "closeIssue": "关闭 issue",
+        "closeAsCompleted": "以已完成关闭",
+        "closeAsNotPlanned": "以不计划关闭",
+        "closeAsDuplicate": "作为重复项关闭",
+        "duplicateSearchPlaceholder": "搜索 issue",
+        "duplicateEmpty": "没有匹配的 issue",
+        "duplicateLoadFailed": "issue 加载失败",
+        "reopenIssue": "重新打开 issue",
+        "commentFailed": "添加评论失败",
+        "bodyUpdateFailed": "更新 issue 描述失败",
+        "statusFailed": "更新 issue 状态失败"
       }
     }
   },
@@ -2353,6 +2583,7 @@
     "taskCompletedTitle": "任务已完成",
     "taskCompletedBody": "“{{name}}”已完成，可以查看结果",
     "taskCompletedToast": "“{{name}}”已完成，请打开会话查看结果。",
+    "openSessionAction": "打开会话",
     "taskFailedTitle": "任务失败",
     "taskFailedBody": "“{{name}}”失败{{detail}}",
     "taskCancelledToast": "“{{name}}”已取消"
@@ -2368,6 +2599,11 @@
       "all": "全部",
       "mentions": "提及",
       "assigned": "分配给我"
+    },
+    "sections": {
+      "reviewRequested": "已请求审查",
+      "authoredByMe": "由我创建",
+      "otherTodos": "其他待办事项"
     },
     "status": {
       "read": "已读",
@@ -2398,10 +2634,10 @@
       "title": "暂无事项",
       "subtitle": "新的提及和分配会显示在这里。",
       "selectTitle": "选择一个事项",
-      "selectSubtitle": "查看评论上下文或工作项详情。",
+      "selectSubtitle": "查看评论上下文或工作项详情",
       "mentions": {
         "title": "暂无提及",
-        "subtitle": "当同事在评论中 @ 你时，会显示在这里。"
+        "subtitle": "当同事在评论中 @ 你时，会显示在这里"
       },
       "assigned": {
         "title": "暂无分配给你的事项",
@@ -2487,7 +2723,9 @@
       "markUnread": "标记未读失败，请重试。",
       "markAllRead": "全部标记已读失败，请重试。",
       "identity": "当前账户无法匹配到项目成员，请检查项目个人资料中的邮箱。",
-      "partialLoad": "部分团队收件箱来源刷新失败，当前可用事项仍会保留显示。",
+      "partialLoad": "部分团队收件箱来源刷新失败，当前可用事项仍会保留显示",
+      "pullRequestsPartialLoad": "部分 pull request 刷新失败",
+      "pullRequestsPartialLoadHelp": "当前可用事项仍会保留显示；请刷新以重新加载缺少的 pull request",
       "workItemContext": "部分项目上下文暂不可用，工作项仍可继续查看和操作。",
       "workItemLoad": "无法加载此工作项，请重试。",
       "workItemUpdate": "无法保存刚才的工作项修改，请重试。"
@@ -2557,8 +2795,8 @@
     "previewAlt": "预览"
   },
   "quitConfirmation": {
-    "title": "退出 ORGII？",
-    "subtitle": "正在运行的会话会保留当前状态。你可以稍后重新打开 ORGII。",
+    "title": "退出 ORG-2？",
+    "subtitle": "正在运行的会话会保留当前状态。你可以稍后重新打开 ORG-2。",
     "cancel": "取消",
     "confirm": "退出"
   },

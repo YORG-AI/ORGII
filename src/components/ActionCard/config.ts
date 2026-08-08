@@ -19,7 +19,7 @@ export const SELECTION_CARD_CLASSES = {
   /** Base container (always applied) */
   base: "cursor-pointer rounded-lg border p-3 text-left transition-all",
   /** Selected state */
-  selected: "border-primary-6 bg-bg-2",
+  selected: "border-primary-6 bg-primary-1",
   /** Unselected state — hover border matches Input (border-2 → border-3) */
   unselected: "border-border-2 bg-bg-2 hover:border-border-3 hover:bg-bg-2",
   /** Disabled state */
@@ -109,7 +109,7 @@ export const VARIANT_STYLES: Record<ActionCardVariant, VariantConfig> = {
     descriptionClass: SELECTION_CARD_CLASSES.description,
     iconClass: "text-text-2",
     selectedContainerClass:
-      "cursor-pointer rounded-lg border border-primary-6 bg-bg-2 p-2 text-left transition-all shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]",
+      "cursor-pointer rounded-lg border border-primary-6 bg-primary-1 p-2 text-left transition-all shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]",
     selectedTitleClass: "text-[13px] font-medium text-primary-6",
     selectedIconClass: "text-primary-6",
   },

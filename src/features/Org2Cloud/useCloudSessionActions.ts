@@ -8,8 +8,8 @@
  * (`importRemoteSession` / `forkTeammateSession`); only the segments fetch
  * differs (`buildCloudSessionFetchClient`, JWT-backed).
  */
-import { useAtom, useSetAtom, useStore } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
@@ -36,9 +36,41 @@ import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/typ
 import { activeSessionIdAtom, sessionsAtom } from "@src/store/session";
 
 import {
+  decideCloudDownloadGate,
+  recordCloudDownloadSample,
+} from "./cloudDownloadEstimator";
+import { dismissCloudReferenceOpeningToast } from "./cloudReferenceOpeningToast";
+import {
+  type CloudSessionBusyEntry,
+  beginCloudSessionBusyAtom,
+  cloudSessionBusyRowsAtom,
+  endCloudSessionBusyAtom,
+  updateCloudSessionBusyAtom,
+} from "./cloudSessionBusyAtom";
+import {
+  registerCloudDownloadAbort,
+  unregisterCloudDownloadAbort,
+} from "./cloudSessionDownloadAbortRegistry";
+import {
+  type CloudPausedDownloadCursor,
+  clearCloudDownloadPendingPlayAtom,
+  clearCloudPausedDownloadAtom,
+  cloudSessionPausedDownloadsAtom,
+  setCloudDownloadPendingPlayAtom,
+  setCloudPausedDownloadAtom,
+} from "./cloudSessionDownloadControlAtoms";
+import {
+  clearCloudSessionDownloadProgressAtom,
+  cloudSessionDownloadProgressAtom,
+  completeCloudDownloadProgressWithLinger,
+  createThrottledProgressReporter,
+  upsertCloudSessionDownloadProgressAtom,
+} from "./cloudSessionDownloadProgressAtom";
+import {
   resolveCloudSessionReplayIconId,
   runImmediateCloudSessionReplay,
 } from "./cloudSessionReplayLifecycle";
+import { applyCloudTurnSkeleton } from "./cloudSessionTurnSkeleton";
 import {
   commitRefreshedAuth,
   org2CloudAuthAtom,
@@ -66,6 +98,17 @@ export interface CloudSessionReplayOptions {
     localSessionId: string;
     remoteSession: RemoteTeammateSessionMetadata;
   }) => void;
+  /**
+   * True for starts the user already confirmed (the play card's Start
+   * button): the big-session play gate is skipped and the transfer begins
+   * immediately. Resumes of paused downloads skip the gate on their own.
+   */
+  skipDownloadGate?: boolean;
+}
+
+export interface CloudSessionForkOptions {
+  /** True for starts the play card's Start button already confirmed. */
+  skipDownloadGate?: boolean;
 }
 
 export type CloudSessionActionOutcome =
@@ -82,10 +125,15 @@ export interface UseCloudSessionActionsResult {
     options?: CloudSessionReplayOptions
   ) => Promise<CloudSessionActionOutcome>;
   forkSession: (
-    remoteSession: RemoteTeammateSessionMetadata
+    remoteSession: RemoteTeammateSessionMetadata,
+    options?: CloudSessionForkOptions
   ) => Promise<CloudSessionActionOutcome>;
-  /** Row id (`remoteSession.id`) with a replay/fork in flight, else null. */
-  busySessionRowId: string | null;
+  /**
+   * Row ids (`remoteSession.id`) with a replay/fork in flight. Per-row and
+   * store-backed: a busy row only ever blocks itself, and every mounted
+   * consumer (both sidebar connectors, Kanban) sees the same registry.
+   */
+  busySessionRows: ReadonlyMap<string, CloudSessionBusyEntry>;
 }
 
 /** Per-org replay/fork actions for cloud remote-session rows. */
@@ -103,7 +151,16 @@ export function useCloudSessionActions(
   const endSessionHydration = useSetAtom(endSessionHydrationAtom);
   const triggerSessionReload = useSetAtom(triggerSessionReloadAtom);
   const openCloudBillingPage = useOpenCloudBilling();
-  const [busySessionRowId, setBusySessionRowId] = useState<string | null>(null);
+  const busySessionRows = useAtomValue(cloudSessionBusyRowsAtom);
+  const beginSessionBusy = useSetAtom(beginCloudSessionBusyAtom);
+  const updateSessionBusy = useSetAtom(updateCloudSessionBusyAtom);
+  const endSessionBusy = useSetAtom(endCloudSessionBusyAtom);
+  const upsertDownloadProgress = useSetAtom(
+    upsertCloudSessionDownloadProgressAtom
+  );
+  const clearDownloadProgress = useSetAtom(
+    clearCloudSessionDownloadProgressAtom
+  );
   // Latest auth via ref so token-refresh writes don't recreate callbacks
   // (same idiom as the panel fetch effects).
   const authRef = useRef(auth);
@@ -112,13 +169,15 @@ export function useCloudSessionActions(
     authRef.current = auth;
   }, [auth]);
 
-  // One controller per replay click; unmount aborts the fetch/decode/apply
-  // instead of merely ignoring the result.
-  const replayAbortRef = useRef<AbortController | null>(null);
+  // One controller per in-flight replay row; unmount aborts the
+  // fetch/decode/apply instead of merely ignoring the result. A map, not a
+  // single slot: rows download concurrently now.
+  const replayAbortsRef = useRef(new Map<string, AbortController>());
   useEffect(() => {
+    const aborts = replayAbortsRef.current;
     return () => {
-      replayAbortRef.current?.abort();
-      replayAbortRef.current = null;
+      for (const controller of aborts.values()) controller.abort();
+      aborts.clear();
     };
   }, [authIdentityKey, orgId]);
 
@@ -151,11 +210,97 @@ export function useCloudSessionActions(
       options?: CloudSessionReplayOptions
     ): Promise<CloudSessionActionOutcome> => {
       if (!orgId || remoteSession.eventsEpoch === undefined) return "noop";
-      if (busySessionRowId) return "noop";
-      setBusySessionRowId(remoteSession.id);
-      replayAbortRef.current?.abort();
+      // Store read at call time: the render-captured map can be stale, and
+      // both sidebar connectors plus Kanban share this registry. Only the
+      // clicked row's own in-flight action blocks it.
+      if (store.get(cloudSessionBusyRowsAtom).has(remoteSession.id)) {
+        return "noop";
+      }
+      // A paused download resumes on the next start; it is never re-gated.
+      const pausedEntry =
+        store.get(cloudSessionPausedDownloadsAtom).get(remoteSession.id) ??
+        null;
+      // Big-session play gate: the listing already knows the event count and
+      // the device knows its observed download rate. Instead of a blocking
+      // modal, the Chat Pane tab opens immediately with a play card (count +
+      // ETA) and nothing transfers until the user hits Start. Only the
+      // not-yet-covered remainder counts (a cached copy that just needs a
+      // delta stays gate-free). Every replay import is interactive; the org's
+      // background-upload policy affects owner pushes, not downloads.
+      if (!pausedEntry && !options?.skipDownloadGate) {
+        const gateEndpointUrl = authRef.current?.supabaseUrl;
+        const gateSession = gateEndpointUrl
+          ? findImportedSession(
+              store.get(sessionsAtom),
+              orgId,
+              remoteSession.sourceSessionId,
+              gateEndpointUrl
+            )
+          : undefined;
+        const gateCursor = gateSession?.importedFrom;
+        const coveredCount =
+          gateCursor && gateCursor.epoch === remoteSession.eventsEpoch
+            ? gateCursor.count
+            : 0;
+        const pendingEvents = Math.max(
+          0,
+          (remoteSession.eventsCount ?? 0) - coveredCount
+        );
+        const decision = decideCloudDownloadGate(pendingEvents);
+        if (decision.gate && gateEndpointUrl) {
+          const pendingLocalId =
+            gateSession?.session_id ??
+            (await deriveImportedSessionId(
+              orgId,
+              remoteSession.sourceSessionId,
+              gateEndpointUrl
+            ));
+          store.set(setCloudDownloadPendingPlayAtom, {
+            localSessionId: pendingLocalId,
+            entry: {
+              rowId: remoteSession.id,
+              orgId,
+              pendingEvents,
+              etaMs: decision.etaMs,
+              kind: "replay",
+            },
+          });
+          dismissCloudReferenceOpeningToast();
+          if (options?.openSurface) {
+            options.openSurface({
+              localSessionId: pendingLocalId,
+              remoteSession,
+            });
+          } else {
+            openOrReplaceSessionTab({
+              sessionId: pendingLocalId,
+              sessionName: remoteSession.title,
+            });
+          }
+          return "noop";
+        }
+      }
+      if (store.get(cloudSessionBusyRowsAtom).has(remoteSession.id)) {
+        return "noop";
+      }
+      beginSessionBusy({
+        rowId: remoteSession.id,
+        entry: { kind: "replay", orgId },
+      });
+      store.set(clearCloudPausedDownloadAtom, remoteSession.id);
       const abortController = new AbortController();
-      replayAbortRef.current = abortController;
+      replayAbortsRef.current.get(remoteSession.id)?.abort();
+      replayAbortsRef.current.set(remoteSession.id, abortController);
+      registerCloudDownloadAbort(remoteSession.id, () =>
+        abortController.abort()
+      );
+      let localSessionId: string | null = null;
+      let pausedCaptured: CloudPausedDownloadCursor | null = null;
+      let pausedCommitted = false;
+      let completedOk = false;
+      let progressReporter: ReturnType<
+        typeof createThrottledProgressReporter
+      > | null = null;
       try {
         const sourceEndpointUrl = authRef.current?.supabaseUrl;
         if (!sourceEndpointUrl) {
@@ -168,17 +313,87 @@ export function useCloudSessionActions(
           remoteSession.sourceSessionId,
           sourceEndpointUrl
         );
-        const localSessionId =
+        localSessionId =
           existing?.session_id ??
           (await deriveImportedSessionId(
             orgId,
             remoteSession.sourceSessionId,
             sourceEndpointUrl
           ));
+        // Immutable copy for the closures below (TS cannot narrow the
+        // mutable `let` the finally block needs).
+        const importSessionId = localSessionId;
+        store.set(clearCloudDownloadPendingPlayAtom, importSessionId);
+        // A click on this row while the download runs refocuses this tab.
+        updateSessionBusy({
+          rowId: remoteSession.id,
+          patch: { localSessionId: importSessionId },
+        });
+        // Events already durable before this start: a paused download's
+        // persisted pages, or the covered base of an incremental refresh.
+        // Progress starts from it and the rate sample must exclude it.
+        const baseEvents =
+          pausedEntry?.cursor?.count ??
+          (existing?.importedFrom &&
+          existing.importedFrom.epoch === remoteSession.eventsEpoch
+            ? existing.importedFrom.count
+            : 0);
+
+        const progressStartedAt = Date.now();
+        // Two sources feed one bar: segment-granular decode ticks (fine,
+        // during the long storage-object transfer of a 64-segment page)
+        // and the importer's post-persist page reports (absolute,
+        // including any incremental base). They interleave — keep the
+        // bar monotonic with a max-merge. A resumed download starts the
+        // bar from the paused position instead of zero.
+        let maxLoadedEvents = pausedEntry ? baseEvents : 0;
+        const reporter = createThrottledProgressReporter((payload) =>
+          upsertDownloadProgress(payload)
+        );
+        progressReporter = reporter;
+        const reportDownloadProgress = (
+          loadedEvents: number,
+          totalEvents: number | null,
+          phase: "downloading" | "finalizing" = "downloading"
+        ) => {
+          maxLoadedEvents = Math.max(maxLoadedEvents, loadedEvents);
+          reporter.report({
+            localSessionId: importSessionId,
+            progress: {
+              rowId: remoteSession.id,
+              orgId,
+              loadedEvents: maxLoadedEvents,
+              totalEvents,
+              baseEvents,
+              startedAtMs: progressStartedAt,
+              updatedAtMs: Date.now(),
+              phase,
+            },
+          });
+        };
+        // When a transfer is genuinely coming (fresh import, stale cursor,
+        // resume), surface the bar in the SAME frame as the click — the
+        // token refresh and workspace resolution ahead of the first network
+        // tick used to leave a second of dead air. A cursor-current reopen
+        // stays silent: seeding it would flash a bar over an instant open.
+        const seedCursor = existing?.importedFrom;
+        const cursorCurrent =
+          !!seedCursor &&
+          seedCursor.epoch === remoteSession.eventsEpoch &&
+          seedCursor.seq === (remoteSession.eventsFrozenSeq ?? 0) &&
+          seedCursor.count === remoteSession.eventsCount &&
+          (seedCursor.tailHash ?? null) ===
+            (remoteSession.eventsTailHash ?? null);
+        if (!cursorCurrent) {
+          reportDownloadProgress(
+            baseEvents,
+            remoteSession.eventsCount ?? pausedEntry?.totalEvents ?? null
+          );
+        }
 
         let localRepoPath: string | undefined;
         const result = await runImmediateCloudSessionReplay({
-          sessionId: localSessionId,
+          sessionId: importSessionId,
           beginHydration: (sessionId) =>
             beginSessionHydration({
               sessionId,
@@ -201,27 +416,79 @@ export function useCloudSessionActions(
             const accessToken = await freshAccessToken();
             abortController.signal.throwIfAborted();
             if (!accessToken) return null;
+            // Round-first skeleton (0012): for a fresh import, fetch the
+            // owner-published turn index IN PARALLEL with the download and
+            // render every round (prompt + placeholder) immediately. Guarded
+            // so a fast import that already hydrated the real initial window
+            // is never shadowed by a late skeleton write.
+            let importSettled = false;
+            if (!existing) {
+              void applyCloudTurnSkeleton({
+                accessToken,
+                orgId,
+                remoteSession,
+                localSessionId: importSessionId,
+                signal: abortController.signal,
+                shouldApply: () => !importSettled,
+              });
+            }
             // Resolve after opening so checkout discovery cannot delay the
             // Chat Pane tab. The path later restores local tab metadata and
             // feeds the derived blame index.
             localRepoPath =
               (await resolveForkWorkspacePath(remoteSession)) ?? undefined;
             abortController.signal.throwIfAborted();
-            return importRemoteSession({
-              client: buildCloudSessionFetchClient(accessToken),
+            const importPromise = importRemoteSession({
+              client: buildCloudSessionFetchClient(accessToken, undefined, {
+                onTransferProgress: (progress) =>
+                  reportDownloadProgress(
+                    // Decode ticks count THIS transfer only; rebase them so
+                    // a resumed bar keeps describing the whole session.
+                    baseEvents + progress.decodedEvents,
+                    progress.totalEvents
+                  ),
+              }),
               orgId,
               remoteSession,
               sourceEndpointUrl,
               workspaceRepoPath: localRepoPath,
               signal: abortController.signal,
+              onProgress: (progress) =>
+                reportDownloadProgress(
+                  progress.loadedEvents,
+                  progress.totalEvents,
+                  progress.phase ?? "downloading"
+                ),
+              onPauseState: (state) => {
+                pausedCaptured = state;
+              },
+              ...(pausedEntry?.cursor
+                ? { resumeCursor: pausedEntry.cursor }
+                : {}),
             });
+            try {
+              const result = await importPromise;
+              // Feed the device's rate estimator so the next play card
+              // quotes a realistic ETA. Only the events THIS transfer moved
+              // count — sampling the absolute total against a delta's
+              // elapsed time would inflate the rate device-wide.
+              if (result?.updated && maxLoadedEvents > baseEvents) {
+                recordCloudDownloadSample(
+                  maxLoadedEvents - baseEvents,
+                  Date.now() - progressStartedAt
+                );
+              }
+              return result;
+            } finally {
+              importSettled = true;
+            }
           },
           endHydration: endSessionHydration,
         });
         if (result) {
-          if (result.localSessionId !== localSessionId) {
+          if (result.localSessionId !== importSessionId) {
             log.warn("cloud replay resolved a different local session id", {
-              expected: localSessionId,
+              expected: importSessionId,
               actual: result.localSessionId,
               sourceSessionId: remoteSession.sourceSessionId,
             });
@@ -233,13 +500,60 @@ export function useCloudSessionActions(
             updateMetadata({ repoPath: localRepoPath });
             triggerSessionReload(result.localSessionId);
           }
+          completedOk = true;
           return "opened";
         }
         // null ⇒ owner has published no segments (metadata-only card).
         Message.error(t("cloud.orgPanel.importError"));
         return "failed";
       } catch (error) {
-        if (abortController.signal.aborted) return "noop";
+        if (abortController.signal.aborted) {
+          // Pause, not cancel: keep the progress entry (flipped to paused)
+          // so the card shows the held position with a Resume affordance.
+          // The captured cursor lets the next start continue the transfer;
+          // without one it simply restreams. (Widened reads below: TS
+          // control-flow ignores the closure assignments.)
+          (
+            progressReporter as ReturnType<
+              typeof createThrottledProgressReporter
+            > | null
+          )?.cancel();
+          if (localSessionId) {
+            const lastProgress = store
+              .get(cloudSessionDownloadProgressAtom)
+              .get(localSessionId);
+            // Widened read: TS control-flow ignores the closure assignment.
+            const captured = pausedCaptured as CloudPausedDownloadCursor | null;
+            const heldLoaded =
+              lastProgress?.loadedEvents ?? captured?.count ?? 0;
+            const heldTotal =
+              lastProgress?.totalEvents ?? remoteSession.eventsCount ?? null;
+            store.set(setCloudPausedDownloadAtom, {
+              rowId: remoteSession.id,
+              entry: {
+                localSessionId,
+                orgId,
+                totalEvents: heldTotal,
+                loadedEvents: heldLoaded,
+                cursor: captured,
+              },
+            });
+            upsertDownloadProgress({
+              localSessionId,
+              progress: {
+                rowId: remoteSession.id,
+                orgId,
+                loadedEvents: heldLoaded,
+                totalEvents: heldTotal,
+                startedAtMs: lastProgress?.startedAtMs ?? Date.now(),
+                updatedAtMs: Date.now(),
+                phase: "paused",
+              },
+            });
+            pausedCommitted = true;
+          }
+          return "noop";
+        }
         if (isOrg2SyncErrorCode(error, "ORG2_RETENTION_EXPIRED")) {
           notifyRetentionExpired();
           return "retention-expired";
@@ -254,15 +568,35 @@ export function useCloudSessionActions(
         Message.error(t("cloud.orgPanel.importError"));
         return "failed";
       } finally {
-        if (replayAbortRef.current === abortController) {
-          replayAbortRef.current = null;
+        if (replayAbortsRef.current.get(remoteSession.id) === abortController) {
+          replayAbortsRef.current.delete(remoteSession.id);
         }
-        setBusySessionRowId(null);
+        unregisterCloudDownloadAbort(remoteSession.id);
+        endSessionBusy(remoteSession.id);
+        // A parked trailing tick must never resurrect the entry this
+        // teardown clears (or overwrite the paused state it just wrote).
+        (
+          progressReporter as ReturnType<
+            typeof createThrottledProgressReporter
+          > | null
+        )?.cancel();
+        if (localSessionId && !pausedCommitted) {
+          if (completedOk) {
+            // Success holds a terminal "completed · 100%" card until the
+            // surface has been visible for the minimum window — a sub-second
+            // transfer used to flash and vanish like a glitch.
+            completeCloudDownloadProgressWithLinger(store, localSessionId);
+          } else {
+            clearDownloadProgress(localSessionId);
+          }
+        }
       }
     },
     [
-      busySessionRowId,
+      beginSessionBusy,
       beginSessionHydration,
+      clearDownloadProgress,
+      endSessionBusy,
       endSessionHydration,
       freshAccessToken,
       openOrReplaceSessionTab,
@@ -272,6 +606,8 @@ export function useCloudSessionActions(
       t,
       triggerSessionReload,
       updateMetadata,
+      updateSessionBusy,
+      upsertDownloadProgress,
     ]
   );
 
@@ -279,21 +615,241 @@ export function useCloudSessionActions(
   // engine fork + backend row registration + first-send context handoff.
   const forkSession = useCallback(
     async (
-      remoteSession: RemoteTeammateSessionMetadata
+      remoteSession: RemoteTeammateSessionMetadata,
+      options?: CloudSessionForkOptions
     ): Promise<CloudSessionActionOutcome> => {
       if (!orgId || remoteSession.eventsEpoch === undefined) return "noop";
-      if (busySessionRowId) return "noop";
-      setBusySessionRowId(remoteSession.id);
+      if (store.get(cloudSessionBusyRowsAtom).has(remoteSession.id)) {
+        return "noop";
+      }
+      // Big-session gate, replay parity: a Take Over whose pre-import would
+      // stream a large transcript parks the same play card (count + ETA) in
+      // the imported copy's pane and transfers nothing until Start. A
+      // current local copy, a resumable pause, or a small delta stays
+      // gate-free — those never surprise with a long transfer.
+      if (!options?.skipDownloadGate) {
+        const gateEndpointUrl = authRef.current?.supabaseUrl;
+        const pausedGateEntry = store
+          .get(cloudSessionPausedDownloadsAtom)
+          .get(remoteSession.id);
+        if (gateEndpointUrl && !pausedGateEntry) {
+          const gateSession = findImportedSession(
+            store.get(sessionsAtom),
+            orgId,
+            remoteSession.sourceSessionId,
+            gateEndpointUrl
+          );
+          const gateCursor = gateSession?.importedFrom;
+          const coveredCount =
+            gateCursor && gateCursor.epoch === remoteSession.eventsEpoch
+              ? gateCursor.count
+              : 0;
+          const pendingEvents = Math.max(
+            0,
+            (remoteSession.eventsCount ?? 0) - coveredCount
+          );
+          const decision = decideCloudDownloadGate(pendingEvents);
+          if (decision.gate) {
+            const pendingLocalId =
+              gateSession?.session_id ??
+              (await deriveImportedSessionId(
+                orgId,
+                remoteSession.sourceSessionId,
+                gateEndpointUrl
+              ));
+            store.set(setCloudDownloadPendingPlayAtom, {
+              localSessionId: pendingLocalId,
+              entry: {
+                rowId: remoteSession.id,
+                orgId,
+                pendingEvents,
+                etaMs: decision.etaMs,
+                kind: "fork",
+              },
+            });
+            openOrReplaceSessionTab({
+              sessionId: pendingLocalId,
+              sessionName: remoteSession.title,
+            });
+            return "noop";
+          }
+        }
+      }
+      beginSessionBusy({
+        rowId: remoteSession.id,
+        entry: { kind: "fork", orgId },
+      });
+      let forkPausedCommitted = false;
       try {
         const accessToken = await freshAccessToken();
         if (!accessToken) {
           Message.error(t("collaboration.session.forkFailed"));
           return "failed";
         }
+        // Local-copy-first parity: a Take Over of a session without a
+        // CURRENT local replay copy first runs the standard streamed import
+        // — same sidebar spinner/percent, same pause/resume semantics, and
+        // the fork then assembles from the local copy without a second
+        // download. An already-imported current copy makes this pre-step a
+        // no-op.
+        const sourceEndpointUrl = authRef.current?.supabaseUrl;
+        if (sourceEndpointUrl) {
+          const existing = findImportedSession(
+            store.get(sessionsAtom),
+            orgId,
+            remoteSession.sourceSessionId,
+            sourceEndpointUrl
+          );
+          const cursor = existing?.importedFrom;
+          const cursorCurrent =
+            !!cursor &&
+            cursor.epoch === remoteSession.eventsEpoch &&
+            cursor.seq === (remoteSession.eventsFrozenSeq ?? 0) &&
+            cursor.count === remoteSession.eventsCount &&
+            (cursor.tailHash ?? null) ===
+              (remoteSession.eventsTailHash ?? null);
+          if (!cursorCurrent) {
+            const pausedEntry =
+              store
+                .get(cloudSessionPausedDownloadsAtom)
+                .get(remoteSession.id) ?? null;
+            store.set(clearCloudPausedDownloadAtom, remoteSession.id);
+            const abortController = new AbortController();
+            registerCloudDownloadAbort(remoteSession.id, () =>
+              abortController.abort()
+            );
+            const importSessionId =
+              existing?.session_id ??
+              (await deriveImportedSessionId(
+                orgId,
+                remoteSession.sourceSessionId,
+                sourceEndpointUrl
+              ));
+            store.set(clearCloudDownloadPendingPlayAtom, importSessionId);
+            updateSessionBusy({
+              rowId: remoteSession.id,
+              patch: { localSessionId: importSessionId },
+            });
+            const baseEvents =
+              pausedEntry?.cursor?.count ??
+              (cursor && cursor.epoch === remoteSession.eventsEpoch
+                ? cursor.count
+                : 0);
+            const progressStartedAt = Date.now();
+            let maxLoadedEvents = pausedEntry ? baseEvents : 0;
+            const reporter = createThrottledProgressReporter((payload) =>
+              upsertDownloadProgress(payload)
+            );
+            const reportDownloadProgress = (
+              loadedEvents: number,
+              totalEvents: number | null,
+              phase: "downloading" | "finalizing" = "downloading"
+            ) => {
+              maxLoadedEvents = Math.max(maxLoadedEvents, loadedEvents);
+              reporter.report({
+                localSessionId: importSessionId,
+                progress: {
+                  rowId: remoteSession.id,
+                  orgId,
+                  loadedEvents: maxLoadedEvents,
+                  totalEvents,
+                  baseEvents,
+                  startedAtMs: progressStartedAt,
+                  updatedAtMs: Date.now(),
+                  phase,
+                },
+              });
+            };
+            reportDownloadProgress(
+              baseEvents,
+              remoteSession.eventsCount ?? pausedEntry?.totalEvents ?? null
+            );
+            let pausedCaptured: CloudPausedDownloadCursor | null = null;
+            try {
+              const imported = await importRemoteSession({
+                client: buildCloudSessionFetchClient(accessToken, undefined, {
+                  onTransferProgress: (progress) =>
+                    reportDownloadProgress(
+                      baseEvents + progress.decodedEvents,
+                      progress.totalEvents
+                    ),
+                }),
+                orgId,
+                remoteSession,
+                sourceEndpointUrl,
+                signal: abortController.signal,
+                onProgress: (progress) =>
+                  reportDownloadProgress(
+                    progress.loadedEvents,
+                    progress.totalEvents,
+                    progress.phase ?? "downloading"
+                  ),
+                onPauseState: (state) => {
+                  pausedCaptured = state;
+                },
+                ...(pausedEntry?.cursor
+                  ? { resumeCursor: pausedEntry.cursor }
+                  : {}),
+              });
+              if (imported?.updated && maxLoadedEvents > baseEvents) {
+                recordCloudDownloadSample(
+                  maxLoadedEvents - baseEvents,
+                  Date.now() - progressStartedAt
+                );
+              }
+            } catch (error) {
+              if (abortController.signal.aborted) {
+                const lastProgress = store
+                  .get(cloudSessionDownloadProgressAtom)
+                  .get(importSessionId);
+                const captured =
+                  pausedCaptured as CloudPausedDownloadCursor | null;
+                const heldLoaded =
+                  lastProgress?.loadedEvents ?? captured?.count ?? 0;
+                const heldTotal =
+                  lastProgress?.totalEvents ??
+                  remoteSession.eventsCount ??
+                  null;
+                store.set(setCloudPausedDownloadAtom, {
+                  rowId: remoteSession.id,
+                  entry: {
+                    localSessionId: importSessionId,
+                    orgId,
+                    totalEvents: heldTotal,
+                    loadedEvents: heldLoaded,
+                    cursor: captured,
+                  },
+                });
+                upsertDownloadProgress({
+                  localSessionId: importSessionId,
+                  progress: {
+                    rowId: remoteSession.id,
+                    orgId,
+                    loadedEvents: heldLoaded,
+                    totalEvents: heldTotal,
+                    startedAtMs: lastProgress?.startedAtMs ?? Date.now(),
+                    updatedAtMs: Date.now(),
+                    phase: "paused",
+                  },
+                });
+                forkPausedCommitted = true;
+                return "noop";
+              }
+              throw error;
+            } finally {
+              unregisterCloudDownloadAbort(remoteSession.id);
+              reporter.cancel();
+              if (!forkPausedCommitted) {
+                clearDownloadProgress(importSessionId);
+              }
+            }
+          }
+        }
         const result = await forkTeammateSession({
           client: buildCloudSessionFetchClient(accessToken),
           orgId,
           remoteSession,
+          ...(sourceEndpointUrl ? { sourceEndpointUrl } : {}),
           promptForExecution: true,
         });
         if (!result) {
@@ -350,23 +906,28 @@ export function useCloudSessionActions(
         );
         return "failed";
       } finally {
-        setBusySessionRowId(null);
+        endSessionBusy(remoteSession.id);
       }
     },
     [
-      busySessionRowId,
+      beginSessionBusy,
+      clearDownloadProgress,
+      endSessionBusy,
       freshAccessToken,
       openOrReplaceSessionTab,
       openSession,
       notifyRetentionExpired,
       orgId,
+      store,
       t,
+      updateSessionBusy,
+      upsertDownloadProgress,
     ]
   );
 
   return {
     replaySession,
     forkSession,
-    busySessionRowId,
+    busySessionRows,
   };
 }

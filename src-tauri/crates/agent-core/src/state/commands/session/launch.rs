@@ -68,6 +68,11 @@ pub struct SessionLaunchParams {
     #[serde(default)]
     pub isolate: bool,
     pub mode: Option<String>,
+    /// Product mode (`orgtrack/v1` §5.2): `build | plan | ask | project`.
+    /// Distinct from `mode` (the runtime exec mode) — the launch-from-
+    /// work/routine resolver overrides this with `project` server-side.
+    #[serde(default)]
+    pub product_mode: Option<String>,
 
     // Project/collaboration org + work-item fields
     pub org_id: Option<String>,
@@ -151,7 +156,7 @@ fn validate_workspace_launch_fields(
     let has_base_ref = worktree_base_ref.is_some_and(|base| !base.trim().is_empty());
 
     if (isolate || has_existing_worktree)
-        && !workspace_path.is_some_and(|path| !path.trim().is_empty())
+        && workspace_path.is_none_or(|path| path.trim().is_empty())
     {
         return Err("Worktree mode requires workspacePath".to_string());
     }
@@ -250,6 +255,7 @@ async fn launch_rust_agent(
             org_context,
             provenance,
             mode: params.mode,
+            product_mode: params.product_mode,
             name: Some(name.clone()),
             images: params.images,
             ide_context: params.ide_context,

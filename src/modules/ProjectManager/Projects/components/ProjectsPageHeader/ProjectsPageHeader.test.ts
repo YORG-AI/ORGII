@@ -1,0 +1,35 @@
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+
+import ProjectsPageHeader from ".";
+
+describe("ProjectsPageHeader", () => {
+  it("uses the sidebar's collection icon for the Projects index", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ProjectsPageHeader, { title: "Projects" })
+    );
+
+    expect(markup).toContain("lucide-boxes");
+    expect(markup).not.toMatch(/class="[^"]*lucide-box(?:\s|")/);
+  });
+
+  it("renders top-level project controls without a duplicate title", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ProjectsPageHeader, {
+        title: "Projects",
+        breadcrumbSegments: [],
+        leadingControls: React.createElement(
+          "button",
+          { "data-testid": "group-projects" },
+          "Status"
+        ),
+      })
+    );
+
+    expect(markup).toContain('data-testid="group-projects"');
+    expect(markup).toContain('class="contents"');
+    expect(markup).not.toContain("lucide-boxes");
+    expect(markup).not.toContain(">Projects</span>");
+  });
+});

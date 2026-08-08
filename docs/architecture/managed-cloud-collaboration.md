@@ -86,6 +86,26 @@ note applying to the session as a whole; an event anchor means a round comment.
 Address Comments groups both scopes, selects both by default, permits
 scope-level selection, and carries the scope into the agent briefing.
 
+### Background upload policy
+
+Eligible local sessions continue publishing to a background-upload-enabled
+organization even when that organization is not the active UI scope. Repo
+scopes, session ownership/admission, the administrator sharing minimum,
+per-session choices above that minimum, entitlement backoff, and server
+authorization remain mandatory. Local EventStore writes, login/roster
+changes, reconnect, visibility recovery, and explicit actions drive those
+pushes. Inactive-org policy broadcasts are not kept subscribed, so the shared
+roster also refetches on focus/visibility return and through one five-minute,
+visible-only safety timeout. That timeout is single-flight, pauses while
+hidden, and refreshes only `list_my_orgs`; it does not scan or upload sessions
+itself. The sync engine remains event-driven and decides whether a roster
+change requires a session pass.
+
+The policy does not download teammate replays. Remote-session listing stays
+demand-driven for the active organization, and replay import remains an
+explicit user action. This keeps one org-wide background policy and avoids a
+second automatic download scheduler, queue, and retained fingerprint state.
+
 ### Presence
 
 Presence is ephemeral awareness, never the source of truth for membership,
@@ -103,8 +123,9 @@ detail views and ChatPanel. Lock release is serialized as explicit JSON
 
 ## Create with AI
 
-Create with AI uses `builtin:work-item-manager` by default and follows one
-durable-draft invariant:
+Create with AI uses `builtin:os` by default (the Work Item Manager persona was
+retired; `manage_work_item`/`manage_project` are ordinary built-in tools) and
+follows one durable-draft invariant:
 
 1. Before launch, the UI allocates a cloud-aware Work Item ID and writes one
    draft in the selected Project or organization-scoped standalone store.

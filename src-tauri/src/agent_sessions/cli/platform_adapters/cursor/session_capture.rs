@@ -168,6 +168,9 @@ pub async fn poll_cursor_native_oauth_token(
 /// - `cursor-session-token-captured`: When session token is detected
 /// - `cursor-webview-url-changed`: When URL changes in webview
 /// - `cursor-webview-navigate-oauth`: When OAuth URL needs navigation
+#[allow(clippy::too_many_arguments)]
+// Tauri exposes these parameters directly as the frontend command contract;
+// grouping them would be a wire-protocol change.
 #[tauri::command]
 pub async fn create_cursor_session_webview(
     app: AppHandle,

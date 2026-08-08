@@ -92,6 +92,8 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
           minHeight={96}
           maxHeight={240}
           appearance="outlined"
+          toolbarSize="mini"
+          toolbarDropdownPosition="top-start"
           dataTestId="new-issue-body-editor"
         />
 

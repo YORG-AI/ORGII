@@ -2,7 +2,9 @@ import { useAtomValue } from "jotai";
 import {
   ChevronRight,
   Circle,
+  ClipboardCheck,
   Contrast,
+  FlaskConical,
   Gauge,
   HelpCircle,
   Laptop,
@@ -32,10 +34,18 @@ import {
 } from "@src/components/KeyboardShortcut";
 import type { AppearanceMode } from "@src/config/appearance/globalThemes";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
-import { useDropdownEngine } from "@src/hooks/dropdown";
+import { ROUTES } from "@src/config/routes";
+import {
+  type DropdownEnginePosition,
+  useDropdownEngine,
+} from "@src/hooks/dropdown";
 import { useAppNavigation } from "@src/hooks/navigation";
 import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import {
+  DeveloperTestPanel,
+  isDeveloperTestPanelEnabled,
+} from "@src/scaffold/DeveloperTestPanel";
 import { openAgentControlSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { ADE_MANAGER_TOGGLE_SHORTCUT_ID } from "@src/scaffold/GlobalSpotlight/palettes/AgentControlPalette/constants";
 import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
@@ -56,6 +66,7 @@ const SUBMENU_WIDTH_PX = 220;
 const SUBMENU_GAP_PX = DROPDOWN_PANEL.submenuGap;
 const MENU_ICON_CLASS_NAME = "shrink-0 text-text-2";
 const MENU_ARROW_CLASS_NAME = "text-text-3";
+type SettingsUtilityPanel = "developerTests" | "ram";
 
 function getSubmenuPosition(
   trigger: HTMLElement,
@@ -78,32 +89,33 @@ function getSubmenuPosition(
 const SidebarSettingsMenuButton: React.FC = React.memo(() => {
   const { t } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
-  const { goToSettings } = useAppNavigation();
+  const { goToSettings, navigateTo } = useAppNavigation();
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
-  const ramPanelRef = useRef<HTMLDivElement | null>(null);
+  const developerTestPanelEnabled =
+    devModeEnabled && isDeveloperTestPanelEnabled();
+  const utilityPanelRef = useRef<HTMLDivElement | null>(null);
   const submenuPanelRef = useRef<HTMLDivElement | null>(null);
-  const preserveRamPanelOnMenuCloseRef = useRef(false);
+  const preserveUtilityPanelOnMenuCloseRef = useRef(false);
   const dropdownInsideRefs = useMemo(() => [submenuPanelRef], []);
   const [activeSubmenu, setActiveSubmenu] = useState<SettingsSubmenu | null>(
     null
   );
   const [submenuPosition, setSubmenuPosition] =
     useState<SubmenuPosition | null>(null);
-  const [ramPanelOpen, setRamPanelOpen] = useState(false);
-  const [ramPanelPosition, setRamPanelPosition] = useState<{
-    top?: number;
-    bottom?: number;
-    left?: number;
-  } | null>(null);
+  const [utilityPanel, setUtilityPanel] = useState<SettingsUtilityPanel | null>(
+    null
+  );
+  const [utilityPanelPosition, setUtilityPanelPosition] =
+    useState<DropdownEnginePosition | null>(null);
   const handleSettingsMenuOpenChange = useCallback((open: boolean) => {
     if (open) return;
     setActiveSubmenu(null);
     setSubmenuPosition(null);
-    if (preserveRamPanelOnMenuCloseRef.current) {
-      preserveRamPanelOnMenuCloseRef.current = false;
+    if (preserveUtilityPanelOnMenuCloseRef.current) {
+      preserveUtilityPanelOnMenuCloseRef.current = false;
       return;
     }
-    setRamPanelOpen(false);
+    setUtilityPanel(null);
   }, []);
   const {
     isOpen,
@@ -134,16 +146,16 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
   const settingsButtonClassName = isOpen ? "text-text-1" : "text-text-2";
 
   useEffect(() => {
-    if (!ramPanelOpen) return;
+    if (!utilityPanel) return;
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (ramPanelRef.current?.contains(target)) return;
-      setRamPanelOpen(false);
+      if (utilityPanelRef.current?.contains(target)) return;
+      setUtilityPanel(null);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setRamPanelOpen(false);
+      if (event.key === "Escape") setUtilityPanel(null);
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -152,12 +164,12 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [ramPanelOpen]);
+  }, [utilityPanel]);
 
   const closeAll = useCallback(() => {
     setActiveSubmenu(null);
     setSubmenuPosition(null);
-    setRamPanelOpen(false);
+    setUtilityPanel(null);
     close();
   }, [close]);
 
@@ -166,6 +178,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
       closeAll();
       return;
     }
+    setUtilityPanel(null);
     toggle();
   }, [closeAll, isOpen, toggle]);
 
@@ -182,23 +195,35 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
     goToSettings();
   }, [closeAll, goToSettings]);
 
+  const handleOpenUtilityPanel = useCallback(
+    (panel: SettingsUtilityPanel) => {
+      setActiveSubmenu(null);
+      setSubmenuPosition(null);
+      preserveUtilityPanelOnMenuCloseRef.current = true;
+      setUtilityPanelPosition({ ...panelPosition });
+      setUtilityPanel(panel);
+      close();
+    },
+    [close, panelPosition]
+  );
+
   const handleViewRam = useCallback(() => {
-    setActiveSubmenu(null);
-    setSubmenuPosition(null);
-    preserveRamPanelOnMenuCloseRef.current = true;
-    setRamPanelPosition({
-      top: panelPosition.top,
-      bottom: panelPosition.bottom,
-      left: panelPosition.left,
-    });
-    setRamPanelOpen(true);
-    close();
-  }, [close, panelPosition.bottom, panelPosition.left, panelPosition.top]);
+    handleOpenUtilityPanel("ram");
+  }, [handleOpenUtilityPanel]);
+
+  const handleOpenDeveloperTests = useCallback(() => {
+    handleOpenUtilityPanel("developerTests");
+  }, [handleOpenUtilityPanel]);
 
   const handleOpenTutorials = useCallback(() => {
     window.dispatchEvent(new CustomEvent(TUTORIALS_OPEN_EVENT));
     closeAll();
   }, [closeAll]);
+
+  const handleOpenSetupChecklist = useCallback(() => {
+    closeAll();
+    navigateTo(ROUTES.auth.setup.path);
+  }, [closeAll, navigateTo]);
 
   const handleOpenGuiControl = useCallback(() => {
     openAgentControlSpotlight();
@@ -302,24 +327,60 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
               </button>
               <div className={DROPDOWN_CLASSES.menuSeparator} />
               {devModeEnabled && (
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
-                  onMouseEnter={() => setActiveSubmenu(null)}
-                  onFocus={() => setActiveSubmenu(null)}
-                  onClick={handleViewRam}
-                >
-                  <Gauge
-                    size={DROPDOWN_ITEM.iconSize}
-                    className={MENU_ICON_CLASS_NAME}
-                  />
-                  <span>{t("sidebar.settingsMenu.viewRam")}</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                    onMouseEnter={() => setActiveSubmenu(null)}
+                    onFocus={() => setActiveSubmenu(null)}
+                    onClick={handleViewRam}
+                  >
+                    <Gauge
+                      size={DROPDOWN_ITEM.iconSize}
+                      className={MENU_ICON_CLASS_NAME}
+                    />
+                    <span>{t("sidebar.settingsMenu.viewRam")}</span>
+                  </button>
+                  {developerTestPanelEnabled && (
+                    <button
+                      type="button"
+                      className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                      onMouseEnter={() => setActiveSubmenu(null)}
+                      onFocus={() => setActiveSubmenu(null)}
+                      onClick={handleOpenDeveloperTests}
+                      data-testid="sidebar-open-developer-test-panel"
+                    >
+                      <FlaskConical
+                        size={DROPDOWN_ITEM.iconSize}
+                        className={MENU_ICON_CLASS_NAME}
+                      />
+                      <span>{t("sidebar.developerTestPanel.title")}</span>
+                    </button>
+                  )}
+                </>
               )}
               {/*
                 TODO(changelog-web): Restore the Changelog item here, directly
                 above Tutorials, once the maintained web destination is ready.
               */}
+              <button
+                type="button"
+                className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                onMouseEnter={() => setActiveSubmenu(null)}
+                onFocus={() => setActiveSubmenu(null)}
+                onClick={handleOpenSetupChecklist}
+                data-testid="sidebar-open-setup-checklist"
+              >
+                <ClipboardCheck
+                  size={DROPDOWN_ITEM.iconSize}
+                  className={MENU_ICON_CLASS_NAME}
+                />
+                <span>
+                  {t("sidebar.settingsMenu.setupChecklist", {
+                    defaultValue: "Setup checklist",
+                  })}
+                </span>
+              </button>
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
@@ -472,13 +533,22 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
         onSubmenuMouseDown={handleSubmenuMouseDown}
         onSubmenuPointerDown={handleSubmenuPointerDown}
       />
-      {devModeEnabled && ramPanelPosition && (
+      {devModeEnabled && utilityPanel === "ram" && utilityPanelPosition && (
         <SidebarRamMonitorPanel
-          isOpen={ramPanelOpen}
-          panelRef={ramPanelRef}
-          panelPosition={ramPanelPosition}
+          isOpen
+          panelRef={utilityPanelRef}
+          panelPosition={utilityPanelPosition}
         />
       )}
+      {developerTestPanelEnabled &&
+        utilityPanel === "developerTests" &&
+        utilityPanelPosition && (
+          <DeveloperTestPanel
+            panelRef={utilityPanelRef}
+            panelPosition={utilityPanelPosition}
+            onClose={() => setUtilityPanel(null)}
+          />
+        )}
     </>
   );
 });

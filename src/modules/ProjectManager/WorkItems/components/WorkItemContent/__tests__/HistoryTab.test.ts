@@ -49,20 +49,17 @@ vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
     dataTestId,
     matchMarkdownPreview,
     minHeight,
-    showTabs,
   }: {
     appearance?: string;
     dataTestId?: string;
     matchMarkdownPreview?: boolean;
     minHeight?: number;
-    showTabs?: boolean;
   }) =>
     createElement("textarea", {
       "data-testid": dataTestId,
       "data-appearance": appearance,
       "data-match-preview": String(matchMarkdownPreview),
       "data-min-height": minHeight,
-      "data-show-tabs": String(showTabs),
     }),
 }));
 
@@ -229,7 +226,6 @@ describe("HistoryTab discussion and activity presentation", () => {
     ).toBeNull();
     expect(editor?.getAttribute("data-appearance")).toBe("outlined");
     expect(editor?.getAttribute("data-min-height")).toBe("60");
-    expect(editor?.getAttribute("data-show-tabs")).toBe("true");
   });
 
   it("keeps machine events in a collapsed activity-history disclosure", () => {

@@ -2,6 +2,20 @@
   "title": "團隊執行狀態",
   "refresh": "重新整理",
   "loadError": "無法載入團隊執行狀態",
+  "overview": {
+    "today": "今天",
+    "everyone": "所有人",
+    "activeMembers": "活躍成員",
+    "systemsCurrent": "{{total}} 台系統中有 {{current}} 台狀態為最新",
+    "usageByAgent": "依代理程式統計用量",
+    "recentSessions": "最近共享的工作階段",
+    "recentLoading": "正在載入共享工作階段…",
+    "recentEmpty": "尚無共享工作階段",
+    "members": "成員明細",
+    "activeToday": "今日活躍",
+    "inactiveToday": "今日未活躍",
+    "sync": "同步"
+  },
   "signedOut": {
     "title": "登入後查看團隊",
     "subtitle": "隊友的執行狀態會透過 ORG2 Cloud 共享。",

@@ -39,6 +39,34 @@ pub const FUNCTION_GLOB_FILE_SEARCH: &str = "glob_file_search";
 pub const FUNCTION_AWAIT_OUTPUT: &str = "await_output";
 pub const DEFAULT_LIST_LIMIT: usize = 200;
 
+/// Drop one unparsable record from a source sync instead of failing the sync.
+///
+/// A sync that raises leaves `sync_source_cache_from_conn` unreached, so *no*
+/// session of that source is written — and because the record keeps its old
+/// cache signature, the next scan re-reads the same file and fails the same
+/// way. One malformed transcript would permanently cost a provider its entire
+/// sidebar. Skipping keeps that record on its last-known cached row (or absent
+/// if never cached) and still eligible for a later retry, while every other
+/// session in the source syncs normally.
+pub fn skip_unparsable_record<T>(
+    source: &str,
+    source_session_id: &str,
+    outcome: Result<T, String>,
+) -> Option<T> {
+    match outcome {
+        Ok(value) => Some(value),
+        Err(error) => {
+            tracing::warn!(
+                source,
+                source_session_id,
+                error = %error,
+                "imported history: skipping record that failed to parse"
+            );
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ImportedHistoryLoader {
     ClaudeCode,
@@ -55,7 +83,11 @@ enum ImportedHistoryLoader {
     Qoder,
     MimoCode,
     Omp,
+    Pi,
     QoderCli,
+    QwenCode,
+    Copilot,
+    Kimi,
 }
 
 fn imported_history_loader(session_id: &str) -> Option<ImportedHistoryLoader> {
@@ -87,8 +119,16 @@ fn imported_history_loader(session_id: &str) -> Option<ImportedHistoryLoader> {
         Some(ImportedHistoryLoader::MimoCode)
     } else if session_id.starts_with(super::omp::history::OMP_SESSION_PREFIX) {
         Some(ImportedHistoryLoader::Omp)
+    } else if session_id.starts_with(super::pi::history::PI_SESSION_PREFIX) {
+        Some(ImportedHistoryLoader::Pi)
     } else if session_id.starts_with(super::qoder_cli::history::QODER_CLI_SESSION_PREFIX) {
         Some(ImportedHistoryLoader::QoderCli)
+    } else if session_id.starts_with(super::qwen_code::history::QWEN_CODE_SESSION_PREFIX) {
+        Some(ImportedHistoryLoader::QwenCode)
+    } else if session_id.starts_with(super::copilot::SESSION_PREFIX) {
+        Some(ImportedHistoryLoader::Copilot)
+    } else if session_id.starts_with(super::kimi::history::KIMI_SESSION_PREFIX) {
+        Some(ImportedHistoryLoader::Kimi)
     } else {
         None
     }
@@ -150,8 +190,20 @@ pub fn load_activity_chunks_for_session(
         Some(ImportedHistoryLoader::Omp) => {
             super::omp::history::load_omp_history_for_session(conn, session_id)?
         }
+        Some(ImportedHistoryLoader::Pi) => {
+            super::pi::history::load_pi_history_for_session(conn, session_id)?
+        }
         Some(ImportedHistoryLoader::QoderCli) => {
             super::qoder_cli::history::load_qoder_cli_history_for_session(conn, session_id)?
+        }
+        Some(ImportedHistoryLoader::QwenCode) => {
+            super::qwen_code::history::load_qwen_code_history_for_session(conn, session_id)?
+        }
+        Some(ImportedHistoryLoader::Copilot) => {
+            super::copilot::history::load_copilot_history_for_session(conn, session_id)?
+        }
+        Some(ImportedHistoryLoader::Kimi) => {
+            super::kimi::history::load_kimi_history_for_session(conn, session_id)?
         }
         None => return Ok(None),
     };
@@ -230,6 +282,16 @@ pub struct ImportedHistorySidebarRow {
     pub storage_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Continuation-family identity elected from source metadata. Sidebar
+    /// consumers use it only to avoid rendering both a force-revealed active
+    /// sibling and the family's canonical roster row.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continuation_lineage_id: Option<String>,
+    /// ORGII-owned pin state, read from `imported_history_session_pin`.
+    /// A pin belongs to ORGII, not to the source app, so it is stored beside
+    /// the rebuildable cache rather than on it.
+    #[serde(default)]
+    pub pinned: bool,
     pub total_tokens: i64,
     pub files_changed: i64,
     pub lines_added: i64,
@@ -280,6 +342,68 @@ pub struct ImportedToolCall {
     pub canonical_name: String,
     pub args: Value,
     pub created_at: String,
+}
+
+/// Parse-state map for tool calls awaiting their output row. Drains in
+/// insertion (file-appearance) order: `HashMap` iteration order is randomized
+/// per process, and a nondeterministic emit order changes positional chunk
+/// ids across re-ingests of an unchanged transcript, which the cloud sync
+/// plane sees as an endless chain mismatch and answers with epoch rewrites.
+pub struct PendingCallMap<T> {
+    entries: HashMap<String, (u64, T)>,
+    next_order: u64,
+}
+
+impl<T> Default for PendingCallMap<T> {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+            next_order: 0,
+        }
+    }
+}
+
+impl<T> PendingCallMap<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn insert(&mut self, key: String, value: T) {
+        let order = self.next_order;
+        self.next_order += 1;
+        self.entries.insert(key, (order, value));
+    }
+
+    /// Insert under a caller-supplied order slot, so an entry that moves
+    /// between keys (or maps) keeps its original file position.
+    pub fn reinsert(&mut self, key: String, order: u64, value: T) {
+        self.next_order = self.next_order.max(order.saturating_add(1));
+        self.entries.insert(key, (order, value));
+    }
+
+    pub fn remove(&mut self, key: &str) -> Option<T> {
+        self.entries.remove(key).map(|(_, value)| value)
+    }
+
+    pub fn take(&mut self, key: &str) -> Option<(u64, T)> {
+        self.entries.remove(key)
+    }
+
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut T> {
+        self.entries.get_mut(key).map(|(_, value)| value)
+    }
+
+    pub fn drain_in_file_order(self) -> impl Iterator<Item = T> {
+        let mut entries = self.entries.into_iter().collect::<Vec<_>>();
+        entries.sort_unstable_by(
+            |(left_key, (left_order, _)), (right_key, (right_order, _))| {
+                left_order
+                    .cmp(right_order)
+                    .then_with(|| left_key.cmp(right_key))
+            },
+        );
+        entries.into_iter().map(|(_, (_, value))| value)
+    }
 }
 
 pub fn effective_limit(limit: usize) -> usize {
@@ -445,6 +569,15 @@ pub fn strip_internal_context_blocks(text: &str) -> &str {
 /// [`strip_internal_context_blocks`].
 pub fn strip_orgii_exec_mode_bridge(text: &str) -> &str {
     strip_internal_context_blocks(text)
+}
+
+/// Anthropic-family transcripts mark harness-injected user lines with
+/// `isMeta: true` (command caveats, hook feedback, loop ticks) or
+/// `origin.kind == "task-notification"` (background-task completion wakes).
+/// Such lines are transcript plumbing, not conversational rounds: they must
+/// not open a turn, become a round preview, or title the session.
+pub fn is_harness_injected_user_marker(is_meta: bool, origin_kind: Option<&str>) -> bool {
+    is_meta || origin_kind == Some("task-notification")
 }
 
 pub fn user_message_chunk(
@@ -804,12 +937,16 @@ mod impact_tests {
             ("qoderapp-id", ImportedHistoryLoader::Qoder),
             ("mimocodeapp-id", ImportedHistoryLoader::MimoCode),
             ("ompapp-id", ImportedHistoryLoader::Omp),
+            ("piapp-id", ImportedHistoryLoader::Pi),
             ("qodercliapp-id", ImportedHistoryLoader::QoderCli),
+            ("qwencodeapp-id", ImportedHistoryLoader::QwenCode),
+            ("kimihistoryapp-id", ImportedHistoryLoader::Kimi),
         ];
 
         for (session_id, expected) in cases {
             assert_eq!(imported_history_loader(session_id), Some(expected));
         }
+        assert_eq!(imported_history_loader("kimiapp-hook-id"), None);
         assert_eq!(imported_history_loader("org2-native-id"), None);
     }
 

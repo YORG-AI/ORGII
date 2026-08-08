@@ -18,7 +18,10 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { DiffSectionList } from "@src/modules/WorkStation/shared";
-import { sourceControlFocusTargetAtom } from "@src/store/workstation/codeEditor";
+import {
+  diffViewModeAtom,
+  sourceControlFocusTargetAtom,
+} from "@src/store/workstation/codeEditor";
 import type { GitFile } from "@src/types/git/types";
 
 import { useAllChangesFiles } from "./allChanges/useAllChangesFiles";
@@ -51,6 +54,7 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
 }) => {
   const { t } = useTranslation();
   const focusTarget = useAtomValue(sourceControlFocusTargetAtom);
+  const viewMode = useAtomValue(diffViewModeAtom);
 
   const {
     sortedFiles,
@@ -136,6 +140,7 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
   return (
     <DiffSectionList
       sections={sections}
+      viewMode={viewMode}
       loading={loading}
       emptyTitle={
         staged ? t("placeholders.noStagedChanges") : t("placeholders.noChanges")

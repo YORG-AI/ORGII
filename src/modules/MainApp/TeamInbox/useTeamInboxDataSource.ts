@@ -1,5 +1,6 @@
-import { useAtomValue, useStore } from "jotai";
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { atom, useAtom, useAtomValue, useStore } from "jotai";
+import isEqual from "lodash/isEqual";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import { invalidateProjectCache, projectApi } from "@src/api/http/project";
 import type { MemberEntry } from "@src/api/http/project";
@@ -51,6 +52,7 @@ import {
 
 const log = createLogger("TeamInboxDataSource");
 const MEMBER_READ_CONCURRENCY = 8;
+const TEAM_INBOX_REFRESH_FLOOR_MS = 15_000;
 const sessionCreationFlights = new Map<
   string,
   ReturnType<typeof createWorkItemFromSession>
@@ -66,8 +68,15 @@ interface MemberSnapshot {
   issue: TeamInboxIssue | null;
 }
 
+interface RetainedMemberSnapshot {
+  members: MemberEntry[];
+  issue: TeamInboxIssue | null;
+  loadedForInvalidation: number | null;
+}
+
 interface CloudMemberSnapshot {
   key: string;
+  rosterVersion: number | null;
   members: CloudOrgMember[];
 }
 
@@ -76,6 +85,58 @@ const EMPTY_MEMBER_SNAPSHOT: MemberSnapshot = {
   projectRosters: [],
   issue: null,
 };
+
+const EMPTY_RETAINED_MEMBER_SNAPSHOT: RetainedMemberSnapshot = {
+  members: [],
+  issue: null,
+  loadedForInvalidation: null,
+};
+
+// Per-Jotai-store snapshots survive the rendered Inbox surface unmounting,
+// without sharing identity or roster data between app/store instances.
+const teamInboxMemberSnapshotAtom = atom<RetainedMemberSnapshot>(
+  EMPTY_RETAINED_MEMBER_SNAPSHOT
+);
+const teamInboxCloudMemberSnapshotAtom = atom<CloudMemberSnapshot>({
+  key: "",
+  rosterVersion: null,
+  members: [],
+});
+
+function retainMemberSnapshot(
+  current: RetainedMemberSnapshot,
+  incoming: MemberSnapshot,
+  loadedForInvalidation: number | null
+): RetainedMemberSnapshot {
+  const dataUnchanged =
+    isEqual(current.members, incoming.members) &&
+    isEqual(current.issue, incoming.issue);
+  if (dataUnchanged) {
+    return current.loadedForInvalidation === loadedForInvalidation
+      ? current
+      : { ...current, loadedForInvalidation };
+  }
+  return {
+    members: incoming.members,
+    issue: incoming.issue,
+    loadedForInvalidation,
+  };
+}
+
+function retainCloudMemberSnapshot(
+  current: CloudMemberSnapshot,
+  incoming: CloudMemberSnapshot
+): CloudMemberSnapshot {
+  if (
+    current.key === incoming.key &&
+    isEqual(current.members, incoming.members)
+  ) {
+    return current.rosterVersion === incoming.rosterVersion
+      ? current
+      : { ...current, rosterVersion: incoming.rosterVersion };
+  }
+  return incoming;
+}
 
 let membersRequest: Promise<MemberSnapshot> | null = null;
 
@@ -156,11 +217,12 @@ export function useTeamInboxDataSource(): {
   viewerMemberIds: readonly string[];
 } {
   const store = useStore();
-  const [memberSnapshot, setMemberSnapshot] = useState<MemberSnapshot>(
-    EMPTY_MEMBER_SNAPSHOT
+  const [memberSnapshot, setMemberSnapshot] = useAtom(
+    teamInboxMemberSnapshotAtom
   );
-  const [cloudMemberSnapshot, setCloudMemberSnapshot] =
-    useState<CloudMemberSnapshot>({ key: "", members: [] });
+  const [cloudMemberSnapshot, setCloudMemberSnapshot] = useAtom(
+    teamInboxCloudMemberSnapshotAtom
+  );
   const { members } = memberSnapshot;
   const { memberIds: localViewerMemberIds } = useCurrentUserMemberIds(members);
   const auth = useAtomValue(org2CloudAuthAtom);
@@ -238,10 +300,15 @@ export function useTeamInboxDataSource(): {
   }, [store, viewerKey]);
 
   useEffect(() => {
+    if (memberSnapshot.loadedForInvalidation === invalidation) return;
     let cancelled = false;
     void readAllProjectMembers()
       .then((nextSnapshot) => {
-        if (!cancelled) setMemberSnapshot(nextSnapshot);
+        if (!cancelled) {
+          setMemberSnapshot((current) => {
+            return retainMemberSnapshot(current, nextSnapshot, invalidation);
+          });
+        }
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -259,10 +326,21 @@ export function useTeamInboxDataSource(): {
     return () => {
       cancelled = true;
     };
-  }, [invalidation, store]);
+  }, [
+    invalidation,
+    memberSnapshot.loadedForInvalidation,
+    setMemberSnapshot,
+    store,
+  ]);
 
   useEffect(() => {
     if (!auth || !activeCloudOrgId) {
+      return;
+    }
+    if (
+      cloudMemberSnapshot.key === cloudRosterKey &&
+      cloudMemberSnapshot.rosterVersion === activeCloudRosterVersion
+    ) {
       return;
     }
     let cancelled = false;
@@ -273,9 +351,12 @@ export function useTeamInboxDataSource(): {
       activeCloudRosterVersion
     ).then((loaded) => {
       if (!cancelled) {
-        setCloudMemberSnapshot({
-          key: cloudRosterKey,
-          members: loaded?.members ?? [],
+        setCloudMemberSnapshot((current) => {
+          return retainCloudMemberSnapshot(current, {
+            key: cloudRosterKey,
+            rosterVersion: activeCloudRosterVersion,
+            members: loaded?.members ?? [],
+          });
         });
       }
     });
@@ -287,13 +368,49 @@ export function useTeamInboxDataSource(): {
     activeCloudRosterVersion,
     auth,
     authIdentityKey,
+    cloudMemberSnapshot.key,
+    cloudMemberSnapshot.rosterVersion,
     cloudRosterKey,
+    setCloudMemberSnapshot,
     store,
   ]);
 
+  // The refresh is a full dual-source first-page listing and this hook is
+  // permanently mounted via the sidebar connector, so invalidation bursts
+  // (comment storms, project mutations) get a floor: immediate on a fresh
+  // scope or quiet period, otherwise one trailing refresh carrying the
+  // latest version — never dropped, never more than one per floor window.
+  const refreshFloorRef = useRef<{
+    scopeKey: string;
+    lastAtMs: number;
+    timer: ReturnType<typeof setTimeout> | null;
+    pendingVersion: string;
+  }>({ scopeKey: "", lastAtMs: 0, timer: null, pendingVersion: "" });
   useEffect(() => {
     const requestVersion = `${invalidation}:${activeCloudCommentsRevision}:${activeCloudRosterVersion}:${scopeMembers.length}:${memberSnapshot.issue?.code ?? "members-ok"}`;
-    void teamInboxCoordinator.refresh(store, scope, requestVersion);
+    const floor = refreshFloorRef.current;
+    const now = Date.now();
+    const elapsed = now - floor.lastAtMs;
+    if (
+      floor.scopeKey !== scope.key ||
+      elapsed >= TEAM_INBOX_REFRESH_FLOOR_MS
+    ) {
+      if (floor.timer) {
+        clearTimeout(floor.timer);
+        floor.timer = null;
+      }
+      floor.scopeKey = scope.key;
+      floor.lastAtMs = now;
+      void teamInboxCoordinator.refresh(store, scope, requestVersion);
+      return;
+    }
+    floor.pendingVersion = requestVersion;
+    if (floor.timer) return;
+    floor.timer = setTimeout(() => {
+      floor.timer = null;
+      floor.lastAtMs = Date.now();
+      void teamInboxCoordinator.refresh(store, scope, floor.pendingVersion);
+    }, TEAM_INBOX_REFRESH_FLOOR_MS - elapsed);
   }, [
     activeCloudCommentsRevision,
     activeCloudRosterVersion,
@@ -303,10 +420,42 @@ export function useTeamInboxDataSource(): {
     scope,
     store,
   ]);
+  useEffect(
+    () => () => {
+      const floor = refreshFloorRef.current;
+      if (floor.timer) {
+        clearTimeout(floor.timer);
+        floor.timer = null;
+      }
+    },
+    []
+  );
 
   useProjectDataChanged(() => teamInboxCoordinator.invalidate(store));
 
   const dataSource = useMemo<TeamInboxDataSource>(() => {
+    const getSnapshot = () => {
+      const cache = store.get(teamInboxCacheAtom);
+      if (cache.loadedForViewerKey !== scope.key) {
+        return {
+          items: [],
+          loading: true,
+          issue: null,
+          unreadCounts: { all: 0, mentions: 0, assigned: 0 },
+          nextCursor: null,
+        };
+      }
+      return {
+        items: cache.items,
+        loading: cache.loading,
+        issue: cache.issue,
+        unreadCounts: cache.unreadCounts,
+        nextCursor: cache.hasMore
+          ? { occurredAt: "", itemKey: "team-inbox-has-more" }
+          : null,
+      };
+    };
+
     const prepareSessionHandoff = async ({
       sessionId,
       title,
@@ -405,6 +554,7 @@ export function useTeamInboxDataSource(): {
     };
 
     return {
+      getSnapshot,
       listPage: async () => {
         const cache = store.get(teamInboxCacheAtom);
         if (
@@ -414,26 +564,16 @@ export function useTeamInboxDataSource(): {
         ) {
           throw issueError(cache.issue);
         }
-        return {
-          items: cache.items,
-          loading: cache.loading,
-          issue: cache.issue,
-          unreadCounts: cache.unreadCounts,
-          nextCursor: cache.hasMore
-            ? { occurredAt: "", itemKey: "team-inbox-has-more" }
-            : null,
-        };
+        return getSnapshot();
       },
       loadMore: () => teamInboxCoordinator.loadMore(store, scope),
       refresh: async () => {
         // Never create a second roster fan-out while the first is active.
-        // Explicit refresh waits for it, then starts one fresh post-invalidation
-        // snapshot that both mounted consumers can share.
+        // Explicit refresh waits for it, then invalidates once. The retained
+        // snapshot remains visible until that fresh result actually differs.
         await membersRequest?.catch(() => undefined);
         invalidateProjectCache();
         membersRequest = null;
-        const nextSnapshot = await readAllProjectMembers();
-        setMemberSnapshot(nextSnapshot);
         teamInboxCoordinator.invalidate(store);
       },
       markRead: (item) => teamInboxCoordinator.markRead(store, scope, item),

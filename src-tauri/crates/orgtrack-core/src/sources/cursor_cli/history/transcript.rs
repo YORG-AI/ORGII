@@ -20,7 +20,8 @@ pub(super) fn load_history_from_store_conn(
 
     let mut chunks = Vec::new();
     let mut sequence = 0usize;
-    let mut pending_tool_calls: HashMap<String, ImportedToolCall> = HashMap::new();
+    let mut pending_tool_calls: imported_history::PendingCallMap<ImportedToolCall> =
+        imported_history::PendingCallMap::new();
     let mut last_user_text: Option<String> = None;
 
     for blob_id in &manifest.message_blob_ids {
@@ -116,7 +117,7 @@ pub(super) fn load_history_from_store_conn(
     }
 
     // In-flight calls at the tail of an interrupted session: still show them.
-    for call in pending_tool_calls.into_values() {
+    for call in pending_tool_calls.drain_in_file_order() {
         chunks.push(imported_history::tool_call_chunk(
             session_id,
             CURSOR_CLI_PROVIDER_SLUG,

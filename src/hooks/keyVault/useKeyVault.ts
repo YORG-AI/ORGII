@@ -77,6 +77,7 @@ export function useKeyVault(
           hasApiKey,
           hasSessionToken,
           authMethod,
+          canRefreshQuota: keyInfo.can_refresh_quota,
           supportsRustAgents: keyInfo.supports_rust_agents,
           canLaunchCli: keyInfo.can_launch_cli,
           canUseNativeHarness: keyInfo.can_use_native_harness,

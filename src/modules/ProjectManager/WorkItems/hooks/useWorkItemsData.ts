@@ -4,12 +4,11 @@
  * Handles data transformations and computations for work items.
  *
  * OPTIMIZED: Uses Rust-computed view data internally:
- * - Kanban/Gantt/Calendar views computed in Rust
- * - Status grouping computed in Rust
- * - Single IPC call for all view data
+ * - Only the active view projection is computed in Rust
+ * - Single IPC call for the active view data
  * - Search and status filtering done in Rust
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { enrichedWorkItemToUI, projectApi } from "@src/api/http/project";
 import type {
@@ -30,10 +29,15 @@ import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMember
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 import { LatestScopedTask } from "@src/util/core/latestScopedTask";
 
-import { type OnAssignmentChanges, type StatusFilterType } from "../types";
+import {
+  type OnAssignmentChanges,
+  type StatusFilterType,
+  type WorkItemsViewTab,
+} from "../types";
 import { toWorkItemPartialUpdate } from "../workItemPartialUpdate";
 import {
   countWorkItemsByStatus,
+  filterWorkItemsBySearchQuery,
   getWorkItemNavigation,
   groupWorkItemsForStatusFilter,
 } from "../workItemsViewModel";
@@ -99,6 +103,7 @@ interface UseWorkItemsDataParams {
   sharedMembers?: MemberEntry[];
   /** Whether this tab is currently visible */
   isActive?: boolean;
+  activeView: WorkItemsViewTab;
 }
 
 export function useWorkItemsData({
@@ -111,6 +116,7 @@ export function useWorkItemsData({
   sharedLabels: _sharedLabels,
   sharedMembers,
   isActive = true,
+  activeView,
 }: UseWorkItemsDataParams) {
   // ============================================
   // Rust View Data (optimized path)
@@ -120,6 +126,7 @@ export function useWorkItemsData({
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
   const viewLoadCoordinator = useMemo(() => new LatestScopedTask(), []);
+  const purgedProjectSlugRef = useRef<string | null>(null);
 
   // Debounced search query for IPC calls (avoid IPC on every keystroke)
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
@@ -134,6 +141,11 @@ export function useWorkItemsData({
   }, [searchQuery, debouncedSetSearchQuery]);
 
   const fetchViewData = useCallback(async () => {
+    if (!isActive) {
+      viewLoadCoordinator.supersede();
+      setViewLoading(false);
+      return;
+    }
     if (!projectSlug) {
       viewLoadCoordinator.supersede();
       setViewData(null);
@@ -146,16 +158,29 @@ export function useWorkItemsData({
       projectSlug,
       statusFilter,
       normalizedSearch,
+      activeView,
     ]);
     await viewLoadCoordinator.run(scopeKey, async (context) => {
       setViewLoading(true);
       setViewError(null);
 
       try {
-        await projectApi.purgeExpiredDeletedWorkItems(projectSlug);
+        if (purgedProjectSlugRef.current !== projectSlug) {
+          await projectApi.purgeExpiredDeletedWorkItems(projectSlug);
+          if (!context.isCurrent()) return;
+          purgedProjectSlugRef.current = projectSlug;
+        }
         const data = await projectApi.readWorkItemsViewData(projectSlug, {
           statusFilter: statusFilter !== "all" ? statusFilter : undefined,
           searchQuery: normalizedSearch || undefined,
+          view:
+            activeView === "Kanban"
+              ? "kanban"
+              : activeView === "Gantt"
+                ? "gantt"
+                : activeView === "Calendar"
+                  ? "calendar"
+                  : "list",
         });
         if (context.isCurrent()) {
           setViewData(data);
@@ -172,12 +197,23 @@ export function useWorkItemsData({
         }
       }
     });
-  }, [debouncedSearchQuery, projectSlug, statusFilter, viewLoadCoordinator]);
+  }, [
+    activeView,
+    debouncedSearchQuery,
+    isActive,
+    projectSlug,
+    statusFilter,
+    viewLoadCoordinator,
+  ]);
 
   useEffect(() => {
+    if (!isActive) {
+      viewLoadCoordinator.supersede();
+      return;
+    }
     void fetchViewData();
     return () => viewLoadCoordinator.supersede();
-  }, [fetchViewData, viewLoadCoordinator]);
+  }, [fetchViewData, isActive, viewLoadCoordinator]);
 
   // Listen for orgii-data-changed events
   useProjectDataChanged(
@@ -216,7 +252,7 @@ export function useWorkItemsData({
   const { currentUser } = useCurrentUserMemberIds(members);
 
   useEffect(() => {
-    if (sharedMembers?.length || !projectSlug) return;
+    if (!isActive || sharedMembers?.length || !projectSlug) return;
     let cancelled = false;
 
     projectApi.readMembers(projectSlug).then((file) => {
@@ -228,7 +264,7 @@ export function useWorkItemsData({
     return () => {
       cancelled = true;
     };
-  }, [projectSlug, sharedMembers]);
+  }, [isActive, projectSlug, sharedMembers]);
 
   // Single IPC call: atomic read-modify-write with label/member resolution
   const updateWorkItemSource = useCallback(
@@ -305,23 +341,7 @@ export function useWorkItemsData({
       return workItems;
     }
 
-    const search = searchQuery.toLowerCase().trim();
-    if (!search) {
-      return workItems;
-    }
-
-    return workItems.filter((workItem) => {
-      const name = workItem.name?.toLowerCase() || "";
-      const labels =
-        workItem.labels?.map((label) => label.name.toLowerCase()).join(" ") ||
-        "";
-      const assignee = workItem.assignee?.name?.toLowerCase() || "";
-      return (
-        name.includes(search) ||
-        labels.includes(search) ||
-        assignee.includes(search)
-      );
-    });
+    return filterWorkItemsBySearchQuery(workItems, searchQuery);
   }, [workItems, searchQuery, debouncedSearchQuery]);
 
   const selectedWorkItem = useMemo(
@@ -343,17 +363,17 @@ export function useWorkItemsData({
 
   const kanbanTasks = useMemo((): KanbanTask[] => {
     if (!viewData) return [];
-    return viewData.kanbanTasks.map(rustKanbanToFrontend);
+    return (viewData.kanbanTasks ?? []).map(rustKanbanToFrontend);
   }, [viewData]);
 
   const ganttTasks = useMemo((): GanttTask[] => {
     if (!viewData) return [];
-    return viewData.ganttTasks.map(rustGanttToFrontend);
+    return (viewData.ganttTasks ?? []).map(rustGanttToFrontend);
   }, [viewData]);
 
   const calendarEvents = useMemo((): CalendarEvent[] => {
     if (!viewData) return [];
-    return viewData.calendarEvents.map(rustCalendarToFrontend);
+    return (viewData.calendarEvents ?? []).map(rustCalendarToFrontend);
   }, [viewData]);
 
   const navigation = useMemo(

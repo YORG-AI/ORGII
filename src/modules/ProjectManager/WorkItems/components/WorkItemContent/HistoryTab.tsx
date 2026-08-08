@@ -7,6 +7,7 @@ import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import { ScrollTrailTarget } from "@src/modules/shared/layouts/blocks";
 
 import { WorkItemActivityTimeline } from "./WorkItemActivityTimeline";
 import WorkItemMentionPicker from "./WorkItemMentionPicker";
@@ -62,6 +63,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       entries={timelineEntries}
       currentUser={currentUser}
       compact={isThread}
+      navigationEnabled={isThread}
     />
   );
   const discussionTimeline = (
@@ -69,6 +71,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       entries={discussionEntries}
       currentUser={currentUser}
       compact
+      navigationEnabled={isThread}
     />
   );
   const activityTimeline = (
@@ -122,8 +125,9 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
             minHeight={28}
             maxHeight={120}
             appearance="plain"
-            showTabs={false}
             matchMarkdownPreview={false}
+            toolbarSize="mini"
+            toolbarDropdownPosition="top-start"
             dataTestId="work-item-comment-editor"
           />
           {submitButton}
@@ -148,7 +152,8 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           minHeight={60}
           maxHeight={120}
           appearance="outlined"
-          showTabs
+          toolbarSize="mini"
+          toolbarDropdownPosition="top-start"
           dataTestId="work-item-comment-editor"
         />
         <div className="mt-2 flex items-center justify-end">{submitButton}</div>
@@ -187,37 +192,41 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           </div>
         )}
         {activityEntries.length > 0 ? (
-          <details
-            className="group overflow-hidden rounded-xl border border-border-1 bg-bg-2"
-            data-testid="work-item-thread-activity-history"
-          >
-            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 text-[12px] font-medium text-text-2 marker:hidden [&::-webkit-details-marker]:hidden">
-              <span className="min-w-0 flex-1">
-                {t("workItems.activity.activityHistory")}
-              </span>
-              <span className="shrink-0 font-normal tabular-nums text-text-4">
-                {t("workItems.activity.activityHistoryCount", {
-                  count: activityEntries.length,
-                })}
-              </span>
-              <ChevronRight
-                size={14}
-                aria-hidden
-                className="shrink-0 text-text-4 transition-transform group-open:rotate-90"
-              />
-            </summary>
-            <div className="border-t border-border-1 p-2">
-              {activityTimeline}
-            </div>
-          </details>
+          <ScrollTrailTarget label={t("workItems.activity.activityHistory")}>
+            <details
+              className="group overflow-hidden rounded-xl border border-border-1 bg-bg-2"
+              data-testid="work-item-thread-activity-history"
+            >
+              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 text-[12px] font-medium text-text-2 marker:hidden [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0 flex-1">
+                  {t("workItems.activity.activityHistory")}
+                </span>
+                <span className="shrink-0 font-normal tabular-nums text-text-4">
+                  {t("workItems.activity.activityHistoryCount", {
+                    count: activityEntries.length,
+                  })}
+                </span>
+                <ChevronRight
+                  size={14}
+                  aria-hidden
+                  className="shrink-0 text-text-4 transition-transform group-open:rotate-90"
+                />
+              </summary>
+              <div className="border-t border-border-1 p-2">
+                {activityTimeline}
+              </div>
+            </details>
+          </ScrollTrailTarget>
         ) : null}
         {canComment ? (
-          <div
-            className="sticky bottom-0 z-10 bg-transparent pt-2"
-            data-testid="work-item-thread-comment-dock"
-          >
-            {composer}
-          </div>
+          <ScrollTrailTarget label={t("workItems.activity.commentPlaceholder")}>
+            <div
+              className="sticky bottom-0 z-10 bg-transparent pt-2"
+              data-testid="work-item-thread-comment-dock"
+            >
+              {composer}
+            </div>
+          </ScrollTrailTarget>
         ) : null}
       </section>
     );

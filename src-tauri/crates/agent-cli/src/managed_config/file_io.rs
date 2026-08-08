@@ -46,6 +46,33 @@ fn unique_temp_path(path: &Path) -> PathBuf {
     ))
 }
 
+/// Create the staging file for an atomic write, owner-only.
+///
+/// The mode has to be set at creation because the temp file holds the payload
+/// before the caller gets a chance to tighten permissions on the destination:
+/// with a 0002 umask a plain create lands at 0664, so a credential would be
+/// group-readable for the whole write, and would stay that way in a temp file
+/// left behind by a crash.
+///
+/// There is no loose variant because nothing here wants one — every
+/// destination in this module ends up 0600 anyway, via
+/// [`app_paths::set_sensitive_file_permissions`].
+fn create_staging_file(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    // The name carries pid + nanos, so `create_new` never collides in
+    // practice; it does guarantee we never inherit the mode of a file somebody
+    // else left at this path.
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
+/// Crash-safe replace: write an owner-only sibling temp file, fsync, then
+/// rename over the target.
 pub(super) fn write_file_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)
@@ -54,7 +81,7 @@ pub(super) fn write_file_atomic(path: &Path, bytes: &[u8]) -> Result<(), String>
 
     let tmp = unique_temp_path(path);
     let result = (|| {
-        let mut file = std::fs::File::create(&tmp)
+        let mut file = create_staging_file(&tmp)
             .map_err(|err| format!("Failed to create {}: {err}", tmp.display()))?;
         use std::io::Write;
         file.write_all(bytes)

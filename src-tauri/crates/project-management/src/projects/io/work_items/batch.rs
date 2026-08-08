@@ -94,6 +94,8 @@ pub fn batch_update_work_items(
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
+// Batch tests construct sparse updates incrementally for scenario readability.
 mod tests {
     use super::*;
     use crate::projects::io::labels::write_labels;

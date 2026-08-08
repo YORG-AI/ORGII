@@ -11,8 +11,8 @@ use agent_core::session::persistence as session_persistence;
 use core_types::key_source::KeySource;
 use orgtrack_core::sources::cursor_ide::history::CursorIdeSessionRow;
 use orgtrack_core::sources::imported_history::metadata::{
-    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE, SOURCE_MIMO_CODE, SOURCE_OMP,
-    SOURCE_OPENCODE, SOURCE_QODER_CLI,
+    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_COPILOT, SOURCE_CURSOR_IDE, SOURCE_KIMI,
+    SOURCE_MIMO_CODE, SOURCE_OMP, SOURCE_OPENCODE, SOURCE_PI, SOURCE_QODER_CLI, SOURCE_QWEN_CODE,
 };
 use orgtrack_core::sources::imported_history::ImportedHistorySessionRow;
 
@@ -164,6 +164,9 @@ pub fn cli_session_to_aggregate_record(
         agent_icon_id: None,
         agent_display_name: None,
         agent_exec_mode: session.agent_exec_mode,
+        // CLI sessions carry no product mode yet (code_sessions has no
+        // column); None = build, the safe non-mutating default.
+        product_mode: None,
         draft_text: session.draft_text,
         reply_target_event_id: session.reply_target_event_id,
         pinned: session.pinned,
@@ -182,7 +185,11 @@ fn imported_history_cli_agent_type(source_label: &str) -> Option<String> {
         SOURCE_OPENCODE => Some(CliAgentType::OpenCode.as_str().to_string()),
         SOURCE_MIMO_CODE => Some(CliAgentType::MimoCode.as_str().to_string()),
         SOURCE_OMP => Some(CliAgentType::Omp.as_str().to_string()),
+        SOURCE_PI => Some(CliAgentType::Pi.as_str().to_string()),
         SOURCE_QODER_CLI => Some(CliAgentType::QoderCli.as_str().to_string()),
+        SOURCE_QWEN_CODE => Some(CliAgentType::QwenCode.as_str().to_string()),
+        SOURCE_COPILOT => Some(CliAgentType::Copilot.as_str().to_string()),
+        SOURCE_KIMI => Some(CliAgentType::KimiCli.as_str().to_string()),
         _ => None,
     }
 }
@@ -236,6 +243,7 @@ pub fn imported_history_to_aggregate_record(
         agent_icon_id: None,
         agent_display_name: Some(source_label.to_string()),
         agent_exec_mode: None,
+        product_mode: None,
         draft_text: None,
         reply_target_event_id: None,
         pinned: false,
@@ -294,6 +302,7 @@ pub fn cursor_ide_history_to_aggregate_record(
         agent_icon_id: None,
         agent_display_name: Some(source_label.to_string()),
         agent_exec_mode: None,
+        product_mode: None,
         draft_text: None,
         reply_target_event_id: None,
         pinned: false,
@@ -369,6 +378,7 @@ pub fn sde_session_to_aggregate_record(
         agent_icon_id,
         agent_display_name,
         agent_exec_mode: session.agent_exec_mode,
+        product_mode: session.product_mode,
         draft_text: session.draft_text,
         reply_target_event_id: session.reply_target_event_id,
         pinned: session.pinned,
@@ -437,6 +447,7 @@ pub fn os_session_to_aggregate_record(
         agent_icon_id,
         agent_display_name,
         agent_exec_mode: session.agent_exec_mode,
+        product_mode: session.product_mode,
         draft_text: session.draft_text,
         reply_target_event_id: session.reply_target_event_id,
         pinned: session.pinned,
@@ -505,6 +516,7 @@ pub fn human_session_to_aggregate_record(
         agent_icon_id: Some("clipboard-list".to_string()),
         agent_display_name: Some("Human".to_string()),
         agent_exec_mode: None,
+        product_mode: None,
         draft_text: None,
         reply_target_event_id: None,
         pinned: session.pinned,
@@ -512,5 +524,34 @@ pub fn human_session_to_aggregate_record(
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qwen_imported_rows_keep_the_existing_cli_agent_identity() {
+        assert_eq!(
+            imported_history_cli_agent_type(SOURCE_QWEN_CODE).as_deref(),
+            Some(CliAgentType::QwenCode.as_str())
+        );
+    }
+
+    #[test]
+    fn kimi_imported_rows_keep_the_existing_cli_agent_identity() {
+        assert_eq!(
+            imported_history_cli_agent_type(SOURCE_KIMI).as_deref(),
+            Some(CliAgentType::KimiCli.as_str())
+        );
+    }
+
+    #[test]
+    fn copilot_imported_rows_keep_the_existing_cli_agent_identity() {
+        assert_eq!(
+            imported_history_cli_agent_type(SOURCE_COPILOT).as_deref(),
+            Some(CliAgentType::Copilot.as_str())
+        );
     }
 }

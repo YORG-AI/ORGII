@@ -1,8 +1,13 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
-use crate::types::ValidationResult;
+use crate::types::{DiscoveredModel, ValidationResult};
 
-use crate::commands::crud::key_info_from_entry;
+use crate::commands::crud::{
+    key_info_from_entry, oauth_model_metadata, DefaultVariantInfo, ModelVariantInfo,
+};
 use crate::key_store::{AuthMethod, HealthStatus, ModelType, KEY_SERVICE};
 use crate::providers::anthropic::AnthropicValidator;
 use crate::providers::azure_openai::AzureOpenAIValidator;
@@ -10,11 +15,26 @@ use crate::providers::claude_code::ClaudeCodeQuotaFetcher;
 use crate::providers::codex::CodexValidator;
 use crate::providers::copilot::CopilotValidator;
 use crate::providers::cursor::CursorValidator;
+use crate::providers::deepseek::DeepSeekQuotaFetcher;
 use crate::providers::google::GoogleValidator;
+use crate::providers::kimi::KimiCodeQuotaFetcher;
 use crate::providers::kiro::KiroValidator;
+use crate::providers::minimax::MiniMaxQuotaFetcher;
 use crate::providers::openai::OpenAIValidator;
 use crate::providers::opencode_go::{workspace_id_override_from_key, OpenCodeGoQuotaFetcher};
+use crate::providers::openrouter::OpenRouterQuotaFetcher;
+use crate::providers::qoder::QoderQuotaFetcher;
+use crate::providers::zai_team::{
+    has_partial_team_scope, team_scope_from_key, ZaiTeamQuotaFetcher,
+    ORGANIZATION_METADATA_KEY as ZAI_TEAM_ORGANIZATION_METADATA_KEY,
+    PROJECT_METADATA_KEY as ZAI_TEAM_PROJECT_METADATA_KEY,
+};
 use crate::providers::zhipu::ZhipuQuotaFetcher;
+use crate::quota_runtime::{
+    QuotaAttemptState, QuotaFreshness, QuotaRefreshCompletion, QuotaRefreshRuntime,
+    QuotaRefreshStatus,
+};
+use crate::types::QuotaInfo;
 
 #[derive(Debug, Serialize)]
 pub struct TestModelResult {
@@ -23,31 +43,31 @@ pub struct TestModelResult {
 }
 
 #[derive(Debug, Deserialize)]
-struct ClaudeCodeOauthModelsResponse {
-    #[serde(default)]
-    data: Vec<ClaudeCodeOauthModelInfo>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ClaudeCodeOauthModelInfo {
-    id: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CodexOauthListModelsRequest {
-    pub access_token: String,
-    pub id_token: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct OAuthModelCatalogRequest {
     pub agent_type: String,
+    #[serde(default)]
+    pub access_token: Option<String>,
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub id_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct OAuthModelCatalogResponse {
     pub models: Vec<String>,
     pub default_enabled_models: Vec<String>,
+    pub model_context_lengths: HashMap<String, u64>,
+    pub model_variants: Vec<ModelVariantInfo>,
+    pub default_variants: Vec<DefaultVariantInfo>,
+    pub source: OAuthModelCatalogSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OAuthModelCatalogSource {
+    Live,
+    Fallback,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,11 +83,11 @@ struct OpenCodeModelInfo {
 
 use crate::provider_config::get_provider_config;
 
-const CLAUDE_CODE_OAUTH_MODELS_URL: &str = "https://api.anthropic.com/v1/models";
-const CLAUDE_CODE_OAUTH_BETA: &str = "oauth-2025-04-20";
-const CLAUDE_CODE_OAUTH_USER_AGENT: &str = "claude-cli/2.1.78 (orgii, cli)";
 pub const OPENCODE_ZEN_BASE_URL: &str = "https://opencode.ai/zen/v1";
 pub const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
+
+static QUOTA_REFRESH_RUNTIME: LazyLock<QuotaRefreshRuntime<QuotaInfo>> =
+    LazyLock::new(QuotaRefreshRuntime::default);
 
 /// Get the default base URL for a provider (without /v1 suffix for OpenAI-compat validation).
 /// Uses the unified provider_config module as the single source of truth.
@@ -230,7 +250,7 @@ pub async fn run_validate_key(
         // OpenAI-compatible API providers (use OpenAI validator with provider's base URL).
         // Providers that also speak the Anthropic protocol declare an Anthropic
         // endpoint in the provider registry and route through it below.
-        "deepseek_api" | "groq_api" | "xai_api" | "zhipu_api" | "dashscope_api"
+        "atlascloud_api" | "deepseek_api" | "groq_api" | "xai_api" | "zhipu_api" | "dashscope_api"
         | "moonshot_api" | "minimax_api" | "longcat_api" | "openrouter_api" | "zenmux_api"
         | "siliconflow_api" | "modelscope_api" | "aihubmix_api" | "cherryin_api"
         | "bedrock_api" | "custom_api" | "vllm_api" | "orgii_orchestrator" | "orgii" => {
@@ -258,7 +278,7 @@ pub async fn run_validate_key(
         }
 
         _ => Err(format!(
-            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, codex, claude_code, kiro, opencode, openai_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, siliconflow_api, modelscope_api, aihubmix_api, cherryin_api, bedrock_api, custom_api, vllm_api, azure_openai_api, azure_anthropic_api",
+            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, codex, claude_code, kiro, opencode, openai_api, atlascloud_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, siliconflow_api, modelscope_api, aihubmix_api, cherryin_api, bedrock_api, custom_api, vllm_api, azure_openai_api, azure_anthropic_api",
             agent_type
         )),
     }
@@ -406,9 +426,9 @@ pub fn validate_token_format(agent_type: String, token: String) -> Result<(bool,
         }
 
         // OpenAI-compatible providers: just verify non-empty and reasonable length
-        "deepseek_api" | "groq_api" | "xai_api" | "zhipu_api" | "dashscope_api"
-        | "moonshot_api" | "minimax_api" | "longcat_api" | "openrouter_api" | "zenmux_api"
-        | "vllm_api" | "orgii_orchestrator" | "orgii" => {
+        "atlascloud_api" | "deepseek_api" | "groq_api" | "xai_api" | "zhipu_api"
+        | "dashscope_api" | "moonshot_api" | "minimax_api" | "longcat_api" | "openrouter_api"
+        | "zenmux_api" | "vllm_api" | "orgii_orchestrator" | "orgii" => {
             if token.is_empty() {
                 Ok((false, "API key is required".to_string()))
             } else if token.len() < 8 {
@@ -449,6 +469,14 @@ pub async fn fetch_key_quota(
         // Zhipu (BigModel / Z.ai) GLM Coding Plan. Base URL is not available on
         // this validation-time path, so the fetcher defaults to the China host.
         "zhipu_api" | "zhipu" => ZhipuQuotaFetcher::new().fetch_quota(&api_key, None).await,
+        "deepseek_api" | "deepseek" => DeepSeekQuotaFetcher::new().fetch_quota(&api_key).await,
+        "openrouter_api" | "openrouter" => {
+            OpenRouterQuotaFetcher::new().fetch_quota(&api_key).await
+        }
+        // This legacy validation-time command has no base_url argument, so it
+        // can only use MiniMax's default international region. Stored-account
+        // refreshes below use the saved base_url and stay region-locked.
+        "minimax_api" | "minimax" => MiniMaxQuotaFetcher::new().fetch_quota(&api_key, None).await,
         // Other providers don't have public quota APIs
         "openai"
         | "anthropic"
@@ -458,15 +486,13 @@ pub async fn fetch_key_quota(
         | "kiro"
         | "openai_api"
         | "anthropic_api"
+        | "atlascloud_api"
         | "gemini_api"
-        | "deepseek_api"
         | "groq_api"
         | "xai_api"
         | "dashscope_api"
         | "moonshot_api"
-        | "minimax_api"
         | "longcat_api"
-        | "openrouter_api"
         | "zenmux_api"
         | "vllm_api"
         | "azure_openai_api"
@@ -479,13 +505,151 @@ pub async fn fetch_key_quota(
 
 /// Refresh quota for a stored key without exposing its token to the frontend.
 #[tauri::command]
-pub async fn refresh_key_quota(key_id: String) -> Result<Option<crate::commands::KeyInfo>, String> {
-    let key = KEY_SERVICE
-        .get_key_by_id(&key_id)
-        .ok_or_else(|| format!("Key not found: {}", key_id))?;
+pub async fn refresh_key_quota(
+    key_id: String,
+    force: Option<bool>,
+) -> Result<Option<crate::commands::KeyInfo>, String> {
+    let lookup_id = key_id.clone();
+    let key = tokio::task::spawn_blocking(move || {
+        KEY_SERVICE
+            .get_key_by_id_checked(&lookup_id)?
+            .ok_or_else(|| format!("Key not found: {lookup_id}"))
+    })
+    .await
+    .map_err(|err| format!("Quota key lookup worker failed: {err}"))??;
+    let credential_revision = quota_credential_revision(&key);
+    let strict_request_count = quota_refresh_uses_strict_request_count(&key);
+    let operation_key = key.clone();
+    let operation_revision = credential_revision.clone();
+    let operation = move || {
+        let key = operation_key.clone();
+        let revision = operation_revision.clone();
+        async move { refresh_and_store_key_quota(key, revision).await }
+    };
 
-    let quota = if key.model_type == ModelType::ClaudeCode && key.auth_method == AuthMethod::Oauth {
-        let token = key
+    if strict_request_count {
+        QUOTA_REFRESH_RUNTIME
+            .refresh_without_transient_retry(
+                key_id.clone(),
+                credential_revision,
+                force.unwrap_or(false),
+                operation,
+            )
+            .await?;
+    } else {
+        QUOTA_REFRESH_RUNTIME
+            .refresh(
+                key_id.clone(),
+                credential_revision,
+                force.unwrap_or(false),
+                operation,
+            )
+            .await?;
+    }
+
+    tokio::task::spawn_blocking(move || {
+        KEY_SERVICE
+            .get_key_by_id_checked(&key_id)?
+            .map(key_info_from_entry)
+            .transpose()
+    })
+    .await
+    .map_err(|err| format!("Quota result lookup worker failed: {err}"))?
+}
+
+/// Evict the runtime state retained for a deleted or signed-out account.
+pub fn invalidate_key_quota_runtime(key_id: &str) {
+    QUOTA_REFRESH_RUNTIME.invalidate(key_id);
+}
+
+/// Read-only process diagnostics for quota-refresh status and timestamps.
+pub fn key_quota_refresh_status(key_id: &str) -> Option<QuotaRefreshStatus<QuotaInfo>> {
+    QUOTA_REFRESH_RUNTIME.status(key_id)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyQuotaRefreshAttemptInfo {
+    pub generation: u64,
+    pub status: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyQuotaRefreshStatusInfo {
+    pub key_id: String,
+    pub generation: u64,
+    pub freshness: String,
+    pub cache_expires_at: Option<String>,
+    pub last_good: Option<QuotaInfo>,
+    pub last_good_at: Option<String>,
+    pub last_attempt: Option<KeyQuotaRefreshAttemptInfo>,
+}
+
+/// Return freshness and attempt diagnostics without triggering provider work.
+#[tauri::command]
+pub fn get_key_quota_refresh_status(key_id: String) -> Option<KeyQuotaRefreshStatusInfo> {
+    let status = key_quota_refresh_status(&key_id)?;
+    let (last_good, last_good_at) = match status.last_good {
+        Some(last_good) => (
+            Some(last_good.value),
+            Some(format_system_time(last_good.captured_at)),
+        ),
+        None => (None, None),
+    };
+    let last_attempt = status
+        .last_attempt
+        .map(|attempt| KeyQuotaRefreshAttemptInfo {
+            generation: attempt.generation,
+            status: match attempt.state {
+                QuotaAttemptState::Running => "running",
+                QuotaAttemptState::Succeeded => "succeeded",
+                QuotaAttemptState::Failed => "failed",
+                QuotaAttemptState::Superseded => "superseded",
+            }
+            .to_string(),
+            started_at: format_system_time(attempt.started_at),
+            finished_at: attempt.finished_at.map(format_system_time),
+            error: attempt.error,
+        });
+
+    Some(KeyQuotaRefreshStatusInfo {
+        key_id,
+        generation: status.generation,
+        freshness: match status.freshness {
+            QuotaFreshness::Empty => "empty",
+            QuotaFreshness::FreshSuccess => "fresh_success",
+            QuotaFreshness::FreshFailure => "fresh_failure",
+            QuotaFreshness::Expired => "expired",
+            QuotaFreshness::Refreshing => "refreshing",
+        }
+        .to_string(),
+        cache_expires_at: status.cache_expires_at.map(format_system_time),
+        last_good,
+        last_good_at,
+        last_attempt,
+    })
+}
+
+fn format_system_time(value: std::time::SystemTime) -> String {
+    chrono::DateTime::<chrono::Utc>::from(value).to_rfc3339()
+}
+
+async fn refresh_and_store_key_quota(
+    key: crate::key_store::ModelKey,
+    requested_revision: String,
+) -> Result<QuotaRefreshCompletion<QuotaInfo>, String> {
+    let key_id = key.id.clone();
+    let mut effective_key = key;
+    let mut account_metadata = HashMap::new();
+
+    let quota = if effective_key.model_type == ModelType::ClaudeCode
+        && effective_key.auth_method == AuthMethod::Oauth
+    {
+        let token = effective_key
             .session_token
             .as_deref()
             .filter(|token| !token.trim().is_empty())
@@ -497,8 +661,8 @@ pub async fn refresh_key_quota(key_id: String) -> Result<Option<crate::commands:
         {
             Ok(refresh) => refresh,
             Err(first_err) if is_unauthorized_quota_error(&first_err) => {
-                let refreshed = refresh_oauth_key_for_quota(&key).await?;
-                let retry_token = refreshed
+                effective_key = refresh_oauth_key_for_quota(&effective_key).await?;
+                let retry_token = effective_key
                     .session_token
                     .as_deref()
                     .filter(|retry_token| !retry_token.trim().is_empty())
@@ -512,39 +676,205 @@ pub async fn refresh_key_quota(key_id: String) -> Result<Option<crate::commands:
             Err(first_err) => return Err(first_err),
         };
 
-        if !refresh.account_metadata.is_empty() {
-            KEY_SERVICE.merge_key_account_metadata(&key_id, refresh.account_metadata)?;
-        }
-
+        account_metadata = refresh.account_metadata;
         refresh.quota
     } else {
-        match fetch_quota_for_key(&key).await {
+        match fetch_quota_for_key(&effective_key).await {
             Ok(quota) => quota,
             Err(first_err)
-                if key.auth_method == AuthMethod::Oauth
+                if effective_key.auth_method == AuthMethod::Oauth
                     && is_unauthorized_quota_error(&first_err) =>
             {
-                let refreshed = refresh_oauth_key_for_quota(&key).await?;
-                fetch_quota_for_key(&refreshed).await?
+                effective_key = refresh_oauth_key_for_quota(&effective_key).await?;
+                fetch_quota_for_key(&effective_key).await?
             }
             Err(first_err) => return Err(first_err),
         }
     };
 
-    let quota_value = serde_json::to_value(quota)
+    let committed_revision = quota_credential_revision(&effective_key);
+    let quota_value = serde_json::to_value(&quota)
         .map_err(|err| format!("Failed to serialize quota info: {err}"))?;
+    let commit_key_id = key_id.clone();
+    let revision_for_commit = committed_revision.clone();
 
-    let updated = KEY_SERVICE.update_key_health(
-        &key_id,
-        HealthStatus::Valid,
-        None,
-        None,
-        None,
-        Some(quota_value),
-        None,
-    )?;
+    tokio::task::spawn_blocking(move || {
+        let current = KEY_SERVICE
+            .get_key_by_id_checked(&commit_key_id)?
+            .ok_or_else(|| format!("Key not found: {commit_key_id}"))?;
+        if quota_credential_revision(&current) != revision_for_commit {
+            return Err(
+                "Quota refresh was superseded before its result could be stored".to_string(),
+            );
+        }
 
-    updated.map(key_info_from_entry).transpose()
+        if !account_metadata.is_empty() {
+            KEY_SERVICE.merge_key_account_metadata(&commit_key_id, account_metadata)?;
+        }
+
+        KEY_SERVICE
+            .update_key_health(
+                &commit_key_id,
+                HealthStatus::Valid,
+                None,
+                None,
+                None,
+                Some(quota_value),
+                None,
+            )?
+            .ok_or_else(|| format!("Key not found: {commit_key_id}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|err| format!("Quota persistence worker failed: {err}"))??;
+
+    if committed_revision == requested_revision {
+        Ok(QuotaRefreshCompletion::unchanged(quota))
+    } else {
+        Ok(QuotaRefreshCompletion::with_credential_revision(
+            quota,
+            committed_revision,
+        ))
+    }
+}
+
+pub(super) fn quota_credential_revision(key: &crate::key_store::ModelKey) -> String {
+    fn hash_field(hasher: &mut Sha256, name: &str, value: Option<&str>) {
+        hasher.update(name.len().to_le_bytes());
+        hasher.update(name.as_bytes());
+        match value {
+            Some(value) => {
+                hasher.update([1]);
+                hasher.update(value.len().to_le_bytes());
+                hasher.update(value.as_bytes());
+            }
+            None => hasher.update([0]),
+        }
+    }
+
+    let mut hasher = Sha256::new();
+    hash_field(&mut hasher, "model_type", Some(key.model_type.as_str()));
+    hash_field(
+        &mut hasher,
+        "auth_method",
+        Some(match key.auth_method {
+            AuthMethod::ApiKey => "api_key",
+            AuthMethod::Oauth => "oauth",
+        }),
+    );
+    hash_field(&mut hasher, "api_key", key.api_key.as_deref());
+    hash_field(&mut hasher, "session_token", key.session_token.as_deref());
+    hash_field(&mut hasher, "base_url", key.base_url.as_deref());
+    hash_field(
+        &mut hasher,
+        "protocol",
+        key.protocol.map(|protocol| protocol.as_str()),
+    );
+
+    let mut env_vars = key.env_vars.iter().collect::<Vec<_>>();
+    env_vars.sort_unstable_by(|left, right| left.0.cmp(right.0));
+    for (name, value) in env_vars {
+        hash_field(&mut hasher, name, Some(value));
+    }
+    hash_field(
+        &mut hasher,
+        "opencode_workspace",
+        workspace_id_override_from_key(key),
+    );
+    hash_field(
+        &mut hasher,
+        ZAI_TEAM_ORGANIZATION_METADATA_KEY,
+        key.account_metadata
+            .get(ZAI_TEAM_ORGANIZATION_METADATA_KEY)
+            .map(String::as_str),
+    );
+    hash_field(
+        &mut hasher,
+        ZAI_TEAM_PROJECT_METADATA_KEY,
+        key.account_metadata
+            .get(ZAI_TEAM_PROJECT_METADATA_KEY)
+            .map(String::as_str),
+    );
+
+    format!("{:x}", hasher.finalize())
+}
+
+#[cfg(test)]
+mod quota_credential_revision_tests {
+    use super::*;
+
+    #[test]
+    fn revision_is_stable_across_map_insertion_order() {
+        let mut first = crate::key_store::ModelKey::new(ModelType::Codex);
+        first.env_vars.insert("B".into(), "two".into());
+        first.env_vars.insert("A".into(), "one".into());
+        let mut second = first.clone();
+        second.env_vars.clear();
+        second.env_vars.insert("A".into(), "one".into());
+        second.env_vars.insert("B".into(), "two".into());
+
+        assert_eq!(
+            quota_credential_revision(&first),
+            quota_credential_revision(&second)
+        );
+    }
+
+    #[test]
+    fn revision_changes_for_secrets_endpoint_and_quota_scope() {
+        let mut key = crate::key_store::ModelKey::new(ModelType::OpenCode);
+        key.session_token = Some("cookie-a".into());
+        let initial = quota_credential_revision(&key);
+
+        key.session_token = Some("cookie-b".into());
+        let changed_secret = quota_credential_revision(&key);
+        assert_ne!(initial, changed_secret);
+
+        key.base_url = Some("https://example.test".into());
+        let changed_endpoint = quota_credential_revision(&key);
+        assert_ne!(changed_secret, changed_endpoint);
+
+        key.account_metadata
+            .insert("opencode_workspace_id".into(), "wrk_account".into());
+        assert_ne!(changed_endpoint, quota_credential_revision(&key));
+    }
+
+    #[test]
+    fn revision_ignores_display_only_account_metadata() {
+        let mut key = crate::key_store::ModelKey::new(ModelType::ClaudeCode);
+        key.session_token = Some("token".into());
+        let initial = quota_credential_revision(&key);
+
+        key.name = Some("Renamed account".into());
+        key.account_metadata
+            .insert("rate_limit_tier".into(), "pro".into());
+        assert_eq!(initial, quota_credential_revision(&key));
+    }
+
+    #[test]
+    fn quota_status_wire_shape_uses_frontend_camel_case() {
+        let status = KeyQuotaRefreshStatusInfo {
+            key_id: "account".into(),
+            generation: 3,
+            freshness: "fresh_success".into(),
+            cache_expires_at: Some("2026-07-31T00:00:00Z".into()),
+            last_good: Some(QuotaInfo::default()),
+            last_good_at: Some("2026-07-31T00:00:00Z".into()),
+            last_attempt: Some(KeyQuotaRefreshAttemptInfo {
+                generation: 3,
+                status: "succeeded".into(),
+                started_at: "2026-07-31T00:00:00Z".into(),
+                finished_at: Some("2026-07-31T00:00:01Z".into()),
+                error: None,
+            }),
+        };
+        let wire = serde_json::to_value(status).unwrap();
+
+        assert_eq!(wire["keyId"], "account");
+        assert!(wire.get("cacheExpiresAt").is_some());
+        assert!(wire.get("lastGoodAt").is_some());
+        assert!(wire["lastAttempt"].get("startedAt").is_some());
+        assert!(wire.get("key_id").is_none());
+    }
 }
 
 async fn fetch_quota_for_key(
@@ -594,12 +924,9 @@ async fn fetch_quota_for_key(
                 .await
         }
         ModelType::OpenCode => {
-            let cookie = key
-                .session_token
-                .as_deref()
-                .or(key.api_key.as_deref())
-                .filter(|token| !token.trim().is_empty())
-                .ok_or_else(|| "OpenCode account has no session cookie".to_string())?;
+            let cookie =
+                first_non_empty_secret(key.session_token.as_deref(), key.api_key.as_deref())
+                    .ok_or_else(|| "OpenCode account has no session cookie".to_string())?;
             OpenCodeGoQuotaFetcher::new()
                 .fetch_quota(cookie, workspace_id_override_from_key(key))
                 .await
@@ -610,8 +937,61 @@ async fn fetch_quota_for_key(
                 .as_deref()
                 .filter(|token| !token.trim().is_empty())
                 .ok_or_else(|| "Zhipu account has no API key".to_string())?;
-            ZhipuQuotaFetcher::new()
+            if let Some(scope) = team_scope_from_key(key) {
+                ZaiTeamQuotaFetcher::new().fetch_quota(token, scope).await
+            } else if has_partial_team_scope(key) {
+                Err(format!(
+                    "ZAI Team quota requires both {ZAI_TEAM_ORGANIZATION_METADATA_KEY} \
+                     and {ZAI_TEAM_PROJECT_METADATA_KEY}"
+                ))
+            } else {
+                ZhipuQuotaFetcher::new()
+                    .fetch_quota(token, key.base_url.as_deref())
+                    .await
+            }
+        }
+        ModelType::DeepseekApi => {
+            let token = key
+                .api_key
+                .as_deref()
+                .filter(|token| !token.trim().is_empty())
+                .ok_or_else(|| "DeepSeek account has no API key".to_string())?;
+            DeepSeekQuotaFetcher::new().fetch_quota(token).await
+        }
+        ModelType::OpenrouterApi => {
+            let token = key
+                .api_key
+                .as_deref()
+                .filter(|token| !token.trim().is_empty())
+                .ok_or_else(|| "OpenRouter account has no API key".to_string())?;
+            OpenRouterQuotaFetcher::new().fetch_quota(token).await
+        }
+        ModelType::MinimaxApi => {
+            let token = key
+                .api_key
+                .as_deref()
+                .filter(|token| !token.trim().is_empty())
+                .ok_or_else(|| "MiniMax account has no API key".to_string())?;
+            MiniMaxQuotaFetcher::new()
                 .fetch_quota(token, key.base_url.as_deref())
+                .await
+        }
+        ModelType::MoonshotApi => {
+            let token = key
+                .api_key
+                .as_deref()
+                .filter(|token| !token.trim().is_empty())
+                .ok_or_else(|| "Kimi Code account has no API key".to_string())?;
+            KimiCodeQuotaFetcher::new()
+                .fetch_quota(token, key.base_url.as_deref())
+                .await
+        }
+        ModelType::QoderCli => {
+            let cookie =
+                first_non_empty_secret(key.session_token.as_deref(), key.api_key.as_deref())
+                    .ok_or_else(|| "Qoder account has no saved cookie or token".to_string())?;
+            QoderQuotaFetcher::new()
+                .fetch_quota(cookie, key.base_url.as_deref())
                 .await
         }
         ref other => Err(format!(
@@ -621,11 +1001,197 @@ async fn fetch_quota_for_key(
     }
 }
 
+fn first_non_empty_secret<'a>(
+    preferred: Option<&'a str>,
+    fallback: Option<&'a str>,
+) -> Option<&'a str> {
+    preferred
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .or_else(|| fallback.map(str::trim).filter(|value| !value.is_empty()))
+}
+
+fn quota_refresh_uses_strict_request_count(key: &crate::key_store::ModelKey) -> bool {
+    matches!(key.model_type, ModelType::QoderCli)
+        || (key.model_type == ModelType::ZhipuApi && team_scope_from_key(key).is_some())
+        || (key.model_type == ModelType::MoonshotApi
+            && crate::providers::kimi::has_supported_base_url(key.base_url.as_deref()))
+}
+
+pub(super) fn key_can_refresh_quota(key: &crate::key_store::ModelKey) -> bool {
+    let has_api_key = key
+        .api_key
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty());
+    let has_session_token = key
+        .session_token
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty());
+    match key.model_type {
+        ModelType::CursorCli => has_session_token,
+        ModelType::Copilot
+        | ModelType::DeepseekApi
+        | ModelType::OpenrouterApi
+        | ModelType::MinimaxApi => has_api_key,
+        ModelType::MoonshotApi => {
+            has_api_key && crate::providers::kimi::has_supported_base_url(key.base_url.as_deref())
+        }
+        ModelType::ZhipuApi => has_api_key && !has_partial_team_scope(key),
+        ModelType::QoderCli => {
+            (has_session_token || has_api_key)
+                && crate::providers::qoder::has_supported_region(key.base_url.as_deref())
+        }
+        ModelType::OpenCode => has_session_token || has_api_key,
+        ModelType::ClaudeCode | ModelType::Codex => {
+            key.auth_method == AuthMethod::Oauth && has_session_token
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod direct_quota_dispatch_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn direct_provider_variants_reach_their_stored_key_dispatch_arms() {
+        for (model_type, expected_provider, expected_secret) in [
+            (ModelType::DeepseekApi, "DeepSeek", "no API key"),
+            (ModelType::OpenrouterApi, "OpenRouter", "no API key"),
+            (ModelType::MinimaxApi, "MiniMax", "no API key"),
+            (ModelType::MoonshotApi, "Kimi Code", "no API key"),
+            (ModelType::QoderCli, "Qoder", "no saved cookie or token"),
+        ] {
+            let key = crate::key_store::ModelKey::new(model_type);
+            let error = fetch_quota_for_key(&key).await.unwrap_err();
+            assert!(
+                error.contains(expected_provider) && error.contains(expected_secret),
+                "unexpected dispatch error: {error}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn wave_two_providers_reach_validation_time_dispatch_arms() {
+        for (agent_type, expected_provider) in [
+            ("deepseek_api", "DeepSeek"),
+            ("openrouter_api", "OpenRouter"),
+            ("minimax_api", "MiniMax"),
+        ] {
+            let error = fetch_key_quota(agent_type.to_string(), " ".to_string())
+                .await
+                .unwrap_err();
+            assert!(
+                error.contains(expected_provider) && error.contains("no API key"),
+                "unexpected dispatch error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn quota_refresh_capability_matches_supported_dispatches() {
+        for model_type in [
+            ModelType::CursorCli,
+            ModelType::Copilot,
+            ModelType::OpenCode,
+            ModelType::ZhipuApi,
+            ModelType::DeepseekApi,
+            ModelType::OpenrouterApi,
+            ModelType::MinimaxApi,
+            ModelType::MoonshotApi,
+            ModelType::QoderCli,
+        ] {
+            let is_kimi_code = model_type == ModelType::MoonshotApi;
+            let mut key = crate::key_store::ModelKey::new(model_type);
+            key.api_key = Some("api-key".to_string());
+            key.session_token = Some("session-token".to_string());
+            if is_kimi_code {
+                key.base_url = Some("https://api.kimi.com/coding".to_string());
+            }
+            assert!(key_can_refresh_quota(&key));
+        }
+
+        let mut oauth_key = crate::key_store::ModelKey::new(ModelType::ClaudeCode);
+        assert!(!key_can_refresh_quota(&oauth_key));
+        oauth_key.auth_method = AuthMethod::Oauth;
+        assert!(!key_can_refresh_quota(&oauth_key));
+        oauth_key.session_token = Some("access-token".to_string());
+        assert!(key_can_refresh_quota(&oauth_key));
+
+        assert!(!key_can_refresh_quota(&crate::key_store::ModelKey::new(
+            ModelType::AnthropicApi
+        )));
+    }
+
+    #[test]
+    fn zai_team_capability_requires_complete_scope_and_revision_tracks_it() {
+        let mut key = crate::key_store::ModelKey::new(ModelType::ZhipuApi);
+        key.api_key = Some("api-key".to_string());
+        assert!(key_can_refresh_quota(&key));
+        assert!(!quota_refresh_uses_strict_request_count(&key));
+        let personal_revision = quota_credential_revision(&key);
+
+        key.account_metadata
+            .insert(ZAI_TEAM_ORGANIZATION_METADATA_KEY.into(), "org-1".into());
+        assert!(!key_can_refresh_quota(&key));
+        let partial_revision = quota_credential_revision(&key);
+        assert_ne!(personal_revision, partial_revision);
+
+        key.account_metadata
+            .insert(ZAI_TEAM_PROJECT_METADATA_KEY.into(), "project-1".into());
+        assert!(key_can_refresh_quota(&key));
+        assert!(quota_refresh_uses_strict_request_count(&key));
+        assert_ne!(partial_revision, quota_credential_revision(&key));
+    }
+
+    #[test]
+    fn qoder_capability_requires_an_explicit_saved_secret() {
+        let mut key = crate::key_store::ModelKey::new(ModelType::QoderCli);
+        assert!(!key_can_refresh_quota(&key));
+        key.session_token = Some("session=qoder".into());
+        assert!(key_can_refresh_quota(&key));
+        assert!(quota_refresh_uses_strict_request_count(&key));
+        key.base_url = Some("https://example.com".into());
+        assert!(!key_can_refresh_quota(&key));
+    }
+
+    #[test]
+    fn kimi_code_capability_is_fixed_route_and_strict_one_attempt() {
+        let mut key = crate::key_store::ModelKey::new(ModelType::MoonshotApi);
+        key.api_key = Some("kimi-code-key".into());
+        assert!(!key_can_refresh_quota(&key));
+        assert!(!quota_refresh_uses_strict_request_count(&key));
+
+        key.base_url = Some("https://api.moonshot.ai/v1".into());
+        assert!(!key_can_refresh_quota(&key));
+        assert!(!quota_refresh_uses_strict_request_count(&key));
+
+        let ordinary_revision = quota_credential_revision(&key);
+        key.base_url = Some("https://api.kimi.com/coding/".into());
+        assert!(key_can_refresh_quota(&key));
+        assert!(quota_refresh_uses_strict_request_count(&key));
+        assert_ne!(ordinary_revision, quota_credential_revision(&key));
+    }
+
+    #[test]
+    fn stored_cookie_resolution_skips_blank_preferred_values() {
+        assert_eq!(
+            first_non_empty_secret(Some("  "), Some(" fallback-cookie ")),
+            Some("fallback-cookie")
+        );
+        assert_eq!(
+            first_non_empty_secret(Some(" preferred-cookie "), Some("fallback-cookie")),
+            Some("preferred-cookie")
+        );
+        assert_eq!(first_non_empty_secret(Some(" "), None), None);
+    }
+}
+
 async fn refresh_oauth_key_for_quota(
     key: &crate::key_store::ModelKey,
 ) -> Result<crate::key_store::ModelKey, String> {
     let rejected_access_token = key.session_token.clone().unwrap_or_default();
-    match key.model_type {
+    let outcome = match key.model_type {
         ModelType::ClaudeCode => {
             KEY_SERVICE
                 .refresh_claude_code_oauth_key(&key.id, &rejected_access_token)
@@ -640,7 +1206,10 @@ async fn refresh_oauth_key_for_quota(
             "OAuth quota refresh is not supported for {}",
             other.as_str()
         )),
-    }
+    }?;
+    outcome
+        .into_key()
+        .ok_or_else(|| format!("Key {} is not a native OAuth account", key.id))
 }
 
 fn is_unauthorized_quota_error(error_message: &str) -> bool {
@@ -712,130 +1281,163 @@ pub async fn cursor_list_models_native(
     Ok(models)
 }
 
-async fn claude_code_oauth_list_models_from_url(
-    access_token: &str,
-    models_url: &str,
-) -> Result<Vec<String>, String> {
-    let token = access_token.trim();
-    if token.is_empty() {
-        return Err("Claude Code OAuth access token is empty".to_string());
+fn oauth_static_catalog(
+    agent_type: &str,
+) -> Option<(&'static [&'static str], &'static [&'static str])> {
+    match agent_type {
+        "claude_code" => Some((
+            super::crud::CLAUDE_CODE_OAUTH_MODELS,
+            super::crud::CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS,
+        )),
+        "codex" => Some((
+            super::crud::CODEX_OAUTH_MODELS,
+            super::crud::CODEX_OAUTH_DEFAULT_ENABLED_MODELS,
+        )),
+        _ => None,
     }
-
-    let response = reqwest::Client::new()
-        .get(models_url)
-        .header("Authorization", format!("Bearer {token}"))
-        .header("anthropic-version", "2023-06-01")
-        .header("anthropic-beta", CLAUDE_CODE_OAUTH_BETA)
-        .header("User-Agent", CLAUDE_CODE_OAUTH_USER_AGENT)
-        .header("x-app", "cli")
-        .timeout(std::time::Duration::from_secs(15))
-        .send()
-        .await
-        .map_err(|err| format!("Claude Code OAuth model discovery request failed: {err}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|err| format!("Claude Code OAuth model discovery body read failed: {err}"))?;
-
-    if !status.is_success() {
-        return Err(format!(
-            "Claude Code OAuth model discovery failed: HTTP {}: {}",
-            status.as_u16(),
-            body
-        ));
-    }
-
-    parse_claude_code_oauth_models_response(&body)
 }
 
-fn merge_default_catalog(mut models: Vec<String>, defaults: &[&str]) -> Vec<String> {
-    for model in defaults {
-        let model = (*model).to_string();
-        if !models.contains(&model) {
-            models.push(model);
-        }
-    }
-    models
+fn fallback_discovered_models(agent_type: &str) -> Result<Vec<DiscoveredModel>, String> {
+    let (models, _) = oauth_static_catalog(agent_type)
+        .ok_or_else(|| format!("Unsupported OAuth model catalog agent type: {agent_type}"))?;
+    Ok(models
+        .iter()
+        .map(|model| DiscoveredModel {
+            id: (*model).to_string(),
+            ..DiscoveredModel::default()
+        })
+        .collect())
 }
 
-fn parse_claude_code_oauth_models_response(body: &str) -> Result<Vec<String>, String> {
-    let parsed: ClaudeCodeOauthModelsResponse = serde_json::from_str(body)
-        .map_err(|err| format!("Claude Code OAuth model discovery parse failed: {err}"))?;
-    let mut models = Vec::new();
-    for model in parsed.data {
-        if !model.id.is_empty() && !models.contains(&model.id) {
-            models.push(model.id);
-        }
+pub(super) fn resolved_oauth_catalog(
+    agent_type: &str,
+    discovered: Vec<DiscoveredModel>,
+    source: OAuthModelCatalogSource,
+) -> Result<OAuthModelCatalogResponse, String> {
+    let (_, fallback_defaults) = oauth_static_catalog(agent_type)
+        .ok_or_else(|| format!("Unsupported OAuth model catalog agent type: {agent_type}"))?;
+    let models: Vec<String> = discovered.iter().map(|model| model.id.clone()).collect();
+    let mut default_enabled_models: Vec<String> = discovered
+        .iter()
+        .filter(|model| model.is_default)
+        .map(|model| model.id.clone())
+        .collect();
+    if default_enabled_models.is_empty() {
+        default_enabled_models = fallback_defaults
+            .iter()
+            .filter(|model| models.iter().any(|available| available.as_str() == **model))
+            .map(|model| (*model).to_string())
+            .collect();
     }
-    Ok(models)
+    if default_enabled_models.is_empty() {
+        default_enabled_models.extend(models.first().cloned());
+    }
+
+    let model_context_lengths = discovered
+        .iter()
+        .filter_map(|model| {
+            model
+                .context_window
+                .filter(|context| *context > 0)
+                .map(|context| (model.id.clone(), context))
+        })
+        .collect();
+    let (model_variants, default_variants) = oauth_model_metadata(agent_type, &discovered);
+
+    Ok(OAuthModelCatalogResponse {
+        models,
+        default_enabled_models,
+        model_context_lengths,
+        model_variants,
+        default_variants,
+        source,
+    })
 }
 
+fn is_oauth_discovery_auth_error(error: &str) -> bool {
+    let lower = error.to_lowercase();
+    lower.contains("401")
+        || lower.contains("403")
+        || lower.contains("unauthorized")
+        || lower.contains("forbidden")
+        || lower.contains("invalid credential")
+        || lower.contains("invalid token")
+        || lower.contains("access denied")
+        || lower.contains("token expired")
+}
+
+/// Resolve one authoritative OAuth catalog for every wizard and refresh entry
+/// point. A successful account-visible response is never unioned with baked
+/// models; the static catalog is used only when discovery is unavailable.
 #[tauri::command]
-pub fn oauth_model_catalog(
+pub async fn oauth_model_catalog(
     request: OAuthModelCatalogRequest,
 ) -> Result<OAuthModelCatalogResponse, String> {
-    match request.agent_type.as_str() {
-        "claude_code" => Ok(OAuthModelCatalogResponse {
-            models: super::crud::CLAUDE_CODE_OAUTH_MODELS
-                .iter()
-                .map(|model| (*model).to_string())
-                .collect(),
-            default_enabled_models: super::crud::CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS
-                .iter()
-                .map(|model| (*model).to_string())
-                .collect(),
-        }),
-        "codex" => Ok(OAuthModelCatalogResponse {
-            models: super::crud::CODEX_OAUTH_MODELS
-                .iter()
-                .map(|model| (*model).to_string())
-                .collect(),
-            default_enabled_models: super::crud::CODEX_OAUTH_DEFAULT_ENABLED_MODELS
-                .iter()
-                .map(|model| (*model).to_string())
-                .collect(),
-        }),
-        other => Err(format!(
-            "Unsupported OAuth model catalog agent type: {other}"
-        )),
+    let fallback = fallback_discovered_models(&request.agent_type)?;
+    let Some(access_token) = request
+        .access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+    else {
+        return resolved_oauth_catalog(
+            &request.agent_type,
+            fallback,
+            OAuthModelCatalogSource::Fallback,
+        );
+    };
+
+    let discovered = match request.agent_type.as_str() {
+        "claude_code" => {
+            AnthropicValidator::new()
+                .get_oauth_model_catalog(access_token)
+                .await
+        }
+        "codex" => {
+            CodexValidator::new()
+                .discover_models(
+                    access_token,
+                    request.refresh_token.as_deref(),
+                    request.id_token.as_deref(),
+                )
+                .await
+        }
+        other => {
+            return Err(format!(
+                "Unsupported OAuth model catalog agent type: {other}"
+            ))
+        }
+    };
+
+    match discovered {
+        Ok(models) if !models.is_empty() => {
+            resolved_oauth_catalog(&request.agent_type, models, OAuthModelCatalogSource::Live)
+        }
+        Ok(_) => {
+            log::warn!(
+                "[oauth_model_catalog] {} returned an empty catalog; using fallback",
+                request.agent_type
+            );
+            resolved_oauth_catalog(
+                &request.agent_type,
+                fallback,
+                OAuthModelCatalogSource::Fallback,
+            )
+        }
+        Err(err) if is_oauth_discovery_auth_error(&err) => Err(err),
+        Err(err) => {
+            log::warn!(
+                "[oauth_model_catalog] {} discovery failed ({}); using fallback",
+                request.agent_type,
+                err
+            );
+            resolved_oauth_catalog(
+                &request.agent_type,
+                fallback,
+                OAuthModelCatalogSource::Fallback,
+            )
+        }
     }
-}
-
-#[tauri::command]
-pub async fn claude_code_oauth_list_models(access_token: String) -> Result<Vec<String>, String> {
-    use log::info;
-    info!("[claude_code_oauth_list_models] Fetching models via Anthropic OAuth...");
-    let models = merge_default_catalog(
-        claude_code_oauth_list_models_from_url(&access_token, CLAUDE_CODE_OAUTH_MODELS_URL).await?,
-        super::crud::CLAUDE_CODE_OAUTH_MODELS,
-    );
-    info!(
-        "[claude_code_oauth_list_models] Got {} models from Anthropic OAuth",
-        models.len()
-    );
-    Ok(models)
-}
-
-#[tauri::command]
-pub async fn codex_oauth_list_models(
-    request: CodexOauthListModelsRequest,
-) -> Result<Vec<String>, String> {
-    use log::info;
-    info!("[codex_oauth_list_models] Fetching models via Codex native backend...");
-    let validator = CodexValidator::new();
-    let models = merge_default_catalog(
-        validator
-            .list_models(&request.access_token, request.id_token.as_deref())
-            .await?,
-        super::crud::CODEX_OAUTH_MODELS,
-    );
-    info!(
-        "[codex_oauth_list_models] Got {} models from Codex native backend",
-        models.len()
-    );
-    Ok(models)
 }
 
 /// Force-refresh an OAuth account's access token after the frontend observed a
@@ -914,6 +1516,10 @@ mod tests {
             default_base_url_for_provider("xai_api"),
             Some("https://api.x.ai".to_string())
         );
+        assert_eq!(
+            default_base_url_for_provider("atlascloud_api"),
+            Some("https://api.atlascloud.ai".to_string())
+        );
     }
 
     #[test]
@@ -941,32 +1547,20 @@ mod tests {
     }
 
     #[test]
-    fn claude_code_oauth_models_response_parses_and_deduplicates_ids() {
-        let models = parse_claude_code_oauth_models_response(
-            r#"{
-                "data": [
-                    { "id": "claude-sonnet-4-6", "type": "model" },
-                    { "id": "claude-opus-4-7", "type": "model" },
-                    { "id": "claude-sonnet-4-6", "type": "model" },
-                    { "id": "", "type": "model" }
-                ]
-            }"#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            models,
-            vec![
-                "claude-sonnet-4-6".to_string(),
-                "claude-opus-4-7".to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn claude_code_oauth_models_response_rejects_invalid_json() {
-        let err = parse_claude_code_oauth_models_response("not json").unwrap_err();
-        assert!(err.contains("parse failed"));
+    fn oauth_auth_failures_are_not_hidden_by_the_fallback_catalog() {
+        for error in [
+            "HTTP 401",
+            "HTTP 403",
+            "unauthorized",
+            "forbidden",
+            "invalid credential",
+            "invalid token",
+            "access denied",
+            "token expired",
+        ] {
+            assert!(is_oauth_discovery_auth_error(error), "{error}");
+        }
+        assert!(!is_oauth_discovery_auth_error("request timed out"));
     }
 
     #[test]
@@ -1044,6 +1638,7 @@ mod tests {
             "deepseek_api",
             "groq_api",
             "xai_api",
+            "atlascloud_api",
             "zhipu_api",
             "dashscope_api",
             "moonshot_api",
@@ -1067,6 +1662,7 @@ mod tests {
             "deepseek_api",
             "groq_api",
             "xai_api",
+            "atlascloud_api",
             "zhipu_api",
             "dashscope_api",
             "moonshot_api",
@@ -1091,6 +1687,7 @@ mod tests {
             "deepseek_api",
             "groq_api",
             "xai_api",
+            "atlascloud_api",
             "longcat_api",
             "orgii_orchestrator",
             "orgii",

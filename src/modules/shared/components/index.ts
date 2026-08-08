@@ -6,14 +6,17 @@
 
 export { BackgroundLayer } from "./BackgroundLayer";
 export {
+  ActivityHeaderActionButton,
   ActivityTimestamp,
   ConnectedTimelineItem,
   TimelineCard,
   TimelineCardHeader,
   TimelineCopyButton,
   TimelineEventCard,
+  TimelineLoadingSkeleton,
   TimelineStack,
 } from "./ActivityTimeline";
+export type { ActivityHeaderActionButtonProps } from "./ActivityTimeline";
 export type { MarkdownEditorProps } from "./MarkdownEditor";
 export {
   MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT,
@@ -23,7 +26,6 @@ export {
 export type { MarkdownContentProps } from "./MarkdownContent";
 export { default as RichMarkdownEditor } from "./RichMarkdownEditor";
 export type {
-  RichMarkdownEditorMode,
   RichMarkdownEditorProps,
   RichMarkdownEditorRef,
 } from "./RichMarkdownEditor";

@@ -448,6 +448,68 @@ describe("listSessionComments", () => {
     expect(result).not.toHaveProperty("unknownLegacyField");
   });
 
+  it("drops a malformed row alone and keeps the rest of the listing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        viewerOwnsSession: true,
+        comments: [
+          WIRE_COMMENT,
+          // Structurally broken row (no id, no body): must cost only itself.
+          { authorUserId: 42, createdAt: null },
+          { ...WIRE_COMMENT, id: "comment-3" },
+        ],
+      })
+    );
+    const { comments, viewerOwnsSession } = await listSessionComments(
+      "jwt-1",
+      "org-1",
+      "sess-1"
+    );
+    expect(viewerOwnsSession).toBe(true);
+    expect(comments.map((comment) => comment.id)).toEqual([
+      "comment-1",
+      "comment-3",
+    ]);
+  });
+
+  it("degrades unknown kind/resolution values to absent-field semantics", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comments: [
+          {
+            ...WIRE_COMMENT,
+            kind: "agent_summary",
+            resolvedAt: "2026-07-11T10:00:00.000Z",
+            resolution: "duplicate",
+          },
+        ],
+      })
+    );
+    const { comments } = await listSessionComments("jwt-1", "org-1", "sess-1");
+    // A newer backend's enum value renders as the absent-field fallback
+    // ('user' semantics / plain resolve) — the row itself survives.
+    expect(comments).toHaveLength(1);
+    expect(comments[0].kind).toBeUndefined();
+    expect(comments[0].resolution).toBeUndefined();
+    expect(comments[0].resolvedAt).toBe("2026-07-11T10:00:00.000Z");
+  });
+
+  it("keeps a row whose mention list exceeds this client's outbound cap", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comments: [
+          {
+            ...WIRE_COMMENT,
+            mentionedUserIds: Array.from({ length: 60 }, (_, i) => `u-${i}`),
+          },
+        ],
+      })
+    );
+    const { comments } = await listSessionComments("jwt-1", "org-1", "sess-1");
+    expect(comments).toHaveLength(1);
+    expect(comments[0].mentionedUserIds).toHaveLength(60);
+  });
+
   it("maps ORG2_RETENTION_EXPIRED into a coded error", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ message: "ORG2_RETENTION_EXPIRED" }, 400)

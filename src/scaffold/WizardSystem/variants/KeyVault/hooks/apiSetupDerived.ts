@@ -91,8 +91,9 @@ export function getEffectiveValidationModels(
 ): string[] {
   if (models.length > 0) return models;
   if (agentType === CLI_AGENT.CLAUDE_CODE) return models;
-  if (agentType === CLI_AGENT.CODEX)
-    return agentModels.length > 0 ? agentModels : models;
+  // Codex OAuth discovery (including its baked fallback) is owned by the
+  // backend catalog. Reference-price rows are only a Cursor fallback.
+  if (agentType === CLI_AGENT.CODEX) return models;
   if (agentType !== CLI_AGENT.CURSOR) return models;
   if (agentModels.length > 0) return agentModels;
   return getMyKeyFallbackNativeModels(NATIVE_HARNESS_TYPE.CURSOR);

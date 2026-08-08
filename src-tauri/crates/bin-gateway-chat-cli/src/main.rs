@@ -483,46 +483,6 @@ fn parse_script(raw: &str) -> Vec<ScriptStep> {
     out
 }
 
-#[cfg(test)]
-mod script_parse_tests {
-    use super::{parse_script, ScriptStep};
-
-    #[test]
-    fn header_before_separator_is_ignored() {
-        let src = "# Scenario: foo\n\nA user does X. Probes Y.\nAnother prose line.\n\n# === turn-by-turn ===\n\nhi\n\n@wait 2\n\nnext turn\n";
-        let steps = parse_script(src);
-        let users: Vec<&str> = steps
-            .iter()
-            .filter_map(|s| match s {
-                ScriptStep::User(u) => Some(u.as_str()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(users, vec!["hi", "next turn"]);
-    }
-
-    #[test]
-    fn missing_separator_falls_back_to_whole_file() {
-        let src = "# comment\nhello\nworld\n";
-        let steps = parse_script(src);
-        let users: Vec<&str> = steps
-            .iter()
-            .filter_map(|s| match s {
-                ScriptStep::User(u) => Some(u.as_str()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(users, vec!["hello", "world"]);
-    }
-
-    #[test]
-    fn comments_and_blank_lines_ignored_after_separator() {
-        let src = "# === turn-by-turn ===\n\n# this is a comment\n\nactual user line\n# another comment\n";
-        let steps = parse_script(src);
-        assert_eq!(steps.len(), 1);
-    }
-}
-
 enum ScriptStep {
     User(String),
     Wait(Duration),
@@ -717,5 +677,45 @@ impl TranscriptBuffer {
         let mut out = self.header.clone();
         out.push_str(&self.body);
         fs::write(path, out)
+    }
+}
+
+#[cfg(test)]
+mod script_parse_tests {
+    use super::{parse_script, ScriptStep};
+
+    #[test]
+    fn header_before_separator_is_ignored() {
+        let src = "# Scenario: foo\n\nA user does X. Probes Y.\nAnother prose line.\n\n# === turn-by-turn ===\n\nhi\n\n@wait 2\n\nnext turn\n";
+        let steps = parse_script(src);
+        let users: Vec<&str> = steps
+            .iter()
+            .filter_map(|s| match s {
+                ScriptStep::User(u) => Some(u.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(users, vec!["hi", "next turn"]);
+    }
+
+    #[test]
+    fn missing_separator_falls_back_to_whole_file() {
+        let src = "# comment\nhello\nworld\n";
+        let steps = parse_script(src);
+        let users: Vec<&str> = steps
+            .iter()
+            .filter_map(|s| match s {
+                ScriptStep::User(u) => Some(u.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(users, vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn comments_and_blank_lines_ignored_after_separator() {
+        let src = "# === turn-by-turn ===\n\n# this is a comment\n\nactual user line\n# another comment\n";
+        let steps = parse_script(src);
+        assert_eq!(steps.len(), 1);
     }
 }

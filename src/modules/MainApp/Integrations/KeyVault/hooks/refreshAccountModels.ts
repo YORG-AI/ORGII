@@ -3,8 +3,7 @@
  *
  * Dispatches per provider:
  *   • Cursor (with session token) → cursor_list_models_native
- *   • Claude Code OAuth           → claude_code_oauth_list_models
- *   • Codex OAuth                 → codex_oauth_list_models
+ *   • Claude Code / Codex OAuth   → oauth_model_catalog
  *   • Anything else (API key)     → validate_key (validator already returns
  *                                   models_available alongside the auth check)
  *
@@ -24,8 +23,6 @@
  */
 import {
   type ModelContextLengths,
-  getClaudeCodeOAuthModels,
-  getCodexOAuthModels,
   getCursorNativeModels,
   getFullKey,
   getOAuthModelCatalog,
@@ -68,6 +65,35 @@ function isOAuthAccount(account: KeyVaultAccount): boolean {
 interface FetchedAccountModels {
   models: string[];
   modelContextLengths: ModelContextLengths;
+  defaultEnabledModels?: string[];
+}
+
+async function fetchOAuthCatalogForAccount(
+  account: KeyVaultAccount,
+  accessToken: string,
+  envVars: Record<string, string> | undefined
+): Promise<FetchedAccountModels> {
+  const catalog = await getOAuthModelCatalog(account.modelType, {
+    accessToken,
+    refreshToken:
+      account.modelType === CLI_AGENT.CLAUDE_CODE
+        ? envVars?.CLAUDE_CODE_REFRESH_TOKEN
+        : envVars?.OPENAI_REFRESH_TOKEN,
+    idToken: envVars?.OPENAI_ID_TOKEN ?? envVars?.CODEX_ID_TOKEN,
+  });
+  // A stored account is already a better last-known-good source than the
+  // baked bootstrap list. Never replace it when live discovery is unavailable.
+  if (catalog.source !== "live") {
+    throw new RefreshModelsError(
+      "Live model discovery is temporarily unavailable",
+      "transient"
+    );
+  }
+  return {
+    models: catalog.models,
+    modelContextLengths: catalog.modelContextLengths,
+    defaultEnabledModels: catalog.defaultEnabledModels,
+  };
 }
 
 async function fetchModelsForAccount(
@@ -107,10 +133,7 @@ async function fetchModelsForAccount(
           "auth_expired"
         );
       }
-      return {
-        models: await getClaudeCodeOAuthModels(token),
-        modelContextLengths: {},
-      };
+      return fetchOAuthCatalogForAccount(account, token, fullKey.env_vars);
     }
     case CLI_AGENT.CODEX: {
       if (!isOAuthAccount(account)) {
@@ -123,11 +146,7 @@ async function fetchModelsForAccount(
           "auth_expired"
         );
       }
-      const idToken = fullKey.env_vars?.CODEX_ID_TOKEN;
-      return {
-        models: await getCodexOAuthModels(token, idToken),
-        modelContextLengths: {},
-      };
+      return fetchOAuthCatalogForAccount(account, token, fullKey.env_vars);
     }
   }
 
@@ -227,7 +246,7 @@ export async function refreshAccountModels(
     );
   }
 
-  const refreshedEnabledModels = await (async () => {
+  const refreshedEnabledModels = (() => {
     if (!isOAuthAccount(account)) {
       return undefined;
     }
@@ -237,9 +256,8 @@ export async function refreshAccountModels(
     ) {
       return undefined;
     }
-    const catalog = await getOAuthModelCatalog(account.modelType);
     const enabled = new Set(account.enabledModels ?? []);
-    for (const modelId of catalog.defaultEnabledModels) {
+    for (const modelId of fetched.defaultEnabledModels ?? []) {
       if (fetched.models.includes(modelId)) enabled.add(modelId);
     }
     return [...enabled];

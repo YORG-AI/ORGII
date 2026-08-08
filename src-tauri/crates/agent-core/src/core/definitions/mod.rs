@@ -62,7 +62,7 @@ pub use store::{definitions_store, set_definitions_changed_hook, AgentDefinition
 // subagents, base) are consumed via the deeper `definitions::builtin::*`
 // path, so we deliberately don't flatten the whole `builtin::*` set.
 pub use builtin::{
-    ai_research_agent, os_agent, sde_agent, wingman_agent, work_item_manager_agent,
-    AI_RESEARCH_AGENT_ID, OS_AGENT_ID, SDE_AGENT_ID, WORK_ITEM_MANAGER_AGENT_ID,
+    ai_research_agent, os_agent, sde_agent, wingman_agent, AI_RESEARCH_AGENT_ID, OS_AGENT_ID,
+    SDE_AGENT_ID,
 };
 pub use capabilities::CapabilitySet;

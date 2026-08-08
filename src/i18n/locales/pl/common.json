@@ -11,6 +11,11 @@
       "mentions": "Wzmianki",
       "assigned": "Przypisane"
     },
+    "sections": {
+      "reviewRequested": "Prośba o przegląd",
+      "authoredByMe": "Utworzone przeze mnie",
+      "otherTodos": "Inne zadania"
+    },
     "status": {
       "read": "Przeczytane",
       "unread": "Nieprzeczytane"
@@ -33,10 +38,10 @@
       "title": "Nic tu jeszcze nie ma",
       "subtitle": "Wzmianki i przypisane elementy pracy będą się tu pojawiać.",
       "selectTitle": "Wybierz element",
-      "selectSubtitle": "Zobacz kontekst komentarza lub szczegóły elementu pracy.",
+      "selectSubtitle": "Zobacz kontekst komentarza lub szczegóły elementu pracy",
       "mentions": {
         "title": "Brak wzmianek",
-        "subtitle": "Gdy członek zespołu wspomni o Tobie za pomocą @ w komentarzu, pojawi się to tutaj."
+        "subtitle": "Gdy członek zespołu wspomni o Tobie za pomocą @ w komentarzu, pojawi się to tutaj"
       },
       "assigned": {
         "title": "Nic Ci nie przypisano",
@@ -113,7 +118,9 @@
       "markUnread": "Nie można oznaczyć tego elementu jako nieprzeczytanego. Spróbuj ponownie.",
       "markAllRead": "Nie można oznaczyć wszystkich elementów jako przeczytanych. Spróbuj ponownie.",
       "identity": "Nie udało się dopasować Twojego konta do członka projektu. Sprawdź adres e-mail w profilu projektu.",
-      "partialLoad": "Nie udało się odświeżyć niektórych źródeł skrzynki zespołu. Dostępne elementy są nadal wyświetlane.",
+      "partialLoad": "Nie udało się odświeżyć niektórych źródeł skrzynki zespołu. Dostępne elementy są nadal wyświetlane",
+      "pullRequestsPartialLoad": "Nie udało się odświeżyć niektórych pull requestów",
+      "pullRequestsPartialLoadHelp": "Dostępne elementy są nadal wyświetlane; odśwież, aby ponownie spróbować wczytać brakujące pull requesty",
       "workItemContext": "Część kontekstu projektu jest niedostępna. Element pracy jest nadal użyteczny.",
       "workItemLoad": "Nie można wczytać tego elementu pracy. Spróbuj ponownie.",
       "workItemUpdate": "Nie można zapisać ostatniej zmiany elementu pracy. Spróbuj ponownie."
@@ -159,6 +166,50 @@
       "medium": "Średni",
       "high": "Wysoki",
       "urgent": "Pilny"
+    }
+  },
+  "windowChrome": {
+    "menus": {
+      "file": "Plik",
+      "edit": "Edycja",
+      "view": "Widok",
+      "window": "Okno",
+      "help": "Pomoc",
+      "aria": "Menu {{label}}"
+    },
+    "items": {
+      "quitOrg2": "Zakończ ORG-2",
+      "newSession": "Nowa sesja",
+      "openFolder": "Otwórz folder...",
+      "addFolderToWorkspace": "Dodaj folder do obszaru roboczego...",
+      "saveWorkspaceAs": "Zapisz obszar roboczy jako...",
+      "closeWindow": "Zamknij okno",
+      "undo": "Cofnij",
+      "redo": "Ponów",
+      "cut": "Wytnij",
+      "copy": "Kopiuj",
+      "paste": "Wklej",
+      "selectAll": "Zaznacz wszystko",
+      "commandPalette": "Paleta poleceń",
+      "goToFile": "Przejdź do pliku...",
+      "selectModel": "Wybierz model...",
+      "switchWorkspace": "Przełącz obszar roboczy...",
+      "switchBranch": "Przełącz gałąź...",
+      "switchRunningLocation": "Przełącz lokalizację uruchomienia...",
+      "settings": "Ustawienia...",
+      "zoomIn": "Powiększ",
+      "zoomOut": "Pomniejsz",
+      "actualSize": "Rozmiar rzeczywisty",
+      "minimize": "Minimalizuj",
+      "maximizeRestore": "Maksymalizuj / Przywróć",
+      "maximizeWorkstation": "Maksymalizuj stację roboczą",
+      "documentation": "Dokumentacja",
+      "reportIssue": "Zgłoś problem"
+    },
+    "controls": {
+      "minimizeWindow": "Minimalizuj okno",
+      "maximizeRestoreWindow": "Maksymalizuj lub przywróć okno",
+      "closeWindow": "Zamknij okno"
     }
   },
   "toasts": {
@@ -372,7 +423,8 @@
     "skipThisVersion": "Pomiń tę wersję",
     "later": "Później",
     "link": "Połącz",
-    "copyName": "Kopiuj nazwę"
+    "copyName": "Kopiuj nazwę",
+    "switchMethod": "Zmień metodę"
   },
   "refreshToast": {
     "successName": "Odświeżono: {{name}}",
@@ -1362,8 +1414,61 @@
       "collapse": "Zwiń informacje o obszarze roboczym"
     },
     "pr": {
+      "title": "Pull request",
       "linkedBranch": "Pull request nr {{number}}",
+      "baseBranch": "Baza",
+      "noDescription": "Nie podano opisu.",
+      "loadingConversation": "Wczytywanie…",
+      "reviewNoBody": "Dodano komentarze do przeglądu.",
+      "submitReview": "Prześlij recenzję",
+      "reviewHeadNotice": "Recenzja zostanie zastosowana tylko wtedy, gdy wyświetlony commit HEAD nadal będzie zgodny.",
+      "reviewDecision": "Decyzja recenzji",
+      "reviewComment": "Komentarz do recenzji",
+      "reviewCommentPlaceholder": "Dodaj komentarz…",
+      "commentPlaceholder": "Dodaj komentarz…",
+      "comment": "Komentuj",
+      "approve": "Zatwierdź",
+      "requestChanges": "Poproś o zmiany",
+      "reply": "Odpowiedz",
+      "replyPlaceholder": "Odpowiedz…",
+      "reviewThreads": "Komentarze do przeglądu",
+      "details": "Szczegóły",
+      "unknownAuthor": "Nieznany",
+      "activity": {
+        "opened": "otworzył(a) ten pull request",
+        "commented": "dodał(a) komentarz",
+        "approved": "zatwierdził(a) te zmiany",
+        "changesRequested": "poprosił(a) o zmiany",
+        "reviewDismissed": "odrzucił(a) przegląd",
+        "reviewed": "przejrzał(a)"
+      },
+      "summary": {
+        "label": "Podsumowanie pull requestu",
+        "branch": "Gałąź",
+        "reviewers": "Recenzenci",
+        "noReviewers": "Brak recenzentów",
+        "comments": "Komentarze",
+        "commentCount_one": "{{count}} komentarz",
+        "commentCount_few": "{{count}} komentarze",
+        "commentCount_many": "{{count}} komentarzy",
+        "commentCount_other": "{{count}} komentarza",
+        "checks": "Kontrole",
+        "noChecks": "Brak kontroli CI",
+        "checksFailed": "Kontrole nie powiodły się",
+        "status": "Status"
+      },
+      "tabs": {
+        "conversation": "Dyskusja",
+        "commits": "Commity",
+        "checks": "Kontrole",
+        "changes": "Zmiany"
+      },
       "checks": {
+        "none": "Brak zgłoszonych kontroli",
+        "noneHint": "Dla najnowszego commita tego pull requestu nie uruchomiono kontroli CI ani statusów.",
+        "allPassed": "Wszystkie kontrole zakończone pomyślnie",
+        "someFailed": "Niektóre kontrole nie powiodły się",
+        "pending": "Kontrole w toku",
         "passedShort": "Zaliczone",
         "failedShort": "Niepowodzenie",
         "runningShort": "W toku",
@@ -1371,6 +1476,78 @@
         "noneShort": "Brak CI",
         "unavailableShort": "CI niedostępne",
         "branchStatus": "CI pull requestu nr {{number}}: {{status}}"
+      },
+      "commits": {
+        "backToList": "Wszystkie commity",
+        "none": "Brak commitów"
+      },
+      "changes": {
+        "title": "Zmienione pliki",
+        "noFiles": "Brak zmian w plikach",
+        "tooLarge": "Plik jest zbyt duży, aby wyświetlić różnice",
+        "unavailable": "Zmiany niedostępne",
+        "unavailableHint": "Nie udało się rozpoznać bazowego i najnowszego commita pull requestu."
+      },
+      "status": {
+        "open": "Otwarty",
+        "merged": "Scalony",
+        "closed": "Zamknięty",
+        "draft": "Szkic"
+      },
+      "actions": {
+        "label": "Działania pull request",
+        "confirmMergeTitle": "Scalić pull request?",
+        "confirmMergeMessage": "GitHub scali gałąź źródłową bieżącego pull request z gałęzią bazową.",
+        "merge": "Scal pull request",
+        "squash": "Połącz commity i scal",
+        "rebase": "Wykonaj rebase i scal",
+        "mergeSuccess": "Pull request scalony",
+        "mergeRequested": "Zażądano scalenia",
+        "removedFromQueue": "Usunięto z kolejki scalania",
+        "autoMergeEnabled": "Automatyczne scalanie włączone",
+        "autoMergeDisabled": "Automatyczne scalanie wyłączone",
+        "confirmCloseTitle": "Zamknąć pull request?",
+        "confirmCloseMessage": "Pull request pozostanie dostępny i będzie można go później ponownie otworzyć.",
+        "close": "Zamknij pull request",
+        "closeSuccess": "Pull request zamknięty",
+        "reopen": "Otwórz ponownie pull request",
+        "reopenSuccess": "Pull request otwarty ponownie",
+        "enableAutoMerge": "Włącz automatyczne scalanie",
+        "mergeWhenReady": "Scal, gdy będzie gotowy",
+        "disableAutoMerge": "Wyłącz automatyczne scalanie",
+        "removeFromMergeQueue": "Usuń z kolejki scalania",
+        "merged": "Scalony",
+        "closed": "Zamknięty",
+        "draft": "Wersja robocza",
+        "inMergeQueue": "W kolejce scalania",
+        "approvalRequired": "Wymagane zatwierdzenie",
+        "changesRequested": "Zażądano zmian",
+        "resolveConflicts": "Rozwiąż konflikty",
+        "checksFailed": "Kontrole nie powiodły się",
+        "checksPending": "Kontrole oczekują",
+        "mergeBlocked": "Scalanie zablokowane",
+        "searchReviewers": "Szukaj recenzentów",
+        "reviewersLoadFailed": "Nie udało się wczytać recenzentów",
+        "noReviewers": "Brak dostępnych recenzentów",
+        "reviewersUpdated": "Recenzenci zaktualizowani",
+        "reviewersCount_one": "{{count}} recenzent",
+        "reviewersCount_few": "{{count}} recenzentów",
+        "reviewersCount_many": "{{count}} recenzentów",
+        "reviewersCount_other": "{{count}} recenzenta",
+        "reviewers": "Recenzenci",
+        "tooltips": {
+          "merge": "Scal ten pull request w GitHub",
+          "alreadyMerged": "Ten pull request jest już scalony",
+          "reopenBeforeMerging": "Otwórz ponownie ten pull request przed scaleniem",
+          "markReady": "Oznacz ten pull request jako gotowy do recenzji przed scaleniem",
+          "mergeQueue": "GitHub scali ten pull request za pośrednictwem kolejki scalania",
+          "approvalRequired": "GitHub wymaga zatwierdzenia recenzji przed scaleniem",
+          "changesRequested": "Żądane zmiany muszą zostać rozwiązane przed scaleniem",
+          "resolveConflicts": "Rozwiąż konflikty przed scaleniem",
+          "checksFailed": "Wymagane kontrole muszą przejść przed scaleniem",
+          "checksPending": "Poczekaj na wymagane kontrole lub włącz automatyczne scalanie",
+          "mergeBlocked": "GitHub zgłasza niespełnione wymagania scalania"
+        }
       }
     },
     "messages": {
@@ -1462,7 +1639,49 @@
         "unpinned": "odpiął/odpięła to issue",
         "transferred": "przeniósł/przeniosła to issue",
         "convertedToDiscussion": "przekształcił(a) to issue w dyskusję",
-        "mentioned": "wspomniał(a) o tym issue"
+        "mentioned": "wspomniał(a) o tym issue",
+        "commentDeleted": "usunął(-ęła) komentarz",
+        "subscribed": "zasubskrybował(a) ten issue",
+        "unsubscribed": "anulował(a) subskrypcję tego issue",
+        "addedToProject": "dodał(a) ten issue do projektu",
+        "movedInProject": "przeniósł/przeniosła ten issue w projekcie",
+        "removedFromProject": "usunął(-ęła) ten issue z projektu",
+        "archived": "zarchiwizował(a) ten issue",
+        "unarchived": "cofnął/cofnęła archiwizację tego issue",
+        "merged": "scalił(a) ten pull request",
+        "committed": "dodał(a) commit do tego pull requesta",
+        "headRefDeleted": "usunął(-ęła) gałąź źródłową",
+        "headRefRestored": "przywrócił(a) gałąź źródłową",
+        "headRefForcePushed": "wykonał(a) force push gałęzi źródłowej",
+        "baseRefChanged": "zmienił(a) gałąź bazową",
+        "automaticBaseChangeFailed": "nie udało mu/jej się automatycznie zmienić gałęzi bazowej",
+        "automaticBaseChangeSucceeded": "automatycznie zmienił(a) gałąź bazową",
+        "deployed": "wdrożył(a) ten pull request",
+        "deploymentEnvironmentChanged": "zmienił(a) środowisko wdrożenia",
+        "readyForReview": "oznaczył(a) ten pull request jako gotowy do przeglądu",
+        "reviewRequested": "poprosił(a) o przegląd",
+        "reviewRequestRemoved": "usunął(-ęła) prośbę o przegląd",
+        "reviewed": "przejrzał(a) te zmiany",
+        "reviewDismissed": "odrzucił(a) przegląd",
+        "userBlocked": "zablokował(a) tego użytkownika"
+      },
+      "composer": {
+        "addComment": "Dodaj komentarz",
+        "commentingAs": "Komentujesz jako {{login}}",
+        "identityUnavailable": "Tożsamość GitHub jest niedostępna",
+        "commentPlaceholder": "Napisz komentarz…",
+        "submitComment": "Komentuj",
+        "closeIssue": "Zamknij issue",
+        "closeAsCompleted": "Zamknij jako ukończone",
+        "closeAsNotPlanned": "Zamknij jako nieplanowane",
+        "closeAsDuplicate": "Zamknij jako duplikat",
+        "duplicateSearchPlaceholder": "Szukaj issue",
+        "duplicateEmpty": "Brak pasujących issue",
+        "duplicateLoadFailed": "Nie udało się wczytać issue",
+        "reopenIssue": "Otwórz issue ponownie",
+        "commentFailed": "Nie udało się dodać komentarza",
+        "bodyUpdateFailed": "Nie udało się zaktualizować opisu issue",
+        "statusFailed": "Nie udało się zaktualizować statusu issue"
       }
     }
   },
@@ -2468,8 +2687,8 @@
     "selectRepoToStart": "Wybierz Repo, aby rozpocząć"
   },
   "quitConfirmation": {
-    "title": "Zamknąć ORGII?",
-    "subtitle": "Uruchomione sesje zachowają swój bieżący stan. Możesz ponownie otworzyć ORGII później.",
+    "title": "Zamknąć ORG-2?",
+    "subtitle": "Uruchomione sesje zachowają swój bieżący stan. Możesz ponownie otworzyć ORG-2 później.",
     "cancel": "Anuluj",
     "confirm": "Zamknij"
   },
@@ -2500,5 +2719,15 @@
     "downloadedOfTotal": "{{downloaded}} z {{total}}",
     "preparingDownload": "Przygotowywanie pobierania…",
     "downloadingAndInstalling": "Pobieranie i instalowanie aktualizacji (v{{version}})…"
+  },
+  "workManagementTable": {
+    "columns": {
+      "id": "ID",
+      "titleContext": "Tytuł / kontekst",
+      "status": "Status",
+      "assignee": "Przypisany",
+      "updated": "Zaktualizowano"
+    },
+    "selectRow": "Wybierz {{id}}"
   }
 }

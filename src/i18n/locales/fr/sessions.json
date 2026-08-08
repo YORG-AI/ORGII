@@ -878,6 +878,7 @@
     "multipleChoice": "Choix multiple",
     "typeYourAnswer": "Saisissez votre réponse…",
     "newSession": "Nouvelle session",
+    "muteNotifications": "Couper les notifications",
     "startPage": {
       "title": "Que voulez-vous faire ?",
       "back": "Retour à la page de départ",
@@ -1199,6 +1200,9 @@
         "stateOpen": "Open",
         "stateClosed": "Closed",
         "stateAll": "Tous les statuts",
+        "closeAsCompleted": "Fermer comme terminé",
+        "closeAsNotPlanned": "Fermer comme non planifié",
+        "statusUpdateFailed": "Échec de la mise à jour du statut GitHub",
         "assignedToMe": "Qui me sont attribués",
         "createdByMe": "Créés par moi",
         "filters": "Filters",

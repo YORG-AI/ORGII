@@ -172,6 +172,25 @@ pub fn find_by_external_ref(
         return Ok(None);
     };
 
+    // Fast path: the relational binding table (Orgtrack Phase 6). Rows
+    // are dual-written by apply_remote_merge and lazily backfilled below
+    // when the legacy blob scan still finds a pre-migration binding.
+    let indexed: Option<String> = map_db(
+        connection
+            .query_row(
+                "SELECT w.short_id
+                   FROM pm_provider_bindings b
+                   JOIN workitems w ON w.id = b.work_item_id
+                  WHERE b.provider = ?1 AND b.external_id = ?2 AND w.project_id = ?3",
+                params![adapter_id, external_id, &project_id],
+                |row| row.get(0),
+            )
+            .optional(),
+    )?;
+    if indexed.is_some() {
+        return Ok(indexed);
+    }
+
     let mut stmt = map_db(connection.prepare(
         "SELECT w.short_id, e.extras_json
            FROM workitems w
@@ -198,6 +217,26 @@ pub fn find_by_external_ref(
             }
         };
         if extras.external_refs.get(adapter_id) == Some(&external_id.to_string()) {
+            // Lazy backfill: promote the legacy blob binding into the
+            // indexed table so the next lookup takes the fast path.
+            let work_item_id: Option<String> = map_db(
+                connection
+                    .query_row(
+                        "SELECT id FROM workitems WHERE project_id = ?1 AND short_id = ?2",
+                        params![&project_id, &short_id],
+                        |row| row.get(0),
+                    )
+                    .optional(),
+            )?;
+            if let Some(work_item_id) = work_item_id {
+                let now = crate::projects::io::helpers::now_ms();
+                let _ = connection.execute(
+                    "INSERT OR IGNORE INTO pm_provider_bindings
+                        (work_item_id, provider, external_id, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?4)",
+                    params![&work_item_id, adapter_id, external_id, now],
+                );
+            }
             return Ok(Some(short_id));
         }
     }
@@ -286,6 +325,19 @@ pub fn apply_remote_merge(
         extras.field_revisions.insert(field, revision);
     }
     if let Some((adapter_id, external_id)) = external_ref {
+        // Dual-write: legacy blob (still read by exports/collab payloads)
+        // plus the indexed relational binding (Orgtrack Phase 6) in the
+        // SAME transaction, so identity can never split-brain.
+        let now = crate::projects::io::helpers::now_ms();
+        map_db(tx.execute(
+            "INSERT INTO pm_provider_bindings
+                (work_item_id, provider, external_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)
+             ON CONFLICT(work_item_id, provider) DO UPDATE SET
+                external_id = excluded.external_id,
+                updated_at = excluded.updated_at",
+            params![&work_item_id, &adapter_id, &external_id, now],
+        ))?;
         extras.external_refs.insert(adapter_id, external_id);
     }
 

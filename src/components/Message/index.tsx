@@ -65,6 +65,12 @@ export interface MessageConfig {
     onClick?: () => void;
     closeOnClick?: boolean;
   };
+  /** Optional primary action shown in the toast. */
+  action?: {
+    label: string;
+    onClick: () => void;
+    closeOnClick?: boolean;
+  };
 }
 
 interface MessageItemProps extends MessageConfig {
@@ -122,6 +128,7 @@ const MessageItem = ({
   className = "",
   download,
   cancel,
+  action,
   ref,
 }: MessageItemProps) => {
   const { t } = useTranslation();
@@ -150,7 +157,7 @@ const MessageItem = ({
   const IconComponent = ICONS[type];
   const typeStyle = TYPE_STYLES[type];
   const iconNode = icon || <IconComponent size={18} />;
-  const hasDescription = Boolean(title || download || cancel);
+  const hasDescription = Boolean(title || download || cancel || action);
   const handleDownload = useCallback(() => {
     const blob =
       download?.content instanceof Blob
@@ -174,6 +181,12 @@ const MessageItem = ({
       handleClose();
     }
   }, [cancel, handleClose]);
+  const handlePrimaryAction = useCallback(() => {
+    action?.onClick();
+    if (action?.closeOnClick !== false) {
+      handleClose();
+    }
+  }, [action, handleClose]);
 
   return (
     <motion.div
@@ -213,7 +226,7 @@ const MessageItem = ({
         >
           {content}
         </div>
-        {(download || cancel) && (
+        {(download || cancel || action) && (
           <div className="mt-2 flex justify-end gap-3">
             {cancel && (
               <button
@@ -231,6 +244,15 @@ const MessageItem = ({
                 onClick={handleDownload}
               >
                 {download.label ?? t("actions.download")}
+              </button>
+            )}
+            {action && (
+              <button
+                type="button"
+                className="cursor-pointer border-none bg-transparent p-0 text-xs font-semibold leading-[1.2] text-primary-6 hover:text-primary-5 hover:underline"
+                onClick={handlePrimaryAction}
+              >
+                {action.label}
               </button>
             )}
           </div>

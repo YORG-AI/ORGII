@@ -216,6 +216,50 @@ pub fn list_sessions_page(limit: usize, offset: usize) -> SqliteResult<Vec<CodeS
     rows.collect()
 }
 
+/// One stable-keyset page of unpinned, top-level CLI sessions for the sidebar.
+///
+/// `pinned` and `parent_session_id` are filtered before LIMIT so neither
+/// pinned sessions nor worker/subagent rows consume ordinary CLI capacity.
+pub fn list_unpinned_root_sessions_page(
+    limit: usize,
+    cursor: Option<(&str, &str)>,
+) -> SqliteResult<Vec<CodeSession>> {
+    let conn = get_connection()?;
+    let bounded_limit = limit.min(i64::MAX as usize) as i64;
+    if let Some((updated_at, session_id)) = cursor {
+        let query = format!(
+            "SELECT {} FROM code_sessions cs
+             WHERE cs.pinned = 0
+               AND cs.parent_session_id IS NULL
+               AND (
+                 cs.updated_at < ?1
+                 OR (cs.updated_at = ?1 AND cs.session_id < ?2)
+               )
+             ORDER BY cs.updated_at DESC, cs.session_id DESC
+             LIMIT ?3",
+            SESSION_COLUMNS
+        );
+        let mut stmt = conn.prepare(&query)?;
+        let rows = stmt.query_map(
+            params![updated_at, session_id, bounded_limit],
+            row_to_session,
+        )?;
+        return rows.collect();
+    }
+
+    let query = format!(
+        "SELECT {} FROM code_sessions cs
+         WHERE cs.pinned = 0
+           AND cs.parent_session_id IS NULL
+         ORDER BY cs.updated_at DESC, cs.session_id DESC
+         LIMIT ?1",
+        SESSION_COLUMNS
+    );
+    let mut stmt = conn.prepare(&query)?;
+    let rows = stmt.query_map(params![bounded_limit], row_to_session)?;
+    rows.collect()
+}
+
 /// Update session status.
 pub fn update_status(session_id: &str, status: SessionStatus) -> SqliteResult<bool> {
     let conn = get_connection()?;
@@ -275,6 +319,32 @@ pub fn accept_cli_turn(
     turn_intent_id: &str,
     client_message_id: &str,
 ) -> Result<(), String> {
+    accept_cli_turn_with_source(
+        session_id,
+        turn_intent_id,
+        Some(client_message_id),
+        session_persistence::turn_intents::TurnIntentSource::UserSubmit,
+    )
+}
+
+/// `accept_cli_turn` for a resumed session: same atomic acceptance, but the
+/// intent is sourced as `Resume` and has no client message behind it — resume
+/// replays the session's stored `user_input` instead of a fresh submit.
+pub fn accept_cli_resume_turn(session_id: &str, turn_intent_id: &str) -> Result<(), String> {
+    accept_cli_turn_with_source(
+        session_id,
+        turn_intent_id,
+        None,
+        session_persistence::turn_intents::TurnIntentSource::Resume,
+    )
+}
+
+fn accept_cli_turn_with_source(
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    source: session_persistence::turn_intents::TurnIntentSource,
+) -> Result<(), String> {
     let conn = get_connection().map_err(|err| err.to_string())?;
     let tx = conn
         .unchecked_transaction()
@@ -288,9 +358,9 @@ pub fn accept_cli_turn(
         &tx,
         session_id,
         turn_intent_id,
-        Some(client_message_id),
+        client_message_id,
         None,
-        session_persistence::turn_intents::TurnIntentSource::UserSubmit,
+        source,
         session_persistence::turn_intents::TurnIntentStatus::Queued,
     )
     .map_err(|err| err.to_string())?;
@@ -836,6 +906,17 @@ pub fn delete_session(session_id: &str) -> SqliteResult<bool> {
             )
         {
             tracing::warn!(session_id, error = %err, "[cli-persistence] orgtrack delete mirror failed");
+        }
+        let hosted_codex_profile = app_paths::codex_hosted_cli_profile_dir(session_id);
+        if hosted_codex_profile.exists() {
+            if let Err(err) = std::fs::remove_dir_all(&hosted_codex_profile) {
+                tracing::warn!(
+                    session_id,
+                    path = %hosted_codex_profile.display(),
+                    error = %err,
+                    "[cli-persistence] hosted Codex profile delete failed"
+                );
+            }
         }
     }
     Ok(affected > 0)

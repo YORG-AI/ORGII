@@ -31,6 +31,7 @@ import type { GitFileStatus } from "@src/config/gitStatus";
 import { createLogger } from "@src/hooks/logger";
 import { useEditorAppearanceSettings } from "@src/hooks/settings";
 import { EditorService } from "@src/services/workStation/EditorService";
+import type { DiffViewMode } from "@src/types/git/types";
 
 import { useSelectionExtension } from "../Editor/hooks/useSelectionExtension";
 import type { TextSelectionInfo } from "../Editor/types";
@@ -67,7 +68,7 @@ export interface CodeMirrorDiffProps {
   /** Container height */
   height?: string;
   /** Diff view mode: unified (inline) or split (side-by-side) */
-  viewMode?: "unified" | "split";
+  viewMode?: DiffViewMode;
   /** Read-only mode */
   readOnly?: boolean;
   /** Show merge controls (accept/reject buttons) */

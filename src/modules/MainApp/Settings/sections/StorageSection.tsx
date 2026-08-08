@@ -27,10 +27,16 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import { createLogger } from "@src/hooks/logger";
+import { flushGitHubListCachePersistence } from "@src/services/git/githubListCache";
 import {
   monitorScanningAtom,
   storageRefreshTriggerAtom,
 } from "@src/store/ui/settingsPanelAtoms";
+import {
+  type BrowserStorageUsage,
+  cleanUpBrowserStorage,
+  inspectBrowserStorage,
+} from "@src/util/core/storage/quotaRecovery";
 import { copyText } from "@src/util/data/clipboard";
 import { askNativeDialogSafely } from "@src/util/dialogs/nativeDialog";
 
@@ -73,6 +79,10 @@ const StorageSection: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [clearingKey, setClearingKey] = useState<string | null>(null);
   const [logsDir, setLogsDir] = useState<string | null>(null);
+  const [browserStorageUsage, setBrowserStorageUsage] =
+    useState<BrowserStorageUsage>(() => inspectBrowserStorage());
+  const [isCleaningBrowserStorage, setIsCleaningBrowserStorage] =
+    useState(false);
 
   const setScanning = useSetAtom(monitorScanningAtom);
   const storageRefreshTrigger = useAtomValue(storageRefreshTriggerAtom);
@@ -83,6 +93,7 @@ const StorageSection: React.FC = () => {
     try {
       const report = await invoke<DiskUsageReport>("get_disk_usage");
       setDiskUsage(report);
+      setBrowserStorageUsage(inspectBrowserStorage());
       Message.success(
         t("common:refreshToast.successName", { name: t("sections.storage") })
       );
@@ -285,6 +296,32 @@ const StorageSection: React.FC = () => {
     }
   }, [logsDir, t]);
 
+  const handleCleanBrowserStorage = useCallback(() => {
+    setIsCleaningBrowserStorage(true);
+    try {
+      // Drain the short coalescing window before deleting persisted cache
+      // snapshots so an already-scheduled write cannot immediately recreate
+      // the entries the user just cleaned.
+      flushGitHubListCachePersistence();
+      const result = cleanUpBrowserStorage("all-disposable");
+      setBrowserStorageUsage(inspectBrowserStorage());
+      if (result.freedBytes > 0) {
+        Message.success(
+          t("storage.browserCacheCleaned", {
+            size: formatBytes(result.freedBytes),
+          })
+        );
+      } else {
+        Message.info(t("storage.browserCacheAlreadyClean"));
+      }
+    } catch (error) {
+      log.error("[Storage] Failed to clean browser cache:", error);
+      Message.error(t("storage.browserCacheCleanFailed"));
+    } finally {
+      setIsCleaningBrowserStorage(false);
+    }
+  }, [t]);
+
   // Auto-scan on mount (non-blocking)
   useEffect(() => {
     let cancelled = false;
@@ -358,6 +395,29 @@ const StorageSection: React.FC = () => {
           copyTitle={t("common:actions.copy")}
           openTitle={t("storage.openFolder")}
         />
+      </SectionContainer>
+
+      {/* WebView localStorage — caches only; protected user state is retained. */}
+      <SectionContainer>
+        <SectionRow
+          label={t("storage.browserCache")}
+          description={t("storage.browserCacheDesc", {
+            used: formatBytes(browserStorageUsage.usedBytes),
+            cleanable: formatBytes(browserStorageUsage.cleanableBytes),
+          })}
+        >
+          <Button
+            variant="secondary"
+            size="default"
+            icon={<Trash2 size={14} />}
+            loading={isCleaningBrowserStorage}
+            disabled={browserStorageUsage.cleanableBytes === 0}
+            onClick={handleCleanBrowserStorage}
+            data-testid="clean-browser-storage"
+          >
+            {t("storage.cleanBrowserCache")}
+          </Button>
+        </SectionRow>
       </SectionContainer>
 
       {/* Disk usage breakdown */}

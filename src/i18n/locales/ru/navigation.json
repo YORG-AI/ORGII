@@ -139,7 +139,8 @@
       "workstation": "Рабочая станция",
       "viewRam": "Показать RAM",
       "tutorials": "Обучение",
-      "openSettings": "Открыть настройки"
+      "openSettings": "Открыть настройки",
+      "setupChecklist": "Быстрая настройка"
     },
     "empty": {
       "noItems": "Нет элементов",
@@ -162,6 +163,37 @@
       "duration1h": "1 час",
       "duration2h": "2 часа",
       "durationTomorrow": "Завтра"
+    },
+    "guide": {
+      "trigger": "Открыть руководство",
+      "title": "Начало работы с ORGII",
+      "startSession": "Начать сессию",
+      "quickSetup": "Язык и внешний вид",
+      "close": "Закрыть руководство",
+      "progressLabel": "Выполнено {{completed}} из {{total}} шагов",
+      "localWorkspace": "Локальное рабочее пространство",
+      "connectOrganization": "Подключить или создать организацию",
+      "createOrganizationHint": "Введите название организации и нажмите «Создать». После создания облачной организации руководство перейдёт к следующему шагу.",
+      "inviteTeammate": "Пригласить участника команды",
+      "inviteTeammateHint": "Создайте здесь ссылку-приглашение и отправьте её участнику команды.",
+      "invitePermissionHint": "Здесь можно просмотреть список участников. Приглашение должен создать администратор или владелец организации.",
+      "devPanelTitle": "Тестовые состояния onboarding",
+      "devPanelHint": "Временный предпросмотр сценария приглашения. Данные организации на сервере не изменяются.",
+      "devScenarioLive": "Реальные данные",
+      "devScenarioNoOrganization": "Нет организации",
+      "devScenarioMember": "Участник · без права приглашать",
+      "devScenarioAdmin": "Администратор · может приглашать",
+      "devScenarioOwner": "Владелец · может приглашать",
+      "devScenarioRequiresOrganization": "Для предпросмотра ролей нужна хотя бы одна реальная облачная организация.",
+      "devSimulationActive": "Симуляция разработки активна",
+      "devSimulationReadOnly": "Предпросмотр страницы участников доступен только для чтения. Действия управления отключены.",
+      "viewTeamActivity": "Просмотреть использование команды",
+      "viewTeamActivityHint": "Runtime открыт на вкладке «Участники». Выберите участника, чтобы посмотреть использование Codex, Claude и Cursor. Если данных нет, сначала включите синхронизацию командного Runtime.",
+      "exploreProduct": "Обзор основных страниц",
+      "nextStep": "Следующий шаг"
+    },
+    "developerTestPanel": {
+      "title": "Панель тестирования разработки"
     }
   },
   "myRole": {
@@ -398,7 +430,17 @@
       "agentError": "Choose a local agent before forking.",
       "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
       "parentOpenUnavailable": "The source session could not be opened from this fork.",
-      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "openParentButton": "Открыть исходную сессию от {{name}}"
+    },
+    "continueCli": {
+      "headerButton": "Продолжить в {{agent}}",
+      "headerTooltip": "Снова открыть эту сессию в {{agent}} во вкладке терминала ({{command}})",
+      "notInstalled": "{{agent}} не установлен на этом компьютере",
+      "missingWorkspace": "Исходная папка сессии не найдена — {{agent}} может возобновить её только из этой папки",
+      "sourceMissing": "Исходные данные сессии больше не находятся на диске",
+      "launchFailed": "Не удалось открыть терминал {{agent}}",
+      "composerPlaceholder": "Напишите, чтобы продолжить в новой сессии ORGII — или возобновите в {{agent}} через кнопку в шапке…"
     }
   },
   "cloud": {
@@ -487,6 +529,10 @@
         "manualRunning": "Синхронизация…",
         "manualSuccess": "Синхронизация завершена",
         "manualError": "Ошибка синхронизации: {{message}}",
+        "coverageTitle": "Охват сессий",
+        "coverageSummary": "Синхронизировано {{synced}}/{{syncable}} ({{percent}} %)",
+        "coveragePercentLabel": "Охват",
+        "coverageEmpty": "В областях репозиториев этой организации пока нет сессий",
         "logsTitle": "Журнал синхронизации",
         "logsHelp": "Недавние события синхронизации на этом устройстве. Очищаются при перезапуске и никогда не выгружаются",
         "logsEmpty": "События синхронизации пока не записаны",
@@ -515,7 +561,10 @@
       "viewerOverflow": "и ещё {{count}} смотрят",
       "memberViewing": "смотрит: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "loadingSession": "Загрузка сессии…",
+      "downloadProgress": "Скачивание… {{percent}}%",
+      "downloadProgressEta": "Скачивание… {{percent}}% · осталось ~{{eta}}"
     },
     "sessionRef": {
       "chipLabel": "Сессия команды",
@@ -523,7 +572,8 @@
       "signInRequired": "Войдите в ORG2 Cloud, чтобы открыть эту сессию.",
       "sessionNotFound": "Эта сессия не принадлежит этой организации.",
       "notPublished": "Поделитесь этой сессией с организацией, прежде чем копировать ссылку на неё.",
-      "chooseOrg": "Эта сессия принадлежит нескольким организациям. Переключитесь на нужную организацию и скопируйте ссылку ещё раз."
+      "chooseOrg": "Эта сессия принадлежит нескольким организациям. Переключитесь на нужную организацию и скопируйте ссылку ещё раз.",
+      "opening": "Открытие командной сессии…"
     },
     "sync": {
       "quotaExceededToast": "Синхронизация ORG2 Cloud приостановлена: квота плана этой организации исчерпана",
@@ -761,6 +811,151 @@
     },
     "renameDisplayName": "Изменить отображаемое имя",
     "renameSaved": "Отображаемое имя обновлено",
-    "renameFailed": "Не удалось обновить отображаемое имя"
+    "renameFailed": "Не удалось обновить отображаемое имя",
+    "download": {
+      "title": "Скачивание командной сессии…",
+      "events": "{{loaded}} / {{total}} событий",
+      "eta": "Осталось около {{eta}}",
+      "finalizing": "Завершение…",
+      "complete": "Загрузка завершена",
+      "estimate": "В этой сессии {{count}} событий для загрузки (около {{eta}})",
+      "start": "Скачать",
+      "pause": "Пауза",
+      "paused": "Приостановлено",
+      "resume": "Возобновить"
+    },
+    "channels": {
+      "title": "Каналы",
+      "createAction": "Создать канал",
+      "createFirst": "Создать канал",
+      "manageMembers": "Управление участниками",
+      "archiveAction": "Архивировать канал",
+      "unarchive": "Разархивировать",
+      "unarchiveFailed": "Не удалось разархивировать канал",
+      "deleteAction": "Удалить канал",
+      "leave": "Покинуть канал",
+      "archivedGroup": "В архиве",
+      "loadError": "Не удалось загрузить каналы",
+      "settings": {
+        "action": "Настройки канала",
+        "title": "Настройки #{{name}}",
+        "submit": "Сохранить",
+        "managerRequired": "Изменять канал могут только его менеджеры",
+        "error": "Не удалось обновить канал. Попробуйте ещё раз."
+      },
+      "local": {
+        "quotaExceeded": "Достигнут лимит каналов на этом устройстве",
+        "archiveBody": "После архивирования канал скрывается из боковой панели. История сохраняется, и канал можно разархивировать позже",
+        "deleteWarning": "Канал будет безвозвратно удалён с этого устройства. Это действие нельзя отменить"
+      },
+      "cancel": "Отмена",
+      "create": {
+        "title": "Создать канал",
+        "nameLabel": "Название",
+        "namePlaceholder": "например, code-review",
+        "topicLabel": "Тема",
+        "topicOptional": "(необязательно)",
+        "topicPlaceholder": "О чём этот канал?",
+        "visibilityLabel": "Видимость",
+        "publicTitle": "Открытый",
+        "publicDesc": "Любой участник организации может видеть обсуждение и присоединиться",
+        "privateTitle": "Закрытый",
+        "privateDesc": "Только приглашённые участники могут видеть этот канал",
+        "membersLabel": "Добавить участников",
+        "membersHint": "Вы автоматически станете менеджером канала",
+        "membersLoading": "Загрузка участников…",
+        "membersEmpty": "В организации пока нет других участников",
+        "postPolicyLabel": "Кто может писать",
+        "postPolicyEveryone": "Все",
+        "postPolicyManagers": "Только менеджеры канала",
+        "submit": "Создать",
+        "nameTaken": "Это название уже занято",
+        "quotaExceeded": "Организация достигла лимита каналов",
+        "error": "Не удалось создать канал. Попробуйте ещё раз."
+      },
+      "archive": {
+        "title": "Архивировать #{{name}}?",
+        "body": "После архивирования канал скрывается из боковой панели у всех. История сохраняется, и канал можно разархивировать позже",
+        "confirm": "Архивировать",
+        "managerRequired": "Архивировать канал могут только его менеджеры",
+        "error": "Не удалось архивировать канал. Попробуйте ещё раз."
+      },
+      "delete": {
+        "title": "Удалить #{{name}}?",
+        "warning": "Канал будет безвозвратно удалён для всех. Это действие нельзя отменить",
+        "acknowledge": "Да, удалить канал навсегда",
+        "confirm": "Удалить",
+        "adminRequired": "Удалять каналы могут только администраторы организации",
+        "error": "Не удалось удалить канал. Попробуйте ещё раз."
+      },
+      "members": {
+        "title": "Участники #{{name}}",
+        "loading": "Загрузка участников…",
+        "empty": "В этом канале пока нет участников",
+        "loadError": "Не удалось загрузить участников канала. Попробуйте ещё раз.",
+        "managerBadge": "Менеджер",
+        "you": "Вы",
+        "addLabel": "Добавить участников",
+        "addEmpty": "Все участники организации уже в этом канале",
+        "addSubmit": "Добавить",
+        "actions": "Действия с участником",
+        "remove": "Удалить из канала",
+        "makeManager": "Назначить менеджером канала",
+        "removeManager": "Снять роль менеджера канала",
+        "leave": "Покинуть канал",
+        "lastManager": "Сначала назначьте другого менеджера",
+        "error": "Что-то пошло не так. Попробуйте ещё раз."
+      },
+      "feed": {
+        "composerPlaceholder": "Написать в #{{name}}",
+        "save": "Сохранить",
+        "edit": "Изменить сообщение",
+        "delete": "Удалить сообщение",
+        "edited": "(изменено)",
+        "deletedMessage": "сообщение удалено",
+        "today": "Сегодня",
+        "yesterday": "Вчера",
+        "you": "Вы",
+        "memberCount": "участников: {{memberCount}}",
+        "emptyTitle": "Это начало канала #{{name}}",
+        "emptySubtitle": "Отправьте первое сообщение, чтобы начать разговор",
+        "missingTitle": "Канал больше недоступен",
+        "missingSubtitle": "Этот канал был удалён с этого устройства",
+        "cloudPendingTitle": "Сообщений пока нет",
+        "cloudPendingSubtitle": "История облачных каналов появится со следующим обновлением бэкенда",
+        "cloudComposerDisabled": "Отправка сообщений в облачные каналы пока недоступна — в этот выпуск вошли только создание каналов и управление участниками. Отправка появится со следующим обновлением бэкенда",
+        "errorEmpty": "Сначала введите сообщение",
+        "errorTooLong": "Сообщение слишком длинное (максимум 4000 символов)",
+        "errorQuota": "В этом канале на этом устройстве достигнут лимит сообщений",
+        "errorGeneric": "Не удалось отправить сообщение. Попробуйте ещё раз.",
+        "dropSessionHint": "Отпустите, чтобы добавить эту сессию как ссылку",
+        "messageBodyLabel": "Сообщение канала",
+        "sessionCardMissing": "Недоступно на этом устройстве",
+        "sessionCardOpen": "Открыть сессию {{name}}",
+        "workItemCardMissing": "Недоступно на этом устройстве",
+        "workItemCardLoading": "Загрузка…",
+        "workItemCardOpen": "Открыть рабочую задачу {{name}}",
+        "githubCardOpen": "Открыть {{name}} на GitHub",
+        "githubIssue": "Issue",
+        "githubPullRequest": "Pull request",
+        "archivedComposerDisabled": "Этот канал в архиве. Разархивируйте его, чтобы писать.",
+        "errorPostForbidden": "Писать в этот канал могут только его менеджеры",
+        "errorArchived": "Канал архивирован, поэтому отправка отключена",
+        "errorChannelFull": "Канал достиг лимита сообщений, поэтому отправка отключена",
+        "errorChannelMissing": "Этот канал больше недоступен",
+        "errorMessageMissing": "Это сообщение больше недоступно",
+        "loadError": "Не удалось загрузить сообщения",
+        "loadingMessages": "Загрузка сообщений…",
+        "loadOlder": "Загрузить предыдущие сообщения",
+        "unknownAuthor": "Участник команды"
+      }
+    },
+    "backgroundUpload": {
+      "label": "Фоновая отправка",
+      "help": "Отправляет подходящие сессии участников в фоне согласно минимальному уровню общего доступа организации и настройкам сессии, даже когда организация неактивна.",
+      "on": "Вкл",
+      "off": "Выкл",
+      "memberNote": "Включено администратором — подходящие сессии отправляются в фоне без необходимости открывать эту организацию."
+    }
   }
 }

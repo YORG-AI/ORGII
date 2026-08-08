@@ -53,6 +53,9 @@ describe("org2 cloud control bus", () => {
     expect(parseOrgDbChangeKind({ kind: "workItems" })).toBe("workItems");
     expect(parseOrgDbChangeKind({ kind: "roster" })).toBe("roster");
     expect(parseOrgDbChangeKind({ kind: "policy" })).toBe("policy");
+    expect(parseOrgDbChangeKind({ kind: "member_runtime" })).toBe(
+      "member_runtime"
+    );
     expect(parseOrgDbChangeKind({ kind: "entitlement" })).toBeNull();
     expect(parseOrgDbChangeKind({})).toBeNull();
   });

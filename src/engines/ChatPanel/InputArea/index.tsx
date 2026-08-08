@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ComposerInputRef } from "@src/components/ComposerInput";
 import ComposerShell from "@src/components/ComposerShell";
 import { useInputArea } from "@src/engines/ChatPanel/hooks/useInputArea";
 import type {
@@ -65,6 +66,18 @@ interface InputAreaProps {
   topRowTrailingContent?: React.ReactNode;
   statusBanners?: React.ReactNode;
   composerShellRef?: React.Ref<HTMLDivElement>;
+  /**
+   * Mirror of the live editor handle for surfaces that insert into this
+   * composer from OUTSIDE its own rect — the channel panel drops a session
+   * anywhere over its transcript and turns it into a pill here.
+   */
+  composerInputRef?: React.MutableRefObject<ComposerInputRef | null>;
+  /**
+   * False to refuse dragged tab/session reference pills on this composer.
+   * Used by the cloud channel composer, which has no message plane to post
+   * them to, so accepting a pill would be a lie.
+   */
+  acceptDraggedPills?: boolean;
   disableStopWhenEmpty?: boolean;
   submitDisabled?: boolean;
   sessionScope?: "active" | "none";
@@ -130,6 +143,8 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     topRowTrailingContent,
     statusBanners,
     composerShellRef,
+    composerInputRef: externalComposerInputRef,
+    acceptDraggedPills = true,
     disableStopWhenEmpty = false,
     submitDisabled = false,
     sessionScope = "active",
@@ -283,6 +298,19 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       handleDrop,
       composerInputRef,
       containerRef,
+      acceptDraggedPills,
+    });
+
+    // Republish the editor handle to an external owner. No dependency array:
+    // the handle is created by `ComposerInput`'s own `useImperativeHandle`, so
+    // re-mirroring after every render is what keeps a stale object from being
+    // handed to a drop target that fires much later.
+    useEffect(() => {
+      if (!externalComposerInputRef) return undefined;
+      externalComposerInputRef.current = composerInputRef.current;
+      return () => {
+        externalComposerInputRef.current = null;
+      };
     });
 
     const {
@@ -356,9 +384,12 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     // Cursor IDE sessions are read-only; no interactive model/mode pill.
     const modelPill =
       !showAgentControls || (isCursorIde && sessionId) ? null : <ModelPill />;
+    // Always visible in-session: the composer picker is the only surface
+    // that can move a session onto the Project product mode (§5.2), and a
+    // hidden-at-Build pill would make that entry unreachable.
     const modePill =
       !showAgentControls || (isCursorIde && sessionId) ? null : (
-        <ModePill hideWhenDefault resetToDefaultOnClick />
+        <ModePill resetToDefaultOnClick />
       );
     const clearReplyInfo = useCallback(
       () => setReplyInfo({ isReply: false }),

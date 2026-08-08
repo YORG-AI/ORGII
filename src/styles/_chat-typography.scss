@@ -1,0 +1,81 @@
+/**
+ * Global chat typography tokens.
+ *
+ * `useAppShellEffects` publishes the configured values on the document root so
+ * chat transcripts and chat-adjacent Markdown surfaces share one scale. The
+ * fallbacks mirror DEFAULT_CHAT_APPEARANCE for isolated renders and first paint.
+ */
+
+$chat-font-size-fallback: 13px;
+$chat-code-font-size-fallback: 13px;
+$chat-font-mono: var(
+  --code-font-family,
+  "SF Mono",
+  "Menlo",
+  "Monaco",
+  "Consolas",
+  "Liberation Mono",
+  "Courier New",
+  monospace
+);
+
+.chat-text {
+  font-size: var(--chat-font-size, $chat-font-size-fallback);
+  line-height: var(--chat-line-height, 1.6);
+}
+
+.chat-text-sm {
+  font-size: calc(var(--chat-font-size, $chat-font-size-fallback) - 1px);
+  line-height: var(--chat-line-height, 1.6);
+}
+
+.chat-text-xs {
+  font-size: calc(var(--chat-font-size, $chat-font-size-fallback) - 2px);
+  line-height: var(--chat-line-height, 1.6);
+}
+
+.chat-code {
+  font-family: $chat-font-mono;
+  font-size: var(--chat-code-font-size, $chat-code-font-size-fallback);
+}
+
+.chat-code-sm {
+  font-family: $chat-font-mono;
+  font-size: calc(
+    var(--chat-code-font-size, $chat-code-font-size-fallback) - 1px
+  );
+}
+
+.chat-block-xs {
+  font-size: var(--chat-block-xs-size, 11px);
+}
+
+.chat-block-content {
+  font-size: var(--chat-block-content-size, 13px);
+}
+
+.chat-block-title {
+  font-size: var(--chat-block-title-size, 13px);
+}
+
+.chat-block-md {
+  font-size: var(--chat-block-md-size, 13px);
+}
+
+.chat-icon {
+  width: var(--chat-font-size, $chat-font-size-fallback);
+  height: var(--chat-font-size, $chat-font-size-fallback);
+  flex-shrink: 0;
+}
+
+.chat-icon-sm {
+  width: calc(var(--chat-font-size, $chat-font-size-fallback) - 1px);
+  height: calc(var(--chat-font-size, $chat-font-size-fallback) - 1px);
+  flex-shrink: 0;
+}
+
+.chat-icon-xs {
+  width: calc(var(--chat-font-size, $chat-font-size-fallback) - 2px);
+  height: calc(var(--chat-font-size, $chat-font-size-fallback) - 2px);
+  flex-shrink: 0;
+}

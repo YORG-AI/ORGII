@@ -12,6 +12,7 @@
 
 mod crud;
 mod messages;
+mod sidebar;
 
 // Re-exports kept at the `session::persistence::` surface — these are
 // the items that real call sites actually name through the
@@ -29,8 +30,16 @@ pub use crud::{
     register_session_mirror_hook, save_workspace, save_worktree_metadata, session_type,
     update_account_id, update_agent_exec_mode, update_draft_text, update_model,
     update_model_and_account, update_name, update_org_member_id, update_pinned,
+    link_bootstrap_work_item, update_product_mode,
     update_reply_target_event_id, update_status, update_work_item_link,
     update_worktree_merge_status, upsert_session, UnifiedSessionRecord,
+};
+pub use sidebar::{
+    list_agent_org_root_sessions_page, list_standalone_coding_sessions_page,
+    list_unpinned_sessions_by_type_page,
+};
+pub(crate) use crud::{
+    delete_session_with_connection, finish_session_delete, prepare_session_delete,
 };
 
 pub use messages::{

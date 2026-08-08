@@ -458,10 +458,10 @@ pub(super) static TOOLS: &[ToolEntry] = &[
     },
     ToolEntry {
         name: tool_names::RENDER_INLINE_CANVAS,
-        description: "Render interactive UI inline in the chat panel.",
+        description: "Render interactive sketches and UI inline in the chat panel.",
         description_detail: "Displays an interactive preview card directly in the chat stream. \
-            Supports four modes: \"html\" (self-contained HTML/SVG/CSS rendered in a sandboxed iframe), \
-            \"url\" (HTTPS URL embedded in an iframe), \"react\" (React App component sandbox with runtime errors), and \"a2ui\" (structured JSONL element stream \
+            Supports four modes: \"html\" (sanitized static HTML/SVG/CSS), \
+            \"url\" (HTTPS URL presented as an external-open action), \"react\" (stateful JSX App component with runtime errors), and \"a2ui\" (structured JSONL element stream \
             for headings, text, code blocks, images, buttons, and lists). \
             Available to both SDE Agent and OS Agent.",
         category: tool_categories::CODING,
@@ -474,8 +474,8 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         label_failed: "tools.renderInlineCanvasFailed",
         actions: &[
             action_sub!("html", "Render a self-contained HTML/SVG/CSS snippet", OtherTool, chat: CbCanvasInline, labels: "tools.renderInlineCanvasHtmlRunning", "tools.renderInlineCanvasHtmlDone", "tools.renderInlineCanvasHtmlFailed"),
-            action_sub!("url", "Embed an HTTPS URL in a sandboxed iframe", OtherTool, chat: CbCanvasInline, labels: "tools.renderInlineCanvasUrlRunning", "tools.renderInlineCanvasUrlDone", "tools.renderInlineCanvasUrlFailed"),
-            action_sub!("react", "Render a React App component in an iframe sandbox", OtherTool, chat: CbCanvasInline, labels: "tools.renderInlineCanvasHtmlRunning", "tools.renderInlineCanvasHtmlDone", "tools.renderInlineCanvasHtmlFailed"),
+            action_sub!("url", "Present an HTTPS URL as an external-open action", OtherTool, chat: CbCanvasInline, labels: "tools.renderInlineCanvasUrlRunning", "tools.renderInlineCanvasUrlDone", "tools.renderInlineCanvasUrlFailed"),
+            action_sub!("react", "Render a stateful JSX App component", OtherTool, chat: CbCanvasInline, labels: "tools.renderInlineCanvasHtmlRunning", "tools.renderInlineCanvasHtmlDone", "tools.renderInlineCanvasHtmlFailed"),
             action_sub!("a2ui", "Stream typed UI elements (heading, text, code, image, button, list)", OtherTool, chat: CbCanvasInline, labels: "tools.renderInlineCanvasA2uiRunning", "tools.renderInlineCanvasA2uiDone", "tools.renderInlineCanvasA2uiFailed"),
         ],
         ..DEFAULT_TOOL_ENTRY

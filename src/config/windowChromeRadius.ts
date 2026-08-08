@@ -21,7 +21,7 @@ const CHROME_RADIUS_PX: Record<
   { windowPx: number; pagePx: number }
 > = {
   [HOST_DESKTOP.MACOS]: { windowPx: 10, pagePx: 20 },
-  [HOST_DESKTOP.WINDOWS]: { windowPx: 8, pagePx: 8 },
+  [HOST_DESKTOP.WINDOWS]: { windowPx: 8, pagePx: 12 },
   [HOST_DESKTOP.LINUX]: { windowPx: 12, pagePx: 12 },
 };
 

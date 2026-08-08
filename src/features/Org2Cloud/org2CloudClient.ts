@@ -70,7 +70,7 @@ let inFlightRefresh:
   | { key: string; promise: Promise<RefreshAttemptResult> }
   | undefined;
 
-type CloudRpcEndpoint = Pick<
+export type CloudRpcEndpoint = Pick<
   ReturnType<typeof getCloudEndpoint>,
   "supabaseUrl" | "anonKey"
 >;
@@ -136,13 +136,14 @@ export async function schemaVersion(): Promise<number | null> {
  */
 export async function getCloudCapabilitiesRaw(
   accessToken: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  endpoint?: CloudRpcEndpoint
 ): Promise<unknown | null> {
   return callRpc(
     "get_cloud_capabilities",
     accessToken,
     undefined,
-    getCloudEndpoint(),
+    endpoint ?? getCloudEndpoint(),
     signal
   );
 }
@@ -258,6 +259,10 @@ const CloudOrgWireSchema = z.object({
     .object({ enabled: z.boolean(), intervalMinutes: z.number() })
     .nullish()
     .catch(undefined),
+  // 0013 legacy wire name for org-level background upload: absent
+  // (pre-0013 backends) ⇒ off. `.catch(undefined)` keeps a malformed value
+  // from failing the roster.
+  offlineSyncEnabled: z.boolean().nullish().catch(undefined),
 });
 
 export interface CloudOrg {
@@ -269,6 +274,8 @@ export interface CloudOrg {
   homeEndpoint?: string;
   /** 0010 member-runtime telemetry record; absent/null ⇒ feature off. */
   runtimeTelemetry?: OrgRuntimeTelemetry | null;
+  /** 0013 legacy wire field for background upload; absent ⇒ off. */
+  offlineSyncEnabled?: boolean;
 }
 
 const CloudOrgMemberWireSchema = z.object({
@@ -320,7 +327,15 @@ export async function listMyOrgs(
     return null;
   }
   return parsed.data.map(
-    ({ orgId, name, role, entitlement, homeEndpoint, runtimeTelemetry }) => ({
+    ({
+      orgId,
+      name,
+      role,
+      entitlement,
+      homeEndpoint,
+      runtimeTelemetry,
+      offlineSyncEnabled,
+    }) => ({
       orgId,
       name,
       role,
@@ -329,6 +344,9 @@ export async function listMyOrgs(
         : {}),
       ...(homeEndpoint ? { homeEndpoint } : {}),
       ...(runtimeTelemetry ? { runtimeTelemetry } : {}),
+      ...(offlineSyncEnabled !== undefined && offlineSyncEnabled !== null
+        ? { offlineSyncEnabled }
+        : {}),
     })
   );
 }

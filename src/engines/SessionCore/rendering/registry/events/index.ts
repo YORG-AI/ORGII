@@ -98,6 +98,7 @@ export const COMPONENT_LOADERS: ComponentLoaderMap = {
   internal_browser: chatBlockLoader,
   worktree: chatBlockLoader,
   setup_repo: chatBlockLoader,
+  canvas_inline: chatBlockLoader,
   tool_call: chatBlockLoader,
 
   // ── Stream events ──
@@ -346,6 +347,12 @@ export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
+  // Canvas card
+  canvas_inline: {
+    chat: { requiresItemIndex: false, showStatusLine: false },
+    simulator: { supportsSplitView: false, supportsFullscreen: false },
+  },
+
   // Plan card
   plan_approval: {
     chat: { requiresItemIndex: false, showStatusLine: false },
@@ -371,6 +378,7 @@ export const PRELOAD_COMPONENTS = [
   "code_search",
   "thinking",
   "agent_message",
+  "canvas_inline",
 ] as const;
 
 // Category helpers moved to toolCategories.ts
@@ -601,6 +609,19 @@ export function getChatLazyComponent(
 
   _lazyComponentCache.set(uiCanonical, lazyComponent);
   return lazyComponent;
+}
+
+/**
+ * Return a chat renderer without introducing a new Suspense boundary when its
+ * module was already preloaded. This is especially important for canvas
+ * events: the WorkStation can display the payload immediately, so replacing a
+ * warm chat renderer with a fresh React.lazy wrapper creates a visible handoff
+ * gap even though no data is missing.
+ */
+export function getChatComponent(
+  eventType: string
+): React.ComponentType<Record<string, unknown>> {
+  return getEventComponentSync(eventType) ?? getChatLazyComponent(eventType);
 }
 
 /**

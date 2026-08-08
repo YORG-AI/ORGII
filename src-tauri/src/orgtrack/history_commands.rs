@@ -9,16 +9,20 @@ use orgtrack_core::pricing;
 use orgtrack_core::sources::claude_code::history as claude_code_history;
 use orgtrack_core::sources::cline::history as cline_history;
 use orgtrack_core::sources::codex::app as codex_app;
+use orgtrack_core::sources::copilot::history as copilot_history;
 use orgtrack_core::sources::cursor_cli::history as cursor_cli_history;
 use orgtrack_core::sources::cursor_ide::{
     db as cursor_db, disk_reads as cursor_disk_reads, history as cursor_db_history,
 };
 use orgtrack_core::sources::imported_history;
+use orgtrack_core::sources::kimi::history as kimi_history;
 use orgtrack_core::sources::mimo_code::history as mimo_code_history;
 use orgtrack_core::sources::omp::history as omp_history;
 use orgtrack_core::sources::opencode::history as opencode_history;
+use orgtrack_core::sources::pi::history as pi_history;
 use orgtrack_core::sources::qoder::history as qoder_history;
 use orgtrack_core::sources::qoder_cli::history as qoder_cli_history;
+use orgtrack_core::sources::qwen_code::history as qwen_code_history;
 use orgtrack_core::sources::trae::history as trae_history;
 use orgtrack_core::sources::warp::history as warp_history;
 use orgtrack_core::sources::windsurf::history as windsurf_history;
@@ -27,26 +31,25 @@ use orgtrack_core::sources::zcode::history as zcode_history;
 use session_persistence::CachedTurnSummary;
 
 use super::external_cli_detection::{self, ExternalCliSourceProbe};
+use super::history_scan_coordinator::{
+    ExternalHistoryScanCoordinator, ExternalHistoryScanJob, ExternalHistoryScanMode,
+    ExternalHistorySourceScanOutcome, ExternalHistorySourceScanResult,
+};
 
 fn open_cache_conn() -> Result<rusqlite::Connection, String> {
     get_connection().map_err(|err| format!("Failed to open orgtrack source cache DB: {err}"))
 }
 
-static EXTERNAL_HISTORY_SCAN_QUEUE: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
-
-async fn acquire_external_history_scan_permit(
-) -> Result<tokio::sync::SemaphorePermit<'static>, String> {
-    EXTERNAL_HISTORY_SCAN_QUEUE
-        .get_or_init(|| tokio::sync::Semaphore::new(1))
-        .acquire()
-        .await
-        .map_err(|_| "External history scan queue closed".to_string())
+fn external_history_scan_coordinator() -> &'static ExternalHistoryScanCoordinator {
+    static COORDINATOR: OnceLock<ExternalHistoryScanCoordinator> = OnceLock::new();
+    COORDINATOR.get_or_init(ExternalHistoryScanCoordinator::default)
 }
 
 const IMPORTED_TURN_PROJECTION_CACHE_CAPACITY: usize = 8;
 const IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION: usize = 4_096;
 const CODEX_INITIAL_RECENT_TURN_COUNT: usize = 1;
 const IMPORTED_INITIAL_RECENT_TURN_COUNT: usize = 1;
+const IMPORTED_CLOUD_TURN_WINDOW_LIMIT: usize = 50;
 
 /// Fidelity of a projection entering the cache. Window pre-warms are built
 /// without parsing every round body (empty `modified_files`, fabricated
@@ -426,9 +429,14 @@ fn imported_recent_paths() -> Result<Vec<imported_history::ImportedHistoryRecent
         &mut conn, 0,
     )?);
     paths.extend(omp_history::list_omp_recent_paths(&mut conn, 0)?);
+    paths.extend(pi_history::list_pi_recent_paths(&mut conn, 0)?);
     paths.extend(qoder_cli_history::list_qoder_cli_recent_paths(
         &mut conn, 0,
     )?);
+    paths.extend(qwen_code_history::list_qwen_code_recent_paths(
+        &mut conn, 0,
+    )?);
+    paths.extend(kimi_history::list_kimi_recent_paths(&mut conn, 0)?);
     Ok(imported_history::recent_paths_from_paths(&paths))
 }
 
@@ -442,13 +450,123 @@ fn imported_recent_paths() -> Result<Vec<imported_history::ImportedHistoryRecent
 pub struct ExternalHistoryScanResultWire {
     pub changed_sources: Vec<String>,
     /// Whole-source cache signatures for every rescanned source, changed or
-    /// not. `changed_sources` only reports writes made by THIS call; other
-    /// surfaces (kanban, usage, transcript pagers) sync the same cache
-    /// between scheduler ticks, and continuation demotions applied during
-    /// those foreign syncs would otherwise never look like a change here.
-    /// The frontend compares these against the signatures captured at its
-    /// last roster reload to decide whether the sidebar is stale.
+    /// not. Concurrent callers for the same source share one scan flight and
+    /// therefore receive the same change result. Other surfaces (kanban,
+    /// usage, transcript pagers) sync the same cache between scheduler ticks,
+    /// and continuation demotions applied during those foreign syncs would
+    /// otherwise never look like a change here. The frontend compares these
+    /// against the signatures captured at its last roster reload to decide
+    /// whether the sidebar is stale.
     pub source_signatures: std::collections::HashMap<String, String>,
+}
+
+fn external_history_scan_mode(clear: bool) -> ExternalHistoryScanMode {
+    if clear {
+        ExternalHistoryScanMode::Rebuild
+    } else {
+        ExternalHistoryScanMode::Incremental
+    }
+}
+
+fn run_external_history_scan_jobs(
+    coordinator: &ExternalHistoryScanCoordinator,
+    jobs: Vec<ExternalHistoryScanJob>,
+) -> Vec<(ExternalHistoryScanJob, ExternalHistorySourceScanOutcome)> {
+    let mut conn = match open_cache_conn() {
+        Ok(conn) => conn,
+        Err(error) => {
+            return jobs
+                .into_iter()
+                .map(|job| (job, Err(error.clone())))
+                .collect();
+        }
+    };
+
+    jobs.into_iter()
+        // A rebuild can supersede one source while an already-claimed
+        // scan-all batch is still parsing an earlier source.
+        .filter(|job| coordinator.is_current_running_job(job))
+        .map(|job| {
+            let outcome = (|| {
+                let changes_before = conn.total_changes();
+                // Rebuild is explicit: wipe this source's cached rows so all
+                // sessions are parsed again. Incremental remains the default.
+                if job.mode == ExternalHistoryScanMode::Rebuild {
+                    imported_history::cache::prune_missing_records_from_conn(
+                        &conn,
+                        &job.source,
+                        &[],
+                    )?;
+                }
+                let changed = crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
+                    &mut conn,
+                    &job.source,
+                )? || conn.total_changes() > changes_before;
+                let signature =
+                    imported_history::cache::query_source_cache_signature_from_conn(
+                        &conn,
+                        &job.source,
+                    )?;
+                Ok(ExternalHistorySourceScanResult { changed, signature })
+            })();
+            (job, outcome)
+        })
+        .collect()
+}
+
+fn launch_external_history_scan_jobs(jobs: Vec<ExternalHistoryScanJob>) {
+    if jobs.is_empty() {
+        return;
+    }
+    tokio::spawn(async move {
+        let coordinator = external_history_scan_coordinator();
+        let _permit = match coordinator.acquire_permit().await {
+            Ok(permit) => permit,
+            Err(error) => {
+                coordinator.fail_current_jobs(jobs, error);
+                return;
+            }
+        };
+        let jobs = coordinator.begin_current_jobs(jobs);
+        if jobs.is_empty() {
+            return;
+        }
+        let fallback_jobs = jobs.clone();
+        let outcomes = match tokio::task::spawn_blocking(move || {
+            run_external_history_scan_jobs(coordinator, jobs)
+        })
+        .await
+        {
+            Ok(outcomes) => outcomes,
+            Err(error) => fallback_jobs
+                .into_iter()
+                .map(|job| (job, Err(format!("Task join error: {error}"))))
+                .collect(),
+        };
+        coordinator.complete_jobs(outcomes);
+    });
+}
+
+async fn external_history_rescan_validated_sources(
+    sources: Vec<String>,
+    mode: ExternalHistoryScanMode,
+) -> Result<ExternalHistoryScanResultWire, String> {
+    let schedule = external_history_scan_coordinator().schedule(sources.clone(), mode);
+    launch_external_history_scan_jobs(schedule.jobs);
+    let results = schedule.waiter.wait().await?;
+    let changed_sources = sources
+        .iter()
+        .filter(|source| results.get(*source).is_some_and(|result| result.changed))
+        .cloned()
+        .collect();
+    let source_signatures = results
+        .into_iter()
+        .map(|(source, result)| (source, result.signature))
+        .collect();
+    Ok(ExternalHistoryScanResultWire {
+        changed_sources,
+        source_signatures,
+    })
 }
 
 #[tauri::command]
@@ -459,32 +577,11 @@ pub async fn external_history_rescan_source(
     if !imported_history::metadata::is_imported_history_source(&source) {
         return Err(format!("Unknown external history source: {source}"));
     }
-    let _permit = acquire_external_history_scan_permit().await?;
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        let changes_before = conn.total_changes();
-        // `clear`: wipe the source's cached rows so every session is re-parsed
-        // from scratch (drops stale rows / forces a full re-parse even when
-        // file signatures are unchanged). Otherwise this is an incremental
-        // "update" — only sessions whose signature changed are re-parsed.
-        if clear {
-            imported_history::cache::prune_missing_records_from_conn(&conn, &source, &[])?;
-        }
-        // Always re-read the on-disk store and repopulate the cache. The old
-        // behavior only pruned, leaving the count at 0 until a later lazy load.
-        let changed =
-            crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
-                &mut conn, &source,
-            )? || conn.total_changes() > changes_before;
-        let signature =
-            imported_history::cache::query_source_cache_signature_from_conn(&conn, &source)?;
-        Ok(ExternalHistoryScanResultWire {
-            changed_sources: changed.then_some(source.clone()).into_iter().collect(),
-            source_signatures: std::iter::once((source, signature)).collect(),
-        })
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    // The normal path is signature-based incremental sync. Provider parser
+    // version changes remain part of those signatures and force the affected
+    // records to re-parse without clearing unrelated cached rows.
+    let mode = external_history_scan_mode(clear);
+    external_history_rescan_validated_sources(vec![source], mode).await
 }
 
 /// Incrementally update multiple external history sources in one IPC request.
@@ -507,31 +604,52 @@ pub async fn external_history_rescan_sources(
         }
     }
 
-    let _permit = acquire_external_history_scan_permit().await?;
+    let mode = external_history_scan_mode(clear);
+    external_history_rescan_validated_sources(sources, mode).await
+}
+
+/// [`orgtrack_core::sources::cli_resume::CliResumePlan`] plus the two
+/// freshness checks only the desktop host can answer: whether the recorded
+/// workspace directory and the source transcript/store are still on disk.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalHistoryCliResumePlanWire {
+    #[serde(flatten)]
+    pub plan: orgtrack_core::sources::cli_resume::CliResumePlan,
+    pub display_command: String,
+    pub cwd_exists: bool,
+    pub source_available: bool,
+}
+
+/// Plan how to reopen an imported external session in its own CLI.
+/// `Ok(None)` when the session is unknown, a subagent child, or its source
+/// has no CLI resume entry point (e.g. Cursor IDE composers).
+#[tauri::command]
+pub async fn external_history_cli_resume_plan(
+    session_id: String,
+) -> Result<Option<ExternalHistoryCliResumePlanWire>, String> {
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        let mut changed_sources = Vec::new();
-        let mut source_signatures = std::collections::HashMap::new();
-        for source in sources {
-            let changes_before = conn.total_changes();
-            if clear {
-                imported_history::cache::prune_missing_records_from_conn(&conn, &source, &[])?;
-            }
-            let changed = crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
-                &mut conn, &source,
-            )? || conn.total_changes() > changes_before;
-            source_signatures.insert(
-                source.clone(),
-                imported_history::cache::query_source_cache_signature_from_conn(&conn, &source)?,
-            );
-            if changed {
-                changed_sources.push(source);
-            }
-        }
-        Ok(ExternalHistoryScanResultWire {
-            changed_sources,
-            source_signatures,
-        })
+        let conn = open_cache_conn()?;
+        let Some((plan, session)) =
+            orgtrack_core::sources::cli_resume::cli_resume_plan_for_cached_session(
+                &conn,
+                &session_id,
+            )?
+        else {
+            return Ok(None);
+        };
+        let cwd_exists = plan
+            .cwd
+            .as_deref()
+            .is_some_and(|path| Path::new(path).is_dir());
+        let source_available =
+            !session.source_path.is_empty() && Path::new(&session.source_path).exists();
+        Ok(Some(ExternalHistoryCliResumePlanWire {
+            display_command: plan.display_command(),
+            plan,
+            cwd_exists,
+            source_available,
+        }))
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -719,6 +837,166 @@ pub async fn imported_history_turn_windows(
             imported_history::window::load_turn_windows_for_session(&conn, &session_id, &turn_ids)?
                 .ok_or_else(|| format!("Unknown imported history session: {session_id}"))
         }
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedHistoryCloudTurnWindow {
+    pub turn_id: String,
+    pub chunks: Vec<core_types::activity::ActivityChunk>,
+}
+
+/// Ordered user-turn ids for providers whose source readers can seek to one
+/// turn without materializing the complete transcript. This is intentionally
+/// a capability-gated surface: callers must retain the authoritative full
+/// loader as the fallback for unsupported or rewritten sources.
+#[tauri::command]
+pub async fn imported_history_cloud_turn_ids(session_id: String) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX) {
+            let conn = open_cache_conn()?;
+            return claude_code_history::load_claude_code_turn_ids_for_session(&conn, &session_id);
+        }
+        if session_id.starts_with(orgtrack_core::sources::codex::SESSION_PREFIX) {
+            let conn = open_cache_conn()?;
+            return codex_app::load_codex_app_turn_ids_for_session(&conn, &session_id);
+        }
+        if session_id.starts_with(orgtrack_core::sources::cursor_ide::CURSORIDE_SESSION_PREFIX) {
+            return cursor_db_history::load_turn_ids_for_session(&session_id);
+        }
+        Err(format!(
+            "Session {session_id} does not support incremental cloud replay windows"
+        ))
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Load exact user-bounded turns for incremental cloud replay preparation.
+/// The limit bounds one IPC response; a larger delta safely falls back to the
+/// existing full authoritative loader in the frontend.
+#[tauri::command]
+pub async fn imported_history_cloud_turn_windows(
+    session_id: String,
+    mut turn_ids: Vec<String>,
+    start_sequence: usize,
+) -> Result<Vec<ImportedHistoryCloudTurnWindow>, String> {
+    if turn_ids.len() > IMPORTED_CLOUD_TURN_WINDOW_LIMIT {
+        return Err(format!(
+            "At most {IMPORTED_CLOUD_TURN_WINDOW_LIMIT} cloud replay turns can be loaded at once"
+        ));
+    }
+    if turn_ids.iter().any(|turn_id| turn_id.len() > 1_024) {
+        return Err("Imported history turn id is too long".to_string());
+    }
+    let mut seen = HashSet::with_capacity(turn_ids.len());
+    turn_ids.retain(|turn_id| seen.insert(turn_id.clone()));
+    if turn_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    tokio::task::spawn_blocking(move || {
+        if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX) {
+            let conn = open_cache_conn()?;
+            return claude_code_history::load_claude_code_cloud_turn_windows_for_session(
+                &conn,
+                &session_id,
+                &turn_ids,
+                start_sequence,
+            )
+            .map(|windows| {
+                windows
+                    .into_iter()
+                    .map(|window| ImportedHistoryCloudTurnWindow {
+                        turn_id: window.turn_id,
+                        chunks: window.chunks,
+                    })
+                    .collect()
+            });
+        }
+        if session_id.starts_with(orgtrack_core::sources::codex::SESSION_PREFIX) {
+            let conn = open_cache_conn()?;
+            let mut next_sequence = start_sequence;
+            return turn_ids
+                .into_iter()
+                .map(|turn_id| {
+                    let chunks = codex_app::load_codex_app_cloud_turn_for_session(
+                        &conn,
+                        &session_id,
+                        &turn_id,
+                        next_sequence,
+                    )?;
+                    next_sequence = next_sequence.saturating_add(chunks.len());
+                    Ok(ImportedHistoryCloudTurnWindow { turn_id, chunks })
+                })
+                .collect();
+        }
+        if session_id.starts_with(orgtrack_core::sources::cursor_ide::CURSORIDE_SESSION_PREFIX) {
+            // start_sequence is intentionally unused here: Cursor chunk ids
+            // come from stable bubble ids in the provider DB, not from a
+            // position-derived sequence, so windows are position-independent.
+            return turn_ids
+                .into_iter()
+                .map(|turn_id| {
+                    let window =
+                        cursor_db_history::load_turn_window_for_session(&session_id, &turn_id)?;
+                    Ok(ImportedHistoryCloudTurnWindow {
+                        turn_id,
+                        chunks: window.chunks,
+                    })
+                })
+                .collect();
+        }
+        Err(format!(
+            "Session {session_id} does not support incremental cloud replay windows"
+        ))
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedContinuationStatus {
+    pub session_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lineage_id: Option<String>,
+    pub superseded: bool,
+}
+
+/// Continuation-family status for the cloud engine's superseded-row
+/// reconciliation: which push-marked sessions the imported cache reports as
+/// demoted, plus the lineage that identifies their listable winner. Ids not
+/// present in the cache are OMITTED — absence means "unknown" (a rebuilding
+/// cache reads empty), never "superseded".
+#[tauri::command]
+pub async fn imported_history_continuation_statuses(
+    session_ids: Vec<String>,
+) -> Result<Vec<ImportedContinuationStatus>, String> {
+    if session_ids.len() > 200 {
+        return Err("At most 200 continuation statuses can be resolved at once".to_string());
+    }
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        let mut out = Vec::with_capacity(session_ids.len());
+        for session_id in session_ids {
+            let Some((lineage_id, superseded)) =
+                orgtrack_core::sources::imported_history::cache::cached_session_continuation_status_from_conn(
+                    &conn,
+                    &session_id,
+                )?
+            else {
+                continue;
+            };
+            out.push(ImportedContinuationStatus {
+                session_id,
+                lineage_id,
+                superseded,
+            });
+        }
+        Ok(out)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -956,6 +1234,18 @@ pub async fn claude_code_recent_paths(
 }
 
 #[tauri::command]
+pub async fn copilot_history_chunks(
+    session_id: String,
+) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        copilot_history::load_copilot_history_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
 pub async fn cursor_cli_history_chunks(
     session_id: String,
 ) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
@@ -1146,6 +1436,31 @@ pub async fn omp_recent_paths(
 }
 
 #[tauri::command]
+pub async fn pi_history_chunks(
+    session_id: String,
+) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        pi_history::load_pi_history_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn pi_recent_paths(
+    limit: Option<usize>,
+) -> Result<Vec<pi_history::PiRecentPath>, String> {
+    let limit = limit.unwrap_or(20);
+    tokio::task::spawn_blocking(move || {
+        let mut conn = open_cache_conn()?;
+        pi_history::list_pi_recent_paths(&mut conn, limit)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
 pub async fn qoder_cli_history_chunks(
     session_id: String,
 ) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
@@ -1165,6 +1480,56 @@ pub async fn qoder_cli_recent_paths(
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
         qoder_cli_history::list_qoder_cli_recent_paths(&mut conn, limit)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn qwen_code_history_chunks(
+    session_id: String,
+) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        qwen_code_history::load_qwen_code_history_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn qwen_code_recent_paths(
+    limit: Option<usize>,
+) -> Result<Vec<qwen_code_history::QwenCodeRecentPath>, String> {
+    let limit = limit.unwrap_or(20);
+    tokio::task::spawn_blocking(move || {
+        let mut conn = open_cache_conn()?;
+        qwen_code_history::list_qwen_code_recent_paths(&mut conn, limit)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn kimi_history_chunks(
+    session_id: String,
+) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        kimi_history::load_kimi_history_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn kimi_recent_paths(
+    limit: Option<usize>,
+) -> Result<Vec<kimi_history::KimiRecentPath>, String> {
+    let limit = limit.unwrap_or(20);
+    tokio::task::spawn_blocking(move || {
+        let mut conn = open_cache_conn()?;
+        kimi_history::list_kimi_recent_paths(&mut conn, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -1367,6 +1732,18 @@ mod tests {
 
         assert_eq!(turns[0].status, "pending");
         assert!(!turns[0].interrupted);
+    }
+
+    #[test]
+    fn external_history_rebuild_requires_explicit_clear() {
+        assert_eq!(
+            external_history_scan_mode(false),
+            ExternalHistoryScanMode::Incremental
+        );
+        assert_eq!(
+            external_history_scan_mode(true),
+            ExternalHistoryScanMode::Rebuild
+        );
     }
 
     #[test]

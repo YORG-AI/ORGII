@@ -119,9 +119,7 @@ const TeamMemberCard = memo(function TeamMemberCard({
       onClick={() => onOpen(entry.userId)}
       data-testid={`team-member-card-${entry.userId}`}
       data-stale={stale ? "true" : "false"}
-      className={`flex w-full flex-col gap-3 rounded-xl border border-border-1 bg-primary-container p-4 text-left transition-colors hover:border-border-2 ${
-        stale ? "opacity-60" : ""
-      }`}
+      className="flex w-full flex-col gap-3 rounded-xl border border-border-1 bg-primary-container p-4 text-left transition-colors hover:border-border-2"
     >
       <div className="flex items-center gap-3">
         <Avatar size={36} src={entry.avatarUrl ?? undefined}>

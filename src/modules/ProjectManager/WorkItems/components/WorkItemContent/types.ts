@@ -6,6 +6,11 @@ import type {
   WorkItemHandoffTransition,
   WorkItemHistoryAction,
 } from "@src/api/http/project";
+import type {
+  GitHubIssue,
+  GitHubIssueTimelineItem,
+  GitHubIssueUser,
+} from "@src/api/tauri/github";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
@@ -33,6 +38,17 @@ export interface WorkItemContentProps {
   repoPath?: string | null;
   projectSlug?: string | null;
   shortId?: string | null;
+  /**
+   * Reuse activity already owned by the surrounding GitHub detail controller.
+   * When omitted, project-backed Work Items resolve and load their own issue
+   * timeline from `repoPath` + `shortId`.
+   */
+  githubIssueTimeline?: {
+    items: GitHubIssueTimelineItem[];
+    loading: boolean;
+  };
+  /** Inline GitHub-native body, comment, and status actions for thread surfaces. */
+  githubIssueInteraction?: GitHubIssueInteractionConfig;
   onStartAgent?: (instructions?: string) => void;
   isStartingAgent?: boolean;
   onCancelAgent?: () => void;
@@ -56,6 +72,37 @@ export interface WorkItemContentProps {
   isLockedByOther?: boolean;
   lockHolderName?: string | null;
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
+}
+
+export type GitHubIssueCloseReason = "completed" | "not_planned" | "duplicate";
+
+export interface GitHubIssueStatusChangeOptions {
+  stateReason?: GitHubIssueCloseReason;
+  duplicateIssueId?: number;
+}
+
+export interface GitHubIssueInteractionConfig {
+  viewer: GitHubIssueUser | null;
+  issueState: GitHubIssue["state"];
+  duplicateCandidates: GitHubIssue[];
+  duplicateCandidatesLoaded: boolean;
+  loadingDuplicateCandidates: boolean;
+  duplicateCandidatesError: boolean;
+  loading: boolean;
+  canComment: boolean;
+  canEditBody: boolean;
+  canManageStatus: boolean;
+  submittingComment: boolean;
+  updatingBody: boolean;
+  updatingStatus: boolean;
+  error: "comment" | "status" | null;
+  onAddComment: (body: string) => Promise<void>;
+  onUpdateBody: (body: string) => Promise<void>;
+  onLoadDuplicateCandidates: () => Promise<void>;
+  onStatusChange: (
+    state: GitHubIssue["state"],
+    options?: GitHubIssueStatusChangeOptions
+  ) => Promise<void>;
 }
 
 export interface OutputTabContentProps {

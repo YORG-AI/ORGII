@@ -692,21 +692,47 @@
     "agentApproval": "Agent Onayı",
     "agentApprovalDesc": "Bir Agent eylemi onayınızı gerektirdiğinde",
     "errors": "Hatalar ve Uyarılar",
+    "teamInbox": "Ekip Gelen Kutusu",
     "errorsDesc": "Hatalar veya uyarılar oluştuğunda",
     "sessionStatus": "Session Durumu",
     "sessionStatusDesc": "Session başlatma, duraklatma ve devam ettirme güncellemeleri",
     "gitOperations": "Git İşlemleri",
     "gitOperationsDesc": "Git pull, push ve senkronizasyon bildirimleri",
+    "soundPreset": "Bildirim sesi",
+    "soundPresetDesc": "Sesli bildirimlerde çalınacak sesi seçin",
+    "previewSound": "Önizle",
+    "soundPresets": {
+      "classic": "Klasik",
+      "gentle": "Yumuşak",
+      "ascending": "Yükselen",
+      "bell": "Zil"
+    },
     "volume": "Ses Seviyesi",
     "testNotification": "Test Bildirimi",
     "notification": "Bildirim",
     "sound": "Ses",
     "enabledSuccess": "Bildirimler etkinleştirildi",
     "permissionDenied": "Bildirim izni reddedildi",
+    "criticalOnly": "Yalnızca kritik uyarılar",
+    "criticalOnlyDesc": "Yalnızca bir işlem onay gerektirdiğinde veya bir görev başarısız olduğunda bildir",
+    "quietHours": "Rahatsız etme programı",
+    "quietHoursDesc": "Günlük bir zaman aralığında rutin bildirimleri sessize al",
+    "quietHoursSchedule": "Sessiz saatler",
+    "quietHoursScheduleDesc": "Cihazınızın yerel saatini kullanır. Başlangıç ve bitiş saatleri aynıysa aralık devre dışı kalır.",
+    "quietHoursStart": "Başlangıç",
+    "quietHoursEnd": "Bitiş",
+    "allowCriticalDuringQuietHours": "Kritik uyarılara izin ver",
+    "allowCriticalDuringQuietHoursDesc": "Onay istekleri ve hatalar sistem bildirimi gösterebilir, ancak hiçbir zaman ses çalmaz",
+    "backgroundCompletionSummary": "Arka plan tamamlamalarını özetle",
+    "backgroundCompletionSummaryDesc": "Sessiz saatler bittiğinde tek bir birleşik uyarı gönder",
+    "mutedSessions": "Sessize alınan Session'lar",
+    "mutedSessionsDesc": "Bu cihazda {{count}} Session sessize alındı",
+    "clearMutedSessions": "Tümünü temizle",
     "test": {
       "sent": "Test bildirimi gönderildi",
       "permissionWarning": "Test bildirimi gönderilemedi. İzinleri kontrol edin.",
-      "sendFailed": "Test bildirimi gönderilemiyor. Bildirim izinlerinizi kontrol edip yeniden deneyin."
+      "sendFailed": "Test bildirimi gönderilemiyor. Bildirim izinlerinizi kontrol edip yeniden deneyin.",
+      "soundFailed": "Bildirim sesi çalınamıyor. Sistem ses düzeyini kontrol edin."
     }
   },
   "editor": {
@@ -962,7 +988,13 @@
     "tableSize": "Boyut",
     "tablePercentage": "Yüzde",
     "scanFailed": "Disk kullanımı taranamadı",
-    "openFolderFailed": "Klasör açılamadı"
+    "openFolderFailed": "Klasör açılamadı",
+    "browserCache": "Tarayıcı önbelleği",
+    "browserCacheDesc": "{{used}} kullanılıyor · {{cleanable}} güvenle temizlenebilir",
+    "cleanBrowserCache": "Temizle",
+    "browserCacheCleaned": "{{size}} tarayıcı depolama alanı boşaltıldı",
+    "browserCacheAlreadyClean": "Tarayıcı önbelleği zaten temiz",
+    "browserCacheCleanFailed": "Tarayıcı önbelleği temizlenemedi"
   },
   "dependencies": {
     "systemDependencies": "Sistem Dependencies",

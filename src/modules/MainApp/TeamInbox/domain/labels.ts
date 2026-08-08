@@ -8,6 +8,14 @@ export function isGitHubIssueStatus(status: string): boolean {
   );
 }
 
+/** Resolve a displayable GitHub issue number from `61` or `#61`. */
+export function parseGitHubIssueNumber(
+  value: string | null | undefined
+): number | undefined {
+  const match = value?.trim().match(/^#?(\d+)$/);
+  return match ? Number(match[1]) : undefined;
+}
+
 /**
  * Turns a raw enum token from the work-item read model (e.g. `in_progress`,
  * `HIGH`, `in-review`) into a human sentence-cased label (`In progress`,

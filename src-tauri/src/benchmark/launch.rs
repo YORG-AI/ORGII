@@ -42,6 +42,7 @@ pub(super) fn benchmark_launch_params(
             .apply_agent_org_member_overrides_for_future,
         isolate: launch.isolate,
         mode: launch.mode.clone(),
+        product_mode: None,
         org_id: None,
         project_id: None,
         project_name: None,

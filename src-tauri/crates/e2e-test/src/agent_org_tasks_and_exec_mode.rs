@@ -170,6 +170,9 @@ async fn seed_task(
     seed_task_with_dependencies(cfg, run_id, id, subject, owner, status, &[], &[]).await
 }
 
+#[allow(clippy::too_many_arguments)]
+// Keeping fixture fields visible makes each orchestration scenario readable at
+// the call site; the helper immediately maps them to the canonical seed DTO.
 async fn seed_task_with_dependencies(
     cfg: &Config,
     run_id: &str,

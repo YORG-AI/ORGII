@@ -42,6 +42,8 @@ const WorkstationTabHeader: React.FC = memo(() => {
   const activeApp = useAtomValue(activeStatusBarAppAtom);
   const activeTab = useAtomValue(activeWorkStationTabAtom);
   const windowsHost = isWindows();
+  const shellLeadingChromeHidden =
+    headerSlots?.shellLeadingChromeHidden ?? false;
   const isSourceControlTab =
     activeApp === "code" && activeTab?.type === "source-control";
 
@@ -58,20 +60,24 @@ const WorkstationTabHeader: React.FC = memo(() => {
 
   return (
     <div
-      className={`flex h-10 shrink-0 items-center gap-2 pl-1.5 pr-2 ${
-        headerSlots?.joinWithFollowingRow ? "" : "border-b border-border-2"
-      }`}
+      className={`flex h-10 shrink-0 items-center gap-2 pr-2 ${
+        shellLeadingChromeHidden ? "pl-0" : "pl-1.5"
+      } ${headerSlots?.joinWithFollowingRow ? "" : "border-b border-border-2"}`}
       data-tauri-drag-region={windowsHost ? undefined : true}
     >
-      <NoDragRegion className="flex shrink-0 items-center gap-px">
-        <WorkStationSidebarToggleButton
-          iconSize={14}
-          disabled={headerSlots?.sidebarToggleDisabled ?? false}
-        />
-        <CodeSidebarHeaderActions />
-        <SourceControlHeaderActions />
-      </NoDragRegion>
-      {!isSourceControlTab && <WorkstationHeaderSectionSeparator />}
+      {!shellLeadingChromeHidden && (
+        <>
+          <NoDragRegion className="flex shrink-0 items-center gap-px">
+            <WorkStationSidebarToggleButton
+              iconSize={14}
+              disabled={headerSlots?.sidebarToggleDisabled ?? false}
+            />
+            <CodeSidebarHeaderActions />
+            <SourceControlHeaderActions />
+          </NoDragRegion>
+          {!isSourceControlTab && <WorkstationHeaderSectionSeparator />}
+        </>
+      )}
       <PublishedHeaderSlotsView
         slots={headerSlots}
         paddingLeftClassName={activeApp === "browser" ? "pl-1" : undefined}

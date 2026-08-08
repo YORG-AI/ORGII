@@ -54,6 +54,101 @@ async fn tick(app: &tauri::AppHandle, now: DateTime<Utc>) -> Result<(), String> 
             );
         }
     }
+
+    // Portable pass: pm_routines schedule activations fire through the
+    // canonical routine.invoke — the same entry manual CLI runs use.
+    // Converted legacy rows are disabled at conversion time, so a routine
+    // is only ever driven by ONE of the two passes.
+    if let Err(err) = portable_tick(now).await {
+        warn!("[routine-scheduler] portable tick error: {}", err);
+    }
+    Ok(())
+}
+
+/// Evaluate the portable `pm_routines` schedule activations (design
+/// §10.4). Cron is evaluated in UTC for now — the declared timezone is
+/// carried in the spec and honored once tz-aware evaluation lands.
+/// Catch-up: both portable policies (`none`, `fire_once`) reduce to
+/// "fire the latest missed tick once", matching the legacy collapse.
+async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
+    use project_management::routine_service as routines;
+
+    let candidates = tokio::task::spawn_blocking(routines::scheduled_candidates)
+        .await
+        .map_err(|err| format!("Task join error: {err}"))??;
+
+    for candidate in candidates {
+        let window_start = candidate
+            .last_evaluated_at
+            .and_then(DateTime::<Utc>::from_timestamp_millis)
+            .unwrap_or_else(|| now - chrono::Duration::seconds(POLL_INTERVAL_SECS as i64));
+        let trigger = RoutineTrigger::Cron {
+            cron: candidate.cron.clone(),
+        };
+        let due = match due_times(&trigger, &window_start, &now) {
+            Ok(due) => due,
+            Err(err) => {
+                warn!(
+                    "[routine-scheduler] portable routine {} cron error: {}",
+                    candidate.name, err
+                );
+                continue;
+            }
+        };
+
+        if let Some(scheduled_at) = due.last() {
+            let name = candidate.name.clone();
+            let scheduled_millis = scheduled_at.timestamp_millis();
+            let policy = format!("{:?}", candidate.concurrency).to_lowercase();
+            let scope = candidate.default_scope.clone();
+            let fired: Result<(), String> = tokio::task::spawn_blocking(move || {
+                let active = routines::has_active_run(&name)?;
+                if active {
+                    // skip/coalesce suppress; queue also suppresses for
+                    // now (pending-run dequeue lands with the cancel
+                    // machinery) — always audited, never silent.
+                    routines::audit_suppressed_fire(&name, &policy, scheduled_millis)?;
+                    return Ok(());
+                }
+                let Some(scope) = scope else {
+                    routines::audit_suppressed_fire(&name, "no_scope_binding", scheduled_millis)?;
+                    return Ok(());
+                };
+                let run = routines::invoke(&name, &scope, &Default::default(), None)?;
+                info!(
+                    "[routine-scheduler] portable routine {} fired run {}",
+                    name, run.run_id
+                );
+                Ok(())
+            })
+            .await
+            .map_err(|err| format!("Task join error: {err}"))?;
+            if let Err(err) = fired {
+                warn!(
+                    "[routine-scheduler] portable routine {} fire failed: {}",
+                    candidate.name, err
+                );
+            }
+        }
+
+        let next = next_occurrence(
+            &RoutineTrigger::Cron {
+                cron: candidate.cron.clone(),
+            },
+            &now,
+        )
+        .ok()
+        .flatten();
+        let name = candidate.name.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            routines::mark_evaluated(
+                &name,
+                now.timestamp_millis(),
+                next.map(|at| at.timestamp_millis()),
+            )
+        })
+        .await;
+    }
     Ok(())
 }
 

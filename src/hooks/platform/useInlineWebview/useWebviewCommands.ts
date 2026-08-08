@@ -78,89 +78,111 @@ export function useWebviewCommands(
   // (and therefore incremented the Rust ref-count). Only when this is true should
   // we call close_inline_webview to decrement the ref-count on destroy.
   const hasIncrementedRefCount = useRef(false);
+  const createInFlightRef = useRef<Promise<void> | null>(null);
   const lifecycleGenerationRef = useRef(0);
 
   const createWebview = useCallback(
-    async (targetUrl: string) => {
+    (targetUrl: string): Promise<void> => {
       if (
         !isWebviewAvailable ||
         !containerRef.current ||
         isDestroyedRef.current
       ) {
         log("Cannot create WebView - not available or no container");
-        return;
+        return Promise.resolve();
+      }
+
+      // A single React owner must hold exactly one Rust ref-count slot. Effect
+      // restarts (for example, Station visibility changing while creation is
+      // still awaiting IPC) may call this again before state reflects success.
+      if (hasIncrementedRefCount.current) {
+        return Promise.resolve();
+      }
+      if (createInFlightRef.current) {
+        return createInFlightRef.current;
       }
 
       const rect = getContainerRect();
       if (!rect || rect.width === 0 || rect.height === 0) {
         log("Container has no dimensions, skipping WebView creation");
-        return;
+        return Promise.resolve();
       }
 
-      try {
-        if (!isUnmountedRef.current) {
-          setIsLoading(true);
-          setError(null);
-        }
+      const operation = (async () => {
+        try {
+          if (!isUnmountedRef.current) {
+            setIsLoading(true);
+            setError(null);
+          }
 
-        const appWindow = getCurrentWindow();
-        const parentLabel = appWindow.label;
-        const generation = Math.max(
-          lifecycleGenerationRef.current + 1,
-          Date.now()
-        );
-        lifecycleGenerationRef.current = generation;
+          const appWindow = getCurrentWindow();
+          const parentLabel = appWindow.label;
+          const generation = Math.max(
+            lifecycleGenerationRef.current + 1,
+            Date.now()
+          );
+          lifecycleGenerationRef.current = generation;
 
-        log("Creating WebView via Rust command at rect:", rect);
+          log("Creating WebView via Rust command at rect:", rect);
 
-        const frame = toNativeFrame(rect);
-        await invoke("create_inline_webview", {
-          parentWindow: parentLabel,
-          label: labelRef.current,
-          url: targetUrl,
-          ...frame,
-          userAgent: userAgent,
-          incognito: incognito,
-          generation,
-          visible: isVisible,
-        });
-
-        // Mark that this instance has a ref-count slot. Even if we are already
-        // unmounted at this point we still need to release it.
-        hasIncrementedRefCount.current = true;
-
-        // create_inline_webview returns with the webview staged offscreen.
-        // Rust uses the generation to prevent stale creates from becoming visible.
-        if (isUnmountedRef.current) {
-          // Unmounted while create was in-flight. Release the ref-count so the
-          // offscreen webview is destroyed without ever being shown.
-          void invoke("close_inline_webview", {
+          const frame = toNativeFrame(rect);
+          await invoke("create_inline_webview", {
+            parentWindow: parentLabel,
             label: labelRef.current,
+            url: targetUrl,
+            ...frame,
+            userAgent: userAgent,
+            incognito: incognito,
             generation,
+            visible: isVisible,
           });
-          return;
+
+          // Mark that this instance has a ref-count slot. Even if we are already
+          // unmounted at this point we still need to release it.
+          hasIncrementedRefCount.current = true;
+
+          // create_inline_webview returns with the webview staged offscreen.
+          // Rust uses the generation to prevent stale creates from becoming visible.
+          if (isUnmountedRef.current) {
+            // Unmounted while create was in-flight. Release the ref-count so the
+            // offscreen webview is destroyed without ever being shown.
+            hasIncrementedRefCount.current = false;
+            await invoke("close_inline_webview", {
+              label: labelRef.current,
+              generation,
+            });
+            return;
+          }
+
+          setIsWebviewCreated(true);
+          setCurrentUrl(targetUrl);
+          lastPolledUrlRef.current = targetUrl;
+
+          log("WebView created successfully with label:", labelRef.current);
+
+          const webviewProxy = {
+            label: () => labelRef.current,
+          } as unknown as Webview;
+          onCreated?.(webviewProxy);
+
+          setIsLoading(false);
+        } catch (err) {
+          if (isUnmountedRef.current) return;
+          const error = err instanceof Error ? err : new Error(String(err));
+          log("Failed to create WebView:", error);
+          setError(error);
+          setIsLoading(false);
+          onError?.(error);
         }
+      })();
 
-        setIsWebviewCreated(true);
-        setCurrentUrl(targetUrl);
-        lastPolledUrlRef.current = targetUrl;
-
-        log("WebView created successfully with label:", labelRef.current);
-
-        const webviewProxy = {
-          label: () => labelRef.current,
-        } as unknown as Webview;
-        onCreated?.(webviewProxy);
-
-        setIsLoading(false);
-      } catch (err) {
-        if (isUnmountedRef.current) return;
-        const error = err instanceof Error ? err : new Error(String(err));
-        log("Failed to create WebView:", error);
-        setError(error);
-        setIsLoading(false);
-        onError?.(error);
-      }
+      createInFlightRef.current = operation;
+      void operation.finally(() => {
+        if (createInFlightRef.current === operation) {
+          createInFlightRef.current = null;
+        }
+      });
+      return operation;
     },
     [
       isWebviewAvailable,

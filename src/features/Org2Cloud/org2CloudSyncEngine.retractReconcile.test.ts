@@ -16,6 +16,15 @@ import {
   reconcileOrgRetracts,
 } from "./org2CloudSyncEngine.retractReconcile";
 
+// Network-identity lookups must ANSWER in these tests: a FAILED lookup now
+// defers the out-of-scope verdict (scope-flapping guard) instead of counting
+// as "no match". Identity = itself keeps exact-string semantics.
+vi.mock("@src/api/tauri/github", () => ({
+  resolveGitHubRepoNetworkIdentityLocal: vi.fn(async (fullName: string) => ({
+    source_full_name: fullName,
+  })),
+}));
+
 const ORG = "11111111-1111-4111-8111-111111111111";
 
 describe("push-marker enumeration", () => {

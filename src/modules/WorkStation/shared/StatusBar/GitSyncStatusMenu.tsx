@@ -24,7 +24,7 @@ import {
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { classNames } from "@src/util/ui/classNames";
 
-import { StatusBarButton } from "./StatusBarBase";
+import { StatusBarButton, StatusBarLabel } from "./StatusBarBase";
 import { StatusBarTooltip } from "./StatusBarTooltip";
 
 const MENU_ICON_SIZE = DROPDOWN_ITEM.iconSize;
@@ -174,33 +174,41 @@ export const GitSyncStatusMenu: React.FC<GitSyncStatusMenuProps> = memo(
               />
             )}
             {needsPublish && !isPublishing && (
-              <span className="font-medium text-text-1">
+              <StatusBarLabel emphasis className="text-text-1">
                 {t("git.actions.publish")}
-              </span>
+              </StatusBarLabel>
             )}
             {isPublishing && (
-              <span className="font-medium text-text-1">
+              <StatusBarLabel emphasis className="text-text-1">
                 {t("workstation.publishingBranch")}
-              </span>
+              </StatusBarLabel>
             )}
             {!needsPublish &&
               syncStatusLabel &&
               behindCount === 0 &&
               aheadCount === 0 && (
-                <span className="font-medium text-text-1">
+                <StatusBarLabel emphasis className="text-text-1">
                   {syncStatusLabel}
-                </span>
+                </StatusBarLabel>
               )}
             {!needsPublish && (behindCount > 0 || aheadCount > 0) && (
               <>
-                <span className="flex items-center font-medium text-text-1">
+                <StatusBarLabel
+                  emphasis
+                  numeric
+                  className="flex items-center text-text-1"
+                >
                   {behindCount}
                   <ArrowDown size={MENU_ICON_SIZE} />
-                </span>
-                <span className="flex items-center font-medium text-text-1">
+                </StatusBarLabel>
+                <StatusBarLabel
+                  emphasis
+                  numeric
+                  className="flex items-center text-text-1"
+                >
                   {aheadCount}
                   <ArrowUp size={MENU_ICON_SIZE} />
-                </span>
+                </StatusBarLabel>
               </>
             )}
             <ChevronDown size={12} className="text-text-3" />

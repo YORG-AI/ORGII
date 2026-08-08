@@ -4,12 +4,21 @@
  * keep My Conversations and Team Conversations from double-listing a row
  * (`sessionListExcludedIds`) or missing a cloud-tagged/local-origin row
  * (`cloudScopedExtraSessionIds`).
+ *
+ * Also mounts the cloud-org "Channels" section (`channelsSection.tsx`): its
+ * rows join `cloudMenuItems` above Team Sessions and My Sessions, its
+ * click resolver runs before the team-sessions one, its selected row (the
+ * channel whose surface is the active chat-panel tab) takes precedence over
+ * the team-sessions selection, and its dialogs surface through
+ * `cloudChannelsDialogs` (rendered once in `SidebarDialogs`).
  */
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { CloudSessionFilter } from "@src/features/Org2Cloud/cloudSessionFilter";
+import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
 
+import { useCloudChannelsSection } from "./channelsSection";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
 
 interface UseWorkstationSidebarCloudMenuDataParams {
@@ -23,6 +32,15 @@ interface UseWorkstationSidebarCloudMenuDataParams {
   handleCloudSessionFilterChange: (filter: CloudSessionFilter) => void;
   personalHiddenCloudTaggedIds: ReadonlySet<string> | undefined;
   cloudTaggedSessionIds: ReadonlySet<string> | undefined;
+}
+
+export function mergeCloudSidebarSections(
+  channelsMenuItems: readonly NavigationMenuItem[],
+  cloudSessionMenuItems: readonly NavigationMenuItem[]
+): NavigationMenuItem[] {
+  return channelsMenuItems.length === 0
+    ? [...cloudSessionMenuItems]
+    : [...channelsMenuItems, ...cloudSessionMenuItems];
 }
 
 export function useWorkstationSidebarCloudMenuData({
@@ -61,6 +79,28 @@ export function useWorkstationSidebarCloudMenuData({
     onFilterChange: handleCloudSessionFilterChange,
   });
 
+  const {
+    channelsMenuItems,
+    handleChannelsItemClick,
+    selectedChannelMenuItemId,
+    channelsDialogs,
+  } = useCloudChannelsSection({ orgId: activeCloudOrgId });
+
+  // Channels lead Team Sessions; the My Sessions separator is appended
+  // downstream by buildCloudScopedMenuItems.
+  const mergedCloudMenuItems = useMemo(
+    () => mergeCloudSidebarSections(channelsMenuItems, cloudMenuItems),
+    [channelsMenuItems, cloudMenuItems]
+  );
+
+  // Channel rows resolve first: their ids can never collide with
+  // `cloudremote-` / pagination ids, so an early claim is unambiguous.
+  const handleCloudScopedItemClick = useCallback(
+    (item: NavigationMenuItem): boolean =>
+      handleChannelsItemClick(item) || handleCloudSessionItemClick(item),
+    [handleChannelsItemClick, handleCloudSessionItemClick]
+  );
+
   // Read-only teammate replay caches stay behind their Team Conversation row.
   // Writable current-device originals remain in the My Conversations list.
   const sessionListExcludedIds = useMemo(() => {
@@ -81,9 +121,14 @@ export function useWorkstationSidebarCloudMenuData({
   }, [activeCloudOrgId, cloudLocalSessionIds, cloudTaggedSessionIds]);
 
   return {
-    cloudMenuItems,
-    selectedCloudMenuItemId,
-    handleCloudSessionItemClick,
+    cloudMenuItems: mergedCloudMenuItems,
+    cloudSessionMenuItems: cloudMenuItems,
+    channelMenuItems: channelsMenuItems,
+    // An open channel surface wins over the team-sessions selection: it is
+    // the tab the pane is actually showing.
+    selectedCloudMenuItemId:
+      selectedChannelMenuItemId ?? selectedCloudMenuItemId,
+    handleCloudSessionItemClick: handleCloudScopedItemClick,
     resetCloudTeamPagination,
     handleCloudRemoteItemRemove,
     cloudMemberFilterDropdown,
@@ -91,5 +136,6 @@ export function useWorkstationSidebarCloudMenuData({
     cloudRemoteViewerMap,
     sessionListExcludedIds,
     cloudScopedExtraSessionIds,
+    cloudChannelsDialogs: channelsDialogs,
   };
 }

@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "orgtrack/v1/routine.schema.json",
+  "title": "Orgtrack v1 portable Routine spec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "$ref": "common.schema.json#/definitions/apiVersion" },
+    "kind": { "const": "Routine" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rootWork", "steps"],
+      "properties": {
+        "inputs": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/inputDecl" }
+        },
+        "rootWork": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title"],
+          "properties": {
+            "title": { "type": "string", "minLength": 1 },
+            "body": { "type": "string" },
+            "priority": {
+              "$ref": "common.schema.json#/definitions/workItemPriority"
+            },
+            "labels": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/step" }
+        },
+        "activations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/activation" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "inputDecl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "path"]
+        },
+        "required": { "type": "boolean", "default": false }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "needs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "Step ids within the same Routine only; the graph must be acyclic."
+        },
+        "actor": { "$ref": "common.schema.json#/definitions/actorRequirement" },
+        "instruction": {
+          "type": "string",
+          "description": "Becomes part of the generated WorkItem body. Never a session transcript."
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Mapping expressions like ${steps.<id>.outputs.<name>} or ${inputs.<name>}. No arbitrary code."
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/definitions/outputDecl" }
+        }
+      }
+    },
+    "outputDecl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["artifact", "artifact-list", "reference"]
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["manual", "schedule", "provider_event"]
+        },
+        "cron": { "type": "string" },
+        "timezone": { "type": "string" },
+        "provider": { "type": "string" },
+        "eventKind": { "type": "string" },
+        "filter": {
+          "type": "object",
+          "description": "Declarative filter only; no executable code. Payload size limits enforced host-side."
+        },
+        "concurrencyPolicy": {
+          "type": "string",
+          "enum": ["coalesce", "skip", "queue"],
+          "default": "skip",
+          "description": "Behavior when the previous Run is not terminal. coalesce/skip record an AuditEvent without creating a Run; queue creates a pending Run."
+        },
+        "catchUp": {
+          "type": "string",
+          "enum": ["none", "fire_once"],
+          "default": "none",
+          "description": "Compensation for schedule fires missed while the ORG2 host process was not running."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "schedule" } } },
+          "then": { "required": ["cron", "timezone"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "provider_event" } } },
+          "then": { "required": ["provider", "eventKind"] }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

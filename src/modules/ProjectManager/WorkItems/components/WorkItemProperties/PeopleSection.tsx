@@ -15,6 +15,7 @@ import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 import { AssigneePropertyField } from "./AssigneePropertyField";
 import { ReviewerDropdown } from "./ReviewerDropdown";
 import type {
+  WorkItemExternalAssigneeConfig,
   WorkItemPropertyFieldKey,
   WorkItemPropertyHandlers,
   WorkItemPropertyPicker,
@@ -32,6 +33,8 @@ interface PeopleSectionProps {
   t: WorkItemPropertyTranslator;
   fieldVariant?: FieldRowVariant;
   visibleFields?: Set<WorkItemPropertyFieldKey>;
+  assigneeReadonly?: boolean;
+  externalAssigneeConfig?: WorkItemExternalAssigneeConfig;
 }
 
 export function PeopleSection({
@@ -45,6 +48,8 @@ export function PeopleSection({
   t,
   fieldVariant = "row",
   visibleFields,
+  assigneeReadonly = false,
+  externalAssigneeConfig,
 }: PeopleSectionProps) {
   const showAssignee = !visibleFields || visibleFields.has("assignee");
   const showReviewer = !visibleFields || visibleFields.has("reviewer");
@@ -65,6 +70,8 @@ export function PeopleSection({
           placement={fieldVariant === "pill" ? "portal" : "inline"}
           active={openPicker === "assignee"}
           onActiveChange={(active) => togglePicker(active ? "assignee" : null)}
+          readonly={assigneeReadonly}
+          externalConfig={externalAssigneeConfig}
         />
       )}
 

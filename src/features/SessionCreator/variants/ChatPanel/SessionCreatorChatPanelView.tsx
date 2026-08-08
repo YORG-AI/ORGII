@@ -6,6 +6,7 @@ import type { DispatchCategory } from "@src/api/tauri/session";
 import type { CliAgentType } from "@src/api/types/keys";
 import Button from "@src/components/Button";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
+import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import InlineAlert from "@src/components/InlineAlert";
 import SelectorPill from "@src/components/SelectorPill";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
@@ -80,6 +81,7 @@ interface SessionCreatorChatPanelViewProps {
     React.SetStateAction<SessionLaunchWorkItemContext | null>
   >;
   onCategoryPickerOpen: () => void;
+  onCreateWorkItem?: () => void;
   onFileUpload: React.ChangeEventHandler<HTMLInputElement>;
   onLaunch: () => void;
   onShareScreen: () => Promise<unknown>;
@@ -129,6 +131,7 @@ const SessionCreatorChatPanelView: React.FC<
   leadingActionSlot,
   onAttachedWorkItemContextChange,
   onCategoryPickerOpen,
+  onCreateWorkItem,
   onFileUpload,
   onLaunch,
   onShareScreen,
@@ -322,8 +325,8 @@ const SessionCreatorChatPanelView: React.FC<
                     {!hideWorkItemAttachmentControl && (
                       <WorkItemAttachmentControl
                         currentWorkItemContext={workItemContext}
+                        onCreateWorkItem={onCreateWorkItem}
                         panelHostRef={workItemPanelHostRef}
-                        repoPath={sessionInfoProps.repoPath}
                         onWorkItemContextChange={
                           onAttachedWorkItemContextChange
                         }
@@ -341,11 +344,7 @@ const SessionCreatorChatPanelView: React.FC<
                         aria-expanded={isOrgMembersPanelOpen}
                         aria-controls="session-creator-org-members-panel"
                         onClick={onToggleOrgMembers}
-                        className={
-                          isOrgMembersPanelOpen
-                            ? "shrink-0 !bg-fill-1 !text-primary-6"
-                            : "shrink-0"
-                        }
+                        className={`shrink-0 ${pillControlStateClass(isOrgMembersPanelOpen)}`}
                         data-testid="session-creator-org-members-toggle"
                       >
                         {t("creator.orgMembers.configButton")}
@@ -381,12 +380,14 @@ const SessionCreatorChatPanelView: React.FC<
             </div>
           )}
 
-          {!hideSessionSetupControls && (
-            <div
-              ref={workItemPanelHostRef}
-              className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-            />
-          )}
+          {!hideSessionSetupControls &&
+            !hideWorkItemAttachmentControl &&
+            !onCreateWorkItem && (
+              <div
+                ref={workItemPanelHostRef}
+                className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+              />
+            )}
 
           {!hideSessionSetupControls &&
             orgMembersPanelProps &&

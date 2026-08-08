@@ -28,6 +28,7 @@ import type {
 } from "@src/store/session/sessionAtom/types";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
+import { stripCopyEventNamespace } from "../copyEventId";
 import {
   isModelRunnableWithAccount,
   resolveForkModel,
@@ -37,8 +38,14 @@ import {
   ForkOperationError,
   ForkSnapshotIntegrityError,
 } from "../forkSnapshotIntegrity";
-import { rewriteEventsForImportedSnapshot } from "./collabImportIdentity";
-import type { RemoteSessionFetchOptions } from "./collabRemoteFetch";
+import {
+  findImportedSession,
+  rewriteEventsForImportedSnapshot,
+} from "./collabImportIdentity";
+import type {
+  AssembledSegments,
+  RemoteSessionFetchOptions,
+} from "./collabRemoteFetch";
 import { fetchAndAssembleSegments } from "./collabRemoteFetch";
 
 /**
@@ -162,6 +169,60 @@ export interface ForkSessionOptions extends RemoteSessionFetchOptions {
  * published no segments (metadata-only sessions have nothing to inherit);
  * THROWS on a failed durable write so callers surface it as retryable.
  */
+/**
+ * Local-copy-first sourcing: when a CURRENT imported replay of the source
+ * already exists (cursor exactly matches the listing summary and the
+ * persisted store really holds it — hollow copies never qualify), the fork
+ * assembles from it instead of re-downloading the full history. This makes
+ * Take Over instant and transfer-free for any replay the user previously
+ * imported. Copy-namespaced ids are stripped back to SOURCE ids so the
+ * fork's own namespacing lands byte-identical to a remote-fetched fork.
+ * Guest (share-token) forks keep the remote path.
+ */
+async function loadForkSourceFromLocalCopy(
+  options: ForkSessionOptions
+): Promise<AssembledSegments | null> {
+  if (options.shareToken !== undefined) return null;
+  if (options.sourceEndpointUrl === undefined) return null;
+  const store = getInstrumentedStore();
+  const existing = findImportedSession(
+    store.get(sessionsAtom) as Session[],
+    options.orgId,
+    options.remoteSession.sourceSessionId,
+    options.sourceEndpointUrl
+  );
+  const cursor = existing?.importedFrom;
+  if (!existing || !cursor || cursor.frozenCount === undefined) return null;
+  const summary = options.remoteSession;
+  if (
+    cursor.epoch !== summary.eventsEpoch ||
+    cursor.seq !== (summary.eventsFrozenSeq ?? 0) ||
+    cursor.count !== summary.eventsCount ||
+    (cursor.tailHash ?? null) !== (summary.eventsTailHash ?? null)
+  ) {
+    return null;
+  }
+  const persisted = await eventStoreProxy.getPersistedEvents(
+    existing.session_id
+  );
+  if (persisted.length !== cursor.count) return null;
+  return {
+    events: persisted.map((event) => ({
+      ...event,
+      id: stripCopyEventNamespace(existing.session_id, event.id),
+      chunk_id:
+        event.chunk_id == null
+          ? event.chunk_id
+          : stripCopyEventNamespace(existing.session_id, event.chunk_id),
+      sessionId: options.remoteSession.sourceSessionId,
+    })),
+    epoch: cursor.epoch,
+    frozenSeq: cursor.seq,
+    frozenCount: cursor.frozenCount,
+    tailHash: cursor.tailHash ?? null,
+  };
+}
+
 export async function forkSession(
   options: ForkSessionOptions
 ): Promise<ForkSessionResult | null> {
@@ -209,15 +270,19 @@ export async function forkSession(
     ? { model: options.execution.model, fellBack: false }
     : resolveForkModel(remoteSession.model, localKeys, defaultModel);
 
-  // Full fetch from seq 0, same assembly + validation as the importer. Forks
-  // additionally fail closed against the list-row summary: an internally
-  // valid tail-only response must not materialize when the row promised a
-  // larger frozen history. The summary is a floor, not an exact match — a
-  // LIVE source keeps pushing between the list read and the segment fetch,
-  // so a snapshot that is AHEAD of the summary (owner rewrote to a newer
-  // epoch, or the same epoch grew) is the healthy race, while anything
-  // BEHIND the summary is the truncation this guard exists for.
-  const assembled = await fetchAndAssembleSegments(options, 0, [], null);
+  // Local-copy-first, then full fetch from seq 0 with the same assembly +
+  // validation as the importer. Forks additionally fail closed against the
+  // list-row summary: an internally valid tail-only response must not
+  // materialize when the row promised a larger frozen history. The summary
+  // is a floor, not an exact match — a LIVE source keeps pushing between
+  // the list read and the segment fetch, so a snapshot that is AHEAD of the
+  // summary (owner rewrote to a newer epoch, or the same epoch grew) is the
+  // healthy race, while anything BEHIND the summary is the truncation this
+  // guard exists for. A local-copy source equals the summary by
+  // construction (cursor match + persisted count probe).
+  const assembled =
+    (await loadForkSourceFromLocalCopy(options)) ??
+    (await fetchAndAssembleSegments(options, 0, [], null));
   const summaryEpoch = remoteSession.eventsEpoch;
   const summaryFrozenSeq = remoteSession.eventsFrozenSeq ?? 0;
   const summaryCount = remoteSession.eventsCount;

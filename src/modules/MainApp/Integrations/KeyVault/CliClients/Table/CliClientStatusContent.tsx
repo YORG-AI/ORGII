@@ -75,7 +75,7 @@ export function CliClientStatusContent({
                   {agent.installedVia
                     ? (METHOD_DISPLAY_LABELS[agent.installedVia] ??
                       agent.installedVia)
-                    : t("common:status.na")}
+                    : "—"}
                 </span>
               </InfoRow>
             )}

@@ -11,10 +11,26 @@
 import { useSetAtom, useStore } from "jotai";
 import { useEffect } from "react";
 
+import { activeChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsState";
 import {
   activeSessionIdAtom,
   claimPipelineSessionAtom,
 } from "@src/store/session";
+
+export function shouldReleaseSecondaryPipeline({
+  activePrimarySessionId,
+  currentPipelineSessionId,
+  secondarySessionId,
+}: {
+  activePrimarySessionId: string | null;
+  currentPipelineSessionId: string | null;
+  secondarySessionId: string;
+}): boolean {
+  return (
+    currentPipelineSessionId === secondarySessionId &&
+    activePrimarySessionId !== secondarySessionId
+  );
+}
 
 export function useChatViewPipelineClaim({
   sessionId,
@@ -52,7 +68,16 @@ export function useChatViewPipelineClaim({
     if (!secondary) return;
     return () => {
       const current = store.get(activeSessionIdAtom);
-      if (current === sessionId) {
+      const activeTab = store.get(activeChatPanelTabAtom);
+      const activePrimarySessionId =
+        activeTab?.type === "session" ? (activeTab.sessionId ?? null) : null;
+      if (
+        shouldReleaseSecondaryPipeline({
+          activePrimarySessionId,
+          currentPipelineSessionId: current,
+          secondarySessionId: sessionId,
+        })
+      ) {
         setActiveSessionId(null);
       }
     };

@@ -101,6 +101,7 @@ import type {
 } from "./types";
 import {
   MEMBER_AGENTS_DETECT_MIN_INTERVAL_MS,
+  MEMBER_STATUS_MAX_BYTES,
   MEMBER_USAGE_DAYS_MAX_PER_PUSH,
   MEMBER_USAGE_ROLLUP_WINDOW_DAYS,
   SHARE_RUNTIME_SETTING_KEY,
@@ -116,6 +117,35 @@ export const MEMBER_RUNTIME_CAPABILITY_RECHECK_MS = 6 * 60 * 60 * 1000;
 /** Pass-level floor after a failed token refresh (org backoffs are per-org;
  * an auth failure blocks the whole pass and must not tight-loop). */
 const AUTH_RETRY_DELAY_MS = 5 * 60_000;
+/** Leave room for jsonb's canonical text spacing at the server-side cap. */
+const MEMBER_STATUS_SIZE_SAFETY_BYTES = 512;
+
+function statusWithBoundedRecentUsage(
+  machine: Awaited<ReturnType<typeof getMemberRuntimeMachineCached>>,
+  sample: Awaited<ReturnType<typeof collectMemberRuntimeSample>>,
+  rollup: DailyRollupResult
+): NonNullable<UpsertMemberRuntimeInput["status"]> {
+  const status: NonNullable<UpsertMemberRuntimeInput["status"]> = {
+    machine,
+    sample,
+    stats: {
+      totalSessions: rollup.totalSessions,
+      recentUsage24h: rollup.recentUsage24h,
+    },
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(status)).byteLength;
+  if (bytes <= MEMBER_STATUS_MAX_BYTES - MEMBER_STATUS_SIZE_SAFETY_BYTES) {
+    return status;
+  }
+  // Status is the heartbeat. If unusual machine labels plus the additive
+  // snapshot approach the server cap, keep the pre-feature census payload
+  // rather than turning every future push into ORG2_RUNTIME_TOO_LARGE.
+  return {
+    machine,
+    sample,
+    stats: { totalSessions: rollup.totalSessions },
+  };
+}
 
 /** Non-DOM contexts (workers and node-side tests) behave as visible. */
 function isDocumentHidden(): boolean {
@@ -416,8 +446,11 @@ export class MemberRuntimePushScheduler {
     this.capabilityUnconfirmedFailures = 0;
     this.capabilityRecheckAtMs = 0;
 
-    // The detection probe is machine-global: run it at most once per pass
-    // and share the result across orgs that are due for a re-probe.
+    // Machine-global collectors run at most once per pass and share their
+    // result across every due org: the agents probe, the ~1s CPU burst
+    // sample, the 35-day rollup scan, and the profile cache read are all
+    // org-independent. A multi-org member's catch-up pass previously paid
+    // each of these per org.
     let sharedAgentsProbe: Promise<MemberInstalledAgent[] | null> | null = null;
     const probeAgentsOnce = (): Promise<MemberInstalledAgent[] | null> => {
       if (!sharedAgentsProbe) {
@@ -425,6 +458,28 @@ export class MemberRuntimePushScheduler {
       }
       return sharedAgentsProbe;
     };
+    let sharedSample: ReturnType<
+      MemberRuntimeSchedulerDeps["getSample"]
+    > | null = null;
+    const sampleOnce: MemberRuntimeSchedulerDeps["getSample"] = (nowMs) => {
+      if (!sharedSample) sharedSample = this.deps.getSample(nowMs);
+      return sharedSample;
+    };
+    let sharedRollup: Promise<DailyRollupResult> | null = null;
+    const rollupOnce: MemberRuntimeSchedulerDeps["getDailyRollup"] = (
+      startMs,
+      endMs
+    ) => {
+      if (!sharedRollup)
+        sharedRollup = this.deps.getDailyRollup(startMs, endMs);
+      return sharedRollup;
+    };
+    let sharedProfile: Promise<BuilderProfileOverview> | null = null;
+    const profileOnce: MemberRuntimeSchedulerDeps["getProfileOverview"] =
+      () => {
+        if (!sharedProfile) sharedProfile = this.deps.getProfileOverview();
+        return sharedProfile;
+      };
 
     for (const org of dueOrgs) {
       if (this.generation !== generation) return;
@@ -433,16 +488,21 @@ export class MemberRuntimePushScheduler {
           fresh.accessToken,
           eligible.identityKey,
           org,
-          probeAgentsOnce
+          probeAgentsOnce,
+          { sampleOnce, rollupOnce, profileOnce }
         );
         this.orgBackoff.delete(org.orgId);
       } catch (error) {
-        this.noteOrgFailure(org, error);
+        this.noteOrgFailure(org, fresh, error);
       }
     }
   }
 
-  private noteOrgFailure(org: Org2CloudOrg, error: unknown): void {
+  private noteOrgFailure(
+    org: Org2CloudOrg,
+    auth: Org2CloudAuthState,
+    error: unknown
+  ): void {
     if (isMemberRuntimeErrorCode(error, "ORG2_RUNTIME_DISABLED")) {
       // Server-authoritative: stop pushing this org until its roster record
       // changes. No backoff churn against a deliberate off switch.
@@ -466,8 +526,16 @@ export class MemberRuntimePushScheduler {
       notBeforeMs: this.deps.now() + delayMs,
     });
     const code = (error as { code?: MemberRuntimeErrorCode | null })?.code;
+    // The upsert RPC derives the member from this session's JWT, so the
+    // freshly authenticated profile is the authoritative identity for the
+    // failed push. Keep the stable user id visible even when names collide.
+    const memberName = auth.profile?.displayName?.trim() || auth.userId;
+    const memberIdentity =
+      memberName === auth.userId
+        ? auth.userId
+        : `${memberName} (${auth.userId})`;
     log.warn(
-      `member runtime push failed for org ${org.orgId}` +
+      `member runtime push failed for ${memberIdentity} in org ${org.orgId}` +
         `${code ? ` (${code})` : ""}; retrying in ${Math.round(delayMs / 1000)}s`,
       error
     );
@@ -477,6 +545,10 @@ export class MemberRuntimePushScheduler {
       level: "warn",
       kind: "member_runtime",
       orgId: org.orgId,
+      member: {
+        userId: auth.userId,
+        ...(memberName === auth.userId ? {} : { displayName: memberName }),
+      },
       message: `Member runtime push failed; retrying in ${Math.round(delayMs / 1000)}s: ${described.message}`,
       code: described.code,
     });
@@ -515,7 +587,16 @@ export class MemberRuntimePushScheduler {
     accessToken: string,
     identityKey: string,
     org: Org2CloudOrg,
-    probeAgentsOnce: () => Promise<MemberInstalledAgent[] | null>
+    probeAgentsOnce: () => Promise<MemberInstalledAgent[] | null>,
+    shared: {
+      sampleOnce: MemberRuntimeSchedulerDeps["getSample"];
+      rollupOnce: MemberRuntimeSchedulerDeps["getDailyRollup"];
+      profileOnce: MemberRuntimeSchedulerDeps["getProfileOverview"];
+    } = {
+      sampleOnce: (nowMs) => this.deps.getSample(nowMs),
+      rollupOnce: (startMs, endMs) => this.deps.getDailyRollup(startMs, endMs),
+      profileOnce: () => this.deps.getProfileOverview(),
+    }
   ): Promise<void> {
     const state = readMemberRuntimePushState(identityKey, org.orgId);
     const nowMs = this.deps.now();
@@ -526,13 +607,14 @@ export class MemberRuntimePushScheduler {
     // Status: cached machine identity + fresh burst sample. Failures here
     // reject the tick (status is the heartbeat).
     const machine = await this.deps.getMachine();
-    const sample = await this.deps.getSample(nowMs);
+    const sample = await shared.sampleOnce(nowMs);
 
     // Usage: recompute the rolling UTC-day window, delta-push changed rows.
-    // The same scan carries the lifetime session census for status.stats.
+    // The same scan carries the lifetime census and bounded rolling-24h
+    // snapshot for status.stats, so hourly sharing adds no second DB pass.
     const windowStartMs =
       utcDayFloorMs(nowMs) - (MEMBER_USAGE_ROLLUP_WINDOW_DAYS - 1) * UTC_DAY_MS;
-    const rollup = await this.deps.getDailyRollup(windowStartMs, nowMs);
+    const rollup = await shared.rollupOnce(windowStartMs, nowMs);
     const usagePlan = planUsageDaysPush(
       mapRollupRowsToMemberUsageDays(rollup.days),
       state.usageFingerprint,
@@ -546,7 +628,7 @@ export class MemberRuntimePushScheduler {
     let nextProfileFingerprint = state.profileFingerprint;
     if (!dropOptionalSections) {
       try {
-        const overview = await this.deps.getProfileOverview();
+        const overview = await shared.profileOnce();
         const profile = overview.profile;
         if (profile.code && profile.sessions > 0) {
           const fingerprint = builderProfileFingerprint(profile);
@@ -580,11 +662,7 @@ export class MemberRuntimePushScheduler {
     }
 
     const input: UpsertMemberRuntimeInput = {
-      status: {
-        machine,
-        sample,
-        stats: { totalSessions: rollup.totalSessions },
-      },
+      status: statusWithBoundedRecentUsage(machine, sample, rollup),
       ...(usagePlan.days.length > 0 ? { usageDays: usagePlan.days } : {}),
       ...(profilePart ? { profile: profilePart } : {}),
     };

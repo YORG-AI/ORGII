@@ -21,6 +21,7 @@ const ProjectWorkItemsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     const { t } = useTranslation("projects");
     const {
       onExpandWorkItemToTab,
+      onOpenProjects,
       onOpenLinearProjects,
       onCreateProject,
       onCreateWorkItem,
@@ -32,6 +33,7 @@ const ProjectWorkItemsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     return (
       <ProjectWorkItemsTabContent
         breadcrumbSegments={breadcrumbSegments}
+        onOpenProjects={onOpenProjects}
         orgId={scopedOrgId}
         onOpenWorkItem={(selection) =>
           onExpandWorkItemToTab(

@@ -12,14 +12,7 @@ pub(super) fn sync_opencode_history_cache(cache_conn: &mut Connection) -> Result
         )?;
         return Ok(());
     };
-    let (source_mtime_ms, source_size_bytes) =
-        imported_paths::file_metadata_signature(&db_path, "OpenCode")?;
-    let mut metas = list_all_opencode_session_meta_from_conn(
-        &conn,
-        &db_path,
-        source_mtime_ms,
-        source_size_bytes,
-    )?;
+    let mut metas = list_all_opencode_session_meta_from_conn(&conn, &db_path)?;
     let managed_source_session_ids = managed_opencode_source_session_ids_from_conn(cache_conn)?;
     for meta in &mut metas {
         meta.source_fingerprint.push_str(
@@ -66,7 +59,9 @@ pub(super) fn sync_opencode_history_cache(cache_conn: &mut Connection) -> Result
     imported_cache::sync_source_cache_from_conn(cache_conn, SOURCE_OPENCODE, live_ids, inputs)
 }
 
-fn opencode_meta_signature(meta: &OpenCodeSessionMeta) -> ImportedHistoryRecordSignature {
+pub(super) fn opencode_meta_signature(
+    meta: &OpenCodeSessionMeta,
+) -> ImportedHistoryRecordSignature {
     ImportedHistoryRecordSignature {
         source_session_id: meta.source_session_id.clone(),
         source_path: meta.source_path.clone(),
@@ -121,8 +116,6 @@ pub(super) fn container_parent_ids_from_metas(metas: &[OpenCodeSessionMeta]) -> 
 pub(super) fn list_all_opencode_session_meta_from_conn(
     conn: &Connection,
     db_path: &Path,
-    source_mtime_ms: i64,
-    source_size_bytes: i64,
 ) -> Result<Vec<OpenCodeSessionMeta>, String> {
     let mut stmt = conn
         .prepare(
@@ -168,20 +161,23 @@ pub(super) fn list_all_opencode_session_meta_from_conn(
         })
         .map_err(|err| format!("Failed to query OpenCode sessions: {err}"))?;
 
-    // A single `opencode.db` backs every session, so fold its WAL/`-shm`
-    // sidecars into each session's fingerprint once.
-    let sidecar_signature = imported_paths::sqlite_sidecar_signature(db_path);
+    let activity_signatures =
+        imported_paths::sqlite_all_session_activity_signatures_from_conn(conn, "OpenCode")?;
     let mut sessions = Vec::new();
     for row in rows {
         let mut meta = row.map_err(|err| format!("Failed to read OpenCode session row: {err}"))?;
         if meta.source_session_id.trim().is_empty() {
             continue;
         }
+        let (activity_time, activity_fold) = activity_signatures
+            .get(&meta.source_session_id)
+            .copied()
+            .unwrap_or((meta.time_updated.max(meta.time_created), 0));
         meta.source_path = db_path.to_string_lossy().to_string();
         meta.source_record_key = meta.source_session_id.clone();
-        meta.source_mtime_ms = source_mtime_ms;
-        meta.source_size_bytes = source_size_bytes;
-        meta.source_fingerprint = opencode_source_fingerprint(&meta, &sidecar_signature);
+        meta.source_mtime_ms = activity_time;
+        meta.source_size_bytes = activity_fold as i64;
+        meta.source_fingerprint = opencode_source_fingerprint(&meta);
         sessions.push(meta);
     }
     Ok(sessions)
@@ -189,10 +185,10 @@ pub(super) fn list_all_opencode_session_meta_from_conn(
 
 /// Content-aware change fingerprint for an OpenCode session.
 ///
-/// The `opencode.db` mtime alone can stay flat across a same-mtime rewrite, so
-/// this folds the session's own identity/title/timestamp/token/parent fields
-/// together with the shared WAL/`-shm` sidecar signature.
-fn opencode_source_fingerprint(meta: &OpenCodeSessionMeta, sidecar_signature: &str) -> String {
+/// The shared `opencode.db`/WAL changes for unrelated sessions, so this
+/// fingerprint contains only fields owned by the selected session. Transcript
+/// activity rides in the session-local mtime/size signature fields.
+fn opencode_source_fingerprint(meta: &OpenCodeSessionMeta) -> String {
     [
         meta.source_session_id.as_str(),
         meta.title.as_str(),
@@ -202,7 +198,6 @@ fn opencode_source_fingerprint(meta: &OpenCodeSessionMeta, sidecar_signature: &s
         &meta.input_tokens.to_string(),
         &meta.output_tokens.to_string(),
         meta.parent_id.as_deref().unwrap_or_default(),
-        sidecar_signature,
     ]
     .join("|")
 }

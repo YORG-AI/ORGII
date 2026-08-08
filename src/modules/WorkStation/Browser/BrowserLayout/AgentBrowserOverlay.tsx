@@ -6,7 +6,7 @@
  * and the overlay displays a live screencast stream. On "Take Over",
  * Chrome window is shown on-screen for direct user interaction.
  */
-import { ExternalLink, Monitor, Pause, Play } from "lucide-react";
+import { Monitor, Pause, Play, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,7 +39,7 @@ export const AgentBrowserOverlay: React.FC<AgentBrowserOverlayProps> = memo(
             <span className="text-text-1">{t("workstation.agentBrowser")}</span>
             {isPaused ? (
               <span className="rounded bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-600">
-                <ExternalLink size={10} className="mr-1 inline" />
+                <SquareArrowOutUpRight size={10} className="mr-1 inline" />
                 {t("workstation.userInControl")}
               </span>
             ) : (

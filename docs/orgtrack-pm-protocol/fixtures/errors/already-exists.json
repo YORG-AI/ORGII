@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "ALREADY_EXISTS",
+    "message": "Routine name 'interaction-impact-analysis' already exists in this scope",
+    "retryable": false,
+    "details": {
+      "resource": "Routine",
+      "name": "interaction-impact-analysis"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR06"
+  }
+}

@@ -102,6 +102,9 @@ pub type PinSessionFn = fn(handle: &AppHandle, session_id: &str);
 /// the in-memory map.
 pub type UnpinSessionFn = fn(handle: &AppHandle, session_id: &str);
 
+/// Immediately remove a deleted session from the EventStore LRU and store map.
+pub type EvictSessionFn = fn(handle: &AppHandle, session_id: &str);
+
 /// Snapshot the in-memory event list for `session_id`. Returns an empty
 /// vector when the session has no live store.
 pub type ReadSessionEventsFn = fn(handle: &AppHandle, session_id: &str) -> Vec<SessionEvent>;
@@ -171,6 +174,7 @@ static REPLACE_STREAMING_EVENT: OnceLock<ReplaceStreamingEventFn> = OnceLock::ne
 static REMOVE_EVENTS_BY_IDS: OnceLock<RemoveEventsByIdsFn> = OnceLock::new();
 static PIN_SESSION: OnceLock<PinSessionFn> = OnceLock::new();
 static UNPIN_SESSION: OnceLock<UnpinSessionFn> = OnceLock::new();
+static EVICT_SESSION: OnceLock<EvictSessionFn> = OnceLock::new();
 static READ_SESSION_EVENTS: OnceLock<ReadSessionEventsFn> = OnceLock::new();
 static FINALIZE_PLAN_REVISION_EVENTS: OnceLock<FinalizePlanRevisionEventsFn> = OnceLock::new();
 static PERSIST_EVENTS: OnceLock<PersistEventsFn> = OnceLock::new();
@@ -198,6 +202,7 @@ pub fn register(
     remove_events_by_ids: RemoveEventsByIdsFn,
     pin_session: PinSessionFn,
     unpin_session: UnpinSessionFn,
+    evict_session: EvictSessionFn,
     read_session_events: ReadSessionEventsFn,
     finalize_plan_revision_events: FinalizePlanRevisionEventsFn,
     persist_events: PersistEventsFn,
@@ -216,6 +221,7 @@ pub fn register(
     let _ = REMOVE_EVENTS_BY_IDS.set(remove_events_by_ids);
     let _ = PIN_SESSION.set(pin_session);
     let _ = UNPIN_SESSION.set(unpin_session);
+    let _ = EVICT_SESSION.set(evict_session);
     let _ = READ_SESSION_EVENTS.set(read_session_events);
     let _ = FINALIZE_PLAN_REVISION_EVENTS.set(finalize_plan_revision_events);
     let _ = PERSIST_EVENTS.set(persist_events);
@@ -250,6 +256,17 @@ pub fn schedule_notify(handle: &AppHandle, session_id: &str) {
     } else {
         tracing::warn!(
             "[event-pipeline-bridge] schedule_notify called before register for {}",
+            session_id
+        );
+    }
+}
+
+pub fn evict_session(handle: &AppHandle, session_id: &str) {
+    if let Some(f) = EVICT_SESSION.get() {
+        f(handle, session_id);
+    } else {
+        tracing::warn!(
+            "[event-pipeline-bridge] evict_session called before register for {}",
             session_id
         );
     }

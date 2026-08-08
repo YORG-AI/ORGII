@@ -1,3 +1,4 @@
+import type { CloudChannelVisibility } from "@src/features/Org2Cloud/channels/types";
 import type {
   ChatPanelSelectedCloudOrg,
   ChatPanelSelectedOrganization,
@@ -10,6 +11,10 @@ import {
   WORK_MANAGEMENT_SECTION,
   type WorkManagementSection,
 } from "@src/store/workstation/workstationTabBarAtoms";
+import type {
+  GitHubIssueDetailTabData,
+  GitHubPrDetailTabData,
+} from "@src/types/githubDetail";
 
 export type ChatPanelTabType =
   | "session"
@@ -21,8 +26,29 @@ export type ChatPanelTabType =
   | "workspace"
   | "organization"
   | "work-item"
+  | "github-issue"
+  | "github-pr"
   | "project"
-  | "explore";
+  | "explore"
+  | "channel";
+
+/**
+ * Payload for a "channel" tab, discriminated by scope. Local channels live in
+ * `localChannelsAtom` (this machine, single user); cloud channels are org
+ * rows from the `0014_org_channels.sql` control plane. Unlike the other tab
+ * payloads this type lives here rather than in `chatPanelAtom.ts` — a channel
+ * tab needs no `chatPanelSelected*Atom` replay, so it never joins the
+ * navigate-command surface.
+ */
+export type ChatPanelSelectedChannel =
+  | { scope: "local"; channelId: string; name: string }
+  | {
+      scope: "cloud";
+      orgId: string;
+      channelId: string;
+      name: string;
+      visibility: CloudChannelVisibility;
+    };
 
 export interface ChatPanelTab {
   id: string;
@@ -71,11 +97,20 @@ export interface ChatPanelTab {
    * Writable in place — the work-item panel edits/refreshes this payload.
    */
   workItem?: ChatPanelSelectedWorkItem;
+  /** For GitHub issue tabs opened from a chat-pane Work Management parent. */
+  githubIssue?: GitHubIssueDetailTabData;
+  /** For GitHub PR tabs opened from a chat-pane Work Management parent. */
+  githubPr?: GitHubPrDetailTabData;
   /**
    * For "project" tabs: the linked project plus its slug/org context. The
    * panel self-fetches the project's work items from `project.projectSlug`.
    */
   project?: ChatPanelSelectedProject;
+  /**
+   * For "channel" tabs: the local or cloud channel whose message surface this
+   * pill owns. The surface renders straight from this payload.
+   */
+  channel?: ChatPanelSelectedChannel;
 }
 
 export interface ChatPanelTabsState {
@@ -103,8 +138,11 @@ const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "workspace",
   "organization",
   "work-item",
+  "github-issue",
+  "github-pr",
   "project",
   "explore",
+  "channel",
 ]);
 
 export function isChatPanelTabDefaultFullscreen(
@@ -125,9 +163,17 @@ export function getWorkManagementFallbackTitle(
       return "GitHub Issues";
     case WORK_MANAGEMENT_SECTION.GITHUB_PRS:
       return "GitHub PRs";
+    case WORK_MANAGEMENT_SECTION.RUNS:
+      return "Runs";
     case WORK_MANAGEMENT_SECTION.KANBAN:
       return "Kanban";
   }
+}
+
+export function isWorkManagementListSection(
+  section: WorkManagementSection
+): boolean {
+  return section !== WORK_MANAGEMENT_SECTION.KANBAN;
 }
 
 export function normalizePersistedChatPanelTabsState(
@@ -190,21 +236,19 @@ export function normalizePersistedChatPanelTabsState(
   const activeMappedTab = mappedTabs.find(
     (tab) => tab.id === candidate.activeTabId
   );
-  const preferredWorkManagementTabIds = new Map<
-    WorkManagementSection,
-    string
-  >();
+  const preferredWorkManagementTabIds = new Map<"kanban" | "work", string>();
   for (const tab of mappedTabs) {
     if (tab.type !== "work-management" || !tab.managementSection) continue;
-    const preferredTabId = preferredWorkManagementTabIds.get(
-      tab.managementSection
-    );
+    const tabGroup = isWorkManagementListSection(tab.managementSection)
+      ? "work"
+      : "kanban";
+    const preferredTabId = preferredWorkManagementTabIds.get(tabGroup);
     if (
       preferredTabId === undefined ||
       (activeMappedTab?.type === "work-management" &&
         activeMappedTab.id === tab.id)
     ) {
-      preferredWorkManagementTabIds.set(tab.managementSection, tab.id);
+      preferredWorkManagementTabIds.set(tabGroup, tab.id);
     }
   }
   const preferredRuntimeTabId =
@@ -232,7 +276,11 @@ export function normalizePersistedChatPanelTabsState(
         (tab.type !== "work-management" ||
           (tab.managementSection !== undefined &&
             tab.id ===
-              preferredWorkManagementTabIds.get(tab.managementSection))) &&
+              preferredWorkManagementTabIds.get(
+                isWorkManagementListSection(tab.managementSection)
+                  ? "work"
+                  : "kanban"
+              ))) &&
         (tab.type !== "runtime" || tab.id === preferredRuntimeTabId) &&
         (tab.type !== "team-inbox" || tab.id === preferredTeamInboxTabId) &&
         (tab.type !== "organization" || tab === preferredOrganizationTab) &&

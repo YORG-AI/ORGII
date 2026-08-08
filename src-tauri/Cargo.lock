@@ -3918,9 +3918,11 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "core_types",
+ "csv",
  "dirs",
  "insta",
  "integrations",
+ "libc",
  "log",
  "nucleo-matcher",
  "orgtrack_core",
@@ -3935,9 +3937,12 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tracing",
+ "unicode-normalization",
  "url",
  "urlencoding",
  "uuid",
+ "windows-sys 0.60.2",
+ "zeroize",
 ]
 
 [[package]]
@@ -5225,6 +5230,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "orgtrack-pm-cli"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "database",
+ "project_management",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "test_helpers",
+]
+
+[[package]]
 name = "orgtrack_cli"
 version = "0.1.0"
 dependencies = [
@@ -5259,6 +5278,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "similar",
+ "tracing",
 ]
 
 [[package]]

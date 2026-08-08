@@ -1,4 +1,5 @@
 use chrono::{DateTime, SecondsFormat, Utc};
+use serde_json::Value;
 
 use crate::types::{QuotaInfo, UsageItem};
 
@@ -42,6 +43,26 @@ pub(crate) fn normalize_reset_time(value: &str) -> Option<String> {
                 .to_rfc3339_opts(SecondsFormat::Secs, true)
         })
         .ok()
+}
+
+pub(crate) fn json_time_to_rfc3339(value: &Value) -> Option<String> {
+    if let Some(raw) = value.as_f64().or_else(|| {
+        value
+            .as_str()
+            .and_then(|value| value.trim().parse::<f64>().ok())
+    }) {
+        if !raw.is_finite() || raw < 0.0 {
+            return None;
+        }
+        let milliseconds = if raw < 1_000_000_000_000.0 {
+            raw * 1000.0
+        } else {
+            raw
+        };
+        return DateTime::<Utc>::from_timestamp_millis(milliseconds.round() as i64)
+            .map(|date| date.to_rfc3339_opts(SecondsFormat::Secs, true));
+    }
+    value.as_str().and_then(normalize_reset_time)
 }
 
 pub(crate) fn quota_from_windows(

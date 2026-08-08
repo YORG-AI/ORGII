@@ -11,9 +11,13 @@ import {
 
 export function useTabDragEndToPill(
   containerRef: RefObject<HTMLElement | null>,
-  composerInputRef: RefObject<ComposerInputRef | null>
+  composerInputRef: RefObject<ComposerInputRef | null>,
+  /** False on composers that must refuse dragged references entirely. */
+  enabled = true
 ): void {
   useEffect(() => {
+    if (!enabled) return undefined;
+
     const handleTabDragEnd = (e: Event) => {
       const event = e as CustomEvent<TabDragEventDetail>;
       const { filePath, name, type, pill, pointerX, pointerY } = event.detail;
@@ -35,5 +39,5 @@ export function useTabDragEndToPill(
     return () => {
       document.removeEventListener("tab-drag-end", handleTabDragEnd);
     };
-  }, [containerRef, composerInputRef]);
+  }, [containerRef, composerInputRef, enabled]);
 }

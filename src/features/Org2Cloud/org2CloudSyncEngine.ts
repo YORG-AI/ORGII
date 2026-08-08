@@ -7,8 +7,9 @@
  * metadata into local stores yet (the panel lists teammates' sessions
  * directly via `listOrgSessions`).
  *
- * Per pass, for every cloud org that has locally-stored repo scopes
- * (`org2CloudRepoScopesAtom`) and sync not disabled
+ * Per pass, the session plane visits the actively viewed org plus every org
+ * whose admin enabled background upload. For each visited org that has
+ * locally-stored repo scopes (`org2CloudRepoScopesAtom`) and sync not disabled
  * (`org2CloudSyncEnabledAtom`), every OWN local session whose resolved repo
  * scope key matches a scope is a push CANDIDATE. Whether a candidate is
  * actually uploaded — and at what level — is decided by the per-session
@@ -57,6 +58,7 @@ import { createLogger } from "@src/hooks/logger";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
+import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import type { ProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncBridge";
 import { tauriProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncBridge";
@@ -85,6 +87,7 @@ import { resolveOrgEndpoint } from "./org2CloudEndpointDirectory";
 import { setOrgEndpointDirectory } from "./org2CloudOrgEndpointRouter";
 import {
   buildCloudOrgSelectorValue,
+  isOrgBackgroundUploadEnabled,
   org2CloudOrgsAtom,
   sidebarActiveCloudOrgIdAtom,
 } from "./org2CloudOrgsAtom";
@@ -132,11 +135,17 @@ import {
 } from "./org2CloudSyncEngine.schemaGate";
 import { Org2CloudSessionColdStart } from "./org2CloudSyncEngine.sessionColdStart";
 import {
+  type ContinuationStatusResolver,
   type LocalSessionIdResolver,
+  findSupersededPushedSessions,
   findVanishedPushedSessionIds,
+  resolveContinuationStatusesViaCache,
   resolveLocalSessionIdsViaAggregateList,
 } from "./org2CloudSyncEngine.vanishedSessions";
-import { Org2CloudSyncLifecycle } from "./org2CloudSyncLifecycle";
+import {
+  type CloudStore,
+  Org2CloudSyncLifecycle,
+} from "./org2CloudSyncLifecycle";
 
 export {
   DATA_CHANGED_DEBOUNCE_MS,
@@ -159,6 +168,9 @@ export type { Org2CloudSchemaVersionProbe } from "./org2CloudSyncEngine.schemaGa
 const log = createLogger("Org2CloudSyncEngine");
 
 export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
+  /** Last roster version for each locally owned external-history session. */
+  private readonly externalHistoryRosterVersions = new Map<string, string>();
+  private sessionRosterUnsubscribe: (() => void) | null = null;
   /** Per-org entitlement backoff deadlines + notification state, split out
    * to `Org2CloudOrgBackoffTracker` — see that module for the per-map
    * rationale (kept together there since a policy signal touches more than
@@ -187,19 +199,24 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
   /** Confirms vanished-session suspects against every local store; a
    * constructor seam so engine tests can fake local resolution. */
   private readonly resolveLocalSessionIds: LocalSessionIdResolver;
+  /** Continuation status of push-marked suspects; same seam pattern. */
+  private readonly resolveContinuationStatuses: ContinuationStatusResolver;
   /** Per-org timestamp of the last vanished-session GC sweep. */
   private readonly lastVanishedSweepAtMs = new Map<string, number>();
   /** `${orgId}:${sessionId}` → consecutive sweeps confirmed absent. A
    * suspect retracts only at VANISHED_SESSION_RETRACT_CONFIRMATIONS, so one
    * empty lookup during a cache rebuild cannot mass-retract live rows. */
   private readonly vanishedStrikes = new Map<string, number>();
+  /** Same two-strike discipline for superseded-continuation retracts. */
+  private readonly supersededStrikes = new Map<string, number>();
 
   constructor(
     client: Org2CloudSyncClientDeps = org2CloudSyncClient,
     projectsClient: Org2CloudProjectsClientDeps = org2CloudProjectsClient,
     projectSyncBridge: ProjectSyncBridge = tauriProjectSyncBridge,
     probeSchemaVersion: Org2CloudSchemaVersionProbe = schemaVersion,
-    resolveLocalSessionIds: LocalSessionIdResolver = resolveLocalSessionIdsViaAggregateList
+    resolveLocalSessionIds: LocalSessionIdResolver = resolveLocalSessionIdsViaAggregateList,
+    resolveContinuationStatuses: ContinuationStatusResolver = resolveContinuationStatusesViaCache
   ) {
     super();
     this.client = client;
@@ -218,6 +235,58 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     this.sessionColdStart = new Org2CloudSessionColdStart(client);
     this.schemaGate = new Org2CloudSchemaGate(probeSchemaVersion);
     this.resolveLocalSessionIds = resolveLocalSessionIds;
+    this.resolveContinuationStatuses = resolveContinuationStatuses;
+  }
+
+  override start(store: CloudStore): void {
+    if (this.sessionRosterUnsubscribe) return;
+    super.start(store);
+    this.captureExternalHistoryRosterActivity(store);
+    this.sessionRosterUnsubscribe = store.sub(sessionsAtom, () => {
+      this.captureExternalHistoryRosterActivity(store);
+    });
+  }
+
+  override stop(): void {
+    this.sessionRosterUnsubscribe?.();
+    this.sessionRosterUnsubscribe = null;
+    this.externalHistoryRosterVersions.clear();
+    super.stop();
+  }
+
+  /**
+   * Imported providers refresh sessionsAtom directly instead of writing the
+   * EventStore. Convert only meaningful source-version changes into the same
+   * bounded quiet-window trigger used by native event notifications.
+   */
+  private captureExternalHistoryRosterActivity(store: CloudStore): void {
+    const nextVersions = new Map<string, string>();
+    const changedSessionIds: string[] = [];
+    for (const session of store.get(sessionsAtom)) {
+      if (
+        !isImportedHistorySession(session.session_id) ||
+        !isCloudPushCandidate(session)
+      ) {
+        continue;
+      }
+      const version = session.updated_at ?? "";
+      nextVersions.set(session.session_id, version);
+      if (
+        this.externalHistoryRosterVersions.get(session.session_id) !== version
+      ) {
+        changedSessionIds.push(session.session_id);
+      }
+    }
+    this.externalHistoryRosterVersions.clear();
+    for (const [sessionId, version] of nextVersions) {
+      this.externalHistoryRosterVersions.set(sessionId, version);
+    }
+    if (changedSessionIds.length === 0) return;
+    for (const sessionId of changedSessionIds) {
+      this.noteSessionEventActivity(sessionId);
+    }
+    // One timer coalesces every changed imported session into one cloud pass.
+    this.scheduleActivityPass(changedSessionIds[0]!);
   }
 
   protected override resetSyncState(): void {
@@ -314,10 +383,12 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       fresh
     );
 
-    // The session plane follows visible-org demand. Hydrating every org here
-    // made one open workspace scan/replay sessions across every matching team
-    // and kept inactive-org scope RPCs alive. Switching/opening an org causes
-    // its Realtime subscription to request an immediate full session pass.
+    // The session plane follows visible-org demand unless an admin explicitly
+    // enables background upload. That policy keeps eligible member sessions
+    // publishing without requiring the org to be opened, while ordinary
+    // inactive orgs still incur no session scan or scope RPC. Switching/opening
+    // an org causes its Realtime subscription to request an immediate full
+    // session pass; policy changes arrive through the roster lifecycle key.
     // Sharding Phase A: publish the roster's resolved home endpoints so
     // org-scoped data-plane calls route to each org's home project. Rebuilt
     // every pass — a directory cutover (or rollback) takes effect on the
@@ -329,10 +400,12 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         resolveOrgEndpoint(org, getCloudEndpoint()),
       ])
     );
-    const activeSessionOrgs = orgs.filter((org) => this.isActiveOrg(org.orgId));
+    const sessionPushOrgs = orgs.filter(
+      (org) => this.isActiveOrg(org.orgId) || isOrgBackgroundUploadEnabled(org)
+    );
     await this.repoScopeSync.hydrateRepoScopes(
       fresh,
-      activeSessionOrgs,
+      sessionPushOrgs,
       generation,
       (gen) => this.generation === gen
     );
@@ -340,7 +413,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
 
     const scopesByOrg = store.get(org2CloudRepoScopesAtom);
     const targets = options.pushSessions
-      ? activeSessionOrgs.filter(
+      ? sessionPushOrgs.filter(
           (org) =>
             ((scopesByOrg[org.orgId]?.length ?? 0) > 0 ||
               orgsWithTaggedSessions.has(org.orgId)) &&
@@ -462,8 +535,8 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
           continue;
         }
         const scopeKeys = getSessionScopeKeys(session);
-        // undefined = git-remote resolution still in flight; the next pass
-        // (60s / activity) picks the session up once the keys land.
+        // undefined = git-remote resolution still in flight; the next
+        // event-driven pass picks the session up once the keys land.
         if (scopeKeys === undefined) continue;
         // Repo scope is the HARD boundary — a tag never bypasses it (the
         // server rejects out-of-scope upserts with ORG2_SCOPE_FORBIDDEN
@@ -482,6 +555,16 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
           scopeKeys,
           scopes
         );
+        if (matchedScope === undefined) {
+          // A failed network-identity lookup cannot prove out-of-scope:
+          // retracting on it flapped rename-family scopes every time the
+          // identity API blipped. Skip until a lookup answers.
+          log.info(
+            `scope check deferred for session ${session.session_id} org ` +
+              `${org.orgId}: network identity lookup failed this pass`
+          );
+          continue;
+        }
         if (matchedScope === null) {
           // The scope mirror is persisted and restored empty-or-stale on
           // boot. An unconfirmed mirror cannot prove "out of scope": acting
@@ -710,12 +793,13 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       }
     }
 
-    // P2: retract-only reconcile for orgs the user is NOT looking at. The
-    // session plane above follows visible-org demand, so a session that
-    // lost admission in a background org would otherwise stay published
-    // until that org is reopened — possibly never. Once per engine run:
-    // same admission decision, same server-confirmed scope boundary, only
-    // rows THIS client push-marked. See the module header for the rails.
+    // P2: retract-only reconcile for orgs the user is NOT looking at.
+    // Background upload gives opted-in orgs a full session pass, but the
+    // reconcile remains the safety net for every other inactive org — and for
+    // background-upload orgs excluded from `targets` after their final scope
+    // or tag disappears. Once per engine run: same admission decision, same
+    // server-confirmed scope boundary, only rows THIS client push-marked. See
+    // the module header for the rails.
     if (this.reconciledGeneration !== generation) {
       this.reconciledGeneration = generation;
       const cursors = store.get(org2CloudPushCursorsAtom);
@@ -788,12 +872,15 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     if (now - lastSweepAt < VANISHED_SESSION_SWEEP_INTERVAL_MS) return;
     this.lastVanishedSweepAtMs.set(orgId, now);
 
+    const markedSessionIds = this.sessionSync.markedSessionIds(orgId);
+    const liveSessions = store.get(sessionsAtom);
+    const liveSessionIds = new Set(
+      liveSessions.map((session) => session.session_id)
+    );
     const vanishedIds = await findVanishedPushedSessionIds({
       orgId,
-      markedSessionIds: this.sessionSync.markedSessionIds(orgId),
-      liveSessionIds: new Set(
-        store.get(sessionsAtom).map((session) => session.session_id)
-      ),
+      markedSessionIds,
+      liveSessionIds,
       resolveSessionIds: this.resolveLocalSessionIds,
     });
     if (this.generation !== generation) return;
@@ -832,6 +919,69 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         // Markers survive a failed retract, so the next sweep retries.
         log.warn(
           `cloud retract failed for vanished session ${sessionId}:`,
+          error
+        );
+      }
+    }
+
+    // Continuation-superseded reconcile: a compaction demotes the old
+    // sibling out of the roster while its Team Sessions row lingers as a
+    // stale duplicate of the family. Retract it ONLY when the family's
+    // listable winner is itself replay-pushed to this org — the conversation
+    // stays represented by exactly one live row. NOTE the deliberate content
+    // tradeoff: the demoted row is the only cloud replay of the pre-compact
+    // detail; the winner carries the compacted continuation. The source
+    // transcript stays on the owner's disk and can always be re-shared.
+    const superseded = await findSupersededPushedSessions({
+      orgId,
+      markedSessionIds,
+      liveSessionIds,
+      resolveStatuses: this.resolveContinuationStatuses,
+    });
+    if (this.generation !== generation) return;
+    const supersededNow = new Set(superseded.map((entry) => entry.sessionId));
+    for (const key of this.supersededStrikes.keys()) {
+      if (!key.startsWith(`${orgId}:`)) continue;
+      if (!supersededNow.has(key.slice(orgId.length + 1))) {
+        this.supersededStrikes.delete(key);
+      }
+    }
+    for (const { sessionId, lineageId } of superseded) {
+      if (this.generation !== generation) return;
+      const winner = liveSessions.find(
+        (session) =>
+          session.session_id !== sessionId &&
+          session.continuationLineageId === lineageId &&
+          this.sessionSync.hasReplayPushed(orgId, session.session_id)
+      );
+      if (!winner) continue;
+      const strikeKey = `${orgId}:${sessionId}`;
+      const strikes = (this.supersededStrikes.get(strikeKey) ?? 0) + 1;
+      if (strikes < VANISHED_SESSION_RETRACT_CONFIRMATIONS) {
+        this.supersededStrikes.set(strikeKey, strikes);
+        log.info(
+          `superseded-continuation suspect ${sessionId} org ${orgId} ` +
+            `(winner ${winner.session_id}, ` +
+            `${strikes}/${VANISHED_SESSION_RETRACT_CONFIRMATIONS}); ` +
+            `deferring retract to the next sweep`
+        );
+        continue;
+      }
+      try {
+        log.info(
+          `cloud retract [superseded continuation]: session ${sessionId} ` +
+            `org ${orgId} (winner ${winner.session_id})`
+        );
+        await this.sessionSync.retractSession(fresh, orgId, sessionId);
+        this.supersededStrikes.delete(strikeKey);
+      } catch (error) {
+        if (this.generation !== generation) return;
+        if (isCloudSyncBackoffError(error)) {
+          this.orgBackoff.backOffOrg(orgId, error);
+          return;
+        }
+        log.warn(
+          `cloud retract failed for superseded continuation ${sessionId}:`,
           error
         );
       }

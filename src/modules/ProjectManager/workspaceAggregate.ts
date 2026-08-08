@@ -13,6 +13,7 @@ import type {
   ProjectStatus,
 } from "@src/types/core/project";
 import type { WorkItem } from "@src/types/core/workItem";
+import { mapWithConcurrency } from "@src/util/collections/mapWithConcurrency";
 
 import { cachedLinearProjectsApi } from "./LinearProjects/linearProjectsCache";
 import { linearIssueToWorkItem } from "./LinearProjects/utils";
@@ -31,6 +32,8 @@ const LINEAR_PROJECT_STATUS_TYPE_TO_STORY_STATUS: Record<
   canceled: "canceled",
   cancelled: "canceled",
 };
+const LINEAR_CONNECTION_CONCURRENCY = 2;
+const LINEAR_PROJECT_CONCURRENCY = 4;
 
 export const WORKSPACE_SOURCE = {
   LOCAL: "local",
@@ -136,11 +139,13 @@ async function loadLinearWorkspaceProjects(): Promise<
   const linearConnections = connections.filter(
     (connection) => connection.adapter_id === STORY_SYNC_ADAPTER.LINEAR
   );
-  const projectGroups = await Promise.all(
-    linearConnections.map(async (connection) => {
+  const projectGroups = await mapWithConcurrency(
+    linearConnections,
+    LINEAR_CONNECTION_CONCURRENCY,
+    async (connection) => {
       const result = await cachedLinearProjectsApi.listProjects(connection.id);
       return result.projects.map((project) => ({ connection, project }));
-    })
+    }
   );
   return projectGroups.flat();
 }
@@ -156,8 +161,10 @@ export async function loadWorkspaceLinearWorkItems(): Promise<
   WorkspaceWorkItem[]
 > {
   const records = await loadLinearWorkspaceProjects();
-  const issueGroups = await Promise.all(
-    records.map(async (record) => {
+  const issueGroups = await mapWithConcurrency(
+    records,
+    LINEAR_PROJECT_CONCURRENCY,
+    async (record) => {
       const result = await cachedLinearProjectsApi.listProjectIssues(
         record.connection.id,
         record.project.id
@@ -165,7 +172,7 @@ export async function loadWorkspaceLinearWorkItems(): Promise<
       return result.issues.map((issue) =>
         linearIssueToWorkspaceWorkItem(issue, record)
       );
-    })
+    }
   );
   return issueGroups.flat();
 }

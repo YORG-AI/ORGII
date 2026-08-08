@@ -256,6 +256,15 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
         "CREATE INDEX IF NOT EXISTS idx_stu_session_id ON session_token_usage(session_id)",
         [],
     )?;
+    // Usage dashboard windows first scope by session/source, then by time.
+    // `IF NOT EXISTS` makes this a non-destructive migration for existing DBs;
+    // one composite index keeps the new read path cheap without duplicating
+    // another full-table index on this write-heavy event table.
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_stu_session_created_at_id
+         ON session_token_usage(session_id, created_at, id)",
+        [],
+    )?;
 
     // Migration: add context_tokens column (last LLM call's prompt tokens = context fill level)
     conn.execute(
@@ -540,6 +549,7 @@ mod tests {
         assert!(index_exists(&conn, "idx_stool_session_turn"));
         assert!(index_exists(&conn, "idx_stool_session_call"));
         assert!(index_exists(&conn, "idx_stool_session_iteration"));
+        assert!(index_exists(&conn, "idx_stu_session_created_at_id"));
         assert!(column_exists(&conn, "session_turn_intents", "org_run_id"));
         assert!(index_exists(
             &conn,

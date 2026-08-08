@@ -20,6 +20,7 @@ describe("ActionCard accessibility contract", () => {
     expect(html).toContain('type="button"');
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('data-testid="cloud-source"');
+    expect(html).toContain("border-primary-6 bg-primary-1");
   });
 
   it("keeps cards with a trailing action free of nested buttons", () => {
@@ -33,5 +34,42 @@ describe("ActionCard accessibility contract", () => {
 
     expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).toMatch(/^<div/);
+  });
+
+  it("separates stacked card metadata from the title row", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ActionCard, {
+        title: "See team activity",
+        description: "Connect an organization and choose repo visibility.",
+        badge: "Recommended",
+        layout: "stacked",
+        onClick: vi.fn(),
+        showSelect: true,
+        selected: true,
+      })
+    );
+
+    expect(html).toContain('data-action-card-layout="stacked"');
+    expect(html).toContain("Recommended");
+    expect(html).toContain("See team activity");
+    expect(html).toContain('aria-pressed="true"');
+  });
+
+  it("can express selection without inserting a trailing check", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ActionCard, {
+        title: "See team activity",
+        badge: "Recommended",
+        layout: "stacked",
+        onClick: vi.fn(),
+        showSelect: true,
+        showSelectionCheck: false,
+        selected: true,
+      })
+    );
+
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("Recommended");
+    expect(html).not.toContain("<svg");
   });
 });

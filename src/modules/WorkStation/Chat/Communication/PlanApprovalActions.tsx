@@ -9,7 +9,7 @@
  * relevant edit actions (Cancel + Save) are shown; the unrelated actions
  * (Edit toggle, Open in My Station) are hidden.
  */
-import { ArrowUpRight, CheckCircle2, Pencil, X } from "lucide-react";
+import { CheckCircle2, Pencil, SquareArrowOutUpRight, X } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -82,7 +82,7 @@ const PlanApprovalActions: React.FC<PlanApprovalActionsProps> = ({
           size="mini"
           data-testid="plan-approval-open-my-station"
           onClick={onOpenInMyStation}
-          icon={<ArrowUpRight size={ICON_SIZE} />}
+          icon={<SquareArrowOutUpRight size={ICON_SIZE} />}
         >
           {t("controlTower.sidebar.openInMyStation")}
         </Button>

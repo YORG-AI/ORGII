@@ -692,21 +692,47 @@
     "agentApproval": "Agent 승인",
     "agentApprovalDesc": "Agent 작업에 승인이 필요할 때",
     "errors": "오류 및 경고",
+    "teamInbox": "팀 받은편지함",
     "errorsDesc": "오류 또는 경고가 발생할 때",
     "sessionStatus": "Session 상태",
     "sessionStatusDesc": "Session 시작, 일시 중지 및 재개 업데이트",
     "gitOperations": "Git 작업",
     "gitOperationsDesc": "Git pull, push 및 동기화 알림",
+    "soundPreset": "알림음",
+    "soundPresetDesc": "알림에 사용할 소리를 선택합니다",
+    "previewSound": "미리 듣기",
+    "soundPresets": {
+      "classic": "클래식",
+      "gentle": "부드럽게",
+      "ascending": "상승",
+      "bell": "벨"
+    },
     "volume": "볼륨",
     "testNotification": "테스트 알림",
     "notification": "알림",
     "sound": "사운드",
     "enabledSuccess": "알림이 활성화됨",
     "permissionDenied": "알림 권한이 거부됨",
+    "criticalOnly": "중요 알림만",
+    "criticalOnlyDesc": "승인이 필요한 작업이나 작업 실패에만 알립니다",
+    "quietHours": "방해 금지 일정",
+    "quietHoursDesc": "매일 지정한 시간대에는 일반 알림을 끕니다",
+    "quietHoursSchedule": "방해 금지 시간",
+    "quietHoursScheduleDesc": "기기의 현지 시간을 사용합니다. 시작과 종료 시간이 같으면 사용되지 않습니다.",
+    "quietHoursStart": "시작",
+    "quietHoursEnd": "종료",
+    "allowCriticalDuringQuietHours": "중요 알림 허용",
+    "allowCriticalDuringQuietHoursDesc": "승인 요청과 실패는 시스템 알림을 표시할 수 있지만 소리는 재생되지 않습니다",
+    "backgroundCompletionSummary": "백그라운드 완료 요약",
+    "backgroundCompletionSummaryDesc": "방해 금지 시간이 끝나면 하나로 묶어 알립니다",
+    "mutedSessions": "음소거된 Session",
+    "mutedSessionsDesc": "이 기기에서 {{count}}개의 Session이 음소거되었습니다",
+    "clearMutedSessions": "모두 해제",
     "test": {
       "sent": "테스트 알림 발송됨",
       "permissionWarning": "테스트 알림 전송 실패. 권한을 확인하세요.",
-      "sendFailed": "테스트 알림을 보낼 수 없습니다. 알림 권한을 확인하고 다시 시도하세요."
+      "sendFailed": "테스트 알림을 보낼 수 없습니다. 알림 권한을 확인하고 다시 시도하세요.",
+      "soundFailed": "알림 소리를 재생할 수 없습니다. 시스템 볼륨을 확인하세요."
     }
   },
   "editor": {
@@ -962,7 +988,13 @@
     "tableSize": "크기",
     "tablePercentage": "비율",
     "scanFailed": "디스크 사용량 검사 실패",
-    "openFolderFailed": "폴더를 열 수 없습니다"
+    "openFolderFailed": "폴더를 열 수 없습니다",
+    "browserCache": "브라우저 캐시",
+    "browserCacheDesc": "{{used}} 사용 중 · {{cleanable}} 안전하게 정리 가능",
+    "cleanBrowserCache": "정리",
+    "browserCacheCleaned": "브라우저 저장 공간 {{size}}을 확보했습니다",
+    "browserCacheAlreadyClean": "브라우저 캐시가 이미 정리되어 있습니다",
+    "browserCacheCleanFailed": "브라우저 캐시를 정리하지 못했습니다"
   },
   "dependencies": {
     "systemDependencies": "시스템 Dependencies",

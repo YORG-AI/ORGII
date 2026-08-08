@@ -11,6 +11,7 @@
  */
 import React, { Suspense, memo } from "react";
 
+import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import type { WorkStationTab } from "@src/store/workstation/tabs/types";
 
 import { TabLoadingPlaceholder } from "./TabLoadingPlaceholder";
@@ -30,8 +31,16 @@ export const UnifiedTabContent: React.FC<UnifiedTabContentDispatcherProps> =
       return <UnknownTabPlaceholder type={tab.type} />;
     }
     const { Component } = entry;
+    const fallback =
+      tab.type === "github-issue-detail" ? (
+        <GitHubDetailSkeleton kind="issue" showHeader={false} />
+      ) : tab.type === "github-pr-detail" ? (
+        <GitHubDetailSkeleton kind="pr" showHeader={false} />
+      ) : (
+        <TabLoadingPlaceholder />
+      );
     return (
-      <Suspense fallback={<TabLoadingPlaceholder />}>
+      <Suspense fallback={fallback}>
         <Component tab={tab} paneId={paneId} isActive={isActive} />
       </Suspense>
     );

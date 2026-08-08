@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -122,6 +122,18 @@ pub fn sqlite_session_activity_signature(
             db_path.display()
         )
     })?;
+    sqlite_session_activity_signature_from_conn(&conn, source_session_id, source_name)
+}
+
+/// Read the same session-local activity signature from an already-open store.
+///
+/// Metadata scans use this form so all sessions share one read-only connection
+/// instead of reopening the SQLite database once per session.
+pub fn sqlite_session_activity_signature_from_conn(
+    conn: &Connection,
+    source_session_id: &str,
+    source_name: &str,
+) -> Result<Option<(i64, u64)>, String> {
     conn.query_row(
         "SELECT MAX(
                     COALESCE(s.time_updated, 0),
@@ -149,6 +161,57 @@ pub fn sqlite_session_activity_signature(
     .map_err(|err| {
         format!("Failed to read {source_name} session signature {source_session_id}: {err}")
     })
+}
+
+/// Read activity signatures for every session in one bounded SQLite pass.
+///
+/// A metadata scan already needs one row per session. Aggregating `part` once
+/// avoids an N+1 query pattern and, more importantly, avoids quadratic work on
+/// provider databases that do not index `part.session_id`.
+pub fn sqlite_all_session_activity_signatures_from_conn(
+    conn: &Connection,
+    source_name: &str,
+) -> Result<HashMap<String, (i64, u64)>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.id,
+                    MAX(COALESCE(s.time_updated, 0), COALESCE(parts.last_created_at, 0)),
+                    COALESCE(parts.last_rowid, 0),
+                    COALESCE(parts.total_data_bytes, 0)
+             FROM session s
+             LEFT JOIN (
+                 SELECT session_id,
+                        MAX(time_created) AS last_created_at,
+                        MAX(rowid) AS last_rowid,
+                        COALESCE(SUM(length(CAST(data AS BLOB))), 0) AS total_data_bytes
+                 FROM part
+                 GROUP BY session_id
+             ) parts ON parts.session_id = s.id",
+        )
+        .map_err(|err| format!("Failed to prepare {source_name} activity signatures: {err}"))?;
+    let rows = stmt
+        .query_map([], |row| {
+            let source_session_id = row.get::<_, String>(0)?;
+            let updated_at = row.get::<_, Option<i64>>(1)?.unwrap_or_default();
+            let last_part_rowid = row.get::<_, Option<i64>>(2)?.unwrap_or_default();
+            let total_part_bytes = row.get::<_, Option<i64>>(3)?.unwrap_or_default();
+            Ok((
+                source_session_id,
+                (
+                    updated_at,
+                    fold_activity_signature_components(&[last_part_rowid, total_part_bytes]),
+                ),
+            ))
+        })
+        .map_err(|err| format!("Failed to query {source_name} activity signatures: {err}"))?;
+
+    let mut signatures = HashMap::new();
+    for row in rows {
+        let (source_session_id, signature) =
+            row.map_err(|err| format!("Failed to read {source_name} activity signature: {err}"))?;
+        signatures.insert(source_session_id, signature);
+    }
+    Ok(signatures)
 }
 
 fn sqlite_sidecar_path(db_path: &Path, suffix: &str) -> PathBuf {
@@ -226,8 +289,7 @@ mod tests {
             [],
         )
         .expect("in-place update of open session part");
-        let grown =
-            sqlite_session_activity_signature(&path, "a", "Test").expect("signature grown");
+        let grown = sqlite_session_activity_signature(&path, "a", "Test").expect("signature grown");
         assert_ne!(grown, before);
 
         drop(conn);

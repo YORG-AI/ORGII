@@ -7,10 +7,7 @@
 //! glue. All operations are synchronous against a `tauri::AppHandle` /
 //! `WebviewWindow` — no async runtime, no IoC hooks.
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
-
-#[cfg(target_os = "macos")]
-use tauri::{LogicalPosition, Position, TitleBarStyle};
+use tauri::{AppHandle, Manager, WebviewWindowBuilder};
 
 #[cfg(target_os = "macos")]
 use objc2::msg_send;
@@ -224,15 +221,9 @@ fn is_main_thread() -> bool {
     }
 }
 
-/// Default window sizes
-const DEFAULT_WIDTH: f64 = 1200.0;
-const DEFAULT_HEIGHT: f64 = 800.0;
-const DEFAULT_MIN_WIDTH: f64 = 450.0;
-const DEFAULT_MIN_HEIGHT: f64 = 300.0;
-
 /// Host-native window chrome so the OS frame matches frontend corner radii.
 ///
-/// - **Windows 11+:** `DWMWCP_ROUNDSMALL` via DWM (pairs with `--radius-page` in the web layer).
+/// - **Windows 11+:** `DWMWCP_ROUND` via DWM (pairs with `--border-radius-window` in the web layer).
 /// - **macOS:** Applied separately through [`apply_macos_window_material`].
 /// - **Linux / others:** No-op.
 pub fn apply_host_desktop_window_chrome(
@@ -275,12 +266,12 @@ pub fn clear_macos_window_material(window: &tauri::WebviewWindow) {
 // Main Window Recovery
 // ============================================
 
-/// Recreate the main window with label "main" and default app URL.
+/// Recreate the main window from the platform-merged Tauri configuration.
 ///
 /// Used when the main window was somehow destroyed and needs to be restored.
-/// This always uses the "main" label so all code that references
-/// `get_webview_window("main")` continues to work (tray events, menu events,
-/// handle_opened_urls, etc.).
+/// Reusing the startup configuration keeps platform-specific chrome in parity:
+/// macOS overlay/transparency and the Windows frameless backdrop must not disappear
+/// after a tray or menu recovery.
 pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
     // Safety: if "main" already exists, just focus it
     if let Some(existing) = app.get_webview_window("main") {
@@ -291,24 +282,15 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
 
     println!("📦 [Window] Recreating main window");
 
-    let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
-        .title("ORGII")
-        .inner_size(DEFAULT_WIDTH, DEFAULT_HEIGHT)
-        .min_inner_size(DEFAULT_MIN_WIDTH, DEFAULT_MIN_HEIGHT)
-        .resizable(true)
-        .visible(true)
-        .decorations(true)
-        .center();
-
-    #[cfg(target_os = "macos")]
-    let builder = builder
-        .transparent(true)
-        .hidden_title(true)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .traffic_light_position(Position::Logical(LogicalPosition::new(
-            TRAFFIC_LIGHT_X,
-            TRAFFIC_LIGHT_Y,
-        )));
+    let main_config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|config| config.label == "main")
+        .ok_or("Main window configuration not found")?;
+    let builder = WebviewWindowBuilder::from_config(app, main_config)
+        .map_err(|error| format!("Failed to load main window configuration: {error}"))?;
 
     let ownership_observation = perf_utils::begin_webview_ownership_observation("main");
     let window = builder

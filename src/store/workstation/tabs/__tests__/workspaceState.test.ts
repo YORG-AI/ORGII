@@ -24,6 +24,7 @@ import {
   type WorkstationTabOwnership,
   type WorkstationTabsStateV3,
   type WorkstationWorkspaceState,
+  closesSharedResourceOnDismiss,
   getWorkstationTabOwnership,
 } from "../types";
 
@@ -132,6 +133,9 @@ describe("WorkStation tab ownership policy", () => {
     expect(getWorkstationTabOwnership("terminal-content")).toBe(
       "workspace-local"
     );
+    expect(closesSharedResourceOnDismiss("browser-session")).toBe(true);
+    expect(closesSharedResourceOnDismiss("terminal")).toBe(true);
+    expect(closesSharedResourceOnDismiss("settings")).toBe(false);
   });
 });
 

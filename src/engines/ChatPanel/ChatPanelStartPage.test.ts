@@ -30,7 +30,9 @@ const createTargetProps = {
     { value: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG, label: "Add ORG" },
   ],
   onCreateTarget: vi.fn(),
+  onProjectAgentModeChange: vi.fn(),
   onWorkItemAgentModeChange: vi.fn(),
+  projectAgentMode: true,
   workItemAgentMode: true,
 };
 
@@ -84,6 +86,14 @@ describe("ChatPanelStartPage", () => {
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-trailing-separator"'
     );
+    expect(markup).toContain(
+      'data-testid="chat-panel-start-page-project-mode-separator"'
+    );
+    expect(markup).toContain(
+      'data-testid="chat-panel-start-page-project-mode-toggle"'
+    );
+    expect(markup).toContain("common:terminology.agent");
+    expect(markup).toContain('aria-pressed="true"');
     expect(
       markup.indexOf('data-testid="chat-panel-start-page-tab-more"')
     ).toBeLessThan(
@@ -95,7 +105,26 @@ describe("ChatPanelStartPage", () => {
       markup.indexOf('data-testid="chat-panel-start-page-create-target-select"')
     );
     expect(
+      markup.indexOf('data-testid="chat-panel-start-page-create-target-select"')
+    ).toBeLessThan(
+      markup.indexOf(
+        'data-testid="chat-panel-start-page-project-mode-separator"'
+      )
+    );
+    expect(
+      markup.indexOf(
+        'data-testid="chat-panel-start-page-project-mode-separator"'
+      )
+    ).toBeLessThan(
+      markup.indexOf('data-testid="chat-panel-start-page-project-mode-toggle"')
+    );
+    expect(
       markup.match(/data-testid="chat-panel-start-page-trailing-separator"/g)
+    ).toHaveLength(1);
+    expect(
+      markup.match(
+        /data-testid="chat-panel-start-page-project-mode-separator"/g
+      )
     ).toHaveLength(1);
     expect(markup).not.toContain("Agent session");
     expect(markup).not.toContain("Create Work Item");
@@ -103,6 +132,9 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-more-launcher"'
     );
     expect(markup).toContain('data-testid="embedded-more-creator"');
+    expect(markup).toContain(
+      'class="flex h-full min-h-0 w-full flex-col overflow-hidden" data-testid="chat-panel-start-page-more-launcher"><div data-testid="embedded-more-creator"'
+    );
 
     const updateIndex = markup.indexOf(
       'data-testid="chat-panel-start-page-install-latest-update"'
@@ -169,6 +201,8 @@ describe("ChatPanelStartPage", () => {
     expect(markup).toContain("navigation:cloud.share.importEntry");
     expect(markup).toContain("border-border-2");
     expect(markup).toContain("hover:border-border-3");
+    expect(markup).toContain("!bg-bg-2");
+    expect(markup).toContain("enabled:hover:!bg-surface-hover");
     expect(markup).not.toContain("group-hover:bg-fill-3");
   });
 
@@ -231,6 +265,30 @@ describe("ChatPanelStartPage", () => {
     );
   });
 
+  it("only shows the Project mode toggle for the Project target", () => {
+    mocks.useAvailableAppUpdate.mockReturnValue(null);
+    const t = ((key: string) => key) as TFunction<
+      ["sessions", "common", "projects", "navigation"]
+    >;
+
+    const markup = renderToStaticMarkup(
+      createElement(ChatPanelStartPage, {
+        ...createTargetProps,
+        createTarget: CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS,
+        onAddApiKey: vi.fn(),
+        onInstallLatestUpdate: vi.fn(),
+        t,
+      })
+    );
+
+    expect(markup).not.toContain(
+      'data-testid="chat-panel-start-page-project-mode-toggle"'
+    );
+    expect(markup).not.toContain(
+      'data-testid="chat-panel-start-page-project-mode-separator"'
+    );
+  });
+
   it("centers the Session, Work Item, and More tabs above the launcher", () => {
     mocks.useAvailableAppUpdate.mockReturnValue(null);
     const t = ((key: string) => key) as TFunction<
@@ -251,6 +309,11 @@ describe("ChatPanelStartPage", () => {
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-session-launcher"'
     );
+    expect(markup).toContain(
+      'data-testid="chat-panel-start-page-session-centered-launcher"'
+    );
+    expect(markup).toContain("my-auto");
+    expect(markup).toContain("py-6");
     expect(markup).toContain('data-testid="chat-panel-start-page-tabs"');
     expect(markup).toContain('data-testid="chat-panel-start-page-tab-session"');
     expect(markup).toContain(

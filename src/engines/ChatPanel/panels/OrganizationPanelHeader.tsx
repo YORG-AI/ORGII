@@ -4,8 +4,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
-import Select, { type SelectOption } from "@src/components/Select";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import OrganizationScopeHeader from "@src/components/OrganizationScopeHeader";
+import type { SelectOption } from "@src/components/Select";
 import {
   buildCloudOrgSelectorValue,
   org2CloudOrgsAtom,
@@ -163,40 +163,14 @@ export function OrganizationPanelHeader({
   );
 
   return (
-    <div
-      className="sticky top-0 z-20 shrink-0 bg-chat-pane"
-      data-testid={dataTestId}
-    >
-      <div
-        className={`${DETAIL_PANEL_TOKENS.headerWidth} flex h-14 min-w-0 items-center justify-center gap-3 px-4 pt-1`}
-      >
-        <div className="flex -translate-y-1 items-center gap-2">
-          <Select
-            value={selectedValue}
-            options={pickerOptions}
-            onChange={handleOrganizationChange}
-            showSearch={pickerOptions.length > 8}
-            size="large"
-            variant="ghost"
-            radius="pill"
-            dropdownMinWidth={168}
-            dropdownWidthMode="auto"
-            className="w-auto shrink-0"
-            selectorClassName="max-w-[240px] !gap-2 !px-1 !text-[16px] !leading-6 [&_.select-suffix]:!ml-0"
-            dataTestId="organization-picker"
-          />
-          <span
-            className="h-5 w-px shrink-0 bg-border-2"
-            role="separator"
-            aria-hidden
-            data-testid="organization-picker-separator"
-          />
-        </div>
-        <div className="min-w-0 overflow-x-auto scrollbar-hide">
-          {tabControl}
-        </div>
-      </div>
-    </div>
+    <OrganizationScopeHeader
+      value={selectedValue}
+      options={pickerOptions}
+      onChange={handleOrganizationChange}
+      tabControl={tabControl}
+      dataTestId={dataTestId}
+      selectorDataTestId="organization-picker"
+    />
   );
 }
 

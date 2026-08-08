@@ -22,9 +22,12 @@ import {
 import {
   type ExternalHistorySidebarResponse,
   type ExternalHistorySidebarSourceRequest,
+  type NativeSidebarSessionCursor,
+  type NativeSidebarSessionStream,
   type SessionFilter,
   type SessionListResponse,
   externalHistorySidebarList,
+  nativeSidebarSessionPage,
   sessionAggregateList,
   toFrontendSessions,
 } from "@src/api/tauri/session";
@@ -57,10 +60,13 @@ import {
   type SessionListCategory,
   type SessionPaginationMap,
   emptyDateBucketPagination,
-  resetPaginationState,
   sessionPaginationAtom,
 } from "./paginationAtoms";
 import { persistSessions } from "./persistence";
+import {
+  sidebarCategoryForSession,
+  syncSessionWithNativeRosters,
+} from "./sidebarRoster";
 import type { Session, SessionStatus } from "./types";
 
 const log = createLogger("SessionAtom");
@@ -72,11 +78,22 @@ const BULK_CACHE_DURATION_MS = 5 * 60 * 1000;
 const DEFAULT_FLAT_LIST_PAGE_SIZE = 200;
 const RECENT_NATIVE_REFRESH_LIMIT =
   SESSION_SIDEBAR_PAGE_SIZE * BASE_SESSION_LIST_CATEGORIES.length;
+const sidebarRosterGenerationsByStore = new WeakMap<object, number>();
 const exactSessionBatchLoadsByStore = new WeakMap<
   object,
   Map<string, Promise<Session[]>>
 >();
 const recentNativeRefreshesByStore = new WeakMap<object, Promise<void>>();
+
+function currentSidebarRosterGeneration(store: object): number {
+  return sidebarRosterGenerationsByStore.get(store) ?? 0;
+}
+
+function nextSidebarRosterGeneration(store: object): number {
+  const generation = currentSidebarRosterGeneration(store) + 1;
+  sidebarRosterGenerationsByStore.set(store, generation);
+  return generation;
+}
 
 function exactSessionBatchLoadsForStore(
   store: object
@@ -275,6 +292,7 @@ function importedHistoryPageResult(
         updated_time: row.updatedAt,
         category: "external_history",
         readOnly: true,
+        pinned: row.pinned ?? false,
         is_active: row.isActive ?? false,
         background: false,
         repoPath: row.repoPath,
@@ -282,6 +300,7 @@ function importedHistoryPageResult(
         repoRemoteUrls: row.repoRemoteUrls,
         branch: row.branch,
         storagePath: row.storagePath,
+        continuationLineageId: row.continuationLineageId,
         agentIconId: source.iconId,
         agentDisplayName: source.displayName,
         model: row.model,
@@ -304,7 +323,8 @@ function importedHistoryPageResult(
 
 async function loadImportedHistorySourcePages(
   inputs: readonly ImportedHistoryPageInput[],
-  pageSize: number
+  pageSize: number,
+  failures: Map<string, string> = new Map()
 ): Promise<Map<string, FetchPageResult>> {
   const results = new Map<string, FetchPageResult>();
   const pending = inputs.flatMap(({ source, currentBuckets }) => {
@@ -341,6 +361,13 @@ async function loadImportedHistorySourcePages(
       throw new Error(
         `External history sidebar response omitted ${source.sourceId}`
       );
+    }
+    // A source whose store failed to read is UNKNOWN, not empty. Recording it
+    // as an empty page would publish an authoritative page of zero ids and
+    // retire every row that source owns.
+    if (sourceResponse.error) {
+      failures.set(source.sourceId, sourceResponse.error);
+      continue;
     }
     results.set(
       source.sourceId,
@@ -507,34 +534,28 @@ export const loadSessions = async (
 interface FetchPageResult {
   sessions: Session[];
   hasMore: boolean;
+  nextCursor?: NativeSidebarSessionCursor | null;
   dateBuckets?: DateBucketPaginationMap;
 }
 
-async function fetchAggregatePage(
-  wireCategory: "cli" | "agent" | "agent,os" | "human",
-  offset: number,
+async function fetchNativeSidebarPage(
+  stream: NativeSidebarSessionStream,
+  cursor: NativeSidebarSessionCursor | null,
   pageSize: number
 ): Promise<FetchPageResult> {
-  const response = await sessionAggregateList({
-    category: wireCategory,
-    includeExternalHistory: false,
-    limit: pageSize + 1,
-    offset,
-    sortBy: "updated_at",
-    sortOrder: "desc",
-  });
-  const primarySessions = toFrontendSessions(response.sessions)
-    .filter(isPrimarySessionListSession)
-    .slice(0, pageSize);
+  const response = await nativeSidebarSessionPage(stream, cursor, pageSize);
   return {
-    sessions: primarySessions,
-    hasMore: response.sessions.length > pageSize,
+    sessions: toFrontendSessions(response.sessions).filter(
+      isPrimarySessionListSession
+    ),
+    hasMore: response.hasMore,
+    nextCursor: response.nextCursor,
   };
 }
 
 async function loadCategoryPage(
   category: SessionListCategory,
-  offset: number,
+  cursor: NativeSidebarSessionCursor | null,
   pageSize: number,
   dateBuckets?: DateBucketPaginationMap
 ): Promise<FetchPageResult> {
@@ -545,37 +566,19 @@ async function loadCategoryPage(
   }
 
   switch (category) {
+    case "pinned_native":
+      return fetchNativeSidebarPage("pinnedNative", cursor, pageSize);
     case "cli_agent":
-      return fetchAggregatePage("cli", offset, pageSize);
-    case "rust_agent":
-      // Rust-native sessions include both SDE/custom agent rows (category=agent)
-      // and channel/desktop OS rows (category=os, e.g. osagent-feishu-*).
-      // The sidebar groups them under one Rust Agent bucket, so fetch both;
-      // otherwise Feishu channel sessions exist in DB but never appear/open.
-      return fetchAggregatePage("agent,os", offset, pageSize);
+      return fetchNativeSidebarPage("cliAgent", cursor, pageSize);
+    case "standalone_agent":
+      return fetchNativeSidebarPage("standaloneAgent", cursor, pageSize);
+    case "agent_org_root":
+      return fetchNativeSidebarPage("agentOrgRoot", cursor, pageSize);
+    case "os_agent":
+      return fetchNativeSidebarPage("osAgent", cursor, pageSize);
     case "human_session":
-      return fetchAggregatePage("human", offset, pageSize);
+      return fetchNativeSidebarPage("humanSession", cursor, pageSize);
   }
-}
-
-function replaceFirstPageForCategory(
-  category: SessionListCategory,
-  prev: readonly Session[],
-  incoming: readonly Session[],
-  preserveImportedChildren = true
-): Session[] {
-  if (isImportedHistoryListCategory(category)) {
-    const source = getImportedHistorySourceByListCategory(category);
-    return source
-      ? replaceExternalHistorySourceFirstPage(
-          prev,
-          incoming,
-          source,
-          preserveImportedChildren
-        )
-      : mergeSessions(prev, incoming);
-  }
-  return mergeSessions(prev, incoming);
 }
 
 interface SidebarLoadOptions {
@@ -603,9 +606,9 @@ const performSidebarSessionLoad = async (
     return;
   }
 
+  const generation = nextSidebarRosterGeneration(store);
   store.set(sessionLoadingAtom, true);
   store.set(sessionErrorAtom, null);
-  store.set(sessionPaginationAtom, resetPaginationState());
 
   // Sources the user has disabled in the Data Sources panel must not load;
   // the master external-sessions switch disables all of them at once.
@@ -619,33 +622,44 @@ const performSidebarSessionLoad = async (
   };
 
   for (const category of SESSION_LIST_CATEGORIES) {
-    setPaginationFor(store, category, { loading: true });
+    setPaginationFor(store, category, { phase: "loading" });
   }
 
   const enabledCategories = SESSION_LIST_CATEGORIES.filter((category) => {
     if (!isCategoryDisabled(category)) return true;
-    store.set(sessionsAtom, (prev) =>
-      replaceFirstPageForCategory(category, prev, [], false)
-    );
     setPaginationFor(store, category, {
-      loaded: 0,
-      hasMore: false,
-      loading: false,
+      sessionIds: [],
+      cursor: null,
+      phase: "exhausted",
+      generation,
+      dateBuckets: emptyDateBucketPagination(),
     });
     return false;
   });
 
   const applyInitialPage = (
     category: SessionListCategory,
-    { sessions, hasMore, dateBuckets }: FetchPageResult
+    { sessions, hasMore, nextCursor, dateBuckets }: FetchPageResult
   ) => {
-    store.set(sessionsAtom, (prev) =>
-      replaceFirstPageForCategory(category, prev, sessions)
-    );
+    if (generation !== currentSidebarRosterGeneration(store)) return;
+    const primarySessions = sessions.filter(isPrimarySessionListSession);
+    const sessionIds = [
+      ...new Set(primarySessions.map((session) => session.session_id)),
+    ];
+    if (hasMore && sessionIds.length === 0) {
+      throw new Error(
+        `${category} returned hasMore without any roster session IDs`
+      );
+    }
+    // Entity cache and stream window are deliberately separate. The first
+    // authoritative page replaces only `sessionIds`; older cached entities
+    // remain available for active/deep-link overlays.
+    store.set(sessionsAtom, (prev) => mergeSessions(prev, primarySessions));
     setPaginationFor(store, category, {
-      loaded: sessions.length,
-      hasMore,
-      loading: false,
+      sessionIds,
+      cursor: nextCursor ?? null,
+      phase: hasMore ? "ready" : "exhausted",
+      generation,
       dateBuckets,
     });
   };
@@ -654,11 +668,17 @@ const performSidebarSessionLoad = async (
     .filter((category) => !isImportedHistoryListCategory(category))
     .map(async (category) => {
       try {
-        const result = await loadCategoryPage(category, 0, pageSize);
+        const result = await loadCategoryPage(category, null, pageSize);
         applyInitialPage(category, result);
       } catch (error) {
         log.warn(`[SessionAtom] ${category} initial page failed:`, error);
-        setPaginationFor(store, category, { loading: false });
+        if (generation === currentSidebarRosterGeneration(store)) {
+          setPaginationFor(store, category, {
+            cursor: null,
+            phase: "error",
+            generation,
+          });
+        }
       }
     });
 
@@ -667,32 +687,54 @@ const performSidebarSessionLoad = async (
     const source = getImportedHistorySourceByListCategory(category);
     return source ? [{ category, source }] : [];
   });
+  // An errored stream must not publish a roster page. `setPaginationFor`
+  // merges, so writing `generation` while leaving `sessionIds` at its cold-start
+  // `[]` makes `createSidebarRosterMatcher` treat that empty set as
+  // authoritative and hide every row the stream owns. Native categories survive
+  // this because they share one `nativeIds` union; imported categories are each
+  // independently authoritative, so for them the blanking is total.
+  const markImportedStreamFailed = (category: SessionListCategory) => {
+    if (generation !== currentSidebarRosterGeneration(store)) return;
+    setPaginationFor(store, category, { cursor: null, phase: "error" });
+  };
+
   const importedTask = (async () => {
     if (importedCategories.length === 0) return;
+    const failures = new Map<string, string>();
     try {
       const pages = await loadImportedHistorySourcePages(
         importedCategories.map(({ source }) => ({ source })),
-        pageSize
+        pageSize,
+        failures
       );
       for (const { category, source } of importedCategories) {
+        const failure = failures.get(source.sourceId);
+        if (failure) {
+          log.warn(`[SessionAtom] ${category} initial page failed: ${failure}`);
+          markImportedStreamFailed(category);
+          continue;
+        }
         const page = pages.get(source.sourceId);
         if (!page) {
-          throw new Error(
-            `External history sidebar page missing ${source.sourceId}`
+          log.warn(
+            `[SessionAtom] external history sidebar page missing ${source.sourceId}`
           );
+          markImportedStreamFailed(category);
+          continue;
         }
         applyInitialPage(category, page);
       }
     } catch (error) {
       log.warn("[SessionAtom] external history initial pages failed:", error);
       for (const { category } of importedCategories) {
-        setPaginationFor(store, category, { loading: false });
+        markImportedStreamFailed(category);
       }
     }
   })();
 
   await Promise.allSettled([...nativeTasks, importedTask]);
 
+  if (generation !== currentSidebarRosterGeneration(store)) return;
   const merged = store.get(sessionsAtom);
   persistSessions(merged);
   store.set(sessionLastLoadedAtom, now);
@@ -837,6 +879,11 @@ export function refreshRecentNativeSessions(): Promise<void> {
   const active = recentNativeRefreshesByStore.get(store);
   if (active) return active;
 
+  const previousById = new Map(
+    store
+      .get(sessionsAtom)
+      .map((session) => [session.session_id, session] as const)
+  );
   const refresh = (async () => {
     const response = await sessionAggregateList({
       includeExternalHistory: false,
@@ -852,6 +899,23 @@ export function refreshRecentNativeSessions(): Promise<void> {
       merged = mergeSessions(previous, incoming);
       return merged;
     });
+    const membershipChanges = incoming.filter((session) => {
+      const previous = previousById.get(session.session_id);
+      return (
+        !previous ||
+        sidebarCategoryForSession(previous) !==
+          sidebarCategoryForSession(session)
+      );
+    });
+    if (membershipChanges.length > 0) {
+      store.set(sessionPaginationAtom, (previous) =>
+        membershipChanges.reduce(
+          (pagination, session) =>
+            syncSessionWithNativeRosters(pagination, session),
+          previous
+        )
+      );
+    }
     persistSessions(merged);
   })().finally(() => {
     if (recentNativeRefreshesByStore.get(store) === refresh) {
@@ -928,37 +992,125 @@ export const loadSidebarSessionById = async (
   );
 };
 
+export interface SidebarPageLoadResult {
+  category: SessionListCategory;
+  phase: SessionPaginationMap[SessionListCategory]["phase"];
+  newSessionIds: readonly string[];
+  sessions: readonly Session[];
+}
+
+function importedPageHasProgress(
+  dateBuckets: DateBucketPaginationMap | undefined
+): boolean {
+  return dateBuckets
+    ? SESSION_DATE_BUCKET_KEYS.some((bucket) => dateBuckets[bucket].loaded > 0)
+    : false;
+}
+
 export const loadMoreCategory = async (
   category: SessionListCategory,
   pageSize: number = SESSION_SIDEBAR_PAGE_SIZE
-) => {
+): Promise<SidebarPageLoadResult> => {
   const store = getStore();
   const current = store.get(sessionPaginationAtom)[category];
-  if (current.loading || !current.hasMore) return;
+  if (current.phase === "loading" || current.phase === "exhausted") {
+    return {
+      category,
+      phase: current.phase,
+      newSessionIds: [],
+      sessions: [],
+    };
+  }
 
-  setPaginationFor(store, category, { loading: true });
+  const generation =
+    currentSidebarRosterGeneration(store) || nextSidebarRosterGeneration(store);
+  setPaginationFor(store, category, { phase: "loading" });
 
   try {
-    const { sessions, hasMore, dateBuckets } = await loadCategoryPage(
-      category,
-      current.loaded,
-      pageSize,
-      current.dateBuckets
-    );
+    const { sessions, hasMore, nextCursor, dateBuckets } =
+      await loadCategoryPage(
+        category,
+        current.cursor,
+        pageSize,
+        current.dateBuckets
+      );
+    if (generation !== currentSidebarRosterGeneration(store)) {
+      return {
+        category,
+        phase: store.get(sessionPaginationAtom)[category].phase,
+        newSessionIds: [],
+        sessions: [],
+      };
+    }
     const primarySessions = sessions.filter(isPrimarySessionListSession);
+    const returnedIds = [
+      ...new Set(primarySessions.map((session) => session.session_id)),
+    ];
+    const imported = isImportedHistoryListCategory(category);
+    const replacingFirstPage =
+      current.phase === "error" &&
+      (imported
+        ? !importedPageHasProgress(current.dateBuckets)
+        : current.cursor === null);
+    const previousIds = new Set(current.sessionIds);
+    const newSessionIds = replacingFirstPage
+      ? returnedIds
+      : returnedIds.filter((sessionId) => !previousIds.has(sessionId));
+    if (
+      !replacingFirstPage &&
+      returnedIds.length > 0 &&
+      newSessionIds.length === 0
+    ) {
+      throw new Error(
+        `${category} pagination returned no new roster IDs; cursor was not advanced`
+      );
+    }
+    if (hasMore && returnedIds.length === 0) {
+      throw new Error(
+        `${category} pagination returned hasMore without roster IDs`
+      );
+    }
+    const sessionIds = replacingFirstPage
+      ? returnedIds
+      : [...current.sessionIds, ...newSessionIds];
     store.set(sessionsAtom, (prev) => mergeSessions(prev, primarySessions));
     setPaginationFor(store, category, {
-      loaded: current.loaded + sessions.length,
-      hasMore,
-      loading: false,
+      sessionIds,
+      cursor: imported ? null : (nextCursor ?? current.cursor),
+      phase: hasMore ? "ready" : "exhausted",
+      generation,
       dateBuckets,
     });
     persistSessions(store.get(sessionsAtom));
+    const newIds = new Set(newSessionIds);
+    return {
+      category,
+      phase: hasMore ? "ready" : "exhausted",
+      newSessionIds,
+      sessions: primarySessions.filter((session) =>
+        newIds.has(session.session_id)
+      ),
+    };
   } catch (error) {
     log.warn(`[SessionAtom] loadMoreCategory(${category}) failed:`, error);
-    setPaginationFor(store, category, { loading: false });
+    if (generation === currentSidebarRosterGeneration(store)) {
+      setPaginationFor(store, category, { phase: "error", generation });
+    }
+    return {
+      category,
+      phase: "error",
+      newSessionIds: [],
+      sessions: [],
+    };
   }
 };
+
+export function syncSidebarSessionRoster(session: Session): void {
+  const store = getStore();
+  store.set(sessionPaginationAtom, (previous) =>
+    syncSessionWithNativeRosters(previous, session)
+  );
+}
 
 export const __TESTS_ONLY = {
   createSidebarLoadCoordinator,

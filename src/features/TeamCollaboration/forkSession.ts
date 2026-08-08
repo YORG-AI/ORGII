@@ -43,6 +43,10 @@ import type { SessionMeta } from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import {
+  org2CloudAccessSettingsAtom,
+  withCloudSessionMode,
+} from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import i18n from "@src/i18n";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
@@ -173,6 +177,15 @@ export function getSessionForkedFrom(
   session: Pick<Session, "session_id" | "forkedFrom">
 ): SessionForkedFrom | undefined {
   return session.forkedFrom ?? readRegistry()[session.session_id]?.forkedFrom;
+}
+
+/** Snapshot resolver for batch scans, avoiding one storage parse per row. */
+export function createSessionForkedFromResolver(): (
+  session: Pick<Session, "session_id" | "forkedFrom">
+) => SessionForkedFrom | undefined {
+  const registry = readRegistry();
+  return (session) =>
+    session.forkedFrom ?? registry[session.session_id]?.forkedFrom;
 }
 
 // ============================================================================
@@ -565,6 +578,22 @@ export async function forkTeammateSession(
       store.set(sessionOrgTagsAtom, (current) =>
         withTag(current, result.localSessionId, cloudOrgToken(orgId))
       );
+      // Inherit the SOURCE's sharing level as the fork's explicit per-session
+      // intent. Without it, a fork in a floor=off org has no ladder entry and
+      // silently floors to metadata_only — teammates see the fork row but can
+      // never open its replay, and nobody errors (the "defaults silently
+      // degrading shares" escape class). The stamp is just the default the
+      // per-session dialog would show; the user can change it there.
+      if (remoteSession.accessMode) {
+        store.set(org2CloudAccessSettingsAtom, (current) =>
+          withCloudSessionMode(
+            current,
+            orgId,
+            result.localSessionId,
+            remoteSession.accessMode ?? null
+          )
+        );
+      }
     }
     if (workspaceRepoPath === null && !hasWorkspaceOverride) {
       // Non-blocking: the fork opened fine, it just has no workspace until

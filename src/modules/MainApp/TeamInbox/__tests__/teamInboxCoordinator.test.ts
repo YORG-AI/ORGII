@@ -96,6 +96,30 @@ function scope(
 }
 
 describe("TeamInboxCoordinator", () => {
+  it("does not publish a new list revision when revalidation is unchanged", async () => {
+    const listLocalPage = vi.fn(async () => ({
+      page: { items: [assignedItem("same")], nextCursor: null },
+      unreadCount: 1,
+    }));
+    const coordinator = new TeamInboxCoordinator(
+      dependencies({ listLocalPage })
+    );
+    const store = createStore();
+    const viewerScope = scope();
+
+    await coordinator.refresh(store, viewerScope, "version-1");
+    const firstSnapshot = store.get(teamInboxCacheAtom);
+    const listener = vi.fn();
+    const unsubscribe = store.sub(teamInboxCacheAtom, listener);
+
+    await coordinator.refresh(store, viewerScope, "version-2");
+
+    expect(store.get(teamInboxCacheAtom)).toBe(firstSnapshot);
+    expect(store.get(teamInboxCacheAtom).items).toBe(firstSnapshot.items);
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
   it("shares the first-page cursor across consumers using the same store", async () => {
     const firstCursor = {
       occurredAt: "2026-07-28T10:00:00.000Z",

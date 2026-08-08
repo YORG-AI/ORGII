@@ -5,7 +5,7 @@
  */
 import { useCallback, useState } from "react";
 
-import { type WorkItemFrontmatter, projectApi } from "@src/api/http/project";
+import { projectApi } from "@src/api/http/project";
 import { allocateCloudAwareWorkItemId } from "@src/features/Org2Cloud/cloudShortId";
 import { createLogger } from "@src/hooks/logger";
 
@@ -106,33 +106,19 @@ export function useWorkItemActions(options: UseWorkItemActionsOptions = {}) {
         // members can never mint the same PREFIX-n; local orgs fall through
         // to the local counter inside the helper.
         const shortId = await allocateCloudAwareWorkItemId(projectSlug);
-        const now = new Date().toISOString();
 
-        const frontmatter: WorkItemFrontmatter = {
-          id: shortId,
-          short_id: shortId,
+        // Canonical work.create: the Rust service owns row construction.
+        await projectApi.createWorkItem(projectSlug, shortId, {
           title: data.name,
-          project: data.project_id,
-          status: data.status || "backlog",
-          priority: data.priority || "none",
+          body: data.description ?? "",
+          projectId: data.project_id,
+          status: data.status,
+          priority: data.priority,
           assignee: data.assignee_id,
-          labels: [],
           milestone: data.milestone_id,
-          start_date: data.start_date,
-          target_date: data.target_date,
-          created_by: undefined,
-          created_at: now,
-          updated_at: now,
-          starred: false,
-          todos: [],
-        };
-
-        await projectApi.writeWorkItem(
-          projectSlug,
-          shortId,
-          frontmatter,
-          data.description ?? ""
-        );
+          startDate: data.start_date,
+          targetDate: data.target_date,
+        });
 
         options.onSuccess?.();
         return shortId;

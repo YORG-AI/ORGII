@@ -131,16 +131,13 @@ const WorkStationLoadingFallback: React.FC = () => (
   <div className="h-full w-full bg-workstation-bg" />
 );
 
-const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
+const HOST_DESKTOP_VALUE = resolveHostDesktop();
+const HOST_USES_NATIVE_BACKDROP =
+  HOST_DESKTOP_VALUE === HOST_DESKTOP.MACOS ||
+  HOST_DESKTOP_VALUE === HOST_DESKTOP.WINDOWS;
 
-interface ConfiguredBackgroundLayerProps {
-  sidebarInset: number;
-}
-
-/** Legacy wallpaper/color background, retained for non-macOS hosts. */
-const ConfiguredBackgroundLayer: React.FC<ConfiguredBackgroundLayerProps> = ({
-  sidebarInset,
-}) => {
+/** Legacy wallpaper/color background, retained for browser and Linux hosts. */
+const ConfiguredBackgroundLayer: React.FC = () => {
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
   const currentBackgroundImage = useBackgroundImage();
 
@@ -155,7 +152,6 @@ const ConfiguredBackgroundLayer: React.FC<ConfiguredBackgroundLayerProps> = ({
       blurAmount={backgroundConfig.blurAmount ?? 0}
       backgroundColor={backgroundConfig.backgroundColor}
       glass={backgroundConfig.glass}
-      sidebarInset={sidebarInset}
     />
   );
 };
@@ -404,11 +400,7 @@ const AppShell = () => {
           className="relative flex h-full"
           data-guide-target={GUIDE_TARGETS.APP_ROOT}
         >
-          {!IS_MACOS_HOST && (
-            <ConfiguredBackgroundLayer
-              sidebarInset={sidebarCollapsed ? 0 : sidebarWidth}
-            />
-          )}
+          {!HOST_USES_NATIVE_BACKDROP && <ConfiguredBackgroundLayer />}
 
           {/* Main layout with sidebar, toolbar, content, and chat panel */}
           <AppLayout

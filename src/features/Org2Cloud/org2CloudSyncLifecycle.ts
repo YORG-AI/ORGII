@@ -29,6 +29,11 @@ export const EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS = 30_000;
 export const DATA_CHANGED_DEBOUNCE_MS = 1_500;
 /** One-shot retry just after the Rust outbox's first retry slot. */
 export const PROJECT_PUSH_RETRY_DELAY_MS = 30_250;
+/** Max-wait deadlines for the trailing debounces above: sub-window activity
+ * must not starve the pass forever, only batch it. */
+export const ACTIVITY_MAX_WAIT_MS = 15_000;
+export const EXTERNAL_HISTORY_ACTIVITY_MAX_WAIT_MS = 60_000;
+export const DATA_CHANGED_MAX_WAIT_MS = 15_000;
 
 /** Non-DOM contexts (workers and node-side tests) behave as visible. */
 function isDocumentHidden(): boolean {
@@ -50,9 +55,12 @@ export abstract class Org2CloudSyncLifecycle {
   /** One-shot startup scheduling; never re-armed after it fires. */
   private bootstrapTimer: ReturnType<typeof setTimeout> | null = null;
   private activityTimer: ReturnType<typeof setTimeout> | null = null;
+  private activityFirstArmedAtMs = 0;
   private externalHistoryActivityTimer: ReturnType<typeof setTimeout> | null =
     null;
+  private externalHistoryActivityFirstArmedAtMs = 0;
   private dataChangedTimer: ReturnType<typeof setTimeout> | null = null;
+  private dataChangedFirstArmedAtMs = 0;
   private projectPushRetryTimer: ReturnType<typeof setTimeout> | null = null;
   /** At most one frontend retry for each concrete project-sync trigger. */
   private projectPushRetryBudget = 0;
@@ -248,7 +256,11 @@ export abstract class Org2CloudSyncLifecycle {
   ): void {
     if (!this.started) return;
     if (orgId) {
-      this.clearOrgBackoff(orgId);
+      // Ordinary change signals must NOT reopen a quota/disabled cool-down —
+      // any teammate activity would turn the 5/30-minute backoff into a
+      // per-signal retry. Full recovery (resumeOrg, edge recovery, online)
+      // is the deliberate escape hatch.
+      if (options.full) this.clearOrgBackoff(orgId);
       this.pendingInboundOrgIds.add(orgId);
       if (options.full) {
         this.pendingFullInboundOrgIds.add(orgId);
@@ -311,22 +323,40 @@ export abstract class Org2CloudSyncLifecycle {
   // window with an agent streaming is still producing local writes, and
   // teammates must see the transcript advance. Only inbound-only nudges wait
   // for visibility.
-  private scheduleActivityPass(sessionId: string): void {
+  //
+  // Trailing debounce with a max-wait: events arriving faster than the
+  // window used to reset it forever, starving pushes for as long as the
+  // activity lasted. The deadline caps that staleness without changing the
+  // quiet-gap behavior.
+  protected scheduleActivityPass(sessionId: string): void {
     if (!this.started) return;
     const externalHistory = isImportedHistorySession(sessionId);
     const timer = externalHistory
       ? this.externalHistoryActivityTimer
       : this.activityTimer;
+    const now = Date.now();
+    if (timer === null) {
+      if (externalHistory) this.externalHistoryActivityFirstArmedAtMs = now;
+      else this.activityFirstArmedAtMs = now;
+    }
     if (timer !== null) clearTimeout(timer);
+    const debounceMs = externalHistory
+      ? EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS
+      : ACTIVITY_DEBOUNCE_MS;
+    const deadlineMs =
+      (externalHistory
+        ? this.externalHistoryActivityFirstArmedAtMs
+        : this.activityFirstArmedAtMs) +
+      (externalHistory
+        ? EXTERNAL_HISTORY_ACTIVITY_MAX_WAIT_MS
+        : ACTIVITY_MAX_WAIT_MS);
     const nextTimer = setTimeout(
       () => {
         if (externalHistory) this.externalHistoryActivityTimer = null;
         else this.activityTimer = null;
         void this.runSyncPass();
       },
-      externalHistory
-        ? EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS
-        : ACTIVITY_DEBOUNCE_MS
+      Math.max(1, Math.min(debounceMs, deadlineMs - now))
     );
     if (externalHistory) this.externalHistoryActivityTimer = nextTimer;
     else this.activityTimer = nextTimer;
@@ -336,11 +366,22 @@ export abstract class Org2CloudSyncLifecycle {
     if (!this.started) return;
     this.forceProjectsNextPass = true;
     this.armProjectPushRetry();
+    const now = Date.now();
+    if (this.dataChangedTimer === null) this.dataChangedFirstArmedAtMs = now;
     if (this.dataChangedTimer !== null) clearTimeout(this.dataChangedTimer);
-    this.dataChangedTimer = setTimeout(() => {
-      this.dataChangedTimer = null;
-      void this.runSyncPass({ pushSessions: false });
-    }, DATA_CHANGED_DEBOUNCE_MS);
+    this.dataChangedTimer = setTimeout(
+      () => {
+        this.dataChangedTimer = null;
+        void this.runSyncPass({ pushSessions: false });
+      },
+      Math.max(
+        1,
+        Math.min(
+          DATA_CHANGED_DEBOUNCE_MS,
+          this.dataChangedFirstArmedAtMs + DATA_CHANGED_MAX_WAIT_MS - now
+        )
+      )
+    );
   }
 
   /** Schedule one projects-plane pass at the durable outbox's retry point. */

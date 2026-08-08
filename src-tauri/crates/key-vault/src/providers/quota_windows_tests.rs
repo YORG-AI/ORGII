@@ -70,3 +70,19 @@ fn normalize_reset_time_rejects_non_datetime_text() {
     );
     assert_eq!(normalize_reset_time("tomorrow"), None);
 }
+
+#[test]
+fn json_time_normalizes_seconds_milliseconds_and_rfc3339() {
+    assert_eq!(
+        json_time_to_rfc3339(&serde_json::json!(1_783_418_400)).as_deref(),
+        Some("2026-07-07T10:00:00Z")
+    );
+    assert_eq!(
+        json_time_to_rfc3339(&serde_json::json!(1_783_418_400_000_i64)).as_deref(),
+        Some("2026-07-07T10:00:00Z")
+    );
+    assert_eq!(
+        json_time_to_rfc3339(&serde_json::json!("2026-07-07T18:00:00+08:00")).as_deref(),
+        Some("2026-07-07T10:00:00Z")
+    );
+}

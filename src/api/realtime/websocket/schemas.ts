@@ -327,6 +327,12 @@ export const CODE_EDITOR_WEB_SOCKET_EVENT_TYPES = [
   // useBackgroundSessionMonitor (background-session completion toasts); the
   // active session gets the same events over its own session channel.
   "code_session.status_changed",
+  // Approval requests are consumed by the main-window notification bridge.
+  // Native agents use a `{ type, payload }` envelope while CLI agents emit
+  // the same fields flat, so the passthrough schema below intentionally keeps
+  // both wire shapes intact.
+  "permission:request",
+  "agent:plan_ready_for_approval",
   // Backend-owned invalidations that replace frontend polling loops.
   "agent_org:run_changed",
   "agent:snapshot_created",

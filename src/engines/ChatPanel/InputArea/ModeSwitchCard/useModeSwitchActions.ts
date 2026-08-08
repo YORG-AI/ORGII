@@ -9,7 +9,10 @@
  */
 import { respondModeSwitch } from "@src/api/tauri/agent";
 import { rpc } from "@src/api/tauri/rpc";
-import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import {
+  ALL_AGENT_EXEC_MODES,
+  type AgentExecMode,
+} from "@src/config/sessionCreatorConfig";
 import {
   beginOptimisticTurn,
   failOptimisticTurn,
@@ -54,13 +57,16 @@ function markResolved(eventId: string, status: ModeSwitchResolution) {
 // Mode labels
 // ============================================
 
-export const MODE_LABELS: Record<string, string> = {
-  build: "Build",
-  ask: "Ask",
-  plan: "Plan",
-  debug: "Debug",
-  review: "Review",
-};
+// Derived from the canonical wire-value set so this file can never hold
+// a divergent fifth mode catalog (Orgtrack migration, mode convergence).
+// Labels are the capitalized wire values; the picker's richer copy lives
+// with AGENT_EXEC_MODES in sessionCreatorConfig.ts.
+export const MODE_LABELS: Record<string, string> = Object.fromEntries(
+  [...ALL_AGENT_EXEC_MODES].map((mode) => [
+    mode,
+    mode.charAt(0).toUpperCase() + mode.slice(1),
+  ])
+);
 
 // ============================================
 // Actions

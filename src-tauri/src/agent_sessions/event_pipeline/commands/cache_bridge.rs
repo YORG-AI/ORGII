@@ -213,6 +213,18 @@ pub async fn cache_finalize_session_event_import(session_id: String) -> Result<u
         .map_err(|error| error.to_string())
 }
 
+/// Count a session's persisted events without loading them — the cheap
+/// cache-hit probe for imported replays. Pure read: takes neither the
+/// writer serializer nor the sequence-normalization pass.
+#[tauri::command]
+pub async fn cache_count_session_events(session_id: String) -> Result<usize, String> {
+    tokio::task::spawn_blocking(move || sqlite_cache::count_events(&session_id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .map(|count| count.max(0) as usize)
+}
+
 /// Load SessionEvents directly from SQLite cache (conversion happens in Rust).
 #[tauri::command]
 pub async fn cache_load_session_events(session_id: String) -> Result<Vec<SessionEvent>, String> {

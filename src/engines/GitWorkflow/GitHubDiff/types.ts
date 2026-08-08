@@ -3,6 +3,7 @@
  *
  * Type definitions for the diff viewer architecture.
  */
+import type { DiffViewMode } from "@src/types/git/types";
 
 // ============================================
 // Diff Line Types
@@ -98,7 +99,7 @@ export interface FileDiff {
 // ============================================
 
 /** The view mode for the diff */
-export type DiffViewMode = "unified" | "split";
+export type { DiffViewMode } from "@src/types/git/types";
 
 /** Expansion type for hunks */
 export type DiffHunkExpansionType = "up" | "down" | "short" | "full";

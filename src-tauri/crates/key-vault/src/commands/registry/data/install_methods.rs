@@ -328,32 +328,6 @@ pub(crate) fn cli_uninstall_methods(name: &str) -> Vec<CliInstallMethod> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn qoder_cli_exposes_official_installers() {
-        let methods = cli_install_methods("qoder_cli");
-
-        assert_eq!(methods.len(), 3);
-        assert!(methods
-            .iter()
-            .any(|method| method.command == "curl -fsSL https://qoder.com/install | bash"));
-        assert!(methods
-            .iter()
-            .any(|method| method.command.contains("qoder.com/install.ps1")));
-        assert!(methods
-            .iter()
-            .any(|method| method.command.contains("qoder.com/install.cmd")));
-    }
-
-    #[test]
-    fn trae_cli_does_not_offer_an_undocumented_installer() {
-        assert!(cli_install_methods("trae_cli").is_empty());
-    }
-}
-
 /// Infer install method from the binary path returned by `which`/`where`.
 ///
 /// Resolves symlinks first so that e.g. `~/.local/bin/poetry` →
@@ -439,4 +413,30 @@ pub(crate) fn infer_install_method(binary_path: &str) -> Option<String> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qoder_cli_exposes_official_installers() {
+        let methods = cli_install_methods("qoder_cli");
+
+        assert_eq!(methods.len(), 3);
+        assert!(methods
+            .iter()
+            .any(|method| method.command == "curl -fsSL https://qoder.com/install | bash"));
+        assert!(methods
+            .iter()
+            .any(|method| method.command.contains("qoder.com/install.ps1")));
+        assert!(methods
+            .iter()
+            .any(|method| method.command.contains("qoder.com/install.cmd")));
+    }
+
+    #[test]
+    fn trae_cli_does_not_offer_an_undocumented_installer() {
+        assert!(cli_install_methods("trae_cli").is_empty());
+    }
 }

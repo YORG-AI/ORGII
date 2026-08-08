@@ -232,6 +232,6 @@ is mechanical. The path to an independent publish:
    and ship prebuilt binaries (the existing `.goreleaser`-style release tooling
    in the repo can cross-compile a static, CGO-free binary thanks to bundled
    SQLite).
-3. The `@orgii/orgtrack` npm package (`packages/orgtrack`) can then become the
-   Node distribution wrapper that downloads/execs this binary, replacing its
-   current stub entrypoint.
+3. An npm distribution wrapper that downloads/execs this binary can be added
+   at that point (the old `packages/orgtrack` stub was removed — recreate it
+   only when there is a real binary to wrap).

@@ -61,6 +61,8 @@ export interface DeriveSourceControlMainPropsInput {
   /** "uncommitted" | "staged" | "unstaged" | "history" | ... */
   sourceControlFilterMode: string;
   repoPath: string;
+  /** Repo/worktree root selected by the Source Control scope picker. */
+  activeRepoRoot: string;
 }
 
 export interface SourceControlMainDerivedProps {
@@ -73,6 +75,51 @@ export interface SourceControlMainDerivedProps {
   hasFocus: boolean;
 }
 
+function normalizeRepoPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+function isPathInRepoScope(
+  filePath: string,
+  repoPath: string,
+  activeRepoRoot: string
+): boolean {
+  const normalizedPath = normalizeRepoPath(filePath);
+  const normalizedRepoPath = normalizeRepoPath(repoPath);
+  const normalizedActiveRoot = normalizeRepoPath(activeRepoRoot);
+  const isAbsolute =
+    normalizedPath.startsWith("/") || /^[A-Za-z]:\//.test(normalizedPath);
+
+  if (!isAbsolute) {
+    return normalizedActiveRoot === normalizedRepoPath;
+  }
+
+  return (
+    normalizedPath === normalizedActiveRoot ||
+    normalizedPath.startsWith(`${normalizedActiveRoot}/`)
+  );
+}
+
+function isFileInRepoScope(
+  file: GitFile,
+  repoPath: string,
+  activeRepoRoot: string
+): boolean {
+  return (
+    normalizeRepoPath(file.repoRoot ?? repoPath) ===
+    normalizeRepoPath(activeRepoRoot)
+  );
+}
+
+function matchesSourceControlFilter(
+  file: GitFile,
+  sourceControlFilterMode: string
+): boolean {
+  if (sourceControlFilterMode === "staged") return file.staged;
+  if (sourceControlFilterMode === "unstaged") return !file.staged;
+  return true;
+}
+
 /**
  * Derive every prop `SourceControlMainContent` needs from a Source Control tab
  * payload plus the current working-tree status / filters. Pure; no React.
@@ -83,6 +130,7 @@ export function deriveSourceControlMainProps({
   sourceControlFiles,
   sourceControlFilterMode,
   repoPath,
+  activeRepoRoot,
 }: DeriveSourceControlMainPropsInput): SourceControlMainDerivedProps {
   const focusPath = tabData.focusPath ?? null;
   const mode: SourceControlPillMode =
@@ -99,15 +147,27 @@ export function deriveSourceControlMainProps({
         ? gitStatusFiles
         : embeddedFiles;
 
-  const allFiles = unfilteredFiles.filter((file) => {
-    if (sourceControlFilterMode === "staged" && !file.staged) return false;
-    if (sourceControlFilterMode === "unstaged" && file.staged) return false;
-    return true;
-  });
+  const allFiles = unfilteredFiles.filter(
+    (file) =>
+      isFileInRepoScope(file, repoPath, activeRepoRoot) &&
+      matchesSourceControlFilter(file, sourceControlFilterMode)
+  );
 
-  const focusGitFile = focusPath
+  const resolvedFocusFile = focusPath
     ? (getGitFileForPath(focusPath, repoPath, gitFilesByPath) ?? null)
     : null;
+  const focusPathInActiveScope = focusPath
+    ? isPathInRepoScope(focusPath, repoPath, activeRepoRoot)
+    : false;
+  const focusGitFile =
+    resolvedFocusFile &&
+    isFileInRepoScope(resolvedFocusFile, repoPath, activeRepoRoot) &&
+    matchesSourceControlFilter(resolvedFocusFile, sourceControlFilterMode)
+      ? resolvedFocusFile
+      : null;
+  const hasFocus = Boolean(
+    focusPath && focusPathInActiveScope && (!resolvedFocusFile || focusGitFile)
+  );
 
   return {
     mode,
@@ -116,6 +176,6 @@ export function deriveSourceControlMainProps({
     historySelection,
     allFiles,
     focusGitFile,
-    hasFocus: Boolean(focusPath),
+    hasFocus,
   };
 }

@@ -54,6 +54,8 @@ interface WorkItemsListContentProps {
   collapseAllSignal?: number;
   /** Render project cells read-only (cross-project Work Items page). */
   disableProjectEdit?: boolean;
+  /** Hide redundant project identity in a fixed project-scoped list. */
+  hideProjectCell?: boolean;
   compactRows?: boolean;
   showEmptySections?: boolean;
   defaultCollapsedStatuses?: readonly string[];
@@ -103,6 +105,7 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
   statusDisabled = false,
   collapseAllSignal = 0,
   disableProjectEdit = false,
+  hideProjectCell = false,
   compactRows = false,
   showEmptySections = false,
   defaultCollapsedStatuses = [],
@@ -196,7 +199,6 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
         ) : (
           <VirtualizedGroupedList
             key={collapseAllSignal}
-            className={compactRows ? "pb-2" : "pb-3"}
             testId="work-items-virtual-list"
             groups={virtualGroups}
             defaultExpanded={defaultGroupExpanded}
@@ -229,22 +231,21 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
                     onSectionExpandedChange?.(group.status, nextExpanded);
                   }}
                   virtualizedHeader
+                  variant="table"
                 />
               );
             }}
-            renderItem={(row, group, isLastInGroup) => {
+            renderItem={(row, group) => {
               const isDeletedGroup = group.status === "deleted";
-              const rowClassName = `${compactRows ? "px-0" : "px-2"} ${
-                isLastInGroup ? (compactRows ? "pb-2" : "pb-3") : "pb-1"
-              }`;
               if (isSectionPlaceholder(row)) {
-                return <div className={rowClassName}>{row.content}</div>;
+                return <div>{row.content}</div>;
               }
               return (
-                <div className={rowClassName}>
+                <div>
                   <WorkItemRow
                     workItem={row}
                     isSelected={selectedWorkItemId === row.session_id}
+                    variant="table"
                     onSelect={onSelectWorkItem}
                     onUpdate={onUpdateWorkItem}
                     onDelete={onDeleteWorkItem}
@@ -273,6 +274,7 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
                     }
                     statusDisabled={statusDisabled || isDeletedGroup}
                     disableProjectEdit={disableProjectEdit}
+                    hideProjectCell={hideProjectCell}
                   />
                 </div>
               );

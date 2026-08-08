@@ -9,7 +9,7 @@
  * allow-forms, no allow-popups-to-escape-sandbox. No eval bridge is injected
  * into the document. External URLs are never loaded.
  */
-import { ExternalLink, Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -123,7 +123,7 @@ const CodePreview: React.FC<CodePreviewProps> = ({
             className="rounded p-1 text-text-4 transition-colors hover:bg-fill-3 hover:text-text-2"
             title={t("codePreview.openExternal")}
           >
-            <ExternalLink size={12} />
+            <SquareArrowOutUpRight size={12} />
           </button>
           <button
             type="button"

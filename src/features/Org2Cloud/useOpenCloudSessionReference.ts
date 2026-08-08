@@ -25,6 +25,7 @@ import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import { requestSessionSidebarRevealAtom } from "@src/store/ui/sidebarAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 
+import { showCloudReferenceOpeningToast } from "./cloudReferenceOpeningToast";
 import { buildCloudRemoteItemId } from "./cloudRemoteItemId";
 import type { CloudSessionReference } from "./cloudSessionReference";
 import {
@@ -87,6 +88,11 @@ export function useOpenCloudSessionReference(): OpenCloudSessionReference {
         cloudOrgId: reference.orgId,
         autoReplay: options?.autoReplay ?? false,
       });
+      if (options?.autoReplay) {
+        // The pre-phase (org switch, listing fetch, freshness probe) used to
+        // be completely silent — indistinguishable from a dead chip.
+        showCloudReferenceOpeningToast();
+      }
       setStationMode("my-station");
       setStationChatVisible("my-station", true);
       if (window.location.pathname !== ROUTES.workStation.code.path) {

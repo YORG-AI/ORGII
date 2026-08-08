@@ -123,6 +123,19 @@ export const dataSourcePresenceAtom = atomWithStorage<
  */
 export const dataSourceRosterSignaturesAtom = atom<Record<string, string>>({});
 
+/**
+ * Runtime-only demand signal for keeping enabled external-history providers
+ * fresh while the document is hidden. Cloud collaboration raises this while
+ * at least one accessible org has Background upload enabled; the scanner owns
+ * the cadence and still honors the master switch, per-source enablement, and
+ * explicit manual frequency.
+ *
+ * This is deliberately not persisted: cloud policy is authoritative and is
+ * re-established after the signed-in roster loads. Keeping the atom in the
+ * data-source layer avoids a reverse dependency from the scanner into Cloud.
+ */
+export const externalHistoryBackgroundScanEnabledAtom = atom(false);
+
 const EXTERNAL_SESSIONS_ENABLED_STORAGE_KEY = "orgii:externalSessionsEnabled";
 
 /**

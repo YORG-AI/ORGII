@@ -65,7 +65,9 @@ interface UseWorkstationSidebarMenuDecorationParams {
   unpinFolderLabel: string;
   setActiveSessionMoreMenuId: DecorateRowActionsParams["setActiveSessionMoreMenuId"];
   subagentParentIds: DecorateRowActionsParams["subagentParentIds"];
-  cloudMenuItems: NavigationMenuItem[];
+  cloudSessionMenuItems: NavigationMenuItem[];
+  channelSidebarMenuItems: NavigationMenuItem[];
+  channelSidebarVisible: boolean;
   sessionSidebarMenuItems: NavigationMenuItem[];
   cloudMySessionsVisibleCount: number;
   activeSidebarKey: WorkstationSidebarKey;
@@ -110,7 +112,9 @@ export function useWorkstationSidebarMenuDecoration({
   unpinFolderLabel,
   setActiveSessionMoreMenuId,
   subagentParentIds,
-  cloudMenuItems,
+  cloudSessionMenuItems,
+  channelSidebarMenuItems,
+  channelSidebarVisible,
   sessionSidebarMenuItems,
   cloudMySessionsVisibleCount,
   activeSidebarKey,
@@ -178,30 +182,32 @@ export function useWorkstationSidebarMenuDecoration({
     tCommon,
     unpinLabel: unpinFolderLabel,
   });
-  const decoratedSessionSidebarMenuItems = useMemo(
-    () =>
-      buildCloudScopedMenuItems({
-        cloudMenuItems,
-        // Cloud rows already carry Replay/Fork actions, so only local rows
-        // use the regular session action decoration.
-        sessionMenuItems: decorateSessionRowActions(sessionSidebarMenuItems),
-        mySessionsLabel: t("cloud.sidebar.mySessions"),
-        mySessionsVisibleCount: cloudMySessionsVisibleCount,
-        loadMoreLabel: tCommon("common:actions.loadMore", "Load more"),
-      }),
-    [
-      cloudMenuItems,
-      cloudMySessionsVisibleCount,
-      decorateSessionRowActions,
-      sessionSidebarMenuItems,
-      t,
-      tCommon,
-    ]
-  );
+  const decoratedSessionSidebarMenuItems = useMemo(() => {
+    const scoped = buildCloudScopedMenuItems({
+      cloudMenuItems: cloudSessionMenuItems,
+      // Cloud rows already carry Replay/Fork actions, so only local rows
+      // use the regular session action decoration.
+      sessionMenuItems: decorateSessionRowActions(sessionSidebarMenuItems),
+      mySessionsLabel: t("cloud.sidebar.mySessions"),
+      pinnedLabel: tCommon("sessions:chat.historyPinned", "Pinned"),
+      mySessionsVisibleCount: cloudMySessionsVisibleCount,
+      loadMoreLabel: tCommon("common:actions.loadMore", "Load more"),
+    });
+    return scoped;
+  }, [
+    cloudSessionMenuItems,
+    cloudMySessionsVisibleCount,
+    decorateSessionRowActions,
+    sessionSidebarMenuItems,
+    t,
+    tCommon,
+  ]);
   const sidebarMenuItems =
     activeSidebarKey === "projects" || workItemsContentVisible
       ? projectsSidebarMenuItems
-      : decoratedSessionSidebarMenuItems;
+      : channelSidebarVisible
+        ? channelSidebarMenuItems
+        : decoratedSessionSidebarMenuItems;
   const handleProjectsMenuItemClick = useProjectsMenuItemClick({
     activateMyStationRouteForProjectTabContent,
     activateMyStationRouteForProjectsContent,

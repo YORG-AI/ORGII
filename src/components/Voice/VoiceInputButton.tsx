@@ -11,6 +11,7 @@ import { Mic } from "lucide-react";
 import React, { memo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
@@ -100,7 +101,7 @@ const VoiceInputButton: React.FC<VoiceInputButtonProps> = memo(
           INPUT_AREA_BUTTONS.iconButtonSizeClass,
           disabled
             ? "cursor-not-allowed opacity-50"
-            : "cursor-pointer hover:bg-fill-2",
+            : `cursor-pointer ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
           "leading-none",
         ].join(" ")}
         style={{ lineHeight: 0 }}

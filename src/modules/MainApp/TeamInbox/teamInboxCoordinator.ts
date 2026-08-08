@@ -1,4 +1,5 @@
 import type { Store } from "jotai/vanilla/store";
+import isEqual from "lodash/isEqual";
 
 import type { MemberEntry } from "@src/api/http/project";
 import type {
@@ -173,6 +174,13 @@ function prerequisiteIssueForScope(
   return mergeIssues(identityIssue, scope.prerequisiteIssue);
 }
 
+function sameIssue(
+  left: TeamInboxIssue | null,
+  right: TeamInboxIssue | null
+): boolean {
+  return left?.code === right?.code && left?.detail === right?.detail;
+}
+
 function mapMentionsToItems(
   mentions: readonly TeamInboxMention[],
   activeCloudOrgId: string
@@ -338,11 +346,11 @@ export class TeamInboxCoordinator {
 
     const generation = ++runtime.generation;
     runtime.activeRefreshVersion = requestVersion;
-    store.set(teamInboxCacheAtom, (current) => ({
-      ...current,
-      loading: true,
-      issue: null,
-    }));
+    store.set(teamInboxCacheAtom, (current) =>
+      current.loadedForViewerKey === scope.key
+        ? current
+        : { ...current, loading: true, issue: null }
+    );
 
     const canLoadLocal = scope.viewerMemberIds.length > 0;
     const canLoadCloud = Boolean(scope.accessToken && scope.activeCloudOrgId);
@@ -445,24 +453,41 @@ export class TeamInboxCoordinator {
           runtime.localCursor = null;
           runtime.cloudCursor = null;
         }
-        store.set(teamInboxCacheAtom, (current) => ({
-          ...current,
-          items,
-          unreadCount: localUnread + cloudUnread,
-          unreadCounts: {
-            all: localUnread + cloudUnread,
-            mentions: cloudUnread,
-            assigned: localUnread,
-          },
-          loading: false,
-          issue: mergeIssues(
-            issueForFailures(failures, requestedSourceCount),
-            prerequisiteIssueForScope(scope)
-          ),
-          loadedForViewerKey: scope.key,
-          hasMore: Boolean(runtime.localCursor || runtime.cloudCursor),
-          revision: current.revision + 1,
-        }));
+        const unreadCount = localUnread + cloudUnread;
+        const issue = mergeIssues(
+          issueForFailures(failures, requestedSourceCount),
+          prerequisiteIssueForScope(scope)
+        );
+        const hasMore = Boolean(runtime.localCursor || runtime.cloudCursor);
+        store.set(teamInboxCacheAtom, (current) => {
+          const itemsUnchanged = isEqual(current.items, items);
+          const snapshotUnchanged =
+            itemsUnchanged &&
+            current.unreadCount === unreadCount &&
+            current.unreadCounts.all === unreadCount &&
+            current.unreadCounts.mentions === cloudUnread &&
+            current.unreadCounts.assigned === localUnread &&
+            !current.loading &&
+            sameIssue(current.issue, issue) &&
+            current.loadedForViewerKey === scope.key &&
+            current.hasMore === hasMore;
+          if (snapshotUnchanged) return current;
+          return {
+            ...current,
+            items: itemsUnchanged ? current.items : items,
+            unreadCount,
+            unreadCounts: {
+              all: unreadCount,
+              mentions: cloudUnread,
+              assigned: localUnread,
+            },
+            loading: false,
+            issue,
+            loadedForViewerKey: scope.key,
+            hasMore,
+            revision: current.revision + 1,
+          };
+        });
       })
       .finally(() => {
         if (runtime.refreshPromise === promise) {

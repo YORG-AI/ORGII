@@ -16,6 +16,7 @@ import {
 } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
+import type { DiffViewMode } from "@src/types/git/types";
 
 import type { DiffReplayTab } from "./types";
 import type { SubmissionRepoContext } from "./useSubmissionsData";
@@ -36,6 +37,7 @@ export interface UseDiffDetailContentParams {
   focusedDiffPath: string | null;
   focusedDiffNonce: number;
   collapseAllSignal: number;
+  diffViewMode: DiffViewMode;
 }
 
 export function useDiffDetailContent({
@@ -49,6 +51,7 @@ export function useDiffDetailContent({
   focusedDiffPath,
   focusedDiffNonce,
   collapseAllSignal,
+  diffViewMode,
 }: UseDiffDetailContentParams): React.ReactNode {
   const { t } = useTranslation("sessions");
   const { t: tCommon } = useTranslation("common");
@@ -122,6 +125,7 @@ export function useDiffDetailContent({
     return (
       <DiffSectionList
         sections={consolidatedSections}
+        viewMode={diffViewMode}
         loading={orgtrackFinalDiffsLoading}
         emptyTitle={t(
           "simulator.replay.diffApp.emptyForFilter",
@@ -146,6 +150,7 @@ export function useDiffDetailContent({
     focusedDiffPath,
     focusedDiffNonce,
     collapseAllSignal,
+    diffViewMode,
     t,
   ]);
 }

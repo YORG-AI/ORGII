@@ -35,13 +35,14 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 
 import { useActionSystemOptional } from "@src/ActionSystem";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import SessionRawTranscriptDialog from "@src/engines/ChatPanel/components/SessionRawTranscriptDialog";
 import {
-  COLLAPSED_SIDEBAR_CHROME_OFFSET,
+  getCollapsedSidebarChromeOffset,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
@@ -217,6 +218,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
     collapseInactiveTabLabelsOnOverflow = false,
     dataTourTarget,
   }) => {
+    const { t } = useTranslation();
     const actionSystem = useActionSystemOptional();
     const dispatch = actionSystem?.dispatch;
     const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
@@ -343,9 +345,9 @@ export const TabBar: React.FC<TabBarProps> = memo(
           return;
         }
         requestSessionHandoff({ sessionId, title: tab.title });
-        openTeamInbox();
+        openTeamInbox(t("navigation:labels.inbox"));
       },
-      [openTeamInbox, requestSessionHandoff]
+      [openTeamInbox, requestSessionHandoff, t]
     );
     const handleCloseRawTranscript = useCallback(() => {
       setRawTranscriptSessionId(null);
@@ -377,7 +379,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
           {
             height: `${TAB_BAR_HEIGHT + 8}px`,
             paddingLeft: shouldOffsetLeftChrome
-              ? COLLAPSED_SIDEBAR_CHROME_OFFSET
+              ? getCollapsedSidebarChromeOffset()
               : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties

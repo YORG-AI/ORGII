@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { SquareArrowOutUpRight } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -241,7 +241,7 @@ const LintToolInlineExpandedCard: React.FC<LintToolInlineExpandedCardProps> = ({
           <Button
             variant="secondary"
             size="small"
-            icon={<ExternalLink size={14} />}
+            icon={<SquareArrowOutUpRight size={14} />}
             iconPosition="right"
             onClick={() => openExternalLink(docsUrl)}
           >

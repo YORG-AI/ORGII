@@ -345,7 +345,7 @@ pub fn upsert_initial_on(
             params![session_id, turn_intent_id, org_run_id],
         )?;
     }
-    let existing = get_intent(&conn, session_id, turn_intent_id)?
+    let existing = get_intent(conn, session_id, turn_intent_id)?
         .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))?;
     if let (Some(existing_org_run_id), Some(requested_org_run_id)) =
         (existing.org_run_id.as_deref(), org_run_id)

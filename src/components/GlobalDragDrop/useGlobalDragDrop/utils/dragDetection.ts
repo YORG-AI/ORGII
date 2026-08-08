@@ -3,8 +3,6 @@
  *
  * Detects internal vs external drag operations
  */
-import type { MutableRefObject } from "react";
-
 import { reorderActiveRef } from "@src/engines/ChatPanel/InputArea/components/QueuedMessages";
 import {
   isInternalFileTreeDragActive,
@@ -15,10 +13,7 @@ import { getNativeFrameScale } from "@src/util/platform/tauri/nativeFrame";
 /**
  * Check if a drag event is internal (from our app) vs external (from OS/IDE)
  */
-export function isInternalDrag(
-  event: Event,
-  workflowDragActiveRef: MutableRefObject<boolean>
-): boolean {
+export function isInternalDrag(event: Event): boolean {
   const dragEvent = event as DragEvent;
 
   // Queue reorder drag is always internal
@@ -26,10 +21,9 @@ export function isInternalDrag(
     return true;
   }
 
-  // Workflow canvas drags are internal.
-  if (workflowDragActiveRef.current) {
-    return true;
-  }
+  // (The old workflow-canvas drag flag is gone: the visual workflow
+  // editor that set it was removed in Phase 1 of the Orgtrack migration,
+  // so the atom could never become true again.)
 
   // Check global flag for internal file tree drags (reliable in Tauri WebView
   // where custom MIME types may not appear in dataTransfer.types)

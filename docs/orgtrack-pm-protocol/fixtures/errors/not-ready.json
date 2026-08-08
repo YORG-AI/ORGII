@@ -1,0 +1,15 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "NOT_READY",
+    "message": "WorkItem work_01K0000000000000000000WORK0 has 1 incomplete dependency",
+    "retryable": true,
+    "details": {
+      "incompleteDependencies": ["work_01K000000000000000000COLL0"]
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR09"
+  }
+}

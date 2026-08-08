@@ -84,6 +84,7 @@ const LinearProjectsPage: React.FC<LinearProjectsPageProps> = ({
     projectId,
     surface,
     teamId,
+    isActive,
   });
   const {
     effectiveConnectionId,
@@ -111,6 +112,7 @@ const LinearProjectsPage: React.FC<LinearProjectsPageProps> = ({
   const data = useLinearProjectsData({
     connectionId: effectiveConnectionId,
     projectId,
+    isActive,
   });
   const {
     project,

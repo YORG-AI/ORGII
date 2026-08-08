@@ -1,9 +1,9 @@
 /**
- * Per-category pagination state for the sidebar's session list.
+ * Per-stream pagination state for the sidebar's session roster.
  *
- * Native categories use one offset page. Imported-history sources additionally
- * track an offset per date bucket so Today cannot starve Yesterday even when a
- * source has thousands of recent rows. See `SESSION_SIDEBAR_PAGE_SIZE`.
+ * Native streams use a stable `(updatedAt, sessionId)` cursor. Imported-history
+ * sources retain their independent date-bucket offsets, but share the same
+ * roster IDs and loading/error/exhaustion lifecycle.
  */
 import { atom } from "jotai";
 
@@ -17,8 +17,11 @@ import {
 } from "@src/util/session/sessionDateBuckets";
 
 export type BaseSessionListCategory =
+  | "pinned_native"
   | "cli_agent"
-  | "rust_agent"
+  | "standalone_agent"
+  | "agent_org_root"
+  | "os_agent"
   | "human_session";
 
 export type SessionListCategory =
@@ -26,7 +29,14 @@ export type SessionListCategory =
   | ImportedHistoryListCategory;
 
 export const BASE_SESSION_LIST_CATEGORIES: readonly BaseSessionListCategory[] =
-  ["cli_agent", "rust_agent", "human_session"];
+  [
+    "pinned_native",
+    "cli_agent",
+    "standalone_agent",
+    "agent_org_root",
+    "os_agent",
+    "human_session",
+  ];
 
 export const SESSION_LIST_CATEGORIES: readonly SessionListCategory[] = [
   ...BASE_SESSION_LIST_CATEGORIES,
@@ -39,10 +49,21 @@ export const SESSION_LIST_CATEGORIES: readonly SessionListCategory[] = [
  */
 export const SESSION_SIDEBAR_PAGE_SIZE = 10;
 
+export type SidebarStreamPhase = "loading" | "ready" | "exhausted" | "error";
+
+export interface SidebarStreamCursor {
+  updatedAt: string;
+  sessionId: string;
+}
+
 export interface CategoryPaginationState {
-  loaded: number;
-  hasMore: boolean;
-  loading: boolean;
+  /** IDs that this stream has actually returned in the current generation. */
+  sessionIds: readonly string[];
+  /** Native keyset cursor. Imported sources keep this null. */
+  cursor: SidebarStreamCursor | null;
+  phase: SidebarStreamPhase;
+  /** Monotonic roster refresh generation that produced this window. */
+  generation: number;
   dateBuckets?: DateBucketPaginationMap;
 }
 
@@ -65,9 +86,10 @@ export function emptyDateBucketPagination(): DateBucketPaginationMap {
 }
 
 const DEFAULT_STATE: CategoryPaginationState = {
-  loaded: 0,
-  hasMore: false,
-  loading: false,
+  sessionIds: [],
+  cursor: null,
+  phase: "ready",
+  generation: 0,
 };
 
 export type SessionPaginationMap = Readonly<

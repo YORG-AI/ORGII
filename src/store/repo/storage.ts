@@ -10,7 +10,10 @@
  * - lastUsedRepo/cachedRepos: localStorage (global)
  *   Shared across windows for new window initialization and recent repos.
  */
+import { createLogger } from "@src/hooks/logger";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+
+const log = createLogger("RepoStorage");
 
 // ============================================
 // Storage Keys
@@ -169,6 +172,27 @@ export function resetRepoStore(): void {
 /** Type for opened repos map: windowId -> repoId */
 type OpenedReposMap = Record<string, string>;
 
+let hasLoggedOpenedRepoStorageFailure = false;
+
+/**
+ * The opened-repo registry is a best-effort cross-window hint. Repository
+ * selection remains authoritative in memory, so storage pressure must not
+ * turn a failed hint write into a fatal application error.
+ */
+function persistOpenedReposMap(map: OpenedReposMap): void {
+  try {
+    localStorage.setItem(REPO_STORAGE_KEYS.openedRepos, JSON.stringify(map));
+    hasLoggedOpenedRepoStorageFailure = false;
+  } catch (error) {
+    if (hasLoggedOpenedRepoStorageFailure) return;
+    hasLoggedOpenedRepoStorageFailure = true;
+    log.warn(
+      "Cross-window repository tracking is unavailable; continuing without persisting the opened-repo registry.",
+      error
+    );
+  }
+}
+
 /**
  * Get the map of all opened repos across windows. Cross-window
  * consumers can subscribe to the browser's native `storage` event on
@@ -230,34 +254,25 @@ export function getWindowIdsForRepo(repoId: string): string[] {
  */
 export function registerOpenedRepo(windowId: string, repoId: string): void {
   if (!isMainAppWindowLabel(windowId)) return;
-  try {
-    const map = getOpenedReposMap();
-    if (repoId) {
-      map[windowId] = repoId;
-    } else {
-      delete map[windowId];
-    }
-    localStorage.setItem(REPO_STORAGE_KEYS.openedRepos, JSON.stringify(map));
-  } catch (error) {
-    throw new Error(
-      `[repoStorage] Failed to register opened repo: ${error instanceof Error ? error.message : String(error)}`
-    );
+  const map = getOpenedReposMap();
+  if (repoId) {
+    if (map[windowId] === repoId) return;
+    map[windowId] = repoId;
+  } else {
+    if (!(windowId in map)) return;
+    delete map[windowId];
   }
+  persistOpenedReposMap(map);
 }
 
 /**
  * Unregister a window from the opened repos map (e.g., on window close)
  */
 export function unregisterWindow(windowId: string): void {
-  try {
-    const map = getOpenedReposMap();
-    delete map[windowId];
-    localStorage.setItem(REPO_STORAGE_KEYS.openedRepos, JSON.stringify(map));
-  } catch (error) {
-    throw new Error(
-      `[repoStorage] Failed to unregister window ${windowId}: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
+  const map = getOpenedReposMap();
+  if (!(windowId in map)) return;
+  delete map[windowId];
+  persistOpenedReposMap(map);
 }
 
 /**
@@ -267,9 +282,13 @@ export function unregisterWindow(windowId: string): void {
 export function clearAllOpenedRepos(): void {
   try {
     localStorage.removeItem(REPO_STORAGE_KEYS.openedRepos);
+    hasLoggedOpenedRepoStorageFailure = false;
   } catch (error) {
-    throw new Error(
-      `[repoStorage] Failed to clear opened repos: ${error instanceof Error ? error.message : String(error)}`
+    if (hasLoggedOpenedRepoStorageFailure) return;
+    hasLoggedOpenedRepoStorageFailure = true;
+    log.warn(
+      "Cross-window repository tracking could not be cleared; continuing with the in-memory repository selection.",
+      error
     );
   }
 }

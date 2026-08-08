@@ -111,9 +111,11 @@ export function useSourceControlTabConfig({
   const SourceControlIcon = ICON_CONFIG.sourceControl;
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
 
+  const { currentGitStatus, forceRefresh } = useGitStatus();
   const { isGitInitialized, refreshGitInitialization } =
-    useRepoGitInitialization(repoPath);
-  const { forceRefresh } = useGitStatus();
+    useRepoGitInitialization(repoPath, {
+      knownGitStatusExists: currentGitStatus?.exists,
+    });
 
   const handleGitInitialized = useCallback(async () => {
     await refreshGitInitialization();

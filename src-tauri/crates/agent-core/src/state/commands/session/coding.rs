@@ -295,36 +295,11 @@ pub async fn agent_get_todos(session_id: String) -> Result<serde_json::Value, St
     Ok(serde_json::json!(items))
 }
 
-/// List user-selectable agent modes for the mode picker.
-///
-/// Review is intentionally omitted — it remains an internal mode driven by the
-/// work-item review pipeline, not by the picker.
-#[tauri::command]
-pub async fn agent_list_modes() -> Result<serde_json::Value, String> {
-    use crate::session::AgentExecMode;
-    Ok(serde_json::json!([
-        {
-            "id": AgentExecMode::Build.as_str(),
-            "name": "Build",
-            "description": "Default mode - full tool access for implementation"
-        },
-        {
-            "id": AgentExecMode::Ask.as_str(),
-            "name": "Ask",
-            "description": "Read-only research and Q&A - explore the codebase, answer questions"
-        },
-        {
-            "id": AgentExecMode::Plan.as_str(),
-            "name": "Plan",
-            "description": "Produce a persisted plan file gated by user approval before implementation"
-        },
-        {
-            "id": AgentExecMode::Debug.as_str(),
-            "name": "Debug",
-            "description": "Diagnostics mode - reproduce, narrow hypotheses, root-cause bugs"
-        }
-    ]))
-}
+// `agent_list_modes` was removed (Orgtrack migration, mode-list
+// convergence): it returned a fourth divergent mode catalog (4 entries)
+// that no UI ever called — the picker is driven by the TS
+// `AGENT_EXEC_MODES` constant in sessionCreatorConfig.ts, which is the
+// single user-facing list.
 
 /// Resolve review: clear file resolutions and snapshots for a session.
 #[tauri::command]

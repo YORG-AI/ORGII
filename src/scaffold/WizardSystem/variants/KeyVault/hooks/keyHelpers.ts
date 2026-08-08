@@ -3,6 +3,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
+import type { OAuthModelCatalog } from "@src/api/services/keyValidation";
 import type { DetectedKey } from "@src/api/types/keys";
 import { createLogger } from "@src/hooks/logger";
 import { getDefaultEnabledModels } from "@src/util/modelGrouping";
@@ -29,6 +30,7 @@ export interface ApplyKeyCallbacks {
   isOAuthAgent: boolean;
   fallbackModels?: string[];
   defaultEnabledModels?: string[];
+  oauthCatalog?: OAuthModelCatalog;
   noValidTokenMsg: string;
   validationFailedMsg: string;
 }
@@ -67,6 +69,7 @@ export function applyKey(
     isOAuthAgent,
     fallbackModels = [],
     defaultEnabledModels,
+    oauthCatalog,
     noValidTokenMsg,
     validationFailedMsg,
   } = callbacks;
@@ -78,12 +81,32 @@ export function applyKey(
 
   const sessionToken = cred.session_token || cred.api_key;
   const quotaInfo = normalizeDetectedQuotaInfo(cred.quota_info);
-  const modelsAvailable =
-    cred.available_models && cred.available_models.length > 0
+  const modelsAvailable = oauthCatalog
+    ? oauthCatalog.models
+    : cred.available_models && cred.available_models.length > 0
       ? cred.available_models
       : fallbackModels;
+  const catalogDefaultModels = oauthCatalog?.defaultEnabledModels.filter(
+    (model) => modelsAvailable.includes(model)
+  );
   const modelsEnabled =
-    defaultEnabledModels ?? getDefaultEnabledModels(modelsAvailable);
+    defaultEnabledModels ??
+    (catalogDefaultModels && catalogDefaultModels.length > 0
+      ? catalogDefaultModels
+      : getDefaultEnabledModels(modelsAvailable));
+  const oauthCatalogFields: Partial<WizardData> = oauthCatalog
+    ? {
+        model_context_lengths: oauthCatalog.modelContextLengths,
+        model_variants: oauthCatalog.modelVariants.map((variant) => ({
+          model: variant.model,
+          baseModel: variant.base_model,
+          reasoning: variant.reasoning ?? undefined,
+          fast: variant.fast,
+          contextWindow: variant.context_window ?? undefined,
+        })),
+        default_variants: oauthCatalog.defaultVariants,
+      }
+    : { model_context_lengths: {} };
 
   if (!sessionToken) {
     setTokenError(noValidTokenMsg);
@@ -101,7 +124,7 @@ export function applyKey(
       raw_key_input: "",
       quota_info: quotaInfo,
       available_models: modelsAvailable,
-      model_context_lengths: {},
+      ...oauthCatalogFields,
       enabled_models: modelsEnabled,
       validated: true,
     });
@@ -121,7 +144,7 @@ export function applyKey(
       extracted_base_url: undefined,
       quota_info: quotaInfo,
       available_models: modelsAvailable,
-      model_context_lengths: {},
+      ...oauthCatalogFields,
       enabled_models: modelsEnabled,
       validated: true,
       auth_method: "oauth",
@@ -141,7 +164,7 @@ export function applyKey(
       raw_key_input: detectedApiKey,
       quota_info: quotaInfo,
       available_models: modelsAvailable,
-      model_context_lengths: {},
+      ...oauthCatalogFields,
       enabled_models: modelsEnabled,
       validated: cred.validated ?? true,
       extracted_api_key: detectedApiKey,

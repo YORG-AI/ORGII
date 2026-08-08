@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "orgtrack/v1/routine-run.schema.json",
+  "title": "Orgtrack v1 RoutineRun",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "id",
+    "routineId",
+    "routineRevision",
+    "snapshotHash",
+    "scopeId",
+    "status",
+    "createdBy",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "apiVersion": { "$ref": "common.schema.json#/definitions/apiVersion" },
+    "kind": { "const": "RoutineRun" },
+    "id": { "type": "string", "pattern": "^run_[A-Za-z0-9]+$" },
+    "routineId": { "type": "string", "minLength": 1 },
+    "routineRevision": { "type": "integer", "minimum": 1 },
+    "snapshotHash": { "type": "string", "pattern": "^sha256:[0-9a-f]+$" },
+    "scopeId": { "type": "string", "minLength": 1 },
+    "status": {
+      "$ref": "common.schema.json#/definitions/routineRunStatus",
+      "description": "Durable projection of generated WorkItems, computed by the ordered decision procedure in design doc §11. pending only exists for queued (concurrencyPolicy: queue) runs that have not materialized yet."
+    },
+    "inputs": { "type": "object" },
+    "rootWorkItemId": {
+      "oneOf": [{ "type": "string" }, { "type": "null" }],
+      "description": "Null only while status is pending (queued, not yet materialized)."
+    },
+    "createdBy": { "$ref": "common.schema.json#/definitions/actorRef" },
+    "createdAt": { "$ref": "common.schema.json#/definitions/isoTimestamp" },
+    "updatedAt": { "$ref": "common.schema.json#/definitions/isoTimestamp" }
+  }
+}

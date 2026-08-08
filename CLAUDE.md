@@ -32,6 +32,24 @@ If the skill block isn't already prefetched in your context, read its `SKILL.md`
 
 ---
 
+## Root-Cause-First Bug Fixing
+
+When malformed, stale, duplicated, or unexpected data appears in the UI:
+
+1. **Do not start with a UI filter, hidden row, fallback label, or string-pattern special case.** First determine whether the value is real persisted/remote domain data or only a presentation defect.
+2. Identify the authoritative source, inspect the actual stored payload, and trace every transformation and writer back to the earliest boundary that created the invalid state.
+3. Fix the invariant at that authoritative boundary: user-input parsing, API/RPC ingestion, persistence write, sync reconciliation, or canonical state projection.
+4. Add a regression test at the producing boundary proving the invalid state can no longer be created. A selector/render test alone is not sufficient.
+5. Treat historical pollution separately: inventory dependent data, get confirmation before destructive cleanup, perform the narrowest cleanup, then read back the authoritative source.
+6. UI filtering is allowed only when exclusion is an explicit product requirement or defense-in-depth **after** the source fix. It must never be the sole fix for invalid upstream data.
+7. Do not change adjacent valid behavior unless the user explicitly requests it.
+
+Before declaring the issue fixed, report the authoritative source, root cause, producing write path, source-level invariant, historical remediation, and verification evidence.
+
+Review gate: any UI predicate introduced to hide malformed data must cite an explicit product requirement. If the value violates the domain model, reject the UI-only patch until the producing path is fixed and covered by a regression test.
+
+---
+
 ## Default Delivery Flow
 
 ### Touching `*.tsx` files (UI work)

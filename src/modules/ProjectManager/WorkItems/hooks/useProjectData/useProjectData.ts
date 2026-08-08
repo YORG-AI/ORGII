@@ -34,6 +34,7 @@ export function useProjectData(
 
   const projectRef = useRef<ProjectData | null>(project);
   projectRef.current = project;
+  const loadGenerationRef = useRef(0);
 
   const [storeMembers, setStoreMembers] = useState<Person[]>([]);
   const [storeLabels, setStoreLabels] = useState<Label[]>([]);
@@ -49,10 +50,13 @@ export function useProjectData(
   const availableLabels = storeLabels;
 
   const loadFromFiles = useCallback(async () => {
+    const loadGeneration = loadGenerationRef.current + 1;
+    loadGenerationRef.current = loadGeneration;
     setLoading(true);
     setError(null);
     try {
       const result = await file.fetchFromFiles(selectedProjectId);
+      if (loadGenerationRef.current !== loadGeneration) return;
       setProject(result.project);
       setStoreMembers(result.members);
       setStoreLabels(result.labels);
@@ -63,6 +67,7 @@ export function useProjectData(
         setSelectedProjectId(result.autoSelectedId);
       }
     } catch (err) {
+      if (loadGenerationRef.current !== loadGeneration) return;
       const message =
         err instanceof Error
           ? err.message
@@ -70,7 +75,9 @@ export function useProjectData(
       setError(message);
       log.error("[useProjectData] Load error:", err);
     } finally {
-      setLoading(false);
+      if (loadGenerationRef.current === loadGeneration) {
+        setLoading(false);
+      }
     }
   }, [file, selectedProjectId]);
 
@@ -141,83 +148,26 @@ export function useProjectData(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProjectId]);
 
+  const wasActiveRef = useRef(false);
   useEffect(() => {
-    if (!autoLoad) return;
+    const wasActive = wasActiveRef.current;
+    wasActiveRef.current = isActive;
+    if (!autoLoad || !isActive) {
+      loadGenerationRef.current += 1;
+      return;
+    }
 
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await file.fetchFromFiles(selectedProjectId);
-        if (cancelled) return;
-        setProject(result.project);
-        setStoreMembers(result.members);
-        setStoreLabels(result.labels);
-        setStoreProjects(result.allProjects);
-        setRawMembers(result.rawMembers);
-        setRawLabels(result.labels);
-        if (result.autoSelectedId) {
-          setSelectedProjectId(result.autoSelectedId);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to load project from store";
-        setError(message);
-        log.error("[useProjectData] Load error:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
+    const selectedProjectAlreadyLoaded =
+      selectedProjectId !== null &&
+      projectRef.current?.id === selectedProjectId;
+    if (!wasActive || !selectedProjectAlreadyLoaded) {
+      void loadFromFiles();
+    }
 
     return () => {
-      cancelled = true;
+      loadGenerationRef.current += 1;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoLoad]);
-
-  useEffect(() => {
-    if (!selectedProjectId) return;
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await file.fetchFromFiles(selectedProjectId);
-        if (cancelled) return;
-        setProject(result.project);
-        setStoreMembers(result.members);
-        setStoreLabels(result.labels);
-        setStoreProjects(result.allProjects);
-        setRawMembers(result.rawMembers);
-        setRawLabels(result.labels);
-      } catch (err) {
-        if (cancelled) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Failed to load project from store";
-        setError(message);
-        log.error("[useProjectData] Load error:", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId]);
+  }, [autoLoad, isActive, loadFromFiles, selectedProjectId]);
 
   const activeLoadFromFiles = useCallback(() => {
     if (!isActive) return;
@@ -225,14 +175,6 @@ export function useProjectData(
   }, [isActive, loadFromFiles]);
 
   useProjectDataChanged(activeLoadFromFiles);
-
-  const wasActiveRef = useRef(isActive);
-  useEffect(() => {
-    if (isActive && !wasActiveRef.current && project !== null) {
-      loadFromFiles();
-    }
-    wasActiveRef.current = isActive;
-  }, [isActive, loadFromFiles, project]);
 
   return {
     project,

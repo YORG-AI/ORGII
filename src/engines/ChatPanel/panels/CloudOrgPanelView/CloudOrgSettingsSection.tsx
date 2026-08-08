@@ -27,6 +27,11 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 
 import type { SelectValue } from "./cloudOrgPanelTypes";
 import type { CloudOrgManagement } from "./useCloudOrgManagement";
+import {
+  ORG_BACKGROUND_UPLOAD_OFF_VALUE,
+  ORG_BACKGROUND_UPLOAD_ON_VALUE,
+  type OrgBackgroundUploadState,
+} from "./useOrgBackgroundUpload";
 import type { OrgRuntimeTelemetryState } from "./useOrgRuntimeTelemetry";
 
 interface CloudOrgSettingsSectionProps {
@@ -37,6 +42,7 @@ interface CloudOrgSettingsSectionProps {
   floorError: string | null;
   onFloorChange: (value: SelectValue) => Promise<void>;
   runtimeSharing: OrgRuntimeTelemetryState;
+  backgroundUpload: OrgBackgroundUploadState;
   openCloudBillingPage: () => void;
   orgName: string;
   members: CloudOrgMember[];
@@ -54,6 +60,7 @@ export function CloudOrgSettingsSection({
   floorError,
   onFloorChange,
   runtimeSharing,
+  backgroundUpload,
   openCloudBillingPage,
   orgName,
   members,
@@ -94,6 +101,22 @@ export function CloudOrgSettingsSection({
         value: COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
         label: t("cloud.syncLevel.modeFullReplay"),
         dataTestId: "cloud-org-sharing-floor-full",
+      },
+    ],
+    [t]
+  );
+
+  const backgroundUploadOptions = useMemo(
+    () => [
+      {
+        value: ORG_BACKGROUND_UPLOAD_OFF_VALUE,
+        label: t("cloud.backgroundUpload.off"),
+        dataTestId: "cloud-org-background-upload-off",
+      },
+      {
+        value: ORG_BACKGROUND_UPLOAD_ON_VALUE,
+        label: t("cloud.backgroundUpload.on"),
+        dataTestId: "cloud-org-background-upload-on",
       },
     ],
     [t]
@@ -308,6 +331,40 @@ export function CloudOrgSettingsSection({
                 `orgSettings.interval.${runtimeSharing.value}`
               ),
             })}
+          />
+        ) : null}
+
+        {isAdmin ? (
+          <SectionRow
+            label={t("cloud.backgroundUpload.label")}
+            description={t("cloud.backgroundUpload.help")}
+            align="start"
+          >
+            <div
+              className="flex flex-col gap-2"
+              data-testid="cloud-org-background-upload"
+            >
+              <Select
+                value={backgroundUpload.value}
+                options={backgroundUploadOptions}
+                onChange={(value) => void backgroundUpload.handleChange(value)}
+                size="default"
+                style={SECTION_CONTROL_STYLE}
+                disabled={backgroundUpload.saving}
+                dataTestId="cloud-org-background-upload-select"
+              />
+              {backgroundUpload.error ? (
+                <span className="text-[12px] text-danger-6">
+                  {backgroundUpload.error}
+                </span>
+              ) : null}
+            </div>
+          </SectionRow>
+        ) : backgroundUpload.enabled ? (
+          <SectionRow
+            dataTestId="cloud-org-background-upload-member-note"
+            label={t("cloud.backgroundUpload.label")}
+            description={t("cloud.backgroundUpload.memberNote")}
           />
         ) : null}
 

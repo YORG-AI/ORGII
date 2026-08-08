@@ -21,6 +21,7 @@ import {
   loadSidebarSessions,
   loadSidebarSessionsByIds,
   refreshRecentNativeSessions,
+  syncSidebarSessionRoster,
 } from "../loaders";
 import {
   BASE_SESSION_LIST_CATEGORIES,
@@ -29,6 +30,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   externalHistorySidebarList: vi.fn(),
+  nativeSidebarSessionPage: vi.fn(),
   sessionAggregateList: vi.fn(),
   persistSessions: vi.fn(),
   store: undefined as ReturnType<typeof createStore> | undefined,
@@ -36,6 +38,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@src/api/tauri/session", () => ({
   externalHistorySidebarList: mocks.externalHistorySidebarList,
+  nativeSidebarSessionPage: mocks.nativeSidebarSessionPage,
   sessionAggregateList: mocks.sessionAggregateList,
   toFrontendSessions: (sessions: unknown[]) => sessions,
 }));
@@ -52,7 +55,11 @@ vi.mock("../persistence", () => ({
   persistSessions: mocks.persistSessions,
 }));
 
-function makeRow(sessionId: string, updatedAt: string) {
+function makeRow(
+  sessionId: string,
+  updatedAt: string,
+  continuationLineageId?: string
+) {
   return {
     sessionId,
     name: sessionId,
@@ -60,6 +67,7 @@ function makeRow(sessionId: string, updatedAt: string) {
     updatedAt,
     repoPath: "/tmp/project",
     storagePath: `/tmp/store/${sessionId}.jsonl`,
+    continuationLineageId,
   };
 }
 
@@ -67,12 +75,80 @@ describe("loadSidebarSessions", () => {
   beforeEach(() => {
     mocks.store = createStore();
     mocks.externalHistorySidebarList.mockReset();
+    mocks.nativeSidebarSessionPage.mockReset();
+    mocks.nativeSidebarSessionPage.mockResolvedValue({
+      sessions: [],
+      nextCursor: null,
+      hasMore: false,
+    });
     mocks.sessionAggregateList.mockReset();
     mocks.persistSessions.mockReset();
   });
 
   it("keeps legacy sidebar callers on the canonical roster coordinator", () => {
     expect(loadSidebarSessions).toBe(loadSessionRoster);
+  });
+
+  it("keeps healthy imported sources listed when one source's store fails", async () => {
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockResolvedValue({
+      sources: IMPORTED_HISTORY_SOURCES.map((source) =>
+        source.sourceId === "cursor_ide"
+          ? { source: source.sourceId, buckets: [], error: "disk on fire" }
+          : {
+              source: source.sourceId,
+              buckets: [
+                {
+                  bucket: "older",
+                  sessions:
+                    source.sourceId === "codex_app"
+                      ? [
+                          makeRow(
+                            "codexapp-healthy",
+                            "2026-07-01T00:00:00Z",
+                            "continuation-root"
+                          ),
+                        ]
+                      : [],
+                  hasMore: false,
+                },
+              ],
+            }
+      ),
+    });
+
+    await loadSidebarSessions();
+
+    const pagination = mocks.store?.get(sessionPaginationAtom);
+    // The broken source is UNKNOWN, never an authoritative empty page.
+    expect(pagination?.["external_history:cursor_ide"].phase).toBe("error");
+    expect(pagination?.["external_history:cursor_ide"].generation).toBe(0);
+    // Its healthy siblings still publish their rows.
+    expect(pagination?.["external_history:codex_app"].sessionIds).toEqual([
+      "codexapp-healthy",
+    ]);
+    expect(
+      mocks.store
+        ?.get(sessionsAtom)
+        .find((session) => session.session_id === "codexapp-healthy")
+        ?.continuationLineageId
+    ).toBe("continuation-root");
+  });
+
+  it("does not publish an authoritative empty page when the whole batch rejects", async () => {
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockRejectedValue(new Error("ipc down"));
+
+    await loadSidebarSessions();
+
+    const pagination = mocks.store?.get(sessionPaginationAtom);
+    for (const source of IMPORTED_HISTORY_SOURCES) {
+      const state = pagination?.[source.listCategory];
+      expect(state?.phase).toBe("error");
+      // generation must stay 0 — createSidebarRosterMatcher treats any
+      // generation > 0 as authoritative and would hide every imported row.
+      expect(state?.generation).toBe(0);
+    }
   });
 
   it("refreshes gateway-created native rows without reloading imported sources", async () => {
@@ -105,7 +181,7 @@ describe("loadSidebarSessions", () => {
     expect(mocks.sessionAggregateList).toHaveBeenCalledOnce();
     expect(mocks.sessionAggregateList).toHaveBeenCalledWith({
       includeExternalHistory: false,
-      limit: 30,
+      limit: 60,
       sortBy: "updated_at",
       sortOrder: "desc",
     });
@@ -113,6 +189,46 @@ describe("loadSidebarSessions", () => {
     expect(
       mocks.store?.get(sessionsAtom).map((session) => session.session_id)
     ).toEqual(["gateway-native", "existing-native", "claude-code-imported"]);
+  });
+
+  it("adds only newly discovered rows ahead of the authoritative roster cursor", async () => {
+    const current = mocks.store?.get(sessionPaginationAtom);
+    if (!current || !mocks.store) throw new Error("missing test store");
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-page-10"],
+        cursor: {
+          updatedAt: "2026-07-30T10:00:00Z",
+          sessionId: "sdeagent-page-10",
+        },
+        phase: "ready",
+        generation: 1,
+      },
+    });
+    mocks.sessionAggregateList.mockResolvedValue({
+      sessions: [
+        {
+          session_id: "sdeagent-newer",
+          status: "completed",
+          created_at: "2026-07-30T11:00:00Z",
+          updated_at: "2026-07-30T11:00:00Z",
+        },
+        {
+          session_id: "sdeagent-older-history",
+          status: "completed",
+          created_at: "2026-07-30T09:00:00Z",
+          updated_at: "2026-07-30T09:00:00Z",
+        },
+      ],
+    });
+
+    await refreshRecentNativeSessions();
+
+    expect(
+      mocks.store.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual(["sdeagent-newer", "sdeagent-page-10"]);
   });
 
   it("single-flights overlapping recent native refreshes", async () => {
@@ -133,6 +249,495 @@ describe("loadSidebarSessions", () => {
     expect(mocks.sessionAggregateList).toHaveBeenCalledOnce();
     resolveRefresh?.({ sessions: [] });
     await Promise.all([first, second]);
+  });
+
+  it("pages standalone agents and Agent Org roots with independent cursors", async () => {
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockResolvedValue({ sources: [] });
+    mocks.nativeSidebarSessionPage.mockImplementation(
+      async (
+        stream: string,
+        cursor: { updatedAt: string; sessionId: string } | null
+      ) => {
+        if (stream === "standaloneAgent" && cursor === null) {
+          return {
+            sessions: [
+              {
+                session_id: "standalone-1",
+                updated_at: "2026-07-30T12:00:00Z",
+              },
+              {
+                session_id: "standalone-2",
+                updated_at: "2026-07-30T11:00:00Z",
+              },
+            ],
+            nextCursor: {
+              updatedAt: "2026-07-30T11:00:00Z",
+              sessionId: "standalone-2",
+            },
+            hasMore: true,
+          };
+        }
+        if (stream === "standaloneAgent") {
+          return {
+            sessions: [
+              {
+                session_id: "standalone-3",
+                updated_at: "2026-07-30T10:00:00Z",
+              },
+            ],
+            nextCursor: {
+              updatedAt: "2026-07-30T10:00:00Z",
+              sessionId: "standalone-3",
+            },
+            hasMore: false,
+          };
+        }
+        if (stream !== "agentOrgRoot") {
+          return { sessions: [], nextCursor: null, hasMore: false };
+        }
+        return {
+          sessions: [
+            {
+              session_id: "org-root-1",
+              agentOrgId: "org-1",
+              updated_at: "2026-07-30T09:00:00Z",
+            },
+          ],
+          nextCursor: {
+            updatedAt: "2026-07-30T09:00:00Z",
+            sessionId: "org-root-1",
+          },
+          hasMore: true,
+        };
+      }
+    );
+
+    await loadSidebarSessions({ forceRefresh: true, pageSize: 2 });
+
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledWith(
+      "standaloneAgent",
+      null,
+      10
+    );
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledWith(
+      "agentOrgRoot",
+      null,
+      10
+    );
+    expect(mocks.store?.get(sessionPaginationAtom).standalone_agent).toEqual(
+      expect.objectContaining({
+        sessionIds: ["standalone-1", "standalone-2"],
+        cursor: {
+          updatedAt: "2026-07-30T11:00:00Z",
+          sessionId: "standalone-2",
+        },
+        phase: "ready",
+      })
+    );
+    expect(mocks.store?.get(sessionPaginationAtom).agent_org_root).toEqual(
+      expect.objectContaining({
+        sessionIds: ["org-root-1"],
+        phase: "ready",
+      })
+    );
+
+    mocks.nativeSidebarSessionPage.mockClear();
+    await loadMoreCategory("standalone_agent", 2);
+
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledTimes(1);
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledWith(
+      "standaloneAgent",
+      {
+        updatedAt: "2026-07-30T11:00:00Z",
+        sessionId: "standalone-2",
+      },
+      2
+    );
+    expect(mocks.store?.get(sessionPaginationAtom).standalone_agent).toEqual(
+      expect.objectContaining({
+        sessionIds: ["standalone-1", "standalone-2", "standalone-3"],
+        phase: "exhausted",
+      })
+    );
+    expect(mocks.store?.get(sessionPaginationAtom).agent_org_root).toEqual(
+      expect.objectContaining({
+        sessionIds: ["org-root-1"],
+        phase: "ready",
+      })
+    );
+  });
+
+  it("single-flights a rapid double click for the same stream", async () => {
+    const cursor = {
+      updatedAt: "2026-07-30T12:00:00Z",
+      sessionId: "sdeagent-10",
+    };
+    const current = mocks.store?.get(sessionPaginationAtom);
+    if (!current || !mocks.store) throw new Error("missing test store");
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-10"],
+        cursor,
+        phase: "ready",
+        generation: 1,
+      },
+    });
+
+    let resolvePage:
+      | ((value: {
+          sessions: Array<{ session_id: string; updated_at: string }>;
+          nextCursor: null;
+          hasMore: false;
+        }) => void)
+      | undefined;
+    mocks.nativeSidebarSessionPage.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePage = resolve;
+        })
+    );
+
+    const first = loadMoreCategory("standalone_agent");
+    const second = loadMoreCategory("standalone_agent");
+
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledOnce();
+    await expect(second).resolves.toEqual(
+      expect.objectContaining({ phase: "loading", sessions: [] })
+    );
+    resolvePage?.({
+      sessions: [
+        {
+          session_id: "sdeagent-11",
+          updated_at: "2026-07-30T11:00:00Z",
+        },
+      ],
+      nextCursor: null,
+      hasMore: false,
+    });
+    await expect(first).resolves.toEqual(
+      expect.objectContaining({
+        phase: "exhausted",
+        newSessionIds: ["sdeagent-11"],
+      })
+    );
+  });
+
+  it("keeps the cursor on error and retries the same page", async () => {
+    const cursor = {
+      updatedAt: "2026-07-30T12:00:00Z",
+      sessionId: "sdeagent-10",
+    };
+    const current = mocks.store?.get(sessionPaginationAtom);
+    if (!current || !mocks.store) throw new Error("missing test store");
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-10"],
+        cursor,
+        phase: "ready",
+        generation: 1,
+      },
+    });
+    mocks.nativeSidebarSessionPage
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockResolvedValueOnce({
+        sessions: [
+          {
+            session_id: "sdeagent-11",
+            updated_at: "2026-07-30T11:00:00Z",
+          },
+        ],
+        nextCursor: null,
+        hasMore: false,
+      });
+
+    await expect(loadMoreCategory("standalone_agent")).resolves.toEqual(
+      expect.objectContaining({ phase: "error" })
+    );
+    expect(mocks.store.get(sessionPaginationAtom).standalone_agent).toEqual(
+      expect.objectContaining({ cursor, phase: "error" })
+    );
+
+    await loadMoreCategory("standalone_agent");
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenNthCalledWith(
+      2,
+      "standaloneAgent",
+      cursor,
+      10
+    );
+    expect(mocks.store.get(sessionPaginationAtom).standalone_agent.phase).toBe(
+      "exhausted"
+    );
+  });
+
+  it("treats a duplicate-only page as a retryable contract error", async () => {
+    const cursor = {
+      updatedAt: "2026-07-30T12:00:00Z",
+      sessionId: "sdeagent-10",
+    };
+    const current = mocks.store?.get(sessionPaginationAtom);
+    if (!current || !mocks.store) throw new Error("missing test store");
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-10"],
+        cursor,
+        phase: "ready",
+        generation: 1,
+      },
+    });
+    mocks.nativeSidebarSessionPage.mockResolvedValue({
+      sessions: [
+        {
+          session_id: "sdeagent-10",
+          updated_at: "2026-07-30T12:00:00Z",
+        },
+      ],
+      nextCursor: {
+        updatedAt: "2026-07-30T11:00:00Z",
+        sessionId: "sdeagent-20",
+      },
+      hasMore: true,
+    });
+
+    await expect(loadMoreCategory("standalone_agent")).resolves.toEqual(
+      expect.objectContaining({ phase: "error", newSessionIds: [] })
+    );
+    expect(mocks.store.get(sessionPaginationAtom).standalone_agent).toEqual(
+      expect.objectContaining({
+        sessionIds: ["sdeagent-10"],
+        cursor,
+        phase: "error",
+      })
+    );
+  });
+
+  it("lets a pinned row reach the destination cursor without a duplicate-only error", async () => {
+    const pinnedCursor = {
+      updatedAt: "2026-07-30T12:00:00Z",
+      sessionId: "sdeagent-pinned-page-1",
+    };
+    const standaloneCursor = {
+      updatedAt: "2026-07-30T11:00:00Z",
+      sessionId: "sdeagent-moved",
+    };
+    const current = mocks.store?.get(sessionPaginationAtom);
+    if (!current || !mocks.store) throw new Error("missing test store");
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      pinned_native: {
+        ...current.pinned_native,
+        sessionIds: ["sdeagent-pinned-page-1"],
+        cursor: pinnedCursor,
+        phase: "ready",
+        generation: 1,
+      },
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-moved"],
+        cursor: standaloneCursor,
+        phase: "ready",
+        generation: 1,
+      },
+    });
+
+    syncSidebarSessionRoster({
+      session_id: "sdeagent-moved",
+      status: "completed",
+      created_at: "2026-07-30T10:00:00Z",
+      updated_at: "2026-07-30T10:00:00Z",
+      pinned: true,
+    });
+    expect(
+      mocks.store.get(sessionPaginationAtom).pinned_native.sessionIds
+    ).toEqual(["sdeagent-pinned-page-1"]);
+
+    mocks.nativeSidebarSessionPage.mockResolvedValue({
+      sessions: [
+        {
+          session_id: "sdeagent-moved",
+          updated_at: "2026-07-30T10:00:00Z",
+          pinned: true,
+        },
+      ],
+      nextCursor: {
+        updatedAt: "2026-07-30T10:00:00Z",
+        sessionId: "sdeagent-moved",
+      },
+      hasMore: false,
+    });
+
+    await expect(loadMoreCategory("pinned_native")).resolves.toEqual(
+      expect.objectContaining({
+        phase: "exhausted",
+        newSessionIds: ["sdeagent-moved"],
+      })
+    );
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledWith(
+      "pinnedNative",
+      pinnedCursor,
+      10
+    );
+    expect(mocks.store.get(sessionPaginationAtom).pinned_native).toEqual(
+      expect.objectContaining({
+        sessionIds: ["sdeagent-pinned-page-1", "sdeagent-moved"],
+        phase: "exhausted",
+      })
+    );
+  });
+
+  it("drops a late response from the generation before a forced refresh", async () => {
+    const oldCursor = {
+      updatedAt: "2026-07-30T12:00:00Z",
+      sessionId: "sdeagent-old-10",
+    };
+    const current = mocks.store?.get(sessionPaginationAtom);
+    if (!current || !mocks.store) throw new Error("missing test store");
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-old-10"],
+        cursor: oldCursor,
+        phase: "ready",
+        generation: 1,
+      },
+    });
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => ({
+        sources: request.requests.map(({ source, buckets }) => ({
+          source,
+          buckets: buckets.map(({ bucket }) => ({
+            bucket,
+            sessions: [],
+            hasMore: false,
+          })),
+        })),
+      })
+    );
+    let resolveOldPage:
+      | ((value: {
+          sessions: Array<{ session_id: string; updated_at: string }>;
+          nextCursor: null;
+          hasMore: false;
+        }) => void)
+      | undefined;
+    mocks.nativeSidebarSessionPage.mockImplementation(
+      (
+        stream: string,
+        cursor: { updatedAt: string; sessionId: string } | null
+      ) => {
+        if (
+          stream === "standaloneAgent" &&
+          cursor?.sessionId === oldCursor.sessionId
+        ) {
+          return new Promise((resolve) => {
+            resolveOldPage = resolve;
+          });
+        }
+        return Promise.resolve({
+          sessions: [],
+          nextCursor: null,
+          hasMore: false,
+        });
+      }
+    );
+
+    const oldPage = loadMoreCategory("standalone_agent");
+    await loadSessionRoster({ forceRefresh: true });
+    resolveOldPage?.({
+      sessions: [
+        {
+          session_id: "sdeagent-stale-response",
+          updated_at: "2026-07-30T11:00:00Z",
+        },
+      ],
+      nextCursor: null,
+      hasMore: false,
+    });
+    await oldPage;
+
+    expect(
+      mocks.store.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual([]);
+    expect(
+      mocks.store
+        .get(sessionsAtom)
+        .some((session) => session.session_id === "sdeagent-stale-response")
+    ).toBe(false);
+  });
+
+  it("replaces a 30-row provisional cache with the first 10-row roster page", async () => {
+    const cached = Array.from({ length: 30 }, (_, index) => ({
+      session_id: `sdeagent-${index + 1}`,
+      status: "completed" as const,
+      created_at: `2026-07-30T${String(30 - index).padStart(2, "0")}:00:00Z`,
+      updated_at: `2026-07-30T${String(30 - index).padStart(2, "0")}:00:00Z`,
+    }));
+    mocks.store?.set(sessionsAtom, cached);
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => ({
+        sources: request.requests.map(({ source, buckets }) => ({
+          source,
+          buckets: buckets.map(({ bucket }) => ({
+            bucket,
+            sessions: [],
+            hasMore: false,
+          })),
+        })),
+      })
+    );
+    mocks.nativeSidebarSessionPage.mockImplementation(async (stream: string) =>
+      stream === "standaloneAgent"
+        ? {
+            sessions: cached.slice(0, 10),
+            nextCursor: {
+              updatedAt: cached[9].updated_at,
+              sessionId: cached[9].session_id,
+            },
+            hasMore: true,
+          }
+        : { sessions: [], nextCursor: null, hasMore: false }
+    );
+
+    await loadSessionRoster({ forceRefresh: true, pageSize: 10 });
+
+    expect(mocks.store?.get(sessionsAtom)).toHaveLength(30);
+    expect(
+      mocks.store?.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual(cached.slice(0, 10).map((session) => session.session_id));
+
+    mocks.nativeSidebarSessionPage.mockResolvedValue({
+      sessions: cached.slice(10, 20),
+      nextCursor: {
+        updatedAt: cached[19].updated_at,
+        sessionId: cached[19].session_id,
+      },
+      hasMore: true,
+    });
+    const nextPage = await loadMoreCategory("standalone_agent");
+
+    expect(nextPage.newSessionIds).toEqual(
+      cached.slice(10, 20).map((session) => session.session_id)
+    );
+    expect(
+      mocks.store?.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual(cached.slice(0, 20).map((session) => session.session_id));
   });
 
   it("loads an independent initial page for every external-history source", async () => {
@@ -220,7 +825,8 @@ describe("loadSidebarSessions", () => {
     for (const source of IMPORTED_HISTORY_SOURCES) {
       expect(loadedIds).toContain(`${source.prefix}yesterday`);
       expect(
-        mocks.store?.get(sessionPaginationAtom)[source.listCategory].loaded
+        mocks.store?.get(sessionPaginationAtom)[source.listCategory].sessionIds
+          .length
       ).toBe(11);
       expect(
         mocks.store?.get(sessionPaginationAtom)[source.listCategory].dateBuckets
@@ -260,7 +866,7 @@ describe("loadSidebarSessions", () => {
     const secondLoad = loadSidebarSessions({ forceRefresh: true });
     const thirdLoad = loadSidebarSessions();
 
-    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledTimes(
       BASE_SESSION_LIST_CATEGORIES.length
     );
     expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
@@ -295,7 +901,7 @@ describe("loadSidebarSessions", () => {
     const forcedLoad = loadSidebarSessions({ forceRefresh: true });
     await Promise.all([cachedLoad, forcedLoad]);
 
-    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledTimes(
       BASE_SESSION_LIST_CATEGORIES.length
     );
     expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
@@ -418,7 +1024,7 @@ describe("loadSidebarSessions", () => {
     releaseFirstLoad();
     await Promise.all([firstLoad, changedScopeLoad]);
 
-    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(
+    expect(mocks.nativeSidebarSessionPage).toHaveBeenCalledTimes(
       BASE_SESSION_LIST_CATEGORIES.length * 2
     );
     expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(2);

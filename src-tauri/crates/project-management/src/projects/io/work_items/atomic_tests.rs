@@ -1,5 +1,9 @@
 //! Tests for the atomic RMW and partial-update wrappers in `super`.
 
+#![allow(clippy::field_reassign_with_default)]
+// These tests intentionally build partial updates one field at a time so each
+// mutation remains adjacent to the behavior it exercises.
+
 use super::*;
 use crate::projects::io::projects::write_project;
 use crate::projects::io::work_items::{

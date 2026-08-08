@@ -37,11 +37,43 @@ vi.mock("@src/store/settings", () => ({
   ],
 }));
 
+vi.mock("@src/store/ui/notificationAtom", () => ({
+  notificationSettingsAtom: {},
+}));
+
+vi.mock("jotai", () => ({
+  useAtomValue: () => ({
+    enabled: true,
+    systemNotificationEnabled: false,
+    dockBadgeEnabled: false,
+    soundEnabled: false,
+    soundPreset: "classic",
+    soundVolume: 70,
+    criticalOnly: false,
+    quietHours: {
+      enabled: false,
+      start: "23:00",
+      end: "08:00",
+      allowCritical: true,
+    },
+    backgroundCompletionSummary: true,
+    mutedSessionIds: [],
+    categories: {
+      taskCompletion: true,
+      agentApproval: true,
+      errors: true,
+      teamInbox: true,
+    },
+  }),
+}));
+
 vi.mock("@src/api/services/notification", () => ({
   checkNotificationPermission: mocks.checkPermission,
   requestNotificationPermission: mocks.requestPermission,
   sendTestNotification: mocks.sendTest,
-  playCompletionSound: mocks.playSound,
+  playNotificationSound: mocks.playSound,
+  setDockBadge: vi.fn(),
+  unlockNotificationSound: vi.fn(),
 }));
 
 vi.mock("@/src/modules/shared/layouts/SectionLayout", () => ({
@@ -80,6 +112,10 @@ vi.mock("@src/components/Button", () => ({
 }));
 
 vi.mock("@src/components/Slider", () => ({
+  default: () => createElement("div"),
+}));
+
+vi.mock("@src/components/Select", () => ({
   default: () => createElement("div"),
 }));
 
@@ -148,10 +184,19 @@ describe("notification settings lifecycle", () => {
     const defaults: Record<string, unknown> = {
       "notifications.enabled": true,
       "notifications.completionSound": false,
+      "notifications.soundPreset": "classic",
       "notifications.systemNotificationEnabled": false,
       "notifications.dockBadgeEnabled": false,
       "notifications.soundVolume": 70,
+      "notifications.criticalOnly": false,
+      "notifications.quietHours.enabled": false,
+      "notifications.quietHours.start": "23:00",
+      "notifications.quietHours.end": "08:00",
+      "notifications.quietHours.allowCritical": true,
+      "notifications.backgroundCompletionSummary": true,
+      "notifications.mutedSessionIds": [],
       "notifications.categories.taskCompletion": true,
+      "notifications.categories.agentApproval": true,
       "notifications.categories.errors": true,
       "notifications.categories.teamInbox": true,
     };

@@ -59,6 +59,14 @@ export interface UsageTrendPoint {
   costUsd: number;
 }
 
+/** A bounded headline + trend snapshot captured at one instant. */
+export interface RecentUsageSnapshot {
+  startMs: number;
+  endMs: number;
+  summary: UsageSummary;
+  trends: UsageTrendPoint[];
+}
+
 export interface UsageSessionRow {
   sessionId: string;
   name: string;
@@ -302,14 +310,16 @@ export interface DailyRollupResult {
   days: DailyRollupRow[];
   /** Lifetime mirror-deduped session count — independent of the window. */
   totalSessions: number;
+  /** Rolling 24h usage derived during the same local round scan. */
+  recentUsage24h: RecentUsageSnapshot;
 }
 
 /**
  * Per-UTC-day, per-bucket rollup over `[startMs, endMs]` for the
  * member-runtime push (registered behind the same 1-permit semaphore as the
  * other dashboard scans, so a plain wrapper is enough — concurrent callers
- * queue in the backend). Also carries the lifetime session census the push
- * shares as `stats.totalSessions`.
+ * queue in the backend). Also carries the lifetime session census and a
+ * rolling-24h snapshot the push shares through its bounded status blob.
  */
 export async function usageDashboardDailyRollup(
   startMs: number,

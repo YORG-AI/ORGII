@@ -252,6 +252,9 @@ function TableComponent<T = unknown>(
     settings &&
     lastColumnKey != null &&
     ["actions", "status", "enabled"].includes(lastColumnKey);
+  const tableRows = table.getRowModel().rows;
+  const tableHeaderGroups = table.getHeaderGroups();
+  const showFixedSettingsHeader = settings && showHeader;
 
   const wrapperClasses = [
     "table-wrapper",
@@ -261,6 +264,7 @@ function TableComponent<T = unknown>(
     stripe && "table-stripe",
     border && "table-border",
     settings && "table-settings",
+    tableRows.length === 0 && "table-has-empty-state",
     pinLastColumn && "table-settings-pin-last-column",
     horizontalAffordance.left && "table-scroll-has-left",
     horizontalAffordance.right && "table-scroll-has-right",
@@ -278,10 +282,6 @@ function TableComponent<T = unknown>(
         maxHeight: scroll.y,
       }
     : undefined;
-
-  const tableRows = table.getRowModel().rows;
-  const tableHeaderGroups = table.getHeaderGroups();
-  const showFixedSettingsHeader = settings && showHeader;
 
   const updateHorizontalAffordance = useCallback(() => {
     const scrollElement = bodyScrollRef.current;

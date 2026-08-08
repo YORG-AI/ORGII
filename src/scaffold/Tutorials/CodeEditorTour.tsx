@@ -3,6 +3,7 @@ import { useSetAtom } from "jotai";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { getMaterialConfig } from "@src/components/Glass/config";
@@ -27,8 +28,6 @@ interface TourStep {
   id: string;
   target: CodeEditorTourTarget;
   fallbackTarget?: CodeEditorTourTarget;
-  title: string;
-  body: string;
   openSourceControl?: boolean;
   openDashboard?: boolean;
   sourceControlFilterMode?: SourceControlFilterMode;
@@ -50,57 +49,41 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "tabs",
     target: CODE_EDITOR_TOUR_TARGETS.tabBar,
-    title: "Code Editor tabs",
-    body: "Tabs collect the files, diffs, terminals, source control views, and dashboards you open while working in the repo.",
   },
   {
     id: "repo-selector",
     target: CODE_EDITOR_TOUR_TARGETS.repoSelector,
-    title: "Create or switch repos",
-    body: "Use the repo selector to switch the active repo or start the flow for adding another repository or workspace.",
   },
   {
     id: "branch-selector",
     target: CODE_EDITOR_TOUR_TARGETS.branchSelector,
     fallbackTarget: CODE_EDITOR_TOUR_TARGETS.repoSelector,
-    title: "Change branches",
-    body: "The branch selector shows the current Git branch and opens the branch switch/create flow for this repo.",
   },
   {
     id: "editor-surface",
     target: CODE_EDITOR_TOUR_TARGETS.editorSurface,
-    title: "Editor workspace",
-    body: "This is the main Code Editor surface. Open files, inspect diffs, run terminals, and review generated changes here.",
   },
   {
     id: "create-tabs",
     target: CODE_EDITOR_TOUR_TARGETS.plusMenu,
-    title: "Create new tabs",
-    body: "Use the plus menu in All Tabs to create new work surfaces such as terminals, browser tabs, files, dashboards, and repo utilities.",
   },
   {
     id: "source-control",
     target: CODE_EDITOR_TOUR_TARGETS.sourceControl,
-    title: "Git changes",
     openSourceControl: true,
     sourceControlFilterMode: "uncommitted",
-    body: "Open Source Control to review changed files, stage or unstage work, commit, pull, push, fetch, and sync with the remote.",
   },
   {
     id: "git-history",
     target: CODE_EDITOR_TOUR_TARGETS.gitHistory,
     fallbackTarget: CODE_EDITOR_TOUR_TARGETS.sourceControl,
-    title: "Git history",
     openSourceControl: true,
     sourceControlFilterMode: "history",
-    body: "Git History switches Source Control into commit history mode so you can inspect previous commits and related changes.",
   },
   {
     id: "dashboard",
     target: CODE_EDITOR_TOUR_TARGETS.dashboard,
-    title: "Code Editor dashboard",
     openDashboard: true,
-    body: "The dashboard is the Code Editor home tab for workspaces. Use it to add repos, open repo details, and jump into project work.",
   },
 ];
 
@@ -218,6 +201,7 @@ function buildPopoverStyle(rect: TargetRect): React.CSSProperties {
 }
 
 const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
+  const { t } = useTranslation("onboarding");
   const { isDark } = useCurrentTheme();
   const setStationMode = useSetAtom(stationModeAtom);
   const setSourceControlFilterMode = useSetAtom(sourceControlFilterModeAtom);
@@ -389,12 +373,15 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
         >
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-[11px] font-medium uppercase tracking-wider text-primary-6">
-              Step {stepIndex + 1} of {TOUR_STEPS.length}
+              {t("tutorials.chrome.stepProgress", {
+                current: stepIndex + 1,
+                total: TOUR_STEPS.length,
+              })}
             </span>
             <button
               type="button"
               className="flex size-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6"
-              aria-label="Close"
+              aria-label={t("tutorials.chrome.close")}
               onClick={onClose}
             >
               <X size={14} />
@@ -402,10 +389,10 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
           </div>
 
           <h3 className="mb-1.5 text-[14px] font-semibold leading-tight text-text-1">
-            {currentStep.title}
+            {t(`tutorials.codeEditor.steps.${currentStep.id}.title`)}
           </h3>
           <p className="mb-3 text-[12px] leading-[1.45] text-text-2">
-            {currentStep.body}
+            {t(`tutorials.codeEditor.steps.${currentStep.id}.body`)}
           </p>
 
           <div className="mb-3 flex gap-1.5">
@@ -428,12 +415,12 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
               iconOnly
               icon={<ArrowLeft size={13} />}
               disabled={isFirstStep}
-              aria-label="Previous step"
-              title="Previous step"
+              aria-label={t("tutorials.chrome.previous")}
+              title={t("tutorials.chrome.previous")}
               onClick={goPrevious}
             />
             <span className="text-[11px] text-text-3">
-              Use ← / → or &lt; / &gt;
+              {t("tutorials.chrome.keyboardHint")}
             </span>
             <Button
               size="mini"
@@ -441,8 +428,16 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
               shape="circle"
               iconOnly
               icon={isLastStep ? <Check size={13} /> : <ArrowRight size={13} />}
-              aria-label={isLastStep ? "Finish tour" : "Next step"}
-              title={isLastStep ? "Finish tour" : "Next step"}
+              aria-label={
+                isLastStep
+                  ? t("tutorials.chrome.finish")
+                  : t("tutorials.chrome.next")
+              }
+              title={
+                isLastStep
+                  ? t("tutorials.chrome.finish")
+                  : t("tutorials.chrome.next")
+              }
               onClick={goNext}
             />
           </div>

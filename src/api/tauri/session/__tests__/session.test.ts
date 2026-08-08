@@ -79,6 +79,20 @@ describe("toFrontendSession", () => {
     expect(toFrontendSession(rustRecord).keySource).toBe("hosted_key");
   });
 
+  it("normalizes native Rust wire categories in production-shaped records", () => {
+    const wireRecord = (category: "cli" | "agent" | "os" | "human") =>
+      makeAggregateRecord({
+        category: category as SessionAggregateRecord["category"],
+      });
+
+    expect(toFrontendSession(wireRecord("cli")).category).toBe("cli_agent");
+    expect(toFrontendSession(wireRecord("agent")).category).toBe("rust_agent");
+    expect(toFrontendSession(wireRecord("os")).category).toBe("rust_agent");
+    expect(toFrontendSession(wireRecord("human")).category).toBe(
+      "human_session"
+    );
+  });
+
   it("keeps imported app sessions distinct from launched CLI sessions", () => {
     const cursorApp = toFrontendSession(
       makeAggregateRecord({

@@ -92,6 +92,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
       radius = SELECT_DEFAULTS.radius,
       variant = "default",
       dataTestId,
+      ariaLabel,
     },
     ref
   ) => {
@@ -341,6 +342,10 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
           ref={triggerRef}
           className={wrapperClasses}
           data-testid={dataTestId}
+          role="combobox"
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={currentPopupVisible}
           onClick={toggle}
           onKeyDown={handleKeyDown}
           onFocus={onFocus}

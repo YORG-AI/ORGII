@@ -28,6 +28,8 @@ export interface ElementDimensions {
 export interface UseElementDimensionsOptions {
   /** What to measure: 'width', 'height', or 'both' */
   dimension?: DimensionType;
+  /** Disable measurement and listener ownership while the element is absent. */
+  enabled?: boolean;
   /** Additional dependency to trigger re-measurement */
   deps?: unknown[];
 }
@@ -70,7 +72,7 @@ export function useElementDimensions(
   ref: RefObject<HTMLElement | null | { current?: HTMLElement | null }>,
   options: UseElementDimensionsOptions = {}
 ): number | ElementDimensions {
-  const { dimension = "both", deps = [] } = options;
+  const { dimension = "both", enabled = true, deps = [] } = options;
 
   const [dimensions, setDimensions] = useState<ElementDimensions>({
     width: 0,
@@ -78,6 +80,8 @@ export function useElementDimensions(
   });
 
   useIsomorphicLayoutEffect(() => {
+    if (!enabled) return;
+
     const measureDimensions = () => {
       // Handle nested ref objects
       const element =
@@ -118,7 +122,7 @@ export function useElementDimensions(
 
     // Set up ResizeObserver for accurate tracking
     let resizeObserver: ResizeObserver | null = null;
-    if (element) {
+    if (element && typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(measureDimensions);
       resizeObserver.observe(element);
     }
@@ -130,7 +134,7 @@ export function useElementDimensions(
       window.removeEventListener("resize", measureDimensions);
       resizeObserver?.disconnect();
     };
-  }, [ref, ...deps]);
+  }, [ref, enabled, ...deps]);
 
   // Return based on requested dimension
   if (dimension === "width") return dimensions.width;

@@ -75,7 +75,7 @@ function getCheckboxIconClassName(options: {
 }): string {
   const { size, isDark, disabled, isOn } = options;
   const base = [
-    "inline-flex items-center justify-center shrink-0 rounded border transition-all duration-200 ease-in-out",
+    "inline-flex items-center justify-center shrink-0 rounded border transition-[background-color,border-color,box-shadow] duration-200 ease-in-out",
     CHECKBOX_ICON_BOX[size],
     "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-6",
   ];
@@ -97,7 +97,7 @@ function getCheckboxIconClassName(options: {
 
 function getCheckboxSvgClassName(isOn: boolean): string {
   return [
-    "text-white transition-all duration-200 ease-[cubic-bezier(0.12,0.4,0.29,1.46)]",
+    "text-white transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.12,0.4,0.29,1.46)]",
     isOn ? "opacity-100 scale-100" : "opacity-0 scale-0",
   ].join(" ");
 }
@@ -259,7 +259,7 @@ const Checkbox: React.FC<CheckboxProps> & {
   const iconPixelSize = CHECKBOX_ICON_PX[size];
 
   const labelClassName = [
-    "group inline-flex items-center gap-2 relative select-none transition-all duration-200 ease-in-out",
+    "group inline-flex items-center gap-2 relative select-none",
     CHECKBOX_SIZE_LABEL[size],
     disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
     className,

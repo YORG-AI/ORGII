@@ -1,4 +1,4 @@
-import { ExternalLink, Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, SquareArrowOutUpRight } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -141,7 +141,7 @@ const CliClientInlineExpandedCard = ({
             <Button
               variant="secondary"
               size="small"
-              icon={<ExternalLink size={14} />}
+              icon={<SquareArrowOutUpRight size={14} />}
               iconPosition="right"
               onClick={() => openExternalLink(agent.docsUrl!)}
             >

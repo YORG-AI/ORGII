@@ -84,6 +84,7 @@ export const CliAgentTypeSchema = z.union([
 export const ApiProviderTypeSchema = z.union([
   z.literal("anthropic_api"),
   z.literal("openai_api"),
+  z.literal("atlascloud_api"),
   z.literal("deepseek_api"),
   z.literal("gemini_api"),
   z.literal("groq_api"),

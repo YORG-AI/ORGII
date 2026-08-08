@@ -38,6 +38,7 @@ import {
   resolveScopeRepoRoot,
 } from "./Panels/EditorPrimarySidebar/tabs/sourceControlScopePickerHelpers";
 import { resolveGitDiffSelection } from "./sourceControlSelection";
+import { rememberSourceControlFocusPath } from "./sourceControlStateTransitions";
 import { useStashCount } from "./useStashCount";
 
 interface UseSourceControlSetupParams {
@@ -53,6 +54,8 @@ interface UseSourceControlSetupParams {
 export interface UseSourceControlSetupReturn {
   sourceControlFilterMode: SourceControlFilterMode;
   sourceControlFilterCounts: SourceControlFilterCounts;
+  /** Repo/worktree root currently selected by the Source Control scope picker. */
+  sourceControlActiveRepoRoot: string;
   sourceControlHeaderFilter: React.ReactNode;
   sourceControlHeaderScopePicker: React.ReactNode;
   tabSidebarExtraContext: {
@@ -106,6 +109,10 @@ export function useSourceControlSetup({
     enabled: isGitInitialized === true && hasWorktrees,
     worktreesReady: !worktreesLoading,
   });
+  const sourceControlActiveRepoRoot = useMemo(
+    () => resolveScopeRepoRoot(scope, repoPath),
+    [repoPath, scope]
+  );
 
   const repoName = useMemo(() => {
     const segments = repoPath.replace(/\/+$/, "").split("/");
@@ -150,9 +157,8 @@ export function useSourceControlSetup({
     if (!repoPath) {
       return { uncommitted: 0, unstaged: 0, staged: 0 };
     }
-    const activeRepoRoot = resolveScopeRepoRoot(scope, repoPath);
     const files = Array.from(gitFilesByPath.values()).filter(
-      (file) => (file.repoRoot ?? repoPath) === activeRepoRoot
+      (file) => (file.repoRoot ?? repoPath) === sourceControlActiveRepoRoot
     );
     const staged = files.filter((file) => file.staged).length;
     return {
@@ -160,7 +166,7 @@ export function useSourceControlSetup({
       unstaged: files.length - staged,
       staged,
     };
-  }, [gitFilesByPath, repoPath, scope]);
+  }, [gitFilesByPath, repoPath, sourceControlActiveRepoRoot]);
 
   const sourceControlStashCount = useStashCount({
     repoPath,
@@ -383,17 +389,22 @@ export function useSourceControlSetup({
         path: relativePath,
         repoRoot: effectiveRepoPath,
       });
+      setPrimaryPanel((state) =>
+        rememberSourceControlFocusPath(state, absolutePath)
+      );
       setSourceControlFocusTarget({ path: absolutePath, nonce: Date.now() });
 
       // AllChangesView loads content only after its target section expands.
-      // This handler deliberately remains metadata-only.
+      // Keep the click metadata-only while remembering the same path for a
+      // later hand-off to Focus mode.
     },
-    [repoPath, setGitDiffFile, setSourceControlFocusTarget]
+    [repoPath, setGitDiffFile, setPrimaryPanel, setSourceControlFocusTarget]
   );
 
   return {
     sourceControlFilterMode,
     sourceControlFilterCounts,
+    sourceControlActiveRepoRoot,
     sourceControlHeaderFilter,
     sourceControlHeaderScopePicker,
     tabSidebarExtraContext,

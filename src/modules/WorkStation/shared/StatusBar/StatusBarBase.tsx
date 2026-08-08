@@ -20,7 +20,7 @@ import React, { forwardRef, memo } from "react";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { classNames } from "@src/util/ui/classNames";
 
-import { STATUS_BAR_TOKENS } from "./statusBarTokens";
+import { STATUS_BAR_TOKENS, STATUS_BAR_TYPOGRAPHY } from "./statusBarTokens";
 
 // ============================================
 // Types
@@ -175,11 +175,45 @@ export const StatusBarSegment: React.FC<StatusBarSegmentProps> = memo(
 
 StatusBarSegment.displayName = "StatusBarSegment";
 
+export interface StatusBarLabelProps {
+  children: React.ReactNode;
+  /** Use the status bar's emphasized label weight. */
+  emphasis?: boolean;
+  /** Use stable-width numerals for changing counts and positions. */
+  numeric?: boolean;
+  className?: string;
+}
+
+/**
+ * Inline typography primitive for labels nested inside status-bar buttons and
+ * segments. Font size and line height come from the bar root; this component
+ * owns only the semantic weight and numeric alignment variants.
+ */
+export const StatusBarLabel: React.FC<StatusBarLabelProps> = memo(
+  ({ children, emphasis = false, numeric = false, className }) => (
+    <span
+      className={classNames(
+        emphasis ? STATUS_BAR_TYPOGRAPHY.emphasis : STATUS_BAR_TYPOGRAPHY.label,
+        numeric && STATUS_BAR_TYPOGRAPHY.numeric,
+        className
+      )}
+    >
+      {children}
+    </span>
+  )
+);
+
+StatusBarLabel.displayName = "StatusBarLabel";
+
 export interface StatusBarTextProps {
   /** Text content */
   children: React.ReactNode;
   /** Whether text should be muted */
   muted?: boolean;
+  /** Use the status bar's emphasized label weight. */
+  emphasis?: boolean;
+  /** Use stable-width numerals for changing counts and positions. */
+  numeric?: boolean;
   /** Native tooltip — useful for truncated labels */
   title?: string;
   /** Additional class name */
@@ -190,11 +224,22 @@ export interface StatusBarTextProps {
  * Plain text segment — same horizontal padding and height alignment as {@link StatusBarButton}.
  */
 export const StatusBarText: React.FC<StatusBarTextProps> = memo(
-  ({ children, muted = false, title, className }) => {
+  ({
+    children,
+    muted = false,
+    emphasis = false,
+    numeric = false,
+    title,
+    className,
+  }) => {
     return (
       <span
         className={classNames(
           STATUS_BAR_TOKENS.text,
+          emphasis
+            ? STATUS_BAR_TYPOGRAPHY.emphasis
+            : STATUS_BAR_TYPOGRAPHY.label,
+          numeric && STATUS_BAR_TYPOGRAPHY.numeric,
           muted ? "text-text-3" : "text-text-1",
           className
         )}
@@ -241,7 +286,7 @@ export const BaseStatusBar: React.FC<BaseStatusBarProps> = memo(
         className={classNames(
           STATUS_BAR_TOKENS.barShell,
           STATUS_BAR_TOKENS.heightClass,
-          STATUS_BAR_TOKENS.textSizeClass,
+          STATUS_BAR_TOKENS.typographyClass,
           STATUS_BAR_TOKENS.barPaddingClass,
           // Top hairline = boundary with the content area above. The
           // bottom hairline (boundary with the dock) is owned by

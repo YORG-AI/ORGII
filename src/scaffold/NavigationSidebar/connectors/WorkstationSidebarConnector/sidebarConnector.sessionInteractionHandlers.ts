@@ -50,6 +50,7 @@ interface UseWorkstationSidebarSessionInteractionHandlersParams {
   navigateTo: SidebarHandlersParams["navigateTo"];
   openSession: SidebarHandlersParams["openSession"];
   promoteActiveSessionCreatorDraft: SidebarHandlersParams["promoteActiveSessionCreatorDraft"];
+  groupByMode: SidebarHandlersParams["groupByMode"];
   setGroupVisibleCounts: SidebarHandlersParams["setGroupVisibleCounts"];
   tCommon: SidebarHandlersParams["tCommon"];
   activateChatPanelTab: (tabId: string) => void;
@@ -87,6 +88,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
   navigateTo,
   openSession,
   promoteActiveSessionCreatorDraft,
+  groupByMode,
   setGroupVisibleCounts,
   tCommon,
   activateChatPanelTab,
@@ -142,6 +144,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
     navigateTo,
     openSession,
     promoteActiveSessionCreatorDraft,
+    groupByMode,
     setGroupVisibleCounts,
     tCommon,
     onOpenChatPanelTab: activateChatPanelTab,

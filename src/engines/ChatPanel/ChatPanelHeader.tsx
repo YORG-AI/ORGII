@@ -13,7 +13,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import RegionNoticeButton from "@src/components/RegionNoticeButton";
 import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
-import { COLLAPSED_SIDEBAR_CHROME_OFFSET } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
@@ -282,7 +282,7 @@ export function ChatPanelHeader({
         style={
           {
             paddingLeft: shouldOffsetHeaderForCollapsedSidebar
-              ? COLLAPSED_SIDEBAR_CHROME_OFFSET
+              ? getCollapsedSidebarChromeOffset()
               : undefined,
             ...(windowsHost
               ? CHAT_PANEL_HEADER_NO_DRAG_STYLE

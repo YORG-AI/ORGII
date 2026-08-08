@@ -208,7 +208,9 @@ pub struct ToolHookIntervention {
 /// Implementors handle streaming deltas, tool call/result events,
 /// and persistence. Each agent type provides its own implementation.
 #[async_trait]
-#[allow(unused_variables)]
+#[allow(unused_variables, clippy::too_many_arguments)]
+// Event implementations share this callback contract across providers; keep
+// its event fields explicit instead of introducing provider-specific wrappers.
 pub trait TurnEventHandler: Send + Sync {
     /// Called for each streaming text delta from the LLM.
     fn on_message_delta(&self, session_id: &str, content: &str);

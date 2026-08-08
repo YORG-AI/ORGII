@@ -9,12 +9,18 @@
  * rendering for every pre-existing call site.
  */
 export type DiffStatsBadgeSize = "inherit" | "xs" | "sm" | "md";
+export type DiffStatsBadgeWeight = "normal" | "medium";
 
 export const DIFF_STATS_SIZE_CLASSES: Record<DiffStatsBadgeSize, string> = {
   inherit: "",
   xs: "text-[11px]",
   sm: "text-[12px]",
   md: "text-[13px]",
+};
+
+export const DIFF_STATS_WEIGHT_CLASSES: Record<DiffStatsBadgeWeight, string> = {
+  normal: "font-normal",
+  medium: "font-medium",
 };
 
 /**
@@ -27,4 +33,11 @@ export function getDiffStatsSizeClass(size?: DiffStatsBadgeSize): string {
     return DIFF_STATS_SIZE_CLASSES.inherit;
   }
   return DIFF_STATS_SIZE_CLASSES[size] ?? DIFF_STATS_SIZE_CLASSES.inherit;
+}
+
+/** Maps the named badge weight to a single Tailwind typography token. */
+export function getDiffStatsWeightClass(
+  weight: DiffStatsBadgeWeight = "medium"
+): string {
+  return DIFF_STATS_WEIGHT_CLASSES[weight] ?? DIFF_STATS_WEIGHT_CLASSES.medium;
 }

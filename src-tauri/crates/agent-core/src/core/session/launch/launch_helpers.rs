@@ -15,6 +15,9 @@ use crate::session::turn::streaming::{
 
 use super::launch_workspace::release_work_item_execution_lock_if_present;
 
+#[allow(clippy::too_many_arguments)]
+// Failure handling deliberately receives each durable identifier and log
+// message explicitly so cleanup cannot accidentally reuse stale launch state.
 pub(super) async fn handle_background_launch_failure(
     session_id: &str,
     agent_org_run_id: Option<&str>,

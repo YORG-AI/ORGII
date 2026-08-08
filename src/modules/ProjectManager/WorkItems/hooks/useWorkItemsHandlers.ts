@@ -14,9 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { ROUTES } from "@src/config/routes";
-import type { CalendarEvent } from "@src/features/CalendarView";
-import type { GanttTask } from "@src/features/GanttChart";
-import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
+import type { TaskStatus } from "@src/features/KanbanBoard";
 import { createLogger } from "@src/hooks/logger";
 import type { ProjectData } from "@src/modules/ProjectManager/shared";
 import type {
@@ -243,16 +241,6 @@ export function useWorkItemsHandlers({
     [getShortId, refreshWorkItems, restoreWorkItemApi]
   );
 
-  const handleKanbanTaskClick = useCallback(
-    (task: KanbanTask) => selectAndCollapseProperties(task.id),
-    [selectAndCollapseProperties]
-  );
-
-  const handleGanttTaskClick = useCallback(
-    (task: GanttTask) => selectAndCollapseProperties(task.id),
-    [selectAndCollapseProperties]
-  );
-
   const handleGanttTaskUpdate = useCallback(
     (taskId: string, updates: { startDate?: Date; endDate?: Date }) => {
       // Update work item dates when task is dragged/resized in Gantt chart
@@ -266,11 +254,6 @@ export function useWorkItemsHandlers({
       handleUpdate(taskId, dateUpdates);
     },
     [handleUpdate]
-  );
-
-  const handleCalendarEventClick = useCallback(
-    (event: CalendarEvent) => selectAndCollapseProperties(event.id),
-    [selectAndCollapseProperties]
   );
 
   const handleCloseWorkItemDetail = useCallback(() => {
@@ -300,14 +283,11 @@ export function useWorkItemsHandlers({
     handleTabChange,
     handleToggleProperties,
     handleKanbanTaskMove,
-    handleKanbanTaskClick,
     handleAddTask,
     handleAddListItem,
     handleDelete,
     handleRestore,
-    handleGanttTaskClick,
     handleGanttTaskUpdate,
-    handleCalendarEventClick,
     handleCloseWorkItemDetail,
     handleProjectUpdate,
   };

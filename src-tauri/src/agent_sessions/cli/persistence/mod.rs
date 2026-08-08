@@ -71,6 +71,87 @@ mod resume_state_tests {
     }
 
     #[test]
+    fn sidebar_page_filters_pinned_and_child_rows_before_limit() {
+        let _sandbox = test_env::sandbox();
+        for session_id in [
+            "cli-regular-a",
+            "cli-regular-b",
+            "cli-regular-c",
+            "cli-pinned",
+            "cli-child",
+        ] {
+            create_test_session(session_id, "account-a");
+        }
+        let conn = database::db::get_connection().expect("sandbox database");
+        for (session_id, updated_at) in [
+            ("cli-regular-a", "2026-07-30T10:00:00Z"),
+            ("cli-regular-b", "2026-07-30T11:00:00Z"),
+            ("cli-regular-c", "2026-07-30T12:00:00Z"),
+            ("cli-pinned", "2026-07-30T14:00:00Z"),
+            ("cli-child", "2026-07-30T13:00:00Z"),
+        ] {
+            conn.execute(
+                "UPDATE code_sessions SET updated_at = ?2 WHERE session_id = ?1",
+                rusqlite::params![session_id, updated_at],
+            )
+            .expect("set deterministic activity time");
+        }
+        conn.execute(
+            "UPDATE code_sessions SET pinned = 1 WHERE session_id = 'cli-pinned'",
+            [],
+        )
+        .expect("pin fixture");
+        conn.execute(
+            "UPDATE code_sessions
+             SET parent_session_id = 'cli-regular-c'
+             WHERE session_id = 'cli-child'",
+            [],
+        )
+        .expect("make child fixture");
+
+        let first = list_unpinned_root_sessions_page(2, None).expect("first CLI page");
+        assert_eq!(
+            first
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["cli-regular-c", "cli-regular-b"]
+        );
+        let cursor = first.last().expect("first page cursor");
+        let second =
+            list_unpinned_root_sessions_page(2, Some((&cursor.updated_at, &cursor.session_id)))
+                .expect("second CLI page");
+        assert_eq!(
+            second
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["cli-regular-a"]
+        );
+
+        let mut plan = conn
+            .prepare(
+                "EXPLAIN QUERY PLAN
+                 SELECT session_id
+                 FROM code_sessions
+                 WHERE pinned = 0 AND parent_session_id IS NULL
+                 ORDER BY updated_at DESC, session_id DESC
+                 LIMIT 11",
+            )
+            .expect("prepare CLI sidebar query plan");
+        let details = plan
+            .query_map([], |row| row.get::<_, String>(3))
+            .expect("read CLI sidebar query plan")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("collect CLI sidebar query plan")
+            .join("\n");
+        assert!(
+            details.contains("idx_code_sessions_sidebar"),
+            "CLI page did not use the sidebar index:\n{details}"
+        );
+    }
+
+    #[test]
     fn cli_session_and_turn_intent_lifecycle_commit_atomically() {
         let _sandbox = test_env::sandbox();
         let session_id = "cli-atomic-lifecycle";

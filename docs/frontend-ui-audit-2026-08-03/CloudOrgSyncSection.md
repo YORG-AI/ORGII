@@ -1,0 +1,20 @@
+# CloudOrgSyncSection UI audit
+
+Scope: member-attributed sync-log rows and the member filter introduced by PR #664. The configured `frontend-ui-audit` skill file was unavailable in both documented locations, so this report applies the repository's stated design-system, reuse, accessibility, and arbitrary-value checks directly.
+
+| Line                          | Element               | Verdict          | Reason                                                                                                                                                                                                                                   | Suggested change                                                                                                                              |
+| ----------------------------- | --------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CloudOrgSyncSection.tsx:524` | Member filter         | keep with reason | Reuses the shared `Select` component, including keyboard navigation, portal positioning, selected-state affordance, and the design-system `pill` radius. Search only appears for rosters above eight members.                            | None.                                                                                                                                         |
+| `CloudOrgSyncSection.tsx:169` | Member identity       | abstract         | Reuses `AvatarChip` for the visible member pill and keeps the stable `userId` in the tooltip/accessibility label instead of duplicating it in the row copy.                                                                              | Keep the journal-specific identity adapter local; promote it only if another diagnostics surface needs the same `SyncJournalMember` contract. |
+| `AvatarChip/index.tsx:9`      | Avatar fallback       | fix              | The shared chip previously rendered an empty avatar circle when no image existed. An explicit `avatarFallback` prop lets callers supply an initial or icon without changing existing call sites.                                         | Covered by the sync-log rendered test; no implicit fallback was added because labels may be non-text React nodes.                             |
+| `CloudOrgSyncSection.tsx:587` | Log card              | keep with reason | Border, background, radius, spacing, warning/error colors, and typography all use existing semantic tokens; no raw color or one-off CSS variable was introduced. The card boundary separates entries more clearly than whitespace alone. | None.                                                                                                                                         |
+| `CloudOrgSyncSection.tsx:616` | `member: message` row | keep with reason | The member pill precedes the message with a visible colon, supports wrapping, and preserves the un-attributed legacy row path. The pill has a full identity tooltip and accessible label.                                                | None.                                                                                                                                         |
+| `CloudOrgSyncSection.tsx:548` | Copy / clear actions  | keep with reason | Existing shared `Button` components and disabled states remain unchanged. Copy now follows the active member filter while clear intentionally clears the complete journal.                                                               | None.                                                                                                                                         |
+
+## Summary
+
+- fix: 1
+- keep with reason: 4
+- abstract: 1
+- arbitrary Tailwind colors/values introduced: 0
+- raw interactive elements introduced: 0

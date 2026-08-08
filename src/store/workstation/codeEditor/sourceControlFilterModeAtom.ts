@@ -1,9 +1,6 @@
 import { atom } from "jotai";
 
-// NOTE: Import directly from the leaf file (not the barrel) to avoid pulling
-// the whole SidebarModules tree — which transitively re-imports @src/store —
-// back into the store layer and creating a circular dependency.
-import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules/SourceControl/SourceControlFilterHeader";
+import type { SourceControlFilterMode } from "./sourceControlTypes";
 
 /** Active Source Control sidebar filter (file buckets or git history graph). */
 export const sourceControlFilterModeAtom =

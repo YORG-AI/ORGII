@@ -8,6 +8,8 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import ProgressBar from "@src/components/ProgressBar";
+
 import { FloatingToolbar } from "./FloatingToolbar";
 import "./index.scss";
 import type { RichTextEditorProps, RichTextEditorRef } from "./types";
@@ -20,6 +22,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     {
       className = "",
       toolbarClassName = "",
+      toolbarMode = "floating",
+      toolbarSize = "small",
+      toolbarDropdownPosition = "bottom-start",
       minHeight = 120,
       maxHeight,
       onImageInsert,
@@ -83,24 +88,47 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     if (!editor) {
       return (
         <div
-          className={`rich-text-editor loading ${className}`.trim()}
+          className={`rich-text-editor loading overflow-hidden ${className}`.trim()}
           style={{ minHeight }}
         >
-          <div className="loading-placeholder">{t("editor.loading")}</div>
+          <ProgressBar
+            percent={0}
+            indeterminate
+            ariaLabel={t("editor.loading")}
+            height="h-0.5"
+            width="w-full"
+            trackColor="bg-transparent"
+            className="absolute inset-x-0 top-0 rounded-none"
+          />
         </div>
       );
     }
 
+    const hasConstrainedHeight = maxHeight !== undefined;
+
     return (
       <div
-        className={`rich-text-editor ${isDark ? "dark" : "light"} ${className}`.trim()}
+        className={`rich-text-editor ${
+          hasConstrainedHeight ? "rich-text-editor-scroll-contained" : ""
+        } ${isDark ? "dark" : "light"} ${className}`.trim()}
         style={{
           minHeight,
           maxHeight,
-          overflowY: maxHeight ? "auto" : undefined,
         }}
       >
-        {showToolbar && (
+        {toolbarMode === "inline" && (
+          <FloatingToolbar
+            editor={editor}
+            placement="inline"
+            onImagePickerOpen={
+              onImageInsert ? () => fileInputRef.current?.click() : undefined
+            }
+            className={toolbarClassName}
+            size={toolbarSize}
+            dropdownPosition={toolbarDropdownPosition}
+          />
+        )}
+        {toolbarMode === "floating" && showToolbar && (
           <FloatingToolbar
             editor={editor}
             position={toolbarPosition}
@@ -108,6 +136,8 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
               onImageInsert ? () => fileInputRef.current?.click() : undefined
             }
             className={toolbarClassName}
+            size={toolbarSize}
+            dropdownPosition={toolbarDropdownPosition}
           />
         )}
         <EditorContent editor={editor} className="rich-text-editor-wrapper" />

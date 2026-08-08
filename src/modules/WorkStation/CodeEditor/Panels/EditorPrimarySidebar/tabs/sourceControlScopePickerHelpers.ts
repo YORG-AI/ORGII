@@ -1,14 +1,17 @@
 import type { GitWorktreeDiffSummary } from "@src/api/http/git/types";
+import type {
+  SourceControlScope,
+  SourceControlScopeMap,
+} from "@src/store/workstation/codeEditor/sourceControlTypes";
 import {
   formatRepoPathForDisplay,
   normalizeDisplayPath,
 } from "@src/util/file/repoPathDisplay";
 
-export type SourceControlScope =
-  | { kind: "local" }
-  | { kind: "worktree"; path: string };
-
-export type SourceControlScopeMap = Record<string, SourceControlScope>;
+export type {
+  SourceControlScope,
+  SourceControlScopeMap,
+} from "@src/store/workstation/codeEditor/sourceControlTypes";
 
 export interface ScopePickerDiffStats {
   additions: number;

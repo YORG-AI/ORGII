@@ -51,6 +51,9 @@ pub(crate) struct AgentRunLaunchRequest {
     pub org_context: LaunchOrgContext,
     pub provenance: LaunchProvenance,
     pub mode: Option<String>,
+    /// Product mode (`orgtrack/v1` §5.2). Launch-from-work/routine
+    /// resolves to `project` server-side regardless of this value.
+    pub product_mode: Option<String>,
     pub name: Option<String>,
     pub images: Option<Vec<String>>,
     pub ide_context: Option<IdeContext>,
@@ -323,6 +326,9 @@ pub async fn launch_agent_session(
                 lock_reason,
             },
             mode: Some(crate::session::AgentExecMode::Build.as_str().to_string()),
+            // Launch-from-WorkItem is Project mode by the frozen resolver
+            // (orgtrack/v1 decisions §1, precedence rule 1).
+            product_mode: Some("project".to_string()),
             name: Some(format!("{}: {}", agent_role, work_item_id)),
             images: None,
             ide_context: None,
@@ -481,6 +487,7 @@ pub(crate) async fn launch_rust_agent_run(
         agent_definition_id.clone(),
         request.resources.key_source.clone(),
         request.mode.clone(),
+        request.product_mode.clone(),
         request.resources.native_harness_type.clone(),
         request.parent_session_id.clone(),
     )

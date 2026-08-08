@@ -346,11 +346,6 @@ export interface E2EHelpers {
   >;
   getDesktopConfig: () => Promise<Result<{ config: Json }>>;
   setDesktopConfig: (config: Json) => Promise<{ ok: true } | Err>;
-  listAutomationRules: () => Promise<Result<{ rules: Json[] }>>;
-  addAutomationRule: (ruleJson: string) => Promise<Result<{ ruleId: string }>>;
-  removeAutomationRule: (
-    ruleId: string
-  ) => Promise<Result<{ removed: boolean }>>;
   listPolicies: (
     workspacePath?: string
   ) => Promise<Result<{ policies: Json[] }>>;
@@ -532,6 +527,10 @@ export interface E2EHelpers {
   reloadSessionList: () => Promise<
     Result<{ count: number; sessionIds: string[] }>
   >;
+  primeSidebarEntityCache: () => Promise<Result<{ count: number }>>;
+  inspectSidebarPagination: (
+    sessionIds?: string[]
+  ) => Promise<Result<{ pagination: Json; sessions: Json[] }>>;
   getSessionAggregateRow: (
     sessionId: string
   ) => Promise<Result<{ session: Json | null }>>;
@@ -633,6 +632,14 @@ export interface E2EHelpers {
     status: string;
     createdAt: string;
     updatedAt: string;
+  }) => Promise<Result<{ sessionId: string }>>;
+  debugSeedSidebarCodingSessionWire: (input: {
+    sessionId: string;
+    name: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    pinned?: boolean;
   }) => Promise<Result<{ sessionId: string }>>;
   debugSeedPendingPlanWire: (input: {
     sessionId: string;

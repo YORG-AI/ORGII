@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Modal from "@src/scaffold/ModalSystem";
@@ -16,6 +17,8 @@ function startTutorial(tutorial: TutorialEntry): void {
 }
 
 const TutorialsModal: React.FC<TutorialsModalProps> = ({ open, onClose }) => {
+  const { t } = useTranslation("onboarding");
+
   const handleStart = (tutorial: TutorialEntry) => {
     onClose();
     window.setTimeout(() => startTutorial(tutorial), 120);
@@ -25,7 +28,7 @@ const TutorialsModal: React.FC<TutorialsModalProps> = ({ open, onClose }) => {
     <Modal
       visible={open}
       onCancel={onClose}
-      title="Tutorials"
+      title={t("tutorials.modalTitle")}
       footer={null}
       width={560}
       bodyClassName="p-0"
@@ -41,7 +44,7 @@ const TutorialsModal: React.FC<TutorialsModalProps> = ({ open, onClose }) => {
             className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left transition-colors hover:bg-fill-1"
           >
             <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-text-1">
-              {tutorial.title} ({tutorial.durationLabel})
+              {t(tutorial.titleKey)} ({t(tutorial.durationKey)})
             </span>
 
             <Button
@@ -49,7 +52,7 @@ const TutorialsModal: React.FC<TutorialsModalProps> = ({ open, onClose }) => {
               variant="primary"
               onClick={() => handleStart(tutorial)}
             >
-              Start
+              {t("tutorials.start")}
             </Button>
           </div>
         ))}

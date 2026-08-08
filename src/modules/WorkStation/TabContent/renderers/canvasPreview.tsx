@@ -5,7 +5,7 @@
  * the payload in a full-height WorkStation view. Closing the card closes the
  * tab and clears the matching Canvas entry.
  */
-import { ExternalLink, Layout, X } from "lucide-react";
+import { Layout, SquareArrowOutUpRight, X } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -93,7 +93,7 @@ const CanvasPreviewTabRenderer: React.FC<UnifiedTabContentProps> = memo(
               aria-label={t("previews.openInBrowser")}
               size="sm"
             >
-              <ExternalLink size={12} />
+              <SquareArrowOutUpRight size={12} />
             </IconButton>
             <IconButton
               onClick={handleDismiss}

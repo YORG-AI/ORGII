@@ -1659,8 +1659,11 @@ describe("Work Item durable object runtime invariants", function () {
         accountId: account.id,
         model: PREFERRED_API_MODEL_ID,
         workspacePath: E2E_REPO_PATH,
-        agentDefinitionId: "builtin:work-item-manager",
+        agentDefinitionId: "builtin:os",
         agentExecMode: "ask",
+        // PM tools are product-mode gated (orgtrack/v1 §5.2); without
+        // this the probe session would have them policy-denied.
+        productMode: "project",
         agentRole: "orchestrator",
       }),
       "launchSession(work item manager batch)"
@@ -1866,8 +1869,11 @@ describe("Work Item durable object runtime invariants", function () {
         accountId: account.id,
         model: PREFERRED_API_MODEL_ID,
         workspacePath: repo.path,
-        agentDefinitionId: "builtin:work-item-manager",
+        agentDefinitionId: "builtin:os",
         agentExecMode: "ask",
+        // PM tools are product-mode gated (orgtrack/v1 §5.2); without
+        // this the probe session would have them policy-denied.
+        productMode: "project",
         agentRole: "orchestrator",
       }),
       "launchSession(work item manager auto-create project execute)"
@@ -2402,7 +2408,7 @@ describe("Work Item durable object runtime invariants", function () {
         model: PREFERRED_API_MODEL_ID,
         agentType: account.agent_type,
         category: "rust_agent",
-        agentDefinitionId: "builtin:work-item-manager",
+        agentDefinitionId: "builtin:os",
         agentExecMode: "ask",
         repoPath: repo.path,
       }),

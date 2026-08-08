@@ -24,18 +24,37 @@
  * source adapter at push time).
  */
 import { atomWithStorage } from "jotai/utils";
+import { z } from "zod/v4";
 
 import {
   buildCloudOrgSelectorValue,
   parseCloudOrgSelectorValue,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import {
+  createZodJsonStorage,
+  tolerantRecordSchema,
+} from "@src/util/core/storage/zodStorage";
 
 /** sessionId → list of org tokens the session is explicitly tagged to. */
 export type SessionOrgTags = Record<string, string[]>;
 
+/**
+ * Per-entry tolerant, and validated at all — this store previously used the
+ * default JSON storage, where any parse failure resets EVERY tag. Losing a
+ * tag is not cosmetic: the push engine's ownership gate retracts the cloud
+ * row of a pushed session whose tag disappeared, so a whole-store reset
+ * silently unshares every explicitly moved session. A corrupted entry now
+ * costs exactly that session's tags.
+ */
+export const SessionOrgTagsSchema = tolerantRecordSchema(
+  "session org tag",
+  z.array(z.string())
+);
+
 export const sessionOrgTagsAtom = atomWithStorage<SessionOrgTags>(
   "orgii:session-org-tags-v1",
-  {}
+  {},
+  createZodJsonStorage(SessionOrgTagsSchema)
 );
 sessionOrgTagsAtom.debugLabel = "sessionOrgTagsAtom";
 

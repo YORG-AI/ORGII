@@ -157,6 +157,20 @@ export const saveSettingAtom = atom(
 saveSettingAtom.debugLabel = "saveSettingAtom";
 
 /**
+ * Persist several settings as one partial-file write before publishing the
+ * matching in-memory snapshot. Explicit multi-step flows use this at commit
+ * points so progress and outcome cannot diverge.
+ */
+export const saveSettingsBatchAtom = atom(
+  null,
+  async (_get, set, updates: Partial<SettingsObject>) => {
+    await enqueueSettingsPartialWrite(updates as Record<string, unknown>);
+    set(settingsAtom, (current) => ({ ...current, ...updates }));
+  }
+);
+saveSettingsBatchAtom.debugLabel = "saveSettingsBatchAtom";
+
+/**
  * Atom to update multiple settings at once.
  * Useful for batch operations or form submissions.
  */

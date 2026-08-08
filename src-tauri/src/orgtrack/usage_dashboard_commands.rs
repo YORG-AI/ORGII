@@ -137,6 +137,9 @@ pub async fn usage_dashboard_trends(
 }
 
 /// Optional summary/trends and request-log page from one round-store scan.
+#[allow(clippy::too_many_arguments)]
+// Tauri serializes these parameters as the existing frontend command contract;
+// replacing them with a request object would change the wire payload.
 #[tauri::command]
 pub async fn usage_dashboard_overview(
     bucket: Option<String>,
@@ -204,9 +207,10 @@ pub async fn usage_dashboard_rounds(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
-/// Per-(UTC day, bucket) rollup for the member-runtime cloud push. Unlike the
-/// scoped desktop views above, this always spans ALL sources (the `other`
-/// bucket included) so the totals a member shares with their org are complete.
+/// Per-(UTC day, bucket) rollup plus rolling-24h snapshot for the
+/// member-runtime cloud push. Unlike the scoped desktop views above, this
+/// always spans ALL sources (the `other` bucket included) so the totals a
+/// member shares with their org are complete.
 #[tauri::command]
 pub async fn usage_dashboard_daily_rollup(
     start_ms: i64,

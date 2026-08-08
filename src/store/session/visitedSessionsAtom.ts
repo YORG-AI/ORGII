@@ -9,13 +9,19 @@
  */
 import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
+import { z } from "zod/v4";
 
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
 
 const STORAGE_KEY = "orgii:visited-sessions";
 
 /** Cap to prevent unbounded localStorage growth across thousands of sessions. */
 const MAX_VISITED_IDS = 5_000;
+
+const VisitedSessionIdsStorageSchema = z
+  .array(z.string().min(1))
+  .transform((ids) => [...new Set(ids)].slice(0, MAX_VISITED_IDS));
 
 /**
  * Raw localStorage-backed list of visited session IDs.
@@ -24,7 +30,7 @@ const MAX_VISITED_IDS = 5_000;
 export const visitedSessionIdsAtom = atomWithStorage<string[]>(
   STORAGE_KEY,
   [],
-  undefined,
+  createZodJsonStorage(VisitedSessionIdsStorageSchema),
   { getOnInit: true }
 );
 visitedSessionIdsAtom.debugLabel = "visitedSessionIdsAtom";
@@ -72,3 +78,8 @@ export function markAllSessionsVisited(sessionIds: readonly string[]): void {
       : next;
   });
 }
+
+export const __VISITED_SESSIONS_INTERNALS = {
+  STORAGE_KEY,
+  MAX_VISITED_IDS,
+};

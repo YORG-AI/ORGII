@@ -11,7 +11,7 @@
  * the server keep their last pushed level until untagged/deleted (the 0010
  * server enforces reads by the persisted columns either way).
  */
-import Modal from "@/src/scaffold/ModalSystem";
+import Modal, { MODAL_SELECT_Z_INDEX } from "@/src/scaffold/ModalSystem";
 import { useAtom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -56,9 +56,6 @@ const ACCESS_MODE_LADDER = [
   COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
   COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
 ] as const;
-/** Above the modal wrapper (9999) so the panel is not swallowed by the mask. */
-const MODAL_SELECT_Z_INDEX = 10_000;
-
 export interface CloudSyncLevelDialogProps {
   /** The owner's local session; null keeps the dialog closed. */
   session: Session | null;

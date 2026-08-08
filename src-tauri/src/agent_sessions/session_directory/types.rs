@@ -136,6 +136,11 @@ pub struct SessionAggregateRecord {
     /// commits a value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_exec_mode: Option<String>,
+    /// Persistent product mode (`orgtrack/v1` §5.2):
+    /// `build | plan | ask | project`. Source of truth for whether the
+    /// session may mutate WorkItems/Routines. `None` = build.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub product_mode: Option<String>,
     /// Per-session unsent draft text. The contents the user has
     /// typed into the chat composer for this session but not yet sent.
     /// Persisted across navigation and app restarts. `None` means "no
@@ -286,6 +291,39 @@ pub struct SessionListResponse {
     pub sessions: Vec<SessionAggregateRecord>,
 }
 
+/// Independent native sidebar streams. Classification happens in SQL before
+/// pagination so neither stream can consume the other's page capacity.
+#[derive(Debug, Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NativeSidebarSessionStream {
+    PinnedNative,
+    StandaloneAgent,
+    AgentOrgRoot,
+    OsAgent,
+    CliAgent,
+    HumanSession,
+}
+
+/// Stable keyset cursor for a native sidebar stream.
+///
+/// Native pages are ordered by `(updated_at DESC, session_id DESC)`. Carrying
+/// both values prevents ties from duplicating or skipping rows, and avoids
+/// deriving a database offset from the frontend's merged entity cache.
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeSidebarSessionCursor {
+    pub updated_at: String,
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeSidebarSessionPageResponse {
+    pub sessions: Vec<SessionAggregateRecord>,
+    pub next_cursor: Option<NativeSidebarSessionCursor>,
+    pub has_more: bool,
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ExternalHistorySidebarDateBucket {
@@ -325,6 +363,12 @@ pub struct ExternalHistorySidebarBucketPage {
 pub struct ExternalHistorySidebarResponse {
     pub source: String,
     pub buckets: Vec<ExternalHistorySidebarBucketPage>,
+    /// Set when this source's own store could not be read. The other sources in
+    /// the batch still carry their rows, and the caller must treat a failed
+    /// source as "unknown", never as "empty" — an empty page would let the
+    /// sidebar retire every row this source owns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

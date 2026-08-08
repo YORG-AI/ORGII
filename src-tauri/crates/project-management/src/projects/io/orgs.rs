@@ -54,6 +54,9 @@ pub fn create_project_org(request: &CreateProjectOrgRequest) -> Result<ProjectOr
     if name.is_empty() {
         return Err("Org name is required".to_string());
     }
+    if name.contains("://") {
+        return Err("Org name must be a name, not a URL".to_string());
+    }
 
     let slug = normalize_slug(name);
     if slug.is_empty() {
@@ -390,6 +393,27 @@ mod tests {
 
         let orgs = read_project_orgs().expect("read orgs");
         assert!(orgs.iter().any(|entry| entry.id == org.id));
+    }
+
+    #[test]
+    fn create_project_org_rejects_urls_as_names() {
+        let _sandbox = test_env::sandbox();
+
+        for name in [
+            "orgii://cloud/join?invite=abc",
+            "https://example.com/team",
+            "ssh://git@example.com/team",
+        ] {
+            let error = create_project_org(&CreateProjectOrgRequest {
+                name: name.to_string(),
+                id: None,
+            })
+            .expect_err("URL must not be persisted as an org name");
+
+            assert_eq!(error, "Org name must be a name, not a URL");
+        }
+
+        assert_eq!(read_project_orgs().expect("read orgs").len(), 1);
     }
 
     #[test]

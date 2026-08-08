@@ -15,9 +15,14 @@ import type {
   ChatPanelSelectedWorkspace,
 } from "@src/store/ui/chatPanelAtom";
 import type { WorkManagementSection } from "@src/store/workstation/workstationTabBarAtoms";
+import type {
+  GitHubIssueDetailTabData,
+  GitHubPrDetailTabData,
+} from "@src/types/githubDetail";
 
 import { defineChatPanelTabFactory } from "./chatPanelTabFactory";
 import {
+  type ChatPanelSelectedChannel,
   type ChatPanelTab,
   type ChatPanelTabsState,
   ORGANIZATION_TAB_ID,
@@ -90,7 +95,7 @@ export const createTeamInboxTab = defineChatPanelTabFactory<{ title?: string }>(
   {
     tabType: "team-inbox",
     idStrategy: { type: "fixed", id: TEAM_INBOX_TAB_ID },
-    getTitle: (data) => data.title ?? "Team Inbox",
+    getTitle: (data) => data.title ?? "Inbox",
   }
 );
 
@@ -171,6 +176,34 @@ export const createWorkItemTab = defineChatPanelTabFactory<{
 });
 
 // ---------------------------------------------------------------------------
+// GitHub details — one pill per repo + issue/PR number
+// ---------------------------------------------------------------------------
+
+export const createGitHubIssueTab =
+  defineChatPanelTabFactory<GitHubIssueDetailTabData>({
+    tabType: "github-issue",
+    idStrategy: {
+      type: "keyed",
+      prefix: "github-issue",
+      getKey: (data) => `${data.repoPath}:${data.issueNumber}`,
+    },
+    getTitle: (data) => `#${data.issueNumber} ${data.issueTitle}`,
+    toPayload: (data) => ({ githubIssue: data }),
+  });
+
+export const createGitHubPrTab =
+  defineChatPanelTabFactory<GitHubPrDetailTabData>({
+    tabType: "github-pr",
+    idStrategy: {
+      type: "keyed",
+      prefix: "github-pr",
+      getKey: (data) => `${data.repoPath}:${data.prNumber}`,
+    },
+    getTitle: (data) => `#${data.prNumber} ${data.prTitle}`,
+    toPayload: (data) => ({ githubPr: data }),
+  });
+
+// ---------------------------------------------------------------------------
 // project — one pill per project, deduped by slug
 // ---------------------------------------------------------------------------
 
@@ -185,6 +218,35 @@ export const createProjectTab = defineChatPanelTabFactory<{
   },
   getTitle: (data) => data.project.project.name || "Project",
   toPayload: (data) => ({ project: data.project }),
+});
+
+// ---------------------------------------------------------------------------
+// channel — one pill per channel, deduped by scope + channel id
+// ---------------------------------------------------------------------------
+
+/**
+ * Local and cloud channel ids come from different id spaces, so the scope
+ * joins the key. Cloud channel identity is the composite (org_id, id) — the
+ * 0014 primary key — so the org joins the key too: two orgs' channels can
+ * never collapse onto one pill (nor cross-refresh each other's payloads).
+ */
+export function buildChannelTabKey(channel: ChatPanelSelectedChannel): string {
+  return channel.scope === "cloud"
+    ? `cloud:${channel.orgId}:${channel.channelId}`
+    : `local:${channel.channelId}`;
+}
+
+export const createChannelTab = defineChatPanelTabFactory<{
+  channel: ChatPanelSelectedChannel;
+}>({
+  tabType: "channel",
+  idStrategy: {
+    type: "keyed",
+    prefix: "channel",
+    getKey: (data) => buildChannelTabKey(data.channel),
+  },
+  getTitle: (data) => data.channel.name,
+  toPayload: (data) => ({ channel: data.channel }),
 });
 
 // ---------------------------------------------------------------------------

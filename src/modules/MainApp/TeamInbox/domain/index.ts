@@ -5,20 +5,16 @@ export {
   filterItemKind,
   filterTeamInboxItems,
   getTeamInboxItemKey,
-  groupTeamInboxItemsByRecency,
   searchTeamInboxItems,
   selectTeamInboxItems,
   sortTeamInboxItems,
   toTeamInboxNavigationIntent,
 } from "./selectors";
-export type {
-  TeamInboxRecencyGroup,
-  TeamInboxRecencyGroupKey,
-  TeamInboxUnreadCounts,
-} from "./selectors";
+export type { TeamInboxUnreadCounts } from "./selectors";
 export {
   humanizeToken,
   isGitHubIssueStatus,
+  parseGitHubIssueNumber,
   workItemPriorityLabelKey,
   workItemStatusLabelKey,
 } from "./labels";

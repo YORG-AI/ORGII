@@ -8,6 +8,7 @@
 import {
   Infinity,
   Cloud,
+  FolderKanban,
   Laptop,
   ListPlus,
   ListTodo,
@@ -122,6 +123,48 @@ export const AGENT_EXEC_MODES: AgentExecModeEntry[] = [
 
 export function getAgentExecModeEntry(id: string): AgentExecModeEntry {
   return AGENT_EXEC_MODES.find((mode) => mode.id === id) ?? AGENT_EXEC_MODES[0];
+}
+
+// ============================================
+// Composer modes (product-mode axis, orgtrack/v1 §5.2)
+// ============================================
+
+/**
+ * The one user-visible mode selector writes the PRODUCT mode
+ * (`build | plan | ask | project`); the runtime exec mode is derived
+ * (identity for build/plan/ask, `project → build`). `project` is NOT an
+ * `AgentExecMode` — it never reaches the exec-mode wire enum; it flips
+ * the persistent `session.productMode` axis that gates the
+ * WorkItem/Routine mutation surface.
+ */
+export const PRODUCT_MODE_PROJECT = "project" as const;
+
+export interface ComposerModeEntry {
+  id: AgentExecMode | typeof PRODUCT_MODE_PROJECT;
+  icon: typeof Infinity;
+  i18nKey: string;
+  name: string;
+  description: string;
+}
+
+/** Picker list for the composer ModePill: exec modes + Project. */
+export const COMPOSER_MODES: ComposerModeEntry[] = [
+  ...AGENT_EXEC_MODES,
+  {
+    id: PRODUCT_MODE_PROJECT,
+    icon: FolderKanban,
+    i18nKey: "planner.modes.project",
+    name: "Project",
+    description:
+      "Plan and execute inside the persistent work graph — sessions link to Work Items",
+  },
+];
+
+/** Runtime exec mode a composer selection maps to (§5.2 default map). */
+export function execModeForComposerSelection(
+  id: ComposerModeEntry["id"]
+): AgentExecMode {
+  return id === PRODUCT_MODE_PROJECT ? "build" : id;
 }
 
 // ============================================

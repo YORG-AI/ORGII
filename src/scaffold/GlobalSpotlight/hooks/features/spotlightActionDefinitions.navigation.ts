@@ -29,6 +29,7 @@ import {
   Sparkles,
   SquarePen,
   SquareTerminal,
+  createLucideIcon,
 } from "lucide-react";
 
 import { ACTION_ID } from "@src/ActionSystem";
@@ -42,6 +43,26 @@ import type {
 // ============================================
 // Static action tables
 // ============================================
+
+export const ALL_SESSIONS_SEARCH_ICON = createLucideIcon("database-search", [
+  [
+    "path",
+    {
+      d: "M4 6c0 1.657 3.582 3 8 3s8-1.343 8-3s-3.582-3-8-3s-8 1.343-8 3",
+      key: "database-top",
+    },
+  ],
+  [
+    "path",
+    {
+      d: "M4 6v6c0 1.657 3.582 3 8 3m8-3.5V6",
+      key: "database-middle",
+    },
+  ],
+  ["path", { d: "M4 12v6c0 1.657 3.582 3 8 3", key: "database-bottom" }],
+  ["circle", { cx: "18", cy: "18", r: "3", key: "search-lens" }],
+  ["path", { d: "m20.2 20.2 1.8 1.8", key: "search-handle" }],
+]);
 
 export const AGENT_SESSION_ACTIONS = [
   {
@@ -132,7 +153,7 @@ export const AGENT_SESSION_ACTIONS = [
   {
     id: "search-all-sessions",
     labelKey: "selectors.spotlight.actions.searchAllSessions.label",
-    icon: Search,
+    icon: ALL_SESSIONS_SEARCH_ICON,
     keywords: [
       "full text search",
       "search content",

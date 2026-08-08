@@ -25,6 +25,10 @@
  * suspect to be confirmed absent on two consecutive sweeps before
  * retracting.
  */
+import {
+  type ImportedContinuationStatus,
+  importedHistoryContinuationStatuses,
+} from "@src/api/tauri/externalHistory/imported/cloudReplay";
 import { sessionAggregateList } from "@src/api/tauri/session";
 import { createLogger } from "@src/hooks/logger";
 
@@ -87,4 +91,57 @@ export async function findVanishedPushedSessionIds({
     return [];
   }
   return suspects.filter((sessionId) => !resolved.has(sessionId));
+}
+
+/** Resolver for continuation statuses of push-marked suspects. */
+export type ContinuationStatusResolver = (
+  sessionIds: readonly string[]
+) => Promise<readonly ImportedContinuationStatus[]>;
+
+export const resolveContinuationStatusesViaCache: ContinuationStatusResolver = (
+  sessionIds
+) => importedHistoryContinuationStatuses([...sessionIds]);
+
+export interface SupersededPushedSession {
+  sessionId: string;
+  lineageId: string;
+}
+
+/**
+ * Push-marked ids that left the roster because the continuation election
+ * DEMOTED them — the imported cache still holds the row and reports a
+ * strictly newer sibling. These are candidates for retracting the stale
+ * Team Sessions duplicate, but ONLY the caller can confirm the family's
+ * listable winner is itself pushed to the same org; without a lineage id
+ * the winner cannot be identified and the row is left alone. A failed
+ * lookup means "unknown", never "superseded".
+ */
+export async function findSupersededPushedSessions({
+  orgId,
+  markedSessionIds,
+  liveSessionIds,
+  resolveStatuses,
+}: {
+  orgId: string;
+  markedSessionIds: ReadonlySet<string>;
+  liveSessionIds: ReadonlySet<string>;
+  resolveStatuses: ContinuationStatusResolver;
+}): Promise<SupersededPushedSession[]> {
+  const suspects = [...markedSessionIds].filter(
+    (sessionId) => !liveSessionIds.has(sessionId)
+  );
+  if (suspects.length === 0) return [];
+  let statuses: readonly ImportedContinuationStatus[];
+  try {
+    statuses = await resolveStatuses(suspects);
+  } catch (error) {
+    log.warn(`continuation-status lookup failed for org ${orgId}:`, error);
+    return [];
+  }
+  return statuses
+    .filter((status) => status.superseded && status.lineageId)
+    .map((status) => ({
+      sessionId: status.sessionId,
+      lineageId: status.lineageId as string,
+    }));
 }

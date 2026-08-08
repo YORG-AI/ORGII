@@ -12,6 +12,7 @@ import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import {
   type Session,
   type SessionListCategory,
+  createSidebarRosterMatcher,
   sessionPaginationAtom,
   upsertSession,
 } from "@src/store/session";
@@ -20,6 +21,10 @@ import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
 
+import {
+  continuationLineagesForRevealedSessions,
+  isRosterSiblingOfRevealedContinuation,
+} from "./continuationVisibility";
 import {
   DEFAULT_GROUP_VISIBLE_COUNT,
   type DateGroupKey,
@@ -238,16 +243,35 @@ export function useSessionMenuItems({
       ),
     [sortedSessions]
   );
+  const isInSidebarRoster = useMemo(
+    () => createSidebarRosterMatcher(pagination),
+    [pagination]
+  );
+  const revealedContinuationLineages = useMemo(
+    () =>
+      continuationLineagesForRevealedSessions(
+        sortedSessions,
+        revealedSessionIds
+      ),
+    [revealedSessionIds, sortedSessions]
+  );
 
   const visibleSessions = useMemo(
     () =>
       sortedSessions.filter((session) => {
         const explicitlyRevealed = revealedSessionIds.has(session.session_id);
+        const hiddenRosterSibling = isRosterSiblingOfRevealedContinuation(
+          session,
+          revealedSessionIds,
+          revealedContinuationLineages
+        );
         return (
+          !hiddenRosterSibling &&
           isPrimarySessionListSession(session) &&
           (explicitlyRevealed ||
-            ((includeExternal ||
-              !isImportedHistorySession(session.session_id)) &&
+            (isInSidebarRoster(session) &&
+              (includeExternal ||
+                !isImportedHistorySession(session.session_id)) &&
               (sessionMatchesOrgFilter(session, selectedOrgIds) ||
                 (extraSessionIds?.has(session.session_id) ?? false)))) &&
           !benchmarkChildSessionIds.has(session.session_id) &&
@@ -261,7 +285,9 @@ export function useSessionMenuItems({
       benchmarkHistoryChildSessionIds,
       extraSessionIds,
       includeExternal,
+      isInSidebarRoster,
       revealedSessionIds,
+      revealedContinuationLineages,
       selectedOrgIds,
       sortedSessions,
     ]
@@ -459,11 +485,14 @@ export function useSessionMenuItems({
   const loadMoreRowFor = useCallback(
     (category: SessionListCategory): NavigationMenuItem | null => {
       const state = pagination[category];
-      if (!state.hasMore && !state.loading) return null;
-      const label = state.loading
+      if (state.generation === 0 || state.phase === "exhausted") return null;
+      const loading = state.phase === "loading";
+      const label = loading
         ? tCommon("sessions:chat.loading")
-        : tCommon("common:actions.loadMore");
-      return loadMoreRow(category, state.loading, label);
+        : state.phase === "error"
+          ? tCommon("common:actions.retry", "Retry")
+          : tCommon("common:actions.loadMore");
+      return loadMoreRow(category, loading, label);
     },
     [pagination, tCommon]
   );
@@ -474,7 +503,9 @@ export function useSessionMenuItems({
     if (!state.visible) return [];
     const label = state.loading
       ? tCommon("sessions:chat.loading")
-      : tCommon("common:actions.loadMore");
+      : state.error
+        ? tCommon("common:actions.retry", "Retry")
+        : tCommon("common:actions.loadMore");
     return [unifiedLoadMoreRow(state, label)];
   }, [isFiltering, pagination, tCommon]);
 
@@ -534,12 +565,20 @@ export function useSessionMenuItems({
   const pinnedLabel = tCommon("sessions:chat.historyPinned", "Pinned");
 
   const appendPinnedSessions = useCallback(
-    (items: NavigationMenuItem[]): boolean => {
-      if (pinnedSessions.length === 0) return false;
+    (items: NavigationMenuItem[], includeBackendPager = false): boolean => {
+      const backendRow = includeBackendPager
+        ? loadMoreRowFor("pinned_native")
+        : null;
+      if (pinnedSessions.length === 0 && !backendRow) return false;
       items.push(separator("pinned", pinnedLabel));
-      return appendGroupSessions(items, "pinned", pinnedSessions);
+      const hasHiddenRows =
+        pinnedSessions.length > 0
+          ? appendGroupSessions(items, "pinned", pinnedSessions)
+          : false;
+      if (!hasHiddenRows && backendRow) items.push(backendRow);
+      return hasHiddenRows;
     },
-    [appendGroupSessions, pinnedLabel, pinnedSessions]
+    [appendGroupSessions, loadMoreRowFor, pinnedLabel, pinnedSessions]
   );
 
   const byTimeMenuItems = useMemo<NavigationMenuItem[]>(

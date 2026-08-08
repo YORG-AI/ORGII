@@ -33,6 +33,35 @@ fn includes_codex_session_dir_candidates() {
 }
 
 #[test]
+fn includes_account_and_hosted_managed_codex_rollouts() {
+    struct TempRoot(std::path::PathBuf);
+    impl Drop for TempRoot {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let temp = TempRoot(std::env::temp_dir().join(format!(
+        "orgtrack-managed-codex-{}-{unique}",
+        std::process::id()
+    )));
+    let account_root = temp.0.join("accounts");
+    let hosted_root = temp.0.join("hosted");
+    let account_sessions = account_root.join("account-1").join("sessions");
+    let hosted_sessions = hosted_root.join("session-1").join("sessions");
+    std::fs::create_dir_all(&account_sessions).unwrap();
+    std::fs::create_dir_all(&hosted_sessions).unwrap();
+
+    let dirs = codex_managed_sessions_dirs(&account_root, &hosted_root);
+
+    assert!(dirs.contains(&account_sessions));
+    assert!(dirs.contains(&hosted_sessions));
+}
+
+#[test]
 fn normalizes_codex_collaboration_calls_without_exposing_encrypted_messages() {
     let spawn_calls = normalize_codex_tool_calls(
         "spawn_agent",
@@ -255,6 +284,16 @@ fn codex_initial_window_catalogs_old_turns_and_loads_one_turn_on_demand() {
             .collect::<Vec<_>>(),
         vec!["first", "second"]
     );
+    // The context placeholder must span up to the loaded turn's start. If it
+    // fell back to the previous header's own started_at, the created_at tie
+    // would sort the placeholder before its header in chat and split a
+    // phantom headerless round.
+    let context_placeholder = &turn.chunks[1];
+    assert!(context_placeholder
+        .chunk_id
+        .starts_with("codex-unloaded-turn-"));
+    assert_eq!(context_placeholder.created_at, turn.chunks[2].created_at);
+    assert_ne!(context_placeholder.created_at, turn.chunks[0].created_at);
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
@@ -570,6 +609,60 @@ fn codex_task_lifecycle_projects_only_finished_turns_as_completed() {
     let completed_rounds =
         crate::projectors::turn_metadata::project_activity_chunks(&completed_chunks);
     assert_eq!(completed_rounds[0].status, "completed");
+
+    let failed_content = format!(
+        "{active_content}{}\n",
+        json!({
+            "timestamp": "2026-07-21T01:00:02.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "task_complete",
+                "turn_id": "turn-1",
+                "error": {
+                    "message": "unexpected status 402 Payment Required: subscription quota exhausted"
+                }
+            }
+        })
+    );
+    std::fs::write(&path, failed_content).expect("write failed fixture");
+    let failed_chunks =
+        load_codex_app_from_path("codexapp-lifecycle", &path).expect("parse failed turn");
+    let error_chunk = failed_chunks
+        .iter()
+        .find(|chunk| chunk.action_type == "error")
+        .expect("failed task_complete should retain its error message");
+    assert_eq!(
+        error_chunk.result.get("error").and_then(Value::as_str),
+        Some("unexpected status 402 Payment Required: subscription quota exhausted")
+    );
+    assert_eq!(
+        failed_chunks.last().map(|chunk| chunk.action_type.as_str()),
+        Some(imported_history::ACTION_TYPE_TASK_FAILED)
+    );
+    let failed_rounds = crate::projectors::turn_metadata::project_activity_chunks(&failed_chunks);
+    assert_eq!(failed_rounds[0].status, "failed");
+
+    let structured_error_content = format!(
+        "{active_content}{}\n",
+        json!({
+            "timestamp": "2026-07-21T01:00:02.000Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "task_complete",
+                "turn_id": "turn-1",
+                "error": { "code": "quota_exhausted" }
+            }
+        })
+    );
+    std::fs::write(&path, structured_error_content).expect("write structured error fixture");
+    let structured_error_chunks =
+        load_codex_app_from_path("codexapp-lifecycle", &path).expect("parse structured error turn");
+    assert_eq!(
+        structured_error_chunks
+            .last()
+            .map(|chunk| chunk.action_type.as_str()),
+        Some(imported_history::ACTION_TYPE_TASK_FAILED)
+    );
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
@@ -2277,6 +2370,67 @@ fn resumes_codex_meta_parse_from_watermark() {
     let reparsed_meta = reparsed.meta.expect("reparsed meta");
     assert_eq!(reparsed_meta.input_tokens, scratch_meta.input_tokens);
     assert_eq!(reparsed_meta.name, "RESUME ME");
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn unresolved_tool_calls_flush_in_file_order_across_reparses() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-pending-order-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-pending-order.jsonl");
+
+    let file_order_call_ids = [
+        "call_zulu",
+        "call_echo",
+        "call_romeo",
+        "call_alpha",
+        "call_x1",
+        "call_mike",
+        "call_kilo",
+        "call_bravo",
+        "call_yankee",
+        "call_delta",
+    ];
+    let mut content = String::from(
+        r#"{"timestamp":"2026-07-30T10:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"run everything"}}
+{"timestamp":"2026-07-30T10:00:01.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":\"echo resolved\"}","call_id":"call_resolved"}}
+{"timestamp":"2026-07-30T10:00:02.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_resolved","output":"resolved"}}
+"#,
+    );
+    for (index, call_id) in file_order_call_ids.iter().enumerate() {
+        content.push_str(&format!(
+            "{{\"timestamp\":\"2026-07-30T10:00:{:02}.000Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"function_call\",\"name\":\"shell\",\"arguments\":\"{{\\\"command\\\":\\\"sleep {index}\\\"}}\",\"call_id\":\"{call_id}\"}}}}\n",
+            10 + index
+        ));
+    }
+    std::fs::write(&path, content).expect("write fixture");
+
+    let flushed_call_ids = |chunks: &[core_types::activity::ActivityChunk]| -> Vec<String> {
+        chunks
+            .iter()
+            .filter(|chunk| chunk.action_type == imported_history::ACTION_TYPE_TOOL_CALL)
+            .filter_map(|chunk| chunk.result.get("call_id")?.as_str().map(str::to_string))
+            .filter(|call_id| call_id != "call_resolved")
+            .collect()
+    };
+
+    let first = load_codex_app_from_path("codexapp-pending-order", &path).expect("parse");
+    assert_eq!(flushed_call_ids(&first), file_order_call_ids);
+
+    let second = load_codex_app_from_path("codexapp-pending-order", &path).expect("reparse");
+    let first_ids = first
+        .iter()
+        .map(|chunk| &chunk.chunk_id)
+        .collect::<Vec<_>>();
+    let second_ids = second
+        .iter()
+        .map(|chunk| &chunk.chunk_id)
+        .collect::<Vec<_>>();
+    assert_eq!(first_ids, second_ids);
 
     std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }

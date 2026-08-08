@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -134,7 +134,7 @@ const ChangedFilesList: React.FC<ChangedFilesListProps> = ({
             title={t("workItems.changedFiles.reviewInEditor")}
             className="mr-2 shrink-0 rounded-md p-1.5 text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
           >
-            <ExternalLink size={13} />
+            <SquareArrowOutUpRight size={13} />
           </button>
         )}
       </div>

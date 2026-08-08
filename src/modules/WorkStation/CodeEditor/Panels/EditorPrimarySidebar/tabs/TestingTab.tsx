@@ -52,9 +52,10 @@ export function useTestingTabConfig({
     discoverTests,
   } = useTestRunner({ repoPath, autoDiscover: true, isActive });
 
-  // Get framework label (or "N/A" if no framework)
+  // Keep an undetected framework visually neutral; detection can legitimately
+  // produce no result for repositories without a supported test setup.
   const frameworkLabel =
-    framework !== "unknown" ? getFrameworkLabel(framework) : "N/A";
+    framework !== "unknown" ? getFrameworkLabel(framework) : "—";
 
   const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
     useRefreshSpin(discoverTests, isDiscovering);

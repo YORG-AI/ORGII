@@ -169,3 +169,41 @@ describe("immutable update helpers", () => {
     expect(byOrg[ORG].sessionVisibility).toEqual({});
   });
 });
+
+describe("store resilience", () => {
+  it("sheds only corrupt entries at every record level", async () => {
+    const { vi } = await import("vitest");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { CloudAccessSettingsByOrgSchema } =
+      await import("./org2CloudAccessSettings");
+    const parsed = CloudAccessSettingsByOrgSchema.parse({
+      "org-healthy": {
+        sessionModes: {
+          "session-shared": "full_replay",
+          "session-corrupt-mode": "not-a-mode",
+        },
+        sessionVisibility: {},
+      },
+      "org-corrupt": "garbage",
+    });
+
+    // The corrupt org entry is shed; the healthy org keeps its overrides —
+    // a whole-store reset would make every previously shared session
+    // resolve effective-off and retract its cloud row on the next pass.
+    expect(Object.keys(parsed)).toEqual(["org-healthy"]);
+    expect(
+      getEffectiveCloudAccessMode(
+        getCloudOrgAccessSettings(parsed, "org-healthy"),
+        "session-shared"
+      )
+    ).toBe("full_replay");
+    // Inside the healthy org only the corrupt session entry is gone.
+    expect(
+      getEffectiveCloudAccessMode(
+        getCloudOrgAccessSettings(parsed, "org-healthy"),
+        "session-corrupt-mode"
+      )
+    ).toBe("off");
+    warn.mockRestore();
+  });
+});

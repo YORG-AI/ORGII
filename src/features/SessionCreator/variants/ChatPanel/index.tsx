@@ -83,6 +83,7 @@ const SessionCreatorChatPanelContent: React.FC<
   includeHumanSession = true,
   initialContent,
   dropdownDirection = "down",
+  onCreateWorkItem,
   onOpenCliTerminal,
   onRegionNoticeChange,
   onSessionStart,
@@ -504,6 +505,7 @@ const SessionCreatorChatPanelContent: React.FC<
       leadingActionSlot={leadingActionSlot}
       onAttachedWorkItemContextChange={setAttachedWorkItemContext}
       onCategoryPickerOpen={() => setIsCategorySelectorOpen(true)}
+      onCreateWorkItem={onCreateWorkItem}
       onFileUpload={handleFileUpload}
       onLaunch={handleLaunch}
       onShareScreen={() => handleShareScreenClick().catch(log.error)}

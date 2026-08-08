@@ -40,7 +40,10 @@ import type {
   CollabSessionAccessMode,
   CollabSessionVisibility,
 } from "@src/store/collaboration/types";
-import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
+import {
+  createZodJsonStorage,
+  tolerantRecordSchema,
+} from "@src/util/core/storage/zodStorage";
 
 const CloudAccessModeSchema = z.enum([
   COLLAB_SESSION_ACCESS_MODE.OFF,
@@ -53,17 +56,30 @@ const CloudVisibilitySchema = z.enum([
   COLLAB_SESSION_VISIBILITY.RESTRICTED,
 ]) satisfies z.ZodType<CollabSessionVisibility>;
 
+/**
+ * Tolerant at every record level. This store is the privacy ratchet: a
+ * whole-store reset drops every explicit per-session override, and on the
+ * next pass previously shared sessions resolve effective-off and get their
+ * cloud rows RETRACTED — one corrupted byte silently unsharing the user's
+ * work. A corrupted entry must cost exactly that entry, never the store.
+ */
 const CloudOrgAccessSettingsSchema = z.object({
-  sessionModes: z.record(z.string(), CloudAccessModeSchema),
-  sessionVisibility: z.record(z.string(), CloudVisibilitySchema),
+  sessionModes: tolerantRecordSchema(
+    "session access mode",
+    CloudAccessModeSchema
+  ),
+  sessionVisibility: tolerantRecordSchema(
+    "session visibility",
+    CloudVisibilitySchema
+  ),
 });
 
 export type CloudOrgAccessSettings = z.output<
   typeof CloudOrgAccessSettingsSchema
 >;
 
-const CloudAccessSettingsByOrgSchema = z.record(
-  z.string(),
+export const CloudAccessSettingsByOrgSchema = tolerantRecordSchema(
+  "access-settings org",
   CloudOrgAccessSettingsSchema
 );
 
@@ -85,8 +101,8 @@ org2CloudAccessSettingsAtom.debugLabel = "org2CloudAccessSettingsAtom";
 // Org sharing FLOOR (admin policy mirror, 0002)
 // ============================================================================
 
-const CloudSharingFloorByOrgSchema = z.record(
-  z.string(),
+const CloudSharingFloorByOrgSchema = tolerantRecordSchema(
+  "sharing floor",
   CloudAccessModeSchema
 );
 

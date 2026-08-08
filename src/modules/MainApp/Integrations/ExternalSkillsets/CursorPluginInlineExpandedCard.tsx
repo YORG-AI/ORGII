@@ -2,9 +2,9 @@ import { readTextFile } from "@tauri-apps/plugin-fs";
 import {
   Check,
   Clipboard,
-  ExternalLink,
   GitBranch,
   Layers,
+  SquareArrowOutUpRight,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -174,7 +174,10 @@ const CursorPluginInlineExpandedCard: React.FC<
               <span className="truncate text-[12px] font-medium text-text-1">
                 {skill.name}
               </span>
-              <ExternalLink size={11} className="shrink-0 text-text-3" />
+              <SquareArrowOutUpRight
+                size={11}
+                className="shrink-0 text-text-3"
+              />
             </div>
             {(parsedSkillDescriptions[skill.slug] || skill.description) && (
               <span className="block truncate text-[11px] text-text-3">
@@ -213,7 +216,10 @@ const CursorPluginInlineExpandedCard: React.FC<
               <span className="truncate text-[12px] font-medium text-text-1">
                 {hook.label}
               </span>
-              <ExternalLink size={11} className="shrink-0 text-text-3" />
+              <SquareArrowOutUpRight
+                size={11}
+                className="shrink-0 text-text-3"
+              />
             </div>
             <span className="block truncate font-mono text-[11px] text-text-3">
               {hook.eventType}

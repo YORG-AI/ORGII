@@ -20,6 +20,7 @@ const source: GitHubRepoSource = {
   remoteUrl: "https://github.com/acme/repo.git",
   repoFullName: "acme/repo",
   viewerLogin: "viewer",
+  permissions: null,
 };
 const issue = {
   number: 42,
@@ -34,12 +35,17 @@ const issue = {
 } as GitHubIssue;
 const pr = {
   number: 7,
+  url: "https://github.com/acme/repo/pull/7",
   title: "Ship fix",
   state: "merged",
+  author_login: "author",
+  author_avatar_url: "avatar",
+  requested_reviewer_logins: [],
   updated_at: "2026-07-20T11:00:00.000Z",
   head_branch: "fix/crash",
   base_branch: "main",
   draft: false,
+  created_at: "2026-07-20T10:00:00.000Z",
 } as OpenPRItem;
 
 describe("GitHub managed-item model", () => {
@@ -51,15 +57,16 @@ describe("GitHub managed-item model", () => {
       id: 42,
       repo: "acme/repo",
       author: "author",
-      timeAgo: "1m ago",
+      timeAgo: "1m",
       linkedPullRequests: 3,
     });
     expect(mapPrToManagedItem(pr, source)).toMatchObject({
       kind: GITHUB_ITEM_KIND.PR,
       id: 7,
+      author: "author",
       sourceBranch: "fix/crash",
       targetBranch: "main",
-      timeAgo: "1h ago",
+      timeAgo: "1h",
     });
     vi.useRealTimers();
   });
@@ -79,11 +86,27 @@ describe("GitHub managed-item model", () => {
     ).toBe(false);
   });
 
+  it("matches both displayed IDs and title text", () => {
+    const item = mapIssueToManagedItem(issue, source);
+
+    expect(managedItemMatchesQuery(item, parseGitHubSearchQuery("#42"))).toBe(
+      true
+    );
+    expect(
+      managedItemMatchesQuery(item, parseGitHubSearchQuery("Fix crash"))
+    ).toBe(true);
+  });
+
   it("preserves merged PR query semantics and time boundaries", () => {
     const item = mapPrToManagedItem(pr, source);
     expect(
       managedItemMatchesQuery(item, parseGitHubSearchQuery("is:pr is:merged"))
     ).toBe(true);
     expect(formatGitHubItemTimeAgo("invalid", 0)).toBe("");
+    const now = Date.parse("2026-07-20T12:00:00.000Z");
+    expect(formatGitHubItemTimeAgo("2026-07-20T07:00:00.000Z", now)).toBe("5h");
+    expect(formatGitHubItemTimeAgo("2026-06-20T12:00:00.000Z", now)).toBe(
+      "1mo"
+    );
   });
 });

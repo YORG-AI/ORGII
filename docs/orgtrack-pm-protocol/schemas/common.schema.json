@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "orgtrack/v1/common.schema.json",
+  "title": "Orgtrack v1 shared definitions",
+  "definitions": {
+    "apiVersion": {
+      "type": "string",
+      "const": "orgtrack/v1"
+    },
+    "actorKind": {
+      "type": "string",
+      "enum": ["human", "agent", "service", "team"]
+    },
+    "actorRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "$ref": "#/definitions/actorKind" },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Namespaced stable opaque identifier. MUST NOT carry a role: prefix — role requirements live in actorRequirement."
+        },
+        "displayName": { "type": "string" }
+      }
+    },
+    "actorRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role"],
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "sessionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "externalId"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable provenance provider ID from the frozen registry (decisions.md §5). ORG2-owned sessions use org2; external sessions use canonical importer source ids (claude_code, codex_app, ...)."
+        },
+        "externalId": { "type": "string", "minLength": 1 },
+        "metadata": {
+          "type": "object",
+          "description": "Cloud/collab sessions MUST carry the org/owner identity tuple here because externalId alone is not globally unique.",
+          "properties": {
+            "nativeHarness": { "type": "string" },
+            "orgId": { "type": "string" },
+            "ownerId": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "workItemState": {
+      "type": "string",
+      "enum": [
+        "open",
+        "in_progress",
+        "blocked",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "workItemPriority": {
+      "type": "string",
+      "enum": ["none", "urgent", "high", "medium", "low"]
+    },
+    "routineRunStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "blocked",
+        "cancel_requested",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "productMode": {
+      "type": "string",
+      "enum": ["build", "plan", "ask", "project"]
+    },
+    "capabilityId": {
+      "type": "string",
+      "enum": [
+        "work.read",
+        "work.create",
+        "work.update",
+        "work.claim",
+        "work.transition",
+        "work.note",
+        "work.relate",
+        "routine.read",
+        "routine.apply",
+        "routine.run",
+        "routine.cancel",
+        "routine.set_enabled"
+      ]
+    },
+    "updateKind": {
+      "type": "string",
+      "enum": [
+        "comment",
+        "progress",
+        "blocker",
+        "decision",
+        "handoff",
+        "review"
+      ]
+    },
+    "relationKind": {
+      "type": "string",
+      "enum": [
+        "depends_on",
+        "relates_to",
+        "duplicates",
+        "implements",
+        "supersedes",
+        "continued_by",
+        "generated_by",
+        "participated_in"
+      ]
+    },
+    "isoTimestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

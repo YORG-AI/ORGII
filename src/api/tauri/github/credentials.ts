@@ -27,6 +27,15 @@ export async function getGitHubGitCredentialForRemote(
 }
 
 /**
+ * Return the login for the account behind the active GitHub token.
+ * This is intentionally separate from the Git transport username, which is
+ * normally the fixed `x-access-token` value for OAuth and PAT credentials.
+ */
+export async function getGitHubViewerLogin(): Promise<string> {
+  return invokeWithAuth<string>("github_get_viewer_login", {});
+}
+
+/**
  * Generic Git credential lookup against `connection_token_store`. Returns
  * `null` for SSH-only remotes (handled by the system `git` config) or
  * when no HTTPS credential is on file.

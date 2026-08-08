@@ -19,7 +19,7 @@
       "Consolas",
       monospace
     );
-    font-size: 12px;
+    font-size: var(--chat-code-font-size, 13px);
     line-height: 1.6;
   }
 }

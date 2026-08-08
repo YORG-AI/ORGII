@@ -29,6 +29,7 @@ interface UseWorkstationSidebarBottomActionsParams {
   ) => void;
   sessions: Session[];
   workItemsContentVisible: boolean;
+  channelSidebarVisible: boolean;
   activeSidebarKey: WorkstationSidebarKey;
   projectsWorkItemsLoading: boolean;
   projectsSidebarMenuItems: NavigationMenuItem[];
@@ -49,6 +50,7 @@ export function useWorkstationSidebarBottomActions({
   resolvedOnCollapsedSectionIdsChange,
   sessions,
   workItemsContentVisible,
+  channelSidebarVisible,
   activeSidebarKey,
   projectsWorkItemsLoading,
   projectsSidebarMenuItems,
@@ -78,11 +80,12 @@ export function useWorkstationSidebarBottomActions({
       logger.warn("Failed to rescan sidebar sessions:", error);
     });
   }, []);
-  const isLoading =
-    workItemsContentVisible || activeSidebarKey === "projects"
+  const isLoading = channelSidebarVisible
+    ? false
+    : workItemsContentVisible || activeSidebarKey === "projects"
       ? projectsWorkItemsLoading && projectsSidebarMenuItems.length === 0
       : sessionsLoading && sessions.length === 0;
-  const sidebarBottomRightActions = useSidebarBottomRightActions({
+  const sessionBottomRightActions = useSidebarBottomRightActions({
     activeSidebarKey: workItemsContentVisible ? "projects" : activeSidebarKey,
     groupByMode,
     includeExternal,
@@ -92,6 +95,9 @@ export function useWorkstationSidebarBottomActions({
     setGroupByMode,
     setIncludeExternal,
   });
+  const sidebarBottomRightActions = channelSidebarVisible
+    ? null
+    : sessionBottomRightActions;
 
   const resolvedSelectedMenuItemId =
     activeSidebarKey === "workstation" && selectedCloudMenuItemId

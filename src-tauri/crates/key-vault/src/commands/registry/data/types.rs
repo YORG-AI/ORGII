@@ -22,9 +22,9 @@ pub enum CliConfigFormat {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum CliConfigPathKind {
-    HomeRelative,
-    XdgConfigRelative,
-    AppDataRelative,
+    Home,
+    XdgConfig,
+    AppData,
 }
 
 #[derive(Debug, Clone, Copy)]

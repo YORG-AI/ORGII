@@ -13,10 +13,10 @@ describe("formatWorkItemShortId", () => {
 
   it("adds a three-character repository prefix when available", () => {
     expect(formatWorkItemShortId("210", "open", "ORGII issues")).toBe(
-      "ORG#210"
+      "ORG #210"
     );
     expect(formatWorkItemShortId("#210", "closed", "owner/repository")).toBe(
-      "REP#210"
+      "REP #210"
     );
   });
 

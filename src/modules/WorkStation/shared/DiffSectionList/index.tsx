@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import type { DiffViewMode } from "@src/types/git/types";
 
 import DiffFileSection from "../DiffFileSection";
 import type { DiffFileSectionData } from "../DiffFileSection";
@@ -14,6 +15,7 @@ export interface DiffSectionListItem<TFile extends DiffFileSectionData> {
 
 export interface DiffSectionListProps<TFile extends DiffFileSectionData> {
   sections: Array<DiffSectionListItem<TFile>>;
+  viewMode: DiffViewMode;
   loading?: boolean;
   emptyTitle: string;
   emptySubtitle?: string;
@@ -53,6 +55,7 @@ const DIFF_LIST_COMPONENTS = { Footer: DiffListFooter };
 
 function DiffSectionListInner<TFile extends DiffFileSectionData>({
   sections,
+  viewMode,
   loading = false,
   emptyTitle,
   emptySubtitle,
@@ -197,6 +200,7 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
             return (
               <DiffFileSection
                 file={section.file}
+                viewMode={viewMode}
                 defaultExpanded={
                   expandedOverride ??
                   getDefaultDiffSectionExpanded({

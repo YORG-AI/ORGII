@@ -98,6 +98,21 @@ fn test_normalize_assistant_message() {
 }
 
 #[test]
+fn failed_session_end_with_error_body_is_normalized_as_visible_error() {
+    let mut chunk = make_chunk("session_end", "session_end");
+    chunk.result = Some(serde_json::json!({
+        "success": false,
+        "error_message": "unexpected status 402 Payment Required",
+    }));
+
+    let event = normalize_chunk(&chunk, "sess-1");
+
+    assert_eq!(event.display_variant, EventDisplayVariant::Error);
+    assert_eq!(event.display_status, EventDisplayStatus::Failed);
+    assert_eq!(event.display_text, "unexpected status 402 Payment Required");
+}
+
+#[test]
 fn test_normalize_user_message() {
     let chunk = RawActivityChunk {
         chunk_id: Some("chunk-4".to_string()),

@@ -7,9 +7,12 @@ import {
 } from "@src/api/tauri/externalHistory";
 import { loadTurnIndex } from "@src/engines/SessionCore/storage/cacheAdapter";
 import type { TurnSummary } from "@src/engines/SessionCore/storage/sqliteCache";
+import { createLogger } from "@src/hooks/logger";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
 import type { ActivityChunk } from "@src/types/session/session";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+
+const log = createLogger("SessionTurnOverview");
 
 const MAX_TURN_OVERVIEW_CACHE_SIZE = 200;
 
@@ -150,14 +153,21 @@ export function useSessionTurnOverview(
   useEffect(() => {
     let cancelled = false;
 
-    void loadSessionTurnOverviewCoalesced(
-      sessionId,
-      cursorIdeTurnSummaries
-    ).then((nextOverview) => {
-      if (cancelled) return;
-      if (nextOverview) rememberTurnOverview(sessionId, nextOverview);
-      setOverviewState({ sessionId, overview: nextOverview });
-    });
+    void loadSessionTurnOverviewCoalesced(sessionId, cursorIdeTurnSummaries)
+      .then((nextOverview) => {
+        if (cancelled) return;
+        if (nextOverview) rememberTurnOverview(sessionId, nextOverview);
+        setOverviewState({ sessionId, overview: nextOverview });
+      })
+      .catch((error: unknown) => {
+        // A session with no turn index — never replayed, imported from another
+        // CLI, or mid-write — rejects here. Consumers render without a turn
+        // count; an unhandled rejection would surface as an app-level error in
+        // surfaces that mount many of these at once (channel session cards).
+        log.debug("session turn overview load failed:", sessionId, error);
+        if (cancelled) return;
+        setOverviewState({ sessionId, overview: null });
+      });
 
     return () => {
       cancelled = true;

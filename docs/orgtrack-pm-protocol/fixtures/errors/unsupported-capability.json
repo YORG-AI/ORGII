@@ -1,0 +1,16 @@
+{
+  "apiVersion": "orgtrack/v1",
+  "ok": false,
+  "error": {
+    "code": "UNSUPPORTED_CAPABILITY",
+    "message": "Provider 'github' does not support webhook installation for this connection",
+    "retryable": false,
+    "details": {
+      "provider": "github",
+      "capability": "webhook"
+    }
+  },
+  "meta": {
+    "requestId": "req_01K0000000000000000000ERR17"
+  }
+}

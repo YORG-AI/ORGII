@@ -1,0 +1,21 @@
+---
+description: Require source-level fixes for malformed or polluted domain data
+alwaysApply: true
+---
+
+# Root-Cause-First Bug Fixing
+
+When malformed, stale, duplicated, or unexpected data appears in the UI:
+
+1. Do not start with a UI filter, hidden row, fallback label, or string-pattern special case.
+2. Determine whether the value is persisted/remote domain data or only a presentation defect.
+3. Inspect the authoritative source and trace all transformations and writers to the earliest boundary that created the invalid state.
+4. Fix the invariant at that boundary: input parsing, API/RPC ingestion, persistence, sync reconciliation, or canonical state projection.
+5. Add a regression test at the producing boundary. A render/selector test alone is insufficient.
+6. Handle historical pollution separately: inventory dependencies, confirm destructive cleanup, clean narrowly, and read back the authoritative source.
+7. UI filtering is allowed only for an explicit product requirement or as defense-in-depth after the source fix. Never use it as the sole fix for invalid upstream data.
+8. Do not change adjacent valid behavior without an explicit request.
+
+Before declaring success, report: authoritative source, root cause, producing write path, source-level invariant, historical remediation, and verification evidence.
+
+Any UI predicate that hides malformed data must cite an explicit product requirement. If the value violates the domain model, reject the UI-only patch until the producing path is fixed and regression-tested.

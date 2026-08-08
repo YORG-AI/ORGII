@@ -15,9 +15,11 @@ import {
   ALL_CLOUD_SESSIONS_FILTER,
   type CloudSessionFilter,
 } from "@src/features/Org2Cloud/cloudSessionFilter";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
   buildCloudOrgSelectorValue,
   org2CloudOrgsAtom,
+  org2CloudOrgsLoadedAtom,
   parseCloudOrgSelectorValue,
   sidebarActiveCloudOrgIdAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
@@ -51,6 +53,8 @@ export function useSidebarOrgScope({
 }: UseSidebarOrgScopeParams) {
   const { t: tProjects } = useTranslation("projects");
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
+  const cloudOrgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
+  const cloudAuthed = useAtomValue(org2CloudAuthAtom) !== null;
   const [selectedOrgId, setSelectedOrgId] = useAtom(sidebarSelectedOrgIdAtom);
   const [projectOrgs, setProjectOrgs] = useState<ProjectOrg[]>([]);
 
@@ -107,13 +111,26 @@ export function useSidebarOrgScope({
     [cloudOrgs, projectOrgs, tProjects]
   );
 
-  const activeOrgId = useMemo(
-    () =>
-      orgSelectorOptions.some((option) => option.value === selectedOrgId)
-        ? selectedOrgId
-        : DEFAULT_SESSION_ORG_ID,
-    [orgSelectorOptions, selectedOrgId]
-  );
+  const activeOrgId = useMemo(() => {
+    if (orgSelectorOptions.some((option) => option.value === selectedOrgId)) {
+      return selectedOrgId;
+    }
+    // Boot window: a persisted cloud scope is absent from the options only
+    // because the roster has not hydrated yet. Treating that as authoritative
+    // absence flips the sidebar to personal, blanks the org sections, and a
+    // click during the flap can wedge them until the next cold start. Hold
+    // the selected scope until the roster can actually rule on it. Signed
+    // out, the roster never hydrates (`cloudOrgsLoaded` stays false), so the
+    // hold needs an identity that can still answer — otherwise fall through.
+    if (
+      cloudAuthed &&
+      !cloudOrgsLoaded &&
+      parseCloudOrgSelectorValue(selectedOrgId)
+    ) {
+      return selectedOrgId;
+    }
+    return DEFAULT_SESSION_ORG_ID;
+  }, [cloudAuthed, cloudOrgsLoaded, orgSelectorOptions, selectedOrgId]);
   const activeProjectOrgId = useMemo(
     () => resolveProjectOrgScopeId(activeOrgId, projectOrgs),
     [activeOrgId, projectOrgs]
