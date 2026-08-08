@@ -51,6 +51,18 @@ pub enum ForkState {
     Discarded,
 }
 
+impl ForkState {
+    pub fn chinese_label(&self) -> &'static str {
+        match self {
+            Self::Active => "进行中",
+            Self::Closing => "关闭中",
+            Self::CloseFailed => "关闭失败",
+            Self::Closed => "已关闭",
+            Self::Discarded => "已丢弃",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewState {
@@ -1289,8 +1301,8 @@ impl JourneyApplicationService {
                     .map(|response| journey_status_text(&response.snapshot))
             }
             JourneyCommand::ForkCompare => {
-                service::SessionJourneyApplicationService::snapshot(conn, session_id)
-                    .map(|response| fork_compare_text(&response.snapshot))
+                service::SessionJourneyApplicationService::fork_compare(conn, session_id)
+                    .map(|response| fork_compare_response_text(&response))
             }
             JourneyCommand::ReviewList => service::SessionJourneyApplicationService::review_queue(
                 conn, session_id,
@@ -1350,6 +1362,49 @@ impl JourneyApplicationService {
         };
         result.map_err(|error| error.to_string())
     }
+}
+
+fn fork_compare_response_text(
+    comparison: &crate::core::session::journey_application_service::ForkCompareResponse,
+) -> String {
+    if comparison.groups.is_empty() {
+        return "当前没有可比较的同锚点分叉。".to_string();
+    }
+    comparison
+        .groups
+        .iter()
+        .map(|group| {
+            let forks = group
+                .forks
+                .iter()
+                .map(|fork| {
+                    format!(
+                        "{}（状态：{}；结果：{}；结论：{}；未决：{}；证据：{}）",
+                        fork.branch_name,
+                        fork.state.chinese_label(),
+                        fork.task_outcome
+                            .as_ref()
+                            .map(TaskOutcome::chinese_label)
+                            .unwrap_or("未结束"),
+                        fork.conclusion.as_deref().unwrap_or("尚无结构化结论"),
+                        if fork.unresolved.is_empty() {
+                            "无".to_string()
+                        } else {
+                            fork.unresolved.join("、")
+                        },
+                        if fork.evidence.is_empty() {
+                            "无".to_string()
+                        } else {
+                            fork.evidence.join("、")
+                        }
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("锚点 {}：\n{}", group.anchor_sequence, forks)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn resolve_latest_message_id(

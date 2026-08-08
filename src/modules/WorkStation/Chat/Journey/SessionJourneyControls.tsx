@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   type JourneyReview,
   type JourneySnapshot,
+  type ForkCompareResponse,
   type TaskOutcome,
   sessionJourneyApi,
 } from "@src/api/tauri/sessionJourney";
@@ -22,7 +23,6 @@ import {
   REVIEW_PANEL_STORAGE_KEY,
   type ReviewPanelMode,
   activeTask,
-  compareSameAnchorForks,
   hasRecoverableJourney,
   isRevisionConflict,
   visibleReviews,
@@ -50,6 +50,7 @@ export const SessionJourneyControls: React.FC<{
   onJumpToMessage?: (messageId: string) => void;
 }> = ({ sessionId, messageId, forkCloseProvenance, onJumpToMessage }) => {
   const [snapshot, setSnapshot] = useState<JourneySnapshot | null>(null);
+  const [comparison, setComparison] = useState<ForkCompareResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<
     "task" | "checkpoint" | "finish" | "fork" | "closeFork" | null
@@ -66,10 +67,18 @@ export const SessionJourneyControls: React.FC<{
       "hidden"
   );
   const reload = useCallback(async () => {
-    if (!sessionId) return setSnapshot(null);
+    if (!sessionId) {
+      setSnapshot(null);
+      setComparison(null);
+      return;
+    }
     try {
-      const response = await sessionJourneyApi.snapshot(sessionId);
+      const [response, forkComparison] = await Promise.all([
+        sessionJourneyApi.snapshot(sessionId),
+        sessionJourneyApi.forkCompare(sessionId),
+      ]);
       setSnapshot(response.snapshot);
+      setComparison(forkComparison);
       setError(null);
     } catch (reason) {
       setError(String(reason));
@@ -322,6 +331,7 @@ export const SessionJourneyControls: React.FC<{
           mode={panelMode}
           reviews={reviews}
           snapshot={snapshot}
+          comparison={comparison}
           sessionId={sessionId}
           selectedEvidenceMessageId={messageId ?? null}
           onMode={setMode}
@@ -439,6 +449,7 @@ const ReviewPanel: React.FC<{
   mode: ReviewPanelMode;
   reviews: ReturnType<typeof visibleReviews>;
   snapshot: JourneySnapshot | null;
+  comparison: ForkCompareResponse | null;
   sessionId: string;
   selectedEvidenceMessageId: string | null;
   onMode: (mode: ReviewPanelMode) => void;
@@ -448,6 +459,7 @@ const ReviewPanel: React.FC<{
   mode,
   reviews,
   snapshot,
+  comparison,
   sessionId,
   selectedEvidenceMessageId,
   onMode,
@@ -608,12 +620,15 @@ const ReviewPanel: React.FC<{
           </section>
         );
       })}
-      {compareSameAnchorForks(snapshot).map(([anchor, forks]) => (
-        <section key={anchor} className="border-t border-border-2 pt-2 text-xs">
-          <strong>同锚点分叉对比（{anchor}）</strong>
-          {forks.map((fork) => (
-            <p key={fork.id} className="mt-1">
-              {fork.id}：{fork.handoff_capsule?.conclusion ?? "尚无结构化结论"}
+      {comparison?.groups.map((group) => (
+        <section
+          key={`${group.parent_branch_id}:${group.anchor_sequence}`}
+          className="border-t border-border-2 pt-2 text-xs"
+        >
+          <strong>同锚点分叉对比（{group.anchor_sequence}）</strong>
+          {group.forks.map((fork) => (
+            <p key={fork.branch_id} className="mt-1">
+              {fork.branch_name}：{fork.conclusion ?? "尚无结构化结论"}
             </p>
           ))}
         </section>

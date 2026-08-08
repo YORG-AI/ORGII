@@ -1,7 +1,9 @@
 //! Message persistence — insertion, loading, truncation, history building.
 
 use chrono::Utc;
-use rusqlite::{params, Result as SqliteResult, Transaction, TransactionBehavior};
+use rusqlite::{
+    params, OptionalExtension, Result as SqliteResult, Transaction, TransactionBehavior,
+};
 use uuid::Uuid;
 
 use crate::persistence::db_helpers as shared;
@@ -86,6 +88,7 @@ pub fn save_user_msg_and_assign_journey(
                 )
                 .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
             }
+            ensure_active_branch_accepts_messages(&journey)?;
             tx.execute(
                 "INSERT INTO session_journey_memberships
                  (session_id, message_id, sequence, branch_id, task_id)
@@ -259,6 +262,7 @@ fn assign_message_membership(
     else {
         return Ok(());
     };
+    ensure_active_branch_accepts_messages(&journey)?;
     tx.execute(
         "INSERT INTO session_journey_memberships
          (session_id, message_id, sequence, branch_id, task_id)
@@ -271,6 +275,28 @@ fn assign_message_membership(
             journey.active_task_id,
         ],
     )?;
+    Ok(())
+}
+
+/// A Journey branch accepts transcript rows only while it is the active,
+/// writable branch.  Persisting into a closing/closed branch makes later
+/// evidence validation ambiguous, so fail the caller rather than guessing.
+fn ensure_active_branch_accepts_messages(
+    journey: &crate::core::journey_lifecycle::SessionJourney,
+) -> SqliteResult<()> {
+    use crate::core::journey_lifecycle::ForkState;
+
+    let branch = journey
+        .branches
+        .get(&journey.active_branch_id)
+        .ok_or_else(|| {
+            rusqlite::Error::ToSqlConversionFailure("Journey 活动分叉不存在。".into())
+        })?;
+    if branch.state != ForkState::Active {
+        return Err(rusqlite::Error::ToSqlConversionFailure(
+            format!("Journey 活动分叉不可写入：{:?}。", branch.state).into(),
+        ));
+    }
     Ok(())
 }
 
@@ -288,11 +314,31 @@ pub fn save_completed_turn_and_assign_journey(session_id: &str, turn_id: &str) -
             tx.commit()?;
             return Ok(());
         };
+        ensure_active_branch_accepts_messages(&journey)?;
         let sequence: i64 = tx.query_row(
             "SELECT COALESCE(MAX(sequence), -1) FROM agent_messages WHERE session_id = ?1",
             [session_id],
             |row| row.get(0),
         )?;
+        let member: Option<(String, Option<String>)> = tx
+            .query_row(
+                "SELECT branch_id, task_id FROM session_journey_memberships
+                 WHERE session_id = ?1 AND sequence = ?2
+                 ORDER BY message_id DESC LIMIT 1",
+                params![session_id, sequence],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        if member.as_ref()
+            != Some(&(
+                journey.active_branch_id.clone(),
+                journey.active_task_id.clone(),
+            ))
+        {
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                "Journey 完成回合缺少活动分叉的精确消息归属。".into(),
+            ));
+        }
         tx.execute(
             "INSERT OR IGNORE INTO session_journey_turn_memberships
              (session_id, turn_id, completed_sequence, branch_id, task_id)

@@ -17,3 +17,14 @@ export function listenForJourneyMessageJump(
   window.addEventListener(JOURNEY_MESSAGE_JUMP_EVENT, listener);
   return () => window.removeEventListener(JOURNEY_MESSAGE_JUMP_EVENT, listener);
 }
+
+/** Focus the exact rendered transcript row selected by a Journey checkpoint. */
+export function focusJourneyMessage(messageId: string): boolean {
+  const target = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-journey-message-id]")
+  ).find((element) => element.dataset.journeyMessageId === messageId);
+  if (!target) return false;
+  target.dataset.journeyHighlight = "true";
+  target.scrollIntoView({ block: "center", behavior: "smooth" });
+  return true;
+}

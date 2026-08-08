@@ -25,11 +25,11 @@ describe("SessionJourneyControls interaction contract", () => {
     expect(source).not.toContain("openFileInWorkStation");
     expect(source).not.toContain("chatPanelMaximizedAtom");
   });
-  it("keeps review dock float hide reopen, explicit discard and same-anchor compare", () => {
+  it("keeps review dock float hide reopen, explicit discard and shared compare", () => {
     expect(source).toContain('setMode("dock")');
     expect(source).toContain('mode === "dock" ? "float" : "dock"');
     expect(source).toContain('onMode("hidden")');
     expect(source).toContain("sessionJourneyApi.discard");
-    expect(source).toContain("compareSameAnchorForks(snapshot)");
+    expect(source).toContain("sessionJourneyApi.forkCompare(sessionId)");
   });
 });

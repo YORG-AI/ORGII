@@ -811,7 +811,11 @@ impl UnifiedMessageProcessor {
             if let Some(transcript_content) = guard.transcript_content() {
                 if !transcript_content.trim().is_empty() {
                     let message_id = tokio::task::block_in_place(|| {
-                        unified_persistence::save_user_msg(session_id, transcript_content, None)
+                        unified_persistence::save_user_msg_and_assign_journey(
+                            session_id,
+                            transcript_content,
+                            None,
+                        )
                     })
                     .map_err(|err| format!("Failed to save inbox transcript message: {}", err))?;
 

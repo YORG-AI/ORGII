@@ -19,6 +19,7 @@ import {
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import type { SessionReplayPlaceholderMode } from "@src/modules/WorkStation/shared";
 import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
+import { focusJourneyMessage } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 
 import { isEmailBubbleEvent } from "./EmailMessageBubble";
 import { EmptyState } from "./EmptyState";
@@ -173,6 +174,25 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
       : undefined;
   const liveContentLength =
     latestLiveDelta?.kind === "message" ? latestLiveDelta.content.length : 0;
+
+  const journeyTargetId = selectedMessage?.eventId ?? null;
+
+  useEffect(() => {
+    if (!journeyTargetId) return;
+    const targetIndex = messages.findIndex(
+      (message) => message.eventId === journeyTargetId
+    );
+    if (targetIndex >= 0) {
+      setMessageWindow((current) =>
+        current.key === replayWindowKey &&
+        current.count >= messages.length - targetIndex
+          ? current
+          : { key: replayWindowKey, count: messages.length - targetIndex }
+      );
+    }
+    const frame = window.requestAnimationFrame(() => focusJourneyMessage(journeyTargetId));
+    return () => window.cancelAnimationFrame(frame);
+  }, [journeyTargetId, messages, replayWindowKey, renderedMessageCount]);
 
   const handleLoadMoreMessages = useCallback(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -351,18 +371,30 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                     })}
                   />
                 )}
-                <BubbleWrapper
-                  message={message}
-                  viewMode={viewMode}
-                  index={index}
-                  total={totalVisibleMessages}
-                  onMessageClick={onMessageClick}
-                  onNavigateToTodoList={
-                    setViewMode ? handleNavigateToTodoList : undefined
+                <div
+                  data-journey-message-id={message.eventId}
+                  data-journey-highlight={
+                    message.eventId === journeyTargetId ? "true" : undefined
                   }
-                  showChrome={showChrome}
-                  orgMembers={orgMembers}
-                />
+                  className={
+                    message.eventId === journeyTargetId
+                      ? "rounded outline outline-2 outline-primary-5"
+                      : undefined
+                  }
+                >
+                  <BubbleWrapper
+                    message={message}
+                    viewMode={viewMode}
+                    index={index}
+                    total={totalVisibleMessages}
+                    onMessageClick={onMessageClick}
+                    onNavigateToTodoList={
+                      setViewMode ? handleNavigateToTodoList : undefined
+                    }
+                    showChrome={showChrome}
+                    orgMembers={orgMembers}
+                  />
+                </div>
               </React.Fragment>
             );
           })}

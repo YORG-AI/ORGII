@@ -7,9 +7,9 @@
 use agent_core::core::journey_lifecycle::RuntimeProvenance;
 use agent_core::session::journey_application_service::{
     CreateCheckpointRequest, CreateForkRequest, CreateTaskRequest, DiscardForkRequest,
-    DiscardForkResponse, FinishTaskRequest, JourneySnapshotResponse, JourneyWriteResponse,
-    PromoteFactRequest, RequestForkCloseRequest, ReturnToParentRequest, ReturnToParentResponse,
-    RetryReviewRequest, SessionJourneyApplicationService,
+    DiscardForkResponse, FinishTaskRequest, ForkCompareResponse, JourneySnapshotResponse,
+    JourneyWriteResponse, PromoteFactRequest, RequestForkCloseRequest, RetryReviewRequest,
+    ReturnToParentRequest, ReturnToParentResponse, SessionJourneyApplicationService,
 };
 use agent_core::session::journey_review_queue::ReviewJob;
 
@@ -124,6 +124,16 @@ pub async fn journey_review_list(
     })
     .await
     .map_err(|error| format!("会话旅程审核列表异常：{error}"))?
+}
+
+#[tauri::command]
+pub async fn journey_fork_compare(session_id: String) -> Result<ForkCompareResponse, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_connection()?;
+        SessionJourneyApplicationService::fork_compare(&conn, &session_id).map_err(service_error)
+    })
+    .await
+    .map_err(|error| format!("会话旅程分叉对比异常：{error}"))?
 }
 
 #[tauri::command]

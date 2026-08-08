@@ -78,4 +78,9 @@ describe("session Journey typed desktop API", () => {
       "journey_review_retry",
     ]);
   });
+
+  it("uses the shared durable fork-compare command", async () => {
+    await sessionJourneyApi.forkCompare("s");
+    expect(invoke).toHaveBeenCalledWith("journey_fork_compare", { sessionId: "s" });
+  });
 });

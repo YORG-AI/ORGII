@@ -155,6 +155,32 @@ pub struct JourneySnapshotResponse {
     pub revision: u64,
 }
 
+/// Provider-neutral fork comparison.  Every adapter receives the same durable
+/// fields; presentation layers only translate/render this response.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForkCompareResponse {
+    pub groups: Vec<ForkCompareGroup>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForkCompareGroup {
+    pub parent_branch_id: String,
+    pub parent_anchor_message_id: Option<String>,
+    pub anchor_sequence: u64,
+    pub forks: Vec<ForkCompareItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForkCompareItem {
+    pub branch_id: String,
+    pub branch_name: String,
+    pub state: crate::core::journey_lifecycle::ForkState,
+    pub task_outcome: Option<TaskOutcome>,
+    pub conclusion: Option<String>,
+    pub unresolved: Vec<String>,
+    pub evidence: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JourneyWriteResponse {
     pub revision: u64,
@@ -524,6 +550,70 @@ impl SessionJourneyApplicationService {
     ) -> JourneyApplicationResult<Vec<ReviewItem>> {
         let snapshot = Self::snapshot(conn, session_id)?;
         Ok(snapshot.snapshot.reviews.into_values().collect())
+    }
+
+    pub fn fork_compare(
+        conn: &Connection,
+        session_id: &str,
+    ) -> JourneyApplicationResult<ForkCompareResponse> {
+        let snapshot = Self::snapshot(conn, session_id)?.snapshot;
+        let mut grouped: std::collections::BTreeMap<
+            (String, Option<String>, u64),
+            Vec<ForkCompareItem>,
+        > = std::collections::BTreeMap::new();
+        for fork in snapshot
+            .branches
+            .values()
+            .filter(|fork| fork.id != fork.parent_branch_id)
+        {
+            let task_outcome = snapshot
+                .tasks
+                .values()
+                .find(|task| task.branch_id == fork.id)
+                .and_then(|task| task.outcome.clone());
+            let (conclusion, unresolved, evidence) = fork
+                .handoff_capsule
+                .as_ref()
+                .map(|capsule| {
+                    (
+                        Some(capsule.conclusion.clone()),
+                        capsule.open_questions.clone(),
+                        capsule.evidence_references.clone(),
+                    )
+                })
+                .unwrap_or_else(|| (None, Vec::new(), Vec::new()));
+            grouped
+                .entry((
+                    fork.parent_branch_id.clone(),
+                    fork.parent_anchor_message_id.clone(),
+                    fork.anchor_sequence,
+                ))
+                .or_default()
+                .push(ForkCompareItem {
+                    branch_id: fork.id.clone(),
+                    branch_name: fork.id.clone(),
+                    state: fork.state.clone(),
+                    task_outcome,
+                    conclusion,
+                    unresolved,
+                    evidence,
+                });
+        }
+        Ok(ForkCompareResponse {
+            groups: grouped
+                .into_iter()
+                .filter_map(
+                    |((parent_branch_id, parent_anchor_message_id, anchor_sequence), forks)| {
+                        (forks.len() > 1).then_some(ForkCompareGroup {
+                            parent_branch_id,
+                            parent_anchor_message_id,
+                            anchor_sequence,
+                            forks,
+                        })
+                    },
+                )
+                .collect(),
+        })
     }
 
     pub fn promote_confirmed_fact(
