@@ -40,7 +40,8 @@ pub enum GatewayCommand {
     SessionCurrent,
     /// List recent sessions that can be bound to this chat.
     SessionList,
-    /// Start the durable Workspace -> Project -> Work Item -> Session tree.
+    /// Start the durable Workspace -> Project -> Session -> Journey tree.
+    /// Work Item is optional session metadata, never a containment parent.
     SessionTree,
     /// Start a durable snapshot of recent terminal sessions.
     SessionRecent,
