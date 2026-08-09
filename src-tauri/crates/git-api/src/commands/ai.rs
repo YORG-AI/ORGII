@@ -292,7 +292,7 @@ pub async fn generate_commit_message(
         ];
 
         let response = client
-            .chat(&messages, None, model, 256, 0.3)
+            .chat(&messages, None, model, Some(256), 0.3)
             .await
             .map_err(|err| format!("LLM request failed: {}", err))?;
 
