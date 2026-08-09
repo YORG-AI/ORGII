@@ -1580,6 +1580,93 @@ mod tests {
     }
 
     #[test]
+    fn fork_user_message_is_persisted_and_reaches_provider_history_without_parent_continuation() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "journey-fork-user-provider-history";
+        seed_session_for_message_tests(session_id);
+        let mut conn = get_connection().expect("get connection");
+        crate::core::journey_lifecycle::SqliteJourneyRepository::ensure_schema(&conn)
+            .expect("ensure journey schema");
+
+        for (id, role, content, sequence) in [
+            ("parent-prefix", "user", "parent prefix", 0_i64),
+            ("parent-anchor", "assistant", "parent anchor", 1_i64),
+            ("parent-after-anchor", "assistant", "parent after anchor", 2_i64),
+        ] {
+            conn.execute(
+                "INSERT INTO agent_messages (id, session_id, role, content, sequence, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
+                params![id, session_id, role, content, sequence],
+            )
+            .expect("seed message");
+        }
+        let mut journey = crate::core::journey_lifecycle::SessionJourney::new(session_id, "main");
+        journey
+            .start_fork(
+                0,
+                "fork-a".into(),
+                "task-a".into(),
+                "fork task".into(),
+                "parent-anchor".into(),
+                1,
+            )
+            .expect("start fork");
+        crate::core::journey_lifecycle::SqliteJourneyRepository::compare_and_store(
+            &mut conn, &journey, 0,
+        )
+        .expect("store journey");
+        for (id, sequence) in [("parent-prefix", 0_i64), ("parent-anchor", 1_i64)] {
+            conn.execute(
+                "INSERT INTO session_journey_memberships
+                 (session_id, message_id, sequence, branch_id, task_id)
+                 VALUES (?1, ?2, ?3, 'main', NULL)",
+                params![session_id, id, sequence],
+            )
+            .expect("seed parent membership");
+        }
+        conn.execute(
+            "INSERT INTO session_journey_memberships
+             (session_id, message_id, sequence, branch_id, task_id)
+             VALUES (?1, 'parent-after-anchor', 2, 'main', NULL)",
+            [session_id],
+        )
+        .expect("seed hidden parent continuation");
+        drop(conn);
+
+        let fork_user_id = save_user_msg_and_assign_journey(
+            session_id,
+            "fork user request",
+            None,
+        )
+        .expect("persist fork user message");
+        let conn = get_connection().expect("get connection");
+        let membership: (String, Option<String>) = conn
+            .query_row(
+                "SELECT branch_id, task_id FROM session_journey_memberships
+                 WHERE session_id = ?1 AND message_id = ?2",
+                params![session_id, fork_user_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("fork user membership");
+        assert_eq!(membership, ("fork-a".into(), Some("task-a".into())));
+        drop(conn);
+
+        let history = load_llm_history_for_active_journey(session_id)
+            .expect("provider history for active fork");
+        let contents = history
+            .iter()
+            .filter_map(|message| message.get("content").and_then(|content| content.as_str()))
+            .collect::<Vec<_>>();
+        assert!(contents.contains(&"parent prefix"));
+        assert!(contents.contains(&"parent anchor"));
+        assert!(contents.contains(&"fork user request"));
+        assert!(
+            !contents.contains(&"parent after anchor"),
+            "fork provider history must exclude parent continuation after its exact anchor"
+        );
+    }
+
+    #[test]
     fn journey_history_loader_filters_before_provider_reconstruction() {
         let _sandbox = test_env::sandbox();
         let session_id = "journey-provider-visibility";
