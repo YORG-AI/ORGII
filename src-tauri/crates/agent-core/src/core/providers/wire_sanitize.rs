@@ -92,7 +92,8 @@ pub fn sanitize_deepseek_messages(messages: &[Value]) -> Vec<Value> {
 /// because DeepSeek's API rejects `image_url` content blocks with HTTP 400
 /// ("unknown variant image_url, expected text").
 pub fn is_deepseek_text_only_wire(provider_name: &str, wire_model: &str) -> bool {
-    provider_name == "deepseek" || wire_model.contains("deepseek")
+    provider_name == "deepseek"
+        || super::model_capabilities::resolve(wire_model, None).text_only_wire
 }
 
 fn sanitize_message(message: &Value) -> Value {
@@ -269,13 +270,25 @@ mod tests {
     #[test]
     fn is_deepseek_text_only_wire_matches_native_and_aggregator_routed() {
         // native deepseek provider spec
-        assert!(is_deepseek_text_only_wire("deepseek", "deepseek/deepseek-chat"));
+        assert!(is_deepseek_text_only_wire(
+            "deepseek",
+            "deepseek/deepseek-chat"
+        ));
         // zenmux/aggregator provider with a deepseek wire model
-        assert!(is_deepseek_text_only_wire("zenmux", "deepseek/deepseek-v4-flash"));
+        assert!(is_deepseek_text_only_wire(
+            "zenmux",
+            "deepseek/deepseek-v4-flash"
+        ));
         // slug-carrying deepseek wire model
-        assert!(is_deepseek_text_only_wire("zenmux", "deepseek/deepseek-v4-flash:deepseek"));
+        assert!(is_deepseek_text_only_wire(
+            "zenmux",
+            "deepseek/deepseek-v4-flash:deepseek"
+        ));
         // non-deepseek models routed through aggregators stay unaffected
-        assert!(!is_deepseek_text_only_wire("zenmux", "anthropic/claude-sonnet-4.5"));
+        assert!(!is_deepseek_text_only_wire(
+            "zenmux",
+            "anthropic/claude-sonnet-4.5"
+        ));
         assert!(!is_deepseek_text_only_wire("openai", "gpt-5"));
         // substring safety: unrelated model containing the word must not match
         assert!(!is_deepseek_text_only_wire("zenmux", "z-ai/glm-4.5-air"));

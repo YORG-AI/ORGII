@@ -184,7 +184,16 @@ export function formatLocalMonthDay(
     monthStyle?: "short" | "long";
   }
 ): string {
-  const locale = options && "locale" in options ? options.locale : "en-US";
+  const localeWasExplicit = options && "locale" in options;
+  const locale = localeWasExplicit ? options.locale : "en-US";
+  if (localeWasExplicit) {
+    return new Intl.DateTimeFormat(locale, {
+      month: options?.monthStyle ?? "short",
+      day: "numeric",
+      ...(options.includeYear ? { year: "numeric" } : {}),
+    }).format(date);
+  }
+
   const month = date.toLocaleString(locale, {
     month: options?.monthStyle ?? "short",
   });

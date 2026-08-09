@@ -37,6 +37,8 @@ export const INTEGRATIONS_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
       "housekeeper.enabled",
       "housekeeper.accountId",
       "housekeeper.model",
+      "housekeeper.contextCompactAccountIdOverride",
+      "housekeeper.contextCompactModelOverride",
       "housekeeper.contextLimitTokens",
       "housekeeper.features.promptPolish",
       "housekeeper.features.stepExplain",

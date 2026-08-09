@@ -99,6 +99,8 @@ pub struct ModelCapabilities {
     /// When true, requests that enable thinking must omit `temperature`
     /// (Anthropic rejects sending both).
     pub omit_temperature_with_thinking: bool,
+    /// DeepSeek chat-completions variants reject multimodal `image_url` blocks.
+    pub text_only_wire: bool,
 }
 
 impl ModelCapabilities {
@@ -110,6 +112,7 @@ impl ModelCapabilities {
             context_window: 200_000,
             thinking: ThinkingSupport::Optional,
             omit_temperature_with_thinking: true,
+            text_only_wire: false,
         }
     }
 }
@@ -649,6 +652,7 @@ fn resolve_from_family_table(model: &str) -> ModelCapabilities {
                 context_window: rule.context_window,
                 thinking: rule.thinking,
                 omit_temperature_with_thinking: true,
+                text_only_wire: rule.pattern.starts_with("deepseek"),
             };
         }
     }

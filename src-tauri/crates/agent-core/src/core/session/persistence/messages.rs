@@ -1591,7 +1591,12 @@ mod tests {
         for (id, role, content, sequence) in [
             ("parent-prefix", "user", "parent prefix", 0_i64),
             ("parent-anchor", "assistant", "parent anchor", 1_i64),
-            ("parent-after-anchor", "assistant", "parent after anchor", 2_i64),
+            (
+                "parent-after-anchor",
+                "assistant",
+                "parent after anchor",
+                2_i64,
+            ),
         ] {
             conn.execute(
                 "INSERT INTO agent_messages (id, session_id, role, content, sequence, created_at)
@@ -1633,12 +1638,8 @@ mod tests {
         .expect("seed hidden parent continuation");
         drop(conn);
 
-        let fork_user_id = save_user_msg_and_assign_journey(
-            session_id,
-            "fork user request",
-            None,
-        )
-        .expect("persist fork user message");
+        let fork_user_id = save_user_msg_and_assign_journey(session_id, "fork user request", None)
+            .expect("persist fork user message");
         let conn = get_connection().expect("get connection");
         let membership: (String, Option<String>) = conn
             .query_row(
@@ -1817,6 +1818,10 @@ mod tests {
         journey
             .publish_handoff_capsule(3, "fork-a", capsule)
             .expect("publish capsule");
+        crate::core::journey_lifecycle::SqliteJourneyRepository::compare_and_store(
+            &mut conn, &journey, 3,
+        )
+        .expect("store capsule");
         journey
             .return_to_parent(4, "review-a")
             .expect("return parent");

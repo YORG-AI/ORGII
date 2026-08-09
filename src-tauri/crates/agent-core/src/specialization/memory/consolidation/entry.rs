@@ -190,9 +190,10 @@ mod tests {
 
     #[test]
     fn embedding_config_reads_through_integrations_store() {
-        // cfg(test) integrations_store() returns a fresh store; defaults
-        // resolve to the safe disabled embedding provider.
+        // cfg(test) integrations_store() returns a fresh store; it must use
+        // the same bounded remote embedding defaults as production.
         let embedding = load_embedding_config_for_consolidation().expect("embedding config");
-        assert_eq!(embedding.provider, "disabled");
+        assert_eq!(embedding.provider, "embedding_api");
+        assert_eq!(embedding.model.as_deref(), Some("qwen/qwen3-vl-embedding"));
     }
 }

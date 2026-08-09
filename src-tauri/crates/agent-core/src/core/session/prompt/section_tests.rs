@@ -300,7 +300,7 @@ fn project_env_lists_global_paths_separately_from_session_dirs() {
     assert!(out.contains("- Additional working directories:"));
     assert!(out.contains("- Globally permitted paths:"));
     assert!(out.contains("/tmp/pr-f-global-grant"));
-    assert!(out.contains("workspace-external paths authorized for structured tools"));
+    assert!(out.contains("Workspace-external paths authorized for structured tools"));
 }
 
 #[test]
