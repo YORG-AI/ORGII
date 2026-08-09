@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   ChartNoAxesGantt,
   FolderGit2,
+  GitBranch,
   Search,
   SquareMousePointer,
 } from "lucide-react";
@@ -74,6 +75,11 @@ const HomeSidebar: React.FC = () => {
         iconName: "square-mouse-pointer",
         routePath: ROUTES.workStation.base.path,
       },
+      routeToMenuItem(ROUTES.app.journey.station, {
+        label: getTranslatedRouteLabel(ROUTES.app.journey.station),
+        icon: GitBranch,
+        iconName: "git-branch",
+      }),
       routeToMenuItem(ROUTES.app.home.start, {
         label: getTranslatedRouteLabel(ROUTES.app.home.start),
       }),

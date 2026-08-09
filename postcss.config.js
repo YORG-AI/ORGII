@@ -7,8 +7,8 @@
 //     ]
 // }
 module.exports = {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
+  // Resolve plugins from the project config instead of asking postcss-loader to
+  // resolve string names from its pnpm virtual-store path. The latter breaks
+  // when a worktree reuses a symlinked node_modules directory.
+  plugins: [require("tailwindcss"), require("autoprefixer")],
 };

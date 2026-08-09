@@ -1400,6 +1400,11 @@ describe("Org2CloudSyncEngine", () => {
     emitDataChanged();
     expect(bridge.drainOutbox).not.toHaveBeenCalled(); // debounce coalesces
     await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
+    // The timer intentionally fire-and-forgets the pass in production. Wait for
+    // that pass (and any coalesced dirty pass) to drain before asserting; under
+    // full-suite CPU pressure, merely advancing fake timers does not settle the
+    // complete async projects pipeline.
+    await engine.runSyncPassAndWaitForDrain();
     expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
     // Narrow flag: the comment-task plane stays on the inbound fallback.

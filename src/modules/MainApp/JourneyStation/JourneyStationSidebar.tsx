@@ -198,42 +198,40 @@ const JourneyStationSidebar: React.FC = () => {
           );
         })}
       </section>
-      {Boolean(sessionsByProject.get("")?.length) && (
-        <section aria-label="未关联项目的会话">
-          <h3 className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
-            未关联项目的会话
-          </h3>
-          {(sessionsByProject.get("") ?? []).map((session) => {
-            const label = getSessionListDisplayName(session, "会话");
-            return (
-              <JourneyRow
-                key={session.session_id}
-                icon={<GitBranch size={13} className="text-text-3" />}
-                label={label}
-                selected={
-                  selection?.kind === "session" &&
-                  selection.id === session.session_id
-                }
-                onClick={() =>
-                  select({
-                    kind: "session",
-                    id: session.session_id,
-                    name: label,
-                  })
-                }
-                testId="journey-station-session-row"
-              />
-            );
-          })}
-          {sessions.length === 0 && (
-            <div className="px-2 text-[11px] text-text-4">
-              {t("navigation:journeyStation.noSessions", {
-                defaultValue: "暂无会话",
-              })}
-            </div>
-          )}
-        </section>
-      )}
+      <section aria-label="未关联项目的会话">
+        <h3 className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+          未关联项目的会话
+        </h3>
+        {(sessionsByProject.get("") ?? []).map((session) => {
+          const label = getSessionListDisplayName(session, "会话");
+          return (
+            <JourneyRow
+              key={session.session_id}
+              icon={<GitBranch size={13} className="text-text-3" />}
+              label={label}
+              selected={
+                selection?.kind === "session" &&
+                selection.id === session.session_id
+              }
+              onClick={() =>
+                select({
+                  kind: "session",
+                  id: session.session_id,
+                  name: label,
+                })
+              }
+              testId="journey-station-session-row"
+            />
+          );
+        })}
+        {!sessionsByProject.get("")?.length && (
+          <div className="px-2 text-[11px] text-text-4">
+            {t("navigation:journeyStation.noSessions", {
+              defaultValue: "暂无会话",
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 };
