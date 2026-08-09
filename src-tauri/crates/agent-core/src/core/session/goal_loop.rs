@@ -367,7 +367,7 @@ async fn run_judge(input: &GoalLoopTurnEnd, goal_text: &str) -> JudgeVerdict {
     };
 
     let messages = build_judge_messages(goal_text, &input.response_text);
-    let judge_call = provider.chat(&messages, None, &input.model, 512, 0.0);
+    let judge_call = provider.chat(&messages, None, &input.model, Some(512), 0.0);
     match tokio::time::timeout(std::time::Duration::from_secs(60), judge_call).await {
         Ok(Ok(response)) => parse_judge_verdict(response.content.as_deref().unwrap_or("")),
         Ok(Err(err)) => {

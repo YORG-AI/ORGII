@@ -393,7 +393,7 @@ mod tests {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             self.calls.fetch_add(1, Ordering::SeqCst);
@@ -424,7 +424,7 @@ mod tests {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             self.calls.fetch_add(1, Ordering::SeqCst);

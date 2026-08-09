@@ -25,6 +25,22 @@ vi.mock("@src/api/tauri/session", () => ({
 }));
 
 describe("loadProjectTreeBundle", () => {
+  it("uses canonical demo sessions only for the explicit forceDemo path", async () => {
+    const bundle = await loadProjectTreeBundle({ forceDemo: true });
+
+    expect(bundle.usedDemo).toBe(true);
+    expect(bundle.sessions).toHaveLength(4);
+    expect(
+      bundle.tree.children[0]?.children.map((node) => node.sessionId)
+    ).toEqual([
+      "sess-main-tree",
+      "sess-main-journey",
+      "sess-fork-explore",
+      "sess-fork-dead",
+    ]);
+    expect(mocks.sessionAggregateList).not.toHaveBeenCalled();
+  });
+
   it("discovers a Project-owned session from the canonical aggregate without a Work Item", async () => {
     mocks.readProjects.mockResolvedValue([
       { meta: { id: "p", name: "项目" }, slug: "project-p" },

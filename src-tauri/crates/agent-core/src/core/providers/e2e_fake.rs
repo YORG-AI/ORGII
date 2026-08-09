@@ -65,7 +65,7 @@ impl LLMProvider for E2eFakeProvider {
         messages: &[Value],
         _tools: Option<&[Value]>,
         _model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         let content = Self::response_for(messages);
@@ -99,7 +99,7 @@ impl LLMProvider for E2eFakeProvider {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
         on_delta: &(dyn Fn(StreamDelta) + Send + Sync),
         cancel_flag: Option<&AtomicBool>,

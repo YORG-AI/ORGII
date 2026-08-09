@@ -23,7 +23,7 @@ pub(super) async fn run_chat(
     messages: &[Value],
     tools: Option<&[Value]>,
     model: &str,
-    max_tokens: u32,
+    max_tokens: Option<u32>,
     _temperature: f32,
 ) -> Result<LLMResponse, ProviderError> {
     // Azure gateway: strip provider prefix but don't add litellm prefix.
@@ -102,12 +102,12 @@ pub(super) async fn run_chat(
             None
         },
         max_tokens: match wire_policy.token_limit_field {
-            ChatTokenLimitField::MaxTokens => Some(max_tokens),
+            ChatTokenLimitField::MaxTokens => max_tokens,
             ChatTokenLimitField::MaxCompletionTokens => None,
         },
         max_completion_tokens: match wire_policy.token_limit_field {
             ChatTokenLimitField::MaxTokens => None,
-            ChatTokenLimitField::MaxCompletionTokens => Some(max_tokens),
+            ChatTokenLimitField::MaxCompletionTokens => max_tokens,
         },
         temperature: if wire_policy.send_temperature {
             Some(_temperature)

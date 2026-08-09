@@ -58,7 +58,7 @@ impl LLMProvider for OpenAICompatClient {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         chat::run_chat(self, messages, tools, model, max_tokens, temperature).await
@@ -69,7 +69,7 @@ impl LLMProvider for OpenAICompatClient {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
         on_delta: &(dyn Fn(StreamDelta) + Send + Sync),
         cancel_flag: Option<&std::sync::atomic::AtomicBool>,

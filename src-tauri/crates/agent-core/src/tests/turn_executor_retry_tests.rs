@@ -60,7 +60,7 @@ impl LLMProvider for MockRetryProvider {
         _messages: &[Value],
         _tools: Option<&[Value]>,
         _model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         let remaining = self.errors_remaining.load(Ordering::SeqCst);

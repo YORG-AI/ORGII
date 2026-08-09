@@ -30,7 +30,7 @@ impl LLMProvider for FailNProvider {
         _messages: &[Value],
         _tools: Option<&[Value]>,
         _model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         let remaining = self.fail_count.fetch_sub(1, Ordering::SeqCst);
@@ -282,7 +282,7 @@ async fn retries_rate_limited_then_succeeds() {
         retry_after_secs: None,
     });
     let reliable = ReliableProvider::single("test".into(), Box::new(stub), 3, MIN_BASE_BACKOFF_MS);
-    let result = reliable.chat(&[], None, "model", 100, 0.0).await;
+    let result = reliable.chat(&[], None, "model", Some(100), 0.0).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().content.unwrap(), "ok");
 }
@@ -294,7 +294,7 @@ async fn retries_overloaded_then_succeeds() {
         retry_after_secs: None,
     });
     let reliable = ReliableProvider::single("test".into(), Box::new(stub), 2, MIN_BASE_BACKOFF_MS);
-    let result = reliable.chat(&[], None, "model", 100, 0.0).await;
+    let result = reliable.chat(&[], None, "model", Some(100), 0.0).await;
     assert!(result.is_ok());
 }
 
@@ -306,7 +306,7 @@ async fn long_retry_after_rate_limit_returns_without_sleeping() {
     });
     let reliable = ReliableProvider::single("test".into(), Box::new(stub), 5, MIN_BASE_BACKOFF_MS);
     let started_at = std::time::Instant::now();
-    let result = reliable.chat(&[], None, "model", 100, 0.0).await;
+    let result = reliable.chat(&[], None, "model", Some(100), 0.0).await;
 
     assert!(result.is_err());
     assert!(started_at.elapsed() < std::time::Duration::from_secs(1));
@@ -323,7 +323,7 @@ async fn exhausts_retries_returns_last_error() {
         retry_after_secs: None,
     });
     let reliable = ReliableProvider::single("test".into(), Box::new(stub), 1, MIN_BASE_BACKOFF_MS);
-    let result = reliable.chat(&[], None, "model", 100, 0.0).await;
+    let result = reliable.chat(&[], None, "model", Some(100), 0.0).await;
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -347,7 +347,7 @@ async fn overloaded_uses_independent_budget_and_stops_after_max() {
         retry_after_secs: None,
     });
     let reliable = ReliableProvider::single("test".into(), Box::new(stub), 10, MIN_BASE_BACKOFF_MS);
-    let result = reliable.chat(&[], None, "model", 100, 0.0).await;
+    let result = reliable.chat(&[], None, "model", Some(100), 0.0).await;
     assert!(
         result.is_err(),
         "overloaded should exhaust independent budget"
@@ -366,7 +366,7 @@ async fn overloaded_then_success_within_budget() {
         retry_after_secs: None,
     });
     let reliable = ReliableProvider::single("test".into(), Box::new(stub), 10, MIN_BASE_BACKOFF_MS);
-    let result = reliable.chat(&[], None, "model", 100, 0.0).await;
+    let result = reliable.chat(&[], None, "model", Some(100), 0.0).await;
     assert!(result.is_ok());
 }
 
@@ -414,7 +414,7 @@ fn deterministic_http_4xx_skip_retries_but_transient_ones_do_not() {
 async fn auth_error_skips_retries() {
     let stub = FailNProvider::new(100, |_| ProviderError::AuthError("bad key".into()));
     let reliable = ReliableProvider::single("test".into(), Box::new(stub), 5, MIN_BASE_BACKOFF_MS);
-    let result = reliable.chat(&[], None, "model", 100, 0.0).await;
+    let result = reliable.chat(&[], None, "model", Some(100), 0.0).await;
     assert!(result.is_err());
     assert!(matches!(result.unwrap_err(), ProviderError::AuthError(_)));
 }
@@ -433,7 +433,7 @@ impl LLMProvider for OptionRecordingProvider {
         _messages: &[Value],
         _tools: Option<&[Value]>,
         _model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         Ok(LLMResponse::text("ok"))
@@ -444,7 +444,7 @@ impl LLMProvider for OptionRecordingProvider {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
         options: ChatOptions,
     ) -> Result<LLMResponse, ProviderError> {
@@ -478,7 +478,7 @@ async fn chat_with_options_forwards_options_to_inner_provider() {
             &[],
             None,
             "model",
-            100,
+            Some(100),
             0.0,
             ChatOptions {
                 skip_cache_write: true,

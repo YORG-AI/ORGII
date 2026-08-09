@@ -25,7 +25,7 @@ impl LLMProvider for CodexNativeClient {
         messages: &[JsonValue],
         tools: Option<&[JsonValue]>,
         model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         let on_delta = |_delta: StreamDelta| {};
@@ -46,7 +46,7 @@ impl LLMProvider for CodexNativeClient {
         messages: &[JsonValue],
         tools: Option<&[JsonValue]>,
         model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
         on_delta: &(dyn Fn(StreamDelta) + Send + Sync),
         cancel_flag: Option<&std::sync::atomic::AtomicBool>,

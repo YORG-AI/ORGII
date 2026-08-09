@@ -63,6 +63,15 @@ describe("toFrontendSession", () => {
     expect(result.is_active).toBe(false);
   });
 
+  it("preserves canonical project identity for project-tree membership", () => {
+    const result = toFrontendSession(
+      makeAggregateRecord({ projectId: "project-1", projectSlug: "alpha" })
+    );
+
+    expect(result.projectId).toBe("project-1");
+    expect(result.projectSlug).toBe("alpha");
+  });
+
   it("passes category and key source through", () => {
     const cliRecord = makeAggregateRecord({
       category: "cli_agent",

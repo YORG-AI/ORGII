@@ -64,4 +64,24 @@ describe("Project Journey tree", () => {
       false
     );
   });
+
+  it("does not create a session node from a work item link absent from the canonical aggregate", () => {
+    const tree = buildWorkspaceProjectTree({
+      projects: [{ id: "p", name: "项目" }],
+      sessions: [{ session_id: "canonical", name: "规范会话", projectId: "p" }],
+      workItemsByProject: {
+        p: [
+          {
+            session_id: "w",
+            name: "工作项 A",
+            linkedSessions: [{ session_id: "missing-from-aggregate" }],
+          },
+        ],
+      },
+    });
+
+    expect(tree.children[0].children.map((node) => node.sessionId)).toEqual([
+      "canonical",
+    ]);
+  });
 });

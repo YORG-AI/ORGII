@@ -57,7 +57,7 @@ pub(super) async fn run_chat_streaming(
     messages: &[Value],
     tools: Option<&[Value]>,
     model: &str,
-    max_tokens: u32,
+    max_tokens: Option<u32>,
     _temperature: f32,
     on_delta: &(dyn Fn(StreamDelta) + Send + Sync),
     cancel_flag: Option<&std::sync::atomic::AtomicBool>,
@@ -140,12 +140,12 @@ pub(super) async fn run_chat_streaming(
             None
         },
         max_tokens: match wire_policy.token_limit_field {
-            ChatTokenLimitField::MaxTokens => Some(max_tokens),
+            ChatTokenLimitField::MaxTokens => max_tokens,
             ChatTokenLimitField::MaxCompletionTokens => None,
         },
         max_completion_tokens: match wire_policy.token_limit_field {
             ChatTokenLimitField::MaxTokens => None,
-            ChatTokenLimitField::MaxCompletionTokens => Some(max_tokens),
+            ChatTokenLimitField::MaxCompletionTokens => max_tokens,
         },
         temperature: if wire_policy.send_temperature {
             Some(_temperature)
@@ -758,7 +758,7 @@ mod tests {
                     }
                 })]),
                 "test-model",
-                1024,
+                Some(1024),
                 0.0,
                 &|_| {},
                 None,

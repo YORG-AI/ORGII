@@ -895,6 +895,7 @@ mod tests {
     use crate::core::journey_lifecycle::{
         ForkState, JourneyFork, ReviewItem, ReviewState, SqliteJourneyRepository,
     };
+    use crate::providers::traits::{LLMResponse, ProviderError, ToolCallRequest};
 
     #[derive(Default)]
     struct FakeReviewModel {
@@ -952,6 +953,88 @@ mod tests {
     #[test]
     fn review_side_query_has_no_explicit_token_budget() {
         assert_eq!(review_side_query_config(&provenance()).max_tokens, None);
+    }
+
+    struct TokenBudgetRecordingProvider {
+        observed: Mutex<Vec<Option<u32>>>,
+        retry_once: bool,
+        calls: AtomicUsize,
+    }
+
+    #[async_trait]
+    impl LLMProvider for TokenBudgetRecordingProvider {
+        async fn chat(
+            &self,
+            _messages: &[Value],
+            _tools: Option<&[Value]>,
+            _model: &str,
+            max_tokens: Option<u32>,
+            _temperature: f32,
+        ) -> Result<LLMResponse, ProviderError> {
+            self.observed.lock().unwrap().push(max_tokens);
+            if self.retry_once && self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Ok(LLMResponse::text(""));
+            }
+            Ok(LLMResponse {
+                content: None,
+                tool_calls: vec![ToolCallRequest {
+                    id: "review-call".into(),
+                    name: "提交分叉审核".into(),
+                    arguments: valid_annotation(),
+                    thought_signature: None,
+                }],
+                finish_reason: crate::providers::traits::finish_reason::STOP.into(),
+                usage: Default::default(),
+                reasoning_content: None,
+                blocks: Vec::new(),
+                stream_error_kind: None,
+                retry_after_ms: None,
+            })
+        }
+
+        fn default_model(&self) -> &str {
+            "test-model"
+        }
+
+        fn provider_name(&self) -> &str {
+            "token-budget-recorder"
+        }
+    }
+
+    #[tokio::test]
+    async fn journey_review_reaches_provider_without_an_output_token_cap() {
+        let provider = TokenBudgetRecordingProvider {
+            observed: Mutex::new(Vec::new()),
+            retry_once: false,
+            calls: AtomicUsize::new(0),
+        };
+        let model = SideQueryReviewModel {
+            provider: &provider,
+            resolved: provenance(),
+        };
+
+        let result = model.run("review this fork".into(), &provenance()).await;
+
+        assert!(result.is_ok());
+        assert_eq!(*provider.observed.lock().unwrap(), vec![None]);
+    }
+
+    #[tokio::test]
+    async fn journey_review_retry_preserves_no_output_token_cap() {
+        let provider = TokenBudgetRecordingProvider {
+            observed: Mutex::new(Vec::new()),
+            retry_once: true,
+            calls: AtomicUsize::new(0),
+        };
+        let model = SideQueryReviewModel {
+            provider: &provider,
+            resolved: provenance(),
+        };
+
+        let result = model.run("review this fork".into(), &provenance()).await;
+
+        assert!(result.is_ok());
+        assert_eq!(*provider.observed.lock().unwrap(), vec![None, None]);
     }
 
     fn worker_conn() -> Connection {

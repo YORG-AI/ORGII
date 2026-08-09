@@ -423,7 +423,7 @@ pub async fn execute_turn(
                         &llm_messages,
                         Some(&tool_defs),
                         &config.model,
-                        effective_max_tokens,
+                        Some(effective_max_tokens),
                         config.temperature,
                     )
                     .await
@@ -433,7 +433,7 @@ pub async fn execute_turn(
                 &llm_messages,
                 Some(&tool_defs),
                 &config.model,
-                effective_max_tokens,
+                Some(effective_max_tokens),
                 config.temperature,
                 &move |delta: StreamDelta| {
                     if is_cancelled(cancel_for_stream.as_ref()) {

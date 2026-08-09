@@ -241,9 +241,9 @@ pub async fn side_query_typed(
     };
     let tools_ref: Option<&[Value]> = tools.as_deref();
 
-    let max_tokens = config.max_tokens.unwrap_or(1024);
+    let max_tokens = config.max_tokens;
     info!(
-        "[side-query] model={}, max_tokens={}, temp={}, messages={}, structured={}",
+        "[side-query] model={}, max_tokens={:?}, temp={}, messages={}, structured={}",
         model,
         max_tokens,
         config.temperature,
@@ -294,9 +294,9 @@ pub async fn side_query_typed(
     }
 
     // Retry: pad max_tokens, drop tool_choice override (some proxies reject it)
-    let retry_max_tokens = max_tokens.saturating_add(2048);
+    let retry_max_tokens = max_tokens.map(|tokens| tokens.saturating_add(2048));
     info!(
-        "[side-query] Retry: max_tokens={} → {}, no tool_choice override",
+        "[side-query] Retry: max_tokens={:?} → {:?}, no tool_choice override",
         max_tokens, retry_max_tokens
     );
 
@@ -366,7 +366,7 @@ async fn side_query_chat(
     messages: &[Value],
     tools: Option<&[Value]>,
     model: &str,
-    max_tokens: u32,
+    max_tokens: Option<u32>,
     temperature: f32,
     stream: bool,
     chat_options: crate::providers::traits::ChatOptions,

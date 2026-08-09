@@ -112,7 +112,7 @@ impl LLMProvider for OpenAiAdaptiveClient {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         match self.policy(model) {
@@ -152,7 +152,7 @@ impl LLMProvider for OpenAiAdaptiveClient {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
         on_delta: &(dyn Fn(StreamDelta) + Send + Sync),
         cancel_flag: Option<&AtomicBool>,

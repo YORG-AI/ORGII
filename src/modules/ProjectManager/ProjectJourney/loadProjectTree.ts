@@ -13,6 +13,7 @@ import {
 
 import {
   DEMO_PROJECT,
+  DEMO_SESSIONS,
   DEMO_WORK_ITEMS,
   type ProjectLike,
   type ProjectSessionLike,
@@ -55,10 +56,11 @@ export async function loadProjectTreeBundle(options?: {
         workspaceName: options.workspaceName ?? "Workspace",
         projects: [DEMO_PROJECT],
         workItemsByProject,
+        sessions: DEMO_SESSIONS,
       }),
       projects: [DEMO_PROJECT],
       workItemsByProject,
-      sessions: [],
+      sessions: DEMO_SESSIONS,
       standaloneWorkItems: [],
       usedDemo: true,
     };

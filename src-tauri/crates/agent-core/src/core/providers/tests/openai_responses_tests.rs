@@ -60,7 +60,7 @@ fn build_request_omits_temperature_for_gpt5_4() {
         &[],
         None,
         "gpt-5.4-pro",
-        4096,
+        Some(4096),
         0.7,
         false,
         None,
@@ -77,7 +77,7 @@ fn build_request_omits_temperature_for_o1() {
         &[],
         None,
         "o1-preview",
-        4096,
+        Some(4096),
         0.7,
         false,
         None,
@@ -91,7 +91,7 @@ fn build_request_omits_temperature_for_o3() {
         &[],
         None,
         "o3-mini",
-        4096,
+        Some(4096),
         0.7,
         false,
         None,
@@ -105,7 +105,7 @@ fn build_request_omits_temperature_for_gpt5_3() {
         &[],
         None,
         "gpt-5.3",
-        4096,
+        Some(4096),
         0.7,
         false,
         None,
@@ -138,7 +138,13 @@ fn tool_msg_with_image() -> Value {
 fn build_request_always_lifts_tool_images() {
     let messages = vec![tool_msg_with_image()];
     let req = OpenAIResponsesClient::build_responses_request(
-        &messages, None, "gpt-5.4", 4096, 0.7, false, None,
+        &messages,
+        None,
+        "gpt-5.4",
+        Some(4096),
+        0.7,
+        false,
+        None,
     );
     let input = &req.input;
     assert_eq!(input.len(), 2, "function_call_output + follow-up user");
@@ -163,7 +169,13 @@ fn build_request_lifts_tool_images_for_any_model_name() {
         "internal-qwen-vl",
     ] {
         let req = OpenAIResponsesClient::build_responses_request(
-            &messages, None, name, 4096, 0.7, false, None,
+            &messages,
+            None,
+            name,
+            Some(4096),
+            0.7,
+            false,
+            None,
         );
         assert_eq!(
             req.input.len(),

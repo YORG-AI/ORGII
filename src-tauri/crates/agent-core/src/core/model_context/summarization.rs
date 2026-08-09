@@ -435,7 +435,7 @@ pub(crate) async fn summarize_messages_forked(
             &messages,
             Some(inputs.tools),
             inputs.model,
-            inputs.max_tokens,
+            Some(inputs.max_tokens),
             inputs.temperature,
             crate::providers::traits::ChatOptions::default(),
         )

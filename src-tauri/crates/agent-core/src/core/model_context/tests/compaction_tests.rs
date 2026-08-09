@@ -846,7 +846,7 @@ async fn compact_does_not_skip_between_trigger_and_full_budget() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             Ok(LLMResponse {
@@ -921,7 +921,7 @@ async fn compact_manual_force_bypasses_automatic_trigger_threshold() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             Ok(LLMResponse {
@@ -998,7 +998,7 @@ async fn compact_manual_force_propagates_summarization_failure() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             Err(ProviderError::RequestFailed("provider outage".to_string()))
@@ -1055,7 +1055,7 @@ async fn compact_failure_keeps_history_unchanged_no_truncation() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             Err(ProviderError::RequestFailed("provider outage".to_string()))
@@ -1116,7 +1116,7 @@ async fn compact_circuit_breaker_returns_failed_without_truncation() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             panic!("circuit breaker must prevent this call");
@@ -1173,7 +1173,7 @@ async fn manual_force_rescues_when_circuit_breaker_is_open() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             Ok(LLMResponse {
@@ -1267,7 +1267,7 @@ async fn compact_manual_force_threads_custom_instructions_into_prompt() {
             messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             let system = messages
@@ -1346,7 +1346,7 @@ async fn compact_rejects_empty_summary() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             Ok(LLMResponse {
@@ -1420,7 +1420,7 @@ async fn compact_side_query_ignores_config_model_override_for_route_consistency(
             _messages: &[Value],
             _tools: Option<&[Value]>,
             model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             *self.model.lock().unwrap() = Some(model.to_string());
@@ -1488,7 +1488,7 @@ async fn compact_with_fork_uses_main_turn_prefix_and_plain_text_reply() {
     /// Captures the request so the test can assert the fork rode the
     /// main-turn prefix (messages + tools + model + max_tokens).
     struct CapturingForkProvider {
-        captured: Mutex<Option<(usize, usize, String, u32)>>,
+        captured: Mutex<Option<(usize, usize, String, Option<u32>)>>,
     }
 
     #[async_trait::async_trait]
@@ -1498,7 +1498,7 @@ async fn compact_with_fork_uses_main_turn_prefix_and_plain_text_reply() {
             messages: &[Value],
             tools: Option<&[Value]>,
             model: &str,
-            max_tokens: u32,
+            max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             *self.captured.lock().unwrap() = Some((
@@ -1584,7 +1584,8 @@ async fn compact_with_fork_uses_main_turn_prefix_and_plain_text_reply() {
     assert_eq!(tool_count, 1, "main-turn tools must ride along");
     assert_eq!(model, "main-model", "fork must use the MAIN model");
     assert_eq!(
-        max_tokens, 16384,
+        max_tokens,
+        Some(16384),
         "fork must use the main turn's max_tokens"
     );
     assert_eq!(state.consecutive_failures, 0);
@@ -1609,7 +1610,7 @@ async fn compact_with_fork_falls_back_to_side_query_on_fork_failure() {
             _messages: &[Value],
             _tools: Option<&[Value]>,
             _model: &str,
-            _max_tokens: u32,
+            _max_tokens: Option<u32>,
             _temperature: f32,
         ) -> Result<LLMResponse, ProviderError> {
             if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {

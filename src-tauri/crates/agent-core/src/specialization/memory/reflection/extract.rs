@@ -94,7 +94,7 @@ Transcript:
     })];
 
     let response = provider
-        .chat_streaming(&messages, None, model_id, 1024, 0.2, &|_| {}, None)
+        .chat_streaming(&messages, None, model_id, Some(1024), 0.2, &|_| {}, None)
         .await
         .map_err(|e| format!("LLM call failed: {}", e))?;
 

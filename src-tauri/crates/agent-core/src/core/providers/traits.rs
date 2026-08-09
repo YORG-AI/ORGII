@@ -456,7 +456,7 @@ pub trait LLMProvider: Send + Sync {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
     ) -> Result<LLMResponse, ProviderError>;
 
@@ -474,7 +474,7 @@ pub trait LLMProvider: Send + Sync {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
         _on_delta: &(dyn Fn(StreamDelta) + Send + Sync),
         _cancel_flag: Option<&AtomicBool>,
@@ -496,7 +496,7 @@ pub trait LLMProvider: Send + Sync {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         temperature: f32,
         _options: ChatOptions,
     ) -> Result<LLMResponse, ProviderError> {

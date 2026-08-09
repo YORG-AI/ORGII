@@ -115,7 +115,7 @@ impl LLMProvider for MockProvider {
         messages: &[Value],
         tools: Option<&[Value]>,
         _model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         *self.observed_messages.lock().unwrap() = messages.to_vec();
@@ -365,7 +365,7 @@ impl LLMProvider for EmptyThenGoodProvider {
         _messages: &[Value],
         _tools: Option<&[Value]>,
         _model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         let mut count = self.call_count.lock().unwrap();
@@ -440,7 +440,7 @@ impl LLMProvider for AlwaysEmptyStructuredProvider {
         _messages: &[Value],
         _tools: Option<&[Value]>,
         _model: &str,
-        _max_tokens: u32,
+        _max_tokens: Option<u32>,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
         Ok(LLMResponse {

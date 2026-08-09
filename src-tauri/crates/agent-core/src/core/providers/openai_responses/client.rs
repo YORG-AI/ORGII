@@ -84,7 +84,7 @@ impl OpenAIResponsesClient {
         messages: &[Value],
         tools: Option<&[Value]>,
         model: &str,
-        max_tokens: u32,
+        max_tokens: Option<u32>,
         _temperature: f32,
         stream: bool,
         account_id: Option<&str>,
@@ -119,7 +119,7 @@ impl OpenAIResponsesClient {
             instructions,
             tools: converted_tools,
             tool_choice,
-            max_output_tokens: Some(max_tokens),
+            max_output_tokens: max_tokens,
             temperature: None,
             reasoning,
             store: false,
@@ -152,7 +152,7 @@ mod tests {
             &[],
             None,
             "gpt-5.5-high",
-            1024,
+            Some(1024),
             0.0,
             false,
             None,
@@ -167,7 +167,7 @@ mod tests {
             &[],
             None,
             "gpt-5.5",
-            1024,
+            Some(1024),
             0.0,
             false,
             None,
@@ -182,12 +182,28 @@ mod tests {
             &[],
             None,
             "gpt-4o",
-            1024,
+            Some(1024),
             0.0,
             false,
             None,
         );
         assert_eq!(req.model, "gpt-4o");
         assert!(req.reasoning.is_none());
+    }
+
+    #[test]
+    fn build_responses_request_omits_output_limit_when_unspecified() {
+        let req = OpenAIResponsesClient::build_responses_request(
+            &[],
+            None,
+            "gpt-5.5",
+            None,
+            0.0,
+            false,
+            None,
+        );
+
+        let body = serde_json::to_value(req).expect("Responses request serializes");
+        assert!(body.get("max_output_tokens").is_none());
     }
 }
