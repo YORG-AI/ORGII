@@ -2,13 +2,20 @@
  * Build Workspace → Project → Session tree. Work items annotate sessions but
  * never become containment parents.
  */
-import type { ProjectLike, ProjectTreeNode, WorkItemLike } from "./types";
+import type {
+  ProjectLike,
+  ProjectSessionLike,
+  ProjectTreeNode,
+  WorkItemLike,
+} from "./types";
 
 export interface BuildTreeInput {
   workspaceName?: string;
   projects: ProjectLike[];
   /** projectId or slug → work items */
   workItemsByProject: Record<string, WorkItemLike[]>;
+  /** Canonical aggregate sessions. Project membership comes from this source. */
+  sessions?: ProjectSessionLike[];
   /** Orphan work items (no project) */
   standaloneWorkItems?: WorkItemLike[];
   includeTodos?: boolean;
@@ -18,33 +25,31 @@ function sessionStatus(raw?: string): string | undefined {
   return raw?.toLowerCase();
 }
 
-function mapSessionNode(
-  wi: WorkItemLike,
-  projectId?: string,
-  projectSlug?: string
-): ProjectTreeNode[] {
-  return (wi.linkedSessions ?? []).map((ls) => ({
-    id: `session:${ls.session_id}`,
+function sessionNodeFromAggregate(
+  session: ProjectSessionLike,
+  project: ProjectLike,
+  linked?: { workItemId?: string; workItemName?: string }
+): ProjectTreeNode {
+  return {
+    id: `session:${session.session_id}`,
     kind: "session",
     title:
-      ls.sub_agent_name ||
-      ls.agent_role ||
-      ls.session_id.slice(0, 8) ||
-      "session",
-    status: sessionStatus(ls.status),
-    projectId,
-    projectSlug,
-    workItemId: wi.session_id,
-    sessionId: ls.session_id,
+      session.displayLabel ||
+      session.name ||
+      session.agentRole ||
+      session.session_id,
+    status: sessionStatus(session.status),
+    projectId: project.id,
+    projectSlug: project.slug,
+    workItemId: session.workItemId ?? linked?.workItemId,
+    sessionId: session.session_id,
     children: [],
     meta: {
-      parentSessionId: ls.parent_session_id ?? null,
-      sessionType: ls.session_type,
-      agentRole: ls.agent_role,
-      // This is metadata only. The parent in the tree is always Project.
-      workItemName: wi.name || wi.session_id,
+      parentSessionId: session.parentSessionId ?? null,
+      agentRole: session.agentRole,
+      ...(linked?.workItemName ? { workItemName: linked.workItemName } : {}),
     },
-  }));
+  };
 }
 
 function resolveWorkItems(
@@ -65,9 +70,40 @@ export function buildWorkspaceProjectTree(
 ): ProjectTreeNode {
   const projectNodes: ProjectTreeNode[] = input.projects.map((project) => {
     const items = resolveWorkItems(project, input.workItemsByProject);
-    const sessions = items.flatMap((wi) =>
-      mapSessionNode(wi, project.id, project.slug)
+    const linkedBySessionId = new Map<
+      string,
+      { workItemId: string; workItemName: string }
+    >();
+    for (const item of items) {
+      for (const linked of item.linkedSessions ?? []) {
+        if (!linkedBySessionId.has(linked.session_id)) {
+          linkedBySessionId.set(linked.session_id, {
+            workItemId: item.session_id,
+            workItemName: item.name || item.session_id,
+          });
+        }
+      }
+    }
+    const projectKeys = new Set([project.id, project.slug].filter(Boolean));
+    const canonicalSessions = (input.sessions ?? []).filter(
+      (session) =>
+        projectKeys.has(session.projectId) ||
+        projectKeys.has(session.projectSlug)
     );
+    const sessionsById = new Map<string, ProjectTreeNode>();
+    for (const session of canonicalSessions) {
+      if (!sessionsById.has(session.session_id)) {
+        sessionsById.set(
+          session.session_id,
+          sessionNodeFromAggregate(
+            session,
+            project,
+            linkedBySessionId.get(session.session_id)
+          )
+        );
+      }
+    }
+    const sessions = [...sessionsById.values()];
     return {
       id: `project:${project.id}`,
       kind: "project" as const,
@@ -85,15 +121,6 @@ export function buildWorkspaceProjectTree(
   });
 
   const standalone = input.standaloneWorkItems ?? [];
-  if (standalone.length > 0) {
-    projectNodes.push({
-      id: "bucket:unassigned",
-      kind: "unassigned",
-      title: "Unassigned",
-      children: standalone.flatMap((wi) => mapSessionNode(wi)),
-      meta: { workItemCount: standalone.length },
-    });
-  }
 
   return {
     id: "workspace:root",
@@ -102,7 +129,7 @@ export function buildWorkspaceProjectTree(
     children: projectNodes,
     meta: {
       projectCount: input.projects.length,
-      standaloneCount: standalone.length,
+      standaloneWorkItemMetadataCount: standalone.length,
     },
   };
 }
