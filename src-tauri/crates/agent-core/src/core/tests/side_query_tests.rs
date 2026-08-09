@@ -192,7 +192,7 @@ async fn stream_error_with_partial_structured_output_is_not_accepted() {
 #[tokio::test]
 async fn applies_default_config_values() {
     let config = SideQueryConfig::default();
-    assert_eq!(config.max_tokens, 1024);
+    assert_eq!(config.max_tokens, Some(1024));
     assert_eq!(config.temperature, 0.0);
     assert!(config.model.is_none());
     assert!(config.system_prompt.is_none());

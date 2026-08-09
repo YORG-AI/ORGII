@@ -146,7 +146,7 @@ pub async fn select_skills(
     let query = build_selection_query(user_message, &all_skills);
     let config = SideQueryConfig {
         model: Some(model.to_string()),
-        max_tokens: SELECTION_MAX_TOKENS,
+        max_tokens: Some(SELECTION_MAX_TOKENS),
         temperature: 0.0,
         system_prompt: None,
         ..Default::default()

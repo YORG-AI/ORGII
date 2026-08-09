@@ -27,8 +27,10 @@ use crate::providers::traits::{finish_reason, LLMProvider, LLMResponse, Provider
 pub struct SideQueryConfig {
     /// Model to use. `None` = use the caller-supplied default.
     pub model: Option<String>,
-    /// Maximum tokens in the response (default: 1024).
-    pub max_tokens: u32,
+    /// Optional maximum tokens in the response. `None` delegates to the
+    /// provider-compatible side-query default rather than defining a
+    /// domain-specific budget.
+    pub max_tokens: Option<u32>,
     /// Sampling temperature (default: 0.0 for deterministic output).
     pub temperature: f32,
     /// Optional system prompt prepended as a system message.
@@ -64,7 +66,7 @@ impl Default for SideQueryConfig {
     fn default() -> Self {
         Self {
             model: None,
-            max_tokens: 1024,
+            max_tokens: Some(1024),
             temperature: 0.0,
             system_prompt: None,
             structured: None,
@@ -239,10 +241,11 @@ pub async fn side_query_typed(
     };
     let tools_ref: Option<&[Value]> = tools.as_deref();
 
+    let max_tokens = config.max_tokens.unwrap_or(1024);
     info!(
         "[side-query] model={}, max_tokens={}, temp={}, messages={}, structured={}",
         model,
-        config.max_tokens,
+        max_tokens,
         config.temperature,
         messages.len(),
         expecting_structured,
@@ -258,7 +261,7 @@ pub async fn side_query_typed(
         &messages,
         tools_ref,
         model,
-        config.max_tokens,
+        max_tokens,
         config.temperature,
         config.stream,
         chat_options,
@@ -291,10 +294,10 @@ pub async fn side_query_typed(
     }
 
     // Retry: pad max_tokens, drop tool_choice override (some proxies reject it)
-    let retry_max_tokens = config.max_tokens.saturating_add(2048);
+    let retry_max_tokens = max_tokens.saturating_add(2048);
     info!(
         "[side-query] Retry: max_tokens={} → {}, no tool_choice override",
-        config.max_tokens, retry_max_tokens
+        max_tokens, retry_max_tokens
     );
 
     // For retry, use tools without the forced tool_choice sentinel

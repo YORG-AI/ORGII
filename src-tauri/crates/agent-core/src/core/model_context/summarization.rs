@@ -303,7 +303,7 @@ async fn summarize_via_replay(
 
     let sq_config = SideQueryConfig {
         model: None,
-        max_tokens: config.summary_max_tokens,
+        max_tokens: Some(config.summary_max_tokens),
         temperature: 0.0,
         stream: true,
         system_prompt: None,
@@ -558,7 +558,7 @@ pub(crate) async fn summarize_messages(
 
     let sq_config = SideQueryConfig {
         model: None,
-        max_tokens: config.summary_max_tokens,
+        max_tokens: Some(config.summary_max_tokens),
         temperature: 0.0,
         // Compaction prompts approach the full context window; stream the
         // response so gateway/proxy read timeouts don't kill the call.

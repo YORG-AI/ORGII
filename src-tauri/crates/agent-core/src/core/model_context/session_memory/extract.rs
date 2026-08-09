@@ -204,7 +204,7 @@ pub async fn extract_session_memory(
         // sibling model IDs (e.g. "openai/gpt-5.4-mini:openai") that may not
         // exist for the account (ChatGPT OAuth/Codex rejects them with 400).
         model: Some(model.to_string()),
-        max_tokens: config.extraction_max_tokens,
+        max_tokens: Some(config.extraction_max_tokens),
         temperature: 0.0,
         system_prompt: Some(SM_EXTRACTION_SYSTEM_PROMPT.to_string()),
         structured: Some(StructuredOutput {

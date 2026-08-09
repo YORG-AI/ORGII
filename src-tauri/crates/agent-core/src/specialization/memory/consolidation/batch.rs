@@ -208,7 +208,7 @@ pub(super) async fn consolidate_batch(
         })];
         let cfg = SideQueryConfig {
             model: Some(ctx.model.clone()),
-            max_tokens: 800,
+            max_tokens: Some(800),
             temperature: 0.0,
             system_prompt: None,
             ..Default::default()

@@ -81,7 +81,7 @@ pub async fn generate_session_title(
         provider,
         &[user_message],
         &SideQueryConfig {
-            max_tokens: 128,
+            max_tokens: Some(128),
             temperature: 0.0,
             system_prompt: Some(TITLE_SYSTEM_PROMPT.to_string()),
             structured: Some(StructuredOutput {

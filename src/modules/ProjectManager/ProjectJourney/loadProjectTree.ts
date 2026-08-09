@@ -1,16 +1,21 @@
 /**
- * Load real projects/work items and fall back to demo fixture.
+ * Load real projects, canonical sessions, and optional work-item metadata.
  */
 import {
   type ProjectData,
   enrichedWorkItemToUI,
   projectApi,
 } from "@src/api/http/project";
+import {
+  sessionAggregateList,
+  toFrontendSession,
+} from "@src/api/tauri/session";
 
 import {
   DEMO_PROJECT,
   DEMO_WORK_ITEMS,
   type ProjectLike,
+  type ProjectSessionLike,
   type ProjectTreeNode,
   type WorkItemLike,
   buildWorkspaceProjectTree,
@@ -20,6 +25,7 @@ export interface ProjectTreeBundle {
   tree: ProjectTreeNode;
   projects: ProjectLike[];
   workItemsByProject: Record<string, WorkItemLike[]>;
+  sessions: ProjectSessionLike[];
   standaloneWorkItems: WorkItemLike[];
   usedDemo: boolean;
   error?: string;
@@ -52,14 +58,21 @@ export async function loadProjectTreeBundle(options?: {
       }),
       projects: [DEMO_PROJECT],
       workItemsByProject,
+      sessions: [],
       standaloneWorkItems: [],
       usedDemo: true,
     };
   }
 
   try {
-    const projectsRaw = await projectApi.readProjects();
+    const [projectsRaw, sessionResponse] = await Promise.all([
+      projectApi.readProjects(),
+      sessionAggregateList(),
+    ]);
     const projects = (projectsRaw ?? []).map(projectDataToLike);
+    const sessions: ProjectSessionLike[] = (sessionResponse.sessions ?? []).map(
+      toFrontendSession
+    );
     const workItemsByProject: Record<string, WorkItemLike[]> = {};
 
     await Promise.all(
@@ -121,10 +134,12 @@ export async function loadProjectTreeBundle(options?: {
         workspaceName: options?.workspaceName ?? "Workspace",
         projects,
         workItemsByProject,
+        sessions,
         standaloneWorkItems,
       }),
       projects,
       workItemsByProject,
+      sessions,
       standaloneWorkItems,
       usedDemo: false,
     };
@@ -134,10 +149,12 @@ export async function loadProjectTreeBundle(options?: {
         workspaceName: options?.workspaceName ?? "Workspace",
         projects: [],
         workItemsByProject: {},
+        sessions: [],
         standaloneWorkItems: [],
       }),
       projects: [],
       workItemsByProject: {},
+      sessions: [],
       standaloneWorkItems: [],
       usedDemo: false,
       error: error instanceof Error ? error.message : String(error),

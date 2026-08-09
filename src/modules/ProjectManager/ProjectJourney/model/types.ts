@@ -109,6 +109,19 @@ export interface LinkedSessionLike {
   total_tokens?: number | null;
 }
 
+/** Canonical session aggregate projection used for Project -> Session membership. */
+export interface ProjectSessionLike {
+  session_id: string;
+  name?: string;
+  displayLabel?: string;
+  status?: string;
+  projectId?: string;
+  projectSlug?: string;
+  workItemId?: string;
+  parentSessionId?: string;
+  agentRole?: string;
+}
+
 export interface TodoLike {
   id: string;
   content: string;

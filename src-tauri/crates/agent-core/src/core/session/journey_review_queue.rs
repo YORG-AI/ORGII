@@ -478,29 +478,7 @@ impl ReviewModel for SideQueryReviewModel<'_> {
         if &self.resolved != provenance {
             return Err("已解析的模型、账户或协议与审核任务锁定来源不一致。".into());
         }
-        let schema = serde_json::json!({
-            "type": "object",
-            "required": ["目标", "结论", "未决项", "确认项", "证据 message IDs", "是否可能无价值", "批判"],
-            "properties": {
-                "目标": {"type": "string"}, "结论": {"type": "string"},
-                "未决项": {"type": "array", "items": {"type": "string"}},
-                "确认项": {"type": "array", "items": {"type": "string"}},
-                "证据 message IDs": {"type": "array", "items": {"type": "string"}},
-                "是否可能无价值": {"type": "boolean"},
-                "批判": {"type": "array", "items": {"type": "string"}}
-            }
-        });
-        let config = SideQueryConfig {
-            model: Some(provenance.model_id.clone()),
-            account_id: Some(provenance.account_id.clone()),
-            temperature: 0.0,
-            max_tokens: 1024,
-            structured: Some(StructuredOutput {
-                tool_name: "提交分叉审核".into(),
-                schema,
-            }),
-            ..SideQueryConfig::default()
-        };
+        let config = review_side_query_config(provenance);
         side_query_typed(
             self.provider,
             &[serde_json::json!({"role": "user", "content": prompt})],
@@ -511,6 +489,34 @@ impl ReviewModel for SideQueryReviewModel<'_> {
         .map_err(|error| format!("side-query 调用失败：{error}"))?
         .structured
         .ok_or_else(|| "side-query 未返回结构化 JSON。".into())
+    }
+}
+
+fn review_side_query_config(provenance: &RuntimeProvenance) -> SideQueryConfig {
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["目标", "结论", "未决项", "确认项", "证据 message IDs", "是否可能无价值", "批判"],
+        "properties": {
+            "目标": {"type": "string"}, "结论": {"type": "string"},
+            "未决项": {"type": "array", "items": {"type": "string"}},
+            "确认项": {"type": "array", "items": {"type": "string"}},
+            "证据 message IDs": {"type": "array", "items": {"type": "string"}},
+            "是否可能无价值": {"type": "boolean"},
+            "批判": {"type": "array", "items": {"type": "string"}}
+        }
+    });
+    SideQueryConfig {
+        model: Some(provenance.model_id.clone()),
+        account_id: Some(provenance.account_id.clone()),
+        temperature: 0.0,
+        // A Journey review is not a bounded turn. It carries no
+        // Journey-specific output budget.
+        max_tokens: None,
+        structured: Some(StructuredOutput {
+            tool_name: "提交分叉审核".into(),
+            schema,
+        }),
+        ..SideQueryConfig::default()
     }
 }
 
@@ -941,6 +947,11 @@ mod tests {
             "是否可能无价值": false,
             "批判": ["无额外遗漏"]
         })
+    }
+
+    #[test]
+    fn review_side_query_has_no_explicit_token_budget() {
+        assert_eq!(review_side_query_config(&provenance()).max_tokens, None);
     }
 
     fn worker_conn() -> Connection {

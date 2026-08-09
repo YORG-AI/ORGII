@@ -184,7 +184,7 @@ async fn select_relevant_headers(
     });
     let config = SideQueryConfig {
         model: Some(model.to_string()),
-        max_tokens: SELECTION_MAX_TOKENS,
+        max_tokens: Some(SELECTION_MAX_TOKENS),
         temperature: 0.0,
         system_prompt: Some(SELECT_MEMORIES_SYSTEM_PROMPT.to_string()),
         ..Default::default()

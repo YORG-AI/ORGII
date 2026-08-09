@@ -26,12 +26,10 @@ vi.mock("./loadProjectTree", () => ({
             {
               id: "session:s",
               kind: "session",
-              title: "实现会话",
+              title: "没有工作项的会话",
               sessionId: "session-1",
-              workItemId: "work-1",
               projectSlug: "project-p",
               children: [],
-              meta: { workItemName: "仅元数据工作项" },
             },
           ],
         },
@@ -77,8 +75,8 @@ describe("ProjectTreePage production session route", () => {
     await act(async () => button.click());
     expect(onOpenSession).toHaveBeenCalledWith(
       "session-1",
-      "实现会话",
-      "work-1",
+      "没有工作项的会话",
+      undefined,
       "project-p"
     );
   });

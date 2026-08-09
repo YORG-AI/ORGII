@@ -61,7 +61,7 @@ Patterns:
     let messages = vec![serde_json::json!({ "role": "user", "content": prompt })];
     let cfg = SideQueryConfig {
         model: Some(model_id.to_string()),
-        max_tokens: 512,
+        max_tokens: Some(512),
         temperature: 0.2,
         system_prompt: None,
         ..Default::default()
