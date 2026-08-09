@@ -683,6 +683,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn failed_turn_does_not_strand_the_following_queued_message() {
+        let scheduler = DialogScheduler::new("session-after-failure", 8);
+        let second_executed = Arc::new(AtomicUsize::new(0));
+
+        scheduler
+            .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
+                message_id: "failing-turn".to_string(),
+                generation: 0,
+                client_message_id: None,
+                turn_intent_id: String::new(),
+                content: "fail".to_string(),
+                execute: Box::new(|| Box::pin(async { Err("tool failure".to_string()) })),
+            })
+            .await
+            .expect("first enqueue succeeds");
+
+        let second_executed_for_closure = Arc::clone(&second_executed);
+        scheduler
+            .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
+                message_id: "turn-after-failure".to_string(),
+                generation: 0,
+                client_message_id: None,
+                turn_intent_id: String::new(),
+                content: "continue".to_string(),
+                execute: Box::new(move || {
+                    Box::pin(async move {
+                        second_executed_for_closure.fetch_add(1, Ordering::SeqCst);
+                        Ok("ran".to_string())
+                    })
+                }),
+            })
+            .await
+            .expect("second enqueue succeeds");
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        assert_eq!(second_executed.load(Ordering::SeqCst), 1);
+        assert_eq!(scheduler.pending_count(), 0);
+        assert!(!scheduler.is_turn_processing());
+    }
+
+    #[tokio::test]
     async fn message_after_invalidation_runs() {
         let scheduler = DialogScheduler::new("session-b", 8);
         let executed = Arc::new(AtomicUsize::new(0));

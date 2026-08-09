@@ -15,6 +15,12 @@ use std::path::{Path, PathBuf};
 
 use super::SEARCH_TIMEOUT;
 
+/// A glob's match cap is not a traversal cap: a rare filename can require
+/// walking an enormous tree before the first match. Bound the walk itself so a
+/// search cannot strand a session on a pathological local filesystem.
+const GLOB_MAX_ENTRIES_SCANNED: usize = 20_000;
+const GLOB_MAX_DEPTH: usize = 24;
+
 /// Runaway guard on formatted search output. Deliberately far above the
 /// `code_search` tool's 20K per-result budget: the turn executor's
 /// truncate-or-persist layer stubs oversized results to disk retrievably,
@@ -271,11 +277,18 @@ pub async fn file_search_multi_formatted(
 
 /// Match files by glob pattern (e.g. `src/**/*.ts`, `*.{rs,toml}`).
 /// Uses the `ignore` crate walker (respects .gitignore) with `globset` matching.
+///
+/// Recursive globbing on a remote mount is rejected before a walker starts:
+/// a wall-clock wrapper around `spawn_blocking` cannot interrupt an NFS
+/// directory RPC stuck in kernel D-state. Local walks are additionally bounded
+/// by entry count and depth, because `max_results` only limits matches.
 pub async fn glob_search_formatted(
     pattern: &str,
     search_path: &std::path::Path,
     max_results: usize,
 ) -> Result<String, String> {
+    ensure_glob_scope_is_safe(pattern, search_path)?;
+
     let pattern_owned = pattern.to_string();
     let search_path_owned = search_path.to_path_buf();
 
@@ -286,38 +299,144 @@ pub async fn glob_search_formatted(
             .build()
             .map_err(|err| format!("Failed to compile glob: {err}"))?;
 
-        let mut matches: Vec<String> = Vec::new();
         let walker = ignore::WalkBuilder::new(&search_path_owned)
             .hidden(false)
             .git_ignore(true)
+            .max_depth(Some(GLOB_MAX_DEPTH))
             .overrides(glob)
             .build();
 
-        let prefix = search_path_owned.to_string_lossy();
-        for entry in walker {
-            let Ok(entry) = entry else { continue };
-            if !entry.file_type().is_some_and(|ft| ft.is_file()) {
-                continue;
-            }
-            let path_str = entry.path().to_string_lossy();
-            let relative = path_str
-                .strip_prefix(prefix.as_ref())
-                .unwrap_or(&path_str)
-                .trim_start_matches('/');
-            matches.push(relative.to_string());
-            if matches.len() >= max_results {
-                break;
-            }
-        }
-
-        if matches.is_empty() {
-            return Ok("No files matched.".to_string());
-        }
-        matches.sort();
-        Ok(matches.join("\n"))
+        collect_bounded_glob_matches(
+            walker,
+            &search_path_owned,
+            max_results,
+            GLOB_MAX_ENTRIES_SCANNED,
+            GLOB_MAX_DEPTH,
+        )
     })
     .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    .map_err(|err| format!("Glob search task failed: {err}"))?
+}
+
+fn collect_bounded_glob_matches(
+    walker: ignore::Walk,
+    search_path: &Path,
+    max_results: usize,
+    max_entries_scanned: usize,
+    max_depth: usize,
+) -> Result<String, String> {
+    let prefix = search_path.to_string_lossy();
+    let mut scanned_entries = 0usize;
+    let mut reached_depth_limit = false;
+    let mut matches: Vec<String> = Vec::new();
+    for entry in walker {
+        let entry = entry.map_err(|err| {
+                format!(
+                    "Glob traversal failed under '{}': {err}. Narrow repo_path to an accessible subdirectory.",
+                    search_path.display()
+                )
+            })?;
+        scanned_entries += 1;
+        if scanned_entries > max_entries_scanned {
+            return Err(format!(
+                "Glob traversal stopped after scanning {max_entries_scanned} entries under '{}'. Narrow repo_path to a known subdirectory or use a non-recursive pattern.",
+                search_path.display()
+            ));
+        }
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            reached_depth_limit |= entry.depth() == max_depth;
+            continue;
+        }
+        let path_str = entry.path().to_string_lossy();
+        let relative = path_str
+            .strip_prefix(prefix.as_ref())
+            .unwrap_or(&path_str)
+            .trim_start_matches('/');
+        matches.push(relative.to_string());
+        if matches.len() >= max_results {
+            break;
+        }
+    }
+
+    if matches.is_empty() {
+        if reached_depth_limit {
+            return Err(format!(
+                    "Glob traversal reached the maximum depth of {max_depth} under '{}' before finding a match. Narrow repo_path to a known subdirectory.",
+                    search_path.display()
+                ));
+        }
+        return Ok("No files matched.".to_string());
+    }
+    matches.sort();
+    if reached_depth_limit && matches.len() < max_results {
+        return Err(format!(
+            "Glob traversal reached the maximum depth of {max_depth} under '{}' after finding {} match(es); results may be incomplete. Narrow repo_path to a known subdirectory.",
+            search_path.display(),
+            matches.len()
+        ));
+    }
+    Ok(matches.join("\n"))
+}
+
+fn ensure_glob_scope_is_safe(pattern: &str, search_path: &Path) -> Result<(), String> {
+    let filesystem = filesystem_type_for_path(search_path);
+    ensure_glob_scope_is_safe_on_filesystem(pattern, search_path, filesystem.as_deref())
+}
+
+fn ensure_glob_scope_is_safe_on_filesystem(
+    pattern: &str,
+    search_path: &Path,
+    filesystem: Option<&str>,
+) -> Result<(), String> {
+    let recursive = pattern.contains("**");
+    let remote = filesystem.is_some_and(is_remote_filesystem_type);
+    if recursive && remote {
+        return Err(format!(
+            "Recursive glob '{}' is blocked for network filesystem '{}' at '{}': it can stall the active session while traversing a remote tree. Use a known narrower subdirectory as repo_path, or a non-recursive filename pattern.",
+            pattern,
+            filesystem.unwrap_or("unknown"),
+            search_path.display(),
+        ));
+    }
+    Ok(())
+}
+
+fn is_remote_filesystem_type(filesystem: &str) -> bool {
+    matches!(
+        filesystem.to_ascii_lowercase().as_str(),
+        "nfs" | "nfs4" | "cifs" | "smbfs" | "sshfs" | "fuse.sshfs" | "9p" | "ceph" | "glusterfs"
+    )
+}
+
+/// Resolve the deepest matching Linux mountpoint without touching the target
+/// tree. `/proc/mounts` is kernel-provided and local, so this guard runs before
+/// any potentially blocking remote-directory traversal.
+fn filesystem_type_for_path(path: &Path) -> Option<String> {
+    let mounts = std::fs::read_to_string("/proc/mounts").ok()?;
+    filesystem_type_for_path_from_mounts(path, &mounts)
+}
+
+fn filesystem_type_for_path_from_mounts(path: &Path, mounts: &str) -> Option<String> {
+    mounts
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let _source = fields.next()?;
+            let mountpoint = unescape_proc_mount_path(fields.next()?);
+            let filesystem = fields.next()?.to_string();
+            Some((PathBuf::from(mountpoint), filesystem))
+        })
+        .filter(|(mountpoint, _)| path.starts_with(mountpoint))
+        .max_by_key(|(mountpoint, _)| mountpoint.components().count())
+        .map(|(_, filesystem)| filesystem)
+}
+
+fn unescape_proc_mount_path(value: &str) -> String {
+    value
+        .replace(r"\040", " ")
+        .replace(r"\011", "\t")
+        .replace(r"\012", "\n")
+        .replace(r"\134", "\\")
 }
 
 pub async fn glob_search_multi_formatted(
