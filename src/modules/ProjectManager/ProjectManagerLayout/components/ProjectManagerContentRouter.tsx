@@ -98,7 +98,7 @@ interface RenderActiveContentOptions {
   projectQuickActions: ProjectManagerContentRouterProps["projectQuickActions"];
 }
 
-function renderActiveContent({
+export function renderActiveContent({
   repoPath,
   activeTab,
   hasNoTabs,
@@ -170,6 +170,7 @@ function renderActiveContent({
     case "project-settings":
     case "project-tree":
     case "project-journey":
+    case "session-journey":
     case "workItem-detail":
       return <UnifiedTabContent tab={activeTab} paneId="main" isActive />;
 
