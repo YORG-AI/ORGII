@@ -30,11 +30,13 @@ import {
   Timer,
   Type,
 } from "lucide-react";
-import React from "react";
+import React, { type SVGProps } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("iconHelper");
+
+type ActionIconProps = SVGProps<SVGSVGElement> & Pick<LucideProps, "size">;
 
 // Icon name to component mapping
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -79,7 +81,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
  */
 export function renderActionIcon(
   iconName: string,
-  props?: LucideProps
+  props?: ActionIconProps
 ): React.ReactNode {
   const IconComponent = ICON_MAP[iconName];
   if (!IconComponent) {

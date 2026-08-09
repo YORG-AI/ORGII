@@ -190,7 +190,9 @@ export const QuickActionsPanel = memo<QuickActionsPanelProps>(
               initial="hidden"
               animate="visible"
               exit="exit"
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event: React.MouseEvent<HTMLDivElement>) =>
+                event.stopPropagation()
+              }
             >
               {/* Logo area */}
               {showLogo && <AppLogo />}

@@ -1,6 +1,8 @@
 //! Core session execution — spawns CLI agent, parses stdout, broadcasts events.
 
 use std::collections::VecDeque;
+#[cfg(test)]
+use std::collections::HashSet;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -47,6 +49,32 @@ const CLI_PLAN_GATE_NATURAL_EXIT_GRACE_SECS: u64 = 45;
 const OPENCODE_ZENMUX_PROVIDER_ID: &str = "zenmux";
 const OPENCODE_ZENMUX_BASE_URL: &str = "https://zenmux.ai/api/v1";
 const OPENCODE_DEFAULT_ZENMUX_MODEL: &str = "deepseek/deepseek-chat";
+/// Merge session-level and global additional directories for command tests.
+///
+/// Launch policy determines which global paths are granted. This helper only
+/// removes blank paths and exact/canonical duplicates while preserving the
+/// first declared path's order.
+#[cfg(test)]
+pub(super) fn effective_additional_dirs(
+    session_dirs: &[String],
+    global_dirs: &[PathBuf],
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    session_dirs
+        .iter()
+        .map(PathBuf::from)
+        .chain(global_dirs.iter().cloned())
+        .filter_map(|path| {
+            if path.as_os_str().is_empty() {
+                return None;
+            }
+            let resolved = path.canonicalize().unwrap_or(path);
+            let value = resolved.to_string_lossy().into_owned();
+            seen.insert(value.clone()).then_some(value)
+        })
+        .collect()
+}
+
 const OPENCODE_ZENMUX_MODEL_IDS: &[&str] = &[
     "inclusionai/ling-1t",
     "inclusionai/ring-1t",

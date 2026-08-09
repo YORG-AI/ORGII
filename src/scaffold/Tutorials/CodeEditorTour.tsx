@@ -380,7 +380,9 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
           {...POPUP_ANIMATION}
           className="fixed z-[10002] rounded-[14px] p-3"
           style={{ ...popoverStyle, ...popoverGlassStyle }}
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event: React.MouseEvent<HTMLDivElement>) =>
+            event.stopPropagation()
+          }
         >
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-[11px] font-medium uppercase tracking-wider text-primary-6">

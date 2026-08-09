@@ -1348,6 +1348,7 @@ mod tests {
                     origin: Some(SESSION_PROVENANCE_HOOK_ORIGIN.to_string()),
                     ..AgentMetadata::default()
                 },
+                journey: Default::default(),
             })
             .expect("upsert session");
 
@@ -1433,6 +1434,7 @@ mod tests {
                 org_member_id: None,
                 collaboration_origin: None,
                 metadata: AgentMetadata::default(),
+                journey: Default::default(),
             })
             .expect("upsert root session");
         store
@@ -1513,6 +1515,7 @@ mod tests {
                     org_member_id: None,
                     collaboration_origin: None,
                     metadata: AgentMetadata::default(),
+                    journey: Default::default(),
                 })
                 .expect("upsert session");
         }
@@ -1611,6 +1614,7 @@ mod tests {
                     org_member_id: None,
                     collaboration_origin: None,
                     metadata: AgentMetadata::default(),
+                    journey: Default::default(),
                 })
                 .expect("upsert session");
         }

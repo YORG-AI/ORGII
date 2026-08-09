@@ -340,11 +340,11 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             <FieldRow
               icon={<BriefcaseBusiness size={DROPDOWN_ITEM.iconSize} />}
               label="Workspace"
-              value={
+              value={String(
                 workspaceOptions.find(
                   (option) => option.value === (project.workspaceId ?? "")
                 )?.triggerLabel ?? "Unlinked Workspace"
-              }
+              )}
               isSelected={!!project.workspaceId}
               isActive={openPicker === "workspace"}
               variant={fieldVariant}

@@ -24,8 +24,11 @@ import {
   createBinderlessComponentImplementation,
 } from "@a2ui/react/v0_9";
 import { Catalog, MessageProcessor } from "@a2ui/web_core/v0_9";
-import type { ComponentApi } from "@a2ui/web_core/v0_9";
-import type { SurfaceModel } from "@a2ui/web_core/v0_9";
+import type {
+  ComponentApi,
+  ComponentContext,
+  SurfaceModel,
+} from "@a2ui/web_core/v0_9";
 import React, {
   forwardRef,
   useEffect,
@@ -77,7 +80,13 @@ function makeApi(name: string): ComponentApi {
  */
 const rootImpl = createBinderlessComponentImplementation(
   makeApi("a2ui-root"),
-  ({ context, buildChild }) => {
+  ({
+    context,
+    buildChild,
+  }: {
+    context: ComponentContext;
+    buildChild: (id: string, basePath?: string) => React.ReactNode;
+  }) => {
     const children: string[] = context.componentModel.properties.children ?? [];
     return (
       <div className="contents">
@@ -99,7 +108,7 @@ const rootImpl = createBinderlessComponentImplementation(
 function makeElementImpl(type: string) {
   return createBinderlessComponentImplementation(
     makeApi(type),
-    ({ context }) => {
+    ({ context }: { context: ComponentContext }) => {
       const props = context.componentModel.properties as A2UIElement;
       return <>{renderA2UIElement(props, 0)}</>;
     }

@@ -242,7 +242,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
                 {opt.label}
                 <X
                   size={DROPDOWN_ITEM.iconSize}
-                  onClick={(event) => {
+                  onClick={(event: React.MouseEvent<SVGSVGElement>) => {
                     event.stopPropagation();
                     handleOptionSelect(opt);
                   }}

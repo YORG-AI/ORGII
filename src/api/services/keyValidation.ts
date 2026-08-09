@@ -309,7 +309,6 @@ export async function updateKeyHealth(
   errorMessage?: string,
   availableModels?: string[],
   enabledModels?: string[],
-  sideQueryModel?: string,
   quotaInfo?: QuotaInfo,
   modelContextLengths?: ModelContextLengths
 ): Promise<KeyInfo | null> {

@@ -940,17 +940,17 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn embedding_view_default_provider_is_disabled() {
+    fn embedding_view_default_uses_remote_embedding_provider() {
         let cfg = EmbeddingConfig::default();
         let view = EmbeddingView::from(&cfg);
-        assert_eq!(view.provider, "disabled");
+        assert_eq!(view.provider, "embedding_api");
     }
 
     #[test]
-    fn embedding_view_default_model_is_none() {
+    fn embedding_view_default_uses_configured_remote_model() {
         let cfg = EmbeddingConfig::default();
         let view = EmbeddingView::from(&cfg);
-        assert!(view.model.is_none());
+        assert_eq!(view.model.as_deref(), Some("qwen/qwen3-vl-embedding"));
     }
 
     // -----------------------------------------------------------------------
@@ -1577,10 +1577,10 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn from_definition_default_embedding_provider_is_disabled() {
+    fn from_definition_uses_default_remote_embedding_provider() {
         let def = get_builtin_agent(OS_AGENT_ID).expect("OS agent exists");
         let view = AgentRuntimeView::from_definition(&def, &default_integrations());
-        assert_eq!(view.embedding.provider, "disabled");
+        assert_eq!(view.embedding.provider, "embedding_api");
     }
 
     // -----------------------------------------------------------------------
@@ -1774,11 +1774,14 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn integrations_view_from_default_config_has_correct_embedding() {
+    fn integrations_view_from_default_config_has_remote_embedding() {
         let cfg = IntegrationsConfig::default();
         let view = IntegrationsView::from(&cfg);
-        assert_eq!(view.embedding.provider, "disabled");
-        assert!(view.embedding.model.is_none());
+        assert_eq!(view.embedding.provider, "embedding_api");
+        assert_eq!(
+            view.embedding.model.as_deref(),
+            Some("qwen/qwen3-vl-embedding")
+        );
     }
 
     #[test]
@@ -2148,10 +2151,13 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn agent_runtime_view_embedding_none_model_with_default_integrations() {
+    fn agent_runtime_view_uses_default_remote_embedding_model() {
         let resolved = make_resolved_for_testing(OS_AGENT_ID);
         let view = AgentRuntimeView::from((&resolved, &default_integrations()));
-        assert!(view.embedding.model.is_none());
+        assert_eq!(
+            view.embedding.model.as_deref(),
+            Some("qwen/qwen3-vl-embedding")
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -2341,7 +2347,7 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn agent_runtime_view_json_embedding_provider_is_disabled_by_default() {
+    fn agent_runtime_view_json_uses_default_remote_embedding_provider() {
         let resolved = make_resolved_for_testing(OS_AGENT_ID);
         let view = AgentRuntimeView::from((&resolved, &default_integrations()));
         let json = serde_json::to_value(&view).expect("serialize");
@@ -2350,7 +2356,7 @@ mod dto_extended_tests {
             .and_then(|e| e.get("provider"))
             .and_then(|p| p.as_str())
             .expect("embedding.provider must be a string");
-        assert_eq!(provider, "disabled");
+        assert_eq!(provider, "embedding_api");
     }
 
     // -----------------------------------------------------------------------

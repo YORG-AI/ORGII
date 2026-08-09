@@ -31,6 +31,8 @@ export interface ProjectData {
    * always re-read `org_id` from disk (see `useProjectDataFile`).
    */
   orgId?: string;
+  /** Optional Workspace scope used for presentation and project creation. */
+  workspaceId?: string;
   /** 3-char alphanumeric prefix used in work item IDs */
   workItemPrefix?: string;
   /** True when prefix is manually configured; false means auto from project name */
@@ -71,6 +73,7 @@ export type PickerType =
   | "teams"
   | "labels"
   | "linkedRepos"
+  | "workspace"
   | "startDate"
   | "targetDate"
   | null;
