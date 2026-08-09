@@ -38,6 +38,23 @@ const outcomeOptions: Array<{ value: TaskOutcome; label: string }> = [
 
 const makeId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
+/**
+ * Live user events are emitted as `user-message-{durable id}` while hydrated
+ * transcript rows already use the durable `agent_messages.id`. Journey
+ * commands address the durable row, so normalize only at this boundary. Do
+ * not alter the global SessionEvent identity: stream reconciliation relies on
+ * the prefixed live id.
+ */
+export const resolveDurableJourneyMessageId = (
+  messageId: string | null | undefined
+): string | null => {
+  if (!messageId) return null;
+  const liveUserEventPrefix = "user-message-";
+  return messageId.startsWith(liveUserEventPrefix)
+    ? messageId.slice(liveUserEventPrefix.length) || null
+    : messageId;
+};
+
 export const SessionJourneyControls: React.FC<{
   sessionId: string | null;
   messageId?: string | null;
@@ -118,7 +135,8 @@ export const SessionJourneyControls: React.FC<{
   const task = activeTask(snapshot);
   const reviews = useMemo(() => visibleReviews(snapshot), [snapshot]);
   const revision = snapshot?.revision ?? 0;
-  const needsAnchor = !messageId;
+  const durableMessageId = resolveDurableJourneyMessageId(messageId);
+  const needsExplicitAnchor = !durableMessageId;
   useEffect(() => {
     if (!onDockedReviewPanelChange) return;
     onDockedReviewPanelChange(
@@ -128,8 +146,8 @@ export const SessionJourneyControls: React.FC<{
           reviews={reviews}
           snapshot={snapshot}
           comparison={comparison}
-          sessionId={sessionId}
-          selectedEvidenceMessageId={messageId ?? null}
+          sessionId={sessionId ?? ""}
+          selectedEvidenceMessageId={durableMessageId}
           onMode={setMode}
           onReload={reload}
           onJump={onJumpToMessage}
@@ -139,7 +157,7 @@ export const SessionJourneyControls: React.FC<{
     return () => onDockedReviewPanelChange(null);
   }, [
     comparison,
-    messageId,
+    durableMessageId,
     onDockedReviewPanelChange,
     onJumpToMessage,
     panelMode,
@@ -159,24 +177,24 @@ export const SessionJourneyControls: React.FC<{
           name,
           position,
         });
-    if (dialog === "checkpoint" && messageId)
+    if (dialog === "checkpoint" && durableMessageId)
       return () =>
         sessionJourneyApi.checkpoint({
           sessionId,
           expectedRevision: revision,
           checkpointId: makeId("checkpoint"),
           name,
-          messageId,
+          messageId: durableMessageId,
         });
-    if (dialog === "finish" && messageId)
+    if (dialog === "finish" && durableMessageId)
       return () =>
         sessionJourneyApi.finishTask({
           sessionId,
           expectedRevision: revision,
           outcome,
-          messageId,
+          messageId: durableMessageId,
         });
-    if (dialog === "closeFork" && messageId)
+    if (dialog === "closeFork" && durableMessageId)
       return () =>
         sessionJourneyApi.closeFork(
           {
@@ -185,11 +203,11 @@ export const SessionJourneyControls: React.FC<{
             forkId: snapshot?.active_branch_id ?? "",
             reviewId: makeId("review"),
             outcome,
-            messageId,
+            messageId: durableMessageId,
           },
           makeId("review-job")
         );
-    if (dialog === "fork" && messageId)
+    if (dialog === "fork")
       return () =>
         sessionJourneyApi.startFork({
           sessionId,
@@ -197,12 +215,15 @@ export const SessionJourneyControls: React.FC<{
           forkId: makeId("fork"),
           taskId: makeId("task"),
           taskName: name,
-          anchorMessageId: messageId,
+          // An omitted anchor is the explicit direct-Fork semantic. The
+          // backend resolves only the latest durable user row in the active
+          // branch; every other action remains strict and explicit.
+          ...(durableMessageId ? { anchorMessageId: durableMessageId } : {}),
         });
     return null;
   }, [
     dialog,
-    messageId,
+    durableMessageId,
     name,
     outcome,
     position,
@@ -240,7 +261,11 @@ export const SessionJourneyControls: React.FC<{
           appearance="ghost"
           icon={<GitFork size={14} />}
           onClick={() => setDialog("fork")}
-          disabled={needsAnchor}
+          title={
+            durableMessageId
+              ? "从当前用户消息创建分叉"
+              : "将从当前分支最近一条已持久化的用户消息创建分叉"
+          }
         >
           分叉
         </Button>
@@ -251,7 +276,7 @@ export const SessionJourneyControls: React.FC<{
               appearance="ghost"
               icon={<MapPin size={14} />}
               onClick={() => setDialog("checkpoint")}
-              disabled={needsAnchor}
+              disabled={needsExplicitAnchor}
             >
               检查点
             </Button>
@@ -260,7 +285,7 @@ export const SessionJourneyControls: React.FC<{
               appearance="ghost"
               icon={<X size={14} />}
               onClick={() => setDialog("finish")}
-              disabled={needsAnchor}
+              disabled={needsExplicitAnchor}
             >
               结束
             </Button>
@@ -270,7 +295,7 @@ export const SessionJourneyControls: React.FC<{
                 appearance="ghost"
                 icon={<X size={14} />}
                 onClick={() => setDialog("closeFork")}
-                disabled={needsAnchor}
+                disabled={needsExplicitAnchor}
                 title="结束分叉并进入审核"
               >
                 关闭分叉
@@ -297,7 +322,7 @@ export const SessionJourneyControls: React.FC<{
         name={name}
         position={position}
         outcome={outcome}
-        needsAnchor={needsAnchor}
+        needsExplicitAnchor={needsExplicitAnchor}
         onClose={() => setDialog(null)}
         onName={setName}
         onPosition={setPosition}
@@ -353,8 +378,8 @@ export const SessionJourneyControls: React.FC<{
           reviews={reviews}
           snapshot={snapshot}
           comparison={comparison}
-          sessionId={sessionId}
-          selectedEvidenceMessageId={messageId ?? null}
+          sessionId={sessionId ?? ""}
+          selectedEvidenceMessageId={durableMessageId}
           onMode={setMode}
           onReload={reload}
           onJump={onJumpToMessage}
@@ -369,7 +394,7 @@ const JourneyDialog: React.FC<{
   name: string;
   position: "最近用户消息" | "下一条用户消息";
   outcome: TaskOutcome;
-  needsAnchor: boolean;
+  needsExplicitAnchor: boolean;
   onClose: () => void;
   onName: (value: string) => void;
   onPosition: (value: "最近用户消息" | "下一条用户消息") => void;
@@ -380,7 +405,7 @@ const JourneyDialog: React.FC<{
   name,
   position,
   outcome,
-  needsAnchor,
+  needsExplicitAnchor,
   onClose,
   onName,
   onPosition,
@@ -408,7 +433,8 @@ const JourneyDialog: React.FC<{
     okButtonProps={{
       disabled:
         (kind !== "finish" && kind !== "closeFork" && !name.trim()) ||
-        (kind !== "task" && needsAnchor),
+        ((kind === "checkpoint" || kind === "finish" || kind === "closeFork") &&
+          needsExplicitAnchor),
     }}
   >
     {kind === "task" || kind === "checkpoint" || kind === "fork" ? (
@@ -458,7 +484,13 @@ const JourneyDialog: React.FC<{
         关闭后将以所选精确消息为结尾，并进入后台审核。
       </p>
     ) : null}
-    {kind !== "task" && needsAnchor ? (
+    {kind === "fork" && needsExplicitAnchor ? (
+      <p className="mt-3 text-xs text-text-3">
+        将使用当前分支最近一条已持久化的用户消息作为精确分叉锚点。
+      </p>
+    ) : null}
+    {(kind === "checkpoint" || kind === "finish" || kind === "closeFork") &&
+    needsExplicitAnchor ? (
       <p className="mt-3 text-xs text-warning-6">
         请先在消息列表中选择精确消息锚点。
       </p>

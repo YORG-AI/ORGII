@@ -251,7 +251,7 @@ mod tests {
                 fork_id: "f".into(),
                 task_id: "t".into(),
                 task_name: "分叉任务".into(),
-                anchor_message_id: "m".into(),
+                anchor_message_id: Some("m".into()),
             })
             .unwrap(),
             serde_json::to_value(CreateCheckpointRequest {
@@ -314,6 +314,22 @@ mod tests {
             assert!(serialized.contains("sessionId"), "{serialized}");
             assert!(serialized.contains("expectedRevision"), "{serialized}");
         }
+        let direct_fork = serde_json::to_value(CreateForkRequest {
+            session_id: "s".into(),
+            expected_revision: 1,
+            fork_id: "f".into(),
+            task_id: "t".into(),
+            task_name: "直接分叉".into(),
+            anchor_message_id: None,
+        })
+        .unwrap();
+        assert!(
+            !direct_fork
+                .as_object()
+                .unwrap()
+                .contains_key("anchorMessageId"),
+            "omitting the desktop direct-Fork anchor must serialize as an absent optional field"
+        );
     }
 
     #[test]

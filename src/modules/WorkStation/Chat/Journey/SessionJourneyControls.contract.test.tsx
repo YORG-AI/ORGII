@@ -4,7 +4,10 @@ import { act } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionJourneyControls } from "./SessionJourneyControls";
+import {
+  SessionJourneyControls,
+  resolveDurableJourneyMessageId,
+} from "./SessionJourneyControls";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -93,6 +96,10 @@ function Harness() {
   );
 }
 
+function DirectForkHarness({ messageId }: { messageId?: string | null }) {
+  return <SessionJourneyControls sessionId="session-a" messageId={messageId} />;
+}
+
 describe("SessionJourneyControls rendered behavior", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -132,6 +139,81 @@ describe("SessionJourneyControls rendered behavior", () => {
     act(() => root.unmount());
     container.remove();
     vi.useRealTimers();
+  });
+
+  it("normalizes only the known live user-event prefix", () => {
+    expect(resolveDurableJourneyMessageId("user-message-durable-7")).toBe(
+      "durable-7"
+    );
+    expect(resolveDurableJourneyMessageId("durable-7")).toBe("durable-7");
+    expect(resolveDurableJourneyMessageId("assistant-message-7")).toBe(
+      "assistant-message-7"
+    );
+    expect(resolveDurableJourneyMessageId("user-message-")).toBeNull();
+  });
+
+  it("keeps direct Fork available without a hydrated visual anchor", async () => {
+    await act(async () => {
+      root.unmount();
+      root = createRoot(container);
+      root.render(<DirectForkHarness messageId={null} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const fork = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.textContent?.trim().startsWith("分叉")
+    ) as HTMLButtonElement | undefined;
+    expect(fork?.disabled).toBe(false);
+    await click(container, "分叉");
+    expect(document.body.textContent).toContain("最近一条已持久化的用户消息");
+    const input = document.body.querySelector("input") as HTMLInputElement;
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set;
+    await act(async () => {
+      valueSetter?.call(input, "直接分叉");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await click(document.body, "确认");
+    await act(async () => {});
+    expect(api.startFork).toHaveBeenCalledWith(
+      expect.objectContaining({ taskName: "直接分叉" })
+    );
+    expect(api.startFork.mock.calls[0]?.[0]).not.toHaveProperty(
+      "anchorMessageId"
+    );
+  });
+
+  it("sends durable IDs to strict lifecycle actions from a live user event", async () => {
+    await act(async () => {
+      root.unmount();
+      root = createRoot(container);
+      root.render(<DirectForkHarness messageId="user-message-durable-6" />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await click(container, "分叉");
+    const input = document.body.querySelector("input") as HTMLInputElement;
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set;
+    await act(async () => {
+      valueSetter?.call(input, "带锚点分叉");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await click(document.body, "确认");
+    await act(async () => {});
+    expect(api.startFork).toHaveBeenCalledWith(
+      expect.objectContaining({ anchorMessageId: "durable-6" })
+    );
   });
 
   it("closes a fork through the durable close command and retries a failed review", async () => {

@@ -1280,7 +1280,7 @@ impl JourneyApplicationService {
                     fork_id,
                     task_id,
                     task_name,
-                    anchor_message_id,
+                    anchor_message_id: Some(anchor_message_id),
                 },
             )
             .map(|response| format!("分叉与活动任务已原子创建（修订 {}）。", response.revision)),

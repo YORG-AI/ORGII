@@ -107,7 +107,12 @@ export interface CreateForkRequest {
   forkId: string;
   taskId: string;
   taskName: string;
-  anchorMessageId: string;
+  /**
+   * An explicit durable user-message anchor. Omit only for the dedicated
+   * direct-Fork flow: the backend then resolves the latest durable user
+   * message and verifies that it belongs to the active branch atomically.
+   */
+  anchorMessageId?: string | null;
 }
 export interface CreateCheckpointRequest {
   sessionId: string;

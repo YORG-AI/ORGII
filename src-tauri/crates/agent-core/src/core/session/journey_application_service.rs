@@ -39,7 +39,11 @@ pub struct CreateForkRequest {
     pub fork_id: String,
     pub task_id: String,
     pub task_name: String,
-    pub anchor_message_id: String,
+    /// A strict durable user-message id. `None` is allowed only for the
+    /// desktop direct-Fork command, whose server-side semantic is to resolve
+    /// the active branch's latest durable user message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor_message_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -408,30 +412,63 @@ impl SessionJourneyApplicationService {
         conn: &mut Connection,
         request: CreateForkRequest,
     ) -> JourneyApplicationResult<JourneyWriteResponse> {
-        let anchor = Self::message_anchor(conn, &request.session_id, &request.anchor_message_id)?;
-        Self::write(
-            conn,
+        Self::ensure_session(conn, &request.session_id)?;
+        // Direct Fork must resolve the latest durable user row and validate its
+        // active-branch membership under one write transaction. This is not a
+        // generic fallback path for other lifecycle operations.
+        let tx = conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        let mut journey = Self::load_snapshot(&tx, &request.session_id)?;
+        if journey.revision != request.expected_revision {
+            return Err(JourneyApplicationError::修订冲突 {
+                expected: request.expected_revision,
+                actual: journey.revision,
+            });
+        }
+        let anchor = match request.anchor_message_id.as_deref() {
+            Some(message_id) => {
+                // An explicitly supplied id stays exact; an empty/malformed
+                // value is not allowed to silently become a direct Fork.
+                Self::message_anchor(&tx, &request.session_id, message_id)?
+            }
+            // This is intentionally a dedicated direct-Fork command semantic,
+            // not a generic anchor fallback. The query and active-branch
+            // membership check run in this one transaction, so an unrelated or
+            // stale row cannot anchor a fork.
+            None => Self::latest_active_branch_user_anchor(
+                &tx,
+                &request.session_id,
+                &journey.active_branch_id,
+            )?,
+        };
+        Self::validate_branch_anchor(
+            &tx,
             &request.session_id,
+            &anchor,
+            &journey.active_branch_id,
+        )?;
+        journey
+            .start_fork(
+                journey.revision,
+                request.fork_id,
+                request.task_id,
+                request.task_name,
+                anchor.message_id.clone(),
+                anchor.sequence,
+            )
+            .map_err(Self::domain_error)?;
+        SqliteJourneyRepository::compare_and_store_in_transaction(
+            &tx,
+            &journey,
             request.expected_revision,
-            |conn, journey, revision| {
-                Self::validate_branch_anchor(
-                    conn,
-                    &request.session_id,
-                    &anchor,
-                    &journey.active_branch_id,
-                )?;
-                journey
-                    .start_fork(
-                        revision,
-                        request.fork_id,
-                        request.task_id,
-                        request.task_name,
-                        anchor.message_id.clone(),
-                        anchor.sequence,
-                    )
-                    .map_err(Self::domain_error)
-            },
         )
+        .map_err(Self::domain_error)?;
+        tx.commit()
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
+        Ok(JourneyWriteResponse {
+            revision: journey.revision,
+        })
     }
 
     pub fn create_checkpoint(
@@ -907,6 +944,45 @@ impl SessionJourneyApplicationService {
         .ok_or_else(|| JourneyApplicationError::校验失败("该会话没有可用的最近用户消息。".into()))
     }
 
+    /// Resolve the direct-Fork anchor server-side. It deliberately selects only
+    /// user transcript rows that already belong to the currently active
+    /// Journey branch. This never fabricates a message and is not used by
+    /// checkpoints, task finish, or fork close.
+    fn latest_active_branch_user_anchor(
+        conn: &Connection,
+        session_id: &str,
+        branch_id: &str,
+    ) -> JourneyApplicationResult<MessageAnchor> {
+        let anchor = conn
+            .query_row(
+                "SELECT message.id, message.sequence
+                 FROM agent_messages AS message
+                 INNER JOIN session_journey_memberships AS membership
+                   ON membership.session_id = message.session_id
+                  AND membership.message_id = message.id
+                 WHERE message.session_id = ?1
+                   AND message.role = 'user'
+                   AND membership.branch_id = ?2
+                   AND message.sequence >= 0
+                 ORDER BY message.sequence DESC
+                 LIMIT 1",
+                params![session_id, branch_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()
+            .map_err(|_| JourneyApplicationError::存储失败("无法读取当前分叉最近用户消息。".into()))?
+            .filter(|(_, sequence)| *sequence >= 0)
+            .ok_or_else(|| {
+                JourneyApplicationError::校验失败(
+                    "当前分叉没有可用的已持久化用户消息，无法创建分叉。".into(),
+                )
+            })?;
+        Ok(MessageAnchor {
+            message_id: anchor.0,
+            sequence: anchor.1 as u64,
+        })
+    }
+
     fn message_anchor(
         conn: &Connection,
         session_id: &str,
@@ -1114,7 +1190,7 @@ mod tests {
             fork_id: "f1".into(),
             task_id: "t1".into(),
             task_name: "调查".into(),
-            anchor_message_id: "u1".into(),
+            anchor_message_id: Some("u1".into()),
         }
     }
 
@@ -1224,6 +1300,61 @@ mod tests {
         let snapshot = SessionJourneyApplicationService::snapshot(&conn, "s").unwrap();
         assert_eq!(snapshot.snapshot.checkpoints["c1"].message_id, "a1");
         assert_eq!(snapshot.snapshot.checkpoints["c1"].sequence, 5);
+    }
+
+    #[test]
+    fn direct_fork_uses_the_latest_durable_user_anchor_in_the_active_branch() {
+        let mut conn = conn();
+        conn.execute(
+            "INSERT INTO agent_messages (id, session_id, role, sequence) VALUES ('u2', 's', 'user', 6)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session_journey_memberships (session_id, message_id, sequence, branch_id, task_id) VALUES ('s', 'u2', 6, 'main', NULL)",
+            [],
+        )
+        .unwrap();
+
+        let mut request = fork_request(0);
+        request.anchor_message_id = None;
+        SessionJourneyApplicationService::create_fork(&mut conn, request).unwrap();
+
+        let snapshot = SessionJourneyApplicationService::snapshot(&conn, "s")
+            .unwrap()
+            .snapshot;
+        assert_eq!(
+            snapshot.branches["f1"].parent_anchor_message_id.as_deref(),
+            Some("u2")
+        );
+        assert_eq!(snapshot.branches["f1"].anchor_sequence, 6);
+    }
+
+    #[test]
+    fn direct_fork_never_uses_a_user_message_from_another_branch() {
+        let mut conn = conn();
+        conn.execute(
+            "UPDATE session_journey_memberships SET branch_id = 'other' WHERE session_id = 's' AND message_id = 'u1'",
+            [],
+        )
+        .unwrap();
+        let mut request = fork_request(0);
+        request.anchor_message_id = None;
+        let error = SessionJourneyApplicationService::create_fork(&mut conn, request)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "当前分叉没有可用的已持久化用户消息，无法创建分叉。");
+    }
+
+    #[test]
+    fn explicit_fork_anchor_remains_strict_and_does_not_fall_back() {
+        let mut conn = conn();
+        let mut request = fork_request(0);
+        request.anchor_message_id = Some("missing-user-anchor".into());
+        let error = SessionJourneyApplicationService::create_fork(&mut conn, request)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "未找到该会话中的精确消息锚点。");
     }
 
     #[test]
