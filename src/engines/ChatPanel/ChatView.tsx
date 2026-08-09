@@ -62,6 +62,7 @@ import { useFileReviewSync } from "@src/hooks/fileReview";
 import { createLogger } from "@src/hooks/logger";
 import { useSessionWorkspaceSync } from "@src/hooks/session/useSessionWorkspaceSync";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { SessionJourneyControls } from "@src/modules/WorkStation/Chat/Journey/SessionJourneyControls";
 import {
   activeSessionIdAtom,
   claimPipelineSessionAtom,
@@ -531,6 +532,13 @@ const ChatView: React.FC<ChatViewProps> = memo(
       sessionId
     )?.current;
     const chatEvents = snapshot?.chatEvents ?? EMPTY_CHAT_EVENTS;
+    const latestUserMessageId = useMemo(() => {
+      for (let index = chatEvents.length - 1; index >= 0; index -= 1) {
+        const event = chatEvents[index];
+        if (event?.source === "user") return event.id;
+      }
+      return null;
+    }, [chatEvents]);
     const isAgentWorking = useAtomValue(isSessionActiveAtom);
 
     const gitArtifactStats = useMemo(
@@ -981,6 +989,17 @@ const ChatView: React.FC<ChatViewProps> = memo(
             }
             data-chat-pinned-header-portal-host
           />
+          {!isReadOnlySurface && (
+            <div
+              className="flex flex-shrink-0 items-center border-b border-border-2 bg-chat-pane px-2 py-1"
+              data-testid="live-session-journey-controls"
+            >
+              <SessionJourneyControls
+                sessionId={sessionId}
+                messageId={latestUserMessageId}
+              />
+            </div>
+          )}
           <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
             {/* Session comments (cloud-parity Phase F): resolves the cloud
                 comment target once per surface; null for every non-cloud

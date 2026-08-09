@@ -6,6 +6,7 @@ import React, { memo, useCallback } from "react";
 
 import { ProjectTreePage } from "@src/modules/ProjectManager/ProjectJourney";
 import {
+  createChatSessionTab,
   createProjectJourneyTab,
   createWorkItemDetailTab,
   workstationLayoutAtom,
@@ -49,6 +50,15 @@ const ProjectTreeTabRenderer: React.FC<UnifiedTabContentProps> = memo(() => {
             projectSlug,
             projectName,
           })
+        );
+      }}
+      onOpenSession={(sessionId, sessionTitle, workItemId) => {
+        openTab(
+          createChatSessionTab(
+            sessionId,
+            sessionTitle || sessionId.slice(0, 8),
+            workItemId
+          )
         );
       }}
       onOpenWorkItem={(workItemId, projectSlug) => {
