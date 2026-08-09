@@ -20,6 +20,12 @@ export interface ProjectTreePageProps {
     projectName?: string
   ) => void;
   onOpenWorkItem?: (workItemId: string, projectSlug?: string) => void;
+  onOpenSession?: (
+    sessionId: string,
+    sessionTitle: string,
+    workItemId?: string,
+    projectSlug?: string
+  ) => void;
   publishToWorkstationHeader?: boolean;
 }
 
@@ -45,6 +51,7 @@ function kindIcon(kind: ProjectTreeNode["kind"]) {
 const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
   onOpenJourney,
   onOpenWorkItem,
+  onOpenSession,
 }) => {
   const [root, setRoot] = useState<ProjectTreeNode | null>(null);
   const [usedDemo, setUsedDemo] = useState(false);
@@ -237,6 +244,23 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
                     }
                   >
                     旅程
+                  </button>
+                )}
+                {node.kind === "session" && onOpenSession && (
+                  <button
+                    type="button"
+                    className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6"
+                    data-testid={`project-tree-open-session-${node.sessionId}`}
+                    onClick={() =>
+                      onOpenSession(
+                        node.sessionId ?? "",
+                        node.title,
+                        node.workItemId,
+                        node.projectSlug
+                      )
+                    }
+                  >
+                    打开会话 / Journey
                   </button>
                 )}
                 {node.kind === "work_item" && onOpenWorkItem && (
