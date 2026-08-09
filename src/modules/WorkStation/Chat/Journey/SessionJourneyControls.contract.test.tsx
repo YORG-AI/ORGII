@@ -79,13 +79,13 @@ async function click(container: HTMLElement, text: string) {
   });
 }
 
-function Harness() {
+function Harness({ messageId = "message-6" }: { messageId?: string | null }) {
   const [panel, setPanel] = useState<React.ReactNode | null>(null);
   return (
     <div>
       <SessionJourneyControls
         sessionId="session-a"
-        messageId="message-6"
+        messageId={messageId}
         onDockedReviewPanelChange={setPanel}
         onJumpToMessage={api.onJump}
       />
@@ -148,6 +148,9 @@ describe("SessionJourneyControls rendered behavior", () => {
     expect(resolveDurableJourneyMessageId("durable-7")).toBe("durable-7");
     expect(resolveDurableJourneyMessageId("assistant-message-7")).toBe(
       "assistant-message-7"
+    );
+    expect(resolveDurableJourneyMessageId("user-input-backend-7")).toBe(
+      "user-input-backend-7"
     );
     expect(resolveDurableJourneyMessageId("user-message-")).toBeNull();
   });
@@ -213,6 +216,40 @@ describe("SessionJourneyControls rendered behavior", () => {
     await act(async () => {});
     expect(api.startFork).toHaveBeenCalledWith(
       expect.objectContaining({ anchorMessageId: "durable-6" })
+    );
+  });
+
+  it("normalizes a live user-event ID for pause, finish, and close-Fork lifecycle actions", async () => {
+    await act(async () => {
+      root.unmount();
+      root = createRoot(container);
+      root.render(<Harness messageId="user-message-message-6" />);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await click(container, "结束");
+    const select = document.body.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      select.value = "paused";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await click(document.body, "确认");
+    await act(async () => {});
+    expect(api.finishTask).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "paused", messageId: "message-6" })
+    );
+
+    await click(container, "关闭分叉");
+    await click(document.body, "确认");
+    await act(async () => {});
+    expect(api.closeFork).toHaveBeenCalledWith(
+      expect.objectContaining({ forkId: "fork-a", messageId: "message-6" }),
+      expect.any(String)
     );
   });
 

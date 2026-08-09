@@ -49,6 +49,10 @@ export const resolveDurableJourneyMessageId = (
   messageId: string | null | undefined
 ): string | null => {
   if (!messageId) return null;
+  // Optimistic bubbles are excluded at their source via
+  // `isSyntheticUserInputEvent` in ChatView. Do not reject by `user-input-*`
+  // prefix here: CLI persistence can legitimately emit a durable message ID
+  // with that prefix, and strict Journey actions must preserve it exactly.
   const liveUserEventPrefix = "user-message-";
   return messageId.startsWith(liveUserEventPrefix)
     ? messageId.slice(liveUserEventPrefix.length) || null
