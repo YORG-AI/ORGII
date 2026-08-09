@@ -53,6 +53,7 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { derivePlanApprovalViewState } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useTodoSync } from "@src/engines/SessionCore/hooks/session/useTodoSync";
 import { waitForSessionChannelReady } from "@src/engines/SessionCore/sync/useSessionChannel";
+import { isBackendUserMessageEvent } from "@src/engines/SessionCore/sync/utils/activityIds";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { SessionCommentsProvider } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
 import { ForkCancelledError } from "@src/features/TeamCollaboration/forkSession";
@@ -532,10 +533,14 @@ const ChatView: React.FC<ChatViewProps> = memo(
       sessionId
     )?.current;
     const chatEvents = snapshot?.chatEvents ?? EMPTY_CHAT_EVENTS;
+    // Journey lifecycle commands require an exact durable `agent_messages.id`.
+    // Use the frontend-only synthetic marker, rather than `user-input-*`, to
+    // exclude optimistic bubbles: real backend rows may legitimately use that
+    // ID prefix (for example after CLI recovery).
     const latestUserMessageId = useMemo(() => {
       for (let index = chatEvents.length - 1; index >= 0; index -= 1) {
         const event = chatEvents[index];
-        if (event?.source === "user") return event.id;
+        if (event && isBackendUserMessageEvent(event)) return event.id;
       }
       return null;
     }, [chatEvents]);
