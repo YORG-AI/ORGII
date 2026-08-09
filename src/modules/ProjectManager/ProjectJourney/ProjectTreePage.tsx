@@ -26,6 +26,7 @@ export interface ProjectTreePageProps {
     workItemId?: string,
     projectSlug?: string
   ) => void;
+  onOpenSessionJourney?: (sessionId: string, sessionTitle: string) => void;
   publishToWorkstationHeader?: boolean;
 }
 
@@ -52,6 +53,7 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
   onOpenJourney,
   onOpenWorkItem,
   onOpenSession,
+  onOpenSessionJourney,
 }) => {
   const [root, setRoot] = useState<ProjectTreeNode | null>(null);
   const [usedDemo, setUsedDemo] = useState(false);
@@ -231,37 +233,56 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
                     {node.status}
                   </span>
                 )}
-                {node.kind === "project" && onOpenJourney && (
-                  <button
-                    type="button"
-                    className="hidden rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 group-hover:inline"
-                    onClick={() =>
-                      onOpenJourney(
-                        node.projectId ?? "",
-                        node.projectSlug,
-                        node.title
-                      )
-                    }
-                  >
-                    旅程
-                  </button>
-                )}
-                {node.kind === "session" && onOpenSession && (
-                  <button
-                    type="button"
-                    className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6"
-                    data-testid={`project-tree-open-session-${node.sessionId}`}
-                    onClick={() =>
-                      onOpenSession(
-                        node.sessionId ?? "",
-                        node.title,
-                        node.workItemId,
-                        node.projectSlug
-                      )
-                    }
-                  >
-                    打开会话 / Journey
-                  </button>
+                {node.kind === "project" &&
+                  node.projectSlug &&
+                  onOpenJourney && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-project-journey-${node.projectId ?? node.projectSlug}`}
+                      onClick={() =>
+                        onOpenJourney(
+                          node.projectId ?? "",
+                          node.projectSlug!,
+                          node.title
+                        )
+                      }
+                    >
+                      旅程
+                    </button>
+                  )}
+                {node.kind === "session" && node.sessionId && (
+                  <>
+                    {onOpenSession && (
+                      <button
+                        type="button"
+                        className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-text-2 hover:bg-fill-2"
+                        data-testid={`project-tree-open-session-${node.sessionId}`}
+                        onClick={() =>
+                          onOpenSession(
+                            node.sessionId!,
+                            node.title,
+                            node.workItemId,
+                            node.projectSlug
+                          )
+                        }
+                      >
+                        打开会话
+                      </button>
+                    )}
+                    {onOpenSessionJourney && (
+                      <button
+                        type="button"
+                        className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                        data-testid={`project-tree-open-session-journey-${node.sessionId}`}
+                        onClick={() =>
+                          onOpenSessionJourney(node.sessionId!, node.title)
+                        }
+                      >
+                        会话旅程
+                      </button>
+                    )}
+                  </>
                 )}
                 {node.kind === "work_item" && onOpenWorkItem && (
                   <button

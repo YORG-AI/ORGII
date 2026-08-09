@@ -57,10 +57,18 @@ describe("ProjectTreePage production session route", () => {
     container.remove();
   });
 
-  it("renders Project -> Session directly and opens the live Journey session", async () => {
+  it("keeps project and session journeys visible while preserving chat opening", async () => {
+    const onOpenJourney = vi.fn();
     const onOpenSession = vi.fn();
+    const onOpenSessionJourney = vi.fn();
     await act(async () => {
-      root.render(<ProjectTreePage onOpenSession={onOpenSession} />);
+      root.render(
+        <ProjectTreePage
+          onOpenJourney={onOpenJourney}
+          onOpenSession={onOpenSession}
+          onOpenSessionJourney={onOpenSessionJourney}
+        />
+      );
     });
 
     expect(container.textContent).toContain("工作区 → 项目 → 会话 → 旅程");
@@ -68,16 +76,36 @@ describe("ProjectTreePage production session route", () => {
       container.querySelector('[data-testid="project-tree-row-work_item"]')
     ).toBeNull();
 
-    const button = container.querySelector(
+    const projectJourneyButton = container.querySelector(
+      '[data-testid="project-tree-open-project-journey-p"]'
+    ) as HTMLButtonElement;
+    expect(projectJourneyButton).not.toBeNull();
+    expect(projectJourneyButton.className).not.toContain("hidden");
+    await act(async () => projectJourneyButton.click());
+    expect(onOpenJourney).toHaveBeenCalledWith("p", "project-p", "项目 P");
+
+    const chatButton = container.querySelector(
       '[data-testid="project-tree-open-session-session-1"]'
     ) as HTMLButtonElement;
-    expect(button).not.toBeNull();
-    await act(async () => button.click());
+    expect(chatButton).not.toBeNull();
+    expect(chatButton.textContent).toBe("打开会话");
+    await act(async () => chatButton.click());
     expect(onOpenSession).toHaveBeenCalledWith(
       "session-1",
       "没有工作项的会话",
       undefined,
       "project-p"
+    );
+
+    const sessionJourneyButton = container.querySelector(
+      '[data-testid="project-tree-open-session-journey-session-1"]'
+    ) as HTMLButtonElement;
+    expect(sessionJourneyButton).not.toBeNull();
+    expect(sessionJourneyButton.className).not.toContain("hidden");
+    await act(async () => sessionJourneyButton.click());
+    expect(onOpenSessionJourney).toHaveBeenCalledWith(
+      "session-1",
+      "没有工作项的会话"
     );
   });
 });
