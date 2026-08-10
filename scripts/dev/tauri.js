@@ -18,6 +18,7 @@ const {
   applyDefaultDiagnosticsEndpoint,
 } = require("../tauri/diagnostics-endpoint.cjs");
 const {
+  applyLightDevWebpackMemoryLimit,
   createDevUrl,
   createFrontendScriptName,
   createTauriArgs,
@@ -494,9 +495,8 @@ function pipeProcessLines(childProcess, onLine) {
 }
 
 function startFrontendDev() {
-  const scriptName = createFrontendScriptName({
-    lightDev: process.env.ORGII_LIGHT_DEV === "true",
-  });
+  const lightDev = process.env.ORGII_LIGHT_DEV === "true";
+  const scriptName = createFrontendScriptName({ lightDev });
   const pnpmCli = createPnpmCliCommand();
 
   setWebpackStatus("starting dev server...");
@@ -508,7 +508,7 @@ function startFrontendDev() {
     {
       stdio: ["ignore", "pipe", "pipe"],
       cwd: rootDir,
-      env: cleanChildEnv(),
+      env: applyLightDevWebpackMemoryLimit(cleanChildEnv(), { lightDev }),
     }
   );
 

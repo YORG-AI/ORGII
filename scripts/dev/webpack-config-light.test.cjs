@@ -89,10 +89,7 @@ test("production keeps its isolated filesystem cache", () => {
     );
 
     assert.equal(config.cache.type, "filesystem");
-    assert.equal(
-      config.cache.version,
-      `${fastProd ? "prod-fast" : "prod"}-11`
-    );
+    assert.equal(config.cache.version, `${fastProd ? "prod-fast" : "prod"}-11`);
   }
 });
 

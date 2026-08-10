@@ -1,6 +1,26 @@
 const http = require("node:http");
 const https = require("node:https");
 
+const LIGHT_DEV_WEBPACK_MAX_OLD_SPACE_MIB = 1792;
+
+function applyLightDevWebpackMemoryLimit(env, { lightDev = false } = {}) {
+  const nextEnv = { ...env };
+  if (!lightDev) return nextEnv;
+
+  const nodeOptions = nextEnv.NODE_OPTIONS?.trim() || "";
+  const hasExplicitLimit =
+    /(?:^|\s)--max[-_]old[-_]space[-_]size(?:=|\s)/u.test(nodeOptions);
+  if (hasExplicitLimit) return nextEnv;
+
+  nextEnv.NODE_OPTIONS = [
+    nodeOptions,
+    `--max-old-space-size=${LIGHT_DEV_WEBPACK_MAX_OLD_SPACE_MIB}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return nextEnv;
+}
+
 function createTauriArgs({ features = [], devUrl } = {}) {
   const args = ["dev"];
   if (features.length > 0) {
@@ -138,6 +158,7 @@ async function waitForDevServerAsset(
 }
 
 module.exports = {
+  applyLightDevWebpackMemoryLimit,
   createDevUrl,
   createFrontendScriptName,
   createTauriArgs,

@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const test = require("node:test");
 
 const {
+  applyLightDevWebpackMemoryLimit,
   createDevUrl,
   createTauriArgs,
   formatElapsedMs,
@@ -11,6 +12,33 @@ const {
   isInitialWebpackReadyLine,
   waitForDevServerAsset,
 } = require("./tauri-dev-processes.cjs");
+
+test("light webpack gets a bounded default heap without overriding user options", () => {
+  assert.deepEqual(
+    applyLightDevWebpackMemoryLimit(
+      { NODE_OPTIONS: "--trace-warnings", KEEP: "yes" },
+      { lightDev: true }
+    ),
+    {
+      NODE_OPTIONS: "--trace-warnings --max-old-space-size=1792",
+      KEEP: "yes",
+    }
+  );
+  assert.deepEqual(
+    applyLightDevWebpackMemoryLimit(
+      { NODE_OPTIONS: "--max_old_space_size=3072" },
+      { lightDev: true }
+    ),
+    { NODE_OPTIONS: "--max_old_space_size=3072" }
+  );
+  assert.deepEqual(
+    applyLightDevWebpackMemoryLimit(
+      { NODE_OPTIONS: "--trace-warnings" },
+      { lightDev: false }
+    ),
+    { NODE_OPTIONS: "--trace-warnings" }
+  );
+});
 
 const tauriDevSource = fs.readFileSync("scripts/dev/tauri.js", "utf8");
 const tauriLauncherSource = fs.readFileSync(
@@ -81,8 +109,14 @@ test("tauri dev npm scripts use a cross-platform launcher", () => {
 });
 
 test("tauri dev launcher detaches Unix stdin without requiring setsid", () => {
-  assert.match(tauriLauncherSource, /detached:\s*process\.platform !== "win32"/);
-  assert.match(tauriLauncherSource, /stdio:\s*\["ignore",\s*"inherit",\s*"inherit"\]/);
+  assert.match(
+    tauriLauncherSource,
+    /detached:\s*process\.platform !== "win32"/
+  );
+  assert.match(
+    tauriLauncherSource,
+    /stdio:\s*\["ignore",\s*"inherit",\s*"inherit"\]/
+  );
   assert.match(tauriLauncherSource, /env\.ORGII_LIGHT_DEV = "true"/);
   assert.match(tauriLauncherSource, /SIGINT:\s*130/);
   assert.match(tauriLauncherSource, /SIGTERM:\s*143/);
