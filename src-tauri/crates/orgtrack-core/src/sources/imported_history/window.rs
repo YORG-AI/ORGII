@@ -186,30 +186,28 @@ pub fn build_initial_window_from_turns(
                     window.push(body);
                 }
             }
-        } else {
-            if let Some(turn) = turns.get(current_turn_index) {
-                window.push(build_user_preview_chunk(session_id, &chunk, turn));
-                let mut last_agent_preview = None;
-                while chunks.peek().is_some_and(|next| !is_user_chunk(next)) {
-                    if let Some(body) = chunks.next() {
-                        if let Some(preview) = assistant_preview_text(&body) {
-                            last_agent_preview = Some(preview);
-                        }
+        } else if let Some(turn) = turns.get(current_turn_index) {
+            window.push(build_user_preview_chunk(session_id, &chunk, turn));
+            let mut last_agent_preview = None;
+            while chunks.peek().is_some_and(|next| !is_user_chunk(next)) {
+                if let Some(body) = chunks.next() {
+                    if let Some(preview) = assistant_preview_text(&body) {
+                        last_agent_preview = Some(preview);
                     }
                 }
-                window.push(build_unloaded_turn_placeholder_chunk(
-                    session_id,
-                    turn,
-                    turns
-                        .get(current_turn_index + 1)
-                        .map(|next| next.turn_id.as_str()),
-                    last_agent_preview.as_deref(),
-                ));
-            } else {
-                window.push(chunk);
-                while chunks.peek().is_some_and(|next| !is_user_chunk(next)) {
-                    chunks.next();
-                }
+            }
+            window.push(build_unloaded_turn_placeholder_chunk(
+                session_id,
+                turn,
+                turns
+                    .get(current_turn_index + 1)
+                    .map(|next| next.turn_id.as_str()),
+                last_agent_preview.as_deref(),
+            ));
+        } else {
+            window.push(chunk);
+            while chunks.peek().is_some_and(|next| !is_user_chunk(next)) {
+                chunks.next();
             }
         }
     }
