@@ -15,7 +15,17 @@ vi.mock("@src/components/IntegrationIcon", () => ({
     React.createElement("span", { "data-integration-icon": type }),
 }));
 
+vi.mock("@src/components/MarkDown", () => ({
+  default: ({ textContent }: { textContent: string }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "markdown-content" },
+      textContent
+    ),
+}));
+
 vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
+  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS: "mock-toolbar-class",
   default: ({ dataTestId }: { dataTestId?: string }) =>
     React.createElement("div", { "data-testid": dataTestId }),
 }));
