@@ -23,7 +23,6 @@ interface VoiceRecordingBarProps {
   elapsedSeconds: number;
   onCancel: () => void;
   onAccept: () => void;
-  compact?: boolean;
   /** Optional + click handler so the row keeps feature parity with the idle toolbar. */
   onAddContent?: () => void;
 }
@@ -51,7 +50,7 @@ const WAVEFORM_SEEDS: Array<{ peak: number; delay: number }> = Array.from(
 );
 
 const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
-  ({ elapsedSeconds, onCancel, onAccept, compact = false, onAddContent }) => {
+  ({ elapsedSeconds, onCancel, onAccept, onAddContent }) => {
     const { t } = useTranslation();
 
     const bars = useMemo(
@@ -73,7 +72,7 @@ const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
 
     return (
       <div
-        className={`${compact ? "h-7 min-h-7 gap-0.5 px-0" : "h-9 min-h-9 gap-1 px-1"} flex w-full items-center text-text-2`}
+        className="flex h-9 min-h-9 w-full items-center gap-1 px-1 text-text-2"
         data-testid="composer-voice-recording-bar"
         role="region"
         aria-label={t("common:tooltips.startVoiceInput")}

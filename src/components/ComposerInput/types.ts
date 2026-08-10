@@ -78,10 +78,7 @@ export interface ComposerInputProps {
   /** Min/max heights (px or CSS size) — applied as inline style */
   minHeight?: number | string;
   maxHeight?: number | string;
-  /**
-   * Root overflow-y. The compact chat row should use `visible` so WebKit
-   * still paints the caret after a pill ↔ stacked layout swap.
-   */
+  /** Optional root overflow-y override for embedding surfaces. */
   overflowY?: "auto" | "hidden" | "visible";
   /** Whether the editor accepts input */
   editable?: boolean;

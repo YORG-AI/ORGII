@@ -262,8 +262,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
     // Wrap `insertNewline` so a bare-Enter / Shift+Enter newline still
     // flows through the same notify-host path that native typing does.
     // The op mutates the DOM directly (no `beforeinput`/`input` event),
-    // so without this the parent (e.g. `useEditorExpansion`) never sees
-    // the new `\n` and the compact pill row would refuse to expand.
+    // so without this the parent never sees the new `\n`.
     const insertNewlineAndNotify = useCallback(() => {
       ops.insertNewline();
       handleInput();

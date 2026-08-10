@@ -79,6 +79,20 @@ export const INPUT_AREA = {
   backgroundEditClass: "bg-fill-1",
 } as const;
 
+/** Shared full-height editor bounds for session and launchpad composers. */
+export const INPUT_AREA_EDITOR_HEIGHT = {
+  min: 60,
+  max: 140,
+} as const;
+
+/** Shared editor presentation for session and creator composer surfaces. */
+export const INPUT_AREA_EDITOR_CLASS =
+  "session-editor flex-1 cursor-text overflow-y-auto rounded-md text-[14px] text-text-1";
+
+/** Shared spacing for adjacent mode/model/source controls. */
+export const INPUT_AREA_CONTROL_GROUP_CLASS =
+  "flex min-w-0 items-center gap-px";
+
 // ==============================================
 // Padding Tokens
 // ==============================================

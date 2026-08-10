@@ -347,7 +347,7 @@ const SessionCreatorChatPanelView: React.FC<
   const composerDockClassName = isLaunchpadLayout
     ? "mt-auto flex w-full shrink-0 flex-col gap-3"
     : "contents";
-  const composerFrameClassName = `session-creator-chat-panel-fullscreen-composer w-full ${
+  const composerFrameClassName = `session-creator-chat-panel-fullscreen-composer mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth} ${
     headerLayout === "compact"
       ? "session-creator-chat-panel-fullscreen-composer-compact"
       : ""
