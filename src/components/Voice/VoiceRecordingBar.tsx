@@ -89,6 +89,7 @@ const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
           ].join(" ")}
           style={{ lineHeight: 0 }}
           aria-hidden={!onAddContent}
+          aria-label={t("common:actions.add")}
           tabIndex={onAddContent ? 0 : -1}
         >
           <Plus size={INPUT_AREA_BUTTONS.iconSize} strokeWidth={1.75} />

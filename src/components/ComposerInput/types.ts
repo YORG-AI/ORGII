@@ -98,11 +98,6 @@ export interface ComposerInputProps {
   slashTriggerMode?: "command" | "context";
   /** Called for clipboard image attachments */
   onImagePaste?: (files: File[]) => void;
-  /**
-   * Called synchronously inside the keydown handler before a Shift+Enter
-   * newline is inserted, so the host can expand the layout eagerly.
-   */
-  onBeforeNewline?: () => void;
 }
 
 /**

@@ -81,7 +81,6 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
       onKeyDownForSlashDropdown,
       onInputMouseDown,
       onImagePaste,
-      onBeforeNewline,
       slashTriggerMode = "command",
     } = props;
 
@@ -112,7 +111,6 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
     const onKeyDownForSlashDropdownRef = useRef(onKeyDownForSlashDropdown);
     const onInputMouseDownRef = useRef(onInputMouseDown);
     const onImagePasteRef = useRef(onImagePaste);
-    const onBeforeNewlineRef = useRef(onBeforeNewline);
     useEffect(() => {
       onContentChangeRef.current = onContentChange;
       onAtMentionRef.current = onAtMention;
@@ -124,7 +122,6 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
       onKeyDownForSlashDropdownRef.current = onKeyDownForSlashDropdown;
       onInputMouseDownRef.current = onInputMouseDown;
       onImagePasteRef.current = onImagePaste;
-      onBeforeNewlineRef.current = onBeforeNewline;
     });
 
     // ===== Composition + mention state =====
@@ -317,7 +314,6 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
           getOnSlashCommand: () => onSlashCommandRef.current,
           getOnSlashCommandClose: () => onSlashCommandCloseRef.current,
           getOnSubmit: () => onSubmitRef.current,
-          getOnBeforeNewline: () => onBeforeNewlineRef.current,
           getText: () => {
             const host = hostRef.current;
             return host ? extractPlainText(host) : "";

@@ -71,8 +71,6 @@ export interface InputEditorProps {
   onInputMouseDown?: () => void;
   /** Slash trigger behavior for this editor surface. */
   slashTriggerMode?: "command" | "context";
-  /** Called synchronously before a newline is inserted. */
-  onBeforeNewline?: () => void;
 }
 
 // ============================================
@@ -104,7 +102,6 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     onSlashCommandClose,
     onInputMouseDown,
     slashTriggerMode = "command",
-    onBeforeNewline,
   }) => {
     const wrapperRef = useRef<HTMLDivElement>(null);
     const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
@@ -191,7 +188,6 @@ const InputEditor: React.FC<InputEditorProps> = memo(
           onKeyDownForSlashDropdown={handleKeyDownForSlashDropdown}
           slashTriggerMode={slashTriggerMode}
           onImagePaste={onImagePaste}
-          onBeforeNewline={onBeforeNewline}
         />
       </div>
     );
