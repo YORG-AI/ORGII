@@ -62,8 +62,16 @@ module.exports = (env, argv) => {
       chunkFilename: isProduction ? "[name].[contenthash].js" : "[name].js",
       clean: true,
     },
-    cache: isProduction
+    cache: isLightDev
       ? {
+          // Webpack's filesystem cache can serialize gigabyte-scale pack files
+          // for this app and raises the light-dev rebuild RSS ceiling. Retain
+          // only one unused generation and never persist the light-mode
+          // compilation graph across restarts.
+          type: "memory",
+          maxGenerations: 1,
+        }
+      : {
           type: "filesystem",
           // FAST_PROD swaps both the transpiler and minimizer. Keep it in a
           // separate filesystem-cache namespace so webpack cannot reuse cached
@@ -72,21 +80,14 @@ module.exports = (env, argv) => {
           // id (for example `__webpack_require__.j == 9121` while the emitted
           // runtime id is `49121`), which turns otherwise valid imports into
           // `undefined` only in the packaged app.
-          version: `${useFastProd ? "prod-fast" : "prod"}-11`,
+          version: isProduction
+            ? `${useFastProd ? "prod-fast" : "prod"}-11`
+            : "dev-11",
           buildDependencies: {
             config: [__filename],
           },
           // Don't compress - avoids sass serialization issues
           compression: false,
-        }
-      : {
-          // Webpack's filesystem cache serialized 1–4+ GB pack files for this
-          // app and deserializing them pushed the long-lived dev server to a
-          // 7–9 GB physical footprint. Dev mode already keeps the active
-          // compilation graph in memory, so retain only one unused generation
-          // for rebuilds and never persist that graph across process restarts.
-          type: "memory",
-          maxGenerations: 1,
         },
     // Snapshot: use timestamps for node_modules instead of content hashing.
     // node_modules rarely change during a dev session; timestamp checks are much faster.

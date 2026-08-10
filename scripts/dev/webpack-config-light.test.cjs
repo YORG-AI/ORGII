@@ -49,22 +49,34 @@ test("light dev disables webpack dev-server browser client", () => {
   assert.equal(htmlPlugin?.userOptions?.retryMainScriptLoad, false);
 });
 
-test("development cache stays memory-only and bounded to one generation", () => {
-  for (const lightDev of [false, true]) {
-    const config = withEnv(
-      {
-        ORGII_LIGHT_DEV: lightDev ? "true" : null,
-        FAST_DEV: lightDev ? "true" : null,
-        DEV_SOURCEMAPS: lightDev ? "false" : null,
-      },
-      () => createWebpackConfig({}, { mode: "development" })
-    );
+test("light development cache stays memory-only and bounded", () => {
+  const config = withEnv(
+    {
+      ORGII_LIGHT_DEV: "true",
+      FAST_DEV: "true",
+      DEV_SOURCEMAPS: "false",
+    },
+    () => createWebpackConfig({}, { mode: "development" })
+  );
 
-    assert.deepEqual(config.cache, {
-      type: "memory",
-      maxGenerations: 1,
-    });
-  }
+  assert.deepEqual(config.cache, {
+    type: "memory",
+    maxGenerations: 1,
+  });
+});
+
+test("standard development keeps its filesystem cache", () => {
+  const config = withEnv(
+    {
+      ORGII_LIGHT_DEV: null,
+      FAST_DEV: null,
+      DEV_SOURCEMAPS: null,
+    },
+    () => createWebpackConfig({}, { mode: "development" })
+  );
+
+  assert.equal(config.cache.type, "filesystem");
+  assert.equal(config.cache.version, "dev-11");
 });
 
 test("production keeps its isolated filesystem cache", () => {
