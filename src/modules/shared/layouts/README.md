@@ -56,11 +56,10 @@ Renders app-wide modals (Login, ComponentIssue). Used internally by AppLayout.
 
 ## Pages NOT Using These Layouts
 
-| Route          | Component                      | Reason                  |
-| -------------- | ------------------------------ | ----------------------- |
-| `/orgii/login` | LoginPage                      | Custom auth design      |
-| `/error-page`  | ErrorPage                      | Must work independently |
-| `/windows/*`   | TabWindow, ModeSelectionWindow | Separate OS windows     |
+| Route          | Component | Reason                  |
+| -------------- | --------- | ----------------------- |
+| `/orgii/login` | LoginPage | Custom auth design      |
+| `/error-page`  | ErrorPage | Must work independently |
 
 ## Architecture
 

@@ -53,3 +53,85 @@ The WorkStation "Database" app (the **Data** dock app, its tab types, renderers,
 **To restore:** reverse the `git mv`s above, revert the in-place edits (see the archival commit), and remove `.archive` from `tsconfig.json`'s `exclude`.
 
 **Known harmless leftovers (intentional, to limit ripple):** the `db-table`/`db-query`/`db-schema` members of `WorkStationTabCategory` and the `"data"` slot in `StatusBarAppType` remain as unused union members; the `dockFilter.data` i18n key remains in `navigation.json` across locales.
+
+## MainApp Home and global view-mode layer — archived 2026-07-23
+
+The standalone Home/Start Page and the global `mainApp` ↔ `workStation` view-mode switch were retired. Workstation and Settings now share one router-owned Workbench shell; standalone Market/Ideas/Dev pages use a plain route outlet. This removes the duplicated route/view/tab state machine, sticky mounts, route caching, and Home-only customization state.
+
+**What moved here:**
+
+- `src/modules/MainApp/StartPage/` and its `appGridAtom`
+- the Home-only repository-drop overlay layout helper at `src/components/GlobalDragDrop/useGlobalDragDrop/useLayoutHelpers.ts`
+- the old month/day Changelog UI was retired; its generated git-summary
+  documents and data-bound page were deleted instead of archived
+- `HomeSidebar`, `EconomySidebar`, and their unused `PageLevelSidebar` base
+- global view-mode configuration, atom, synchronization component, route-tab metadata, and retired MainApp tab helpers
+- `ScrollRestorationWrapper` and the MainApp KeepAlive route-cache helper
+
+**What deliberately stayed live:**
+
+- `ChatPanelStartPage` / Launchpad — this is the active new-session and creator surface, not the retired Home page
+- Workstation tab state and ChatPanel tab state — both remain active domain-owned tab systems
+- Changelog as a product feature — it now lives at `src/engines/ChatPanel/panels/ChangelogPanelView.tsx`, reads version-scoped release notes from `src/config/changelog/releases.ts`, and opens as a singleton ChatPanel tab
+- `/orgii/app/changelog` — retained as a route-level launcher for Spotlight, app actions, and old bookmarks; it opens the Changelog tab and redirects to Workstation
+
+**Shared logic edited in place:** Global drag/drop now handles only visible ChatPanel composer targets. The retired Home folder-drop hint, repository confirmation overlay, and Spotlight handoff state were removed from the shared handler.
+
+**To restore:** reverse the relevant `git mv`s and restore the removed
+route/view branches and KeepAlive dependencies. The legacy generated
+git-summary documents and their month/day page were deliberately deleted; the
+live version-level Changelog is the supported release-note source.
+
+## Detached window and standalone Settings shells — archived 2026-07-23
+
+The unused `/windows/welcome` mode picker and `/windows/tab` detached-tab host were removed after their route, window-manager, and Tauri command call chains were confirmed to have no production entry point. The old full-page Settings shell was reachable only from that detached-tab host; the active Settings experience remains `SettingsSlot` inside the Workbench.
+
+**What moved here:**
+
+- `src/windows/` detached-window components and their unreferenced styles
+- `src/modules/MainApp/Settings/index.tsx`, its full-page content component, and its route/monitor hooks
+- the unreferenced `SettingsListPanel`
+- the unused sidebar visibility hook and retired App Grid navigation-state type
+- the unused `WindowStateProvider`/window registry, including its 30-second heartbeat
+- the detached-window-only frontend base-URL helper
+
+**What deliberately stayed live:**
+
+- `src/modules/MainApp/Settings/SettingsSlot.tsx` and all renderers, sections, subpages, and toolbar logic it consumes
+- the `app-window` Rust crate’s main-window zoom, vibrancy, background, and native-window lifecycle support
+- `emitOpenWorkspace`, which is still used by session launch
+- the storage-safe `getWindowId()` helper used by repo/workspace persistence
+
+**To restore:** reverse the relevant moves and restore the `/windows/*` routes, detached-window manager helpers, and their four Tauri command registrations.
+
+## Orphaned modules sweep — archived 2026-07-27
+
+Unlike the sections above, this was not a feature removal but a mechanical sweep: 34 modules that **no file in the repo imports**, found by building the `src/` import graph and diffing it against the file list.
+
+The graph resolved the `@src` / `@api` / `@common` / `@page` / `@assets` aliases, lazy `import(/* webpackChunkName */ …)`, `new Worker(new URL(…))`, and source paths referenced as plain strings from root configs (vitest `setupFiles`, webpack entry). Every file below additionally has a basename that appears in **no other file** in `src/`, `tests/`, or `scripts/` — so nothing reaches them by import, by test, or by name.
+
+Note that the repo's own `npm run check:unused-exports` does **not** find these. `ts-unused-exports` reports exports nobody imports, which is a different question — a fully-live module that over-exports its internal types lands on that list (1047 modules do), while a module nobody imports at all does not necessarily.
+
+**What moved here (34 files, ~5,120 LOC):**
+
+- `src/components/` — `ComposerInput/ComposerInputSurface`, `FileTreeContent/FileTreeRows`, `Virtualized/VirtualizedSessionList`
+- `src/config/` — `animationConfig`, `externalLinks`, `heavyComponents`
+- `src/engines/ChatPanel/` — `InputArea/components/createPillCache`, `hooks/useInputArea/useRepoSuggestions`, `panels/RecentSessionsPanelView`, `panels/useBenchmarkSessionCreatorSlots` (658 LOC, the largest)
+- `src/engines/Simulator/components/` — `AskUserEvent`, `AskUserPending`, `GridCell/subagentCellHeaderIconKind`
+- `src/engines/BrowserCore/BrowserUrlInput`
+- `src/features/SessionCreator/` — `components/SessionInfoLine/SwitchWorkspaceSelector`, `variants/ChatPanel/AttachmentPopover`
+- `src/hooks/` — `auth/marketAuthHelpers`, `models/useModelCatalog`, `session/useOrgtrackSessionArtifacts`
+- `src/modules/MainApp/Integrations/` — `AddOptionsGrid`, `KeyVault/LocalModels/LocalModelsTabSection`, `KeyVault/Models/Detail/ModelCatalogDisplay`, `RulesMemoryEvolution/hooks/useAutomationRules`
+- `src/modules/WorkStation/` — `WorkStationShellFallback`, `shared/LayoutSettingsDropdown/{LayoutDropdownControls,LayoutThumbs}`, `CodeEditor/Panels/EditorMainPane/content/SearchEditorContent/SearchResultsCodeView`, `CodeEditor/Panels/EditorPrimarySidebar/hooks/useOpenAIImpactTab`
+- `src/modules/ProjectManager/WorkItems/components/WorkItemProperties/AssigneeDropdown`
+- `src/modules/shared/layouts/GenericBottomPanel/DownloadProgressCard`
+- `src/scaffold/` — `GlobalSpotlight/palettes/EditorPalette/hooks/useHintMode`, `NavigationSidebar/utils/menuFromRoutes`, `WizardSystem/shared/externalImport/ExternalImportWizard`
+- `src/store/chatPanel/recentCliAgentsAtom`
+
+**No shared files were edited.** Because nothing imported these modules, severing them required no changes to live code — this archival is a pure `git mv`.
+
+**What deliberately stayed live:** 151 barrel files (`index.ts` / `exports.ts`) that nothing currently imports. Some are deliberate public-API surface that internal callers happen to reach past, so bulk-archiving them would be wrong. They need a per-barrel judgement call and are left for a separate pass.
+
+**Verification:** `tsc --noEmit` clean, full vitest suite green (701 files / 6390 tests), production webpack build clean.
+
+**To restore:** reverse the `git mv` for the file in question. No other edits are needed.
