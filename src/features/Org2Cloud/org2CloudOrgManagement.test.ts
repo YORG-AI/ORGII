@@ -373,6 +373,7 @@ describe("management error codes", () => {
     ["ORG2_QUOTA_EXCEEDED", "cloud.orgManagement.errors.quotaExceeded"],
     ["ORG2_FORBIDDEN", "cloud.orgManagement.errors.forbidden"],
     ["ORG2_MEMBER_NOT_FOUND", "cloud.orgManagement.errors.memberNotFound"],
+    ["ORG2_ALREADY_MEMBER", "cloud.orgManagement.errors.alreadyMember"],
     ["ORG2_INVITE_INVALID", "cloud.orgManagement.errors.inviteInvalid"],
     ["ORG2_INVITE_REVOKED", "cloud.orgManagement.errors.inviteRevoked"],
     ["ORG2_INVITE_EXPIRED", "cloud.orgManagement.errors.inviteExpired"],
