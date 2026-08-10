@@ -56,6 +56,9 @@ interface ChatHistoryViewProps {
   chatPanelPosition: "left" | "right";
   displayMode: ChatHistoryDisplayMode;
   emptyState: UseChatEmptyStateReturn;
+  exactTargetDisplayIndex: number | null;
+  exactTargetGroupIndex: number | null;
+  exactTargetSourceGroupIndex: number | null;
   groupChatEnabled: boolean;
   groupChatViewActive: boolean;
   groupChatViewAvailable: boolean;
@@ -63,6 +66,7 @@ interface ChatHistoryViewProps {
   handleReloadSession: ReturnType<typeof useReloadSession>;
   hideGroupUserMessage: boolean;
   historyState: UseChatHistoryStateReturn;
+  initialMessageId?: string;
   mutationActionsDisabled: boolean;
   navigation: NavigationModel;
   newEventDividerLabel: string | null;
@@ -91,6 +95,9 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   chatPanelPosition,
   displayMode,
   emptyState,
+  exactTargetDisplayIndex,
+  exactTargetGroupIndex,
+  exactTargetSourceGroupIndex,
   groupChatEnabled,
   groupChatViewActive,
   groupChatViewAvailable,
@@ -98,6 +105,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   handleReloadSession,
   hideGroupUserMessage,
   historyState,
+  initialMessageId,
   mutationActionsDisabled,
   navigation,
   newEventDividerLabel,
@@ -306,6 +314,10 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
       onRestoreCheckpoint={
         mutationActionsDisabled ? undefined : handleHeaderRestoreCheckpoint
       }
+      exactHistoryTarget={
+        exactTargetSourceGroupIndex !== null &&
+        exactTargetSourceGroupIndex === activePinnedSourceGroupIndex
+      }
     />
   );
 
@@ -318,9 +330,21 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
         data-optimized-count={activeProjectionHistory.length}
         data-flat-count={displayTotalFlatItems}
         data-group-shape={projectionResult.groupShapeDigest}
+        data-exact-history-target={initialMessageId ?? ""}
         ref={chatContainerRef as React.RefObject<HTMLDivElement>}
         style={chatHistoryContainerStyle}
       >
+        {(exactTargetDisplayIndex !== null ||
+          exactTargetGroupIndex !== null) && (
+          <div
+            className="absolute left-3 top-3 z-30 rounded border border-primary-6 bg-bg-1 px-2 py-1 text-xs text-text-1 shadow-sm"
+            role="status"
+            aria-live="polite"
+            data-exact-history-target-confirmation
+          >
+            Exact history target
+          </div>
+        )}
         <div className={DETAIL_PANEL_TOKENS.contentWidth}>
           <SessionHeader sessionInfo={sessionInfo} />
         </div>
@@ -506,6 +530,8 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       virtualScrollerRef={virtuosoScrollerRef}
                       staticScrollerRef={staticScrollerRef}
                       newEventDividerLabel={newEventDividerLabel}
+                      exactTargetDisplayIndex={exactTargetDisplayIndex}
+                      exactTargetGroupIndex={exactTargetGroupIndex}
                     />
                   </>
                 ) : (

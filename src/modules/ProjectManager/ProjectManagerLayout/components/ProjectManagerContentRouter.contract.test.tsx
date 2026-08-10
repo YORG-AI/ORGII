@@ -36,4 +36,25 @@ describe("ProjectManagerContentRouter Journey production route", () => {
       ).toBe(type);
     });
   }
+
+  it("passes the keyed chat target through the production project host", () => {
+    const activeTab = {
+      ...tab("chat-session"),
+      data: { sessionId: "session-1", initialMessageId: "message-9" },
+    };
+    const node = renderActiveContent({
+      repoPath: "/repo",
+      activeTab,
+      hasNoTabs: false,
+      projectQuickActions: [],
+    }) as {
+      props: {
+        children: { props: { children: { props: Record<string, unknown> } } };
+      };
+    };
+
+    expect(node.props.children.props.children.props.initialMessageId).toBe(
+      "message-9"
+    );
+  });
 });

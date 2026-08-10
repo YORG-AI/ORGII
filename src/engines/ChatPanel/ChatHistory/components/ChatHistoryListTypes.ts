@@ -92,6 +92,10 @@ export interface ChatHistoryListProps {
    * keeps the divider off (default for the main chat panel).
    */
   newEventDividerLabel?: string | null;
+  /** Current page-local row index for an exact durable history target. */
+  exactTargetDisplayIndex?: number | null;
+  /** Current page-local group whose user header is the exact durable target. */
+  exactTargetGroupIndex?: number | null;
 }
 
 export interface VirtualGroup {

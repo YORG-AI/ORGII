@@ -29,7 +29,37 @@ vi.mock("./loadProjectTree", () => ({
               title: "没有工作项的会话",
               sessionId: "session-1",
               projectSlug: "project-p",
-              children: [],
+              children: [
+                {
+                  id: "task:session-1:task-1",
+                  kind: "task",
+                  title: "Exact task",
+                  sessionId: "session-1",
+                  taskId: "task-1",
+                  children: [
+                    {
+                      id: "checkpoint:session-1:checkpoint-1",
+                      kind: "checkpoint",
+                      title: "Durable checkpoint",
+                      sessionId: "session-1",
+                      taskId: "task-1",
+                      checkpointId: "checkpoint-1",
+                      anchorMessageId: "message-8",
+                      children: [],
+                    },
+                  ],
+                },
+                {
+                  id: "fork:session-1:fork-1",
+                  kind: "fork",
+                  title: "fork-1",
+                  sessionId: "session-1",
+                  forkId: "fork-1",
+                  anchorMessageId: "message-7",
+                  anchorSequence: 7,
+                  children: [],
+                },
+              ],
             },
           ],
         },
@@ -40,6 +70,8 @@ vi.mock("./loadProjectTree", () => ({
     standaloneWorkItems: [],
     usedDemo: false,
   }),
+  streamSessionJourneys: vi.fn().mockResolvedValue(undefined),
+  loadSessionJourney: vi.fn(),
 }));
 
 describe("ProjectTreePage production session route", () => {
@@ -106,6 +138,40 @@ describe("ProjectTreePage production session route", () => {
     expect(onOpenSessionJourney).toHaveBeenCalledWith(
       "session-1",
       "没有工作项的会话"
+    );
+
+    const checkpointButton = container.querySelector(
+      '[data-testid="project-tree-open-checkpoint-history-checkpoint-1"]'
+    ) as HTMLButtonElement;
+    await act(async () => checkpointButton.click());
+    expect(onOpenSession).toHaveBeenCalledWith(
+      "session-1",
+      "Durable checkpoint",
+      undefined,
+      undefined,
+      "message-8"
+    );
+
+    const taskJourneyButton = container.querySelector(
+      '[data-testid="project-tree-open-task-journey-task-1"]'
+    ) as HTMLButtonElement;
+    await act(async () => taskJourneyButton.click());
+    expect(onOpenSessionJourney).toHaveBeenCalledWith(
+      "session-1",
+      "Exact task",
+      { taskId: "task-1" }
+    );
+
+    const forkJourneyButton = container.querySelector(
+      '[data-testid="project-tree-open-fork-journey-fork-1"]'
+    ) as HTMLButtonElement;
+    await act(async () => forkJourneyButton.click());
+    expect(onOpenSession).toHaveBeenCalledWith(
+      "session-1",
+      "fork-1",
+      undefined,
+      undefined,
+      "message-7"
     );
   });
 });

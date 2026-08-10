@@ -14,7 +14,11 @@ vi.mock("@src/modules/ProjectManager/ProjectJourney", () => ({
     onOpenSessionJourney,
   }: {
     onOpenSession: (sessionId: string, title: string) => void;
-    onOpenSessionJourney: (sessionId: string, title: string) => void;
+    onOpenSessionJourney: (
+      sessionId: string,
+      title: string,
+      target?: { taskId?: string; forkId?: string; anchorMessageId?: string }
+    ) => void;
   }) => (
     <div>
       <button
@@ -23,6 +27,18 @@ vi.mock("@src/modules/ProjectManager/ProjectJourney", () => ({
         onClick={() => onOpenSession("session-exact", "Exact session")}
       >
         Open chat
+      </button>
+      <button
+        type="button"
+        data-testid="open-fork-journey"
+        onClick={() =>
+          onOpenSessionJourney("session-exact", "fork-1", {
+            forkId: "fork-1",
+            anchorMessageId: "message-9",
+          })
+        }
+      >
+        Open fork Journey
       </button>
       <button
         type="button"
@@ -82,6 +98,11 @@ describe("ProjectTreeTabRenderer session Journey contract", () => {
           '[data-testid="open-session-journey"]'
         ) as HTMLButtonElement
       ).click();
+      (
+        container.querySelector(
+          '[data-testid="open-fork-journey"]'
+        ) as HTMLButtonElement
+      ).click();
     });
 
     const tabs = store.get(workstationLayoutAtom).mainPane.tabs;
@@ -93,7 +114,12 @@ describe("ProjectTreeTabRenderer session Journey contract", () => {
         }),
         expect.objectContaining({
           type: "session-journey",
-          data: { sessionId: "session-exact", sessionName: "Exact session" },
+          data: {
+            sessionId: "session-exact",
+            sessionName: "fork-1",
+            selectedForkId: "fork-1",
+            selectedAnchorMessageId: "message-9",
+          },
         }),
       ])
     );

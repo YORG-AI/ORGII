@@ -1,7 +1,7 @@
 /**
  * Demo fixture so Journey/Tree are usable even when local DB has sparse links.
  */
-import type { ProjectLike, WorkItemLike } from "./types";
+import type { ProjectLike, ProjectSessionLike, WorkItemLike } from "./types";
 
 export const DEMO_PROJECT: ProjectLike = {
   id: "proj-project-journey-demo",
@@ -10,6 +10,49 @@ export const DEMO_PROJECT: ProjectLike = {
   status: "in_progress",
   description: "Synthetic project for journey/tree smoke demo",
 };
+
+// Demo Project → Session membership follows the same canonical aggregate
+// contract as production; work-item links below only annotate these sessions.
+export const DEMO_SESSIONS: ProjectSessionLike[] = [
+  {
+    session_id: "sess-main-tree",
+    name: "四级树可感知化",
+    status: "completed",
+    projectId: DEMO_PROJECT.id,
+    projectSlug: DEMO_PROJECT.slug,
+    workItemId: "WI-DEMO-1",
+    agentRole: "implementer",
+  },
+  {
+    session_id: "sess-main-journey",
+    name: "项目旅程思维导图",
+    status: "running",
+    projectId: DEMO_PROJECT.id,
+    projectSlug: DEMO_PROJECT.slug,
+    workItemId: "WI-DEMO-2",
+    agentRole: "implementer",
+  },
+  {
+    session_id: "sess-fork-explore",
+    name: "explore-alt-layout",
+    status: "completed",
+    projectId: DEMO_PROJECT.id,
+    projectSlug: DEMO_PROJECT.slug,
+    workItemId: "WI-DEMO-2",
+    parentSessionId: "sess-main-journey",
+    agentRole: "explorer",
+  },
+  {
+    session_id: "sess-fork-dead",
+    name: "dead-end-reactflow",
+    status: "cancelled",
+    projectId: DEMO_PROJECT.id,
+    projectSlug: DEMO_PROJECT.slug,
+    workItemId: "WI-DEMO-2",
+    parentSessionId: "sess-main-journey",
+    agentRole: "experiment",
+  },
+];
 
 export const DEMO_WORK_ITEMS: WorkItemLike[] = [
   {
@@ -150,6 +193,7 @@ export const DEMO_WORK_ITEMS: WorkItemLike[] = [
 export function getDemoTreeBundle() {
   return {
     projects: [DEMO_PROJECT],
+    sessions: DEMO_SESSIONS,
     workItemsByProject: {
       [DEMO_PROJECT.id]: DEMO_WORK_ITEMS,
       [DEMO_PROJECT.slug!]: DEMO_WORK_ITEMS,

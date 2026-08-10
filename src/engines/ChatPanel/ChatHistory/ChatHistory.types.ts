@@ -45,6 +45,8 @@ export const EMPTY_BROWSER_ADD_TO_CONVERSATION_NAV: BrowserAddToConversationNavS
   };
 
 export interface ChatHistoryProps {
+  /** Exact durable event/message target carried by the owning chat tab. */
+  initialMessageId?: string;
   /** Opaque background class for sticky headers. Must match the container surface. */
   surfaceBgClass?: string;
   /** Dock side of the containing chat panel, used by narrow side previews. */

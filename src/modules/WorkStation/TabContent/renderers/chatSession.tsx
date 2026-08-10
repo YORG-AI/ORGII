@@ -188,6 +188,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         >
           <SessionContentView
             sessionId={sessionId}
+            initialMessageId={tab.data.initialMessageId as string | undefined}
             secondary
             displayMode={headerActions.displayMode}
             onRegisterSearchOpen={headerActions.handleRegisterSearchOpen}

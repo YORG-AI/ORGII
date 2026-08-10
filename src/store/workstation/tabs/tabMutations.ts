@@ -33,11 +33,13 @@ function mergeReopenedTab(
   const nextUnsaved =
     existingTab.hasUnsavedChanges || incomingTab.hasUnsavedChanges || undefined;
 
+  const data = mergeReopenedTabData(existingTab, incomingTab);
   if (
     existingTab.title === incomingTab.title &&
     existingTab.icon === incomingTab.icon &&
     existingTab.hasUnsavedChanges === nextUnsaved &&
-    !hasDataChanges(existingTab.data, incomingTab.data)
+    !hasDataChanges(existingTab.data, data) &&
+    Object.keys(existingTab.data).length === Object.keys(data).length
   ) {
     return existingTab;
   }
@@ -46,9 +48,37 @@ function mergeReopenedTab(
     ...existingTab,
     title: incomingTab.title,
     icon: incomingTab.icon,
-    data: { ...existingTab.data, ...incomingTab.data },
+    data,
     hasUnsavedChanges: nextUnsaved,
   };
+}
+
+function mergeReopenedTabData(
+  existingTab: WorkStationTab,
+  incomingTab: WorkStationTab
+): Record<string, unknown> {
+  const data = { ...existingTab.data, ...incomingTab.data };
+  if (incomingTab.type === "chat-session") {
+    delete data.initialMessageId;
+    if (typeof incomingTab.data.initialMessageId === "string") {
+      data.initialMessageId = incomingTab.data.initialMessageId;
+    }
+  }
+  if (incomingTab.type === "session-journey") {
+    delete data.selectedTaskId;
+    delete data.selectedForkId;
+    delete data.selectedAnchorMessageId;
+    for (const key of [
+      "selectedTaskId",
+      "selectedForkId",
+      "selectedAnchorMessageId",
+    ]) {
+      if (typeof incomingTab.data[key] === "string") {
+        data[key] = incomingTab.data[key];
+      }
+    }
+  }
+  return data;
 }
 
 /**

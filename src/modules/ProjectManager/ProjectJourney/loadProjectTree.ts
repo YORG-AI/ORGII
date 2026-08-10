@@ -10,11 +10,14 @@ import {
   sessionAggregateList,
   toFrontendSession,
 } from "@src/api/tauri/session";
+import { sessionJourneyApi } from "@src/api/tauri/sessionJourney";
 
 import {
   DEMO_PROJECT,
+  DEMO_SESSIONS,
   DEMO_WORK_ITEMS,
   type ProjectLike,
+  type ProjectSessionJourneyState,
   type ProjectSessionLike,
   type ProjectTreeNode,
   type WorkItemLike,
@@ -27,8 +30,89 @@ export interface ProjectTreeBundle {
   workItemsByProject: Record<string, WorkItemLike[]>;
   sessions: ProjectSessionLike[];
   standaloneWorkItems: WorkItemLike[];
+  journeysBySessionId: ReadonlyMap<string, ProjectSessionJourneyState>;
   usedDemo: boolean;
   error?: string;
+}
+
+export async function loadSessionJourneys(
+  sessions: readonly ProjectSessionLike[]
+): Promise<ReadonlyMap<string, ProjectSessionJourneyState>> {
+  const results = new Map<string, ProjectSessionJourneyState>();
+  const concurrency = 6;
+  let cursor = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, sessions.length) },
+    async () => {
+      while (cursor < sessions.length) {
+        const session = sessions[cursor++];
+        if (!session) continue;
+        try {
+          const response = await sessionJourneyApi.snapshot(session.session_id);
+          results.set(session.session_id, {
+            state: "ready",
+            snapshot: response.snapshot,
+          });
+        } catch (error) {
+          results.set(session.session_id, {
+            state: "unavailable",
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Starts bounded Journey enrichment after the canonical tree is available.
+ * The callback is intentionally per-session so callers can paint useful
+ * project/session membership without waiting for unrelated snapshots.
+ */
+export function streamSessionJourneys(
+  sessions: readonly ProjectSessionLike[],
+  onResult: (sessionId: string, state: ProjectSessionJourneyState) => void,
+  concurrency = 6
+): Promise<void> {
+  let cursor = 0;
+  const workers = Array.from(
+    { length: Math.min(Math.max(1, concurrency), sessions.length) },
+    async () => {
+      while (cursor < sessions.length) {
+        const session = sessions[cursor++];
+        if (!session) continue;
+        try {
+          const response = await sessionJourneyApi.snapshot(session.session_id);
+          onResult(session.session_id, {
+            state: "ready",
+            snapshot: response.snapshot,
+          });
+        } catch (error) {
+          onResult(session.session_id, {
+            state: "unavailable",
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+  );
+  return Promise.all(workers).then(() => undefined);
+}
+
+export async function loadSessionJourney(
+  sessionId: string
+): Promise<ProjectSessionJourneyState> {
+  try {
+    const response = await sessionJourneyApi.snapshot(sessionId);
+    return { state: "ready", snapshot: response.snapshot };
+  } catch (error) {
+    return {
+      state: "unavailable",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function projectDataToLike(p: ProjectData): ProjectLike {
@@ -50,16 +134,20 @@ export async function loadProjectTreeBundle(options?: {
       [DEMO_PROJECT.id]: DEMO_WORK_ITEMS,
       [DEMO_PROJECT.slug!]: DEMO_WORK_ITEMS,
     };
+    const journeysBySessionId = new Map<string, ProjectSessionJourneyState>();
     return {
       tree: buildWorkspaceProjectTree({
         workspaceName: options.workspaceName ?? "Workspace",
         projects: [DEMO_PROJECT],
         workItemsByProject,
+        sessions: DEMO_SESSIONS,
+        journeysBySessionId,
       }),
       projects: [DEMO_PROJECT],
       workItemsByProject,
-      sessions: [],
+      sessions: DEMO_SESSIONS,
       standaloneWorkItems: [],
+      journeysBySessionId,
       usedDemo: true,
     };
   }
@@ -74,6 +162,7 @@ export async function loadProjectTreeBundle(options?: {
       toFrontendSession
     );
     const workItemsByProject: Record<string, WorkItemLike[]> = {};
+    const journeysBySessionId = new Map<string, ProjectSessionJourneyState>();
 
     await Promise.all(
       projects.map(async (project) => {
@@ -135,12 +224,14 @@ export async function loadProjectTreeBundle(options?: {
         projects,
         workItemsByProject,
         sessions,
+        journeysBySessionId,
         standaloneWorkItems,
       }),
       projects,
       workItemsByProject,
       sessions,
       standaloneWorkItems,
+      journeysBySessionId,
       usedDemo: false,
     };
   } catch (error) {
@@ -150,12 +241,14 @@ export async function loadProjectTreeBundle(options?: {
         projects: [],
         workItemsByProject: {},
         sessions: [],
+        journeysBySessionId: new Map(),
         standaloneWorkItems: [],
       }),
       projects: [],
       workItemsByProject: {},
       sessions: [],
       standaloneWorkItems: [],
+      journeysBySessionId: new Map(),
       usedDemo: false,
       error: error instanceof Error ? error.message : String(error),
     };

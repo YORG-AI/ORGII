@@ -9,6 +9,8 @@ import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 export interface ChatViewProps {
   /** Session ID to display. Sync bridges and events load for this session. */
   sessionId: string;
+  /** Exact durable message id supplied by a keyed chat tab or transcript owner. */
+  initialMessageId?: string;
   onRegisterSearchOpen?: (handler: (() => void) | null) => void;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;

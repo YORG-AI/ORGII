@@ -19,6 +19,11 @@ const SessionJourneyTabRenderer: React.FC<UnifiedTabContentProps> = memo(
       <SessionJourneyPage
         sessionId={sessionId}
         sessionName={tab.data.sessionName as string | undefined}
+        selectedTaskId={tab.data.selectedTaskId as string | undefined}
+        selectedForkId={tab.data.selectedForkId as string | undefined}
+        selectedAnchorMessageId={
+          tab.data.selectedAnchorMessageId as string | undefined
+        }
       />
     );
   }

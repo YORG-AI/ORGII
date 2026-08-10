@@ -102,6 +102,7 @@ export type { ChatViewProps } from "./ChatViewTypes";
 const ChatView: React.FC<ChatViewProps> = memo(
   ({
     sessionId,
+    initialMessageId,
     onRegisterSearchOpen,
     displayMode = "full",
     turnPaginationEnabled = true,
@@ -497,6 +498,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
           <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
             <ChatViewHistorySurface
               sessionId={sessionId}
+              initialMessageId={initialMessageId}
               currentSession={currentSession}
               snapshotHydrated={Boolean(snapshot)}
               chatEvents={chatEvents}

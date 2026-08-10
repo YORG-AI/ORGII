@@ -1,5 +1,5 @@
 import { Flag, GitFork, ListChecks, MapPin } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   type JourneySnapshot,
@@ -39,29 +39,54 @@ const reviewStateLabel = (state: string) =>
     failed: "审核失败",
   })[state] ?? state;
 
-export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
+export const SessionJourneySnapshot: React.FC<{
+  sessionId: string;
+  selectedTaskId?: string;
+  selectedForkId?: string;
+  selectedAnchorMessageId?: string;
+}> = ({
   sessionId,
+  selectedTaskId,
+  selectedForkId,
+  selectedAnchorMessageId,
 }) => {
-  const [snapshot, setSnapshot] = useState<JourneySnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<{
+    sessionId: string;
+    value: JourneySnapshot;
+  } | null>(null);
+  const [error, setError] = useState<{
+    sessionId: string;
+    value: string;
+  } | null>(null);
+  const requestGenerationRef = useRef(0);
   const reload = useCallback(async () => {
+    const generation = ++requestGenerationRef.current;
     try {
       const response = await sessionJourneyApi.snapshot(sessionId);
-      setSnapshot(response.snapshot);
+      if (generation !== requestGenerationRef.current) return;
+      setSnapshot({ sessionId, value: response.snapshot });
       setError(null);
     } catch (reason) {
-      setError(String(reason));
+      if (generation !== requestGenerationRef.current) return;
+      setError({ sessionId, value: String(reason) });
     }
   }, [sessionId]);
   useEffect(() => {
+    // Invalidate previous requests before scheduling the new session fetch.
+    requestGenerationRef.current += 1;
     const timer = window.setTimeout(() => void reload(), 0);
     return () => window.clearTimeout(timer);
-  }, [reload]);
-  if (error)
+  }, [sessionId, reload]);
+  const currentSnapshot =
+    snapshot?.sessionId === sessionId ? snapshot.value : null;
+  const currentError = error?.sessionId === sessionId ? error.value : null;
+  if (currentError)
     return (
-      <p className="p-3 text-xs text-warning-6">旅程快照不可用：{error}</p>
+      <p className="p-3 text-xs text-warning-6">
+        旅程快照不可用：{currentError}
+      </p>
     );
-  if (!snapshot)
+  if (!currentSnapshot)
     return <p className="p-3 text-xs text-text-3">正在加载会话旅程...</p>;
   return (
     <section
@@ -70,11 +95,24 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
     >
       <div className="mb-2 flex items-center gap-2">
         <strong className="text-sm text-text-1">会话旅程</strong>
-        <span className="text-xs text-text-3">修订 {snapshot.revision}</span>
+        <span className="text-xs text-text-3">
+          修订 {currentSnapshot.revision}
+        </span>
       </div>
+      {selectedAnchorMessageId && (
+        <p
+          className="mb-2 text-xs text-text-3"
+          data-testid="session-journey-selected-anchor"
+        >
+          精确回溯锚点：{selectedAnchorMessageId}
+        </p>
+      )}
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        {Object.values(snapshot.tasks).map((task) => (
-          <div className="border border-border-2 p-2 text-xs" key={task.id}>
+        {Object.values(currentSnapshot.tasks).map((task) => (
+          <div
+            className={`border p-2 text-xs ${task.id === selectedTaskId ? "border-primary-6 bg-primary-1" : "border-border-2"}`}
+            key={task.id}
+          >
             <Flag size={14} className="mb-1 text-primary-6" />
             <strong>{task.name}</strong>
             <p className="mt-1 text-text-3">
@@ -83,10 +121,13 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
             </p>
           </div>
         ))}
-        {Object.values(snapshot.branches)
+        {Object.values(currentSnapshot.branches)
           .filter((fork) => fork.id !== fork.parent_branch_id)
           .map((fork) => (
-            <div className="border border-border-2 p-2 text-xs" key={fork.id}>
+            <div
+              className={`border p-2 text-xs ${fork.id === selectedForkId ? "border-primary-6 bg-primary-1" : "border-border-2"}`}
+              key={fork.id}
+            >
               <GitFork size={14} className="mb-1 text-success-6" />
               <strong>{fork.id}</strong>
               <p className="mt-1 text-text-3">
@@ -94,7 +135,7 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
               </p>
             </div>
           ))}
-        {Object.values(snapshot.checkpoints).map((checkpoint) => (
+        {Object.values(currentSnapshot.checkpoints).map((checkpoint) => (
           <button
             type="button"
             className="border border-border-2 p-2 text-left text-xs hover:bg-fill-2"
@@ -110,7 +151,7 @@ export const SessionJourneySnapshot: React.FC<{ sessionId: string }> = ({
             </p>
           </button>
         ))}
-        {Object.values(snapshot.reviews).map((review) => (
+        {Object.values(currentSnapshot.reviews).map((review) => (
           <div className="border border-border-2 p-2 text-xs" key={review.id}>
             <ListChecks size={14} className="mb-1 text-text-2" />
             <strong>审核</strong>

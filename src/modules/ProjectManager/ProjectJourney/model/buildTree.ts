@@ -3,7 +3,9 @@
  * never become containment parents.
  */
 import type {
+  ProjectJourneyForkLike,
   ProjectLike,
+  ProjectSessionJourneyState,
   ProjectSessionLike,
   ProjectTreeNode,
   WorkItemLike,
@@ -16,6 +18,8 @@ export interface BuildTreeInput {
   workItemsByProject: Record<string, WorkItemLike[]>;
   /** Canonical aggregate sessions. Project membership comes from this source. */
   sessions?: ProjectSessionLike[];
+  /** Snapshot projection keyed by canonical session id. */
+  journeysBySessionId?: ReadonlyMap<string, ProjectSessionJourneyState>;
   /** Orphan work items (no project) */
   standaloneWorkItems?: WorkItemLike[];
   includeTodos?: boolean;
@@ -28,8 +32,60 @@ function sessionStatus(raw?: string): string | undefined {
 function sessionNodeFromAggregate(
   session: ProjectSessionLike,
   project: ProjectLike,
-  linked?: { workItemId?: string; workItemName?: string }
+  linked?: { workItemId?: string; workItemName?: string },
+  journeyState?: ProjectSessionJourneyState
 ): ProjectTreeNode {
+  const journey =
+    journeyState?.state === "ready" ? journeyState.snapshot : undefined;
+  const tasks: ProjectTreeNode[] = Object.values(journey?.tasks ?? {}).map(
+    (task) => {
+      const checkpoints = Object.values(journey?.checkpoints ?? {})
+        .filter((checkpoint) => checkpoint.task_id === task.id)
+        .map((checkpoint) => ({
+          id: `checkpoint:${session.session_id}:${checkpoint.id}`,
+          kind: "checkpoint" as const,
+          title: checkpoint.name,
+          status: "精确历史",
+          sessionId: session.session_id,
+          taskId: task.id,
+          checkpointId: checkpoint.id,
+          anchorMessageId: checkpoint.message_id,
+          children: [],
+        }));
+      return {
+        id: `task:${session.session_id}:${task.id}`,
+        kind: "task",
+        title: task.name,
+        status: task.outcome ?? task.state,
+        projectId: project.id,
+        projectSlug: project.slug,
+        workItemId: session.workItemId ?? linked?.workItemId,
+        sessionId: session.session_id,
+        taskId: task.id,
+        children: checkpoints,
+        meta: {
+          branchId: task.branch_id,
+        },
+      };
+    }
+  );
+  const forks: ProjectTreeNode[] = Object.values(journey?.branches ?? {})
+    .filter((fork) => fork.id !== fork.parent_branch_id)
+    .map((fork: ProjectJourneyForkLike) => ({
+      id: `fork:${session.session_id}:${fork.id}`,
+      kind: "fork",
+      title: fork.id,
+      status: fork.state,
+      projectId: project.id,
+      projectSlug: project.slug,
+      workItemId: session.workItemId ?? linked?.workItemId,
+      sessionId: session.session_id,
+      forkId: fork.id,
+      anchorMessageId: fork.parent_anchor_message_id ?? undefined,
+      anchorSequence: fork.anchor_sequence,
+      children: [],
+      meta: { parentBranchId: fork.parent_branch_id },
+    }));
   return {
     id: `session:${session.session_id}`,
     kind: "session",
@@ -43,7 +99,9 @@ function sessionNodeFromAggregate(
     projectSlug: project.slug,
     workItemId: session.workItemId ?? linked?.workItemId,
     sessionId: session.session_id,
-    children: [],
+    journeyUnavailable:
+      journeyState?.state === "unavailable" ? journeyState.error : undefined,
+    children: [...tasks, ...forks],
     meta: {
       parentSessionId: session.parentSessionId ?? null,
       agentRole: session.agentRole,
@@ -98,7 +156,8 @@ export function buildWorkspaceProjectTree(
           sessionNodeFromAggregate(
             session,
             project,
-            linkedBySessionId.get(session.session_id)
+            linkedBySessionId.get(session.session_id),
+            input.journeysBySessionId?.get(session.session_id)
           )
         );
       }
@@ -121,6 +180,29 @@ export function buildWorkspaceProjectTree(
   });
 
   const standalone = input.standaloneWorkItems ?? [];
+  const assignedSessionIds = new Set(
+    projectNodes.flatMap((project) =>
+      project.children.map((session) => session.sessionId)
+    )
+  );
+  const unassignedSessions = (input.sessions ?? [])
+    .filter((session) => !assignedSessionIds.has(session.session_id))
+    .map((session) =>
+      sessionNodeFromAggregate(
+        session,
+        { id: "unassigned", name: "未分配会话" },
+        undefined,
+        input.journeysBySessionId?.get(session.session_id)
+      )
+    );
+  if (unassignedSessions.length) {
+    projectNodes.push({
+      id: "unassigned:sessions",
+      kind: "unassigned",
+      title: "未分配会话",
+      children: unassignedSessions,
+    });
+  }
 
   return {
     id: "workspace:root",

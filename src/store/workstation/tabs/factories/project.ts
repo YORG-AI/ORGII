@@ -568,6 +568,10 @@ export function createProjectJourneyTab(
 export interface SessionJourneyTabData {
   sessionId: string;
   sessionName?: string;
+  selectedTaskId?: string;
+  selectedForkId?: string;
+  /** Exact durable anchor of the selected fork; never a sequence approximation. */
+  selectedAnchorMessageId?: string;
 }
 
 export const sessionJourneyTabFactory = defineTabFactory<SessionJourneyTabData>(
