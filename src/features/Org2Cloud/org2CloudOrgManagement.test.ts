@@ -74,22 +74,38 @@ describe("cloud invite deep link", () => {
   });
 
   it("parseCloudInviteInput accepts raw codes and links alike", () => {
+    const fragmentCode = "f".repeat(64);
+    const queryCode = "0".repeat(64);
     expect(parseCloudInviteInput("  rawcode  ")).toBe("rawcode");
     expect(parseCloudInviteInput("orgii://cloud/join?invite=abc")).toBe("abc");
     expect(
-      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}#invite=fragment`)
-    ).toBe("fragment");
+      parseCloudInviteInput(
+        `${CLOUD_INVITE_WEB_BASE_URL}#invite=${fragmentCode}`
+      )
+    ).toBe(fragmentCode);
     expect(
-      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}?invite=legacy`)
-    ).toBe("legacy");
+      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}?invite=${queryCode}`)
+    ).toBe(queryCode);
     expect(
       parseCloudInviteInput(
-        `${CLOUD_INVITE_WEB_BASE_URL}?invite=query#invite=fragment`
+        `${CLOUD_INVITE_WEB_BASE_URL}?invite=${queryCode}#invite=${fragmentCode}`
       )
-    ).toBe("fragment");
+    ).toBe(fragmentCode);
     expect(
-      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}?invite=query#invite=`)
-    ).toBe("query");
+      parseCloudInviteInput(
+        `${CLOUD_INVITE_WEB_BASE_URL}?invite=${queryCode}#invite=`
+      )
+    ).toBe(queryCode);
+    // Same 64-hex contract as the handoff page: uppercase normalizes,
+    // non-hex codes on the right origin are rejected.
+    expect(
+      parseCloudInviteInput(
+        `${CLOUD_INVITE_WEB_BASE_URL}#invite=${fragmentCode.toUpperCase()}`
+      )
+    ).toBe(fragmentCode);
+    expect(
+      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}#invite=not-a-code`)
+    ).toBeNull();
     expect(parseCloudInviteInput("")).toBeNull();
     // An orgii:// link that is NOT a cloud invite must not fall through to
     // being treated as a raw code.

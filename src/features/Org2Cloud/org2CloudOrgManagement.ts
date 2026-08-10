@@ -67,8 +67,12 @@ export async function sha256Hex(value: string): Promise<string> {
 
 export const CLOUD_INVITE_DEEP_LINK_HOST = "cloud";
 export const CLOUD_INVITE_DEEP_LINK_PATH = "join";
-export const CLOUD_INVITE_WEB_BASE_URL =
-  "https://orgii-invite-link.atah2000.chatgpt.site/";
+// Page source lives in ORGII-cloud-infra (apps/invite-link); its code
+// validation must stay identical to CLOUD_INVITE_CODE_PATTERN below.
+export const CLOUD_INVITE_WEB_BASE_URL = "https://invite.org2.dev/";
+
+// Mirrors generateCloudInviteCode's output shape (32 bytes → 64 hex).
+const CLOUD_INVITE_CODE_PATTERN = /^[0-9a-f]{64}$/i;
 
 export interface CloudInviteDeepLink {
   inviteCode: string;
@@ -134,7 +138,12 @@ function parseCloudInviteWebLink(url: string): CloudInviteDeepLink | null {
       ?.trim();
     const queryInvite = parsed.searchParams.get("invite")?.trim();
     const inviteCode = fragmentInvite || queryInvite;
-    return inviteCode ? { inviteCode } : null;
+    if (!inviteCode || !CLOUD_INVITE_CODE_PATTERN.test(inviteCode)) {
+      return null;
+    }
+    // The handoff page lowercases the code before building the deep link —
+    // match it so the same link hashes identically clicked or pasted.
+    return { inviteCode: inviteCode.toLowerCase() };
   } catch {
     return null;
   }
