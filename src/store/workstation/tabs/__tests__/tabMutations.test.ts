@@ -8,6 +8,8 @@ import {
   deleteSearchTabSessionState,
 } from "@src/store/workstation/codeEditor/search";
 
+import { createChatSessionTab } from "../factories/chat";
+import { createSessionJourneyTab } from "../factories/project";
 import {
   closeAllTabs,
   closeOtherTabs,
@@ -73,6 +75,56 @@ describe("openTab", () => {
     );
     expect(next.tabs[0].data.targetLine).toBe(42);
     expect(next.activeTabId).toBe("file:a.ts");
+  });
+
+  it("clears an exact chat target when a plain keyed chat tab is reopened", () => {
+    const targeted = createChatSessionTab(
+      "session-1",
+      "Chat",
+      undefined,
+      undefined,
+      "message-1"
+    );
+    const next = openTab(
+      { tabs: [targeted], activeTabId: targeted.id },
+      createChatSessionTab("session-1", "Chat")
+    );
+
+    expect(next.tabs[0].data).not.toHaveProperty("initialMessageId");
+  });
+
+  it("replaces journey selection atomically and clears it for a plain reopen", () => {
+    const task = createSessionJourneyTab({
+      sessionId: "session-1",
+      selectedTaskId: "task-1",
+      selectedAnchorMessageId: "message-1",
+    });
+    const fork = createSessionJourneyTab({
+      sessionId: "session-1",
+      selectedForkId: "fork-1",
+      selectedAnchorMessageId: "message-2",
+    });
+    const forkState = openTab({ tabs: [task], activeTabId: task.id }, fork);
+    expect(forkState.tabs[0].data).toMatchObject({
+      selectedForkId: "fork-1",
+      selectedAnchorMessageId: "message-2",
+    });
+    expect(forkState.tabs[0].data).not.toHaveProperty("selectedTaskId");
+
+    const taskState = openTab(forkState, task);
+    expect(taskState.tabs[0].data).toMatchObject({
+      selectedTaskId: "task-1",
+      selectedAnchorMessageId: "message-1",
+    });
+    expect(taskState.tabs[0].data).not.toHaveProperty("selectedForkId");
+
+    const plain = openTab(
+      taskState,
+      createSessionJourneyTab({ sessionId: "session-1" })
+    );
+    expect(plain.tabs[0].data).not.toHaveProperty("selectedTaskId");
+    expect(plain.tabs[0].data).not.toHaveProperty("selectedForkId");
+    expect(plain.tabs[0].data).not.toHaveProperty("selectedAnchorMessageId");
   });
 });
 

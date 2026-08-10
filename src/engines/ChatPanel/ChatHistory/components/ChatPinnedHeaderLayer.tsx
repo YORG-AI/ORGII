@@ -47,6 +47,7 @@ interface ChatPinnedHeaderLayerProps {
   turnCollapseInteractionAtRef: React.MutableRefObject<number>;
   onEditSubmit: GroupHeaderRendererProps["onEditSubmit"];
   onRestoreCheckpoint: GroupHeaderRendererProps["onRestoreCheckpoint"];
+  exactHistoryTarget?: boolean;
 }
 
 const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
@@ -89,6 +90,7 @@ const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
     turnCollapseInteractionAtRef,
     onEditSubmit,
     onRestoreCheckpoint,
+    exactHistoryTarget = false,
   }) => {
     if (!showTurnContextRow && !showPinnedTurnHeader) return null;
 
@@ -139,6 +141,7 @@ const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
           turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}
           onEditSubmit={onEditSubmit}
           onRestoreCheckpoint={onRestoreCheckpoint}
+          exactHistoryTarget={exactHistoryTarget}
         />
       </div>
     );

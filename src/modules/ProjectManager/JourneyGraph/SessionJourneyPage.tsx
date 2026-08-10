@@ -8,9 +8,23 @@ import { SessionJourneySnapshot } from "./SessionJourneySnapshot";
 export const SessionJourneyPage: React.FC<{
   sessionId: string;
   sessionName?: string;
-}> = ({ sessionId, sessionName }) => (
+  selectedTaskId?: string;
+  selectedForkId?: string;
+  selectedAnchorMessageId?: string;
+}> = ({
+  sessionId,
+  sessionName,
+  selectedTaskId,
+  selectedForkId,
+  selectedAnchorMessageId,
+}) => (
   <div className="flex h-full min-h-0 flex-col">
-    <SessionJourneySnapshot sessionId={sessionId} />
+    <SessionJourneySnapshot
+      sessionId={sessionId}
+      selectedTaskId={selectedTaskId}
+      selectedForkId={selectedForkId}
+      selectedAnchorMessageId={selectedAnchorMessageId}
+    />
     <div className="min-h-0 flex-1">
       <JourneyContainer
         scope={`session/${sessionId}` as JourneyScope}

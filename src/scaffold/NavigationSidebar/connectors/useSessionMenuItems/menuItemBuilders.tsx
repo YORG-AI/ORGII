@@ -1,6 +1,6 @@
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
-import { isTerminalStatus } from "@src/types/session/session";
+import { isTerminalStatus, toUnifiedStatus } from "@src/types/session/session";
 import { isSessionInProgress } from "@src/util/session/sessionInProgress";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
 import {
@@ -9,7 +9,10 @@ import {
 } from "@src/util/session/sessionSidebarRow";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
-import { renderBreathingStatusDot, renderStatusDot } from "./statusIndicators";
+import {
+  renderBreathingStatusDot,
+  renderSessionStatusDot,
+} from "./statusIndicators";
 
 export function separator(id: string, title = ""): NavigationMenuItem {
   return { id: `separator-${id}`, key: `separator-${id}`, label: title };
@@ -46,7 +49,6 @@ interface BuildSessionMenuItemParams {
 export function buildSessionMenuItem({
   session,
   untitledSession,
-  visitedSessions,
   liveDetail,
 }: BuildSessionMenuItemParams): NavigationMenuItem {
   const inProgress = isSessionInProgress(session.status, session);
@@ -54,12 +56,7 @@ export function buildSessionMenuItem({
   const timestampSrc =
     session.updated_at || session.updated_time || session.created_at;
   const pendingAsking = isSessionPendingAsking(session);
-  const unread = isSessionCompletedUnread(session, visitedSessions);
-  const statusDotTone = pendingAsking
-    ? "asking"
-    : unread
-      ? "unread"
-      : "default";
+  const statusDotTone = toUnifiedStatus(session.status);
 
   return {
     id: session.session_id,
@@ -71,11 +68,11 @@ export function buildSessionMenuItem({
     subtitle: liveDetail && pendingAsking ? liveDetail : undefined,
     workingIndicator:
       inProgress && !pendingAsking ? renderBreathingStatusDot() : undefined,
-    trailingElement: pendingAsking
-      ? renderStatusDot(statusDotTone)
-      : inProgress
-        ? undefined
-        : renderStatusDot(statusDotTone),
+    // The working animation supplements, but never replaces, the durable
+    // session-state dot. Every row remains scannable after animation stops.
+    trailingElement: renderSessionStatusDot(
+      statusDotTone === "failed" ? "error" : statusDotTone
+    ),
     shortcut: formatRelativeTime(timestampSrc, "nano"),
     openContextMenuOnSelectedClick: true,
     dragPayload: {

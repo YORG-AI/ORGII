@@ -62,6 +62,10 @@ import TurnMetadataLoader from "./components/TurnMetadataLoader";
 import TurnPageList from "./components/TurnPageList";
 import { getChatContentBottomDistance } from "./config/chatFooterSpacer";
 import {
+  resolveExactHistoryTarget,
+  resolveExactHistoryTargetDisplayIndex,
+} from "./exactTargetNavigation";
+import {
   useChatEmptyState,
   useChatFooterSpacer,
   useChatHistoryState,
@@ -211,6 +215,8 @@ const EMPTY_BROWSER_ADD_TO_CONVERSATION_NAV: BrowserAddToConversationNavState =
   };
 
 interface ChatHistoryProps {
+  /** Exact durable event/message target carried by the owning chat tab. */
+  initialMessageId?: string;
   /** Opaque background class for sticky headers. Must match the container surface. */
   surfaceBgClass?: string;
   /** Dock side of the containing chat panel, used by narrow side previews. */
@@ -326,6 +332,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   onGroupChatViewToggle,
   mutationActionsDisabled = false,
   planningIndicatorScope = null,
+  initialMessageId,
 }) => {
   const { t } = useTranslation();
 
@@ -555,6 +562,25 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     lastGroupFirstFlatIndex: null,
     lastAssistantFlatIndexPerItem: [],
   };
+  const exactTarget = useMemo(
+    () =>
+      resolveExactHistoryTarget(
+        activeProjectionHistory,
+        groupHeaders,
+        groupCounts,
+        originalToFlatIndex,
+        initialMessageId
+      ),
+    [
+      activeProjectionHistory,
+      groupCounts,
+      groupHeaders,
+      initialMessageId,
+      originalToFlatIndex,
+    ]
+  );
+  const exactTargetFlatIndex =
+    exactTarget?.kind === "body" ? exactTarget.flatIndex : null;
 
   useEffect(() => {
     const key = memoryStatsKeyRef.current;
@@ -1219,6 +1245,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
       onRestoreCheckpoint={
         mutationActionsDisabled ? undefined : handleHeaderRestoreCheckpoint
       }
+      exactHistoryTarget={
+        exactTarget?.kind === "header" &&
+        exactTarget.groupIndex === activePinnedSourceGroupIndex
+      }
     />
   );
 
@@ -1290,6 +1320,70 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     ]
   );
 
+  const scrollToExactTargetGroup = useCallback(
+    (sourceGroupIndex: number) => {
+      const targetPageIndex = pages.findIndex(
+        (page) =>
+          sourceGroupIndex >= page.startGroupIndex &&
+          sourceGroupIndex <= page.endGroupIndex
+      );
+      const targetPage = targetPageIndex >= 0 ? pages[targetPageIndex] : null;
+      const displayGroupIndex = targetPage
+        ? sourceGroupIndex - targetPage.startGroupIndex
+        : sourceGroupIndex;
+      if (turnPaginationEnabled && targetPage) {
+        setTurnPageSelection({
+          pageIndex: targetPageIndex,
+          sessionId: activeId,
+        });
+        window.requestAnimationFrame(() =>
+          virtualListRef.current?.scrollToGroup({
+            groupIndex: displayGroupIndex,
+            behavior: "auto",
+          })
+        );
+        return;
+      }
+      virtualListRef.current?.scrollToGroup({
+        groupIndex: displayGroupIndex,
+        behavior: "auto",
+      });
+    },
+    [
+      activeId,
+      pages,
+      setTurnPageSelection,
+      turnPaginationEnabled,
+      virtualListRef,
+    ]
+  );
+
+  // This is intentionally data-driven: keyed chat-tab updates change this prop,
+  // and the mounted history resolves the durable id from the projected rows.
+  useEffect(() => {
+    if (!exactTarget) return;
+    if (exactTarget.kind === "header")
+      scrollToExactTargetGroup(exactTarget.groupIndex);
+    else scrollToDisplayFlatIndex(exactTarget.flatIndex);
+  }, [exactTarget, scrollToDisplayFlatIndex, scrollToExactTargetGroup]);
+
+  const exactTargetDisplayIndex = useMemo(
+    () =>
+      resolveExactHistoryTargetDisplayIndex(
+        exactTargetFlatIndex,
+        pages,
+        currentPageIndex,
+        turnPaginationEnabled
+      ),
+    [currentPageIndex, exactTargetFlatIndex, pages, turnPaginationEnabled]
+  );
+  const exactTargetGroupIndex = useMemo(() => {
+    if (turnPaginationEnabled || !exactTarget) return null;
+    const sourceIndex = exactTarget.groupIndex;
+    const displayIndex = displaySourceGroupIndices.indexOf(sourceIndex);
+    return displayIndex >= 0 ? displayIndex : null;
+  }, [displaySourceGroupIndices, exactTarget, turnPaginationEnabled]);
+
   const handleMinimapJump = useCallback(
     (flatIndex: number) => {
       // # 小地图点击复用轮次列表的展示下标滚动路径：同一个 scrollToIndex + center 对齐，避免出现两套定位语义。
@@ -1322,6 +1416,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
         data-optimized-count={activeProjectionHistory.length}
         data-flat-count={displayTotalFlatItems}
         data-group-shape={projection.groupShapeDigest}
+        data-exact-history-target={initialMessageId ?? ""}
         ref={chatContainerRef as React.RefObject<HTMLDivElement>}
         style={
           {
@@ -1334,6 +1429,16 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
           } as React.CSSProperties
         }
       >
+        {exactTargetDisplayIndex !== null && (
+          <div
+            className="absolute left-3 top-3 z-30 rounded border border-primary-6 bg-bg-1 px-2 py-1 text-xs text-text-1 shadow-sm"
+            role="status"
+            aria-live="polite"
+            data-exact-history-target-confirmation
+          >
+            Exact history target
+          </div>
+        )}
         <div
           className={`flex items-center justify-between ${DETAIL_PANEL_TOKENS.contentWidth}`}
         >
@@ -1495,6 +1600,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
                       bottomInset={bottomInset}
                       virtualListRef={virtualListRef}
                       virtualListDataKey={virtualListDataKey}
+                      exactTargetDisplayIndex={exactTargetDisplayIndex}
+                      exactTargetGroupIndex={exactTargetGroupIndex}
                       getIsWpGeneWorking={getIsWpGeneWorking}
                       getIsExploring={getIsExploring}
                       renderGroupHeader={

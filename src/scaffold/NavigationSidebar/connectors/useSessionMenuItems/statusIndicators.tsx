@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 
 export type StatusDotTone = "default" | "unread" | "asking";
+export type SessionStatusDotTone = "active" | "completed" | "error";
 
 export function renderBreathingStatusDot(): ReactNode {
   return (
@@ -38,6 +39,24 @@ export function renderStatusDot(tone: StatusDotTone = "default"): ReactNode {
     <span
       aria-label={ariaLabel}
       aria-hidden={ariaLabel ? undefined : true}
+      className={`h-1.5 w-1.5 rounded-full ${colorClass}`}
+    />
+  );
+}
+
+/** Persistent session-state marker used at the end of every session row. */
+export function renderSessionStatusDot(tone: SessionStatusDotTone): ReactNode {
+  const ariaLabel =
+    tone === "active" ? "Active" : tone === "completed" ? "Completed" : "Error";
+  const colorClass =
+    tone === "active"
+      ? "bg-primary-6"
+      : tone === "completed"
+        ? "bg-success-6"
+        : "bg-danger-6";
+  return (
+    <span
+      aria-label={ariaLabel}
       className={`h-1.5 w-1.5 rounded-full ${colorClass}`}
     />
   );

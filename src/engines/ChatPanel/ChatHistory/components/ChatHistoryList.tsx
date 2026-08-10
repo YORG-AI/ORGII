@@ -327,6 +327,14 @@ function sameChatHistoryListProps(
       "newEventDividerLabel",
       previous.newEventDividerLabel === next.newEventDividerLabel,
     ],
+    [
+      "exactTargetDisplayIndex",
+      previous.exactTargetDisplayIndex === next.exactTargetDisplayIndex,
+    ],
+    [
+      "exactTargetGroupIndex",
+      previous.exactTargetGroupIndex === next.exactTargetGroupIndex,
+    ],
   ];
   return checks.every(([, same]) => same);
 }
@@ -405,6 +413,10 @@ interface ChatHistoryListProps {
    * keeps the divider off (default for the main chat panel).
    */
   newEventDividerLabel?: string | null;
+  /** Current page-local row index for an exact durable history target. */
+  exactTargetDisplayIndex?: number | null;
+  /** Current page-local group whose user header is the exact durable target. */
+  exactTargetGroupIndex?: number | null;
 }
 
 interface VirtualGroup {
@@ -486,6 +498,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     virtualScrollerRef,
     staticScrollerRef,
     newEventDividerLabel = null,
+    exactTargetDisplayIndex = null,
+    exactTargetGroupIndex = null,
   }) => {
     // Planning indicator state in refs so polling ticks don't invalidate
     // renderGroupItem's useCallback (Root Cause 2 fix).
@@ -725,25 +739,37 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         }
         const rowMeta =
           rowGroupMetaRef.current[flatIndex] ?? EMPTY_ROW_GROUP_META;
+        const isExactTarget = flatIndex === exactTargetDisplayIndex;
         return (
-          <GroupItemRenderer
-            flatIndex={flatIndex}
-            groupIndex={groupIndex}
-            turnId={turnIdsRef.current[groupIndex] ?? null}
-            chatItem={currentFlatItems[flatIndex]}
-            previousChatItem={previousChatItemsRef.current[flatIndex]}
-            lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}
-            isLastItemInGroup={rowMeta.isLastItemInGroup}
-            isLastGroup={rowMeta.isLastGroup}
-            isWpGeneWorking={getIsWpGeneWorking()}
-            isExploring={getIsExploring()}
-            codeBlockContainerWidth={codeBlockContainerWidth}
-            onRegenerate={onRegenerate}
-            onSubmit={onSubmit}
-            onSkip={onSkip}
-            onEditUserMessage={onEditUserMessage}
-            newEventDividerLabel={newEventDividerLabel}
-          />
+          <div
+            data-exact-history-target={isExactTarget ? "true" : undefined}
+            aria-current={isExactTarget ? "true" : undefined}
+            aria-label={isExactTarget ? "Exact history target" : undefined}
+            className={
+              isExactTarget
+                ? "rounded border border-primary-6 bg-primary-1/30"
+                : undefined
+            }
+          >
+            <GroupItemRenderer
+              flatIndex={flatIndex}
+              groupIndex={groupIndex}
+              turnId={turnIdsRef.current[groupIndex] ?? null}
+              chatItem={currentFlatItems[flatIndex]}
+              previousChatItem={previousChatItemsRef.current[flatIndex]}
+              lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}
+              isLastItemInGroup={rowMeta.isLastItemInGroup}
+              isLastGroup={rowMeta.isLastGroup}
+              isWpGeneWorking={getIsWpGeneWorking()}
+              isExploring={getIsExploring()}
+              codeBlockContainerWidth={codeBlockContainerWidth}
+              onRegenerate={onRegenerate}
+              onSubmit={onSubmit}
+              onSkip={onSkip}
+              onEditUserMessage={onEditUserMessage}
+              newEventDividerLabel={newEventDividerLabel}
+            />
+          </div>
         );
       },
       [
@@ -755,6 +781,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         onSkip,
         onEditUserMessage,
         newEventDividerLabel,
+        exactTargetDisplayIndex,
       ]
     );
 
@@ -881,7 +908,25 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                 className="relative"
                 data-chat-group-index={groupIndex}
               >
-                <div data-chat-group-header>
+                <div
+                  data-chat-group-header
+                  data-exact-history-target={
+                    groupIndex === exactTargetGroupIndex ? "true" : undefined
+                  }
+                  aria-current={
+                    groupIndex === exactTargetGroupIndex ? "true" : undefined
+                  }
+                  aria-label={
+                    groupIndex === exactTargetGroupIndex
+                      ? "Exact history target user message"
+                      : undefined
+                  }
+                  className={
+                    groupIndex === exactTargetGroupIndex
+                      ? "rounded border border-primary-6 bg-primary-1/30"
+                      : undefined
+                  }
+                >
                   <div className="relative z-[30]">
                     {renderGroupHeaderProp(groupIndex, "user")}
                   </div>
@@ -903,26 +948,43 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                     `static-chat-${itemFlatIndex}`;
                   const rowMeta =
                     rowGroupMeta[itemFlatIndex] ?? EMPTY_ROW_GROUP_META;
+                  const isExactTarget =
+                    itemFlatIndex === exactTargetDisplayIndex;
                   return (
-                    <GroupItemRenderer
+                    <div
                       key={itemKey}
-                      flatIndex={itemFlatIndex}
-                      groupIndex={groupIndex}
-                      turnId={turnIds[groupIndex] ?? null}
-                      chatItem={flatItems[itemFlatIndex]}
-                      previousChatItem={previousChatItems[itemFlatIndex]}
-                      lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}
-                      isLastItemInGroup={rowMeta.isLastItemInGroup}
-                      isLastGroup={rowMeta.isLastGroup}
-                      isWpGeneWorking={false}
-                      isExploring={false}
-                      codeBlockContainerWidth={codeBlockContainerWidth}
-                      onRegenerate={onRegenerate}
-                      onSubmit={onSubmit}
-                      onSkip={onSkip}
-                      onEditUserMessage={onEditUserMessage}
-                      newEventDividerLabel={newEventDividerLabel}
-                    />
+                      data-exact-history-target={
+                        isExactTarget ? "true" : undefined
+                      }
+                      aria-current={isExactTarget ? "true" : undefined}
+                      aria-label={
+                        isExactTarget ? "Exact history target" : undefined
+                      }
+                      className={
+                        isExactTarget
+                          ? "rounded border border-primary-6 bg-primary-1/30"
+                          : undefined
+                      }
+                    >
+                      <GroupItemRenderer
+                        flatIndex={itemFlatIndex}
+                        groupIndex={groupIndex}
+                        turnId={turnIds[groupIndex] ?? null}
+                        chatItem={flatItems[itemFlatIndex]}
+                        previousChatItem={previousChatItems[itemFlatIndex]}
+                        lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}
+                        isLastItemInGroup={rowMeta.isLastItemInGroup}
+                        isLastGroup={rowMeta.isLastGroup}
+                        isWpGeneWorking={false}
+                        isExploring={false}
+                        codeBlockContainerWidth={codeBlockContainerWidth}
+                        onRegenerate={onRegenerate}
+                        onSubmit={onSubmit}
+                        onSkip={onSkip}
+                        onEditUserMessage={onEditUserMessage}
+                        newEventDividerLabel={newEventDividerLabel}
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -969,7 +1031,29 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <div data-chat-group-header>
+                <div
+                  data-chat-group-header
+                  data-exact-history-target={
+                    group.groupIndex === exactTargetGroupIndex
+                      ? "true"
+                      : undefined
+                  }
+                  aria-current={
+                    group.groupIndex === exactTargetGroupIndex
+                      ? "true"
+                      : undefined
+                  }
+                  aria-label={
+                    group.groupIndex === exactTargetGroupIndex
+                      ? "Exact history target user message"
+                      : undefined
+                  }
+                  className={
+                    group.groupIndex === exactTargetGroupIndex
+                      ? "rounded border border-primary-6 bg-primary-1/30"
+                      : undefined
+                  }
+                >
                   <div className="relative z-[30]">
                     {renderGroupHeaderProp(group.groupIndex, "user")}
                   </div>

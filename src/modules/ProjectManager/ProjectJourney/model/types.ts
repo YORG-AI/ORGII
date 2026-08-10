@@ -12,7 +12,47 @@ export type TreeNodeKind =
   | "work_item"
   | "todo"
   | "session"
+  | "task"
+  | "fork"
+  | "checkpoint"
   | "unassigned";
+
+/** Durable Journey fields projected into the tree; never inferred from text. */
+export interface ProjectJourneyTaskLike {
+  id: string;
+  name: string;
+  branch_id: string;
+  state: string;
+  start_sequence: number | null;
+  finish_sequence: number | null;
+  outcome: string | null;
+}
+
+export interface ProjectJourneyCheckpointLike {
+  id: string;
+  task_id: string;
+  message_id: string;
+  sequence: number;
+  name: string;
+}
+
+export interface ProjectJourneyForkLike {
+  id: string;
+  parent_branch_id: string;
+  parent_anchor_message_id: string | null;
+  anchor_sequence: number;
+  state: string;
+}
+
+export interface ProjectSessionJourneyLike {
+  tasks: Record<string, ProjectJourneyTaskLike>;
+  checkpoints?: Record<string, ProjectJourneyCheckpointLike>;
+  branches: Record<string, ProjectJourneyForkLike>;
+}
+
+export type ProjectSessionJourneyState =
+  | { state: "ready"; snapshot: ProjectSessionJourneyLike }
+  | { state: "unavailable"; error: string };
 
 export interface ProjectTreeNode {
   id: string;
@@ -23,6 +63,14 @@ export interface ProjectTreeNode {
   projectSlug?: string;
   workItemId?: string;
   sessionId?: string;
+  taskId?: string;
+  forkId?: string;
+  checkpointId?: string;
+  /** Exact durable message anchor for a fork backtrace, when available. */
+  anchorMessageId?: string;
+  anchorSequence?: number;
+  /** Explicit snapshot failure, distinct from a ready snapshot with no Journey. */
+  journeyUnavailable?: string;
   children: ProjectTreeNode[];
   meta?: Record<string, unknown>;
 }

@@ -10,6 +10,7 @@ import {
   createProjectJourneyTab,
   createSessionJourneyTab,
   createWorkItemDetailTab,
+  openTab as openPanelTab,
   workstationLayoutAtom,
 } from "@src/store/workstation/tabs";
 import type { WorkStationTab } from "@src/store/workstation/tabs/types";
@@ -20,20 +21,10 @@ function useOpenWorkStationTab() {
   const setLayout = useSetAtom(workstationLayoutAtom);
   return useCallback(
     (tab: WorkStationTab) => {
-      setLayout((prev) => {
-        const exists = prev.mainPane.tabs.some((item) => item.id === tab.id);
-        const tabs = exists
-          ? prev.mainPane.tabs.map((item) =>
-              item.id === tab.id
-                ? { ...item, ...tab, data: { ...item.data, ...tab.data } }
-                : item
-            )
-          : [...prev.mainPane.tabs, tab];
-        return {
-          ...prev,
-          mainPane: { ...prev.mainPane, tabs, activeTabId: tab.id },
-        };
-      });
+      setLayout((prev) => ({
+        ...prev,
+        mainPane: openPanelTab(prev.mainPane, tab),
+      }));
     },
     [setLayout]
   );
@@ -53,17 +44,33 @@ const ProjectTreeTabRenderer: React.FC<UnifiedTabContentProps> = memo(() => {
           })
         );
       }}
-      onOpenSession={(sessionId, sessionTitle, workItemId) => {
+      onOpenSession={(
+        sessionId,
+        sessionTitle,
+        workItemId,
+        _projectSlug,
+        initialMessageId
+      ) => {
         openTab(
           createChatSessionTab(
             sessionId,
             sessionTitle || sessionId.slice(0, 8),
-            workItemId
+            workItemId,
+            undefined,
+            initialMessageId
           )
         );
       }}
-      onOpenSessionJourney={(sessionId, sessionName) => {
-        openTab(createSessionJourneyTab({ sessionId, sessionName }));
+      onOpenSessionJourney={(sessionId, sessionName, target) => {
+        openTab(
+          createSessionJourneyTab({
+            sessionId,
+            sessionName,
+            selectedTaskId: target?.taskId,
+            selectedForkId: target?.forkId,
+            selectedAnchorMessageId: target?.anchorMessageId,
+          })
+        );
       }}
       onOpenWorkItem={(workItemId, projectSlug) => {
         openTab(

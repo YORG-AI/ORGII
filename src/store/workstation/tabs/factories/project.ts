@@ -516,7 +516,6 @@ export function createWorkItemDetailTab(
   });
 }
 
-
 // ============================================
 // Project Tree + Journey
 // ============================================
@@ -539,8 +538,8 @@ export function createProjectTreeTab(): WorkStationTab {
   return projectTreeTabFactory({});
 }
 
-export const projectJourneyTabFactory =
-  defineTabFactory<ProjectJourneyTabData>({
+export const projectJourneyTabFactory = defineTabFactory<ProjectJourneyTabData>(
+  {
     tabType: "project-journey",
     idStrategy: {
       type: "keyed",
@@ -550,7 +549,8 @@ export const projectJourneyTabFactory =
     getTitle: (data) =>
       data.projectName ? `${data.projectName} Journey` : "Project Journey",
     icon: "GitFork",
-  });
+  }
+);
 
 export function createProjectJourneyTab(
   data: ProjectJourneyTabData = {}
@@ -561,19 +561,28 @@ export function createProjectJourneyTab(
 export interface SessionJourneyTabData {
   sessionId: string;
   sessionName?: string;
+  selectedTaskId?: string;
+  selectedForkId?: string;
+  /** Exact durable anchor of the selected fork; never a sequence approximation. */
+  selectedAnchorMessageId?: string;
 }
 
-export const sessionJourneyTabFactory = defineTabFactory<SessionJourneyTabData>({
-  tabType: "session-journey",
-  idStrategy: {
-    type: "keyed",
-    prefix: "session-journey",
-    getKey: (data) => data.sessionId,
-  },
-  getTitle: (data) => data.sessionName ? `${data.sessionName} Journey` : "Session Journey",
-  icon: "GitFork",
-});
+export const sessionJourneyTabFactory = defineTabFactory<SessionJourneyTabData>(
+  {
+    tabType: "session-journey",
+    idStrategy: {
+      type: "keyed",
+      prefix: "session-journey",
+      getKey: (data) => data.sessionId,
+    },
+    getTitle: (data) =>
+      data.sessionName ? `${data.sessionName} Journey` : "Session Journey",
+    icon: "GitFork",
+  }
+);
 
-export function createSessionJourneyTab(data: SessionJourneyTabData): WorkStationTab {
+export function createSessionJourneyTab(
+  data: SessionJourneyTabData
+): WorkStationTab {
   return sessionJourneyTabFactory(data);
 }

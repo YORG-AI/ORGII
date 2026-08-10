@@ -22,6 +22,22 @@ describe("createSessionJourneyTab", () => {
     expect(tab.title).toBe("Fix sidebar overflow Journey");
   });
 
+  it("retains a durable task/fork selection without inventing an anchor", () => {
+    const tab = createSessionJourneyTab({
+      sessionId: "session-42",
+      selectedTaskId: "task-1",
+      selectedForkId: "fork-1",
+      selectedAnchorMessageId: "message-9",
+    });
+
+    expect(tab.data).toMatchObject({
+      sessionId: "session-42",
+      selectedTaskId: "task-1",
+      selectedForkId: "fork-1",
+      selectedAnchorMessageId: "message-9",
+    });
+  });
+
   it("is idempotent for the same session (keyed strategy)", () => {
     const a = createSessionJourneyTab({ sessionId: "session-42" });
     const b = createSessionJourneyTab({ sessionId: "session-42" });

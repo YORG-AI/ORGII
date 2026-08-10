@@ -27,7 +27,11 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             "linear-gradient(180deg, var(--color-bg-1) 0%, var(--color-fill-1) 100%)",
         }}
       >
-        <ChatView sessionId={sessionId} readOnly />
+        <ChatView
+          sessionId={sessionId}
+          readOnly
+          initialMessageId={tab.data.initialMessageId as string | undefined}
+        />
       </div>
     );
   }

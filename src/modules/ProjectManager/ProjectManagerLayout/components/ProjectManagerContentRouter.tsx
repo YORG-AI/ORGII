@@ -132,7 +132,13 @@ export function renderActiveContent({
               "linear-gradient(180deg, var(--color-bg-1) 0%, var(--color-fill-1) 100%)",
           }}
         >
-          <ChatView sessionId={chatSessionId} secondary />
+          <ChatView
+            sessionId={chatSessionId}
+            initialMessageId={
+              activeTab.data.initialMessageId as string | undefined
+            }
+            secondary
+          />
         </div>
       </Suspense>
     );

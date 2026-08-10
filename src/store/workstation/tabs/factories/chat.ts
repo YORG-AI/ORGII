@@ -14,6 +14,8 @@ export interface ChatSessionTabData {
   sessionId: string;
   workItemId?: string;
   workItemShortId?: string;
+  /** Exact durable transcript target. Changes must update an existing keyed tab. */
+  initialMessageId?: string;
 }
 
 export const chatSessionTabFactory = defineTabFactory<
@@ -33,12 +35,14 @@ export function createChatSessionTab(
   sessionId: string,
   title: string,
   workItemId?: string,
-  workItemShortId?: string
+  workItemShortId?: string,
+  initialMessageId?: string
 ): WorkStationTab {
   return chatSessionTabFactory({
     sessionId,
     title,
     ...(workItemId && { workItemId }),
     ...(workItemShortId && { workItemShortId }),
+    ...(initialMessageId && { initialMessageId }),
   });
 }

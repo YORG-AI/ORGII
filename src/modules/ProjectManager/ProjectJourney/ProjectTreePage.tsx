@@ -3,15 +3,30 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDot,
+  Flag,
   FolderTree,
   GitBranch,
   ListTodo,
   RefreshCw,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { loadProjectTreeBundle } from "./loadProjectTree";
-import type { ProjectTreeNode } from "./model";
+import {
+  loadProjectTreeBundle,
+  loadSessionJourney,
+  streamSessionJourneys,
+} from "./loadProjectTree";
+import {
+  type ProjectSessionJourneyState,
+  type ProjectTreeNode,
+  buildWorkspaceProjectTree,
+} from "./model";
 
 export interface ProjectTreePageProps {
   onOpenJourney?: (
@@ -24,9 +39,14 @@ export interface ProjectTreePageProps {
     sessionId: string,
     sessionTitle: string,
     workItemId?: string,
-    projectSlug?: string
+    projectSlug?: string,
+    initialMessageId?: string
   ) => void;
-  onOpenSessionJourney?: (sessionId: string, sessionTitle: string) => void;
+  onOpenSessionJourney?: (
+    sessionId: string,
+    sessionTitle: string,
+    target?: { taskId?: string; forkId?: string; anchorMessageId?: string }
+  ) => void;
   publishToWorkstationHeader?: boolean;
 }
 
@@ -42,6 +62,12 @@ function kindIcon(kind: ProjectTreeNode["kind"]) {
       return <ListTodo size={14} className="text-text-3" />;
     case "session":
       return <GitBranch size={14} className="text-success-6" />;
+    case "task":
+      return <Flag size={14} className="text-primary-6" />;
+    case "fork":
+      return <GitBranch size={14} className="text-success-6" />;
+    case "checkpoint":
+      return <Flag size={14} className="text-warning-6" />;
     case "unassigned":
       return <FolderTree size={14} className="text-warning-6" />;
     default:
@@ -63,28 +89,89 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
     "workspace:root": true,
   });
   const [filter, setFilter] = useState("");
+  const generationRef = useRef(0);
+  const bundleRef = useRef<Awaited<
+    ReturnType<typeof loadProjectTreeBundle>
+  > | null>(null);
+  const journeyStatesRef = useRef(
+    new Map<string, ProjectSessionJourneyState>()
+  );
 
-  const reload = useCallback(async (forceDemo = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const bundle = await loadProjectTreeBundle({ forceDemo });
-      setRoot(bundle.tree);
-      setUsedDemo(bundle.usedDemo);
-      setError(bundle.error ?? null);
-      setExpanded((prev) => ({
-        ...prev,
-        "workspace:root": true,
-        ...Object.fromEntries(
-          (bundle.tree.children ?? []).map((c) => [c.id, true])
-        ),
-      }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const applyJourneyState = useCallback(
+    (
+      generation: number,
+      sessionId: string,
+      state: ProjectSessionJourneyState
+    ) => {
+      if (generation !== generationRef.current || !bundleRef.current) return;
+      journeyStatesRef.current.set(sessionId, state);
+      const bundle = bundleRef.current;
+      setRoot(
+        buildWorkspaceProjectTree({
+          projects: bundle.projects,
+          workItemsByProject: bundle.workItemsByProject,
+          sessions: bundle.sessions,
+          standaloneWorkItems: bundle.standaloneWorkItems,
+          journeysBySessionId: journeyStatesRef.current,
+        })
+      );
+    },
+    []
+  );
+
+  const reload = useCallback(
+    async (forceDemo = false) => {
+      const generation = ++generationRef.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const bundle = await loadProjectTreeBundle({ forceDemo });
+        if (generation !== generationRef.current) return;
+        bundleRef.current = bundle;
+        journeyStatesRef.current = new Map(bundle.journeysBySessionId);
+        setRoot(bundle.tree);
+        setUsedDemo(bundle.usedDemo);
+        setError(bundle.error ?? null);
+        setExpanded((prev) => {
+          const next: Record<string, boolean> = {
+            ...prev,
+            "workspace:root": true,
+          };
+          const visit = (node: ProjectTreeNode) => {
+            if (
+              !(node.id in next) &&
+              (node.kind === "project" ||
+                node.kind === "unassigned" ||
+                ((node.kind === "session" || node.kind === "task") &&
+                  node.children.length > 0))
+            )
+              next[node.id] = true;
+            node.children.forEach(visit);
+          };
+          bundle.tree.children.forEach(visit);
+          return next;
+        });
+        void streamSessionJourneys(bundle.sessions, (sessionId, state) =>
+          applyJourneyState(generation, sessionId, state)
+        );
+      } catch (e) {
+        if (generation !== generationRef.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (generation === generationRef.current) setLoading(false);
+      }
+    },
+    [applyJourneyState]
+  );
+
+  const retryJourney = useCallback(
+    async (sessionId: string) => {
+      const generation = generationRef.current;
+      const state = await loadSessionJourney(sessionId);
+      applyJourneyState(generation, sessionId, state);
+    },
+    [applyJourneyState]
+  );
 
   useEffect(() => {
     void reload(false);
@@ -233,6 +320,14 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
                     {node.status}
                   </span>
                 )}
+                {node.journeyUnavailable && (
+                  <span
+                    className="text-[10px] text-danger-6"
+                    data-testid={`project-tree-journey-unavailable-${node.sessionId}`}
+                  >
+                    旅程不可用
+                  </span>
+                )}
                 {node.kind === "project" &&
                   node.projectSlug &&
                   onOpenJourney && (
@@ -284,6 +379,88 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
                     )}
                   </>
                 )}
+                {node.kind === "session" &&
+                  node.sessionId &&
+                  node.journeyUnavailable && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-warning-6 hover:bg-fill-2"
+                      data-testid={`project-tree-retry-journey-${node.sessionId}`}
+                      onClick={() => void retryJourney(node.sessionId!)}
+                    >
+                      重试旅程
+                    </button>
+                  )}
+                {node.kind === "task" &&
+                  node.sessionId &&
+                  onOpenSessionJourney && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-${node.kind}-journey-${node.kind === "task" ? node.taskId : node.forkId}`}
+                      onClick={() =>
+                        onOpenSessionJourney(node.sessionId!, node.title, {
+                          ...(node.taskId ? { taskId: node.taskId } : {}),
+                          ...(node.forkId ? { forkId: node.forkId } : {}),
+                          ...(node.anchorMessageId
+                            ? { anchorMessageId: node.anchorMessageId }
+                            : {}),
+                        })
+                      }
+                    >
+                      查看旅程
+                    </button>
+                  )}
+                {node.kind === "task" && node.children.length === 0 && (
+                  <span
+                    className="text-[10px] text-text-3"
+                    data-testid={`project-tree-task-history-unavailable-${node.taskId}`}
+                  >
+                    精确历史不可用
+                  </span>
+                )}
+                {node.kind === "fork" &&
+                  node.sessionId &&
+                  node.anchorMessageId &&
+                  onOpenSession && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-fork-journey-${node.forkId}`}
+                      onClick={() =>
+                        onOpenSession(
+                          node.sessionId!,
+                          node.title,
+                          undefined,
+                          undefined,
+                          node.anchorMessageId
+                        )
+                      }
+                    >
+                      精确历史
+                    </button>
+                  )}
+                {node.kind === "checkpoint" &&
+                  node.sessionId &&
+                  node.anchorMessageId &&
+                  onOpenSession && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-checkpoint-history-${node.checkpointId}`}
+                      onClick={() =>
+                        onOpenSession(
+                          node.sessionId!,
+                          node.title,
+                          undefined,
+                          undefined,
+                          node.anchorMessageId
+                        )
+                      }
+                    >
+                      精确历史
+                    </button>
+                  )}
                 {node.kind === "work_item" && onOpenWorkItem && (
                   <button
                     type="button"

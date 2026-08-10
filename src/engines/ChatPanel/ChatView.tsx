@@ -222,6 +222,8 @@ function summaryImpactFileChanges(
 export interface ChatViewProps {
   /** Session ID to display. Sync bridges and events load for this session. */
   sessionId: string;
+  /** Exact durable message id supplied by a keyed chat tab or transcript owner. */
+  initialMessageId?: string;
   onRegisterSearchOpen?: (handler: (() => void) | null) => void;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;
@@ -253,6 +255,7 @@ export interface ChatViewProps {
 const ChatView: React.FC<ChatViewProps> = memo(
   ({
     sessionId,
+    initialMessageId,
     onRegisterSearchOpen,
     displayMode = "full",
     turnPaginationEnabled = true,
@@ -1083,6 +1086,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
                       groupChatViewAvailable={groupChatViewAvailable}
                       groupChatViewActive={groupChatViewActive}
                       onGroupChatViewToggle={handleGroupChatViewToggle}
+                      initialMessageId={initialMessageId}
                     />
                   </AgentMessageClampProvider>
                 </GroupChatProvider>
