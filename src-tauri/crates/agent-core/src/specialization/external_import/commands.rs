@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use super::detect::detect_all;
+use super::mcp_config::load_external_mcp_config;
 use super::types::{
     frontmatter_declares_readonly, readonly_excluded_tool_names, DetectedItem, ImportItemReport,
     ImportReport, ImportSelection, ImportStatus, ItemKind, SourceScope,
@@ -367,50 +368,6 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), String> {
 // ============================================================
 // MCP import
 // ============================================================
-
-fn load_external_mcp_config(path: &Path) -> Result<McpConfigFile, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|err| format!("Failed to read MCP config {}: {}", path.display(), err))?;
-    let mut value: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|err| format!("Failed to parse MCP config {}: {}", path.display(), err))?;
-    let Some(servers) = value
-        .get_mut("mcpServers")
-        .and_then(|entry| entry.as_object_mut())
-    else {
-        return Ok(McpConfigFile::default());
-    };
-
-    for server in servers.values_mut() {
-        let Some(server_obj) = server.as_object_mut() else {
-            continue;
-        };
-        if !server_obj.contains_key("type") {
-            let inferred = if server_obj.contains_key("url") {
-                "streamableHttp"
-            } else {
-                "stdio"
-            };
-            server_obj.insert(
-                "type".to_string(),
-                serde_json::Value::String(inferred.to_string()),
-            );
-        }
-        if server_obj.get("type").and_then(|entry| entry.as_str()) == Some("http") {
-            server_obj.insert(
-                "type".to_string(),
-                serde_json::Value::String("streamableHttp".to_string()),
-            );
-        }
-    }
-
-    serde_json::from_value(value).map_err(|err| {
-        format!(
-            "Failed to parse MCP server entries {}: {}",
-            path.display(),
-            err
-        )
-    })
-}
 
 fn apply_mcp_import(
     selection: &ImportSelection,
