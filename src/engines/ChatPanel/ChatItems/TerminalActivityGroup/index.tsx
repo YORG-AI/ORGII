@@ -6,7 +6,7 @@
  * renders through the registry, preserving its specialized behavior.
  */
 import { useAtomValue } from "jotai";
-import React, { Suspense, useMemo } from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
@@ -14,27 +14,19 @@ import { isMcpToolEvent } from "@src/engines/ChatPanel/ChatHistory/chatItemPipel
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
 import OrgtrackEnvelopeCard from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards/OrgtrackEnvelopeCard";
 import { parseOrgtrackEnvelope } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers";
-import {
-  ChatLoadingBlock,
-  StackedBlock,
-} from "@src/engines/ChatPanel/blocks/primitives";
-import {
-  type SessionEvent,
-  TOOL_USAGE_ARGS_KEY,
-  type ToolUsageMetadata,
-} from "@src/engines/SessionCore/core/types";
-import { getChatLazyComponent } from "@src/engines/SessionCore/rendering/registry/events";
-import { getRegistryEventType } from "@src/lib/activityData/activityNormalizers";
+import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import { type SessionEvent } from "@src/engines/SessionCore/core/types";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
+
+import {
+  aggregateActivityGroupToolUsage,
+  buildActivityGroupItems,
+  renderActivityGroupEvent,
+} from "../activityGroupProjection";
 
 interface TerminalActivityGroupProps {
   events: SessionEvent[];
   closedByBoundary?: boolean;
-}
-
-interface TerminalEventItem {
-  event: SessionEvent;
-  isLastItem: boolean;
 }
 
 function parseTerminalOrgtrackEnvelope(
@@ -98,101 +90,13 @@ export function buildGroupSummary(
   return parts.join(t("tools.terminalSummary.separator"));
 }
 
-function ActivityBlock({ event }: { event: SessionEvent }) {
-  const eventType = getRegistryEventType(
-    event as unknown as Record<string, unknown>
-  );
-  const EventComponent = getChatLazyComponent(eventType);
-  const renderedEvent = React.createElement(EventComponent, { event });
-  return <Suspense fallback={<ChatLoadingBlock />}>{renderedEvent}</Suspense>;
-}
-
-function suppressLoadingForNonLastRunningEvent(
-  event: SessionEvent,
-  isLastItem: boolean
-): SessionEvent {
-  if (isLastItem || event.displayStatus !== "running") return event;
-
-  return {
-    ...event,
-    displayStatus: "completed",
-    activityStatus: "processed",
-    isDelta: false,
-  };
-}
-
-function readToolUsage(event: SessionEvent): ToolUsageMetadata | undefined {
-  if (event.toolUsage) return event.toolUsage;
-  const raw = event.args?.[TOOL_USAGE_ARGS_KEY];
-  if (!raw || typeof raw !== "object") return undefined;
-  return raw as ToolUsageMetadata;
-}
-
-function aggregateToolUsage(
-  items: readonly TerminalEventItem[]
-): ToolUsageMetadata | undefined {
-  const usages = items
-    .map((item) => readToolUsage(item.event))
-    .filter((usage): usage is ToolUsageMetadata => Boolean(usage));
-  if (usages.length === 0) return undefined;
-
-  return usages.reduce<ToolUsageMetadata>(
-    (total, usage) => ({
-      decisionCompletionTokens:
-        total.decisionCompletionTokens + usage.decisionCompletionTokens,
-      resultContextTokens:
-        total.resultContextTokens + usage.resultContextTokens,
-      followupCompletionTokens:
-        total.followupCompletionTokens + usage.followupCompletionTokens,
-      inputBytes: total.inputBytes + usage.inputBytes,
-      outputBytes: total.outputBytes + usage.outputBytes,
-      relatedCacheReadTokens:
-        total.relatedCacheReadTokens + usage.relatedCacheReadTokens,
-      relatedCacheWriteTokens:
-        total.relatedCacheWriteTokens + usage.relatedCacheWriteTokens,
-      attributionMethod:
-        total.attributionMethod === usage.attributionMethod
-          ? total.attributionMethod
-          : usage.attributionMethod,
-    }),
-    {
-      decisionCompletionTokens: 0,
-      resultContextTokens: 0,
-      followupCompletionTokens: 0,
-      inputBytes: 0,
-      outputBytes: 0,
-      relatedCacheReadTokens: 0,
-      relatedCacheWriteTokens: 0,
-      attributionMethod: usages[0].attributionMethod,
-    }
-  );
-}
-
-function renderTerminalEvent(
-  { event, isLastItem }: TerminalEventItem,
-  _index: number
-): React.ReactNode {
-  return (
-    <ActivityBlock
-      event={suppressLoadingForNonLastRunningEvent(event, isLastItem)}
-    />
-  );
-}
-
 const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
   events,
   closedByBoundary = true,
 }) => {
   const { t } = useTranslation("sessions");
   const session = useAtomValue(sessionByIdAtom(events[0]?.sessionId ?? ""));
-  const items = useMemo<TerminalEventItem[]>(
-    () =>
-      events.map((event, index) => ({
-        event,
-        isLastItem: index === events.length - 1,
-      })),
-    [events]
-  );
+  const items = useMemo(() => buildActivityGroupItems(events), [events]);
   const workItemResults = useMemo(
     () =>
       events.flatMap((event) => {
@@ -220,7 +124,7 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
   if (items.length === 0) return null;
 
   const firstEvent = items[0].event;
-  const groupToolUsage = aggregateToolUsage(items);
+  const groupToolUsage = aggregateActivityGroupToolUsage(events);
   const groupSummary = buildGroupSummary(events, t);
 
   return (
@@ -249,7 +153,7 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
               <ToolUsageBadge usage={groupToolUsage} />
             ) : undefined
           }
-          renderItem={renderTerminalEvent}
+          renderItem={renderActivityGroupEvent}
         />
       </div>
       {workItemResults.map((card, index) => (
