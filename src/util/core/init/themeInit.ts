@@ -69,27 +69,28 @@ const initTheme = (): Promise<void> => {
     const safeResolve = () => {
       if (resolved) return;
       resolved = true;
+      // Every resolve path must sync: `data-theme` has no other writer, so
+      // skipping it leaves the dark-mode rules inert for the whole session
+      // and, on Windows, strands the native backdrop on the opposite scheme.
+      syncThemeAppearance(theme);
       scheduleThemePreload(theme);
       resolve();
     };
 
-    // Wait for CSS to load before resolving
+    // Wait for CSS to load before resolving. Two frames let the new sheet
+    // apply first, so the sync reads the resolved `--color-bg-2` instead of
+    // falling back to matching the stylesheet filename.
     link.onload = () => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          syncThemeAppearance(theme);
-          safeResolve();
-        });
+        requestAnimationFrame(safeResolve);
       });
     };
 
     link.onerror = (error) => {
       if (resolved) return;
-      resolved = true;
       log.error("[Theme] Failed to load CSS:", theme, error);
-      scheduleThemePreload(theme);
       // Don't block app startup - resolve anyway
-      resolve();
+      safeResolve();
     };
 
     // PERFORMANCE: Reduced timeout from 3s to 500ms
@@ -98,14 +99,12 @@ const initTheme = (): Promise<void> => {
     const timeoutMs = isDefaultTheme ? 500 : 1000; // Longer for non-default themes
     const timeoutId = setTimeout(() => {
       if (resolved) return;
-      resolved = true;
       const duration = performance.now() - startTime;
       log.warn(
         `[Theme] CSS load timeout after ${duration.toFixed(0)}ms, continuing:`,
         theme
       );
-      scheduleThemePreload(theme);
-      resolve();
+      safeResolve();
     }, timeoutMs);
 
     // Clear timeout if CSS loads successfully
