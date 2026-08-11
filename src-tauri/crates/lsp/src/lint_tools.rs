@@ -5,6 +5,8 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
+use crate::command_detection::command_exists;
+
 /// Information about a lint tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -360,29 +362,6 @@ const LINT_TOOLS: &[LintToolConfig] = &[
         install_hint: "cargo install taplo-cli",
     },
 ];
-
-/// Check if a command exists in PATH
-fn command_exists(cmd: &str) -> bool {
-    #[cfg(unix)]
-    {
-        Command::new("which")
-            .arg(cmd)
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-    #[cfg(windows)]
-    {
-        let mut command = Command::new("where");
-        command.arg(cmd);
-        // Suppress console window on Windows.
-        app_platform::hide_console(&mut command);
-        command
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-}
 
 /// Get version of a tool
 fn get_tool_version(config: &LintToolConfig) -> Option<String> {

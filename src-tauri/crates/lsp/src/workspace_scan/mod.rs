@@ -24,8 +24,9 @@ use std::path::Path;
 
 use types::{AvailableTool, SingleToolResult};
 
+use super::command_detection::command_exists;
 use super::workspace_config::is_lint_tool_enabled;
-use process::{command_exists, eslint_available};
+use process::eslint_available;
 
 // ============================================
 // Helpers for tool detection
