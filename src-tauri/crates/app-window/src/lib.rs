@@ -2,7 +2,7 @@
 //!
 //! Centralised so `app`, `browser`, and other leaf crates can apply
 //! consistent native chrome (macOS traffic-light positioning + liquid glass,
-//! Windows DWM rounded corners) and recreate the main window
+//! Windows version-aware chrome) and recreate the main window
 //! from the Tauri menu without each consumer reimplementing the platform
 //! glue. All operations are synchronous against a `tauri::AppHandle` /
 //! `WebviewWindow` — no async runtime, no IoC hooks.
@@ -19,7 +19,9 @@ use objc2_app_kit::NSWindowButton;
 use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
 
 #[cfg(windows)]
-mod windows_corner;
+mod windows_chrome;
+#[cfg(any(windows, test))]
+mod windows_chrome_policy;
 
 // ============================================
 // macOS window background color
@@ -230,7 +232,33 @@ pub fn apply_host_desktop_window_chrome(
     #[cfg_attr(not(windows), allow(unused_variables))] window: &tauri::WebviewWindow,
 ) {
     #[cfg(windows)]
-    windows_corner::apply_dwm_rounded_corner_preference(window);
+    windows_chrome::apply_dwm_rounded_corner_preference(window);
+}
+
+/// Apply chrome policy specific to the main application window.
+///
+/// Windows 11 keeps the configured native backdrop and rounded DWM frame.
+/// Windows 10 receives an opaque fallback because the Acrylic implementation
+/// has known drag/resize performance problems there, while the default shadow
+/// on an undecorated window introduces a visible one-pixel border.
+pub fn apply_main_window_chrome(
+    #[cfg_attr(not(windows), allow(unused_variables))] window: &tauri::WebviewWindow,
+) {
+    #[cfg(windows)]
+    windows_chrome::apply_main_window_chrome(window);
+
+    #[cfg(not(windows))]
+    apply_host_desktop_window_chrome(window);
+}
+
+/// Mark the main webview for theme-aware opaque surfaces on Windows 10.
+///
+/// Called from the application page-load hook so the marker survives reloads.
+pub fn apply_main_window_page_chrome(
+    #[cfg_attr(not(windows), allow(unused_variables))] webview: &tauri::Webview,
+) {
+    #[cfg(windows)]
+    windows_chrome::apply_main_window_page_chrome(webview);
 }
 
 /// Apply the native macOS AbuttedSidebar material underneath the transparent webview.
@@ -270,8 +298,8 @@ pub fn clear_macos_window_material(window: &tauri::WebviewWindow) {
 ///
 /// Used when the main window was somehow destroyed and needs to be restored.
 /// Reusing the startup configuration keeps platform-specific chrome in parity:
-/// macOS overlay/transparency and the Windows frameless backdrop must not disappear
-/// after a tray or menu recovery.
+/// macOS overlay/transparency and the Windows version-aware chrome policy must
+/// not disappear after a tray or menu recovery.
 pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
     // Safety: if "main" already exists, just focus it
     if let Some(existing) = app.get_webview_window("main") {
@@ -305,7 +333,7 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
         apply_macos_window_material(&window);
     }
 
-    apply_host_desktop_window_chrome(&window);
+    apply_main_window_chrome(&window);
 
     let _ = window.set_focus();
 

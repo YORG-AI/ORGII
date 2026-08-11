@@ -484,7 +484,7 @@ pub fn run() {
                         app_window::apply_macos_window_material(&main_window);
                     }
 
-                    app_window::apply_host_desktop_window_chrome(&main_window);
+                    app_window::apply_main_window_chrome(&main_window);
                 }
             }
 
@@ -1167,6 +1167,8 @@ pub fn run() {
         .on_page_load(|webview, payload| {
             use tauri::webview::PageLoadEvent;
             if webview.label() == "main" {
+                app_window::apply_main_window_page_chrome(webview);
+
                 let event_label = match payload.event() {
                     PageLoadEvent::Started => "started",
                     PageLoadEvent::Finished => "finished",

@@ -274,6 +274,7 @@ dependencies = [
  "tauri-plugin-liquid-glass",
  "tracing",
  "windows 0.61.3",
+ "windows-version",
 ]
 
 [[package]]
