@@ -72,7 +72,15 @@ impl UnifiedSubagentHandler {
             .collect();
 
         let count = persistable.len();
-        event_pipeline_bridge::persist_events("subagent-child-persist", &sid, &persistable, 5);
+        if let Err(error) =
+            event_pipeline_bridge::persist_events("subagent-child-persist", &sid, &persistable, 5)
+        {
+            tracing::warn!(
+                session_id = %sid,
+                error = %error,
+                "failed to persist subagent child events"
+            );
+        }
         tracing::info!(
             "[subagent:{}] Persisted {} child events for session {}",
             self.config.subagent_type,

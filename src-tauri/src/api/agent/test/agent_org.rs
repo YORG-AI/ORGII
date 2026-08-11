@@ -2991,7 +2991,7 @@ pub async fn test_agent_org_tasks_list(
 ///
 /// Seeds a minimal Agent Org run with a CLI member session at a specified
 /// status in `code_sessions`. Used by deterministic E2E scenarios that
-/// verify `reconcile_run_finality` does not prematurely end a run when a
+/// verify Team Quiescence does not prematurely idle a run when a
 /// CLI member session is `idle` (non-terminal, between turns).
 ///
 /// Body:
@@ -3206,11 +3206,13 @@ pub async fn test_agent_org_pause_run(
 ///    member task disposition as production startup.
 /// 5. `clear_all_active_on_startup` — clears interventions whose in-memory
 ///    sessions no longer exist.
-/// 6. `reconcile_resolved_running_runs_on_startup` — completes runs whose
-///    tasks were already fully resolved.
-/// 7. `mark_all_running_as_paused_on_startup` — transitions
-///    every `running` org run to `paused` so `reconcile_run_finality` cannot
-///    auto-terminate the run when it sees all sessions abandoned.
+/// 6. `reconcile_agent_org_in_flight_after_restart` — preserves Agent Org
+///    Running intents as explicit quiescence blockers and only retains a
+///    replayable queued canonical initial input.
+///
+/// Run lifecycle state is deliberately not changed here. In particular,
+/// startup never maps `running` to `paused` and never infers terminality from
+/// abandoned Session rows.
 ///
 /// Caller-path probe: drives the same sequence that `AgentAppState::
 /// with_browser` calls, so this endpoint stays in sync if any of those
@@ -3228,6 +3230,11 @@ pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
         let intents_reconciled =
             session_persistence::turn_intents::reconcile_in_flight_after_restart(&conn)
                 .map_err(|err| format!("reconcile_in_flight_after_restart failed: {err}"))?;
+        let agent_org_intents_reconciled =
+            session_persistence::turn_intents::reconcile_agent_org_in_flight_after_restart(&conn)
+                .map_err(|err| {
+                    format!("reconcile_agent_org_in_flight_after_restart failed: {err}")
+                })?;
         let terminal_sessions_reconciled = reconcile_sessions_with_terminal_turn_markers()
             .map_err(|err| {
                 format!("reconcile_sessions_with_terminal_turn_markers failed: {err}")
@@ -3238,18 +3245,17 @@ pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
             .map_err(|err| format!("requeue_abandoned_member_tasks_on_startup failed: {err}"))?;
         let interventions_cleared = AgentMemberInterventionStore::clear_all_active_on_startup()
             .map_err(|err| format!("clear_all_active_on_startup failed: {err}"))?;
-        let runs_completed = AgentOrgRunStore::reconcile_resolved_running_runs_on_startup()
-            .map_err(|err| format!("reconcile_resolved_running_runs_on_startup failed: {err}"))?;
-        let runs_paused = AgentOrgRunStore::mark_all_running_as_paused_on_startup()
-            .map_err(|err| format!("mark_all_running_as_paused_on_startup failed: {err}"))?;
         Ok::<serde_json::Value, String>(serde_json::json!({
             "ok": true,
             "intents_reconciled": intents_reconciled,
+            "agent_org_intents_reconciled": agent_org_intents_reconciled,
             "terminal_sessions_reconciled": terminal_sessions_reconciled,
             "sessions_abandoned": sessions_abandoned,
             "tasks_requeued": tasks_requeued,
-            "runs_completed": runs_completed,
-            "runs_paused": runs_paused,
+            // Kept for old E2E clients; canonical PR1 startup performs neither
+            // transition, so both counters are intentionally always zero.
+            "runs_completed": 0,
+            "runs_paused": 0,
             "interventions_cleared": interventions_cleared,
         }))
     })

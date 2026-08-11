@@ -93,7 +93,7 @@ impl AgentOrgTaskStore {
     }
 
     /// Internal projection for a caller that has already run the shared
-    /// finality/corruption assessment in the same SQLite read snapshot.
+    /// Quiescence/corruption assessment in the same SQLite read snapshot.
     /// Keeping this separate avoids evaluating the expensive JSON integrity
     /// predicate twice per watchdog tick while the public wrapper remains
     /// fail-closed for every other caller.

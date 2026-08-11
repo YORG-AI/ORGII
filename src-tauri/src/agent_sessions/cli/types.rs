@@ -20,7 +20,7 @@ pub enum SessionStatus {
     Running,
     /// Session is idle — waiting for the next dispatch (non-terminal).
     /// Used for Agent Org member sessions after each successful turn so
-    /// `reconcile_run_finality` does not prematurely end the run.
+    /// Team Quiescence can distinguish a reusable member from active work.
     Idle,
     Completed,
     Failed,

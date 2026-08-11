@@ -12,8 +12,8 @@
 //!   without explicit repair: tasks owned by dead members, stale
 //!   `in_progress` work, and ready ownerless tasks awaiting explicit
 //!   coordinator assignment (issue #272 E1).
-//! - **Reconcile the run** when every task is resolved and every worker
-//!   is terminal.
+//! - **Reconcile Team Quiescence** when every formal Task, Inbox delivery,
+//!   Turn Intent, recovery reservation, and relevant Session is settled.
 //!
 //! Failed members are rate-limited by a per-`(run, member)` rewake budget
 //! (three attempts with 1/5/15-minute backoff) that resets on the next
@@ -49,7 +49,7 @@ pub(crate) use reservation::{
 };
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use database::db::{get_connection, with_sessions_writer};
@@ -61,9 +61,9 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
 use crate::coordination::agent_org_runs::{
-    recovery_dispatch_recipient_is_available, AgentOrgFinalityBlocker, AgentOrgFinalityDecision,
-    AgentOrgRunRecord, AgentOrgRunStatus, AgentOrgRunStore, WorkerSessionRuntime,
-    COORDINATOR_MEMBER_ID,
+    recovery_dispatch_recipient_is_available, AgentOrgQuiescenceBlocker,
+    AgentOrgQuiescenceDecision, AgentOrgRunRecord, AgentOrgRunStatus, AgentOrgRunStore,
+    WorkerSessionRuntime, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{self, Task, TaskStatus};
 use crate::core::session::SessionStatus;
@@ -71,6 +71,8 @@ use crate::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
 use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 
 const WATCHDOG_INTERVAL_SECS: u64 = 60;
+const WATCHDOG_MAX_RUNS: usize = 100;
+const WATCHDOG_SCAN_BUDGET: Duration = Duration::from_millis(250);
 const RECOVERY_DELAYS_SECS: [i64; 3] = [60, 5 * 60, 15 * 60];
 const PENDING_MATERIALIZATION_GRACE_SECS: i64 = 2 * 60;
 const MEMBER_REWAKE: &str = "member_rewake";

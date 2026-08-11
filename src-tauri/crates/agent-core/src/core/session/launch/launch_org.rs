@@ -1,12 +1,17 @@
-//! Org-member materialization for the agent run launch service.
+//! Receipt-driven Agent Org Starting convergence.
 //!
-//! Handles spawning background tasks that create member sessions for an
-//! Agent Org run, covering both Rust-native and CLI agent members.
+//! The stable roster is committed before any Session row is created. Every
+//! retry therefore targets the exact same member/session identity instead of
+//! minting a replacement after a crash.
+
+use std::collections::HashMap;
 
 use core_types::key_source::KeySource;
 
-use crate::coordination::agent_org_runs::AgentOrgRunStore;
-use crate::definitions::orgs::{parse_cli_agent_org_reference, OrgDefinition};
+use crate::coordination::agent_org_runs::{
+    AgentOrgMaterializationStatus, AgentOrgRunStore, AgentOrgStartingFailure, COORDINATOR_MEMBER_ID,
+};
+use crate::definitions::orgs::{is_cli_agent_org_reference, OrgDefinition, OrgMember};
 use crate::session::persistence::{
     self as session_persistence, session_type, UnifiedSessionRecord,
 };
@@ -15,56 +20,46 @@ use crate::state::AgentAppState;
 
 use super::launch_helpers::{
     flatten_org_members, member_runtime_account_id, member_runtime_key_source,
-    member_runtime_model, member_runtime_native_harness_type, member_runtime_tier,
+    member_runtime_model, member_runtime_native_harness_type,
 };
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn spawn_agent_org_member_materialization(
-    org_run_id: String,
-    org: OrgDefinition,
-    root_session_id: String,
-    root_session_name: String,
-    workspace_path: String,
-    model: Option<String>,
-    account_id: Option<String>,
-    key_source: Option<String>,
-    agent_exec_mode: Option<String>,
-    native_harness_type: Option<String>,
-    work_item_id: Option<String>,
-    project_slug: Option<String>,
-) {
-    tokio::spawn(async move {
-        if let Err(err) = materialize_org_member_sessions(
-            &org_run_id,
-            &org,
-            &root_session_id,
-            &root_session_name,
-            &workspace_path,
-            model,
-            account_id,
-            key_source,
-            agent_exec_mode,
-            native_harness_type,
-            work_item_id,
-            project_slug,
-        )
-        .await
-        {
-            tracing::warn!(
-                run_id = %org_run_id,
-                root_session_id = %root_session_id,
-                error = %err,
-                "[session_launch] failed to materialize Agent Org member sessions in background"
-            );
-            if let Err(mark_err) = AgentOrgRunStore::mark_failed(&org_run_id, &err) {
-                tracing::warn!(
-                    run_id = %org_run_id,
-                    error = %mark_err,
-                    "[session_launch] failed to mark Agent Org run failed after member materialization error"
-                );
-            }
+#[derive(Debug)]
+pub(super) struct AgentOrgMaterializationError {
+    failure: AgentOrgStartingFailure,
+    retryable: bool,
+}
+
+impl AgentOrgMaterializationError {
+    fn permanent(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            failure: AgentOrgStartingFailure::new(code, message),
+            retryable: false,
         }
-    });
+    }
+
+    fn retryable(message: impl Into<String>) -> Self {
+        Self {
+            failure: AgentOrgStartingFailure::new(
+                "materialization_temporarily_unavailable",
+                message,
+            ),
+            retryable: true,
+        }
+    }
+
+    pub(super) fn is_retryable(&self) -> bool {
+        self.retryable
+    }
+
+    pub(super) fn failure(&self) -> &AgentOrgStartingFailure {
+        &self.failure
+    }
+}
+
+impl std::fmt::Display for AgentOrgMaterializationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.failure.message)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -81,22 +76,7 @@ pub(super) async fn materialize_org_member_sessions(
     native_harness_type: Option<String>,
     work_item_id: Option<String>,
     project_slug: Option<String>,
-) -> Result<Vec<String>, String> {
-    let flattened_members = flatten_org_members(&org.children);
-    if flattened_members.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let mut rust_members = Vec::new();
-    let mut cli_members = Vec::new();
-    for member in flattened_members {
-        if parse_cli_agent_org_reference(&member.agent_id).is_some() {
-            cli_members.push(member);
-        } else {
-            rust_members.push(member);
-        }
-    }
-
+) -> Result<Vec<String>, AgentOrgMaterializationError> {
     let workspace_path = workspace_path.to_string();
     let root_session_id = root_session_id.to_string();
     let org_name = org.name.clone();
@@ -105,197 +85,165 @@ pub(super) async fn materialize_org_member_sessions(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
     {
-        Some(raw) => KeySource::parse(raw).ok_or_else(|| format!("Unknown key_source: {raw:?}"))?,
+        Some(raw) => KeySource::parse(raw).ok_or_else(|| {
+            AgentOrgMaterializationError::permanent(
+                "invalid_member_runtime_config",
+                format!("Unknown key_source: {raw:?}"),
+            )
+        })?,
         None => KeySource::default(),
     };
     let native_harness_type = native_harness_type
         .filter(|value| !value.trim().is_empty())
         .map(|raw| {
             core_types::providers::NativeHarnessType::parse(&raw)
-                .ok_or_else(|| format!("Unknown native_harness_type: {raw:?}"))
+                .ok_or_else(|| {
+                    AgentOrgMaterializationError::permanent(
+                        "invalid_member_runtime_config",
+                        format!("Unknown native_harness_type: {raw:?}"),
+                    )
+                })
                 .map(|parsed| parsed.as_str().to_string())
         })
         .transpose()?;
     let agent_exec_mode = agent_exec_mode.filter(|mode| !mode.trim().is_empty());
-    let org_run_id = org_run_id.to_string();
-    let mut created_session_ids = Vec::with_capacity(rust_members.len() + cli_members.len());
-    let mut created_rust_session_ids = Vec::new();
-    let mut created_cli_session_ids = Vec::new();
+    let members = flatten_org_members(&org.children)
+        .into_iter()
+        .map(|member| (member.id.clone(), member))
+        .collect::<HashMap<String, OrgMember>>();
+    let receipts = AgentOrgRunStore::materializations(org_run_id)
+        .map_err(AgentOrgMaterializationError::retryable)?;
+    let mut materialized_session_ids = Vec::new();
+    for receipt in receipts {
+        if receipt.member_id == COORDINATOR_MEMBER_ID {
+            continue;
+        }
+        if receipt.status == AgentOrgMaterializationStatus::Succeeded {
+            materialized_session_ids.push(receipt.session_id);
+            continue;
+        }
+        let member = members.get(&receipt.member_id).ok_or_else(|| {
+            AgentOrgMaterializationError::permanent(
+                "materialization_identity_mismatch",
+                format!(
+                    "materialization receipt references missing canonical member {}",
+                    receipt.member_id
+                ),
+            )
+        })?;
+        if member.agent_id != receipt.agent_id {
+            return Err(AgentOrgMaterializationError::permanent(
+                "materialization_identity_mismatch",
+                format!(
+                    "materialization receipt agent mismatch for member {}",
+                    receipt.member_id
+                ),
+            ));
+        }
+        if is_cli_agent_org_reference(&member.agent_id) {
+            return Err(AgentOrgMaterializationError::permanent(
+                "unsupported_member_runtime",
+                format!(
+                    "CLI Agent Org member {} cannot be materialized on the canonical lifecycle path",
+                    member.id
+                ),
+            ));
+        }
 
-    if !rust_members.is_empty() {
-        let rust_workspace_path = workspace_path.clone();
-        let rust_root_session_id = root_session_id.clone();
-        let rust_org_name = org_name.clone();
-        let rust_model = model.clone();
-        let rust_account_id = account_id.clone();
-        let rust_key_source = key_source;
-        let rust_agent_exec_mode = agent_exec_mode.clone();
-        let rust_native_harness_type = native_harness_type.clone();
-        let rust_work_item_id = work_item_id.clone();
-        let rust_project_slug = project_slug.clone();
-        let rust_org_run_id = org_run_id.clone();
-        created_rust_session_ids = tokio::task::spawn_blocking(move || {
-            let now = chrono::Utc::now().to_rfc3339();
-            let mut created_session_ids: Vec<String> = Vec::with_capacity(rust_members.len());
-            let has_workspace_path = !rust_workspace_path.is_empty();
-
-            for member in rust_members {
-                let prefix = crate::definitions::prefix_lookup::session_prefix_for_launch(
-                    Some(&member.agent_id),
-                    has_workspace_path,
-                );
-                let session_id = format!("{}{}", prefix, uuid::Uuid::new_v4());
-                let member_config = member.runtime_config.as_ref();
-                let member_model = member_runtime_model(member_config, &rust_model);
-                let member_account_id = member_runtime_account_id(member_config, &rust_account_id);
-                let member_key_source = member_runtime_key_source(member_config, &rust_key_source)
-                    .map_err(|err| format!("invalid runtime config for member '{}': {}", member.name, err))?;
-                let member_native_harness_type =
-                    member_runtime_native_harness_type(member_config, &rust_native_harness_type)
-                        .map_err(|err| format!("invalid runtime config for member '{}': {}", member.name, err))?;
-                let session = UnifiedSessionRecord {
-                    session_id: session_id.clone(),
-                    name: format!("{} · {}", member.name, member.role),
-                    status: crate::session::SessionStatus::Idle.as_str().to_string(),
-                    model: member_model,
-                    account_id: member_account_id,
-                    workspace_path: Some(rust_workspace_path.clone()),
-                    org_id: Some(project_management::projects::types::PERSONAL_ORG_ID.to_string()),
-                    user_input: None,
-                    total_tokens: 0,
-                    created_at: now.clone(),
-                    updated_at: now.clone(),
-                    session_type: session_type::ORG_MEMBER.to_string(),
-                    work_item_id: rust_work_item_id.clone(),
-                    // Same rule as the launch resolver: a work-item-linked
-                    // session is a Project session. Members inherit it so the
-                    // PM tools aren't policy-denied for the team doing the work.
-                    product_mode: rust_work_item_id
-                        .as_ref()
-                        .map(|_| "project".to_string()),
-                    agent_role: Some(member.role.clone()),
-                    project_slug: rust_project_slug.clone(),
-                    agent_definition_id: Some(member.agent_id.clone()),
-                    org_member_id: Some(member.id.clone()),
-                    parent_session_id: Some(rust_root_session_id.clone()),
-                    key_source: member_key_source,
-                    agent_exec_mode: rust_agent_exec_mode.clone(),
-                    native_harness_type: member_native_harness_type,
-                    ..Default::default()
-                };
-                if let Err(err) = session_persistence::upsert_session(&session) {
-                    for created_session_id in &created_session_ids {
-                        if let Err(cleanup_err) = session_persistence::delete_session(created_session_id)
-                        {
-                            tracing::warn!(
-                                session_id = %created_session_id,
-                                error = %cleanup_err,
-                                "[session_launch] failed to clean up materialized Agent Org member session"
-                            );
-                        }
-                    }
-                    return Err(format!(
-                        "failed to materialize Agent Org member '{}' for run '{}': {}",
-                        member.name, rust_org_run_id, err
+        let session_id = receipt.session_id.clone();
+        let member = member.clone();
+        let workspace_path = workspace_path.clone();
+        let root_session_id = root_session_id.clone();
+        let model = model.clone();
+        let account_id = account_id.clone();
+        let agent_exec_mode = agent_exec_mode.clone();
+        let native_harness_type = native_harness_type.clone();
+        let work_item_id = work_item_id.clone();
+        let project_slug = project_slug.clone();
+        let member_config = member.runtime_config.as_ref();
+        let member_model = member_runtime_model(member_config, &model);
+        let member_account_id = member_runtime_account_id(member_config, &account_id);
+        let member_key_source =
+            member_runtime_key_source(member_config, &key_source).map_err(|error| {
+                AgentOrgMaterializationError::permanent("invalid_member_runtime_config", error)
+            })?;
+        let member_native_harness_type =
+            member_runtime_native_harness_type(member_config, &native_harness_type).map_err(
+                |error| {
+                    AgentOrgMaterializationError::permanent("invalid_member_runtime_config", error)
+                },
+            )?;
+        let persisted_session_id = tokio::task::spawn_blocking(move || {
+            if let Some(existing) = session_persistence::get_session(&session_id)
+                .map_err(|error| AgentOrgMaterializationError::retryable(error.to_string()))?
+            {
+                let identity_matches = existing.agent_definition_id.as_deref()
+                    == Some(member.agent_id.as_str())
+                    && existing.org_member_id.as_deref() == Some(member.id.as_str())
+                    && existing.parent_session_id.as_deref() == Some(root_session_id.as_str());
+                if !identity_matches {
+                    return Err(AgentOrgMaterializationError::permanent(
+                        "materialization_identity_mismatch",
+                        format!("stable materialization Session identity mismatch: {session_id}"),
                     ));
                 }
-                created_session_ids.push(session_id);
+                return Ok(session_id);
             }
-
-            tracing::info!(
-                run_id = %rust_org_run_id,
-                org_name = %rust_org_name,
-                member_sessions = created_session_ids.len(),
-                "[session_launch] materialized Rust Agent Org member sessions"
-            );
-            Ok(created_session_ids)
+            let now = chrono::Utc::now().to_rfc3339();
+            let session = UnifiedSessionRecord {
+                session_id: session_id.clone(),
+                name: format!("{} · {}", member.name, member.role),
+                status: crate::session::SessionStatus::Idle.as_str().to_string(),
+                model: member_model,
+                account_id: member_account_id,
+                workspace_path: Some(workspace_path),
+                org_id: Some(project_management::projects::types::PERSONAL_ORG_ID.to_string()),
+                user_input: None,
+                total_tokens: 0,
+                created_at: now.clone(),
+                updated_at: now,
+                session_type: session_type::ORG_MEMBER.to_string(),
+                work_item_id: work_item_id.clone(),
+                product_mode: work_item_id.as_ref().map(|_| "project".to_string()),
+                agent_role: Some(member.role),
+                project_slug,
+                agent_definition_id: Some(member.agent_id),
+                org_member_id: Some(member.id),
+                parent_session_id: Some(root_session_id),
+                key_source: member_key_source,
+                agent_exec_mode,
+                native_harness_type: member_native_harness_type,
+                ..Default::default()
+            };
+            session_persistence::upsert_session(&session)
+                .map_err(|error| AgentOrgMaterializationError::retryable(error.to_string()))?;
+            Ok::<_, AgentOrgMaterializationError>(session_id)
         })
         .await
-        .map_err(|err| err.to_string())??;
-        created_session_ids.extend(created_rust_session_ids.iter().cloned());
-    }
-
-    for member in cli_members {
-        let cli_agent_type = parse_cli_agent_org_reference(&member.agent_id)
-            .ok_or_else(|| format!("invalid CLI Agent Org reference: {}", member.agent_id))?
-            .as_str()
-            .to_string();
-        let member_config = member.runtime_config.as_ref();
-        let member_key_source = member_runtime_key_source(member_config, &key_source)?;
-        let outcome = crate::foundation::session_bridge::launch_cli_agent(
-            crate::foundation::session_bridge::CliLaunchParams {
-                name: Some(format!("{} · {}", member.name, member.role)),
-                cli_agent_type,
-                model: member_runtime_model(member_config, &model),
-                tier: member_runtime_tier(member_config),
-                account_id: member_runtime_account_id(member_config, &account_id),
-                repo_path: Some(workspace_path.clone()).filter(|path| !path.is_empty()),
-                branch: None,
-                worktree_path: None,
-                worktree_base_ref: None,
-                hosted_token: None,
-                isolate: false,
-                background: true,
-                key_source: Some(member_key_source.as_ref().to_string()),
-                additional_directories: None,
-                parent_session_id: Some(root_session_id.clone()),
-                org_member_id: Some(member.id.clone()),
-                org_id: project_management::projects::types::PERSONAL_ORG_ID.to_string(),
-                project_id: None,
-                project_name: None,
-                project_slug: project_slug.clone(),
-                work_item_id: work_item_id.clone(),
-                agent_role: None,
-                product_mode: work_item_id.as_ref().map(|_| "project".to_string()),
-                durable_run_id: None,
-                user_input: String::new(),
-                ide_context: None,
-                mode: agent_exec_mode.clone(),
-                images: None,
-            },
+        .map_err(|error| AgentOrgMaterializationError::retryable(error.to_string()))??;
+        AgentOrgRunStore::mark_materialization_succeeded(
+            org_run_id,
+            &receipt.member_id,
+            receipt.generation,
+            &persisted_session_id,
         )
-        .await;
-        match outcome {
-            Ok(outcome) => {
-                created_session_ids.push(outcome.session_id.clone());
-                created_cli_session_ids.push(outcome.session_id);
+        .map_err(|error| {
+            if error.contains("identity mismatch") || error.contains("Session identity") {
+                AgentOrgMaterializationError::permanent("materialization_identity_mismatch", error)
+            } else {
+                AgentOrgMaterializationError::retryable(error)
             }
-            Err(err) => {
-                for session_id in &created_rust_session_ids {
-                    if let Err(cleanup_err) = session_persistence::delete_session(session_id) {
-                        tracing::warn!(
-                            session_id = %session_id,
-                            error = %cleanup_err,
-                            "[session_launch] failed to clean up Rust Agent Org member session after CLI materialization failure"
-                        );
-                    }
-                }
-                for session_id in &created_cli_session_ids {
-                    if let Err(cleanup_err) =
-                        crate::foundation::session_bridge::delete_cli_session(session_id)
-                    {
-                        tracing::warn!(
-                            session_id = %session_id,
-                            error = %cleanup_err,
-                            "[session_launch] failed to clean up CLI Agent Org member session"
-                        );
-                    }
-                }
-                return Err(format!(
-                    "failed to materialize CLI Agent Org member '{}' for run '{}': {}",
-                    member.name, org_run_id, err
-                ));
-            }
-        }
+        })?;
+        materialized_session_ids.push(persisted_session_id);
     }
 
     tracing::info!(
         run_id = %org_run_id,
         org_name = %org_name,
-        member_sessions = created_session_ids.len(),
-        "[session_launch] materialized Agent Org member sessions"
+        member_sessions = materialized_session_ids.len(),
+        "[session_launch] converged Agent Org member materialization receipts"
     );
-    Ok(created_session_ids)
+    Ok(materialized_session_ids)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -313,11 +261,11 @@ pub(super) async fn send_initial_turn(
     agent_definition_id: Option<String>,
     sub_agent_ids: Vec<String>,
     intent_org_run_id: Option<String>,
-    durable_run_id: Option<String>,
+    client_message_id: Option<String>,
+    turn_intent_id: Option<String>,
     source: crate::foundation::session_bridge::TurnIntentBridgeSource,
 ) -> Result<(), String> {
     if sub_agent_ids.is_empty() {
-        let client_message_id = durable_run_id.clone();
         crate::state::commands::session::message::send_message_impl(
             state,
             session_id.to_string(),
@@ -335,7 +283,7 @@ pub(super) async fn send_initial_turn(
             false,
             false,
             client_message_id,
-            durable_run_id,
+            turn_intent_id,
             None,
             intent_org_run_id,
             source,
@@ -357,7 +305,6 @@ pub(super) async fn send_initial_turn(
     .await?;
     crate::init::init_session(state, launch_spec).await?;
 
-    let client_message_id = durable_run_id.clone();
     crate::state::commands::session::message::send_message_impl(
         state,
         session_id.to_string(),
@@ -375,7 +322,7 @@ pub(super) async fn send_initial_turn(
         false,
         false,
         client_message_id,
-        durable_run_id,
+        turn_intent_id,
         None,
         intent_org_run_id,
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,

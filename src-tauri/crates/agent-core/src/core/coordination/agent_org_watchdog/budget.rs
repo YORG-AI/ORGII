@@ -21,33 +21,7 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_recovery_attempts_run
             ON agent_org_recovery_attempts(org_run_id);",
-    )?;
-    // Existing databases predate dispatch reservations. Keeping the token in
-    // the same row lets a failed/coalesced scheduler request refund only its
-    // own provisional attempt without undoing a newer recovery fingerprint.
-    ensure_recovery_attempt_column(conn, "reservation_token", "TEXT")?;
-    Ok(())
-}
-
-fn ensure_recovery_attempt_column(
-    conn: &Connection,
-    column_name: &str,
-    column_definition: &str,
-) -> rusqlite::Result<()> {
-    let mut stmt = conn.prepare("PRAGMA table_info(agent_org_recovery_attempts)")?;
-    let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
-    for column in columns {
-        if column? == column_name {
-            return Ok(());
-        }
-    }
-    conn.execute(
-        &format!(
-            "ALTER TABLE agent_org_recovery_attempts ADD COLUMN {column_name} {column_definition}"
-        ),
-        [],
-    )?;
-    Ok(())
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -304,25 +278,4 @@ pub(super) fn member_rewake_fingerprint_from_unread(
     unread_fingerprint
         .map(|unread| format!("unread:{unread}"))
         .unwrap_or_else(|| format!("status:{}", status.as_str()))
-}
-
-/// Drop budget entries whose run is no longer running so the
-/// process-global maps cannot grow unbounded over the app lifetime
-/// (issue #272 E6). Paused runs also lose their entries; resuming one
-/// intentionally grants a fresh set of recovery attempts.
-pub(super) fn prune_recovery_budgets() -> Result<(), String> {
-    with_sessions_writer(|| {
-        let conn = get_connection().map_err(|err| err.to_string())?;
-        conn.execute(
-            "DELETE FROM agent_org_recovery_attempts
-             WHERE NOT EXISTS (
-                 SELECT 1 FROM agent_org_runs run
-                 WHERE run.id = agent_org_recovery_attempts.org_run_id
-                   AND run.status = ?1
-             )",
-            params![AgentOrgRunStatus::Running.as_str()],
-        )
-        .map_err(|err| err.to_string())?;
-        Ok(())
-    })
 }

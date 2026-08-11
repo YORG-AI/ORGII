@@ -93,11 +93,10 @@ pub(super) fn promote_agent_org_wake_session_to_running(
     .map_err(|error| error.to_string())
 }
 
-/// Promote a direct Rust Agent Org turn unless deletion has established the
-/// run's terminal `cancelled` fence. Direct user turns intentionally retain
-/// their existing behavior for completed/failed historical runs; this guard
-/// only closes the race where a message was queued while hierarchy deletion
-/// was stopping the run.
+/// Promote a direct Rust Agent Org turn only while its Team is still Running.
+/// Submit preflight is only a snapshot: a queued turn must re-check the
+/// durable lifecycle fence immediately before execution so Starting, Idle,
+/// Paused, Failed, or Archived can never start a Provider turn.
 pub(super) fn promote_agent_org_direct_session_to_running(
     conn: &rusqlite::Connection,
     run_id: &str,
@@ -113,7 +112,9 @@ pub(super) fn promote_agent_org_direct_session_to_running(
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    if run_status.as_deref() == Some("cancelled") || run_status.is_none() {
+    if run_status.as_deref()
+        != Some(crate::coordination::agent_org_runs::AgentOrgRunStatus::Running.as_str())
+    {
         return Ok(0);
     }
 

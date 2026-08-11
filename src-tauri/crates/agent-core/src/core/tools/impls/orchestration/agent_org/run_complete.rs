@@ -21,7 +21,7 @@ pub struct OrgRunCompleteParams {
 /// Coordinator-only explicit completion intent.
 ///
 /// This does not force a terminal state. It records a durable request at the
-/// current work revision; the canonical finality reconciler still waits for a
+/// current work revision; the canonical Quiescence reconciler still waits for a
 /// successful coordinator turn, resolved tasks, drained inbox, settled
 /// approvals/interventions, and no in-flight turns.
 pub struct OrgRunCompleteTool {
@@ -41,7 +41,7 @@ impl Tool for OrgRunCompleteTool {
     }
 
     fn description(&self) -> &str {
-        "Request safe completion of the current Agent Org run. Coordinator-only. Records a durable summary at the current work revision; it never bypasses open tasks or finality checks. Use it when task_list says an empty task board requires explicit completion intent."
+        "Request safe completion of the current Agent Org run. Coordinator-only. Records a durable summary at the current work revision; it never bypasses open tasks or Quiescence checks. Use it when task_list says an empty task board requires explicit completion intent."
     }
 
     fn category(&self) -> &str {
@@ -80,7 +80,7 @@ impl Tool for OrgRunCompleteTool {
                 "outcome": "recorded",
                 "org_run_id": run_id,
                 "work_revision": progress.work_revision,
-                "guidance": "Completion was requested durably. Finish this coordinator turn normally; the canonical finality reconciler will close the run only after every remaining delivery and lifecycle blocker has settled."
+                "guidance": "Completion was requested durably. Finish this coordinator turn normally; the canonical Quiescence reconciler will move the Team to Idle only after every remaining delivery and lifecycle blocker has settled."
             }),
             AgentOrgCompletionRequestOutcome::OpenTasks {
                 unresolved_task_ids,

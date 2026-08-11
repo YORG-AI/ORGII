@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use core_types::key_source::KeySource;
 
-use crate::coordination::agent_org_runs::AgentOrgRunStore;
+use crate::coordination::agent_org_runs::{AgentOrgRunStore, AgentOrgStartingFailure};
 use crate::definitions::orgs::{OrgMember, OrgMemberRuntimeConfig};
 use crate::session::turn::streaming::{
     broadcast_agent_error_structured, classify_streaming_error_message, StreamingError,
@@ -30,7 +30,16 @@ pub(super) async fn handle_background_launch_failure(
 ) {
     tracing::warn!("{}", message);
     if let Some(run_id) = agent_org_run_id {
-        if let Err(mark_err) = AgentOrgRunStore::mark_failed(run_id, message) {
+        let failure_result = AgentOrgRunStore::load(run_id).and_then(|run| {
+            let run = run.ok_or_else(|| format!("Agent Org run not found: {run_id}"))?;
+            AgentOrgRunStore::fail_starting(
+                run_id,
+                run.activation_generation,
+                &AgentOrgStartingFailure::new("starting_convergence_failed", message),
+            )
+            .map(|_| ())
+        });
+        if let Err(mark_err) = failure_result {
             tracing::warn!(
                 run_id = %run_id,
                 error = %mark_err,
@@ -177,10 +186,6 @@ pub(super) fn member_runtime_account_id(
     config
         .and_then(|cfg| clean_runtime_value(cfg.account_id.as_ref()))
         .or_else(|| fallback.clone())
-}
-
-pub(super) fn member_runtime_tier(config: Option<&OrgMemberRuntimeConfig>) -> Option<String> {
-    config.and_then(|cfg| clean_runtime_value(cfg.tier.as_ref()))
 }
 
 pub(super) fn member_runtime_key_source(

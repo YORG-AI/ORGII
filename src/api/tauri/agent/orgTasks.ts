@@ -79,18 +79,19 @@ export interface AgentOrgRunMemberView {
 }
 
 export const AGENT_ORG_RUN_STATUS = {
+  STARTING: "starting",
   RUNNING: "running",
   PAUSED: "paused",
-  COMPLETED: "completed",
+  IDLE: "idle",
   FAILED: "failed",
-  CANCELLED: "cancelled",
-  ABANDONED: "abandoned",
+  ARCHIVED: "archived",
 } as const;
 
 export type AgentOrgRunStatus =
   (typeof AGENT_ORG_RUN_STATUS)[keyof typeof AGENT_ORG_RUN_STATUS];
 
 export const AGENT_ORG_RUN_PHASE = {
+  STARTING: "starting",
   COORDINATING: "coordinating",
   DISPATCHING: "dispatching",
   MEMBERS_WORKING: "members_working",
@@ -98,10 +99,9 @@ export const AGENT_ORG_RUN_PHASE = {
   AWAITING_PLAN_APPROVAL: "awaiting_plan_approval",
   FINALIZING: "finalizing",
   PAUSED: "paused",
-  COMPLETED: "completed",
+  IDLE: "idle",
   FAILED: "failed",
-  CANCELLED: "cancelled",
-  ABANDONED: "abandoned",
+  ARCHIVED: "archived",
 } as const;
 
 export type AgentOrgRunPhase =
