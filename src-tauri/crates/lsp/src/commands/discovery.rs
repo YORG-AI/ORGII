@@ -2,8 +2,6 @@
 //!
 //! Tauri commands for detecting installed language servers and lint tools.
 
-use std::process::Command;
-
 use super::cache;
 use crate::lint_tools::LintToolInfo;
 use crate::server_defs::{servers, servers_for_language_id};
@@ -55,31 +53,7 @@ pub const LANGUAGE_DISPLAY_NAMES: &[(&str, &str)] = &[
     ("zig", "Zig"),
 ];
 
-/// Check if a command exists in PATH
-pub fn command_exists(cmd: &str) -> bool {
-    // Explicitly forward PATH so the login-shell-augmented PATH is visible.
-    let current_path = std::env::var("PATH").unwrap_or_default();
-    #[cfg(unix)]
-    {
-        Command::new("which")
-            .arg(cmd)
-            .env("PATH", &current_path)
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-    #[cfg(windows)]
-    {
-        let mut command = Command::new("where");
-        command.arg(cmd).env("PATH", &current_path);
-        // Suppress console window on Windows.
-        app_platform::hide_console(&mut command);
-        command
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-}
+pub use crate::command_detection::command_exists;
 
 /// Check if uninstall is supported based on install hint
 fn is_uninstall_supported(install_hint: &str) -> bool {
