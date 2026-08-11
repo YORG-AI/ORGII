@@ -9,11 +9,8 @@
 import { useAtomValue, useStore } from "jotai";
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
-import { persistedScopeKeysForImportedSession } from "@src/features/TeamCollaboration/importedSessionScopeMatch";
 import {
   getShareableScopeKeyVersion,
-  peekShareableScopeKeys,
-  primeShareableScopeKey,
   subscribeShareableScopeKeys,
 } from "@src/features/TeamCollaboration/repoScopeResolver";
 import { sessionOrgTagsAtom } from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
@@ -27,22 +24,8 @@ import {
 } from "../org2CloudOrgsAtom";
 import { org2CloudRepoScopesAtom } from "../org2CloudSyncAtoms";
 import { isCloudPushCandidate } from "../org2CloudSyncEngine";
+import { getSessionScopeKeys } from "../org2CloudSyncEngine.repoScopeSync";
 import { getActiveCloudShareOrgsForSession } from "./shareEligibility";
-
-/**
- * Resolved scope keys for one session, backed by the module-level resolver
- * cache the sync engine also feeds (same idiom as useSessionShareDialog:
- * `undefined` = still resolving → not eligible yet; the subscription
- * re-renders the consumer when the keys land).
- */
-function getSessionScopeKeys(session: Session): string[] | null | undefined {
-  const persistedKeys = persistedScopeKeysForImportedSession(session);
-  if (persistedKeys !== undefined) return persistedKeys;
-  if (!session.repoPath) return null;
-  const keys = peekShareableScopeKeys(session.repoPath);
-  if (keys === undefined) primeShareableScopeKey(session.repoPath);
-  return keys;
-}
 
 export interface UseCloudSessionShareDialogResult {
   /** Session the dialog is open for; null = closed. */
