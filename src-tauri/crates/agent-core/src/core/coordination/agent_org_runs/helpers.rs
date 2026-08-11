@@ -49,14 +49,18 @@ pub(super) fn load_by_id(run_id: &str) -> SqliteResult<Option<AgentOrgRunRecord>
                 org_snapshot_json,
                 entry_mode,
                 status,
+                activation_generation,
+                has_initial_work,
                 work_item_id,
                 project_slug,
                 routine_fire_id,
                 summary,
                 last_error,
+                failure_json,
+                last_activity_outcome,
                 created_at,
                 updated_at,
-                completed_at
+                idled_at
          FROM agent_org_runs
          WHERE id = ?1
          LIMIT 1",
@@ -78,14 +82,18 @@ pub(super) fn load_by_root_session(
                 org_snapshot_json,
                 entry_mode,
                 status,
+                activation_generation,
+                has_initial_work,
                 work_item_id,
                 project_slug,
                 routine_fire_id,
                 summary,
                 last_error,
+                failure_json,
+                last_activity_outcome,
                 created_at,
                 updated_at,
-                completed_at
+                idled_at
          FROM agent_org_runs
          WHERE root_session_id = ?1
          ORDER BY created_at DESC
@@ -121,14 +129,18 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> SqliteResult<AgentOrgRunRec
         org_snapshot_json: row.get(4)?,
         entry_mode,
         status,
-        work_item_id: row.get(7)?,
-        project_slug: row.get(8)?,
-        routine_fire_id: row.get(9)?,
-        summary: row.get(10)?,
-        last_error: row.get(11)?,
-        created_at: row.get(12)?,
-        updated_at: row.get(13)?,
-        completed_at: row.get(14)?,
+        activation_generation: row.get(7)?,
+        has_initial_work: row.get::<_, i64>(8)? != 0,
+        work_item_id: row.get(9)?,
+        project_slug: row.get(10)?,
+        routine_fire_id: row.get(11)?,
+        summary: row.get(12)?,
+        last_error: row.get(13)?,
+        failure_json: row.get(14)?,
+        last_activity_outcome: row.get(15)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+        idled_at: row.get(18)?,
     })
 }
 
@@ -204,15 +216,19 @@ pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteRe
             org_snapshot_json,
             entry_mode,
             status,
+            activation_generation,
+            has_initial_work,
             work_item_id,
             project_slug,
             routine_fire_id,
             summary,
             last_error,
+            failure_json,
+            last_activity_outcome,
             created_at,
             updated_at,
-            completed_at
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            idled_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
         params![
             &run.id,
             &run.org_id,
@@ -221,14 +237,18 @@ pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteRe
             run.org_snapshot_json.as_deref(),
             run.entry_mode.as_str(),
             run.status.as_str(),
+            run.activation_generation,
+            i64::from(run.has_initial_work),
             run.work_item_id.as_deref(),
             run.project_slug.as_deref(),
             run.routine_fire_id.as_deref(),
             run.summary.as_deref(),
             run.last_error.as_deref(),
+            run.failure_json.as_deref(),
+            run.last_activity_outcome.as_deref(),
             &run.created_at,
             &run.updated_at,
-            run.completed_at.as_deref(),
+            run.idled_at.as_deref(),
         ],
     )?;
     Ok(())

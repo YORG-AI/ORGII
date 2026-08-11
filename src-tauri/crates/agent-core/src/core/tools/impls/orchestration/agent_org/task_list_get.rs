@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 
 use crate::coordination::agent_org_payload_limits::validate_task_identifier;
 use crate::coordination::agent_org_runs::{
-    guaranteed_current_turn_effects_with_connection, AgentOrgFinalityDecision, AgentOrgRunStore,
+    guaranteed_current_turn_effects_with_connection, AgentOrgQuiescenceDecision, AgentOrgRunStore,
 };
 use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
 use crate::tools::names as tool_names;
@@ -137,7 +137,7 @@ impl Tool for TaskListTool {
                 .map_err(ToolError::InvalidParams)?;
         }
 
-        // Task summaries and run finality facts must describe the same
+        // Task summaries and Team Quiescence facts must describe the same
         // database moment. Use one deferred read transaction and project only
         // bounded columns; routine task_list calls never deserialize full
         // descriptions, raw metadata, or output content for the entire board.
@@ -158,7 +158,7 @@ impl Tool for TaskListTool {
             let tx = conn
                 .transaction_with_behavior(TransactionBehavior::Deferred)
                 .map_err(|err| err.to_string())?;
-            let completion = AgentOrgRunStore::finality_assessment_with_connection(&tx, &run_id)?;
+            let completion = AgentOrgRunStore::quiescence_assessment_with_connection(&tx, &run_id)?;
             let guaranteed_turn_effects = guaranteed_current_turn_effects_with_connection(
                 &tx,
                 &run_id,
@@ -203,7 +203,7 @@ impl Tool for TaskListTool {
             completion.after_successful_coordinator_turn_with_effects(guaranteed_turn_effects);
         let completion_ready = matches!(
             completion_after_turn.decision,
-            AgentOrgFinalityDecision::Complete
+            AgentOrgQuiescenceDecision::Quiescent
         );
         let body = json!({
             "tasks": page.tasks.iter().map(compact_task_summary_to_json).collect::<Vec<_>>(),
@@ -236,8 +236,8 @@ impl Tool for TaskListTool {
                 "unread_inbox_count": completion.facts.unread_inbox_count,
                 "pending_plan_approval_count": completion.facts.pending_plan_approval_count,
                 "completion_ready": completion_ready,
-                "finality_decision": completion.decision,
-                "current_finality_blockers": &completion.blockers,
+                "quiescence_decision": completion.decision,
+                "current_quiescence_blockers": &completion.blockers,
                 "completion_blockers": &completion_after_turn.blockers,
             },
             "org_run_id": self.ctx.org_context.run_id,

@@ -13,11 +13,72 @@ fn enum_values_round_trip() {
         AgentOrgRunEntryMode::parse(AgentOrgRunEntryMode::StandaloneSession.as_str()),
         Some(AgentOrgRunEntryMode::StandaloneSession)
     );
-    assert_eq!(
-        AgentOrgRunStatus::parse(AgentOrgRunStatus::Running.as_str()),
-        Some(AgentOrgRunStatus::Running)
-    );
-    assert_eq!(AgentOrgRunStatus::parse("idle"), None);
+    for status in [
+        AgentOrgRunStatus::Starting,
+        AgentOrgRunStatus::Running,
+        AgentOrgRunStatus::Paused,
+        AgentOrgRunStatus::Idle,
+        AgentOrgRunStatus::Failed,
+        AgentOrgRunStatus::Archived,
+    ] {
+        assert_eq!(AgentOrgRunStatus::parse(status.as_str()), Some(status));
+    }
+    for retired in ["completed", "cancelled", "abandoned", "unknown"] {
+        assert_eq!(AgentOrgRunStatus::parse(retired), None);
+    }
+}
+
+#[test]
+fn canonical_schema_snapshot_contains_only_the_long_lived_run_states() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_runtime_schemas();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let run_ddl: String = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master
+             WHERE type='table' AND name='agent_org_runs'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("canonical Agent Org run DDL");
+    let status_ddl = run_ddl
+        .split_once("status TEXT")
+        .and_then(|(_, tail)| tail.split_once("activation_generation"))
+        .map(|(status_ddl, _)| status_ddl)
+        .expect("isolated run-status CHECK");
+    for status in [
+        "starting", "running", "paused", "idle", "failed", "archived",
+    ] {
+        assert!(
+            status_ddl.contains(&format!("'{status}'")),
+            "DDL: {status_ddl}"
+        );
+    }
+    for retired in ["'abandoned'", "'completed'", "'cancelled'"] {
+        assert!(!status_ddl.contains(retired), "DDL: {status_ddl}");
+    }
+
+    let materialization_ddl: String = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master
+             WHERE type='table' AND name='agent_org_member_materializations'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("canonical materialization receipt DDL");
+    assert!(materialization_ddl.contains("PRIMARY KEY(org_run_id, member_id, generation)"));
+    assert!(materialization_ddl.contains("UNIQUE(org_run_id, session_id)"));
+
+    let initial_input_ddl: String = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master
+             WHERE type='table' AND name='agent_org_initial_inputs'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("canonical initial-input DDL");
+    assert!(initial_input_ddl.contains("UNIQUE(turn_intent_id)"));
+    assert!(initial_input_ddl.contains("UNIQUE(message_id)"));
 }
 
 /// Build an `AgentOrgsStore` pre-loaded with a single org definition.
@@ -50,6 +111,35 @@ fn sample_org() -> OrgDefinition {
     }
 }
 
+fn test_upsert_turn_intent_with_connection(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
+    source: crate::foundation::session_bridge::TurnIntentBridgeSource,
+    status: crate::foundation::session_bridge::TurnIntentBridgeStatus,
+) -> Result<(), String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT OR IGNORE INTO session_turn_intents (
+             session_id, turn_intent_id, client_message_id, org_run_id,
+             source, status, created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+        params![
+            session_id,
+            turn_intent_id,
+            client_message_id,
+            org_run_id,
+            source.as_str(),
+            status.as_str(),
+            now,
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 fn ensure_runtime_schemas() {
     let conn = database::db::get_connection().expect("test sqlite connection");
     crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
@@ -76,9 +166,16 @@ fn ensure_runtime_schemas() {
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             PRIMARY KEY (session_id, turn_intent_id)
+        );
+        CREATE TABLE IF NOT EXISTS events (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL
         );",
     )
     .expect("cli session schema");
+    crate::foundation::session_bridge::register_upsert_turn_intent_with_connection(
+        test_upsert_turn_intent_with_connection,
+    );
 }
 
 fn create_run_for_root(org: &OrgDefinition, root_session_id: &str) -> AgentOrgRunRecord {
@@ -95,6 +192,237 @@ fn create_run_for_root(org: &OrgDefinition, root_session_id: &str) -> AgentOrgRu
         routine_fire_id: None,
     })
     .expect("create run")
+}
+
+/// Exercise the production two-step protocol used by lifecycle owners: read a
+/// pure quiescence certificate, then present its exact generation and work
+/// revision to the atomic CAS transition.  Keeping this helper in tests makes
+/// old completion scenarios validate the new protocol instead of recreating the
+/// removed one-shot reconciler.
+fn reconcile_run_to_idle_for_test(run_id: &str) -> Result<AgentOrgRunStatus, String> {
+    let assessment = AgentOrgRunStore::assess_run_quiescence(run_id)?;
+    if assessment.decision == AgentOrgQuiescenceDecision::Quiescent {
+        let generation = assessment
+            .facts
+            .activation_generation
+            .ok_or_else(|| "missing activation generation".to_string())?;
+        let work_revision = assessment
+            .facts
+            .progress
+            .as_ref()
+            .map(|progress| progress.work_revision)
+            .ok_or_else(|| "missing work revision".to_string())?;
+        AgentOrgRunStore::try_transition_working_to_idle(run_id, generation, work_revision)?;
+    }
+    load_by_id(run_id)
+        .map_err(|err| err.to_string())?
+        .map(|run| run.status)
+        .ok_or_else(|| format!("agent_org_run_not_found: {run_id}"))
+}
+
+fn create_starting_fixture(has_initial_work: bool) -> AgentOrgRunRecord {
+    ensure_runtime_schemas();
+    let org = sample_org();
+    upsert_session_row_for_member(
+        "starting-root",
+        None,
+        Some("agent-coord"),
+        Some(COORDINATOR_MEMBER_ID),
+        SessionStatus::Idle.as_str(),
+    );
+    AgentOrgRunStore::create_starting(CreateStartingAgentOrgRunParams {
+        org_id: org.id.clone(),
+        coordinator_agent_id: org.agent_id.clone(),
+        root_session_id: "starting-root".to_string(),
+        org_snapshot: org,
+        entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+        work_item_id: None,
+        project_slug: None,
+        routine_fire_id: None,
+        materialization_intents: vec![
+            CreateAgentOrgMaterializationIntent {
+                member_id: COORDINATOR_MEMBER_ID.to_string(),
+                agent_id: "agent-coord".to_string(),
+                session_id: "starting-root".to_string(),
+                succeeded: true,
+            },
+            CreateAgentOrgMaterializationIntent {
+                member_id: "member-w1".to_string(),
+                agent_id: "agent-w1".to_string(),
+                session_id: "starting-member-w1".to_string(),
+                succeeded: false,
+            },
+        ],
+        initial_input: has_initial_work.then(|| CreateAgentOrgInitialInput {
+            turn_intent_id: "starting-turn".to_string(),
+            message_id: "starting-message".to_string(),
+            content: "Start the work".to_string(),
+            payload_json: serde_json::json!({
+                "version": 1,
+                "images": ["image-a"],
+                "ideContext": null,
+                "subAgentIds": [],
+            })
+            .to_string(),
+        }),
+    })
+    .expect("create Starting fixture")
+}
+
+#[test]
+fn starting_creation_commits_exact_roster_and_initial_input_receipts() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run = create_starting_fixture(true);
+
+    assert_eq!(run.status, AgentOrgRunStatus::Starting);
+    assert_eq!(run.activation_generation, 1);
+    assert!(run.has_initial_work);
+    let receipts = AgentOrgRunStore::materializations(&run.id).expect("load receipts");
+    assert_eq!(receipts.len(), 2);
+    assert_eq!(receipts[0].session_id, "starting-root");
+    assert_eq!(receipts[0].status, AgentOrgMaterializationStatus::Succeeded);
+    assert_eq!(receipts[1].session_id, "starting-member-w1");
+    assert_eq!(receipts[1].status, AgentOrgMaterializationStatus::Pending);
+    let input = AgentOrgRunStore::initial_input(&run.id)
+        .expect("load initial input")
+        .expect("initial input exists");
+    assert_eq!(input.turn_intent_id, "starting-turn");
+    assert!(input.payload_json.contains("image-a"));
+}
+
+#[test]
+fn starting_finish_requires_exact_member_and_input_durability_then_is_idempotent() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run = create_starting_fixture(true);
+    assert!(AgentOrgRunStore::finish_starting(&run.id, 1)
+        .expect_err("pending member must block Starting")
+        .contains("receipt(s) incomplete"));
+
+    upsert_session_row_for_member(
+        "starting-member-w1",
+        Some("starting-root"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        SessionStatus::Idle.as_str(),
+    );
+    assert!(AgentOrgRunStore::mark_materialization_succeeded(
+        &run.id,
+        "member-w1",
+        1,
+        "starting-member-w1",
+    )
+    .expect("certify stable member"));
+    assert!(!AgentOrgRunStore::mark_materialization_succeeded(
+        &run.id,
+        "member-w1",
+        1,
+        "starting-member-w1",
+    )
+    .expect("retry same receipt"));
+    assert!(AgentOrgRunStore::finish_starting(&run.id, 1)
+        .expect_err("missing initial EventStore row must block Starting")
+        .contains("not durably materialized"));
+
+    crate::session::persistence::save_user_msg_with_id(
+        "starting-message",
+        "starting-root",
+        "Start the work",
+    )
+    .expect("persist transcript input");
+    database::db::get_connection()
+        .expect("db")
+        .execute(
+            "INSERT INTO events (id, session_id) VALUES (?1, ?2)",
+            params!["user-message-starting-message", "starting-root"],
+        )
+        .expect("persist EventStore proof");
+
+    assert_eq!(
+        AgentOrgRunStore::finish_starting(&run.id, 1).expect("finish Starting"),
+        AgentOrgRunStatus::Running
+    );
+    assert_eq!(
+        AgentOrgRunStore::finish_starting(&run.id, 1).expect("idempotent finish"),
+        AgentOrgRunStatus::Running
+    );
+    let conn = database::db::get_connection().expect("db");
+    let member_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_sessions WHERE session_id='starting-member-w1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count stable member identity");
+    assert_eq!(member_count, 1);
+    let turn_status: String = conn
+        .query_row(
+            "SELECT status FROM session_turn_intents
+             WHERE session_id='starting-root' AND turn_intent_id='starting-turn'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("load durable initial Turn Intent");
+    assert_eq!(turn_status, "queued");
+}
+
+#[test]
+fn starting_without_initial_work_finishes_idle() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run = create_starting_fixture(false);
+    upsert_session_row_for_member(
+        "starting-member-w1",
+        Some("starting-root"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        SessionStatus::Idle.as_str(),
+    );
+    AgentOrgRunStore::mark_materialization_succeeded(&run.id, "member-w1", 1, "starting-member-w1")
+        .expect("certify stable member");
+
+    assert_eq!(
+        AgentOrgRunStore::finish_starting(&run.id, 1).expect("finish no-work Starting"),
+        AgentOrgRunStatus::Idle
+    );
+    assert!(load_by_id(&run.id)
+        .expect("load run")
+        .expect("run exists")
+        .idled_at
+        .is_some());
+}
+
+#[test]
+fn starting_finish_revalidates_every_certified_session_identity() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run = create_starting_fixture(false);
+    upsert_session_row_for_member(
+        "starting-member-w1",
+        Some("starting-root"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        SessionStatus::Idle.as_str(),
+    );
+    AgentOrgRunStore::mark_materialization_succeeded(&run.id, "member-w1", 1, "starting-member-w1")
+        .expect("certify stable member");
+    database::db::get_connection()
+        .expect("db")
+        .execute(
+            "UPDATE agent_sessions
+             SET parent_session_id='wrong-root'
+             WHERE session_id='starting-member-w1'",
+            [],
+        )
+        .expect("corrupt certified identity after receipt");
+
+    let error = AgentOrgRunStore::finish_starting(&run.id, 1)
+        .expect_err("a stale receipt must not authorize Starting completion");
+    assert!(error.starts_with("materialization_identity_mismatch:"));
+    assert_eq!(
+        AgentOrgRunStore::load(&run.id)
+            .expect("load Starting run")
+            .expect("run exists")
+            .status,
+        AgentOrgRunStatus::Starting
+    );
 }
 
 #[test]
@@ -253,7 +581,7 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
 }
 
 #[test]
-fn delete_by_id_preserves_nested_run_intents_and_finality_isolation() {
+fn delete_by_id_preserves_nested_run_intents_and_quiescence_isolation() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
     let outer = create_run_for_root(&org, "outer-root");
@@ -301,15 +629,15 @@ fn delete_by_id_preserves_nested_run_intents_and_finality_isolation() {
     .expect("seed independently owned intents");
 
     let outer_assessment =
-        AgentOrgRunStore::assess_run_finality(&outer.id).expect("assess outer run finality");
+        AgentOrgRunStore::assess_run_quiescence(&outer.id).expect("assess outer run quiescence");
     assert_eq!(
         outer_assessment.facts.in_flight_turn_intent_count, 1,
-        "nested run work must not block outer run finality"
+        "nested run work must not block outer run quiescence"
     );
     assert_eq!(outer_assessment.facts.worker_sessions.len(), 1);
     assert_eq!(
         outer_assessment.facts.worker_sessions[0].session_id, "outer-worker",
-        "a Running worker owned by a nested run must not block outer finality"
+        "a Running worker owned by a nested run must not block outer quiescence"
     );
 
     AgentOrgRunStore::delete_by_id(&outer.id).expect("delete outer run");
@@ -361,7 +689,7 @@ fn recursive_session_queries_terminate_on_parent_cycle() {
         descendants.len() <= 3,
         "cycle must not duplicate descendants"
     );
-    AgentOrgRunStore::assess_run_finality(&run.id).expect("cyclic finality scan terminates");
+    AgentOrgRunStore::assess_run_quiescence(&run.id).expect("cyclic quiescence scan terminates");
 
     let conn = database::db::get_connection().expect("test sqlite connection");
     let now = chrono::Utc::now().to_rfc3339();
@@ -756,7 +1084,7 @@ fn find_worker_session_by_member_id_picks_most_recent_when_multi_instance() {
 }
 
 #[test]
-fn cross_transport_duplicate_member_uses_fresh_rust_session_and_does_not_block_finality() {
+fn cross_transport_duplicate_member_uses_fresh_rust_session_and_does_not_block_quiescence() {
     use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
     let _sandbox = test_helpers::test_env::sandbox();
@@ -837,16 +1165,16 @@ fn cross_transport_duplicate_member_uses_fresh_rust_session_and_does_not_block_f
     mark_coordinator_observed_current_work(&run.id);
     stamp_coordinator_terminal_turn("coord-root-cross-transport");
 
-    let assessment = AgentOrgRunStore::assess_run_finality(&run.id).expect("assess finality");
+    let assessment = AgentOrgRunStore::assess_run_quiescence(&run.id).expect("assess quiescence");
     assert_eq!(assessment.facts.worker_sessions.len(), 1);
     assert_eq!(
         assessment.facts.worker_sessions[0].session_id,
         "rust-worker-current"
     );
-    assert_eq!(assessment.decision, AgentOrgFinalityDecision::Complete);
+    assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::Quiescent);
     assert_eq!(
-        AgentOrgRunStore::reconcile_run_finality(&run.id).expect("reconcile finality"),
-        Some(AgentOrgRunStatus::Completed),
+        reconcile_run_to_idle_for_test(&run.id).expect("transition to idle"),
+        AgentOrgRunStatus::Idle,
         "the stale CLI Running row must not keep the run falsely active"
     );
 }
@@ -923,7 +1251,7 @@ fn coordinator_observation_records_only_the_exact_presented_revision() {
 }
 
 #[test]
-fn reconcile_run_finality_completes_run_when_all_tasks_completed() {
+fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
     use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
     let _sandbox = test_helpers::test_env::sandbox();
@@ -985,8 +1313,8 @@ fn reconcile_run_finality_completes_run_when_all_tasks_completed() {
         )
         .expect("advance pending turn intent");
         assert_eq!(
-            AgentOrgRunStore::reconcile_run_finality(&run.id).expect("reconcile pending intent"),
-            Some(AgentOrgRunStatus::Running),
+            reconcile_run_to_idle_for_test(&run.id).expect("reconcile pending intent"),
+            AgentOrgRunStatus::Running,
             "a {pending_status} turn intent must keep the run open"
         );
     }
@@ -1004,12 +1332,12 @@ fn reconcile_run_finality_completes_run_when_all_tasks_completed() {
         )
         .expect("set terminal turn intent");
         assert_eq!(
-            AgentOrgRunStore::reconcile_run_finality(&run.id).expect("reconcile terminal intent"),
-            Some(AgentOrgRunStatus::Completed),
+            reconcile_run_to_idle_for_test(&run.id).expect("reconcile terminal intent"),
+            AgentOrgRunStatus::Idle,
             "a {terminal_status} turn intent must not keep the run open"
         );
         conn.execute(
-            "UPDATE agent_org_runs SET status='running', completed_at=NULL WHERE id=?1",
+            "UPDATE agent_org_runs SET status='running', idled_at=NULL WHERE id=?1",
             params![&run.id],
         )
         .expect("reset run for next terminal status");
@@ -1037,13 +1365,12 @@ fn reconcile_run_finality_completes_run_when_all_tasks_completed() {
         1
     );
     assert_eq!(
-        AgentOrgRunStore::reconcile_resolved_running_runs_on_startup()
-            .expect("startup reconcile ok"),
-        1
+        reconcile_run_to_idle_for_test(&run.id).expect("explicit lifecycle reconcile ok"),
+        AgentOrgRunStatus::Idle
     );
     let reloaded = load_by_id(&run.id).expect("load run").expect("run exists");
-    assert_eq!(reloaded.status, AgentOrgRunStatus::Completed);
-    assert!(reloaded.completed_at.is_some());
+    assert_eq!(reloaded.status, AgentOrgRunStatus::Idle);
+    assert!(reloaded.idled_at.is_some());
     let legacy_cleared_at: Option<String> = conn
         .query_row(
             "SELECT cleared_at FROM agent_member_interventions
@@ -1056,7 +1383,7 @@ fn reconcile_run_finality_completes_run_when_all_tasks_completed() {
 }
 
 #[test]
-fn reconcile_completes_normal_idle_run_only_after_inbox_is_drained() {
+fn quiescence_idles_run_only_after_inbox_is_drained() {
     use crate::coordination::agent_inbox::{
         AgentInboxStore, AgentMessage, InsertInboxParams, SYSTEM_SENDER_ID,
     };
@@ -1113,20 +1440,20 @@ fn reconcile_completes_normal_idle_run_only_after_inbox_is_drained() {
     stamp_coordinator_terminal_turn("coord-root-idle-complete");
 
     assert_eq!(
-        AgentOrgRunStore::reconcile_run_finality(&run.id).unwrap(),
-        Some(AgentOrgRunStatus::Running),
-        "unread completion facts must be delivered before finality"
+        reconcile_run_to_idle_for_test(&run.id).unwrap(),
+        AgentOrgRunStatus::Running,
+        "unread completion facts must be delivered before quiescence"
     );
     AgentInboxStore::mark_many_read(&[row.id]).unwrap();
     assert_eq!(
-        AgentOrgRunStore::reconcile_run_finality(&run.id).unwrap(),
-        Some(AgentOrgRunStatus::Completed),
-        "normal successful members settle to Idle and must still allow run completion"
+        reconcile_run_to_idle_for_test(&run.id).unwrap(),
+        AgentOrgRunStatus::Idle,
+        "normal successful members settle to Idle and must allow the Team to become Idle"
     );
 }
 
 #[test]
-fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_finality() {
+fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_quiescence() {
     use crate::coordination::agent_inbox::{
         AgentInboxDeliveryResolutionKind, AgentInboxStore, AgentMessage, ResolveInboxDeliveryParams,
     };
@@ -1188,9 +1515,9 @@ fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_finality() {
     .expect("seed historical orphan row");
     let inbox_id = conn.last_insert_rowid();
 
-    let before = AgentOrgRunStore::assess_run_finality(&run.id).expect("assess before repair");
+    let before = AgentOrgRunStore::assess_run_quiescence(&run.id).expect("assess before repair");
     assert_eq!(before.facts.unread_inbox_count, 1);
-    assert_eq!(before.decision, AgentOrgFinalityDecision::KeepRunning);
+    assert_eq!(before.decision, AgentOrgQuiescenceDecision::KeepWorking);
 
     AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
         inbox_id,
@@ -1203,12 +1530,12 @@ fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_finality() {
     })
     .expect("resolve undeliverable delivery");
 
-    let after = AgentOrgRunStore::assess_run_finality(&run.id).expect("assess after repair");
+    let after = AgentOrgRunStore::assess_run_quiescence(&run.id).expect("assess after repair");
     assert_eq!(after.facts.unread_inbox_count, 0);
-    assert_eq!(after.decision, AgentOrgFinalityDecision::Complete);
+    assert_eq!(after.decision, AgentOrgQuiescenceDecision::Quiescent);
     assert_eq!(
-        AgentOrgRunStore::reconcile_run_finality(&run.id).expect("reconcile repaired run"),
-        Some(AgentOrgRunStatus::Completed)
+        reconcile_run_to_idle_for_test(&run.id).expect("transition repaired run"),
+        AgentOrgRunStatus::Idle
     );
     let evidence = AgentInboxStore::get_by_id_for_run(&run.id, inbox_id)
         .unwrap()
@@ -1220,7 +1547,7 @@ fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_finality() {
 }
 
 #[test]
-fn startup_reconcile_completes_empty_board_with_explicit_completion_intent() {
+fn explicit_lifecycle_reconcile_idles_empty_board_with_completion_intent() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
     let run = create_run_for_root(&org, "coord-root-empty-complete");
@@ -1235,21 +1562,20 @@ fn startup_reconcile_completes_empty_board_with_explicit_completion_intent() {
         .expect("record explicit empty-board completion intent");
 
     assert_eq!(
-        AgentOrgRunStore::reconcile_resolved_running_runs_on_startup()
-            .expect("startup reconcile empty board"),
-        1
+        reconcile_run_to_idle_for_test(&run.id).expect("reconcile empty board"),
+        AgentOrgRunStatus::Idle
     );
     assert_eq!(
         load_by_id(&run.id)
             .expect("load run")
             .expect("run exists")
             .status,
-        AgentOrgRunStatus::Completed
+        AgentOrgRunStatus::Idle
     );
 }
 
 #[test]
-fn reconcile_run_finality_abandons_run_with_open_work_only_after_all_sessions_archived() {
+fn archived_sessions_with_open_work_do_not_auto_archive_the_run() {
     use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
     let _sandbox = test_helpers::test_env::sandbox();
@@ -1313,11 +1639,11 @@ fn reconcile_run_finality_abandons_run_with_open_work_only_after_all_sessions_ar
     })
     .expect("create open task");
 
-    let status = AgentOrgRunStore::reconcile_run_finality(&run.id).expect("reconcile ok");
-    assert_eq!(status, Some(AgentOrgRunStatus::Abandoned));
+    let status = reconcile_run_to_idle_for_test(&run.id).expect("reconcile ok");
+    assert_eq!(status, AgentOrgRunStatus::Running);
     let reloaded = load_by_id(&run.id).expect("load run").expect("run exists");
-    assert_eq!(reloaded.status, AgentOrgRunStatus::Abandoned);
-    assert!(reloaded.completed_at.is_some());
+    assert_eq!(reloaded.status, AgentOrgRunStatus::Running);
+    assert!(reloaded.idled_at.is_none());
 }
 
 #[test]
@@ -1358,32 +1684,32 @@ fn failed_or_cancelled_sessions_do_not_abandon_recoverable_open_work() {
     .expect("create recoverable task");
 
     assert_eq!(
-        AgentOrgRunStore::reconcile_run_finality(&run.id).expect("reconcile"),
-        Some(AgentOrgRunStatus::Running)
+        reconcile_run_to_idle_for_test(&run.id).expect("reconcile"),
+        AgentOrgRunStatus::Running
     );
 }
 
 #[test]
-fn reconcile_and_task_create_have_one_serializable_outcome() {
+fn idle_cas_and_task_create_have_one_serializable_outcome() {
     use std::sync::{Arc, Barrier};
 
     use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
-    let run = create_run_for_root(&org, "coord-root-finality-race");
+    let run = create_run_for_root(&org, "coord-root-quiescence-race");
     upsert_session_row_full(
-        "coord-root-finality-race",
+        "coord-root-quiescence-race",
         None,
         Some("agent-coord"),
         SessionStatus::Completed.as_str(),
     );
     upsert_session(&UnifiedSessionRecord {
-        session_id: "worker-finality-race".to_string(),
+        session_id: "worker-quiescence-race".to_string(),
         name: "worker".to_string(),
         status: SessionStatus::Completed.as_str().to_string(),
         session_type: crate::core::session::persistence::session_type::ORG_MEMBER.to_string(),
-        parent_session_id: Some("coord-root-finality-race".to_string()),
+        parent_session_id: Some("coord-root-quiescence-race".to_string()),
         agent_definition_id: Some("agent-w1".to_string()),
         org_member_id: Some("member-w1".to_string()),
         created_at: chrono::Utc::now().to_rfc3339(),
@@ -1405,14 +1731,14 @@ fn reconcile_and_task_create_have_one_serializable_outcome() {
     })
     .unwrap();
     mark_coordinator_observed_current_work(&run.id);
-    stamp_coordinator_terminal_turn("coord-root-finality-race");
+    stamp_coordinator_terminal_turn("coord-root-quiescence-race");
 
     let barrier = Arc::new(Barrier::new(2));
     let reconcile_barrier = Arc::clone(&barrier);
     let reconcile_run_id = run.id.clone();
     let reconcile = std::thread::spawn(move || {
         reconcile_barrier.wait();
-        AgentOrgRunStore::reconcile_run_finality(&reconcile_run_id)
+        reconcile_run_to_idle_for_test(&reconcile_run_id)
     });
     let create_barrier = Arc::clone(&barrier);
     let create_run_id = run.id.clone();
@@ -1435,17 +1761,17 @@ fn reconcile_and_task_create_have_one_serializable_outcome() {
         })
     });
 
-    let status = reconcile.join().unwrap().unwrap().unwrap();
+    let status = reconcile.join().unwrap().unwrap();
     let created = create.join().unwrap();
     match (status, created) {
-        (AgentOrgRunStatus::Completed, Err(error)) => {
+        (AgentOrgRunStatus::Idle, Err(error)) => {
             assert!(error.contains("agent_org_run_not_mutable"), "got {error}");
         }
         // The create committed first. Reconcile then sees recoverable open
         // work and correctly leaves the Run Running; this is the other valid
         // serial order. Abandoning here would lose a newly-created task.
         (AgentOrgRunStatus::Running, Ok(task)) => assert_eq!(task.id, "racing-task"),
-        (status, result) => panic!("non-serializable finality result: {status:?}, {result:?}"),
+        (status, result) => panic!("non-serializable quiescence result: {status:?}, {result:?}"),
     }
 }
 

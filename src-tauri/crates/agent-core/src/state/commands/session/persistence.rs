@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::interaction::plan_approval::persistence::PlanApprovalStore;
@@ -52,8 +51,6 @@ pub async fn agent_list_all_sessions() -> Result<Vec<serde_json::Value>, String>
 }
 
 const MAX_AGENT_ORG_DELETE_SESSIONS: usize = 1_024;
-const AGENT_ORG_DELETE_STOP_TIMEOUT: Duration = Duration::from_secs(10);
-const AGENT_ORG_DELETE_STOP_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,46 +100,14 @@ pub async fn agent_delete_session(
         });
     };
 
-    let (plan, quiesced_runtime_session_ids) = if matches!(
-        plan.run_status,
-        crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-    ) {
-        let fenced_plan =
-            tokio::task::spawn_blocking(move || establish_agent_org_delete_fence(&plan))
-                .await
-                .map_err(|err| format!("Agent Org deletion fence worker failed: {err}"))??;
-        let quiesced_runtime_session_ids = if fenced_plan.run_status
-            == crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-        {
-            stop_agent_org_runtime_sessions(&state, &fenced_plan).await?
-        } else {
-            ensure_agent_org_runtime_sessions_idle(&state, &fenced_plan).await?;
-            HashSet::new()
-        };
-        let root_session_id = fenced_plan.root_session_id.clone();
-        let current_plan = tokio::task::spawn_blocking(move || {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            load_agent_org_session_delete_plan(&conn, &root_session_id)?.ok_or_else(|| {
-                format!(
-                    "Refusing to delete Agent Org root {root_session_id}: ownership disappeared while stopping"
-                )
-            })
-        })
-        .await
-        .map_err(|err| format!("Agent Org post-stop planning worker failed: {err}"))??;
-        if !agent_org_delete_topology_matches(&fenced_plan, &current_plan) {
-            return Err(format!(
-                "Refusing to delete Agent Org run {}: session hierarchy changed while stopping",
-                fenced_plan.run_id
-            ));
-        }
-        (current_plan, quiesced_runtime_session_ids)
-    } else {
-        ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
-        (plan, HashSet::new())
-    };
+    if plan.run_status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
+        return Err(format!(
+            "Refusing to delete Agent Org run {}: Archive is required before Delete",
+            plan.run_id
+        ));
+    }
+    ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
+    let quiesced_runtime_session_ids = HashSet::new();
 
     validate_agent_org_delete_ready(&plan, &quiesced_runtime_session_ids)?;
     ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
@@ -375,89 +340,11 @@ fn load_agent_org_session_delete_plan(
     }))
 }
 
-fn agent_org_delete_topology_matches(
-    expected: &AgentOrgSessionDeletePlan,
-    current: &AgentOrgSessionDeletePlan,
-) -> bool {
-    expected.run_id == current.run_id
-        && expected.root_session_id == current.root_session_id
-        && expected.sessions.len() == current.sessions.len()
-        && expected
-            .sessions
-            .iter()
-            .zip(&current.sessions)
-            .all(|(left, right)| {
-                left.session_id == right.session_id
-                    && left.parent_session_id == right.parent_session_id
-                    && left.depth == right.depth
-            })
-}
-
-fn establish_agent_org_delete_fence(
-    expected_plan: &AgentOrgSessionDeletePlan,
-) -> Result<AgentOrgSessionDeletePlan, String> {
-    let (current_plan, changed) = with_sessions_writer(|| {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|err| err.to_string())?;
-        let mut current_plan =
-            load_agent_org_session_delete_plan(&tx, &expected_plan.root_session_id)?.ok_or_else(
-                || {
-                    format!(
-                "Refusing to delete Agent Org run {}: root ownership changed before stopping",
-                expected_plan.run_id
-            )
-                },
-            )?;
-        if !agent_org_delete_topology_matches(expected_plan, &current_plan) {
-            return Err(format!(
-                "Refusing to delete Agent Org run {}: session hierarchy changed before stopping",
-                expected_plan.run_id
-            ));
-        }
-
-        let changed = match current_plan.run_status {
-            crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused => {
-                let changed =
-                    AgentOrgRunStore::cancel_for_delete_with_connection(&tx, &current_plan.run_id)?;
-                if !changed {
-                    return Err(format!(
-                        "Refusing to delete Agent Org run {}: run status changed before cancellation",
-                        current_plan.run_id
-                    ));
-                }
-                current_plan.run_status =
-                    crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled;
-                true
-            }
-            crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled => false,
-            status if status.is_terminal() => false,
-            status => {
-                return Err(format!(
-                    "Refusing to delete Agent Org run {}: unsupported run status {}",
-                    current_plan.run_id,
-                    status.as_str()
-                ));
-            }
-        };
-        tx.commit().map_err(|err| err.to_string())?;
-        Ok::<_, String>((current_plan, changed))
-    })?;
-    if changed {
-        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
-            &current_plan.run_id,
-        );
-    }
-    Ok(current_plan)
-}
-
 fn validate_agent_org_delete_ready(
     plan: &AgentOrgSessionDeletePlan,
-    quiesced_runtime_session_ids: &HashSet<String>,
+    _quiesced_runtime_session_ids: &HashSet<String>,
 ) -> Result<(), String> {
-    if !plan.run_status.is_terminal() {
+    if plan.run_status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
         return Err(format!(
             "Refusing to delete Agent Org run {}: run status is {}",
             plan.run_id,
@@ -466,13 +353,7 @@ fn validate_agent_org_delete_ready(
     }
 
     for node in &plan.sessions {
-        let allowed = node.status == SessionStatus::Idle
-            || node.status.is_terminal()
-            || (plan.run_status
-                == crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-                && (matches!(node.status, SessionStatus::Pending | SessionStatus::Paused)
-                    || (node.status.is_in_flight()
-                        && quiesced_runtime_session_ids.contains(&node.session_id))));
+        let allowed = node.status == SessionStatus::Idle || node.status.is_terminal();
         if !allowed {
             return Err(format!(
                 "Refusing to delete Agent Org run {}: session {} status is {}",
@@ -516,47 +397,6 @@ async fn agent_org_runtime_blockers(
         }
     }
     blockers
-}
-
-async fn stop_agent_org_runtime_sessions(
-    state: &AgentAppState,
-    plan: &AgentOrgSessionDeletePlan,
-) -> Result<HashSet<String>, String> {
-    stop_agent_org_runtime_sessions_with_timeout(state, plan, AGENT_ORG_DELETE_STOP_TIMEOUT).await
-}
-
-async fn stop_agent_org_runtime_sessions_with_timeout(
-    state: &AgentAppState,
-    plan: &AgentOrgSessionDeletePlan,
-    timeout: Duration,
-) -> Result<HashSet<String>, String> {
-    let runtime_sessions = agent_org_runtime_sessions(state, plan).await;
-    let runtime_session_ids = runtime_sessions
-        .iter()
-        .map(|(session_id, _)| session_id.clone())
-        .collect::<HashSet<_>>();
-
-    for (_, session) in &runtime_sessions {
-        session
-            .cancel_active_turn(CancelReason::AgentOrgDelete)
-            .await;
-    }
-
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let blockers = agent_org_runtime_blockers(&runtime_sessions).await;
-        if blockers.is_empty() {
-            return Ok(runtime_session_ids);
-        }
-        if tokio::time::Instant::now() >= deadline {
-            return Err(format!(
-                "Timed out stopping Agent Org run {} before deletion: {}",
-                plan.run_id,
-                blockers.join(", ")
-            ));
-        }
-        tokio::time::sleep(AGENT_ORG_DELETE_STOP_POLL_INTERVAL).await;
-    }
 }
 
 async fn ensure_agent_org_runtime_sessions_idle(
@@ -1102,7 +942,7 @@ mod tests {
     }
 
     fn seed_run(run_id: &str, root_session_id: &str) {
-        seed_run_with_status(run_id, root_session_id, "completed");
+        seed_run_with_status(run_id, root_session_id, "archived");
     }
 
     fn seed_session_owned_rows(session_id: &str) {
@@ -1273,7 +1113,7 @@ mod tests {
     }
 
     #[test]
-    fn session_hierarchy_delete_fences_active_run_and_requires_quiesced_sessions() {
+    fn session_hierarchy_delete_requires_archived_without_mutating_active_run() {
         let _sandbox = test_helpers::test_env::sandbox();
         ensure_test_schemas();
         let root = "hierarchy-active-root";
@@ -1287,11 +1127,9 @@ mod tests {
             .expect("load running hierarchy")
             .expect("root owns run");
         drop(conn);
-        let fenced = establish_agent_org_delete_fence(&plan).expect("cancel run for deletion");
-        assert_eq!(
-            fenced.run_status,
-            crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-        );
+        let error = validate_agent_org_delete_ready(&plan, &HashSet::new())
+            .expect_err("Delete must fail closed before the Archive transition exists");
+        assert!(error.contains("run status is running"));
         assert_eq!(
             get_connection()
                 .expect("sandbox DB")
@@ -1300,18 +1138,9 @@ mod tests {
                     [],
                     |row| row.get::<_, String>(0)
                 )
-                .expect("load fenced status"),
-            "cancelled"
+                .expect("load unchanged status"),
+            "running"
         );
-
-        let error = validate_agent_org_delete_ready(&fenced, &HashSet::new())
-            .expect_err("unobserved running worker must fail closed");
-        assert!(error.contains(worker));
-        assert!(error.contains("running"));
-
-        let quiesced = HashSet::from([worker.to_string()]);
-        validate_agent_org_delete_ready(&fenced, &quiesced)
-            .expect("a stopped live runtime may retain a stale running row");
         assert!(row_exists("agent_sessions", "session_id", root));
         assert!(row_exists("agent_sessions", "session_id", worker));
         assert!(row_exists("agent_org_runs", "id", "hierarchy-active-run"));
@@ -1599,186 +1428,5 @@ mod tests {
             "id",
             "hierarchy-trigger-change-run"
         ));
-    }
-
-    #[tokio::test]
-    async fn session_hierarchy_delete_stops_active_runtime_and_discards_pending_work() {
-        let _sandbox = test_helpers::test_env::sandbox();
-        ensure_test_schemas();
-        let root = "hierarchy-runtime-root";
-        let state = AgentAppState::new();
-        let root_runtime = std::sync::Arc::new(crate::state::AgentSession::new(
-            root.to_string(),
-            crate::definitions::AgentDefinition::default(),
-        ));
-        let turn_started = std::sync::Arc::new(tokio::sync::Notify::new());
-        let turn_started_for_job = std::sync::Arc::clone(&turn_started);
-        let runtime_for_job = std::sync::Arc::clone(&root_runtime);
-        root_runtime
-            .scheduler
-            .enqueue(crate::session::ScheduledMessage {
-                kind: crate::session::ScheduledKind::Turn,
-                message_id: "hierarchy-runtime-processing".to_string(),
-                generation: 0,
-                client_message_id: None,
-                turn_intent_id: "hierarchy-runtime-processing-intent".to_string(),
-                org_run_id: Some("hierarchy-runtime-run".to_string()),
-                content: String::new(),
-                execute: Box::new(move || {
-                    let runtime = std::sync::Arc::clone(&runtime_for_job);
-                    let started = std::sync::Arc::clone(&turn_started_for_job);
-                    Box::pin(async move {
-                        runtime.begin_turn("still running".to_string()).await;
-                        started.notify_one();
-                        while !runtime
-                            .cancel_flag
-                            .load(std::sync::atomic::Ordering::SeqCst)
-                        {
-                            tokio::task::yield_now().await;
-                        }
-                        runtime
-                            .end_turn(
-                                crate::session::DialogTurnState::Cancelled,
-                                crate::session::TurnStats::default(),
-                            )
-                            .await;
-                        Err("cancelled for hierarchy deletion".to_string())
-                    })
-                }),
-            })
-            .await
-            .expect("enqueue processing work");
-        tokio::time::timeout(std::time::Duration::from_secs(1), turn_started.notified())
-            .await
-            .expect("turn starts processing");
-        let pending_executed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let pending_executed_for_job = std::sync::Arc::clone(&pending_executed);
-        root_runtime
-            .scheduler
-            .enqueue(crate::session::ScheduledMessage {
-                kind: crate::session::ScheduledKind::Turn,
-                message_id: "hierarchy-runtime-pending".to_string(),
-                generation: 0,
-                client_message_id: None,
-                turn_intent_id: "hierarchy-runtime-pending-intent".to_string(),
-                org_run_id: Some("hierarchy-runtime-run".to_string()),
-                content: String::new(),
-                execute: Box::new(move || {
-                    let executed = std::sync::Arc::clone(&pending_executed_for_job);
-                    Box::pin(async move {
-                        executed.store(true, std::sync::atomic::Ordering::SeqCst);
-                        Ok(String::new())
-                    })
-                }),
-            })
-            .await
-            .expect("enqueue pending work");
-        state
-            .sessions
-            .lock()
-            .await
-            .insert(root.to_string(), std::sync::Arc::clone(&root_runtime));
-        let plan = AgentOrgSessionDeletePlan {
-            run_id: "hierarchy-runtime-run".to_string(),
-            root_session_id: root.to_string(),
-            run_status: crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled,
-            sessions: vec![AgentOrgSessionDeleteNode {
-                session_id: root.to_string(),
-                parent_session_id: None,
-                status: SessionStatus::Running,
-                depth: 0,
-            }],
-        };
-
-        let quiesced = stop_agent_org_runtime_sessions_with_timeout(
-            &state,
-            &plan,
-            std::time::Duration::from_secs(1),
-        )
-        .await
-        .expect("active Rust runtime stops");
-        assert_eq!(quiesced, HashSet::from([root.to_string()]));
-        assert_eq!(root_runtime.scheduler.pending_count(), 0);
-        assert!(!root_runtime.scheduler.is_processing());
-        assert!(root_runtime.active_turn.lock().await.is_none());
-        assert!(!pending_executed.load(std::sync::atomic::Ordering::SeqCst));
-        validate_agent_org_delete_ready(&plan, &quiesced)
-            .expect("quiesced active status is safe behind cancelled fence");
-    }
-
-    #[tokio::test]
-    async fn session_hierarchy_delete_times_out_without_removing_runtime() {
-        let _sandbox = test_helpers::test_env::sandbox();
-        ensure_test_schemas();
-        let root = "hierarchy-runtime-timeout-root";
-        let state = AgentAppState::new();
-        let runtime = std::sync::Arc::new(crate::state::AgentSession::new(
-            root.to_string(),
-            crate::definitions::AgentDefinition::default(),
-        ));
-        let release = std::sync::Arc::new(tokio::sync::Notify::new());
-        let release_for_job = std::sync::Arc::clone(&release);
-        runtime
-            .scheduler
-            .enqueue(crate::session::ScheduledMessage {
-                kind: crate::session::ScheduledKind::Maintenance,
-                message_id: "hierarchy-runtime-timeout".to_string(),
-                generation: 0,
-                client_message_id: None,
-                turn_intent_id: "hierarchy-runtime-timeout-intent".to_string(),
-                org_run_id: Some("hierarchy-runtime-timeout-run".to_string()),
-                content: String::new(),
-                execute: Box::new(move || {
-                    let release = std::sync::Arc::clone(&release_for_job);
-                    Box::pin(async move {
-                        release.notified().await;
-                        Ok(String::new())
-                    })
-                }),
-            })
-            .await
-            .expect("enqueue non-cooperative maintenance");
-        tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            while !runtime.scheduler.is_processing() {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("maintenance starts");
-        state
-            .sessions
-            .lock()
-            .await
-            .insert(root.to_string(), std::sync::Arc::clone(&runtime));
-        let plan = AgentOrgSessionDeletePlan {
-            run_id: "hierarchy-runtime-timeout-run".to_string(),
-            root_session_id: root.to_string(),
-            run_status: crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled,
-            sessions: vec![AgentOrgSessionDeleteNode {
-                session_id: root.to_string(),
-                parent_session_id: None,
-                status: SessionStatus::Running,
-                depth: 0,
-            }],
-        };
-
-        let error = stop_agent_org_runtime_sessions_with_timeout(
-            &state,
-            &plan,
-            std::time::Duration::from_millis(50),
-        )
-        .await
-        .expect_err("non-cooperative work must time out");
-        assert!(error.contains("Timed out stopping"));
-        assert!(error.contains(root));
-        assert!(state.get_session(root).await.is_some());
-        release.notify_one();
-        tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            while runtime.scheduler.is_processing() {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("maintenance finishes after the timeout assertion");
     }
 }

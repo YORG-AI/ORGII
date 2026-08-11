@@ -52,6 +52,9 @@ use core_types::session_event::SessionEvent;
 
 use super::super::persistence as unified_persistence;
 
+pub(crate) const AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX: &str =
+    "agent_org_assistant_persistence_failed:";
+
 fn tool_result_is_error(result: &str) -> bool {
     if result.starts_with("Error") {
         return true;
@@ -123,6 +126,10 @@ pub struct EventHandlerConfig {
     /// Agent Org worker identity used by the bounded task-lifecycle stop gate.
     /// Coordinators and non-org sessions leave this unset.
     pub agent_org_task_lifecycle: Option<AgentOrgTaskLifecycleContext>,
+
+    /// Agent Org work-capable turns may not become terminal until their
+    /// assistant EventStore rows are durably committed.
+    pub require_durable_assistant_event: bool,
 }
 
 /// Durable identity needed to verify that an Agent Org worker did not end a
@@ -170,6 +177,7 @@ pub struct UnifiedEventHandler {
     /// A second miss is reported durably to the coordinator by `MemberIdle`
     /// rather than looping the provider.
     agent_org_lifecycle_correction_emitted: AtomicBool,
+    assistant_persistence_error: Mutex<Option<String>>,
 }
 
 /// Accumulated state for one streaming `create_plan` call.
@@ -242,6 +250,7 @@ impl UnifiedEventHandler {
             plan_draft_streams: Mutex::new(std::collections::HashMap::new()),
             last_context_tokens: std::sync::atomic::AtomicI64::new(0),
             agent_org_lifecycle_correction_emitted: AtomicBool::new(false),
+            assistant_persistence_error: Mutex::new(None),
         }
     }
 
@@ -279,7 +288,7 @@ impl UnifiedEventHandler {
                 sessions.insert(session_id.to_string());
             }
             self.track_retractable_segment(session_id, &event.id);
-            self.push_to_store(session_id, event.clone());
+            self.push_to_store_durable_assistant(session_id, event.clone());
             broadcast_event(
                 "agent:streaming_complete",
                 serde_json::json!({
@@ -308,6 +317,38 @@ impl UnifiedEventHandler {
     /// counter.
     pub fn agent_was_called(&self) -> bool {
         self.agent_called.load(Ordering::Relaxed)
+    }
+
+    pub fn take_assistant_persistence_error(&self) -> Option<String> {
+        self.assistant_persistence_error
+            .lock()
+            .ok()
+            .and_then(|mut error| error.take())
+    }
+
+    fn record_assistant_persistence_error(&self, error: String) {
+        if let Ok(mut slot) = self.assistant_persistence_error.lock() {
+            if slot.is_none() {
+                *slot = Some(error);
+            }
+        }
+    }
+
+    fn push_to_store_durable_assistant(&self, session_id: &str, event: SessionEvent) {
+        if self.is_cancelled() || !self.is_current_turn_generation() {
+            return;
+        }
+        if self.config.require_durable_assistant_event {
+            if let Err(error) = event_pipeline_bridge::persist_events(
+                "agent-org-assistant-final",
+                session_id,
+                std::slice::from_ref(&event),
+                5,
+            ) {
+                self.record_assistant_persistence_error(error);
+            }
+        }
+        self.push_to_store(session_id, event);
     }
 
     /// Push a SessionEvent into the session's EventStore so frontend
@@ -743,6 +784,11 @@ impl TurnEventHandler for UnifiedEventHandler {
                 "[unified_handler] Failed to persist assistant iteration: {}",
                 err
             );
+            if self.config.require_durable_assistant_event {
+                self.record_assistant_persistence_error(format!(
+                    "assistant transcript persistence failed: {err}"
+                ));
+            }
         }
 
         let has_active_message_stream = self
@@ -761,7 +807,7 @@ impl TurnEventHandler for UnifiedEventHandler {
         ) {
             let mut event = event_factory::build_assistant_message_event(session_id, text);
             attach_turn_id(&mut event, self.config.turn_id.as_deref());
-            self.push_to_store(session_id, event);
+            self.push_to_store_durable_assistant(session_id, event);
         }
     }
 
@@ -877,7 +923,7 @@ impl TurnEventHandler for UnifiedEventHandler {
                 // steering queue and is about to be presented to the model.
                 // Never leave its durable intent queued merely because the
                 // transcript write failed: that would block Agent Org
-                // finality forever. Failed is terminal and truthfully records
+                // Quiescence forever. Failed is terminal and truthfully records
                 // that durable persistence did not complete.
                 crate::foundation::session_bridge::update_turn_intent_status(
                     session_id,
@@ -1138,6 +1184,39 @@ mod tests {
     #[test]
     fn assistant_event_pushes_terminal_text_after_prior_streamed_segment() {
         assert!(should_push_assistant_event(false, false, true));
+    }
+
+    #[test]
+    fn agent_org_assistant_persistence_failure_is_retained_for_turn_owner() {
+        let handler = UnifiedEventHandler::new(EventHandlerConfig {
+            require_durable_assistant_event: true,
+            ..Default::default()
+        });
+        let event = super::event_factory::build_assistant_message_event(
+            "agent-org-session",
+            "durable final answer",
+        );
+
+        handler.push_to_store_durable_assistant("agent-org-session", event);
+
+        let error = handler
+            .take_assistant_persistence_error()
+            .expect("unregistered durable EventStore bridge must fail closed");
+        assert!(error.contains("event pipeline persistence is not registered"));
+        assert!(handler.take_assistant_persistence_error().is_none());
+    }
+
+    #[test]
+    fn generic_assistant_event_does_not_require_synchronous_eventstore_commit() {
+        let handler = UnifiedEventHandler::new(EventHandlerConfig::default());
+        let event = super::event_factory::build_assistant_message_event(
+            "generic-session",
+            "ordinary answer",
+        );
+
+        handler.push_to_store_durable_assistant("generic-session", event);
+
+        assert!(handler.take_assistant_persistence_error().is_none());
     }
 
     #[test]

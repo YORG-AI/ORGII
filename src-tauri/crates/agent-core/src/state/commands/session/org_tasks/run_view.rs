@@ -141,6 +141,7 @@ pub struct AgentOrgRunTaskOverview {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentOrgRunPhase {
+    Starting,
     Coordinating,
     Dispatching,
     MembersWorking,
@@ -148,10 +149,9 @@ pub enum AgentOrgRunPhase {
     AwaitingPlanApproval,
     Finalizing,
     Paused,
-    Completed,
+    Idle,
     Failed,
-    Cancelled,
-    Abandoned,
+    Archived,
 }
 
 /// The Run View is a live operational snapshot, not an inbox-history API.
@@ -172,6 +172,7 @@ pub async fn agent_org_session_run_view_impl(
     state: &AgentAppState,
     session_id: &str,
 ) -> Result<Option<AgentOrgRunView>, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(state, session_id).await? else {
         return Ok(None);
     };
@@ -193,7 +194,7 @@ pub async fn agent_org_session_run_view_impl(
     Ok(Some(view))
 }
 
-fn build_agent_org_run_view(
+pub(super) fn build_agent_org_run_view(
     context: &AgentOrgRunContext,
     current_member_id: String,
 ) -> Result<AgentOrgRunView, String> {
@@ -201,8 +202,8 @@ fn build_agent_org_run_view(
     let tx = conn
         .transaction_with_behavior(rusqlite::TransactionBehavior::Deferred)
         .map_err(|err| err.to_string())?;
-    let finality = AgentOrgRunStore::finality_assessment_with_connection(&tx, &context.run_id)?;
-    let run_status_value = finality
+    let quiescence = AgentOrgRunStore::quiescence_assessment_with_connection(&tx, &context.run_id)?;
+    let run_status_value = quiescence
         .facts
         .run_status
         .ok_or_else(|| format!("Agent Org run {} no longer exists", context.run_id))?;
@@ -217,11 +218,11 @@ fn build_agent_org_run_view(
         RUN_VIEW_TASK_LIMIT,
     )?;
     let task_overview = AgentOrgRunTaskOverview {
-        total: finality.facts.task_count,
-        pending: finality.facts.pending_task_count,
-        in_progress: finality.facts.in_progress_task_count,
-        completed: finality.facts.completed_task_count,
-        corrupt: finality.facts.corrupt_task_count,
+        total: quiescence.facts.task_count,
+        pending: quiescence.facts.pending_task_count,
+        in_progress: quiescence.facts.in_progress_task_count,
+        completed: quiescence.facts.completed_task_count,
+        corrupt: quiescence.facts.corrupt_task_count,
         visible: task_page.tasks.len(),
         truncated: task_page.has_more,
     };
@@ -307,7 +308,7 @@ fn build_agent_org_run_view(
         run_status_value,
         &members,
         &task_overview,
-        finality.facts.unread_inbox_count,
+        quiescence.facts.unread_inbox_count,
         &pending_plan_approvals,
     );
 
@@ -322,7 +323,7 @@ fn build_agent_org_run_view(
         tasks,
         task_overview,
         inbox,
-        unread_inbox_count: finality.facts.unread_inbox_count,
+        unread_inbox_count: quiescence.facts.unread_inbox_count,
         pending_plan_approvals,
     })
 }
@@ -335,11 +336,11 @@ pub(super) fn project_run_phase(
     pending_plan_approvals: &[AgentOrgPlanApprovalSummary],
 ) -> AgentOrgRunPhase {
     match run_status {
+        AgentOrgRunStatus::Starting => AgentOrgRunPhase::Starting,
         AgentOrgRunStatus::Paused => AgentOrgRunPhase::Paused,
-        AgentOrgRunStatus::Completed => AgentOrgRunPhase::Completed,
+        AgentOrgRunStatus::Idle => AgentOrgRunPhase::Idle,
         AgentOrgRunStatus::Failed => AgentOrgRunPhase::Failed,
-        AgentOrgRunStatus::Cancelled => AgentOrgRunPhase::Cancelled,
-        AgentOrgRunStatus::Abandoned => AgentOrgRunPhase::Abandoned,
+        AgentOrgRunStatus::Archived => AgentOrgRunPhase::Archived,
         AgentOrgRunStatus::Running => {
             let all_tasks_completed = task_overview.total > 0
                 && task_overview.pending == 0

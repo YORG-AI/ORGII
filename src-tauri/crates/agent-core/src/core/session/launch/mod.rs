@@ -17,8 +17,8 @@ use std::collections::HashMap;
 use tauri::Manager;
 
 use crate::coordination::agent_org_runs::{
-    AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
-    COORDINATOR_MEMBER_ID,
+    AgentOrgRunEntryMode, AgentOrgRunStore, CreateAgentOrgInitialInput,
+    CreateAgentOrgMaterializationIntent, CreateStartingAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 use crate::definitions::orgs::{AgentOrgsStore, OrgMemberLaunchOverride};
 use crate::init::launch_spec::AgentLaunchSpec;
@@ -28,12 +28,13 @@ use crate::state::AgentAppState;
 use project_management::projects::types as project_types;
 
 use launch_helpers::{
-    apply_member_launch_overrides_to_snapshot, derive_name, handle_background_launch_failure,
-    provenance_fields, provenance_lock_reason, validate_launch_agent_definitions,
+    apply_member_launch_overrides_to_snapshot, derive_name, flatten_org_members,
+    handle_background_launch_failure, provenance_fields, provenance_lock_reason,
+    validate_launch_agent_definitions,
 };
 use launch_org::{
-    cleanup_session_after_org_run_create_failure, send_initial_turn,
-    spawn_agent_org_member_materialization,
+    cleanup_session_after_org_run_create_failure, materialize_org_member_sessions,
+    send_initial_turn,
 };
 use launch_workspace::{
     acquire_work_item_execution_lock, prepare_rust_agent_workspace_for_launch,
@@ -41,6 +42,36 @@ use launch_workspace::{
 };
 
 pub(crate) const MAX_AUTO_NAME_LEN: usize = 80;
+
+const AGENT_ORG_INITIAL_INPUT_PAYLOAD_VERSION: u8 = 1;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentOrgInitialInputPayload {
+    version: u8,
+    images: Option<Vec<String>>,
+    ide_context: Option<IdeContext>,
+    sub_agent_ids: Vec<String>,
+}
+
+fn decode_agent_org_initial_input_payload(
+    input: &crate::coordination::agent_org_runs::AgentOrgInitialInput,
+) -> Result<AgentOrgInitialInputPayload, String> {
+    let payload: AgentOrgInitialInputPayload =
+        serde_json::from_str(&input.payload_json).map_err(|error| {
+            format!(
+                "invalid Starting initial input payload for {}: {error}",
+                input.org_run_id
+            )
+        })?;
+    if payload.version != AGENT_ORG_INITIAL_INPUT_PAYLOAD_VERSION {
+        return Err(format!(
+            "unsupported Starting initial input payload version {} for {}",
+            payload.version, input.org_run_id
+        ));
+    }
+    Ok(payload)
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct AgentRunLaunchRequest {
@@ -405,6 +436,9 @@ pub(crate) async fn launch_rust_agent_run(
     org_store: Option<&AgentOrgsStore>,
     request: AgentRunLaunchRequest,
 ) -> Result<AgentRunLaunchResult, String> {
+    if matches!(&request.target, AgentRunTarget::AgentOrg { .. }) {
+        crate::coordination::agent_org_runs::require_agent_org_redesign()?;
+    }
     let (workspace_path, branch, isolate, existing_worktree_path, additional_directories) =
         match &request.workspace {
             WorkspaceLaunchTarget::LocalWorkspace {
@@ -530,6 +564,91 @@ pub(crate) async fn launch_rust_agent_run(
         .as_ref()
         .map(|entry| entry.branch.clone());
 
+    let has_initial_content = !request.content.trim().is_empty();
+    let org_session_key = agent_org_id.as_ref().map(|_| {
+        request
+            .durable_run_id
+            .clone()
+            .unwrap_or_else(|| format!("agent-org-{}", uuid::Uuid::new_v4()))
+    });
+    let expected_root_session_id = org_session_key.as_ref().map(|key| {
+        let prefix = crate::definitions::prefix_lookup::session_prefix_for_launch(
+            agent_definition_id.as_deref(),
+            !workspace_path.is_empty(),
+        );
+        format!("{prefix}{key}")
+    });
+    let initial_turn_intent_id =
+        has_initial_content.then(|| format!("agent-org-initial-turn-{}", uuid::Uuid::new_v4()));
+    let initial_message_id =
+        has_initial_content.then(|| format!("agent-org-initial-message-{}", uuid::Uuid::new_v4()));
+    let initial_input_payload_json = has_initial_content
+        .then(|| {
+            serde_json::to_string(&AgentOrgInitialInputPayload {
+                version: AGENT_ORG_INITIAL_INPUT_PAYLOAD_VERSION,
+                images: request.images.clone(),
+                ide_context: request.ide_context.clone(),
+                sub_agent_ids: request.sub_agent_ids.clone(),
+            })
+            .map_err(|error| format!("serialize Agent Org initial input: {error}"))
+        })
+        .transpose()?;
+
+    // Build the construction envelope before any Team lifecycle row exists.
+    // The already-persisted coordinator is certified in the same transaction
+    // as Starting and the remaining stable member identities.
+    let starting_params = match (
+        agent_org_id.as_ref(),
+        coordinator_agent_id.as_ref(),
+        effective_org_definition.as_ref(),
+        expected_root_session_id.as_ref(),
+    ) {
+        (Some(org_id), Some(coordinator_id), Some(org_snapshot), Some(root_session_id)) => {
+            let mut materialization_intents = vec![CreateAgentOrgMaterializationIntent {
+                member_id: COORDINATOR_MEMBER_ID.to_string(),
+                agent_id: coordinator_id.clone(),
+                session_id: root_session_id.clone(),
+                succeeded: true,
+            }];
+            for member in flatten_org_members(&org_snapshot.children) {
+                let prefix = crate::definitions::prefix_lookup::session_prefix_for_launch(
+                    Some(&member.agent_id),
+                    !workspace_path.is_empty(),
+                );
+                materialization_intents.push(CreateAgentOrgMaterializationIntent {
+                    member_id: member.id,
+                    agent_id: member.agent_id,
+                    session_id: format!("{prefix}{}", uuid::Uuid::new_v4()),
+                    succeeded: false,
+                });
+            }
+            Some(CreateStartingAgentOrgRunParams {
+                org_id: org_id.clone(),
+                coordinator_agent_id: coordinator_id.clone(),
+                root_session_id: root_session_id.clone(),
+                org_snapshot: org_snapshot.clone(),
+                entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+                work_item_id: work_item_id.clone(),
+                project_slug: project_slug.clone(),
+                routine_fire_id: routine_fire_id.clone(),
+                materialization_intents,
+                initial_input: initial_turn_intent_id.as_ref().map(|turn_intent_id| {
+                    CreateAgentOrgInitialInput {
+                        turn_intent_id: turn_intent_id.clone(),
+                        message_id: initial_message_id
+                            .clone()
+                            .expect("initial message id accompanies initial turn"),
+                        content: request.content.clone(),
+                        payload_json: initial_input_payload_json
+                            .clone()
+                            .expect("initial payload accompanies initial turn"),
+                    }
+                }),
+            })
+        }
+        _ => None,
+    };
+
     let create_result = crate::state::commands::session::create::create_session_impl(
         None,
         workspace_path.clone(),
@@ -549,7 +668,9 @@ pub(crate) async fn launch_rust_agent_run(
         request.product_mode.clone(),
         request.resources.native_harness_type.clone(),
         request.parent_session_id.clone(),
-        request.durable_run_id.clone(),
+        org_session_key
+            .clone()
+            .or_else(|| request.durable_run_id.clone()),
     )
     .await?;
 
@@ -558,10 +679,33 @@ pub(crate) async fn launch_rust_agent_run(
         .and_then(|value| value.as_str())
         .ok_or("create_session_impl did not return sessionId")?
         .to_string();
+    if let Some(expected_session_id) = expected_root_session_id.as_deref() {
+        if session_id != expected_session_id {
+            return Err(format!(
+                "coordinator identity mismatch: expected {expected_session_id}, got {session_id}"
+            ));
+        }
+    }
     let resolved_product_mode = create_result
         .get("productMode")
         .and_then(|value| value.as_str())
         .map(str::to_string);
+
+    if starting_params.is_some() {
+        persistence::update_org_member_id(&session_id, COORDINATOR_MEMBER_ID)
+            .map_err(|err| format!("failed to persist coordinator member_id: {err}"))?;
+    }
+
+    let starting_run = match starting_params {
+        Some(params) => match AgentOrgRunStore::create_starting(params) {
+            Ok(run) => Some(run),
+            Err(error) => {
+                cleanup_session_after_org_run_create_failure(session_id.clone()).await;
+                return Err(error);
+            }
+        },
+        None => None,
+    };
 
     if let (Some(project_slug_value), Some(work_item_id_value)) =
         (project_slug.as_deref(), work_item_id.as_deref())
@@ -580,61 +724,14 @@ pub(crate) async fn launch_rust_agent_run(
         }
     }
 
-    let agent_org_run_id = match (agent_org_id.as_ref(), coordinator_agent_id.as_ref()) {
-        (Some(org_id), Some(coordinator_id)) => {
-            let org_snapshot = effective_org_definition
-                .as_ref()
-                .ok_or("Agent Org launch is missing resolved org definition")?
-                .clone();
-            let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
-                org_id: org_id.clone(),
-                coordinator_agent_id: coordinator_id.clone(),
-                root_session_id: Some(session_id.clone()),
-                org_snapshot,
-                entry_mode: AgentOrgRunEntryMode::StandaloneSession,
-                status: AgentOrgRunStatus::Running,
-                work_item_id: work_item_id.clone(),
-                project_slug: project_slug.clone(),
-                routine_fire_id,
-            });
-            match run {
-                Ok(record) => {
-                    persistence::update_org_member_id(&session_id, COORDINATOR_MEMBER_ID)
-                        .map_err(|err| format!("failed to persist coordinator member_id: {err}"))?;
-                    if let Some(org) = effective_org_definition.as_ref() {
-                        spawn_agent_org_member_materialization(
-                            record.id.clone(),
-                            org.clone(),
-                            session_id.clone(),
-                            name.clone(),
-                            workspace_path.clone(),
-                            request.resources.model.clone(),
-                            request.resources.account_id.clone(),
-                            request.resources.key_source.clone(),
-                            request.mode.clone(),
-                            request.resources.native_harness_type.clone(),
-                            work_item_id.clone(),
-                            project_slug.clone(),
-                        );
-                    }
-                    if apply_member_overrides_for_future {
-                        if let Some(store) = org_store {
-                            store.apply_member_launch_overrides(org_id, &member_overrides)?;
-                        }
-                    }
-                    Some(record.id)
-                }
-                Err(err) => {
-                    cleanup_session_after_org_run_create_failure(session_id.clone()).await;
-                    return Err(err);
-                }
-            }
+    let agent_org_run_id = starting_run.as_ref().map(|run| run.id.clone());
+    if starting_run.is_some() && apply_member_overrides_for_future {
+        if let (Some(store), Some(org_id)) = (org_store, agent_org_id.as_ref()) {
+            store.apply_member_launch_overrides(org_id, &member_overrides)?;
         }
-        _ => None,
-    };
+    }
 
     let created_at = chrono::Utc::now().to_rfc3339();
-    let has_initial_content = !request.content.trim().is_empty();
     let native_harness_type_for_send = request
         .resources
         .native_harness_type
@@ -662,10 +759,20 @@ pub(crate) async fn launch_rust_agent_run(
         let sub_agent_ids_for_send = request.sub_agent_ids.clone();
         let agent_definition_id_for_send = agent_definition_id.clone();
         let agent_org_run_id_for_background = agent_org_run_id.clone();
-        let durable_run_id_for_background = request.durable_run_id.clone();
         let project_slug_for_background = project_slug.clone();
         let work_item_id_for_background = work_item_id.clone();
         let app_handle_for_background = state.app_handle.clone();
+        let request_key_source_for_background = request.resources.key_source.clone();
+        let request_native_harness_for_background = request.resources.native_harness_type.clone();
+        let org_for_background = effective_org_definition
+            .clone()
+            .expect("Agent Org launch has a validated snapshot");
+        let starting_generation = starting_run
+            .as_ref()
+            .map(|run| run.activation_generation)
+            .expect("Agent Org launch has a Starting generation");
+        let initial_turn_intent_id_for_background = initial_turn_intent_id.clone();
+        let initial_message_id_for_background = initial_message_id.clone();
 
         tokio::spawn(async move {
             let prepared_workspace = match prepare_rust_agent_workspace_for_launch(
@@ -699,14 +806,165 @@ pub(crate) async fn launch_rust_agent_run(
                 }
             };
 
-            if !has_initial_content {
-                return;
-            }
-
             let workspace_path_for_send = prepared_workspace
                 .worktree_path
                 .clone()
                 .unwrap_or_else(|| workspace_path_for_background.clone());
+            write_agent_session_marker(
+                &workspace_path_for_send,
+                &session_id_for_background,
+                agent_definition_id_for_send.as_deref(),
+                None,
+                project_slug_for_background.as_deref(),
+                Some(project_management::projects::types::PERSONAL_ORG_ID),
+            );
+
+            let run_id = agent_org_run_id_for_background
+                .as_deref()
+                .expect("Agent Org background launch has a run id");
+            if let Err(err) = materialize_org_member_sessions(
+                run_id,
+                &org_for_background,
+                &session_id_for_background,
+                &name,
+                &workspace_path_for_send,
+                model_for_send.clone(),
+                account_id_for_send.clone(),
+                request_key_source_for_background.clone(),
+                mode_for_send.clone(),
+                request_native_harness_for_background.clone(),
+                work_item_id_for_background.clone(),
+                project_slug_for_background.clone(),
+            )
+            .await
+            {
+                if err.is_retryable() {
+                    tracing::warn!(
+                        run_id = %run_id,
+                        error = %err,
+                        "[session_launch] retryable Starting materialization deferred"
+                    );
+                    return;
+                }
+                let message = format!(
+                    "[session_launch] member materialization failed for {}: {}",
+                    session_id_for_background, err
+                );
+                handle_background_launch_failure(
+                    &session_id_for_background,
+                    Some(run_id),
+                    project_slug_for_background.as_deref(),
+                    work_item_id_for_background.as_deref(),
+                    app_handle_for_background.as_ref(),
+                    &message,
+                    "[session_launch] failed to mark Starting materialization failure",
+                    "[session_launch] failed to mark coordinator session failed",
+                )
+                .await;
+                return;
+            }
+
+            if let Some(turn_intent_id) = initial_turn_intent_id_for_background.as_deref() {
+                let input = match AgentOrgRunStore::initial_input(run_id) {
+                    Ok(Some(input)) => input,
+                    Ok(None) => {
+                        handle_background_launch_failure(
+                            &session_id_for_background,
+                            Some(run_id),
+                            project_slug_for_background.as_deref(),
+                            work_item_id_for_background.as_deref(),
+                            app_handle_for_background.as_ref(),
+                            "Starting initial input receipt is missing",
+                            "[session_launch] failed to mark missing Starting input",
+                            "[session_launch] failed to mark coordinator session failed",
+                        )
+                        .await;
+                        return;
+                    }
+                    Err(error) => {
+                        handle_background_launch_failure(
+                            &session_id_for_background,
+                            Some(run_id),
+                            project_slug_for_background.as_deref(),
+                            work_item_id_for_background.as_deref(),
+                            app_handle_for_background.as_ref(),
+                            &error,
+                            "[session_launch] failed to mark Starting input lookup failure",
+                            "[session_launch] failed to mark coordinator session failed",
+                        )
+                        .await;
+                        return;
+                    }
+                };
+                let session_id_for_persistence = session_id_for_background.clone();
+                let input_for_persistence = input.clone();
+                let transcript_result = tokio::task::spawn_blocking(move || {
+                    persistence::save_user_msg_with_id(
+                        &input_for_persistence.message_id,
+                        &session_id_for_persistence,
+                        &input_for_persistence.content,
+                    )
+                    .map(|_| ())
+                    .map_err(|error| error.to_string())
+                })
+                .await
+                .map_err(|error| error.to_string())
+                .and_then(|result| result);
+                let event_result = app_handle_for_background
+                    .as_ref()
+                    .ok_or_else(|| "App handle is unavailable during Starting".to_string())
+                    .and_then(|handle| {
+                        crate::bus::event_pipeline_bridge::persist_user_message_event(
+                            handle,
+                            &session_id_for_background,
+                            &input.message_id,
+                            &input.content,
+                            None,
+                            images_for_send.as_deref(),
+                            crate::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
+                            turn_intent_id,
+                        )
+                    });
+                if let Err(error) = transcript_result.and(event_result) {
+                    tracing::warn!(
+                        run_id = %run_id,
+                        error = %error,
+                        "[session_launch] retryable Starting input persistence deferred"
+                    );
+                    return;
+                }
+            }
+
+            if let Err(error) = AgentOrgRunStore::finish_starting(run_id, starting_generation) {
+                if error.starts_with("materialization_identity_mismatch:")
+                    || error.contains("initial input certificate missing")
+                    || error.contains("unexpected initial input certificate")
+                {
+                    handle_background_launch_failure(
+                        &session_id_for_background,
+                        Some(run_id),
+                        project_slug_for_background.as_deref(),
+                        work_item_id_for_background.as_deref(),
+                        app_handle_for_background.as_ref(),
+                        &format!("Starting convergence failed: {error}"),
+                        "[session_launch] failed to mark Starting convergence failure",
+                        "[session_launch] failed to mark coordinator session failed",
+                    )
+                    .await;
+                } else {
+                    tracing::warn!(
+                        run_id = %run_id,
+                        error = %error,
+                        "[session_launch] retryable Starting convergence deferred"
+                    );
+                }
+                return;
+            }
+
+            if !has_initial_content {
+                return;
+            }
+
             // Title generation runs concurrently — it must not delay the
             // first turn. See `spawn_session_title_generation`.
             spawn_session_title_generation(
@@ -732,7 +990,8 @@ pub(crate) async fn launch_rust_agent_run(
                 agent_definition_id_for_send,
                 sub_agent_ids_for_send,
                 agent_org_run_id_for_background.clone(),
-                durable_run_id_for_background,
+                initial_message_id_for_background.clone(),
+                initial_turn_intent_id_for_background.clone(),
                 crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
             )
             .await;
@@ -753,6 +1012,16 @@ pub(crate) async fn launch_rust_agent_run(
                     "[session_launch] failed to mark session failed after first-message error",
                 )
                 .await;
+            } else if let Some(turn_intent_id) = initial_turn_intent_id_for_background.as_deref() {
+                if let Err(error) =
+                    AgentOrgRunStore::mark_initial_input_dispatched(run_id, turn_intent_id)
+                {
+                    tracing::warn!(
+                        run_id,
+                        error = %error,
+                        "[session_launch] initial input was accepted but dispatch receipt update failed"
+                    );
+                }
             }
         });
 
@@ -883,6 +1152,7 @@ pub(crate) async fn launch_rust_agent_run(
                 agent_definition_id_for_send,
                 sub_agent_ids_for_send,
                 agent_org_run_id_for_send.clone(),
+                durable_run_id_for_send.clone(),
                 durable_run_id_for_send,
                 crate::foundation::session_bridge::TurnIntentBridgeSource::UserSubmit,
             )
@@ -944,4 +1214,260 @@ pub(crate) async fn launch_rust_agent_run(
         agent_role,
         product_mode: resolved_product_mode,
     })
+}
+
+const AGENT_ORG_STARTUP_RECOVERY_LIMIT: usize = 100;
+
+/// Run the one-shot Starting/initial-input recovery owner after app state and
+/// the EventStore bridge are ready. This is intentionally separate from the
+/// periodic Working watchdog.
+pub fn spawn_agent_org_startup_recovery(state: AgentAppState) {
+    if !crate::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = recover_agent_org_starting_runs(&state).await {
+            tracing::warn!(error = %error, "[agent-org-startup] Starting recovery failed");
+        }
+        if let Err(error) = recover_agent_org_initial_dispatches(&state).await {
+            tracing::warn!(error = %error, "[agent-org-startup] initial dispatch recovery failed");
+        }
+    });
+}
+
+async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), String> {
+    let runs = tokio::task::spawn_blocking(|| {
+        AgentOrgRunStore::list_starting_runs(AGENT_ORG_STARTUP_RECOVERY_LIMIT)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+
+    for run in runs {
+        let Some(root_session_id) = run.root_session_id.as_deref() else {
+            AgentOrgRunStore::fail_starting(
+                &run.id,
+                run.activation_generation,
+                &crate::coordination::agent_org_runs::AgentOrgStartingFailure::new(
+                    "missing_coordinator_identity",
+                    "Starting run has no coordinator Session identity",
+                ),
+            )?;
+            continue;
+        };
+        let root = persistence::get_session(root_session_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| format!("Starting coordinator Session is missing: {root_session_id}"));
+        let root = match root {
+            Ok(root) => root,
+            Err(message) => {
+                AgentOrgRunStore::fail_starting(
+                    &run.id,
+                    run.activation_generation,
+                    &crate::coordination::agent_org_runs::AgentOrgStartingFailure::new(
+                        "missing_coordinator_identity",
+                        message,
+                    ),
+                )?;
+                continue;
+            }
+        };
+        let Some(snapshot_raw) = run.org_snapshot_json.as_deref() else {
+            AgentOrgRunStore::fail_starting(
+                &run.id,
+                run.activation_generation,
+                &crate::coordination::agent_org_runs::AgentOrgStartingFailure::new(
+                    "missing_launch_snapshot",
+                    format!("Starting run {} has no launch snapshot", run.id),
+                ),
+            )?;
+            continue;
+        };
+        let snapshot: crate::definitions::orgs::OrgDefinition =
+            match serde_json::from_str(snapshot_raw) {
+                Ok(snapshot) => snapshot,
+                Err(error) => {
+                    AgentOrgRunStore::fail_starting(
+                        &run.id,
+                        run.activation_generation,
+                        &crate::coordination::agent_org_runs::AgentOrgStartingFailure::new(
+                            "invalid_launch_snapshot",
+                            error.to_string(),
+                        ),
+                    )?;
+                    continue;
+                }
+            };
+        let workspace_path = root
+            .worktree_path
+            .clone()
+            .or_else(|| root.workspace_path.clone())
+            .unwrap_or_default();
+        if let Err(error) = materialize_org_member_sessions(
+            &run.id,
+            &snapshot,
+            root_session_id,
+            &root.name,
+            &workspace_path,
+            root.model.clone(),
+            root.account_id.clone(),
+            Some(root.key_source.as_ref().to_string()),
+            root.agent_exec_mode.clone(),
+            root.native_harness_type.clone(),
+            root.work_item_id.clone(),
+            root.project_slug.clone(),
+        )
+        .await
+        {
+            if !error.is_retryable() {
+                AgentOrgRunStore::fail_starting(
+                    &run.id,
+                    run.activation_generation,
+                    error.failure(),
+                )?;
+                continue;
+            }
+            tracing::warn!(run_id = %run.id, error = %error, "[agent-org-startup] materialization retry deferred");
+            continue;
+        }
+
+        let initial_input = match AgentOrgRunStore::initial_input(&run.id) {
+            Ok(input) => input,
+            Err(error) => {
+                tracing::warn!(run_id = %run.id, error = %error, "[agent-org-startup] initial input lookup retry deferred");
+                continue;
+            }
+        };
+        if let Some(input) = initial_input {
+            if let Err(error) = persist_starting_initial_input(state, root_session_id, &input).await
+            {
+                if error.starts_with("invalid Starting initial input payload")
+                    || error.starts_with("unsupported Starting initial input payload version")
+                {
+                    AgentOrgRunStore::fail_starting(
+                        &run.id,
+                        run.activation_generation,
+                        &crate::coordination::agent_org_runs::AgentOrgStartingFailure::new(
+                            "invalid_initial_input_payload",
+                            error,
+                        ),
+                    )?;
+                } else {
+                    tracing::warn!(run_id = %run.id, error = %error, "[agent-org-startup] initial input persistence retry deferred");
+                }
+                continue;
+            }
+        }
+        if let Err(error) = AgentOrgRunStore::finish_starting(&run.id, run.activation_generation) {
+            if error.starts_with("materialization_identity_mismatch:")
+                || error.contains("initial input certificate missing")
+                || error.contains("unexpected initial input certificate")
+            {
+                AgentOrgRunStore::fail_starting(
+                    &run.id,
+                    run.activation_generation,
+                    &crate::coordination::agent_org_runs::AgentOrgStartingFailure::new(
+                        "starting_certificate_invalid",
+                        error,
+                    ),
+                )?;
+            } else {
+                tracing::warn!(run_id = %run.id, error = %error, "[agent-org-startup] Starting transition retry deferred");
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn recover_agent_org_initial_dispatches(state: &AgentAppState) -> Result<(), String> {
+    let inputs = tokio::task::spawn_blocking(|| {
+        AgentOrgRunStore::recoverable_initial_inputs(AGENT_ORG_STARTUP_RECOVERY_LIMIT)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+
+    for input in inputs {
+        let Some(run) = AgentOrgRunStore::load(&input.org_run_id)? else {
+            continue;
+        };
+        let Some(root_session_id) = run.root_session_id.as_deref() else {
+            continue;
+        };
+        let Some(root) =
+            persistence::get_session(root_session_id).map_err(|error| error.to_string())?
+        else {
+            continue;
+        };
+        persistence::update_status(root_session_id, crate::session::SessionStatus::Idle)
+            .map_err(|error| error.to_string())?;
+        let workspace_path = root
+            .worktree_path
+            .clone()
+            .or(root.workspace_path.clone())
+            .unwrap_or_default();
+        let native_harness_type = root
+            .native_harness_type
+            .as_deref()
+            .map(|raw| {
+                core_types::providers::NativeHarnessType::parse(raw)
+                    .ok_or_else(|| format!("Unknown native_harness_type: {raw:?}"))
+            })
+            .transpose()?;
+        let payload = decode_agent_org_initial_input_payload(&input)?;
+        send_initial_turn(
+            state,
+            root_session_id,
+            input.content.clone(),
+            root.model,
+            root.account_id,
+            workspace_path,
+            native_harness_type,
+            root.agent_exec_mode,
+            payload.images,
+            payload.ide_context,
+            Some(run.coordinator_agent_id),
+            payload.sub_agent_ids,
+            Some(run.id.clone()),
+            Some(input.message_id.clone()),
+            Some(input.turn_intent_id.clone()),
+            crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
+        )
+        .await?;
+        AgentOrgRunStore::mark_initial_input_dispatched(&run.id, &input.turn_intent_id)?;
+    }
+    Ok(())
+}
+
+async fn persist_starting_initial_input(
+    state: &AgentAppState,
+    session_id: &str,
+    input: &crate::coordination::agent_org_runs::AgentOrgInitialInput,
+) -> Result<(), String> {
+    let payload = decode_agent_org_initial_input_payload(input)?;
+    let session_id_owned = session_id.to_string();
+    let input_owned = input.clone();
+    tokio::task::spawn_blocking(move || {
+        persistence::save_user_msg_with_id(
+            &input_owned.message_id,
+            &session_id_owned,
+            &input_owned.content,
+        )
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    let handle = state
+        .app_handle
+        .as_ref()
+        .ok_or_else(|| "App handle is unavailable during Starting recovery".to_string())?;
+    crate::bus::event_pipeline_bridge::persist_user_message_event(
+        handle,
+        session_id,
+        &input.message_id,
+        &input.content,
+        None,
+        payload.images.as_deref(),
+        crate::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
+        &input.turn_intent_id,
+    )
 }

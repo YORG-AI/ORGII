@@ -740,8 +740,40 @@ pub fn run() {
             );
             tracing::info!("[MemberIdle] Member idle hook installed");
 
-            agent_core::coordination::agent_org_watchdog::spawn(app.handle().clone());
-            tracing::info!("[AgentOrgWatchdog] Agent Org watchdog started");
+            if agent_core::coordination::agent_org_runs::agent_org_redesign_enabled() {
+                agent_core::coordination::agent_org_watchdog::spawn(app.handle().clone());
+                tracing::info!("[AgentOrgWatchdog] Agent Org watchdog started");
+            } else {
+                tracing::info!("[AgentOrgWatchdog] Agent Org redesign is disabled");
+            }
+
+            // Plan artifacts have their own one-shot startup owner. Keep this
+            // repair independent from the bounded Working-only watchdog so a
+            // global filesystem scan can never consume its 250 ms Team scan
+            // budget or run every 60 seconds.
+            tauri::async_runtime::spawn(async move {
+                match tokio::task::spawn_blocking(|| {
+                    agent_core::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore::repair_latest_plan_artifacts()
+                })
+                .await
+                {
+                    Ok(Ok(report)) if report.repaired > 0 || report.failed > 0 => tracing::info!(
+                        inspected = report.inspected,
+                        repaired = report.repaired,
+                        failed = report.failed,
+                        "[AgentOrgPlanArtifacts] one-shot startup reconciliation finished"
+                    ),
+                    Ok(Ok(_)) => {}
+                    Ok(Err(error)) => tracing::warn!(
+                        error = %error,
+                        "[AgentOrgPlanArtifacts] startup reconciliation failed"
+                    ),
+                    Err(error) => tracing::warn!(
+                        error = %error,
+                        "[AgentOrgPlanArtifacts] startup worker failed"
+                    ),
+                }
+            });
 
             // Install the production `SubagentCompletionWakeHook` so a
             // background subagent that finishes while its parent is idle
@@ -757,8 +789,14 @@ pub fn run() {
             tracing::info!("[SubagentWake] Subagent completion wake hook installed");
 
             let housekeeper_compaction_state = unified_state.clone();
+            let agent_org_startup_state = unified_state.clone();
             app.manage(unified_state);
             tracing::info!("[UnifiedAgent] Unified agent state initialized");
+
+            agent_core::core::session::launch::spawn_agent_org_startup_recovery(
+                agent_org_startup_state,
+            );
+            tracing::info!("[AgentOrgStartup] one-shot lifecycle recovery scheduled");
 
             agent_core::session::housekeeper_compaction::spawn(
                 housekeeper_compaction_state,

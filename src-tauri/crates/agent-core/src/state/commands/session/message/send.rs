@@ -27,6 +27,77 @@ use super::org_wake::{
     resolve_agent_org_wake_mode,
 };
 
+pub(super) fn ensure_agent_org_turn_is_runnable(
+    run_id: &str,
+    status: crate::coordination::agent_org_runs::AgentOrgRunStatus,
+) -> Result<(), String> {
+    use crate::coordination::agent_org_runs::AgentOrgRunStatus;
+
+    match status {
+        AgentOrgRunStatus::Running => Ok(()),
+        AgentOrgRunStatus::Starting => Err(format!(
+            "team_not_ready: Agent Org run {run_id} is still materializing"
+        )),
+        AgentOrgRunStatus::Paused => Err(format!(
+            "team_paused: Agent Org run {run_id} cannot start a turn in this lifecycle slice"
+        )),
+        AgentOrgRunStatus::Idle => Err(format!(
+            "team_idle: Agent Org run {run_id} has no formal activation for a new turn"
+        )),
+        AgentOrgRunStatus::Failed => Err(format!(
+            "team_unavailable: Agent Org run {run_id} failed during materialization"
+        )),
+        AgentOrgRunStatus::Archived => Err(format!(
+            "team_archived: Agent Org run {run_id} is read-only"
+        )),
+    }
+}
+
+async fn preflight_agent_org_turn_before_runtime(
+    session_id: &str,
+    explicit_run_id: Option<&str>,
+    run_id_hint: Option<&str>,
+    has_persisted_agent_org_identity: bool,
+) -> Result<Option<String>, String> {
+    if let (Some(explicit), Some(hint)) = (explicit_run_id, run_id_hint) {
+        if explicit != hint {
+            return Err(format!(
+                "Agent Org turn intent run mismatch for session {session_id}: explicit run {explicit}, runtime run {hint}"
+            ));
+        }
+    }
+
+    let run_id = match explicit_run_id.or(run_id_hint) {
+        Some(run_id) => Some(run_id.to_string()),
+        None if has_persisted_agent_org_identity => {
+            let session_id = session_id.to_string();
+            tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_runs::AgentOrgRunStore::run_id_for_session_with_parent_walk(
+                    &session_id,
+                )
+            })
+            .await
+            .map_err(|error| format!("Agent Org run lookup worker failed: {error}"))??
+        }
+        None => None,
+    };
+
+    let Some(run_id) = run_id else {
+        return Ok(None);
+    };
+
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
+    let status_run_id = run_id.clone();
+    let status = tokio::task::spawn_blocking(move || {
+        crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(&status_run_id)
+    })
+    .await
+    .map_err(|error| format!("Agent Org status worker failed: {error}"))??
+    .ok_or_else(|| format!("team_unavailable: Agent Org run {run_id} does not exist"))?;
+    ensure_agent_org_turn_is_runnable(&run_id, status)?;
+    Ok(Some(run_id))
+}
+
 pub(super) fn should_divert_to_mid_turn_steering(
     source: TurnIntentBridgeSource,
     is_resume: bool,
@@ -108,6 +179,23 @@ pub(crate) async fn send_message_impl(
     // ── 1. Resolve session identity (unified — single code path) ─────────
     let identity = resolve_session_identity(state, &session_id, overrides).await?;
 
+    let explicit_org_run_id = match (org_wake_run_id.as_deref(), intent_org_run_id.as_deref()) {
+        (Some(wake_run_id), Some(intent_run_id)) if wake_run_id != intent_run_id => {
+            return Err(format!(
+                "Agent Org wake/intent run mismatch for session {session_id}: wake run {wake_run_id}, intent run {intent_run_id}"
+            ));
+        }
+        (Some(run_id), _) | (None, Some(run_id)) => Some(run_id),
+        (None, None) => None,
+    };
+    let preflight_org_run_id = preflight_agent_org_turn_before_runtime(
+        &session_id,
+        explicit_org_run_id,
+        identity.agent_org_run_id_hint.as_deref(),
+        identity.has_persisted_agent_org_identity,
+    )
+    .await?;
+
     // Goal loop: a real user submission becomes (or replaces) the
     // session's standing goal and resets the continuation counter.
     // `Queue`-sourced messages (goal continuations, queued flushes) and
@@ -157,7 +245,7 @@ pub(crate) async fn send_message_impl(
         }
         (Some(_), _) => intent_org_run_id,
         (None, Some(_)) => runtime_org_run_id,
-        (None, None) => None,
+        (None, None) => preflight_org_run_id,
     };
 
     // Wingman resume: reopen the bottom bar. On fresh start the frontend
@@ -477,9 +565,9 @@ pub(crate) async fn send_message_impl(
 
             // Queued and coalesced messages are not running sessions. Promote
             // the DB state only when the scheduler actually begins execution.
-            // Agent Org wakes require a running run. Direct Agent Org turns
-            // retain their historical-run behavior but refuse the terminal
-            // `cancelled` fence established by hierarchy deletion.
+            // Both Agent Org wakes and direct turns require a Running Team.
+            // This execute-time check closes the race after submit preflight:
+            // a queued turn becomes a no-op if lifecycle advances first.
             let status_sid = sid.clone();
             let status_wake_run_id = org_wake_run_id.clone();
             let status_intent_run_id = intent_org_run_id.clone();

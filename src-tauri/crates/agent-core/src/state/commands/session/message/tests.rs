@@ -10,7 +10,10 @@ use super::org_wake::{
     promote_agent_org_direct_session_to_running, promote_agent_org_wake_session_to_running,
     resolve_agent_org_wake_mode,
 };
-use super::send::{should_divert_to_mid_turn_steering, terminal_intent_status_override};
+use super::send::{
+    ensure_agent_org_turn_is_runnable, should_divert_to_mid_turn_steering,
+    terminal_intent_status_override,
+};
 use crate::coordination::agent_inbox::{
     AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
 };
@@ -287,28 +290,71 @@ fn queued_agent_org_wake_rechecks_run_member_and_intervention_at_turn_start() {
 }
 
 #[test]
-fn direct_agent_org_turn_refuses_cancelled_delete_fence() {
+fn direct_agent_org_turn_only_promotes_while_run_is_running() {
     let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
     let conn = database::db::get_connection().expect("test db");
-    conn.execute(
-        "UPDATE agent_org_runs SET status='cancelled' WHERE id=?1",
-        [&fixture.run_id],
-    )
-    .expect("establish delete fence");
+    for status in [
+        AgentOrgRunStatus::Starting,
+        AgentOrgRunStatus::Paused,
+        AgentOrgRunStatus::Idle,
+        AgentOrgRunStatus::Failed,
+        AgentOrgRunStatus::Archived,
+    ] {
+        conn.execute(
+            "UPDATE agent_org_runs SET status=?1 WHERE id=?2",
+            rusqlite::params![status.as_str(), &fixture.run_id],
+        )
+        .expect("set non-runnable run status");
+        assert_eq!(
+            promote_agent_org_direct_session_to_running(
+                &conn,
+                &fixture.run_id,
+                &fixture.session_id,
+            )
+            .expect("non-running run claim is a no-op"),
+            0,
+            "{status:?} must not promote the member Session"
+        );
+        let session_status = conn
+            .query_row(
+                "SELECT status FROM agent_sessions WHERE session_id=?1",
+                [&fixture.session_id],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("load member status");
+        assert_eq!(session_status, "idle");
+    }
 
+    conn.execute(
+        "UPDATE agent_org_runs SET status=?1 WHERE id=?2",
+        rusqlite::params![AgentOrgRunStatus::Running.as_str(), &fixture.run_id],
+    )
+    .expect("restore running run");
     assert_eq!(
         promote_agent_org_direct_session_to_running(&conn, &fixture.run_id, &fixture.session_id)
-            .expect("cancelled run claim is a no-op"),
-        0
+            .expect("running run promotes the member Session"),
+        1
     );
-    let status = conn
-        .query_row(
-            "SELECT status FROM agent_sessions WHERE session_id=?1",
-            [&fixture.session_id],
-            |row| row.get::<_, String>(0),
-        )
-        .expect("load member status");
-    assert_eq!(status, "idle");
+}
+
+#[test]
+fn provider_preflight_exhaustively_rejects_every_non_running_team_status() {
+    assert!(ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Running).is_ok());
+
+    for (status, code) in [
+        (AgentOrgRunStatus::Starting, "team_not_ready"),
+        (AgentOrgRunStatus::Paused, "team_paused"),
+        (AgentOrgRunStatus::Idle, "team_idle"),
+        (AgentOrgRunStatus::Failed, "team_unavailable"),
+        (AgentOrgRunStatus::Archived, "team_archived"),
+    ] {
+        let error = ensure_agent_org_turn_is_runnable("run", status)
+            .expect_err("non-running Team cannot initialize a turn");
+        assert!(
+            error.starts_with(code),
+            "{status:?} should return {code}, got {error}"
+        );
+    }
 }
 
 #[test]

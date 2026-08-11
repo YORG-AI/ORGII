@@ -12,11 +12,9 @@ export const AGENT_ORG_RUN_VIEW_CACHE_RETENTION_MS = 30_000;
 export const AGENT_ORG_BOOTSTRAP_JOIN_TIMEOUT_MS = 1_000;
 const MAX_NON_ORG_DISCOVERY_ATTEMPTS = 1;
 
-const TERMINAL_RUN_STATUSES: ReadonlySet<AgentOrgRunStatus> = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-  "abandoned",
+export const POLLABLE_RUN_STATUSES: ReadonlySet<AgentOrgRunStatus> = new Set([
+  "starting",
+  "running",
 ]);
 
 export interface AgentOrgRunViewSnapshot {
@@ -94,8 +92,8 @@ function viewForSession(
   return { ...view, currentMemberId };
 }
 
-function isTerminal(view: AgentOrgRunView | null): boolean {
-  return view !== null && TERMINAL_RUN_STATUSES.has(view.runStatus);
+function isPollable(view: AgentOrgRunView | null): boolean {
+  return view !== null && POLLABLE_RUN_STATUSES.has(view.runStatus);
 }
 
 function findEntryCoveringSession(sessionId: string): RunViewEntry | undefined {
@@ -138,6 +136,7 @@ function evictEntry(entry: RunViewEntry): void {
   if (!isCurrentEntry(entry) || entry.subscribers.size > 0) return;
   entry.retired = true;
   entriesBySessionId.delete(entry.sessionId);
+  reconcilePollingTimer();
   if (bootstrapOwner === entry) bootstrapOwner = null;
 
   const sessionKey = `session:${entry.sessionId}`;
@@ -207,6 +206,7 @@ function publishEntry(
   entry.snapshot = { view, error };
   entry.serializedView = serializedView;
   for (const subscriber of entry.subscribers) subscriber();
+  reconcilePollingTimer();
   return true;
 }
 
@@ -438,7 +438,10 @@ function pollActiveRuns(): void {
 
   const representatives = new Map<string, string>();
   for (const entry of entriesBySessionId.values()) {
-    if (entry.subscribers.size === 0 || isTerminal(entry.snapshot.view))
+    if (
+      entry.subscribers.size === 0 ||
+      (entry.snapshot.view !== null && !isPollable(entry.snapshot.view))
+    )
       continue;
     if (
       entry.snapshot.view === null &&
@@ -454,13 +457,42 @@ function pollActiveRuns(): void {
 }
 
 function handleVisibilityChange(): void {
-  if (isDocumentVisible()) pollActiveRuns();
+  if (!isDocumentVisible()) {
+    reconcilePollingTimer();
+    return;
+  }
+  pollActiveRuns();
+  reconcilePollingTimer();
 }
 
-function startScheduler(): void {
+function hasPollableSubscriber(): boolean {
+  for (const entry of entriesBySessionId.values()) {
+    if (entry.subscribers.size === 0) continue;
+    if (entry.snapshot.view !== null) {
+      if (isPollable(entry.snapshot.view)) return true;
+      continue;
+    }
+    if (entry.discoveryAttempts < MAX_NON_ORG_DISCOVERY_ATTEMPTS) return true;
+  }
+  return false;
+}
+
+function reconcilePollingTimer(): void {
+  const shouldPoll =
+    activeSubscriberCount > 0 && isDocumentVisible() && hasPollableSubscriber();
+  if (!shouldPoll) {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = undefined;
+    }
+    return;
+  }
   if (!pollingTimer) {
     pollingTimer = setInterval(pollActiveRuns, AGENT_ORG_RUN_VIEW_FALLBACK_MS);
   }
+}
+
+function startScheduler(): void {
   if (!unsubscribeStateChanges) {
     unsubscribeStateChanges = subscribeAgentOrgStateChanges((sessionId) => {
       const entry =
@@ -514,6 +546,7 @@ function startScheduler(): void {
     scheduledRuns.add(view.context.runId);
     scheduleInterventionExpiryRefresh(view);
   }
+  reconcilePollingTimer();
 }
 
 function stopScheduler(): void {
@@ -552,6 +585,7 @@ export function subscribeAgentOrgRunView(
   entry.subscribers.add(subscription);
   activeSubscriberCount += 1;
   if (activeSubscriberCount === 1) startScheduler();
+  else reconcilePollingTimer();
   if (entry.snapshot.view === null && entry.discoveryAttempts === 0) {
     void refreshAgentOrgRunViewInternal(sessionId, false);
   } else if (isReturningSubscriber && entry.snapshot.view !== null) {
@@ -565,6 +599,7 @@ export function subscribeAgentOrgRunView(
     if (!entry.subscribers.delete(subscription)) return;
     activeSubscriberCount -= 1;
     if (activeSubscriberCount === 0) stopScheduler();
+    else reconcilePollingTimer();
     scheduleEntryEviction(entry);
   };
 }
@@ -591,6 +626,9 @@ export const agentOrgRunViewStoreTestApi = {
           entry.snapshot.view?.context.runId === runId
       )?.sessionId ?? null
     );
+  },
+  hasPollingTimer(): boolean {
+    return pollingTimer !== undefined;
   },
   reset(): void {
     stopScheduler();

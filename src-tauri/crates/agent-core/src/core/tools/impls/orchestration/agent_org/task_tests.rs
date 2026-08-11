@@ -226,13 +226,7 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
     crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
         .expect("agent sessions schema");
     crate::session::persistence::init(&conn).expect("unified session schema");
-    crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
-    crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
-    crate::coordination::agent_member_interventions::init_schema(&conn)
-        .expect("member intervention schema");
-    crate::coordination::agent_org_tasks::init_schema(&conn).expect("agent team tasks schema");
-    crate::coordination::agent_org_plan_approvals::init_schema(&conn)
-        .expect("agent org plan approval schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("canonical Agent Org schemas");
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS code_sessions (
             session_id TEXT PRIMARY KEY,
@@ -2836,7 +2830,7 @@ async fn task_list_defaults_to_fifty_compact_rows() {
     assert!(value["page"]["next_cursor"].is_string());
 }
 
-fn seed_task_list_current_turn_finality_fixture(materialize_inbox: bool) -> i64 {
+fn seed_task_list_current_turn_quiescence_fixture(materialize_inbox: bool) -> i64 {
     let now = chrono::Utc::now().to_rfc3339();
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
@@ -2906,10 +2900,10 @@ fn seed_task_list_current_turn_finality_fixture(materialize_inbox: bool) -> i64 
     inbox.id
 }
 
-fn has_finality_blocker(value: &Value, field: &str, kind: &str, count: i64) -> bool {
+fn has_quiescence_blocker(value: &Value, field: &str, kind: &str, count: i64) -> bool {
     value["run_summary"][field]
         .as_array()
-        .expect("finality blocker array")
+        .expect("Quiescence blocker array")
         .iter()
         .any(|blocker| blocker["kind"] == kind && blocker["count"] == count)
 }
@@ -2917,7 +2911,7 @@ fn has_finality_blocker(value: &Value, field: &str, kind: &str, count: i64) -> b
 #[tokio::test]
 async fn task_list_projects_exact_current_root_turn_and_materialized_inbox() {
     let _sandbox = task_tools_sandbox();
-    let inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let inbox_id = seed_task_list_current_turn_quiescence_fixture(true);
     let call_ctx = crate::tools::call_context::CallContext::for_turn(
         "task-list-current-turn",
         "root-tools-1",
@@ -2937,15 +2931,15 @@ async fn task_list_projects_exact_current_root_turn_and_materialized_inbox() {
         "the raw snapshot still includes the currently running coordinator intent"
     );
     assert_eq!(value["run_summary"]["unread_inbox_count"], 1);
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &value,
-        "current_finality_blockers",
+        "current_quiescence_blockers",
         "in_flight_turn_intents",
         1,
     ));
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &value,
-        "current_finality_blockers",
+        "current_quiescence_blockers",
         "unread_inbox",
         1,
     ));
@@ -2956,7 +2950,7 @@ async fn task_list_projects_exact_current_root_turn_and_materialized_inbox() {
 #[tokio::test]
 async fn task_list_current_turn_projection_keeps_unrelated_durable_blockers() {
     let _sandbox = task_tools_sandbox();
-    let projected_inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let projected_inbox_id = seed_task_list_current_turn_quiescence_fixture(true);
     let now = chrono::Utc::now().to_rfc3339();
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
@@ -2996,13 +2990,13 @@ async fn task_list_current_turn_projection_keeps_unrelated_durable_blockers() {
     assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 2);
     assert_eq!(value["run_summary"]["unread_inbox_count"], 2);
     assert_eq!(value["run_summary"]["completion_ready"], false);
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &value,
         "completion_blockers",
         "in_flight_turn_intents",
         1,
     ));
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &value,
         "completion_blockers",
         "unread_inbox",
@@ -3013,7 +3007,7 @@ async fn task_list_current_turn_projection_keeps_unrelated_durable_blockers() {
 #[tokio::test]
 async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_receipt() {
     let _sandbox = task_tools_sandbox();
-    let inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let inbox_id = seed_task_list_current_turn_quiescence_fixture(true);
     let list = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID));
 
     let wrong_session_ctx = crate::tools::call_context::CallContext::for_turn(
@@ -3030,13 +3024,13 @@ async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_re
     )
     .expect("decode wrong-session result");
     assert_eq!(wrong_session["run_summary"]["completion_ready"], false);
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &wrong_session,
         "completion_blockers",
         "in_flight_turn_intents",
         1,
     ));
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &wrong_session,
         "completion_blockers",
         "unread_inbox",
@@ -3057,13 +3051,13 @@ async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_re
     )
     .expect("decode wrong-intent result");
     assert_eq!(wrong_intent["run_summary"]["completion_ready"], false);
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &wrong_intent,
         "completion_blockers",
         "in_flight_turn_intents",
         1,
     ));
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &wrong_intent,
         "completion_blockers",
         "unread_inbox",
@@ -3091,13 +3085,13 @@ async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_re
     )
     .expect("decode missing-receipt result");
     assert_eq!(missing_receipt["run_summary"]["completion_ready"], false);
-    assert!(has_finality_blocker(
+    assert!(has_quiescence_blocker(
         &missing_receipt,
         "completion_blockers",
         "unread_inbox",
         1,
     ));
-    assert!(!has_finality_blocker(
+    assert!(!has_quiescence_blocker(
         &missing_receipt,
         "completion_blockers",
         "in_flight_turn_intents",

@@ -546,13 +546,39 @@ impl UnifiedMessageProcessor {
         // ("text content is empty") on the very next request.
         let should_save_user_msg = !(context.is_resume && content.is_empty());
         if should_save_user_msg {
-            let message_id = tokio::task::block_in_place(|| {
-                unified_persistence::save_user_msg(session_id, content, context.images.as_deref())
-            })
+            let initial_input = tokio::task::block_in_place(|| {
+                crate::coordination::agent_org_runs::AgentOrgRunStore::initial_input_for_turn(
+                    &context.turn_intent_id,
+                )
+            })?;
+            let message_id = if let Some(input) = initial_input.as_ref() {
+                if input.content != content {
+                    return Err(format!(
+                        "Starting input content mismatch for turn {}",
+                        context.turn_intent_id
+                    ));
+                }
+                tokio::task::block_in_place(|| {
+                    unified_persistence::save_user_msg_with_id(
+                        &input.message_id,
+                        session_id,
+                        content,
+                    )
+                })
+                .map(|(message_id, _inserted)| message_id)
+            } else {
+                tokio::task::block_in_place(|| {
+                    unified_persistence::save_user_msg(
+                        session_id,
+                        content,
+                        context.images.as_deref(),
+                    )
+                })
+            }
             .map_err(|err| format!("Failed to save user message: {}", err))?;
 
             if let Some(handle) = self.app_handle.as_ref() {
-                if let Err(err) = tokio::task::block_in_place(|| {
+                let event_result = tokio::task::block_in_place(|| {
                     crate::bus::event_pipeline_bridge::persist_user_message_event(
                         handle,
                         session_id,
@@ -563,7 +589,13 @@ impl UnifiedMessageProcessor {
                         crate::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
                         context.turn_intent_id.as_str(),
                     )
-                }) {
+                });
+                if let Err(err) = event_result {
+                    if initial_input.is_some() {
+                        return Err(format!(
+                            "Failed to persist Starting user-message event: {err}"
+                        ));
+                    }
                     tracing::warn!(
                         session_id,
                         error = %err,
@@ -926,6 +958,12 @@ impl UnifiedMessageProcessor {
 
         // Flush any pending streaming content before completing the turn.
         handler.flush_streaming(session_id);
+        if let Some(error) = handler.take_assistant_persistence_error() {
+            return Err(format!(
+                "{} {error}",
+                super::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX
+            ));
+        }
 
         // Update nag-reminder counter based on whether manage_todo was called
         // during this turn. Reset to 0 on any todo call; increment otherwise.

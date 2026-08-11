@@ -29,7 +29,7 @@
 //!
 //! - `turn_intent_id` and `projected_inbox_ids`: identify the exact durable
 //!   turn and Inbox batch whose effects become committed only after this turn
-//!   succeeds.  Agent Org finality uses them to build a prospective
+//!   succeeds. Agent Org Quiescence uses them to build a prospective
 //!   completion certificate without guessing or subtracting unrelated work.
 //!
 //! ## Defaults

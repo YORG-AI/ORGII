@@ -267,8 +267,8 @@ pub(super) async fn finalize_session_run(
 
     // CLI member sessions inside an Agent Org run must land on `Idle` after each
     // successful turn so they remain available for the next coordinator dispatch.
-    // `Completed` is terminal (is_terminal() == true) and would cause
-    // `reconcile_run_finality` to prematurely end the run.
+    // `Completed` is terminal (is_terminal() == true) and would make the
+    // member unavailable to the canonical Team Quiescence projection.
     let is_org_member = session.org_member_id.is_some();
     let final_status = if raw_final_status == SessionStatus::Completed && is_org_member {
         SessionStatus::Idle
