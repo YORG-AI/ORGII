@@ -3,23 +3,33 @@
 //! A run records that an Agent Org launched through the normal Rust session
 //! stack, while the root session remains the transcript source of truth.
 
-mod finality;
 mod helpers;
+mod materialization;
 mod progress;
+mod quiescence;
+mod rollout;
 mod store;
 mod worker;
 
 #[cfg(test)]
 mod tests;
 
-pub(crate) use finality::guaranteed_current_turn_effects_with_connection;
-pub use finality::{
-    AgentOrgFinalityAssessment, AgentOrgFinalityBlocker, AgentOrgFinalityDecision,
-    AgentOrgFinalityFacts, AgentOrgFinalityProjection, AgentOrgFinalitySessionFact,
-    AgentOrgGuaranteedTurnEffects,
+pub use materialization::{
+    AgentOrgInitialInput, AgentOrgInitialInputStatus, AgentOrgMaterializationAuthority,
+    AgentOrgMaterializationIntent, AgentOrgMaterializationStatus, CreateAgentOrgInitialInput,
+    CreateAgentOrgMaterializationIntent,
 };
 pub(crate) use progress::bump_work_revision_in_tx;
 pub use progress::AgentOrgRunProgress;
+pub(crate) use quiescence::guaranteed_current_turn_effects_with_connection;
+pub use quiescence::{
+    AgentOrgGuaranteedTurnEffects, AgentOrgQuiescenceAssessment, AgentOrgQuiescenceBlocker,
+    AgentOrgQuiescenceDecision, AgentOrgQuiescenceFacts, AgentOrgQuiescenceProjection,
+    AgentOrgQuiescenceSessionFact,
+};
+pub use rollout::{
+    is_enabled as agent_org_redesign_enabled, require_enabled as require_agent_org_redesign,
+};
 pub use store::AgentOrgRunStore;
 pub(crate) use worker::recovery_dispatch_recipient_is_available;
 pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};
@@ -62,49 +72,39 @@ impl std::fmt::Display for AgentOrgRunEntryMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentOrgRunStatus {
+    Starting,
     Running,
-    /// User-initiated pause. Non-terminal: the run can be resumed via
-    /// `AgentOrgRunStore::mark_resumed`. Polling and member switching remain
-    /// available while paused; the coordinator and members simply stop
-    /// receiving new dispatch until resumed.
+    /// Reserved non-terminal user-pause state. PR1 freezes the canonical enum
+    /// but deliberately does not define Pause/Resume handoff behavior; Paused
+    /// Teams are not fallback-polled.
     Paused,
-    Completed,
+    Idle,
     Failed,
-    Cancelled,
-    Abandoned,
+    Archived,
 }
 
 impl AgentOrgRunStatus {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::Starting => "starting",
             Self::Running => "running",
             Self::Paused => "paused",
-            Self::Completed => "completed",
+            Self::Idle => "idle",
             Self::Failed => "failed",
-            Self::Cancelled => "cancelled",
-            Self::Abandoned => "abandoned",
+            Self::Archived => "archived",
         }
     }
 
     pub fn parse(value: &str) -> Option<Self> {
         match value {
+            "starting" => Some(Self::Starting),
             "running" => Some(Self::Running),
             "paused" => Some(Self::Paused),
-            "completed" => Some(Self::Completed),
+            "idle" => Some(Self::Idle),
             "failed" => Some(Self::Failed),
-            "cancelled" => Some(Self::Cancelled),
-            "abandoned" => Some(Self::Abandoned),
+            "archived" => Some(Self::Archived),
             _ => None,
         }
-    }
-
-    /// Whether this status represents a terminal state (no further transitions
-    /// possible). `Paused` is explicitly non-terminal.
-    pub fn is_terminal(self) -> bool {
-        matches!(
-            self,
-            Self::Completed | Self::Failed | Self::Cancelled | Self::Abandoned
-        )
     }
 }
 
@@ -399,14 +399,18 @@ pub struct AgentOrgRunRecord {
     pub org_snapshot_json: Option<String>,
     pub entry_mode: AgentOrgRunEntryMode,
     pub status: AgentOrgRunStatus,
+    pub activation_generation: i64,
+    pub has_initial_work: bool,
     pub work_item_id: Option<String>,
     pub project_slug: Option<String>,
     pub routine_fire_id: Option<String>,
     pub summary: Option<String>,
     pub last_error: Option<String>,
+    pub failure_json: Option<String>,
+    pub last_activity_outcome: Option<String>,
     pub created_at: String,
     pub updated_at: String,
-    pub completed_at: Option<String>,
+    pub idled_at: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -422,6 +426,36 @@ pub struct CreateAgentOrgRunParams {
     pub routine_fire_id: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct CreateStartingAgentOrgRunParams {
+    pub org_id: String,
+    pub coordinator_agent_id: String,
+    pub root_session_id: String,
+    pub org_snapshot: OrgDefinition,
+    pub entry_mode: AgentOrgRunEntryMode,
+    pub work_item_id: Option<String>,
+    pub project_slug: Option<String>,
+    pub routine_fire_id: Option<String>,
+    pub materialization_intents: Vec<CreateAgentOrgMaterializationIntent>,
+    pub initial_input: Option<CreateAgentOrgInitialInput>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgStartingFailure {
+    pub code: String,
+    pub message: String,
+}
+
+impl AgentOrgStartingFailure {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+}
+
 /// Initialize runtime Agent Org tables in `sessions.db`.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
@@ -432,15 +466,25 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             root_session_id TEXT,
             org_snapshot_json TEXT,
             entry_mode TEXT NOT NULL,
-            status TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN (
+                'starting', 'running', 'paused', 'idle', 'failed', 'archived'
+            )),
+            activation_generation INTEGER NOT NULL DEFAULT 1
+                CHECK(activation_generation >= 1),
+            has_initial_work INTEGER NOT NULL DEFAULT 0
+                CHECK(has_initial_work IN (0, 1)),
             work_item_id TEXT,
             project_slug TEXT,
             routine_fire_id TEXT,
             summary TEXT,
             last_error TEXT,
+            failure_json TEXT,
+            last_activity_outcome TEXT CHECK(last_activity_outcome IN (
+                'completed', 'failed', 'cancelled'
+            )),
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            completed_at TEXT
+            idled_at TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runs_org_updated
             ON agent_org_runs(org_id, updated_at);
@@ -451,6 +495,7 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
         CREATE INDEX IF NOT EXISTS idx_agent_org_runs_status
             ON agent_org_runs(status);",
     )?;
+    materialization::init_schema(conn)?;
     progress::init_schema(conn)?;
     Ok(())
 }

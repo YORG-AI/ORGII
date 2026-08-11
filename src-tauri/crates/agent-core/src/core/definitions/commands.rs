@@ -137,9 +137,10 @@ pub struct InboxRunSummary {
 #[tauri::command]
 pub async fn agent_org_run_list(limit: Option<usize>) -> Result<Vec<InboxRunSummary>, String> {
     use crate::core::coordination::agent_org_runs::AgentOrgRunStore;
+    crate::core::coordination::agent_org_runs::require_agent_org_redesign()?;
     const MAX_LIMIT: usize = 200;
     let effective_limit = limit.map(|n| n.min(MAX_LIMIT)).unwrap_or(MAX_LIMIT);
-    // This command backs a read-only Inbox list. Finality reconciliation is a
+    // This command backs a read-only Inbox list. Quiescence reconciliation is a
     // lifecycle/watchdog responsibility: doing it here used to turn one UI
     // refresh into as many as 200 global writer-lock + IMMEDIATE
     // transactions. Keep the read off the async command executor as well.

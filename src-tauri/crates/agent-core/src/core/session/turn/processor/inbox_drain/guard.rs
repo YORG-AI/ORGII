@@ -74,7 +74,7 @@ impl DrainGuard {
 
     /// Exact source rows this turn will acknowledge only after successful
     /// provider execution. Threaded into tool-call context so prospective
-    /// finality can project this turn's guaranteed commit without treating
+    /// Quiescence can project this turn's guaranteed commit without treating
     /// unrelated unread mail as consumed.
     pub fn pending_ids(&self) -> &[i64] {
         &self.pending_ids

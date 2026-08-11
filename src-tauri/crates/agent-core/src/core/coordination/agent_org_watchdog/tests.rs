@@ -2,7 +2,7 @@ use super::budget::{
     budget_disposition, coordinator_notice_allowed, rewake_budget_exhausted, BudgetDisposition,
 };
 use super::inspect::is_wakeable_status;
-use super::recover::{recover_listed_runs, run_best_effort_cleanup};
+use super::recover::recover_listed_runs;
 use super::*;
 use crate::coordination::agent_org_runs::{AgentOrgRunEntryMode, AgentOrgRunRecord};
 
@@ -16,14 +16,18 @@ fn fake_run(id: &str) -> AgentOrgRunRecord {
         org_snapshot_json: None,
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
+        activation_generation: 1,
+        has_initial_work: true,
         work_item_id: None,
         project_slug: None,
         routine_fire_id: None,
         summary: None,
+        failure_json: None,
         last_error: None,
+        last_activity_outcome: None,
         created_at: now.clone(),
         updated_at: now,
-        completed_at: None,
+        idled_at: None,
     }
 }
 
@@ -116,8 +120,75 @@ fn one_failed_run_does_not_skip_later_runs() {
 }
 
 #[test]
-fn maintenance_failure_is_best_effort() {
-    run_best_effort_cleanup("injected", || Err("failure".to_string()));
+fn watchdog_constants_match_the_single_bounded_design() {
+    assert_eq!(WATCHDOG_INTERVAL_SECS, 60);
+    assert_eq!(WATCHDOG_MAX_RUNS, 100);
+    assert_eq!(WATCHDOG_SCAN_BUDGET, Duration::from_millis(250));
+}
+
+#[test]
+fn shared_scan_deadline_is_checked_at_each_team_boundary() {
+    let first = fake_run("run-slow");
+    let second = fake_run("run-after-budget");
+    let mut inspected = Vec::new();
+
+    recover_listed_runs((), vec![first, second], |(), run_id| {
+        inspected.push(run_id.to_string());
+        if run_id == "run-slow" {
+            std::thread::sleep(Duration::from_millis(275));
+        }
+        Ok(())
+    })
+    .expect("budget expiry is a bounded stop, not an error");
+
+    assert_eq!(inspected, vec!["run-slow"]);
+}
+
+#[test]
+fn running_query_is_limited_and_never_visits_quiet_states() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let conn = get_connection().expect("db");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+    let now = Utc::now().to_rfc3339();
+    for index in 0..105 {
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
+                 created_at, updated_at
+             ) VALUES (?1, 'watchdog-org', 'coordinator', ?2, 'standalone_session',
+                       'running', ?3, ?3)",
+            params![
+                format!("running-{index:03}"),
+                format!("root-running-{index:03}"),
+                &now
+            ],
+        )
+        .expect("seed Working run");
+    }
+    for status in ["starting", "paused", "idle", "failed", "archived"] {
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
+                 created_at, updated_at
+             ) VALUES (?1, 'watchdog-org', 'coordinator', ?2, 'standalone_session',
+                       ?3, ?4, ?4)",
+            params![
+                format!("quiet-{status}"),
+                format!("root-quiet-{status}"),
+                status,
+                &now
+            ],
+        )
+        .expect("seed quiet run");
+    }
+
+    let runs = AgentOrgRunStore::list_running_runs(WATCHDOG_MAX_RUNS).expect("bounded query");
+    assert_eq!(runs.len(), WATCHDOG_MAX_RUNS);
+    assert!(runs
+        .iter()
+        .all(|run| run.status == AgentOrgRunStatus::Running));
+    assert_eq!(runs.first().map(|run| run.id.as_str()), Some("running-000"));
+    assert_eq!(runs.last().map(|run| run.id.as_str()), Some("running-099"));
 }
 
 #[test]

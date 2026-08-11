@@ -179,7 +179,7 @@ async fn resolve(
         "outcome": resolution.resolution_kind.as_str(),
         "org_run_id": run_id,
         "delivery_resolution": resolution,
-        "guidance": "The original Inbox row remains durable and unread as audit evidence, but no longer blocks delivery/finality. Re-inspect task_list and the replacement work before requesting completion."
+        "guidance": "The original Inbox row remains durable and unread as audit evidence, but no longer blocks delivery/Quiescence. Re-inspect task_list and the replacement work before requesting completion."
     }))
     .map_err(|err| {
         ToolError::ExecutionFailed(format!(
@@ -377,10 +377,10 @@ mod tests {
         let fixture = fixture();
         let conn = get_connection().expect("test sqlite connection");
         conn.execute(
-            "UPDATE agent_org_runs SET status='completed' WHERE id=?1",
+            "UPDATE agent_org_runs SET status='archived' WHERE id=?1",
             params![&fixture.run_id],
         )
-        .expect("complete run");
+        .expect("archive run");
         let error = OrgInboxRepairTool::new(fixture.coordinator)
             .execute_text(
                 json!({

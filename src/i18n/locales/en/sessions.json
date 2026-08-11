@@ -2533,6 +2533,7 @@
         "submitFailed": "The plan response could not be saved. Please try again."
       },
       "phase": {
+        "starting": "Starting",
         "coordinating": "Coordinating",
         "dispatching": "Dispatching",
         "members_working": "Members working",
@@ -2540,10 +2541,9 @@
         "awaiting_plan_approval": "Awaiting plan approval",
         "finalizing": "Finalizing",
         "paused": "Paused",
-        "completed": "Completed",
+        "idle": "Idle",
         "failed": "Failed",
-        "cancelled": "Cancelled",
-        "abandoned": "Abandoned"
+        "archived": "Archived"
       }
     },
     "agentOrgInbox": {

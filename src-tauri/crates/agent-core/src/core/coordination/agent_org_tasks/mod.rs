@@ -39,10 +39,10 @@ pub const TASK_METADATA_REQUIRED_ROLE: &str = "required_role";
 pub const TASK_METADATA_OUTPUT: &str = "output";
 pub const TASK_METADATA_EXECUTION_MODE: &str = "execution_mode";
 
-/// SQL predicate shared by finality and watchdog repair discovery.
+/// SQL predicate shared by Quiescence and watchdog repair discovery.
 ///
 /// Historical/manual SQLite rows can bypass the typed write boundary.  Keep
-/// this predicate in one place so the finality count and the watchdog's
+/// this predicate in one place so the Quiescence count and the watchdog's
 /// concrete repair identities cannot disagree about whether a row is safe to
 /// deserialize.  The numeric values are interpolated from the same payload
 /// constants used by new writes.
@@ -514,7 +514,7 @@ impl TaskStatus {
         }
     }
 
-    /// `completed` is treated as resolved for dependency and finality checks.
+    /// `completed` is treated as resolved for dependency and Quiescence checks.
     pub fn is_resolved(&self) -> bool {
         matches!(self, TaskStatus::Completed)
     }

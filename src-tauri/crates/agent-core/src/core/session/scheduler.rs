@@ -100,7 +100,7 @@ pub struct ScheduledMessage {
     /// user-message persistence (resume with empty content).
     pub turn_intent_id: String,
     /// Durable Agent Org run that owns this turn, when any. The scheduler
-    /// uses this only after the intent reaches a terminal state so finality
+    /// uses this only after the intent reaches a terminal state so Quiescence
     /// is rechecked after (not before) the current intent stops blocking it.
     pub org_run_id: Option<String>,
     /// The user content to process.
@@ -500,8 +500,22 @@ impl WorkerTask {
                     if let Some(run_id) = org_run_id {
                         let reconcile_run_id = run_id.clone();
                         match tokio::task::spawn_blocking(move || {
-                            crate::coordination::agent_org_runs::AgentOrgRunStore::reconcile_run_finality(
+                            let assessment = crate::coordination::agent_org_runs::AgentOrgRunStore::assess_run_quiescence(&reconcile_run_id)?;
+                            let Some(generation) = assessment.facts.activation_generation else {
+                                return Ok(false);
+                            };
+                            let Some(work_revision) = assessment
+                                .facts
+                                .progress
+                                .as_ref()
+                                .map(|progress| progress.work_revision)
+                            else {
+                                return Ok(false);
+                            };
+                            crate::coordination::agent_org_runs::AgentOrgRunStore::try_transition_working_to_idle(
                                 &reconcile_run_id,
+                                generation,
+                                work_revision,
                             )
                         })
                         .await
@@ -510,12 +524,12 @@ impl WorkerTask {
                             Ok(Err(error)) => warn!(
                                 run_id = %run_id,
                                 error = %error,
-                                "[scheduler] post-intent Agent Org finality reconcile failed"
+                                "[scheduler] post-intent Agent Org quiescence reconcile failed"
                             ),
                             Err(error) => warn!(
                                 run_id = %run_id,
                                 error = %error,
-                                "[scheduler] post-intent Agent Org finality reconcile task failed"
+                                "[scheduler] post-intent Agent Org quiescence reconcile task failed"
                             ),
                         }
                     }
@@ -527,16 +541,23 @@ impl WorkerTask {
                         "[scheduler] Message {} failed for session {}: {}",
                         msg.message_id, self.session_id, err
                     );
-                    // Lifecycle: running → failed. Cancelled turns walk
-                    // here too (the executor returns Err on user stop); a
-                    // future commit can distinguish via the cancel_flag
-                    // probe if we need a separate `cancelled` bucket on
-                    // the round renderer.
-                    crate::foundation::session_bridge::update_turn_intent_status(
-                        &self.session_id,
-                        &turn_intent_id,
-                        crate::foundation::session_bridge::TurnIntentBridgeStatus::Failed,
-                    );
+                    let assistant_persistence_failed =
+                        should_keep_agent_org_intent_in_flight(org_run_id.as_deref(), err);
+                    if assistant_persistence_failed {
+                        warn!(
+                            session_id = %self.session_id,
+                            turn_intent_id = %turn_intent_id,
+                            "[scheduler] keeping Agent Org turn in-flight because final assistant persistence failed"
+                        );
+                    } else {
+                        // Lifecycle: running → failed. Cancelled turns walk
+                        // here too (the executor returns Err on user stop).
+                        crate::foundation::session_bridge::update_turn_intent_status(
+                            &self.session_id,
+                            &turn_intent_id,
+                            crate::foundation::session_bridge::TurnIntentBridgeStatus::Failed,
+                        );
+                    }
                     // Turn-only: an `agent:error` renders as a chat bubble.
                     // Maintenance jobs report failures through their own
                     // channel (e.g. the manual-compact command's reply).
@@ -578,10 +599,34 @@ impl WorkerTask {
     }
 }
 
+fn should_keep_agent_org_intent_in_flight(org_run_id: Option<&str>, error: &str) -> bool {
+    org_run_id.is_some()
+        && error.starts_with(
+            crate::core::session::turn::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX,
+        )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn assistant_persistence_failure_keeps_only_agent_org_intent_in_flight() {
+        let error = format!(
+            "{} disk full",
+            crate::core::session::turn::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX
+        );
+        assert!(should_keep_agent_org_intent_in_flight(
+            Some("run-1"),
+            &error
+        ));
+        assert!(!should_keep_agent_org_intent_in_flight(None, &error));
+        assert!(!should_keep_agent_org_intent_in_flight(
+            Some("run-1"),
+            "provider failed"
+        ));
+    }
 
     #[tokio::test]
     async fn invalidated_pending_message_is_skipped() {

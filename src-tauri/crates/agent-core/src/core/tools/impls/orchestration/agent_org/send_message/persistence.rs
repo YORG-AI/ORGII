@@ -130,7 +130,7 @@ pub(super) fn persist_ordinary_message_if_running(
                 "reason": "run_not_running",
                 "org_run_id": run_id,
                 "run_status": run_status,
-                "guidance": "The Agent Org run is paused or terminal, so this message was not persisted. Resume a paused run before sending new work; terminal runs cannot be reopened.",
+                "guidance": "The Agent Org Team is not Running, so this formal peer message was not persisted. Starting, Paused, Idle, Failed, and Archived Teams do not accept this mutation in PR1.",
             }))
             .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
             tx.commit()

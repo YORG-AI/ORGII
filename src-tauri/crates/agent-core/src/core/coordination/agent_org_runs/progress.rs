@@ -1,7 +1,7 @@
 //! Monotonic Agent Org work observation and explicit completion intent.
 //!
 //! Timestamps are useful for display but are not a safe concurrency token.
-//! This table records a small monotonic revision so finality can prove that a
+//! This table records a small monotonic revision so Quiescence can prove that a
 //! coordinator turn was presented with (and successfully observed) the latest
 //! durable task mutation before announcing completion.
 

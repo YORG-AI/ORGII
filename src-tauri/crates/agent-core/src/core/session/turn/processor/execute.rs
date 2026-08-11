@@ -101,6 +101,8 @@ impl UnifiedMessageProcessor {
 
         let mut event_handler_config = self.event_handler_config.clone();
         event_handler_config.turn_id = Some(turn_id.to_string());
+        event_handler_config.require_durable_assistant_event =
+            self.runtime.agent_org_context.is_some();
         event_handler_config.agent_org_task_lifecycle = self
             .runtime
             .agent_org_context

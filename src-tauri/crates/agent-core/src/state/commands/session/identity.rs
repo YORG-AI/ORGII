@@ -32,6 +32,14 @@ pub(super) struct SessionIdentity {
     pub(super) account_id: Option<String>,
     pub(super) native_harness_type: Option<NativeHarnessType>,
     pub(super) workspace_root: PathBuf,
+    /// A loaded Agent Org runtime already knows its authoritative Run id.
+    /// Keeping that hint here lets the send boundary enforce Team lifecycle
+    /// before it creates a Provider without querying ordinary SDE sessions.
+    pub(super) agent_org_run_id_hint: Option<String>,
+    /// Unloaded Agent Org root/member sessions carry a canonical member id in
+    /// persistence. Only those sessions need the bounded parent-walk lookup;
+    /// ordinary SDE sessions stay on the existing zero-Agent-Org-query path.
+    pub(super) has_persisted_agent_org_identity: bool,
 }
 
 /// Caller-supplied overrides. Fields that are `None` are resolved from
@@ -104,6 +112,10 @@ pub(super) async fn resolve_session_identity(
     let native_harness_after_l2 = overrides
         .native_harness_type
         .or_else(|| cached_runtime.as_ref().and_then(|r| r.native_harness_type));
+    let agent_org_run_id_hint = cached_runtime
+        .as_ref()
+        .and_then(|runtime| runtime.agent_org_context.as_ref())
+        .map(|context| context.run_id.clone());
 
     // ── Layer 3: DB (lazy — only when at least one field still needs it) ─
     let needs_db = model_after_l2.is_none()
@@ -163,6 +175,10 @@ pub(super) async fn resolve_session_identity(
         })
         .transpose()?;
     let native_harness_type = native_harness_after_l2.or(native_harness_from_db);
+    let has_persisted_agent_org_identity = db_record
+        .as_ref()
+        .and_then(|record| record.org_member_id.as_deref())
+        .is_some();
 
     // ── Workspace Root ───────────────────────────────────────────────────
     //
@@ -211,6 +227,8 @@ pub(super) async fn resolve_session_identity(
         account_id,
         workspace_root,
         native_harness_type,
+        agent_org_run_id_hint,
+        has_persisted_agent_org_identity,
     })
 }
 

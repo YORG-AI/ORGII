@@ -153,7 +153,7 @@ fn task_mutations_require_running_parent_run() {
     ))
     .expect("running run permits create");
     conn.execute(
-        "UPDATE agent_org_runs SET status='completed' WHERE id='guarded-run'",
+        "UPDATE agent_org_runs SET status='archived' WHERE id='guarded-run'",
         [],
     )
     .unwrap();
@@ -694,7 +694,7 @@ fn store_rejects_malformed_reserved_dispatch_metadata() {
         .expect("classify historical producer");
     assert!(
         classified,
-        "historical oversized producer must block finality"
+        "historical oversized producer must block Quiescence"
     );
 
     let timezone_less_metadata = serde_json::json!({
@@ -726,7 +726,7 @@ fn store_rejects_malformed_reserved_dispatch_metadata() {
             |row| row.get(0),
         )
         .expect("classify historical timezone-less output");
-    assert!(classified, "timezone-less output must block finality");
+    assert!(classified, "timezone-less output must block Quiescence");
 }
 
 #[test]

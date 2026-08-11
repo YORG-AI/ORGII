@@ -33,7 +33,7 @@ async function flushPromises(): Promise<void> {
 }
 
 function runView(
-  runStatus: "running" | "paused" | "completed",
+  runStatus: "starting" | "running" | "paused" | "idle" | "failed" | "archived",
   interventionResumeAfter?: string
 ) {
   return {
@@ -106,6 +106,18 @@ function runView(
   };
 }
 
+function runViewForRoot(
+  runStatus: "starting" | "running" | "paused" | "idle" | "failed" | "archived",
+  runId: string,
+  rootSessionId: string
+) {
+  const view = runView(runStatus);
+  view.context.runId = runId;
+  view.context.rootSessionId = rootSessionId;
+  view.members[0].sessionRuntime.sessionId = rootSessionId;
+  return view;
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((resolvePromise) => {
@@ -118,10 +130,11 @@ afterEach(() => {
   agentOrgRunViewStoreTestApi.reset();
   vi.useRealTimers();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("Agent Org run-view store", () => {
-  it("shares one fallback per run, coalesces pushes, and stops terminal runs", async () => {
+  it("shares one fallback per run, coalesces pushes, and stops immediately on Idle", async () => {
     vi.useFakeTimers();
     let stateChangeHandler: ((sessionId: string) => void) | undefined;
     let backendChangeHandler:
@@ -151,7 +164,7 @@ describe("Agent Org run-view store", () => {
     );
     mocks.getAgentOrgSessionRunView
       .mockResolvedValueOnce(runView("running"))
-      .mockResolvedValueOnce(runView("completed"));
+      .mockResolvedValueOnce(runView("idle"));
 
     const rootSubscriber = vi.fn();
     const secondRootSubscriber = vi.fn();
@@ -213,6 +226,104 @@ describe("Agent Org run-view store", () => {
     unsubscribe();
   });
 
+  it.each(["paused", "idle", "failed", "archived"] as const)(
+    "does not retain a fallback interval when the initial Team is %s",
+    async (status) => {
+      vi.useFakeTimers();
+      mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+        mocks.unsubscribeStateChanges
+      );
+      mocks.getAgentOrgSessionRunView.mockResolvedValue(runView(status));
+
+      const unsubscribe = subscribeAgentOrgRunView("session-root", vi.fn());
+      await flushPromises();
+
+      expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+      await vi.advanceTimersByTimeAsync(AGENT_ORG_RUN_VIEW_FALLBACK_MS * 5);
+      expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    }
+  );
+
+  it("destroys the shared interval when the last pollable Team becomes Idle", async () => {
+    vi.useFakeTimers();
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    mocks.getAgentOrgSessionRunView.mockImplementation((sessionId: string) => {
+      if (sessionId === "root-a") {
+        return Promise.resolve(runViewForRoot("running", "run-a", "root-a"));
+      }
+      return Promise.resolve(runViewForRoot("running", "run-b", "root-b"));
+    });
+
+    const unsubscribeA = subscribeAgentOrgRunView("root-a", vi.fn());
+    const unsubscribeB = subscribeAgentOrgRunView("root-b", vi.fn());
+    await flushPromises();
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(true);
+
+    mocks.getAgentOrgSessionRunView.mockImplementation((sessionId: string) =>
+      Promise.resolve(
+        sessionId === "root-a"
+          ? runViewForRoot("idle", "run-a", "root-a")
+          : runViewForRoot("running", "run-b", "root-b")
+      )
+    );
+    await agentOrgRunViewStoreTestApi.refresh("root-a");
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(true);
+
+    mocks.getAgentOrgSessionRunView.mockImplementation((sessionId: string) =>
+      Promise.resolve(
+        sessionId === "root-b"
+          ? runViewForRoot("idle", "run-b", "root-b")
+          : runViewForRoot("idle", "run-a", "root-a")
+      )
+    );
+    await agentOrgRunViewStoreTestApi.refresh("root-b");
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+
+    unsubscribeA();
+    unsubscribeB();
+  });
+
+  it("clears polling while hidden and performs one bounded refresh when visible", async () => {
+    vi.useFakeTimers();
+    let hidden = false;
+    let visibilityChange: (() => void) | undefined;
+    vi.stubGlobal("document", {
+      get hidden() {
+        return hidden;
+      },
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        if (event === "visibilitychange") visibilityChange = handler;
+      }),
+      removeEventListener: vi.fn(),
+    });
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    mocks.getAgentOrgSessionRunView.mockResolvedValue(runView("running"));
+
+    const unsubscribe = subscribeAgentOrgRunView("session-root", vi.fn());
+    await flushPromises();
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(true);
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(1);
+
+    hidden = true;
+    visibilityChange?.();
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+    await vi.advanceTimersByTimeAsync(AGENT_ORG_RUN_VIEW_FALLBACK_MS * 5);
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(1);
+
+    hidden = false;
+    visibilityChange?.();
+    await flushPromises();
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(2);
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(true);
+
+    unsubscribe();
+  });
+
   it("refreshes a retained view immediately when the session is reopened", async () => {
     vi.useFakeTimers();
     mocks.subscribeAgentOrgStateChanges.mockReturnValue(
@@ -263,13 +374,13 @@ describe("Agent Org run-view store", () => {
     // discovery hangs, the second is released after the bounded join timeout;
     // request ordering must still reject the first request's late result.
     await vi.advanceTimersByTimeAsync(AGENT_ORG_BOOTSTRAP_JOIN_TIMEOUT_MS);
-    workerRequest.resolve(runView("completed"));
+    workerRequest.resolve(runView("idle"));
     await flushPromises();
     rootRequest.resolve(runView("running"));
     await flushPromises();
 
     expect(getAgentOrgRunViewSnapshot("session-root").view?.runStatus).toBe(
-      "completed"
+      "idle"
     );
     unsubscribeRoot();
     unsubscribeWorker();

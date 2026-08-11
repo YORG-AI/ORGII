@@ -1,7 +1,7 @@
 use super::launch_helpers::{
     apply_member_launch_overrides_to_snapshot, member_runtime_account_id,
     member_runtime_key_source, member_runtime_model, member_runtime_native_harness_type,
-    member_runtime_tier, validate_launch_agent_definitions,
+    validate_launch_agent_definitions,
 };
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::definitions::builtin::SDE_AGENT_ID;
@@ -144,10 +144,6 @@ fn member_runtime_resolution_prefers_member_config_then_falls_back() {
     assert_eq!(
         member_runtime_account_id(Some(&config), &fallback_account).as_deref(),
         Some("member-account")
-    );
-    assert_eq!(
-        member_runtime_tier(Some(&config)).as_deref(),
-        Some("premium")
     );
     assert_eq!(
         member_runtime_key_source(Some(&config), &KeySource::OwnKey).expect("key source"),

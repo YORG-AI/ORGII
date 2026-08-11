@@ -120,8 +120,12 @@ pub type FinalizePlanRevisionEventsFn =
 /// Persist a batch of `SessionEvent`s synchronously with retry. The wire
 /// side converts each to its on-disk `CachedEvent` representation. `label`
 /// is used in retry log lines.
-pub type PersistEventsFn =
-    fn(label: &'static str, session_id: &str, events: &[SessionEvent], max_retries: u32);
+pub type PersistEventsFn = fn(
+    label: &'static str,
+    session_id: &str,
+    events: &[SessionEvent],
+    max_retries: u32,
+) -> Result<(), String>;
 
 /// Fire-and-forget variant: spawns `persist_events` onto a blocking thread.
 pub type PersistEventsAsyncFn =
@@ -444,16 +448,13 @@ pub fn persist_events(
     session_id: &str,
     events: &[SessionEvent],
     max_retries: u32,
-) {
+) -> Result<(), String> {
     if let Some(f) = PERSIST_EVENTS.get() {
-        f(label, session_id, events, max_retries);
-    } else {
-        tracing::warn!(
-            "[event-pipeline-bridge] persist_events ({}) called before register for {}",
-            label,
-            session_id
-        );
+        return f(label, session_id, events, max_retries);
     }
+    Err(format!(
+        "event pipeline persistence is not registered ({label}, session {session_id})"
+    ))
 }
 
 pub fn persist_events_async(

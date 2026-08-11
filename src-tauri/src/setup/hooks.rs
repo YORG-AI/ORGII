@@ -65,6 +65,17 @@ pub(crate) fn register_database_schemas() {
         }
 
         agent_core::coordination::init_agent_org_schemas(conn)?;
+        match session_persistence::turn_intents::reconcile_agent_org_in_flight_after_restart(conn) {
+            Ok(0) => {}
+            Ok(count) => tracing::info!(
+                "[startup] Reconciled {} Agent Org turn intent(s) from the previous process",
+                count
+            ),
+            Err(err) => tracing::warn!(
+                "[startup] Failed to reconcile Agent Org turn intents: {}",
+                err
+            ),
+        }
 
         // Pending plan-approval snapshots (one row per session with a Build
         // button still awaiting the user). Persists the pending action so the

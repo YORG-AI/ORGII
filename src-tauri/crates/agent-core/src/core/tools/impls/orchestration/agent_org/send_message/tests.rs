@@ -375,14 +375,14 @@ async fn plain_message_to_worker_without_task_returns_guidance_and_does_not_wake
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn ordinary_message_does_not_create_unread_work_after_run_is_terminal() {
+async fn ordinary_message_does_not_create_unread_work_after_run_is_archived() {
     let _sandbox = init_inbox_schema();
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
-        "UPDATE agent_org_runs SET status='completed' WHERE id='run-1'",
+        "UPDATE agent_org_runs SET status='archived' WHERE id='run-1'",
         [],
     )
-    .expect("complete run");
+    .expect("archive run");
     let wake = Arc::new(RecordingWakeHook::default());
     let tool = OrgSendMessageTool::with_hooks(
         context(),

@@ -28,7 +28,7 @@ impl AgentInboxStore {
 
     /// Atomically persist a recovery/outbox message only while its Agent Org
     /// run is still Running. This shares the sessions writer lock and an
-    /// IMMEDIATE transaction with run finality, so a queued watchdog action
+    /// IMMEDIATE transaction with Team Quiescence, so a queued watchdog action
     /// cannot insert a new unread row after pause or terminal transition.
     pub(crate) fn insert_if_run_running(
         params: InsertInboxParams,
