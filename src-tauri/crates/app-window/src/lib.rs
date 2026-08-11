@@ -318,7 +318,11 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
         .find(|config| config.label == "main")
         .ok_or("Main window configuration not found")?;
     let builder = WebviewWindowBuilder::from_config(app, main_config)
-        .map_err(|error| format!("Failed to load main window configuration: {error}"))?;
+        .map_err(|error| format!("Failed to load main window configuration: {error}"))?
+        // `from_config` replays only what the JSON declares, and no platform
+        // config sets `"center": true`. Without this the recovered window lands
+        // on the OS cascade position instead of where the user last saw it.
+        .center();
 
     let ownership_observation = perf_utils::begin_webview_ownership_observation("main");
     let window = builder
