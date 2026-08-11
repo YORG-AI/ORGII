@@ -4,36 +4,26 @@
  * Groups file edits and the reads performed after them into one collapsible
  * stack. Each event still renders through the event registry.
  */
-import React, { Suspense, useMemo } from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
 import { DIFF_STATS } from "@src/config/workstation/tokens";
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
-import {
-  ChatLoadingBlock,
-  StackedBlock,
-} from "@src/engines/ChatPanel/blocks/primitives";
-import {
-  type SessionEvent,
-  TOOL_USAGE_ARGS_KEY,
-  type ToolUsageMetadata,
-} from "@src/engines/SessionCore/core/types";
+import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import { type SessionEvent } from "@src/engines/SessionCore/core/types";
 import { extractEditData } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
-import { getChatLazyComponent } from "@src/engines/SessionCore/rendering/registry/events";
+import { normalizeFunctionName } from "@src/lib/activityData/activityNormalizers";
+
 import {
-  getRegistryEventType,
-  normalizeFunctionName,
-} from "@src/lib/activityData/activityNormalizers";
+  aggregateActivityGroupToolUsage,
+  buildActivityGroupItems,
+  renderActivityGroupEvent,
+} from "../activityGroupProjection";
 
 interface EditActivityGroupProps {
   events: SessionEvent[];
   closedByBoundary?: boolean;
-}
-
-interface EditEventItem {
-  event: SessionEvent;
-  isLastItem: boolean;
 }
 
 function getCanonicalName(event: SessionEvent): string {
@@ -88,99 +78,12 @@ export function sumEditDiffStats(events: readonly SessionEvent[]): {
   );
 }
 
-function ActivityBlock({ event }: { event: SessionEvent }) {
-  const eventType = getRegistryEventType(
-    event as unknown as Record<string, unknown>
-  );
-  const EventComponent = getChatLazyComponent(eventType);
-  return (
-    <Suspense fallback={<ChatLoadingBlock />}>
-      {React.createElement(EventComponent, { event })}
-    </Suspense>
-  );
-}
-
-function suppressLoadingForNonLastRunningEvent(
-  event: SessionEvent,
-  isLastItem: boolean
-): SessionEvent {
-  if (isLastItem || event.displayStatus !== "running") return event;
-  return {
-    ...event,
-    displayStatus: "completed",
-    activityStatus: "processed",
-    isDelta: false,
-  };
-}
-
-function readToolUsage(event: SessionEvent): ToolUsageMetadata | undefined {
-  if (event.toolUsage) return event.toolUsage;
-  const raw = event.args?.[TOOL_USAGE_ARGS_KEY];
-  if (!raw || typeof raw !== "object") return undefined;
-  return raw as ToolUsageMetadata;
-}
-
-function aggregateToolUsage(
-  items: readonly EditEventItem[]
-): ToolUsageMetadata | undefined {
-  const usages = items
-    .map((item) => readToolUsage(item.event))
-    .filter((usage): usage is ToolUsageMetadata => Boolean(usage));
-  if (usages.length === 0) return undefined;
-
-  return usages.reduce<ToolUsageMetadata>(
-    (total, usage) => ({
-      decisionCompletionTokens:
-        total.decisionCompletionTokens + usage.decisionCompletionTokens,
-      resultContextTokens:
-        total.resultContextTokens + usage.resultContextTokens,
-      followupCompletionTokens:
-        total.followupCompletionTokens + usage.followupCompletionTokens,
-      inputBytes: total.inputBytes + usage.inputBytes,
-      outputBytes: total.outputBytes + usage.outputBytes,
-      relatedCacheReadTokens:
-        total.relatedCacheReadTokens + usage.relatedCacheReadTokens,
-      relatedCacheWriteTokens:
-        total.relatedCacheWriteTokens + usage.relatedCacheWriteTokens,
-      attributionMethod:
-        total.attributionMethod === usage.attributionMethod
-          ? total.attributionMethod
-          : usage.attributionMethod,
-    }),
-    {
-      decisionCompletionTokens: 0,
-      resultContextTokens: 0,
-      followupCompletionTokens: 0,
-      inputBytes: 0,
-      outputBytes: 0,
-      relatedCacheReadTokens: 0,
-      relatedCacheWriteTokens: 0,
-      attributionMethod: usages[0].attributionMethod,
-    }
-  );
-}
-
-function renderEditEvent({ event, isLastItem }: EditEventItem) {
-  return (
-    <ActivityBlock
-      event={suppressLoadingForNonLastRunningEvent(event, isLastItem)}
-    />
-  );
-}
-
 const EditActivityGroup: React.FC<EditActivityGroupProps> = ({
   events,
   closedByBoundary = true,
 }) => {
   const { t } = useTranslation("sessions");
-  const items = useMemo<EditEventItem[]>(
-    () =>
-      events.map((event, index) => ({
-        event,
-        isLastItem: index === events.length - 1,
-      })),
-    [events]
-  );
+  const items = useMemo(() => buildActivityGroupItems(events), [events]);
 
   if (items.length === 0) return null;
 
@@ -194,7 +97,7 @@ const EditActivityGroup: React.FC<EditActivityGroupProps> = ({
   const hasDiffStats = diffStats.additions > 0 || diffStats.deletions > 0;
 
   const firstEvent = items[0].event;
-  const groupToolUsage = aggregateToolUsage(items);
+  const groupToolUsage = aggregateActivityGroupToolUsage(events);
 
   return (
     <div
@@ -242,7 +145,7 @@ const EditActivityGroup: React.FC<EditActivityGroupProps> = ({
         rightContent={
           groupToolUsage ? <ToolUsageBadge usage={groupToolUsage} /> : undefined
         }
-        renderItem={renderEditEvent}
+        renderItem={renderActivityGroupEvent}
       />
     </div>
   );
