@@ -6,6 +6,7 @@
  * the authoritative Rust snapshot arrives. Extracted from actions.ts.
  */
 import { isLiveRuntimeResourceEvent } from "../runningEventGate";
+import { getFallbackSimulatorEventFilterCategory } from "../simulatorEventFilterCategory";
 import type { SessionEvent, SimulatorEventPreview } from "../types";
 
 /**
@@ -34,33 +35,6 @@ export function isSimulatorVisibleApprox(event: SessionEvent): boolean {
   );
 }
 
-function getSimulatorFilterCategory(
-  event: SessionEvent
-): SimulatorEventPreview["filterCategory"] {
-  if (event.source === "user") return "key_interactions";
-  if (
-    event.uiCanonical === "edit_file" ||
-    event.uiCanonical === "delete_file"
-  ) {
-    return "file_changes";
-  }
-  if (event.command || event.uiCanonical === "run_shell") {
-    return "terminal_events";
-  }
-  if (
-    event.uiCanonical === "read_file" ||
-    event.uiCanonical === "list_dir" ||
-    event.uiCanonical === "code_search" ||
-    event.uiCanonical === "glob" ||
-    event.uiCanonical === "find_files" ||
-    event.uiCanonical === "search"
-  ) {
-    return "explore";
-  }
-  if (event.filePath) return "file_changes";
-  return "other";
-}
-
 function buildSimulatorPreview(event: SessionEvent): SimulatorEventPreview {
   return {
     id: event.id,
@@ -74,7 +48,7 @@ function buildSimulatorPreview(event: SessionEvent): SimulatorEventPreview {
     displayStatus: event.displayStatus,
     displayVariant: event.displayVariant,
     activityStatus: event.activityStatus,
-    filterCategory: getSimulatorFilterCategory(event),
+    filterCategory: getFallbackSimulatorEventFilterCategory(event),
     threadId: event.threadId,
     processId: event.processId,
     callId: event.callId,
