@@ -549,6 +549,19 @@ html[data-host-desktop="macos"] .sidebar-base {
   background: transparent;
 }
 
+// Single source of truth for the translucent Windows chrome fill. The top bar,
+// the surface under the rounded work area, and the navigation sidebar all paint
+// from these tokens, so the Windows 10 fallback below only has to retarget them
+// once instead of out-specifying three separate call sites.
+html[data-host-desktop="windows"] {
+  --windows-chrome-fill: color-mix(
+    in srgb,
+    var(--color-bg-2) var(--windows-native-chrome-opacity),
+    transparent
+  );
+  --windows-sidebar-fill: var(--windows-chrome-fill);
+}
+
 html[data-host-desktop="windows"] body,
 html[data-host-desktop="windows"] #root {
   background: transparent;
@@ -558,15 +571,30 @@ html[data-host-desktop="windows"] .sidebar-base {
   background: transparent;
 }
 
+// Windows 10 cannot use full-window Acrylic without severe move/resize cost.
+// Rust marks the main page after disabling that native effect; retargeting the
+// fill tokens repaints every chrome surface opaquely from live theme values, so
+// light, dark, and high-contrast all follow. It also reaches the sidebar's
+// inline background, which a plain stylesheet rule could not override.
+html[data-windows-chrome="opaque"] {
+  --windows-chrome-fill: var(--color-bg-2);
+  --windows-sidebar-fill: var(--sidebar-bg);
+}
+
+html[data-windows-chrome="opaque"] body,
+html[data-windows-chrome="opaque"] #root {
+  background: var(--color-bg-2);
+}
+
+html[data-windows-chrome="opaque"] .sidebar-base {
+  background: var(--windows-sidebar-fill);
+}
+
 // Match the surface revealed beneath the rounded work area to the translucent
 // Windows chrome used by the top bar and navigation sidebar. Falling through
 // to the opaque root background makes the corner look like a separate layer.
 html[data-host-desktop="windows"] .windows-main-page-underlay {
-  background: color-mix(
-    in srgb,
-    var(--color-bg-2) var(--windows-native-chrome-opacity, 30%),
-    transparent
-  );
+  background: var(--windows-chrome-fill);
 }
 
 // Only the inner top-left corner of the main work surface is rounded.
@@ -582,11 +610,7 @@ html[data-host-desktop="windows"] [data-windows-top-bar="true"] {
   overflow: hidden;
   border-top-left-radius: var(--border-radius-window);
   border-top-right-radius: var(--border-radius-window);
-  background: color-mix(
-    in srgb,
-    var(--color-bg-2) var(--windows-native-chrome-opacity, 30%),
-    transparent
-  );
+  background: var(--windows-chrome-fill);
 }
 
 // Ensure popup layers are not clipped by body's overflow: hidden

@@ -512,7 +512,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
         }
       : {
           backgroundColor: IS_WINDOWS_HOST
-            ? "color-mix(in srgb, var(--color-bg-2) var(--windows-native-chrome-opacity, 30%), transparent)"
+            ? "var(--windows-sidebar-fill)"
             : "var(--sidebar-bg)",
           borderColor: "var(--sidebar-border)",
           boxShadow: sidebarBoxShadow,
