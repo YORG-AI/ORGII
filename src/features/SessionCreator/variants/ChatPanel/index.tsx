@@ -436,8 +436,6 @@ const SessionCreatorChatPanelContent: React.FC<
       composerInputRef={composerInputRef}
       editorAreaProps={{
         variant: "chatPanelFullScreen",
-        editorMinHeight: layout === "launchpad" ? 44 : undefined,
-        editorMaxHeight: layout === "launchpad" ? 160 : undefined,
         uploadedFiles: isHumanMode ? [] : uploadedFiles,
         onRemoveFile: handleRemoveFile,
         composerInputRef,

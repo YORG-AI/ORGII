@@ -7,6 +7,20 @@ import {
 } from "./prLevelActions";
 
 describe("PR-level action presentation", () => {
+  it("uses concise merge-method labels", () => {
+    const presentation = presentPullRequestActions({
+      detail: { state: "open" },
+      fallbackStatus: "open",
+      checks: null,
+    });
+
+    expect(presentation.methods.map(({ label }) => label)).toEqual([
+      "Merge",
+      "Squash and merge",
+      "Rebase and merge",
+    ]);
+  });
+
   it("uses repository merge settings and allows a clean PR to merge", () => {
     const presentation = presentPullRequestActions({
       detail: {

@@ -5,6 +5,7 @@ import type { ProjectOrg } from "@src/api/http/project";
 import {
   canDeleteLocalProjectOrg,
   filterSelectableProjectOrgs,
+  resolveDefaultProjectOrgId,
 } from "./projectOrgVisibility";
 
 function projectOrg(
@@ -58,6 +59,48 @@ describe("filterSelectableProjectOrgs", () => {
     });
 
     expect(filterSelectableProjectOrgs([selfHosted], [])).toEqual([selfHosted]);
+  });
+});
+
+describe("resolveDefaultProjectOrgId", () => {
+  const personal = projectOrg("personal-org", { name: "Personal" });
+  const cloudAlias = projectOrg("cloud-alias", {
+    name: "ORG2 OSS",
+    external_org_id: "remote-org",
+    sync_provider: "orgii_collab",
+  });
+
+  it("maps the global cloud selector to its local project-org alias", () => {
+    expect(
+      resolveDefaultProjectOrgId(
+        undefined,
+        "cloud:remote-org",
+        [personal, cloudAlias],
+        [personal, cloudAlias]
+      )
+    ).toBe("cloud-alias");
+  });
+
+  it("lets an explicit org surface override the global default", () => {
+    expect(
+      resolveDefaultProjectOrgId(
+        "personal-org",
+        "cloud:remote-org",
+        [personal, cloudAlias],
+        [personal, cloudAlias]
+      )
+    ).toBe("personal-org");
+  });
+
+  it("falls back to personal while a global cloud alias is unavailable", () => {
+    expect(
+      resolveDefaultProjectOrgId(
+        undefined,
+        "cloud:remote-org",
+        [personal, cloudAlias],
+        [personal]
+      )
+    ).toBe("personal-org");
   });
 });
 

@@ -7,11 +7,13 @@ import type {
 } from "@src/api/tauri/github";
 
 import {
+  CLOSED_ISSUES_COLLAPSED_BY_DEFAULT,
   filterIssuesByQuery,
   formatIssueStateLabel,
   formatTimeAgo,
   getLabelColorStyle,
   parseGithubIssueNumber,
+  shouldLoadClosedIssuesOnToggle,
   sortIssues,
 } from "../workstationIssueHelpers";
 
@@ -53,6 +55,17 @@ function createIssue(overrides?: Partial<GitHubIssue>): GitHubIssue {
     ...overrides,
   };
 }
+
+describe("closed issue section loading", () => {
+  it("starts collapsed and loads on the first or failed expansion", () => {
+    expect(CLOSED_ISSUES_COLLAPSED_BY_DEFAULT).toBe(true);
+    expect(shouldLoadClosedIssuesOnToggle(true, "idle")).toBe(true);
+    expect(shouldLoadClosedIssuesOnToggle(false, "idle")).toBe(false);
+    expect(shouldLoadClosedIssuesOnToggle(true, "loading")).toBe(false);
+    expect(shouldLoadClosedIssuesOnToggle(true, "ready")).toBe(false);
+    expect(shouldLoadClosedIssuesOnToggle(true, "error")).toBe(true);
+  });
+});
 
 // ============================================================
 // formatIssueStateLabel

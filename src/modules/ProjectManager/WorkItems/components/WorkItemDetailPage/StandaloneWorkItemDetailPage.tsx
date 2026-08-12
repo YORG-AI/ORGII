@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { projectApi, workItemDataToUI } from "@src/api/http/project";
+import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
@@ -18,8 +19,11 @@ const EMPTY_RELATION_MAPS = {
   projectNameMap: new Map(),
 };
 
+const logger = createLogger("StandaloneWorkItemDetailPage");
+
 export function StandaloneWorkItemDetailPage({
   workItemId,
+  orgId,
   onClose,
   onOpenChatSession,
   pendingUpdates,
@@ -36,12 +40,27 @@ export function StandaloneWorkItemDetailPage({
   const loadWorkItem = useCallback(async () => {
     setLoading(true);
     try {
-      const item = await projectApi.readStandaloneWorkItem(workItemId);
+      const item = await projectApi.readStandaloneWorkItem(
+        workItemId,
+        orgId ? { orgId } : undefined
+      );
       setWorkItem(workItemDataToUI(item, EMPTY_RELATION_MAPS));
+    } catch (error) {
+      logger.warn(
+        `Failed to read standalone Work Item ${workItemId} in org ${orgId ?? "personal-org"}`,
+        error
+      );
     } finally {
       setLoading(false);
     }
-  }, [workItemId]);
+  }, [orgId, workItemId]);
+
+  // This page is also mounted outside the Workstation renderer. If one of
+  // those hosts reuses it for a different identity, clear the previous row
+  // once at the identity boundary rather than on every background refresh.
+  useEffect(() => {
+    setWorkItem(null);
+  }, [orgId, workItemId]);
 
   useEffect(() => {
     void loadWorkItem();
@@ -76,11 +95,12 @@ export function StandaloneWorkItemDetailPage({
       // silently dropped by a client-side merge + whole-row write.
       await projectApi.updateStandaloneWorkItemPartial(
         workItemId,
-        standaloneWorkItemUpdatesToPartial(updates, updates.spec)
+        standaloneWorkItemUpdatesToPartial(updates, updates.spec),
+        orgId ? { orgId } : undefined
       );
       await loadWorkItem();
     },
-    [loadWorkItem, onWorkItemNameUpdated, workItem, workItemId]
+    [loadWorkItem, onWorkItemNameUpdated, orgId, workItem, workItemId]
   );
 
   if (!workItem) {
@@ -110,6 +130,7 @@ export function StandaloneWorkItemDetailPage({
       showTime
       repoPath={activeWorkspaceRootPath || null}
       projectSlug={null}
+      orgId={orgId}
       shortId={workItemId}
       onRefreshWorkItem={loadWorkItem}
       onOpenSession={onOpenChatSession}

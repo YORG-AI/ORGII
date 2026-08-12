@@ -107,6 +107,45 @@ describe("work item picker model", () => {
     ]);
   });
 
+  it("preserves the owning org for standalone Work Items", () => {
+    const data = {
+      projectEntries: [],
+      standaloneWorkItems: [
+        {
+          orgId: "cloud:org-1",
+          workItem: {
+            body: "Standalone body",
+            filename: "WI-42",
+            frontmatter: {
+              id: "row-42",
+              short_id: "WI-42",
+              title: "Standalone item",
+              status: "backlog",
+              priority: "none",
+              labels: [],
+              todos: [],
+              starred: false,
+              created_at: "2026-08-09T00:00:00Z",
+              updated_at: "2026-08-09T00:00:00Z",
+            },
+          },
+        },
+      ],
+      orgs: [],
+    } satisfies WorkspaceWorkItemsData;
+
+    expect(workspaceWorkItemsToPickerOptions(data)).toEqual([
+      expect.objectContaining({
+        identifier: "WI-42",
+        workItemContext: {
+          orgId: "cloud:org-1",
+          workItemId: "WI-42",
+          agentRole: "custom",
+        },
+      }),
+    ]);
+  });
+
   it("filters by source and query before applying the render cap", () => {
     const options = [
       ...Array.from({ length: 25 }, (_, index) => pickerOption(index)),

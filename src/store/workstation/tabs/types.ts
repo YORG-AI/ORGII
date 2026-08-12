@@ -453,6 +453,7 @@ export interface WorkItemDetailTabData {
   projectId?: string;
   projectName?: string;
   projectSlug?: string;
+  orgId?: string;
   dataPath?: string;
   workItemId: string;
   workItemName: string;

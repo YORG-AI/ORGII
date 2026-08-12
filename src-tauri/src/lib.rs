@@ -348,16 +348,43 @@ pub fn run() {
 
     let builder = tauri::Builder::default();
 
+    // Keep this plugin first. On Windows and Linux the OS launches a second
+    // process for a custom-scheme URL; the single-instance plugin's
+    // `deep-link` feature forwards that argv URL to the already-running
+    // process before this callback runs. The frontend's app-lifetime
+    // `onOpenUrl` listener remains the single owner of invite routing.
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+        // Never log argv: deep-link query/fragment values can contain invite
+        // codes, share capabilities, or OAuth tokens.
+        tracing::info!(
+            argument_count = argv.len(),
+            "external open request forwarded to the running app"
+        );
+
+        if let Some(main_window) = app.get_webview_window("main") {
+            if let Err(error) = main_window.unminimize() {
+                tracing::warn!(?error, "failed to restore the main window");
+            }
+            if let Err(error) = main_window.show() {
+                tracing::warn!(?error, "failed to show the main window");
+            }
+            if let Err(error) = main_window.set_focus() {
+                tracing::warn!(?error, "failed to focus the main window");
+            }
+        } else if let Err(error) = app_window::recreate_main_window(app) {
+            tracing::warn!(
+                %error,
+                "failed to recreate the main window for an external open request"
+            );
+        }
+    }));
+
     // E2E WebDriver automation — only when built with `--features webdriver` (debug/test only).
     #[cfg(all(debug_assertions, feature = "webdriver"))]
     let builder = builder.plugin(tauri_plugin_webdriver_automation::init());
 
     let builder = builder
-        // NOTE: Single-instance disabled for development - uncomment for production
-        // .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {
-        //   tracing::info!(?argv, "a new app instance was opened and the deep link event was already triggered");
-        //   // when defining deep link schemes at runtime, you must also check `argv` here
-        // }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_fs::init())
@@ -740,6 +767,12 @@ pub fn run() {
                 "[HousekeeperCompaction] opt-in MiniCPM context worker initialized"
             );
 
+            // Durable WorkItemRun outbox consumer. This starts before the
+            // legacy schedulers so every producer can converge on one
+            // crash-safe delivery path during migration.
+            agent_core::coordination::work_item_run_dispatcher::spawn(app.handle().clone());
+            tracing::info!("[work-run-dispatcher] started");
+
             // Spawn work item schedule executor
             {
                 let scheduler_handle = app.handle().clone();
@@ -817,7 +850,26 @@ pub fn run() {
                 let watermark_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
                     use tauri::Emitter;
-                    let mut last_seq: i64 = -1;
+                    const STAGE_BARRIER_CONSUMER: &str = "stage_barrier_dispatch_v1";
+                    let initial_seq = tokio::task::spawn_blocking(
+                        project_management::projects::io::read_pm_change_seq,
+                    )
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .unwrap_or(0)
+                    .max(0);
+                    let mut last_seq = initial_seq;
+                    let mut stage_cursor = tokio::task::spawn_blocking(move || {
+                        project_management::work_run_service::initialize_consumer_cursor(
+                            STAGE_BARRIER_CONSUMER,
+                            initial_seq,
+                        )
+                    })
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .unwrap_or(initial_seq);
                     loop {
                         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                         let seq = tokio::task::spawn_blocking(
@@ -827,24 +879,51 @@ pub fn run() {
                         .ok()
                         .and_then(Result::ok)
                         .unwrap_or(-1);
-                        if seq >= 0 && last_seq >= 0 && seq != last_seq {
+                        if seq >= 0 && seq != last_seq {
+                            // The same durable watermark covers WorkItemRun
+                            // outbox writes made by another desktop/CLI
+                            // process. Wake the dispatcher; its read-only
+                            // readiness probe avoids a writer lock for PM
+                            // changes unrelated to dispatch.
+                            agent_core::coordination::work_item_run_dispatcher::wake_from_watermark();
                             let _ = watermark_handle.emit(
                                 project_management::projects::events::DATA_CHANGED_EVENT,
                                 serde_json::json!({ "source": "pm-watermark" }),
                             );
-                            // Fold CLI-committed status transitions into the
-                            // child-done wake pipeline; in-process writes were
-                            // already delivered by the terminal notifier and
-                            // dedupe at the barrier level.
-                            let bridge_handle = watermark_handle.clone();
-                            let after_seq = last_seq;
-                            let _ = tokio::task::spawn_blocking(move || {
-                                agent_core::coordination::child_done_wake::process_audit_window(
-                                    &bridge_handle,
-                                    after_seq,
-                                )
-                            })
-                            .await;
+                        }
+                        if seq > stage_cursor {
+                            match agent_core::coordination::child_done_wake::process_audit_window(
+                                &watermark_handle,
+                                stage_cursor,
+                            )
+                            .await
+                            {
+                                Ok(_) => {
+                                    let through_seq = seq;
+                                    match tokio::task::spawn_blocking(move || {
+                                        project_management::work_run_service::advance_consumer_cursor(
+                                            STAGE_BARRIER_CONSUMER,
+                                            through_seq,
+                                        )
+                                    })
+                                    .await
+                                    {
+                                        Ok(Ok(cursor)) => stage_cursor = cursor,
+                                        Ok(Err(err)) => tracing::warn!(
+                                            "[child-done-wake] cursor advance failed: {}",
+                                            err
+                                        ),
+                                        Err(err) => tracing::warn!(
+                                            "[child-done-wake] cursor task failed: {}",
+                                            err
+                                        ),
+                                    }
+                                }
+                                Err(err) => tracing::warn!(
+                                    "[child-done-wake] audit window failed: {}",
+                                    err
+                                ),
+                            }
                         }
                         if seq >= 0 {
                             last_seq = seq;

@@ -4,6 +4,9 @@
 import { invokeWithAuth } from "./client";
 import type { GitHubIssueUser } from "./types";
 
+/** GitHub returns at most 3,000 rows from the PR files endpoint. */
+export const GITHUB_PR_FILES_API_LIMIT = 3000;
+
 /** One changed file in a PR, from `GET /repos/{repo}/pulls/{n}/files`. */
 export interface PrFile {
   filename: string;

@@ -203,7 +203,7 @@ export interface OrgtrackEnvelopeData {
   errorMessage?: string;
   retryable?: boolean;
   itemCount?: number;
-  /** Canonical create result used to open the real Work Item detail surface. */
+  /** Canonical create/update result used to open the real Work Item detail surface. */
   workItem?: WorkItemData;
   /** Resolved navigation context; empty for standalone items. */
   projectSlug?: string;

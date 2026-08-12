@@ -82,7 +82,11 @@ import {
   SessionRawToolbarActions,
 } from "./components/SessionViewSwitcher";
 import SessionWorkstationRail from "./components/SessionWorkstationRail";
-import { shouldMountFocusedChatWorkstationControls } from "./focusedChatWorkstationLayout";
+import {
+  resolveFocusedChatWorkstationRailTrackClass,
+  shouldMountFocusedChatWorkstationControls,
+  shouldReserveFocusedChatWorkstationPlaceholder,
+} from "./focusedChatWorkstationLayout";
 import { FocusedChatWorkstationMinimapPortalContext } from "./focusedChatWorkstationMinimapPortal";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
 import { useChatPanelContentState } from "./hooks/useChatPanelContentState";
@@ -261,6 +265,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const {
       dispatchClearSession,
+      openProjectCreate,
       openWorkItemCreate,
       resetActiveSession,
       setActiveSessionId,
@@ -371,6 +376,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       resetActiveSession();
     }, [handleOpenLaunchpadTab, resetActiveSession, setCreateTarget]);
     const handleStartPageNewWorkItem = openWorkItemCreate;
+    const handleStartPageNewProject = openProjectCreate;
     const openLaunchedSessionTab = useSetAtom(openSessionInNewChatTabAtom);
     const handleStartPageSessionStart = useCallback(
       (info: { sessionId: string }) => {
@@ -428,6 +434,12 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         activeTabType: activeTab?.type ?? null,
         isChatFocus,
         showSessionContent: contentState.showSessionContent,
+      });
+    const reserveFocusedWorkstationPlaceholder =
+      shouldReserveFocusedChatWorkstationPlaceholder({
+        activeTabType: activeTab?.type ?? null,
+        isChatFocus,
+        startPageOpen,
       });
 
     const setSelectedProject = useSetAtom(chatPanelSelectedProjectAtom);
@@ -538,6 +550,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         onOpenLaunchpad={handleOpenLaunchpadTab}
         onOpenKanban={handleOpenKanbanTab}
         onOpenRuntime={handleShowRuntime}
+        onNewProject={handleStartPageNewProject}
         onNewWorkItem={handleStartPageNewWorkItem}
       />
     );
@@ -673,6 +686,12 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
                 compactMenuHost={focusedWorkstationMenuHost}
                 conversationMinimapHostRef={focusedWorkstationMinimapHostRef}
                 session={currentSession}
+              />
+            ) : reserveFocusedWorkstationPlaceholder ? (
+              <div
+                aria-hidden
+                data-testid="launchpad-workstation-rail-placeholder"
+                className={`h-full shrink-0 ${resolveFocusedChatWorkstationRailTrackClass(true)}`}
               />
             ) : null
           }

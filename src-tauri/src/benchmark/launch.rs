@@ -51,6 +51,7 @@ pub(super) fn benchmark_launch_params(
         worktree_path: launch.worktree_path.clone(),
         project_slug: launch.project_slug.clone(),
         parent_session_id,
+        durable_run_id: None,
         additional_directories: launch.additional_directories.clone(),
     }
 }

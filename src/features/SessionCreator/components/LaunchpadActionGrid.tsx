@@ -1,6 +1,7 @@
-import { ChevronRight } from "lucide-react";
-import React, { Children, forwardRef } from "react";
+import { ChevronRight, ChevronUp, Ellipsis } from "lucide-react";
+import React, { Children, forwardRef, useId, useState } from "react";
 
+import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
 
 export type LaunchpadActionTone = "primary" | "neutral" | "success" | "warning";
@@ -109,8 +110,12 @@ export const LaunchpadActionCard = forwardRef<
 
 interface LaunchpadActionGridProps {
   cardWidthClassName?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
+  collapseLabel?: string;
+  collapsible?: boolean;
+  controlAlignment?: "left" | "center";
+  expandLabel?: string;
   layoutActionCount?: number;
   presentation?: LaunchpadActionPresentation;
 }
@@ -119,9 +124,21 @@ export function LaunchpadActionGrid({
   cardWidthClassName,
   children,
   className = "",
+  collapseLabel = "Collapse",
+  collapsible = false,
+  controlAlignment = "left",
+  expandLabel = "Expand",
   layoutActionCount,
   presentation = "pill",
 }: LaunchpadActionGridProps): React.ReactNode {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const contentId = useId();
+  const isCardGridCollapsed =
+    collapsible && presentation === "card" && isCollapsed;
+  const expandControlAlignmentClass =
+    controlAlignment === "center" ? "justify-center" : "justify-start pl-2.5";
+  const collapseControlAlignmentClass =
+    controlAlignment === "center" ? "left-1/2 -translate-x-1/2" : "left-2.5";
   const actionCount = layoutActionCount ?? Children.count(children);
   const cardWidthClass =
     cardWidthClassName ??
@@ -139,21 +156,65 @@ export function LaunchpadActionGrid({
 
   return (
     <div
-      className={`@container/startactions ${
+      className={`group/launchpad-actions relative @container/startactions ${
         presentation === "card"
           ? `hidden @[640px]/focusedchat:block ${cardWidthClass}`
           : ""
       } ${className}`}
+      data-collapsed={isCardGridCollapsed ? "true" : "false"}
     >
       <div
+        id={contentId}
+        hidden={isCardGridCollapsed}
         className={
-          presentation === "card"
-            ? `grid grid-cols-1 gap-2 @[300px]/startactions:grid-cols-2 ${cardColumnClass}`
-            : "grid grid-cols-1 gap-3 @[420px]/startactions:grid-cols-2 @[800px]/startactions:grid-cols-3"
+          isCardGridCollapsed
+            ? "hidden"
+            : presentation === "card"
+              ? `grid grid-cols-1 gap-2 @[300px]/startactions:grid-cols-2 ${cardColumnClass}`
+              : "grid grid-cols-1 gap-3 @[420px]/startactions:grid-cols-2 @[800px]/startactions:grid-cols-3"
         }
       >
         {children}
       </div>
+      {collapsible && presentation === "card" ? (
+        isCardGridCollapsed ? (
+          <div
+            className={`flex w-full ${expandControlAlignmentClass}`}
+            data-testid="launchpad-action-grid-expand-zone"
+          >
+            <Button
+              variant="tertiary"
+              size="mini"
+              shape="circle"
+              icon={<Ellipsis size={14} strokeWidth={1.8} />}
+              iconOnly
+              aria-label={expandLabel}
+              aria-controls={contentId}
+              aria-expanded={false}
+              onClick={() => setIsCollapsed(false)}
+              data-testid="launchpad-action-grid-expand"
+            />
+          </div>
+        ) : (
+          <div
+            className={`absolute top-full z-10 pt-1 opacity-0 transition-opacity group-focus-within/launchpad-actions:opacity-100 group-hover/launchpad-actions:opacity-100 ${collapseControlAlignmentClass}`}
+            data-testid="launchpad-action-grid-collapse-zone"
+          >
+            <Button
+              variant="tertiary"
+              size="mini"
+              shape="circle"
+              icon={<ChevronUp size={14} strokeWidth={1.8} />}
+              iconOnly
+              aria-label={collapseLabel}
+              aria-controls={contentId}
+              aria-expanded
+              onClick={() => setIsCollapsed(true)}
+              data-testid="launchpad-action-grid-collapse"
+            />
+          </div>
+        )
+      ) : null}
     </div>
   );
 }

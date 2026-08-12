@@ -17,6 +17,8 @@ pub enum TeamInboxFilter {
 pub enum TeamInboxItemKind {
     CommentMention,
     WorkItemAssigned,
+    WorkItemUpdated,
+    WorkItemRunFailed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +91,15 @@ pub enum TeamInboxPayload {
         summary: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         handoff: Option<WorkItemHandoff>,
+    },
+    WorkItemUpdated {
+        title: String,
+        event_kind: String,
+        status: String,
+        priority: String,
+        recipient_member_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        summary: Option<String>,
     },
 }
 

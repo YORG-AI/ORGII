@@ -401,7 +401,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder={t("common:common.searchPlaceholder")}
+                    placeholder={t("common:actions.search")}
                     value={searchValue}
                     onChange={handleSearchChange}
                     onClick={(event) => event.stopPropagation()}

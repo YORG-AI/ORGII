@@ -28,17 +28,13 @@ import GitHubIcon from "@src/assets/channelIcons/github.svg";
 import Button from "@src/components/Button";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import Dropdown from "@src/components/Dropdown";
-import {
-  DROPDOWN_CLASSES,
-  DROPDOWN_PANEL,
-} from "@src/components/Dropdown/tokens";
+import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { IconButton } from "@src/components/IconButton";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ROUTES } from "@src/config/routes";
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import {
   FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS,
   resolveFocusedChatWorkstationRailTrackClass,
@@ -76,6 +72,14 @@ import {
 } from "@src/store/workstation/tabRegistry";
 import type { WorkStationTab } from "@src/store/workstation/tabs/types";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
+
+import {
+  WORKSTATION_TRAIL_ICON_BUTTON_CLASS,
+  WorkstationTrailBody,
+  WorkstationTrailHeader,
+  WorkstationTrailIconButton,
+  WorkstationTrailSurface,
+} from "./blocks";
 
 const FOCUSED_CHAT_RAIL_SECTIONS = {
   tabs: { key: "tabs", label: null },
@@ -148,9 +152,6 @@ const WORKSTATION_HOST_ROUTES: Record<WorkstationTabHost, string> = {
   browser: ROUTES.workStation.browser.path,
   project: ROUTES.workStation.project.path,
 };
-
-const RAIL_ICON_BUTTON_CLASS =
-  "flex h-[26px] w-[26px] items-center justify-center rounded-lg text-text-1 transition-colors hover:bg-fill-2";
 
 const GitHubRailIcon = ({
   size = 24,
@@ -813,38 +814,32 @@ export function FocusedChatWorkstationRail({
           collapsed
         )}`}
       >
-        <aside
+        <WorkstationTrailSurface
+          as="aside"
           aria-label={environmentLabel}
-          className={`hidden max-h-full w-full flex-col overflow-hidden rounded-xl border border-border-1 p-1 @[1100px]/focusedchat:flex ${DROPDOWN_PANEL.shadowClass} ${EDITOR_TAB_CANVAS_BG_CLASS}`}
+          className="hidden @[1100px]/focusedchat:flex"
         >
-          <div
-            className={`mb-1 flex h-7 shrink-0 items-center ${
-              collapsed ? "justify-center" : "justify-between pl-1"
-            }`}
-          >
-            {!collapsed && (
-              <span className="min-w-0 truncate px-1 text-[11px] font-medium uppercase tracking-wide text-text-3">
-                {environmentLabel}
-              </span>
-            )}
-            <button
-              type="button"
-              className={RAIL_ICON_BUTTON_CLASS}
-              onClick={toggleCollapsed}
-              aria-label={t(
-                collapsed
-                  ? "common:git.rail.expand"
-                  : "common:git.rail.collapse"
-              )}
-              aria-expanded={!collapsed}
-            >
-              {collapsed ? (
-                <ChevronsLeft size={14} strokeWidth={1.75} />
-              ) : (
-                <ChevronsRight size={14} strokeWidth={1.75} />
-              )}
-            </button>
-          </div>
+          <WorkstationTrailHeader
+            title={environmentLabel}
+            collapsed={collapsed}
+            actions={
+              <WorkstationTrailIconButton
+                onClick={toggleCollapsed}
+                aria-label={t(
+                  collapsed
+                    ? "common:git.rail.expand"
+                    : "common:git.rail.collapse"
+                )}
+                aria-expanded={!collapsed}
+              >
+                {collapsed ? (
+                  <ChevronsLeft size={14} strokeWidth={1.75} />
+                ) : (
+                  <ChevronsRight size={14} strokeWidth={1.75} />
+                )}
+              </WorkstationTrailIconButton>
+            }
+          />
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               {workspaceItems.map((item) => {
@@ -853,7 +848,7 @@ export function FocusedChatWorkstationRail({
                   <button
                     key={item.key}
                     type="button"
-                    className={`${RAIL_ICON_BUTTON_CLASS} relative`}
+                    className={`${WORKSTATION_TRAIL_ICON_BUTTON_CLASS} relative`}
                     onClick={item.onClick}
                     aria-label={
                       item.status
@@ -876,16 +871,16 @@ export function FocusedChatWorkstationRail({
               })}
             </div>
           ) : (
-            <div className="min-h-0 overflow-y-auto scrollbar-hide">
+            <WorkstationTrailBody>
               <WorkstationSections
                 branchName={branchName}
                 repoName={repoName}
                 sections={sections}
                 workItem={sessionContext?.workItem}
               />
-            </div>
+            </WorkstationTrailBody>
           )}
-        </aside>
+        </WorkstationTrailSurface>
         <div
           ref={conversationMinimapHostRef}
           data-focused-chat-conversation-minimap-host

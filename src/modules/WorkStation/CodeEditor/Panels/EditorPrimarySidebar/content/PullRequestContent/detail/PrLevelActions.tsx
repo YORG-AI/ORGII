@@ -51,7 +51,7 @@ interface PrLevelActionsProps {
 }
 
 const ACTION_LABEL_KEYS: Record<string, string> = {
-  "Merge pull request": "merge",
+  Merge: "merge",
   "Squash and merge": "squash",
   "Rebase and merge": "rebase",
   "Enable auto-merge": "enableAutoMerge",
