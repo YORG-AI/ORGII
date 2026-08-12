@@ -127,7 +127,51 @@ export async function findSupersededPushedSessions({
   liveSessionIds: ReadonlySet<string>;
   resolveStatuses: ContinuationStatusResolver;
 }): Promise<SupersededPushedSession[]> {
-  const suspects = [...markedSessionIds].filter(
+  return findSupersededSessions(
+    orgId,
+    [...markedSessionIds],
+    liveSessionIds,
+    resolveStatuses
+  );
+}
+
+/**
+ * Marker-FREE arm of the superseded reconcile. Push markers live in a
+ * whole-map localStorage atom that every build sharing the bundle id
+ * read-modify-writes (a concurrent process can clobber entries), and rows
+ * pushed by the same account's OTHER device never had markers here — either
+ * way the marker-driven arms go blind while the server row lives on. The
+ * server listing is authoritative for "this account's rows in this org", so
+ * self-owned live rows absent from the roster are judged by the same local
+ * continuation election. The caller pre-filters to SELF-OWNED ids: rows
+ * owned by other users must never reach this function.
+ */
+export async function findSupersededSelfOwnedRemoteSessions({
+  orgId,
+  remoteSelfSessionIds,
+  liveSessionIds,
+  resolveStatuses,
+}: {
+  orgId: string;
+  remoteSelfSessionIds: readonly string[];
+  liveSessionIds: ReadonlySet<string>;
+  resolveStatuses: ContinuationStatusResolver;
+}): Promise<SupersededPushedSession[]> {
+  return findSupersededSessions(
+    orgId,
+    remoteSelfSessionIds,
+    liveSessionIds,
+    resolveStatuses
+  );
+}
+
+async function findSupersededSessions(
+  orgId: string,
+  candidateSessionIds: readonly string[],
+  liveSessionIds: ReadonlySet<string>,
+  resolveStatuses: ContinuationStatusResolver
+): Promise<SupersededPushedSession[]> {
+  const suspects = candidateSessionIds.filter(
     (sessionId) => !liveSessionIds.has(sessionId)
   );
   if (suspects.length === 0) return [];

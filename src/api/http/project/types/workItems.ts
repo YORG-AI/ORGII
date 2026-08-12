@@ -402,9 +402,14 @@ export interface WorkspaceProjectWorkItems {
   workItems: EnrichedWorkItem[];
 }
 
+export interface WorkspaceStandaloneWorkItem {
+  orgId: string;
+  workItem: WorkItemData;
+}
+
 export interface WorkspaceWorkItemsData {
   projectEntries: WorkspaceProjectWorkItems[];
-  standaloneWorkItems: WorkItemData[];
+  standaloneWorkItems: WorkspaceStandaloneWorkItem[];
   orgs: ProjectOrg[];
 }
 

@@ -892,6 +892,7 @@ _setCliToolAliasMap(CLI_ALIAS_MAP_FIXTURE);
 
 if (!i18next.isInitialized) {
   i18next.init({
+    showSupportNotice: false,
     lng: "en",
     fallbackLng: "en",
     ns: ["sessions"],

@@ -40,7 +40,7 @@ export const ReviewerDropdown: React.FC<ReviewerDropdownProps> = ({
   fieldVariant = "row",
 }) => (
   <SearchableDropdown
-    placeholder={t("workItems.properties.searchReviewer")}
+    placeholder={t("common:actions.search")}
     widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
     align={fieldVariant === "pill" ? "auto" : "left"}
   >

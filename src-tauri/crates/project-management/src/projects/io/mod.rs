@@ -28,8 +28,9 @@ pub use orgs::{
     delete_project_org, read_project_org, read_project_orgs, resolve_local_org_scope,
 };
 pub use projects::{
-    delete_project, derive_work_item_prefix, normalize_custom_work_item_prefix, read_all_projects,
-    read_all_projects_scoped, read_project, read_project_scoped, write_project,
+    delete_project, derive_work_item_prefix, move_project_to_org,
+    normalize_custom_work_item_prefix, read_all_projects, read_all_projects_scoped, read_project,
+    read_project_scoped, write_project,
 };
 pub(crate) use projects::{
     read_project_field_revisions, write_project_remote, PROJECT_SYNC_FIELDS,
@@ -38,13 +39,12 @@ pub use routines::{
     create_routine_fire, create_routine_fire_for_policy, create_routine_fire_for_policy_with_key,
     delete_routine, disable_routine, find_started_fire_by_session, find_started_fire_by_work_item,
     list_enabled_routines, list_routine_fires, list_routines, mark_routine_fire_failed,
-    read_pm_change_seq,
     mark_routine_fire_started, mark_routine_fire_succeeded, mark_routine_fire_work_item_created,
-    mark_routine_fire_work_item_started, read_routine, take_next_queued_fire,
-    update_routine_schedule_marks, upsert_routine,
+    mark_routine_fire_work_item_started, read_pm_change_seq, read_routine,
+    reconcile_terminal_dispatch_fires, take_next_queued_fire, update_routine_schedule_marks,
+    upsert_routine,
 };
 pub use work_items::orchestrator_view;
-pub(crate) use work_items::{allocate_short_id_in_tx, apply_execution_claim, resolve_project_scope_in_tx, write_work_item_in_tx};
 pub use work_items::{
     acquire_execution_lock, allocate_short_id, allocate_standalone_short_id, apply_remote_merge,
     batch_delete_work_items, batch_update_work_items, delete_work_item, find_by_external_ref,
@@ -59,13 +59,16 @@ pub use work_items::{
     read_workspace_work_items_data, release_execution_lock, restore_work_item,
     transition_standalone_work_item_handoff, transition_work_item_handoff,
     update_standalone_work_item_atomic, update_standalone_work_item_atomic_by,
-    update_standalone_work_item_atomic_serviced,
-    update_standalone_work_item_partial,
+    update_standalone_work_item_atomic_serviced, update_standalone_work_item_partial,
     update_work_item_atomic, update_work_item_atomic_serviced,
     update_work_item_atomic_with_revisions, update_work_item_partial,
     update_work_item_partial_enriched, update_work_item_partial_with_revisions,
     write_standalone_work_item, write_work_item, AtomicServiceOptions, FieldRevision, SyncMetadata,
     REVISION_SOURCE_LOCAL,
+};
+pub(crate) use work_items::{
+    allocate_short_id_in_tx, apply_execution_claim, resolve_project_scope_in_tx,
+    write_work_item_in_tx,
 };
 pub(crate) use work_items::{purge_work_item, write_work_item_remote};
 pub(crate) use work_items::{

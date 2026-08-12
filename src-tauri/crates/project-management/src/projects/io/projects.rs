@@ -249,27 +249,36 @@ fn write_project_inner(
     // project edits propagate through the per-field resolver on peers.
     let prior: Option<PriorProjectSnapshot> = map_db(
         tx.query_row(
-            "SELECT name, status, priority, health, lead, description,
+            "SELECT org_id, name, status, priority, health, lead, description,
                     short_id_prefix, start_date, target_date, field_revisions_json
                FROM projects WHERE id = ?1",
             params![&next_meta.id],
             |row| {
                 Ok(PriorProjectSnapshot {
-                    name: row.get(0)?,
-                    status: row.get(1)?,
-                    priority: row.get(2)?,
-                    health: row.get(3)?,
-                    lead: row.get(4)?,
-                    description: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
-                    short_id_prefix: row.get(6)?,
-                    start_date: row.get(7)?,
-                    target_date: row.get(8)?,
-                    field_revisions_json: row.get(9)?,
+                    org_id: row.get(0)?,
+                    name: row.get(1)?,
+                    status: row.get(2)?,
+                    priority: row.get(3)?,
+                    health: row.get(4)?,
+                    lead: row.get(5)?,
+                    description: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
+                    short_id_prefix: row.get(7)?,
+                    start_date: row.get(8)?,
+                    target_date: row.get(9)?,
+                    field_revisions_json: row.get(10)?,
                 })
             },
         )
         .optional(),
     )?;
+
+    if let Some(prior) = prior.as_ref() {
+        if prior.org_id != next_meta.org_id {
+            return Err(
+                "Project organization changes must use the project move operation".to_string(),
+            );
+        }
+    }
 
     let mut field_revisions: HashMap<String, FieldRevision> = prior
         .as_ref()
@@ -415,6 +424,7 @@ fn parse_field_revisions_json(
 /// fields they actually changed. Mirrors the work-item
 /// `PriorSyncSnapshot`.
 struct PriorProjectSnapshot {
+    org_id: String,
     name: String,
     status: String,
     priority: String,
@@ -425,6 +435,90 @@ struct PriorProjectSnapshot {
     start_date: Option<String>,
     target_date: Option<String>,
     field_revisions_json: Option<String>,
+}
+
+/// Move a project and every project-scoped work item to another organization.
+///
+/// Organization ownership is denormalized onto work items so standalone org
+/// queries do not need to join through projects. Both tables and the cloud
+/// replication handoff therefore change in one immediate transaction.
+pub fn move_project_to_org(slug: &str, destination_org_id: &str) -> Result<ProjectData, String> {
+    let destination_org_id = destination_org_id.trim();
+    if destination_org_id.is_empty() {
+        return Err("Destination organization is required".to_string());
+    }
+
+    let mut connection = conn()?;
+    let tx = map_db(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
+    let destination_exists = map_db(
+        tx.query_row(
+            "SELECT 1 FROM project_orgs WHERE id = ?1",
+            params![destination_org_id],
+            |_| Ok(true),
+        )
+        .optional(),
+    )?
+    .unwrap_or(false);
+    if !destination_exists {
+        return Err(format!("Organization '{}' not found", destination_org_id));
+    }
+
+    let project: Option<(String, String)> = map_db(
+        tx.query_row(
+            "SELECT id, org_id FROM projects WHERE slug = ?1",
+            params![slug],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional(),
+    )?;
+    let Some((project_id, source_org_id)) = project else {
+        return Err(format!("Project '{}' not found", slug));
+    };
+    if source_org_id == destination_org_id {
+        drop(tx);
+        return read_project(slug);
+    }
+
+    let work_item_ids = {
+        let mut statement =
+            map_db(tx.prepare("SELECT id FROM workitems WHERE project_id = ?1 ORDER BY id"))?;
+        let rows = map_db(statement.query_map(params![&project_id], |row| row.get(0)))?;
+        let mut ids = Vec::new();
+        for row in rows {
+            ids.push(map_db(row)?);
+        }
+        ids
+    };
+
+    crate::sync::collab_bridge::record_project_org_move_in_connection(
+        &tx,
+        &source_org_id,
+        destination_org_id,
+        &project_id,
+        slug,
+        &work_item_ids,
+    )?;
+
+    let now = now_ms();
+    map_db(tx.execute(
+        "UPDATE projects
+            SET org_id = ?1, updated_at = ?2,
+                local_version = local_version + 1,
+                collab_remote_version = NULL
+          WHERE id = ?3",
+        params![destination_org_id, now, &project_id],
+    ))?;
+    map_db(tx.execute(
+        "UPDATE workitems
+            SET org_id = ?1, updated_at = ?2,
+                local_version = local_version + 1,
+                collab_remote_version = NULL
+          WHERE project_id = ?3",
+        params![destination_org_id, now, &project_id],
+    ))?;
+    map_db(tx.commit())?;
+    crate::projects::events::notify_data_changed();
+    read_project(slug)
 }
 
 impl PriorProjectSnapshot {
@@ -604,6 +698,20 @@ mod tests {
     use super::*;
     use test_helpers::test_env;
 
+    fn insert_org(id: &str, sync_provider: &str) {
+        let connection = conn().expect("project connection");
+        connection
+            .execute(
+                "INSERT INTO project_orgs
+                    (id, name, slug, org_key, source, sync_provider,
+                     external_org_id, created_at, updated_at)
+                 VALUES (?1, ?1, ?1, ?1, 'local', ?2,
+                         CASE WHEN ?2 = 'orgii_collab' THEN ?1 ELSE NULL END, 0, 0)",
+                params![id, sync_provider],
+            )
+            .expect("insert org");
+    }
+
     fn fixture(meta_id: &str, name: &str, slug_hint: &str) -> (String, ProjectMeta) {
         let meta = ProjectMeta {
             id: meta_id.to_string(),
@@ -754,6 +862,136 @@ mod tests {
         assert_eq!(back.meta.name, "Alpha Renamed");
         assert_eq!(back.meta.priority, "high");
         assert_eq!(back.description, "v2");
+    }
+
+    #[test]
+    fn generic_write_rejects_an_org_change() {
+        let _sandbox = test_env::sandbox();
+        insert_org("destination", "none");
+        let (slug, mut meta) = fixture("p1", "Alpha", "alpha");
+        write_project(&slug, &meta, "", true).expect("create");
+
+        meta.org_id = "destination".to_string();
+        let error = write_project(&slug, &meta, "", false).unwrap_err();
+
+        assert!(error.contains("project move operation"), "error: {error}");
+        assert_eq!(
+            read_project(&slug).expect("read").meta.org_id,
+            "personal-org"
+        );
+    }
+
+    #[test]
+    fn move_updates_project_and_children_as_one_org_invariant() {
+        let _sandbox = test_env::sandbox();
+        insert_org("destination", "none");
+        let (slug, meta) = fixture("p1", "Alpha", "alpha");
+        write_project(&slug, &meta, "", true).expect("create");
+        let connection = conn().expect("project connection");
+        connection
+            .execute(
+                "UPDATE projects
+                    SET local_version = 2, collab_remote_version = 8
+                  WHERE id = 'p1'",
+                [],
+            )
+            .expect("seed project versions");
+        connection
+            .execute(
+                "INSERT INTO workitems
+                    (id, org_id, project_id, short_id, title, created_at, updated_at,
+                     local_version, collab_remote_version)
+                 VALUES ('w1', 'personal-org', 'p1', 'ALP-1', 'Child', 0, 0, 3, 9)",
+                [],
+            )
+            .expect("insert work item");
+        drop(connection);
+
+        let moved = move_project_to_org(&slug, "destination").expect("move");
+        assert_eq!(moved.meta.org_id, "destination");
+
+        let connection = conn().expect("project connection");
+        let project_versions: (String, i64, Option<i64>) = connection
+            .query_row(
+                "SELECT org_id, local_version, collab_remote_version
+                   FROM projects WHERE id = 'p1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("project row");
+        assert_eq!(project_versions, ("destination".to_string(), 3, None));
+        let child: (String, i64, Option<i64>) = connection
+            .query_row(
+                "SELECT org_id, local_version, collab_remote_version
+                   FROM workitems WHERE id = 'w1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("child row");
+        assert_eq!(child, ("destination".to_string(), 4, None));
+    }
+
+    #[test]
+    fn cloud_move_enqueues_source_delete_and_destination_snapshots() {
+        let _sandbox = test_env::sandbox();
+        insert_org("cloud-source", "orgii_collab");
+        insert_org("cloud-destination", "orgii_collab");
+        let (slug, mut meta) = fixture("p1", "Alpha", "alpha");
+        meta.org_id = "cloud-source".to_string();
+        write_project(&slug, &meta, "", true).expect("create");
+        let connection = conn().expect("project connection");
+        connection
+            .execute("DELETE FROM outbox_entries", [])
+            .expect("clear");
+        connection
+            .execute(
+                "INSERT INTO workitems
+                    (id, org_id, project_id, short_id, title, created_at, updated_at)
+                 VALUES ('w1', 'cloud-source', 'p1', 'ALP-1', 'Child', 0, 0)",
+                [],
+            )
+            .expect("insert work item");
+        drop(connection);
+
+        move_project_to_org(&slug, "cloud-destination").expect("move");
+
+        let connection = conn().expect("project connection");
+        let mut statement = connection
+            .prepare(
+                "SELECT org_id, entity_type, entity_id, op
+                   FROM outbox_entries ORDER BY org_id, entity_type, entity_id",
+            )
+            .expect("prepare outbox");
+        let rows: Vec<(String, String, String, String)> = statement
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .expect("query outbox")
+            .map(|row| row.expect("outbox row"))
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                (
+                    "cloud-destination".to_string(),
+                    "project".to_string(),
+                    "p1".to_string(),
+                    "update".to_string(),
+                ),
+                (
+                    "cloud-destination".to_string(),
+                    "work_item".to_string(),
+                    "w1".to_string(),
+                    "update".to_string(),
+                ),
+                (
+                    "cloud-source".to_string(),
+                    "project".to_string(),
+                    "p1".to_string(),
+                    "delete".to_string(),
+                ),
+            ]
+        );
     }
 
     #[test]

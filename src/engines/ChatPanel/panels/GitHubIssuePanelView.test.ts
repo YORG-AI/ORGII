@@ -28,10 +28,12 @@ vi.mock("@src/modules/shared/hooks/useGitHubIssueDetailState", () => ({
 vi.mock(
   "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel",
   () => ({
-    IssueDetailPanel: ({ headerClassName }: { headerClassName?: string }) =>
+    IssueDetailExternalLinkButton: () =>
+      createElement("button", { type: "button" }, "Open on GitHub"),
+    IssueDetailPanel: ({ showHeader }: { showHeader?: boolean }) =>
       createElement("div", {
         "data-testid": "issue",
-        "data-header-class-name": headerClassName,
+        "data-show-header": String(showHeader),
       }),
   })
 );
@@ -56,8 +58,13 @@ describe("GitHubIssuePanelView loading", () => {
     expect(markup).not.toContain("animate-spin");
   });
 
-  it("aligns the issue header with the chat tab icon", () => {
-    Reflect.set(mocks.selectedState, "issue", {});
+  it("publishes the issue title and suppresses the duplicate internal header", () => {
+    Reflect.set(mocks.selectedState, "issue", {
+      number: 586,
+      title: "Align the issue header",
+      state: "open",
+      html_url: "https://github.com/org/repo/issues/586",
+    });
     try {
       const markup = renderToStaticMarkup(
         createElement(GitHubIssuePanelView, {
@@ -69,7 +76,7 @@ describe("GitHubIssuePanelView loading", () => {
         })
       );
 
-      expect(markup).toContain('data-header-class-name="!pl-5"');
+      expect(markup).toContain('data-show-header="false"');
     } finally {
       Reflect.set(mocks.selectedState, "issue", null);
     }

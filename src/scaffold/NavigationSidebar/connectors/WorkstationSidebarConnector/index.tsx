@@ -60,6 +60,7 @@ import {
 } from "../sidebarGuideProgress";
 import { DEFAULT_COLLAPSED_SECTION_IDS } from "../workstationSidebarData";
 import { SidebarDialogs } from "./SidebarDialogs";
+import { WorkItemsSidebarSkeleton } from "./WorkItemsSidebarSkeleton";
 import {
   type WorkstationSidebarViewKey,
   WorkstationSidebarViewSwitcher,
@@ -840,6 +841,13 @@ export const WorkstationSidebarConnector: React.FC = () => {
           />
         }
         isLoading={isLoading}
+        loadingContent={
+          workItemsContentVisible || activeSidebarKey === "projects" ? (
+            <WorkItemsSidebarSkeleton
+              loadingLabel={tCommon("status.loading", "Loading")}
+            />
+          ) : undefined
+        }
         collapsibleSections
         collapsedSectionIds={resolvedCollapsedSectionIds}
         onCollapsedSectionsChange={resolvedOnCollapsedSectionIdsChange}

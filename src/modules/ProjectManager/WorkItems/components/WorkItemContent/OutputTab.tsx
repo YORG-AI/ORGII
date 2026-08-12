@@ -1,7 +1,12 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OrchestratorPhase } from "@src/api/http/project";
+import {
+  type OrchestratorPhase,
+  type WorkItemRun,
+  projectApi,
+} from "@src/api/http/project";
+import { useProjectDataChanged } from "@src/hooks/project";
 import ChangedFilesList from "@src/modules/ProjectManager/WorkItems/components/AgentWorkflow/ChangedFilesList";
 import ReviewFeedbackPanel from "@src/modules/ProjectManager/WorkItems/components/AgentWorkflow/ReviewFeedbackPanel";
 import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
@@ -13,6 +18,9 @@ import type { OutputTabContentProps } from "./types";
 const OutputTab: React.FC<OutputTabContentProps> = ({
   workItem,
   repoPath,
+  projectSlug,
+  shortId,
+  orgId,
   onOpenFileDiff,
   onOpenFileAtLine,
   onReviewAllFiles,
@@ -28,6 +36,63 @@ const OutputTab: React.FC<OutputTabContentProps> = ({
     workItem.orchestratorState?.current_phase ?? "idle";
   const proofOfWork = workItem.proofOfWork;
   const isLiveSde = phase === "sde";
+  const runQueryKey = `${orgId ?? "personal-org"}:${projectSlug ?? "-"}:${shortId ?? "-"}`;
+  const [runState, setRunState] = useState<{
+    key: string;
+    runs: WorkItemRun[];
+  }>({ key: "", runs: [] });
+  const runs = useMemo(
+    () => (shortId && runState.key === runQueryKey ? runState.runs : []),
+    [runQueryKey, runState, shortId]
+  );
+  const [runRefreshKey, setRunRefreshKey] = useState(0);
+  useProjectDataChanged(() => setRunRefreshKey((value) => value + 1));
+
+  useEffect(() => {
+    if (!shortId) return;
+    let cancelled = false;
+    projectApi
+      .listWorkItemRuns({ projectSlug, orgId, shortId })
+      .then((nextRuns) => {
+        if (!cancelled) setRunState({ key: runQueryKey, runs: nextRuns });
+      })
+      .catch(() => {
+        if (!cancelled) setRunState({ key: runQueryKey, runs: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    orgId,
+    projectSlug,
+    runQueryKey,
+    runRefreshKey,
+    shortId,
+    workItem.updated_time,
+  ]);
+
+  const runUsage = useMemo(
+    () =>
+      runs.reduce(
+        (total, run) => ({
+          inputTokens: total.inputTokens + run.usage.inputTokens,
+          outputTokens: total.outputTokens + run.usage.outputTokens,
+          totalTokens: total.totalTokens + run.usage.totalTokens,
+          costUsd: total.costUsd + run.usage.costUsd,
+        }),
+        { inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0 }
+      ),
+    [runs]
+  );
+  const displayedUsage =
+    runs.length > 0
+      ? runUsage
+      : {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: proofOfWork?.total_tokens ?? 0,
+          costUsd: proofOfWork?.total_cost_usd ?? 0,
+        };
 
   const liveDiffStats = useLiveDiffStats({
     sessionId: workItem.session_id,
@@ -57,6 +122,9 @@ const OutputTab: React.FC<OutputTabContentProps> = ({
           phase={phase}
           autoCreatePr={workItem.orchestratorConfig?.auto_create_pr ?? true}
           onCreatePr={onCreatePr}
+          projectSlug={projectSlug}
+          orgId={orgId}
+          shortId={shortId}
         />
       </CollapsibleSection>
 
@@ -105,20 +173,29 @@ const OutputTab: React.FC<OutputTabContentProps> = ({
         </CollapsibleSection>
       )}
 
-      {proofOfWork &&
-        (proofOfWork.total_cost_usd > 0 || proofOfWork.total_tokens > 0) && (
-          <CollapsibleSection
-            title={t("workItems.outputTab.costSummary")}
-            defaultOpen={true}
+      {(displayedUsage.costUsd > 0 || displayedUsage.totalTokens > 0) && (
+        <CollapsibleSection
+          title={t("workItems.outputTab.costSummary")}
+          defaultOpen={true}
+        >
+          <div
+            className="rounded-md bg-fill-1 px-4 py-2.5 text-xs text-text-3"
+            data-testid="work-item-run-usage-summary"
           >
-            <div className="rounded-md bg-fill-1 px-4 py-2.5 text-xs text-text-3">
-              {t("workItems.outputTab.totalCost")}: $
-              {proofOfWork.total_cost_usd.toFixed(4)} &middot;{" "}
-              {proofOfWork.total_tokens.toLocaleString()}{" "}
-              {t("workItems.outputTab.tokens")}
-            </div>
-          </CollapsibleSection>
-        )}
+            {t("workItems.outputTab.totalCost")}: $
+            {displayedUsage.costUsd.toFixed(4)} &middot;{" "}
+            {displayedUsage.totalTokens.toLocaleString()}{" "}
+            {t("workItems.outputTab.tokens")}
+            {runs.length > 0 && (
+              <span className="ml-2 text-text-4">
+                · {runs.length} runs ·{" "}
+                {displayedUsage.inputTokens.toLocaleString()} in ·{" "}
+                {displayedUsage.outputTokens.toLocaleString()} out
+              </span>
+            )}
+          </div>
+        </CollapsibleSection>
+      )}
     </>
   );
 };

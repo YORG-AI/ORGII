@@ -12,8 +12,7 @@ pub(super) use crate::definitions::capabilities::RequiredCapability;
 pub(super) use AppSubtool::{
     Browser as SubBrowser, Explore, FileRead, FileWrite, Glob as SubGlob,
     InternalBrowser as SubInternalBrowser, Message, OtherInteractions, OtherTool,
-    Search as SubSearch, Shell, Subagent as SubSubagent,
-    Thinking as SubThinking, Todo as SubTodo,
+    Search as SubSearch, Shell, Subagent as SubSubagent, Thinking as SubThinking, Todo as SubTodo,
 };
 // ChatBlock aliases — one per actual React block component.
 pub(super) use ChatBlock::{

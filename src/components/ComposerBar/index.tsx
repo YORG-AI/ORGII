@@ -4,8 +4,8 @@
  * Used by both ChatPanel InputArea and SessionCreator EditorArea
  * to ensure identical layout: [+ button | pills] ---- [context | submit]
  *
- * Chat panel can pass `editorSlot` + `inlineLayout` for a compact single row:
- * [ + ] [ editor … ] [ pills ] [ submit ].
+ * When an editor slot is present, the editor uses the full-width row above
+ * the shared toolbar controls.
  */
 import { Plus } from "lucide-react";
 import React, { memo } from "react";
@@ -38,28 +38,14 @@ export interface ComposerBarProps {
   repoPath?: string;
   /** Submit / launch button on the far right */
   submitButton?: React.ReactNode;
-  /**
-   * Flex gap between toolbar controls on each side.
-   * Session creator uses spacing; chat input keeps rows tight.
-   * @default true
-   */
-  toolbarItemGap?: boolean;
   /** Optional bottom padding for the toolbar row inside the composer shell. */
   bottomPaddingClassName?: string;
-  /**
-   * When set with `editorSlot`, render the editor in one horizontal row with
-   * the toolbar (compact chat capsule).
-   */
-  inlineLayout?: boolean;
-  /**
-   * Optional editor field above the toolbar (`inlineLayout` false) or between
-   * left (+) and right (pills/submit) clusters (`inlineLayout` true).
-   */
+  /** Optional editor field above the toolbar. */
   editorSlot?: React.ReactNode;
   /** Hide the default add-content button while preserving the shared layout. */
   hideAddButton?: boolean;
   /**
-   * When false, omits ContextInfoButton for compact rows.
+   * When false, omits ContextInfoButton.
    * @default true
    */
   showContextInfo?: boolean;
@@ -80,17 +66,12 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
     pills,
     repoPath,
     submitButton,
-    toolbarItemGap = true,
     bottomPaddingClassName = "",
-    inlineLayout = false,
     editorSlot,
     hideAddButton = false,
     showContextInfo = true,
   }) => {
-    const rowClass =
-      toolbarItemGap === false
-        ? "flex items-center gap-0.5"
-        : "flex items-center gap-1";
+    const rowClass = "flex min-w-0 items-center gap-0.5";
 
     const addButton =
       hideAddButton || !onAddContent || !onUpload ? null : onOpenSkillsTools ? (
@@ -138,85 +119,16 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
       </div>
     );
 
-    // When an editorSlot is provided we keep ONE stable DOM layout for both
-    // the inline pill row and the full stacked composer. Switching
-    // layouts is pure CSS (grid template areas) so the ComposerInput editor is never
-    // unmounted when `inlineLayout` flips — preserving focus, selection, and
-    // document state across the transition.
-    //
-    // Four children, always in the same order:
-    //   0. leftCluster  (leftPrefix + add button)
-    //   1. editorWrap   (the ComposerInput)
-    //   2. pillCluster  (mode/model/status pills)
-    //   3. rightCluster (context + submit)
-    //
-    // Inline layout: single row, editor stretches between controls.
-    // Stacked layout: editor on top spanning full width, controls below.
     if (editorSlot != null) {
-      const leftCluster = (
-        <div className={`${rowClass} shrink-0`} style={{ gridArea: "left" }}>
-          {leftPrefix}
-          {addButton}
-          {leftTools}
-        </div>
-      );
-      const editorWrap = (
-        <div
-          data-editor-slot="true"
-          className="relative flex min-h-0 min-w-0 items-stretch self-stretch"
-          style={{ gridArea: "editor" }}
-        >
-          {editorSlot}
-        </div>
-      );
-      const pillCluster = (
-        <div
-          className="flex min-w-0 shrink-0 items-center gap-1"
-          style={{ gridArea: "pills" }}
-        >
-          {pills}
-        </div>
-      );
-      const rightCluster = (
-        <div
-          className={`flex min-w-0 shrink items-center justify-end ${toolbarItemGap === false ? "gap-0.5" : "gap-1"}`}
-          style={{ gridArea: "right" }}
-        >
-          {showContextInfo && (
-            <ContextInfoButton repoPath={repoPath} variant="corner" compact />
-          )}
-          {submitButton}
-        </div>
-      );
-
-      // columnGap: 6px is intentionally larger than the Tailwind gap-1 (4px)
-      // used inside each cluster — the inter-cluster spacing should be wider
-      // than the intra-cluster icon-to-icon spacing.
-      const gridStyle: React.CSSProperties = inlineLayout
-        ? {
-            display: "grid",
-            gridTemplateColumns: "auto 1fr auto auto",
-            gridTemplateAreas: '"left editor pills right"',
-            alignItems: "center",
-            columnGap: 6,
-          }
-        : {
-            display: "grid",
-            gridTemplateColumns: "auto auto 1fr",
-            gridTemplateAreas: '"editor editor editor" "left pills right"',
-            rowGap: 4,
-            columnGap: 6,
-          };
-
       return (
-        <div
-          className={`w-full text-text-2 ${bottomPaddingClassName}`.trim()}
-          style={gridStyle}
-        >
-          {leftCluster}
-          {editorWrap}
-          {pillCluster}
-          {rightCluster}
+        <div className="flex w-full flex-col gap-2">
+          <div
+            data-editor-slot="true"
+            className="relative flex min-h-0 min-w-0 items-stretch self-stretch"
+          >
+            {editorSlot}
+          </div>
+          {toolbarRow}
         </div>
       );
     }

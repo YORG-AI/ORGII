@@ -37,6 +37,13 @@ vi.mock("./DatesScheduleSection", () => ({
 vi.mock("./LabelsSection", () => ({
   LabelsSection: () => createElement("span", null, "Labels"),
 }));
+vi.mock("./DelegationsSection", () => ({
+  DelegationsSection: () => createElement("span", null, "Delegations"),
+}));
+vi.mock("../ScheduleEditor", () => ({
+  default: ({ compact }: { compact?: boolean }) =>
+    createElement("span", { "data-compact": String(compact) }, "Schedule"),
+}));
 vi.mock("./useWorkItemPropertyHandlers", () => ({
   useWorkItemPropertyHandlers: () => ({}),
 }));
@@ -135,5 +142,24 @@ describe("WorkItemProperties pill layout", () => {
     expect(
       moreProperties?.classList.contains("enabled:hover:!bg-surface-hover")
     ).toBe(true);
+  });
+
+  it("flattens row properties into the shared Workstation trail layout", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemProperties, {
+          workItem,
+          onUpdate: vi.fn(),
+          panelVariant: "workstation-trail",
+        })
+      );
+    });
+
+    const panel = container.querySelector("section");
+    expect(panel?.className).toContain("min-w-0 overflow-visible");
+    expect(panel?.className).not.toContain("p-2");
+    expect(container.textContent).toContain("workItems.properties.assignment");
+    expect(container.querySelector('[data-compact="true"]')).not.toBeNull();
+    expect(container.querySelector(".rounded-lg.border-border-2")).toBeNull();
   });
 });

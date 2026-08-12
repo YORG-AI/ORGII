@@ -28,6 +28,7 @@ interface ScheduleEditorProps {
   schedule?: WorkItemSchedule | null;
   onChange: (schedule: ScheduleValue) => void;
   t: (key: string, opts?: Record<string, unknown>) => string;
+  compact?: boolean;
 }
 
 const FREQUENCY_OPTIONS: { value: ScheduleFrequency; labelKey: string }[] = [
@@ -76,6 +77,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
   schedule,
   onChange,
   t,
+  compact = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentMode: ScheduleMode = useMemo(() => {
@@ -295,7 +297,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
   };
 
   return (
-    <div ref={containerRef} className="space-y-3 p-3">
+    <div ref={containerRef} className={`space-y-3 ${compact ? "p-2" : "p-3"}`}>
       <div>
         <div className="mb-1 text-[11px] font-medium text-text-3">
           {t("common:schedule.scheduleType")}

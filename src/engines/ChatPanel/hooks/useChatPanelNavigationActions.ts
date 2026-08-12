@@ -53,6 +53,13 @@ export function useChatPanelNavigationActions() {
     resetActiveSession();
   }, [openCreateTargetInStartPage, resetActiveSession]);
 
+  const openProjectCreate = useCallback(() => {
+    openCreateTargetInStartPage({
+      target: CHAT_PANEL_CREATE_TARGET.PROJECT,
+    });
+    resetActiveSession();
+  }, [openCreateTargetInStartPage, resetActiveSession]);
+
   const openWorkspaceExplore = useCallback(() => {
     openExploreTab();
     resetActiveSession();
@@ -60,6 +67,7 @@ export function useChatPanelNavigationActions() {
 
   return {
     dispatchClearSession,
+    openProjectCreate,
     openWorkItemCreate,
     openWorkspaceExplore,
     resetActiveSession,

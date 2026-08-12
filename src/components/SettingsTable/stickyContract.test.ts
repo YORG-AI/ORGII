@@ -16,6 +16,57 @@ const tableSource = readFileSync(
 );
 
 describe("SettingsTable sticky toolbar contract", () => {
+  it("separates raised table chrome from the chat-pane row surface", () => {
+    expect(tableStyles).toMatch(
+      /\.table-settings\s*\{[\s\S]*--settings-table-surface:\s*var\(--color-primary-container\);[\s\S]*--settings-table-body-surface:\s*var\(--color-chat-pane\);/
+    );
+    expect(tableStyles).toMatch(
+      /\.table,\s*\.table-tbody\s*\{\s*background:\s*var\(--settings-table-body-surface\);/
+    );
+    expect(tableStyles).toMatch(
+      /\.table-scroll\s*\{[\s\S]*background:\s*var\(--settings-table-body-surface\);/
+    );
+  });
+
+  it("keeps title rows, frozen columns, and covering shades on the chat pane", () => {
+    expect(tableStyles).toMatch(
+      /\.table-fixed-header\s*\{[\s\S]*background:\s*var\(--settings-table-body-surface\);/
+    );
+    expect(tableStyles).toMatch(
+      /&\.table-settings-sticky-first-col\s*\{[\s\S]*background:\s*var\(--settings-table-body-surface\);/
+    );
+    expect(tableStyles).toMatch(
+      /&\.table-settings-pin-last-column\s*\{[\s\S]*var\(--settings-table-body-surface\) 100%/
+    );
+  });
+
+  it("uses the wider chat-event fade treatment for covering shades", () => {
+    expect(tableStyles).toContain("--settings-table-cover-fade-size: 56px;");
+    expect(tableStyles).toMatch(
+      /width:\s*var\(--settings-table-cover-fade-size\);/
+    );
+    expect(tableStyles).toMatch(
+      /color-mix\(\s*in srgb,\s*var\(--settings-table-body-surface\) 90%,\s*transparent\s*\)\s*50%/
+    );
+  });
+
+  it("keeps pinned body cells above the covering shade", () => {
+    expect(tableStyles).toMatch(/\.table-scroll\s*\{[^}]*z-index:\s*auto;/);
+    expect(tableStyles).toMatch(/\.table-tbody\s*\{[^}]*z-index:\s*auto;/);
+    expect(tableStyles).toMatch(
+      /\.table-scroll \.table-row > \.table-td:first-child\s*\{[^}]*z-index:\s*3;/
+    );
+    expect(tableStyles).toMatch(
+      /\.table-row > \.table-td:last-child\s*\{[^}]*z-index:\s*3;/
+    );
+  });
+
+  it("keeps pagination on raised chrome", () => {
+    expect(tableStyles).toMatch(
+      /\.table-pagination-wrapper,[\s\S]*background:\s*var\(--settings-table-surface\);/
+    );
+  });
+
   it("uses one explicit sticky class for every page-scrolled toolbar", () => {
     expect(settingsTableSource).toContain(
       'containedScroll ? "shrink-0" : "settings-table-sticky-toolbar"'

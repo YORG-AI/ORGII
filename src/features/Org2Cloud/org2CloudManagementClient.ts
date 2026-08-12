@@ -212,7 +212,7 @@ export interface CreatedCloudInvite {
   inviteId: string;
   /** Plaintext code — exists ONLY on this device, show it once. */
   inviteCode: string;
-  /** `orgii://cloud/join?invite=…` deep link built from the plaintext. */
+  /** HTTPS handoff link built from the plaintext for safe social sharing. */
   inviteLink: string;
 }
 

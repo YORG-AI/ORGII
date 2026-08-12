@@ -1498,7 +1498,7 @@
         "label": "Действия с pull request",
         "confirmMergeTitle": "Выполнить слияние pull request?",
         "confirmMergeMessage": "GitHub выполнит слияние исходной ветки текущего pull request с базовой веткой.",
-        "merge": "Выполнить слияние pull request",
+        "merge": "Выполнить слияние",
         "squash": "Объединить коммиты и выполнить слияние",
         "rebase": "Выполнить rebase и слияние",
         "mergeSuccess": "Pull request объединён",
