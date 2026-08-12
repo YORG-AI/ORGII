@@ -22,11 +22,15 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type ProjectOrg, projectApi } from "@src/api/http/project";
+import {
+  type ProjectOrg,
+  projectApi,
+  projectDataToUI,
+} from "@src/api/http/project";
 import Message from "@src/components/Message";
-import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
 import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
@@ -42,6 +46,7 @@ import {
   ProjectContentEditor,
   type ProjectContentEditorRef,
   type ProjectData,
+  ProjectOrganizationSelect,
   ProjectPropertyFields,
 } from "@src/modules/ProjectManager/shared";
 import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
@@ -54,12 +59,23 @@ import {
   removeProjectDraftAtom,
   setProjectDraftAtom,
 } from "@src/store/workstation/projectManager";
+import type { Project } from "@src/types/core/project";
 
-import { filterSelectableProjectOrgs } from "../../../projectOrgVisibility";
+import {
+  filterSelectableProjectOrgs,
+  resolveDefaultProjectOrgId,
+} from "../../../projectOrgVisibility";
 
 // ============================================
 // Types
 // ============================================
+
+export interface CreatedProjectResult {
+  project: Project;
+  projectSlug: string;
+  orgId: string;
+  orgName?: string;
+}
 
 export interface CreateProjectViewProps {
   /** Tab ID used to key the draft cache */
@@ -75,12 +91,12 @@ export interface CreateProjectViewProps {
   repoName?: string;
   /** Scope label for breadcrumb display. */
   scopeBreadcrumbLabel?: string;
-  /** Native ORGII org that owns the created project. */
-  orgId: string;
+  /** Optional scoped-surface org; otherwise the global sidebar org is used. */
+  orgId?: string;
   /** Mark this tab as having unsaved changes */
   onSetUnsaved: (hasUnsaved: boolean) => void;
   /** Called after project is successfully created */
-  onProjectCreated: (options?: { keepOpen?: boolean }) => void;
+  onProjectCreated: (result: CreatedProjectResult) => void;
   /** Show the Agent composer instead of the manual Project composer. */
   aiGenerateMode?: boolean;
   /** Optional content centered in the page above the bottom-docked manual composer. */
@@ -120,6 +136,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const [saving, setSaving] = useState(false);
   const [availableOrgs, setAvailableOrgs] = useState<ProjectOrg[]>([]);
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
+  const globalOrgSelectorValue = useAtomValue(sidebarSelectedOrgIdAtom);
 
   // Read draft from atom (survives tab switches)
   const draftsMap = useAtomValue(projectDraftsAtom);
@@ -148,12 +165,11 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   useEffect(() => {
     if (!initialisedRef.current && !draftsMap.has(tabId)) {
       const initial = createDefaultProjectDraft();
-      initial.orgId = orgId;
       if (repoPath) initial.linkedRepoPaths = [repoPath];
       setDraft({ tabId, draft: initial });
       initialisedRef.current = true;
     }
-  }, [tabId, draftsMap, setDraft, repoPath, orgId]);
+  }, [tabId, draftsMap, setDraft, repoPath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -270,34 +286,41 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         ? workItemPrefix.slice(0, 3).padEnd(3, "X")
         : "PRJ";
 
-      await projectApi.writeProject(
-        slug,
-        {
-          id: `proj-${slug}`,
-          name,
-          org_id: draft.orgId,
-          status: draft.status || "backlog",
-          priority: draft.priority || "none",
-          health: draft.health || "no_updates",
-          lead: draft.leadId,
-          members: draft.memberIds,
-          labels: draft.labelIds,
-          linked_repos: draft.linkedRepoPaths,
-          start_date: draft.startDate,
-          target_date: draft.targetDate,
-          created_at: now,
-          updated_at: now,
-          next_work_item_id: 1,
-          work_item_prefix: normalizedWorkItemPrefix,
-          work_item_prefix_custom: false,
-        },
-        description,
-        true
-      );
+      const meta = {
+        id: `proj-${slug}`,
+        name,
+        org_id: draft.orgId,
+        status: draft.status || "backlog",
+        priority: draft.priority || "none",
+        health: draft.health || "no_updates",
+        lead: draft.leadId,
+        members: draft.memberIds,
+        labels: draft.labelIds,
+        linked_repos: draft.linkedRepoPaths,
+        start_date: draft.startDate,
+        target_date: draft.targetDate,
+        created_at: now,
+        updated_at: now,
+        next_work_item_id: 1,
+        work_item_prefix: normalizedWorkItemPrefix,
+        work_item_prefix_custom: false,
+      };
+
+      await projectApi.writeProject(slug, meta, description, true);
 
       await emit("orgii-data-changed");
       removeDraft(tabId);
-      onProjectCreated();
+      onProjectCreated({
+        project: projectDataToUI(
+          { meta, description, slug },
+          { labelMap: new Map(), memberMap: new Map() }
+        ),
+        projectSlug: slug,
+        orgId: meta.org_id,
+        orgName:
+          availableOrgs.find((org) => org.id === meta.org_id)?.name ??
+          (meta.org_id === orgId ? scopeBreadcrumbLabel : undefined),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("Failed to create project", err);
@@ -305,7 +328,16 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [draft, onProjectCreated, removeDraft, saving, tabId]);
+  }, [
+    availableOrgs,
+    draft,
+    onProjectCreated,
+    orgId,
+    removeDraft,
+    saving,
+    scopeBreadcrumbLabel,
+    tabId,
+  ]);
 
   useKeyboardSave(
     handleCreate,
@@ -317,11 +349,42 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     [availableOrgs, cloudOrgs]
   );
 
+  const defaultOrgId = useMemo(
+    () =>
+      resolveDefaultProjectOrgId(
+        orgId,
+        globalOrgSelectorValue,
+        availableOrgs,
+        selectableOrgs
+      ),
+    [availableOrgs, globalOrgSelectorValue, orgId, selectableOrgs]
+  );
+
   useEffect(() => {
-    if (availableOrgs.length === 0 || !draft.orgId) return;
-    if (selectableOrgs.some((org) => org.id === draft.orgId)) return;
-    patchDraft({ tabId, patch: { orgId: "personal-org" } });
-  }, [availableOrgs.length, draft.orgId, patchDraft, selectableOrgs, tabId]);
+    if (availableOrgs.length === 0) return;
+    const selectedOrgIsValid = selectableOrgs.some(
+      (org) => org.id === draft.orgId
+    );
+    const followsDefault = draft.orgSelectionMode !== "manual";
+    if (
+      selectedOrgIsValid &&
+      (!followsDefault || draft.orgId === defaultOrgId)
+    ) {
+      return;
+    }
+    patchDraft({
+      tabId,
+      patch: { orgId: defaultOrgId, orgSelectionMode: "auto" },
+    });
+  }, [
+    availableOrgs.length,
+    defaultOrgId,
+    draft.orgId,
+    draft.orgSelectionMode,
+    patchDraft,
+    selectableOrgs,
+    tabId,
+  ]);
 
   const orgOptions = useMemo<SelectOption[]>(
     () =>
@@ -342,26 +405,19 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const handleOrgChange = useCallback(
     (value: string | number | (string | number)[]) => {
       if (Array.isArray(value)) return;
-      updateDraft({ orgId: String(value) });
+      updateDraft({ orgId: String(value), orgSelectionMode: "manual" });
     },
     [updateDraft]
   );
 
-  const orgBreadcrumbPill = (
-    <Select
+  const orgTrailSelect = (
+    <ProjectOrganizationSelect
       value={draft.orgId}
       options={orgOptions}
       onChange={handleOrgChange}
       placeholder={selectedOrgLabel}
-      size="small"
-      radius="pill"
-      showSearch
-      dropdownWidthMode="min-match"
-      dropdownMinWidth={220}
-      panelZIndex={10000}
       placement="top"
       dataTestId="create-project-org-select"
-      className="w-auto max-w-[220px] [&_.select-selector]:!h-7 [&_.select-selector]:!rounded-full [&_.select-selector]:!bg-bg-2 [&_.select-selector]:!px-3 [&_.select-selector]:!text-[13px] [&_.select-selector]:!font-medium [&_.select-selector]:!shadow-none [&_.select-suffix]:!hidden"
     />
   );
 
@@ -397,7 +453,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const projectPinnedActions = (
     <CreateComposerPinnedActions dataTestId="create-project-pinned-actions">
       {creatorModeControl}
-      {orgBreadcrumbPill}
+      {orgTrailSelect}
       {propertyPills}
     </CreateComposerPinnedActions>
   );

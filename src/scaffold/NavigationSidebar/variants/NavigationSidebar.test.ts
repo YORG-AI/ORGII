@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
+import { WorkItemsSidebarSkeleton } from "../connectors/WorkstationSidebarConnector/WorkItemsSidebarSkeleton";
 import NavigationSidebar from "./NavigationSidebar";
 
 vi.mock("../SidebarBase", () => ({
@@ -81,5 +82,24 @@ describe("NavigationSidebar", () => {
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain('data-test-menu-item="create"');
     expect(markup).not.toContain('data-test-menu-item="projects"');
+  });
+
+  it("renders surface-specific skeleton content while loading", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationSidebar, {
+        items: [],
+        activeKey: "",
+        onChange: vi.fn(),
+        menuItems: [],
+        isLoading: true,
+        loadingContent: createElement(WorkItemsSidebarSkeleton, {
+          loadingLabel: "Loading work items",
+        }),
+      })
+    );
+
+    expect(markup).toContain('data-testid="work-items-sidebar-skeleton"');
+    expect(markup).toContain('aria-label="Loading work items"');
+    expect(markup).toContain("animate-pulse");
   });
 });

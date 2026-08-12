@@ -57,7 +57,9 @@ import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import {
   checkForAppUpdates,
   checkForUpdatesManually,
+  useAppBuildProvenance,
 } from "@src/scaffold/AppUpdater";
+import { formatAppBuildRevision } from "@src/scaffold/AppUpdater/buildProvenance";
 import { type TimezoneOption, timezoneAtom } from "@src/store";
 import { chatAppearancePersistAtom } from "@src/store/config/configAtom";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
@@ -130,6 +132,7 @@ const GeneralTabBody: React.FC = () => {
   });
 
   const [appVersion, setAppVersion] = useState<string>("");
+  const buildProvenance = useAppBuildProvenance();
 
   useEffect(() => {
     let cancelled = false;
@@ -422,7 +425,11 @@ const GeneralTabBody: React.FC = () => {
         </SectionRow>
         <SectionRow label={t("update.currentVersion")}>
           <span className={SECTION_VALUE_TEXT_CLASSES}>
-            {appVersion ? `v${appVersion}` : "—"}
+            {appVersion
+              ? buildProvenance?.kind === "local"
+                ? `v${appVersion} · ${t("update.localBuild")} · ${formatAppBuildRevision(buildProvenance)}`
+                : `v${appVersion}`
+              : "—"}
           </span>
         </SectionRow>
       </SectionContainer>

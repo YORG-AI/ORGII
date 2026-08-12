@@ -471,9 +471,10 @@ where
     let status_changed = core.status != frontmatter.status;
     let mut fsm_violation: Option<String> = None;
     if status_changed {
-        if let Err(violation) =
-            crate::work_service::state::validate_legacy_transition(&core.status, &frontmatter.status)
-        {
+        if let Err(violation) = crate::work_service::state::validate_legacy_transition(
+            &core.status,
+            &frontmatter.status,
+        ) {
             if service.strict_fsm {
                 return Err(crate::work_service::error::invalid_transition(
                     &core.status,

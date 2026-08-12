@@ -72,13 +72,8 @@ fn ensure_device_id(path: &Path) -> Result<String, String> {
     }
 
     if path.exists() {
-        let existing = fs::read_to_string(path).map_err(|err| {
-            format!(
-                "Failed to read cloud device id {}: {}",
-                path.display(),
-                err
-            )
-        })?;
+        let existing = fs::read_to_string(path)
+            .map_err(|err| format!("Failed to read cloud device id {}: {}", path.display(), err))?;
         let trimmed = existing.trim();
         if let Ok(parsed) = Uuid::parse_str(trimmed) {
             return Ok(parsed.to_string());

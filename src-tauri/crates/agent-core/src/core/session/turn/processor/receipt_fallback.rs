@@ -9,8 +9,8 @@
 //! missing receipt from the final output so the Discussion trail stays
 //! complete even when the model forgets the CLI.
 //!
-//! Mirrors the injection gate in `prompt.rs` (`agent_role == "custom"` with
-//! a linked `work_item_id`) and the actor derivation in the exec injection
+//! Mirrors the injection gate in `prompt.rs` (Project mode with a linked
+//! `work_item_id`) and the actor derivation in the exec injection
 //! kit (`agent:{definition}` after the `builtin:` trim), so the audit check
 //! sees the same actor id the CLI writes carry — including subagent writes,
 //! which root-walk to the same top-level session actor.
@@ -47,8 +47,7 @@ impl UnifiedMessageProcessor {
         };
         let session_id = session_id.to_string();
         tokio::task::spawn_blocking(move || {
-            if let Err(error) =
-                synthesize_receipt_blocking(&session_id, &body, turn_started_at_ms)
+            if let Err(error) = synthesize_receipt_blocking(&session_id, &body, turn_started_at_ms)
             {
                 warn!(
                     session_id,
@@ -70,7 +69,7 @@ fn synthesize_receipt_blocking(
     else {
         return Ok(());
     };
-    if record.agent_role.as_deref() != Some("custom") {
+    if record.product_mode.as_deref() != Some("project") {
         return Ok(());
     }
     let Some(work_item_id) = record.work_item_id.as_deref() else {
@@ -106,9 +105,8 @@ fn synthesize_receipt_blocking(
             Some(&actor),
         )?,
         None => {
-            let org_id = project_management::projects::io::resolve_local_org_scope(
-                record.org_id.as_deref(),
-            );
+            let org_id =
+                project_management::projects::io::resolve_local_org_scope(record.org_id.as_deref());
             project_management::work_service::note_standalone_work_item(
                 org_id.as_deref(),
                 work_item_id,
@@ -120,9 +118,7 @@ fn synthesize_receipt_blocking(
     }
     info!(
         session_id,
-        work_item_id,
-        actor_id,
-        "[receipt_fallback] synthesized turn-end Discussion receipt"
+        work_item_id, actor_id, "[receipt_fallback] synthesized turn-end Discussion receipt"
     );
     Ok(())
 }
@@ -139,7 +135,8 @@ mod tests {
 
     #[test]
     fn keeps_substantial_output_with_auto_marker() {
-        let text = "Implemented the export flow and verified the generated CSV against the fixture data.";
+        let text =
+            "Implemented the export flow and verified the generated CSV against the fixture data.";
         let body = receipt_body(text).expect("substantial output");
         assert!(body.starts_with("(auto) Implemented"));
         assert!(body.contains("fixture data."));

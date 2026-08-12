@@ -218,7 +218,7 @@ mod tests {
                 labels: Vec::new(),
                 milestone: None,
                 parent: None,
-        stage: None,
+                stage: None,
                 start_date: None,
                 target_date: None,
                 created_by: None,

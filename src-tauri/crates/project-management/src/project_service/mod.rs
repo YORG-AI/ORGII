@@ -34,11 +34,7 @@ fn derive_prefix(name: &str) -> String {
     }
 }
 
-fn audit_project(
-    operation: &'static str,
-    slug: &str,
-    org_id: Option<&str>,
-) -> Result<(), String> {
+fn audit_project(operation: &'static str, slug: &str, org_id: Option<&str>) -> Result<(), String> {
     let mut connection = project_io::helpers::conn()?;
     let tx = connection
         .transaction()
@@ -95,8 +91,14 @@ pub fn create_project(request: &CreateProjectRequest) -> Result<ProjectData, Str
         id: format!("proj-{slug}"),
         name: request.name.clone(),
         org_id: org_id.clone(),
-        status: request.status.clone().unwrap_or_else(|| "backlog".to_string()),
-        priority: request.priority.clone().unwrap_or_else(|| "none".to_string()),
+        status: request
+            .status
+            .clone()
+            .unwrap_or_else(|| "backlog".to_string()),
+        priority: request
+            .priority
+            .clone()
+            .unwrap_or_else(|| "none".to_string()),
         health: "no_updates".to_string(),
         lead: request.lead.clone(),
         members: vec![],

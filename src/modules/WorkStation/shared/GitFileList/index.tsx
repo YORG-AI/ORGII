@@ -68,6 +68,8 @@ export interface GitFileListProps {
   onFileSelect: (fileId: string) => void;
   /** Section title */
   title?: string;
+  /** Unfiltered display label when the backing result is remotely capped. */
+  unfilteredCountLabel?: string;
   /** Whether to show filter toggle in header */
   showFilterToggle?: boolean;
   /** Initial view mode */
@@ -252,6 +254,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
   selectedFileId,
   onFileSelect,
   title,
+  unfilteredCountLabel,
   showFilterToggle = true,
   defaultViewMode = "list",
   loading: _loading = false,
@@ -485,6 +488,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
   );
 
   const displayTitle = title ?? t("labels.changedFiles");
+  const displayCountLabel = filterQuery ? undefined : unfilteredCountLabel;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -492,6 +496,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
       <SectionHeader
         title={displayTitle}
         count={filteredFiles.length}
+        countLabel={displayCountLabel}
         isCollapsed={isCollapsed}
         onToggle={() => setIsCollapsed((prev) => !prev)}
         actions={sectionActions}

@@ -11,10 +11,10 @@
  * Or use the .scrollbar-overlay class from _utilities.scss for simple cases.
  */
 
-// Standard overlay scrollbar: 4px, fill-3/4 thumb, transparent track
+// Standard overlay scrollbar: 4px, shared translucent thumb, transparent track
 @mixin scrollbar-unified {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-fill-3) transparent;
+  scrollbar-color: var(--scrollbar-thumb-color) transparent;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -26,11 +26,11 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--color-fill-3);
+    background: var(--scrollbar-thumb-color);
     border-radius: 2px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--color-fill-4);
+    background: var(--scrollbar-thumb-hover-color);
   }
 }

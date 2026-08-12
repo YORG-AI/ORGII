@@ -114,4 +114,19 @@ describe("GitFileList row styling", () => {
       }
     }
   );
+
+  it("renders a capped unfiltered count label", () => {
+    act(() => {
+      root.render(
+        React.createElement(GitFileList, {
+          files: [file],
+          unfilteredCountLabel: "3000+",
+          selectedFileId: file.id,
+          onFileSelect: vi.fn(),
+        })
+      );
+    });
+
+    expect(container.textContent).toContain("3000+");
+  });
 });
