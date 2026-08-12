@@ -1978,58 +1978,35 @@
       "orgDescriptionPlaceholder": "Was macht diese Org?",
       "members": "Mitglieder",
       "addMember": "Mitglied hinzufügen",
-      "editMember": "Mitglied bearbeiten",
       "noMembers": "Füge Mitglieder hinzu, um die Org-Hierarchie aufzubauen",
-      "previewEmpty": "Agents hinzufügen, um die Vorschau zu sehen",
-      "hierarchyMode": {
-        "label": "Hierarchiemodus",
-        "description": "Wie die Reports-to-Beziehung zwischen Mitgliedern zur Laufzeit interpretiert wird",
-        "flat": {
-          "label": "Flach",
-          "description": "Keine Berichtshierarchie. Jedes Mitglied kann jedem anderen direkt schreiben. Die Spalte Reports-to wird ausgeblendet"
-        },
-        "soft": {
-          "label": "Weich (empfohlen)",
-          "description": "Reports-to wird dem LLM als organisatorischer Hinweis übergeben. Routing zur Laufzeit bleibt frei — das LLM darf bei Bedarf direkt mit Peers sprechen"
-        },
-        "strict": {
-          "label": "Strikt",
-          "description": "Reports-to wird zur Laufzeit erzwungen. Ein Mitglied darf nur seinen Manager, direkte Berichte oder den Coordinator anschreiben. Peer-zu-Peer wird abgelehnt"
-        }
-      },
-      "strictBanner": "Strikter Modus: Mitglieder dürfen nur ihren Manager, direkte Berichte oder den Coordinator anschreiben. Peer-zu-Peer-Nachrichten werden zur Laufzeit blockiert.",
-      "missingParentWarn": "Im strikten Modus berichten Mitglieder der obersten Ebene direkt an den Coordinator und können nur ihn erreichen.",
-      "reachability": {
-        "label": "Erreichbarkeit im strikten Modus",
-        "description": "Dry-Run-Vorschau, wer wem unter der aktuellen Kette direkt schreiben kann. Hilft, isolierte Mitglieder vor dem Start zu erkennen",
-        "fromHeader": "von \\ an",
-        "empty": "Füge mindestens ein Mitglied hinzu, um das Routing im strikten Modus zu sehen.",
-        "isolatedWarn": "Diese Mitglieder erreichen nur den Coordinator — im strikten Modus können sie nicht mit Kollegen zusammenarbeiten: {{names}}",
-        "allowedTitle": "{{from}} kann {{to}} direkt schreiben",
-        "blockedTitle": "{{from}} kann {{to}} im strikten Modus nicht direkt schreiben — eskaliere stattdessen über den Coordinator"
-      },
       "membersLabel": "Teammitglieder",
-      "membersDesc": "Jede Zeile ist ein Routing-Alias. Der Coordinator adressiert Mitglieder über den Namen; Namen müssen eindeutig sein. Role ist ein Spezialitätshinweis fürs LLM",
+      "membersDesc": "Jede Zeile ist ein Mitglied mit einer unabhängigen Writer-Berechtigung und Kommunikationseinstellungen. Namen müssen eindeutig sein; die Rolle ist nur ein Hinweis auf die Spezialisierung.",
       "memberName": "Name",
       "memberNamePlaceholder": "Eindeutiger Routing-Name (z.B. SDE-1)",
       "memberNameDuplicate": "Ein anderes Mitglied verwendet diesen Namen bereits. Namen müssen innerhalb der Org eindeutig sein.",
       "role": "Rolle",
       "rolePlaceholder": "Spezialität (z.B. Backend-Dev)",
       "agent": "Agent",
-      "reportsTo": "Berichtet an",
-      "reportsToCoordinator": "Coordinator (oberste Ebene)",
       "status": "Status",
       "coordinator": "Koordinator",
       "coordinatorDesc": "Leitender Agent, der die Koordinator-Sitzung für diesen Org-Lauf besitzt",
       "coordinatorPlaceholder": "Koordinator-Agent auswählen",
-      "tabs": {
-        "edit": "Bearbeiten",
-        "previewDiagram": "Diagrammvorschau"
-      },
       "dangerZone": "Gefahrenzone",
       "deleteOrg": "Dieses Org löschen",
       "deleteOrgDesc": "Dieses Agent-Team dauerhaft löschen. Die Member Agents bleiben erhalten. Diese Aktion kann nicht rückgängig gemacht werden",
-      "deleteThisOrg": "Dieses Org löschen"
+      "deleteThisOrg": "Dieses Org löschen",
+      "writer": "Writer",
+      "connected": "Verbunden",
+      "connectedCount": "Mit {{count}} verbunden",
+      "manageCommunication": "Kommunikation verwalten",
+      "futureTeamsOnly": "Änderungen an dieser Vorlage gelten nur für künftig erstellte Teams. Laufende Team-Sitzungen werden nicht geändert.",
+      "communicationPanel": {
+        "title": "Kommunikation für {{name}}",
+        "coordinatorAlwaysReachable": "Der Koordinator ist immer in beide Richtungen mit jedem Mitglied erreichbar und wird hier nicht aufgeführt.",
+        "search": "Mitglieder nach Name oder Rolle suchen",
+        "noPeers": "Keine passenden Mitglieder",
+        "saveWithTeam": "Änderungen bleiben im Team-Entwurf und werden auf der Hauptseite der Team-Einstellungen gespeichert."
+      }
     },
     "agentWizard": {
       "title": "Agent konfigurieren",

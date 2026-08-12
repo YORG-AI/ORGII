@@ -7,7 +7,7 @@ import {
 } from "@src/components/PropertyField/PropertyFieldEditable";
 import type {
   AgentDefinition,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
@@ -28,7 +28,7 @@ interface PeopleSectionProps {
   togglePicker: (picker: WorkItemPropertyPicker) => void;
   availableMembers: Person[];
   availableAgents: AgentDefinition[];
-  availableOrgs: OrgMember[];
+  availableOrgs: OrgDefinition[];
   handlers: WorkItemPropertyHandlers;
   t: WorkItemPropertyTranslator;
   fieldVariant?: FieldRowVariant;

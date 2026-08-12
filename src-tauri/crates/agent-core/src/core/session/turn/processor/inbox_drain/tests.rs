@@ -60,8 +60,8 @@ fn ctx_for(run_id: &str) -> AgentOrgRunContext {
         coordinator_name: "Org 1".into(),
         coordinator_role: "team".into(),
         members: vec![],
-        hierarchy_mode: Default::default(),
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        capability_index: Default::default(),
         root_session_id: Some("root-1".into()),
     }
 }
@@ -78,7 +78,6 @@ fn ctx_for_with_member(
             agent_id: member_agent_id.into(),
             name: member_name.into(),
             role: "engineer".into(),
-            parent_member_id: None,
         });
     ctx
 }
@@ -90,7 +89,7 @@ fn running_ctx_for_members(members: &[(&str, &str, &str)]) -> AgentOrgRunContext
     use crate::coordination::agent_org_runs::{
         AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
     };
-    use crate::core::definitions::orgs::{OrgDefinition, OrgMember};
+    use crate::core::definitions::orgs::{FlatOrgMember, OrgDefinition};
 
     ensure_inbox_schema();
     let unique = uuid::Uuid::new_v4().to_string();
@@ -98,26 +97,27 @@ fn running_ctx_for_members(members: &[(&str, &str, &str)]) -> AgentOrgRunContext
         org_id: format!("org-inbox-drain-{unique}"),
         coordinator_agent_id: "coord".to_string(),
         root_session_id: Some(format!("root-{unique}")),
-        org_snapshot: OrgDefinition {
+        org_snapshot: (&OrgDefinition {
             id: format!("org-inbox-drain-{unique}"),
             name: "Inbox Drain Test Org".to_string(),
             role: "coordinator".to_string(),
             agent_id: "coord".to_string(),
             description: None,
-            hierarchy_mode: Default::default(),
             plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-            children: members
+            members: members
                 .iter()
-                .map(|(member_id, agent_id, name)| OrgMember {
-                    id: (*member_id).to_string(),
+                .map(|(member_id, agent_id, name)| FlatOrgMember {
+                    member_id: (*member_id).to_string(),
                     name: (*name).to_string(),
                     role: "engineer".to_string(),
                     agent_id: (*agent_id).to_string(),
                     runtime_config: None,
-                    children: Vec::new(),
                 })
                 .collect(),
-        },
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
+        })
+            .into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,
@@ -135,7 +135,6 @@ fn running_ctx_for_members(members: &[(&str, &str, &str)]) -> AgentOrgRunContext
                 agent_id: (*agent_id).to_string(),
                 name: (*name).to_string(),
                 role: "engineer".to_string(),
-                parent_member_id: None,
             }
         })
         .collect();
@@ -244,14 +243,12 @@ fn shared_agent_id_member_session_drains_only_its_member_inbox() {
             agent_id: shared_agent_id.into(),
             name: "Alice".into(),
             role: "planner".into(),
-            parent_member_id: None,
         },
         crate::coordination::agent_org_runs::AgentOrgContextMember {
             member_id: "bob".into(),
             agent_id: shared_agent_id.into(),
             name: "Bob".into(),
             role: "implementer".into(),
-            parent_member_id: None,
         },
     ];
     upsert_org_member_session(
@@ -1531,7 +1528,7 @@ fn drain_does_not_steal_task_from_stale_running_worker() {
         AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
     };
     use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
-    use crate::core::definitions::orgs::{OrgDefinition, OrgMember};
+    use crate::core::definitions::orgs::{FlatOrgMember, OrgDefinition};
     use crate::session::persistence::{session_type, upsert_session, UnifiedSessionRecord};
 
     let _sandbox = test_helpers::test_env::sandbox();
@@ -1555,33 +1552,33 @@ fn drain_does_not_steal_task_from_stale_running_worker() {
         org_id: "org-stale-drain".to_string(),
         coordinator_agent_id: "coord".to_string(),
         root_session_id: Some(root_session_id.clone()),
-        org_snapshot: OrgDefinition {
+        org_snapshot: (&OrgDefinition {
             id: "org-stale-drain".to_string(),
             name: "Stale Drain Org".to_string(),
             role: "coordinator".to_string(),
             agent_id: "coord".to_string(),
             description: None,
-            hierarchy_mode: Default::default(),
             plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-            children: vec![
-                OrgMember {
-                    id: "member-stale".to_string(),
+            members: vec![
+                FlatOrgMember {
+                    member_id: "member-stale".to_string(),
                     name: "Stale Worker".to_string(),
                     role: "worker".to_string(),
                     agent_id: "stale-worker".to_string(),
                     runtime_config: None,
-                    children: Vec::new(),
                 },
-                OrgMember {
-                    id: "member-fresh".to_string(),
+                FlatOrgMember {
+                    member_id: "member-fresh".to_string(),
                     name: "Fresh Worker".to_string(),
                     role: "worker".to_string(),
                     agent_id: "fresh-worker".to_string(),
                     runtime_config: None,
-                    children: Vec::new(),
                 },
             ],
-        },
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
+        })
+            .into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,
@@ -1638,7 +1635,6 @@ fn drain_does_not_steal_task_from_stale_running_worker() {
             agent_id: "fresh-worker".to_string(),
             name: "Fresh Worker".to_string(),
             role: "worker".to_string(),
-            parent_member_id: None,
         });
     ctx.root_session_id = Some(root_session_id.clone());
     let mut messages = Vec::new();
@@ -1764,7 +1760,6 @@ fn drain_drops_exec_mode_request_from_non_coordinator_sender() {
             name: "Bob".into(),
             role: "engineer".into(),
             agent_id: "bob-agent".into(),
-            parent_member_id: None,
         });
 
     AgentInboxStore::insert(InsertInboxParams {

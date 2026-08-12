@@ -2,7 +2,7 @@ import type { ReviewerRefType, WorkItemSchedule } from "@src/api/http/project";
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
 import type {
   AgentDefinition,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -74,7 +74,7 @@ export interface WorkItemPropertiesProps {
   availableLabels?: WorkItemLabel[];
   availableMembers?: Person[];
   availableAgents?: AgentDefinition[];
-  availableOrgs?: OrgMember[];
+  availableOrgs?: OrgDefinition[];
   /** Brand integration icon for the selected project (for example, GitHub). */
   projectIconType?: string;
   /** Show the current project without allowing it to be changed or cleared. */

@@ -36,7 +36,6 @@ function runView(): AgentOrgRunView {
         { memberId: "m1", name: "Alice", role: "worker", agentId: "alice" },
         { memberId: "m2", name: "Bob", role: "worker", agentId: "bob" },
       ],
-      hierarchyMode: "flat",
       planApprovalPolicy: "coordinator",
       rootSessionId: "root-session",
     },

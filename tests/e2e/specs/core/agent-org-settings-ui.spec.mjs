@@ -73,10 +73,10 @@ describe("Agent Org settings and topology rendered UI", () => {
     await waitForApp();
   });
 
-  it("creates strict Agent Org structure in settings and launches that persisted runtime topology", async () => {
+  it("creates a flat Agent Org in settings and launches its immutable roster snapshot", async () => {
     const account = await getApiAccount();
     const model = selectPreferredModel(account);
-    const orgName = `E2E Strict Org ${RUN_ID}`;
+    const orgName = `E2E Flat Org ${RUN_ID}`;
     const leadName = `E2E Lead ${RUN_ID}`;
     const childName = `E2E Child ${RUN_ID}`;
     await removeAgentOrgsByName(orgName);
@@ -94,14 +94,14 @@ describe("Agent Org settings and topology rendered UI", () => {
 
     await configureCreatorForAgentOrg({ account, model, agentOrgId: org.id });
     await selectRenderedAgentOrg(org.id);
-    const launchPrompt = `E2E true positive custom strict Agent Org topology ${RUN_ID}. Reply briefly.`;
+    const launchPrompt = `E2E true positive custom flat Agent Org topology ${RUN_ID}. Reply briefly.`;
     const sessionId = await sendFromRenderedCreator(launchPrompt);
     if (!sessionId) {
       throw new Error(
-        "Custom strict Agent Org launch did not create a session id"
+        "Custom flat Agent Org launch did not create a session id"
       );
     }
-    await waitForRenderedAssistantReply("custom strict Agent Org launch");
+    await waitForRenderedAssistantReply("custom flat Agent Org launch");
 
     await waitForAgentOrgRunView(
       sessionId,
@@ -116,13 +116,13 @@ describe("Agent Org settings and topology rendered UI", () => {
           child?.memberId &&
           lead.agentId === BUILTIN_SDE_AGENT_ID &&
           child.agentId === BUILTIN_SDE_AGENT_ID &&
-          !lead.parentMemberId &&
-          child.parentMemberId === lead.memberId &&
+          !Object.hasOwn(lead, "parentMemberId") &&
+          !Object.hasOwn(child, "parentMemberId") &&
           lead.sessionRuntime?.sessionId &&
           child.sessionRuntime?.sessionId
         );
       },
-      "custom strict Agent Org persisted members consumed by runtime"
+      "custom flat Agent Org persisted members consumed by runtime"
     );
   });
 
@@ -140,11 +140,11 @@ describe("Agent Org settings and topology rendered UI", () => {
       leadName,
       childName,
     });
-    const lead = (org.children ?? []).find(
+    const lead = (org.members ?? []).find(
       (member) => member.name === leadName
     );
-    const child = lead?.children?.find((member) => member.name === childName);
-    if (!child?.id) {
+    const child = (org.members ?? []).find((member) => member.name === childName);
+    if (!child?.memberId) {
       throw new Error(
         `Override test could not resolve child member: ${JSON.stringify(org)}`
       );
@@ -154,7 +154,7 @@ describe("Agent Org settings and topology rendered UI", () => {
     await selectRenderedAgentOrg(org.id);
     const launchOnlyDraft = {
       agentOrgMemberOverrides: {
-        [child.id]: {
+        [child.memberId]: {
           runtimeConfig: {
             keySource: "own_key",
             accountId: account.id,
@@ -198,7 +198,7 @@ describe("Agent Org settings and topology rendered UI", () => {
       org.id,
       (view) => {
         const overriddenMember = (view?.members ?? []).find(
-          (member) => member.memberId === child.id
+          (member) => member.memberId === child.memberId
         );
         return Boolean(overriddenMember?.sessionRuntime?.sessionId);
       },
@@ -206,7 +206,7 @@ describe("Agent Org settings and topology rendered UI", () => {
     );
     const launchOnlyChildRuntime = (
       launchOnlyRunState?.view?.members ?? []
-    ).find((member) => member.memberId === child.id)?.sessionRuntime;
+    ).find((member) => member.memberId === child.memberId)?.sessionRuntime;
     const launchOnlyChildSessionId = launchOnlyChildRuntime?.sessionId;
     if (!launchOnlyChildSessionId) {
       throw new Error(
@@ -225,8 +225,8 @@ describe("Agent Org settings and topology rendered UI", () => {
       "listAgentOrgs after launch-only override"
     ).orgs.find((candidate) => candidate?.id === org.id);
     const afterLaunchOnlyChild =
-      afterLaunchOnlyOrg?.children?.[0]?.children?.find(
-        (member) => member.id === child.id
+      afterLaunchOnlyOrg?.members?.find(
+        (member) => member.memberId === child.memberId
       );
     if (afterLaunchOnlyChild?.runtimeConfig) {
       throw new Error(
@@ -272,14 +272,14 @@ describe("Agent Org settings and topology rendered UI", () => {
       org.id,
       (view) => {
         const overriddenMember = (view?.members ?? []).find(
-          (member) => member.memberId === child.id
+          (member) => member.memberId === child.memberId
         );
         return Boolean(overriddenMember?.sessionRuntime?.sessionId);
       },
       "persisted member override materialized"
     );
     const persistedChildRuntime = (persistedRunState?.view?.members ?? []).find(
-      (member) => member.memberId === child.id
+      (member) => member.memberId === child.memberId
     )?.sessionRuntime;
     const persistedChildSessionId = persistedChildRuntime?.sessionId;
     if (!persistedChildSessionId) {
@@ -298,8 +298,8 @@ describe("Agent Org settings and topology rendered UI", () => {
       await invokeE2E("listAgentOrgs"),
       "listAgentOrgs after persisted override"
     ).orgs.find((candidate) => candidate?.id === org.id);
-    const persistedChild = persistedOrg?.children?.[0]?.children?.find(
-      (member) => member.id === child.id
+    const persistedChild = persistedOrg?.members?.find(
+      (member) => member.memberId === child.memberId
     );
     if (persistedChild?.runtimeConfig?.model !== overrideModel) {
       throw new Error(
@@ -370,11 +370,11 @@ describe("Agent Org settings and topology rendered UI", () => {
         leadName,
         childName,
       });
-      const lead = (org.children ?? []).find(
+      const lead = (org.members ?? []).find(
         (member) => member.name === leadName
       );
-      const child = lead?.children?.find((member) => member.name === childName);
-      if (!child?.id) {
+      const child = (org.members ?? []).find((member) => member.name === childName);
+      if (!child?.memberId) {
         throw new Error(
           `Rendered member override could not resolve child: ${JSON.stringify(org)}`
         );
@@ -383,7 +383,7 @@ describe("Agent Org settings and topology rendered UI", () => {
       await configureCreatorForAgentOrg({ account, model, agentOrgId: org.id });
       await selectRenderedAgentOrg(org.id);
       await selectRenderedOrgMemberAgentDefinition({
-        memberId: child.id,
+        memberId: child.memberId,
         agentDefinitionId: overrideAgentId,
         expectedText: overrideAgentName,
         label: "rendered member AgentDefinition override",
@@ -402,7 +402,7 @@ describe("Agent Org settings and topology rendered UI", () => {
         org.id,
         (view) => {
           const overriddenMember = (view?.members ?? []).find(
-            (member) => member.memberId === child.id
+            (member) => member.memberId === child.memberId
           );
           return (
             overriddenMember?.agentId === overrideAgentId &&
@@ -412,7 +412,7 @@ describe("Agent Org settings and topology rendered UI", () => {
         "rendered member AgentDefinition override materialized"
       );
       const overriddenRuntime = (runState?.view?.members ?? []).find(
-        (member) => member.memberId === child.id
+        (member) => member.memberId === child.memberId
       )?.sessionRuntime;
       if (!overriddenRuntime?.sessionId) {
         throw new Error(

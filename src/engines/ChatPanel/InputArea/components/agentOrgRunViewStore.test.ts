@@ -46,7 +46,6 @@ function runView(
       coordinatorName: "Coordinator",
       coordinatorRole: "Lead",
       members: [],
-      hierarchyMode: "flat",
       rootSessionId: "session-root",
     },
     runStatus,

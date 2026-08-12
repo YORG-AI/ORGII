@@ -11,7 +11,7 @@ use crate::core::session::persistence::{self, UnifiedSessionRecord};
 use crate::core::session::SessionStatus;
 use crate::definitions::builtin::SDE_AGENT_ID;
 use crate::definitions::orgs::{
-    HierarchyMode, OrgDefinition, OrgMember, OrgMemberLaunchOverride, OrgMemberRuntimeConfig,
+    FlatOrgMember, OrgDefinition, OrgMemberLaunchOverride, OrgMemberRuntimeConfig,
     PlanApprovalPolicy,
 };
 use core_types::key_source::KeySource;
@@ -48,16 +48,17 @@ fn launch_validation_rejects_missing_agent_definition_before_session_create() {
     assert!(error.contains("does not exist"), "{error}");
 }
 
-fn valid_org_with_children(children: Vec<OrgMember>) -> OrgDefinition {
+fn valid_org_with_members(members: Vec<FlatOrgMember>) -> OrgDefinition {
     OrgDefinition {
         id: "test:member-id-org".to_string(),
         name: "Member Id Org".to_string(),
         role: "Coordinator".to_string(),
         agent_id: SDE_AGENT_ID.to_string(),
         description: None,
-        hierarchy_mode: HierarchyMode::Soft,
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
-        children,
+        members,
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
     }
 }
 
@@ -129,22 +130,23 @@ async fn late_launch_failure_does_not_fail_a_running_team_coordinator() {
 }
 
 #[test]
-fn launch_overrides_apply_recursively_to_effective_org_snapshot() {
-    let mut org = valid_org_with_children(vec![OrgMember {
-        id: "lead".to_string(),
-        name: "Lead".to_string(),
-        role: "Lead".to_string(),
-        agent_id: SDE_AGENT_ID.to_string(),
-        runtime_config: None,
-        children: vec![OrgMember {
-            id: "child".to_string(),
+fn launch_overrides_apply_to_flat_effective_org_snapshot() {
+    let mut org = valid_org_with_members(vec![
+        FlatOrgMember {
+            member_id: "lead".to_string(),
+            name: "Lead".to_string(),
+            role: "Lead".to_string(),
+            agent_id: SDE_AGENT_ID.to_string(),
+            runtime_config: None,
+        },
+        FlatOrgMember {
+            member_id: "child".to_string(),
             name: "Child".to_string(),
             role: "Worker".to_string(),
             agent_id: SDE_AGENT_ID.to_string(),
             runtime_config: None,
-            children: Vec::new(),
-        }],
-    }]);
+        },
+    ]);
     let mut overrides = HashMap::new();
     overrides.insert(
         "child".to_string(),
@@ -159,10 +161,10 @@ fn launch_overrides_apply_recursively_to_effective_org_snapshot() {
         },
     );
 
-    apply_member_launch_overrides_to_snapshot(&mut org.children, &overrides)
+    apply_member_launch_overrides_to_snapshot(&mut org.members, &overrides)
         .expect("override should apply");
 
-    let child = &org.children[0].children[0];
+    let child = &org.members[1];
     assert_eq!(child.agent_id, "cli:claude_code");
     let runtime_config = child.runtime_config.as_ref().expect("runtime config");
     assert_eq!(runtime_config.account_id.as_deref(), Some("account-child"));
@@ -171,13 +173,12 @@ fn launch_overrides_apply_recursively_to_effective_org_snapshot() {
 
 #[test]
 fn launch_overrides_reject_unknown_member_ids() {
-    let mut org = valid_org_with_children(vec![OrgMember {
-        id: "lead".to_string(),
+    let mut org = valid_org_with_members(vec![FlatOrgMember {
+        member_id: "lead".to_string(),
         name: "Lead".to_string(),
         role: "Lead".to_string(),
         agent_id: SDE_AGENT_ID.to_string(),
         runtime_config: None,
-        children: Vec::new(),
     }]);
     let mut overrides = HashMap::new();
     overrides.insert(
@@ -188,7 +189,7 @@ fn launch_overrides_reject_unknown_member_ids() {
         },
     );
 
-    let error = apply_member_launch_overrides_to_snapshot(&mut org.children, &overrides)
+    let error = apply_member_launch_overrides_to_snapshot(&mut org.members, &overrides)
         .expect_err("unknown member override must fail");
 
     assert!(error.contains("missing"), "{error}");
@@ -238,16 +239,16 @@ fn launch_validation_rejects_agent_org_with_missing_member_definition() {
         role: "Coordinator".to_string(),
         agent_id: SDE_AGENT_ID.to_string(),
         description: None,
-        hierarchy_mode: HierarchyMode::Soft,
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
-        children: vec![OrgMember {
-            id: "worker".to_string(),
+        members: vec![FlatOrgMember {
+            member_id: "worker".to_string(),
             name: "Worker".to_string(),
             role: "Builder".to_string(),
             agent_id: "custom:deleted-worker".to_string(),
             runtime_config: None,
-            children: Vec::new(),
         }],
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
     };
 
     let error = validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
@@ -260,13 +261,12 @@ fn launch_validation_rejects_agent_org_with_missing_member_definition() {
 #[test]
 fn launch_validation_rejects_cli_member_before_run_materialization() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let org = valid_org_with_children(vec![OrgMember {
-        id: "cli-worker".to_string(),
+    let org = valid_org_with_members(vec![FlatOrgMember {
+        member_id: "cli-worker".to_string(),
         name: "CLI Worker".to_string(),
         role: "Builder".to_string(),
         agent_id: "cli:claude_code".to_string(),
         runtime_config: None,
-        children: Vec::new(),
     }]);
 
     let error = validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
@@ -279,57 +279,46 @@ fn launch_validation_rejects_cli_member_before_run_materialization() {
 #[test]
 fn launch_validation_rejects_duplicate_member_ids() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let org = valid_org_with_children(vec![
-        OrgMember {
-            id: "worker".to_string(),
+    let org = valid_org_with_members(vec![
+        FlatOrgMember {
+            member_id: "worker".to_string(),
             name: "Worker A".to_string(),
             role: "Builder".to_string(),
             agent_id: SDE_AGENT_ID.to_string(),
             runtime_config: None,
-            children: Vec::new(),
         },
-        OrgMember {
-            id: "worker".to_string(),
+        FlatOrgMember {
+            member_id: "worker".to_string(),
             name: "Worker B".to_string(),
             role: "Reviewer".to_string(),
             agent_id: SDE_AGENT_ID.to_string(),
             runtime_config: None,
-            children: Vec::new(),
         },
     ]);
 
     let error = validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
         .expect_err("duplicate member_id must fail before session creation");
 
-    assert!(error.contains("duplicate member_id"), "{error}");
+    assert!(error.contains("duplicate member id"), "{error}");
     assert!(error.contains("worker"), "{error}");
 }
 
 #[test]
 fn launch_validation_rejects_reserved_and_empty_member_ids() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let org = valid_org_with_children(vec![
-        OrgMember {
-            id: COORDINATOR_MEMBER_ID.to_string(),
-            name: "Reserved".to_string(),
+    for (member_id, expected) in [
+        (COORDINATOR_MEMBER_ID, "reserved member id"),
+        (" ", "empty or reserved member id"),
+    ] {
+        let org = valid_org_with_members(vec![FlatOrgMember {
+            member_id: member_id.to_string(),
+            name: "Invalid".to_string(),
             role: "Builder".to_string(),
             agent_id: SDE_AGENT_ID.to_string(),
             runtime_config: None,
-            children: Vec::new(),
-        },
-        OrgMember {
-            id: " ".to_string(),
-            name: "Blank".to_string(),
-            role: "Reviewer".to_string(),
-            agent_id: SDE_AGENT_ID.to_string(),
-            runtime_config: None,
-            children: Vec::new(),
-        },
-    ]);
-
-    let error = validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
-        .expect_err("invalid member_id values must fail before session creation");
-
-    assert!(error.contains("reserved id"), "{error}");
-    assert!(error.contains("empty id"), "{error}");
+        }]);
+        let error = validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
+            .expect_err("invalid member_id values must fail before session creation");
+        assert!(error.contains(expected), "{error}");
+    }
 }

@@ -27,7 +27,7 @@ import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAge
 import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
 import type {
   AgentDefinition,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import {
   CreateComposerTitleInput,
@@ -85,7 +85,7 @@ export interface InlineCreateWorkItemFieldsState {
   editorMode: MarkdownEditorMode;
   setEditorMode: React.Dispatch<React.SetStateAction<MarkdownEditorMode>>;
   availableAgents: AgentDefinition[];
-  availableOrgs: OrgMember[];
+  availableOrgs: OrgDefinition[];
   handlePropertyUpdate: (updates: Partial<WorkItemExtended>) => void;
   inlinePropertyPills?: React.ReactNode;
   resetDraftForCreateMore: () => void;

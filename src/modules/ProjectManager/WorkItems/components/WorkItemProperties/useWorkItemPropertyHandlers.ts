@@ -9,7 +9,7 @@ import type {
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import type {
   AgentDefinition,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -32,7 +32,7 @@ interface UseWorkItemPropertyHandlersParams {
   onUpdate: (updates: Partial<WorkItemExtended>) => void;
   availableMembers: Person[];
   availableAgents: AgentDefinition[];
-  availableOrgs: OrgMember[];
+  availableOrgs: OrgDefinition[];
   closePicker: () => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }
@@ -101,8 +101,7 @@ export function useWorkItemPropertyHandlers({
           org_id: person.id,
           agent_definition_id: org?.agentId || undefined,
           sub_agent_ids:
-            org?.children?.map((member) => member.agentId).filter(Boolean) ??
-            [],
+            org?.members.map((member) => member.agentId).filter(Boolean) ?? [],
         };
       } else {
         const {

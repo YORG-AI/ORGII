@@ -12,7 +12,7 @@ use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::coordination::agent_org_tasks::{
     AgentOrgTaskStore, TaskExecutionMode, TaskOutput, TaskStatus, TASK_METADATA_EXECUTION_MODE,
 };
-use crate::definitions::orgs::{OrgDefinition, OrgMember};
+use crate::definitions::orgs::AgentOrgLaunchSnapshot;
 
 use super::artifact::validate_owned_plan_path_with_connection;
 use super::persistence::insert_record;
@@ -299,22 +299,17 @@ fn participant_agent_ids_in_tx(
         .map_err(|err| format!("agent_org_run_not_mutable: {run_id}: {err}"))?;
     let mut participants = HashMap::new();
     if let Some(snapshot_json) = snapshot_json {
-        let snapshot: OrgDefinition = serde_json::from_str(&snapshot_json).map_err(|err| {
-            format!("failed to parse Agent Org launch snapshot for run {run_id}: {err}")
-        })?;
-        collect_participant_agent_ids(&snapshot.children, &mut participants);
+        let snapshot: AgentOrgLaunchSnapshot =
+            serde_json::from_str(&snapshot_json).map_err(|err| {
+                format!("failed to parse Agent Org launch snapshot for run {run_id}: {err}")
+            })?;
+        crate::definitions::orgs::validate_launch_snapshot(&snapshot)
+            .map_err(|err| format!("invalid Agent Org launch snapshot for run {run_id}: {err}"))?;
+        for member in snapshot.members {
+            participants.insert(member.member_id, member.agent_id);
+        }
     }
     Ok((coordinator_agent_id, participants))
-}
-
-fn collect_participant_agent_ids(
-    members: &[OrgMember],
-    participants: &mut HashMap<String, String>,
-) {
-    for member in members {
-        participants.insert(member.id.clone(), member.agent_id.clone());
-        collect_participant_agent_ids(&member.children, participants);
-    }
 }
 
 pub(super) fn plan_approval_request_message(approval: &AgentOrgPlanApproval) -> AgentMessage {

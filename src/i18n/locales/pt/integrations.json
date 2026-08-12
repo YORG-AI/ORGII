@@ -1978,58 +1978,35 @@
       "orgDescriptionPlaceholder": "O que esta equipe faz?",
       "members": "Membros",
       "addMember": "Adicionar membro",
-      "editMember": "Editar membro",
       "noMembers": "Adicione membros para montar a hierarquia da sua equipe",
-      "previewEmpty": "Adicione Agents para ver a pré-visualização do gráfico da equipe",
-      "hierarchyMode": {
-        "label": "Modo de hierarquia",
-        "description": "Como as relações 'reporta a' entre membros são interpretadas em tempo de execução",
-        "flat": {
-          "label": "Plana",
-          "description": "Sem hierarquia de reporte. Todo membro pode enviar mensagens diretamente a qualquer outro. A coluna Reporta a fica oculta"
-        },
-        "soft": {
-          "label": "Suave (recomendado)",
-          "description": "Reporta a é mostrado ao LLM como dica organizacional. O roteamento é irrestrito em tempo de execução — o LLM pode enviar mensagens a colegas diretamente quando fizer sentido"
-        },
-        "strict": {
-          "label": "Estrita",
-          "description": "Reporta a é imposto em tempo de execução. Um membro só pode enviar mensagens ao seu gestor, subordinados diretos ou ao coordenador. Mensagens entre pares são rejeitadas"
-        }
-      },
-      "strictBanner": "Modo estrito: os membros só podem enviar mensagens ao seu gestor, subordinados diretos ou ao coordenador. Mensagens entre pares são bloqueadas em tempo de execução.",
-      "missingParentWarn": "No modo estrito, membros de nível superior reportam diretamente ao coordenador e só podem alcançá-lo.",
-      "reachability": {
-        "label": "Alcançabilidade no modo estrito",
-        "description": "Pré-visualização (dry-run) de quais Agents podem enviar mensagens diretamente a quais sob a cadeia atual. Use para identificar membros isolados antes de iniciar",
-        "fromHeader": "de \\ para",
-        "empty": "Adicione pelo menos um membro do time para ver como o roteamento em modo estrito ficará em tempo de execução.",
-        "isolatedWarn": "Estes membros só conseguem alcançar o coordenador — não podem colaborar com pares no modo estrito: {{names}}",
-        "allowedTitle": "{{from}} pode enviar mensagem diretamente para {{to}}",
-        "blockedTitle": "{{from}} não pode enviar mensagem diretamente para {{to}} no modo estrito — escale pelo coordenador"
-      },
       "membersLabel": "Membros do time",
-      "membersDesc": "Cada linha é um alias de roteamento. O coordenador endereça os membros pelo nome; os nomes devem ser únicos. Papel é uma dica de especialidade mostrada ao LLM",
+      "membersDesc": "Cada linha é um membro com concessão de Writer e configurações de comunicação independentes. Os nomes devem ser únicos; o papel descreve apenas a especialidade.",
       "memberName": "Nome",
       "memberNamePlaceholder": "Nome de roteamento único (ex.: SDE-1)",
       "memberNameDuplicate": "Outro membro já usa este nome. Os nomes devem ser únicos dentro da Org.",
       "role": "Papel",
       "rolePlaceholder": "Especialidade (ex.: backend dev)",
       "agent": "Agent",
-      "reportsTo": "Reporta a",
-      "reportsToCoordinator": "Coordenador (nível superior)",
       "status": "Status",
       "coordinator": "Coordenador",
       "coordinatorDesc": "Agent líder que possui a sessão de coordenador para esta execução da Org",
       "coordinatorPlaceholder": "Selecionar Agent coordenador",
-      "tabs": {
-        "edit": "Editar",
-        "previewDiagram": "Pré-visualizar diagrama"
-      },
       "dangerZone": "Zona de Perigo",
       "deleteOrg": "Excluir este Org",
       "deleteOrgDesc": "Exclui permanentemente esta Equipe Agent. Os Agents membros não são afetados. Esta ação não pode ser desfeita",
-      "deleteThisOrg": "Excluir este Org"
+      "deleteThisOrg": "Excluir este Org",
+      "writer": "Writer",
+      "connected": "Conectado",
+      "connectedCount": "Conectado a {{count}}",
+      "manageCommunication": "Gerenciar comunicação",
+      "futureTeamsOnly": "As alterações deste modelo afetam apenas as equipes criadas no futuro. Elas não alteram sessões de equipe em execução.",
+      "communicationPanel": {
+        "title": "Comunicação de {{name}}",
+        "coordinatorAlwaysReachable": "O coordenador sempre tem alcance bidirecional com todos os membros e não aparece nesta lista.",
+        "search": "Pesquisar membros por nome ou papel",
+        "noPeers": "Nenhum membro correspondente",
+        "saveWithTeam": "As alterações permanecem no rascunho da equipe e são salvas na página principal de configurações da equipe."
+      }
     },
     "agentWizard": {
       "title": "Configurar Agent",

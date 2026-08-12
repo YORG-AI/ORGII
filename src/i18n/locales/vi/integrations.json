@@ -1976,58 +1976,35 @@
       "orgDescriptionPlaceholder": "Tổ chức này làm gì?",
       "members": "Thành viên",
       "addMember": "Thêm Thành viên",
-      "editMember": "Sửa Thành viên",
       "noMembers": "Thêm thành viên để xây dựng cấu trúc org",
-      "previewEmpty": "Thêm agent để xem trước sơ đồ tổ chức",
-      "hierarchyMode": {
-        "label": "Chế độ phân cấp",
-        "description": "Cách diễn giải quan hệ Reports-to giữa các thành viên tại runtime",
-        "flat": {
-          "label": "Phẳng",
-          "description": "Không có phân cấp. Mỗi thành viên có thể nhắn trực tiếp cho bất kỳ thành viên nào khác. Cột Reports-to bị ẩn"
-        },
-        "soft": {
-          "label": "Mềm (khuyến nghị)",
-          "description": "Reports-to được chuyển cho LLM như gợi ý tổ chức. Định tuyến tại runtime tự do — LLM có thể nhắn cho đồng nghiệp khi cần"
-        },
-        "strict": {
-          "label": "Nghiêm",
-          "description": "Reports-to được thực thi tại runtime. Một thành viên chỉ có thể nhắn cho quản lý, cấp dưới trực tiếp hoặc coordinator. Tin nhắn ngang cấp bị từ chối"
-        }
-      },
-      "strictBanner": "Chế độ nghiêm: thành viên chỉ có thể nhắn cho quản lý, cấp dưới trực tiếp hoặc coordinator. Tin nhắn ngang cấp bị chặn tại runtime.",
-      "missingParentWarn": "Trong chế độ nghiêm, thành viên cấp cao nhất báo cáo trực tiếp cho coordinator và chỉ có thể liên hệ coordinator.",
-      "reachability": {
-        "label": "Khả năng truy cập trong chế độ nghiêm",
-        "description": "Xem trước dry-run ai có thể nhắn trực tiếp cho ai theo chuỗi hiện tại. Phát hiện thành viên bị cô lập trước khi khởi chạy",
-        "fromHeader": "từ \\ đến",
-        "empty": "Thêm ít nhất một thành viên để xem định tuyến chế độ nghiêm tại runtime.",
-        "isolatedWarn": "Các thành viên sau chỉ có thể liên hệ coordinator — không thể hợp tác trực tiếp với đồng nghiệp ở chế độ nghiêm: {{names}}",
-        "allowedTitle": "{{from}} có thể nhắn trực tiếp cho {{to}}",
-        "blockedTitle": "Trong chế độ nghiêm, {{from}} không thể nhắn trực tiếp cho {{to}} — vui lòng chuyển qua coordinator"
-      },
       "membersLabel": "Thành viên nhóm",
-      "membersDesc": "Mỗi hàng là một bí danh định tuyến. Coordinator gọi thành viên theo name; name phải duy nhất. Role được chuyển cho LLM như gợi ý chuyên môn",
+      "membersDesc": "Mỗi hàng là một thành viên với quyền Writer và cài đặt liên lạc độc lập. Tên phải duy nhất; vai trò chỉ mô tả chuyên môn.",
       "memberName": "Tên",
       "memberNamePlaceholder": "Tên định tuyến duy nhất (vd. SDE-1)",
       "memberNameDuplicate": "Một thành viên khác đã dùng name này. Name phải duy nhất trong tổ chức.",
       "role": "Vai trò",
       "rolePlaceholder": "Chuyên môn (vd. dev backend)",
       "agent": "Agent",
-      "reportsTo": "Báo cáo cho",
-      "reportsToCoordinator": "Coordinator (cấp cao nhất)",
       "status": "Trạng thái",
       "coordinator": "Coordinator",
       "coordinatorDesc": "Agent chủ trì sở hữu phiên coordinator cho lần chạy tổ chức này",
       "coordinatorPlaceholder": "Chọn Agent coordinator",
-      "tabs": {
-        "edit": "Chỉnh sửa",
-        "previewDiagram": "Xem trước sơ đồ"
-      },
       "dangerZone": "Vùng nguy hiểm",
       "deleteOrg": "Xóa Org này",
       "deleteOrgDesc": "Xóa vĩnh viễn Nhóm Agent này. Các Agent thành viên không bị ảnh hưởng. Không thể hoàn tác hành động này",
-      "deleteThisOrg": "Xóa Org này"
+      "deleteThisOrg": "Xóa Org này",
+      "writer": "Writer",
+      "connected": "Đã kết nối",
+      "connectedCount": "Đã kết nối với {{count}} người",
+      "manageCommunication": "Quản lý liên lạc",
+      "futureTeamsOnly": "Thay đổi mẫu chỉ ảnh hưởng đến các nhóm được tạo trong tương lai, không thay đổi phiên nhóm đang chạy.",
+      "communicationPanel": {
+        "title": "Liên lạc của {{name}}",
+        "coordinatorAlwaysReachable": "Coordinator luôn liên lạc hai chiều với mọi thành viên và không xuất hiện trong danh sách này.",
+        "search": "Tìm thành viên theo tên hoặc vai trò",
+        "noPeers": "Không có thành viên phù hợp",
+        "saveWithTeam": "Thay đổi được giữ trong bản nháp nhóm và lưu từ trang cài đặt nhóm chính."
+      }
     },
     "agentWizard": {
       "title": "Cấu hình Agent",

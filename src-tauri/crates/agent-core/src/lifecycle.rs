@@ -332,9 +332,7 @@ fn requeue_agent_org_member_in_progress_work(
     let Some(member_id) = record.org_member_id else {
         return Ok(None);
     };
-    let store = crate::definitions::orgs::orgs_store();
-    let Some(context) = AgentOrgRunStore::context_for_session_with_parent_walk(session_id, &store)?
-    else {
+    let Some(context) = AgentOrgRunStore::context_for_session_with_parent_walk(session_id)? else {
         return Ok(None);
     };
     let member_agent_id = context
@@ -760,7 +758,7 @@ mod tests {
         AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
         TASK_METADATA_REQUIRED_ROLE,
     };
-    use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember};
+    use crate::definitions::orgs::{FlatOrgMember, OrgDefinition};
     use crate::session::persistence::{session_type, UnifiedSessionRecord};
     use crate::session::turn::member_idle::{MemberIdleHook, MemberIdleHookGuard};
     use std::sync::{Arc, Mutex};
@@ -914,26 +912,25 @@ mod tests {
             role: "coordinator".to_string(),
             agent_id: "builtin:coord".to_string(),
             description: None,
-            hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-            children: vec![
-                OrgMember {
-                    id: "member-worker".to_string(),
+            members: vec![
+                FlatOrgMember {
+                    member_id: "member-worker".to_string(),
                     name: "Worker".to_string(),
                     role: "builder".to_string(),
                     agent_id: member_agent_id.to_string(),
                     runtime_config: None,
-                    children: Vec::new(),
                 },
-                OrgMember {
-                    id: "member-peer".to_string(),
+                FlatOrgMember {
+                    member_id: "member-peer".to_string(),
                     name: "Peer".to_string(),
                     role: "builder".to_string(),
                     agent_id: "builtin:sde".to_string(),
                     runtime_config: None,
-                    children: Vec::new(),
                 },
             ],
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
         }
     }
 
@@ -969,7 +966,7 @@ mod tests {
             org_id: "org-lifecycle".to_string(),
             coordinator_agent_id: "builtin:coord".to_string(),
             root_session_id: Some("root-session".to_string()),
-            org_snapshot: org_definition(member_agent_id),
+            org_snapshot: (&org_definition(member_agent_id)).into(),
             entry_mode: AgentOrgRunEntryMode::StandaloneSession,
             status: AgentOrgRunStatus::Running,
             work_item_id: None,

@@ -4,20 +4,13 @@ export {
   isOrgDraftValid,
 } from "./AgentTeamFormSections";
 export type { AgentTeamFormSectionsProps } from "./AgentTeamFormSections";
-export { default as HierarchyModeSelector } from "./HierarchyModeSelector";
-export { ReachabilityPreview } from "./ReachabilityPreview";
 export {
-  buildOrgTreeFromMembers,
+  allMemberPairKeys,
+  canonicalPairKey,
+  connectedCountByMemberId,
   findDuplicateMemberNameIds,
-  flattenOrgToMembers,
+  linksToPairSet,
+  sortedLinksFromPairSet,
+  toFlatOrgMembers,
+  toTeamMembers,
 } from "./orgTree";
-export {
-  buildPreviewGraph,
-  decideRouting,
-  findIsolatedMemberIds,
-} from "./routingPreview";
-export type {
-  PreviewGraph,
-  PreviewNode,
-  RoutingDecision,
-} from "./routingPreview";

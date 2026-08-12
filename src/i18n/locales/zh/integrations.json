@@ -1939,25 +1939,7 @@
       "orgDescriptionPlaceholder": "这个组织做什么？",
       "members": "成员",
       "addMember": "添加成员",
-      "editMember": "编辑成员",
       "noMembers": "添加成员来构建组织层级",
-      "previewEmpty": "添加 Agent 以查看组织架构预览",
-      "hierarchyMode": {
-        "label": "层级模式",
-        "description": "运行时 Reports-to 如何控制沟通路由与任务派发权限",
-        "flat": {
-          "label": "扁平",
-          "description": "无汇报层级。平级之间可以直接沟通，但非协调员成员只能管理自己的任务。Reports-to 列将被隐藏"
-        },
-        "soft": {
-          "label": "柔性（推荐）",
-          "description": "平级沟通不受限，但任务权限仍会强制执行：成员只能管理自己和直属下属。能联系平级不代表能给平级派活"
-        },
-        "strict": {
-          "label": "严格",
-          "description": "沟通和任务权限都会强制 Reports-to：成员只能联系直属上级、直接下属或协调员，且只能给自己或直属下属派任务"
-        }
-      },
       "planApprovalPolicy": {
         "label": "计划审批",
         "description": "Planner 提交计划后，由谁确认计划可以解锁下游任务",
@@ -1974,39 +1956,34 @@
           "description": "Planner 提交有效计划后立即批准，并解锁依赖它的任务"
         }
       },
-      "strictBanner": "严格模式：成员只能给其直属上级、直接下属或协调员发送消息。平级之间互发将在运行时被拒绝。",
-      "missingParentWarn": "在严格模式下，顶层成员直接向协调员汇报，且只能联系协调员。",
-      "reachability": {
-        "label": "严格模式可达性",
-        "description": "在当前层级下，预览哪些成员之间能直接通信、哪些会被拦截。可以在上线前发现被孤立的成员",
-        "fromHeader": "发件人 \\ 收件人",
-        "empty": "至少添加一名成员，才能预览严格模式下的路由情况。",
-        "isolatedWarn": "以下成员在严格模式下只能联系协调员，无法与其他平级协作：{{names}}",
-        "allowedTitle": "{{from}} 可以直接给 {{to}} 发送消息",
-        "blockedTitle": "在严格模式下，{{from}} 不能直接给 {{to}} 发送消息，请先升级给协调员转发"
-      },
       "membersLabel": "团队成员",
-      "membersDesc": "每一行都是一个路由别名。协调员通过 name 寻址成员，name 必须唯一。Role 作为专长提示传给 LLM",
+      "membersDesc": "每一行都是一位 Member；Writer 权限与通信设置彼此独立。名称必须唯一，角色只用于描述专长。",
       "memberName": "名称",
       "memberNamePlaceholder": "唯一的路由名（如 SDE-1）",
       "memberNameDuplicate": "已有其他成员使用此 name。组织内 name 必须唯一。",
       "role": "角色",
       "rolePlaceholder": "专长（如 后端开发）",
       "agent": "Agent",
-      "reportsTo": "汇报给",
-      "reportsToCoordinator": "协调员（顶层）",
       "status": "状态",
       "coordinator": "协调者",
       "coordinatorDesc": "负责本次组织运行的 coordinator 会话的主导 Agent",
       "coordinatorPlaceholder": "选择 coordinator Agent",
-      "tabs": {
-        "edit": "编辑",
-        "previewDiagram": "预览图"
-      },
       "dangerZone": "危险区域",
       "deleteOrg": "删除此 Org",
       "deleteOrgDesc": "永久删除此 Agent 团队。成员 Agent 不会受影响。此操作无法撤销",
-      "deleteThisOrg": "删除此 Org"
+      "deleteThisOrg": "删除此 Org",
+      "writer": "Writer",
+      "connected": "已连接",
+      "connectedCount": "已连接 {{count}} 人",
+      "manageCommunication": "管理通信",
+      "futureTeamsOnly": "模板修改只影响未来创建的 Team，不会修改正在运行的 Team Session。",
+      "communicationPanel": {
+        "title": "{{name}} 的通信",
+        "coordinatorAlwaysReachable": "Coordinator 永远与所有 Member 双向可达，因此不会列在此处。",
+        "search": "按名称或角色搜索 Member",
+        "noPeers": "没有匹配的 Member",
+        "saveWithTeam": "修改会保留在 Team 草稿中，并由主 Team 设置页统一保存。"
+      }
     },
     "agentWizard": {
       "title": "配置 Agent",

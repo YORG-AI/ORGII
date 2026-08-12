@@ -1,6 +1,8 @@
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 
-use crate::definitions::orgs::{AgentOrgsStore, OrgDefinition, OrgMember};
+use crate::definitions::orgs::{
+    validate_launch_snapshot, AgentOrgCapabilityIndex, AgentOrgLaunchSnapshot,
+};
 use database::db::get_connection;
 
 use super::{
@@ -146,64 +148,58 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> SqliteResult<AgentOrgRunRec
 
 pub(super) fn context_for_run_record(
     run: &AgentOrgRunRecord,
-    org_store: &AgentOrgsStore,
 ) -> Result<AgentOrgRunContext, String> {
-    if let Some(snapshot_json) = run.org_snapshot_json.as_deref() {
-        let snapshot: OrgDefinition = serde_json::from_str(snapshot_json).map_err(|err| {
-            format!(
-                "failed to parse Agent Org launch snapshot for run {}: {}",
-                run.id, err
-            )
-        })?;
-        return Ok(context_from_run_and_org(run, &snapshot));
-    }
-
-    let org = org_store.get(&run.org_id)?;
-    Ok(context_from_run_and_org(run, &org))
+    let snapshot_json = run
+        .org_snapshot_json
+        .as_deref()
+        .ok_or_else(|| format!("Agent Org run {} has no immutable launch snapshot", run.id))?;
+    let snapshot: AgentOrgLaunchSnapshot = serde_json::from_str(snapshot_json).map_err(|err| {
+        format!(
+            "failed to parse Agent Org launch snapshot for run {}: {}",
+            run.id, err
+        )
+    })?;
+    validate_launch_snapshot(&snapshot).map_err(|err| {
+        format!(
+            "Agent Org run {} has invalid launch snapshot: {err}",
+            run.id
+        )
+    })?;
+    Ok(context_from_run_and_snapshot(run, &snapshot))
 }
 
-pub(super) fn context_from_run_and_org(
+pub(super) fn context_from_run_and_snapshot(
     run: &AgentOrgRunRecord,
-    org: &OrgDefinition,
+    snapshot: &AgentOrgLaunchSnapshot,
 ) -> AgentOrgRunContext {
     AgentOrgRunContext {
         run_id: run.id.clone(),
-        org_id: org.id.clone(),
-        org_name: org.name.clone(),
-        org_role: org.role.clone(),
+        org_id: snapshot.org_id.clone(),
+        org_name: snapshot.org_name.clone(),
+        org_role: snapshot.coordinator_role.clone(),
         coordinator_agent_id: run.coordinator_agent_id.clone(),
         coordinator_name: DEFAULT_COORDINATOR_DISPLAY_NAME.to_string(),
-        coordinator_role: org.role.clone(),
-        members: flatten_members(&org.children, None),
-        hierarchy_mode: org.hierarchy_mode,
-        plan_approval_policy: org.plan_approval_policy,
+        coordinator_role: snapshot.coordinator_role.clone(),
+        members: flatten_members(&snapshot.members),
+        plan_approval_policy: snapshot.plan_approval_policy,
+        capability_index: AgentOrgCapabilityIndex::from_snapshot(snapshot),
         root_session_id: run.root_session_id.clone(),
     }
 }
 
-/// Flatten the `OrgMember` tree into a `Vec<AgentOrgContextMember>`,
-/// preserving each member's parent id (the immediate parent in
-/// `OrgDefinition.children`). A `None` parent means the member is a
-/// direct report of the coordinator.
-///
-/// In `HierarchyMode::Flat` the parent ids are still emitted but the
-/// system prompt and routing layer ignore them.
+/// Project the immutable flat snapshot roster into runtime context rows.
 pub(super) fn flatten_members(
-    members: &[OrgMember],
-    parent_id: Option<&str>,
+    members: &[crate::definitions::orgs::FlatOrgMember],
 ) -> Vec<AgentOrgContextMember> {
-    let mut flattened = Vec::new();
-    for member in members {
-        flattened.push(AgentOrgContextMember {
-            member_id: member.id.clone(),
+    members
+        .iter()
+        .map(|member| AgentOrgContextMember {
+            member_id: member.member_id.clone(),
             name: member.name.clone(),
             role: member.role.clone(),
             agent_id: member.agent_id.clone(),
-            parent_member_id: parent_id.map(|id| id.to_string()),
-        });
-        flattened.extend(flatten_members(&member.children, Some(&member.id)));
-    }
-    flattened
+        })
+        .collect()
 }
 
 pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteResult<()> {

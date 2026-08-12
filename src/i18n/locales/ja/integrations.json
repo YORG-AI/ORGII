@@ -1978,58 +1978,35 @@
       "orgDescriptionPlaceholder": "この組織は何をしますか？",
       "members": "メンバー",
       "addMember": "メンバーを追加",
-      "editMember": "メンバーを編集",
       "noMembers": "メンバーを追加して Org の階層を構築してください",
-      "previewEmpty": "Agent を追加してプレビューを表示",
-      "hierarchyMode": {
-        "label": "階層モード",
-        "description": "メンバー間の Reports-to 関係を実行時にどう解釈するか",
-        "flat": {
-          "label": "フラット",
-          "description": "階層なし。すべてのメンバーが互いに直接メッセージを送れます。Reports-to 列は非表示になります"
-        },
-        "soft": {
-          "label": "ソフト（推奨）",
-          "description": "Reports-to は組織上のヒントとして LLM に渡されます。実行時のルーティングは自由 — 必要に応じて同僚に直接連絡できます"
-        },
-        "strict": {
-          "label": "ストリクト",
-          "description": "Reports-to を実行時に強制します。メンバーは上司・直属の部下・Coordinator のみに送信可能で、同僚間は拒否されます"
-        }
-      },
-      "strictBanner": "ストリクトモード：メンバーは上司・直属の部下・Coordinator のみに送信できます。同僚間メッセージは実行時にブロックされます。",
-      "missingParentWarn": "ストリクトモードでは、最上位メンバーは Coordinator に直接報告し、Coordinator にのみ到達できます。",
-      "reachability": {
-        "label": "ストリクトモードの到達性",
-        "description": "現在の階層で誰が誰に直接メッセージできるかを起動前にドライランで確認します。孤立したメンバーを事前に発見できます",
-        "fromHeader": "送信者 \\ 受信者",
-        "empty": "メンバーを 1 名以上追加すると、ストリクトモードでのルーティングを確認できます。",
-        "isolatedWarn": "次のメンバーは Coordinator にしか到達できず、同僚と直接協力できません: {{names}}",
-        "allowedTitle": "{{from}} は {{to}} に直接メッセージできます",
-        "blockedTitle": "ストリクトモードでは、{{from}} は {{to}} に直接メッセージできません。Coordinator 経由で転送してください"
-      },
       "membersLabel": "チームメンバー",
-      "membersDesc": "各行はルーティングのエイリアスです。Coordinator は name でメンバーを指定するため、name は組織内で一意である必要があります。Role は専門分野のヒントとして LLM に渡されます",
+      "membersDesc": "各行はメンバーを表し、Writer 権限と通信設定は互いに独立しています。名前は一意である必要があり、役割は専門性の説明にのみ使われます。",
       "memberName": "名前",
       "memberNamePlaceholder": "一意のルーティング名（例：SDE-1）",
       "memberNameDuplicate": "別のメンバーがすでにこの name を使用しています。組織内で name は一意である必要があります。",
       "role": "役割",
       "rolePlaceholder": "専門分野（例：バックエンド開発）",
       "agent": "Agent",
-      "reportsTo": "報告先",
-      "reportsToCoordinator": "Coordinator（最上位）",
       "status": "ステータス",
       "coordinator": "コーディネーター",
       "coordinatorDesc": "この組織実行のコーディネーターセッションを担う主導 Agent",
       "coordinatorPlaceholder": "コーディネーター Agent を選択",
-      "tabs": {
-        "edit": "編集",
-        "previewDiagram": "図のプレビュー"
-      },
       "dangerZone": "危険ゾーン",
       "deleteOrg": "この Org を削除",
       "deleteOrgDesc": "この Agent チームを完全に削除します。Member Agent には影響しません。この操作は元に戻せません",
-      "deleteThisOrg": "この Org を削除"
+      "deleteThisOrg": "この Org を削除",
+      "writer": "Writer",
+      "connected": "接続済み",
+      "connectedCount": "{{count}} 人と接続",
+      "manageCommunication": "通信を管理",
+      "futureTeamsOnly": "テンプレートの変更は今後作成されるチームにのみ適用され、実行中のチームセッションには影響しません。",
+      "communicationPanel": {
+        "title": "{{name}} の通信",
+        "coordinatorAlwaysReachable": "コーディネーターは常にすべてのメンバーと双方向に通信できるため、この一覧には表示されません。",
+        "search": "名前または役割でメンバーを検索",
+        "noPeers": "一致するメンバーはいません",
+        "saveWithTeam": "変更はチームの下書きに保持され、メインのチーム設定ページから保存されます。"
+      }
     },
     "agentWizard": {
       "title": "Agent 設定",

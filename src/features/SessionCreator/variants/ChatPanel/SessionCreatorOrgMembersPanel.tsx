@@ -19,19 +19,18 @@ import {
   type AgentDefinition,
   type AvailableCliAgent,
   CLI_AGENT_PREFIX,
-  type OrgMember,
+  type OrgDefinition,
   type OrgMemberLaunchOverride,
   type OrgMemberRuntimeConfig,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import { DispatchCategoryPalette } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
 import type { AgentSelection } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
-import { flattenOrgToMembers } from "@src/scaffold/WizardSystem/variants/AgentOrg/orgTree";
 
 import type { AdvancedConfig } from "../../types";
 
 interface SessionCreatorOrgMembersPanelProps {
-  org: OrgMember;
+  org: OrgDefinition;
   advancedConfig: AdvancedConfig;
   onAdvancedConfigChange: (config: AdvancedConfig) => void;
   allAgents: AgentDefinition[];
@@ -151,17 +150,17 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
 
       const members: MemberView[] = useMemo(
         () =>
-          flattenOrgToMembers(org.children).map((member) => {
+          org.members.map((member) => {
             const override =
-              advancedConfig.agentOrgMemberOverrides?.[member.id] ?? {};
+              advancedConfig.agentOrgMemberOverrides?.[member.memberId] ?? {};
             return {
-              id: member.id,
+              id: member.memberId,
               name: member.name,
               agentId: override.agentId ?? member.agentId,
               runtimeConfig: override.runtimeConfig ?? member.runtimeConfig,
             };
           }),
-        [advancedConfig.agentOrgMemberOverrides, org.children]
+        [advancedConfig.agentOrgMemberOverrides, org.members]
       );
 
       const defaultModelLabel = t("creator.model");

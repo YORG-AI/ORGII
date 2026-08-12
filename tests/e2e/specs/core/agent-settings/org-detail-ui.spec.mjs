@@ -6,15 +6,28 @@ import {
   waitForScript,
 } from "../../../support/core/agent-settings/agentSettingsDriver.mjs";
 import {
-  createRenderedStrictTwoMemberAgentOrg,
   invokeE2E,
   removeAgentOrgsByName,
+  seedFlatAgentOrg,
   unwrap,
   waitForAgentOrgByName,
 } from "../../../support/core/agentOrgUiDriver.mjs";
 
 const RUN_MARKER = `E2E_ORG_DETAIL_${Date.now()}`;
 const ORGS_ROUTE = "/orgii/app/settings/agent-orgs/orgs";
+
+async function openRenderedOrgTable(label) {
+  unwrap(await invokeE2E("navigateTo", ORGS_ROUTE), `navigate to orgs ${label}`);
+  await waitForScript(
+    `return !!document.querySelector('[data-testid="agent-orgs-add-org-button"]');`,
+    `Agent Teams table did not render ${label}`
+  );
+  await browser.executeScript(
+    `window.dispatchEvent(new Event("orgii-agent-orgs-changed")); return true;`,
+    []
+  );
+}
+
 async function openOrgDetail(orgId, label, displayName) {
   unwrap(await invokeE2E("openOrgTab", orgId, displayName), `open org tab for ${label}`);
   await restoreWorkstationIfFocused(orgId, `${label} open org detail`);
@@ -133,13 +146,18 @@ async function restoreWorkstationIfFocused(orgId, label) {
       document.querySelectorAll('[data-e2e-restore-workstation-target]').forEach((element) => {
         element.removeAttribute('data-e2e-restore-workstation-target');
       });
+      const preferred = document.querySelector('[data-testid="station-mode-my-station"]');
       const candidates = Array.from(document.querySelectorAll('button[aria-label]')).filter((button) => {
         const label = button.getAttribute('aria-label') || '';
         const buttonRect = button.getBoundingClientRect();
         const style = window.getComputedStyle(button);
-        return /Workstation|工作站/.test(label) && buttonRect.width > 0 && buttonRect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+        return /Workstation|工作站|My Station|我的工作站/.test(label) && buttonRect.width > 0 && buttonRect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
       });
-      const button = candidates[0] ?? null;
+      const preferredRect = preferred?.getBoundingClientRect?.() ?? null;
+      const preferredStyle = preferred ? window.getComputedStyle(preferred) : null;
+      const preferredVisible = !!preferred && preferredRect.width > 0 && preferredRect.height > 0 &&
+        preferredStyle.display !== 'none' && preferredStyle.visibility !== 'hidden';
+      const button = (preferredVisible ? preferred : null) ?? candidates[0] ?? null;
       if (!button) {
         return {
           needed: true,
@@ -198,7 +216,7 @@ describe("Agent Org detail Settings UI", () => {
       await removeAgentOrgsByName(originalName);
       await removeAgentOrgsByName(cancelledName);
       await removeAgentOrgsByName(savedName);
-      const org = await createRenderedStrictTwoMemberAgentOrg({
+      const org = await seedFlatAgentOrg({
         orgName: originalName,
         leadName,
         childName,
@@ -206,6 +224,140 @@ describe("Agent Org detail Settings UI", () => {
 
       await openOrgDetail(org.id, "created org", originalName);
       const orgTabSelector = `[data-testid="agent-config-tab-org-${org.id}"]`;
+      const lead = (org.members ?? []).find((member) => member.name === leadName);
+      const child = (org.members ?? []).find((member) => member.name === childName);
+      if (!lead || !child) {
+        throw new Error(`Created Team did not expose its flat roster: ${JSON.stringify(org)}`);
+      }
+
+      await pointerClick(
+        `${orgTabSelector} [data-testid="agent-orgs-member-${lead.memberId}-manage-communication"]`,
+        "lead Manage communication button",
+        { jsClick: true }
+      );
+      await waitForScript(
+        `return !!document.querySelector('[data-testid="agent-orgs-communication-panel"]');`,
+        "lead communication panel did not open"
+      );
+      const leadPanelContract = await browser.executeScript(
+        `
+          const panel = document.querySelector('[data-testid="agent-orgs-communication-panel"]');
+          const peer = document.querySelector('[data-testid="agent-orgs-peer-checkbox-' + arguments[0] + '"] [data-checkbox-input]');
+          return {
+            panelText: panel?.textContent ?? null,
+            peerChecked: peer?.checked ?? null,
+            peerIds: [...document.querySelectorAll('[data-testid^="agent-orgs-peer-row-"]')]
+              .map((row) => row.getAttribute('data-testid')),
+            hasSelectedMemberPeer: !!document.querySelector('[data-testid="agent-orgs-peer-row-' + arguments[2] + '"]'),
+          };
+        `,
+        [child.memberId, leadName, lead.memberId]
+      );
+      if (
+        !leadPanelContract.panelText?.includes(leadName) ||
+        leadPanelContract.peerChecked !== true ||
+        leadPanelContract.hasSelectedMemberPeer
+      ) {
+        throw new Error(
+          `Lead communication panel contract mismatch: ${JSON.stringify(leadPanelContract)}`
+        );
+      }
+      await setTextInput(
+        '[data-testid="agent-orgs-communication-panel-search"]',
+        "child implementer",
+        "communication peer role search"
+      );
+      await waitForScript(
+        `return !!document.querySelector('[data-testid="agent-orgs-peer-row-' + arguments[0] + '"]');`,
+        "communication search did not match peer role",
+        30_000,
+        [child.memberId]
+      );
+      await setTextInput(
+        '[data-testid="agent-orgs-communication-panel-search"]',
+        "",
+        "clear communication peer search"
+      );
+      await pointerClick(
+        `[data-testid="agent-orgs-peer-checkbox-${child.memberId}"] [data-checkbox]`,
+        "disconnect child from lead",
+        { jsClick: true }
+      );
+      await waitForScript(
+        `
+          const root = document.querySelector(arguments[0]);
+          const leadCount = root?.querySelector('[data-testid="agent-orgs-member-' + arguments[1] + '-connected-count"]')?.textContent ?? '';
+          const childCount = root?.querySelector('[data-testid="agent-orgs-member-' + arguments[2] + '-connected-count"]')?.textContent ?? '';
+          const peer = document.querySelector('[data-testid="agent-orgs-peer-checkbox-' + arguments[2] + '"] [data-checkbox-input]');
+          return leadCount.includes('0') && childCount.includes('0') && peer?.checked === false;
+        `,
+        "both Member rows did not reflect the disconnected draft",
+        30_000,
+        [orgTabSelector, lead.memberId, child.memberId]
+      );
+      const whilePanelOpen = unwrap(
+        await invokeE2E("listAgentOrgs"),
+        "list orgs while communication draft is open"
+      ).orgs.find((item) => item.id === org.id);
+      if (whilePanelOpen?.memberCommunicationLinks?.length !== 1) {
+        throw new Error(
+          `Communication panel saved independently of the main Team form: ${JSON.stringify(whilePanelOpen)}`
+        );
+      }
+      await pointerClick(
+        '[data-testid="agent-orgs-communication-panel-close"]',
+        "close lead communication panel",
+        { jsClick: true }
+      );
+      await pointerClick(
+        `${orgTabSelector} [data-testid="agent-orgs-member-${child.memberId}-manage-communication"]`,
+        "child Manage communication button",
+        { jsClick: true }
+      );
+      await waitForScript(
+        `return document.querySelector('[data-testid="agent-orgs-peer-checkbox-' + arguments[0] + '"] [data-checkbox-input]')?.checked === false;`,
+        "reverse Member panel did not share the canonical disconnected pair",
+        30_000,
+        [lead.memberId]
+      );
+      await pointerClick(
+        `[data-testid="agent-orgs-peer-checkbox-${lead.memberId}"] [data-checkbox]`,
+        "reconnect lead from child panel",
+        { jsClick: true }
+      );
+      await waitForScript(
+        `
+          const root = document.querySelector(arguments[0]);
+          const leadCount = root?.querySelector('[data-testid="agent-orgs-member-' + arguments[1] + '-connected-count"]')?.textContent ?? '';
+          const childCount = root?.querySelector('[data-testid="agent-orgs-member-' + arguments[2] + '-connected-count"]')?.textContent ?? '';
+          return leadCount.includes('1') && childCount.includes('1');
+        `,
+        "both Member rows did not reflect the reconnected canonical pair",
+        30_000,
+        [orgTabSelector, lead.memberId, child.memberId]
+      );
+      await pointerClick(
+        '[data-testid="agent-orgs-communication-panel-close"]',
+        "close child communication panel",
+        { jsClick: true }
+      );
+      await pointerClick(
+        `${orgTabSelector} [data-testid="agent-orgs-member-${child.memberId}-writer-checkbox"] [data-checkbox]`,
+        "toggle child Writer grant",
+        { jsClick: true }
+      );
+      await waitForScript(
+        `
+          const root = document.querySelector(arguments[0]);
+          const writer = root?.querySelector('[data-testid="agent-orgs-member-' + arguments[1] + '-writer-checkbox"] [data-checkbox-input]');
+          const leadCount = root?.querySelector('[data-testid="agent-orgs-member-' + arguments[2] + '-connected-count"]')?.textContent ?? '';
+          const childCount = root?.querySelector('[data-testid="agent-orgs-member-' + arguments[1] + '-connected-count"]')?.textContent ?? '';
+          return writer?.checked === true && leadCount.includes('1') && childCount.includes('1');
+        `,
+        "Writer draft changed communication state",
+        30_000,
+        [orgTabSelector, child.memberId, lead.memberId]
+      );
       await setTextInput(
         `${orgTabSelector} [data-testid="agent-orgs-org-detail"] [data-testid="agent-orgs-org-name-input"]`,
         cancelledName,
@@ -232,6 +384,15 @@ describe("Agent Org detail Settings UI", () => {
       if ((afterCancel ?? []).some((item) => item.name === cancelledName)) {
         throw new Error(
           `Cancelled org detail edit persisted: ${JSON.stringify(afterCancel)}`
+        );
+      }
+      const cancelledOrg = (afterCancel ?? []).find((item) => item.id === org.id);
+      if (
+        cancelledOrg?.additionalTaskGraphWriterMemberIds?.length !== 0 ||
+        cancelledOrg?.memberCommunicationLinks?.length !== 1
+      ) {
+        throw new Error(
+          `Main Team cancel did not discard Writer/link drafts: ${JSON.stringify(cancelledOrg)}`
         );
       }
 
@@ -299,7 +460,7 @@ describe("Agent Org detail Settings UI", () => {
                   name: inputValue('agent-orgs-org-name-input'),
                   description: inputValue('agent-orgs-org-description-input'),
                   coordinator: root?.querySelector('[data-testid="agent-orgs-org-coordinator-select"]')?.textContent?.trim() ?? null,
-                  hierarchy: root?.querySelector('[data-testid="agent-orgs-hierarchy-mode-select"]')?.textContent?.trim() ?? null,
+                  communicationPanels: root?.querySelectorAll('[data-testid$="-manage-communication"]').length ?? 0,
                   memberInputs,
                   rootText: root?.textContent?.trim().replace(/\\s+/g, ' ').slice(0, 800) ?? null,
                 };
@@ -323,7 +484,8 @@ describe("Agent Org detail Settings UI", () => {
       await restoreWorkstationIfFocused(org.id, "org detail save");
       await pointerClick(
         `${orgTabSelector} [data-testid="agent-orgs-org-detail-save-button"]`,
-        "org detail save button"
+        "org detail save button",
+        { jsClick: true }
       );
       const savedOrg = await waitForAgentOrgByName(savedName, "saved org detail edit");
       if (savedOrg.description !== savedDescription) {
@@ -331,9 +493,9 @@ describe("Agent Org detail Settings UI", () => {
           `Saved org detail description mismatch: ${JSON.stringify(savedOrg)}`
         );
       }
-      const savedLead = (savedOrg.children ?? []).find((member) => member.name === leadName);
-      const savedChild = savedLead?.children?.find((member) => member.name === childName);
-      const savedAddedMember = (savedOrg.children ?? []).find(
+      const savedLead = (savedOrg.members ?? []).find((member) => member.name === leadName);
+      const savedChild = (savedOrg.members ?? []).find((member) => member.name === childName);
+      const savedAddedMember = (savedOrg.members ?? []).find(
         (member) => member.name === addedMemberName
       );
       if (
@@ -341,22 +503,46 @@ describe("Agent Org detail Settings UI", () => {
         !savedChild ||
         !savedAddedMember ||
         savedAddedMember.role !== addedMemberRole ||
-        savedOrg.hierarchyMode !== "strict"
+        savedOrg.memberCommunicationLinks?.length !== 3
       ) {
         throw new Error(
           `Saved org detail clobbered topology: ${JSON.stringify(savedOrg)}`
         );
       }
-      unwrap(await invokeE2E("navigateTo", ORGS_ROUTE), "navigate to orgs after org detail save");
-      await waitForScript(
-        `
-          const row = document.querySelector('[data-testid="agent-orgs-org-row-' + arguments[0] + '"]');
-          return !!row && /\\b4\\b/.test(row.textContent || '');
-        `,
-        "org table member count did not refresh after detail save",
-        30_000,
-        [org.id]
-      );
+      await openRenderedOrgTable("after org detail save");
+      let savedRowContract = null;
+      try {
+        await browser.waitUntil(
+          async () => {
+            savedRowContract = await browser.executeScript(
+              `
+                const row = document.querySelector('[data-testid="agent-orgs-org-row-' + arguments[0] + '"]');
+                const memberCount = row?.querySelectorAll('td')[1]?.textContent?.trim() ?? null;
+                return {
+                  location: window.location.pathname,
+                  memberCount,
+                  rowText: row?.textContent ?? null,
+                  rowIds: [...document.querySelectorAll('[data-testid^="agent-orgs-org-row-"]')]
+                    .map((item) => item.getAttribute('data-testid')),
+                  bodyText: document.body.innerText.slice(0, 1000),
+                };
+              `,
+              [org.id]
+            );
+            return savedRowContract?.memberCount === "4";
+          },
+          {
+            timeout: 30_000,
+            interval: 250,
+            timeoutMsg: "org table member count did not refresh after detail save",
+          }
+        );
+      } catch (error) {
+        throw new Error(
+          `org table member count did not refresh after detail save: ${JSON.stringify(savedRowContract)}`,
+          { cause: error }
+        );
+      }
     } finally {
       await removeAgentOrgsByName(originalName);
       await removeAgentOrgsByName(cancelledName);
@@ -371,13 +557,13 @@ describe("Agent Org detail Settings UI", () => {
 
     try {
       await removeAgentOrgsByName(orgName);
-      const org = await createRenderedStrictTwoMemberAgentOrg({
+      const org = await seedFlatAgentOrg({
         orgName,
         leadName,
         childName,
       });
 
-      unwrap(await invokeE2E("navigateTo", ORGS_ROUTE), "navigate to orgs before table delete");
+      await openRenderedOrgTable("before table delete");
       await waitForScript(
         `return !!document.querySelector('[data-testid="agent-orgs-org-delete-row-button-${org.id}"]');`,
         "org table delete action did not render"
@@ -389,7 +575,8 @@ describe("Agent Org detail Settings UI", () => {
       try {
         await pointerClick(
           `[data-testid="agent-orgs-org-delete-row-button-${org.id}"]`,
-          "org table delete action"
+          "org table delete action",
+          { jsClick: true }
         );
         await waitForOrgDeleted(org.id, "table Delete action");
       } finally {

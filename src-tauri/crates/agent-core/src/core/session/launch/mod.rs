@@ -28,9 +28,8 @@ use crate::state::AgentAppState;
 use project_management::projects::types as project_types;
 
 use launch_helpers::{
-    apply_member_launch_overrides_to_snapshot, derive_name, flatten_org_members,
-    handle_background_launch_failure, provenance_fields, provenance_lock_reason,
-    validate_launch_agent_definitions,
+    apply_member_launch_overrides_to_snapshot, derive_name, handle_background_launch_failure,
+    provenance_fields, provenance_lock_reason, validate_launch_agent_definitions,
 };
 use launch_org::{
     cleanup_session_after_org_run_create_failure, materialize_org_member_sessions,
@@ -536,17 +535,23 @@ pub(crate) async fn launch_rust_agent_run(
         .as_ref()
         .map(|org| {
             let mut effective_org = org.clone();
-            apply_member_launch_overrides_to_snapshot(
-                &mut effective_org.children,
-                &member_overrides,
-            )
-            .map(|()| effective_org)
+            apply_member_launch_overrides_to_snapshot(&mut effective_org.members, &member_overrides)
+                .map(|()| effective_org)
         })
         .transpose()?;
     validate_launch_agent_definitions(
         agent_definition_id.as_deref(),
         effective_org_definition.as_ref(),
     )?;
+    // A requested template mutation is durable before the immutable launch
+    // snapshot or any Team lifecycle row is created. The effective snapshot
+    // above contains the same overrides, while a disk failure leaves no run
+    // that could appear to have accepted an unpersisted future policy.
+    if apply_member_overrides_for_future {
+        if let (Some(store), Some(org_id)) = (org_store, agent_org_id.as_ref()) {
+            store.apply_member_launch_overrides(org_id, &member_overrides)?;
+        }
+    }
 
     let (project_slug, work_item_id, agent_role, routine_fire_id) =
         provenance_fields(&request.provenance);
@@ -624,14 +629,14 @@ pub(crate) async fn launch_rust_agent_run(
                 session_id: root_session_id.clone(),
                 succeeded: true,
             }];
-            for member in flatten_org_members(&org_snapshot.children) {
+            for member in &org_snapshot.members {
                 let prefix = crate::definitions::prefix_lookup::session_prefix_for_launch(
                     Some(&member.agent_id),
                     !workspace_path.is_empty(),
                 );
                 materialization_intents.push(CreateAgentOrgMaterializationIntent {
-                    member_id: member.id,
-                    agent_id: member.agent_id,
+                    member_id: member.member_id.clone(),
+                    agent_id: member.agent_id.clone(),
                     session_id: format!("{prefix}{}", uuid::Uuid::new_v4()),
                     succeeded: false,
                 });
@@ -640,7 +645,7 @@ pub(crate) async fn launch_rust_agent_run(
                 org_id: org_id.clone(),
                 coordinator_agent_id: coordinator_id.clone(),
                 root_session_id: root_session_id.clone(),
-                org_snapshot: org_snapshot.clone(),
+                org_snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot::from(org_snapshot),
                 entry_mode: AgentOrgRunEntryMode::StandaloneSession,
                 work_item_id: work_item_id.clone(),
                 project_slug: project_slug.clone(),
@@ -739,12 +744,6 @@ pub(crate) async fn launch_rust_agent_run(
     }
 
     let agent_org_run_id = starting_run.as_ref().map(|run| run.id.clone());
-    if starting_run.is_some() && apply_member_overrides_for_future {
-        if let (Some(store), Some(org_id)) = (org_store, agent_org_id.as_ref()) {
-            store.apply_member_launch_overrides(org_id, &member_overrides)?;
-        }
-    }
-
     let created_at = chrono::Utc::now().to_rfc3339();
     let native_harness_type_for_send = request
         .resources
@@ -778,9 +777,11 @@ pub(crate) async fn launch_rust_agent_run(
         let app_handle_for_background = state.app_handle.clone();
         let request_key_source_for_background = request.resources.key_source.clone();
         let request_native_harness_for_background = request.resources.native_harness_type.clone();
-        let org_for_background = effective_org_definition
-            .clone()
-            .expect("Agent Org launch has a validated snapshot");
+        let org_for_background = crate::definitions::orgs::AgentOrgLaunchSnapshot::from(
+            effective_org_definition
+                .as_ref()
+                .expect("Agent Org launch has a validated snapshot"),
+        );
         let starting_generation = starting_run
             .as_ref()
             .map(|run| run.activation_generation)
@@ -1293,7 +1294,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
             )?;
             continue;
         };
-        let snapshot: crate::definitions::orgs::OrgDefinition =
+        let snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot =
             match serde_json::from_str(snapshot_raw) {
                 Ok(snapshot) => snapshot,
                 Err(error) => {

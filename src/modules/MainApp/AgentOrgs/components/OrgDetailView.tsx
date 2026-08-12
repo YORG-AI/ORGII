@@ -1,11 +1,3 @@
-/**
- * OrgDetailView — Inline-editable detail view for a saved Agent Team.
- *
- * Layout mirrors AgentTeamWizard (same `AgentTeamFormSections` body — see that file).
- * Edits are buffered locally; a sticky Save / Cancel footer appears once
- * the form is dirty (same UX as the markdown / JSON editors in this app).
- * Cancel reverts to the persisted value; Save invokes `onOrgSave`.
- */
 import { useAtomValue } from "jotai";
 import React, {
   useCallback,
@@ -17,7 +9,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import TabPill from "@src/components/TabPill";
-import { type TeamMember } from "@src/components/TeamMemberTable";
+import type { TeamMember } from "@src/components/TeamMemberTable";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import {
   DETAIL_PANEL_TOKENS,
@@ -29,27 +21,31 @@ import AgentTeamFormSections, {
   isOrgDraftValid,
 } from "@src/scaffold/WizardSystem/variants/AgentOrg/AgentTeamFormSections";
 import {
-  buildOrgTreeFromMembers,
-  flattenOrgToMembers,
+  linksToPairSet,
+  sortedLinksFromPairSet,
+  toFlatOrgMembers,
+  toTeamMembers,
 } from "@src/scaffold/WizardSystem/variants/AgentOrg/orgTree";
 
 import { builtInAgentsAtom } from "../store/builtInAgentsAtom";
 import {
   type AgentDefinition,
-  DEFAULT_HIERARCHY_MODE,
   DEFAULT_PLAN_APPROVAL_POLICY,
-  type HierarchyMode,
-  type OrgMember,
+  type OrgDefinition,
   type PlanApprovalPolicy,
 } from "../types";
 import { buildAgentOptions } from "./org/config";
 import "./org/index.scss";
 
 interface OrgDetailViewProps {
-  selectedOrg: OrgMember;
+  selectedOrg: OrgDefinition;
   customAgents: AgentDefinition[];
-  onOrgSave: (org: OrgMember) => void | Promise<void>;
+  onOrgSave: (org: OrgDefinition) => void | Promise<void>;
   onOrgDelete: (orgId: string) => void | Promise<void>;
+}
+
+function setSignature(values: ReadonlySet<string>): string {
+  return JSON.stringify([...values].sort());
 }
 
 const OrgDetailView: React.FC<OrgDetailViewProps> = ({
@@ -60,18 +56,6 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
 }) => {
   const { t } = useTranslation("integrations");
   const builtInAgents = useAtomValue(builtInAgentsAtom);
-
-  const allAgents = useMemo(
-    () => [...builtInAgents, ...customAgents],
-    [builtInAgents, customAgents]
-  );
-
-  const tabs = useMemo(
-    () => [{ key: "core", label: t("agentOrgs.cliAgentDetail.tabCore") }],
-    [t]
-  );
-  const handleCoreTabChange = useCallback(() => {}, []);
-
   const [orgName, setOrgName] = useState(selectedOrg.name);
   const [orgDescription, setOrgDescription] = useState(
     selectedOrg.description ?? ""
@@ -79,145 +63,102 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
   const [coordinatorAgentId, setCoordinatorAgentId] = useState(
     selectedOrg.agentId
   );
-  const [hierarchyMode, setHierarchyMode] = useState<HierarchyMode>(
-    selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE
-  );
   const [planApprovalPolicy, setPlanApprovalPolicy] =
     useState<PlanApprovalPolicy>(
       selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
     );
   const [members, setMembers] = useState<TeamMember[]>(() =>
-    flattenOrgToMembers(selectedOrg.children)
+    toTeamMembers(selectedOrg.members)
   );
+  const [writerMemberIds, setWriterMemberIds] = useState<Set<string>>(
+    () => new Set(selectedOrg.additionalTaskGraphWriterMemberIds)
+  );
+  const [communicationPairKeys, setCommunicationPairKeys] = useState<
+    Set<string>
+  >(() => linksToPairSet(selectedOrg.memberCommunicationLinks));
   const [saving, setSaving] = useState(false);
-  const [membersTab, setMembersTab] = useState<"edit" | "preview">("edit");
-
   const activeOrgIdRef = useRef(selectedOrg.id);
 
-  // When the user picks a different org row, reset the local edit buffer.
-  useEffect(() => {
-    if (activeOrgIdRef.current === selectedOrg.id) return;
-    activeOrgIdRef.current = selectedOrg.id;
+  const resetDraft = useCallback(() => {
     setOrgName(selectedOrg.name);
     setOrgDescription(selectedOrg.description ?? "");
     setCoordinatorAgentId(selectedOrg.agentId);
-    setHierarchyMode(selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE);
     setPlanApprovalPolicy(
       selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
     );
-    setMembers(flattenOrgToMembers(selectedOrg.children));
-    setSaving(false);
+    setMembers(toTeamMembers(selectedOrg.members));
+    setWriterMemberIds(new Set(selectedOrg.additionalTaskGraphWriterMemberIds));
+    setCommunicationPairKeys(
+      linksToPairSet(selectedOrg.memberCommunicationLinks)
+    );
   }, [selectedOrg]);
+
+  useEffect(() => {
+    if (activeOrgIdRef.current === selectedOrg.id) return;
+    activeOrgIdRef.current = selectedOrg.id;
+    resetDraft();
+    setSaving(false);
+  }, [resetDraft, selectedOrg.id]);
 
   const agentOptions = useMemo(
     () => buildAgentOptions(customAgents, builtInAgents),
     [customAgents, builtInAgents]
   );
-
-  const persistedMembersJson = useMemo(
-    () => JSON.stringify(flattenOrgToMembers(selectedOrg.children)),
-    [selectedOrg]
+  const draftMembersJson = JSON.stringify(members);
+  const persistedMembersJson = JSON.stringify(
+    toTeamMembers(selectedOrg.members)
   );
-  const draftMembersJson = useMemo(() => JSON.stringify(members), [members]);
-
-  const previewRoot = useMemo<OrgMember>(
-    () => ({
-      id: selectedOrg.id,
-      name: orgName.trim() || selectedOrg.name,
-      role: "org",
-      agentId: coordinatorAgentId,
-      description: orgDescription.trim() || undefined,
-      hierarchyMode,
-      planApprovalPolicy,
-      children: buildOrgTreeFromMembers(members),
-    }),
-    [
-      selectedOrg,
-      orgName,
-      orgDescription,
-      coordinatorAgentId,
-      hierarchyMode,
-      planApprovalPolicy,
-      members,
-    ]
-  );
-
-  const persistedDescription = selectedOrg.description ?? "";
-  const persistedHierarchyMode =
-    selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE;
-  const persistedPlanApprovalPolicy =
-    selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY;
   const isDirty =
     orgName !== selectedOrg.name ||
-    orgDescription !== persistedDescription ||
+    orgDescription !== (selectedOrg.description ?? "") ||
     coordinatorAgentId !== selectedOrg.agentId ||
-    hierarchyMode !== persistedHierarchyMode ||
-    planApprovalPolicy !== persistedPlanApprovalPolicy ||
-    draftMembersJson !== persistedMembersJson;
-
+    planApprovalPolicy !== selectedOrg.planApprovalPolicy ||
+    draftMembersJson !== persistedMembersJson ||
+    setSignature(writerMemberIds) !==
+      setSignature(new Set(selectedOrg.additionalTaskGraphWriterMemberIds)) ||
+    setSignature(communicationPairKeys) !==
+      setSignature(linksToPairSet(selectedOrg.memberCommunicationLinks));
   const isValid = isOrgDraftValid({ orgName, coordinatorAgentId, members });
-
-  const handleCancel = useCallback(() => {
-    setOrgName(selectedOrg.name);
-    setOrgDescription(selectedOrg.description ?? "");
-    setCoordinatorAgentId(selectedOrg.agentId);
-    setHierarchyMode(selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE);
-    setPlanApprovalPolicy(
-      selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
-    );
-    setMembers(flattenOrgToMembers(selectedOrg.children));
-  }, [selectedOrg]);
 
   const handleSave = useCallback(async () => {
     if (!isValid || saving) return;
     setSaving(true);
     try {
       const trimmedDescription = orgDescription.trim();
-      const next: OrgMember = {
+      await onOrgSave({
         id: selectedOrg.id,
         name: orgName.trim(),
-        role: "org",
+        role: selectedOrg.role,
         agentId: coordinatorAgentId,
         description:
           trimmedDescription.length > 0 ? trimmedDescription : undefined,
-        hierarchyMode,
         planApprovalPolicy,
-        children: buildOrgTreeFromMembers(members),
-      };
-      await onOrgSave(next);
+        members: toFlatOrgMembers(members),
+        additionalTaskGraphWriterMemberIds: [...writerMemberIds].sort(),
+        memberCommunicationLinks: sortedLinksFromPairSet(communicationPairKeys),
+      });
     } finally {
       setSaving(false);
     }
   }, [
-    isValid,
-    saving,
-    selectedOrg,
-    orgName,
-    orgDescription,
+    communicationPairKeys,
     coordinatorAgentId,
-    hierarchyMode,
-    planApprovalPolicy,
+    isValid,
     members,
     onOrgSave,
+    orgDescription,
+    orgName,
+    planApprovalPolicy,
+    saving,
+    selectedOrg.id,
+    selectedOrg.role,
+    writerMemberIds,
   ]);
 
-  const headerTabs = useMemo(
-    () => (
-      <TabPill
-        tabs={tabs}
-        activeTab="core"
-        onChange={handleCoreTabChange}
-        variant="simple"
-        fillWidth={false}
-        size="large"
-      />
-    ),
-    [tabs, handleCoreTabChange]
+  const tabs = useMemo(
+    () => [{ key: "core", label: t("agentOrgs.cliAgentDetail.tabCore") }],
+    [t]
   );
-
-  const handleDelete = useCallback(() => {
-    onOrgDelete(selectedOrg.id);
-  }, [onOrgDelete, selectedOrg.id]);
 
   return (
     <DetailPanelContainer
@@ -233,7 +174,16 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
         noPanelHeader
         contentPadding
         className={DETAIL_PANEL_TOKENS.headerWidth}
-        tabs={headerTabs}
+        tabs={
+          <TabPill
+            tabs={tabs}
+            activeTab="core"
+            onChange={() => {}}
+            variant="simple"
+            fillWidth={false}
+            size="large"
+          />
+        }
       />
       <div className={DETAIL_PANEL_TOKENS.scrollContentNoTop}>
         <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
@@ -245,28 +195,26 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
               onOrgDescriptionChange={setOrgDescription}
               coordinatorAgentId={coordinatorAgentId}
               onCoordinatorAgentIdChange={setCoordinatorAgentId}
-              hierarchyMode={hierarchyMode}
-              onHierarchyModeChange={setHierarchyMode}
               planApprovalPolicy={planApprovalPolicy}
               onPlanApprovalPolicyChange={setPlanApprovalPolicy}
               members={members}
               onMembersChange={setMembers}
-              membersTab={membersTab}
-              onMembersTabChange={setMembersTab}
+              writerMemberIds={writerMemberIds}
+              onWriterMemberIdsChange={setWriterMemberIds}
+              communicationPairKeys={communicationPairKeys}
+              onCommunicationPairKeysChange={setCommunicationPairKeys}
               agentOptions={agentOptions}
-              allAgents={allAgents}
-              previewRoot={previewRoot}
-              onDelete={handleDelete}
+              onDelete={() => onOrgDelete(selectedOrg.id)}
             />
           </div>
         </div>
       </div>
-      {isDirty && (
+      {isDirty ? (
         <PanelFooter
           secondaryActions={[
             {
               label: t("common:actions.cancel"),
-              onClick: handleCancel,
+              onClick: resetDraft,
               disabled: saving,
               dataTestId: "agent-orgs-org-detail-cancel-button",
             },
@@ -281,7 +229,7 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
             dataTestId: "agent-orgs-org-detail-save-button",
           }}
         />
-      )}
+      ) : null}
     </DetailPanelContainer>
   );
 };

@@ -1,6 +1,6 @@
 //! Formatting helpers for agent and org display strings.
 
-use crate::definitions::orgs::{OrgDefinition, OrgMember};
+use crate::definitions::orgs::OrgDefinition;
 use crate::definitions::AgentDefinition;
 
 pub fn format_agent_summary(agent: &AgentDefinition) -> String {
@@ -81,22 +81,14 @@ pub fn format_org_detail(org: &OrgDefinition) -> String {
         out.push_str(&format!("- **Description:** {}\n", desc));
     }
     out.push_str(&format!("- **Total members:** {}\n", org.member_count()));
-    if !org.children.is_empty() {
+    if !org.members.is_empty() {
         out.push_str("\n## Team members\n\n");
-        format_member_tree(&org.children, &mut out, 0);
-    }
-    out
-}
-
-pub fn format_member_tree(members: &[OrgMember], out: &mut String, depth: usize) {
-    let indent = "  ".repeat(depth);
-    for member in members {
-        out.push_str(&format!(
-            "{}- **{}** (role: {}, agent: `{}`)\n",
-            indent, member.name, member.role, member.agent_id
-        ));
-        if !member.children.is_empty() {
-            format_member_tree(&member.children, out, depth + 1);
+        for member in &org.members {
+            out.push_str(&format!(
+                "- **{}** (member_id: `{}`, role: {}, agent: `{}`)\n",
+                member.name, member.member_id, member.role, member.agent_id
+            ));
         }
     }
+    out
 }

@@ -66,10 +66,7 @@ pub(super) async fn session_org_read_context(
         let context = match runtime_context {
             Some(context) => Some(context),
             None => match org_store {
-                Some(store) => AgentOrgRunStore::context_for_session_with_parent_walk(
-                    &session_id,
-                    store.as_ref(),
-                )?,
+                Some(_) => AgentOrgRunStore::context_for_session_with_parent_walk(&session_id)?,
                 None => None,
             },
         };
