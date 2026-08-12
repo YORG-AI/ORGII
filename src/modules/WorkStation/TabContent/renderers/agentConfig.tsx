@@ -44,7 +44,7 @@ import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInA
 import type {
   AgentDefinition,
   AvailableCliAgent,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import type { AgentConfigTabData } from "@src/store/workstation/tabs/types";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
@@ -141,8 +141,8 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
   });
 
   // ── Orgs (only fetched when this tab hosts an org) ──
-  const entitySnapshot = data.entitySnapshot as OrgMember | undefined;
-  const [orgs, setOrgs] = useState<OrgMember[]>([]);
+  const entitySnapshot = data.entitySnapshot as OrgDefinition | undefined;
+  const [orgs, setOrgs] = useState<OrgDefinition[]>([]);
 
   const loadOrgs = useCallback(async () => {
     const result = await rpc.agentOrgs.orgs.list();
@@ -181,17 +181,13 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
   );
 
   const handleOrgSave = useCallback(
-    async (org: OrgMember) => {
+    async (org: OrgDefinition) => {
       const isUpdate =
         orgs.some((existing) => existing.id === org.id) ||
         entitySnapshot?.id === org.id;
       const orgJson = JSON.stringify(org);
       try {
-        if (isUpdate) {
-          await rpc.agentOrgs.orgs.update({ orgJson });
-        } else {
-          await rpc.agentOrgs.orgs.add({ orgJson });
-        }
+        await rpc.agentOrgs.orgs.saveTrustedSettings({ orgJson });
         const refreshed = await loadOrgs();
         setOrgs(refreshed);
         window.dispatchEvent(new Event(AGENT_ORGS_CHANGED_EVENT));

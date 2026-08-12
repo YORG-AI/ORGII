@@ -59,7 +59,10 @@ use agent_core::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStore,
 };
 use agent_core::coordination::agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS;
-use agent_core::definitions::orgs::{orgs_store, AgentOrgsStore, OrgDefinition, OrgMember};
+use agent_core::definitions::orgs::{
+    all_member_links, AgentOrgCapabilityIndex, AgentOrgLaunchSnapshot, AgentOrgsStore,
+    FlatOrgMember, OrgDefinition,
+};
 use agent_core::state::commands::session::org_tasks::agent_org_session_run_view_impl;
 use agent_core::tools::error::ToolError;
 use agent_core::tools::impls::orchestration::agent_org::tasks::{
@@ -125,7 +128,7 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
             }))
         }
     };
-    let mut children: Vec<OrgMember> = Vec::with_capacity(members_array.len());
+    let mut members: Vec<FlatOrgMember> = Vec::with_capacity(members_array.len());
     for (idx, item) in members_array.into_iter().enumerate() {
         let Some(obj) = item.as_object() else {
             return Json(serde_json::json!({
@@ -161,26 +164,27 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
             .and_then(|v| v.as_str())
             .map(str::to_string)
             .unwrap_or_else(|| "worker".to_string());
-        children.push(OrgMember {
-            id: member_id,
+        members.push(FlatOrgMember {
+            member_id,
             name: member_name,
             role,
             agent_id,
             runtime_config: None,
-            children: Vec::new(),
         });
     }
 
-    let def = OrgDefinition {
+    let mut def = OrgDefinition {
         id: id.clone(),
         name: name.clone(),
         role: "coordinator".to_string(),
         agent_id: coordinator_agent_id.clone(),
         description: Some("E2E test org seeded via /test/agent-org/seed".to_string()),
-        hierarchy_mode: Default::default(),
         plan_approval_policy: Default::default(),
-        children,
+        members,
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
     };
+    def.member_communication_links = all_member_links(&def.members);
 
     let Some(handle) = crate::api::get_app_handle() else {
         return Json(serde_json::json!({ "ok": false, "error": "AppHandle not initialized." }));
@@ -988,7 +992,6 @@ pub async fn test_agent_org_drain_inbox(
             name,
             role,
             agent_id,
-            parent_member_id: None,
         });
     }
 
@@ -1001,8 +1004,8 @@ pub async fn test_agent_org_drain_inbox(
         coordinator_name,
         coordinator_role,
         members,
-        hierarchy_mode: Default::default(),
         plan_approval_policy: Default::default(),
+        capability_index: AgentOrgCapabilityIndex::default(),
         root_session_id: None,
     };
 
@@ -1219,7 +1222,6 @@ fn parse_direct_org_context(
             name,
             role,
             agent_id,
-            parent_member_id: None,
         });
     }
 
@@ -1233,8 +1235,8 @@ fn parse_direct_org_context(
             coordinator_name,
             coordinator_role,
             members,
-            hierarchy_mode: Default::default(),
             plan_approval_policy: Default::default(),
+            capability_index: AgentOrgCapabilityIndex::default(),
             root_session_id: None,
         }),
         sender_agent_id,
@@ -1638,7 +1640,9 @@ pub async fn test_agent_org_seed_stale_worker_run(
     use agent_core::coordination::agent_org_runs::{
         AgentOrgRunEntryMode, AgentOrgRunStatus, CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
     };
-    use agent_core::core::definitions::orgs::{OrgDefinition, OrgMember};
+    use agent_core::core::definitions::orgs::{
+        all_member_links, AgentOrgLaunchSnapshot, FlatOrgMember, OrgDefinition,
+    };
     use agent_core::core::session::persistence::{
         session_type, upsert_session, UnifiedSessionRecord,
     };
@@ -1732,7 +1736,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
         })
         .map_err(|err| err.to_string())?;
 
-        let org_snapshot_children = workers
+        let org_snapshot_members = workers
             .iter()
             .enumerate()
             .map(|(index, worker)| {
@@ -1751,26 +1755,28 @@ pub async fn test_agent_org_seed_stale_worker_run(
                     .filter(|value| !value.trim().is_empty())
                     .map(str::to_string)
                     .unwrap_or_else(|| format!("worker-{index}"));
-                Ok(OrgMember {
-                    id: member_id.clone(),
+                Ok(FlatOrgMember {
+                    member_id: member_id.clone(),
                     name: member_id,
                     role: "worker".to_string(),
                     agent_id: agent_definition_id,
                     runtime_config: None,
-                    children: Vec::new(),
                 })
             })
             .collect::<Result<Vec<_>, String>>()?;
-        let org_snapshot = OrgDefinition {
+        let mut org_definition = OrgDefinition {
             id: org_id.clone(),
             name: org_id.clone(),
             role: "coordinator".to_string(),
             agent_id: coordinator_agent_id.clone(),
             description: None,
-            hierarchy_mode: Default::default(),
             plan_approval_policy: Default::default(),
-            children: org_snapshot_children,
+            members: org_snapshot_members,
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
         };
+        org_definition.member_communication_links = all_member_links(&org_definition.members);
+        let org_snapshot = AgentOrgLaunchSnapshot::from(&org_definition);
 
         let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
             org_id,
@@ -2170,7 +2176,6 @@ pub async fn test_agent_org_check_member_spawn_gate(
                         .unwrap_or("worker")
                         .to_string(),
                     agent_id,
-                    parent_member_id: None,
                 });
             }
             Some(AgentOrgRunContext {
@@ -2182,8 +2187,8 @@ pub async fn test_agent_org_check_member_spawn_gate(
                 coordinator_name: pluck_str("coordinator_name"),
                 coordinator_role: pluck_str("coordinator_role"),
                 members,
-                hierarchy_mode: Default::default(),
                 plan_approval_policy: Default::default(),
+                capability_index: AgentOrgCapabilityIndex::default(),
                 root_session_id: None,
             })
         }
@@ -2410,7 +2415,6 @@ pub async fn test_agent_org_post_member_idle(
             name,
             role,
             agent_id,
-            parent_member_id: None,
         });
     }
 
@@ -2423,8 +2427,8 @@ pub async fn test_agent_org_post_member_idle(
         coordinator_name,
         coordinator_role,
         members,
-        hierarchy_mode: Default::default(),
         plan_approval_policy: Default::default(),
+        capability_index: AgentOrgCapabilityIndex::default(),
         root_session_id: None,
     };
 
@@ -2519,7 +2523,7 @@ pub async fn test_agent_org_run_seed(
     let Some(members) = obj.get("members").and_then(|value| value.as_array()) else {
         return Json(serde_json::json!({ "ok": false, "error": "members must be an array" }));
     };
-    let mut children = Vec::with_capacity(members.len());
+    let mut flat_members = Vec::with_capacity(members.len());
     for (index, member) in members.iter().enumerate() {
         let Some(member) = member.as_object() else {
             return Json(serde_json::json!({
@@ -2544,8 +2548,8 @@ pub async fn test_agent_org_run_seed(
                 "error": format!("members[{index}].agent_id is required")
             }));
         };
-        children.push(OrgMember {
-            id: member_id.clone(),
+        flat_members.push(FlatOrgMember {
+            member_id: member_id.clone(),
             name: member
                 .get("name")
                 .and_then(|value| value.as_str())
@@ -2560,25 +2564,27 @@ pub async fn test_agent_org_run_seed(
                 .to_string(),
             agent_id: agent_id.to_string(),
             runtime_config: None,
-            children: Vec::new(),
         });
     }
 
     let result = tokio::task::spawn_blocking(move || {
+        let mut definition = OrgDefinition {
+            id: org_id.clone(),
+            name: org_name,
+            role: org_role,
+            agent_id: coordinator_agent_id.clone(),
+            description: Some("Deterministic real-binary E2E fixture".to_string()),
+            plan_approval_policy: Default::default(),
+            members: flat_members,
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
+        };
+        definition.member_communication_links = all_member_links(&definition.members);
         AgentOrgRunStore::create(CreateAgentOrgRunParams {
             org_id: org_id.clone(),
             coordinator_agent_id: coordinator_agent_id.clone(),
             root_session_id: None,
-            org_snapshot: OrgDefinition {
-                id: org_id,
-                name: org_name,
-                role: org_role,
-                agent_id: coordinator_agent_id,
-                description: Some("Deterministic real-binary E2E fixture".to_string()),
-                hierarchy_mode: Default::default(),
-                plan_approval_policy: Default::default(),
-                children,
-            },
+            org_snapshot: AgentOrgLaunchSnapshot::from(&definition),
             entry_mode: AgentOrgRunEntryMode::StandaloneSession,
             status: AgentOrgRunStatus::Running,
             work_item_id: None,
@@ -2803,7 +2809,7 @@ pub async fn test_agent_org_tasks_seed(
         let eligible_member_ids = match requested_eligible_member_ids {
             Some(member_ids) => Some(member_ids),
             None if params.owner.is_none() && params.status == TaskStatus::Pending => Some(
-                AgentOrgRunStore::context_for_run(&params.org_run_id, &orgs_store())?
+                AgentOrgRunStore::context_for_run(&params.org_run_id)?
                     .map(|context| {
                         context
                             .members
@@ -3019,7 +3025,9 @@ pub async fn test_agent_org_seed_cli_member_run(
         AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
         COORDINATOR_MEMBER_ID,
     };
-    use agent_core::core::definitions::orgs::{OrgDefinition, OrgMember};
+    use agent_core::core::definitions::orgs::{
+        AgentOrgLaunchSnapshot, FlatOrgMember, OrgDefinition,
+    };
     use agent_core::core::session::persistence::{
         session_type, upsert_session, UnifiedSessionRecord,
     };
@@ -3083,29 +3091,29 @@ pub async fn test_agent_org_seed_cli_member_run(
         })
         .map_err(|err| err.to_string())?;
 
-        let org_snapshot = OrgDefinition {
+        let org_definition = OrgDefinition {
             id: org_id.clone(),
             name: org_id.clone(),
             role: "coordinator".to_string(),
             agent_id: coordinator_agent_id.clone(),
             description: None,
-            hierarchy_mode: Default::default(),
             plan_approval_policy: Default::default(),
-            children: vec![OrgMember {
-                id: member_id.clone(),
+            members: vec![FlatOrgMember {
+                member_id: member_id.clone(),
                 name: member_id.clone(),
                 role: "worker".to_string(),
                 agent_id: format!("cli:{cli_agent_type}"),
                 runtime_config: None,
-                children: Vec::new(),
             }],
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
         };
 
         let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
             org_id,
             coordinator_agent_id,
             root_session_id: Some(root_session_id.clone()),
-            org_snapshot,
+            org_snapshot: AgentOrgLaunchSnapshot::from(&org_definition),
             entry_mode: AgentOrgRunEntryMode::StandaloneSession,
             status: AgentOrgRunStatus::Running,
             work_item_id: None,

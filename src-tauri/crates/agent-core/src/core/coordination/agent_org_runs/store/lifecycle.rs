@@ -13,8 +13,7 @@ impl AgentOrgRunStore {
     pub fn create(params: CreateAgentOrgRunParams) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
         let status = validate_status(params.status.as_str())?;
-        let org_snapshot_json = serde_json::to_string(&params.org_snapshot)
-            .map_err(|err| format!("failed to serialize Agent Org launch snapshot: {err}"))?;
+        let org_snapshot_json = super::serialize_launch_snapshot(&params.org_snapshot)?;
         let now = chrono::Utc::now().to_rfc3339();
         let run = AgentOrgRunRecord {
             id: format!("agent-org-run-{}", uuid::Uuid::new_v4()),

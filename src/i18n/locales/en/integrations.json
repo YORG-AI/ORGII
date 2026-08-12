@@ -1630,25 +1630,7 @@
       "orgDescriptionPlaceholder": "What does this agent team do?",
       "members": "Members",
       "addMember": "Add Member",
-      "editMember": "Edit Member",
       "noMembers": "Add members to build your team hierarchy",
-      "previewEmpty": "Add agents to see the team chart preview",
-      "hierarchyMode": {
-        "label": "Hierarchy mode",
-        "description": "How Reports-to controls communication routing and task-assignment authority at runtime",
-        "flat": {
-          "label": "Flat",
-          "description": "No reporting hierarchy. Peer messaging is open, but non-coordinator members manage only their own tasks. The Reports-to column is hidden"
-        },
-        "soft": {
-          "label": "Soft (recommended)",
-          "description": "Peer messaging is unrestricted, but task authority is enforced: members manage themselves and direct reports only. Talking to a peer never grants permission to assign it work"
-        },
-        "strict": {
-          "label": "Strict",
-          "description": "Reports-to is enforced for both communication and task authority. Members may message their manager/direct reports/coordinator, and may assign tasks only to themselves or direct reports"
-        }
-      },
       "planApprovalPolicy": {
         "label": "Plan approval",
         "description": "Who decides when a Planner's submitted plan is ready to unlock dependent tasks",
@@ -1665,39 +1647,34 @@
           "description": "A valid submitted plan is accepted immediately and its dependent tasks are unlocked"
         }
       },
-      "strictBanner": "Strict mode: members can only message their manager, direct reports, or the coordinator. Sibling-to-sibling messaging is blocked at runtime.",
-      "missingParentWarn": "In strict mode, top-level members report directly to the coordinator and can only reach the coordinator.",
-      "reachability": {
-        "label": "Strict-mode reachability",
-        "description": "Dry-run preview of which agents can directly message which under the current chain. Use it to spot isolated members before launching",
-        "fromHeader": "from \\ to",
-        "empty": "Add at least one team member to see how strict-mode routing will look at runtime.",
-        "isolatedWarn": "These members can only reach the coordinator — they cannot collaborate with peers under strict mode: {{names}}",
-        "allowedTitle": "{{from}} can directly message {{to}}",
-        "blockedTitle": "{{from}} cannot directly message {{to}} under strict mode — escalate via the coordinator instead"
-      },
       "membersLabel": "Team Members",
-      "membersDesc": "Each row is a routing alias. The coordinator addresses members by name; names must be unique. Role is a specialty hint shown to the LLM",
+      "membersDesc": "Each row is a Member with an independent Writer grant and communication settings. Names must be unique; role is only a specialty hint.",
       "memberName": "Name",
       "memberNamePlaceholder": "Unique routing name (e.g. SDE-1)",
       "memberNameDuplicate": "Another member already uses this name. Names must be unique within the team.",
       "role": "Role",
       "rolePlaceholder": "Specialty (e.g. backend dev)",
       "agent": "Agent",
-      "reportsTo": "Reports to",
-      "reportsToCoordinator": "Coordinator (top level)",
       "status": "Status",
       "coordinator": "Coordinator",
       "coordinatorDesc": "Lead agent that owns the coordinator session for this team run",
       "coordinatorPlaceholder": "Select coordinator agent",
-      "tabs": {
-        "edit": "Edit",
-        "previewDiagram": "Preview Diagram"
-      },
       "dangerZone": "Danger Zone",
       "deleteOrg": "Delete this team",
       "deleteOrgDesc": "Permanently delete this agent team. Member agents are not affected. This action cannot be undone",
-      "deleteThisOrg": "Delete this team"
+      "deleteThisOrg": "Delete this team",
+      "writer": "Writer",
+      "connected": "Connected",
+      "connectedCount": "Connected to {{count}}",
+      "manageCommunication": "Manage communication",
+      "futureTeamsOnly": "Template changes only affect Teams created in the future. They do not change running Team Sessions.",
+      "communicationPanel": {
+        "title": "{{name}} communication",
+        "coordinatorAlwaysReachable": "The Coordinator is always mutually reachable with every Member and is not listed here.",
+        "search": "Search Members by name or role",
+        "noPeers": "No matching Members",
+        "saveWithTeam": "Changes stay in the Team draft and are saved from the main Team settings page."
+      }
     },
     "agentWizard": {
       "title": "Config Agent",

@@ -11,7 +11,6 @@ use crate::coordination::agent_org_tasks::{
     TaskExecutionMode, TaskStatus, TASK_DEPENDENCY_CYCLE_ERROR,
 };
 use crate::core::session::persistence::{upsert_session, UnifiedSessionRecord};
-use crate::definitions::orgs::HierarchyMode;
 use crate::tools::impls::orchestration::org_send_message::{InboxWakeHook, NoopInboxWakeHook};
 use crate::tools::traits::{Tool, ToolError};
 use test_helpers::test_env;
@@ -81,18 +80,16 @@ fn org_context() -> Arc<AgentOrgRunContext> {
                 name: "Alice".into(),
                 role: "engineer".into(),
                 agent_id: "alice-1".into(),
-                parent_member_id: None,
             },
             AgentOrgContextMember {
                 member_id: "m-bob".into(),
                 name: "Bob".into(),
                 role: "engineer".into(),
                 agent_id: "bob-1".into(),
-                parent_member_id: None,
             },
         ],
-        hierarchy_mode: Default::default(),
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        capability_index: Default::default(),
         root_session_id: Some("root-tools-1".into()),
     })
 }
@@ -116,41 +113,38 @@ fn ctx_for_org(
     })
 }
 
-fn hierarchical_org_context(hierarchy_mode: HierarchyMode) -> Arc<AgentOrgRunContext> {
+fn multi_member_org_context() -> Arc<AgentOrgRunContext> {
     Arc::new(AgentOrgRunContext {
-        run_id: "run-hierarchy-tools".into(),
-        org_id: "org-hierarchy-tools".into(),
-        org_name: "Hierarchy Tools Org".into(),
+        run_id: "run-flat-tools".into(),
+        org_id: "org-flat-tools".into(),
+        org_name: "Flat Tools Org".into(),
         org_role: "coordinator".into(),
-        coordinator_agent_id: "coord-hierarchy".into(),
+        coordinator_agent_id: "coord-flat".into(),
         coordinator_name: "Coordinator".into(),
         coordinator_role: "coordinator".into(),
         members: vec![
             AgentOrgContextMember {
-                member_id: "manager".into(),
-                name: "Manager".into(),
-                role: "team lead".into(),
-                agent_id: "manager-agent".into(),
-                parent_member_id: None,
+                member_id: "builder".into(),
+                name: "Builder".into(),
+                role: "backend".into(),
+                agent_id: "builder-agent".into(),
             },
             AgentOrgContextMember {
-                member_id: "report".into(),
-                name: "Direct Report".into(),
+                member_id: "reviewer".into(),
+                name: "Reviewer".into(),
                 role: "implementer".into(),
-                agent_id: "report-agent".into(),
-                parent_member_id: Some("manager".into()),
+                agent_id: "reviewer-agent".into(),
             },
             AgentOrgContextMember {
                 member_id: "peer".into(),
                 name: "Peer".into(),
                 role: "reviewer".into(),
                 agent_id: "peer-agent".into(),
-                parent_member_id: None,
             },
         ],
-        hierarchy_mode,
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-        root_session_id: Some("root-hierarchy-tools".into()),
+        capability_index: Default::default(),
+        root_session_id: Some("root-flat-tools".into()),
     })
 }
 
@@ -204,10 +198,9 @@ fn shared_sde_ctx(caller_member_id: Option<&str>) -> Arc<TaskToolsContext> {
             name: "Planner".into(),
             role: "Plans".into(),
             agent_id: "builtin:sde".into(),
-            parent_member_id: None,
         }],
-        hierarchy_mode: Default::default(),
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        capability_index: Default::default(),
         root_session_id: Some("root-shared-sde".into()),
     });
     Arc::new(TaskToolsContext {
@@ -253,10 +246,10 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
     for (run_id, org_id, coordinator_agent_id, root_session_id) in [
         ("run-tools-1", "org-tools-1", "coord-1", "root-tools-1"),
         (
-            "run-hierarchy-tools",
-            "org-hierarchy-tools",
-            "coord-hierarchy",
-            "root-hierarchy-tools",
+            "run-flat-tools",
+            "org-flat-tools",
+            "coord-flat",
+            "root-flat-tools",
         ),
         (
             "run-shared-sde",
@@ -1057,50 +1050,34 @@ async fn task_create_member_can_start_self_work_in_progress() {
 }
 
 #[tokio::test]
-async fn task_authority_manager_may_assign_direct_reports_only_when_hierarchy_exists() {
+async fn task_authority_member_cannot_assign_another_member() {
     let _sandbox = task_tools_sandbox();
-    for (mode, task_id, should_create) in [
-        (HierarchyMode::Soft, "soft-report-task", true),
-        (HierarchyMode::Strict, "strict-report-task", true),
-        (HierarchyMode::Flat, "flat-report-task", false),
-    ] {
-        let tool = TaskCreateTool::new(ctx_for_org(hierarchical_org_context(mode), "manager"));
-        let response = tool
-            .execute_text(
-                json!({
-                    "id": task_id,
-                    "subject": "Manager assigns a direct report",
-                    "owner_member_id": "report"
-                }),
-                &test_ctx(),
-            )
-            .await
-            .unwrap();
-        let value: Value = serde_json::from_str(&response).unwrap();
-        if should_create {
-            assert_eq!(value["task"]["owner"], "report", "mode={mode:?}");
-            assert_eq!(value["already_exists"], false, "mode={mode:?}");
-            AgentOrgTaskStore::delete("run-hierarchy-tools", task_id)
-                .expect("each hierarchy case must start with an empty scheduling board");
-        } else {
-            assert_eq!(value["authorization_denied"], true, "mode={mode:?}");
-            assert_eq!(value["denied_target_member_ids"], json!(["report"]));
-        }
-    }
-}
-
-#[tokio::test]
-async fn task_authority_manager_cannot_assign_peer_even_when_soft_routing_allows_chat() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx_for_org(
-        hierarchical_org_context(HierarchyMode::Soft),
-        "manager",
-    ));
+    let tool = TaskCreateTool::new(ctx_for_org(multi_member_org_context(), "builder"));
     let response = tool
         .execute_text(
             json!({
-                "id": "soft-peer-assignment",
-                "subject": "Manager attempted peer assignment",
+                "id": "reviewer-task",
+                "subject": "Member attempts assignment",
+                "owner_member_id": "reviewer"
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+    let value: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(value["authorization_denied"], true);
+    assert_eq!(value["denied_target_member_ids"], json!(["reviewer"]));
+}
+
+#[tokio::test]
+async fn task_authority_member_cannot_assign_peer() {
+    let _sandbox = task_tools_sandbox();
+    let tool = TaskCreateTool::new(ctx_for_org(multi_member_org_context(), "builder"));
+    let response = tool
+        .execute_text(
+            json!({
+                "id": "peer-assignment",
+                "subject": "Member attempted peer assignment",
                 "owner_member_id": "peer"
             }),
             &test_ctx(),
@@ -1110,11 +1087,9 @@ async fn task_authority_manager_cannot_assign_peer_even_when_soft_routing_allows
     let value: Value = serde_json::from_str(&response).unwrap();
     assert_eq!(value["authorization_denied"], true);
     assert_eq!(value["denied_target_member_ids"], json!(["peer"]));
-    assert!(
-        AgentOrgTaskStore::get("run-hierarchy-tools", "soft-peer-assignment")
-            .unwrap()
-            .is_none()
-    );
+    assert!(AgentOrgTaskStore::get("run-flat-tools", "peer-assignment")
+        .unwrap()
+        .is_none());
 }
 
 #[tokio::test]
@@ -1642,14 +1617,11 @@ async fn task_authority_worker_cannot_unassign_into_preserved_cross_peer_pool() 
 }
 
 #[tokio::test]
-async fn task_authority_manager_can_edit_direct_report_but_not_peer_task() {
+async fn task_authority_member_cannot_edit_other_members_tasks() {
     let _sandbox = task_tools_sandbox();
-    let coordinator = ctx_for_org(
-        hierarchical_org_context(HierarchyMode::Soft),
-        COORDINATOR_MEMBER_ID,
-    );
+    let coordinator = ctx_for_org(multi_member_org_context(), COORDINATOR_MEMBER_ID);
     let create = TaskCreateTool::new(coordinator);
-    for (id, owner) in [("report-work", "report"), ("peer-work", "peer")] {
+    for (id, owner) in [("reviewer-work", "reviewer"), ("peer-work", "peer")] {
         create
             .execute_text(
                 json!({ "id": id, "subject": id, "owner_member_id": owner }),
@@ -1659,27 +1631,25 @@ async fn task_authority_manager_can_edit_direct_report_but_not_peer_task() {
             .unwrap();
     }
 
-    let manager = TaskUpdateTool::new(ctx_for_org(
-        hierarchical_org_context(HierarchyMode::Soft),
-        "manager",
-    ));
-    let report_response = manager
+    let member = TaskUpdateTool::new(ctx_for_org(multi_member_org_context(), "builder"));
+    let reviewer_response = member
         .execute_text(
             json!({
-                "id": "report-work",
-                "description": "Authorized manager clarification"
+                "id": "reviewer-work",
+                "description": "Unauthorized cross-member clarification"
             }),
             &test_ctx(),
         )
         .await
         .unwrap();
-    let report_value: Value = serde_json::from_str(&report_response).unwrap();
+    let reviewer_value: Value = serde_json::from_str(&reviewer_response).unwrap();
+    assert_eq!(reviewer_value["authorization_denied"], true);
     assert_eq!(
-        report_value["task"]["description"],
-        "Authorized manager clarification"
+        reviewer_value["denied_target_member_ids"],
+        json!(["reviewer"])
     );
 
-    let peer_response = manager
+    let peer_response = member
         .execute_text(
             json!({ "id": "peer-work", "description": "Unauthorized peer edit" }),
             &test_ctx(),

@@ -11,7 +11,9 @@ use core_types::key_source::KeySource;
 use crate::coordination::agent_org_runs::{
     AgentOrgMaterializationStatus, AgentOrgRunStore, AgentOrgStartingFailure, COORDINATOR_MEMBER_ID,
 };
-use crate::definitions::orgs::{is_cli_agent_org_reference, OrgDefinition, OrgMember};
+use crate::definitions::orgs::{
+    is_cli_agent_org_reference, validate_launch_snapshot, AgentOrgLaunchSnapshot, FlatOrgMember,
+};
 use crate::session::persistence::{
     self as session_persistence, session_type, UnifiedSessionRecord,
 };
@@ -19,8 +21,8 @@ use crate::session::IdeContext;
 use crate::state::AgentAppState;
 
 use super::launch_helpers::{
-    flatten_org_members, member_runtime_account_id, member_runtime_key_source,
-    member_runtime_model, member_runtime_native_harness_type,
+    member_runtime_account_id, member_runtime_key_source, member_runtime_model,
+    member_runtime_native_harness_type,
 };
 
 #[derive(Debug)]
@@ -65,7 +67,7 @@ impl std::fmt::Display for AgentOrgMaterializationError {
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn materialize_org_member_sessions(
     org_run_id: &str,
-    org: &OrgDefinition,
+    org: &AgentOrgLaunchSnapshot,
     root_session_id: &str,
     _root_session_name: &str,
     workspace_path: &str,
@@ -77,9 +79,12 @@ pub(super) async fn materialize_org_member_sessions(
     work_item_id: Option<String>,
     project_slug: Option<String>,
 ) -> Result<Vec<String>, AgentOrgMaterializationError> {
+    validate_launch_snapshot(org).map_err(|error| {
+        AgentOrgMaterializationError::permanent("invalid_launch_snapshot", error)
+    })?;
     let workspace_path = workspace_path.to_string();
     let root_session_id = root_session_id.to_string();
-    let org_name = org.name.clone();
+    let org_name = org.org_name.clone();
     let model = model.filter(|value| !value.trim().is_empty());
     let key_source = match key_source
         .as_deref()
@@ -107,10 +112,12 @@ pub(super) async fn materialize_org_member_sessions(
         })
         .transpose()?;
     let agent_exec_mode = agent_exec_mode.filter(|mode| !mode.trim().is_empty());
-    let members = flatten_org_members(&org.children)
-        .into_iter()
-        .map(|member| (member.id.clone(), member))
-        .collect::<HashMap<String, OrgMember>>();
+    let members = org
+        .members
+        .iter()
+        .cloned()
+        .map(|member| (member.member_id.clone(), member))
+        .collect::<HashMap<String, FlatOrgMember>>();
     let receipts = AgentOrgRunStore::materializations(org_run_id)
         .map_err(AgentOrgMaterializationError::retryable)?;
     let mut materialized_session_ids = Vec::new();
@@ -145,7 +152,7 @@ pub(super) async fn materialize_org_member_sessions(
                 "unsupported_member_runtime",
                 format!(
                     "CLI Agent Org member {} cannot be materialized on the canonical lifecycle path",
-                    member.id
+                    member.member_id
                 ),
             ));
         }
@@ -179,7 +186,7 @@ pub(super) async fn materialize_org_member_sessions(
             {
                 let identity_matches = existing.agent_definition_id.as_deref()
                     == Some(member.agent_id.as_str())
-                    && existing.org_member_id.as_deref() == Some(member.id.as_str())
+                    && existing.org_member_id.as_deref() == Some(member.member_id.as_str())
                     && existing.parent_session_id.as_deref() == Some(root_session_id.as_str());
                 if !identity_matches {
                     return Err(AgentOrgMaterializationError::permanent(
@@ -208,7 +215,7 @@ pub(super) async fn materialize_org_member_sessions(
                 agent_role: Some(member.role),
                 project_slug,
                 agent_definition_id: Some(member.agent_id),
-                org_member_id: Some(member.id),
+                org_member_id: Some(member.member_id),
                 parent_session_id: Some(root_session_id),
                 key_source: member_key_source,
                 agent_exec_mode,

@@ -40,7 +40,6 @@ export interface AgentOrgRunContextMember {
   name: string;
   role: string;
   agentId: string;
-  parentMemberId?: string | null;
 }
 
 export interface AgentOrgRunContext {
@@ -52,7 +51,6 @@ export interface AgentOrgRunContext {
   coordinatorName: string;
   coordinatorRole: string;
   members: AgentOrgRunContextMember[];
-  hierarchyMode: string;
   planApprovalPolicy: "coordinator" | "user" | "automatic";
   /** Session ID of the coordinator (root) session. Used to navigate directly
    *  to the coordinator's chat history when the run is paused or the user
@@ -66,7 +64,6 @@ export interface AgentOrgRunMemberView {
   name: string;
   role: string;
   agentId: string;
-  parentMemberId?: string | null;
   isCoordinator: boolean;
   sessionRuntime?: AgentOrgOwnerRuntime | null;
   unreadInboxCount: number;

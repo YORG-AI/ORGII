@@ -131,12 +131,15 @@ impl AgentOrgRunStore {
         let Some(snapshot_json) = snapshot_json else {
             return Ok(None);
         };
-        let snapshot: crate::definitions::orgs::OrgDefinition =
+        let snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot =
             serde_json::from_str(&snapshot_json).map_err(|err| {
                 format!("failed to parse Agent Org launch snapshot for run {org_run_id}: {err}")
             })?;
+        crate::definitions::orgs::validate_launch_snapshot(&snapshot).map_err(|err| {
+            format!("invalid Agent Org launch snapshot for run {org_run_id}: {err}")
+        })?;
         Ok(Some(
-            flatten_members(&snapshot.children, None)
+            flatten_members(&snapshot.members)
                 .into_iter()
                 .map(|member| member.member_id)
                 .collect(),

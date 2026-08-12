@@ -176,13 +176,11 @@ const memory = {
 
 const orgs = {
   list: defineProcedure("agent_orgs_list")
-    .output(z.array(schemas.agentOrgs.OrgMemberSchema))
+    .output(z.array(schemas.agentOrgs.OrgDefinitionSchema))
     .build(),
-  add: defineProcedure("agent_orgs_add")
+  saveTrustedSettings: defineProcedure("agent_orgs_save_trusted_settings")
     .input(schemas.agentOrgs.OrgJsonInput)
-    .build(),
-  update: defineProcedure("agent_orgs_update")
-    .input(schemas.agentOrgs.OrgJsonInput)
+    .output(schemas.agentOrgs.OrgDefinitionSchema)
     .build(),
   remove: defineProcedure("agent_orgs_remove")
     .input(schemas.agentOrgs.OrgIdInput)

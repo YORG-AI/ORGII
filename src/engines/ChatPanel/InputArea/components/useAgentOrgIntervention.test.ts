@@ -15,7 +15,6 @@ function runView(): AgentOrgRunView {
       coordinatorName: "Coordinator",
       coordinatorRole: "Lead",
       members: [],
-      hierarchyMode: "flat",
       planApprovalPolicy: "coordinator",
       rootSessionId: "session-root",
     },

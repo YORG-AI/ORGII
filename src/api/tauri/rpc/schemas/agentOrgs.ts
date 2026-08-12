@@ -125,7 +125,6 @@ export const CliConfigFileWriteInput = CliConfigFileInput.extend({
   content: z.string(),
 });
 
-export const HierarchyModeSchema = z.enum(["flat", "soft", "strict"]);
 export const PlanApprovalPolicySchema = z.enum([
   "coordinator",
   "user",
@@ -148,31 +147,36 @@ export type OrgMemberRuntimeConfig = z.infer<
   typeof OrgMemberRuntimeConfigSchema
 >;
 
-export type OrgMember = {
-  id: string;
-  name: string;
-  role: string;
-  agentId: string;
-  runtimeConfig?: OrgMemberRuntimeConfig;
-  description?: string;
-  hierarchyMode?: z.output<typeof HierarchyModeSchema>;
-  planApprovalPolicy?: z.output<typeof PlanApprovalPolicySchema>;
-  children: OrgMember[];
-};
-
-export const OrgMemberSchema: z.ZodType<OrgMember> = z.lazy(() =>
-  z.object({
-    id: z.string(),
+export const FlatOrgMemberSchema = z
+  .object({
+    memberId: z.string(),
     name: z.string(),
     role: z.string(),
     agentId: z.string(),
     runtimeConfig: OrgMemberRuntimeConfigSchema.optional(),
-    description: z.string().optional(),
-    hierarchyMode: HierarchyModeSchema.optional(),
-    planApprovalPolicy: PlanApprovalPolicySchema.optional(),
-    children: z.array(OrgMemberSchema),
   })
-);
+  .strict();
+
+export const MemberCommunicationLinkSchema = z
+  .object({
+    memberAId: z.string(),
+    memberBId: z.string(),
+  })
+  .strict();
+
+export const OrgDefinitionSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    role: z.string(),
+    agentId: z.string(),
+    description: z.string().optional(),
+    planApprovalPolicy: PlanApprovalPolicySchema,
+    members: z.array(FlatOrgMemberSchema),
+    additionalTaskGraphWriterMemberIds: z.array(z.string()),
+    memberCommunicationLinks: z.array(MemberCommunicationLinkSchema),
+  })
+  .strict();
 
 export const OrgJsonInput = z.object({
   orgJson: z.string(),

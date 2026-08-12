@@ -110,12 +110,11 @@ pub(super) fn validate_task_text_fields(
 }
 
 fn collect_roster_member_ids(
-    members: &[crate::definitions::orgs::OrgMember],
+    members: &[crate::definitions::orgs::FlatOrgMember],
     out: &mut HashSet<String>,
 ) {
     for member in members {
-        out.insert(member.id.clone());
-        collect_roster_member_ids(&member.children, out);
+        out.insert(member.member_id.clone());
     }
 }
 
@@ -241,12 +240,14 @@ pub(super) fn validate_task_persistence_invariants(
         .map_err(|err| err.to_string())?
         .flatten();
     if let Some(snapshot_json) = snapshot_json {
-        let snapshot: crate::definitions::orgs::OrgDefinition =
+        let snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot =
             serde_json::from_str(&snapshot_json).map_err(|err| {
                 format!("invalid Agent Org launch snapshot for {org_run_id}: {err}")
             })?;
+        crate::definitions::orgs::validate_launch_snapshot(&snapshot)
+            .map_err(|err| format!("invalid Agent Org launch snapshot for {org_run_id}: {err}"))?;
         let mut roster = HashSet::new();
-        collect_roster_member_ids(&snapshot.children, &mut roster);
+        collect_roster_member_ids(&snapshot.members, &mut roster);
         for member_id in &eligible_member_ids {
             if !roster.contains(member_id) {
                 return Err(format!(

@@ -1,6 +1,5 @@
 use rusqlite::{params, OptionalExtension};
 
-use crate::definitions::orgs::AgentOrgsStore;
 use database::db::get_connection;
 
 use super::super::helpers::{
@@ -27,24 +26,20 @@ impl AgentOrgRunStore {
     ///
     /// Bounded to `MAX_PARENT_WALK_DEPTH` hops so a corrupt or cyclic
     /// parent chain can't cause an unbounded scan during session init.
-    pub fn context_for_run(
-        run_id: &str,
-        org_store: &AgentOrgsStore,
-    ) -> Result<Option<AgentOrgRunContext>, String> {
+    pub fn context_for_run(run_id: &str) -> Result<Option<AgentOrgRunContext>, String> {
         let Some(run) = load_by_id(run_id).map_err(|err| err.to_string())? else {
             return Ok(None);
         };
-        Ok(Some(context_for_run_record(&run, org_store)?))
+        Ok(Some(context_for_run_record(&run)?))
     }
 
     pub fn context_for_session_with_parent_walk(
         session_id: &str,
-        org_store: &AgentOrgsStore,
     ) -> Result<Option<AgentOrgRunContext>, String> {
         let Some(run) = Self::run_for_session_with_parent_walk(session_id)? else {
             return Ok(None);
         };
-        Ok(Some(context_for_run_record(&run, org_store)?))
+        Ok(Some(context_for_run_record(&run)?))
     }
 
     pub fn root_session_id_for_session_with_parent_walk(

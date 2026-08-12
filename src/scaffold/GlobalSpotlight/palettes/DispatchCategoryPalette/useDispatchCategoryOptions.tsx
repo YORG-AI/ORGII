@@ -32,7 +32,7 @@ import {
   builtInAgentsAtom,
   customAgentsAtom,
 } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
-import type { OrgMember } from "@src/modules/MainApp/AgentOrgs/types";
+import type { OrgDefinition } from "@src/modules/MainApp/AgentOrgs/types";
 import { useCliAgents } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/hooks/useCliAgents";
 import {
   cliAgentVisibilityOverridesAtom,
@@ -143,7 +143,7 @@ export function useDispatchCategoryOptions(
 
   const { t } = useTranslation("sessions");
   const { t: tCommon } = useTranslation("common");
-  const [allOrgs, setAllOrgs] = useState<OrgMember[]>([]);
+  const [allOrgs, setAllOrgs] = useState<OrgDefinition[]>([]);
   const { agents: cliAgentList } = useCliAgents({ enabled: isOpen });
   const cliVisibilityOverrides = useAtomValue(cliAgentVisibilityOverridesAtom);
   const { accounts } = useKeyVault({ autoLoad: true });
@@ -170,7 +170,7 @@ export function useDispatchCategoryOptions(
     let cancelled = false;
 
     if (!hideOrgs) {
-      invokeTauri<OrgMember[]>("agent_orgs_list")
+      invokeTauri<OrgDefinition[]>("agent_orgs_list")
         .then((result) => {
           if (cancelled) return;
           setAllOrgs(result);

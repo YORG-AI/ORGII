@@ -31,7 +31,7 @@ use crate::coordination::agent_org_tasks::{
     enqueue_task_assigned_to_with_tasks, AgentOrgTaskStore, CreateTaskParams, TaskStatus,
     TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_EXECUTION_MODE,
 };
-use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy};
+use crate::definitions::orgs::{FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
 use crate::session::{AgentExecMode, SessionStatus};
 use core_types::key_source::KeySource;
 
@@ -58,22 +58,22 @@ fn setup_wake_mode_fixture(execution_mode: &str, task_status: TaskStatus) -> Wak
         role: "Coordinator".into(),
         agent_id: "coordinator-agent".into(),
         description: None,
-        hierarchy_mode: HierarchyMode::Soft,
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
-        children: vec![OrgMember {
-            id: member_id.clone(),
+        members: vec![FlatOrgMember {
+            member_id: member_id.clone(),
             name: "Planner".into(),
             role: "Planner".into(),
             agent_id: "planner-agent".into(),
             runtime_config: None,
-            children: Vec::new(),
         }],
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
     };
     let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
         org_id: org.id.clone(),
         coordinator_agent_id: org.agent_id.clone(),
         root_session_id: Some("root-session".into()),
-        org_snapshot: org,
+        org_snapshot: (&org).into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,

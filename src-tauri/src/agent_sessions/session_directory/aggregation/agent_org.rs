@@ -4,7 +4,7 @@
 //! icon, id, and display name.
 
 use agent_core::coordination::agent_org_runs::{AgentOrgRunRecord, AgentOrgRunStore};
-use agent_core::definitions::orgs::OrgDefinition;
+use agent_core::definitions::orgs::AgentOrgLaunchSnapshot;
 
 use crate::agent_sessions::session_directory::types::SessionAggregateRecord;
 
@@ -13,8 +13,8 @@ const AGENT_ORG_ICON_ID: &str = "network";
 fn agent_org_display_name(run: &AgentOrgRunRecord) -> String {
     run.org_snapshot_json
         .as_deref()
-        .and_then(|json| serde_json::from_str::<OrgDefinition>(json).ok())
-        .map(|org| org.name)
+        .and_then(|json| serde_json::from_str::<AgentOrgLaunchSnapshot>(json).ok())
+        .map(|snapshot| snapshot.org_name)
         .unwrap_or_else(|| run.org_id.clone())
 }
 

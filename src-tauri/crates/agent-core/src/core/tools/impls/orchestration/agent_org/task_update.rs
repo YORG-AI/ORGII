@@ -180,10 +180,10 @@ impl Tool for TaskUpdateTool {
         concat!(
             "Update a task on the org run's task board. Only the fields you set are ",
             "written; missing fields keep their current value. Task write authority ",
-            "has two separate parts. Administrative authority follows the org structure: ",
+            "has two separate parts. Administrative authority is capability-scoped: ",
             "the coordinator may create, assign, reassign, edit, and repair every task; a ",
-            "member may administer its own tasks and, in soft/strict hierarchy modes, tasks ",
-            "owned by its direct reports. Work-authorship authority is always owner-only: ",
+            "member may administer only its own tasks until additional Writer activation ",
+            "lands. Work-authorship authority is always owner-only: ",
             "only the current owner may set `status=\"in_progress\"`, set ",
             "`status=\"completed\"`, or write `output`. Assignment or dependency unblocking ",
             "already wakes the owner, so a coordinator/manager must not start or complete ",
@@ -385,7 +385,7 @@ impl Tool for TaskUpdateTool {
                     "task_update.modify"
                 },
                 denied,
-                "You may modify only your own tasks or tasks owned by your direct reports. Ask the coordinator to modify, reassign, or delete peer and cross-branch work.",
+                "You may modify only your own tasks. Ask the coordinator to modify, reassign, or delete another member's work.",
             );
         }
 
@@ -427,7 +427,7 @@ impl Tool for TaskUpdateTool {
                 return self.ctx.authorization_denied_response(
                     "task_update.reassign_owner",
                     denied,
-                    "You may reassign work only to yourself or your direct reports. Ask the coordinator to reassign work to a peer or another branch.",
+                    "You may reassign work only to yourself. Ask the coordinator to reassign work to another member.",
                 );
             }
         }
