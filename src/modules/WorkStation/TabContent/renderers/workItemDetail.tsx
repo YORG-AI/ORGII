@@ -20,9 +20,11 @@ const WorkItemDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
 
     return (
       <WorkItemDetailPage
+        key={`${tab.data.orgId ?? "personal-org"}:${tab.data.projectId ?? "standalone"}:${tab.data.workItemId}`}
         projectId={tab.data.projectId as string}
         projectName={tab.data.projectName as string}
         projectSlug={tab.data.projectSlug as string | undefined}
+        orgId={tab.data.orgId as string | undefined}
         workItemId={tab.data.workItemId as string}
         onClose={() => onCloseTab(tab.id)}
         onOpenChatSession={onOpenChatSession}

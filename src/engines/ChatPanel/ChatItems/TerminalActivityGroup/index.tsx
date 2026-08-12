@@ -193,7 +193,7 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
       })),
     [events]
   );
-  const createdWorkItems = useMemo(
+  const workItemResults = useMemo(
     () =>
       events.flatMap((event) => {
         const card = parseTerminalOrgtrackEnvelope(event, {
@@ -202,7 +202,9 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
           projectId: session?.projectId,
           orgId: session?.orgId,
         });
-        return card?.ok && card.operationId === "work.create" && card.workItem
+        return card?.ok &&
+          ["work.create", "work.update"].includes(card.operationId) &&
+          card.workItem
           ? [card]
           : [];
       }),
@@ -250,7 +252,7 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
           renderItem={renderTerminalEvent}
         />
       </div>
-      {createdWorkItems.map((card, index) => (
+      {workItemResults.map((card, index) => (
         <OrgtrackEnvelopeCard
           key={`${card.operationId}:${card.shortId}:${index}`}
           card={card}

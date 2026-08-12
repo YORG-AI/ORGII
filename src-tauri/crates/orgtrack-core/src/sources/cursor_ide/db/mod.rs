@@ -32,7 +32,9 @@ mod sync;
 
 use sync::delta_sync;
 #[cfg(test)]
-use sync::{build_inputs_from_index, discover_from_headers, discover_from_index, discover_sessions};
+use sync::{
+    build_inputs_from_index, discover_from_headers, discover_from_index, discover_sessions,
+};
 
 // v9: modern `composer.composerHeaders` subagents stay attached to their
 // parent even when the parent's composer blob omits `subagentComposerIds`.

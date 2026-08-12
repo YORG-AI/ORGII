@@ -106,7 +106,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
       <div className="work-item-picker-toolbar flex shrink-0 items-center gap-2 px-2 pb-3 pt-2">
         {onBack && (
           <Button
-            variant="tertiary"
+            variant="secondary"
             size="small"
             icon={<ArrowLeft size={14} strokeWidth={1.8} />}
             iconOnly
@@ -127,7 +127,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
           className="min-w-0 flex-1"
         />
         <Button
-          variant="tertiary"
+          variant="secondary"
           size="small"
           icon={
             <RefreshCw

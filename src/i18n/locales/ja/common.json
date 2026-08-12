@@ -1491,7 +1491,7 @@
         "label": "pull request の操作",
         "confirmMergeTitle": "pull request をマージしますか？",
         "confirmMergeMessage": "GitHub は現在の pull request のソースブランチをベースブランチにマージします。",
-        "merge": "pull request をマージ",
+        "merge": "マージ",
         "squash": "スカッシュしてマージ",
         "rebase": "リベースしてマージ",
         "mergeSuccess": "pull request をマージしました",

@@ -36,6 +36,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
+  Box,
   BriefcaseBusiness,
   CircleDot,
   Columns3,
@@ -45,6 +46,7 @@ import {
   Inbox,
   Info,
   LayoutGrid,
+  ListChecks,
   ListTodo,
   Lock,
   MessageSquarePlus,
@@ -105,6 +107,10 @@ import {
 import { terminalSessionsAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
 import { sessionByIdAtom } from "@src/store/session";
 import { moveSessionTabAtom } from "@src/store/session/sessionTabPlacementAtom";
+import {
+  CHAT_PANEL_CREATE_TARGET,
+  chatPanelCreateTargetAtom,
+} from "@src/store/ui/chatPanelAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 import { isMacOS } from "@src/util/platform/tauri";
 
@@ -145,6 +151,7 @@ const TabPill = memo(function TabPill({
   onContextMenu,
 }: TabPillProps) {
   const { t } = useTranslation();
+  const createTarget = useAtomValue(chatPanelCreateTargetAtom);
   const [hovered, setHovered] = useState(false);
   const showCloseSlot = hovered;
   const {
@@ -187,7 +194,7 @@ const TabPill = memo(function TabPill({
       : undefined;
   const agentStatus = terminalSession?.agentStatus;
 
-  const displayTitle = resolveChatPanelTabDisplayTitle(tab, session, {
+  const defaultDisplayTitle = resolveChatPanelTabDisplayTitle(tab, session, {
     launchpad: t("navigation:routes.launchpad"),
     runtime: t("sessions:chat.startPage.tabs.runtime"),
     organization: t("navigation:collaboration.manageOrg"),
@@ -199,6 +206,20 @@ const TabPill = memo(function TabPill({
     },
     sessionFallback: t("chat.defaultTitle"),
   });
+  const displayTitle =
+    tab.type !== "start-page"
+      ? defaultDisplayTitle
+      : createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT
+        ? t("creator.createTarget.project")
+        : createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM
+          ? t("creator.createTarget.workItem")
+          : createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
+            ? t("projects:githubIssuesImport.createTarget")
+            : createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
+              ? t("navigation:collaboration.addOrg")
+              : createTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS
+                ? t("creator.createTarget.manageAgents")
+                : defaultDisplayTitle;
 
   const iconColorClass = isActive ? "text-primary-6" : "text-text-2";
   const isGitHubIssueTab =
@@ -217,13 +238,41 @@ const TabPill = memo(function TabPill({
       />
     );
   } else if (tab.type === "start-page") {
-    icon = (
-      <LayoutGrid
-        size={16}
-        strokeWidth={1.75}
-        className={`shrink-0 ${iconColorClass}`}
-      />
-    );
+    if (createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT) {
+      icon = (
+        <Box
+          size={16}
+          strokeWidth={1.75}
+          className={`shrink-0 ${iconColorClass}`}
+        />
+      );
+    } else if (createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM) {
+      icon = (
+        <ListChecks
+          size={16}
+          strokeWidth={1.75}
+          className={`shrink-0 ${iconColorClass}`}
+        />
+      );
+    } else if (
+      createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
+    ) {
+      icon = (
+        <IntegrationIcon
+          type={STORY_SYNC_ADAPTER.GITHUB}
+          size={16}
+          className={`shrink-0 ${iconColorClass}`}
+        />
+      );
+    } else {
+      icon = (
+        <LayoutGrid
+          size={16}
+          strokeWidth={1.75}
+          className={`shrink-0 ${iconColorClass}`}
+        />
+      );
+    }
   } else if (tab.type === "runtime") {
     icon = (
       <Gauge
@@ -311,6 +360,22 @@ const TabPill = memo(function TabPill({
       <IntegrationIcon
         type={STORY_SYNC_ADAPTER.GITHUB}
         size={16}
+        className={`shrink-0 ${iconColorClass}`}
+      />
+    );
+  } else if (tab.type === "project") {
+    icon = (
+      <Box
+        size={16}
+        strokeWidth={1.75}
+        className={`shrink-0 ${iconColorClass}`}
+      />
+    );
+  } else if (tab.type === "work-item") {
+    icon = (
+      <ListChecks
+        size={16}
+        strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
       />
     );
@@ -408,6 +473,7 @@ interface PlusMenuContentProps {
   onOpenLaunchpad: () => void;
   onOpenKanban: () => void;
   onOpenRuntime: () => void;
+  onNewProject: () => void;
   onNewWorkItem: () => void;
   onClose: () => void;
 }
@@ -416,6 +482,7 @@ export function PlusMenuContent({
   onOpenLaunchpad,
   onOpenKanban,
   onOpenRuntime,
+  onNewProject,
   onNewWorkItem,
   onClose,
 }: PlusMenuContentProps) {
@@ -444,6 +511,12 @@ export function PlusMenuContent({
       icon: <Gauge size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
       label: t("sessions:chat.startPage.tabs.runtime"),
       onClick: onOpenRuntime,
+    },
+    {
+      id: "new-project",
+      icon: <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      label: t("creator.createTarget.project"),
+      onClick: onNewProject,
     },
     {
       id: "new-work-item",
@@ -491,6 +564,7 @@ export interface ChatPanelPlusMenuProps {
   onOpenLaunchpad: () => void;
   onOpenKanban: () => void;
   onOpenRuntime: () => void;
+  onNewProject: () => void;
   onNewWorkItem: () => void;
 }
 
@@ -498,6 +572,7 @@ export function ChatPanelPlusMenu({
   onOpenLaunchpad,
   onOpenKanban,
   onOpenRuntime,
+  onNewProject,
   onNewWorkItem,
 }: ChatPanelPlusMenuProps): React.ReactNode {
   const { t } = useTranslation("sessions");
@@ -512,6 +587,7 @@ export function ChatPanelPlusMenu({
           onOpenLaunchpad={onOpenLaunchpad}
           onOpenKanban={onOpenKanban}
           onOpenRuntime={onOpenRuntime}
+          onNewProject={onNewProject}
           onNewWorkItem={onNewWorkItem}
           onClose={closeMenu}
         />

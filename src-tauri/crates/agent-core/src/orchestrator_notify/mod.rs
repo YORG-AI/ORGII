@@ -11,6 +11,125 @@ fn estimate_cost_usd(total_tokens: u64) -> f64 {
     (total_tokens as f64 / 1000.0) * 0.003
 }
 
+/// Reconcile pre-Session Routine failures left behind by a process exit or an
+/// older build, then unblock the routine's configured concurrency queue.
+pub(crate) async fn reconcile_terminal_routine_dispatches(app: &tauri::AppHandle) {
+    let fires = match tokio::task::spawn_blocking(
+        project_management::projects::io::reconcile_terminal_dispatch_fires,
+    )
+    .await
+    {
+        Ok(Ok(fires)) => fires,
+        Ok(Err(err)) => {
+            tracing::warn!(error = %err, "[routine] terminal dispatch reconciliation failed");
+            return;
+        }
+        Err(err) => {
+            tracing::warn!(error = %err, "[routine] terminal dispatch reconciliation task failed");
+            return;
+        }
+    };
+
+    for fire in fires {
+        crate::state::commands::routines::emit_routine_changed(
+            app,
+            &fire.routine_id,
+            Some(&fire.id),
+            "failed",
+        );
+        dequeue_next_routine_fire(app, &fire.routine_id).await;
+    }
+}
+
+/// A Routine-backed dispatch can fail before a Session exists, so the normal
+/// Session-terminal notifier never gets a chance to close its fire. Reconcile
+/// that terminal edge directly from the durable Work Item Run and continue
+/// the routine's queued-fire policy.
+pub(crate) async fn notify_routine_fire_dispatch_terminal(
+    run: &project_management::projects::types::WorkItemRun,
+    app: &tauri::AppHandle,
+) {
+    use project_management::projects::types::{WorkItemRunStatus, WorkItemRunTrigger};
+
+    if !matches!(
+        run.status,
+        WorkItemRunStatus::Failed | WorkItemRunStatus::Cancelled
+    ) {
+        return;
+    }
+    let origin = match &run.trigger {
+        WorkItemRunTrigger::Routine {
+            routine_id,
+            fire_id,
+        } => Some((routine_id.clone(), fire_id.clone())),
+        WorkItemRunTrigger::Retry { .. } => {
+            let run_id = run.id.clone();
+            match tokio::task::spawn_blocking(move || {
+                project_management::work_run_service::routine_origin(&run_id)
+            })
+            .await
+            {
+                Ok(Ok(origin)) => origin,
+                Ok(Err(err)) => {
+                    tracing::warn!(
+                        run_id = %run.id,
+                        error = %err,
+                        "[routine] retry provenance lookup failed"
+                    );
+                    None
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        run_id = %run.id,
+                        error = %err,
+                        "[routine] retry provenance task failed"
+                    );
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+    let Some((routine_id, fire_id)) = origin else {
+        return;
+    };
+
+    let fire_id_for_update = fire_id.clone();
+    let message = run
+        .failure
+        .as_ref()
+        .map(|failure| failure.message.clone())
+        .unwrap_or_else(|| "Work Item dispatch terminated before Session launch".to_string());
+    let result = tokio::task::spawn_blocking(move || {
+        project_management::projects::io::mark_routine_fire_failed(&fire_id_for_update, &message)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(updated)) => {
+            crate::state::commands::routines::emit_routine_changed(
+                app,
+                &updated.routine_id,
+                Some(&updated.id),
+                "failed",
+            );
+            dequeue_next_routine_fire(app, &routine_id).await;
+        }
+        Ok(Err(err)) => tracing::warn!(
+            run_id = %run.id,
+            fire_id,
+            error = %err,
+            "[routine] failed to close fire after terminal dispatch"
+        ),
+        Err(err) => tracing::warn!(
+            run_id = %run.id,
+            fire_id,
+            error = %err,
+            "[routine] fire close task failed after terminal dispatch"
+        ),
+    }
+}
+
 /// Close the loop on routine fires when their session terminates:
 /// mark the fire succeeded/failed, then execute the oldest queued fire
 /// of the same routine (QueueIfActive dequeue).
@@ -197,6 +316,54 @@ pub async fn notify_orchestrator_session_terminal(
             return Ok(());
         }
     };
+
+    // CLI sessions and legacy transports do not always expose the exact
+    // durable turn-intent id at their terminal callback. Reconcile the
+    // newest active Run for this Session before touching Work Item workflow
+    // state. Rust turns normally arrive here already terminal and this call
+    // becomes a no-op, preserving their exact per-turn usage snapshot.
+    let run_outcome = match status {
+        AgentSessionStatus::Completed => {
+            project_management::work_run_service::WorkItemRunTerminalOutcome::Succeeded
+        }
+        AgentSessionStatus::Cancelled => {
+            project_management::work_run_service::WorkItemRunTerminalOutcome::Cancelled
+        }
+        _ => project_management::work_run_service::WorkItemRunTerminalOutcome::Failed,
+    };
+    let run_terminal_session_id = session_id.to_string();
+    let run_terminal_total_tokens = session.total_tokens.max(0) as u64;
+    let run_terminal_error = if matches!(status, AgentSessionStatus::Failed) {
+        Some("Session failed".to_string())
+    } else {
+        None
+    };
+    match tokio::task::spawn_blocking(move || {
+        project_management::work_run_service::record_session_terminal(
+            &run_terminal_session_id,
+            run_outcome,
+            project_management::projects::types::WorkItemRunUsage {
+                total_tokens: run_terminal_total_tokens,
+                cost_usd: estimate_cost_usd(run_terminal_total_tokens),
+                ..Default::default()
+            },
+            run_terminal_error.as_deref(),
+        )
+    })
+    .await
+    {
+        Ok(Ok(_)) => {}
+        Ok(Err(err)) => tracing::warn!(
+            session_id,
+            error = %err,
+            "[work-run] compatibility terminal reconciliation failed"
+        ),
+        Err(err) => tracing::warn!(
+            session_id,
+            error = %err,
+            "[work-run] compatibility terminal reconciliation task failed"
+        ),
+    }
 
     let workspace_path = match session.workspace_path {
         Some(ref path) if !path.is_empty() => path.clone(),
@@ -673,9 +840,7 @@ fn notify_inbox_awaiting_user(work_item_id: &str) {
 }
 
 mod handlers;
-use handlers::{
-    apply_proof_of_work, collect_proof_of_work_data_bounded, extract_review_feedback,
-};
+use handlers::{apply_proof_of_work, collect_proof_of_work_data_bounded, extract_review_feedback};
 
 #[cfg(test)]
 pub(crate) use handlers::{

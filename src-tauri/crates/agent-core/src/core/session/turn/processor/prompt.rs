@@ -19,13 +19,16 @@ use crate::core::session::prompt::cache::SkillListingCacheKey;
 use crate::core::session::prompt::sections::build_agent_org_context_section_with_task_snapshot;
 use crate::core::session::types::{SystemPromptConfig, ToolSummary};
 
-fn render_orgtrack_cli_brief(product_mode: Option<&str>, project_slug: Option<&str>) -> Option<String> {
+fn render_orgtrack_cli_brief(
+    product_mode: Option<&str>,
+    project_slug: Option<&str>,
+) -> Option<String> {
     if product_mode != Some("project") {
         return None;
     }
     let scope_line = match project_slug {
         Some(slug) => format!("Your scope is injected (ORGII_SCOPE={slug}); omit --scope."),
-        None => "Pass --scope <project-slug> when the target project is known.".to_string(),
+        None => "No Project is required. This session uses the current organization's standalone Work Item scope; omit --scope. Work list/create route there automatically.".to_string(),
     };
     Some(format!(
         "## Work Management (org2-pm)\n\n\
@@ -99,6 +102,17 @@ fn render_linked_work_item_context(work_item_id: &str, project_slug: Option<&str
         standalone_flag,
         standalone_flag,
     )
+}
+
+fn linked_work_item_context_for_session(
+    product_mode: Option<&str>,
+    work_item_id: Option<&str>,
+    project_slug: Option<&str>,
+) -> Option<String> {
+    if product_mode != Some("project") {
+        return None;
+    }
+    work_item_id.map(|work_item_id| render_linked_work_item_context(work_item_id, project_slug))
 }
 
 impl UnifiedMessageProcessor {
@@ -256,25 +270,23 @@ impl UnifiedMessageProcessor {
             }
         }
 
-        // The ChatPanel "Create with AI" flow persists a draft before launch
-        // so the planning session has a durable Work Item target. Any agent
-        // launched through that flow (session agent_role "custom") needs the
-        // linkage in its prompt, or the model can create a second item and
-        // strand the original "AI Work Item Draft". Orchestrator-launched
-        // sessions carry work item context in their launch prompt and are
-        // excluded here. Keep this volatile (session-specific).
+        // Every Project-mode entrance owns a durable linked Work Item. Keep
+        // that identity in the per-turn prompt even when an orchestrator also
+        // supplied launch context: ordinary SDE sessions bootstrap the link
+        // after launch, and without this live row the model rediscovers
+        // projects, creates duplicates, or asks for a scope that is optional.
+        // Keep this volatile because the bootstrap link is session-specific.
         {
             let linked_session =
                 tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
             match linked_session {
                 Ok(Some(session)) => {
-                    if session.agent_role.as_deref() == Some("custom") {
-                        if let Some(work_item_id) = session.work_item_id.as_deref() {
-                            dynamic_sections.push(render_linked_work_item_context(
-                                work_item_id,
-                                session.project_slug.as_deref(),
-                            ));
-                        }
+                    if let Some(context) = linked_work_item_context_for_session(
+                        session.product_mode.as_deref(),
+                        session.work_item_id.as_deref(),
+                        session.project_slug.as_deref(),
+                    ) {
+                        dynamic_sections.push(context);
                     }
                     if let Some(brief) = render_orgtrack_cli_brief(
                         session.product_mode.as_deref(),
@@ -556,7 +568,10 @@ impl UnifiedMessageProcessor {
 
 #[cfg(test)]
 mod linked_work_item_context_tests {
-    use super::render_linked_work_item_context;
+    use super::{
+        linked_work_item_context_for_session, render_linked_work_item_context,
+        render_orgtrack_cli_brief,
+    };
 
     #[test]
     fn renders_project_scope_without_ambiguous_discovery() {
@@ -577,5 +592,27 @@ mod linked_work_item_context_tests {
         assert!(prompt.contains("`org2-pm work create --standalone"));
         assert!(!prompt.contains("--scope auth-core"));
         assert!(!prompt.contains("personal-org"));
+    }
+
+    #[test]
+    fn every_project_session_with_a_link_receives_linked_item_context() {
+        let prompt = linked_work_item_context_for_session(Some("project"), Some("WI-0095"), None)
+            .expect("linked context");
+
+        assert!(prompt.contains("Work Item \"WI-0095\""));
+        assert!(prompt.contains("standalone (no project)"));
+        assert!(
+            linked_work_item_context_for_session(Some("build"), Some("WI-0095"), None).is_none()
+        );
+    }
+
+    #[test]
+    fn projectless_brief_says_project_is_optional() {
+        let prompt =
+            render_orgtrack_cli_brief(Some("project"), None).expect("Project-mode CLI brief");
+
+        assert!(prompt.contains("No Project is required"));
+        assert!(prompt.contains("route there automatically"));
+        assert!(!prompt.contains("Pass --scope"));
     }
 }

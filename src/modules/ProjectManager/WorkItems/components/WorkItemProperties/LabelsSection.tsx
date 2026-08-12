@@ -60,7 +60,7 @@ export function LabelsSection({
       />
       {openPicker === "labels" && (
         <SearchableDropdown
-          placeholder={t("properties.searchLabels")}
+          placeholder={t("common:actions.search")}
           widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
           align={fieldVariant === "pill" ? "auto" : "left"}
         >

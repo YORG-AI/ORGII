@@ -67,7 +67,7 @@ export function PeopleSection({
           onAssigneeChange={handlers.handleAssigneeChange}
           t={t}
           fieldVariant={fieldVariant}
-          placement={fieldVariant === "pill" ? "portal" : "inline"}
+          placement="portal"
           active={openPicker === "assignee"}
           onActiveChange={(active) => togglePicker(active ? "assignee" : null)}
           readonly={assigneeReadonly}

@@ -87,17 +87,14 @@ pub(crate) fn read_standalone_sync_metadata(
     work_item_id: &str,
 ) -> Result<Option<SyncMetadata>, String> {
     let connection = conn()?;
-    let exists: bool = map_db(
-        connection
-            .query_row(
-                "SELECT EXISTS(
+    let exists: bool = map_db(connection.query_row(
+        "SELECT EXISTS(
                     SELECT 1 FROM workitems
                      WHERE id = ?1 AND org_id = ?2 AND project_id IS NULL
                 )",
-                params![work_item_id, org_id],
-                |row| row.get(0),
-            ),
-    )?;
+        params![work_item_id, org_id],
+        |row| row.get(0),
+    ))?;
     if !exists {
         return Ok(None);
     }
@@ -398,7 +395,7 @@ mod tests {
             labels: vec![],
             milestone: None,
             parent: None,
-        stage: None,
+            stage: None,
             start_date: None,
             target_date: None,
             created_by: None,
