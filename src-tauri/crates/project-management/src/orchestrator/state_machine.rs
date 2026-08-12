@@ -12,12 +12,14 @@ use crate::projects::types::{
 };
 use core_types::session::PENDING_SESSION_PLACEHOLDER;
 
-/// Auto-transition the work item `status` based on the new orchestrator phase.
+/// Project the active workflow phase onto non-terminal Work Item status.
+/// A workflow/Run reaching `Completed` never completes product intent; closing
+/// the Work Item remains an explicit work transition.
 fn auto_transition_status(frontmatter: &mut WorkItemFrontmatter, phase: &OrchestratorPhase) {
     let new_status = match phase {
         OrchestratorPhase::Coding => "in_progress",
         OrchestratorPhase::Review => "in_review",
-        OrchestratorPhase::Completed => "completed",
+        OrchestratorPhase::Completed => return,
         OrchestratorPhase::AwaitingUser => "in_review",
         // Failed and Idle don't change status (keep in_progress for failed)
         _ => return,
@@ -246,9 +248,7 @@ pub fn complete_linked_session(
     let idx = frontmatter
         .linked_sessions
         .iter()
-        .rposition(|ls| {
-            ls.session_id == session_id && ls.status == LinkedSessionStatus::Running
-        })
+        .rposition(|ls| ls.session_id == session_id && ls.status == LinkedSessionStatus::Running)
         .or_else(|| {
             frontmatter
                 .linked_sessions
@@ -300,21 +300,25 @@ pub fn mutate_work_item(
     short_id: &str,
     mutator: impl FnOnce(&mut WorkItemFrontmatter) -> TransitionResult,
 ) -> Result<TransitionResult, String> {
-    // Orchestrator session-terminal handling is the DEFAULT COMPLETION
-    // POLICY of the Orgtrack migration (design §17): the status change is
-    // audited as an explicit work.transition with a policy reason, not a
-    // silent side effect. FSM stays flag-only here — orchestrator flows
-    // legitimately move through the legacy vocabulary until Phase 7.
+    // Session terminal handling advances workflow state and proof metadata;
+    // it is not Work Item completion. Any terminal product status is written
+    // through an explicit user/agent work.transition command.
     let service = io::AtomicServiceOptions {
         operation: Some("work.transition"),
-        reason: Some("completion policy: orchestrator session terminal".to_string()),
+        reason: Some("workflow phase: orchestrator session terminal".to_string()),
         ..Default::default()
     };
-    io::update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
-        let result = mutator(frontmatter);
-        frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
-        Ok(result)
-    })
+    io::update_work_item_atomic_serviced(
+        project_slug,
+        short_id,
+        None,
+        service,
+        |frontmatter, _body| {
+            let result = mutator(frontmatter);
+            frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
+            Ok(result)
+        },
+    )
 }
 
 /// What action the orchestrator should take after a transition.

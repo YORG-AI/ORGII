@@ -22,6 +22,10 @@ export {
   default as ProjectContentEditor,
   ProjectContentTitleInput,
 } from "./ProjectContentEditor";
+export { default as ProjectOrganizationField } from "./ProjectOrganizationField";
+export type { ProjectOrganizationFieldProps } from "./ProjectOrganizationField";
+export { default as ProjectOrganizationSelect } from "./ProjectOrganizationSelect";
+export type { ProjectOrganizationSelectProps } from "./ProjectOrganizationSelect";
 export type {
   ProjectContentEditorRef,
   ProjectContentEditorProps,

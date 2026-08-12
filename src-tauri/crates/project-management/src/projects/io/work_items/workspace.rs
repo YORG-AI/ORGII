@@ -6,9 +6,11 @@
 
 use crate::projects::io::{read_all_projects_scoped, read_project_orgs};
 use crate::projects::types::{
-    WorkItemReadBucket, WorkspaceProjectWorkItems, WorkspaceWorkItemsData,
+    WorkItemReadBucket, WorkspaceProjectWorkItems, WorkspaceStandaloneWorkItem,
+    WorkspaceWorkItemsData,
 };
 
+use super::crud::read_all_standalone_work_items_filtered;
 use super::{
     enrichment::enrich_work_items_for_project, read_all_work_items_scoped_filtered,
     read_standalone_work_items_filtered,
@@ -30,9 +32,23 @@ pub fn read_workspace_work_items_data(
         });
     }
 
+    let standalone_work_items = match org_id {
+        Some(org_id) => read_standalone_work_items_filtered(Some(org_id), read_bucket)?
+            .into_iter()
+            .map(|work_item| WorkspaceStandaloneWorkItem {
+                org_id: org_id.to_string(),
+                work_item,
+            })
+            .collect(),
+        None => read_all_standalone_work_items_filtered(read_bucket)?
+            .into_iter()
+            .map(|(org_id, work_item)| WorkspaceStandaloneWorkItem { org_id, work_item })
+            .collect(),
+    };
+
     Ok(WorkspaceWorkItemsData {
         project_entries,
-        standalone_work_items: read_standalone_work_items_filtered(org_id, read_bucket)?,
+        standalone_work_items,
         orgs: read_project_orgs()?,
     })
 }
@@ -40,9 +56,10 @@ pub fn read_workspace_work_items_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::projects::io::create_project_org;
     use crate::projects::io::projects::write_project;
-    use crate::projects::io::work_items::write_work_item;
-    use crate::projects::types::{ProjectMeta, WorkItemFrontmatter};
+    use crate::projects::io::work_items::{write_standalone_work_item, write_work_item};
+    use crate::projects::types::{CreateProjectOrgRequest, ProjectMeta, WorkItemFrontmatter};
     use test_helpers::test_env;
 
     fn project_fixture() -> ProjectMeta {
@@ -81,7 +98,7 @@ mod tests {
             labels: vec![],
             milestone: None,
             parent: None,
-        stage: None,
+            stage: None,
             start_date: None,
             target_date: None,
             created_by: None,
@@ -138,6 +155,64 @@ mod tests {
         assert_eq!(
             completed.project_entries[0].work_items[0].status,
             "completed"
+        );
+    }
+
+    #[test]
+    fn workspace_read_preserves_every_standalone_organization_scope() {
+        let _sandbox = test_env::sandbox();
+        create_project_org(&CreateProjectOrgRequest {
+            id: Some("cloud-org".into()),
+            name: "Cloud Org".into(),
+        })
+        .expect("cloud org");
+        write_standalone_work_item(
+            Some("personal-org"),
+            "WI-0001",
+            &work_item_fixture("WI-0001", "planned"),
+            "",
+        )
+        .expect("personal standalone item");
+
+        let mut cloud_active = work_item_fixture("WI-0001", "planned");
+        cloud_active.id = "cloud-active".into();
+        write_standalone_work_item(Some("cloud-org"), "WI-0001", &cloud_active, "")
+            .expect("cloud standalone item");
+
+        let mut cloud_completed = work_item_fixture("WI-0002", "completed");
+        cloud_completed.id = "cloud-completed".into();
+        write_standalone_work_item(Some("cloud-org"), "WI-0002", &cloud_completed, "")
+            .expect("completed cloud standalone item");
+
+        let all_active = read_workspace_work_items_data(None, Some(WorkItemReadBucket::Active))
+            .expect("all-org workspace data");
+        let mut active_scopes = all_active
+            .standalone_work_items
+            .iter()
+            .map(|entry| {
+                (
+                    entry.org_id.as_str(),
+                    entry.work_item.frontmatter.short_id.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+        active_scopes.sort_unstable();
+        assert_eq!(
+            active_scopes,
+            [("cloud-org", "WI-0001"), ("personal-org", "WI-0001")]
+        );
+
+        let cloud_active =
+            read_workspace_work_items_data(Some("cloud-org"), Some(WorkItemReadBucket::Active))
+                .expect("cloud workspace data");
+        assert_eq!(cloud_active.standalone_work_items.len(), 1);
+        assert_eq!(cloud_active.standalone_work_items[0].org_id, "cloud-org");
+        assert_eq!(
+            cloud_active.standalone_work_items[0]
+                .work_item
+                .frontmatter
+                .short_id,
+            "WI-0001"
         );
     }
 }

@@ -57,6 +57,19 @@ export interface CollabSessionPushCursor {
   /** segment_hash of the last pushed tail (null = tail was empty). */
   tailHash: string | null;
   /**
+   * Revision of the durable native event cache covered by this cursor.
+   * Unlike Session.updated_at, this changes only when transcript rows change.
+   */
+  localContentRevision?: number;
+  /**
+   * Local session content version covered by this cursor. On restart, a
+   * matching remote summary plus this stamp proves that neither the native
+   * EventStore nor an imported transcript needs to be materialized again.
+   * Optional for upgrade safety: legacy cursors pay one authoritative read
+   * and are stamped after that successful pass.
+   */
+  localContentUpdatedAt?: string;
+  /**
    * Source-local checkpoint for bounded imported-history refreshes. It is
    * optional so existing/native cursors retain their current wire behavior;
    * losing or invalidating it only forces one authoritative full re-anchor.
@@ -126,6 +139,8 @@ const CloudPushCursorSchema = z.object({
   frozenEventCount: z.number(),
   frozenChainHash: z.string(),
   tailHash: z.string().nullable(),
+  localContentRevision: z.number().int().nonnegative().optional(),
+  localContentUpdatedAt: z.string().optional(),
   importedReplay: z
     .object({
       version: z.literal(1),

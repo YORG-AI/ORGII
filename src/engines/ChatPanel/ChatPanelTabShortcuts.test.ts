@@ -17,6 +17,7 @@ import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
+import { resolveChatPanelShortcutOwnership } from "./hooks/chatPanelShortcutOwnership";
 import {
   isChatPanelPrimaryModifierPressed,
   useChatPanelTabShortcuts,
@@ -197,6 +198,18 @@ describe("useChatPanelTabShortcuts", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(1);
+  });
+
+  it("preserves active chat ownership when the shortcut target is neutral", () => {
+    expect(
+      resolveChatPanelShortcutOwnership(panelElement, document.body, true)
+    ).toBe(true);
+    expect(
+      resolveChatPanelShortcutOwnership(panelElement, neutralOverlay, true)
+    ).toBe(true);
+    expect(
+      resolveChatPanelShortcutOwnership(panelElement, outsideButton, true)
+    ).toBe(false);
   });
 
   it("uses Command on macOS and Ctrl on other platforms", () => {

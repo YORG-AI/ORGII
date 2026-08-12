@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
-use super::SkillsLoader;
 use super::super::types::SkillInfo;
+use super::SkillsLoader;
 use crate::utils::swr_cache::SwrCache;
 
 const SKILL_SCAN_CACHE_TTL: Duration = Duration::from_secs(2);

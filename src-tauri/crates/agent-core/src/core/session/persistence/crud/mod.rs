@@ -24,17 +24,18 @@ mod workspace;
 pub use migration::ensure_unified_schema;
 pub use ops::{
     backfill_agent_definition_id, delete_session, finalize_terminal_turn_status,
-    get_child_sessions, get_parent_session, get_session, list_sessions,
+    get_child_sessions, get_parent_session, get_session, link_bootstrap_work_item, list_sessions,
     mark_stale_running_sessions_abandoned, reconcile_sessions_with_terminal_turn_markers,
     register_session_delete_mirror_hook, register_session_mirror_hook, update_account_id,
-    update_agent_exec_mode, update_draft_text, update_model, update_model_and_account, update_name,
-    link_bootstrap_work_item, update_org_member_id, update_pinned, update_product_mode,
-    update_reply_target_event_id, update_status, update_work_item_link, upsert_session,
+    update_agent_exec_mode, update_draft_text, update_mode_axes, update_model,
+    update_model_and_account, update_name, update_org_member_id, update_pinned,
+    update_product_mode, update_reply_target_event_id, update_status, update_work_item_link,
+    upsert_session,
 };
-pub(super) use record::{row_to_record, UNIFIED_SESSION_SELECT};
 pub(crate) use ops::{
     delete_session_with_connection, finish_session_delete, prepare_session_delete,
 };
+pub(super) use record::{row_to_record, UNIFIED_SESSION_SELECT};
 pub use record::{session_type, UnifiedSessionRecord};
 pub use workspace::{
     clear_worktree_metadata, load_workspace, save_workspace, save_worktree_metadata,

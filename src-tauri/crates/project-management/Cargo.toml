@@ -44,6 +44,7 @@ subtle = "2.6"
 base64 = { workspace = true }
 hex = "0.4"
 rand = { workspace = true }
+uuid = { version = "1", features = ["v4"] }
 urlencoding = "2.1"
 
 # HTTP client — rustls only. Workspace-shared so cargo unifies feature

@@ -326,6 +326,29 @@ fn token_usage_updated_captures_last_breakdown() {
 }
 
 #[test]
+fn token_usage_derives_total_when_provider_omits_it() {
+    let mut p = parser();
+    let chunks = notif(
+        &mut p,
+        "thread/tokenUsage/updated",
+        json!({
+            "threadId": "t", "turnId": "u",
+            "tokenUsage": {
+                "last": {
+                    "inputTokens": 91133,
+                    "cachedInputTokens": 76288,
+                    "outputTokens": 1876
+                }
+            }
+        }),
+    );
+    assert!(chunks.is_empty());
+    let usage = p.usage().expect("usage captured");
+    assert_eq!(usage.total_tokens, 93009);
+    assert_eq!(usage.cache_read_tokens, 76288);
+}
+
+#[test]
 fn turn_completed_emits_session_end_and_records_status() {
     let mut p = parser();
     let chunks = notif(

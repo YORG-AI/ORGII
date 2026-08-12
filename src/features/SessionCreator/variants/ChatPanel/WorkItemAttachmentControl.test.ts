@@ -235,6 +235,7 @@ describe("WorkItemAttachmentControl", () => {
     expect(inlinePicker).not.toBeNull();
     expect(inlinePicker?.className).not.toContain("bg-bg-1");
     expect(inlinePicker?.className).toContain("h-auto");
+    expect(inlinePicker?.className).toContain("shadow-sm");
     expect((inlinePicker as HTMLElement | null)?.style.maxHeight).toBe(
       "min(520px, 100%)"
     );
@@ -308,6 +309,16 @@ describe("WorkItemAttachmentControl", () => {
         '[data-testid="session-creator-work-item-picker-back"]'
       )?.textContent
     ).toBe("");
+    expect(
+      container.querySelector(
+        '[data-testid="session-creator-work-item-picker-back"]'
+      )?.className
+    ).toContain("border-border-2");
+    expect(
+      container.querySelector(
+        '[data-testid="session-creator-work-item-picker-refresh"]'
+      )?.className
+    ).toContain("border-border-2");
     expect(
       container.querySelector(
         '[data-testid="session-creator-work-item-picker-refresh"]'

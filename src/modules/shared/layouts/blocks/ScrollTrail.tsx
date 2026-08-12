@@ -25,6 +25,7 @@ interface ScrollTrailMarker {
 }
 
 export type ScrollTrailPlacement = "overlay" | "rail";
+export type ScrollTrailAlignment = "center" | "start";
 
 export function sampleScrollTrailIndices(
   targetCount: number,
@@ -122,6 +123,7 @@ export interface ScrollTrailProps {
   contentRef: RefObject<HTMLElement | null>;
   ariaLabel: string;
   className?: string;
+  alignment?: ScrollTrailAlignment;
   maxMarkers?: number;
   placement?: ScrollTrailPlacement;
   testId?: string;
@@ -153,6 +155,7 @@ const ScrollTrail: React.FC<ScrollTrailProps> = ({
   contentRef,
   ariaLabel,
   className = "",
+  alignment = "center",
   maxMarkers = MAX_SCROLL_TRAIL_MARKERS,
   placement = "overlay",
   testId,
@@ -290,12 +293,14 @@ const ScrollTrail: React.FC<ScrollTrailProps> = ({
     placement === "rail"
       ? "left-1/2 -translate-x-1/2"
       : "right-2 rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-sm backdrop-blur-sm";
+  const alignmentClass =
+    alignment === "start" ? "top-2" : "top-1/2 -translate-y-1/2";
 
   return (
     <nav
       aria-label={ariaLabel}
       data-testid={testId}
-      className={`pointer-events-auto absolute top-1/2 z-40 flex w-9 -translate-y-1/2 flex-col items-center overflow-visible ${placementClass} ${className}`.trim()}
+      className={`pointer-events-auto absolute z-40 flex w-9 flex-col items-center overflow-visible ${alignmentClass} ${placementClass} ${className}`.trim()}
       onMouseLeave={() => setPreviewMarkerIndex(null)}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {

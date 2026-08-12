@@ -429,7 +429,7 @@ describe("closeWorkItemChatPanelTabAtom", () => {
         .tabs.some((tab) => tab.workItem?.shortId === "ORG-1")
     ).toBe(true);
 
-    store.set(closeWorkItemChatPanelTabAtom, "ORG-1");
+    store.set(closeWorkItemChatPanelTabAtom, selectedWorkItem);
 
     expect(
       store
@@ -437,6 +437,36 @@ describe("closeWorkItemChatPanelTabAtom", () => {
         .tabs.some((tab) => tab.workItem?.shortId === "ORG-1")
     ).toBe(false);
     expect(store.get(chatPanelSelectedWorkItemAtom)).toBeNull();
+  });
+
+  it("keeps identical standalone short IDs isolated by organization", async () => {
+    const { chatPanelTabsAtom, openWorkItemInChatPanelTabAtom, store } =
+      await loadChatPanelTabAtoms();
+    const personal = {
+      shortId: "WI-0001",
+      orgId: "personal-org",
+      projectSlug: "",
+      projectId: "",
+      projectName: "Standalone Work Items",
+      workItem: { session_id: "personal-row", name: "Personal item" },
+    };
+    const cloud = {
+      ...personal,
+      orgId: "cloud-org",
+      workItem: { session_id: "cloud-row", name: "Cloud item" },
+    };
+
+    store.set(openWorkItemInChatPanelTabAtom, personal as never);
+    store.set(openWorkItemInChatPanelTabAtom, cloud as never);
+
+    const workItemTabs = store
+      .get(chatPanelTabsAtom)
+      .tabs.filter((tab) => tab.type === "work-item");
+    expect(workItemTabs).toHaveLength(2);
+    expect(workItemTabs.map((tab) => tab.workItem?.orgId).sort()).toEqual([
+      "cloud-org",
+      "personal-org",
+    ]);
   });
 
   it("restores a session's split Station layout after visiting a work item", async () => {

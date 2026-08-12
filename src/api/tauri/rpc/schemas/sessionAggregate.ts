@@ -231,10 +231,9 @@ export const SessionAggregateRecordSchema = z.object({
   agentDefinitionId: z.string().optional(),
   agentIconId: z.string().optional(),
   agentDisplayName: z.string().optional(),
-  // Per-session exec mode picked via in-session ModePill. Undefined means
-  // "user has never patched this session" — frontend falls back to
-  // `creatorDefaultExecModeAtom` until the first `session_patch`. CLI
-  // sessions always emit `undefined` (no mode concept). String (not
+  // Per-session exec mode picked via in-session ModePill. Undefined is
+  // tolerated for historical rows and resolves to `build`; it must never
+  // inherit the mutable creator default. String (not
   // strict enum) so the wire format tolerates new modes added on the
   // Rust side without a coordinated frontend release.
   agentExecMode: z.string().optional(),

@@ -4,6 +4,7 @@ import { ORG2_CLOUD_OFFICIAL_SUPABASE_URL } from "./config";
 import {
   CLOUD_ASSIGNABLE_ROLES,
   CLOUD_INVITE_STATE,
+  CLOUD_INVITE_WEB_BASE_URL,
   type CloudMemberLike,
   buildCloudInviteLink,
   buildCloudSessionShareLink,
@@ -51,11 +52,12 @@ describe("invite code generation + hashing", () => {
 });
 
 describe("cloud invite deep link", () => {
-  it("builds and parses a round-trip link", () => {
-    const link = buildCloudInviteLink("c0de");
-    expect(link).toBe("orgii://cloud/join?invite=c0de");
-    expect(isCloudInviteDeepLink(link)).toBe(true);
-    expect(parseCloudInviteDeepLink(link)).toEqual({ inviteCode: "c0de" });
+  it("builds a shareable HTTPS link with the invite kept in the fragment", () => {
+    const inviteCode = "c0de".repeat(16);
+    const link = buildCloudInviteLink(inviteCode);
+    expect(link).toBe(`${CLOUD_INVITE_WEB_BASE_URL}#invite=${inviteCode}`);
+    expect(new URL(link).search).toBe("");
+    expect(isCloudInviteDeepLink(link)).toBe(false);
   });
 
   it("rejects collaboration links and foreign schemes", () => {
@@ -72,14 +74,46 @@ describe("cloud invite deep link", () => {
   });
 
   it("parseCloudInviteInput accepts raw codes and links alike", () => {
+    const fragmentCode = "f".repeat(64);
+    const queryCode = "0".repeat(64);
     expect(parseCloudInviteInput("  rawcode  ")).toBe("rawcode");
     expect(parseCloudInviteInput("orgii://cloud/join?invite=abc")).toBe("abc");
+    expect(
+      parseCloudInviteInput(
+        `${CLOUD_INVITE_WEB_BASE_URL}#invite=${fragmentCode}`
+      )
+    ).toBe(fragmentCode);
+    expect(
+      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}?invite=${queryCode}`)
+    ).toBe(queryCode);
+    expect(
+      parseCloudInviteInput(
+        `${CLOUD_INVITE_WEB_BASE_URL}?invite=${queryCode}#invite=${fragmentCode}`
+      )
+    ).toBe(fragmentCode);
+    expect(
+      parseCloudInviteInput(
+        `${CLOUD_INVITE_WEB_BASE_URL}?invite=${queryCode}#invite=`
+      )
+    ).toBe(queryCode);
+    // Same 64-hex contract as the handoff page: uppercase normalizes,
+    // non-hex codes on the right origin are rejected.
+    expect(
+      parseCloudInviteInput(
+        `${CLOUD_INVITE_WEB_BASE_URL}#invite=${fragmentCode.toUpperCase()}`
+      )
+    ).toBe(fragmentCode);
+    expect(
+      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}#invite=not-a-code`)
+    ).toBeNull();
     expect(parseCloudInviteInput("")).toBeNull();
     // An orgii:// link that is NOT a cloud invite must not fall through to
     // being treated as a raw code.
     expect(
       parseCloudInviteInput("orgii://collaboration/join?invite=abc")
     ).toBeNull();
+    expect(parseCloudInviteInput("https://example.com/#invite=abc")).toBeNull();
+    expect(parseCloudInviteInput("ftp://example.com/invite")).toBeNull();
   });
 });
 
@@ -339,6 +373,7 @@ describe("management error codes", () => {
     ["ORG2_QUOTA_EXCEEDED", "cloud.orgManagement.errors.quotaExceeded"],
     ["ORG2_FORBIDDEN", "cloud.orgManagement.errors.forbidden"],
     ["ORG2_MEMBER_NOT_FOUND", "cloud.orgManagement.errors.memberNotFound"],
+    ["ORG2_ALREADY_MEMBER", "cloud.orgManagement.errors.alreadyMember"],
     ["ORG2_INVITE_INVALID", "cloud.orgManagement.errors.inviteInvalid"],
     ["ORG2_INVITE_REVOKED", "cloud.orgManagement.errors.inviteRevoked"],
     ["ORG2_INVITE_EXPIRED", "cloud.orgManagement.errors.inviteExpired"],

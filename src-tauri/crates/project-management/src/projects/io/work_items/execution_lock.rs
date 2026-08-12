@@ -25,9 +25,15 @@ pub fn acquire_execution_lock(
         operation: Some("work.claim"),
         ..AtomicServiceOptions::default()
     };
-    update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
-        apply_execution_claim(frontmatter, short_id, session_id, agent_role, reason)
-    })
+    update_work_item_atomic_serviced(
+        project_slug,
+        short_id,
+        None,
+        service,
+        |frontmatter, _body| {
+            apply_execution_claim(frontmatter, short_id, session_id, agent_role, reason)
+        },
+    )
 }
 
 /// Pure frontmatter mutation shared by the standalone lock acquisition
@@ -137,18 +143,24 @@ pub fn release_execution_lock(
         operation: Some("work.release"),
         ..AtomicServiceOptions::default()
     };
-    update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
-        if frontmatter
-            .execution_lock
-            .as_ref()
-            .and_then(|lock| lock.active_session_id.as_deref())
-            == Some(session_id)
-        {
-            frontmatter.execution_lock = None;
-            frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
-        }
-        Ok(())
-    })
+    update_work_item_atomic_serviced(
+        project_slug,
+        short_id,
+        None,
+        service,
+        |frontmatter, _body| {
+            if frontmatter
+                .execution_lock
+                .as_ref()
+                .and_then(|lock| lock.active_session_id.as_deref())
+                == Some(session_id)
+            {
+                frontmatter.execution_lock = None;
+                frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
+            }
+            Ok(())
+        },
+    )
 }
 
 fn parse_agent_role(raw: Option<&str>) -> AgentRole {

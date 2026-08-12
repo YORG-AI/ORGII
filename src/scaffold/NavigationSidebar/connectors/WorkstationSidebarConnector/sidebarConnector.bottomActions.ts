@@ -18,6 +18,31 @@ import type { WorkstationSidebarKey } from "./types";
 
 const logger = createLogger("WorkstationSidebar");
 
+export function resolveSidebarSelectedMenuItemId({
+  activeSidebarKey,
+  selectedCloudMenuItemId,
+  selectedMenuItemId,
+  workItemsContentVisible,
+}: Pick<
+  UseWorkstationSidebarBottomActionsParams,
+  | "activeSidebarKey"
+  | "selectedCloudMenuItemId"
+  | "selectedMenuItemId"
+  | "workItemsContentVisible"
+>): string {
+  return activeSidebarKey === "workstation" &&
+    !workItemsContentVisible &&
+    selectedCloudMenuItemId
+    ? selectedCloudMenuItemId
+    : selectedMenuItemId;
+}
+
+export function hasSidebarMenuRows(
+  menuItems: readonly NavigationMenuItem[]
+): boolean {
+  return menuItems.some((item) => !item.id?.startsWith("separator-"));
+}
+
 type BottomRightActionsParams = Parameters<
   typeof useSidebarBottomRightActions
 >[0];
@@ -83,7 +108,8 @@ export function useWorkstationSidebarBottomActions({
   const isLoading = channelSidebarVisible
     ? false
     : workItemsContentVisible || activeSidebarKey === "projects"
-      ? projectsWorkItemsLoading && projectsSidebarMenuItems.length === 0
+      ? projectsWorkItemsLoading &&
+        !hasSidebarMenuRows(projectsSidebarMenuItems)
       : sessionsLoading && sessions.length === 0;
   const sessionBottomRightActions = useSidebarBottomRightActions({
     activeSidebarKey: workItemsContentVisible ? "projects" : activeSidebarKey,
@@ -99,10 +125,12 @@ export function useWorkstationSidebarBottomActions({
     ? null
     : sessionBottomRightActions;
 
-  const resolvedSelectedMenuItemId =
-    activeSidebarKey === "workstation" && selectedCloudMenuItemId
-      ? selectedCloudMenuItemId
-      : selectedMenuItemId;
+  const resolvedSelectedMenuItemId = resolveSidebarSelectedMenuItemId({
+    activeSidebarKey,
+    selectedCloudMenuItemId,
+    selectedMenuItemId,
+    workItemsContentVisible,
+  });
 
   useWorkstationSidebarMemory({
     activeSessionId,

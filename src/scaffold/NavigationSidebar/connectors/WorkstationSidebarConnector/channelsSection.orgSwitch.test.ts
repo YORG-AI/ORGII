@@ -32,7 +32,6 @@ const mocks = vi.hoisted(() => ({
   listCloudChannels: vi.fn(),
   getCloudCapabilities: vi.fn(),
   loadCloudOrgMembers: vi.fn(),
-  menuItemNew: vi.fn(),
   menuNew: vi.fn(),
 }));
 
@@ -41,7 +40,6 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@tauri-apps/api/menu", () => ({
-  MenuItem: { new: mocks.menuItemNew },
   Menu: { new: mocks.menuNew },
 }));
 
@@ -144,8 +142,7 @@ describe("useCloudChannelsSection create-dialog org keying", () => {
     vi.clearAllMocks();
     localStorage.clear();
     mocks.getCloudCapabilities.mockResolvedValue({ orgChannels: true });
-    mocks.menuItemNew.mockImplementation(async (entry) => entry);
-    mocks.menuNew.mockResolvedValue({ popup: vi.fn() });
+    mocks.menuNew.mockResolvedValue({ popup: vi.fn(), close: vi.fn() });
     mocks.listCloudChannels.mockResolvedValue({
       channels: [],
       serverTime: undefined,
@@ -263,8 +260,15 @@ describe("useCloudChannelsSection create-dialog org keying", () => {
         ?.click();
     });
     await flushAsync();
-    const settingsEntry = mocks.menuItemNew.mock.calls
-      .map(([entry]) => entry as { text?: string; action?: () => void })
+    const settingsEntry = mocks.menuNew.mock.calls
+      .flatMap(
+        ([options]) =>
+          (
+            options as {
+              items?: Array<{ text?: string; action?: () => void }>;
+            }
+          ).items ?? []
+      )
       .find((entry) => entry.text === "cloud.channels.settings.action");
     expect(settingsEntry?.action).toBeTypeOf("function");
     act(() => settingsEntry?.action?.());

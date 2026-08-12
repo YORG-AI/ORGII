@@ -52,11 +52,14 @@ pub use project::{
     resolve_slug,
     slugify,
     start_work_item,
+    start_work_item_session_with_reason,
     start_work_item_with_reason,
     update_project,
     update_work_item,
     OrchestratorConfigOverrides,
     PhaseLaunch,
+    StartWorkItemSessionRequest,
+    StartedWorkItemSession,
 };
 
 use std::time::Duration;

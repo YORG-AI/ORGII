@@ -12,6 +12,7 @@ use std::pin::Pin;
 
 use agent_core::foundation::session_bridge::{
     self, CliLaunchOutcome, CliLaunchParams, CliPlanApprovalResponseParams, CliToolsSnapshot,
+    CliTurnDispatchParams,
 };
 use agent_core::interaction::plan_approval::{self, PlanResolution};
 use agent_core::session::AgentExecMode;
@@ -63,12 +64,15 @@ fn run(
         let created_at = session.created_at.clone();
 
         if !params.user_input.trim().is_empty() {
+            let durable_run_id = params.durable_run_id.clone();
             if let Err(err) = cli_agent_run(CliRunRequest {
                 session_id: session_id.clone(),
                 user_input: params.user_input,
                 ide_context: params.ide_context,
                 mode: params.mode,
                 images: params.images,
+                turn_intent_id: durable_run_id.clone(),
+                client_message_id: durable_run_id,
                 ..Default::default()
             })
             .await
@@ -96,6 +100,22 @@ fn run(
             worktree_branch: session.worktree_branch,
             base_ref: session.base_branch,
         })
+    })
+}
+
+fn dispatch_turn(
+    params: CliTurnDispatchParams,
+) -> Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send>> {
+    Box::pin(async move {
+        cli_agent_message(CliMessageRequest {
+            session_id: params.session_id,
+            content: params.content,
+            turn_intent_id: Some(params.turn_intent_id),
+            client_message_id: Some(params.client_message_id),
+            ..Default::default()
+        })
+        .await
+        .map(|_| ())
     })
 }
 
@@ -232,6 +252,7 @@ fn cli_registered_tool_names() -> Vec<String> {
 /// Register CLI adapters into agent_core's session bridge slots.
 pub fn register() {
     session_bridge::register_launch_cli_agent(run);
+    session_bridge::register_dispatch_cli_turn(dispatch_turn);
     session_bridge::register_delete_cli_session(|session_id| {
         persistence::delete_session(session_id).map_err(|err| format!("DB error: {err}"))
     });
