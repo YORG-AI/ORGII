@@ -34,13 +34,31 @@ describe("resolveSessionWorkstationContext", () => {
   it("keeps Project work-item identity in the rail context", () => {
     expect(
       resolveSessionWorkstationContext({
+        orgId: "cloud:org-749",
         productMode: "project",
         projectSlug: "orgii",
         workItemId: "WORK-42",
       } as Session)
     ).toMatchObject({
+      orgId: "org-749",
       projectSlug: "orgii",
       workItemId: "WORK-42",
+    });
+  });
+
+  it("keeps a standalone Project work item clickable without a project slug", () => {
+    expect(
+      resolveSessionWorkstationContext({
+        orgId: "cloud:org-749",
+        productMode: "project",
+        workItemId: "WI-0081",
+      } as Session)
+    ).toEqual({
+      branchName: undefined,
+      orgId: "org-749",
+      projectSlug: undefined,
+      repoName: undefined,
+      workItemId: "WI-0081",
     });
   });
 });

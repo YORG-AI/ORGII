@@ -193,6 +193,7 @@ pub async fn cli_agent_delete(session_id: String) -> Result<bool, String> {
 
     // Clean up persistent Cursor config dir (contains chat session data for --resume)
     session_runner::cleanup_cursor_config_dir(&session_id);
+    session_runner::forget_session_context(&session_id);
 
     // Clean up worktree if session had isolation enabled
     let session = tokio::task::spawn_blocking({
@@ -203,6 +204,24 @@ pub async fn cli_agent_delete(session_id: String) -> Result<bool, String> {
     .map_err(|e| format!("Task error: {}", e))??;
 
     if let Some(ref session) = session {
+        if let Some(agent) = session
+            .cli_agent_type
+            .as_deref()
+            .and_then(key_vault::key_store::ModelType::from_str)
+        {
+            session_runner::stop_session_hooks(
+                &session_id,
+                &agent,
+                session.model.as_deref(),
+                session
+                    .worktree_path
+                    .as_deref()
+                    .filter(|path| !path.is_empty() && std::path::Path::new(path).is_dir())
+                    .or(session.repo_path.as_deref()),
+            )
+            .await;
+        }
+
         // Only `base_branch`-bearing worktrees are session-owned isolation.
         // A reused linked worktree is borrowed and must survive deletion.
         if session.base_branch.is_some() {

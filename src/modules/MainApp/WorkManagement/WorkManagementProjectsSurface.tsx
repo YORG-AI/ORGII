@@ -26,7 +26,6 @@ import {
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   STORY_ORG_SCOPE,
-  STORY_PERSONAL_ORG_FILTER_ID,
   WORK_MANAGEMENT_PROJECTS_VIEW,
   createWorkItemDetailTab,
   workManagementProjectsViewAtom,
@@ -184,14 +183,10 @@ const WorkManagementProjectsSurface: React.FC<{
   const handleCreateProject = useCallback(() => {
     openCreateTargetInStartPage({
       target: CHAT_PANEL_CREATE_TARGET.PROJECT,
-      createProjectContext: {
-        orgId: STORY_PERSONAL_ORG_FILTER_ID,
-        scopeBreadcrumbLabel: t("orgs.personalOrg"),
-      },
     });
     setStationMode("my-station");
     setStationChatVisible("my-station", true);
-  }, [openCreateTargetInStartPage, setStationChatVisible, setStationMode, t]);
+  }, [openCreateTargetInStartPage, setStationChatVisible, setStationMode]);
 
   const handleCreateWorkItem = useCallback(() => {
     openCreateTargetInStartPage({
@@ -241,21 +236,17 @@ const WorkManagementProjectsSurface: React.FC<{
   const handleOpenAggregatedWorkItem = useCallback(
     (selection: ProjectWorkItemSelection) => {
       if (detailHost === "chat") {
-        if (
-          !selection.projectId ||
-          !selection.projectName ||
-          !selection.projectSlug
-        ) {
-          return;
-        }
         openWorkItemInChatPanel({
           workItem: selection.workItem,
           shortId: selection.shortId,
           orgId: selection.orgId,
           orgName: selection.orgName,
-          projectId: selection.projectId,
-          projectName: selection.projectName,
-          projectSlug: selection.projectSlug,
+          projectId: selection.projectId ?? "",
+          projectName:
+            selection.projectName ??
+            selection.orgName ??
+            "Standalone Work Items",
+          projectSlug: selection.projectSlug ?? "",
         });
         return;
       }
@@ -268,7 +259,8 @@ const WorkManagementProjectsSurface: React.FC<{
           selection.projectSlug,
           undefined,
           undefined,
-          selection.workItem.workItemStatus ?? selection.workItem.status
+          selection.workItem.workItemStatus ?? selection.workItem.status,
+          selection.orgId
         )
       );
     },

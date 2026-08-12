@@ -21,10 +21,9 @@
 //! - `name` set on its own (rename / generated title)
 //! - `model` set with optional `account_id` (a model-pick is one user
 //!   action; the account binds to the model)
-//! - `agent_exec_mode` set on its own (a ModePill click)
-//! - both set in one call (the rare "switch model AND mode" case;
-//!   still atomic at the SQL level via two `UPDATE` rows under one
-//!   command call).
+//! - `product_mode` + derived `agent_exec_mode` set together (a ModePill click)
+//! - model and composer fields may share one command for compound UI actions;
+//!   each logical pair is written atomically by its persistence helper.
 //!
 //! Fields that are deliberately *not* exposed:
 //!
@@ -98,12 +97,11 @@ pub struct SessionPatch {
     /// Account ID associated with the new model. Only meaningful
     /// alongside `model`; passing it without `model` is rejected.
     pub account_id: Option<String>,
-    /// Per-session execution mode. Only legal for `agent_sessions`
-    /// rows; rejected for CLI sessions.
+    /// Per-session execution mode. Native and CLI-backed rows both carry it.
     pub agent_exec_mode: Option<String>,
     /// Persistent product mode (`orgtrack/v1` §5.2):
-    /// `build | plan | ask | project`. Only legal for `agent_sessions`
-    /// rows; validated against the closed enum.
+    /// `build | plan | ask | project`. Native and CLI-backed rows both carry
+    /// it; imported history does not. Validated against the closed enum.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub product_mode: Option<String>,
     /// Per-session unsent draft text (P3). Three-state — see the
@@ -210,6 +208,44 @@ fn validate_account_model_compat(account_id: &str, model: &str) -> Result<(), St
     Ok(())
 }
 
+/// Resolve a user-visible composer selection into the two persisted axes.
+/// The product axis is authoritative: Project always derives Build execution;
+/// build/plan/ask derive their matching execution policies. A supplied exec
+/// value is still validated so malformed wire payloads fail closed.
+fn resolve_atomic_mode_axes(
+    product_mode: Option<&str>,
+    agent_exec_mode: Option<&str>,
+) -> Result<Option<(String, String)>, String> {
+    if let Some(mode) = agent_exec_mode {
+        agent_core::session::AgentExecMode::parse(mode).ok_or_else(|| {
+            format!(
+                "session_patch: unknown agent_exec_mode '{mode}' \
+                 (expected build|ask|plan|debug|review|wingman)"
+            )
+        })?;
+    }
+
+    let Some(product_mode) = product_mode else {
+        return Ok(None);
+    };
+    let derived_exec_mode = match product_mode {
+        "build" => agent_core::session::AgentExecMode::Build,
+        "plan" => agent_core::session::AgentExecMode::Plan,
+        "ask" => agent_core::session::AgentExecMode::Ask,
+        "project" => agent_core::session::AgentExecMode::Build,
+        _ => {
+            return Err(format!(
+                "session_patch: unknown product_mode '{product_mode}' \
+                 (expected build|plan|ask|project)"
+            ))
+        }
+    };
+    Ok(Some((
+        product_mode.to_string(),
+        derived_exec_mode.as_str().to_string(),
+    )))
+}
+
 /// Apply a patch synchronously. Public for `#[tauri::command]`
 /// adapter; tests can also call this directly with an in-memory DB
 /// once the connection abstraction allows it.
@@ -255,8 +291,7 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                     .map_err(|err| format!("session_patch update name (cli): {err}"))?;
             }
             SessionLocation::Imported => {
-                return Err("session_patch: imported sessions do not support name"
-                    .to_string());
+                return Err("session_patch: imported sessions do not support name".to_string());
             }
         }
     }
@@ -280,13 +315,32 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                 .map_err(|err| format!("session_patch update model (cli): {err}"))?;
             }
             SessionLocation::Imported => {
-                return Err("session_patch: imported sessions do not support model"
-                    .to_string());
+                return Err("session_patch: imported sessions do not support model".to_string());
             }
         }
     }
 
-    if let Some(mode) = patch.agent_exec_mode.as_deref() {
+    let resolved_mode_axes = resolve_atomic_mode_axes(
+        patch.product_mode.as_deref(),
+        patch.agent_exec_mode.as_deref(),
+    )?;
+    if let Some((product_mode, agent_exec_mode)) = resolved_mode_axes {
+        match location {
+            SessionLocation::Agent => {
+                session_persistence::update_mode_axes(session_id, &product_mode, &agent_exec_mode)
+                    .map_err(|err| format!("session_patch update mode axes (agent): {err}"))?;
+            }
+            SessionLocation::Cli => {
+                cli_persistence::update_mode_axes(session_id, &product_mode, &agent_exec_mode)
+                    .map_err(|err| format!("session_patch update mode axes (cli): {err}"))?;
+            }
+            SessionLocation::Imported => {
+                return Err(
+                    "session_patch: imported sessions do not carry composer modes".to_string(),
+                );
+            }
+        }
+    } else if let Some(mode) = patch.agent_exec_mode.as_deref() {
         match location {
             SessionLocation::Agent => {
                 session_persistence::update_agent_exec_mode(session_id, mode).map_err(|err| {
@@ -298,32 +352,8 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                     .map_err(|err| format!("session_patch update agent_exec_mode (cli): {err}"))?;
             }
             SessionLocation::Imported => {
-                return Err("session_patch: imported sessions do not support agent_exec_mode"
-                    .to_string());
-            }
-        }
-    }
-
-    if let Some(product_mode) = patch.product_mode.as_deref() {
-        // Closed enum (orgtrack/v1 §5.2); a typo must not silently
-        // grant or drop the Project mutation surface.
-        if !matches!(product_mode, "build" | "plan" | "ask" | "project") {
-            return Err(format!(
-                "session_patch: unknown product_mode '{product_mode}' (expected build|plan|ask|project)"
-            ));
-        }
-        match location {
-            SessionLocation::Agent => {
-                session_persistence::update_product_mode(session_id, product_mode)
-                    .map_err(|err| format!("session_patch update product_mode (agent): {err}"))?;
-            }
-            SessionLocation::Cli => {
-                cli_persistence::update_product_mode(session_id, product_mode)
-                    .map_err(|err| format!("session_patch update product_mode (cli): {err}"))?;
-            }
-            SessionLocation::Imported => {
                 return Err(
-                    "session_patch: imported sessions do not carry a product_mode".to_string()
+                    "session_patch: imported sessions do not support agent_exec_mode".to_string(),
                 );
             }
         }
@@ -348,8 +378,9 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                     .map_err(|err| format!("session_patch update draft_text (cli): {err}"))?;
             }
             SessionLocation::Imported => {
-                return Err("session_patch: imported sessions do not support draft_text"
-                    .to_string());
+                return Err(
+                    "session_patch: imported sessions do not support draft_text".to_string()
+                );
             }
         }
     }
@@ -368,8 +399,10 @@ pub fn apply_session_patch(session_id: &str, patch: &SessionPatch) -> Result<(),
                 )?;
             }
             SessionLocation::Imported => {
-                return Err("session_patch: imported sessions do not support reply_target_event_id"
-                    .to_string());
+                return Err(
+                    "session_patch: imported sessions do not support reply_target_event_id"
+                        .to_string(),
+                );
             }
         }
     }
@@ -502,6 +535,24 @@ pub async fn session_patch(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn project_derives_build_and_ordinary_modes_never_gain_pm_capability() {
+        assert_eq!(
+            resolve_atomic_mode_axes(Some("project"), Some("ask")).unwrap(),
+            Some(("project".to_string(), "build".to_string()))
+        );
+        assert_eq!(
+            resolve_atomic_mode_axes(Some("build"), Some("build")).unwrap(),
+            Some(("build".to_string(), "build".to_string()))
+        );
+        assert_eq!(
+            resolve_atomic_mode_axes(Some("plan"), Some("plan")).unwrap(),
+            Some(("plan".to_string(), "plan".to_string()))
+        );
+        assert!(resolve_atomic_mode_axes(Some("project-ish"), Some("build")).is_err());
+        assert!(resolve_atomic_mode_axes(Some("project"), Some("unrestricted")).is_err());
+    }
 
     #[test]
     fn double_option_distinguishes_absent_null_value() {

@@ -76,10 +76,15 @@ pub const WEBHOOK_BASE_PATH: &str = "/sync/webhook";
 /// process-singleton accessed through the standard module entry
 /// points.
 pub fn router() -> Router {
-    Router::new().route(
-        "/sync/webhook/{adapter_id}/{project_slug}",
-        post(handle_webhook_request),
-    )
+    Router::new()
+        .route(
+            "/sync/webhook/{adapter_id}/{project_slug}",
+            post(handle_webhook_request),
+        )
+        .route(
+            "/routine/webhook/{routine_name}",
+            post(crate::work_item_features::routine_webhook::handle_http),
+        )
 }
 
 /// Path params for the webhook route.

@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-use super::{query_session_file_tool_rows, SESSION_FILE_MODIFY_TOOLS};
+use super::{ensure_tables_with, query_session_file_tool_rows, SESSION_FILE_MODIFY_TOOLS};
 use crate::persistence::db_helpers::AgentSessionStatus;
 use crate::persistence::session_snapshots::extract_paths_from_tool_input;
 
@@ -88,6 +88,76 @@ fn as_ref_round_trips() {
         let parsed = AgentSessionStatus::parse(str_val).unwrap();
         assert_eq!(parsed, *status);
     }
+}
+
+#[test]
+fn schema_normalizes_project_exec_mode_without_assuming_migration_order() {
+    let conn = Connection::open_in_memory().unwrap();
+    ensure_tables_with(&conn).expect("initialize schema");
+    conn.execute(
+        "INSERT INTO agent_sessions
+            (session_id, name, status, created_at, updated_at, product_mode, agent_exec_mode)
+         VALUES ('project-session', 'Project', 'idle', 'now', 'now', 'project', NULL)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO agent_sessions
+            (session_id, name, status, created_at, updated_at, product_mode, agent_exec_mode)
+         VALUES ('legacy-build', 'Build', 'idle', 'now', 'now', NULL, NULL)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO agent_sessions
+            (session_id, name, status, created_at, updated_at, work_item_id, product_mode, agent_exec_mode)
+         VALUES ('legacy-work-item', 'Work Item', 'idle', 'now', 'now', 'WI-1', 'build', 'ask')",
+        [],
+    )
+    .unwrap();
+
+    ensure_tables_with(&conn).expect("rerun migrations");
+    let mode: String = conn
+        .query_row(
+            "SELECT agent_exec_mode FROM agent_sessions WHERE session_id = 'project-session'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(mode, "build");
+    let axes = conn
+        .prepare(
+            "SELECT session_id, product_mode, agent_exec_mode
+             FROM agent_sessions
+             WHERE session_id IN ('legacy-build', 'legacy-work-item')
+             ORDER BY session_id",
+        )
+        .unwrap()
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(
+        axes,
+        vec![
+            (
+                "legacy-build".to_string(),
+                "build".to_string(),
+                "build".to_string(),
+            ),
+            (
+                "legacy-work-item".to_string(),
+                "project".to_string(),
+                "build".to_string(),
+            ),
+        ]
+    );
 }
 
 // -- extract_paths_from_tool_input --

@@ -14,5 +14,12 @@ pub(crate) mod registry;
 pub(crate) mod section_builders;
 pub(crate) mod sections;
 
+/// Load the same layered workspace instructions used by the native harness.
+/// External CLI adapters call this facade so provider fallback prompts and
+/// native API providers cannot drift on AGENTS/CLAUDE/.orgii semantics.
+pub fn load_workspace_instructions(workspace_path: &std::path::Path) -> Option<String> {
+    helpers::load_conventions(workspace_path)
+}
+
 #[cfg(test)]
 pub(crate) mod section_tests;

@@ -646,6 +646,31 @@ pub fn update_agent_exec_mode(session_id: &str, mode: &str) -> SqliteResult<bool
     Ok(changed)
 }
 
+/// Atomically update the product-mode and execution-mode axes behind one
+/// composer selection. This prevents a concurrently dispatched turn from
+/// observing Project capability with a stale Ask/Plan execution policy (or
+/// the inverse while leaving Project).
+pub fn update_mode_axes(
+    session_id: &str,
+    product_mode: &str,
+    agent_exec_mode: &str,
+) -> SqliteResult<bool> {
+    let changed = with_sessions_writer(|| -> SqliteResult<bool> {
+        let conn = get_connection()?;
+        let affected = conn.execute(
+            "UPDATE agent_sessions
+             SET product_mode = ?2, agent_exec_mode = ?3
+             WHERE session_id = ?1",
+            params![session_id, product_mode, agent_exec_mode],
+        )?;
+        Ok(affected > 0)
+    })?;
+    if changed {
+        notify_session_mirror(session_id);
+    }
+    Ok(changed)
+}
+
 /// Explicitly set the session's product mode (`orgtrack/v1` §5.2:
 /// build | plan | ask | project). Only user selection and the
 /// launch-from-work/routine resolver drive this — never exec mode,

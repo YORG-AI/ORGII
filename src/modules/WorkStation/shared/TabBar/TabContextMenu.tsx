@@ -7,17 +7,16 @@
  * Uses dispatch() for actions per GUI Action System guidelines.
  * Matches the pattern used by TabManager.tsx which works reliably.
  */
-import {
-  MenuItem,
-  PredefinedMenuItem,
-  Menu as TauriMenu,
-} from "@tauri-apps/api/menu";
 import i18next from "i18next";
 import { useEffect, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import { copyText } from "@src/util/data/clipboard";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 
 import type { WorkStationTab } from "./types";
 
@@ -159,180 +158,161 @@ export function TabContextMenu(props: TabContextMenuProps) {
 
     async function showNativeMenu() {
       try {
-        // Create menu items in parallel - each MenuItem.new() is an async IPC call
-        const t = i18next.t.bind(i18next);
-
-        const [closeItem, closeOthersItem, closeSavedItem] = await Promise.all([
-          MenuItem.new({
-            text: t("actions.close"),
-            action: () => {
-              if (contextMenuRef.current) {
-                contextMenuRef.current.onCloseTab(
-                  contextMenuRef.current.tab.id
-                );
-                contextMenuRef.current.onClose();
-              }
-            },
-          }),
-          MenuItem.new({
-            text: t("actions.closeOthers"),
-            action: () => {
-              if (contextMenuRef.current) {
-                contextMenuRef.current.onCloseOtherTabs(
-                  contextMenuRef.current.tab.id
-                );
-                contextMenuRef.current.onClose();
-              }
-            },
-          }),
-          MenuItem.new({
-            text: t("actions.closeSaved"),
-            action: () => {
-              if (contextMenuRef.current) {
-                contextMenuRef.current.onCloseSavedTabs();
-                contextMenuRef.current.onClose();
-              }
-            },
-          }),
-        ]);
-
-        // Build menu items array
-        const items: (MenuItem | PredefinedMenuItem)[] = [
-          closeItem,
-          closeOthersItem,
-          closeSavedItem,
-        ];
-
-        if (tab.type === "chat-session") {
-          const sessionId = tab.data.sessionId;
-          if (typeof sessionId === "string" && sessionId.length > 0) {
-            const [separator, createWorkItem, moveItem, rawTranscriptItem] =
-              await Promise.all([
-                PredefinedMenuItem.new({ item: "Separator" }),
-                MenuItem.new({
-                  text: t("teamInbox.handoff.createFromSession", {
-                    defaultValue: "Create team Work Item…",
-                  }),
-                  action: () => {
-                    const context = contextMenuRef.current;
-                    if (context) {
-                      context.onCreateWorkItemFromSession?.(context.tab);
-                    }
-                    context?.onClose();
-                  },
-                }),
-                MenuItem.new({
-                  text: t("sessions:chat.moveToChatPanel", {
-                    defaultValue: "Move to Chat Panel",
-                  }),
-                  action: () => {
-                    const context = contextMenuRef.current;
-                    if (context)
-                      context.onMoveSessionToChatPanel?.(context.tab);
-                    context?.onClose();
-                  },
-                }),
-                MenuItem.new({
-                  text: t("sessions:chat.rawTranscript.menuItem", {
-                    defaultValue: "View raw transcript",
-                  }),
-                  action: () => {
-                    const context = contextMenuRef.current;
-                    const activeSessionId = context?.tab.data.sessionId;
-                    if (typeof activeSessionId === "string") {
-                      context?.onViewRawTranscript?.(activeSessionId);
-                    }
-                    context?.onClose();
-                  },
-                }),
-              ]);
-            items.push(separator, createWorkItem, moveItem, rawTranscriptItem);
-          }
-        }
-
-        // Add file-related items if we have a file path (also in parallel)
-        if (filePath) {
-          const [
-            separator1,
-            copyPathItem,
-            copyRelativePathItem,
-            separator2,
-            revealFinderItem,
-            revealExplorerItem,
-          ] = await Promise.all([
-            PredefinedMenuItem.new({ item: "Separator" }),
-            MenuItem.new({
-              text: t("actions.copyPath"),
-              action: () => {
-                if (contextMenuRef.current?.tab) {
-                  const path = getFilePath(contextMenuRef.current.tab);
-                  if (path) copyToClipboard(path);
-                }
-                contextMenuRef.current?.onClose();
-              },
-            }),
-            MenuItem.new({
-              text: t("actions.copyRelativePath"),
-              action: () => {
-                if (contextMenuRef.current?.tab) {
-                  const path = getFilePath(contextMenuRef.current.tab);
-                  const rel = path
-                    ? getRelativePath(path, contextMenuRef.current.repoPath)
-                    : null;
-                  if (rel) copyToClipboard(rel);
-                }
-                contextMenuRef.current?.onClose();
-              },
-            }),
-            PredefinedMenuItem.new({ item: "Separator" }),
-            MenuItem.new({
-              text: t(getFileManagerRevealLabelKey()),
-              action: () => {
-                if (contextMenuRef.current?.tab) {
-                  const path = getFilePath(contextMenuRef.current.tab);
-                  if (path) {
-                    revealInFileExplorer(path, contextMenuRef.current.dispatch);
-                  }
-                }
-                contextMenuRef.current?.onClose();
-              },
-            }),
-            MenuItem.new({
-              text: t("actions.revealInExplorer"),
-              action: () => {
-                if (contextMenuRef.current?.tab) {
-                  const path = getFilePath(contextMenuRef.current.tab);
-                  if (path && contextMenuRef.current.dispatch) {
-                    contextMenuRef.current.dispatch(
-                      "file.reveal",
-                      { path },
-                      "user"
+        const result = await popupNativeMenu({
+          source: "workstation-tab",
+          onBusy: onClose,
+          buildItems: () => {
+            const t = i18next.t.bind(i18next);
+            const items: NativeMenuItemOptions[] = [
+              {
+                text: t("actions.close"),
+                action: () => {
+                  if (contextMenuRef.current) {
+                    contextMenuRef.current.onCloseTab(
+                      contextMenuRef.current.tab.id
                     );
+                    contextMenuRef.current.onClose();
                   }
-                }
-                contextMenuRef.current?.onClose();
+                },
               },
-            }),
-          ]);
+              {
+                text: t("actions.closeOthers"),
+                action: () => {
+                  if (contextMenuRef.current) {
+                    contextMenuRef.current.onCloseOtherTabs(
+                      contextMenuRef.current.tab.id
+                    );
+                    contextMenuRef.current.onClose();
+                  }
+                },
+              },
+              {
+                text: t("actions.closeSaved"),
+                action: () => {
+                  if (contextMenuRef.current) {
+                    contextMenuRef.current.onCloseSavedTabs();
+                    contextMenuRef.current.onClose();
+                  }
+                },
+              },
+            ];
 
-          items.push(
-            separator1,
-            copyPathItem,
-            copyRelativePathItem,
-            separator2,
-            revealFinderItem,
-            revealExplorerItem
-          );
-        }
+            if (tab.type === "chat-session") {
+              const sessionId = tab.data.sessionId;
+              if (typeof sessionId === "string" && sessionId.length > 0) {
+                items.push(
+                  { item: "Separator" },
+                  {
+                    text: t("teamInbox.handoff.createFromSession", {
+                      defaultValue: "Create team Work Item…",
+                    }),
+                    action: () => {
+                      const context = contextMenuRef.current;
+                      if (context) {
+                        context.onCreateWorkItemFromSession?.(context.tab);
+                      }
+                      context?.onClose();
+                    },
+                  },
+                  {
+                    text: t("sessions:chat.moveToChatPanel", {
+                      defaultValue: "Move to Chat Panel",
+                    }),
+                    action: () => {
+                      const context = contextMenuRef.current;
+                      if (context)
+                        context.onMoveSessionToChatPanel?.(context.tab);
+                      context?.onClose();
+                    },
+                  },
+                  {
+                    text: t("sessions:chat.rawTranscript.menuItem", {
+                      defaultValue: "View raw transcript",
+                    }),
+                    action: () => {
+                      const context = contextMenuRef.current;
+                      const activeSessionId = context?.tab.data.sessionId;
+                      if (typeof activeSessionId === "string") {
+                        context?.onViewRawTranscript?.(activeSessionId);
+                      }
+                      context?.onClose();
+                    },
+                  }
+                );
+              }
+            }
 
-        // Create and show the menu
-        const menu = await TauriMenu.new({ items });
-        await menu.popup();
+            if (filePath) {
+              items.push(
+                { item: "Separator" },
+                {
+                  text: t("actions.copyPath"),
+                  action: () => {
+                    if (contextMenuRef.current?.tab) {
+                      const path = getFilePath(contextMenuRef.current.tab);
+                      if (path) copyToClipboard(path);
+                    }
+                    contextMenuRef.current?.onClose();
+                  },
+                },
+                {
+                  text: t("actions.copyRelativePath"),
+                  action: () => {
+                    if (contextMenuRef.current?.tab) {
+                      const path = getFilePath(contextMenuRef.current.tab);
+                      const rel = path
+                        ? getRelativePath(path, contextMenuRef.current.repoPath)
+                        : null;
+                      if (rel) copyToClipboard(rel);
+                    }
+                    contextMenuRef.current?.onClose();
+                  },
+                },
+                { item: "Separator" },
+                {
+                  text: t(getFileManagerRevealLabelKey()),
+                  action: () => {
+                    if (contextMenuRef.current?.tab) {
+                      const path = getFilePath(contextMenuRef.current.tab);
+                      if (path) {
+                        revealInFileExplorer(
+                          path,
+                          contextMenuRef.current.dispatch
+                        );
+                      }
+                    }
+                    contextMenuRef.current?.onClose();
+                  },
+                },
+                {
+                  text: t("actions.revealInExplorer"),
+                  action: () => {
+                    if (contextMenuRef.current?.tab) {
+                      const path = getFilePath(contextMenuRef.current.tab);
+                      if (path && contextMenuRef.current.dispatch) {
+                        contextMenuRef.current.dispatch(
+                          "file.reveal",
+                          { path },
+                          "user"
+                        );
+                      }
+                    }
+                    contextMenuRef.current?.onClose();
+                  },
+                }
+              );
+            }
+
+            return items;
+          },
+        });
 
         // After popup closes, ensure we clean up
-        setTimeout(() => {
-          onClose();
-        }, 50);
+        if (result.status !== "busy") {
+          setTimeout(() => {
+            onClose();
+          }, 50);
+        }
       } catch (error) {
         logger.error(
           "[TabContextMenu] Failed to show native context menu:",
@@ -342,7 +322,7 @@ export function TabContextMenu(props: TabContextMenuProps) {
       }
     }
 
-    showNativeMenu();
+    void showNativeMenu();
   }, [filePath, onClose, tab.data.sessionId, tab.type]);
 
   // Native menu doesn't render anything in React

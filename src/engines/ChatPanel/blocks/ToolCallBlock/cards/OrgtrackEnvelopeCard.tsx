@@ -3,13 +3,11 @@ import { CheckCircle2, ChevronRight, XCircle } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { workItemDataToUI } from "@src/api/http/project";
-import { openWorkItemInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
-import {
-  type ChatPanelSelectedWorkItem,
-  activeStationChatVisibleAtom,
-} from "@src/store/ui/chatPanelAtom";
+import { parseCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
+import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
+import { createWorkItemDetailTab } from "@src/store/workstation";
 
 import type { OrgtrackEnvelopeData } from "../types";
 import {
@@ -21,33 +19,60 @@ interface OrgtrackEnvelopeCardProps {
   card: OrgtrackEnvelopeData;
 }
 
-export function buildCreatedWorkItemSelection(
+const NAVIGABLE_WORK_ITEM_OPERATIONS = new Set(["work.create", "work.update"]);
+
+export interface WorkItemNavigationTarget {
+  shortId: string;
+  title: string;
+  status: string;
+  projectId?: string;
+  projectName?: string;
+  projectSlug?: string;
+  orgId?: string;
+}
+
+function normalizeWorkItemOrgId(orgId: string | undefined): string | undefined {
+  if (!orgId) return undefined;
+  let normalized = orgId;
+  // Historical and imported session rows may already contain a selector and
+  // then pass through another selector-producing boundary. Strip every
+  // namespace layer; the project API always wants the underlying org id.
+  let parsed = parseCloudOrgSelectorValue(normalized);
+  while (parsed && parsed !== normalized) {
+    normalized = parsed;
+    parsed = parseCloudOrgSelectorValue(normalized);
+  }
+  return normalized;
+}
+
+export function buildWorkItemNavigationTarget(
   card: OrgtrackEnvelopeData
-): ChatPanelSelectedWorkItem | null {
+): WorkItemNavigationTarget | null {
   if (
     !card.ok ||
-    card.operationId !== "work.create" ||
+    !NAVIGABLE_WORK_ITEM_OPERATIONS.has(card.operationId) ||
     !card.workItem ||
     (!card.isStandalone && !card.projectSlug)
   ) {
     return null;
   }
 
-  const workItem = workItemDataToUI(card.workItem, {
-    labelMap: new Map(),
-    memberMap: new Map(),
-  });
   return {
-    workItem,
     shortId: card.workItem.frontmatter.short_id,
+    title: card.workItem.frontmatter.title,
+    status: card.workItem.frontmatter.status,
     projectId: card.isStandalone
-      ? ""
-      : (card.projectId ?? card.workItem.frontmatter.project ?? ""),
-    projectSlug: card.isStandalone ? "" : (card.projectSlug ?? ""),
+      ? undefined
+      : (card.projectId ?? card.workItem.frontmatter.project),
+    projectSlug: card.isStandalone ? undefined : card.projectSlug,
     projectName: card.isStandalone
-      ? ""
-      : (card.projectName ?? card.projectSlug ?? ""),
-    orgId: card.orgId,
+      ? undefined
+      : (card.projectName ?? card.projectSlug),
+    // Session rows store cloud orgs in selector form (`cloud:<id>`), while
+    // Work Item APIs take the raw organization id. Normalize at the navigation
+    // boundary so a My Station detail tab does not briefly open and then fall
+    // back to an empty result.
+    orgId: normalizeWorkItemOrgId(card.orgId),
   };
 }
 
@@ -55,16 +80,28 @@ const OrgtrackEnvelopeCard: React.FC<OrgtrackEnvelopeCardProps> = ({
   card,
 }) => {
   const { t } = useTranslation("common");
-  const openWorkItem = useSetAtom(openWorkItemInChatPanelTabAtom);
+  const { openTab: openStationTab } = useWorkStationTabs();
   const setStationMode = useSetAtom(stationModeAtom);
   const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
-  const selection = useMemo(() => buildCreatedWorkItemSelection(card), [card]);
+  const target = useMemo(() => buildWorkItemNavigationTarget(card), [card]);
   const handleOpen = useCallback(() => {
-    if (!selection) return;
+    if (!target) return;
     setStationMode("my-station");
     setStationChatVisible("my-station", true);
-    openWorkItem(selection);
-  }, [openWorkItem, selection, setStationChatVisible, setStationMode]);
+    openStationTab(
+      createWorkItemDetailTab(
+        target.projectId,
+        target.projectName,
+        target.shortId,
+        target.title,
+        target.projectSlug,
+        undefined,
+        undefined,
+        target.status,
+        target.orgId
+      )
+    );
+  }, [openStationTab, setStationChatVisible, setStationMode, target]);
   const detail = card.ok
     ? card.itemCount !== undefined
       ? `${card.itemCount} item${card.itemCount === 1 ? "" : "s"}`
@@ -90,7 +127,7 @@ const OrgtrackEnvelopeCard: React.FC<OrgtrackEnvelopeCardProps> = ({
             {card.retryable ? " · retryable" : ""}
           </span>
         ) : null}
-        {selection ? (
+        {target ? (
           <ChevronRight
             size={14}
             className="shrink-0 text-text-4"
@@ -106,14 +143,14 @@ const OrgtrackEnvelopeCard: React.FC<OrgtrackEnvelopeCardProps> = ({
     </>
   );
 
-  if (selection) {
+  if (target) {
     return (
       <ToolResultCardFrameButton
         padded={false}
         className="overflow-hidden"
-        data-testid="created-work-item-card"
-        data-work-item-id={selection.shortId}
-        aria-label={`${t("teamInbox.actions.openWorkItem")}: ${selection.shortId}`}
+        data-testid="work-item-result-card"
+        data-work-item-id={target.shortId}
+        aria-label={`${t("teamInbox.actions.openWorkItem")}: ${target.shortId}`}
         onClick={handleOpen}
       >
         {content}
