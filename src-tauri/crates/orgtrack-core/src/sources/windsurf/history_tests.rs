@@ -113,8 +113,8 @@ fn session_signature_tolerates_null_blobs() {
         [],
     )
     .expect("insert NULL bubble");
-    let with_null_bubble = windsurf_session_activity_signature(&path, "a")
-        .expect("signature with NULL bubble value");
+    let with_null_bubble =
+        windsurf_session_activity_signature(&path, "a").expect("signature with NULL bubble value");
     assert_ne!(with_null_bubble, before);
     assert!(with_null_bubble.is_some());
 

@@ -1,6 +1,17 @@
 import type { GitHubIssue } from "@src/api/tauri/github";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
+export type IssueSectionLoadState = "idle" | "loading" | "ready" | "error";
+
+export const CLOSED_ISSUES_COLLAPSED_BY_DEFAULT = true;
+
+export function shouldLoadClosedIssuesOnToggle(
+  collapsed: boolean,
+  loadState: IssueSectionLoadState
+): boolean {
+  return collapsed && (loadState === "idle" || loadState === "error");
+}
+
 export function formatIssueStateLabel(state: string): string {
   if (state === "open") return "Open";
   if (state === "closed") return "Closed";

@@ -58,25 +58,29 @@ export async function sha256Hex(value: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Invite deep link (orgii://cloud/join?invite=…)
+// Invite links
 //
-// Rides the SAME OS-level `orgii://` scheme as the collaboration links
-// (registered in src-tauri/tauri.conf.json `deep-link.desktop.schemes`), so
-// no Rust change is needed — `useDeepLinkHandler` receives the raw URL from
-// the Tauri deep-link plugin and branches on the `cloud` host here, exactly
-// like `store/collaboration/deepLink.ts` does for `collaboration`.
+// Shareable links use HTTPS so messaging clients recognize them. The invite
+// is kept in the URL fragment (never sent to the web host), whose landing page
+// hands it to the existing OS-level `orgii://cloud/join` deep link.
 // ---------------------------------------------------------------------------
 
 export const CLOUD_INVITE_DEEP_LINK_HOST = "cloud";
 export const CLOUD_INVITE_DEEP_LINK_PATH = "join";
+// Page source lives in ORGII-cloud-infra (apps/invite-link); its code
+// validation must stay identical to CLOUD_INVITE_CODE_PATTERN below.
+export const CLOUD_INVITE_WEB_BASE_URL = "https://invite.org2.dev/";
+
+// Mirrors generateCloudInviteCode's output shape (32 bytes → 64 hex).
+const CLOUD_INVITE_CODE_PATTERN = /^[0-9a-f]{64}$/i;
 
 export interface CloudInviteDeepLink {
   inviteCode: string;
 }
 
 export function buildCloudInviteLink(inviteCode: string): string {
-  const params = new URLSearchParams({ invite: inviteCode });
-  return `orgii://${CLOUD_INVITE_DEEP_LINK_HOST}/${CLOUD_INVITE_DEEP_LINK_PATH}?${params.toString()}`;
+  const fragment = new URLSearchParams({ invite: inviteCode });
+  return `${CLOUD_INVITE_WEB_BASE_URL}#${fragment.toString()}`;
 }
 
 /**
@@ -116,10 +120,39 @@ export function parseCloudInviteDeepLink(
   }
 }
 
+function parseCloudInviteWebLink(url: string): CloudInviteDeepLink | null {
+  try {
+    const parsed = new URL(url.trim());
+    const expected = new URL(CLOUD_INVITE_WEB_BASE_URL);
+    if (
+      parsed.origin !== expected.origin ||
+      parsed.pathname.replace(/\/+$/, "/") !== expected.pathname
+    ) {
+      return null;
+    }
+
+    // New links use the fragment so the invite never appears in an HTTP
+    // request. Query parsing remains for already-shared compatibility links.
+    const fragmentInvite = new URLSearchParams(parsed.hash.replace(/^#/, ""))
+      .get("invite")
+      ?.trim();
+    const queryInvite = parsed.searchParams.get("invite")?.trim();
+    const inviteCode = fragmentInvite || queryInvite;
+    if (!inviteCode || !CLOUD_INVITE_CODE_PATTERN.test(inviteCode)) {
+      return null;
+    }
+    // The handoff page lowercases the code before building the deep link —
+    // match it so the same link hashes identically clicked or pasted.
+    return { inviteCode: inviteCode.toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Join-form input: accepts either a pasted `orgii://cloud/join?...` link or
- * a raw invite code. Returns the bare code, or `null` when empty / a link
- * without a code.
+ * Join-form input: accepts a shareable HTTPS link, a direct
+ * `orgii://cloud/join?...` link, or a raw invite code. Returns the bare code,
+ * or `null` when empty / a link without a code.
  */
 export function parseCloudInviteInput(input: string): string | null {
   const trimmed = input.trim();
@@ -127,6 +160,10 @@ export function parseCloudInviteInput(input: string): string | null {
   if (trimmed.toLowerCase().startsWith("orgii://")) {
     return parseCloudInviteDeepLink(trimmed)?.inviteCode ?? null;
   }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return parseCloudInviteWebLink(trimmed)?.inviteCode ?? null;
+  }
+  if (trimmed.includes("://")) return null;
   return trimmed;
 }
 
@@ -386,6 +423,7 @@ export const ORG2_MANAGEMENT_ERROR_CODES = [
   "ORG2_NOT_FOUND",
   "ORG2_USE_LEAVE_ORG",
   "ORG2_VALIDATION",
+  "ORG2_ALREADY_MEMBER",
   "ORG2_INVITE_INVALID",
   "ORG2_INVITE_REVOKED",
   "ORG2_INVITE_EXPIRED",
@@ -434,6 +472,7 @@ const MANAGEMENT_ERROR_KEY_BY_CODE: Partial<
   ORG2_FORBIDDEN: "cloud.orgManagement.errors.forbidden",
   ORG2_MEMBER_NOT_FOUND: "cloud.orgManagement.errors.memberNotFound",
   ORG2_VALIDATION: "cloud.orgManagement.errors.validation",
+  ORG2_ALREADY_MEMBER: "cloud.orgManagement.errors.alreadyMember",
   ORG2_INVITE_INVALID: "cloud.orgManagement.errors.inviteInvalid",
   ORG2_INVITE_REVOKED: "cloud.orgManagement.errors.inviteRevoked",
   ORG2_INVITE_EXPIRED: "cloud.orgManagement.errors.inviteExpired",

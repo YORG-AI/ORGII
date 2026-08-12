@@ -27,7 +27,6 @@ export interface ComposerSurfaceProps extends Omit<
   onUpload?: () => void;
   onOpenSkillsTools?: () => void;
   dropdownDirection?: "up" | "down";
-  toolbarItemGap?: boolean;
   showContextInfo?: boolean;
   repoPath?: string;
 }
@@ -42,7 +41,6 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
       onUpload,
       onOpenSkillsTools,
       dropdownDirection = "up",
-      toolbarItemGap = false,
       showContextInfo = false,
       repoPath,
       ...shellProps
@@ -60,7 +58,6 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
           leftPrefix={leadingActions}
           repoPath={repoPath}
           submitButton={trailingActions}
-          toolbarItemGap={toolbarItemGap}
           hideAddButton={!onAddContent || !onUpload}
           showContextInfo={showContextInfo}
         />

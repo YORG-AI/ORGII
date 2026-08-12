@@ -89,7 +89,7 @@ const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
     return () => {
       cancelled = true;
     };
-  }, [routine.id, routine.lastFireAt]);
+  }, [routine.id, routine.lastFireAt, routine.lastFireStatus]);
 
   if (fires === null) return null;
   if (fires.length === 0) {

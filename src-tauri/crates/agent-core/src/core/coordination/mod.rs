@@ -30,6 +30,7 @@ pub mod agent_org_watchdog;
 pub mod child_done_wake;
 pub mod routine_scheduler;
 pub mod work_item_recovery;
+pub mod work_item_run_dispatcher;
 pub mod work_item_scheduler;
 
 /// Initialize the complete durable Agent Org runtime schema in dependency

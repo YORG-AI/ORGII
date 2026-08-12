@@ -5,11 +5,6 @@
  * overflow menu with copy-id/remove). Split out because it is the single
  * largest piece of that section's row-construction logic.
  */
-import {
-  MenuItem,
-  PredefinedMenuItem,
-  Menu as TauriMenu,
-} from "@tauri-apps/api/menu";
 import type { TFunction } from "i18next";
 import { GitFork, Loader2, MoreHorizontal, Pin, PinOff } from "lucide-react";
 import { useCallback } from "react";
@@ -35,6 +30,7 @@ import { useCloudSessionDownloadProgressEntry } from "@src/features/Org2Cloud/us
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { copyText } from "@src/util/data/clipboard";
+import { popupNativeMenu } from "@src/util/platform/tauri/nativeMenuPopup";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
@@ -277,40 +273,36 @@ export function useCloudSessionRowItemBuilder({
             icon: MoreHorizontal,
             label: tCommon("actions.more"),
             onClick: () => {
-              void Promise.all([
-                MenuItem.new({
-                  text: t("cloud.sidebar.copyId"),
-                  action: () => {
-                    void copyText(buildCloudSessionReference(row))
-                      .then(() => {
-                        Message.success(tCommon("actions.copied", "Copied"));
-                      })
-                      .catch(() => {
-                        Message.error(
-                          tCommon("actions.copyFailed", "Copy failed")
-                        );
-                      });
+              void popupNativeMenu({
+                source: "cloud-session-row",
+                buildItems: () => [
+                  {
+                    text: t("cloud.sidebar.copyId"),
+                    action: () => {
+                      void copyText(buildCloudSessionReference(row))
+                        .then(() => {
+                          Message.success(tCommon("actions.copied", "Copied"));
+                        })
+                        .catch(() => {
+                          Message.error(
+                            tCommon("actions.copyFailed", "Copy failed")
+                          );
+                        });
+                    },
                   },
-                }),
-                MenuItem.new({
-                  text: isPinned
-                    ? tCommon("sessions:chat.unpinSession", "Unpin")
-                    : tCommon("sessions:chat.pinSession", "Pin"),
-                  action: () => toggleRemoteSessionPin(row.orgId, row.id),
-                }),
-                PredefinedMenuItem.new({ item: "Separator" }),
-                MenuItem.new({
-                  text: tCommon("actions.remove", "Remove"),
-                  action: () => hideRemoteSession(row),
-                }),
-              ]).then(
-                async ([copyItem, pinItem, menuSeparator, removeItem]) => {
-                  const menu = await TauriMenu.new({
-                    items: [copyItem, pinItem, menuSeparator, removeItem],
-                  });
-                  await menu.popup();
-                }
-              );
+                  {
+                    text: isPinned
+                      ? tCommon("sessions:chat.unpinSession", "Unpin")
+                      : tCommon("sessions:chat.pinSession", "Pin"),
+                    action: () => toggleRemoteSessionPin(row.orgId, row.id),
+                  },
+                  { item: "Separator" as const },
+                  {
+                    text: tCommon("actions.remove", "Remove"),
+                    action: () => hideRemoteSession(row),
+                  },
+                ],
+              });
             },
           },
         ];

@@ -1503,7 +1503,7 @@
         "label": "pull request 操作",
         "confirmMergeTitle": "合併 pull request？",
         "confirmMergeMessage": "GitHub 會將目前 pull request 的來源分支合併到目標分支。",
-        "merge": "合併 pull request",
+        "merge": "合併",
         "squash": "壓縮並合併",
         "rebase": "變基並合併",
         "mergeSuccess": "pull request 已合併",

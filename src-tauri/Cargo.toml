@@ -204,6 +204,10 @@ tauri-plugin-webdriver-automation = { version = "0.1", optional = true }
 portable-pty = "0.9"
 tokio = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
+flate2 = "1"
+tar = "0.4"
+plist = "1"
+tempfile = "3.13"
 
 # Shared cross-crate type definitions (Phase 1 of workspace migration).
 # See `docs/rust-backend/modularization-plan--0504.md`.
@@ -556,7 +560,6 @@ foreign-types = "0.5"   # ForeignType trait used by core-graphics types
 tauri-plugin-updater = "=2.9.0"
 
 [dev-dependencies]
-tempfile = "3.13"
 
 # `test-util` only for the test build: it is what lets a test drive Tokio's
 # clock (`#[tokio::test(start_paused = true)]`) rather than really sleeping out

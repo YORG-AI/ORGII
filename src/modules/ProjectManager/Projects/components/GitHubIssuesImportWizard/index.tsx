@@ -37,7 +37,7 @@ interface GitHubIssuesImportWizardProps {
   repoName?: string;
   orgId?: string;
   onCancel: () => void;
-  onProjectCreated: (options?: { keepOpen?: boolean }) => void;
+  onProjectCreated: () => void;
 }
 
 interface ParsedGitHubRepo {

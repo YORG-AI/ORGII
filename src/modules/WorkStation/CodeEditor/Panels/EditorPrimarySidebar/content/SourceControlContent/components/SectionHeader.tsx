@@ -19,6 +19,8 @@ import {
 export interface SectionHeaderProps {
   title: string;
   count: number;
+  /** Optional display text when the numeric count is a lower bound. */
+  countLabel?: string;
   isCollapsed: boolean;
   onToggle: () => void;
   /** Icon to show before the title */
@@ -37,6 +39,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = memo(
   ({
     title,
     count,
+    countLabel,
     isCollapsed,
     onToggle,
     icon,
@@ -95,7 +98,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = memo(
           <span
             className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(count)} ${countBadgeVariant}`}
           >
-            {count}
+            {countLabel ?? count}
           </span>
         </div>
       </div>

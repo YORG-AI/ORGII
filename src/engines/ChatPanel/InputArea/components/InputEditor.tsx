@@ -8,6 +8,10 @@ import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useRef } from "react";
 
 import ComposerInput, { ComposerInputRef } from "@src/components/ComposerInput";
+import {
+  INPUT_AREA_EDITOR_CLASS,
+  INPUT_AREA_EDITOR_HEIGHT,
+} from "@src/config/inputAreaTokens";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 // ============================================
@@ -67,10 +71,6 @@ export interface InputEditorProps {
   onInputMouseDown?: () => void;
   /** Slash trigger behavior for this editor surface. */
   slashTriggerMode?: "command" | "context";
-  /** Single-line height for compact composer row */
-  compact?: boolean;
-  /** Called synchronously before a newline is inserted. */
-  onBeforeNewline?: () => void;
 }
 
 // ============================================
@@ -102,8 +102,6 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     onSlashCommandClose,
     onInputMouseDown,
     slashTriggerMode = "command",
-    compact = false,
-    onBeforeNewline,
   }) => {
     const wrapperRef = useRef<HTMLDivElement>(null);
     const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
@@ -163,9 +161,7 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     return (
       <div
         ref={wrapperRef}
-        className={
-          compact ? "relative h-full min-h-0 w-full" : "relative w-full min-w-0"
-        }
+        className="relative w-full min-w-0"
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
@@ -182,14 +178,9 @@ const InputEditor: React.FC<InputEditorProps> = memo(
           onSubmit={onSubmit}
           requireCmdEnter={!sendOnEnter}
           autoFocus={false}
-          className={
-            compact
-              ? "chat-input-editor chat-input-compact h-full max-h-9 min-h-0"
-              : "chat-input-editor max-h-[140px] min-h-[60px] overflow-y-auto"
-          }
-          minHeight={compact ? 0 : 60}
-          maxHeight={compact ? 36 : 140}
-          overflowY={compact ? "visible" : undefined}
+          className={INPUT_AREA_EDITOR_CLASS}
+          minHeight={INPUT_AREA_EDITOR_HEIGHT.min}
+          maxHeight={INPUT_AREA_EDITOR_HEIGHT.max}
           onKeyDownForDropdown={handleKeyDownForDropdown}
           onSlashCommand={onSlashCommand}
           onSlashCommandClose={onSlashCommandClose}
@@ -197,7 +188,6 @@ const InputEditor: React.FC<InputEditorProps> = memo(
           onKeyDownForSlashDropdown={handleKeyDownForSlashDropdown}
           slashTriggerMode={slashTriggerMode}
           onImagePaste={onImagePaste}
-          onBeforeNewline={onBeforeNewline}
         />
       </div>
     );

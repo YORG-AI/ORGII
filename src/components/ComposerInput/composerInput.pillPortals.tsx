@@ -114,7 +114,7 @@ export function useComposerPillPortals({
     if (!insertedPill) return;
 
     // Layout effects run before paint. Keep this correction synchronous so
-    // compact/expanded layout changes cannot expose a one-frame caret jump.
+    // embedded layout changes cannot expose a one-frame caret jump.
     placeCaretAfterPill(insertedPill);
     insertedPill.removeAttribute("data-last-inserted-pill");
     pendingCaretAfterPillRef.current = false;

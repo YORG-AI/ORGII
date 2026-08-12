@@ -2,6 +2,7 @@ export interface WorkItemDetailPageProps {
   projectId?: string;
   projectName?: string;
   projectSlug?: string;
+  orgId?: string;
   workItemId: string;
   onClose: () => void;
   /** Open an agent session in a chat tab. */

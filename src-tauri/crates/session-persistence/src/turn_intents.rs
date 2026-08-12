@@ -459,6 +459,12 @@ pub fn get_intent(
         .optional()
 }
 
+/// Read a single intent through the crate-owned connection.
+pub fn read_intent(session_id: &str, turn_intent_id: &str) -> SqliteResult<Option<TurnIntentRow>> {
+    let conn = get_connection()?;
+    get_intent(&conn, session_id, turn_intent_id)
+}
+
 /// All intent rows for a session, ordered by `created_at`. The turn indexer
 /// uses this to look up lifecycle status alongside event-store rows.
 pub fn list_for_session(session_id: &str) -> SqliteResult<Vec<TurnIntentRow>> {
