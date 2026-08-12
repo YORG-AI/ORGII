@@ -45,6 +45,17 @@ pub async fn project_write_project(
     .map_err(|err| format!("Task join error: {}", err))?
 }
 
+/// Move a project and all of its project-scoped work items to another org.
+#[tauri::command]
+pub async fn project_move_project(
+    slug: String,
+    destination_org_id: String,
+) -> Result<ProjectData, String> {
+    tokio::task::spawn_blocking(move || io::move_project_to_org(&slug, &destination_org_id))
+        .await
+        .map_err(|err| format!("Task join error: {}", err))?
+}
+
 /// Delete a project and every dependent row (work items, labels,
 /// milestones, members) via FK cascade. Asset files on disk are NOT
 /// touched here — the asset commands handle blob cleanup since

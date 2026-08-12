@@ -2,6 +2,14 @@ import type { ShortcutEntry } from "./types";
 
 export const PROJECT_SHORTCUTS: ShortcutEntry[] = [
   {
+    id: "workitems_search",
+    command: "Search work items",
+    macKeys: "⌘F",
+    winKeys: "Ctrl+F",
+    scope: "work-items",
+    category: "search",
+  },
+  {
     id: "project_toggle_sidebar",
     command: "Toggle sidebar",
     macKeys: "⌥⌘U",

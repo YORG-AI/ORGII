@@ -173,7 +173,10 @@ impl CliError {
             let short_id = rest.trim_start_matches(':').to_string();
             return CliError::new(
                 ErrorCode::AlreadyExists,
-                format!("Work item '{}' already exists; creation refuses to overwrite", short_id),
+                format!(
+                    "Work item '{}' already exists; creation refuses to overwrite",
+                    short_id
+                ),
             )
             .with_details(serde_json::json!({ "shortId": short_id }));
         }
@@ -201,7 +204,11 @@ fn request_id() -> String {
 }
 
 /// Print the success envelope to stdout and return exit code 0.
-pub fn emit_success(data: serde_json::Value, revision: Option<i64>, next_cursor: Option<String>) -> i32 {
+pub fn emit_success(
+    data: serde_json::Value,
+    revision: Option<i64>,
+    next_cursor: Option<String>,
+) -> i32 {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Success {

@@ -17,6 +17,7 @@ use std::sync::OnceLock;
 
 static DATA_CHANGED_NOTIFIER: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
 static WORK_ITEM_SCHEDULE_CHANGED_NOTIFIER: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+static WORK_ITEM_DISPATCH_READY_NOTIFIER: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
 
 /// App-level registration of the frontend notifier (Tauri emit). First call wins.
 pub fn register_data_changed_notifier(notifier: Box<dyn Fn() + Send + Sync>) {
@@ -42,9 +43,8 @@ pub struct WorkItemTerminalEvent {
     pub status: String,
 }
 
-static WORK_ITEM_TERMINAL_NOTIFIER: OnceLock<
-    Box<dyn Fn(WorkItemTerminalEvent) + Send + Sync>,
-> = OnceLock::new();
+static WORK_ITEM_TERMINAL_NOTIFIER: OnceLock<Box<dyn Fn(WorkItemTerminalEvent) + Send + Sync>> =
+    OnceLock::new();
 
 /// App-level registration for terminal-transition observers (the
 /// child-done parent wake). First call wins.
@@ -77,6 +77,26 @@ pub fn register_work_item_schedule_changed_notifier(notifier: Box<dyn Fn() + Sen
 /// new state.
 pub(crate) fn notify_work_item_schedule_changed() {
     if let Some(notifier) = WORK_ITEM_SCHEDULE_CHANGED_NOTIFIER.get() {
+        notifier();
+    }
+}
+
+/// Register the process-local wake-up used by the durable Run dispatcher.
+///
+/// Cross-process writers are still discovered by the persisted
+/// `pm_change_seq` watermark. This callback removes the idle polling delay for
+/// producers in the current process without coupling the PM crate to Tauri or
+/// the agent runtime. First call wins.
+pub fn register_work_item_dispatch_ready_notifier(notifier: Box<dyn Fn() + Send + Sync>) {
+    let _ = WORK_ITEM_DISPATCH_READY_NOTIFIER.set(notifier);
+}
+
+/// Wake the durable Run dispatcher after an outbox transaction commits.
+///
+/// Calling before runtime startup is intentionally a no-op: the dispatcher's
+/// immediate recovery probe observes the durable row when it starts.
+pub(crate) fn notify_work_item_dispatch_ready() {
+    if let Some(notifier) = WORK_ITEM_DISPATCH_READY_NOTIFIER.get() {
         notifier();
     }
 }

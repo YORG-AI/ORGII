@@ -376,6 +376,26 @@ class EventStoreProxyImpl {
   }
 
   /**
+   * Read the cache's durable content revision without materializing events.
+   * `contentRevision` is advanced by Rust only when an event row actually
+   * changes, so metadata-only session edits and the periodic cache save do
+   * not make a cloud replay look dirty.
+   */
+  async getPersistedEventRevision(
+    sessionId: string
+  ): Promise<{ eventCount: number; revision: number } | null> {
+    const metadata = await rpc.sessionCore.cache.getSessionMetadata({
+      sessionId,
+    });
+    return metadata
+      ? {
+          eventCount: metadata.eventCount,
+          revision: metadata.contentRevision,
+        }
+      : null;
+  }
+
+  /**
    * Persist one bounded event batch directly to SQLite without materializing
    * the session in the Rust/JS in-memory stores. Large cloud replays use this
    * while downloading, then hydrate only the initial turn window.

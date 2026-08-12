@@ -878,17 +878,12 @@ pub async fn agent_track_session_as_project(
             .map_err(|err| err.to_string())?
             .ok_or_else(|| format!("Session not found: {sid}"))?;
 
-        session_persistence::update_product_mode(&sid, "project")
-            .map_err(|err| format!("track session: set product_mode: {err}"))?;
-
         // Same derivation the ModePill applies: Project pins the exec
         // mode to Build (a read-only Plan session would otherwise keep
         // its deny layer while claiming to do project work).
         let exec_mode = crate::session::AgentExecMode::Build;
-        if record.agent_exec_mode.as_deref() != Some(exec_mode.as_str()) {
-            session_persistence::update_agent_exec_mode(&sid, exec_mode.as_str())
-                .map_err(|err| format!("track session: set exec mode: {err}"))?;
-        }
+        session_persistence::update_mode_axes(&sid, "project", exec_mode.as_str())
+            .map_err(|err| format!("track session: set Project mode axes: {err}"))?;
 
         // Root creation at conversion time, from the recorded first
         // user input. An empty session converts mode-only; the
@@ -1025,7 +1020,6 @@ fn remove_linked_session_from_work_item(
     )
     .map(|_| ())
 }
-
 
 #[cfg(test)]
 mod tests {

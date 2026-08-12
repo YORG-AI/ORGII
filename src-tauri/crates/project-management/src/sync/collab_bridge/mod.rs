@@ -58,3 +58,7 @@ pub use outbox::{
     record_project_work_item_update, record_project_write, record_work_item_payload_touch,
     record_work_item_write, CollabAckResult, CollabPendingEntity, CollabPushItem,
 };
+pub(crate) use outbox::{
+    record_project_org_move_in_connection, record_property_definitions_touch,
+    record_work_item_payload_touch_in_connection,
+};

@@ -26,9 +26,11 @@ pub(crate) fn bump_change_seq(tx: &Transaction<'_>) -> Result<i64, String> {
          ON CONFLICT(id) DO UPDATE SET seq = seq + 1",
         [],
     ))?;
-    map_db(tx.query_row("SELECT seq FROM pm_change_seq WHERE id = 1", [], |row| {
-        row.get(0)
-    }))
+    map_db(
+        tx.query_row("SELECT seq FROM pm_change_seq WHERE id = 1", [], |row| {
+            row.get(0)
+        }),
+    )
 }
 
 pub(crate) struct AuditEventRow<'a> {
@@ -97,9 +99,7 @@ pub struct AuditStatusTransition {
 /// `status_from`/`status_to` in the same transaction, so scanning the
 /// stream is the reliable way to observe transitions made by other
 /// processes (the in-process notifier cannot fire for them).
-pub fn read_status_transitions_since(
-    after_seq: i64,
-) -> Result<Vec<AuditStatusTransition>, String> {
+pub fn read_status_transitions_since(after_seq: i64) -> Result<Vec<AuditStatusTransition>, String> {
     let connection =
         database::db::get_projects_connection().map_err(|err| format!("pm audit: {}", err))?;
     let mut stmt = map_db(connection.prepare(

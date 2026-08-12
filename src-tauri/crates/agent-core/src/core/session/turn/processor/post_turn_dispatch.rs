@@ -160,11 +160,7 @@ impl UnifiedMessageProcessor {
         // receipt from the final output (fire-and-forget; gating on the
         // session record happens inside the spawned task).
         if final_turn_state == DialogTurnState::Completed && !result.is_stream_error {
-            self.spawn_work_item_receipt_fallback(
-                session_id,
-                response_text,
-                turn_started_at_ms,
-            );
+            self.spawn_work_item_receipt_fallback(session_id, response_text, turn_started_at_ms);
         }
 
         // 9e. Goal continuation loop (Ralph loop) — judge the completed

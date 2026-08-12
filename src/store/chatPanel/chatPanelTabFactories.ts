@@ -159,8 +159,16 @@ export const createTerminalTab = defineChatPanelTabFactory<{
 });
 
 // ---------------------------------------------------------------------------
-// work-item — one pill per work item, deduped by shortId
+// work-item — one pill per organization + project + short ID scope
 // ---------------------------------------------------------------------------
+
+export function getChatPanelWorkItemTabKey(
+  workItem: ChatPanelSelectedWorkItem
+): string {
+  const orgId =
+    workItem.orgId ?? workItem.sourceProject?.orgId ?? "personal-org";
+  return `${orgId}:${workItem.projectId || "standalone"}:${workItem.shortId}`;
+}
 
 export const createWorkItemTab = defineChatPanelTabFactory<{
   workItem: ChatPanelSelectedWorkItem;
@@ -169,7 +177,7 @@ export const createWorkItemTab = defineChatPanelTabFactory<{
   idStrategy: {
     type: "keyed",
     prefix: "work-item",
-    getKey: (data) => data.workItem.shortId,
+    getKey: (data) => getChatPanelWorkItemTabKey(data.workItem),
   },
   getTitle: (data) => data.workItem.workItem.name || "Work item",
   toPayload: (data) => ({ workItem: data.workItem }),

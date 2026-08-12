@@ -12,7 +12,6 @@ import type {
 import { useSessionDiscovery } from "@src/engines/SessionCore";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
-import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import type { SlashItemCategory } from "@src/types/extensions";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
@@ -34,7 +33,6 @@ import ModelPill from "./components/ModelPill";
 import SessionReadOnlyBar from "./components/SessionReadOnlyBar";
 import { useContainerDrag } from "./hooks/useContainerDrag";
 import { useEditMode } from "./hooks/useEditMode";
-import { useEditorExpansion } from "./hooks/useEditorExpansion";
 import { useInputAreaMenus } from "./hooks/useInputAreaMenus";
 import { useInputAreaVoice } from "./hooks/useInputAreaVoice";
 import { useStopOnDoubleEscape } from "./hooks/useStopOnDoubleEscape";
@@ -244,7 +242,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       disableStopWhenEmpty && currentInputEmpty && !isWpGeneWorking;
     const mentionTreePosition = chatPanelPosition === "left" ? "right" : "left";
     const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
-    const isChatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
 
     const {
       showPlusSlashMenu,
@@ -314,20 +311,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       };
     });
 
-    const {
-      editorMultiline,
-      suppressToolbarHover,
-      acknowledgeToolbarHover,
-      onEditorContentChange,
-      onEditorBlur,
-      observeCompact,
-    } = useEditorExpansion({
-      containerRef,
-      composerInputRef,
-      handleContentChange,
-      handleInputBlur,
-    });
-
     const { voice, showVoiceUi } = useInputAreaVoice({
       composerInputRef,
       containerRef,
@@ -344,39 +327,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           : filteredSlashItems,
       [filteredSlashItems, slashItemCategories]
     );
-
-    const isCursorCompactRow = useMemo(
-      () =>
-        isChatPanelMaximized &&
-        !isEditMode &&
-        !hasImages &&
-        !isCiteCode &&
-        !replyInfo.isReply &&
-        !editorMultiline,
-      [
-        isChatPanelMaximized,
-        isEditMode,
-        hasImages,
-        isCiteCode,
-        replyInfo.isReply,
-        editorMultiline,
-      ]
-    );
-    const compactShell = !isEditMode && isCursorCompactRow;
-
-    useEffect(() => {
-      if (!suppressToolbarHover) return;
-      window.addEventListener("pointermove", acknowledgeToolbarHover, {
-        once: true,
-      });
-      return () => {
-        window.removeEventListener("pointermove", acknowledgeToolbarHover);
-      };
-    }, [acknowledgeToolbarHover, suppressToolbarHover]);
-
-    useEffect(() => {
-      observeCompact(isCursorCompactRow);
-    }, [isCursorCompactRow, observeCompact]);
 
     // Double-press Escape to stop the running turn. Active only while a turn
     // is running and stoppable; a single Escape is inert.
@@ -445,7 +395,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
             }
             data-testid={isEditMode ? "chat-message-edit-composer" : undefined}
             variant={getComposerShellVariant({
-              compactShell,
               isEditMode,
               quietEditSurface,
               surfaceBg,
@@ -535,12 +484,12 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onSlashCommand={handleSlashCommand}
                 onSlashCommandClose={handleSlashCommandClose}
                 onPlusSlashClose={handlePlusSlashClose}
-                onContentChange={onEditorContentChange}
+                onContentChange={handleContentChange}
                 onAtMention={handleKeyboardAtMention}
                 onAtMentionClose={handleAtMentionClose}
                 onSubmit={submitMessage}
                 onFocus={() => setIsInputFocused(true)}
-                onBlur={onEditorBlur}
+                onBlur={handleInputBlur}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -567,8 +516,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 showVoiceUi={showVoiceUi}
                 voice={voice}
                 currentRepoPath={currentRepoPath}
-                isCursorCompactRow={isCursorCompactRow}
-                suppressToolbarHover={suppressToolbarHover}
                 placeholder={placeholder}
                 trailingHint={
                   compactHintVisible ? t("input.compactArgHint") : undefined
