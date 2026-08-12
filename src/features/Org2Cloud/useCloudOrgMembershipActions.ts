@@ -1,5 +1,6 @@
 import { useAtom } from "jotai";
 import { useCallback } from "react";
+import { ZodError } from "zod";
 
 import { refreshOrg2CloudAuthForAction } from "./org2CloudAuthAction";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
@@ -17,6 +18,7 @@ export type CloudOrgMembershipActionError =
   | "session_superseded"
   | "session_unavailable"
   | "invalid_invite"
+  | "unexpected_response"
   | "roster_not_converged";
 
 export class CloudOrgMembershipActionFailure extends Error {
@@ -83,7 +85,15 @@ export function useCloudOrgMembershipActions(): {
         throw new CloudOrgMembershipActionFailure("invalid_invite");
       }
       const fresh = await withFreshAuth();
-      const result = await acceptCloudInvite(fresh.accessToken, inviteCode);
+      let result: Awaited<ReturnType<typeof acceptCloudInvite>>;
+      try {
+        result = await acceptCloudInvite(fresh.accessToken, inviteCode);
+      } catch (error) {
+        if (error instanceof ZodError) {
+          throw new CloudOrgMembershipActionFailure("unexpected_response");
+        }
+        throw error;
+      }
       const orgs = await refetchOrgs({
         until: (items) => items.some((item) => item.orgId === result.orgId),
       });

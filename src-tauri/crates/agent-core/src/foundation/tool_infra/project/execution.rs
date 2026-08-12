@@ -303,13 +303,18 @@ fn resolve_agent_def_id_from_assignee(
 /// (review / fix / retry).
 struct LaunchContext {
     data: WorkItemData,
+    project_description: Option<String>,
     config: OrchestratorConfig,
     agent_def_id: Option<String>,
     agent_def: Option<crate::definitions::AgentDefinition>,
     account_id: String,
     model_id: String,
     worktree_path: String,
+    workspace_mode: project_management::projects::types::WorkspaceExecutionMode,
     linked_repos: Vec<String>,
+    repository: Option<String>,
+    repository_ref: Option<String>,
+    default_branch: Option<String>,
 }
 
 async fn resolve_launch_context(
@@ -317,16 +322,26 @@ async fn resolve_launch_context(
     short_id: &str,
     session_account_id: Option<&str>,
     session_model_id: Option<&str>,
+    execution_snapshot: Option<&project_management::projects::types::WorkItemRunTargetSnapshot>,
 ) -> Result<LaunchContext, String> {
     let slug = project_slug.to_string();
     let sid = short_id.to_string();
 
-    let data = run_blocking("start_read_work_item", {
+    let mut data = run_blocking("start_read_work_item", {
         let slug = slug.clone();
         let sid = sid.clone();
         move || io::read_work_item(&slug, &sid)
     })
     .await?;
+
+    if let Some(snapshot) = execution_snapshot {
+        if let Some(title) = snapshot.work_item_title.as_ref() {
+            data.frontmatter.title = title.clone();
+        }
+        if let Some(body) = snapshot.work_item_body.as_ref() {
+            data.body = body.clone();
+        }
+    }
 
     let config = data
         .frontmatter
@@ -403,48 +418,102 @@ async fn resolve_launch_context(
         .await?
     };
 
-    let linked_repos: Vec<String> = project_data
-        .meta
-        .linked_repos
-        .iter()
-        .filter(|repo| !repo.is_empty())
-        .cloned()
-        .collect();
-
-    let worktree_path = config
-        .worktree_path
-        .as_ref()
-        .filter(|p| !p.is_empty() && std::path::Path::new(p).is_dir())
-        .cloned()
-        .or_else(|| {
-            linked_repos
+    let linked_repos: Vec<String> = execution_snapshot
+        .filter(|snapshot| !snapshot.linked_repositories.is_empty())
+        .map(|snapshot| snapshot.linked_repositories.clone())
+        .unwrap_or_else(|| {
+            project_data
+                .meta
+                .linked_repos
                 .iter()
-                .find(|r| std::path::Path::new(r).is_dir())
+                .filter(|repo| !repo.is_empty())
                 .cloned()
-        })
-        .ok_or(
-            "Cannot start: no host repo. Set the project's linked_repos or the work item's worktree_path."
-                .to_string(),
-        )?;
+                .collect()
+        });
+
+    let snapshotted_path = execution_snapshot
+        .and_then(|snapshot| snapshot.workspace_path.as_ref())
+        .filter(|path| !path.trim().is_empty());
+    let has_configured_workspace = config
+        .worktree_path
+        .as_deref()
+        .is_some_and(|path| !path.is_empty() && std::path::Path::new(path).is_dir());
+    let worktree_path = if let Some(path) = snapshotted_path {
+        if !std::path::Path::new(path).is_dir() {
+            return Err(format!(
+                "Cannot start: snapshotted workspace '{}' is no longer available",
+                path
+            ));
+        }
+        path.clone()
+    } else {
+        config
+            .worktree_path
+            .as_ref()
+            .filter(|p| !p.is_empty() && std::path::Path::new(p).is_dir())
+            .cloned()
+            .or_else(|| {
+                linked_repos
+                    .iter()
+                    .find(|r| std::path::Path::new(r).is_dir())
+                    .cloned()
+            })
+            .ok_or(
+                "Cannot start: no host repo. Set the project's linked_repos or the work item's worktree_path."
+                    .to_string(),
+            )?
+    };
+    let default_workspace_mode = if has_configured_workspace {
+        project_management::projects::types::WorkspaceExecutionMode::Worktree
+    } else {
+        project_management::projects::types::WorkspaceExecutionMode::LocalWorkspace
+    };
+    let workspace_mode = execution_snapshot
+        .and_then(|snapshot| snapshot.workspace_mode)
+        .or(config.workspace_mode)
+        .unwrap_or(default_workspace_mode);
 
     Ok(LaunchContext {
         data,
+        project_description: execution_snapshot
+            .and_then(|snapshot| snapshot.project_description.clone())
+            .or_else(|| {
+                (!project_data.description.trim().is_empty()).then_some(project_data.description)
+            }),
         config,
         agent_def_id,
         agent_def,
         account_id,
         model_id,
         worktree_path,
+        workspace_mode,
         linked_repos,
+        repository: execution_snapshot.and_then(|snapshot| snapshot.repository.clone()),
+        repository_ref: execution_snapshot.and_then(|snapshot| snapshot.repository_ref.clone()),
+        default_branch: execution_snapshot.and_then(|snapshot| snapshot.default_branch.clone()),
     })
 }
 
 fn append_workspace_section(prompt: &mut String, ctx: &LaunchContext) {
-    if ctx.linked_repos.is_empty() {
+    if ctx.linked_repos.is_empty() && ctx.project_description.is_none() {
         return;
     }
     prompt.push_str("\n\n## Project Workspace\n");
+    if let Some(description) = ctx.project_description.as_deref() {
+        prompt.push_str("Project context:\n");
+        prompt.push_str(description);
+        prompt.push('\n');
+    }
     prompt.push_str(&format!("Primary repo: `{}`\n", ctx.worktree_path));
+    if let Some(repository) = ctx.repository.as_deref() {
+        prompt.push_str(&format!("Repository: `{repository}`\n"));
+    }
+    if let Some(repository_ref) = ctx.repository_ref.as_deref() {
+        prompt.push_str(&format!("Pinned revision: `{repository_ref}`\n"));
+    }
+    if let Some(default_branch) = ctx.default_branch.as_deref() {
+        prompt.push_str(&format!("Default branch: `{default_branch}`\n"));
+    }
     if ctx.linked_repos.len() > 1
         || ctx.linked_repos.first().map(|r| r.as_str()) != Some(ctx.worktree_path.as_str())
     {
@@ -503,13 +572,83 @@ pub async fn start_work_item_with_reason(
     session_model_id: Option<&str>,
     lock_reason: WorkItemExecutionLockReason,
 ) -> Result<String, String> {
+    let started = start_work_item_session_with_reason(StartWorkItemSessionRequest {
+        project_slug,
+        short_id,
+        app,
+        session_account_id,
+        session_model_id,
+        lock_reason,
+        durable_run_id: None,
+        execution_snapshot: None,
+    })
+    .await?;
+
+    Ok(format!(
+        "Started work item {} execution.\n\
+         Session: {}\n\
+         Agent: {}\n\
+         Model: {}\n\
+         Account: {}\n\n\
+         The agent is now running in the background. \
+         Use session(action=\"list\") or session(action=\"get_status\") to check progress.",
+        short_id, started.session_id, started.agent_role, started.model_id, started.account_id
+    ))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartedWorkItemSession {
+    pub session_id: String,
+    pub agent_role: String,
+    pub model_id: String,
+    pub account_id: String,
+}
+
+/// Complete, immutable input to a Work Item session launch. Keeping the
+/// durable identity and execution snapshot beside the human-selected runtime
+/// fields makes dispatcher redelivery harder to call with a mismatched set of
+/// arguments.
+pub struct StartWorkItemSessionRequest<'a> {
+    pub project_slug: &'a str,
+    pub short_id: &'a str,
+    pub app: &'a tauri::AppHandle,
+    pub session_account_id: Option<&'a str>,
+    pub session_model_id: Option<&'a str>,
+    pub lock_reason: WorkItemExecutionLockReason,
+    pub durable_run_id: Option<&'a str>,
+    pub execution_snapshot:
+        Option<&'a project_management::projects::types::WorkItemRunTargetSnapshot>,
+}
+
+/// Typed durable launch entry point used by the dispatch worker. A stable
+/// Run id makes both Session creation and first-turn acceptance idempotent.
+pub async fn start_work_item_session_with_reason(
+    request: StartWorkItemSessionRequest<'_>,
+) -> Result<StartedWorkItemSession, String> {
     use project_management::orchestrator::state_machine;
+
+    let StartWorkItemSessionRequest {
+        project_slug,
+        short_id,
+        app,
+        session_account_id,
+        session_model_id,
+        lock_reason,
+        durable_run_id,
+        execution_snapshot,
+    } = request;
 
     let slug = project_slug.to_string();
     let sid = short_id.to_string();
 
-    let ctx = resolve_launch_context(project_slug, short_id, session_account_id, session_model_id)
-        .await?;
+    let ctx = resolve_launch_context(
+        project_slug,
+        short_id,
+        session_account_id,
+        session_model_id,
+        execution_snapshot,
+    )
+    .await?;
 
     let (agent_role, mut prompt) = if let Some(ref definition) = ctx.agent_def {
         let prompt = build_agent_prompt(&sid, &ctx.data.frontmatter, &ctx.data.body);
@@ -528,6 +667,7 @@ pub async fn start_work_item_with_reason(
     } else {
         AgentRole::Coding
     };
+    let durable_redelivery = durable_run_id.is_some();
 
     run_blocking("orchestrator_start", {
         let slug = slug.clone();
@@ -540,20 +680,32 @@ pub async fn start_work_item_with_reason(
                     .map(|s| &s.current_phase)
                     .unwrap_or(&OrchestratorPhase::Idle);
 
-                if !matches!(current_phase, OrchestratorPhase::Idle) {
+                let is_durable_dispatch = durable_redelivery
+                    && matches!(
+                        current_phase,
+                        OrchestratorPhase::Coding
+                            | OrchestratorPhase::Failed
+                            | OrchestratorPhase::Completed
+                            | OrchestratorPhase::AwaitingUser
+                    );
+                if !matches!(current_phase, OrchestratorPhase::Idle) && !is_durable_dispatch {
                     return Err(format!(
                         "Cannot start: orchestrator is in phase '{:?}', expected idle",
                         current_phase
                     ));
                 }
 
-                state_machine::snapshot_config(frontmatter);
-                state_machine::add_linked_session(
-                    frontmatter,
-                    "pending",
-                    linked_role,
-                    LinkedSessionType::Native,
-                );
+                let needs_new_episode = matches!(current_phase, OrchestratorPhase::Idle)
+                    || (is_durable_dispatch && !matches!(current_phase, OrchestratorPhase::Coding));
+                if needs_new_episode {
+                    state_machine::snapshot_config(frontmatter);
+                    state_machine::add_linked_session(
+                        frontmatter,
+                        "pending",
+                        linked_role,
+                        LinkedSessionType::Native,
+                    );
+                }
                 frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
                 Ok(())
             })
@@ -573,13 +725,18 @@ pub async fn start_work_item_with_reason(
     let session_id = crate::session::launch::launch_agent_session(
         app,
         crate::session::launch::WorkItemLaunchRequest {
+            durable_run_id,
             workspace_path: &ctx.worktree_path,
             prompt: &prompt,
             model: &ctx.model_id,
             account_id: &ctx.account_id,
             work_item_id: &sid,
             project_slug: &slug,
-            worktree_path: Some(&ctx.worktree_path),
+            worktree_path: matches!(
+                ctx.workspace_mode,
+                project_management::projects::types::WorkspaceExecutionMode::Worktree
+            )
+            .then_some(ctx.worktree_path.as_str()),
             agent_definition_id: ctx.agent_def_id.as_deref(),
             agent_role: &agent_role,
             sub_agent_ids: ctx.config.sub_agent_ids.as_slice(),
@@ -588,16 +745,12 @@ pub async fn start_work_item_with_reason(
     )
     .await?;
 
-    Ok(format!(
-        "Started work item {} execution.\n\
-         Session: {}\n\
-         Agent: {}\n\
-         Model: {}\n\
-         Account: {}\n\n\
-         The agent is now running in the background. \
-         Use session(action=\"list\") or session(action=\"get_status\") to check progress.",
-        sid, session_id, agent_role, ctx.model_id, ctx.account_id
-    ))
+    Ok(StartedWorkItemSession {
+        session_id,
+        agent_role,
+        model_id: ctx.model_id,
+        account_id: ctx.account_id,
+    })
 }
 
 /// Which post-transition session the orchestrator needs launched.
@@ -652,6 +805,7 @@ pub async fn launch_phase_session(
         short_id,
         review_account.as_deref(),
         review_model.as_deref(),
+        None,
     )
     .await?;
 
@@ -690,13 +844,18 @@ pub async fn launch_phase_session(
     let session_id = crate::session::launch::launch_agent_session(
         app,
         crate::session::launch::WorkItemLaunchRequest {
+            durable_run_id: None,
             workspace_path: &ctx.worktree_path,
             prompt: &prompt,
             model: &ctx.model_id,
             account_id: &ctx.account_id,
             work_item_id: short_id,
             project_slug,
-            worktree_path: Some(&ctx.worktree_path),
+            worktree_path: matches!(
+                ctx.workspace_mode,
+                project_management::projects::types::WorkspaceExecutionMode::Worktree
+            )
+            .then_some(ctx.worktree_path.as_str()),
             agent_definition_id: agent_definition_id.as_deref(),
             agent_role: &agent_role,
             sub_agent_ids: ctx.config.sub_agent_ids.as_slice(),

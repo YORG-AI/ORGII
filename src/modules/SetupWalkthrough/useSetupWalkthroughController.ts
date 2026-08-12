@@ -115,6 +115,7 @@ export function useSetupWalkthroughController() {
             return t("readiness.errors.rosterNotConverged");
           case "session_superseded":
           case "session_unavailable":
+          case "unexpected_response":
             return t("readiness.errors.cloudUnavailable");
         }
       }

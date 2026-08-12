@@ -725,6 +725,7 @@
         "inviteRevoked": "This invite has been revoked.",
         "inviteExpired": "This invite has expired.",
         "inviteExhausted": "This invite has no uses left.",
+        "alreadyMember": "You're already a member of this organization.",
         "network": "Couldn't connect to the cloud service. Check your network and try again."
       }
     },

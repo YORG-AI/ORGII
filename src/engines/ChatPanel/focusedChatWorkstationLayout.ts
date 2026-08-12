@@ -1,3 +1,4 @@
+import { FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS } from "@src/modules/shared/layouts/blocks/WorkstationTrailSurface";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 
 export const FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS =
@@ -15,6 +16,12 @@ interface FocusedChatWorkstationMountInput {
   showSessionContent: boolean;
 }
 
+interface FocusedChatWorkstationPlaceholderInput {
+  activeTabType: ChatPanelTab["type"] | null;
+  isChatFocus: boolean;
+  startPageOpen: boolean;
+}
+
 /**
  * The environment rail owns a live working-tree subscription, so it only
  * mounts while a maximized session is actually presenting session content.
@@ -27,10 +34,22 @@ export function shouldMountFocusedChatWorkstationControls({
   return isChatFocus && activeTabType === "session" && showSessionContent;
 }
 
+/**
+ * Keep focused Launchpad content aligned with a session using the collapsed
+ * workstation track, without mounting the rail's live data or controls.
+ */
+export function shouldReserveFocusedChatWorkstationPlaceholder({
+  activeTabType,
+  isChatFocus,
+  startPageOpen,
+}: FocusedChatWorkstationPlaceholderInput): boolean {
+  return isChatFocus && activeTabType === "start-page" && startPageOpen;
+}
+
 export function resolveFocusedChatWorkstationRailTrackClass(
   collapsed: boolean
 ): string {
   return collapsed
-    ? "w-0 @[1100px]/focusedchat:w-11 @[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2"
-    : "w-0 @[1100px]/focusedchat:w-64 @[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2";
+    ? `w-0 @[1100px]/focusedchat:w-11 ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`
+    : `w-0 @[1100px]/focusedchat:w-64 ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`;
 }

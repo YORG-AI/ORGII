@@ -169,6 +169,7 @@ fn partial_update_records_comment_history_event() {
             content: "Looks good".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
             mentioned_user_ids: Vec::new(),
+            ..Default::default()
         }]),
         actor: Some(WorkItemMutationActor {
             id: "member-1".to_string(),
@@ -497,6 +498,7 @@ fn standalone_partial_update_persists_collaboration_fields_atomically() {
                 content: "@Ada ready for review".to_string(),
                 created_at: "2026-07-29T09:00:00.000Z".to_string(),
                 mentioned_user_ids: vec!["member-a".to_string()],
+                ..Default::default()
             }]),
             actor: Some(WorkItemMutationActor {
                 id: "member-b".to_string(),
@@ -766,6 +768,7 @@ fn partial_appends_comment_via_full_replace_semantics() {
         content: "first".into(),
         created_at: "2026-01-01T00:00:00Z".into(),
         mentioned_user_ids: Vec::new(),
+        ..Default::default()
     }]);
     update_work_item_partial("demo", "AAA-0001", &first).expect("first");
 
@@ -776,6 +779,7 @@ fn partial_appends_comment_via_full_replace_semantics() {
         content: "replaced".into(),
         created_at: "2026-01-02T00:00:00Z".into(),
         mentioned_user_ids: Vec::new(),
+        ..Default::default()
     }]);
     let result = update_work_item_partial("demo", "AAA-0001", &second).expect("second");
     assert_eq!(result.frontmatter.comments.len(), 1);

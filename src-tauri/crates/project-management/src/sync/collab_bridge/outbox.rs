@@ -151,6 +151,95 @@ pub fn record_project_work_item_update(
     )
 }
 
+/// Transaction-aware payload-tail hook used by Work Item feature services.
+/// The feature mutation and its collaboration outbox row commit together.
+/// `project_slug` is absent for an org-scoped standalone Work Item.
+pub(crate) fn record_work_item_payload_touch_in_connection(
+    conn: &Connection,
+    org_id: &str,
+    project_slug: Option<&str>,
+    work_item_id: &str,
+    field_path: &str,
+) -> Result<(), String> {
+    if !is_collab_org(conn, org_id)? {
+        return Ok(());
+    }
+    append_collab_row(
+        conn,
+        org_id,
+        project_slug.unwrap_or(""),
+        EntityType::WorkItem,
+        work_item_id,
+        OutboxOp::Update,
+        Some(field_path),
+    )
+}
+
+/// Enqueue one existing org entity as the carrier for org-wide typed-property
+/// definitions. Project rows are preferred; an org-scoped standalone Work
+/// Item is the fallback. If the org has no entity yet, the first future entity
+/// write will carry the definitions in its full snapshot.
+pub(crate) fn record_property_definitions_touch(
+    conn: &Connection,
+    org_id: &str,
+    property_id: &str,
+) -> Result<(), String> {
+    if !is_collab_org(conn, org_id)? {
+        return Ok(());
+    }
+    let project_anchor: Option<(EntityType, String, String)> = conn
+        .query_row(
+            "SELECT 'project', id, slug
+               FROM projects
+              WHERE org_id = ?1
+              ORDER BY updated_at DESC, id ASC
+              LIMIT 1",
+            params![org_id],
+            |row| {
+                Ok((
+                    EntityType::Project,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|err| format!("DB error (property definition project anchor): {err}"))?;
+    let anchor = match project_anchor {
+        Some(anchor) => Some(anchor),
+        None => conn
+            .query_row(
+                "SELECT 'work_item', id, ''
+                   FROM workitems
+                  WHERE org_id = ?1 AND project_id IS NULL AND deleted_at IS NULL
+                  ORDER BY updated_at DESC, id ASC
+                  LIMIT 1",
+                params![org_id],
+                |row| {
+                    Ok((
+                        EntityType::WorkItem,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|err| format!("DB error (property definition Work Item anchor): {err}"))?,
+    };
+    let Some((entity_type, entity_id, project_slug)) = anchor else {
+        return Ok(());
+    };
+    append_collab_row(
+        conn,
+        org_id,
+        &project_slug,
+        entity_type,
+        &entity_id,
+        OutboxOp::Update,
+        Some(&format!("propertyDefinitions.{property_id}")),
+    )
+}
+
 /// Hook for full work-item writes (create / delete / restore / full
 /// update). `deleted` selects the outbox op; the drain re-derives the
 /// effective op from current row state anyway.
@@ -208,6 +297,59 @@ pub fn record_project_write(
         op,
         None,
     )
+}
+
+/// Enqueue the replication handoff for an atomic project organization move.
+///
+/// The source organization receives a project tombstone (the server cascades
+/// it to child work items), while the destination receives fresh project and
+/// work-item snapshots. This accepts the caller's transaction connection so
+/// the ownership change and its outbox intent commit or roll back together.
+pub(crate) fn record_project_org_move_in_connection(
+    conn: &Connection,
+    source_org_id: &str,
+    destination_org_id: &str,
+    project_id: &str,
+    project_slug: &str,
+    work_item_ids: &[String],
+) -> Result<(), String> {
+    if is_collab_org(conn, source_org_id)? {
+        append_collab_row(
+            conn,
+            source_org_id,
+            project_slug,
+            EntityType::Project,
+            project_id,
+            OutboxOp::Delete,
+            None,
+        )?;
+    }
+
+    if !is_collab_org(conn, destination_org_id)? {
+        return Ok(());
+    }
+
+    append_collab_row(
+        conn,
+        destination_org_id,
+        project_slug,
+        EntityType::Project,
+        project_id,
+        OutboxOp::Update,
+        None,
+    )?;
+    for work_item_id in work_item_ids {
+        append_collab_row(
+            conn,
+            destination_org_id,
+            project_slug,
+            EntityType::WorkItem,
+            work_item_id,
+            OutboxOp::Update,
+            None,
+        )?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -347,6 +489,15 @@ pub fn drain_outbox(org_id: &str, max: u32) -> Result<Vec<CollabPushItem>, Strin
     }
     drop(stmt);
 
+    if order.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Org-wide definitions are shared by every entity snapshot. Load them
+    // once per non-empty bounded drain instead of once per Work Item.
+    let property_definitions =
+        crate::work_item_features::properties::export_definitions(&conn, org_id)?;
+
     // Claim everything we're about to hand out.
     for (ids, _) in groups.values() {
         for id in ids {
@@ -369,8 +520,22 @@ pub fn drain_outbox(org_id: &str, max: u32) -> Result<Vec<CollabPushItem>, Strin
         let (entry_ids, field_paths) = groups.remove(&key).unwrap_or_default();
         let (entity_type, entity_id) = key;
         let item = match entity_type.as_str() {
-            "project" => hydrate_project(&conn, org_id, &entity_id, entry_ids, field_paths)?,
-            "work_item" => hydrate_work_item(&conn, org_id, &entity_id, entry_ids, field_paths)?,
+            "project" => hydrate_project(
+                &conn,
+                org_id,
+                &entity_id,
+                entry_ids,
+                field_paths,
+                &property_definitions,
+            )?,
+            "work_item" => hydrate_work_item(
+                &conn,
+                org_id,
+                &entity_id,
+                entry_ids,
+                field_paths,
+                &property_definitions,
+            )?,
             other => {
                 let message = format!("unsupported collab entity_type: {other}");
                 tracing::warn!(
@@ -394,6 +559,7 @@ fn hydrate_project(
     project_id: &str,
     entry_ids: Vec<i64>,
     field_paths: Vec<String>,
+    property_definitions: &[crate::work_item_features::PropertyDefinition],
 ) -> Result<CollabPushItem, String> {
     let row = conn
         .query_row(
@@ -474,6 +640,7 @@ fn hydrate_project(
         "workItemPrefix": prefix,
         "createdAt": to_iso8601(created_at),
         "updatedAt": to_iso8601(updated_at),
+        "propertyDefinitions": property_definitions,
     });
 
     Ok(CollabPushItem {
@@ -505,6 +672,7 @@ fn hydrate_work_item(
     work_item_id: &str,
     entry_ids: Vec<i64>,
     field_paths: Vec<String>,
+    property_definitions: &[crate::work_item_features::PropertyDefinition],
 ) -> Result<CollabPushItem, String> {
     let base_version: Option<i64> = conn
         .query_row(
@@ -521,11 +689,6 @@ fn hydrate_work_item(
         None => (OP_DELETE.to_string(), None),
         Some(data) if data.frontmatter.deleted_at.is_some() => (OP_DELETE.to_string(), None),
         Some(data) => {
-            // Per-field revision times ride the wire so the puller can merge
-            // per field instead of against our whole-row updatedAt (which
-            // would revert a teammate's edit to any field we didn't change).
-            // Only project-scoped items carry them; standalone items use
-            // whole-row semantics on both ends.
             let project_slug: Option<String> = conn
                 .query_row(
                     "SELECT p.slug FROM workitems w
@@ -535,7 +698,27 @@ fn hydrate_work_item(
                     |row| row.get(0),
                 )
                 .optional()
-                .map_err(|err| format!("DB error (work item slug): {}", err))?;
+                .map_err(|err| format!("DB error (work item slug): {err}"))?;
+            // Project-scoped definitions ride on project rows, which the
+            // puller applies first. Standalone items have no project carrier,
+            // so their full snapshot includes the org definitions.
+            let definitions = if project_slug.is_none() {
+                property_definitions.to_vec()
+            } else {
+                Vec::new()
+            };
+            let property_snapshot =
+                crate::work_item_features::properties::export_work_item_snapshot(
+                    conn,
+                    org_id,
+                    work_item_id,
+                    definitions,
+                )?;
+            // Per-field revision times ride the wire so the puller can merge
+            // per field instead of against our whole-row updatedAt (which
+            // would revert a teammate's edit to any field we didn't change).
+            // Only project-scoped items carry them; standalone items use
+            // whole-row semantics on both ends.
             let field_revisions = match &project_slug {
                 Some(slug) => read_sync_metadata(slug, &data.frontmatter.short_id)?
                     .map(|m| m.field_revisions)
@@ -548,6 +731,7 @@ fn hydrate_work_item(
                     &data.frontmatter,
                     &data.body,
                     &field_revisions,
+                    &property_snapshot,
                 )),
             )
         }
@@ -573,6 +757,7 @@ fn work_item_wire(
     frontmatter: &WorkItemFrontmatter,
     body: &str,
     field_revisions: &std::collections::HashMap<String, crate::projects::io::FieldRevision>,
+    property_snapshot: &crate::work_item_features::TypedPropertyWireSnapshot,
 ) -> Value {
     fn to_value<T: Serialize>(value: &T) -> Value {
         serde_json::to_value(value).unwrap_or(Value::Null)
@@ -615,6 +800,8 @@ fn work_item_wire(
         "executionLock": to_value(&frontmatter.execution_lock),
         "closeOut": to_value(&frontmatter.close_out),
         "workProducts": to_value(&frontmatter.work_products),
+        "propertyDefinitions": to_value(&property_snapshot.definitions),
+        "propertyValues": to_value(&property_snapshot.values),
     })
 }
 

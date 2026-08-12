@@ -321,5 +321,3 @@ impl ScheduleWeekday {
         }
     }
 }
-
-

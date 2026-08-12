@@ -45,6 +45,7 @@ export interface PeopleTeamsLabelsFieldsProps {
   t: (key: string, opts?: Record<string, unknown>) => string;
   fieldVariant?: FieldRowVariant;
   visibleFields: Set<ProjectPropertyFieldKey>;
+  showLabels?: boolean;
 }
 
 const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
@@ -65,6 +66,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
   t,
   fieldVariant = "row",
   visibleFields,
+  showLabels = true,
 }) => (
   <>
     {/* Lead */}
@@ -94,7 +96,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
               <User size={DROPDOWN_ITEM.iconSize} />
             )
           }
-          label={t("properties.lead")}
+          label={showLabels ? t("properties.lead") : undefined}
           value={project.lead?.name || t("properties.addLead")}
           isSelected={!!project.lead}
           isActive={openPicker === "lead"}
@@ -103,7 +105,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
         />
         {openPicker === "lead" && (
           <SearchableDropdown
-            placeholder={t("properties.searchMembers")}
+            placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
             align={fieldVariant === "pill" ? "auto" : "left"}
           >
@@ -165,7 +167,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
       >
         <FieldRow
           icon={<Users size={DROPDOWN_ITEM.iconSize} />}
-          label={t("properties.members")}
+          label={showLabels ? t("properties.members") : undefined}
           value={
             project.members && project.members.length > 0
               ? t("properties.memberCount", { count: project.members.length })
@@ -179,7 +181,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
         />
         {openPicker === "members" && (
           <SearchableDropdown
-            placeholder={t("properties.searchMembers")}
+            placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
             align={fieldVariant === "pill" ? "auto" : "left"}
           >
@@ -234,7 +236,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
       >
         <FieldRow
           icon={<Plane size={DROPDOWN_ITEM.iconSize} />}
-          label={t("properties.teams")}
+          label={showLabels ? t("properties.teams") : undefined}
           value={
             project.teams && project.teams.length > 0
               ? project.teams.map((team) => team.name).join(", ")
@@ -247,7 +249,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
         />
         {openPicker === "teams" && (
           <SearchableDropdown
-            placeholder={t("properties.searchTeams")}
+            placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
             align={fieldVariant === "pill" ? "auto" : "left"}
           >
@@ -300,7 +302,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
       >
         <FieldRow
           icon={<Tag size={DROPDOWN_ITEM.iconSize} />}
-          label={t("properties.labels")}
+          label={showLabels ? t("properties.labels") : undefined}
           value={
             project.labels && project.labels.length > 0
               ? project.labels.map((label) => label.name).join(", ")
@@ -313,7 +315,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
         />
         {openPicker === "labels" && (
           <SearchableDropdown
-            placeholder={t("properties.searchLabels")}
+            placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
             align={fieldVariant === "pill" ? "auto" : "left"}
           >
@@ -360,7 +362,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
         >
           <FieldRow
             icon={<Code2 size={DROPDOWN_ITEM.iconSize} />}
-            label={t("properties.repos")}
+            label={showLabels ? t("properties.repos") : undefined}
             value={linkedRepoLabel}
             isSelected={linkedRepoCount > 0}
             isActive={openPicker === "linkedRepos"}
@@ -370,7 +372,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
           />
           {openPicker === "linkedRepos" && (
             <SearchableDropdown
-              placeholder={t("properties.searchRepos")}
+              placeholder={t("common:actions.search")}
               widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
               align={fieldVariant === "pill" ? "auto" : "left"}
             >

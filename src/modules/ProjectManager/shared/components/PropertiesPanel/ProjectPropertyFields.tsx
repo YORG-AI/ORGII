@@ -57,6 +57,10 @@ export interface ProjectPropertyFieldsProps {
   visibleFields?: ProjectPropertyFieldKey[];
   /** Render hidden fields behind a more-properties menu. */
   showMoreMenu?: boolean;
+  /** Keep the legacy group inset around row-style fields. */
+  withGroupInset?: boolean;
+  /** Reserve the legacy label column beside each row value. */
+  showLabels?: boolean;
 }
 
 export const PROJECT_PROPERTY_CONCISE_FIELDS: ProjectPropertyFieldKey[] = [
@@ -98,6 +102,8 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
   fieldVariant = "row",
   visibleFields = DEFAULT_VISIBLE_FIELDS,
   showMoreMenu = false,
+  withGroupInset = true,
+  showLabels = true,
 }) => {
   const dropdownDirection = usePropertyDropdownDirection();
   const {
@@ -254,7 +260,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
         className={
           fieldVariant === "pill"
             ? "flex flex-nowrap items-center gap-2"
-            : "flex flex-col px-2"
+            : `flex flex-col ${withGroupInset ? "px-2" : ""}`
         }
       >
         <StatusHealthPriorityFields
@@ -270,6 +276,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
           t={t}
           fieldVariant={fieldVariant}
           visibleFields={visibleFieldSet}
+          showLabels={showLabels}
         />
 
         <PeopleTeamsLabelsFields
@@ -290,6 +297,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
           t={t}
           fieldVariant={fieldVariant}
           visibleFields={visibleFieldSet}
+          showLabels={showLabels}
         />
 
         {/* Start Date */}
@@ -303,7 +311,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
           >
             <FieldRow
               icon={<Calendar size={DROPDOWN_ITEM.iconSize} />}
-              label={t("properties.startDate")}
+              label={showLabels ? t("properties.startDate") : undefined}
               value={formatDate(project.startDate)}
               isSelected={!!project.startDate}
               isActive={openPicker === "startDate"}
@@ -332,7 +340,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
           >
             <FieldRow
               icon={<Calendar size={DROPDOWN_ITEM.iconSize} />}
-              label={t("properties.targetDate")}
+              label={showLabels ? t("properties.targetDate") : undefined}
               value={formatDate(project.targetDate)}
               isSelected={!!project.targetDate}
               isActive={openPicker === "targetDate"}
@@ -361,9 +369,11 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
               }
             >
               <div className="flex min-h-[36px] w-full items-center gap-1 px-2 py-1">
-                <span className="w-[72px] shrink-0 text-xs text-text-2">
-                  {t("properties.completion")}
-                </span>
+                {showLabels ? (
+                  <span className="w-[72px] shrink-0 text-xs text-text-2">
+                    {t("properties.completion")}
+                  </span>
+                ) : null}
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1.5">
                   <span
                     className={`${DROPDOWN_ITEM.iconSizeClass} shrink-0 text-primary-6`}

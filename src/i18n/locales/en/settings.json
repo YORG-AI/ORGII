@@ -838,6 +838,10 @@
     "installConfirmTitle": "Update ready to install",
     "installConfirmDesc": "Version {{version}} has been downloaded. Save any ongoing work before installing and restarting ORGII.",
     "installAndRestart": "Install and restart",
+    "installOfficialConfirmTitle": "Official app ready to install",
+    "installOfficialConfirmDesc": "Install official version {{version}} at /Applications/ORG2.app. This local build stays open and unchanged.",
+    "installOfficial": "Install official app",
+    "localBuild": "Local",
     "skipVersion": "Skip this version"
   },
   "monitor": {

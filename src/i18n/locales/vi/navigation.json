@@ -697,6 +697,7 @@
         "inviteRevoked": "Lời mời đã bị thu hồi.",
         "inviteExpired": "Lời mời đã hết hạn.",
         "inviteExhausted": "Lời mời đã hết số lần dùng.",
+        "alreadyMember": "Bạn đã là thành viên của tổ chức này.",
         "network": "Không thể kết nối dịch vụ đám mây. Hãy kiểm tra mạng và thử lại."
       }
     },

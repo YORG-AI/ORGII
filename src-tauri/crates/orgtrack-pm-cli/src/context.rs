@@ -236,7 +236,10 @@ pub fn resolve(
     let mode = ProductMode::parse(&mode_raw).ok_or_else(|| {
         CliError::new(
             ErrorCode::InvalidArgument,
-            format!("Unknown mode '{}'; expected build|plan|ask|project", mode_raw),
+            format!(
+                "Unknown mode '{}'; expected build|plan|ask|project",
+                mode_raw
+            ),
         )
         .with_details(serde_json::json!({ "field": "--mode", "value": mode_raw }))
     })?;

@@ -126,11 +126,23 @@ pub struct WorkspaceProjectWorkItems {
     pub work_items: Vec<EnrichedWorkItem>,
 }
 
+/// A standalone work item and the organization scope that owns it.
+///
+/// Standalone short IDs are allocated per organization, so workspace-level
+/// callers must keep the scope beside the row instead of assigning a default
+/// organization after deserialization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceStandaloneWorkItem {
+    pub org_id: String,
+    pub work_item: WorkItemData,
+}
+
 /// Complete local dataset needed by the workspace work-items surface.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceWorkItemsData {
     pub project_entries: Vec<WorkspaceProjectWorkItems>,
-    pub standalone_work_items: Vec<WorkItemData>,
+    pub standalone_work_items: Vec<WorkspaceStandaloneWorkItem>,
     pub orgs: Vec<ProjectOrg>,
 }

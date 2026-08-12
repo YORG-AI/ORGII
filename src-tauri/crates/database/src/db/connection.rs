@@ -28,9 +28,9 @@
 //! applied and no schema attempted.
 
 use rusqlite::{Connection, Result as SqliteResult};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Condvar, Mutex, OnceLock};
 
 /// Per-connection PRAGMA settings (must run on every new connection).
 ///
@@ -53,11 +53,11 @@ pub fn configure_connection(conn: &Connection) -> SqliteResult<()> {
     // 4KB page, which Linux/macOS/Windows can all flush in well under
     // the writer's typical hold time.
     conn.execute_batch(
-        "PRAGMA journal_mode = WAL;
+        "PRAGMA busy_timeout = 15000;
+         PRAGMA journal_mode = WAL;
          PRAGMA synchronous = NORMAL;
          PRAGMA cache_size = -64000;
          PRAGMA temp_store = MEMORY;
-         PRAGMA busy_timeout = 15000;
          PRAGMA wal_autocheckpoint = 2000;",
     )?;
     Ok(())
@@ -156,49 +156,87 @@ pub fn register_projects_init(init_fn: InitFn) {
     let _ = projects_init_cell().set(init_fn);
 }
 
-/// Set of physical DB paths that have already had their schema initialized
-/// in this process. Schema DDL is idempotent (all statements use
-/// `IF NOT EXISTS`) so re-initializing is safe — but running it once per
-/// path saves work and avoids log spam on repeated connections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InitState {
+    Initializing,
+    Ready,
+}
+
+#[derive(Debug, Default)]
+struct InitBarrier {
+    states: Mutex<HashMap<PathBuf, InitState>>,
+    ready: Condvar,
+}
+
+/// Per-physical-path schema barrier.
 ///
 /// We intentionally do NOT use `std::sync::Once` here: in production the
-/// path is stable and hits the `Once` equivalent (first-seen insert into
-/// the set), while in tests `ORGII_HOME` rotates per sandbox, so every
-/// fresh tempdir picks up a new entry and runs init against its own
-/// brand-new SQLite file. The `Once`-based implementation could not
-/// express that, and poisoning the `Once` via any init panic would take
-/// down the rest of the test suite.
-fn initialized_paths() -> &'static Mutex<HashSet<PathBuf>> {
-    static INITIALIZED: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
-    INITIALIZED.get_or_init(|| Mutex::new(HashSet::new()))
+/// path is stable and reaches `Ready`, while in tests `ORGII_HOME` rotates
+/// per sandbox. `Initializing` is observable so concurrent first callers
+/// wait for DDL completion instead of receiving a connection to a
+/// half-created schema.
+fn init_barrier() -> &'static InitBarrier {
+    static INITIALIZED: OnceLock<InitBarrier> = OnceLock::new();
+    INITIALIZED.get_or_init(InitBarrier::default)
 }
 
 /// Open a SQLite file at `db_path`, apply per-connection PRAGMAs, and run
 /// `init_fn` exactly once per physical path per process.
 ///
-/// On init failure the path is removed from the initialized set so the
-/// next caller retries — a transient I/O blip on first touch should not
-/// disable schema migration for the rest of the process lifetime.
+/// On init failure the path is removed from the barrier so the next caller
+/// retries — a transient I/O blip on first touch should not disable schema
+/// migration for the rest of the process lifetime.
 fn open_with_init(db_path: &Path, init_fn: Option<InitFn>) -> SqliteResult<Connection> {
     let conn = Connection::open(db_path)?;
-    configure_connection(&conn)?;
 
     let Some(init_fn) = init_fn else {
+        configure_connection(&conn)?;
         return Ok(conn);
     };
 
-    let needs_init = {
-        let mut set = initialized_paths()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        set.insert(db_path.to_path_buf())
-    };
-    if needs_init {
-        if let Err(err) = init_fn(&conn) {
-            let mut set = initialized_paths()
+    let barrier = init_barrier();
+    let mut states = barrier
+        .states
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    loop {
+        match states.get(db_path) {
+            Some(InitState::Ready) => {
+                drop(states);
+                configure_connection(&conn)?;
+                return Ok(conn);
+            }
+            Some(InitState::Initializing) => {
+                states = barrier
+                    .ready
+                    .wait(states)
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+            }
+            None => {
+                states.insert(db_path.to_path_buf(), InitState::Initializing);
+                break;
+            }
+        }
+    }
+    drop(states);
+
+    let initialized = configure_connection(&conn).and_then(|()| init_fn(&conn));
+    match initialized {
+        Ok(()) => {
+            let mut states = barrier
+                .states
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            set.remove(db_path);
+            states.insert(db_path.to_path_buf(), InitState::Ready);
+            barrier.ready.notify_all();
+        }
+        Err(err) => {
+            let mut states = barrier
+                .states
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            states.remove(db_path);
+            barrier.ready.notify_all();
             tracing::error!(
                 "[database::db] schema init failed for {}: {}",
                 db_path.display(),
@@ -258,4 +296,55 @@ pub fn get_projects_connection() -> SqliteResult<Connection> {
     // and modules that have not been audited for cascade safety.
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     Ok(conn)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    static SLOW_INIT_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    fn slow_test_init(conn: &Connection) -> SqliteResult<()> {
+        SLOW_INIT_CALLS.fetch_add(1, Ordering::SeqCst);
+        std::thread::sleep(Duration::from_millis(75));
+        conn.execute_batch("CREATE TABLE cold_start_barrier (id INTEGER PRIMARY KEY);")
+    }
+
+    #[test]
+    fn concurrent_first_connections_wait_for_schema_completion() {
+        SLOW_INIT_CALLS.store(0, Ordering::SeqCst);
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = Arc::new(std::env::temp_dir().join(format!(
+            "orgii-schema-barrier-{}-{nonce}.db",
+            std::process::id()
+        )));
+        let start = Arc::new(Barrier::new(3));
+        let handles = (0..2)
+            .map(|_| {
+                let path = Arc::clone(&path);
+                let start = Arc::clone(&start);
+                std::thread::spawn(move || {
+                    start.wait();
+                    let conn = open_with_init(&path, Some(slow_test_init))
+                        .expect("open initialized connection");
+                    conn.query_row("SELECT COUNT(*) FROM cold_start_barrier", [], |row| {
+                        row.get::<_, i64>(0)
+                    })
+                    .expect("schema is complete before connection returns")
+                })
+            })
+            .collect::<Vec<_>>();
+        start.wait();
+        for handle in handles {
+            assert_eq!(handle.join().expect("connection thread"), 0);
+        }
+        assert_eq!(SLOW_INIT_CALLS.load(Ordering::SeqCst), 1);
+        let _ = std::fs::remove_file(path.as_ref());
+    }
 }

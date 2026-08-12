@@ -1,6 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ListChecks, Trash2 } from "lucide-react";
+import { ChevronsRight, Info, ListChecks, Trash2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -28,8 +28,19 @@ import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
+import WorkItemProperties from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
+import { WorkItemThreadNavigationPortalContext } from "@src/modules/ProjectManager/WorkItems/components/WorkItemThread";
 import { toWorkItemPartialUpdate } from "@src/modules/ProjectManager/WorkItems/workItemPartialUpdate";
+import {
+  PropertiesPanel,
+  PropertiesRailFrame,
+} from "@src/modules/ProjectManager/shared";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import {
+  DetailHeaderTabs,
+  WorkstationTrailIconButton,
+  WorkstationTrailSurface,
+} from "@src/modules/shared/layouts/blocks";
 import { closeWorkItemChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   openSessionInNewChatTabAtom,
@@ -78,6 +89,9 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     projectSlug: string;
     adapterId: string | null;
   } | null>(null);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [navigationTrailHost, setNavigationTrailHost] =
+    useState<HTMLDivElement | null>(null);
   const workItemMembers = useMemo(
     () => [
       ...(selectedWorkItem.sourceProject?.project.members ?? []),
@@ -197,7 +211,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           // while this detail is open. Enriched reads intentionally retain
           // soft-deleted rows, so a tombstone must be treated as absent too;
           // otherwise the sidebar disappears while an editable ghost remains.
-          closeWorkItemTab(selectedWorkItem.shortId);
+          closeWorkItemTab(selectedWorkItem);
           return;
         }
         const refreshedProjectItem = enrichedWorkItemToUI(fresh);
@@ -229,7 +243,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         // The single-item command resolves both the parent and item at the
         // authoritative SQLite boundary. Either tombstone makes this cached
         // tab invalid, without scanning every project and every work item.
-        closeWorkItemTab(selectedWorkItem.shortId);
+        closeWorkItemTab(selectedWorkItem);
         return;
       }
       logger.warn("Failed to refresh chat panel work item", error);
@@ -371,7 +385,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       // The tab payload owns this surface. Clearing only the legacy selection
       // mirror leaves the deleted detail mounted until another data-change
       // refresh happens, and a later cascade can fall back to that ghost tab.
-      closeWorkItemTab(selectedWorkItem.shortId);
+      closeWorkItemTab(selectedWorkItem);
       await emit("orgii-data-changed", {
         project_slug: selectedWorkItem.projectSlug,
         work_item_id: selectedWorkItem.shortId,
@@ -382,12 +396,19 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     }
   }, [closeWorkItemTab, selectedWorkItem, t]);
 
+  const toggleProperties = useCallback(() => {
+    setPropertiesOpen((current) => !current);
+  }, []);
+  const propertiesToggleLabel = propertiesOpen
+    ? t("projects:workItems.hideProperties")
+    : t("projects:workItems.showProperties");
+
   const headerActions = useMemo(
-    () =>
-      selectedWorkItem.projectSlug &&
-      projectSyncAdapterId !== undefined &&
-      !isGitHubSyncedProject ? (
-        <div className="flex items-center gap-px">
+    () => (
+      <div className="flex items-center gap-px">
+        {selectedWorkItem.projectSlug &&
+        projectSyncAdapterId !== undefined &&
+        !isGitHubSyncedProject ? (
           <WorkstationToolbarTooltip
             label={t("projects:workItems.deleteWorkItem")}
           >
@@ -402,18 +423,37 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
             />
           </WorkstationToolbarTooltip>
-        </div>
-      ) : null,
+        ) : null}
+        <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            size="small"
+            iconOnly
+            className={
+              propertiesOpen ? "!bg-surface-selected !text-primary-6" : ""
+            }
+            onClick={toggleProperties}
+            aria-label={propertiesToggleLabel}
+            data-testid="chat-panel-work-item-properties-toggle"
+            icon={<Info size={HEADER_ICON_SIZE.sm} />}
+          />
+        </WorkstationToolbarTooltip>
+      </div>
+    ),
     [
       handleDeleteWorkItem,
       isGitHubSyncedProject,
       projectSyncAdapterId,
+      propertiesOpen,
+      propertiesToggleLabel,
       selectedWorkItem.projectSlug,
       t,
+      toggleProperties,
     ]
   );
 
-  const headerContent = useMemo(
+  const workItemHeaderBreadcrumb = useMemo(
     () => (
       <WorkItemDetailHeaderBreadcrumb
         workItem={selectedWorkItem.workItem}
@@ -452,6 +492,10 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       t,
     ]
   );
+  const workItemHeaderContent = useMemo(
+    () => <DetailHeaderTabs title={workItemHeaderBreadcrumb} />,
+    [workItemHeaderBreadcrumb]
+  );
 
   // Memoize the published-header payload. A fresh `{ content, trailing }`
   // object literal every render makes `usePublishChatPanelHeader`'s
@@ -459,51 +503,96 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   // subscriber re-render cascades back into this panel, that becomes an
   // unbounded synchronous update loop (React "maximum update depth").
   const publishedHeader = useMemo(
-    () => ({ content: headerContent, trailing: headerActions }),
-    [headerContent, headerActions]
+    () => ({ content: workItemHeaderContent, trailing: headerActions }),
+    [workItemHeaderContent, headerActions]
   );
   usePublishChatPanelHeader({ content: publishedHeader });
 
-  return (
-    <div
-      className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden"
-      data-testid="chat-panel-work-item-detail"
+  const propertiesPanel = (
+    <PropertiesRailFrame
+      width={300}
+      minWidth={280}
+      maxWidth={320}
+      floatingContent
     >
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <WorkItemThreadSurface
-          key={workItemContentKey}
-          workItem={selectedWorkItem.workItem}
-          propertyProps={{
-            onUpdate: handleUpdateWorkItem,
-            availableProjects: selectedWorkItem.workItem.project
-              ? [selectedWorkItem.workItem.project]
-              : [],
-            availableMilestones: selectedWorkItem.workItem.milestone
-              ? [selectedWorkItem.workItem.milestone]
-              : [],
-            availableLabels: selectedWorkItem.workItem.labels ?? [],
-            availableMembers: workItemMembers,
-            projectIconType: isGitHubSyncedProject
-              ? STORY_SYNC_ADAPTER.GITHUB
-              : undefined,
-            projectReadonly: projectSelectionReadonly,
-          }}
-          onUpdateWorkItem={handleUpdateWorkItem}
-          onUpdateWorkItemImmediate={handleUpdateWorkItem}
-          currentUser={currentUser ?? undefined}
-          teamMembers={workItemMembers}
-          repoPath={repoPath}
-          projectSlug={selectedWorkItem.projectSlug}
-          shortId={selectedWorkItem.shortId}
-          orgId={selectedWorkItem.orgId}
-          githubIssueTimeline={githubIssueState.timeline}
-          githubIssueInteraction={githubIssueState.interaction}
-          onOpenSession={handleOpenSession}
-          onOpenSubItem={handleOpenFamilyItem}
-          onRefreshWorkflow={refreshSelectedWorkItem}
-        />
+      <WorkstationTrailSurface className="flex self-start">
+        <PropertiesPanel
+          title={t("projects:workItems.properties.title")}
+          fitContent
+          headerVariant="workstation-trail"
+          headerActions={
+            <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+              <WorkstationTrailIconButton
+                onClick={toggleProperties}
+                aria-label={propertiesToggleLabel}
+                data-testid="chat-panel-work-item-properties-collapse"
+              >
+                <ChevronsRight size={14} strokeWidth={1.75} />
+              </WorkstationTrailIconButton>
+            </WorkstationToolbarTooltip>
+          }
+        >
+          <WorkItemProperties
+            workItem={selectedWorkItem.workItem}
+            onUpdate={handleUpdateWorkItem}
+            availableProjects={
+              selectedWorkItem.workItem.project
+                ? [selectedWorkItem.workItem.project]
+                : []
+            }
+            availableMilestones={
+              selectedWorkItem.workItem.milestone
+                ? [selectedWorkItem.workItem.milestone]
+                : []
+            }
+            availableLabels={selectedWorkItem.workItem.labels ?? []}
+            availableMembers={workItemMembers}
+            projectIconType={
+              isGitHubSyncedProject ? STORY_SYNC_ADAPTER.GITHUB : undefined
+            }
+            projectReadonly={projectSelectionReadonly}
+            panelVariant="workstation-trail"
+          />
+        </PropertiesPanel>
+      </WorkstationTrailSurface>
+      <div
+        ref={setNavigationTrailHost}
+        className="pointer-events-none relative ml-auto min-h-0 w-11 flex-1"
+        data-testid="chat-panel-work-item-navigation-trail-host"
+      />
+    </PropertiesRailFrame>
+  );
+
+  return (
+    <WorkItemThreadNavigationPortalContext.Provider value={navigationTrailHost}>
+      <div
+        className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden"
+        data-testid="chat-panel-work-item-detail"
+      >
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <WorkItemThreadSurface
+              key={workItemContentKey}
+              workItem={selectedWorkItem.workItem}
+              onUpdateWorkItem={handleUpdateWorkItem}
+              onUpdateWorkItemImmediate={handleUpdateWorkItem}
+              currentUser={currentUser ?? undefined}
+              teamMembers={workItemMembers}
+              repoPath={repoPath}
+              projectSlug={selectedWorkItem.projectSlug || undefined}
+              shortId={selectedWorkItem.shortId}
+              orgId={selectedWorkItem.orgId}
+              githubIssueTimeline={githubIssueState.timeline}
+              githubIssueInteraction={githubIssueState.interaction}
+              onOpenSession={handleOpenSession}
+              onOpenSubItem={handleOpenFamilyItem}
+              onRefreshWorkflow={refreshSelectedWorkItem}
+            />
+          </div>
+          {propertiesOpen ? propertiesPanel : null}
+        </div>
       </div>
-    </div>
+    </WorkItemThreadNavigationPortalContext.Provider>
   );
 };
 

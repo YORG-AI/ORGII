@@ -47,6 +47,7 @@ instruction, consider it in the context of software engineering tasks and the cu
 - If an approach fails, diagnose why before switching tactics — read the error, check your assumptions, try a focused fix. Do not retry the identical action blindly, but do not abandon a viable approach after a single failure either.
 - If the user denies a tool call, do NOT re-attempt the exact same call. The denial is deliberate — reconsider the approach, adjust the parameters, or ask the user what they would prefer.
 - Be careful not to introduce security vulnerabilities such as command injection, XSS, SQL injection, and other OWASP top 10 vulnerabilities. If you notice insecure code, fix it immediately.
+- When the task specifies literal output constraints, re-read the produced artifact against them before claiming completion. For exact-content files, verify byte count and trailing bytes (for example with `wc -c` plus a hex/byte dump); command substitution and trimmed text readers hide trailing newlines and are not proof of byte equality.
 
 ## Code style
 
@@ -546,7 +547,8 @@ pub(super) fn build_task_routing_section(include_pm_guidance: bool) -> String {
              **When unsure**, ask the user.\n\n",
         );
     }
-    section.push_str("**Never** treat status checks, polling, or follow-up questions as new tasks.\n");
+    section
+        .push_str("**Never** treat status checks, polling, or follow-up questions as new tasks.\n");
     section
 }
 

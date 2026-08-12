@@ -246,15 +246,46 @@ pub fn ensure_tables_with(conn: &Connection) -> SqliteResult<()> {
         "ALTER TABLE agent_sessions ADD COLUMN last_turn_cancelled INTEGER NOT NULL DEFAULT 0",
     );
 
+    // This schema owner can be initialized before the shared session CRUD
+    // migrations in isolated tests and recovery paths. Ensure product_mode is
+    // present before the normalization query below references it.
+    try_migrate(
+        conn,
+        "ALTER TABLE agent_sessions ADD COLUMN product_mode TEXT",
+    );
+    // Canonicalize the product axis as well: a Work Item linkage is the
+    // legacy repair signal for Project, while every other missing/unknown
+    // value is ordinary Build. Keeping the row explicit makes the PM
+    // capability boundary inspectable instead of relying on NULL folklore.
+    conn.execute(
+        "UPDATE agent_sessions
+         SET product_mode = CASE
+             WHEN work_item_id IS NOT NULL THEN 'project'
+             ELSE 'build'
+         END
+         WHERE product_mode IS NULL
+            OR product_mode NOT IN ('build', 'plan', 'ask', 'project')
+            OR (work_item_id IS NOT NULL AND product_mode != 'project')",
+        [],
+    )?;
+
     // Per-session execution mode (build / ask / plan / debug / review /
-    // wingman). NULL means the user has never explicitly chosen one for this
-    // session — frontend falls back to the global `creatorDefaultExecModeAtom`
-    // until the first explicit patch. CLI sessions never write here (they have
-    // no mode concept); this column is `agent_sessions`-only on purpose.
+    // wingman). Every session owns a canonical value. Historical NULL,
+    // blank, and retired/unknown values are normalized to Build so an
+    // existing session can never inherit the mutable creator default.
     try_migrate(
         conn,
         "ALTER TABLE agent_sessions ADD COLUMN agent_exec_mode TEXT",
     );
+    conn.execute(
+        "UPDATE agent_sessions
+         SET agent_exec_mode = 'build'
+         WHERE agent_exec_mode IS NULL
+            OR TRIM(agent_exec_mode) = ''
+            OR agent_exec_mode NOT IN ('build', 'ask', 'plan', 'debug', 'review', 'wingman')
+            OR product_mode = 'project'",
+        [],
+    )?;
 
     // Per-session composer state (P3): unsent draft text + the message id
     // the user has currently selected as their reply target. Both are
