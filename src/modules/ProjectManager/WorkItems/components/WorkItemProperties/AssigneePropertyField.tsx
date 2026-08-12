@@ -13,7 +13,7 @@ import {
 } from "@src/components/PropertyField/PropertyFieldEditable";
 import type {
   AgentDefinition,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import type { Person } from "@src/types/core/shared";
 import {
@@ -30,7 +30,7 @@ interface AssigneePropertyFieldProps {
   workItem: WorkItemExtended;
   availableMembers: Person[];
   availableAgents?: AgentDefinition[];
-  availableOrgs?: OrgMember[];
+  availableOrgs?: OrgDefinition[];
   allAgentList?: { id: string; name: string }[];
   onAssigneeChange: (person: Person | null, assigneeType?: string) => void;
   t: (key: string) => string;

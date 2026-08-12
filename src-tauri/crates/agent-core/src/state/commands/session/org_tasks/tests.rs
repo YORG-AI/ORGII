@@ -22,7 +22,6 @@ use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{Task, TaskExecutionMode, TaskStatus, TaskSummary};
-use crate::definitions::orgs::HierarchyMode;
 
 fn context_with_shared_member_agent_id() -> AgentOrgRunContext {
     AgentOrgRunContext {
@@ -39,18 +38,16 @@ fn context_with_shared_member_agent_id() -> AgentOrgRunContext {
                 name: "Planner".to_string(),
                 role: "Plan work".to_string(),
                 agent_id: "builtin:sde".to_string(),
-                parent_member_id: None,
             },
             AgentOrgContextMember {
                 member_id: "member-builder".to_string(),
                 name: "Builder".to_string(),
                 role: "Build work".to_string(),
                 agent_id: "builtin:sde".to_string(),
-                parent_member_id: Some("member-planner".to_string()),
             },
         ],
-        hierarchy_mode: HierarchyMode::Strict,
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        capability_index: Default::default(),
         root_session_id: Some("root-shared-agent".to_string()),
     }
 }

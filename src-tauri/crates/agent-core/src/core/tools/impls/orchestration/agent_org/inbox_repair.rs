@@ -196,7 +196,7 @@ mod tests {
         AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunEntryMode, AgentOrgRunStatus,
         AgentOrgRunStore, CreateAgentOrgRunParams,
     };
-    use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy};
+    use crate::definitions::orgs::{FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
     use crate::session::persistence::{upsert_session, UnifiedSessionRecord};
     use crate::tools::impls::orchestration::org_send_message::NoopInboxWakeHook;
     use crate::tools::traits::Tool;
@@ -224,22 +224,22 @@ mod tests {
             role: "Coordinator".into(),
             agent_id: "coordinator-agent".into(),
             description: None,
-            hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: PlanApprovalPolicy::Coordinator,
-            children: vec![OrgMember {
-                id: "worker".into(),
+            members: vec![FlatOrgMember {
+                member_id: "worker".into(),
                 name: "Worker".into(),
                 role: "Implementer".into(),
                 agent_id: "worker-agent".into(),
                 runtime_config: None,
-                children: Vec::new(),
             }],
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
         };
         let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
             org_id: org.id.clone(),
             coordinator_agent_id: org.agent_id.clone(),
             root_session_id: Some("root-inbox-repair".into()),
-            org_snapshot: org,
+            org_snapshot: (&org).into(),
             entry_mode: AgentOrgRunEntryMode::StandaloneSession,
             status: AgentOrgRunStatus::Running,
             work_item_id: None,
@@ -297,10 +297,9 @@ mod tests {
                 name: "Worker".into(),
                 role: "Implementer".into(),
                 agent_id: "worker-agent".into(),
-                parent_member_id: None,
             }],
-            hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: PlanApprovalPolicy::Coordinator,
+            capability_index: Default::default(),
             root_session_id: Some("root-inbox-repair".into()),
         });
         let make_context = |member_id: &str, agent_id: &str| {

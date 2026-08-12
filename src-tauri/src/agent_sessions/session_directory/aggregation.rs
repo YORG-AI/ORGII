@@ -9,7 +9,7 @@ use std::collections::HashSet;
 
 use crate::agent_sessions::cli::persistence as cli_session_persistence;
 use agent_core::coordination::agent_org_runs::{AgentOrgRunRecord, AgentOrgRunStore};
-use agent_core::definitions::orgs::OrgDefinition;
+use agent_core::definitions::orgs::AgentOrgLaunchSnapshot;
 use agent_core::session::persistence::{
     self as session_persistence, list_agent_org_root_sessions_page,
     list_standalone_coding_sessions_page, list_unpinned_sessions_by_type_page, session_type,
@@ -1123,8 +1123,8 @@ fn apply_pagination(sessions: &mut Vec<SessionAggregateRecord>, filter: &Session
 fn agent_org_display_name(run: &AgentOrgRunRecord) -> String {
     run.org_snapshot_json
         .as_deref()
-        .and_then(|json| serde_json::from_str::<OrgDefinition>(json).ok())
-        .map(|org| org.name)
+        .and_then(|json| serde_json::from_str::<AgentOrgLaunchSnapshot>(json).ok())
+        .map(|snapshot| snapshot.org_name)
         .unwrap_or_else(|| run.org_id.clone())
 }
 

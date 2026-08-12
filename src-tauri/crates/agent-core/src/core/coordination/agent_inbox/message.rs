@@ -1492,9 +1492,7 @@ mod tests {
 
     #[test]
     fn superseded_delivery_can_follow_a_real_replacement_chain_but_not_cycle() {
-        use crate::definitions::orgs::{
-            HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy,
-        };
+        use crate::definitions::orgs::{FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
 
         let _sandbox = sandbox_with_inbox_schema();
         let run_id = "run-delivery-chain";
@@ -1505,39 +1503,43 @@ mod tests {
             role: "Coordinator".into(),
             agent_id: "coordinator-agent".into(),
             description: None,
-            hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: PlanApprovalPolicy::Coordinator,
-            children: vec![
-                OrgMember {
-                    id: "member-a".into(),
+            members: vec![
+                FlatOrgMember {
+                    member_id: "member-a".into(),
                     name: "Member A".into(),
                     role: "worker".into(),
                     agent_id: "agent-a".into(),
                     runtime_config: None,
-                    children: Vec::new(),
                 },
-                OrgMember {
-                    id: "member-b".into(),
+                FlatOrgMember {
+                    member_id: "member-b".into(),
                     name: "Member B".into(),
                     role: "worker".into(),
                     agent_id: "agent-b".into(),
                     runtime_config: None,
-                    children: Vec::new(),
                 },
-                OrgMember {
-                    id: "member-c".into(),
+                FlatOrgMember {
+                    member_id: "member-c".into(),
                     name: "Member C".into(),
                     role: "worker".into(),
                     agent_id: "agent-c".into(),
                     runtime_config: None,
-                    children: Vec::new(),
                 },
             ],
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
         };
         let conn = get_connection().expect("open sandbox database");
         conn.execute(
             "UPDATE agent_org_runs SET org_snapshot_json=?1 WHERE id=?2",
-            params![serde_json::to_string(&org).unwrap(), run_id],
+            params![
+                serde_json::to_string(&crate::definitions::orgs::AgentOrgLaunchSnapshot::from(
+                    &org
+                ))
+                .unwrap(),
+                run_id
+            ],
         )
         .expect("seed roster snapshot");
         let now = chrono::Utc::now().to_rfc3339();

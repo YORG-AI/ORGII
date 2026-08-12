@@ -271,7 +271,7 @@ pub async fn debug_session_execute_org_tool(
 
 #[tauri::command]
 pub async fn debug_agent_org_execute_tool_as_agent(
-    org_store: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
+    _org_store: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
     run_id: String,
     sender_member_id: String,
     tool_name: String,
@@ -287,7 +287,7 @@ pub async fn debug_agent_org_execute_tool_as_agent(
         ));
     }
 
-    let org_context = AgentOrgRunStore::context_for_run(&run_id, &org_store)?
+    let org_context = AgentOrgRunStore::context_for_run(&run_id)?
         .ok_or_else(|| format!("Agent Org run not found: {run_id}"))?;
     let sender = org_context
         .participant_by_member_id(&sender_member_id)
@@ -376,7 +376,7 @@ fn task_tools_context(
 
 #[tauri::command]
 pub async fn debug_agent_org_emit_member_idle(
-    org_store: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
+    _org_store: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
     run_id: String,
     member_id: String,
     reason: String,
@@ -408,7 +408,7 @@ pub async fn debug_agent_org_emit_member_idle(
         })?),
         None => None,
     };
-    let context = AgentOrgRunStore::context_for_run(&run_id, &org_store)?
+    let context = AgentOrgRunStore::context_for_run(&run_id)?
         .ok_or_else(|| format!("Agent Org run not found: {run_id}"))?;
     let member = context
         .participant_by_member_id(&member_id)

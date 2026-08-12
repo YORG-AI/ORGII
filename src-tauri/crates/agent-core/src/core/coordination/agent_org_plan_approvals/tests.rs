@@ -12,7 +12,7 @@ use crate::coordination::agent_org_runs::{
 use crate::coordination::agent_org_tasks::{
     AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_EXECUTION_MODE,
 };
-use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember};
+use crate::definitions::orgs::{FlatOrgMember, OrgDefinition};
 
 fn setup(policy: PlanApprovalPolicy) -> (test_helpers::test_env::SandboxGuard, AgentOrgRunContext) {
     let sandbox = test_helpers::test_env::sandbox();
@@ -48,32 +48,31 @@ fn setup(policy: PlanApprovalPolicy) -> (test_helpers::test_env::SandboxGuard, A
         role: "lead".into(),
         agent_id: "coord-agent".into(),
         description: None,
-        hierarchy_mode: HierarchyMode::Soft,
         plan_approval_policy: policy,
-        children: vec![
-            OrgMember {
-                id: "planner".into(),
+        members: vec![
+            FlatOrgMember {
+                member_id: "planner".into(),
                 name: "Planner".into(),
                 role: "plan".into(),
                 agent_id: "planner-agent".into(),
                 runtime_config: None,
-                children: Vec::new(),
             },
-            OrgMember {
-                id: "builder".into(),
+            FlatOrgMember {
+                member_id: "builder".into(),
                 name: "Builder".into(),
                 role: "build".into(),
                 agent_id: "builder-agent".into(),
                 runtime_config: None,
-                children: Vec::new(),
             },
         ],
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
     };
     let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
         org_id: org.id.clone(),
         coordinator_agent_id: org.agent_id.clone(),
         root_session_id: Some("root-plan-approval".into()),
-        org_snapshot: org,
+        org_snapshot: (&org).into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,
@@ -95,18 +94,16 @@ fn setup(policy: PlanApprovalPolicy) -> (test_helpers::test_env::SandboxGuard, A
                 name: "Planner".into(),
                 role: "plan".into(),
                 agent_id: "planner-agent".into(),
-                parent_member_id: None,
             },
             AgentOrgContextMember {
                 member_id: "builder".into(),
                 name: "Builder".into(),
                 role: "build".into(),
                 agent_id: "builder-agent".into(),
-                parent_member_id: None,
             },
         ],
-        hierarchy_mode: HierarchyMode::Soft,
         plan_approval_policy: policy,
+        capability_index: Default::default(),
         root_session_id: Some("root-plan-approval".into()),
     };
     (sandbox, context)

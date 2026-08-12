@@ -1975,58 +1975,35 @@
       "orgDescriptionPlaceholder": "Bu ekip ne yapar?",
       "members": "Üyeler",
       "addMember": "Üye Ekle",
-      "editMember": "Üye Düzenle",
       "noMembers": "Org hiyerarşinizi oluşturmak için üye ekleyin",
-      "previewEmpty": "Önizlemeyi görmek için agent ekleyin",
-      "hierarchyMode": {
-        "label": "Hiyerarşi modu",
-        "description": "Üyeler arasındaki Reports-to ilişkisinin runtime'da nasıl yorumlanacağı",
-        "flat": {
-          "label": "Düz",
-          "description": "Raporlama hiyerarşisi yok. Her üye doğrudan diğer her üyeye yazabilir. Reports-to sütunu gizlenir"
-        },
-        "soft": {
-          "label": "Yumuşak (önerilen)",
-          "description": "Reports-to LLM'e ekip ipucu olarak iletilir. Runtime yönlendirmesi serbesttir — gerektiğinde LLM bir akrana doğrudan yazabilir"
-        },
-        "strict": {
-          "label": "Katı",
-          "description": "Reports-to runtime'da zorlanır. Bir üye yalnızca yöneticisine, doğrudan raporlarına veya koordinatöre yazabilir. Akranlar arası gönderim reddedilir"
-        }
-      },
-      "strictBanner": "Katı mod: üyeler yalnızca yöneticisine, doğrudan raporlarına veya koordinatöre yazabilir. Akranlar arası mesajlar runtime'da engellenir.",
-      "missingParentWarn": "Katı modda, üst düzey üyeler doğrudan koordinatöre rapor verir ve yalnızca koordinatöre ulaşabilir.",
-      "reachability": {
-        "label": "Katı mod erişilebilirliği",
-        "description": "Mevcut zincir altında kimin kime doğrudan yazabileceğinin dry-run önizlemesi. Lansmandan önce izole üyeleri yakalamaya yarar",
-        "fromHeader": "kimden \\ kime",
-        "empty": "Katı mod yönlendirmesini görmek için en az bir üye ekleyin.",
-        "isolatedWarn": "Bu üyeler yalnızca koordinatöre ulaşabiliyor — katı modda akranlarıyla işbirliği yapamazlar: {{names}}",
-        "allowedTitle": "{{from}} doğrudan {{to}} kişisine yazabilir",
-        "blockedTitle": "Katı modda {{from}}, {{to}} kişisine doğrudan yazamaz — koordinatör üzerinden eskale edin"
-      },
       "membersLabel": "Takım Üyeleri",
-      "membersDesc": "Her satır bir yönlendirme takma adıdır. Koordinatör üyelere name ile hitap eder; name'ler benzersiz olmalıdır. Role, uzmanlık ipucu olarak LLM'e iletilir",
+      "membersDesc": "Her satır, bağımsız Writer izni ve iletişim ayarları olan bir üyedir. Adlar benzersiz olmalıdır; rol yalnızca uzmanlığı açıklar.",
       "memberName": "Ad",
       "memberNamePlaceholder": "Benzersiz yönlendirme adı (örn. SDE-1)",
       "memberNameDuplicate": "Başka bir üye bu name'i zaten kullanıyor. Name ekip içinde benzersiz olmalıdır.",
       "role": "Rol",
       "rolePlaceholder": "Uzmanlık (örn. backend dev)",
       "agent": "Agent",
-      "reportsTo": "Bağlı olduğu",
-      "reportsToCoordinator": "Koordinatör (üst düzey)",
       "status": "Durum",
       "coordinator": "Koordinatör",
       "coordinatorDesc": "Bu ekip çalışması için koordinatör oturumunu yöneten lider ajan",
       "coordinatorPlaceholder": "Koordinatör ajanı seçin",
-      "tabs": {
-        "edit": "Düzenle",
-        "previewDiagram": "Diyagram Önizleme"
-      },
       "dangerZone": "Tehlikeli Bölge",
       "deleteOrg": "Bu Org'u sil",
       "deleteOrgDesc": "Bu Agent Ekibi’ni kalıcı olarak siler. Üye Agent’lar etkilenmez. Bu işlem geri alınamaz",
-      "deleteThisOrg": "Bu Org'u sil"
+      "deleteThisOrg": "Bu Org'u sil",
+      "writer": "Writer",
+      "connected": "Bağlı",
+      "connectedCount": "{{count}} kişiyle bağlı",
+      "manageCommunication": "İletişimi yönet",
+      "futureTeamsOnly": "Şablon değişiklikleri yalnızca gelecekte oluşturulan ekipleri etkiler. Çalışan ekip oturumlarını değiştirmez.",
+      "communicationPanel": {
+        "title": "{{name}} iletişimi",
+        "coordinatorAlwaysReachable": "Koordinatör her üyeyle her zaman çift yönlü erişime sahiptir ve burada listelenmez.",
+        "search": "Üyeleri ada veya role göre ara",
+        "noPeers": "Eşleşen üye yok",
+        "saveWithTeam": "Değişiklikler ekip taslağında kalır ve ana ekip ayarları sayfasından kaydedilir."
+      }
     },
     "agentWizard": {
       "title": "Agent Yapılandır",

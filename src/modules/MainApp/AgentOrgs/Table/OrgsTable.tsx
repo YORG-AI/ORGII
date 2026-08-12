@@ -17,19 +17,17 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import { openAgentConfigInWorkStation } from "@src/util/ui/openAgentConfigInWorkStation";
 
-import type { OrgMember } from "../types";
+import type { OrgDefinition } from "../types";
 
 interface OrgsTableProps {
-  orgs: OrgMember[];
+  orgs: OrgDefinition[];
   loading?: boolean;
   onAddOrg: () => void;
   onDeleteOrg: (orgId: string) => void | Promise<void>;
 }
 
-function countMembers(org: OrgMember): number {
-  let count = 1;
-  for (const child of org.children ?? []) count += countMembers(child);
-  return count;
+function countMembers(org: OrgDefinition): number {
+  return org.members.length + 1;
 }
 
 const ORGS_TABLE_COL_WIDTH = {
@@ -56,7 +54,7 @@ const OrgsTable: React.FC<OrgsTableProps> = ({
     );
   }, [orgs, searchQuery]);
 
-  const handleView = useCallback((row: OrgMember) => {
+  const handleView = useCallback((row: OrgDefinition) => {
     openAgentConfigInWorkStation({
       variant: "org",
       entityId: row.id,
@@ -65,7 +63,7 @@ const OrgsTable: React.FC<OrgsTableProps> = ({
     });
   }, []);
 
-  const columns = useMemo<SettingsTableColumn<OrgMember>[]>(
+  const columns = useMemo<SettingsTableColumn<OrgDefinition>[]>(
     () => [
       {
         key: "name",
@@ -158,7 +156,7 @@ const OrgsTable: React.FC<OrgsTableProps> = ({
   );
 
   return (
-    <SettingsTable<OrgMember>
+    <SettingsTable<OrgDefinition>
       hover
       loading={loading}
       columns={columns}

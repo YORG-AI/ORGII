@@ -7,7 +7,7 @@ use crate::coordination::agent_org_runs::{
     AgentOrgRunStore, CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
-use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy};
+use crate::definitions::orgs::{FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
 use serial_test::serial;
 use test_helpers::test_env;
 
@@ -53,10 +53,9 @@ fn prompt_test_agent_org_context() -> AgentOrgRunContext {
             name: "Worker".to_string(),
             role: "implementer".to_string(),
             agent_id: "agent-worker".to_string(),
-            parent_member_id: None,
         }],
-        hierarchy_mode: HierarchyMode::Flat,
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
+        capability_index: Default::default(),
         root_session_id: Some("root-prompt-test".to_string()),
     }
 }
@@ -66,27 +65,28 @@ fn materialize_prompt_test_run(context: &AgentOrgRunContext) -> String {
         org_id: context.org_id.clone(),
         coordinator_agent_id: context.coordinator_agent_id.clone(),
         root_session_id: context.root_session_id.clone(),
-        org_snapshot: OrgDefinition {
+        org_snapshot: (&OrgDefinition {
             id: context.org_id.clone(),
             name: context.org_name.clone(),
             role: context.org_role.clone(),
             agent_id: context.coordinator_agent_id.clone(),
             description: None,
-            hierarchy_mode: context.hierarchy_mode,
             plan_approval_policy: context.plan_approval_policy,
-            children: context
+            members: context
                 .members
                 .iter()
-                .map(|member| OrgMember {
-                    id: member.member_id.clone(),
+                .map(|member| FlatOrgMember {
+                    member_id: member.member_id.clone(),
                     name: member.name.clone(),
                     role: member.role.clone(),
                     agent_id: member.agent_id.clone(),
                     runtime_config: None,
-                    children: Vec::new(),
                 })
                 .collect(),
-        },
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
+        })
+            .into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,
@@ -203,19 +203,19 @@ fn agent_org_prompt_uses_task_board_for_roster_delegation() {
 }
 
 #[test]
-fn agent_org_prompt_worker_cannot_confuse_soft_chat_with_peer_delegation() {
-    let mut context = prompt_test_agent_org_context();
-    context.hierarchy_mode = HierarchyMode::Soft;
+fn agent_org_prompt_worker_cannot_confuse_peer_chat_with_delegation() {
+    let context = prompt_test_agent_org_context();
     let section = build_agent_org_context_section(&context, "agent-worker", Some("member-worker"));
     assert!(
         section.contains("Your task authority:** worker")
-            && section.contains("may not assign or rewrite their work")
+            && section.contains("may create and modify only tasks for `member-worker`")
+            && section.contains("Configured Writer grants are not active in this phase")
             && section.contains("Only you may record `in_progress`, `completed`, and `output`"),
         "worker prompt must explain self-only task authority: {section}"
     );
     assert!(
-        section.contains("you may message any peer directly"),
-        "Soft routing should still permit peer discussion: {section}"
+        section.contains("peer delivery remains disabled until the peer-send phase"),
+        "prompt must not activate configured peer links before the peer-send phase: {section}"
     );
 }
 

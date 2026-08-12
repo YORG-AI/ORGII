@@ -113,25 +113,11 @@ impl OrgSendMessageTool {
         }
     }
 
-    fn hierarchy_mode_label(&self) -> &'static str {
-        match self.org_context.hierarchy_mode {
-            crate::definitions::orgs::HierarchyMode::Flat => "flat",
-            crate::definitions::orgs::HierarchyMode::Soft => "soft",
-            crate::definitions::orgs::HierarchyMode::Strict => "strict",
-        }
-    }
-
     fn routing_description(&self) -> &'static str {
-        match self.org_context.hierarchy_mode {
-            crate::definitions::orgs::HierarchyMode::Flat => {
-                "flat: any participant may message any other participant except itself"
-            }
-            crate::definitions::orgs::HierarchyMode::Soft => {
-                "soft: same routable set as flat; reports_to is advisory only"
-            }
-            crate::definitions::orgs::HierarchyMode::Strict => {
-                "strict: coordinator may message members; members may message coordinator, manager, and direct reports only"
-            }
+        if self.sender.is_coordinator {
+            "coordinator may message any member"
+        } else {
+            "member may message the coordinator; peer delivery remains disabled until the peer-send phase"
         }
     }
 
@@ -139,9 +125,8 @@ impl OrgSendMessageTool {
         let allowed = self.allowed_recipient_member_ids();
         let kinds = self.allowed_message_kinds();
         format!(
-            "{}\n\nCurrent Agent Org routing context:\n- hierarchy_mode: {}\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nFormal-work rule:\n- A `plain` message to any non-coordinator worker MUST include `related_task_id`.\n- The task must be unresolved, dependency-ready, and already owned by that recipient. Eligibility alone is not an assignment.\n- Create and explicitly assign the durable task first; a chat message cannot replace a task, assign ownerless work, or bypass dependencies.\n- Worker → coordinator status/escalation messages do not need `related_task_id`.\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision.",
+            "{}\n\nCurrent Agent Org routing context:\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nFormal-work rule:\n- A `plain` message to any non-coordinator worker MUST include `related_task_id`.\n- The task must be unresolved, dependency-ready, and already owned by that recipient. Eligibility alone is not an assignment.\n- Create and explicitly assign the durable task first; a chat message cannot replace a task, assign ownerless work, or bypass dependencies.\n- Worker → coordinator status/escalation messages do not need `related_task_id`.\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision.",
             <Self as Tool>::description(self),
-            self.hierarchy_mode_label(),
             self.sender.member_id,
             self.routing_description(),
             allowed.join(", "),

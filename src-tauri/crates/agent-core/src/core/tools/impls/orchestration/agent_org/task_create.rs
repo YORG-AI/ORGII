@@ -199,10 +199,10 @@ impl Tool for TaskCreateTool {
     fn description(&self) -> &str {
         concat!(
             "Create a task on the org run's task board. The board is shared by every ",
-            "agent in this Agent Org run, but write authority follows the org structure: ",
-            "the coordinator may assign any participant; a member may assign itself and, ",
-            "in soft/strict hierarchy modes, its direct reports. Peer communication does ",
-            "not grant peer task-assignment authority. ",
+            "agent in this Agent Org run, but write authority remains deliberately narrow: ",
+            "the coordinator may assign any participant, while a member may assign only ",
+            "itself until additional Writer activation lands. Peer communication does not ",
+            "grant peer task-assignment authority. ",
             "Set `owner_member_id` to `coordinator` or an exact roster member_id for ",
             "direct assignment — a pending assignee will receive a `task_assigned` inbox ",
             "row on their next turn. If you leave `owner_member_id` unset, the task is ",
@@ -303,7 +303,7 @@ impl Tool for TaskCreateTool {
                 return self.ctx.authorization_denied_response(
                     "task_create.assign_owner",
                     denied,
-                    "You may create work only for yourself or your direct reports. Ask the coordinator to create or assign work for a peer or another branch.",
+                    "You may create work only for yourself. Ask the coordinator to create or assign work for another member.",
                 );
             }
         }

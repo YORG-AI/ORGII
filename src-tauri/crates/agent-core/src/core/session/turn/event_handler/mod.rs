@@ -1087,23 +1087,24 @@ mod tests {
                 org_id: "org-stop-gate".to_string(),
                 coordinator_agent_id: "coordinator".to_string(),
                 root_session_id: None,
-                org_snapshot: crate::definitions::orgs::OrgDefinition {
+                org_snapshot: (&crate::definitions::orgs::OrgDefinition {
                     id: "org-stop-gate".to_string(),
                     name: "Stop Gate Test Org".to_string(),
                     role: "coordinator".to_string(),
                     agent_id: "coordinator".to_string(),
                     description: None,
-                    hierarchy_mode: Default::default(),
                     plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-                    children: vec![crate::definitions::orgs::OrgMember {
-                        id: "member-worker".to_string(),
+                    members: vec![crate::definitions::orgs::FlatOrgMember {
+                        member_id: "member-worker".to_string(),
                         name: "Worker".to_string(),
                         role: "builder".to_string(),
                         agent_id: "worker-agent".to_string(),
                         runtime_config: None,
-                        children: Vec::new(),
                     }],
-                },
+                    additional_task_graph_writer_member_ids: Vec::new(),
+                    member_communication_links: Vec::new(),
+                })
+                    .into(),
                 entry_mode:
                     crate::coordination::agent_org_runs::AgentOrgRunEntryMode::StandaloneSession,
                 status: crate::coordination::agent_org_runs::AgentOrgRunStatus::Running,

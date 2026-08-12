@@ -6,7 +6,7 @@
 //!   (i.e. it is the coordinator or one of the org members).
 //! - Coordinator and members both get the full set, but writes are
 //!   authority-checked at the tool boundary: coordinator → anyone;
-//!   member → self + direct reports in Soft/Strict; Flat members → self.
+//!   members → self only until additional Writer activation lands in PR7.
 //!   Tool availability is not task-administration authority.
 //! - Outside an org run the tools are not registered (so plain
 //!   single-agent sessions can't accidentally create dangling task
@@ -150,14 +150,8 @@ impl TaskToolsContext {
     pub(crate) fn task_authority_summary(&self) -> &'static str {
         if self.is_coordinator() {
             "coordinator: may create, assign, reassign, edit, and repair tasks for every participant, but may not impersonate another owner by setting that member's in_progress/completed lifecycle or writing that member's output"
-        } else if self
-            .org_context
-            .direct_report_member_ids_for(&self.caller_member_id)
-            .is_empty()
-        {
-            "worker: may manage only its own tasks and must update its own lifecycle/output"
         } else {
-            "manager: may administer its own tasks and direct-report tasks, but may update lifecycle/output only for work it personally owns"
+            "worker: may manage only its own tasks and must update its own lifecycle/output"
         }
     }
 

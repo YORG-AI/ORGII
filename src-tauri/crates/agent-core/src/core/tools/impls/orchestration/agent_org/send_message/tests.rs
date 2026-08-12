@@ -8,14 +8,9 @@ use crate::coordination::agent_org_runs::{AgentOrgContextMember, COORDINATOR_MEM
 use crate::coordination::agent_org_tasks::{
     new_task_id, AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
 };
-use crate::definitions::orgs::HierarchyMode;
 use std::sync::Mutex;
 
 fn context() -> Arc<AgentOrgRunContext> {
-    context_with_mode(HierarchyMode::Strict)
-}
-
-fn context_with_mode(hierarchy_mode: HierarchyMode) -> Arc<AgentOrgRunContext> {
     Arc::new(AgentOrgRunContext {
         run_id: "run-1".to_string(),
         org_id: "org-1".to_string(),
@@ -30,18 +25,16 @@ fn context_with_mode(hierarchy_mode: HierarchyMode) -> Arc<AgentOrgRunContext> {
                 name: "Planner".to_string(),
                 role: "plan".to_string(),
                 agent_id: "agent-shared".to_string(),
-                parent_member_id: None,
             },
             AgentOrgContextMember {
                 member_id: "builder".to_string(),
                 name: "Builder".to_string(),
                 role: "build".to_string(),
                 agent_id: "agent-shared".to_string(),
-                parent_member_id: Some("planner".to_string()),
             },
         ],
-        hierarchy_mode,
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        capability_index: Default::default(),
         root_session_id: Some("root-1".to_string()),
     })
 }
@@ -194,7 +187,7 @@ fn rejects_unroutable_member_id_with_allowed_ids() {
 
     assert!(error.contains("recipient_member_id 'ghost'"), "{error}");
     assert!(error.contains("coordinator"), "{error}");
-    assert!(error.contains("planner"), "{error}");
+    assert!(!error.contains("planner"), "{error}");
 }
 
 #[test]
@@ -218,27 +211,17 @@ fn schema_keeps_openai_compatible_routing_fields() {
 }
 
 #[test]
-fn llm_description_carries_flat_hierarchy_routing_hints() {
-    let tool = OrgSendMessageTool::new(
-        context_with_mode(HierarchyMode::Flat),
-        "builder".to_string(),
-    );
+fn llm_description_carries_current_routing_hints() {
+    let tool = OrgSendMessageTool::new(context(), "builder".to_string());
     let description = tool.llm_description().expect("description");
 
-    assert!(description.contains("hierarchy_mode: flat"));
-    assert!(description.contains("recipient_member_id enum: [coordinator, planner]"));
+    assert!(description.contains("recipient_member_id enum: [coordinator]"));
 }
 
 #[test]
-fn llm_description_recipient_hints_follow_strict_hierarchy_mode() {
-    let coordinator_tool = OrgSendMessageTool::new(
-        context_with_mode(HierarchyMode::Strict),
-        COORDINATOR_MEMBER_ID.to_string(),
-    );
-    let builder_tool = OrgSendMessageTool::new(
-        context_with_mode(HierarchyMode::Strict),
-        "builder".to_string(),
-    );
+fn llm_description_recipient_hints_keep_peer_send_disabled() {
+    let coordinator_tool = OrgSendMessageTool::new(context(), COORDINATOR_MEMBER_ID.to_string());
+    let builder_tool = OrgSendMessageTool::new(context(), "builder".to_string());
 
     assert!(coordinator_tool
         .llm_description()
@@ -247,7 +230,7 @@ fn llm_description_recipient_hints_follow_strict_hierarchy_mode() {
     assert!(builder_tool
         .llm_description()
         .expect("description")
-        .contains("recipient_member_id enum: [coordinator, planner]"));
+        .contains("recipient_member_id enum: [coordinator]"));
 }
 
 #[test]
@@ -297,9 +280,8 @@ fn llm_description_lists_only_member_ids() {
     let description = tool.llm_description().expect("description");
 
     assert!(description.contains("Current Agent Org routing context"));
-    assert!(description.contains("hierarchy_mode: strict"));
     assert!(description.contains("sender_member_id: builder"));
-    assert!(description.contains("recipient_member_id enum: [coordinator, planner]"));
+    assert!(description.contains("recipient_member_id enum: [coordinator]"));
     assert!(!description.contains("recipient_agent_id"));
     assert!(!description.contains("recipient_name"));
     assert!(!description.contains("Builder"));

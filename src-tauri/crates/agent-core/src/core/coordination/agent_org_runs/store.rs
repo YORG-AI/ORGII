@@ -5,7 +5,6 @@ use rusqlite::{params, Connection, OptionalExtension};
 use crate::coordination::agent_member_interventions::AgentMemberInterventionStore;
 use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task, TaskStatus};
-use crate::definitions::orgs::AgentOrgsStore;
 use crate::session::SessionStatus;
 use database::db::{get_connection, with_sessions_writer};
 
@@ -30,6 +29,15 @@ use super::{
     AgentOrgRunStatus, AgentOrgStartingFailure, CreateAgentOrgRunParams,
     CreateStartingAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
+
+fn serialize_launch_snapshot(
+    snapshot: &crate::definitions::orgs::AgentOrgLaunchSnapshot,
+) -> Result<String, String> {
+    crate::definitions::orgs::validate_launch_snapshot(snapshot)?;
+    let encoded = serde_json::to_string(snapshot)
+        .map_err(|err| format!("failed to serialize Agent Org launch snapshot: {err}"))?;
+    Ok(encoded)
+}
 
 pub struct AgentOrgRunStore;
 
@@ -98,8 +106,7 @@ impl AgentOrgRunStore {
     pub fn create(params: CreateAgentOrgRunParams) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
         let status = validate_status(params.status.as_str())?;
-        let org_snapshot_json = serde_json::to_string(&params.org_snapshot)
-            .map_err(|err| format!("failed to serialize Agent Org launch snapshot: {err}"))?;
+        let org_snapshot_json = serialize_launch_snapshot(&params.org_snapshot)?;
         let now = chrono::Utc::now().to_rfc3339();
         let run = AgentOrgRunRecord {
             id: format!("agent-org-run-{}", uuid::Uuid::new_v4()),
@@ -142,8 +149,7 @@ impl AgentOrgRunStore {
         params: CreateStartingAgentOrgRunParams,
     ) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
-        let org_snapshot_json = serde_json::to_string(&params.org_snapshot)
-            .map_err(|error| format!("failed to serialize Agent Org launch snapshot: {error}"))?;
+        let org_snapshot_json = serialize_launch_snapshot(&params.org_snapshot)?;
         let now = chrono::Utc::now().to_rfc3339();
         let run = AgentOrgRunRecord {
             id: format!("agent-org-run-{}", uuid::Uuid::new_v4()),
@@ -169,7 +175,7 @@ impl AgentOrgRunStore {
 
         let mut member_ids = HashSet::new();
         let mut session_ids = HashSet::new();
-        let mut expected_roster = flatten_members(&params.org_snapshot.children, None)
+        let mut expected_roster = flatten_members(&params.org_snapshot.members)
             .into_iter()
             .map(|member| (member.member_id, member.agent_id))
             .collect::<std::collections::HashMap<_, _>>();
@@ -913,24 +919,20 @@ impl AgentOrgRunStore {
     ///
     /// Bounded to `MAX_PARENT_WALK_DEPTH` hops so a corrupt or cyclic
     /// parent chain can't cause an unbounded scan during session init.
-    pub fn context_for_run(
-        run_id: &str,
-        org_store: &AgentOrgsStore,
-    ) -> Result<Option<AgentOrgRunContext>, String> {
+    pub fn context_for_run(run_id: &str) -> Result<Option<AgentOrgRunContext>, String> {
         let Some(run) = load_by_id(run_id).map_err(|err| err.to_string())? else {
             return Ok(None);
         };
-        Ok(Some(context_for_run_record(&run, org_store)?))
+        Ok(Some(context_for_run_record(&run)?))
     }
 
     pub fn context_for_session_with_parent_walk(
         session_id: &str,
-        org_store: &AgentOrgsStore,
     ) -> Result<Option<AgentOrgRunContext>, String> {
         let Some(run) = Self::run_for_session_with_parent_walk(session_id)? else {
             return Ok(None);
         };
-        Ok(Some(context_for_run_record(&run, org_store)?))
+        Ok(Some(context_for_run_record(&run)?))
     }
 
     pub fn root_session_id_for_session_with_parent_walk(
@@ -1355,12 +1357,15 @@ impl AgentOrgRunStore {
         let Some(snapshot_json) = snapshot_json else {
             return Ok(None);
         };
-        let snapshot: crate::definitions::orgs::OrgDefinition =
+        let snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot =
             serde_json::from_str(&snapshot_json).map_err(|err| {
                 format!("failed to parse Agent Org launch snapshot for run {org_run_id}: {err}")
             })?;
+        crate::definitions::orgs::validate_launch_snapshot(&snapshot).map_err(|err| {
+            format!("invalid Agent Org launch snapshot for run {org_run_id}: {err}")
+        })?;
         Ok(Some(
-            flatten_members(&snapshot.children, None)
+            flatten_members(&snapshot.members)
                 .into_iter()
                 .map(|member| member.member_id)
                 .collect(),

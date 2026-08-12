@@ -65,31 +65,26 @@ pub async fn agent_definitions_remove(
 pub async fn agent_orgs_list(
     state: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
 ) -> Result<Vec<OrgDefinition>, String> {
-    let orgs = state
-        .orgs
-        .lock()
-        .map_err(|err| format!("Lock error: {}", err))?;
-    Ok(orgs.clone())
+    state.list()
+}
+
+pub(in crate::core::definitions) struct TrustedAgentOrgSettingsActor {
+    _private: (),
 }
 
 #[tauri::command]
-pub async fn agent_orgs_add(
+pub async fn agent_orgs_save_trusted_settings(
     state: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
     org_json: String,
-) -> Result<String, String> {
+) -> Result<OrgDefinition, String> {
     let org: OrgDefinition =
         serde_json::from_str(&org_json).map_err(|err| format!("Invalid org JSON: {}", err))?;
-    state.insert(org)
-}
-
-#[tauri::command]
-pub async fn agent_orgs_update(
-    state: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
-    org_json: String,
-) -> Result<(), String> {
-    let org: OrgDefinition =
-        serde_json::from_str(&org_json).map_err(|err| format!("Invalid org JSON: {}", err))?;
-    state.replace(org)
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        store.save_trusted_settings(org, TrustedAgentOrgSettingsActor { _private: () })
+    })
+    .await
+    .map_err(|err| format!("Agent Org settings save task failed: {}", err))?
 }
 
 #[tauri::command]
@@ -97,7 +92,10 @@ pub async fn agent_orgs_remove(
     state: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
     org_id: String,
 ) -> Result<bool, String> {
-    state.remove(&org_id)
+    let store = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || store.remove(&org_id))
+        .await
+        .map_err(|err| format!("Agent Org remove task failed: {}", err))?
 }
 
 /// One row in the Inbox flat chat list — a persisted agent-org run that

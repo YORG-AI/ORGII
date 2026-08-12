@@ -4,7 +4,7 @@ import type { WorkItemData as WorkItemDataPayload } from "@src/api/http/project"
 import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
 import type {
   AgentDefinition,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
@@ -34,7 +34,7 @@ interface WorkItemDetailBodyProps {
   availableMembers: Person[];
   externalStatusConfig?: WorkItemExternalStatusConfig;
   availableAgents: AgentDefinition[];
-  availableOrgs: OrgMember[];
+  availableOrgs: OrgDefinition[];
   showTime: boolean;
   repoPath?: string | null;
   projectSlug?: string | null;

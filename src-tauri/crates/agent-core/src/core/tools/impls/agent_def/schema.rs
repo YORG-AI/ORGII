@@ -86,10 +86,15 @@ pub(super) fn parameters_schema() -> Value {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": { "name": { "type": "string" }, "role": { "type": "string" }, "agent_id": { "type": "string" }, "children": { "type": "array", "items": { "type": "object" } } },
+                "properties": {
+                    "member_id": { "type": "string", "description": "Stable member id returned by get_org; include it on update to preserve that member" },
+                    "name": { "type": "string" },
+                    "role": { "type": "string" },
+                    "agent_id": { "type": "string" }
+                },
                 "required": ["name"]
             },
-            "description": "Org team members"
+            "description": "Flat org team members. Writer grants and communication links are user-managed settings and are intentionally unavailable to this tool."
         }
     });
 

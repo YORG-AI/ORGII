@@ -734,30 +734,31 @@ fn store_rejects_owner_and_eligibility_outside_launch_roster() {
     use crate::coordination::agent_org_runs::{
         AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
     };
-    use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy};
+    use crate::definitions::orgs::{FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
 
     let _sandbox = task_store_sandbox();
     let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
         org_id: "org-roster".to_string(),
         coordinator_agent_id: "coord".to_string(),
         root_session_id: None,
-        org_snapshot: OrgDefinition {
+        org_snapshot: (&OrgDefinition {
             id: "org-roster".to_string(),
             name: "Roster".to_string(),
             role: "coordinator".to_string(),
             agent_id: "coord".to_string(),
             description: None,
-            hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: PlanApprovalPolicy::Coordinator,
-            children: vec![OrgMember {
-                id: "member-a".to_string(),
+            members: vec![FlatOrgMember {
+                member_id: "member-a".to_string(),
                 name: "A".to_string(),
                 role: "worker".to_string(),
                 agent_id: "agent-a".to_string(),
                 runtime_config: None,
-                children: Vec::new(),
             }],
-        },
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
+        })
+            .into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,

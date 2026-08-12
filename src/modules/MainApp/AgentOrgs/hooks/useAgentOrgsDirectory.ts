@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
 
-import type { OrgMember } from "../types";
+import type { OrgDefinition } from "../types";
 
 const AGENT_ORGS_CHANGED_EVENT = "orgii-agent-orgs-changed";
 
 export function useAgentOrgsDirectory() {
-  const [orgs, setOrgs] = useState<OrgMember[]>([]);
+  const [orgs, setOrgs] = useState<OrgDefinition[]>([]);
   const [orgsLoading, setOrgsLoading] = useState(true);
   const loadOrgs = useCallback(() => rpc.agentOrgs.orgs.list(), []);
 

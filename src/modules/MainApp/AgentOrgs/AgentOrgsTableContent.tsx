@@ -9,11 +9,11 @@ import { CliDisclaimer } from "@src/modules/MainApp/Integrations/Tables/Trademar
 import AgentsTable from "./Table/AgentsTable";
 import InlineExternalAgentsImport from "./Table/InlineExternalAgentsImport";
 import OrgsTable from "./Table/OrgsTable";
-import type { AgentDefinition, OrgMember } from "./types";
+import type { AgentDefinition, OrgDefinition } from "./types";
 
 interface AgentOrgsTableContentProps {
   activeTab: "agents" | "orgs" | "clis";
-  orgs: OrgMember[];
+  orgs: OrgDefinition[];
   orgsLoading: boolean;
   builtInAgents: AgentDefinition[];
   customAgents: AgentDefinition[];
