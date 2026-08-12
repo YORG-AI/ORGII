@@ -1492,7 +1492,7 @@
         "label": "Actions de la pull request",
         "confirmMergeTitle": "Fusionner la pull request ?",
         "confirmMergeMessage": "GitHub fusionnera la branche source de la pull request actuelle dans la branche de base.",
-        "merge": "Fusionner la pull request",
+        "merge": "Fusionner",
         "squash": "Squash et fusionner",
         "rebase": "Rebase et fusionner",
         "mergeSuccess": "Pull request fusionnée",

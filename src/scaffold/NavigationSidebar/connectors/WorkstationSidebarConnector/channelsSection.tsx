@@ -23,7 +23,6 @@
  * lives there, which keeps the `ORG2_LAST_MANAGER` refusal handling in one
  * place instead of duplicating a remove-self RPC flow here.
  */
-import { MenuItem, Menu as TauriMenu } from "@tauri-apps/api/menu";
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -49,6 +48,7 @@ import {
   openChannelInChatPanelTabAtom,
   reconcileDiscussionChannelTabsAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { popupNativeMenu } from "@src/util/platform/tauri/nativeMenuPopup";
 
 import {
   CLOUD_CHANNELS_EMPTY_ID,
@@ -244,18 +244,15 @@ export function useCloudChannelsSection({
               },
             ]
           : [];
-      void Promise.all(
-        [...settingsEntries, ...kinds.map((kind) => entries[kind])].map(
-          (entry) => MenuItem.new(entry)
-        )
-      )
-        .then(async (menuItems) => {
-          const menu = await TauriMenu.new({ items: menuItems });
-          await menu.popup();
-        })
-        .catch((error) => {
-          log.warn("channel row menu failed to open:", error);
-        });
+      void popupNativeMenu({
+        source: "cloud-channel-row",
+        buildItems: () => [
+          ...settingsEntries,
+          ...kinds.map((kind) => entries[kind]),
+        ],
+      }).catch((error) => {
+        log.warn("channel row menu failed to open:", error);
+      });
     },
     [isOrgAdmin, openMembersDialog, orgId, t]
   );

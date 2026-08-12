@@ -41,6 +41,7 @@ import {
   createWorkItemTab,
   createWorkManagementTab,
   createWorkspaceTab,
+  getChatPanelWorkItemTabKey,
 } from "./chatPanelTabFactories";
 import {
   activateChatPanelTabAtom,
@@ -442,7 +443,8 @@ addChatPanelTerminalTabAtom.debugLabel = "addChatPanelTerminalTab";
 
 /**
  * Open — or focus, if already open — a dedicated tab for a work item. Each
- * work item gets its own pill (deduped by `shortId`); activating it replays
+ * work item gets its own pill (deduped by organization, project, and short
+ * ID); activating it replays
  * the payload into the legacy surface atoms via `chatPanelNavigateAtom` so the
  * work-item panel renders. Re-opening refreshes the stored payload (name /
  * status can drift) before focusing.
@@ -450,9 +452,12 @@ addChatPanelTerminalTabAtom.debugLabel = "addChatPanelTerminalTab";
 export const openWorkItemInChatPanelTabAtom = atom(
   null,
   (get, set, workItem: ChatPanelSelectedWorkItem) => {
+    const workItemKey = getChatPanelWorkItemTabKey(workItem);
     const existingTab = get(chatPanelTabsAtom).tabs.find(
       (tab) =>
-        tab.type === "work-item" && tab.workItem?.shortId === workItem.shortId
+        tab.type === "work-item" &&
+        tab.workItem !== undefined &&
+        getChatPanelWorkItemTabKey(tab.workItem) === workItemKey
     );
     if (existingTab) {
       set(chatPanelTabsAtom, (prev) => ({

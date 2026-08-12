@@ -1491,7 +1491,7 @@
         "label": "Thao tác pull request",
         "confirmMergeTitle": "Hợp nhất pull request?",
         "confirmMergeMessage": "GitHub sẽ hợp nhất nhánh nguồn của pull request hiện tại vào nhánh gốc.",
-        "merge": "Hợp nhất pull request",
+        "merge": "Hợp nhất",
         "squash": "Gộp commit và hợp nhất",
         "rebase": "Rebase và hợp nhất",
         "mergeSuccess": "Đã hợp nhất pull request",

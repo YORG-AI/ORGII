@@ -11,6 +11,8 @@
 //! - `members`          — known project members / assignees
 //! - `routine_definitions` — durable automation definitions that launch agent runs
 //! - `routine_fires`    — provenance for each routine occurrence
+//! - `pm_work_item_runs` — durable execution episodes for Work Items
+//! - `pm_dispatch_outbox` — lease-based delivery queue for Work Item Runs
 //!
 //! Sync tables:
 //! - `outbox_entries`   — durable replay log for external sync adapters
@@ -59,6 +61,11 @@ pub fn init_project_tables(conn: &Connection) -> SqliteResult<()> {
 ///   mutation) — this table is insert-only and queryable.
 /// - `pm_idempotency`: idempotency records scoped by
 ///   `(actor, operation, scope, key)` per the frozen wire contract §14.4.
+/// - `pm_work_item_runs`: execution truth kept separate from both Work Item
+///   lifecycle and Session lifecycle. A terminal Run never implies a terminal
+///   Work Item; a successful Run may only request human review.
+/// - `pm_dispatch_outbox`: lease-based at-least-once delivery. The Run service
+///   and outbox row are always mutated in one transaction.
 pub fn init_pm_service_tables(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
         r#"
@@ -159,6 +166,162 @@ pub fn init_pm_service_tables(conn: &Connection) -> SqliteResult<()> {
             created_at    INTEGER NOT NULL,          -- unix ms
             PRIMARY KEY (actor_id, operation, scope_id, idem_key)
         );
+
+        CREATE TABLE IF NOT EXISTS pm_work_item_runs (
+            id                 TEXT PRIMARY KEY,
+            scope_key          TEXT NOT NULL,
+            project_slug       TEXT,
+            org_id             TEXT NOT NULL,
+            work_item_id       TEXT NOT NULL,
+            work_item_revision INTEGER NOT NULL,
+            trigger_kind       TEXT NOT NULL,
+            trigger_json       TEXT NOT NULL,
+            target_json        TEXT NOT NULL,
+            input_json         TEXT NOT NULL,
+            status             TEXT NOT NULL,
+            attempt            INTEGER NOT NULL,
+            max_attempts       INTEGER NOT NULL,
+            parent_run_id      TEXT,
+            session_id         TEXT,
+            failure_json       TEXT,
+            usage_json         TEXT,
+            idempotency_key    TEXT NOT NULL,
+            request_hash       TEXT NOT NULL,
+            generation         INTEGER NOT NULL DEFAULT 1,
+            created_at         INTEGER NOT NULL,
+            updated_at         INTEGER NOT NULL,
+            started_at         INTEGER,
+            completed_at       INTEGER
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_work_item_runs_idempotency
+            ON pm_work_item_runs(scope_key, work_item_id, idempotency_key);
+        CREATE INDEX IF NOT EXISTS idx_pm_work_item_runs_session
+            ON pm_work_item_runs(session_id)
+            WHERE session_id IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_pm_work_item_runs_item
+            ON pm_work_item_runs(scope_key, work_item_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_pm_work_item_runs_status
+            ON pm_work_item_runs(status, updated_at);
+
+        CREATE TABLE IF NOT EXISTS pm_dispatch_outbox (
+            id                TEXT PRIMARY KEY,
+            run_id            TEXT NOT NULL,
+            generation        INTEGER NOT NULL,
+            status            TEXT NOT NULL,
+            delivery_attempt  INTEGER NOT NULL DEFAULT 0,
+            available_at      INTEGER NOT NULL,
+            lease_token       TEXT,
+            lease_owner       TEXT,
+            lease_expires_at  INTEGER,
+            delivered_at      INTEGER,
+            last_error_json   TEXT,
+            created_at        INTEGER NOT NULL,
+            updated_at        INTEGER NOT NULL,
+            UNIQUE(run_id, generation)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_dispatch_outbox_ready
+            ON pm_dispatch_outbox(status, available_at, created_at);
+        CREATE INDEX IF NOT EXISTS idx_pm_dispatch_outbox_lease
+            ON pm_dispatch_outbox(status, lease_expires_at);
+
+        CREATE TABLE IF NOT EXISTS pm_event_consumers (
+            consumer_id TEXT PRIMARY KEY,
+            last_seq    INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS pm_work_item_path_locks (
+            workspace_path   TEXT PRIMARY KEY,
+            run_id           TEXT NOT NULL UNIQUE,
+            work_item_id     TEXT NOT NULL,
+            acquired_at      INTEGER NOT NULL,
+            lease_expires_at INTEGER NOT NULL,
+            updated_at       INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_work_item_path_locks_expiry
+            ON pm_work_item_path_locks(lease_expires_at);
+
+        CREATE TABLE IF NOT EXISTS pm_work_item_subscriptions (
+            scope_key       TEXT NOT NULL,
+            work_item_id    TEXT NOT NULL,
+            subscriber_id   TEXT NOT NULL,
+            reason          TEXT NOT NULL,
+            created_at      INTEGER NOT NULL,
+            muted_at        INTEGER,
+            PRIMARY KEY (scope_key, work_item_id, subscriber_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_work_item_subscriptions_subscriber
+            ON pm_work_item_subscriptions(subscriber_id, muted_at);
+
+        CREATE TABLE IF NOT EXISTS pm_work_item_inbox_events (
+            id            TEXT PRIMARY KEY,
+            scope_key     TEXT NOT NULL,
+            work_item_id  TEXT NOT NULL,
+            recipient_id  TEXT NOT NULL,
+            kind          TEXT NOT NULL,
+            actor_id      TEXT,
+            payload_json  TEXT NOT NULL,
+            coalesce_key  TEXT NOT NULL,
+            occurred_at   INTEGER NOT NULL,
+            archived_at   INTEGER,
+            UNIQUE(recipient_id, coalesce_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_work_item_inbox_recipient
+            ON pm_work_item_inbox_events(recipient_id, archived_at, occurred_at DESC);
+
+        CREATE TABLE IF NOT EXISTS pm_routine_webhooks (
+            routine_name         TEXT PRIMARY KEY,
+            secret_hash          TEXT NOT NULL,
+            secret_hint          TEXT NOT NULL,
+            enabled              INTEGER NOT NULL DEFAULT 1,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            paused_at            INTEGER,
+            created_at           INTEGER NOT NULL,
+            updated_at           INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS pm_routine_webhook_deliveries (
+            id              TEXT PRIMARY KEY,
+            routine_name    TEXT NOT NULL,
+            provider        TEXT NOT NULL,
+            event_kind      TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            payload_json    TEXT NOT NULL,
+            status          TEXT NOT NULL,
+            reason          TEXT,
+            routine_run_id  TEXT,
+            created_at      INTEGER NOT NULL,
+            updated_at      INTEGER NOT NULL,
+            UNIQUE(routine_name, idempotency_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_routine_webhook_deliveries_routine
+            ON pm_routine_webhook_deliveries(routine_name, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS pm_property_definitions (
+            id            TEXT PRIMARY KEY,
+            org_id        TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            property_type TEXT NOT NULL,
+            description   TEXT,
+            config_json   TEXT NOT NULL DEFAULT '{}',
+            position      INTEGER NOT NULL DEFAULT 0,
+            archived_at   INTEGER,
+            created_at    INTEGER NOT NULL,
+            updated_at    INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_property_definitions_name
+            ON pm_property_definitions(org_id, name) WHERE archived_at IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_pm_property_definitions_org
+            ON pm_property_definitions(org_id, archived_at, position);
+        CREATE TABLE IF NOT EXISTS pm_work_item_property_values (
+            property_id TEXT NOT NULL,
+            scope_key   TEXT NOT NULL,
+            work_item_id TEXT NOT NULL,
+            value_json  TEXT NOT NULL,
+            updated_at  INTEGER NOT NULL,
+            PRIMARY KEY (property_id, scope_key, work_item_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_work_item_property_values_item
+            ON pm_work_item_property_values(scope_key, work_item_id);
         "#,
     )?;
     Ok(())
@@ -697,11 +860,10 @@ fn ensure_workitems_allow_standalone_scope(conn: &Connection) -> SqliteResult<()
     migration?;
     foreign_keys_result?;
 
-    let foreign_key_violation: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_foreign_key_check",
-        [],
-        |row| row.get(0),
-    )?;
+    let foreign_key_violation: i64 =
+        conn.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+            row.get(0)
+        })?;
     if foreign_key_violation != 0 {
         return Err(rusqlite::Error::ExecuteReturnedResults);
     }
@@ -1014,11 +1176,9 @@ mod tests {
         assert_eq!(detached_project_id, None);
 
         let foreign_key_violations: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM pragma_foreign_key_check",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |row| {
+                row.get(0)
+            })
             .expect("foreign-key check");
         assert_eq!(foreign_key_violations, 0);
     }

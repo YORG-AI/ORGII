@@ -1491,7 +1491,7 @@
         "label": "pull request 작업",
         "confirmMergeTitle": "pull request를 병합할까요?",
         "confirmMergeMessage": "GitHub가 현재 pull request의 소스 브랜치를 기본 브랜치에 병합합니다.",
-        "merge": "pull request 병합",
+        "merge": "병합",
         "squash": "스쿼시 후 병합",
         "rebase": "리베이스 후 병합",
         "mergeSuccess": "pull request를 병합했습니다",

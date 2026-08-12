@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isUnclaimedCloudDeepLink,
   reArmTrackedShareUrls,
   trackReArmableShareUrl,
 } from "./useDeepLinkHandler";
@@ -52,5 +53,25 @@ describe("share deep-link re-arm tracking", () => {
     trackReArmableShareUrl(processed, reArmable, SHARE_A);
     expect(processed.has(SHARE_A)).toBe(true);
     expect(Array.from(reArmable)).toEqual([SHARE_A]);
+  });
+});
+
+describe("malformed cloud deep-link containment", () => {
+  it("claims orgii://cloud urls the dedicated parsers rejected", () => {
+    expect(isUnclaimedCloudDeepLink("orgii://cloud/join")).toBe(true);
+    expect(isUnclaimedCloudDeepLink("orgii://cloud/join?invite=")).toBe(true);
+    expect(isUnclaimedCloudDeepLink("orgii://cloud/nonsense?x=1")).toBe(true);
+    expect(isUnclaimedCloudDeepLink("orgii://cloud/session?share=")).toBe(true);
+    expect(isUnclaimedCloudDeepLink("  ORGII://CLOUD/join  ")).toBe(true);
+  });
+
+  it("leaves every non-cloud url to the generic route conversion", () => {
+    expect(isUnclaimedCloudDeepLink("orgii://collaboration/join")).toBe(false);
+    expect(isUnclaimedCloudDeepLink("orgii://marketplace/callback")).toBe(
+      false
+    );
+    expect(isUnclaimedCloudDeepLink("yorgai://cloud/join")).toBe(false);
+    expect(isUnclaimedCloudDeepLink("https://cloud/join")).toBe(false);
+    expect(isUnclaimedCloudDeepLink("not a url")).toBe(false);
   });
 });

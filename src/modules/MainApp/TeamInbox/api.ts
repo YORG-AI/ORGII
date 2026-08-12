@@ -62,11 +62,24 @@ type TeamInboxWirePayload =
       assigneeMemberId: string;
       summary?: string;
       handoff?: WorkItemHandoff;
+    }
+  | {
+      type: "work_item_updated";
+      title: string;
+      eventKind: string;
+      status: string;
+      priority: string;
+      recipientMemberId: string;
+      summary?: string;
     };
 
 interface TeamInboxWireItem {
   id: string;
-  kind: "comment_mention" | "work_item_assigned";
+  kind:
+    | "comment_mention"
+    | "work_item_assigned"
+    | "work_item_updated"
+    | "work_item_run_failed";
   occurredAt: number;
   readAt?: number;
   actor?: TeamInboxWireActor;
@@ -136,6 +149,38 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
       payload: {
         commentBody: item.payload.commentExcerpt,
         commentCount: item.payload.commentCount,
+      },
+    };
+  }
+
+  if (
+    (item.kind === "work_item_updated" ||
+      item.kind === "work_item_run_failed") &&
+    item.target.type === "work_item" &&
+    item.payload.type === "work_item_updated"
+  ) {
+    return {
+      id: item.id,
+      kind: "assigned_work_item",
+      occurredAt,
+      readAt: toIso(item.readAt),
+      actor,
+      target: {
+        kind: "work_item",
+        orgId: item.target.orgId,
+        projectId: item.target.projectSlug ?? item.target.projectId ?? "",
+        workItemId: item.target.shortId,
+        ...(item.target.repository
+          ? { repository: item.target.repository }
+          : {}),
+      },
+      payload: {
+        title: item.payload.title,
+        status: item.payload.status,
+        priority: item.payload.priority,
+        assigneeMemberId: item.payload.recipientMemberId,
+        summary: item.payload.summary,
+        updatedAt: occurredAt,
       },
     };
   }

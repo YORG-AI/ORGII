@@ -48,6 +48,7 @@ export interface WorkItemDetailProps {
   onRegisterActions?: (actions: WorkItemDetailActions) => void;
   repoPath?: string | null;
   projectSlug?: string | null;
+  orgId?: string | null;
   shortId?: string | null;
   onRefreshWorkItem?: () => void;
   onOpenSession?: (sessionId: string, title?: string) => void;

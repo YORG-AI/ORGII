@@ -70,6 +70,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   onRegisterActions,
   repoPath,
   projectSlug,
+  orgId,
   shortId,
   onRefreshWorkItem,
   onOpenSession,
@@ -162,11 +163,12 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
           projectSlug ?? undefined,
           undefined,
           undefined,
-          item.frontmatter.status
+          item.frontmatter.status,
+          orgId ?? undefined
         )
       );
     },
-    [openStationTab, projectSlug]
+    [openStationTab, orgId, projectSlug]
   );
 
   const handleOpenSessionWithContext = useCallback(
@@ -410,6 +412,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
         showTime={showTime}
         repoPath={repoPath}
         projectSlug={projectSlug}
+        orgId={orgId}
         shortId={shortId}
         activeAgentSessionId={activeAgentSessionId}
         onOpenSubItem={handleOpenSubItem}

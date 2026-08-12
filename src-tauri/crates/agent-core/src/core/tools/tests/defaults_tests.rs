@@ -30,9 +30,7 @@ fn non_management_tools_supported_on_every_parent_agent_kind() {
     for entry in BUILTIN_TOOLS.iter().filter(|entry| {
         !matches!(
             entry.name,
-            tool_names::MANAGE_SESSION
-                | tool_names::MANAGE_AGENT_DEF
-                | tool_names::CONTROL_ORGII
+            tool_names::MANAGE_SESSION | tool_names::MANAGE_AGENT_DEF | tool_names::CONTROL_ORGII
         )
     }) {
         let agents = supported_agents_for(entry.name);

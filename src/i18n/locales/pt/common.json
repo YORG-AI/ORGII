@@ -1492,7 +1492,7 @@
         "label": "Ações do pull request",
         "confirmMergeTitle": "Mesclar o pull request?",
         "confirmMergeMessage": "O GitHub mesclará o branch de origem do pull request atual no branch base.",
-        "merge": "Mesclar pull request",
+        "merge": "Mesclar",
         "squash": "Combinar commits e mesclar",
         "rebase": "Rebase e mesclar",
         "mergeSuccess": "Pull request mesclado",
