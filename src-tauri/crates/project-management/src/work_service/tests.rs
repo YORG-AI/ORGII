@@ -240,11 +240,17 @@ fn create_refuses_to_overwrite_an_existing_id_in_any_scope() {
     };
     let same_scope =
         create_project_work_item("demo", "AAA-0001", &clobber, None).expect_err("must refuse");
-    assert!(same_scope.starts_with(error::ALREADY_EXISTS), "{same_scope}");
+    assert!(
+        same_scope.starts_with(error::ALREADY_EXISTS),
+        "{same_scope}"
+    );
 
     let cross_scope = create_standalone_work_item(None, "AAA-0001", &clobber, None)
         .expect_err("cross-scope must refuse");
-    assert!(cross_scope.starts_with(error::ALREADY_EXISTS), "{cross_scope}");
+    assert!(
+        cross_scope.starts_with(error::ALREADY_EXISTS),
+        "{cross_scope}"
+    );
 
     let survivor = read_work_item("demo", "AAA-0001").expect("survivor");
     assert_eq!(survivor.frontmatter.title, "First");
@@ -356,7 +362,11 @@ fn run_idempotent_concurrent_same_key_executes_exactly_once() {
     let ra = a.join().expect("thread a").expect("outcome a");
     let rb = b.join().expect("thread b").expect("outcome b");
 
-    assert_eq!(executions.load(Ordering::SeqCst), 1, "exactly one execution");
+    assert_eq!(
+        executions.load(Ordering::SeqCst),
+        1,
+        "exactly one execution"
+    );
     let fresh = matches!(ra, IdempotencyOutcome::Fresh(_)) as u8
         + matches!(rb, IdempotencyOutcome::Fresh(_)) as u8;
     assert_eq!(fresh, 1, "one fresh, one replayed");
@@ -389,16 +399,52 @@ fn noted_by_actor_since_sees_only_matching_note_rows() {
         .expect("transition");
     assert!(!work_item_noted_by_actor_since("AAA-0002", "agent:os", before_ms).expect("query"));
 
-    note_project_work_item("demo", "AAA-0002", "progress", "half way", Some(&actor))
-        .expect("note");
+    note_project_work_item("demo", "AAA-0002", "progress", "half way", Some(&actor)).expect("note");
     assert!(work_item_noted_by_actor_since("AAA-0002", "agent:os", before_ms).expect("query"));
 
     // Different actor and a window after the write both miss.
-    assert!(
-        !work_item_noted_by_actor_since("AAA-0002", "agent:sde", before_ms).expect("query")
-    );
+    assert!(!work_item_noted_by_actor_since("AAA-0002", "agent:sde", before_ms).expect("query"));
     let after_ms = chrono::Utc::now().timestamp_millis() + 1;
     assert!(!work_item_noted_by_actor_since("AAA-0002", "agent:os", after_ms).expect("query"));
+}
+
+#[test]
+fn durable_note_id_makes_stage_replay_idempotent() {
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+    let actor = crate::projects::types::WorkItemMutationActor {
+        id: "system".to_string(),
+        name: "System".to_string(),
+    };
+
+    note_project_work_item_idempotent(
+        "demo",
+        "AAA-0001",
+        "note-stage-stable",
+        "progress",
+        "Stage 1 settled",
+        Some(&actor),
+    )
+    .expect("first note");
+    note_project_work_item_idempotent(
+        "demo",
+        "AAA-0001",
+        "note-stage-stable",
+        "progress",
+        "Stage 1 settled",
+        Some(&actor),
+    )
+    .expect("replayed note");
+
+    let item = read_work_item("demo", "AAA-0001").expect("read");
+    let matching: Vec<_> = item
+        .frontmatter
+        .comments
+        .iter()
+        .filter(|comment| comment.id == "note-stage-stable")
+        .collect();
+    assert_eq!(matching.len(), 1);
+    assert_eq!(matching[0].content, "[progress] Stage 1 settled");
 }
 
 #[test]
@@ -440,8 +486,7 @@ fn standalone_note_audits_as_work_note() {
     };
     let before_ms = chrono::Utc::now().timestamp_millis() - 1;
 
-    note_standalone_work_item(None, "SA-0001", "progress", "receipt", Some(&actor))
-        .expect("note");
+    note_standalone_work_item(None, "SA-0001", "progress", "receipt", Some(&actor)).expect("note");
 
     // Standalone notes must stamp the canonical `work.note` operation —
     // the receipt-fallback dedup query depends on it (a `work.patch`

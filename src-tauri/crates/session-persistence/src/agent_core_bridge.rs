@@ -101,6 +101,21 @@ fn map_bridge_status(status: session_bridge::TurnIntentBridgeStatus) -> PsStatus
     }
 }
 
+fn map_persisted_status(status: PsStatus) -> session_bridge::TurnIntentBridgeStatus {
+    use session_bridge::TurnIntentBridgeStatus as B;
+    match status {
+        PsStatus::Optimistic => B::Optimistic,
+        PsStatus::Queued => B::Queued,
+        PsStatus::Running => B::Running,
+        PsStatus::Completed => B::Completed,
+        PsStatus::Failed => B::Failed,
+        PsStatus::Cancelled => B::Cancelled,
+        PsStatus::Stale => B::Stale,
+        PsStatus::Coalesced => B::Coalesced,
+        PsStatus::Rejected => B::Rejected,
+    }
+}
+
 fn map_bridge_source(source: session_bridge::TurnIntentBridgeSource) -> PsSource {
     use session_bridge::TurnIntentBridgeSource as B;
     match source {
@@ -160,6 +175,24 @@ fn update_turn_intent_status_adapter(
     }
 }
 
+fn get_turn_intent_status_adapter(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Option<session_bridge::TurnIntentBridgeStatus> {
+    match turn_intents::read_intent(session_id, turn_intent_id) {
+        Ok(row) => row.map(|row| map_persisted_status(row.status)),
+        Err(err) => {
+            tracing::warn!(
+                session_id = %session_id,
+                turn_intent_id = %turn_intent_id,
+                error = ?err,
+                "turn_intents.read_intent failed"
+            );
+            None
+        }
+    }
+}
+
 fn mark_pending_turn_intents_stale_adapter(session_id: &str) {
     if let Err(err) = turn_intents::mark_pending_stale(session_id) {
         tracing::warn!(
@@ -177,6 +210,7 @@ pub fn register() {
     session_bridge::register_record_usage_telemetry_batch(record_usage_telemetry_batch_adapter);
     session_bridge::register_upsert_turn_intent(upsert_turn_intent_adapter);
     session_bridge::register_update_turn_intent_status(update_turn_intent_status_adapter);
+    session_bridge::register_get_turn_intent_status(get_turn_intent_status_adapter);
     session_bridge::register_mark_pending_turn_intents_stale(
         mark_pending_turn_intents_stale_adapter,
     );

@@ -130,7 +130,7 @@ pub fn read_all_work_items_scoped_filtered(
     )?;
     let mut labels_by_work_item = read_project_labels(&connection, &project_id)?;
     let mut out = Vec::new();
-    for (core, extras_json) in rows {
+    for (core, extras_json, _) in rows {
         if read_bucket
             .map(|bucket| !bucket.matches(&core.status))
             .unwrap_or(false)
@@ -196,7 +196,7 @@ pub fn read_standalone_work_items_filtered(
     )?;
     let mut labels_by_work_item = read_standalone_labels(&connection, org_id)?;
     let mut out = Vec::new();
-    for (core, extras_json) in rows {
+    for (core, extras_json, _) in rows {
         if read_bucket
             .map(|bucket| !bucket.matches(&core.status))
             .unwrap_or(false)
@@ -213,18 +213,45 @@ pub fn read_standalone_work_items_filtered(
     Ok(out)
 }
 
+pub(super) fn read_all_standalone_work_items_filtered(
+    read_bucket: Option<WorkItemReadBucket>,
+) -> Result<Vec<(String, WorkItemData)>, String> {
+    let connection = conn()?;
+    let rows =
+        read_work_item_rows_with_extras(&connection, "WHERE w.project_id IS NULL", params![])?;
+    let mut labels_by_work_item =
+        read_label_map(&connection, "WHERE w.project_id IS NULL", params![])?;
+    let mut out = Vec::new();
+    for (core, extras_json, org_id) in rows {
+        if read_bucket
+            .map(|bucket| !bucket.matches(&core.status))
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let work_item_id = core.work_item_id.clone();
+        let labels = labels_by_work_item
+            .remove(&work_item_id)
+            .unwrap_or_default();
+        let extras = parse_extras_json(&work_item_id, extras_json.as_deref());
+        out.push((org_id, assemble_work_item(core, labels, extras)));
+    }
+    Ok(out)
+}
+
 fn read_work_item_rows_with_extras<P>(
     connection: &rusqlite::Connection,
     where_clause: &str,
     query_params: P,
-) -> Result<Vec<(WorkItemCore, Option<String>)>, String>
+) -> Result<Vec<(WorkItemCore, Option<String>, String)>, String>
 where
     P: rusqlite::Params,
 {
     let sql = format!(
         "SELECT w.id, w.project_id, w.short_id, w.title, w.body, w.status, w.priority,
                 w.assignee, w.assignee_type, w.milestone, w.parent, w.start_date,
-                w.target_date, w.created_at, w.updated_at, w.deleted_at, e.extras_json
+                w.target_date, w.created_at, w.updated_at, w.deleted_at, e.extras_json,
+                w.org_id
          FROM workitems w
          LEFT JOIN workitem_extras e ON e.work_item_id = w.id
          {where_clause}
@@ -232,7 +259,11 @@ where
     );
     let mut stmt = map_db(connection.prepare(&sql))?;
     let rows = map_db(stmt.query_map(query_params, |row| {
-        Ok((row_to_core(row)?, row.get::<_, Option<String>>(16)?))
+        Ok((
+            row_to_core(row)?,
+            row.get::<_, Option<String>>(16)?,
+            row.get::<_, String>(17)?,
+        ))
     }))?;
     let mut out = Vec::new();
     for row in rows {
@@ -755,7 +786,6 @@ pub(crate) fn allocate_short_id_in_tx(
     tx: &rusqlite::Transaction,
     project_slug: &str,
 ) -> Result<String, String> {
-
     let (project_id, org_id, prefix, mut next_id) = map_db(
         tx.query_row(
             "SELECT id, org_id, short_id_prefix, next_work_item_id

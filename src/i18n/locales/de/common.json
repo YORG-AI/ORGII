@@ -1492,7 +1492,7 @@
         "label": "Pull-Request-Aktionen",
         "confirmMergeTitle": "Pull Request zusammenführen?",
         "confirmMergeMessage": "GitHub führt den Head des aktuellen Pull Requests mit dem Basis-Branch zusammen.",
-        "merge": "Pull Request zusammenführen",
+        "merge": "Zusammenführen",
         "squash": "Squash und zusammenführen",
         "rebase": "Rebase und zusammenführen",
         "mergeSuccess": "Pull Request zusammengeführt",

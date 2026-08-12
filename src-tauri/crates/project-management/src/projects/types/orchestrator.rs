@@ -16,6 +16,18 @@ pub use core_types::workflow::{
     ReviewFeedback, ReviewOutcome, ReviewerRef, TestResults, WorkItemDiffStats, WorkItemSchedule,
 };
 
+/// How an execution path should be mounted into an agent Session.
+///
+/// A local workspace is the primary checkout itself. A worktree is an
+/// already-registered secondary checkout and must pass the stricter Git
+/// worktree validation during launch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceExecutionMode {
+    LocalWorkspace,
+    Worktree,
+}
+
 /// Per-work-item orchestrator configuration (user-editable)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrchestratorConfig {
@@ -53,6 +65,10 @@ pub struct OrchestratorConfig {
     /// Overrides the project-level `linked_repos` fallback.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub worktree_path: Option<String>,
+    /// Whether `worktree_path` is the primary checkout or a registered Git
+    /// worktree. Optional for backward compatibility with older Work Items.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_mode: Option<WorkspaceExecutionMode>,
 }
 
 fn default_false() -> bool {
@@ -79,6 +95,7 @@ impl Default for OrchestratorConfig {
             agent_mode: None,
             agent_definition_id: None,
             worktree_path: None,
+            workspace_mode: None,
         }
     }
 }

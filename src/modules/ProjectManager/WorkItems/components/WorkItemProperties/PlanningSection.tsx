@@ -78,11 +78,11 @@ export function PlanningSection({
           }
           iconColor={workItem.project?.color}
           options={[]}
-          placement={fieldVariant === "pill" ? "portal" : "inline"}
+          placement="portal"
           fieldVariant={fieldVariant}
           triggerVariant={fieldVariant}
           searchable
-          searchPlaceholder={t("workItems.properties.searchProjects")}
+          searchPlaceholder={t("common:actions.search")}
           selected={!!workItem.project}
           readonly={projectReadonly}
           active={openPicker === "project"}
@@ -161,7 +161,7 @@ export function PlanningSection({
           />
           {openPicker === "milestone" && (
             <SearchableDropdown
-              placeholder={t("workItems.properties.searchMilestones")}
+              placeholder={t("common:actions.search")}
               widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
               align={fieldVariant === "pill" ? "auto" : "left"}
             >

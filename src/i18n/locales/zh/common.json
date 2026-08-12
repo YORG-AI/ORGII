@@ -1309,7 +1309,7 @@
         "label": "pull request 操作",
         "confirmMergeTitle": "合并 pull request？",
         "confirmMergeMessage": "GitHub 会将当前 pull request 的源分支合并到目标分支。",
-        "merge": "合并 pull request",
+        "merge": "合并",
         "squash": "压缩并合并",
         "rebase": "变基并合并",
         "mergeSuccess": "pull request 已合并",

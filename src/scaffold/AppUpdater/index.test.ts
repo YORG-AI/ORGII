@@ -28,6 +28,7 @@ interface CapturedModalProps {
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(),
+  getBuildProvenance: vi.fn(),
   getVersion: vi.fn(),
   messageError: vi.fn(),
   messageInfo: vi.fn(),
@@ -108,6 +109,11 @@ vi.mock("./channelCheck", () => ({
   checkAppUpdateOnChannel: mocks.check,
 }));
 
+vi.mock("./buildProvenance", () => ({
+  getAppBuildProvenance: mocks.getBuildProvenance,
+  resetAppBuildProvenanceForTests: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/plugin-process", () => ({
   relaunch: mocks.relaunch,
 }));
@@ -162,6 +168,12 @@ describe("AppUpdater", () => {
       mocks.storeValues.set(target, value);
     });
     mocks.getVersion.mockResolvedValue("1.1.21");
+    mocks.getBuildProvenance.mockResolvedValue({
+      kind: "release",
+      gitRef: "release/1.1.21",
+      gitSha: "test-release-sha",
+      installStrategy: "inPlace",
+    });
     resetAppUpdaterForTests();
   });
 
@@ -314,6 +326,13 @@ describe("AppUpdater", () => {
     await checkForUpdatesManually();
 
     const pendingDownload = installAvailableAppUpdate();
+    await vi.waitFor(() => {
+      expect(
+        mocks.messageInfo.mock.calls.some(
+          ([message]) => message.id === "app-update-progress"
+        )
+      ).toBe(true);
+    });
     const progressNotice = mocks.messageInfo.mock.calls.find(
       ([message]) => message.id === "app-update-progress"
     )?.[0];

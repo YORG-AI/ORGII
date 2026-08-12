@@ -276,7 +276,10 @@ fn oversized_string_value_is_truncated_and_the_record_still_parses() {
     let (mtime, size) = stat(&path);
     let mut reader =
         WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
-    let line = reader.next_line().expect("read record").expect("one record");
+    let line = reader
+        .next_line()
+        .expect("read record")
+        .expect("one record");
 
     let value: serde_json::Value =
         serde_json::from_str(&line.text).expect("truncated record is valid JSON");
@@ -315,14 +318,20 @@ fn many_under_budget_values_are_truncated_rather_than_overflowing() {
     let (mtime, size) = stat(&path);
     let mut reader =
         WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
-    let line = reader.next_line().expect("read record").expect("one record");
+    let line = reader
+        .next_line()
+        .expect("read record")
+        .expect("one record");
 
     let parsed: serde_json::Value =
         serde_json::from_str(&line.text).expect("truncated record is valid JSON");
     // The record survives with all 24 keys and the trailing field intact.
     assert_eq!(parsed["tail"], "kept");
     assert_eq!(parsed["k0"].as_str().expect("k0").len(), value.len());
-    assert!(parsed["k23"].as_str().expect("k23").ends_with("...[truncated]"));
+    assert!(parsed["k23"]
+        .as_str()
+        .expect("k23")
+        .ends_with("...[truncated]"));
     assert!(line.text.len() <= MAX_JSONL_LINE_BYTES);
     assert_eq!(reader.next_line().expect("read eof"), None);
 
@@ -347,7 +356,10 @@ fn truncation_never_splits_an_escape_sequence() {
         let (mtime, size) = stat(&path);
         let mut reader =
             WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open");
-        let line = reader.next_line().expect("read record").expect("one record");
+        let line = reader
+            .next_line()
+            .expect("read record")
+            .expect("one record");
         let value: serde_json::Value = serde_json::from_str(&line.text).unwrap_or_else(|err| {
             panic!("offset {offset}: truncated record must stay valid JSON: {err}")
         });

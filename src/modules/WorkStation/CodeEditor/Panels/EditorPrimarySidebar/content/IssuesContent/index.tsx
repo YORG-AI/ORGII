@@ -33,6 +33,10 @@ import { workstationIssueCallbackAtomFamily } from "@src/store/workstation/codeE
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
 import { useWorkstationIssues } from "../../hooks/useWorkstationIssues";
+import {
+  CLOSED_ISSUES_COLLAPSED_BY_DEFAULT,
+  shouldLoadClosedIssuesOnToggle,
+} from "../../hooks/workstationIssueHelpers";
 import { IssueRow } from "./IssueRow";
 import { NewIssueForm } from "./NewIssueForm";
 
@@ -75,6 +79,10 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
     const setCallbackAtom = useSetAtom(
       workstationIssueCallbackAtomFamily(scopeKey)
     );
+    const [openCollapsed, setOpenCollapsed] = useState(false);
+    const [closedCollapsed, setClosedCollapsed] = useState(
+      CLOSED_ISSUES_COLLAPSED_BY_DEFAULT
+    );
 
     const {
       openIssues,
@@ -99,17 +107,18 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
       handleCloseIssue,
       handleReopenIssue,
       handleAddComment,
-      refresh,
+      refresh: refreshIssues,
       repoLabels,
       collaborators,
     } = useWorkstationIssues({ repoPath, repoId, branchName, remoteUrl });
 
     const [showNewIssueForm, setShowNewIssueForm] = useState(false);
     const [creatingIssue, setCreatingIssue] = useState(false);
-    const [openCollapsed, setOpenCollapsed] = useState(false);
-    // Closed section: collapsed by default; first expand triggers fetch
-    const [closedCollapsed, setClosedCollapsed] = useState(true);
     const listRef = useRef<HTMLDivElement>(null);
+
+    const refresh = useCallback(() => {
+      refreshIssues(!closedCollapsed);
+    }, [closedCollapsed, refreshIssues]);
 
     // Keep internal debounced search in sync with the externally controlled query
     useEffect(() => {
@@ -183,14 +192,11 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
       (openLoadState === "loading" && openIssues.length === 0);
 
     const handleToggleClosed = useCallback(() => {
-      setClosedCollapsed((prev) => {
-        const nowExpanded = prev; // true → expanding
-        if (nowExpanded && closedLoadState === "idle") {
-          void fetchClosed();
-        }
-        return !prev;
-      });
-    }, [closedLoadState, fetchClosed]);
+      if (shouldLoadClosedIssuesOnToggle(closedCollapsed, closedLoadState)) {
+        void fetchClosed();
+      }
+      setClosedCollapsed((collapsed) => !collapsed);
+    }, [closedCollapsed, closedLoadState, fetchClosed]);
 
     const handleOpenIssue = useCallback(
       (issue: GitHubIssue) => {

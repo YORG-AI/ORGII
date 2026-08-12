@@ -38,6 +38,7 @@ interface WorkItemDetailBodyProps {
   showTime: boolean;
   repoPath?: string | null;
   projectSlug?: string | null;
+  orgId?: string | null;
   shortId?: string | null;
   activeAgentSessionId?: string | null;
   onOpenSubItem?: (item: WorkItemDataPayload) => void;
@@ -70,6 +71,7 @@ export function WorkItemDetailBody({
   showTime,
   repoPath,
   projectSlug,
+  orgId,
   shortId,
   activeAgentSessionId,
   onOpenSubItem,
@@ -122,6 +124,7 @@ export function WorkItemDetailBody({
               teamMembers={availableMembers}
               repoPath={repoPath}
               projectSlug={projectSlug}
+              orgId={orgId}
               shortId={shortId}
               onCancelAgent={onCancelAgent}
               onRetry={onRetry}

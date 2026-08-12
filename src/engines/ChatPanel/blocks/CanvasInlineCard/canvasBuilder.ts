@@ -19,6 +19,8 @@ const CANVAS_THEME_VARIABLES = [
   "--color-bg-2",
   "--color-fill-2",
   "--color-fill-3",
+  "--scrollbar-thumb-color",
+  "--scrollbar-thumb-hover-color",
   "--color-border-1",
   "--color-text-1",
   "--color-text-2",
@@ -31,9 +33,12 @@ function buildThemeVariables(): string {
     return "";
   }
 
-  const styles = window.getComputedStyle(document.documentElement);
+  const rootStyles = window.getComputedStyle(document.documentElement);
+  const bodyStyles = window.getComputedStyle(document.body);
   return CANVAS_THEME_VARIABLES.map((name) => {
-    const value = styles.getPropertyValue(name).trim();
+    const value =
+      rootStyles.getPropertyValue(name).trim() ||
+      bodyStyles.getPropertyValue(name).trim();
     return value ? `${name}:${value};` : "";
   }).join("");
 }
@@ -74,7 +79,8 @@ const BASE_STYLES = `
   button{cursor:var(--interactive-cursor,default);}
   ::-webkit-scrollbar{width:6px;height:6px;}
   ::-webkit-scrollbar-track{background:transparent;}
-  ::-webkit-scrollbar-thumb{background:var(--color-fill-3,rgba(255,255,255,.15));border-radius:3px;}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb-color,rgba(255,255,255,.09));border-radius:3px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover-color,rgba(255,255,255,.15));}
 `;
 
 /**

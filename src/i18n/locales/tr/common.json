@@ -1493,7 +1493,7 @@
         "label": "Pull request işlemleri",
         "confirmMergeTitle": "Pull request birleştirilsin mi?",
         "confirmMergeMessage": "GitHub mevcut pull request'in kaynak dalını hedef dalla birleştirecek.",
-        "merge": "Pull request'i birleştir",
+        "merge": "Birleştir",
         "squash": "Commit'leri birleştir ve merge et",
         "rebase": "Rebase et ve birleştir",
         "mergeSuccess": "Pull request birleştirildi",
