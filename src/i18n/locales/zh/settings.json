@@ -838,6 +838,10 @@
     "installConfirmTitle": "更新已准备好安装",
     "installConfirmDesc": "版本 {{version}} 已下载。安装并重新启动 ORGII 前，请保存正在进行的工作。",
     "installAndRestart": "安装并重新启动",
+    "installOfficialConfirmTitle": "正式版已准备好安装",
+    "installOfficialConfirmDesc": "将正式版 {{version}} 安装到 /Applications/ORG2.app。当前本地构建会保持打开且不受影响。",
+    "installOfficial": "安装正式版 App",
+    "localBuild": "本地构建",
     "skipVersion": "跳过此版本"
   },
   "monitor": {

@@ -34,7 +34,10 @@ mod work_items;
 #[cfg(debug_assertions)]
 pub use execution::debug_parse_work_item_launch_sources;
 pub use execution::start_work_item;
-pub use execution::{launch_phase_session, start_work_item_with_reason, PhaseLaunch};
+pub use execution::{
+    launch_phase_session, start_work_item_session_with_reason, start_work_item_with_reason,
+    PhaseLaunch, StartWorkItemSessionRequest, StartedWorkItemSession,
+};
 pub use helpers::{resolve_slug, slugify, OrchestratorConfigOverrides};
 pub use projects::{create_project, delete_project, list_projects, read_project, update_project};
 pub use search::find_across_workspaces;

@@ -1,13 +1,12 @@
-import {
-  MenuItem,
-  PredefinedMenuItem,
-  Menu as TauriMenu,
-} from "@tauri-apps/api/menu";
 import { type MouseEvent, useCallback } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 import {
   isCursorIdeSession,
   isHumanSession,
@@ -85,149 +84,113 @@ export function useWorkstationSidebarContextMenu({
   _key: string,
   item: NavigationMenuItem
 ) => Promise<void> {
-  return useCallback(
-    async (event: MouseEvent, _key: string, item: NavigationMenuItem) => {
-      event.preventDefault();
-      event.stopPropagation();
-
+  const buildMenuItems = useCallback(
+    (_key: string, item: NavigationMenuItem): NativeMenuItemOptions[] => {
       if (isDraftMenuItemId(item.id)) {
         const draftId = getDraftIdFromMenuItemId(item.id);
-        if (!draftId) return;
-        const removeDraftItem = await MenuItem.new({
-          text: tCommon("sessions:sidebar.removeDraft", "Remove draft"),
-          action: () => handleDeleteDraft(draftId),
-        });
-        const menu = await TauriMenu.new({ items: [removeDraftItem] });
-        await menu.popup();
-        return;
+        if (!draftId) return [];
+        return [
+          {
+            text: tCommon("sessions:sidebar.removeDraft", "Remove draft"),
+            action: () => handleDeleteDraft(draftId),
+          },
+        ];
       }
 
       if (!sessionMap.has(item.id)) {
-        if (!handleCloudRemoteItemRemove) return;
-        const removeItem = await MenuItem.new({
-          text: tCommon("actions.remove", "Remove"),
-          action: () => handleCloudRemoteItemRemove(item),
-        });
-        const menu = await TauriMenu.new({ items: [removeItem] });
-        await menu.popup();
-        return;
+        if (!handleCloudRemoteItemRemove) return [];
+        return [
+          {
+            text: tCommon("actions.remove", "Remove"),
+            action: () => handleCloudRemoteItemRemove(item),
+          },
+        ];
       }
 
       const isCursorIde = isCursorIdeSession(item.id);
       const session = sessionMap.get(item.id);
 
       // Subagent rows have no meaningful row-level actions.
-      if (session?.parentSessionId || item.id.includes(":subagent:")) return;
+      if (session?.parentSessionId || item.id.includes(":subagent:")) return [];
 
-      try {
-        const openInNewTabItem = await MenuItem.new({
-          text: tCommon("actions.openInNewTab", "Open in New Tab"),
-          action: () => handleOpenInNewTab(item.id),
-        });
-        const openInMyStationItem = await MenuItem.new({
-          text: tCommon(
-            "sessions:controlTower.sidebar.openInMyStation",
-            "Open in My Station"
-          ),
-          action: () => handleOpenInMyStation(item.id),
-        });
-        const pinLabel = session?.pinned
+      const openInNewTabItem: NativeMenuItemOptions = {
+        text: tCommon("actions.openInNewTab", "Open in New Tab"),
+        action: () => handleOpenInNewTab(item.id),
+      };
+      const openInMyStationItem: NativeMenuItemOptions = {
+        text: tCommon(
+          "sessions:controlTower.sidebar.openInMyStation",
+          "Open in My Station"
+        ),
+        action: () => handleOpenInMyStation(item.id),
+      };
+      const pinItem: NativeMenuItemOptions = {
+        text: session?.pinned
           ? tCommon("sessions:chat.unpinSession", "Unpin")
-          : tCommon("sessions:chat.pinSession", "Pin");
-        const pinItem = await MenuItem.new({
-          text: pinLabel,
-          action: () => handleTogglePin(item.id),
-        });
+          : tCommon("sessions:chat.pinSession", "Pin"),
+        action: () => handleTogglePin(item.id),
+      };
 
-        if (isCursorIde) {
-          const menu = await TauriMenu.new({
-            items: [openInNewTabItem, openInMyStationItem, pinItem],
-          });
-          await menu.popup();
-          return;
-        }
+      if (isCursorIde) {
+        return [openInNewTabItem, openInMyStationItem, pinItem];
+      }
 
-        if (isChatPanelTuiSessionId(item.id)) {
-          const deleteItem = await MenuItem.new({
-            text: tCommon("actions.delete"),
-            action: () => handleDeleteSession(item.id),
-          });
-          const menu = await TauriMenu.new({
-            items: [openInNewTabItem, pinItem, deleteItem],
-          });
-          await menu.popup();
-          return;
-        }
+      const deleteItem: NativeMenuItemOptions = {
+        text: tCommon("actions.delete"),
+        action: () => handleDeleteSession(item.id),
+      };
+      if (isChatPanelTuiSessionId(item.id)) {
+        return [openInNewTabItem, pinItem, deleteItem];
+      }
 
-        const renameItem = await MenuItem.new({
+      const primaryItems: NativeMenuItemOptions[] = [
+        openInNewTabItem,
+        openInMyStationItem,
+        {
           text: tCommon("actions.rename"),
           action: () => rename.open(item.id, sessionMap),
-        });
-        const exportItem = await MenuItem.new({
+        },
+      ];
+      if (!isHumanSession(item.id)) {
+        primaryItems.push({
           text: tCommon("sessions:chat.exportAsMarkdown", "Export as Markdown"),
           action: () => handleExportMarkdown(item.id),
         });
-        const deleteItem = await MenuItem.new({
-          text: tCommon("actions.delete"),
-          action: () => handleDeleteSession(item.id),
-        });
-        const menuSeparator = await PredefinedMenuItem.new({
-          item: "Separator",
-        });
-        const primaryItems = [
-          openInNewTabItem,
-          openInMyStationItem,
-          renameItem,
-          ...(!isHumanSession(item.id) ? [exportItem] : []),
-        ];
-        // Move (tag) the session into a managed cloud org, independent of
-        // repo-scope auto-sharing. Owner's own pushable sessions only.
-        if (session && isMoveEligible(session)) {
-          primaryItems.push(
-            await MenuItem.new({
-              text: moveToOrgLabel,
-              action: () => handleOpenMoveToOrg(session),
-            })
-          );
-        }
-        // Per-session cloud access ladder (§13.4): Off / Metadata only /
-        // Full replay + org/restricted visibility, per cloud org.
-        if (session && isCloudSyncLevelEligible(session)) {
-          primaryItems.push(
-            await MenuItem.new({
-              text: cloudSyncLevelLabel,
-              action: () => handleOpenCloudSyncLevel(session),
-            })
-          );
-        }
-        // Cloud per-session shares (0012): directed member grants + guest
-        // link shares, for the owner's own cloud-synced sessions.
-        if (session && isCloudShareEligible(session)) {
-          primaryItems.push(
-            await MenuItem.new({
-              text: cloudShareLabel,
-              action: () => handleOpenCloudShare(session),
-            })
-          );
-        }
-        // Non-secret reference for issue trackers and PRs. Sits beside the
-        // sharing actions because it is only meaningful once shared.
-        if (session && isCopyReferenceEligible(session)) {
-          primaryItems.push(
-            await MenuItem.new({
-              text: copyReferenceLabel,
-              action: () => handleCopyReference(session),
-            })
-          );
-        }
-        primaryItems.push(pinItem);
-        const menu = await TauriMenu.new({
-          items: [...primaryItems, menuSeparator, deleteItem],
-        });
-        await menu.popup();
-      } catch (error) {
-        log.error("[WorkstationSidebar] Context menu failed:", error);
       }
+      // Move (tag) the session into a managed cloud org, independent of
+      // repo-scope auto-sharing. Owner's own pushable sessions only.
+      if (session && isMoveEligible(session)) {
+        primaryItems.push({
+          text: moveToOrgLabel,
+          action: () => handleOpenMoveToOrg(session),
+        });
+      }
+      // Per-session cloud access ladder (§13.4): Off / Metadata only /
+      // Full replay + org/restricted visibility, per cloud org.
+      if (session && isCloudSyncLevelEligible(session)) {
+        primaryItems.push({
+          text: cloudSyncLevelLabel,
+          action: () => handleOpenCloudSyncLevel(session),
+        });
+      }
+      // Cloud per-session shares (0012): directed member grants + guest
+      // link shares, for the owner's own cloud-synced sessions.
+      if (session && isCloudShareEligible(session)) {
+        primaryItems.push({
+          text: cloudShareLabel,
+          action: () => handleOpenCloudShare(session),
+        });
+      }
+      // Non-secret reference for issue trackers and PRs. Sits beside the
+      // sharing actions because it is only meaningful once shared.
+      if (session && isCopyReferenceEligible(session)) {
+        primaryItems.push({
+          text: copyReferenceLabel,
+          action: () => handleCopyReference(session),
+        });
+      }
+
+      return [...primaryItems, pinItem, { item: "Separator" }, deleteItem];
     },
     [
       sessionMap,
@@ -253,5 +216,21 @@ export function useWorkstationSidebarContextMenu({
       copyReferenceLabel,
       handleCloudRemoteItemRemove,
     ]
+  );
+
+  return useCallback(
+    async (event: MouseEvent, key: string, item: NavigationMenuItem) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        await popupNativeMenu({
+          source: "workstation-sidebar-row",
+          buildItems: () => buildMenuItems(key, item),
+        });
+      } catch (error) {
+        log.error("[WorkstationSidebar] Context menu failed:", error);
+      }
+    },
+    [buildMenuItems]
   );
 }

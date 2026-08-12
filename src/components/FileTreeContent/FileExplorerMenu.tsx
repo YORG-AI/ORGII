@@ -6,12 +6,6 @@
  *
  * Uses dispatch() for actions per GUI Action System guidelines.
  */
-import {
-  MenuItem,
-  PredefinedMenuItem,
-  Submenu,
-  Menu as TauriMenu,
-} from "@tauri-apps/api/menu";
 import i18next from "i18next";
 import { useEffect, useRef } from "react";
 
@@ -22,6 +16,10 @@ import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { copyText } from "@src/util/data/clipboard";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 
 import type { DispatchFn } from "./types";
 
@@ -89,236 +87,210 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
 
     async function showNativeMenu(): Promise<void> {
       try {
-        const items: (MenuItem | PredefinedMenuItem | Submenu)[] = [];
-        const translate = i18next.t.bind(i18next);
-
-        const [newFileItem, newFolderItem] = await Promise.all([
-          MenuItem.new({
-            text: translate("actions.newFile", { defaultValue: "New File" }),
-            accelerator: "CmdOrCtrl+N",
-            action: () => {
-              if (contextMenuRef.current) {
-                const targetDirectory = getTargetDirectory(
-                  contextMenuRef.current.node,
-                  contextMenuRef.current.repoPath
-                );
-                const closeMenu = contextMenuRef.current.onClose;
-                const startCreateNew = contextMenuRef.current.onStartCreateNew;
-                closeMenu();
-                if (startCreateNew) {
-                  requestAnimationFrame(() =>
-                    startCreateNew(targetDirectory, false)
-                  );
-                }
-              }
-            },
-          }),
-          MenuItem.new({
-            text: translate("actions.newFolder", {
-              defaultValue: "New Folder",
-            }),
-            accelerator: "CmdOrCtrl+Shift+N",
-            action: () => {
-              if (contextMenuRef.current) {
-                const targetDirectory = getTargetDirectory(
-                  contextMenuRef.current.node,
-                  contextMenuRef.current.repoPath
-                );
-                const closeMenu = contextMenuRef.current.onClose;
-                const startCreateNew = contextMenuRef.current.onStartCreateNew;
-                closeMenu();
-                if (startCreateNew) {
-                  requestAnimationFrame(() =>
-                    startCreateNew(targetDirectory, true)
-                  );
-                }
-              }
-            },
-          }),
-        ]);
-
-        items.push(newFileItem, newFolderItem);
-
-        if (node) {
-          const store = getInstrumentedStore();
-          const clipboard = store.get(fileClipboardAtom);
-          const hasPasteItems = clipboard && clipboard.paths.length > 0;
-
-          const [
-            separatorBeforeNodeActions,
-            renameItem,
-            deleteItem,
-            duplicateItem,
-            separatorBeforeClipboardActions,
-            copyItem,
-            pasteItem,
-            separatorBeforePathActions,
-            copyPathItem,
-            copyRelativePathItem,
-            separatorBeforeRevealActions,
-            revealFinderItem,
-          ] = await Promise.all([
-            PredefinedMenuItem.new({ item: "Separator" }),
-            MenuItem.new({
-              text: translate("actions.rename", { defaultValue: "Rename" }),
-              accelerator: "Enter",
-              action: () => {
-                if (contextMenuRef.current?.node) {
-                  contextMenuRef.current.onStartRename?.(
-                    contextMenuRef.current.node.path
-                  );
-                  contextMenuRef.current.onClose();
-                }
-              },
-            }),
-            MenuItem.new({
-              text: translate("actions.delete", { defaultValue: "Delete" }),
-              accelerator: "CmdOrCtrl+Backspace",
-              action: async () => {
-                if (contextMenuRef.current?.node) {
-                  const nodePath = contextMenuRef.current.node.path;
-                  const nodeName = contextMenuRef.current.node.name;
-                  const closeMenu = contextMenuRef.current.onClose;
-                  const dispatchAction = contextMenuRef.current.dispatch;
-                  closeMenu();
-                  const confirmed = await confirmDestructiveAction({
-                    title: translate("actions.confirmDelete", {
-                      defaultValue: "Confirm Delete",
-                    }),
-                    message: `${translate("actions.delete", {
-                      defaultValue: "Delete",
-                    })} "${nodeName}"?`,
-                    okLabel: translate("actions.delete", {
-                      defaultValue: "Delete",
-                    }),
-                  });
-                  if (confirmed) {
-                    await dispatchAction(
-                      "file.delete",
-                      { path: nodePath },
-                      "user"
+        const result = await popupNativeMenu({
+          source: "file-explorer",
+          onBusy: onClose,
+          buildItems: () => {
+            const items: NativeMenuItemOptions[] = [];
+            const translate = i18next.t.bind(i18next);
+            items.push(
+              {
+                text: translate("actions.newFile", {
+                  defaultValue: "New File",
+                }),
+                accelerator: "CmdOrCtrl+N",
+                action: () => {
+                  if (contextMenuRef.current) {
+                    const targetDirectory = getTargetDirectory(
+                      contextMenuRef.current.node,
+                      contextMenuRef.current.repoPath
                     );
+                    const closeMenu = contextMenuRef.current.onClose;
+                    const startCreateNew =
+                      contextMenuRef.current.onStartCreateNew;
+                    closeMenu();
+                    if (startCreateNew) {
+                      requestAnimationFrame(() =>
+                        startCreateNew(targetDirectory, false)
+                      );
+                    }
                   }
-                }
+                },
               },
-            }),
-            MenuItem.new({
-              text: translate("actions.duplicate", {
-                defaultValue: "Duplicate",
-              }),
-              accelerator: "CmdOrCtrl+D",
-              action: () => {
-                if (contextMenuRef.current?.node) {
-                  contextMenuRef.current.dispatch(
-                    "file.duplicate",
-                    { path: contextMenuRef.current.node.path },
-                    "user"
-                  );
-                  contextMenuRef.current.onClose();
-                }
-              },
-            }),
-            PredefinedMenuItem.new({ item: "Separator" }),
-            MenuItem.new({
-              text: translate("actions.copy", { defaultValue: "Copy" }),
-              accelerator: "CmdOrCtrl+C",
-              action: () => {
-                if (contextMenuRef.current?.node) {
-                  contextMenuRef.current.dispatch(
-                    "file.copy",
-                    { paths: [contextMenuRef.current.node.path] },
-                    "user"
-                  );
-                  contextMenuRef.current.onClose();
-                }
-              },
-            }),
-            MenuItem.new({
-              text: translate("actions.paste", { defaultValue: "Paste" }),
-              accelerator: "CmdOrCtrl+V",
-              enabled: hasPasteItems ?? false,
-              action: () => {
-                if (contextMenuRef.current?.node) {
-                  const targetDirectory = getTargetDirectory(
-                    contextMenuRef.current.node,
-                    contextMenuRef.current.repoPath
-                  );
-                  contextMenuRef.current.dispatch(
-                    "file.paste",
-                    { targetDir: targetDirectory },
-                    "user"
-                  );
-                  contextMenuRef.current.onClose();
-                }
-              },
-            }),
-            PredefinedMenuItem.new({ item: "Separator" }),
-            MenuItem.new({
-              text: translate("actions.copyPath", {
-                defaultValue: "Copy Path",
-              }),
-              action: () => {
-                if (contextMenuRef.current?.node) {
-                  copyToClipboard(contextMenuRef.current.node.path);
-                  contextMenuRef.current.onClose();
-                }
-              },
-            }),
-            MenuItem.new({
-              text: translate("actions.copyRelativePath", {
-                defaultValue: "Copy Relative Path",
-              }),
-              action: () => {
-                if (contextMenuRef.current?.node) {
-                  const relativePath = getRelativePath(
-                    contextMenuRef.current.node.path,
-                    contextMenuRef.current.repoPath
-                  );
-                  copyToClipboard(relativePath);
-                  contextMenuRef.current.onClose();
-                }
-              },
-            }),
-            PredefinedMenuItem.new({ item: "Separator" }),
-            MenuItem.new({
-              text: translate(getFileManagerRevealLabelKey()),
-              action: () => {
-                if (contextMenuRef.current?.node) {
-                  contextMenuRef.current.dispatch(
-                    "file.revealInFinder",
-                    { path: contextMenuRef.current.node.path },
-                    "user"
-                  );
-                  contextMenuRef.current.onClose();
-                }
-              },
-            }),
-          ]);
+              {
+                text: translate("actions.newFolder", {
+                  defaultValue: "New Folder",
+                }),
+                accelerator: "CmdOrCtrl+Shift+N",
+                action: () => {
+                  if (contextMenuRef.current) {
+                    const targetDirectory = getTargetDirectory(
+                      contextMenuRef.current.node,
+                      contextMenuRef.current.repoPath
+                    );
+                    const closeMenu = contextMenuRef.current.onClose;
+                    const startCreateNew =
+                      contextMenuRef.current.onStartCreateNew;
+                    closeMenu();
+                    if (startCreateNew) {
+                      requestAnimationFrame(() =>
+                        startCreateNew(targetDirectory, true)
+                      );
+                    }
+                  }
+                },
+              }
+            );
 
-          items.push(
-            separatorBeforeNodeActions,
-            renameItem,
-            deleteItem,
-            duplicateItem,
-            separatorBeforeClipboardActions,
-            copyItem,
-            pasteItem,
-            separatorBeforePathActions,
-            copyPathItem,
-            copyRelativePathItem,
-            separatorBeforeRevealActions,
-            revealFinderItem
-          );
-        } else {
-          const store = getInstrumentedStore();
-          const clipboard = store.get(fileClipboardAtom);
-          const hasPasteItems = clipboard && clipboard.paths.length > 0;
+            const store = getInstrumentedStore();
+            const clipboard = store.get(fileClipboardAtom);
+            const hasPasteItems = Boolean(
+              clipboard && clipboard.paths.length > 0
+            );
 
-          const backgroundItems = await Promise.all([
-            ...(hasPasteItems
-              ? [
-                  PredefinedMenuItem.new({ item: "Separator" }),
-                  MenuItem.new({
+            if (node) {
+              items.push(
+                { item: "Separator" },
+                {
+                  text: translate("actions.rename", { defaultValue: "Rename" }),
+                  accelerator: "Enter",
+                  action: () => {
+                    if (contextMenuRef.current?.node) {
+                      contextMenuRef.current.onStartRename?.(
+                        contextMenuRef.current.node.path
+                      );
+                      contextMenuRef.current.onClose();
+                    }
+                  },
+                },
+                {
+                  text: translate("actions.delete", { defaultValue: "Delete" }),
+                  accelerator: "CmdOrCtrl+Backspace",
+                  action: async () => {
+                    if (contextMenuRef.current?.node) {
+                      const nodePath = contextMenuRef.current.node.path;
+                      const nodeName = contextMenuRef.current.node.name;
+                      const closeMenu = contextMenuRef.current.onClose;
+                      const dispatchAction = contextMenuRef.current.dispatch;
+                      closeMenu();
+                      const confirmed = await confirmDestructiveAction({
+                        title: translate("actions.confirmDelete", {
+                          defaultValue: "Confirm Delete",
+                        }),
+                        message: `${translate("actions.delete", {
+                          defaultValue: "Delete",
+                        })} "${nodeName}"?`,
+                        okLabel: translate("actions.delete", {
+                          defaultValue: "Delete",
+                        }),
+                      });
+                      if (confirmed) {
+                        await dispatchAction(
+                          "file.delete",
+                          { path: nodePath },
+                          "user"
+                        );
+                      }
+                    }
+                  },
+                },
+                {
+                  text: translate("actions.duplicate", {
+                    defaultValue: "Duplicate",
+                  }),
+                  accelerator: "CmdOrCtrl+D",
+                  action: () => {
+                    if (contextMenuRef.current?.node) {
+                      contextMenuRef.current.dispatch(
+                        "file.duplicate",
+                        { path: contextMenuRef.current.node.path },
+                        "user"
+                      );
+                      contextMenuRef.current.onClose();
+                    }
+                  },
+                },
+                { item: "Separator" },
+                {
+                  text: translate("actions.copy", { defaultValue: "Copy" }),
+                  accelerator: "CmdOrCtrl+C",
+                  action: () => {
+                    if (contextMenuRef.current?.node) {
+                      contextMenuRef.current.dispatch(
+                        "file.copy",
+                        { paths: [contextMenuRef.current.node.path] },
+                        "user"
+                      );
+                      contextMenuRef.current.onClose();
+                    }
+                  },
+                },
+                {
+                  text: translate("actions.paste", { defaultValue: "Paste" }),
+                  accelerator: "CmdOrCtrl+V",
+                  enabled: hasPasteItems ?? false,
+                  action: () => {
+                    if (contextMenuRef.current?.node) {
+                      const targetDirectory = getTargetDirectory(
+                        contextMenuRef.current.node,
+                        contextMenuRef.current.repoPath
+                      );
+                      contextMenuRef.current.dispatch(
+                        "file.paste",
+                        { targetDir: targetDirectory },
+                        "user"
+                      );
+                      contextMenuRef.current.onClose();
+                    }
+                  },
+                },
+                { item: "Separator" },
+                {
+                  text: translate("actions.copyPath", {
+                    defaultValue: "Copy Path",
+                  }),
+                  action: () => {
+                    if (contextMenuRef.current?.node) {
+                      copyToClipboard(contextMenuRef.current.node.path);
+                      contextMenuRef.current.onClose();
+                    }
+                  },
+                },
+                {
+                  text: translate("actions.copyRelativePath", {
+                    defaultValue: "Copy Relative Path",
+                  }),
+                  action: () => {
+                    if (contextMenuRef.current?.node) {
+                      const relativePath = getRelativePath(
+                        contextMenuRef.current.node.path,
+                        contextMenuRef.current.repoPath
+                      );
+                      copyToClipboard(relativePath);
+                      contextMenuRef.current.onClose();
+                    }
+                  },
+                },
+                { item: "Separator" },
+                {
+                  text: translate(getFileManagerRevealLabelKey()),
+                  action: () => {
+                    if (contextMenuRef.current?.node) {
+                      contextMenuRef.current.dispatch(
+                        "file.revealInFinder",
+                        { path: contextMenuRef.current.node.path },
+                        "user"
+                      );
+                      contextMenuRef.current.onClose();
+                    }
+                  },
+                }
+              );
+            } else {
+              if (hasPasteItems) {
+                items.push(
+                  { item: "Separator" },
+                  {
                     text: translate("actions.paste", { defaultValue: "Paste" }),
                     accelerator: "CmdOrCtrl+V",
                     action: () => {
@@ -331,28 +303,37 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                         contextMenuRef.current.onClose();
                       }
                     },
+                  }
+                );
+              }
+              items.push(
+                { item: "Separator" },
+                {
+                  text: translate("actions.refresh", {
+                    defaultValue: "Refresh",
                   }),
-                ]
-              : []),
-            PredefinedMenuItem.new({ item: "Separator" }),
-            MenuItem.new({
-              text: translate("actions.refresh", { defaultValue: "Refresh" }),
-              action: () => {
-                if (contextMenuRef.current) {
-                  contextMenuRef.current.dispatch("file.refresh", {}, "user");
-                  contextMenuRef.current.onClose();
+                  action: () => {
+                    if (contextMenuRef.current) {
+                      contextMenuRef.current.dispatch(
+                        "file.refresh",
+                        {},
+                        "user"
+                      );
+                      contextMenuRef.current.onClose();
+                    }
+                  },
                 }
-              },
-            }),
-          ]);
-          items.push(...backgroundItems);
-        }
+              );
+            }
 
-        const menu = await TauriMenu.new({ items });
-        await menu.popup();
-        setTimeout(() => {
-          onClose();
-        }, 50);
+            return items;
+          },
+        });
+        if (result.status !== "busy") {
+          setTimeout(() => {
+            onClose();
+          }, 50);
+        }
       } catch (error: unknown) {
         logger.error(
           "[FileExplorerContextMenu] Failed to show native context menu:",
@@ -362,7 +343,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
       }
     }
 
-    showNativeMenu();
+    void showNativeMenu();
   }, [node, repoPath, dispatch, onClose]);
 
   return null;

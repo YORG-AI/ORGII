@@ -223,10 +223,16 @@ fn dispatch_to_channels(message: &str) {
                 event_type(message).as_deref(),
                 Some("agent:complete") | Some("agent:error")
             ) {
-                tracing::warn!(
-                    "[IPC] no channel registered for session {}; dropping {} — \
-                     the frontend never subscribed this session's events and \
-                     its turn will only end via the planning-indicator watchdog",
+                // Background-dispatched sessions (for example Routine or
+                // Work Item runs) intentionally have no mounted webview. The
+                // runtime persists their transcript and terminal state before
+                // this live notification, so opening the session later
+                // hydrates the authoritative result without a watchdog. Keep
+                // a diagnostic for channel-lifecycle investigations without
+                // misclassifying this expected path as a lost terminal.
+                tracing::debug!(
+                    "[IPC] no live channel for session {}; skipped {} delivery; \
+                     durable session state remains authoritative",
                     sid,
                     event_type(message).as_deref().unwrap_or("?")
                 );

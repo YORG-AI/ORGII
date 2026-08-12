@@ -168,6 +168,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           ORGII_DIAGNOSTICS_TOKEN: ${{ secrets.ORGII_DIAGNOSTICS_TOKEN }}
           ORGII_APP_VERSION: ${{ env.SEMVER }}
+          ORGII_BUILD_KIND: release
+          ORGII_BUILD_REF: ${{ github.ref_name }}
+          ORGII_BUILD_SHA: ${{ github.sha }}
         run: pnpm tauri build --target aarch64-apple-darwin
 
       # ── Locate build artifacts ────────────────────────────────
@@ -318,6 +321,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           ORGII_DIAGNOSTICS_TOKEN: ${{ secrets.ORGII_DIAGNOSTICS_TOKEN }}
           ORGII_APP_VERSION: ${{ env.SEMVER }}
+          ORGII_BUILD_KIND: release
+          ORGII_BUILD_REF: ${{ github.ref_name }}
+          ORGII_BUILD_SHA: ${{ github.sha }}
         run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles ${{ env.WIN_BUNDLES }}
 
       # ── Sign with Azure Trusted Signing ─────────────────────────
@@ -532,6 +538,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           ORGII_DIAGNOSTICS_TOKEN: ${{ secrets.ORGII_DIAGNOSTICS_TOKEN }}
           ORGII_APP_VERSION: ${{ env.SEMVER }}
+          ORGII_BUILD_KIND: release
+          ORGII_BUILD_REF: ${{ github.ref_name }}
+          ORGII_BUILD_SHA: ${{ github.sha }}
         run: pnpm tauri build --target x86_64-unknown-linux-gnu --bundles deb,appimage
 
       # ── Gather artifacts ─────────────────────────────────────────

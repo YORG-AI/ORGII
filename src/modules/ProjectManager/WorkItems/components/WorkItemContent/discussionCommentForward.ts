@@ -9,6 +9,7 @@
  * the CLI, never through this UI submit path, so forwarding cannot
  * recurse.
  */
+import { projectApi } from "@src/api/http/project";
 import type { LinkedSession } from "@src/api/http/project/types/agentWorkflow";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { createLogger } from "@src/hooks/logger";
@@ -60,45 +61,77 @@ export function buildDiscussionForwardMessage({
  * remaining work and deliver through org2-pm. Fire-and-forget; failures
  * (session gone, other device) only log.
  */
-export function retryFailedLinkedSession({
+export async function retryFailedLinkedSession({
+  projectSlug,
+  orgId,
   shortId,
   sessionId,
 }: {
+  projectSlug?: string | null;
+  orgId?: string | null;
   shortId: string;
   sessionId: string;
-}): void {
+}): Promise<void> {
   if (!shortId || !sessionId) return;
+  try {
+    await projectApi.retryLatestWorkItemRun({
+      projectSlug,
+      orgId,
+      shortId,
+      sessionId,
+      idempotencyKey: `retry:${shortId}:${sessionId}:${crypto.randomUUID()}`,
+    });
+    return;
+  } catch (error) {
+    if (!String(error).includes("PM_RUN_ERR:NOT_FOUND")) {
+      logger.warn(`Typed retry for ${sessionId} rejected: ${String(error)}`);
+      return;
+    }
+  }
+
+  // Migration fallback for linked Sessions created before WorkItemRun
+  // persistence existed.
   const content = [
     `[Retry] The previous run on ${shortId} did not finish successfully.`,
     "",
     `Re-read the item with \`org2-pm work show ${shortId}\`, finish the remaining work,`,
     "and deliver through org2-pm with exactly one Discussion receipt.",
   ].join("\n");
-  void SessionService.sendMessage({
-    sessionId,
-    content,
-    displayText: `↻ Retry ${shortId}`,
-    turnIntentSource: "user_submit",
-  }).catch((error) => {
+  try {
+    await SessionService.sendMessage({
+      sessionId,
+      content,
+      displayText: `↻ Retry ${shortId}`,
+      turnIntentSource: "user_submit",
+    });
+  } catch (error) {
     logger.warn(`Retry forward to ${sessionId} failed: ${String(error)}`);
-  });
+  }
 }
 
 /**
- * Fire-and-forget forward. Failures (session busy, session not on this
- * device) only log — the comment itself is already durably on the item.
+ * Persist a durable reply Run. Delivery is owned by the backend outbox, so
+ * quitting the app after commenting cannot lose or duplicate the turn.
  */
-export function forwardDiscussionCommentToLinkedSession({
+export async function forwardDiscussionCommentToLinkedSession({
+  projectSlug,
+  orgId,
   shortId,
+  commentId,
+  authorId,
   author,
   comment,
   linkedSessions,
 }: {
+  projectSlug?: string | null;
+  orgId?: string | null;
   shortId: string;
+  commentId: string;
+  authorId?: string | null;
   author: string;
   comment: string;
   linkedSessions: LinkedSession[] | undefined;
-}): void {
+}): Promise<void> {
   const target = pickForwardTargetSession(linkedSessions);
   if (!target || !shortId) return;
   const { content, displayText } = buildDiscussionForwardMessage({
@@ -106,14 +139,30 @@ export function forwardDiscussionCommentToLinkedSession({
     author,
     comment,
   });
-  void SessionService.sendMessage({
-    sessionId: target.session_id,
-    content,
-    displayText,
-    turnIntentSource: "user_submit",
-  }).catch((error) => {
+  try {
+    await projectApi.enqueueWorkItemRun({
+      projectSlug: projectSlug ?? null,
+      orgId: orgId || "personal-org",
+      workItemId: shortId,
+      trigger: {
+        kind: "discussion_comment",
+        commentId,
+        authorId: authorId ?? null,
+      },
+      targetSnapshot: {
+        target: {
+          kind: "resume_session",
+          sessionId: target.session_id,
+        },
+        workItemRevision: 0,
+      },
+      input: { content, displayText },
+      idempotencyKey: `discussion-comment:${commentId}`,
+      maxAttempts: 3,
+    });
+  } catch (error) {
     logger.warn(
-      `Discussion forward to ${target.session_id} failed: ${String(error)}`
+      `Discussion Run for ${target.session_id} failed: ${String(error)}`
     );
-  });
+  }
 }

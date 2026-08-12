@@ -67,12 +67,12 @@ const commits: Record<string, unknown>[] = [
       author: {
         name: "Neon Forge",
         email: "neon@example.com",
-        date: "2026-08-06T00:00:00Z",
+        date: "2026-08-06T12:00:00Z",
       },
       committer: {
         name: "Neon Forge",
         email: "neon@example.com",
-        date: "2026-08-06T00:00:00Z",
+        date: "2026-08-06T12:00:00Z",
       },
       verification: { verified: true },
     },
@@ -119,7 +119,7 @@ describe("PrCommitsTab", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-08-06T01:00:00Z"));
+    vi.setSystemTime(new Date("2026-08-06T13:00:00Z"));
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);

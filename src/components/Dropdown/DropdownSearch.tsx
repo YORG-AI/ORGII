@@ -24,6 +24,7 @@
  */
 import { Search } from "lucide-react";
 import React, { forwardRef, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 
@@ -42,7 +43,7 @@ export interface DropdownSearchProps {
 
   /**
    * Placeholder text
-   * @default "Search..."
+   * @default Localized "Search"
    */
   placeholder?: string;
 
@@ -70,13 +71,14 @@ const DropdownSearch = forwardRef<HTMLInputElement, DropdownSearchProps>(
     {
       value,
       onChange,
-      placeholder = "Search...",
+      placeholder,
       ariaLabel,
       autoFocus = false,
       stopMouseDownPropagation = true,
     },
     ref
   ) => {
+    const { t } = useTranslation("common");
     const internalRef = useRef<HTMLInputElement>(null);
     const inputRef = (ref as React.RefObject<HTMLInputElement>) || internalRef;
     const tauriSelectAll = useTauriSelectAllShortcut();
@@ -105,6 +107,8 @@ const DropdownSearch = forwardRef<HTMLInputElement, DropdownSearchProps>(
       ? handlePointerGuard
       : undefined;
 
+    const resolvedPlaceholder = placeholder ?? t("actions.search");
+
     return (
       <div
         className={DROPDOWN_CLASSES.searchContainer}
@@ -123,8 +127,8 @@ const DropdownSearch = forwardRef<HTMLInputElement, DropdownSearchProps>(
           onClick={handlePointerGuard}
           onMouseDown={handleMouseDown}
           onKeyDown={tauriSelectAll}
-          placeholder={placeholder}
-          aria-label={ariaLabel ?? placeholder}
+          placeholder={resolvedPlaceholder}
+          aria-label={ariaLabel ?? resolvedPlaceholder}
           className={DROPDOWN_CLASSES.searchInput}
         />
       </div>

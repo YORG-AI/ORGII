@@ -203,6 +203,7 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
             session_id TEXT PRIMARY KEY,
             event_count INTEGER NOT NULL DEFAULT 0,
             cached_at INTEGER NOT NULL,
+            content_revision INTEGER NOT NULL DEFAULT 0,
             time_range_start TEXT,
             time_range_end TEXT,
             specs_json TEXT
@@ -213,6 +214,11 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
     // Migration: add specs_json column for existing DBs
     conn.execute("ALTER TABLE sessions ADD COLUMN specs_json TEXT", [])
         .ok();
+    conn.execute(
+        "ALTER TABLE sessions ADD COLUMN content_revision INTEGER NOT NULL DEFAULT 0",
+        [],
+    )
+    .ok();
 
     // ============================================
     // Human session note entries

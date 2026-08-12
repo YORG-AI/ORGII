@@ -104,15 +104,16 @@ fn guarded(
 /// quoting mangles backticks/`$()` in inline bodies; agents write the
 /// body to a file and pass the path instead.
 fn resolve_body_flag(flags: &HashMap<String, String>) -> Result<Option<String>, CliError> {
-    if let Some(path) = flags.get("body-file").filter(|value| !value.trim().is_empty()) {
-        return std::fs::read_to_string(path)
-            .map(Some)
-            .map_err(|err| {
-                CliError::new(
-                    ErrorCode::InvalidArgument,
-                    format!("--body-file {path}: {err}"),
-                )
-            });
+    if let Some(path) = flags
+        .get("body-file")
+        .filter(|value| !value.trim().is_empty())
+    {
+        return std::fs::read_to_string(path).map(Some).map_err(|err| {
+            CliError::new(
+                ErrorCode::InvalidArgument,
+                format!("--body-file {path}: {err}"),
+            )
+        });
     }
     Ok(flags.get("body").cloned())
 }
@@ -122,10 +123,7 @@ fn resolve_body_flag(flags: &HashMap<String, String>) -> Result<Option<String>, 
 /// resolved project has no such item while a standalone row exists. Lets
 /// a session bound to a standalone root item (Project-mode bootstrap)
 /// address it without knowing the `--standalone` flag.
-fn standalone_fallback_item(
-    context: &ExecutionContext,
-    short_id: &str,
-) -> Option<WorkItemData> {
+fn standalone_fallback_item(context: &ExecutionContext, short_id: &str) -> Option<WorkItemData> {
     let org = context.org_id.as_deref();
     match context.require_scope() {
         Err(_) => pio::read_standalone_work_item(org, short_id).ok(),
@@ -145,8 +143,16 @@ fn require_short_id(short_id: Option<&String>) -> Result<String, CliError> {
     })
 }
 
+/// A missing project scope is the canonical org-level Work Item scope, not an
+/// incomplete context. `--standalone` remains useful when a project-scoped
+/// session intentionally targets an org-level item, but projectless sessions
+/// should not need to know or spell an implementation flag.
+fn uses_standalone_scope(context: &ExecutionContext, flags: &HashMap<String, String>) -> bool {
+    flags.contains_key("standalone") || context.scope_id.is_none()
+}
+
 fn cmd_work_list(context: &ExecutionContext, flags: &HashMap<String, String>) -> i32 {
-    let items = if flags.contains_key("standalone") {
+    let items = if uses_standalone_scope(context, flags) {
         match pio::read_standalone_work_items(context.org_id.as_deref()) {
             Ok(items) => items,
             Err(err) => return emit_error(CliError::from_service(err)),
@@ -189,8 +195,7 @@ fn cmd_work_list(context: &ExecutionContext, flags: &HashMap<String, String>) ->
         .filter(|item| {
             status_filter
                 .map(|state| {
-                    work_service::state::map_legacy_status(&item.frontmatter.status)
-                        == Some(state)
+                    work_service::state::map_legacy_status(&item.frontmatter.status) == Some(state)
                 })
                 .unwrap_or(true)
         })
@@ -221,8 +226,10 @@ fn cmd_work_list(context: &ExecutionContext, flags: &HashMap<String, String>) ->
         None
     };
     matched.truncate(limit);
-    let filtered: Vec<serde_json::Value> =
-        matched.iter().map(|item| item_to_wire(item, None)).collect();
+    let filtered: Vec<serde_json::Value> = matched
+        .iter()
+        .map(|item| item_to_wire(item, None))
+        .collect();
 
     emit_success(serde_json::json!({ "items": filtered }), None, next_cursor)
 }
@@ -255,7 +262,7 @@ fn cmd_work_show(
         Ok(short_id) => short_id,
         Err(err) => return emit_error(err),
     };
-    if flags.contains_key("standalone") {
+    if uses_standalone_scope(context, flags) {
         let org = context.org_id.as_deref();
         let item = match pio::read_standalone_work_item(org, &short_id) {
             Ok(item) => item,
@@ -335,7 +342,7 @@ fn cmd_work_create(context: &ExecutionContext, flags: &HashMap<String, String>) 
         Ok(body) => body,
         Err(err) => return emit_error(err),
     };
-    if flags.contains_key("standalone") {
+    if uses_standalone_scope(context, flags) {
         let org = context.org_id.clone();
         let request = work_service::CreateWorkItemRequest {
             title: title.clone(),
@@ -435,7 +442,10 @@ fn cmd_work_update(
                 return emit_error(
                     CliError::new(
                         ErrorCode::InvalidArgument,
-                        format!("Invalid --stage '{}'; expected a positive integer or 'none'", raw),
+                        format!(
+                            "Invalid --stage '{}'; expected a positive integer or 'none'",
+                            raw
+                        ),
                     )
                     .with_details(serde_json::json!({ "field": "--stage", "value": raw })),
                 )
@@ -709,19 +719,17 @@ fn cmd_work_claim(
         &session_ref.provider,
         &session_ref.external_id,
     ) {
-        return emit_error(
-            CliError::new(ErrorCode::InvalidArgument, err).with_details(serde_json::json!({
+        return emit_error(CliError::new(ErrorCode::InvalidArgument, err).with_details(
+            serde_json::json!({
                 "field": "--session-ref",
                 "provider": session_ref.provider,
-            })),
-        );
+            }),
+        ));
     }
     let expected_revision = flags
         .get("expected-revision")
         .and_then(|value| value.parse::<i64>().ok());
-    if flags.contains_key("standalone")
-        || standalone_fallback_item(context, &short_id).is_some()
-    {
+    if flags.contains_key("standalone") || standalone_fallback_item(context, &short_id).is_some() {
         return match work_service::claim_standalone_work_item(
             context.org_id.as_deref(),
             &short_id,
@@ -766,11 +774,9 @@ fn cmd_work_claim(
                 Some(&actor_for_exec),
                 expected_revision,
             )?;
-            let revision = work_service::read_project_work_item_revision(
-                &scope_for_exec,
-                &short_id_for_exec,
-            )
-            .ok();
+            let revision =
+                work_service::read_project_work_item_revision(&scope_for_exec, &short_id_for_exec)
+                    .ok();
             Ok(item_to_wire(&item, revision))
         },
     );
@@ -825,9 +831,7 @@ fn cmd_work_transition(
     let expected_revision = flags
         .get("expected-revision")
         .and_then(|value| value.parse::<i64>().ok());
-    if flags.contains_key("standalone")
-        || standalone_fallback_item(context, &short_id).is_some()
-    {
+    if flags.contains_key("standalone") || standalone_fallback_item(context, &short_id).is_some() {
         let caller_session = context
             .session_ref
             .as_ref()
@@ -881,11 +885,9 @@ fn cmd_work_transition(
                 expected_revision,
                 caller_session.as_deref(),
             )?;
-            let revision = work_service::read_project_work_item_revision(
-                &scope_for_exec,
-                &short_id_for_exec,
-            )
-            .ok();
+            let revision =
+                work_service::read_project_work_item_revision(&scope_for_exec, &short_id_for_exec)
+                    .ok();
             Ok(item_to_wire(&item, revision))
         },
     );
@@ -923,9 +925,11 @@ fn cmd_work_note(
             Err(err) => return emit_error(err),
         };
         let body = body.as_str();
+        let parent_id = flags.get("parent-id").map(String::as_str);
         let kind = flags.get("kind").map(String::as_str).unwrap_or("comment");
-        const KINDS: &[&str] =
-            &["comment", "progress", "blocker", "decision", "handoff", "review"];
+        const KINDS: &[&str] = &[
+            "comment", "progress", "blocker", "decision", "handoff", "review",
+        ];
         if !KINDS.contains(&kind) {
             return emit_error(CliError::new(
                 ErrorCode::InvalidArgument,
@@ -935,14 +939,19 @@ fn cmd_work_note(
                 ),
             ));
         }
-        return match work_service::note_standalone_work_item(
+        return match work_service::note_standalone_work_item_threaded(
             context.org_id.as_deref(),
             &short_id,
             kind,
             body,
+            parent_id,
             Some(&actor),
         ) {
-            Ok(()) => emit_success(serde_json::json!({ "appended": true, "kind": kind }), None, None),
+            Ok(()) => emit_success(
+                serde_json::json!({ "appended": true, "kind": kind }),
+                None,
+                None,
+            ),
             Err(err) => emit_error(CliError::from_service(err)),
         };
     }
@@ -965,11 +974,11 @@ fn cmd_work_note(
         Err(err) => return emit_error(err),
     };
     let body = body.as_str();
-    let kind = flags
-        .get("kind")
-        .map(String::as_str)
-        .unwrap_or("comment");
-    const KINDS: &[&str] = &["comment", "progress", "blocker", "decision", "handoff", "review"];
+    let parent_id = flags.get("parent-id").map(String::as_str);
+    let kind = flags.get("kind").map(String::as_str).unwrap_or("comment");
+    const KINDS: &[&str] = &[
+        "comment", "progress", "blocker", "decision", "handoff", "review",
+    ];
     if !KINDS.contains(&kind) {
         return emit_error(CliError::new(
             ErrorCode::InvalidArgument,
@@ -980,16 +989,19 @@ fn cmd_work_note(
         ));
     }
     if standalone_fallback_item(context, &short_id).is_some() {
-        return match work_service::note_standalone_work_item(
+        return match work_service::note_standalone_work_item_threaded(
             context.org_id.as_deref(),
             &short_id,
             kind,
             body,
+            parent_id,
             Some(&actor),
         ) {
-            Ok(()) => {
-                emit_success(serde_json::json!({ "appended": true, "kind": kind }), None, None)
-            }
+            Ok(()) => emit_success(
+                serde_json::json!({ "appended": true, "kind": kind }),
+                None,
+                None,
+            ),
             Err(err) => emit_error(CliError::from_service(err)),
         };
     }
@@ -997,8 +1009,19 @@ fn cmd_work_note(
         Ok(scope) => scope.to_string(),
         Err(err) => return emit_error(err),
     };
-    match work_service::note_project_work_item(&scope, &short_id, kind, body, Some(&actor)) {
-        Ok(()) => emit_success(serde_json::json!({ "appended": true, "kind": kind }), None, None),
+    match work_service::note_project_work_item_threaded(
+        &scope,
+        &short_id,
+        kind,
+        body,
+        parent_id,
+        Some(&actor),
+    ) {
+        Ok(()) => emit_success(
+            serde_json::json!({ "appended": true, "kind": kind }),
+            None,
+            None,
+        ),
         Err(err) => emit_error(CliError::from_service(err)),
     }
 }
@@ -1036,12 +1059,12 @@ fn cmd_work_relate(
         if let Err(err) =
             project_management::provider_host::validate_session_ref(provider, external_id)
         {
-            return emit_error(
-                CliError::new(ErrorCode::InvalidArgument, err).with_details(serde_json::json!({
+            return emit_error(CliError::new(ErrorCode::InvalidArgument, err).with_details(
+                serde_json::json!({
                     "field": "--target",
                     "provider": provider,
-                })),
-            );
+                }),
+            ));
         }
     }
     match work_service::relate_project_work_item(&scope, &short_id, kind, target, Some(&actor)) {
@@ -1086,7 +1109,10 @@ fn load_spec_file(path: &str) -> Result<routine_service::spec::RoutineSpecFile, 
     serde_yaml::from_str(&raw).map_err(|err| {
         CliError::new(
             ErrorCode::InvalidArgument,
-            format!("Routine file '{}' does not match the portable spec: {}", path, err),
+            format!(
+                "Routine file '{}' does not match the portable spec: {}",
+                path, err
+            ),
         )
     })
 }
@@ -1095,11 +1121,8 @@ fn routine_error(err: String) -> CliError {
     if let Some(details) = err.strip_prefix(routine_service::error::SPEC_INVALID) {
         let violations: serde_json::Value =
             serde_json::from_str(details.trim_start_matches(':')).unwrap_or_default();
-        return CliError::new(
-            ErrorCode::InvalidArgument,
-            "Routine spec failed validation",
-        )
-        .with_details(serde_json::json!({ "violations": violations }));
+        return CliError::new(ErrorCode::InvalidArgument, "Routine spec failed validation")
+            .with_details(serde_json::json!({ "violations": violations }));
     }
     if let Some(rest) = err.strip_prefix(routine_service::error::INPUTS_INVALID) {
         return CliError::new(
@@ -1287,7 +1310,9 @@ pub fn dispatch_project(
     }
 }
 
-fn project_to_wire(project: &project_management::projects::types::ProjectData) -> serde_json::Value {
+fn project_to_wire(
+    project: &project_management::projects::types::ProjectData,
+) -> serde_json::Value {
     serde_json::json!({
         "slug": project.slug,
         "name": project.meta.name,
@@ -1306,8 +1331,7 @@ fn cmd_project_list(_context: &ExecutionContext, flags: &HashMap<String, String>
     let org = flags.get("org").map(String::as_str);
     match pio::read_all_projects_scoped(org) {
         Ok(projects) => {
-            let items: Vec<serde_json::Value> =
-                projects.iter().map(project_to_wire).collect();
+            let items: Vec<serde_json::Value> = projects.iter().map(project_to_wire).collect();
             emit_success(serde_json::json!({ "items": items }), None, None)
         }
         Err(err) => emit_error(CliError::from_service(err)),
@@ -1406,7 +1430,10 @@ fn cmd_project_create(context: &ExecutionContext, flags: &HashMap<String, String
     let result = guarded(
         &actor.id,
         "project.create",
-        flags.get("org").map(String::as_str).unwrap_or("personal-org"),
+        flags
+            .get("org")
+            .map(String::as_str)
+            .unwrap_or("personal-org"),
         flags.get("idempotency-key"),
         canonical,
         move || {

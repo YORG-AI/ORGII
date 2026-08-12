@@ -207,6 +207,7 @@ export const SessionMetadataSchema = z.object({
   sessionId: z.string(),
   eventCount: z.number(),
   cachedAt: z.number(),
+  contentRevision: z.number(),
   timeRangeStart: z.string().optional(),
   timeRangeEnd: z.string().optional(),
 });

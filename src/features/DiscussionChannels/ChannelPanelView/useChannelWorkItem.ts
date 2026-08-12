@@ -9,7 +9,7 @@
  *
  * Caching mirrors `useSessionTurnOverview`, the precedent the session card
  * already relies on: a module-level map plus in-flight coalescing, both keyed
- * by `<projectSlug>/<shortId>`. A transcript that names one item ten times
+ * by `<orgId>/<projectSlug>/<shortId>`. A transcript that names one item ten times
  * does ONE read, and a card remounting inside the virtualized list is free.
  * The cache is intentionally not invalidated on write — a reference card is a
  * cheap summary of an item the reader opens to see live, and a channel with a
@@ -36,6 +36,7 @@ const log = createLogger("ChannelWorkItemCard");
 const MAX_WORK_ITEM_CACHE_SIZE = 200;
 
 export interface ChannelWorkItemTarget {
+  orgId?: string;
   projectSlug: string;
   shortId: string;
 }
@@ -55,7 +56,7 @@ const inFlightLoads = new Map<
 >();
 
 export function channelWorkItemCacheKey(target: ChannelWorkItemTarget): string {
-  return `${target.projectSlug}/${target.shortId}`;
+  return `${target.orgId ?? "default"}/${target.projectSlug}/${target.shortId}`;
 }
 
 function remember(key: string, resolved: ResolvedChannelWorkItem): void {
@@ -67,18 +68,22 @@ function remember(key: string, resolved: ResolvedChannelWorkItem): void {
 }
 
 /**
- * Every pill path carries a project slug, but the item behind it may live in
- * the standalone bucket — a reference posted before the item moved, or an
- * `@`-picked item that never had a project. Falling back to the standalone
- * read costs one extra round trip on a path that is already degraded, and is
- * the difference between a working card and a dashed one.
+ * Session rails may point directly at a standalone bootstrap item and carry
+ * no project slug. Channel pills do carry a slug, but the item behind one may
+ * still live in the standalone bucket — a reference posted before the item
+ * moved, or an `@`-picked item that never had a project. A missing slug reads
+ * standalone immediately; a failed project read falls back there.
  */
 async function readWorkItemData(target: ChannelWorkItemTarget) {
+  const scope = target.orgId ? { orgId: target.orgId } : undefined;
+  if (!target.projectSlug) {
+    return projectApi.readStandaloneWorkItem(target.shortId, scope);
+  }
   try {
     return await projectApi.readWorkItem(target.projectSlug, target.shortId);
   } catch (error: unknown) {
     log.debug("project work item read failed, trying standalone", error);
-    return projectApi.readStandaloneWorkItem(target.shortId);
+    return projectApi.readStandaloneWorkItem(target.shortId, scope);
   }
 }
 
@@ -87,7 +92,9 @@ async function loadChannelWorkItem(
 ): Promise<ResolvedChannelWorkItem> {
   const [workItemResult, projectResult] = await Promise.allSettled([
     readWorkItemData(target),
-    projectApi.readProject(target.projectSlug),
+    target.projectSlug
+      ? projectApi.readProject(target.projectSlug)
+      : Promise.resolve(null),
   ]);
 
   if (workItemResult.status === "rejected") {
@@ -101,8 +108,9 @@ async function loadChannelWorkItem(
       standaloneWorkItemDataToEnriched(workItemResult.value)
     ),
     projectId: project?.meta.id ?? "",
-    projectName: project?.meta.name ?? target.projectSlug,
-    orgId: project?.meta.org_id,
+    projectName:
+      project?.meta.name ?? (target.projectSlug || "Standalone Work Items"),
+    orgId: project?.meta.org_id ?? target.orgId,
   };
 }
 
@@ -150,12 +158,12 @@ export function useChannelWorkItem(target: ChannelWorkItemTarget): {
     return { key, resolved: cached, settled: cached !== null };
   });
 
-  const { projectSlug, shortId } = target;
+  const { orgId, projectSlug, shortId } = target;
 
   useEffect(() => {
     let cancelled = false;
 
-    void loadCoalesced(key, { projectSlug, shortId })
+    void loadCoalesced(key, { orgId, projectSlug, shortId })
       .then((resolved) => {
         if (cancelled) return;
         setState({ key, resolved, settled: true });
@@ -172,7 +180,7 @@ export function useChannelWorkItem(target: ChannelWorkItemTarget): {
     return () => {
       cancelled = true;
     };
-  }, [key, projectSlug, shortId]);
+  }, [key, orgId, projectSlug, shortId]);
 
   if (state.key === key) return state;
   const cached = workItemCache.get(key) ?? null;

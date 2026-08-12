@@ -21,9 +21,10 @@
  *  - `useSessionModelField` — atomic `(model, accountId)` swap. Most
  *    callers know both at once because the model picker resolves the
  *    backing key.
- *  - `useSessionExecModeField` — single `agentExecMode` write. Only
- *    legal for Rust-agent sessions; CLI sessions don't render a
- *    ModePill so they never reach here.
+ *  - `useSessionComposerModeFields` — atomic product-mode + derived
+ *    exec-mode swap. Project is persisted as `productMode=project`
+ *    together with `agentExecMode=build`; ordinary Build is persisted
+ *    as `productMode=build` + `agentExecMode=build`.
  *
  * Both share `usePatchSession` for the optimistic + rollback machinery
  * so future fields (drafts in P3) only need a thin wrapper.
@@ -273,13 +274,11 @@ export function useSessionModelField(sessionId: string) {
 /**
  * Read+write the per-session exec mode.
  *
- * Returns the current value (or `undefined` if the user has never
- * patched this session — UI should fall back to
- * `creatorDefaultExecModeAtom` in that case) plus a `setMode`
+ * Returns the current value (or `undefined` for a historical row that has
+ * not yet been normalized) plus a `setMode`
  * function that performs the backend patch.
  *
- * The Rust side rejects this for CLI sessions, so the caller is
- * responsible for not rendering a ModePill on CLI sessions.
+ * Both native and CLI-backed sessions carry this field.
  */
 export function useSessionExecModeField(sessionId: string) {
   const session = useAtomValue(sessionByIdAtom(sessionId));
@@ -299,10 +298,36 @@ export function useSessionExecModeField(sessionId: string) {
 }
 
 /**
+ * Read and atomically write the two axes behind the composer mode picker.
+ *
+ * Keeping these values in one RPC is a correctness requirement: two
+ * fire-and-forget patches could let an immediately submitted turn observe
+ * `productMode=project` with the previous Ask/Plan execution policy, or drop
+ * Project while its PM capability was still visible to the runner.
+ */
+export function useSessionComposerModeFields(sessionId: string) {
+  const session = useAtomValue(sessionByIdAtom(sessionId));
+  const { patch, isPatching, error } = usePatchSession();
+
+  const setComposerMode = useCallback(
+    (productMode: string, agentExecMode: string) =>
+      patch(sessionId, { productMode, agentExecMode }),
+    [patch, sessionId]
+  );
+
+  return {
+    agentExecMode: session?.agentExecMode,
+    productMode: session?.productMode,
+    setComposerMode,
+    isPatching,
+    error,
+  };
+}
+
+/**
  * Read+write the per-session product mode (`orgtrack/v1` §5.2:
- * build|plan|ask|project). `undefined` = build. Only agent sessions
- * carry a product mode — the Rust side rejects CLI/imported sessions,
- * so callers must not render a Project selector for those.
+ * build|plan|ask|project). `undefined` = build. Native and CLI-backed
+ * sessions carry a product mode; imported sessions do not.
  */
 export function useSessionProductModeField(sessionId: string) {
   const session = useAtomValue(sessionByIdAtom(sessionId));
