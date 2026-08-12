@@ -13,7 +13,6 @@ import type {
 
 export function readWorkspaceBucket({
   workspaceData,
-  orgId,
   readBucket,
   linearWorkItems,
 }: ReadWorkspaceBucketOptions): AggregatedWorkItem[] {
@@ -36,9 +35,8 @@ export function readWorkspaceBucket({
         },
       }))
   );
-  const standaloneOrgId = orgId ?? "personal-org";
   const standaloneEntries = workspaceData.standaloneWorkItems.map(
-    (workItem) => ({
+    ({ orgId: standaloneOrgId, workItem }) => ({
       shortId: workItem.frontmatter.short_id ?? workItem.frontmatter.id,
       orgId: standaloneOrgId,
       orgName: orgNameById.get(standaloneOrgId),

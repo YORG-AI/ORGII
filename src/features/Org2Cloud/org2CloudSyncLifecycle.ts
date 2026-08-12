@@ -92,6 +92,8 @@ export abstract class Org2CloudSyncLifecycle {
   protected abstract clearOrgBackoff(orgId: string): void;
   protected abstract clearAllOrgBackoffs(): void;
   protected abstract invalidateFullInboundState(orgId?: string): void;
+  /** Release pass-scoped resources even when a pass exits early or fails. */
+  protected afterSyncPass(): void {}
 
   /**
    * Visibility regain is a one-shot catch-up trigger. There is deliberately
@@ -227,6 +229,7 @@ export abstract class Org2CloudSyncLifecycle {
         code: described.code,
       });
     } finally {
+      this.afterSyncPass();
       this.passRunning = false;
       if (this.started && this.generation === generation && this.passDirty) {
         this.passDirty = false;

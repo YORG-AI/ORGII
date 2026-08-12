@@ -16,11 +16,17 @@ on:
       - release
       - master
 
+# A new push makes an older run for the same PR obsolete. Cancel it before it
+# can consume one of the organization's limited hosted-runner slots.
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   # ── Frontend ────────────────────────────────────────────────────────────────
   frontend:
     name: Frontend (typecheck · lint · test)
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -39,7 +45,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: node_modules
-          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

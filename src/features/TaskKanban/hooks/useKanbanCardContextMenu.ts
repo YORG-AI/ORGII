@@ -5,7 +5,6 @@
  * a Tauri menu popped at the cursor, so a right-click on a card offers the two
  * open surfaces instead of the WebView's default Reload / Inspect menu.
  */
-import { MenuItem, Menu as TauriMenu } from "@tauri-apps/api/menu";
 import { useSetAtom } from "jotai";
 import { type MouseEvent, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +13,10 @@ import type { KanbanTask } from "@src/features/KanbanBoard";
 import { createLogger } from "@src/hooks/logger";
 import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 
 import {
   KANBAN_CARD_CONTEXT_ACTION,
@@ -62,28 +65,27 @@ export function useKanbanCardContextMenu({
       });
       if (actions.length === 0) return;
 
-      const items: MenuItem[] = [];
-      for (const action of actions) {
-        if (action === KANBAN_CARD_CONTEXT_ACTION.OpenFloatingPane) {
-          items.push(
-            await MenuItem.new({
-              text: t("kanban.card.openAsFloatingPane"),
-              action: () => onOpenFloatingPane(task),
-            })
-          );
-          continue;
-        }
-        if (!sessionId) continue;
-        items.push(
-          await MenuItem.new({
-            text: tCommon("actions.openInNewTab"),
-            action: () => openInNewTabPane(sessionId, task.title),
-          })
-        );
-      }
-
-      const menu = await TauriMenu.new({ items });
-      await menu.popup();
+      await popupNativeMenu({
+        source: "kanban-card",
+        buildItems: () => {
+          const items: NativeMenuItemOptions[] = [];
+          for (const action of actions) {
+            if (action === KANBAN_CARD_CONTEXT_ACTION.OpenFloatingPane) {
+              items.push({
+                text: t("kanban.card.openAsFloatingPane"),
+                action: () => onOpenFloatingPane(task),
+              });
+              continue;
+            }
+            if (!sessionId) continue;
+            items.push({
+              text: tCommon("actions.openInNewTab"),
+              action: () => openInNewTabPane(sessionId, task.title),
+            });
+          }
+          return items;
+        },
+      });
     },
     [onOpenFloatingPane, openInNewTabPane, remoteSessionsByTaskId, t, tCommon]
   );

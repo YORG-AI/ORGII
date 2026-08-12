@@ -573,9 +573,7 @@ fn unrecognized_header_types_filtering_to_empty_are_not_authoritative() {
         ]
     }));
 
-    assert!(discover_from_headers(&conn)
-        .expect("discover")
-        .is_none());
+    assert!(discover_from_headers(&conn).expect("discover").is_none());
 }
 
 #[test]

@@ -45,7 +45,12 @@ use super::{
 // derivation and keep every session's rows on a single repository_id.
 const HISTORICAL_INTERACTION_PARSER_VERSION: i64 = 3;
 const BACKFILL_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
-const CODEX_WRITE_RECONCILIATION_POLL_INTERVAL: Duration = Duration::from_secs(30);
+// Healthy Codex sessions are captured by lifecycle hooks. This loop is only a
+// best-effort repair path for a missing SessionStart receipt, so a 30-second
+// cadence made the exceptional path a permanent large-database poll. The
+// active-session throttle and discovery cadence are already five minutes;
+// align the repair wake with them and rely on the hook path for live updates.
+const CODEX_WRITE_RECONCILIATION_POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
 /// The 30-second loop may cheaply inspect the SQLite cache, but a recursive
 /// walk of every Codex rollout directory plus session_index.jsonl belongs on
 /// the same low-frequency cadence as external-history discovery.

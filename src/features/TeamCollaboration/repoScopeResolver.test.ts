@@ -5,6 +5,7 @@ import { resolveGitHubRepoNetworkIdentityLocal } from "@src/api/tauri/github";
 
 import {
   MAX_RESOLVER_CACHE_ENTRIES,
+  REPO_NETWORK_LOOKUP_CONCURRENCY,
   clearShareableScopeKeyCache,
   peekMatchingOrgRepoScope,
   peekShareableScopeKey,
@@ -340,5 +341,42 @@ describe("GitHub fork-network org scope matching", () => {
     expect(networkIdentityMock).toHaveBeenCalledTimes(
       MAX_RESOLVER_CACHE_ENTRIES + 2
     );
+  });
+
+  it("bounds concurrent provider identity lookups", async () => {
+    networkIdentityMock.mockClear();
+    let active = 0;
+    let maxActive = 0;
+    const releases: Array<() => void> = [];
+    networkIdentityMock.mockImplementation(
+      (fullName) =>
+        new Promise((resolve) => {
+          active += 1;
+          maxActive = Math.max(maxActive, active);
+          releases.push(() => {
+            active -= 1;
+            resolve({ full_name: fullName, source_full_name: fullName });
+          });
+        })
+    );
+
+    const lookups = Array.from(
+      { length: REPO_NETWORK_LOOKUP_CONCURRENCY + 3 },
+      (_, index) => resolveRepoNetworkScopeKey(`github.com/acme/cap-${index}`)
+    );
+    await vi.waitFor(() => {
+      expect(networkIdentityMock).toHaveBeenCalledTimes(
+        REPO_NETWORK_LOOKUP_CONCURRENCY
+      );
+    });
+    expect(maxActive).toBe(REPO_NETWORK_LOOKUP_CONCURRENCY);
+
+    while (releases.length > 0) {
+      releases.shift()?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+    await Promise.all(lookups);
+    expect(maxActive).toBe(REPO_NETWORK_LOOKUP_CONCURRENCY);
   });
 });

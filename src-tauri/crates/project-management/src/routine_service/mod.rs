@@ -147,7 +147,10 @@ pub mod error {
 
 /// Substitute `{{ inputs.<name> }}` template markers (with or without
 /// inner spaces) in root-work templates. Declarative only.
-fn substitute_inputs(template: &str, inputs: &std::collections::BTreeMap<String, String>) -> String {
+fn substitute_inputs(
+    template: &str,
+    inputs: &std::collections::BTreeMap<String, String>,
+) -> String {
     let mut result = template.to_string();
     for (name, value) in inputs {
         for marker in [
@@ -200,18 +203,28 @@ pub fn invoke(
 
     for (name, decl) in &snapshot.spec.inputs {
         if decl.required && !inputs.contains_key(name) {
-            return Err(format!("{}:missing required input '{}'", error::INPUTS_INVALID, name));
+            return Err(format!(
+                "{}:missing required input '{}'",
+                error::INPUTS_INVALID,
+                name
+            ));
         }
     }
     for name in inputs.keys() {
         if !snapshot.spec.inputs.contains_key(name) {
-            return Err(format!("{}:unknown input '{}'", error::INPUTS_INVALID, name));
+            return Err(format!(
+                "{}:unknown input '{}'",
+                error::INPUTS_INVALID,
+                name
+            ));
         }
     }
 
     let now = chrono::Utc::now().timestamp_millis();
     let run_id = format!("run_{}{:05}", now, std::process::id() % 100_000);
-    let actor_id = created_by.map(|actor| actor.id.as_str()).unwrap_or("system");
+    let actor_id = created_by
+        .map(|actor| actor.id.as_str())
+        .unwrap_or("system");
     let canonical_request = serde_json::json!({
         "routine": routine_name,
         "scope": scope_project_slug,
@@ -260,35 +273,34 @@ pub fn invoke(
     let (project_id, org_id) = project_io::resolve_project_scope_in_tx(&tx, scope_project_slug)?;
     let seq = work_service::audit::bump_change_seq(&tx)?;
 
-    let create_item = |short_id: &str,
-                           request: &work_service::CreateWorkItemRequest|
-     -> Result<(), String> {
-        work_service::guard_new_work_item_id_in_tx(&tx, short_id)?;
-        let frontmatter = work_service::build_frontmatter_for_graph(short_id, request);
-        project_io::write_work_item_in_tx(
-            &tx,
-            Some(project_id.clone()),
-            &org_id,
-            short_id,
-            &frontmatter,
-            &request.body,
-            true,
-        )?;
-        work_service::audit::append_audit_event(
-            &tx,
-            &work_service::audit::AuditEventRow {
-                operation: "work.create",
-                entity_type: "work_item",
-                entity_id: short_id,
-                project_slug: Some(scope_project_slug),
-                org_id: None,
-                actor: created_by,
-                revision: 0,
-                seq,
-                payload: serde_json::json!({}),
-            },
-        )
-    };
+    let create_item =
+        |short_id: &str, request: &work_service::CreateWorkItemRequest| -> Result<(), String> {
+            work_service::guard_new_work_item_id_in_tx(&tx, short_id)?;
+            let frontmatter = work_service::build_frontmatter_for_graph(short_id, request);
+            project_io::write_work_item_in_tx(
+                &tx,
+                Some(project_id.clone()),
+                &org_id,
+                short_id,
+                &frontmatter,
+                &request.body,
+                true,
+            )?;
+            work_service::audit::append_audit_event(
+                &tx,
+                &work_service::audit::AuditEventRow {
+                    operation: "work.create",
+                    entity_type: "work_item",
+                    entity_id: short_id,
+                    project_slug: Some(scope_project_slug),
+                    org_id: None,
+                    actor: created_by,
+                    revision: 0,
+                    seq,
+                    payload: serde_json::json!({}),
+                },
+            )
+        };
 
     let root_short_id = project_io::allocate_short_id_in_tx(&tx, scope_project_slug)?;
     let root_request = work_service::CreateWorkItemRequest {
@@ -429,7 +441,14 @@ pub fn invoke(
             "INSERT INTO pm_idempotency
                 (actor_id, operation, scope_id, idem_key, request_hash, response_json, created_at)
              VALUES (?1, 'routine.invoke', ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params![actor_id, scope_project_slug, key, canonical, response_raw, now],
+            rusqlite::params![
+                actor_id,
+                scope_project_slug,
+                key,
+                canonical,
+                response_raw,
+                now
+            ],
         )
         .map_err(|err| format!("routine invoke idempotency record: {err}"))?;
     }
@@ -529,7 +548,11 @@ pub fn scheduled_candidates() -> Result<Vec<ScheduledCandidate>, String> {
 }
 
 /// Persist the scheduler watermark after an evaluation pass.
-pub fn mark_evaluated(name: &str, evaluated_at: i64, next_fire_at: Option<i64>) -> Result<(), String> {
+pub fn mark_evaluated(
+    name: &str,
+    evaluated_at: i64,
+    next_fire_at: Option<i64>,
+) -> Result<(), String> {
     let connection = project_io::helpers::conn()?;
     connection
         .execute(
@@ -702,10 +725,7 @@ pub fn set_enabled(name: &str, enabled: bool) -> Result<(), String> {
 /// List routine runs, newest first, optionally filtered to one scope.
 /// Row-level listing for the Runs surface — per-run WorkItem projection
 /// stays in [`run_status`], which the UI calls on expand.
-pub fn list_runs(
-    scope_id: Option<&str>,
-    limit: usize,
-) -> Result<Vec<serde_json::Value>, String> {
+pub fn list_runs(scope_id: Option<&str>, limit: usize) -> Result<Vec<serde_json::Value>, String> {
     let connection = project_io::helpers::conn()?;
     let mut statement = connection
         .prepare(

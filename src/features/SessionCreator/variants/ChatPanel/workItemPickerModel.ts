@@ -1,6 +1,6 @@
 import type {
   EnrichedWorkItem,
-  WorkItemData,
+  WorkspaceStandaloneWorkItem,
   WorkspaceWorkItemsData,
 } from "@src/api/http/project";
 import { projectApi } from "@src/api/http/project";
@@ -131,7 +131,10 @@ function projectWorkItemOption(
   };
 }
 
-function standaloneWorkItemOption(item: WorkItemData): WorkItemPickerOption {
+function standaloneWorkItemOption({
+  orgId,
+  workItem: item,
+}: WorkspaceStandaloneWorkItem): WorkItemPickerOption {
   const shortId = item.frontmatter.short_id || item.frontmatter.id;
   const path = `standalone/${shortId}`;
   const identifier = formatPickerIdentifier(shortId);
@@ -162,6 +165,7 @@ function standaloneWorkItemOption(item: WorkItemData): WorkItemPickerOption {
       todos: item.frontmatter.todos,
     }),
     workItemContext: {
+      orgId,
       workItemId: shortId,
       agentRole: "custom",
     },

@@ -46,11 +46,13 @@ import {
   type WorkItemThreadView,
   WorkItemThreadViewAction,
 } from "../WorkItemThread";
+import CustomPropertiesSection from "./CustomPropertiesSection";
 import GitHubIssueComposer from "./GitHubIssueComposer";
 import HistoryTab from "./HistoryTab";
 import OutputTab from "./OutputTab";
 import ThreadTodoChecklist from "./ThreadTodoChecklist";
 import WorkItemHandoffNotice from "./WorkItemHandoffNotice";
+import WorkItemRunUsageSummary from "./WorkItemRunUsageSummary";
 import { normalizeLegacyEscapedMarkdown } from "./descriptionMarkdown";
 import { retryFailedLinkedSession } from "./discussionCommentForward";
 import { useGitHubIssueTimeline } from "./hooks/useGitHubIssueTimeline";
@@ -61,6 +63,8 @@ import type { SessionTab, WorkItemContentProps } from "./types";
 interface LinkedSessionsListProps {
   sessions: LinkedSession[];
   shortId?: string | null;
+  projectSlug?: string | null;
+  orgId?: string | null;
   activeAgentSessionId?: string | null;
   onOpenSession?: (sessionId: string) => void;
 }
@@ -81,6 +85,8 @@ function getLinkedSessionTitle(session: LinkedSession): string {
 const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
   sessions,
   shortId,
+  projectSlug,
+  orgId,
   activeAgentSessionId,
   onOpenSession,
 }) => {
@@ -163,6 +169,8 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
               className="flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
               onClick={() => {
                 retryFailedLinkedSession({
+                  projectSlug,
+                  orgId,
                   shortId,
                   sessionId: session.session_id,
                 });
@@ -183,6 +191,8 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
     activeAgentSessionId,
     dateTimeLabelOptions,
     onOpenSession,
+    orgId,
+    projectSlug,
     sessions,
     shortId,
     t,
@@ -276,10 +286,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     setActiveSessionTab,
     commentText,
     setCommentText,
+    replyToCommentId,
+    setReplyToCommentId,
     mentionedUserIds,
     setMentionedUserIds,
     isSubscribed,
-    setIsSubscribed,
+    handleToggleSubscription,
     isSubmittingComment,
     sessionTabItems,
     resolvedDescription,
@@ -289,6 +301,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     handleDescriptionChange,
     handleTodosChange,
     handleCommentSubmit,
+    handleResolveDiscussionThread,
+    handleReopenDiscussionThread,
   } = useWorkItemContentState({
     workItem,
     onUpdateWorkItem,
@@ -297,6 +311,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     teamMembers,
     projectSlug,
     shortId,
+    orgId,
   });
 
   const creatorName =
@@ -687,10 +702,29 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     </ScrollTrailTarget>
   );
 
+  const customPropertiesSection = !isGitHubWorkItem ? (
+    <ScrollTrailTarget
+      enabled={isThread}
+      label={t("workItems.properties.title", {
+        defaultValue: "Custom properties",
+      })}
+    >
+      <CustomPropertiesSection
+        projectSlug={projectSlug}
+        orgId={orgId}
+        shortId={shortId ?? workItem.shortId}
+        editable={Boolean(onUpdateWorkItem)}
+      />
+    </ScrollTrailTarget>
+  ) : null;
+
   const outputContent = (
     <OutputTab
       workItem={workItem}
       repoPath={repoPath}
+      projectSlug={projectSlug}
+      shortId={shortId ?? workItem.shortId}
+      orgId={orgId}
       onOpenFileDiff={onOpenFileDiff}
       onOpenFileAtLine={onOpenFileAtLine}
       onReviewAllFiles={onReviewAllFiles}
@@ -709,7 +743,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       timelineEntries={timelineEntries}
       currentUser={currentUser}
       isSubscribed={isSubscribed}
-      onToggleSubscribe={() => setIsSubscribed(!isSubscribed)}
+      onToggleSubscribe={handleToggleSubscription}
       commentText={commentText}
       onCommentTextChange={setCommentText}
       mentionedUserIds={mentionedUserIds}
@@ -717,6 +751,11 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       teamMembers={teamMembers}
       onCommentSubmit={handleCommentSubmit}
       isSubmittingComment={isSubmittingComment}
+      comments={workItem.comments ?? []}
+      replyToCommentId={replyToCommentId}
+      onReplyToComment={setReplyToCommentId}
+      onResolveThread={handleResolveDiscussionThread}
+      onReopenThread={handleReopenDiscussionThread}
       presentation={presentation}
       canComment={Boolean(onUpdateWorkItem)}
       threadNavigation={
@@ -753,6 +792,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
           <LinkedSessionsList
             sessions={workItem.linkedSessions ?? []}
             shortId={shortId ?? workItem.shortId}
+            projectSlug={projectSlug}
+            orgId={orgId}
             activeAgentSessionId={activeAgentSessionId}
             onOpenSession={onOpenSession}
           />
@@ -766,6 +807,15 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
   const threadLowerSection = (
     <>
+      {!isGitHubWorkItem && !sectionPolicy.showInlineOutput ? (
+        <WorkItemRunUsageSummary
+          projectSlug={projectSlug}
+          orgId={orgId}
+          shortId={shortId ?? workItem.shortId}
+          navigationEnabled={isThread}
+          onOpenSession={onOpenSession}
+        />
+      ) : null}
       {(workItem.linkedSessions?.length ?? 0) > 0 ? (
         <ScrollTrailTarget
           enabled={isThread}
@@ -776,6 +826,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
           <LinkedSessionsList
             sessions={workItem.linkedSessions ?? []}
             shortId={shortId ?? workItem.shortId}
+            projectSlug={projectSlug}
+            orgId={orgId}
             activeAgentSessionId={activeAgentSessionId}
             onOpenSession={onOpenSession}
           />
@@ -813,6 +865,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
             <ScrollTrailTarget label={t("workItems.todos.title")}>
               {todosSection}
             </ScrollTrailTarget>
+            {customPropertiesSection}
             {subItemsSection}
             {threadLowerSection}
             {!isGitHubWorkItem ? (
@@ -862,6 +915,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         todosContent={todosSection}
         lowerContent={
           <>
+            {customPropertiesSection}
             {subItemsSection}
             {sectionPolicy.showTabbedLowerSection
               ? tabbedLowerSection

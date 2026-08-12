@@ -350,6 +350,7 @@ fn extras_round_trip_carries_todos_and_comments() {
         content: "lgtm".into(),
         created_at: "2026-01-01T00:00:00Z".into(),
         mentioned_user_ids: Vec::new(),
+        ..Default::default()
     }];
 
     write_work_item("demo", "AAA-0001", &fm, "").expect("write");

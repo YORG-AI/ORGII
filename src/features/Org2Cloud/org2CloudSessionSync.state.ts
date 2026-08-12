@@ -25,8 +25,8 @@ import {
   EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
 } from "./org2CloudSyncLifecycle";
 
-/** Safety TTL for rechecking a session whose events plane was verified clean. */
-const EVENTS_CLEAN_TTL_MS = 10 * 60_000;
+/** Keep at most the active and immediately previous preparation alive. */
+const MAX_PASS_PREPARE_CACHE_ENTRIES = 2;
 
 export class Org2CloudSessionSyncState {
   /** `${orgId}:${sessionId}` to hash of the last upserted metadata. */
@@ -71,6 +71,26 @@ export class Org2CloudSessionSyncState {
   /** Start a new engine pass; prepared events must never leak across passes. */
   beginPass(): void {
     this.passPushPrepareCache.clear();
+  }
+
+  /** Release transcript arrays as soon as the pass finishes. */
+  endPass(): void {
+    this.passPushPrepareCache.clear();
+  }
+
+  protected cachePreparedPushEvents(
+    key: string,
+    prepared: Promise<PreparedPushEvents>
+  ): void {
+    this.passPushPrepareCache.delete(key);
+    this.passPushPrepareCache.set(key, prepared);
+    while (this.passPushPrepareCache.size > MAX_PASS_PREPARE_CACHE_ENTRIES) {
+      const oldest = this.passPushPrepareCache.keys().next().value as
+        | string
+        | undefined;
+      if (oldest === undefined) break;
+      this.passPushPrepareCache.delete(oldest);
+    }
   }
 
   /**
@@ -177,20 +197,20 @@ export class Org2CloudSessionSyncState {
 
   protected isEventPlaneClean(orgId: string, session: Session): boolean {
     const clean = this.cleanEventPlanes.get(session.session_id)?.get(orgId);
-    if (!clean || Date.now() - clean.verifiedAt >= EVENTS_CLEAN_TTL_MS) {
-      return false;
-    }
-    return (
-      !isImportedHistorySession(session.session_id) ||
-      clean.sourceUpdatedAt === session.updated_at
-    );
+    if (!clean) return false;
+    // EventStore notifications clear this stamp immediately; the durable
+    // session version is the backstop for writes missed while the renderer
+    // was suspended. A verified unchanged version stays clean for the app
+    // lifetime instead of forcing a full-history reread every ten minutes.
+    return clean.sourceUpdatedAt === session.updated_at;
   }
 
   protected markEventPlaneClean(
     orgId: string,
     session: Session,
     stampAtRead: number,
-    verifiedAt = Date.now()
+    verifiedAt = Date.now(),
+    localContentRevision?: number
   ): void {
     const sessionId = session.session_id;
     if ((this.eventActivityStamps.get(sessionId) ?? 0) !== stampAtRead) return;
@@ -201,10 +221,24 @@ export class Org2CloudSessionSyncState {
     }
     byOrg.set(orgId, {
       verifiedAt,
-      sourceUpdatedAt: isImportedHistorySession(sessionId)
-        ? session.updated_at
-        : undefined,
+      sourceUpdatedAt: session.updated_at,
     });
+    const cursor = this.getCursor(orgId, sessionId);
+    if (!cursor) return;
+    if (
+      localContentRevision !== undefined &&
+      cursor.localContentRevision !== localContentRevision
+    ) {
+      this.setCursor({ ...cursor, localContentRevision });
+    } else if (
+      localContentRevision === undefined &&
+      cursor.localContentUpdatedAt !== session.updated_at
+    ) {
+      // Provider-native histories without an events-cache row still use the
+      // source session version. Native cached histories use the independent
+      // revision above so renaming/pinning never dirties their replay.
+      this.setCursor({ ...cursor, localContentUpdatedAt: session.updated_at });
+    }
   }
 
   protected getCursor(

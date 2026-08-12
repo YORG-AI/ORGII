@@ -138,6 +138,7 @@ export interface OrchestratorConfig {
   agent_mode?: string;
   agent_definition_id?: string;
   worktree_path?: string;
+  workspace_mode?: "local_workspace" | "worktree";
 }
 
 export interface LastFailure {

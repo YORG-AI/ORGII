@@ -376,12 +376,19 @@ impl CodexAppServerEventParser {
             "thread/tokenUsage/updated" => {
                 if let Some(last) = params.get("tokenUsage").and_then(|u| u.get("last")) {
                     let read = |key: &str| last.get(key).and_then(|v| v.as_u64()).unwrap_or(0);
+                    let input_tokens = read("inputTokens");
+                    let output_tokens = read("outputTokens");
+                    let reported_total = read("totalTokens");
                     self.usage = Some(TokenUsage {
-                        input_tokens: read("inputTokens"),
-                        output_tokens: read("outputTokens"),
+                        input_tokens,
+                        output_tokens,
                         cache_read_tokens: read("cachedInputTokens"),
                         cache_write_tokens: 0,
-                        total_tokens: read("totalTokens"),
+                        total_tokens: if reported_total > 0 {
+                            reported_total
+                        } else {
+                            input_tokens.saturating_add(output_tokens)
+                        },
                         model: None,
                     });
                 }

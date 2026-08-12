@@ -92,7 +92,12 @@ fn seed(slug: &str) {
 
 fn run_cli(args: &[&str]) -> (i32, serde_json::Value) {
     let exe = env!("CARGO_BIN_EXE_org2-pm");
-    let output = Command::new(exe).args(args).output().expect("spawn org2-pm");
+    let home = std::env::var_os("ORGII_HOME").expect("sandbox sets ORGII_HOME");
+    let output = Command::new(exe)
+        .args(args)
+        .current_dir(home)
+        .output()
+        .expect("spawn org2-pm");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let value: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|err| {
         panic!(
@@ -172,7 +177,10 @@ fn external_shell_agent_completes_a_work_item_end_to_end() {
     // Discover ready work.
     let (exit, listed) = run_cli(&[&["work", "list", "--ready"], &base[..]].concat());
     assert_eq!(exit, 0, "list envelope: {listed}");
-    assert_eq!(listed["data"]["items"][0]["frontmatter"]["short_id"], "AAA-0001");
+    assert_eq!(
+        listed["data"]["items"][0]["frontmatter"]["short_id"],
+        "AAA-0001"
+    );
 
     // Claim with the observed revision: lock + strict open -> in_progress
     // and the OCC precondition hold in ONE transaction.
@@ -184,7 +192,13 @@ fn external_shell_agent_completes_a_work_item_end_to_end() {
     let revision_flag = shown_revision.to_string();
     let (exit, claimed) = run_cli(
         &[
-            &["work", "claim", "AAA-0001", "--expected-revision", &revision_flag],
+            &[
+                "work",
+                "claim",
+                "AAA-0001",
+                "--expected-revision",
+                &revision_flag,
+            ],
             &base[..],
         ]
         .concat(),
@@ -199,7 +213,9 @@ fn external_shell_agent_completes_a_work_item_end_to_end() {
     // Progress note.
     let (exit, noted) = run_cli(
         &[
-            &["work", "note", "AAA-0001", "--kind", "progress", "--body", "half way"],
+            &[
+                "work", "note", "AAA-0001", "--kind", "progress", "--body", "half way",
+            ],
             &base[..],
         ]
         .concat(),
@@ -227,7 +243,15 @@ fn external_shell_agent_completes_a_work_item_end_to_end() {
     // Complete.
     let (exit, done) = run_cli(
         &[
-            &["work", "transition", "AAA-0001", "--to", "completed", "--reason", "done"],
+            &[
+                "work",
+                "transition",
+                "AAA-0001",
+                "--to",
+                "completed",
+                "--reason",
+                "done",
+            ],
             &base[..],
         ]
         .concat(),
@@ -283,7 +307,13 @@ fn idempotency_replays_and_conflicts() {
     ];
 
     let claim_args = [
-        &["work", "claim", "AAA-0001", "--idempotency-key", "sess:claim"],
+        &[
+            "work",
+            "claim",
+            "AAA-0001",
+            "--idempotency-key",
+            "sess:claim",
+        ],
         &base[..],
     ]
     .concat();
@@ -431,13 +461,16 @@ fn wire_validation_maps_to_stable_codes() {
     ];
 
     let (exit, envelope) = run_cli(
-        &[&["work", "transition", "AAA-0001", "--to", "done"], &base[..]].concat(),
+        &[
+            &["work", "transition", "AAA-0001", "--to", "done"],
+            &base[..],
+        ]
+        .concat(),
     );
     assert_eq!(exit, 2, "envelope: {envelope}");
     assert_eq!(envelope["error"]["code"], "INVALID_ARGUMENT");
 
-    let (exit, envelope) =
-        run_cli(&[&["work", "show", "AAA-9999"], &base[..]].concat());
+    let (exit, envelope) = run_cli(&[&["work", "show", "AAA-9999"], &base[..]].concat());
     assert_eq!(exit, 3, "envelope: {envelope}");
     assert_eq!(envelope["error"]["code"], "NOT_FOUND");
 
@@ -502,14 +535,28 @@ fn assign_release_pagination_and_portable_filter() {
         "claude_code:session_e2e_2",
     ];
 
-    let (exit, page1) = run_cli(&[&["work", "list", "--status", "open", "--limit", "2"], &base[..]].concat());
+    let (exit, page1) = run_cli(
+        &[
+            &["work", "list", "--status", "open", "--limit", "2"],
+            &base[..],
+        ]
+        .concat(),
+    );
     assert_eq!(exit, 0, "{page1}");
     assert_eq!(page1["data"]["items"].as_array().expect("items").len(), 2);
-    let cursor = page1["meta"]["nextCursor"].as_str().expect("nextCursor").to_string();
+    let cursor = page1["meta"]["nextCursor"]
+        .as_str()
+        .expect("nextCursor")
+        .to_string();
 
     let (exit, page2) = run_cli(
-        &[&["work", "list", "--status", "open", "--limit", "2", "--cursor", &cursor], &base[..]]
-            .concat(),
+        &[
+            &[
+                "work", "list", "--status", "open", "--limit", "2", "--cursor", &cursor,
+            ],
+            &base[..],
+        ]
+        .concat(),
     );
     assert_eq!(exit, 0, "{page2}");
     assert_eq!(page2["data"]["items"].as_array().expect("items").len(), 2);
@@ -524,7 +571,17 @@ fn assign_release_pagination_and_portable_filter() {
     assert_eq!(bad["error"]["code"], "INVALID_ARGUMENT");
 
     let (exit, assigned) = run_cli(
-        &[&["work", "assign", "AAA-0002", "--assignee", "agent:builtin-os"], &base[..]].concat(),
+        &[
+            &[
+                "work",
+                "assign",
+                "AAA-0002",
+                "--assignee",
+                "agent:builtin-os",
+            ],
+            &base[..],
+        ]
+        .concat(),
     );
     assert_eq!(exit, 0, "{assigned}");
     assert_eq!(assigned["data"]["frontmatter"]["assignee"], "builtin-os");
@@ -536,7 +593,10 @@ fn assign_release_pagination_and_portable_filter() {
     let (exit, released) = run_cli(&[&["work", "release", "AAA-0002"], &base[..]].concat());
     assert_eq!(exit, 0, "{released}");
     assert_eq!(released["data"]["frontmatter"]["status"], "open");
-    assert!(released["data"]["frontmatter"]["execution_lock"].is_null(), "{released}");
+    assert!(
+        released["data"]["frontmatter"]["execution_lock"].is_null(),
+        "{released}"
+    );
 
     let (exit, foreign) = run_cli(
         &[
@@ -552,15 +612,29 @@ fn assign_release_pagination_and_portable_filter() {
     assert_eq!(denied["error"]["code"], "ALREADY_CLAIMED");
 
     let (exit, foreign_update) = run_cli(
-        &[&["work", "update", "AAA-0002", "--title", "hijack"], &base[..]].concat(),
+        &[
+            &["work", "update", "AAA-0002", "--title", "hijack"],
+            &base[..],
+        ]
+        .concat(),
     );
-    assert_eq!(exit, 4, "update on a foreign-claimed item must fail: {foreign_update}");
+    assert_eq!(
+        exit, 4,
+        "update on a foreign-claimed item must fail: {foreign_update}"
+    );
     assert_eq!(foreign_update["error"]["code"], "ALREADY_CLAIMED");
 
     let (exit, foreign_transition) = run_cli(
-        &[&["work", "transition", "AAA-0002", "--to", "completed"], &base[..]].concat(),
+        &[
+            &["work", "transition", "AAA-0002", "--to", "completed"],
+            &base[..],
+        ]
+        .concat(),
     );
-    assert_eq!(exit, 4, "transition on a foreign-claimed item must fail: {foreign_transition}");
+    assert_eq!(
+        exit, 4,
+        "transition on a foreign-claimed item must fail: {foreign_transition}"
+    );
     assert_eq!(foreign_transition["error"]["code"], "ALREADY_CLAIMED");
 }
 
@@ -571,15 +645,29 @@ fn project_family_creates_reads_and_updates_through_the_boundary() {
     let base = ["--mode", "project", "--actor", "human:vince"];
 
     let (exit, created) = run_cli(
-        &[&["project", "create", "--name", "Dog Walker MVP", "--description", "walkies"], &base[..]]
-            .concat(),
+        &[
+            &[
+                "project",
+                "create",
+                "--name",
+                "Dog Walker MVP",
+                "--description",
+                "walkies",
+            ],
+            &base[..],
+        ]
+        .concat(),
     );
     assert_eq!(exit, 0, "{created}");
     assert_eq!(created["data"]["slug"], "dog-walker-mvp");
     assert_eq!(created["data"]["orgId"], "personal-org");
 
     let (exit, dup) = run_cli(
-        &[&["project", "create", "--name", "Dog Walker MVP"], &base[..]].concat(),
+        &[
+            &["project", "create", "--name", "Dog Walker MVP"],
+            &base[..],
+        ]
+        .concat(),
     );
     assert_eq!(exit, 4, "duplicate slug must refuse: {dup}");
     assert_eq!(dup["error"]["code"], "ALREADY_EXISTS");
@@ -589,7 +677,11 @@ fn project_family_creates_reads_and_updates_through_the_boundary() {
     assert_eq!(shown["data"]["description"], "walkies");
 
     let (exit, updated) = run_cli(
-        &[&["project", "update", "dog-walker-mvp", "--status", "active"], &base[..]].concat(),
+        &[
+            &["project", "update", "dog-walker-mvp", "--status", "active"],
+            &base[..],
+        ]
+        .concat(),
     );
     assert_eq!(exit, 0, "{updated}");
     assert_eq!(updated["data"]["status"], "active");
@@ -647,12 +739,66 @@ fn session_marker_locks_identity_fail_closed() {
     let (exit, created) = run_in_workspace(&["work", "create", "--title", "marker item"]);
     assert_eq!(exit, 0, "identity injected from the marker: {created}");
 
-    let (exit, denied) = run_in_workspace(&["work", "create", "--title", "spoof", "--actor", "human:vince"]);
+    let (exit, denied) = run_in_workspace(&[
+        "work",
+        "create",
+        "--title",
+        "spoof",
+        "--actor",
+        "human:vince",
+    ]);
     assert_eq!(exit, 8, "actor spoofing must be refused: {denied}");
     assert_eq!(denied["error"]["code"], "PERMISSION_DENIED");
 
-    let (exit, foreign) = run_in_workspace(&["work", "claim", "AAA-0001", "--session-ref", "claude_code:other"]);
+    let (exit, foreign) = run_in_workspace(&[
+        "work",
+        "claim",
+        "AAA-0001",
+        "--session-ref",
+        "claude_code:other",
+    ]);
     assert_eq!(exit, 8, "session override must be refused: {foreign}");
+}
+
+#[test]
+fn build_marker_cannot_be_elevated_by_mode_flag_even_with_project_scope() {
+    let _sandbox = test_env::sandbox();
+    seed("demo");
+    let home = std::env::var("ORGII_HOME").expect("sandbox sets ORGII_HOME");
+    let workspace = std::path::Path::new(&home).join("build-marker-workspace");
+    std::fs::create_dir_all(workspace.join(".orgii")).expect("workspace dirs");
+    std::fs::write(
+        workspace.join(".orgii/agent_session_context.json"),
+        serde_json::json!({
+            "apiVersion": "orgtrack/v1",
+            "sessionRef": "org2:ordinary_build_session",
+            "actor": "agent:sde",
+            "productMode": "build",
+            "scope": "demo",
+            "capabilities": ["work.read"],
+            "issuedAt": "2026-08-09T00:00:00Z",
+        })
+        .to_string(),
+    )
+    .expect("marker written");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_org2-pm"))
+        .args([
+            "work",
+            "create",
+            "--title",
+            "must stay denied",
+            "--mode",
+            "project",
+        ])
+        .current_dir(&workspace)
+        .output()
+        .expect("spawn org2-pm");
+    let denied: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse denied response");
+    assert_eq!(output.status.code(), Some(5), "{denied}");
+    assert_eq!(denied["error"]["code"], "PROJECT_MODE_REQUIRED");
+    assert_eq!(denied["error"]["details"]["currentMode"], "build");
 }
 
 #[test]
@@ -690,7 +836,15 @@ fn standalone_items_are_reachable_without_scope() {
 
     let (exit, bare_noted) = run_cli(
         &[
-            &["work", "note", "STA-0001", "--kind", "comment", "--body", "bare-id receipt"],
+            &[
+                "work",
+                "note",
+                "STA-0001",
+                "--kind",
+                "comment",
+                "--body",
+                "bare-id receipt",
+            ],
             &base[..],
         ]
         .concat(),
@@ -700,7 +854,17 @@ fn standalone_items_are_reachable_without_scope() {
     // Stage round-trips through create and update (barrier grouping).
     let (exit, staged) = run_cli(
         &[
-            &["work", "create", "--standalone", "--title", "Staged child", "--parent", "STA-0001", "--stage", "2"],
+            &[
+                "work",
+                "create",
+                "--standalone",
+                "--title",
+                "Staged child",
+                "--parent",
+                "STA-0001",
+                "--stage",
+                "2",
+            ],
             &base[..],
         ]
         .concat(),
@@ -711,9 +875,8 @@ fn standalone_items_are_reachable_without_scope() {
         .as_str()
         .expect("short id")
         .to_string();
-    let (exit, restaged) = run_cli(
-        &[&["work", "update", &staged_id, "--stage", "1"], &base[..]].concat(),
-    );
+    let (exit, restaged) =
+        run_cli(&[&["work", "update", &staged_id, "--stage", "1"], &base[..]].concat());
     assert_eq!(exit, 0, "stage update: {restaged}");
     assert_eq!(restaged["data"]["frontmatter"]["stage"], 1);
 
@@ -724,24 +887,41 @@ fn standalone_items_are_reachable_without_scope() {
     assert_eq!(exit, 0, "scope-less bare-id claim: {claimed}");
     assert_eq!(claimed["data"]["frontmatter"]["status"], "in_progress");
     let (exit, done) = run_cli(
-        &[&["work", "transition", "STA-0001", "--to", "completed"], &base[..]].concat(),
+        &[
+            &["work", "transition", "STA-0001", "--to", "completed"],
+            &base[..],
+        ]
+        .concat(),
     );
     assert_eq!(exit, 0, "scope-less bare-id transition: {done}");
     assert_eq!(done["data"]["frontmatter"]["status"], "completed");
 
     // `--standalone` routes to the org-scoped store without any scope.
-    let (exit, shown) = run_cli(&[&["work", "show", "STA-0001", "--standalone"], &base[..]].concat());
+    let (exit, shown) =
+        run_cli(&[&["work", "show", "STA-0001", "--standalone"], &base[..]].concat());
     assert_eq!(exit, 0, "show envelope: {shown}");
     assert_eq!(shown["data"]["frontmatter"]["short_id"], "STA-0001");
 
-    let (exit, listed) = run_cli(&[&["work", "list", "--standalone"], &base[..]].concat());
+    let (exit, listed) = run_cli(&[&["work", "list"], &base[..]].concat());
     assert_eq!(exit, 0, "list envelope: {listed}");
-    assert_eq!(listed["data"]["items"][0]["frontmatter"]["short_id"], "STA-0001");
+    assert_eq!(
+        listed["data"]["items"][0]["frontmatter"]["short_id"],
+        "STA-0001"
+    );
 
     // Progress note lands in the standalone item's comment thread.
     let (exit, noted) = run_cli(
         &[
-            &["work", "note", "STA-0001", "--standalone", "--kind", "progress", "--body", "half way"],
+            &[
+                "work",
+                "note",
+                "STA-0001",
+                "--standalone",
+                "--kind",
+                "progress",
+                "--body",
+                "half way",
+            ],
             &base[..],
         ]
         .concat(),
@@ -753,7 +933,8 @@ fn standalone_items_are_reachable_without_scope() {
         item.frontmatter
             .comments
             .iter()
-            .any(|comment| comment.content == "[progress] half way" && comment.author == "cli-tester"),
+            .any(|comment| comment.content == "[progress] half way"
+                && comment.author == "cli-tester"),
         "note must land in comments: {:?}",
         item.frontmatter.comments
     );
@@ -764,7 +945,14 @@ fn standalone_items_are_reachable_without_scope() {
     let body_path_str = body_path.to_string_lossy().to_string();
     let (exit, filed) = run_cli(
         &[
-            &["work", "update", "STA-0001", "--standalone", "--body-file", &body_path_str],
+            &[
+                "work",
+                "update",
+                "STA-0001",
+                "--standalone",
+                "--body-file",
+                &body_path_str,
+            ],
             &base[..],
         ]
         .concat(),
@@ -778,7 +966,15 @@ fn standalone_items_are_reachable_without_scope() {
     // A sub item created with --parent records the parent linkage.
     let (exit, child) = run_cli(
         &[
-            &["work", "create", "--standalone", "--title", "Child task", "--parent", "STA-0001"],
+            &[
+                "work",
+                "create",
+                "--standalone",
+                "--title",
+                "Child task",
+                "--parent",
+                "STA-0001",
+            ],
             &base[..],
         ]
         .concat(),
@@ -811,14 +1007,11 @@ fn standalone_items_are_reachable_without_scope() {
     assert_eq!(item.frontmatter.title, "Filled title");
     assert_eq!(item.body, "Filled body");
 
-    // "Another one" allocates a fresh standalone id.
-    let (exit, created) = run_cli(
-        &[
-            &["work", "create", "--standalone", "--title", "Another one"],
-            &base[..],
-        ]
-        .concat(),
-    );
+    // With no project scope, create automatically targets the current org's
+    // standalone store. The model must not need a magic flag or ask the user
+    // to invent a Project.
+    let (exit, created) =
+        run_cli(&[&["work", "create", "--title", "Another one"], &base[..]].concat());
     assert_eq!(exit, 0, "create envelope: {created}");
     let new_id = created["data"]["frontmatter"]["short_id"]
         .as_str()

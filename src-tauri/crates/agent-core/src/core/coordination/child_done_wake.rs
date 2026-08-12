@@ -8,15 +8,15 @@
 //! only the closure of the whole (implicit) stage does, so multi-child
 //! plans produce one wake instead of a wake storm.
 
-use std::collections::HashSet;
-use std::sync::Mutex;
-use std::sync::OnceLock;
-
+use sha2::{Digest, Sha256};
 use tracing::{info, warn};
 
 use project_management::projects::events::WorkItemTerminalEvent;
 use project_management::projects::io as pio;
-use project_management::projects::types::{WorkItemData, WorkItemMutationActor};
+use project_management::projects::types::{
+    EnqueueWorkItemRunRequest, WorkItemData, WorkItemMutationActor, WorkItemRunTarget,
+    WorkItemRunTargetSnapshot, WorkItemRunTrigger,
+};
 use project_management::work_service;
 use project_management::work_service::state::{map_legacy_status, WorkItemState};
 
@@ -25,11 +25,6 @@ fn is_terminal(status: &str) -> bool {
         map_legacy_status(status),
         Some(WorkItemState::Completed | WorkItemState::Failed | WorkItemState::Cancelled)
     )
-}
-
-fn wake_dedupe() -> &'static Mutex<HashSet<String>> {
-    static SET: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
-    SET.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
 /// Register the terminal-transition observer. Called once at app setup.
@@ -57,18 +52,15 @@ pub fn process_event(app: tauri::AppHandle, event: WorkItemTerminalEvent) {
     });
 }
 
-/// Cross-process bridge: fold audit-stream status transitions committed
-/// by OTHER processes (the org2-pm CLI in agent shells) into the same
-/// wake pipeline. Returns the number of terminal crossings dispatched.
-pub fn process_audit_window(app: &tauri::AppHandle, after_seq: i64) -> usize {
-    let transitions =
-        match project_management::work_service::audit::read_status_transitions_since(after_seq) {
-            Ok(rows) => rows,
-            Err(error) => {
-                warn!(error = %error, "[child-done-wake] audit window read failed");
-                return 0;
-            }
-        };
+/// Cross-process bridge: fold audit-stream status transitions committed by
+/// other processes into durable Stage-barrier dispatches. The caller advances
+/// its persistent cursor only after this future succeeds.
+pub async fn process_audit_window(app: &tauri::AppHandle, after_seq: i64) -> Result<usize, String> {
+    let transitions = tokio::task::spawn_blocking(move || {
+        project_management::work_service::audit::read_status_transitions_since(after_seq)
+    })
+    .await
+    .map_err(|err| format!("audit read join error: {err}"))??;
     let mut dispatched = 0;
     for transition in transitions {
         if is_terminal(&transition.status_from) || !is_terminal(&transition.status_to) {
@@ -82,7 +74,7 @@ pub fn process_audit_window(app: &tauri::AppHandle, after_seq: i64) -> usize {
             Ok(Some(item)) => item,
             _ => continue,
         };
-        process_event(
+        handle_child_terminal(
             app.clone(),
             WorkItemTerminalEvent {
                 org_id,
@@ -91,10 +83,11 @@ pub fn process_audit_window(app: &tauri::AppHandle, after_seq: i64) -> usize {
                 parent: item.frontmatter.parent.clone(),
                 status: transition.status_to.clone(),
             },
-        );
+        )
+        .await?;
         dispatched += 1;
     }
-    dispatched
+    Ok(dispatched)
 }
 
 async fn handle_child_terminal(
@@ -117,31 +110,17 @@ async fn handle_child_terminal(
         return Ok(());
     };
 
-    let dedupe_key = format!(
-        "{}/{}/{}",
-        event.org_id,
-        event.project_slug.as_deref().unwrap_or("-"),
-        parent_short_id
-    );
-    {
-        let mut seen = wake_dedupe().lock().map_err(|_| "dedupe poisoned")?;
-        if !seen.insert(format!("{dedupe_key}:{}", barrier.settled_key)) {
-            return Ok(());
-        }
-    }
-
     let note = barrier.summary.clone();
-    {
-        let event = event.clone();
-        let parent_short_id = parent_short_id.clone();
-        let note = note.clone();
-        tokio::task::spawn_blocking(move || post_parent_note(&event, &parent_short_id, &note))
-            .await
-            .map_err(|err| format!("join error: {err}"))??;
-    }
-    project_management::projects::events::notify_data_changed();
-
+    let note_id = stage_note_id(&event, &parent_short_id, &barrier.settled_key);
     let Some(session_id) = barrier.parent_session_id else {
+        let event_for_note = event.clone();
+        let parent_for_note = parent_short_id.clone();
+        tokio::task::spawn_blocking(move || {
+            post_parent_note(&event_for_note, &parent_for_note, &note_id, &note)
+        })
+        .await
+        .map_err(|err| format!("join error: {err}"))??;
+        project_management::projects::events::notify_data_changed();
         info!(
             parent = %parent_short_id,
             "[child-done-wake] barrier closed; note posted (no linked session to wake)"
@@ -149,41 +128,70 @@ async fn handle_child_terminal(
         return Ok(());
     };
 
-    use tauri::Manager;
-    let Some(state) = app.try_state::<crate::state::AgentAppState>() else {
-        return Err("AgentAppState unavailable".to_string());
-    };
     let content = format!(
         "[Sub-items complete] {note}\n\nReview the parent with `org2-pm work show {parent_short_id}` \
          and decide the next step — close it out, or create/advance follow-up items. \
          Deliver every outcome through org2-pm with exactly one Discussion receipt."
     );
     let display_text = format!("🧩 Sub-item barrier closed on {parent_short_id}");
-    crate::state::commands::session::message::send_message_impl(
-        &state,
-        session_id.clone(),
-        content,
-        Some(display_text),
-        crate::state::commands::session::identity::IdentityOverrides::default(),
-        None,
-        None,
-        None,
-        false,
-        false,
-        None,
-        None,
-        None,
-        None,
-        crate::foundation::session_bridge::TurnIntentBridgeSource::Queue,
-    )
+    let request = EnqueueWorkItemRunRequest {
+        project_slug: event.project_slug.clone(),
+        org_id: event.org_id.clone(),
+        work_item_id: parent_short_id.clone(),
+        trigger: WorkItemRunTrigger::StageBarrier {
+            parent_work_item_id: parent_short_id.clone(),
+            stage: barrier.stage,
+            settled_key: barrier.settled_key.clone(),
+        },
+        target_snapshot: WorkItemRunTargetSnapshot::new(WorkItemRunTarget::ResumeSession {
+            session_id: session_id.clone(),
+        }),
+        input: serde_json::json!({
+            "content": content,
+            "displayText": display_text,
+        }),
+        idempotency_key: format!("stage-barrier:{}:{}", parent_short_id, barrier.settled_key),
+        max_attempts: 3,
+        parent_run_id: None,
+    };
+    tokio::task::spawn_blocking(move || project_management::work_run_service::enqueue(request))
+        .await
+        .map_err(|err| format!("join error: {err}"))??;
+
+    // The durable Run/outbox is committed first. If the process exits after
+    // this point, replay returns the same Run via its idempotency key and the
+    // stable note id below prevents duplicate Discussion receipts.
+    let event_for_note = event.clone();
+    let parent_for_note = parent_short_id.clone();
+    tokio::task::spawn_blocking(move || {
+        post_parent_note(&event_for_note, &parent_for_note, &note_id, &note)
+    })
     .await
-    .map_err(|err| format!("wake enqueue failed: {err}"))?;
+    .map_err(|err| format!("join error: {err}"))??;
+    project_management::projects::events::notify_data_changed();
     info!(
         parent = %parent_short_id,
         session_id,
-        "[child-done-wake] barrier closed; parent session woken"
+        "[child-done-wake] barrier closed; durable parent wake queued"
     );
+    let _ = app;
     Ok(())
+}
+
+fn stage_note_id(
+    event: &WorkItemTerminalEvent,
+    parent_short_id: &str,
+    settled_key: &str,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(event.org_id.as_bytes());
+    hasher.update([0]);
+    hasher.update(event.project_slug.as_deref().unwrap_or("-").as_bytes());
+    hasher.update([0]);
+    hasher.update(parent_short_id.as_bytes());
+    hasher.update([0]);
+    hasher.update(settled_key.as_bytes());
+    format!("note-stage-{:x}", hasher.finalize())
 }
 
 struct BarrierClosure {
@@ -194,6 +202,7 @@ struct BarrierClosure {
     /// wake message.
     summary: String,
     parent_session_id: Option<String>,
+    stage: Option<u32>,
 }
 
 fn completed_count(children: &[&WorkItemData]) -> usize {
@@ -283,6 +292,7 @@ fn evaluate_barrier(
             settled_key: sorted_ids_key(&children),
             summary,
             parent_session_id,
+            stage: None,
         }));
     }
 
@@ -333,7 +343,13 @@ fn evaluate_barrier(
         } else {
             ""
         };
-        progress_parts.push(format!("Stage {}: {}/{}{}", stage, settled, members.len(), marker));
+        progress_parts.push(format!(
+            "Stage {}: {}/{}{}",
+            stage,
+            settled,
+            members.len(),
+            marker
+        ));
     }
     let next_hint = match next_stage {
         Some(stage) => format!(
@@ -355,12 +371,14 @@ fn evaluate_barrier(
         settled_key: format!("stage{}:{}", triggering_stage, sorted_ids_key(&frontier)),
         summary,
         parent_session_id,
+        stage: Some(triggering_stage),
     }))
 }
 
 fn post_parent_note(
     event: &WorkItemTerminalEvent,
     parent_short_id: &str,
+    note_id: &str,
     note: &str,
 ) -> Result<(), String> {
     let actor = WorkItemMutationActor {
@@ -368,12 +386,18 @@ fn post_parent_note(
         name: "System".to_string(),
     };
     match event.project_slug.as_deref() {
-        Some(slug) => {
-            work_service::note_project_work_item(slug, parent_short_id, "progress", note, Some(&actor))
-        }
-        None => work_service::note_standalone_work_item(
+        Some(slug) => work_service::note_project_work_item_idempotent(
+            slug,
+            parent_short_id,
+            note_id,
+            "progress",
+            note,
+            Some(&actor),
+        ),
+        None => work_service::note_standalone_work_item_idempotent(
             Some(event.org_id.as_str()),
             parent_short_id,
+            note_id,
             "progress",
             note,
             Some(&actor),

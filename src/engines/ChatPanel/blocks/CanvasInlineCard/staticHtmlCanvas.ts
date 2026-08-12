@@ -13,7 +13,8 @@ export const STATIC_HTML_STYLES = `
   img{max-width:100%;height:auto;border-radius:4px;}
   ::-webkit-scrollbar{width:6px;height:6px;}
   ::-webkit-scrollbar-track{background:transparent;}
-  ::-webkit-scrollbar-thumb{background:var(--color-fill-4);border-radius:3px;}
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb-color);border-radius:3px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover-color);}
 `;
 
 export const STATIC_HTML_CONTAINMENT_STYLES = `
