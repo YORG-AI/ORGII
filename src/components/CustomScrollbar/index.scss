@@ -27,7 +27,7 @@
   right: 0;
   width: 4px;
   min-height: 30px;
-  background: var(--color-fill-3);
+  background: var(--scrollbar-thumb-color);
   border-radius: 2px;
   cursor: grab;
   pointer-events: auto;
@@ -43,7 +43,7 @@
 
   &:hover,
   &:active {
-    background: var(--color-fill-4);
+    background: var(--scrollbar-thumb-hover-color);
   }
 
   &:active {

@@ -21,6 +21,19 @@
 @import "./features/CodeMirror/styles/diff-tokens";
 @import "./features/CodeMirror/styles/editor-tokens";
 
+body {
+  --scrollbar-thumb-color: color-mix(
+    in srgb,
+    var(--color-fill-2) 58%,
+    transparent
+  );
+  --scrollbar-thumb-hover-color: color-mix(
+    in srgb,
+    var(--color-fill-3) 72%,
+    transparent
+  );
+}
+
 // A desktop window that is hidden or unfocused must not keep WebView2's GPU
 // compositor awake for decorative pulses, progress bars, cursors, or skeletons.
 // Animations resume from their current phase as soon as the window regains
@@ -295,12 +308,12 @@ img {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--color-fill-3);
+  background: var(--scrollbar-thumb-color);
   border-radius: 2px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: var(--color-fill-4);
+  background: var(--scrollbar-thumb-hover-color);
 }
 
 *::-webkit-scrollbar-corner {
@@ -327,7 +340,7 @@ img {
 // Keep CodeMirror on the same visible scrollbar treatment as the rest of the app.
 .cm-scroller {
   scrollbar-width: thin !important;
-  scrollbar-color: var(--color-fill-3) transparent !important;
+  scrollbar-color: var(--scrollbar-thumb-color) transparent !important;
 
   &::-webkit-scrollbar {
     width: 4px !important;
@@ -341,12 +354,12 @@ img {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--color-fill-3) !important;
+    background: var(--scrollbar-thumb-color) !important;
     border-radius: 2px !important;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--color-fill-4) !important;
+    background: var(--scrollbar-thumb-hover-color) !important;
   }
 }
 
@@ -598,7 +611,7 @@ html[data-host-desktop="windows"] [data-windows-top-bar="true"] {
   }
 
   &:hover {
-    scrollbar-color: #e0e0e0 transparent !important; // for Firefox, visible on hover
+    scrollbar-color: var(--scrollbar-thumb-color) transparent !important; // for Firefox, visible on hover
 
     &::-webkit-scrollbar-thumb {
       background-color: transparent !important; // for Chrome, Safari, and Opera, visible on hover
@@ -675,7 +688,7 @@ body.drag-over::after {
   background: transparent;
 }
 .scrollbar-x-hover::-webkit-scrollbar-thumb {
-  background: var(--color-fill-3);
+  background: var(--scrollbar-thumb-color);
   border-radius: 2px;
 }
 
@@ -717,13 +730,14 @@ body.drag-over::after {
     0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-/* Visible thin scrollbar for dropdown option lists (Settings > Timezone,
- * table selectors, etc.). Tailwind has no first-class scrollbar pseudo
- * utilities, so we expose this as a global helper class. No `scrollbar-width`
- * here: once WebKit/Chromium support it, its presence makes them IGNORE the
- * ::-webkit-scrollbar rules below and fall back to an auto-hiding overlay
- * bar — an overflowing dropdown then shows no scroll affordance at all. */
+/* Native overlay scrollbar for dropdown option lists (Settings > Timezone,
+ * table selectors, etc.). In WebKit/Tauri, `scrollbar-width` opts back into
+ * the platform scrollbar: it overlays the list without reserving a gutter and
+ * auto-hides when scrolling stops. The pseudo rules remain as a fallback for
+ * engines that do not support `scrollbar-width`. */
 .dropdown-options-scrollbar {
+  scrollbar-width: thin;
+
   &::-webkit-scrollbar {
     width: 6px;
   }
@@ -733,12 +747,12 @@ body.drag-over::after {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--color-fill-3);
+    background: var(--scrollbar-thumb-color);
     border-radius: 3px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--color-fill-4);
+    background: var(--scrollbar-thumb-hover-color);
   }
 }
 

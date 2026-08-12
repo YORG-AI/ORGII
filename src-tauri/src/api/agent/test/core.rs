@@ -1120,7 +1120,7 @@ async fn debug_work_item_runtime_launch_impl(
                 labels: Vec::new(),
                 milestone: None,
                 parent: None,
-            stage: None,
+                stage: None,
                 start_date: None,
                 target_date: None,
                 created_by: Some("e2e".to_string()),

@@ -94,6 +94,7 @@ interface ImportedReplayAnchorDraft {
 
 interface LoadedPushEvents {
   events: SessionEvent[];
+  localContentRevision?: number;
   anchorDraft?: ImportedReplayAnchorDraft;
   precomputedEventHashes?: string[];
   precomputedLocalFrozenEventCount?: number;
@@ -243,13 +244,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     );
   }
 
-  /**
-   * Seed the volatile cold-start caches from a server-authoritative listing.
-   * For imported CLI sessions the local `updated_at` comes from the source
-   * transcript and is part of the uploaded metadata. When that payload and
-   * the persisted cursor both match the server summary, a restart does not
-   * need to read/normalize/hash the entire transcript again.
-   */
+  /** Seed volatile cold-start caches from a server-authoritative listing. */
   async seedFromRemoteSummary(
     auth: Org2CloudAuthState,
     orgId: string,
@@ -283,17 +278,21 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
       sha256Hex(stableStringify(metadataPayloadForHash(localMetadata))),
       sha256Hex(stableStringify(metadataPayloadForHash(remote))),
     ]);
-    if (localHash !== remoteHash) return;
+    if (localHash === remoteHash) {
+      // upsertMetadataIfChanged gates on the FULL payload hash; seeding the
+      // stripped comparison hash would never match it and every restart would
+      // re-upsert an identical payload for every pushed session.
+      this.lastPushedMetadataHashes.set(
+        key,
+        await sha256Hex(stableStringify(localMetadata))
+      );
+      this.setPushedMetadataMarker(orgId, session.session_id);
+    }
 
-    // upsertMetadataIfChanged gates on the FULL payload hash; seeding the
-    // stripped comparison hash would never match it and every restart would
-    // re-upsert an identical payload for every pushed session.
-    this.lastPushedMetadataHashes.set(
-      key,
-      await sha256Hex(stableStringify(localMetadata))
-    );
-    this.setPushedMetadataMarker(orgId, session.session_id);
-    if (!isImportedHistorySession(session.session_id)) return;
+    // Metadata and transcript are independent planes. Even if a title or
+    // access field changed locally, a cursor stamped with this exact local
+    // content version plus the server summary proves the event plane clean.
+    // Legacy cursors lack the stamp and deliberately take one normal read.
     const cursor = this.getCursor(orgId, session.session_id);
     if (
       !cursor ||
@@ -304,14 +303,55 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     ) {
       return;
     }
+    let localContentRevision: number | undefined;
+    if (!isImportedHistorySession(session.session_id)) {
+      const durable = await eventStoreProxy.getPersistedEventRevision(
+        session.session_id
+      );
+      if (durable && durable.eventCount > 0) {
+        if (durable.eventCount !== cursor.pushedCount) return;
+        if (
+          cursor.localContentRevision !== undefined &&
+          cursor.localContentRevision !== durable.revision
+        ) {
+          return;
+        }
+        // Legacy revisions are upgraded from the server cursor + local count
+        // proof. Crucially this is independent of Session.updated_at: rename,
+        // pin and org-access edits are metadata changes and must not trigger a
+        // multi-GB replay materialization.
+        localContentRevision = durable.revision;
+        if (cursor.localContentRevision !== durable.revision) {
+          this.setCursor({ ...cursor, localContentRevision: durable.revision });
+        }
+      } else if (cursor.localContentUpdatedAt !== session.updated_at) {
+        return;
+      }
+    } else if (cursor.localContentUpdatedAt !== session.updated_at) {
+      return;
+    }
     this.markEventPlaneClean(
       orgId,
       session,
-      this.eventActivityStamps.get(session.session_id) ?? 0
+      this.eventActivityStamps.get(session.session_id) ?? 0,
+      Date.now(),
+      localContentRevision
     );
   }
 
   /** Soft-tombstone a prior push and clear every local pushed marker. */
+  /** Live server rows this ACCOUNT owns in the org, regardless of which
+   * device pushed them or whether local push markers survived. */
+  async listSelfOwnedLiveRemoteSessionIds(
+    auth: Org2CloudAuthState,
+    orgId: string
+  ): Promise<string[]> {
+    const result = await this.client.listOrgSessions(auth.accessToken, orgId);
+    return result.sessions
+      .filter((row) => row.ownerUserId === auth.userId && !row.deletedAt)
+      .map((row) => row.sourceSessionId);
+  }
+
   async retractSession(
     auth: Org2CloudAuthState,
     orgId: string,
@@ -433,9 +473,20 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
       }
       return { events };
     }
+    const revisionBefore =
+      await eventStoreProxy.getPersistedEventRevision(sessionId);
     const persisted = await eventStoreProxy.getPersistedEvents(sessionId);
+    const revisionAfter =
+      await eventStoreProxy.getPersistedEventRevision(sessionId);
+    const localContentRevision =
+      revisionBefore &&
+      revisionAfter &&
+      revisionBefore.revision === revisionAfter.revision &&
+      revisionAfter.eventCount === persisted.length
+        ? revisionAfter.revision
+        : undefined;
     if (persisted.length > 0 || !isCliSession(sessionId)) {
-      return { events: persisted };
+      return { events: persisted, localContentRevision };
     }
     // Live CLI sessions keep their transcript of record in the CLI's native
     // store (account-profile aware) and never write the events cache, so a
@@ -717,7 +768,14 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
       }
       return planPromise;
     };
-    return { stampAtRead, mode, baseEventCount, events, plan };
+    return {
+      stampAtRead,
+      mode,
+      baseEventCount,
+      localContentRevision: loaded.localContentRevision,
+      events,
+      plan,
+    };
   }
 
   private async computeFrozenHashAtCount(
@@ -809,7 +867,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
         await this.loadFullPushEvents(sessionId)
       );
     })();
-    this.passPushPrepareCache.set(prepareKey, prepared);
+    this.cachePreparedPushEvents(prepareKey, prepared);
     return prepared;
   }
 
@@ -886,7 +944,16 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     }
     const cursor = this.getCursor(orgId, sessionId);
     const prepared = await this.preparePushEventsForPass(sessionId, cursor);
-    const { stampAtRead, mode, baseEventCount, events } = prepared;
+    const { stampAtRead, mode, baseEventCount, localContentRevision, events } =
+      prepared;
+    const markPreparedClean = () =>
+      this.markEventPlaneClean(
+        orgId,
+        session,
+        stampAtRead,
+        Date.now(),
+        localContentRevision
+      );
     if (!cursor && events.length === 0) {
       await this.upsertMetadataIfChanged(
         auth,
@@ -895,7 +962,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
         scopeKey,
         access
       );
-      this.markEventPlaneClean(orgId, session, stampAtRead);
+      markPreparedClean();
       return;
     }
     const shrinkKey = `${orgId}:${sessionId}`;
@@ -983,7 +1050,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
             importedReplay,
           });
         }
-        this.markEventPlaneClean(orgId, session, stampAtRead);
+        markPreparedClean();
         return;
       }
       await this.upsertMetadataIfChanged(
@@ -1017,7 +1084,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
         });
       }
       broadcastOrgControlChangedToPeers(orgId, "sessions");
-      this.markEventPlaneClean(orgId, session, stampAtRead);
+      markPreparedClean();
       void this.publishTurnIndexBestEffort(auth, orgId, session, stampAtRead);
       return;
     }
@@ -1079,7 +1146,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
             // still-valid checkpoint must survive a transiently failed probe.
             this.setCursor({ ...cursor, frozenChainHash, importedReplay });
           }
-          this.markEventPlaneClean(orgId, session, stampAtRead);
+          markPreparedClean();
           return;
         }
         await this.upsertMetadataIfChanged(
@@ -1114,7 +1181,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
             }
           );
           broadcastOrgControlChangedToPeers(orgId, "sessions");
-          this.markEventPlaneClean(orgId, session, stampAtRead);
+          markPreparedClean();
           void this.publishTurnIndexBestEffort(
             auth,
             orgId,
@@ -1137,7 +1204,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
             importedReplay,
             newEpoch: null,
           });
-          this.markEventPlaneClean(orgId, session, stampAtRead);
+          markPreparedClean();
           void this.publishTurnIndexBestEffort(
             auth,
             orgId,
@@ -1161,7 +1228,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
         importedReplay,
         newEpoch: cursor.epoch + 1,
       });
-      this.markEventPlaneClean(orgId, session, stampAtRead);
+      markPreparedClean();
       void this.publishTurnIndexBestEffort(auth, orgId, session, stampAtRead);
       return;
     }
@@ -1179,7 +1246,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
       importedReplay,
       newEpoch: 1,
     });
-    this.markEventPlaneClean(orgId, session, stampAtRead);
+    markPreparedClean();
     void this.publishTurnIndexBestEffort(auth, orgId, session, stampAtRead);
   }
 

@@ -31,6 +31,7 @@ export interface SessionMetadata {
   sessionId: string;
   eventCount: number;
   cachedAt: number;
+  contentRevision: number;
   timeRangeStart?: string;
   timeRangeEnd?: string;
 }

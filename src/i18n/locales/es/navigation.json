@@ -699,6 +699,7 @@
         "inviteRevoked": "Esta invitación fue revocada.",
         "inviteExpired": "Esta invitación caducó.",
         "inviteExhausted": "Esta invitación no tiene usos restantes.",
+        "alreadyMember": "Ya eres miembro de esta organización.",
         "network": "No se pudo conectar al servicio en la nube. Comprueba la red e inténtalo de nuevo."
       }
     },

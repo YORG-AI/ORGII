@@ -319,6 +319,7 @@ pub async fn test_agent_org_launch_coordinator(
         worktree_path: None,
         project_slug: None,
         parent_session_id: None,
+        durable_run_id: None,
         additional_directories: Vec::new(),
     };
 

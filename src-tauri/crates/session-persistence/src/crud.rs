@@ -72,8 +72,9 @@ fn upsert_event_rows(
     conn: &Connection,
     session_id: &str,
     events: &[CachedEvent],
-) -> SqliteResult<()> {
+) -> SqliteResult<bool> {
     get_next_sequence(conn, session_id)?;
+    let mut content_changed = false;
 
     // Conflict target is the PRIMARY KEY (id). The table also carries
     // UNIQUE(id, session_id), but that constraint cannot conflict without
@@ -119,7 +120,7 @@ fn upsert_event_rows(
                 .unwrap_or_else(|| increment_sequence(session_id)),
         };
 
-        stmt.execute(params![
+        content_changed |= stmt.execute(params![
             event.id,
             event.session_id,
             event.event_type,
@@ -131,17 +132,18 @@ fn upsert_event_rows(
             event.created_at,
             event.meta_json,
             seq,
-        ])?;
+        ])? > 0;
     }
-    Ok(())
+    Ok(content_changed)
 }
 
 fn refresh_session_metadata_from_events(
     conn: &Connection,
     session_id: &str,
+    content_changed: bool,
 ) -> SqliteResult<usize> {
-    let (event_count, time_start, time_end): (i64, Option<String>, Option<String>) =
-        conn.query_row(
+    let (event_count, time_start, time_end): (i64, Option<String>, Option<String>) = conn
+        .query_row(
             "SELECT COUNT(*), MIN(created_at), MAX(created_at)
              FROM events WHERE session_id=?1",
             [session_id],
@@ -151,14 +153,25 @@ fn refresh_session_metadata_from_events(
     let now = Utc::now().timestamp();
     conn.execute(
         "INSERT INTO sessions
-         (session_id, event_count, cached_at, time_range_start, time_range_end, specs_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, NULL)
+         (session_id, event_count, cached_at, content_revision, time_range_start, time_range_end, specs_json)
+         VALUES (?1, ?2, ?3, CASE WHEN ?6 THEN 1 ELSE 0 END, ?4, ?5, NULL)
          ON CONFLICT(session_id) DO UPDATE SET
              event_count      = excluded.event_count,
              cached_at        = excluded.cached_at,
+             content_revision = CASE
+                 WHEN ?6 THEN sessions.content_revision + 1
+                 ELSE sessions.content_revision
+             END,
              time_range_start = excluded.time_range_start,
              time_range_end   = excluded.time_range_end",
-        params![session_id, event_count, now, time_start, time_end],
+        params![
+            session_id,
+            event_count,
+            now,
+            time_start,
+            time_end,
+            content_changed
+        ],
     )?;
     Ok(event_count.max(0) as usize)
 }
@@ -190,7 +203,7 @@ pub fn save_events(session_id: &str, events: &[CachedEvent]) -> SqliteResult<()>
         let conn = get_connection()?;
         let tx = begin_immediate(&conn)?;
 
-        upsert_event_rows(&conn, session_id, events)?;
+        let content_changed = upsert_event_rows(&conn, session_id, events)?;
 
         // `save_events` is incremental: callers may submit one newly
         // materialized Agent Org inbox event after a session already contains
@@ -198,7 +211,7 @@ pub fn save_events(session_id: &str, events: &[CachedEvent]) -> SqliteResult<()>
         // only this batch would shrink the session metadata and make history
         // pagination skip durable events.  Recompute from the transaction's
         // full event set instead.
-        refresh_session_metadata_from_events(&conn, session_id)?;
+        refresh_session_metadata_from_events(&conn, session_id, content_changed)?;
         normalize_session_sequences(&conn, session_id)?;
 
         tx.commit()?;
@@ -227,7 +240,7 @@ pub fn finalize_deferred_event_import(session_id: &str) -> SqliteResult<usize> {
     let event_count = with_sessions_writer(|| -> SqliteResult<usize> {
         let conn = get_connection()?;
         let tx = begin_immediate(&conn)?;
-        let count = refresh_session_metadata_from_events(&conn, session_id)?;
+        let count = refresh_session_metadata_from_events(&conn, session_id, true)?;
         normalize_session_sequences(&conn, session_id)?;
         tx.commit()?;
         Ok(count)
@@ -514,7 +527,7 @@ pub fn search_all_sessions(query: &str, limit: i64) -> SqliteResult<Vec<CrossSes
 pub fn get_session_metadata(session_id: &str) -> SqliteResult<Option<SessionMetadata>> {
     let conn = get_connection()?;
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, event_count, cached_at, time_range_start, time_range_end, specs_json
+        "SELECT session_id, event_count, cached_at, content_revision, time_range_start, time_range_end, specs_json
          FROM sessions WHERE session_id = ?1",
     )?;
 
@@ -523,9 +536,10 @@ pub fn get_session_metadata(session_id: &str) -> SqliteResult<Option<SessionMeta
             session_id: row.get(0)?,
             event_count: row.get(1)?,
             cached_at: row.get(2)?,
-            time_range_start: row.get(3)?,
-            time_range_end: row.get(4)?,
-            specs_json: row.get(5)?,
+            content_revision: row.get(3)?,
+            time_range_start: row.get(4)?,
+            time_range_end: row.get(5)?,
+            specs_json: row.get(6)?,
         })
     });
 
@@ -621,7 +635,7 @@ pub fn clear_old_sessions(max_age_hours: i64) -> SqliteResult<i64> {
 pub fn get_all_sessions() -> SqliteResult<Vec<SessionMetadata>> {
     let conn = get_connection()?;
     let mut stmt = conn.prepare(
-        "SELECT session_id, event_count, cached_at, time_range_start, time_range_end, specs_json
+        "SELECT session_id, event_count, cached_at, content_revision, time_range_start, time_range_end, specs_json
          FROM sessions ORDER BY cached_at DESC",
     )?;
 
@@ -631,9 +645,10 @@ pub fn get_all_sessions() -> SqliteResult<Vec<SessionMetadata>> {
                 session_id: row.get(0)?,
                 event_count: row.get(1)?,
                 cached_at: row.get(2)?,
-                time_range_start: row.get(3)?,
-                time_range_end: row.get(4)?,
-                specs_json: row.get(5)?,
+                content_revision: row.get(3)?,
+                time_range_start: row.get(4)?,
+                time_range_end: row.get(5)?,
+                specs_json: row.get(6)?,
             })
         })?
         .collect::<SqliteResult<Vec<_>>>()?;
@@ -677,13 +692,14 @@ pub(crate) fn update_session_metadata(conn: &Connection, session_id: &str) -> Sq
         .unwrap_or((None, None));
 
     conn.execute(
-        "INSERT INTO sessions (session_id, event_count, cached_at, time_range_start, time_range_end, specs_json)
+        "INSERT INTO sessions (session_id, event_count, cached_at, content_revision, time_range_start, time_range_end, specs_json)
          VALUES (?1,
                  (SELECT COUNT(*) FROM events WHERE session_id = ?1),
-                 ?2, ?3, ?4, NULL)
+                 ?2, 1, ?3, ?4, NULL)
          ON CONFLICT(session_id) DO UPDATE SET
              event_count = excluded.event_count,
              cached_at   = excluded.cached_at,
+             content_revision = sessions.content_revision + 1,
              time_range_start = excluded.time_range_start,
              time_range_end   = excluded.time_range_end",
         params![session_id, now, time_range.0, time_range.1],
@@ -742,9 +758,16 @@ pub fn save_session(session: &CachedSession) -> SqliteResult<()> {
 
         let now = Utc::now().timestamp();
         tx.execute(
-            "INSERT OR REPLACE INTO sessions
-                 (session_id, event_count, cached_at, time_range_start, time_range_end, specs_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO sessions
+                 (session_id, event_count, cached_at, content_revision, time_range_start, time_range_end, specs_json)
+             VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6)
+             ON CONFLICT(session_id) DO UPDATE SET
+                 event_count = excluded.event_count,
+                 cached_at = excluded.cached_at,
+                 content_revision = sessions.content_revision + 1,
+                 time_range_start = excluded.time_range_start,
+                 time_range_end = excluded.time_range_end,
+                 specs_json = excluded.specs_json",
             params![
                 session.session_id,
                 persisted_count,
@@ -943,6 +966,40 @@ mod tests {
     }
 
     #[test]
+    fn content_revision_advances_only_when_transcript_content_changes() {
+        with_temp_orgii_home(|| {
+            let conn = get_connection().expect("open sessions DB");
+            super::super::schema::init_session_tables(&conn).expect("init session schema");
+            drop(conn);
+
+            let session_id = "durable-content-revision-session";
+            let event = cached_event(session_id, "event-1", "2026-07-17T00:00:01.000Z");
+            save_events(session_id, std::slice::from_ref(&event)).expect("seed event");
+            let first = get_session_metadata(session_id)
+                .expect("read first revision")
+                .expect("metadata exists")
+                .content_revision;
+
+            save_events(session_id, std::slice::from_ref(&event))
+                .expect("resubmit unchanged event");
+            let unchanged = get_session_metadata(session_id)
+                .expect("read unchanged revision")
+                .expect("metadata exists")
+                .content_revision;
+            assert_eq!(unchanged, first);
+
+            let mut changed = event;
+            changed.content = "changed".to_string();
+            save_events(session_id, &[changed]).expect("update event content");
+            let updated = get_session_metadata(session_id)
+                .expect("read updated revision")
+                .expect("metadata exists")
+                .content_revision;
+            assert!(updated > unchanged);
+        });
+    }
+
+    #[test]
     fn deferred_import_publishes_metadata_only_when_finalized() {
         with_temp_orgii_home(|| {
             let conn = get_connection().expect("open sessions DB");
@@ -962,11 +1019,8 @@ mod tests {
                 ],
             )
             .expect("append first import page");
-            save_events_deferred(
-                session_id,
-                &[cached_event(session_id, "event-3", t3)],
-            )
-            .expect("append second import page");
+            save_events_deferred(session_id, &[cached_event(session_id, "event-3", t3)])
+                .expect("append second import page");
 
             assert!(
                 get_session_metadata(session_id)

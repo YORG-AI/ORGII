@@ -16,9 +16,11 @@ import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 import { createInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import {
+  peekMatchingOrgRepoScope,
   peekShareableScopeKeys,
   primeShareableScopeKey,
   resolveMatchingOrgRepoScope,
+  subscribeShareableScopeKeys,
 } from "../TeamCollaboration/repoScopeResolver";
 import {
   PERSONAL_EXCLUDED_TOKEN,
@@ -72,8 +74,9 @@ import {
   PROJECT_PUSH_RETRY_DELAY_MS,
 } from "./org2CloudSyncEngine";
 
-const { tauriEventListeners } = vi.hoisted(() => ({
+const { tauriEventListeners, scopeKeyListeners } = vi.hoisted(() => ({
   tauriEventListeners: new Map<string, Set<(event: unknown) => void>>(),
+  scopeKeyListeners: new Set<() => void>(),
 }));
 
 export function getTauriEventListeners() {
@@ -96,6 +99,8 @@ vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
   eventStoreProxy: {
     subscribe: vi.fn(() => () => undefined),
     getPersistedEvents: vi.fn(),
+    countPersistedEvents: vi.fn(),
+    getPersistedEventRevision: vi.fn(),
   },
 }));
 
@@ -111,10 +116,18 @@ vi.mock("../TeamCollaboration/repoScopeResolver", () => ({
   shareableScopeKeysFromRemoteUrls: vi.fn((urls: string[] | undefined) =>
     urls?.length ? [...urls] : null
   ),
+  peekMatchingOrgRepoScope: vi.fn(
+    (keys: string[] | null, scopes: string[] | undefined) =>
+      scopes?.find((scope) => keys?.includes(scope)) ?? null
+  ),
   resolveMatchingOrgRepoScope: vi.fn(
     async (keys: string[] | null, scopes: string[] | undefined) =>
       scopes?.find((scope) => keys?.includes(scope)) ?? null
   ),
+  subscribeShareableScopeKeys: vi.fn((listener: () => void) => {
+    scopeKeyListeners.add(listener);
+    return () => scopeKeyListeners.delete(listener);
+  }),
 }));
 
 vi.mock("@src/components/Message", () => ({
@@ -142,8 +155,14 @@ export const eventStoreMock = vi.mocked(eventStoreProxy);
 export const processChunksRustMock = vi.mocked(processChunksRust);
 export const peekMock = vi.mocked(peekShareableScopeKeys);
 export const primeMock = vi.mocked(primeShareableScopeKey);
+export const peekMatchingScopeMock = vi.mocked(peekMatchingOrgRepoScope);
 export const resolveMatchingScopeMock = vi.mocked(resolveMatchingOrgRepoScope);
+export const subscribeScopeKeysMock = vi.mocked(subscribeShareableScopeKeys);
 export const messageMock = vi.mocked(Message);
+
+export function notifyScopeKeysResolved(): void {
+  for (const listener of scopeKeyListeners) listener();
+}
 
 /** Minimal visibility stub for the engine's browser lifecycle triggers. */
 export class DocumentStub extends EventTarget {
@@ -326,6 +345,10 @@ export function createEngineFixture() {
   peekMock.mockImplementation((path: string) =>
     path === REPO_PATH ? [SCOPE_KEY] : null
   );
+  peekMatchingScopeMock.mockImplementation(
+    (keys: string[] | null | undefined, scopes: string[] | null | undefined) =>
+      scopes?.find((scope) => keys?.includes(scope)) ?? null
+  );
   client.getOrgRepoScopes.mockImplementation(
     async (_token: string, orgId: string) => ({
       repoScopes: store.get(org2CloudRepoScopesAtom)[orgId] ?? [],
@@ -339,6 +362,10 @@ export function createEngineFixture() {
     makeEvent("e1"),
     makeEvent("e2", "running"),
   ]);
+  eventStoreMock.getPersistedEventRevision.mockResolvedValue({
+    eventCount: 2,
+    revision: 1,
+  });
   processChunksRustMock.mockResolvedValue([]);
   vi.useFakeTimers();
   engine.start(store);

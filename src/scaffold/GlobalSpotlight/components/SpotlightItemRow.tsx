@@ -4,11 +4,6 @@
  * Memoized row renderer for spotlight items.
  * Handles icons, labels, status indicators, git badges, and keyboard shortcuts.
  */
-import {
-  MenuItem,
-  PredefinedMenuItem,
-  Menu as TauriMenu,
-} from "@tauri-apps/api/menu";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   Check,
@@ -28,6 +23,10 @@ import Tooltip from "@src/components/Tooltip";
 import { createLogger } from "@src/hooks/logger";
 import { copyText } from "@src/util/data/clipboard";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 
 import { ICONS } from "../config";
 import { SPOTLIGHT_TOKENS } from "../constants";
@@ -63,47 +62,46 @@ async function showSpotlightContextMenu({
   copyPathLabel,
   revealLabel,
 }: SpotlightContextMenuOptions): Promise<void> {
-  const items: (MenuItem | PredefinedMenuItem)[] = [];
-  if (path) {
-    items.push(
-      await MenuItem.new({
-        text: copyPathLabel,
-        action: () => {
-          void copyText(path).catch((error: unknown) => {
-            log.error("Failed to copy path:", error);
-          });
-        },
-      })
-    );
-  }
-  if (name) {
-    items.push(
-      await MenuItem.new({
-        text: copyNameLabel,
-        action: () => {
-          void copyText(name).catch((error: unknown) => {
-            log.error("Failed to copy name:", error);
-          });
-        },
-      })
-    );
-  }
-  if (path) {
-    items.push(
-      await PredefinedMenuItem.new({ item: "Separator" }),
-      await MenuItem.new({
-        text: revealLabel,
-        action: () => {
-          void revealItemInDir(path).catch((error: unknown) => {
-            log.error("Failed to reveal path in file manager:", error);
-          });
-        },
-      })
-    );
-  }
-  if (items.length === 0) return;
-  const menu = await TauriMenu.new({ items });
-  await menu.popup();
+  await popupNativeMenu({
+    source: "global-spotlight",
+    buildItems: () => {
+      const items: NativeMenuItemOptions[] = [];
+      if (path) {
+        items.push({
+          text: copyPathLabel,
+          action: () => {
+            void copyText(path).catch((error: unknown) => {
+              log.error("Failed to copy path:", error);
+            });
+          },
+        });
+      }
+      if (name) {
+        items.push({
+          text: copyNameLabel,
+          action: () => {
+            void copyText(name).catch((error: unknown) => {
+              log.error("Failed to copy name:", error);
+            });
+          },
+        });
+      }
+      if (path) {
+        items.push(
+          { item: "Separator" },
+          {
+            text: revealLabel,
+            action: () => {
+              void revealItemInDir(path).catch((error: unknown) => {
+                log.error("Failed to reveal path in file manager:", error);
+              });
+            },
+          }
+        );
+      }
+      return items;
+    },
+  });
 }
 
 interface PathParts {

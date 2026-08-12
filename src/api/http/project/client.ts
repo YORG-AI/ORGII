@@ -17,23 +17,37 @@ import type {
   CollabRemoteEntity,
   ConfigureProjectOrgGitFolderSyncRequest,
   CreateProjectOrgRequest,
+  DiscussionPostRequest,
+  DiscussionPostResult,
+  DiscussionTriggerPreview,
+  EnqueueWorkItemRunRequest,
   EnrichedWorkItem,
   LabelsFile,
   MembersFile,
   MilestonesFile,
+  PrReadiness,
   ProjectData,
   ProjectMeta,
   ProjectOrg,
+  PropertyDefinition,
   ResolveProjectOrgGitFolderConflictRequest,
   RoutineDefinition,
   RoutineFire,
   RoutineFireResult,
+  RoutineWebhookDelivery,
+  RoutineWebhookInstallInfo,
+  RoutineWebhookStatus,
   SyncProjectOrgGitFolderRequest,
   SyncProjectOrgGitFolderResult,
+  UpsertPropertyDefinitionRequest,
   WorkItemData,
   WorkItemFrontmatter,
   WorkItemHandoffTransition,
   WorkItemPartialUpdate,
+  WorkItemPropertyValue,
+  WorkItemRun,
+  WorkItemScope,
+  WorkItemSubscription,
   WorkItemsViewData,
   WorkspaceWorkItemsData,
 } from "./types";
@@ -242,6 +256,19 @@ export async function writeProject(
   });
   invalidateCache(slug);
   // Project lists across all repo filters need to refresh.
+  invalidateCache("__projects__");
+  return result;
+}
+
+export async function moveProject(
+  slug: string,
+  destinationOrgId: string
+): Promise<ProjectData> {
+  const result = await invoke<ProjectData>("project_move_project", {
+    slug,
+    destinationOrgId,
+  });
+  invalidateCache(slug);
   invalidateCache("__projects__");
   return result;
 }
@@ -624,6 +651,209 @@ export async function updateWorkItemPartial(
   );
   invalidateCache();
   return result;
+}
+
+export async function enqueueWorkItemRun(
+  request: EnqueueWorkItemRunRequest
+): Promise<WorkItemRun> {
+  return invoke<WorkItemRun>("project_enqueue_work_item_run", { request });
+}
+
+export async function listWorkItemRuns({
+  projectSlug,
+  orgId,
+  shortId,
+  limit = 50,
+}: {
+  projectSlug?: string | null;
+  orgId?: string | null;
+  shortId: string;
+  limit?: number;
+}): Promise<WorkItemRun[]> {
+  return invoke<WorkItemRun[]>("project_list_work_item_runs", {
+    projectSlug: projectSlug ?? null,
+    orgId: orgId ?? null,
+    shortId,
+    limit,
+  });
+}
+
+export async function retryLatestWorkItemRun({
+  projectSlug,
+  orgId,
+  shortId,
+  sessionId,
+  idempotencyKey,
+}: {
+  projectSlug?: string | null;
+  orgId?: string | null;
+  shortId: string;
+  sessionId: string;
+  idempotencyKey: string;
+}): Promise<WorkItemRun> {
+  return invoke<WorkItemRun>("project_retry_latest_work_item_run", {
+    projectSlug: projectSlug ?? null,
+    orgId: orgId ?? null,
+    shortId,
+    sessionId,
+    idempotencyKey,
+  });
+}
+
+export async function previewDiscussionTrigger(
+  request: WorkItemScope & {
+    content: string;
+    targetSessionId?: string | null;
+  }
+): Promise<DiscussionTriggerPreview> {
+  return invoke("project_discussion_preview_trigger", { request });
+}
+
+export async function postDiscussionComment(
+  request: DiscussionPostRequest
+): Promise<DiscussionPostResult> {
+  const result = await invoke<DiscussionPostResult>(
+    "project_discussion_post_comment",
+    { request }
+  );
+  invalidateCache();
+  return result;
+}
+
+export async function resolveDiscussionThread(input: {
+  scope: WorkItemScope;
+  threadId: string;
+  actorId: string;
+  conclusionCommentId?: string | null;
+}): Promise<import("./types").CommentEntry[]> {
+  const { scope, ...mutation } = input;
+  const result = await invoke<import("./types").CommentEntry[]>(
+    "project_discussion_resolve_thread",
+    { request: { ...scope, ...mutation } }
+  );
+  invalidateCache();
+  return result;
+}
+
+export async function reopenDiscussionThread(input: {
+  scope: WorkItemScope;
+  threadId: string;
+  actorId: string;
+}): Promise<import("./types").CommentEntry[]> {
+  const { scope, ...mutation } = input;
+  const result = await invoke<import("./types").CommentEntry[]>(
+    "project_discussion_reopen_thread",
+    { request: { ...scope, ...mutation, conclusionCommentId: null } }
+  );
+  invalidateCache();
+  return result;
+}
+
+export async function listWorkItemSubscriptions(
+  scope: WorkItemScope
+): Promise<WorkItemSubscription[]> {
+  return invoke("project_list_work_item_subscriptions", { scope });
+}
+
+export async function setWorkItemSubscribed(
+  scope: WorkItemScope,
+  subscriberId: string,
+  subscribed: boolean
+): Promise<WorkItemSubscription[]> {
+  return invoke(
+    subscribed
+      ? "project_subscribe_work_item"
+      : "project_unsubscribe_work_item",
+    { request: { ...scope, subscriberId } }
+  );
+}
+
+export async function getWorkItemPrReadiness(
+  scope: WorkItemScope
+): Promise<PrReadiness> {
+  return invoke("project_get_work_item_pr_readiness", { scope });
+}
+
+export async function listPropertyDefinitions(
+  orgId: string,
+  includeArchived = false
+): Promise<PropertyDefinition[]> {
+  return invoke("project_list_property_definitions", {
+    orgId,
+    includeArchived,
+  });
+}
+
+export async function upsertPropertyDefinition(
+  request: UpsertPropertyDefinitionRequest
+): Promise<PropertyDefinition> {
+  return invoke("project_upsert_property_definition", { request });
+}
+
+export async function archivePropertyDefinition(
+  propertyId: string
+): Promise<PropertyDefinition> {
+  return invoke("project_archive_property_definition", { propertyId });
+}
+
+export async function listWorkItemPropertyValues(
+  scope: WorkItemScope
+): Promise<WorkItemPropertyValue[]> {
+  return invoke("project_list_work_item_property_values", { scope });
+}
+
+export async function setWorkItemPropertyValue(
+  scope: WorkItemScope,
+  propertyId: string,
+  value: unknown | null
+): Promise<WorkItemPropertyValue | null> {
+  return invoke("project_set_work_item_property_value", {
+    request: { ...scope, propertyId, value },
+  });
+}
+
+export async function installRoutineWebhook(
+  routineName: string
+): Promise<RoutineWebhookInstallInfo> {
+  return invoke("project_routine_webhook_install", { routineName });
+}
+
+export async function rotateRoutineWebhook(
+  routineName: string
+): Promise<RoutineWebhookInstallInfo> {
+  return invoke("project_routine_webhook_rotate", { routineName });
+}
+
+export async function routineWebhookStatus(
+  routineName: string
+): Promise<RoutineWebhookStatus> {
+  return invoke("project_routine_webhook_status", { routineName });
+}
+
+export async function setRoutineWebhookEnabled(
+  routineName: string,
+  enabled: boolean
+): Promise<RoutineWebhookStatus> {
+  return invoke("project_routine_webhook_set_enabled", {
+    routineName,
+    enabled,
+  });
+}
+
+export async function listRoutineWebhookDeliveries(
+  routineName: string,
+  limit = 50
+): Promise<RoutineWebhookDelivery[]> {
+  return invoke("project_routine_webhook_list_deliveries", {
+    routineName,
+    limit,
+  });
+}
+
+export async function replayRoutineWebhookDelivery(
+  deliveryId: string
+): Promise<RoutineWebhookDelivery> {
+  return invoke("project_routine_webhook_replay", { deliveryId });
 }
 
 export async function updateStandaloneWorkItemPartial(

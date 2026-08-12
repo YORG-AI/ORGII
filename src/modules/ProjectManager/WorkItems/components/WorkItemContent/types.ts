@@ -14,6 +14,7 @@ import type {
 } from "@src/api/tauri/github";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
+import type { WorkItemComment } from "@src/types/core/workItem";
 
 import type { WorkItemContentPresentation } from "./presentation";
 
@@ -107,6 +108,9 @@ export interface GitHubIssueInteractionConfig {
 export interface OutputTabContentProps {
   workItem: WorkItemExtended;
   repoPath?: string | null;
+  projectSlug?: string | null;
+  shortId?: string | null;
+  orgId?: string | null;
   onOpenFileDiff?: (filePath: string) => void;
   onOpenFileAtLine?: (filePath: string, line?: number) => void;
   onReviewAllFiles?: (filePaths: string[]) => void;
@@ -125,6 +129,9 @@ export interface PrSectionProps {
   phase: OrchestratorPhase;
   autoCreatePr: boolean;
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
+  projectSlug?: string | null;
+  orgId?: string | null;
+  shortId?: string | null;
 }
 
 export type PrCreationState = "idle" | "creating" | "error";
@@ -141,6 +148,11 @@ export interface HistoryTabProps {
   teamMembers?: Person[];
   onCommentSubmit: () => void;
   isSubmittingComment: boolean;
+  comments?: WorkItemComment[];
+  replyToCommentId?: string | null;
+  onReplyToComment?: (commentId: string | null) => void;
+  onResolveThread?: (threadId: string, conclusionCommentId?: string) => void;
+  onReopenThread?: (threadId: string) => void;
   presentation?: WorkItemContentPresentation;
   canComment?: boolean;
   threadNavigation?: ReactNode;

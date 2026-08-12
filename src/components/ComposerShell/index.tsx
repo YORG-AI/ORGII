@@ -10,7 +10,6 @@
  * --------
  * • "default"  — session creator, standalone (bg-chat-input)
  * • "embedded" — chat panel embedded in conversation (bg-chat-input)
- * • "pill"     — compact single-row capsule (rounded-full, same padding)
  * • "comment"  — compact avatar-adjacent comment input
  * • "edit"     — queued-message edit box (label strip + inner editor card)
  * • "historyEdit" — sent-message edit box (single layer, same token as normal input)
@@ -22,7 +21,6 @@ import { INPUT_AREA } from "@src/config/inputAreaTokens";
 export type ComposerShellVariant =
   | "default"
   | "embedded"
-  | "pill"
   | "comment"
   | "edit"
   | "historyEdit";
@@ -46,7 +44,6 @@ export interface ComposerShellProps {
 const VARIANT_CLASSES: Record<ComposerShellVariant, string> = {
   default: `${INPUT_AREA.borderRadiusClass}  px-1.5 pt-2.5 pb-1.5 gap-2`,
   embedded: `${INPUT_AREA.borderRadiusClass}  px-1.5 pt-2.5 pb-1.5 gap-2`,
-  pill: "rounded-full                     p-1.5 gap-2",
   comment: `${INPUT_AREA.borderRadiusClass} px-1.5 py-1.5 gap-1.5`,
   // `edit` is the OUTER label strip — the inner editor card is rendered as
   // a separately-styled child (see `InputArea`). The strip itself is just
@@ -58,7 +55,6 @@ const VARIANT_CLASSES: Record<ComposerShellVariant, string> = {
 const VARIANT_BG_CLASS: Record<ComposerShellVariant, string> = {
   default: INPUT_AREA.backgroundDefaultClass,
   embedded: INPUT_AREA.backgroundChatPanelClass,
-  pill: INPUT_AREA.backgroundChatPanelClass,
   comment: INPUT_AREA.backgroundChatPanelClass,
   // The outer edit strip sits on `bg-fill-2` so it reads as a distinct card
   // that wraps the header row + inner editor card (`bg-fill-1`).
@@ -72,7 +68,6 @@ const VARIANT_BG_CLASS: Record<ComposerShellVariant, string> = {
 const VARIANT_INTERACTION_CLASSES: Record<ComposerShellVariant, string> = {
   default: INPUT_AREA.shellInteractionClasses,
   embedded: INPUT_AREA.shellInteractionClasses,
-  pill: INPUT_AREA.shellInteractionClasses,
   comment: INPUT_AREA.shellInteractionClasses,
   edit: INPUT_AREA.borderClass,
   historyEdit: INPUT_AREA.shellEditInteractionClasses,

@@ -6,6 +6,7 @@ import Button from "@src/components/Button";
 import ComposerBar from "@src/components/ComposerBar";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { VoiceInputButton, VoiceRecordingBar } from "@src/components/Voice";
+import { INPUT_AREA_CONTROL_GROUP_CLASS } from "@src/config/inputAreaTokens";
 import type { PromptPolishControl } from "@src/engines/ChatPanel/hooks/useInputArea/types";
 import type { UseVoiceInputResult } from "@src/hooks/voice";
 
@@ -151,7 +152,6 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
       onUpload={onUpload}
       onOpenSkillsTools={onOpenSkillsTools}
       dropdownDirection="down"
-      toolbarItemGap={false}
       showContextInfo={!isCursorIde}
       editorSlot={
         <InputEditor
@@ -265,8 +265,6 @@ interface NormalComposerContentProps extends SharedComposerBarProps {
   showVoiceUi: boolean;
   voice: UseVoiceInputResult;
   currentRepoPath?: string;
-  isCursorCompactRow: boolean;
-  suppressToolbarHover: boolean;
   onContentChange: (text: string) => void;
   onBlur: () => void;
   onSubmit: (capturedText?: string) => void;
@@ -328,8 +326,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   showVoiceUi,
   voice,
   currentRepoPath,
-  isCursorCompactRow,
-  suppressToolbarHover,
   placeholder,
   trailingHint,
   currentInputEmpty,
@@ -358,7 +354,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           onCancel={voice.cancel}
           onAccept={voice.stop}
           onAddContent={onAddContent}
-          compact={isCursorCompactRow}
         />
       ) : (
         <ComposerBar
@@ -366,9 +361,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           onUpload={onUpload}
           onOpenSkillsTools={onOpenSkillsTools}
           dropdownDirection="up"
-          toolbarItemGap={false}
           repoPath={currentRepoPath}
-          inlineLayout={isCursorCompactRow}
           showContextInfo={showAgentControls && !isCursorIde}
           editorSlot={
             <InputEditor
@@ -397,7 +390,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
               placeholder={placeholder || t("input.defaultPlaceholder")}
               trailingHint={trailingHint}
               onImagePaste={onImagePaste}
-              compact={isCursorCompactRow}
             />
           }
           leftPrefix={
@@ -411,11 +403,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
             />
           }
           pills={
-            <div
-              className={`inline-flex items-center ${
-                suppressToolbarHover ? "pointer-events-none" : ""
-              }`.trim()}
-            >
+            <div className={INPUT_AREA_CONTROL_GROUP_CLASS}>
               {modePill}
               {modelPill}
             </div>

@@ -156,12 +156,26 @@ describe("repoEligibleForOrgScopedPicker (optimistic)", () => {
     expect(prime).toHaveBeenCalledWith("/Users/me/org2");
   });
 
-  it("hides a resolved out-of-scope or remote-less checkout", () => {
+  it("keeps a checkout visible while provider network identity is unresolved", () => {
     expect(
       repoEligibleForOrgScopedPicker(
         { fs_uri: "/Users/me/other" },
         SCOPES,
-        () => ["github.com/acme/elsewhere"]
+        () => ["github.com/acme/elsewhere"],
+        vi.fn(),
+        () => undefined
+      )
+    ).toBe(true);
+  });
+
+  it("hides a confirmed out-of-scope or remote-less checkout", () => {
+    expect(
+      repoEligibleForOrgScopedPicker(
+        { fs_uri: "/Users/me/other" },
+        SCOPES,
+        () => ["github.com/acme/elsewhere"],
+        vi.fn(),
+        () => null
       )
     ).toBe(false);
     expect(

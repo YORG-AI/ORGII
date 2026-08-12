@@ -316,9 +316,10 @@ fn configure_orgtrack_environment(cmd: &mut tokio::process::Command, session_id:
         .trim_start_matches("builtin:")
         .to_string();
     cmd.env("ORGII_ACTOR", format!("agent:{agent}"));
-    if let Some(mode) = record.product_mode.as_deref() {
-        cmd.env("ORGII_MODE", mode);
-    }
+    cmd.env(
+        "ORGII_MODE",
+        record.product_mode.as_deref().unwrap_or("build"),
+    );
     if let Some(slug) = record.project_slug.as_deref() {
         cmd.env("ORGII_SCOPE", slug);
     }

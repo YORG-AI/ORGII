@@ -126,7 +126,6 @@ export function ManualCreateComposer({
             onUpload={() => fileInputRef.current?.click()}
             onOpenSkillsTools={() => editorRef.current?.triggerSlashContext()}
             dropdownDirection="up"
-            toolbarItemGap={false}
             showContextInfo={false}
             trailingActions={submitButton}
           >
