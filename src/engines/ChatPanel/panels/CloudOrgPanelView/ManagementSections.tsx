@@ -3,8 +3,8 @@
  * self-hosted `CollabOrgPanelView/MembersSection`):
  *
  *  - `CloudInvitesCard`   (admin) — two cards: "New invite" (role + max uses +
- *    optional expiry, then the one-time copyable `orgii://cloud/join` link)
- *    and "Previous invites" (one row per invite, status + revoke trailing).
+ *    optional expiry, then the one-time copyable HTTPS handoff link) and
+ *    "Previous invites" (one row per invite, status + revoke trailing).
  *  - `CloudMembersSection` — the signed-in member gets a dedicated About me
  *    card above the remaining member rows. Admins get a role dropdown
  *    (admin/member) and Remove; everyone but the owner gets Leave from the

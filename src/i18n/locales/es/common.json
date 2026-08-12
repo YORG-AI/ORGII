@@ -1492,7 +1492,7 @@
         "label": "Acciones del pull request",
         "confirmMergeTitle": "¿Fusionar el pull request?",
         "confirmMergeMessage": "GitHub fusionará la rama de origen del pull request actual con la rama base.",
-        "merge": "Fusionar pull request",
+        "merge": "Fusionar",
         "squash": "Combinar commits y fusionar",
         "rebase": "Rebase y fusionar",
         "mergeSuccess": "Pull request fusionado",

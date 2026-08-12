@@ -1357,7 +1357,7 @@
         "label": "Pull request actions",
         "confirmMergeTitle": "Merge pull request?",
         "confirmMergeMessage": "GitHub will merge the current pull request head into the base branch.",
-        "merge": "Merge pull request",
+        "merge": "Merge",
         "squash": "Squash and merge",
         "rebase": "Rebase and merge",
         "mergeSuccess": "Pull request merged",

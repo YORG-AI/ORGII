@@ -208,7 +208,6 @@ export interface KeyDownHandlerContext {
     | undefined;
   getOnSlashCommandClose: () => (() => void) | undefined;
   getOnSubmit: () => ((text: string) => void) | undefined;
-  getOnBeforeNewline: () => (() => void) | undefined;
   /** Read the plain-text content of the editor (pills serialized to fileName) */
   getText: () => string;
   /** Insert a literal newline at the caret. Used for Shift+Enter / bare Enter. */
@@ -500,10 +499,9 @@ export function createKeyDownHandler(ctx: KeyDownHandlerContext) {
       }
     }
 
-    // Cmd/Ctrl+A → select all editor content. Webkit-based contenteditable
-    // hosts that have `display: block` + `white-space: nowrap` (the compact
-    // chat row) sometimes refuse the native shortcut, so we drive the
-    // selection ourselves to guarantee parity with ComposerInput.
+    // Cmd/Ctrl+A → select all editor content. WebKit-based contenteditable
+    // hosts can refuse the native shortcut in some embedded layouts, so we
+    // drive the selection ourselves to guarantee parity with ComposerInput.
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
       event.preventDefault();
       const range = document.createRange();
@@ -568,9 +566,7 @@ export function createKeyDownHandler(ctx: KeyDownHandlerContext) {
           if (text.trim()) ctx.getOnSubmit()?.(text);
           return;
         }
-        // Shift+Enter or bare Enter → newline. Notify the host first so the
-        // expansion observer can swap layouts before the new line paints.
-        ctx.getOnBeforeNewline()?.();
+        // Shift+Enter or bare Enter → newline.
         event.preventDefault();
         ctx.insertNewline();
         return;
@@ -584,7 +580,6 @@ export function createKeyDownHandler(ctx: KeyDownHandlerContext) {
         if (text.trim()) ctx.getOnSubmit()?.(text);
         return;
       }
-      ctx.getOnBeforeNewline()?.();
       event.preventDefault();
       ctx.insertNewline();
       return;

@@ -72,7 +72,7 @@ describe("ScrollTrail", () => {
     callbacks.forEach((callback) => callback(0));
   }
 
-  function Harness(): React.ReactNode {
+  function Harness({ alignment }: { alignment?: "center" | "start" }) {
     return createElement(
       "div",
       null,
@@ -99,6 +99,7 @@ describe("ScrollTrail", () => {
         scrollContainerRef,
         contentRef,
         ariaLabel: "Work item navigation",
+        alignment,
         testId: "work-item-trail",
       })
     );
@@ -195,7 +196,7 @@ describe("ScrollTrail", () => {
   });
 
   it("renders semantic markers, navigates, coalesces scroll work, and disposes observers", () => {
-    act(() => root.render(createElement(Harness)));
+    act(() => root.render(createElement(Harness, {})));
     act(flushAnimationFrames);
 
     const trail = container.querySelector<HTMLElement>(
@@ -237,7 +238,7 @@ describe("ScrollTrail", () => {
     scrollContainerClientHeight = 1_000;
     scrollContainerScrollHeight = 1_000;
 
-    act(() => root.render(createElement(Harness)));
+    act(() => root.render(createElement(Harness, {})));
     act(flushAnimationFrames);
 
     const trail = container.querySelector<HTMLElement>(
@@ -245,6 +246,18 @@ describe("ScrollTrail", () => {
     );
     expect(trail?.querySelectorAll("button")).toHaveLength(3);
     expect(trail?.classList.contains("hidden")).toBe(false);
+  });
+
+  it("can begin directly beneath a preceding floating surface", () => {
+    act(() => root.render(createElement(Harness, { alignment: "start" })));
+    act(flushAnimationFrames);
+
+    const trail = container.querySelector<HTMLElement>(
+      '[data-testid="work-item-trail"]'
+    );
+    expect(trail?.className).toContain("top-2");
+    expect(trail?.className).not.toContain("top-1/2");
+    expect(trail?.className).not.toContain("-translate-y-1/2");
   });
 
   it("keeps a visible root marker when no semantic stops exist", () => {

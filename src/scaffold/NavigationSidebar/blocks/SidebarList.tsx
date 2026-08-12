@@ -23,6 +23,7 @@ const SidebarList: React.FC<SidebarListProps> = React.memo(
     children,
     scrollContainerRef,
     isLoading = false,
+    loadingContent,
     theme,
     className = "",
     topPadding = false,
@@ -34,6 +35,14 @@ const SidebarList: React.FC<SidebarListProps> = React.memo(
     );
 
     if (isLoading) {
+      if (loadingContent) {
+        return (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {loadingContent}
+          </div>
+        );
+      }
+
       return (
         <div
           className={`flex flex-1 flex-col items-center justify-center ${className}`}

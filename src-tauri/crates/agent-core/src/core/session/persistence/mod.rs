@@ -26,21 +26,20 @@ mod sidebar;
 pub use crud::{
     backfill_agent_definition_id, clear_worktree_metadata, delete_session,
     finalize_terminal_turn_status, get_child_sessions, get_parent_session, get_session,
-    list_sessions, load_workspace, mark_stale_running_sessions_abandoned,
+    link_bootstrap_work_item, list_sessions, load_workspace, mark_stale_running_sessions_abandoned,
     reconcile_sessions_with_terminal_turn_markers, register_session_delete_mirror_hook,
     register_session_mirror_hook, save_workspace, save_worktree_metadata, session_type,
-    update_account_id, update_agent_exec_mode, update_draft_text, update_model,
+    update_account_id, update_agent_exec_mode, update_draft_text, update_mode_axes, update_model,
     update_model_and_account, update_name, update_org_member_id, update_pinned,
-    link_bootstrap_work_item, update_product_mode,
-    update_reply_target_event_id, update_status, update_work_item_link,
+    update_product_mode, update_reply_target_event_id, update_status, update_work_item_link,
     update_worktree_merge_status, upsert_session, UnifiedSessionRecord,
+};
+pub(crate) use crud::{
+    delete_session_with_connection, finish_session_delete, prepare_session_delete,
 };
 pub use sidebar::{
     list_agent_org_root_sessions_page, list_standalone_coding_sessions_page,
     list_unpinned_sessions_by_type_page,
-};
-pub(crate) use crud::{
-    delete_session_with_connection, finish_session_delete, prepare_session_delete,
 };
 
 pub use messages::{

@@ -5,9 +5,16 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock(
   "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrDetailPanel",
   () => ({
-    PrDetailPanel: ({ headerClassName }: { headerClassName?: string }) =>
+    PrDetailPanel: ({
+      combineHeaderAndTabs,
+      headerClassName,
+    }: {
+      combineHeaderAndTabs?: boolean;
+      headerClassName?: string;
+    }) =>
       createElement("div", {
         "data-testid": "pr",
+        "data-combine-header-tabs": String(combineHeaderAndTabs),
         "data-header-class-name": headerClassName,
       }),
   })
@@ -32,5 +39,6 @@ describe("GitHubPrPanelView", () => {
     );
 
     expect(markup).toContain('data-header-class-name="!pl-5 !pr-[7px]"');
+    expect(markup).toContain('data-combine-header-tabs="true"');
   });
 });

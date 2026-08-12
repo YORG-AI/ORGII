@@ -23,7 +23,14 @@
  * - Session creator (shown when no session)
  */
 import { useAtomValue, useStore } from "jotai";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { getImportedHistoryCliResume } from "@src/api/tauri/externalHistory";
@@ -121,6 +128,22 @@ const ChatView: React.FC<ChatViewProps> = memo(
     useTodoSync(isReadOnlySurface ? undefined : sessionId);
     useFileReviewSync(sessionId, !isReadOnlySurface && !secondary);
     const currentSession = useAtomValue(sessionByIdAtom(sessionId));
+    const hydratedSessionIdsRef = useRef(new Set<string>());
+    useEffect(() => {
+      if (
+        isImportedHistory ||
+        currentSession?.productMode ||
+        hydratedSessionIdsRef.current.has(sessionId)
+      ) {
+        return;
+      }
+      // Background Routine/dispatcher Sessions may be opened from their Work
+      // Item before the sidebar has scanned the new row. Hydrate the complete
+      // aggregate (including productMode) so Project is not rendered as a
+      // misleading plain Build composer during that first visit.
+      hydratedSessionIdsRef.current.add(sessionId);
+      void loadSessions({ forceRefresh: true });
+    }, [currentSession?.productMode, isImportedHistory, sessionId]);
     const orgtrackSummary = useChatViewOrgtrackSummary(sessionId);
 
     const initialFileChanges = useMemo(

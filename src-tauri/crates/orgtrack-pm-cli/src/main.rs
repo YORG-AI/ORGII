@@ -58,7 +58,9 @@ fn parse_args(args: &[String]) -> Result<Parsed, CliError> {
                      work list|show|create|update|claim|transition|note|relate | \
                      routine list|validate|apply|run|status|enable|disable. \
                      Common flags: --scope <project> --mode project --actor \
-                     <kind:id> --session-ref <provider:id> --idempotency-key <k>"
+                     <kind:id> --session-ref <provider:id> --idempotency-key <k>. \
+                     With no project scope, work list/create use the current \
+                     organization's standalone Work Items automatically"
                         .to_string(),
                 ));
             }
