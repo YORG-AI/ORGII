@@ -697,6 +697,7 @@
         "inviteRevoked": "Bu davet iptal edilmiş.",
         "inviteExpired": "Bu davetin süresi dolmuş.",
         "inviteExhausted": "Bu davetin kullanım hakkı kalmamış.",
+        "alreadyMember": "Zaten bu organizasyonun üyesisin.",
         "network": "Bulut hizmetine bağlanılamadı. Ağınızı kontrol edip yeniden deneyin."
       }
     },

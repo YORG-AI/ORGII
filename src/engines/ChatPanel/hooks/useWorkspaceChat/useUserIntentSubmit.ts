@@ -10,6 +10,7 @@ import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect } from "react";
 
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import { resolveSessionAgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
   beginOptimisticTurn,
   failOptimisticTurn,
@@ -29,7 +30,6 @@ import {
   lastUserMessageAtom,
   postStopDispatchSessionsAtom,
 } from "@src/store/session/cliSessionStatusAtom";
-import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionMapAtom } from "@src/store/session/sessionAtom";
 import {
@@ -190,9 +190,9 @@ export function useUserIntentSubmit({
           session,
           creatorDefaultSelection
         );
-        const snapshotMode: AgentExecMode =
-          (session?.agentExecMode as AgentExecMode | undefined) ??
-          store.get(creatorDefaultExecModeAtom);
+        const snapshotMode: AgentExecMode = resolveSessionAgentExecMode(
+          session?.agentExecMode
+        );
 
         if (clearUserInitiatedCancelOnQueue && explicitPostStopSubmit) {
           closePostStopDispatchEpisode(sessionId);

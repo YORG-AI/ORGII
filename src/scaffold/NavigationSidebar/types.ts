@@ -276,6 +276,8 @@ export interface SidebarListProps {
   scrollContainerRef?: Ref<HTMLDivElement>;
   /** Loading state */
   isLoading?: boolean;
+  /** Optional loading UI for surfaces that can mirror their eventual rows. */
+  loadingContent?: ReactNode;
   /** Custom theme */
   theme?: SidebarTheme;
   /** Additional class names */

@@ -1498,7 +1498,7 @@
         "label": "Działania pull request",
         "confirmMergeTitle": "Scalić pull request?",
         "confirmMergeMessage": "GitHub scali gałąź źródłową bieżącego pull request z gałęzią bazową.",
-        "merge": "Scal pull request",
+        "merge": "Scal",
         "squash": "Połącz commity i scal",
         "rebase": "Wykonaj rebase i scal",
         "mergeSuccess": "Pull request scalony",

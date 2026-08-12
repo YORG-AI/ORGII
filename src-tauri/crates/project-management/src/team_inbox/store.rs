@@ -16,6 +16,7 @@ use crate::projects::types::{
 
 const ASSIGNED_SOURCE_KIND: &str = "work_item_assigned";
 const COMMENT_MENTION_SOURCE_KIND: &str = "work_item_comment_mention";
+const SUBSCRIPTION_SOURCE_KIND: &str = "work_item_subscription_event";
 const DEFAULT_PAGE_LIMIT: usize = 50;
 const MAX_PAGE_LIMIT: usize = 100;
 const ACTIONABLE_ASSIGNMENT_PREDICATE: &str =
@@ -193,6 +194,14 @@ pub(crate) fn list_page_with_connection(
             fetch_limit,
         )?);
     }
+    if options.filter == TeamInboxFilter::All {
+        items.extend(list_subscription_events(
+            connection,
+            &viewer_ids,
+            options.cursor.as_ref(),
+            fetch_limit,
+        )?);
+    }
     items.sort_by(|left, right| {
         right
             .occurred_at
@@ -217,6 +226,118 @@ pub(crate) fn list_page_with_connection(
         next_cursor,
         unread_count,
     })
+}
+
+fn list_subscription_events(
+    connection: &Connection,
+    viewer_ids: &[String],
+    cursor: Option<&TeamInboxCursor>,
+    limit: usize,
+) -> Result<Vec<TeamInboxItem>, String> {
+    let placeholders = sql_placeholders(viewer_ids.len());
+    let receipt_placeholders = sql_placeholders(viewer_ids.len());
+    let item_id_expression = format!("'{SUBSCRIPTION_SOURCE_KIND}:' || event.id");
+    let cursor_predicate = if cursor.is_some() {
+        format!(
+            "AND (event.occurred_at < ? OR
+                  (event.occurred_at = ? AND {item_id_expression} < ?))"
+        )
+    } else {
+        String::new()
+    };
+    let sql = format!(
+        "SELECT event.id, event.kind, event.actor_id, event.payload_json,
+                event.occurred_at, w.id, w.org_id, w.project_id, p.slug,
+                CASE WHEN json_valid(p.linked_repos_json)
+                     THEN json_extract(p.linked_repos_json, '$[0]') ELSE NULL END,
+                w.short_id, w.title, w.status, w.priority, event.recipient_id,
+                (SELECT MAX(receipt.read_at) FROM team_inbox_read_receipts receipt
+                  WHERE receipt.source_kind = '{SUBSCRIPTION_SOURCE_KIND}'
+                    AND receipt.source_id = event.id
+                    AND receipt.viewer_member_id IN ({receipt_placeholders}))
+           FROM pm_work_item_inbox_events event
+           JOIN workitems w ON w.short_id = event.work_item_id
+           LEFT JOIN projects p ON p.id = w.project_id
+          WHERE event.archived_at IS NULL
+            AND event.kind <> 'mention'
+            AND event.recipient_id IN ({placeholders})
+            AND w.deleted_at IS NULL
+            AND ((event.scope_key = 'project:' || p.slug)
+                 OR (w.project_id IS NULL AND event.scope_key = 'org:' || w.org_id))
+            {cursor_predicate}
+          ORDER BY event.occurred_at DESC, {item_id_expression} DESC
+          LIMIT ?"
+    );
+    let mut values = viewer_ids
+        .iter()
+        .chain(viewer_ids.iter())
+        .cloned()
+        .map(Value::from)
+        .collect::<Vec<_>>();
+    if let Some(cursor) = cursor {
+        values.push(Value::from(cursor.occurred_at));
+        values.push(Value::from(cursor.occurred_at));
+        values.push(Value::from(cursor.item_id.clone()));
+    }
+    values.push(Value::from(limit as i64));
+    let mut statement = connection.prepare(&sql).map_err(db_error)?;
+    let rows = statement
+        .query_map(params_from_iter(values), |row| {
+            let event_id: String = row.get(0)?;
+            let event_kind: String = row.get(1)?;
+            let actor_id: Option<String> = row.get(2)?;
+            let payload_raw: String = row.get(3)?;
+            let payload: serde_json::Value = serde_json::from_str(&payload_raw).unwrap_or_default();
+            let title = payload
+                .get("title")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| row.get::<_, String>(11).unwrap_or_default());
+            let summary = payload
+                .get("comment")
+                .and_then(serde_json::Value::as_str)
+                .and_then(work_item_summary_excerpt)
+                .or_else(|| {
+                    payload
+                        .get("failure")
+                        .and_then(|failure| failure.get("message"))
+                        .and_then(serde_json::Value::as_str)
+                        .and_then(work_item_summary_excerpt)
+                });
+            Ok(TeamInboxItem {
+                id: subscription_item_id(&event_id),
+                kind: if event_kind == "run_failed" {
+                    TeamInboxItemKind::WorkItemRunFailed
+                } else {
+                    TeamInboxItemKind::WorkItemUpdated
+                },
+                occurred_at: row.get(4)?,
+                read_at: row.get(15)?,
+                actor: actor_id.map(|id| TeamInboxActor {
+                    display_name: id.clone(),
+                    id,
+                    avatar_url: None,
+                }),
+                target: TeamInboxTarget::WorkItem {
+                    work_item_id: row.get(5)?,
+                    org_id: row.get(6)?,
+                    project_id: row.get(7)?,
+                    project_slug: row.get(8)?,
+                    repository: row.get(9)?,
+                    short_id: row.get(10)?,
+                },
+                payload: TeamInboxPayload::WorkItemUpdated {
+                    title,
+                    event_kind,
+                    status: row.get(12)?,
+                    priority: row.get(13)?,
+                    recipient_member_id: row.get(14)?,
+                    summary,
+                },
+            })
+        })
+        .map_err(db_error)?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(db_error)
 }
 
 fn list_assigned_items(
@@ -419,7 +540,42 @@ pub(crate) fn unread_count_with_connection(
     } else {
         comment_mention_unread_count(connection, &viewer_ids)?
     };
-    Ok(assigned_count + mention_count)
+    let subscription_count = if filter == TeamInboxFilter::All {
+        subscription_event_unread_count(connection, &viewer_ids)?
+    } else {
+        0
+    };
+    Ok(assigned_count + mention_count + subscription_count)
+}
+
+fn subscription_event_unread_count(
+    connection: &Connection,
+    viewer_ids: &[String],
+) -> Result<u64, String> {
+    let placeholders = sql_placeholders(viewer_ids.len());
+    let receipt_placeholders = sql_placeholders(viewer_ids.len());
+    let sql = format!(
+        "SELECT COUNT(*) FROM pm_work_item_inbox_events event
+          WHERE event.archived_at IS NULL
+            AND event.kind <> 'mention'
+            AND event.recipient_id IN ({placeholders})
+            AND NOT EXISTS (
+                SELECT 1 FROM team_inbox_read_receipts receipt
+                 WHERE receipt.source_kind = '{SUBSCRIPTION_SOURCE_KIND}'
+                   AND receipt.source_id = event.id
+                   AND receipt.viewer_member_id IN ({receipt_placeholders})
+            )"
+    );
+    let values = viewer_ids
+        .iter()
+        .chain(viewer_ids.iter())
+        .cloned()
+        .map(Value::from)
+        .collect::<Vec<_>>();
+    let count: i64 = connection
+        .query_row(&sql, params_from_iter(values), |row| row.get(0))
+        .map_err(db_error)?;
+    Ok(count.max(0) as u64)
 }
 
 fn assigned_unread_count(connection: &Connection, viewer_ids: &[String]) -> Result<u64, String> {
@@ -524,6 +680,15 @@ pub(crate) fn mark_read_with_connection(
             sql,
             values,
         )
+    } else if let Some(source_id) = subscription_source_id(item_id) {
+        let sql = format!(
+            "SELECT 1 FROM pm_work_item_inbox_events event
+              WHERE event.id = ? AND event.archived_at IS NULL
+                AND event.recipient_id IN ({placeholders})"
+        );
+        let mut values = vec![Value::from(source_id.to_string())];
+        values.extend(viewer_ids.iter().cloned().map(Value::from));
+        (SUBSCRIPTION_SOURCE_KIND, source_id.to_string(), sql, values)
     } else {
         return Err(format!("Unsupported Team Inbox item id: {item_id}"));
     };
@@ -633,6 +798,36 @@ pub(crate) fn mark_all_read_with_connection(
                 .map(|id| (COMMENT_MENTION_SOURCE_KIND, id)),
         );
     }
+    if filter == TeamInboxFilter::All {
+        let query = format!(
+            "SELECT event.id FROM pm_work_item_inbox_events event
+              WHERE event.archived_at IS NULL
+                AND event.kind <> 'mention'
+                AND event.recipient_id IN ({placeholders})
+                AND NOT EXISTS (
+                    SELECT 1 FROM team_inbox_read_receipts receipt
+                     WHERE receipt.source_kind = '{SUBSCRIPTION_SOURCE_KIND}'
+                       AND receipt.source_id = event.id
+                       AND receipt.viewer_member_id IN ({placeholders})
+                )"
+        );
+        let values = viewer_ids
+            .iter()
+            .chain(viewer_ids.iter())
+            .cloned()
+            .map(Value::from)
+            .collect::<Vec<_>>();
+        let mut statement = tx.prepare(&query).map_err(db_error)?;
+        let rows = statement
+            .query_map(params_from_iter(values), |row| row.get::<_, String>(0))
+            .map_err(db_error)?;
+        sources.extend(
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(db_error)?
+                .into_iter()
+                .map(|id| (SUBSCRIPTION_SOURCE_KIND, id)),
+        );
+    }
 
     for (source_kind, source_id) in sources {
         for viewer_id in &viewer_ids {
@@ -662,6 +857,8 @@ pub(crate) fn mark_unread_with_connection(
         (ASSIGNED_SOURCE_KIND, source_id)
     } else if let Some(source_id) = comment_mention_source_id(item_id) {
         (COMMENT_MENTION_SOURCE_KIND, source_id)
+    } else if let Some(source_id) = subscription_source_id(item_id) {
+        (SUBSCRIPTION_SOURCE_KIND, source_id)
     } else {
         return Err(format!("Unsupported Team Inbox item id: {item_id}"));
     };
@@ -745,6 +942,17 @@ fn comment_mention_source_id(item_id: &str) -> Option<&str> {
         .strip_prefix(COMMENT_MENTION_SOURCE_KIND)
         .and_then(|value| value.strip_prefix(':'))
         .filter(|value| value.split_once(':').is_some())
+}
+
+fn subscription_item_id(source_id: &str) -> String {
+    format!("{SUBSCRIPTION_SOURCE_KIND}:{source_id}")
+}
+
+fn subscription_source_id(item_id: &str) -> Option<&str> {
+    item_id
+        .strip_prefix(SUBSCRIPTION_SOURCE_KIND)
+        .and_then(|value| value.strip_prefix(':'))
+        .filter(|value| !value.is_empty())
 }
 
 fn now_ms() -> i64 {

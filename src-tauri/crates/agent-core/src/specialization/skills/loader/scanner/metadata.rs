@@ -1,7 +1,7 @@
 //! SKILL.md YAML-frontmatter parsing and requirement checks.
 
-use super::SkillsLoader;
 use super::super::types::SkillMetadata;
+use super::SkillsLoader;
 
 impl SkillsLoader {
     pub(super) fn skill_metadata_applies_to_agent(&self, meta: &SkillMetadata) -> bool {

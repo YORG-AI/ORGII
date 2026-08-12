@@ -697,6 +697,7 @@
         "inviteRevoked": "To zaproszenie zostało odwołane.",
         "inviteExpired": "To zaproszenie wygasło.",
         "inviteExhausted": "To zaproszenie nie ma już dostępnych użyć.",
+        "alreadyMember": "Już należysz do tej organizacji.",
         "network": "Nie udało się połączyć z usługą chmurową. Sprawdź sieć i spróbuj ponownie."
       }
     },

@@ -295,13 +295,14 @@ pub async fn es_unload_turn_body(
     let turn = match persisted_turn {
         Some(turn) => turn,
         None => {
-            let orgtrack_turn = crate::orgtrack::history_commands::orgtrack_session_turn_metadata_index(
-                session_id.clone(),
-                Some(vec![turn_id.clone()]),
-            )
-            .await?
-            .into_iter()
-            .next();
+            let orgtrack_turn =
+                crate::orgtrack::history_commands::orgtrack_session_turn_metadata_index(
+                    session_id.clone(),
+                    Some(vec![turn_id.clone()]),
+                )
+                .await?
+                .into_iter()
+                .next();
             match orgtrack_turn {
                 Some(turn) => turn,
                 None => {

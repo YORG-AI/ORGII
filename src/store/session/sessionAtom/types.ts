@@ -210,10 +210,9 @@ export interface Session {
   /**
    * Per-session execution mode (Rust-agent sessions only).
    *
-   * `undefined` means the user has never patched this session — UI
-   * components fall back to `creatorDefaultExecModeAtom` until the
-   * first ModePill click, which calls `rpc.sessionAggregate.patch`
-   * and writes the value here. CLI sessions always have `undefined`.
+   * `undefined` is tolerated only for historical rows; existing-session UI
+   * resolves it to the canonical `build` default and never consults the
+   * mutable creator default. Both Rust and CLI sessions persist this field.
    *
    * Source of truth lives in the Rust `agent_sessions.agent_exec_mode`
    * column; this field is the camelCase mirror exposed via

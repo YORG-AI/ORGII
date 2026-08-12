@@ -8,3 +8,5 @@ export * from "./projectRecords";
 export * from "./routines";
 export * from "./sync";
 export * from "./workItems";
+export * from "./workItemFeatures";
+export * from "./workRuns";

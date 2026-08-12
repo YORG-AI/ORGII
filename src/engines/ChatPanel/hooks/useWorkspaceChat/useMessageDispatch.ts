@@ -10,6 +10,7 @@ import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import { resolveSessionAgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
   beginOptimisticTurn,
   failOptimisticTurn,
@@ -27,7 +28,6 @@ import {
   lastUserMessageAtom,
   setSessionRuntimeStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
-import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import {
   type LastModelSelection,
   creatorDefaultModelSelectionAtom,
@@ -90,15 +90,13 @@ export function useMessageDispatch() {
       const creatorDefaultSelection = store.get(
         creatorDefaultModelSelectionAtom
       );
-      const creatorDefaultMode = store.get(creatorDefaultExecModeAtom);
-
       const session = sessionMap.get(sessionId);
       const lastModelSelection: LastModelSelection | null =
         modelSelectionOverride ??
         selectionFromSession(session, creatorDefaultSelection);
-      const agentExecMode: AgentExecMode =
-        (session?.agentExecMode as AgentExecMode | undefined) ??
-        creatorDefaultMode;
+      const agentExecMode: AgentExecMode = resolveSessionAgentExecMode(
+        session?.agentExecMode
+      );
       const { model, accountId } = resolveModelForMessage(lastModelSelection);
 
       // Synchronous turn reserve: every dispatch funnels through here, so the

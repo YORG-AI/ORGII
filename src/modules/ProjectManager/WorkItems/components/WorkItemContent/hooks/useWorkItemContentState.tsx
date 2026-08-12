@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { projectApi } from "@src/api/http/project";
 import type { TabPillItem } from "@src/components/TabPill";
 import { createLogger } from "@src/hooks/logger";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
@@ -11,10 +12,10 @@ import {
 import type { Person } from "@src/types/core/shared";
 import type {
   TodoItem,
+  WorkItemComment,
   WorkItem as WorkItemExtended,
 } from "@src/types/core/workItem";
 
-import { forwardDiscussionCommentToLinkedSession } from "../discussionCommentForward";
 import { SESSION_TAB_KEYS, type SessionTab } from "../types";
 import { useWorkItemTimeline } from "../useWorkItemTimeline";
 import { normalizeWorkItemMentionIds } from "../workItemMentions";
@@ -29,6 +30,7 @@ interface UseWorkItemContentStateOptions {
   teamMembers?: Person[];
   projectSlug?: string | null;
   shortId?: string | null;
+  orgId?: string | null;
 }
 
 export function useWorkItemContentState(
@@ -42,6 +44,7 @@ export function useWorkItemContentState(
     teamMembers = [],
     projectSlug,
     shortId,
+    orgId,
   } = options;
 
   const { t } = useTranslation("projects");
@@ -69,12 +72,42 @@ export function useWorkItemContentState(
   const [activeSessionTab, setActiveSessionTab] =
     useState<SessionTab>("session");
   const [commentText, setCommentText] = useState("");
+  const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
-  const [isSubscribed, setIsSubscribed] = useState(true);
+  const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const currentPhase = workItem.orchestratorState?.current_phase ?? "idle";
   const isAgentRunning = currentPhase === "sde" || currentPhase === "review";
+  const scopedShortId = shortId ?? workItem.shortId ?? "";
+
+  useEffect(() => {
+    if (!scopedShortId || !currentUser.id) return;
+    let cancelled = false;
+    projectApi
+      .listWorkItemSubscriptions({
+        projectSlug: projectSlug ?? null,
+        orgId: orgId || "personal-org",
+        workItemId: scopedShortId,
+      })
+      .then((subscriptions) => {
+        if (!cancelled) {
+          setIsSubscribed(
+            subscriptions.some(
+              (subscription) =>
+                subscription.subscriberId === currentUser.id &&
+                !subscription.mutedAt
+            )
+          );
+        }
+      })
+      .catch((error) =>
+        logger.warn("Failed to read Work Item subscriptions", error)
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.id, orgId, projectSlug, scopedShortId]);
 
   const sessionTabItems: TabPillItem[] = useMemo(
     () =>
@@ -192,32 +225,33 @@ export function useWorkItemContentState(
   );
 
   const handleCommentSubmit = useCallback(async () => {
-    if (!commentText.trim() || isSubmittingComment) return;
+    if (!scopedShortId || !commentText.trim() || isSubmittingComment) return;
 
     setIsSubmittingComment(true);
     try {
-      const newComment = {
-        id: `cmt-${Date.now()}`,
-        author: currentUser.id,
+      const mentioned = normalizeWorkItemMentionIds(
+        mentionedUserIds,
+        teamMembers,
+        currentUser.id
+      );
+      const result = await projectApi.postDiscussionComment({
+        projectSlug: projectSlug ?? null,
+        orgId: orgId || "personal-org",
+        workItemId: scopedShortId,
+        commentId: `cmt-${Date.now()}-${crypto.randomUUID()}`,
+        authorId: currentUser.id,
+        authorName: currentUser.name ?? currentUser.id,
         content: commentText.trim(),
-        created_at: new Date().toISOString(),
-        mentioned_user_ids: normalizeWorkItemMentionIds(
-          mentionedUserIds,
-          teamMembers,
-          currentUser.id
-        ),
-      };
-      onUpdateWorkItem?.({
-        comments: [...(workItem.comments ?? []), newComment],
-      } as Partial<WorkItemExtended>);
-      forwardDiscussionCommentToLinkedSession({
-        shortId: shortId ?? workItem.shortId ?? "",
-        author: currentUser.name ?? currentUser.id,
-        comment: newComment.content,
-        linkedSessions: workItem.linkedSessions,
+        mentionedUserIds: mentioned,
+        parentId: replyToCommentId,
       });
+      setIsSubscribed(true);
       setCommentText("");
+      setReplyToCommentId(null);
       setMentionedUserIds([]);
+      logger.debug(
+        `Persisted Discussion comment ${result.comment.id} (${result.wakeReason})`
+      );
     } catch (err) {
       logger.error("Failed to create comment", err);
     } finally {
@@ -226,14 +260,107 @@ export function useWorkItemContentState(
   }, [
     commentText,
     isSubmittingComment,
-    workItem,
+    scopedShortId,
     currentUser.id,
     currentUser.name,
     mentionedUserIds,
     teamMembers,
-    onUpdateWorkItem,
-    shortId,
+    orgId,
+    projectSlug,
+    replyToCommentId,
   ]);
+
+  const handleResolveDiscussionThread = useCallback(
+    async (threadId: string, conclusionCommentId?: string) => {
+      if (!scopedShortId || !currentUser.id) return;
+      try {
+        const comments = await projectApi.resolveDiscussionThread({
+          scope: {
+            projectSlug: projectSlug ?? null,
+            orgId: orgId || "personal-org",
+            workItemId: scopedShortId,
+          },
+          threadId,
+          actorId: currentUser.id,
+          conclusionCommentId: conclusionCommentId ?? null,
+        });
+        const nextComments = comments as WorkItemComment[];
+        if (onUpdateWorkItemImmediate) {
+          onUpdateWorkItemImmediate({ comments: nextComments });
+        } else {
+          onUpdateWorkItem?.({ comments: nextComments });
+        }
+      } catch (error) {
+        logger.error("Failed to resolve Discussion thread", error);
+      }
+    },
+    [
+      currentUser.id,
+      onUpdateWorkItem,
+      onUpdateWorkItemImmediate,
+      orgId,
+      projectSlug,
+      scopedShortId,
+    ]
+  );
+
+  const handleReopenDiscussionThread = useCallback(
+    async (threadId: string) => {
+      if (!scopedShortId || !currentUser.id) return;
+      try {
+        const comments = await projectApi.reopenDiscussionThread({
+          scope: {
+            projectSlug: projectSlug ?? null,
+            orgId: orgId || "personal-org",
+            workItemId: scopedShortId,
+          },
+          threadId,
+          actorId: currentUser.id,
+        });
+        const nextComments = comments as WorkItemComment[];
+        if (onUpdateWorkItemImmediate) {
+          onUpdateWorkItemImmediate({ comments: nextComments });
+        } else {
+          onUpdateWorkItem?.({ comments: nextComments });
+        }
+      } catch (error) {
+        logger.error("Failed to reopen Discussion thread", error);
+      }
+    },
+    [
+      currentUser.id,
+      onUpdateWorkItem,
+      onUpdateWorkItemImmediate,
+      orgId,
+      projectSlug,
+      scopedShortId,
+    ]
+  );
+
+  const handleToggleSubscription = useCallback(async () => {
+    if (!scopedShortId || !currentUser.id) return;
+    const next = !isSubscribed;
+    try {
+      const subscriptions = await projectApi.setWorkItemSubscribed(
+        {
+          projectSlug: projectSlug ?? null,
+          orgId: orgId || "personal-org",
+          workItemId: scopedShortId,
+        },
+        currentUser.id,
+        next
+      );
+      setIsSubscribed(
+        subscriptions.some(
+          (subscription) =>
+            subscription.subscriberId === currentUser.id &&
+            !subscription.mutedAt
+        )
+      );
+    } catch (error) {
+      logger.error("Failed to update Work Item subscription", error);
+    }
+  }, [currentUser.id, isSubscribed, orgId, projectSlug, scopedShortId]);
 
   return {
     currentUser,
@@ -242,10 +369,12 @@ export function useWorkItemContentState(
     setActiveSessionTab,
     commentText,
     setCommentText,
+    replyToCommentId,
+    setReplyToCommentId,
     mentionedUserIds,
     setMentionedUserIds,
     isSubscribed,
-    setIsSubscribed,
+    handleToggleSubscription,
     isSubmittingComment,
     currentPhase,
     isAgentRunning,
@@ -257,5 +386,7 @@ export function useWorkItemContentState(
     handleDescriptionChange,
     handleTodosChange,
     handleCommentSubmit,
+    handleResolveDiscussionThread,
+    handleReopenDiscussionThread,
   };
 }

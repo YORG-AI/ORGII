@@ -24,16 +24,16 @@
   &:hover,
   &[data-scrolling] {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-fill-3) transparent;
+    scrollbar-color: var(--scrollbar-thumb-color) transparent;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: var(--color-fill-3) !important;
+    background: var(--scrollbar-thumb-color) !important;
     border-radius: 2px;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--color-fill-4) !important;
+    background: var(--scrollbar-thumb-hover-color) !important;
   }
 }
 
@@ -78,20 +78,20 @@
     }
 
     &::-webkit-scrollbar-thumb {
-      background: var(--color-fill-3) !important;
+      background: var(--scrollbar-thumb-color) !important;
       border: none !important;
       border-radius: 2px;
     }
 
     &::-webkit-scrollbar-thumb:hover {
-      background: var(--color-fill-4) !important;
+      background: var(--scrollbar-thumb-hover-color) !important;
     }
   }
 
   &:hover .cm-scroller,
   &[data-scrolling] .cm-scroller {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-fill-3) transparent !important;
+    scrollbar-color: var(--scrollbar-thumb-color) transparent !important;
   }
 
   &:hover .cm-scroller::-webkit-scrollbar,

@@ -15,6 +15,7 @@ import {
   type ComposerModeEntry,
   PRODUCT_MODE_PROJECT,
   execModeForComposerSelection,
+  resolveSessionAgentExecMode,
 } from "@src/config/sessionCreatorConfig";
 import { buildMcpToolCommand } from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal/slashItemUtils";
 import { buildAddressCommentsPillPath } from "@src/features/Org2Cloud/addressCommentsSlashToken";
@@ -24,8 +25,8 @@ import {
   useAddressCommentsSlashCommand,
 } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import {
+  useSessionComposerModeFields,
   useSessionExecModeField,
-  useSessionProductModeField,
 } from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefaultProductModeAtom";
@@ -114,7 +115,7 @@ export function useSlashCommand(
   const setCreatorProductDefault = useSetAtom(creatorDefaultProductModeAtom);
   const { agentExecMode: sessionMode, setMode: setSessionMode } =
     useSessionExecModeField(sessionId ?? "");
-  const { productMode, setProductMode } = useSessionProductModeField(
+  const { productMode, setComposerMode } = useSessionComposerModeFields(
     sessionId ?? ""
   );
   // §5.2: only agent and CLI sessions carry the product-mode axis; the
@@ -125,7 +126,7 @@ export function useSlashCommand(
       )
     : true;
   const currentExecMode: AgentExecMode = isInSession
-    ? ((sessionMode as AgentExecMode | undefined) ?? creatorDefaultMode)
+    ? resolveSessionAgentExecMode(sessionMode)
     : creatorDefaultMode;
   const currentMode: ComposerModeEntry["id"] = carriesProductMode
     ? isInSession
@@ -140,14 +141,14 @@ export function useSlashCommand(
     (selected: ComposerModeEntry["id"]) => {
       const derivedExecMode = execModeForComposerSelection(selected);
       if (isInSession) {
-        // Mirror ModePill's §5.2 dispatch: write the product axis where
-        // the session carries it, always write the derived exec mode.
+        // Mirror ModePill's §5.2 dispatch: persist both axes atomically.
         // Swallow rejections — the patch hooks roll back optimistic
         // writes and rethrow, which would otherwise hit the boundary.
         if (carriesProductMode) {
-          void setProductMode(selected).catch(() => {});
+          void setComposerMode(selected, derivedExecMode).catch(() => {});
+        } else {
+          void setSessionMode(derivedExecMode).catch(() => {});
         }
-        void setSessionMode(derivedExecMode).catch(() => {});
       } else {
         setCreatorDefaultMode(derivedExecMode);
         setCreatorProductDefault(
@@ -158,7 +159,7 @@ export function useSlashCommand(
     [
       isInSession,
       carriesProductMode,
-      setProductMode,
+      setComposerMode,
       setSessionMode,
       setCreatorDefaultMode,
       setCreatorProductDefault,

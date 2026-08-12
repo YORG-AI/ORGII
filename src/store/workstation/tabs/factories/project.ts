@@ -443,6 +443,7 @@ export interface WorkItemDetailTabData {
   projectId?: string;
   projectName?: string;
   projectSlug?: string;
+  orgId?: string;
   workItemId: string;
   workItemName: string;
   workItemStatus?: string;
@@ -460,7 +461,8 @@ export const workItemDetailTabFactory = defineTabFactory<WorkItemDetailTabData>(
     idStrategy: {
       type: "keyed",
       prefix: "workItem-detail",
-      getKey: (data) => data.workItemId,
+      getKey: (data) =>
+        `${data.orgId ?? "personal-org"}:${data.projectId || "standalone"}:${data.workItemId}`,
     },
     getTitle: (data) => getWorkItemDetailTabTitle(data.workItemName),
     icon: WORK_ITEM_DETAIL_TAB_ICON,
@@ -489,12 +491,14 @@ export function createWorkItemDetailTab(
   projectSlug?: string,
   pendingUpdates?: Record<string, unknown>,
   returnTabId?: string,
-  workItemStatus?: string
+  workItemStatus?: string,
+  orgId?: string
 ): WorkStationTab {
   return workItemDetailTabFactory({
     projectId,
     projectName,
     projectSlug,
+    orgId,
     workItemId,
     workItemName,
     ...(workItemStatus && { workItemStatus }),

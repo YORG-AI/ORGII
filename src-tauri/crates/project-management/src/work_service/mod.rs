@@ -63,6 +63,113 @@ use crate::projects::types::{
     WorkItemHandoff, WorkItemMutationActor, WorkItemSchedule,
 };
 
+/// Result of projecting a successful execution episode onto the human-owned
+/// Work Item lifecycle. A successful Run is ready for verification, not
+/// automatically accepted as completed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunSuccessReviewProjection {
+    Transitioned,
+    AlreadyInReview,
+    PreservedStatus,
+    Superseded,
+}
+
+const RUN_REVIEW_ALREADY: &str = "PM_RUN_REVIEW:ALREADY_IN_REVIEW";
+const RUN_REVIEW_PRESERVE: &str = "PM_RUN_REVIEW:PRESERVE_STATUS";
+const RUN_REVIEW_SUPERSEDED: &str = "PM_RUN_REVIEW:SUPERSEDED";
+
+fn apply_run_success_review_projection(
+    frontmatter: &mut WorkItemFrontmatter,
+    terminal_session_id: Option<&str>,
+) -> Result<(), String> {
+    if let Some(lock) = frontmatter.execution_lock.as_ref() {
+        match (lock.active_session_id.as_deref(), terminal_session_id) {
+            (Some(active), Some(terminal)) if active == terminal => {}
+            // A newer Session or an Agent Org still owns execution. A stale
+            // terminal must not move the Work Item out from under it.
+            _ => return Err(RUN_REVIEW_SUPERSEDED.to_string()),
+        }
+    }
+
+    match frontmatter.status.as_str() {
+        "backlog" | "planned" | "in_progress" => {
+            frontmatter.status = "in_review".to_string();
+            frontmatter.execution_lock = None;
+            frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
+            Ok(())
+        }
+        "in_review" => Err(RUN_REVIEW_ALREADY.to_string()),
+        // Completed/cancelled items are explicit human decisions. Provider
+        // statuses (`open`/`closed`) and custom workflow states also retain
+        // their native semantics rather than being rewritten to an ORGII
+        // status by a background execution callback.
+        _ => Err(RUN_REVIEW_PRESERVE.to_string()),
+    }
+}
+
+fn review_projection_outcome(error: String) -> Result<RunSuccessReviewProjection, String> {
+    match error.as_str() {
+        RUN_REVIEW_ALREADY => Ok(RunSuccessReviewProjection::AlreadyInReview),
+        RUN_REVIEW_PRESERVE => Ok(RunSuccessReviewProjection::PreservedStatus),
+        RUN_REVIEW_SUPERSEDED => Ok(RunSuccessReviewProjection::Superseded),
+        _ => Err(error),
+    }
+}
+
+/// Move a successfully executed native Work Item into `in_review` through
+/// the canonical atomic mutation path. This keeps Run finality separate from
+/// product acceptance: success requests review, while only an explicit work
+/// transition may mark the item completed.
+///
+/// The terminal Session id is checked against the execution lock so a late
+/// callback from an older Run cannot overwrite a newer active execution.
+pub fn project_run_success_to_review(
+    project_slug: Option<&str>,
+    org_id: &str,
+    short_id: &str,
+    terminal_session_id: Option<&str>,
+) -> Result<RunSuccessReviewProjection, String> {
+    let terminal_session_id = terminal_session_id.map(str::to_string);
+    let mutation = match project_slug {
+        Some(project_slug) => project_io::update_work_item_atomic_serviced(
+            project_slug,
+            short_id,
+            None,
+            project_io::AtomicServiceOptions {
+                operation: Some("work.run_succeeded"),
+                strict_fsm: true,
+                reason: Some("execution succeeded; awaiting review".to_string()),
+                ..Default::default()
+            },
+            move |frontmatter, _body| {
+                apply_run_success_review_projection(frontmatter, terminal_session_id.as_deref())
+            },
+        ),
+        None => project_io::update_standalone_work_item_atomic_serviced(
+            Some(org_id),
+            None,
+            project_io::AtomicServiceOptions {
+                operation: Some("work.run_succeeded"),
+                strict_fsm: true,
+                reason: Some("execution succeeded; awaiting review".to_string()),
+                ..Default::default()
+            },
+            short_id,
+            move |frontmatter, _body| {
+                apply_run_success_review_projection(frontmatter, terminal_session_id.as_deref())
+            },
+        ),
+    };
+
+    match mutation {
+        Ok(()) => {
+            crate::projects::events::notify_data_changed();
+            Ok(RunSuccessReviewProjection::Transitioned)
+        }
+        Err(error) => review_projection_outcome(error),
+    }
+}
+
 /// Typed error sentinels understood by upper layers.
 pub mod error {
     pub const PREFIX: &str = "PM_ERR:";
@@ -150,8 +257,8 @@ pub fn run_idempotent(
                 ));
             }
             Some((_, Some(stored_response), _)) => {
-                let response = serde_json::from_str(&stored_response)
-                    .unwrap_or(serde_json::Value::Null);
+                let response =
+                    serde_json::from_str(&stored_response).unwrap_or(serde_json::Value::Null);
                 return Ok(IdempotencyOutcome::Replayed(response));
             }
             Some((_, None, reserved_at)) => {
@@ -323,22 +430,27 @@ pub fn patch_standalone_work_item(
     let title_owned = title.map(str::to_string);
     let body_owned = body.map(str::to_string);
     let priority_owned = priority.map(str::to_string);
-    project_io::update_standalone_work_item_atomic_by(org_id, actor, short_id, move |frontmatter, current_body| {
-        if let Some(title) = title_owned {
-            frontmatter.title = title;
-        }
-        if let Some(body) = body_owned {
-            *current_body = body;
-        }
-        if let Some(priority) = priority_owned {
-            frontmatter.priority = priority;
-        }
-        if let Some(stage) = stage {
-            frontmatter.stage = stage;
-        }
-        frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
-        Ok(())
-    })?;
+    project_io::update_standalone_work_item_atomic_by(
+        org_id,
+        actor,
+        short_id,
+        move |frontmatter, current_body| {
+            if let Some(title) = title_owned {
+                frontmatter.title = title;
+            }
+            if let Some(body) = body_owned {
+                *current_body = body;
+            }
+            if let Some(priority) = priority_owned {
+                frontmatter.priority = priority;
+            }
+            if let Some(stage) = stage {
+                frontmatter.stage = stage;
+            }
+            frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
+            Ok(())
+        },
+    )?;
     project_io::read_standalone_work_item(org_id, short_id)
 }
 
@@ -482,7 +594,8 @@ pub fn overwrite_project_work_item(
         true,
     )?;
     append_create_audit_in_tx(&tx, short_id, Some(project_slug), None, actor)?;
-    tx.commit().map_err(|err| format!("work.write commit: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("work.write commit: {err}"))?;
     crate::projects::events::notify_work_item_schedule_changed();
     crate::sync::collab_bridge::record_work_item_write(
         &org_id,
@@ -504,11 +617,15 @@ pub fn overwrite_standalone_work_item(
     if project_io::read_standalone_work_item(org_id, short_id).is_ok() {
         let next_frontmatter = frontmatter.clone();
         let next_body = body.to_string();
-        project_io::update_standalone_work_item_atomic(org_id, short_id, move |current, current_body| {
-            *current = next_frontmatter;
-            *current_body = next_body;
-            Ok(())
-        })?;
+        project_io::update_standalone_work_item_atomic(
+            org_id,
+            short_id,
+            move |current, current_body| {
+                *current = next_frontmatter;
+                *current_body = next_body;
+                Ok(())
+            },
+        )?;
         let _ = actor;
         return Ok(());
     }
@@ -519,7 +636,8 @@ pub fn overwrite_standalone_work_item(
     guard_new_work_item_id_in_tx(&tx, short_id)?;
     project_io::write_work_item_in_tx(&tx, None, &resolved_org, short_id, frontmatter, body, true)?;
     append_create_audit_in_tx(&tx, short_id, None, Some(&resolved_org), actor)?;
-    tx.commit().map_err(|err| format!("work.write commit: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("work.write commit: {err}"))?;
     crate::projects::events::notify_work_item_schedule_changed();
     crate::sync::collab_bridge::record_work_item_write(
         &resolved_org,
@@ -901,7 +1019,8 @@ pub fn create_project_work_item(
         true,
     )?;
     append_create_audit_in_tx(&tx, short_id, Some(project_slug), None, actor)?;
-    tx.commit().map_err(|err| format!("work.create commit: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("work.create commit: {err}"))?;
     crate::projects::events::notify_work_item_schedule_changed();
     crate::sync::collab_bridge::record_work_item_write(
         &org_id,
@@ -915,10 +1034,7 @@ pub fn create_project_work_item(
 /// Current OCC revision (`local_version`) of a project-scoped item —
 /// surfaced through `work show` so callers can supply
 /// `--expected-revision` on the next mutation.
-pub fn read_project_work_item_revision(
-    project_slug: &str,
-    short_id: &str,
-) -> Result<i64, String> {
+pub fn read_project_work_item_revision(project_slug: &str, short_id: &str) -> Result<i64, String> {
     let connection = project_io::helpers::conn()?;
     connection
         .query_row(
@@ -945,6 +1061,20 @@ pub fn note_project_work_item(
     body: &str,
     actor: Option<&WorkItemMutationActor>,
 ) -> Result<(), String> {
+    note_project_work_item_threaded(project_slug, short_id, kind, body, None, actor)
+}
+
+/// Append a note as a reply in a persisted Discussion thread without waking
+/// the linked Session again. This is the receipt path used by an agent that
+/// was already resumed for the parent comment.
+pub fn note_project_work_item_threaded(
+    project_slug: &str,
+    short_id: &str,
+    kind: &str,
+    body: &str,
+    parent_id: Option<&str>,
+    actor: Option<&WorkItemMutationActor>,
+) -> Result<(), String> {
     let author = actor
         .map(|a| a.name.clone())
         .unwrap_or_else(|| "agent".to_string());
@@ -958,6 +1088,7 @@ pub fn note_project_work_item(
     };
     let reason = Some(kind.to_string());
     let body_owned = note_body;
+    let parent_id = parent_id.map(str::to_string);
     project_io::update_work_item_atomic_serviced(
         project_slug,
         short_id,
@@ -969,13 +1100,92 @@ pub fn note_project_work_item(
         },
         move |frontmatter, _item_body| {
             let now = chrono::Utc::now().to_rfc3339();
-            frontmatter.comments.push(crate::projects::types::CommentEntry {
-                id: format!("note-{}", chrono::Utc::now().timestamp_millis()),
-                author,
-                content: body_owned,
-                created_at: now,
-                mentioned_user_ids: vec![],
-            });
+            let thread_id = parent_id
+                .as_deref()
+                .map(|parent_id| {
+                    frontmatter
+                        .comments
+                        .iter()
+                        .find(|comment| comment.id == parent_id)
+                        .map(|comment| {
+                            comment
+                                .thread_id
+                                .clone()
+                                .unwrap_or_else(|| comment.id.clone())
+                        })
+                        .ok_or_else(|| format!("Discussion parent '{parent_id}' not found"))
+                })
+                .transpose()?;
+            frontmatter
+                .comments
+                .push(crate::projects::types::CommentEntry {
+                    id: format!("note-{}", chrono::Utc::now().timestamp_millis()),
+                    author,
+                    content: body_owned,
+                    created_at: now,
+                    mentioned_user_ids: vec![],
+                    parent_id,
+                    thread_id,
+                    ..Default::default()
+                });
+            Ok(())
+        },
+    )
+}
+
+/// Idempotent form of [`note_project_work_item`] for durable consumers.
+///
+/// The caller owns `note_id` and must derive it from the source event. Replays
+/// after a process crash become a no-op once that exact note is present, while
+/// the Work Item mutation and its audit/write side effects still share the
+/// normal atomic boundary.
+pub fn note_project_work_item_idempotent(
+    project_slug: &str,
+    short_id: &str,
+    note_id: &str,
+    kind: &str,
+    body: &str,
+    actor: Option<&WorkItemMutationActor>,
+) -> Result<(), String> {
+    if note_id.trim().is_empty() {
+        return Err("note_id is required".to_string());
+    }
+    let author = actor
+        .map(|a| a.name.clone())
+        .unwrap_or_else(|| "agent".to_string());
+    let note_body = if kind == "comment" {
+        body.to_string()
+    } else {
+        format!("[{}] {}", kind, body)
+    };
+    let stable_note_id = note_id.to_string();
+    project_io::update_work_item_atomic_serviced(
+        project_slug,
+        short_id,
+        actor,
+        project_io::AtomicServiceOptions {
+            operation: Some("work.note"),
+            reason: Some(kind.to_string()),
+            ..Default::default()
+        },
+        move |frontmatter, _item_body| {
+            if frontmatter
+                .comments
+                .iter()
+                .any(|comment| comment.id == stable_note_id)
+            {
+                return Ok(());
+            }
+            frontmatter
+                .comments
+                .push(crate::projects::types::CommentEntry {
+                    id: stable_note_id,
+                    author,
+                    content: note_body,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    mentioned_user_ids: vec![],
+                    ..Default::default()
+                });
             Ok(())
         },
     )
@@ -988,6 +1198,17 @@ pub fn note_standalone_work_item(
     body: &str,
     actor: Option<&WorkItemMutationActor>,
 ) -> Result<(), String> {
+    note_standalone_work_item_threaded(org_id, short_id, kind, body, None, actor)
+}
+
+pub fn note_standalone_work_item_threaded(
+    org_id: Option<&str>,
+    short_id: &str,
+    kind: &str,
+    body: &str,
+    parent_id: Option<&str>,
+    actor: Option<&WorkItemMutationActor>,
+) -> Result<(), String> {
     let author = actor
         .map(|a| a.name.clone())
         .unwrap_or_else(|| "agent".to_string());
@@ -996,6 +1217,7 @@ pub fn note_standalone_work_item(
     } else {
         format!("[{}] {}", kind, body)
     };
+    let parent_id = parent_id.map(str::to_string);
     project_io::update_standalone_work_item_atomic_serviced(
         org_id,
         actor,
@@ -1007,13 +1229,87 @@ pub fn note_standalone_work_item(
         short_id,
         move |frontmatter, _item_body| {
             let now = chrono::Utc::now().to_rfc3339();
-            frontmatter.comments.push(crate::projects::types::CommentEntry {
-                id: format!("note-{}", chrono::Utc::now().timestamp_millis()),
-                author,
-                content: note_body,
-                created_at: now,
-                mentioned_user_ids: vec![],
-            });
+            let thread_id = parent_id
+                .as_deref()
+                .map(|parent_id| {
+                    frontmatter
+                        .comments
+                        .iter()
+                        .find(|comment| comment.id == parent_id)
+                        .map(|comment| {
+                            comment
+                                .thread_id
+                                .clone()
+                                .unwrap_or_else(|| comment.id.clone())
+                        })
+                        .ok_or_else(|| format!("Discussion parent '{parent_id}' not found"))
+                })
+                .transpose()?;
+            frontmatter
+                .comments
+                .push(crate::projects::types::CommentEntry {
+                    id: format!("note-{}", chrono::Utc::now().timestamp_millis()),
+                    author,
+                    content: note_body,
+                    created_at: now,
+                    mentioned_user_ids: vec![],
+                    parent_id,
+                    thread_id,
+                    ..Default::default()
+                });
+            Ok(())
+        },
+    )
+}
+
+/// Standalone counterpart to [`note_project_work_item_idempotent`].
+pub fn note_standalone_work_item_idempotent(
+    org_id: Option<&str>,
+    short_id: &str,
+    note_id: &str,
+    kind: &str,
+    body: &str,
+    actor: Option<&WorkItemMutationActor>,
+) -> Result<(), String> {
+    if note_id.trim().is_empty() {
+        return Err("note_id is required".to_string());
+    }
+    let author = actor
+        .map(|a| a.name.clone())
+        .unwrap_or_else(|| "agent".to_string());
+    let note_body = if kind == "comment" {
+        body.to_string()
+    } else {
+        format!("[{}] {}", kind, body)
+    };
+    let stable_note_id = note_id.to_string();
+    project_io::update_standalone_work_item_atomic_serviced(
+        org_id,
+        actor,
+        project_io::AtomicServiceOptions {
+            operation: Some("work.note"),
+            reason: Some(kind.to_string()),
+            ..Default::default()
+        },
+        short_id,
+        move |frontmatter, _item_body| {
+            if frontmatter
+                .comments
+                .iter()
+                .any(|comment| comment.id == stable_note_id)
+            {
+                return Ok(());
+            }
+            frontmatter
+                .comments
+                .push(crate::projects::types::CommentEntry {
+                    id: stable_note_id,
+                    author,
+                    content: note_body,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                    mentioned_user_ids: vec![],
+                    ..Default::default()
+                });
             Ok(())
         },
     )
@@ -1042,7 +1338,8 @@ pub fn relate_project_work_item(
     if !PORTABLE_RELATION_KINDS.contains(&kind) {
         return Err(format!(
             "{}:relation kind '{}' is not portable",
-            error::PREFIX, kind
+            error::PREFIX,
+            kind
         ));
     }
     // Existence check outside the tx (short id is scope-stable).
@@ -1078,7 +1375,8 @@ pub fn relate_project_work_item(
             payload: serde_json::json!({ "kind": kind, "targetRef": target_ref }),
         },
     )?;
-    tx.commit().map_err(|err| format!("pm relate commit: {}", err))
+    tx.commit()
+        .map_err(|err| format!("pm relate commit: {}", err))
 }
 
 /// Read the typed relations of a project-scoped item.
@@ -1110,7 +1408,10 @@ const ROOT_BOOTSTRAP_TITLE_MAX_CHARS: usize = 80;
 
 fn derive_root_bootstrap_title(content: &str) -> String {
     let first_line = content.trim().lines().next().unwrap_or("").trim();
-    let title: String = first_line.chars().take(ROOT_BOOTSTRAP_TITLE_MAX_CHARS).collect();
+    let title: String = first_line
+        .chars()
+        .take(ROOT_BOOTSTRAP_TITLE_MAX_CHARS)
+        .collect();
     if title.is_empty() {
         "Untitled project".to_string()
     } else {
@@ -1153,9 +1454,8 @@ pub fn bootstrap_root_standalone_item(
         session_id,
         &canonical,
         move || {
-            let short_id = crate::projects::io::allocate_standalone_short_id(
-                org_for_execute.as_deref(),
-            )?;
+            let short_id =
+                crate::projects::io::allocate_standalone_short_id(org_for_execute.as_deref())?;
             let request = CreateWorkItemRequest {
                 title,
                 body,
@@ -1230,8 +1530,14 @@ pub fn create_standalone_work_item(
         true,
     )?;
     append_create_audit_in_tx(&tx, short_id, None, Some(&resolved_org), actor)?;
-    tx.commit().map_err(|err| format!("work.create commit: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("work.create commit: {err}"))?;
     crate::projects::events::notify_work_item_schedule_changed();
-    crate::sync::collab_bridge::record_work_item_write(&resolved_org, None, &frontmatter.id, false)?;
+    crate::sync::collab_bridge::record_work_item_write(
+        &resolved_org,
+        None,
+        &frontmatter.id,
+        false,
+    )?;
     project_io::read_standalone_work_item(org_id, short_id)
 }

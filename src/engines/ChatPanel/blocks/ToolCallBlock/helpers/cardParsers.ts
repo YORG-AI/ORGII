@@ -515,7 +515,7 @@ function hasStandaloneFlag(command: string): boolean {
   return /(?:^|\s)--standalone(?:\s|$)/.test(command);
 }
 
-function parseCreatedWorkItem(data: unknown): WorkItemData | undefined {
+function parseWorkItem(data: unknown): WorkItemData | undefined {
   const item = asRecord(data);
   const frontmatter = asRecord(item?.frontmatter);
   if (
@@ -566,10 +566,13 @@ export function parseOrgtrackEnvelope(
     const data = (envelope.data ?? {}) as Record<string, unknown>;
     const fm = (data.frontmatter ?? {}) as Record<string, unknown>;
     const items = Array.isArray(data.items) ? data.items : null;
-    const workItem =
-      operationId === "work.create"
-        ? parseCreatedWorkItem(envelope.data)
-        : undefined;
+    // Project sessions bootstrap their root Work Item in the host before the
+    // agent turn starts. The first visible mutation is therefore normally a
+    // `work update`, not a `work create`. Preserve the canonical item for both
+    // operations so either path can render the same navigable result card.
+    const workItem = ["work.create", "work.update"].includes(operationId)
+      ? parseWorkItem(envelope.data)
+      : undefined;
     const explicitProjectSlug = parseScopeFlag(command);
     const projectSlug = explicitProjectSlug ?? context.projectSlug;
     const projectContextMatches =
@@ -577,10 +580,9 @@ export function parseOrgtrackEnvelope(
     const projectId =
       getString(fm.project) ??
       (projectContextMatches ? context.projectId : undefined);
-    const isStandalone =
-      operationId === "work.create"
-        ? hasStandaloneFlag(command) || (!projectSlug && !projectId)
-        : undefined;
+    const isStandalone = workItem
+      ? hasStandaloneFlag(command) || (!projectSlug && !projectId)
+      : undefined;
     return {
       command,
       ok: true,

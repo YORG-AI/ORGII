@@ -640,6 +640,16 @@ pub(super) fn configure_agent_profile(
 /// so the bundled `org2-pm` always matches the app version. External CLIs
 /// (Claude Code, Codex, …) go through the same org2-pm surface as native
 /// agents because of this injection.
+pub(super) fn resolve_orgtrack_product_mode(
+    persisted_product_mode: Option<&str>,
+    has_work_item: bool,
+) -> &str {
+    // WorkItem linkage is a frozen resolver rule and may repair a legacy row.
+    // A project slug is scope only: elevating it here would let an ordinary
+    // Build session launched inside a project acquire PM mutation capability.
+    persisted_product_mode.unwrap_or(if has_work_item { "project" } else { "build" })
+}
+
 pub(super) fn inject_orgtrack_environment(
     session: &CodeSession,
     session_id: &str,
@@ -649,25 +659,24 @@ pub(super) fn inject_orgtrack_environment(
     let agent = session.cli_agent_type.as_deref().unwrap_or("cli");
     // The persisted product-mode axis wins; sessions from before the
     // column (or launched by flows that never set it) fall back to the
-    // linkage-derived mode so work-item runs keep their mutation surface.
-    let derived_mode = (session.work_item_id.is_some() || session.project_slug.is_some())
-        .then_some("project");
-    let product_mode = session.product_mode.as_deref().or(derived_mode);
+    // WorkItem linkage may repair a historical row; project scope alone must
+    // never elevate an ordinary Build session into Project capability.
+    let product_mode = resolve_orgtrack_product_mode(
+        session.product_mode.as_deref(),
+        session.work_item_id.is_some(),
+    );
 
     env_vars.insert(
         "ORGII_SESSION_REF".to_string(),
         format!("org2:{session_id}"),
     );
     env_vars.insert("ORGII_ACTOR".to_string(), format!("agent:{agent}"));
-    if let Some(mode) = product_mode {
-        env_vars.insert("ORGII_MODE".to_string(), mode.to_string());
-    }
+    env_vars.insert("ORGII_MODE".to_string(), product_mode.to_string());
     if let Some(slug) = session.project_slug.as_deref() {
         env_vars.insert("ORGII_SCOPE".to_string(), slug.to_string());
     }
-    let org_scope = project_management::projects::io::resolve_local_org_scope(Some(
-        session.org_id.as_str(),
-    ));
+    let org_scope =
+        project_management::projects::io::resolve_local_org_scope(Some(session.org_id.as_str()));
     if let Some(org) = org_scope.as_deref() {
         env_vars.insert("ORGII_ORG".to_string(), org.to_string());
     }
@@ -695,7 +704,7 @@ pub(super) fn inject_orgtrack_environment(
         working_dir,
         session_id,
         Some(agent),
-        product_mode,
+        Some(product_mode),
         session.project_slug.as_deref(),
         Some(session.org_id.as_str()),
     );

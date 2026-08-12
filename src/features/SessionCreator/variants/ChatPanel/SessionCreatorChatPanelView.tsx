@@ -152,7 +152,7 @@ const SessionCreatorChatPanelView: React.FC<
   showMissingGitAlert,
   workItemContext,
 }) => {
-  const { t } = useTranslation("sessions");
+  const { t } = useTranslation(["sessions", "common"]);
   const sessionInfoLine = (
     <SessionInfoLine
       {...sessionInfoProps}
@@ -301,6 +301,10 @@ const SessionCreatorChatPanelView: React.FC<
       }`}
       layoutActionCount={Children.count(heroFooterSlot) + 1}
       presentation="card"
+      collapsible={!isLaunchpadWorkItemPickerOpen}
+      controlAlignment="center"
+      collapseLabel={t("common:actions.collapse")}
+      expandLabel={t("common:actions.expand")}
     >
       <WorkItemAttachmentControl
         composerInputRef={composerInputRef}
@@ -343,7 +347,7 @@ const SessionCreatorChatPanelView: React.FC<
   const composerDockClassName = isLaunchpadLayout
     ? "mt-auto flex w-full shrink-0 flex-col gap-3"
     : "contents";
-  const composerFrameClassName = `session-creator-chat-panel-fullscreen-composer w-full ${
+  const composerFrameClassName = `session-creator-chat-panel-fullscreen-composer mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth} ${
     headerLayout === "compact"
       ? "session-creator-chat-panel-fullscreen-composer-compact"
       : ""
