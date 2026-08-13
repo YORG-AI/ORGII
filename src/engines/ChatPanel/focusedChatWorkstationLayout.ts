@@ -53,3 +53,15 @@ export function resolveFocusedChatWorkstationRailTrackClass(
     ? `w-0 @[1100px]/focusedchat:w-11 ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`
     : `w-0 @[1100px]/focusedchat:w-64 ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`;
 }
+
+/** Keep the rail below overlaid chat chrome while the transcript scrolls behind it. */
+export function resolveFocusedChatWorkstationRailInsetStyle(topInset: number): {
+  height?: string;
+  marginTop?: string;
+} {
+  if (topInset <= 0) return {};
+  return {
+    marginTop: `${topInset}px`,
+    height: `calc(100% - ${topInset}px)`,
+  };
+}

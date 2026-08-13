@@ -123,6 +123,22 @@ for (const key of [
   delete env[key];
 }
 
+// `externalBin` bundles the staged sidecar verbatim. Rebuild it before every
+// local app bundle so Rust changes to org2-pm cannot silently ship an older
+// binary from src-tauri/binaries.
+const sidecarResult = spawnSync(
+  process.execPath,
+  [path.join(__dirname, "prepare-sidecars.cjs"), "--profile", "dev-build"],
+  {
+    stdio: "inherit",
+    cwd: rootDir,
+    env,
+  }
+);
+if (sidecarResult.status !== 0) {
+  process.exit(sidecarResult.status ?? 1);
+}
+
 const args = ["build"];
 if (featureString.length > 0) {
   args.push("--features", featureString);

@@ -123,10 +123,13 @@
     }
   }
 
-  &.textarea-borderless {
+  &.textarea-field-ghost,
+  &.textarea-field-bare {
     .textarea-inner {
       border-color: transparent;
       box-shadow: none;
+      background: transparent;
+      background-color: transparent;
     }
 
     &:hover:not(.textarea-disabled):not(.textarea-readonly):not(
@@ -145,13 +148,6 @@
     }
   }
 
-  &.textarea-bgless {
-    .textarea-inner {
-      background: transparent;
-      background-color: transparent;
-    }
-  }
-
   &.textarea-field-ghost {
     min-width: 0;
     max-width: 100%;
@@ -166,7 +162,8 @@
       color: var(--color-text-1);
     }
 
-    &:hover:not(.textarea-disabled) {
+    &:hover:not(.textarea-disabled),
+    &.textarea-focused {
       background: var(--color-surface-hover);
     }
   }

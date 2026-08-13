@@ -202,7 +202,7 @@ const WorkspaceMemoryBrowser: React.FC = () => {
       activeTab={scope}
       onChange={(key) => setScope(key as WorkspaceMemoryScope)}
       variant="pill"
-      colorScheme="muted"
+      appearance="muted"
       size="small"
       fillWidth={false}
     />

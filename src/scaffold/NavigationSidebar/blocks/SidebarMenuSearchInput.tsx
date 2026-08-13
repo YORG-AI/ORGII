@@ -21,8 +21,7 @@ const SidebarMenuSearchInput: React.FC<SidebarMenuSearchInputProps> =
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        borderless
-        bgless
+        appearance="bare"
         autoHeight
         allowClear
         prefix={<Search size={14} strokeWidth={2} className="text-text-3" />}
