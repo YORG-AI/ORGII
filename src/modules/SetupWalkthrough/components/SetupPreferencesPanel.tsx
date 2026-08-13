@@ -65,7 +65,7 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.preferenceControl}
             showIcon={false}
             size="large"
-            variant="ghost"
+            appearance="ghost"
             ariaLabel={languageLabel}
           />
         </SectionRow>
@@ -79,7 +79,7 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             options={appearanceModeOptions}
             className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.preferenceControl}
             size="large"
-            variant="ghost"
+            appearance="ghost"
             ariaLabel={appearanceLabel}
             dataTestId="setup-appearance-mode"
           />
@@ -96,7 +96,7 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             options={primaryColorOptions}
             className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.preferenceControl}
             size="large"
-            variant="ghost"
+            appearance="ghost"
             ariaLabel={colorLabel}
             dataTestId="setup-primary-color"
           />

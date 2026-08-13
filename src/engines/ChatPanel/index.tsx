@@ -88,6 +88,7 @@ import {
   shouldReserveFocusedChatWorkstationPlaceholder,
 } from "./focusedChatWorkstationLayout";
 import { FocusedChatWorkstationMinimapPortalContext } from "./focusedChatWorkstationMinimapPortal";
+import { CHAT_PANEL_HEADER_STACK_HEIGHT_PX } from "./header/chatPanelHeaderLayout";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
 import { useChatPanelContentState } from "./hooks/useChatPanelContentState";
 import { useChatPanelCreateTarget } from "./hooks/useChatPanelCreateTarget";
@@ -281,7 +282,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       isTerminalTabActive,
       terminalTabs,
     } = useChatPanelTabsController({
-      launchpadTitle: t("navigation:routes.launchpad"),
+      newSessionTitle: t("sessions:chat.startPage.newSession.title"),
       kanbanTitle: t("sessions:simulator.tabs.kanban"),
       showSessionSurface,
     });
@@ -553,6 +554,12 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       />
     );
 
+    const overlayChatHeaders =
+      contentState.showSessionContent &&
+      !isStandaloneToolTabActive &&
+      sessionView.mode === "gui" &&
+      !humanSessionActive;
+
     const headerSection = (
       <ChatPanelHeader
         activeSessionExists={Boolean(activeSession)}
@@ -634,6 +641,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
             />
           ) : null
         }
+        overlayPublishedHeader={overlayChatHeaders}
         t={t}
         toggleHeaderActionsMenu={toggleHeaderActionsMenu}
         visibleRegionNotice={regionNotice}
@@ -684,6 +692,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
                 compactMenuHost={focusedWorkstationMenuHost}
                 conversationMinimapHostRef={focusedWorkstationMinimapHostRef}
                 session={currentSession}
+                topInset={
+                  overlayChatHeaders ? CHAT_PANEL_HEADER_STACK_HEIGHT_PX : 0
+                }
               />
             ) : reserveFocusedWorkstationPlaceholder ? (
               <div

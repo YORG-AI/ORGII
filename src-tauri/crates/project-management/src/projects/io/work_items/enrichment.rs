@@ -217,6 +217,7 @@ pub(super) fn enrich_work_item(
         updated_at: fm.updated_at.clone(),
         deleted_at: fm.deleted_at.clone(),
         created_by: fm.created_by.clone(),
+        origin_session: fm.origin_session.clone(),
         created_by_person,
 
         todos: fm.todos.clone(),
@@ -337,6 +338,7 @@ mod tests {
             start_date: None,
             target_date: None,
             created_by: None,
+            origin_session: None,
             created_at: String::new(),
             updated_at: String::new(),
             deleted_at: None,

@@ -324,7 +324,7 @@ export default function TeamMemberDetail({
                 }
                 variant="pill"
                 size="mini"
-                colorScheme="ghost"
+                appearance="ghost"
                 fillWidth={false}
               />
               <span
@@ -348,7 +348,7 @@ export default function TeamMemberDetail({
               setUsageRange(next);
             }}
             options={rangeOptions}
-            variant="ghost"
+            appearance="ghost"
             size="small"
             dataTestId="team-member-usage-range"
           />

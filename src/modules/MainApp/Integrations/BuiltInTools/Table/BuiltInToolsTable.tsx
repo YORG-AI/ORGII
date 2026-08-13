@@ -296,7 +296,7 @@ export const BuiltInToolsTable: React.FC<BuiltInToolsTableProps> = ({
                   activeTab={tools.activeFilter}
                   onChange={tools.setActiveFilter}
                   variant="pill"
-                  colorScheme="ghost"
+                  appearance="ghost"
                   fillWidth={false}
                   wrap
                   size="mini"

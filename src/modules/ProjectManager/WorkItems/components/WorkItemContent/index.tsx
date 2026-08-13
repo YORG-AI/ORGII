@@ -2,7 +2,11 @@ import { Bot, Pencil, Repeat, RotateCcw, Terminal } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type WorkItemHandoff, projectApi } from "@src/api/http/project";
+import {
+  type WorkItemHandoff,
+  type WorkItemOriginSession,
+  projectApi,
+} from "@src/api/http/project";
 import Avatar from "@src/components/Avatar";
 import TabPill from "@src/components/TabPill";
 import { useWorkItemImageInsert } from "@src/hooks/project";
@@ -62,6 +66,7 @@ import type { SessionTab, WorkItemContentProps } from "./types";
 
 interface LinkedSessionsListProps {
   sessions: LinkedSession[];
+  originSession?: WorkItemOriginSession;
   shortId?: string | null;
   projectSlug?: string | null;
   orgId?: string | null;
@@ -84,6 +89,7 @@ function getLinkedSessionTitle(session: LinkedSession): string {
 
 const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
   sessions,
+  originSession,
   shortId,
   projectSlug,
   orgId,
@@ -100,7 +106,7 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
     [i18n.resolvedLanguage, t]
   );
   const tableItems = useMemo<SessionTableItem[]>(() => {
-    if (sessions.length === 0) {
+    if (sessions.length === 0 && !originSession) {
       return [
         {
           id: "work-item-linked-sessions-empty",
@@ -112,7 +118,7 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
       ];
     }
 
-    return sessions.map((session) => {
+    const executionItems = sessions.map((session) => {
       const roleLabelKey = ROLE_I18N_KEYS[session.agent_role];
       const statusLabelKey = STATUS_I18N_KEYS[session.status];
       const roleLabel = roleLabelKey
@@ -187,10 +193,54 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
           ) : undefined,
       };
     });
+    if (
+      !originSession ||
+      sessions.some(
+        (session) => session.session_id === originSession.session_id
+      )
+    ) {
+      return executionItems;
+    }
+    return [
+      {
+        id: originSession.session_id,
+        title: t("workItems.sessions.originTitle", {
+          defaultValue: "Creation session",
+        }),
+        description: originSession.session_id,
+        statusLabel: t("workItems.sessions.originStatus", {
+          defaultValue: "Created this item",
+        }),
+        statusColor: "var(--color-primary-6)",
+        agentIcon:
+          originSession.session_type === "cli" ? (
+            <Terminal size={14} strokeWidth={1.75} className="text-text-3" />
+          ) : (
+            <Bot size={14} strokeWidth={1.75} className="text-text-3" />
+          ),
+        agentLabel: originSession.actor_id.replace(/^agent:/, ""),
+        modelLabel: originSession.session_type,
+        startedLabel: formatReplayDateLabel(originSession.captured_at, {
+          ...dateTimeLabelOptions,
+          withSeconds: false,
+          monthStyle: "short",
+        }),
+        lastUpdatedLabel: formatReplayDateLabel(originSession.captured_at, {
+          ...dateTimeLabelOptions,
+          withSeconds: false,
+          monthStyle: "short",
+        }),
+        active: originSession.session_id === activeAgentSessionId,
+        disabled: originSession.provider !== "org2",
+        testId: `work-item-origin-session-${originSession.session_id}`,
+      },
+      ...executionItems,
+    ];
   }, [
     activeAgentSessionId,
     dateTimeLabelOptions,
     onOpenSession,
+    originSession,
     orgId,
     projectSlug,
     sessions,
@@ -791,6 +841,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         (sectionPolicy.showLinkedSessionsTable ? (
           <LinkedSessionsList
             sessions={workItem.linkedSessions ?? []}
+            originSession={workItem.originSession}
             shortId={shortId ?? workItem.shortId}
             projectSlug={projectSlug}
             orgId={orgId}
@@ -816,7 +867,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
           onOpenSession={onOpenSession}
         />
       ) : null}
-      {(workItem.linkedSessions?.length ?? 0) > 0 ? (
+      {(workItem.linkedSessions?.length ?? 0) > 0 || workItem.originSession ? (
         <ScrollTrailTarget
           enabled={isThread}
           label={t("workItems.linkedSessions.title", {
@@ -825,6 +876,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         >
           <LinkedSessionsList
             sessions={workItem.linkedSessions ?? []}
+            originSession={workItem.originSession}
             shortId={shortId ?? workItem.shortId}
             projectSlug={projectSlug}
             orgId={orgId}

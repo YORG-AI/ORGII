@@ -109,8 +109,8 @@ export interface SettingsTableSelectFilter {
   options: SelectOption[];
   onChange: (value: string | number) => void;
   minWidth?: number;
-  /** Defaults to the compact toolbar's borderless ghost presentation. */
-  variant?: SelectProps["variant"];
+  /** Defaults to the compact toolbar's ghost appearance. */
+  appearance?: SelectProps["appearance"];
 }
 
 export interface SettingsTablePaginationContext {
@@ -276,7 +276,7 @@ function SettingsTableToolbar({
                 value={filter.value}
                 options={filter.options}
                 onChange={(val) => filter.onChange(val as string | number)}
-                variant={filter.variant ?? "ghost"}
+                appearance={filter.appearance ?? "ghost"}
                 dropdownWidthMode="auto"
                 dropdownMinWidth={filter.minWidth ?? 120}
                 className={isActive ? "text-primary-6" : ""}
@@ -362,7 +362,7 @@ function SelectFilterRow({
               value={filter.value}
               options={filter.options}
               onChange={(val) => filter.onChange(val as string | number)}
-              variant={filter.variant ?? "ghost"}
+              appearance={filter.appearance ?? "ghost"}
               dropdownWidthMode="auto"
               dropdownMinWidth={filter.minWidth ?? 120}
               className={isActive ? "text-primary-6" : ""}

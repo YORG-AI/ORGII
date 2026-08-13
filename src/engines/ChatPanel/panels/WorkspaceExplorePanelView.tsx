@@ -364,7 +364,7 @@ const WorkspaceExplorePanelView: React.FC = () => {
         <div className="flex items-center justify-center">
           <TabPill
             variant="pill"
-            colorScheme="ghost"
+            appearance="ghost"
             size="default"
             fillWidth={false}
             tabs={sortTabs}

@@ -52,6 +52,8 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toMatch(
       /bg-gradient-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
     );
+    expect(markup).toContain("sessions:chat.startPage.newSession.title");
+    expect(markup).not.toContain("navigation:routes.launchpad");
   });
 
   it("uses the GitHub SVG for a GitHub-imported project tab", () => {
@@ -81,7 +83,7 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain('data-icon-size="16"');
   });
 
-  it("formats project creation as a Workstation-style project tab", () => {
+  it("uses the localized project label in the Workstation-style tab", () => {
     const store = createStore();
     store.set(chatPanelCreateTargetAtom, CHAT_PANEL_CREATE_TARGET.PROJECT);
 
@@ -89,7 +91,7 @@ describe("ChatPanelTabBar", () => {
       createElement(Provider, { store }, createElement(ChatPanelTabBar))
     );
 
-    expect(markup).toContain("creator.createTarget.project");
+    expect(markup).toContain("sessions:creator.createTarget.project");
     expect(markup).toContain("lucide-box");
     expect(markup).toContain("work-station-editor-tab");
   });
@@ -186,7 +188,8 @@ describe("ChatPanelTabBar", () => {
     );
 
     expect(markup).toContain("sessions:chat.startPage.tabs.runtime");
-    expect(markup).toContain("creator.createTarget.project");
+    expect(markup).toContain("sessions:chat.startPage.newSession.title");
+    expect(markup).toContain("sessions:creator.createTarget.project");
     expect(markup).toContain("chat.startPage.newWorkItem.title");
   });
 });

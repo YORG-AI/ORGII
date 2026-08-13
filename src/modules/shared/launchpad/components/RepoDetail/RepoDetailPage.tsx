@@ -545,7 +545,7 @@ const RepoDetailPage: React.FC<RepoDetailPageProps> = ({
                   activeTab={activeCategory}
                   onChange={handleCategoryChange}
                   variant="pill"
-                  colorScheme="muted"
+                  appearance="muted"
                   fillWidth={false}
                   wrap
                   size="small"
