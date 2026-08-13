@@ -949,6 +949,9 @@
       "addApiKey": {
         "title": "Add API key"
       },
+      "showRuntime": {
+        "title": "Show runtime"
+      },
       "installLatestUpdate": {
         "title": "Install latest update"
       },
@@ -1246,7 +1249,7 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
+        "newIssueTitle": "Create GitHub issue",
         "issueTitlePlaceholder": "Issue title",
         "issueBodyPlaceholder": "Description",
         "createIssue": "Create issue",
@@ -2149,6 +2152,10 @@
     },
     "searchModels": "Search models...",
     "newItem": "New Item",
+    "solveWorkItem": "Solve Work Item",
+    "launchpadQuestion": "What do you want to build with",
+    "launchpadQuestionSuffix": "?",
+    "manualLaunchpadQuestion": "What do you want to build?",
     "start": "Start",
     "assign": "Assign",
     "send": "Send",

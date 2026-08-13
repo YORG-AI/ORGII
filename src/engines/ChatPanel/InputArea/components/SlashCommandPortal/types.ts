@@ -1,9 +1,6 @@
 import type React from "react";
 
-import type {
-  AgentExecMode,
-  AgentExecModeEntry,
-} from "@src/config/sessionCreatorConfig";
+import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type { AddressCommentsThreadOption } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import type { SlashItem, SlashItemCategory } from "@src/types/extensions";
 
@@ -26,12 +23,12 @@ export interface SlashCommandPortalProps {
   placement?: FloatingPlacementStrategy;
   items: SlashItem[];
   loading: boolean;
-  currentMode: AgentExecMode;
+  currentMode: ComposerModeEntry["id"];
   /** Pre-filtered query (slash items already filtered upstream). */
   searchQuery?: string;
   onClose: () => void;
   onSelect: (item: SlashItem) => void;
-  onModeSelect: (mode: AgentExecMode) => void;
+  onModeSelect: (mode: ComposerModeEntry["id"]) => void;
   keyboardHandlerRef: React.MutableRefObject<
     ((e: KeyboardEvent) => boolean) | null
   >;
@@ -49,6 +46,8 @@ export interface SlashCommandPortalProps {
   onImageUpload?: () => void;
   /** When false, hides mode rows in inline search results for non-session editors. */
   showModeRows?: boolean;
+  /** Offer the Project product mode alongside the exec modes (§5.2). */
+  includeProjectMode?: boolean;
   /** Multi-select flyout data for the Address-comments entry. */
   addressComments?: {
     threads: AddressCommentsThreadOption[];
@@ -60,7 +59,7 @@ export interface SlashCommandPortalProps {
 
 export interface ModeEntry {
   kind: "mode";
-  mode: AgentExecModeEntry;
+  mode: ComposerModeEntry;
   flatIndex: number;
 }
 

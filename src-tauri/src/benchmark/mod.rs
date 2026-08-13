@@ -22,6 +22,7 @@ mod launch;
 mod paths;
 mod preflight;
 mod process;
+mod retention;
 mod run;
 mod swe_bench;
 
@@ -74,3 +75,31 @@ static BENCHMARK_RUNS: LazyLock<Arc<Mutex<HashMap<String, BenchmarkRunStatus>>>>
     LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
 static BENCHMARK_AGENT_BATCHES: LazyLock<Arc<Mutex<HashMap<String, BenchmarkAgentBatchStatus>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+/// Best-effort termination of evaluator processes that are still running
+/// when the app exits. Called from the `ExitRequested` handler alongside the
+/// other subprocess cleanup; without it the spawned Python/Docker evaluators
+/// would outlive the app as orphans.
+pub fn terminate_running_evaluators_sync() {
+    let Ok(runs) = BENCHMARK_RUNS.try_lock() else {
+        tracing::warn!(
+            "[benchmark] runs registry locked during shutdown; skipping evaluator cleanup"
+        );
+        return;
+    };
+    let process_ids: Vec<u32> = runs
+        .values()
+        .filter(|run| run.status == BENCHMARK_RUN_STATUS_RUNNING)
+        .filter_map(|run| run.process_id)
+        .collect();
+    drop(runs);
+    for process_id in process_ids {
+        if let Err(error) = process::terminate_process_sync(process_id) {
+            tracing::warn!(
+                process_id,
+                error = %error,
+                "[benchmark] failed to terminate evaluator during shutdown"
+            );
+        }
+    }
+}

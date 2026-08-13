@@ -6,7 +6,6 @@ import {
   type LinkedSession,
   type WorkItemData,
   projectApi,
-  workItemDataToUI,
 } from "@src/api/http/project";
 import Message from "@src/components/Message";
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
@@ -14,21 +13,23 @@ import {
   allocateCloudAwareStandaloneWorkItemId,
   allocateCloudAwareWorkItemId,
 } from "@src/features/Org2Cloud/cloudShortId";
+import { useWorkStationTabs } from "@src/hooks/workStation";
 import i18n from "@src/i18n";
 import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
-import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { openSessionInNewChatTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { SESSION_TARGET_KIND } from "@src/store/session";
 import type { SessionCreatorState } from "@src/store/session/creatorStateAtom";
 import {
   type ChatPanelCreateProjectContext,
   type ChatPanelSelectedProject,
-  type ChatPanelSelectedWorkItem,
 } from "@src/store/ui/chatPanelAtom";
+import { STATION_MODE, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
+import { createWorkItemDetailTab } from "@src/store/workstation/tabs";
 import { getDispatchCategory } from "@src/util/session/sessionDispatch";
 
-// Work Item Manager persona was retired; the generic OS Agent carries
-// manage_work_item/manage_project as ordinary built-in tools.
+// Work Item Manager persona was retired; the generic OS Agent fills
+// the draft through the injected `org2-pm` CLI from its shell.
 const WORK_ITEM_DEFAULT_AGENT_DEF_ID = "builtin:os";
 const AI_WORK_ITEM_DEFAULT_TITLE = "AI Work Item Draft";
 
@@ -76,7 +77,6 @@ interface UseAiWorkItemCreatorOptions {
   creatorState: SessionCreatorState;
   setActiveSessionId: (sessionId: string | null) => void;
   setSelectedProject: (project: ChatPanelSelectedProject | null) => void;
-  setSelectedWorkItem: (workItem: ChatPanelSelectedWorkItem | null) => void;
   setWorkItemCreateDraft: (draft: WorkItemDraft | null) => void;
   setWorkstationActiveSessionId: (sessionId: string | null) => void;
   workItemCreateDraft: WorkItemDraft | null;
@@ -88,14 +88,13 @@ export function useAiWorkItemCreator({
   creatorState,
   setActiveSessionId,
   setSelectedProject,
-  setSelectedWorkItem,
   setWorkItemCreateDraft,
   setWorkstationActiveSessionId,
   workItemCreateDraft,
 }: UseAiWorkItemCreatorOptions) {
-  const openOrFocusSessionTab = useSetAtom(
-    openOrFocusSessionInChatPanelTabAtom
-  );
+  const openLaunchedSessionTab = useSetAtom(openSessionInNewChatTabAtom);
+  const setStationMode = useSetAtom(stationModeAtom);
+  const { openTab: openStationTab } = useWorkStationTabs();
   const resolveAiWorkItemAssignee = useCallback(
     (draft: WorkItemDraft): ResolvedAiWorkItemAssignee | null => {
       if (draft.assigneeType === "agent" && draft.assigneeId) {
@@ -244,11 +243,12 @@ export function useAiWorkItemCreator({
     return {
       workItemId: shortId,
       projectSlug: selectedProjectSlug || undefined,
+      orgId: standaloneOrgId,
       agentRole: "custom" as const,
-      // The draft-fill session must run an agent that registers
-      // manage_work_item; the composer's selected agent (usually SDE)
-      // does not carry the PM tools and would silently fail to fill
-      // the draft it was launched for. The item's assignee is
+      agentExecMode: "build",
+      // The draft-fill session runs OS Agent: it always carries
+      // run_shell, and the launch injects the org2-pm identity so the
+      // linked-work-item brief can be acted on. The item's assignee is
       // unaffected — it stays whatever was resolved above.
       agentDefinitionId: WORK_ITEM_DEFAULT_AGENT_DEF_ID,
       metadata: {
@@ -311,39 +311,36 @@ export function useAiWorkItemCreator({
         );
       }
 
-      const workItem = workItemDataToUI(updatedItem, {
-        labelMap: new Map(),
-        memberMap: new Map(),
-      });
       setSelectedProject(null);
-      setSelectedWorkItem({
-        shortId: metadata.shortId,
-        projectSlug: metadata.projectSlug,
-        projectId: metadata.projectId,
-        projectName: metadata.projectName,
-        orgId: metadata.orgId,
-        workItem,
-      });
       setWorkItemCreateDraft(null);
-      // Land the user IN the launched session instead of bouncing them
-      // back to the start page's Session tab: after "create a work item
-      // with AI" the only honest answer to "what is happening now?" is
-      // the agent session doing the work — it also surfaces the item
-      // via the active-WorkItem pill. The old reset left a blank
-      // composer and a toast minutes later.
+      // Land the launched session in the LEFT chat panel as a normal session
+      // tab (the existing chat UX), and open the Work Item detail in the
+      // RIGHT station pane. The item filling in live stays visible beside
+      // the conversation instead of competing with it for the chat surface.
       setActiveSessionId(info.sessionId);
       setWorkstationActiveSessionId(info.sessionId);
-      openOrFocusSessionTab({
-        sessionId: info.sessionId,
-        sessionName: metadata.item.frontmatter.title,
-      });
+      openLaunchedSessionTab({ sessionId: info.sessionId });
+      setStationMode(STATION_MODE.MY_STATION);
+      openStationTab(
+        createWorkItemDetailTab(
+          metadata.projectId || undefined,
+          metadata.projectName || undefined,
+          metadata.shortId,
+          updatedItem.frontmatter.title || AI_WORK_ITEM_DEFAULT_TITLE,
+          metadata.projectSlug || undefined,
+          undefined,
+          undefined,
+          updatedItem.frontmatter.status
+        )
+      );
       await emit("orgii-data-changed");
     },
     [
-      openOrFocusSessionTab,
+      openLaunchedSessionTab,
+      openStationTab,
       setActiveSessionId,
       setSelectedProject,
-      setSelectedWorkItem,
+      setStationMode,
       setWorkItemCreateDraft,
       setWorkstationActiveSessionId,
     ]

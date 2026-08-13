@@ -14,6 +14,7 @@ use super::dto::{
 use super::history::{load_agent_batch_history, persist_agent_batch_status};
 use super::launch::{benchmark_agent_prompt, benchmark_launch_params};
 use super::paths::benchmark_agent_submission_patch_path;
+use super::retention::prune_terminal_agent_batches;
 use super::run::trim_logs;
 use super::{
     BENCHMARK_AGENT_BATCHES, BENCHMARK_AGENT_BATCH_STATUS_CANCELLED,
@@ -29,10 +30,9 @@ pub(super) async fn load_agent_batch_for_update(
         return Ok(status);
     }
     let status = load_agent_batch_history(batch_id)?;
-    BENCHMARK_AGENT_BATCHES
-        .lock()
-        .await
-        .insert(batch_id.to_string(), status.clone());
+    let mut batches = BENCHMARK_AGENT_BATCHES.lock().await;
+    batches.insert(batch_id.to_string(), status.clone());
+    prune_terminal_agent_batches(&mut batches);
     Ok(status)
 }
 
@@ -40,10 +40,10 @@ pub(super) async fn persist_updated_agent_batch(
     mut batch: BenchmarkAgentBatchStatus,
 ) -> Result<BenchmarkAgentBatchStatus, String> {
     refresh_agent_batch_counts(&mut batch);
-    BENCHMARK_AGENT_BATCHES
-        .lock()
-        .await
-        .insert(batch.batch_id.clone(), batch.clone());
+    let mut batches = BENCHMARK_AGENT_BATCHES.lock().await;
+    batches.insert(batch.batch_id.clone(), batch.clone());
+    prune_terminal_agent_batches(&mut batches);
+    drop(batches);
     persist_agent_batch_status(&batch)?;
     Ok(batch)
 }
@@ -71,10 +71,10 @@ pub(super) async fn refresh_agent_batch_evaluations(
     }
     drop(runs);
     if changed {
-        BENCHMARK_AGENT_BATCHES
-            .lock()
-            .await
-            .insert(batch.batch_id.clone(), batch.clone());
+        let mut batches = BENCHMARK_AGENT_BATCHES.lock().await;
+        batches.insert(batch.batch_id.clone(), batch.clone());
+        prune_terminal_agent_batches(&mut batches);
+        drop(batches);
         persist_agent_batch_status(&batch)?;
     }
     Ok(batch)
@@ -237,7 +237,9 @@ where
             update(item);
         }
         refresh_agent_batch_counts(batch);
-        batch.clone()
+        let status = batch.clone();
+        prune_terminal_agent_batches(&mut batches);
+        status
     };
     if let Err(error) = persist_agent_batch_status(&status) {
         tracing::warn!(

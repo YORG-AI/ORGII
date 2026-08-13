@@ -64,6 +64,7 @@ export interface WorkManagementTableRow {
   assignee?: ReactNode;
   status?: ReactNode;
   statusSelect?: WorkManagementTableStatusSelect;
+  ciStatus?: ReactNode;
   updated: ReactNode;
   actions?: ReactNode;
   onClick?: () => void;
@@ -154,6 +155,7 @@ export function WorkManagementTable({
   const { t } = useTranslation("common");
   const hasActions = rows.some((row) => row.actions !== undefined);
   const hasAssignees = rows.some((row) => row.assignee !== undefined);
+  const hasCiStatus = rows.some((row) => row.ciStatus !== undefined);
   const hasSelection = rows.some((row) => row.selection !== undefined);
   const columns = useMemo<SettingsTableColumn<WorkManagementTableRow>[]>(() => {
     const idLabel = t("workManagementTable.columns.id", {
@@ -230,7 +232,7 @@ export function WorkManagementTable({
                   return (
                     <span
                       key={index}
-                      className={`inline-flex min-w-0 items-center gap-1 text-[11px] text-text-3 ${
+                      className={`inline-flex min-w-0 items-center gap-1 text-[11px] text-text-1 ${
                         fillsRemaining ? "flex-1" : "shrink-0"
                       }`}
                     >
@@ -250,7 +252,7 @@ export function WorkManagementTable({
                 {row.tags?.map((tag, index) => (
                   <span
                     key={`${tag}-${index}`}
-                    className="inline-flex max-w-40 shrink-0 truncate rounded border border-border-1 px-1.5 py-0.5 text-[10px] font-normal leading-none text-text-3"
+                    className="inline-flex max-w-40 shrink-0 truncate rounded border border-border-1 px-1.5 py-0.5 text-[10px] font-normal leading-none text-text-1"
                     title={tag}
                   >
                     {tag}
@@ -291,55 +293,63 @@ export function WorkManagementTable({
         ),
       });
     }
-    tableColumns.push(
-      {
-        key: "status",
-        label: t("workManagementTable.columns.status", {
-          defaultValue: "Status",
-        }),
-        width: SETTINGS_TABLE_COL.valueLg,
-        renderCell: (row) =>
-          row.statusSelect ? (
-            <div
-              title={
-                row.statusSelect.readonly
-                  ? row.statusSelect.readonlyReason
-                  : undefined
-              }
-            >
-              <PropertyDropdownField
-                {...row.statusSelect}
-                searchable={false}
-                maxWidthClassName="max-w-[140px]"
-                triggerVariant="pill"
-                fieldVariant="pill"
-                compactPill
-                placement="portal"
-                borderless
-              />
-            </div>
-          ) : (
-            row.status
-          ),
-      },
-      {
-        key: "updated",
-        label: controlledSort ? (
-          <SortableColumnLabel
-            column="updated"
-            label={updatedLabel}
-            sort={sort}
-            onSortChange={onSortChange}
-          />
+    tableColumns.push({
+      key: "status",
+      label: t("workManagementTable.columns.status", {
+        defaultValue: "Status",
+      }),
+      width: SETTINGS_TABLE_COL.valueLg,
+      renderCell: (row) =>
+        row.statusSelect ? (
+          <div
+            title={
+              row.statusSelect.readonly
+                ? row.statusSelect.readonlyReason
+                : undefined
+            }
+          >
+            <PropertyDropdownField
+              {...row.statusSelect}
+              searchable={false}
+              maxWidthClassName="max-w-[140px]"
+              triggerVariant="pill"
+              fieldVariant="pill"
+              compactPill
+              idleSurface="fill"
+              focusTreatment="field"
+              placement="portal"
+              borderless
+            />
+          </div>
         ) : (
-          updatedLabel
+          row.status
         ),
+    });
+    if (hasCiStatus) {
+      tableColumns.push({
+        key: "ciStatus",
+        label: "CI",
         width: SETTINGS_TABLE_COL.valueMd,
-        renderCell: (row) => (
-          <span className="whitespace-nowrap text-text-3">{row.updated}</span>
-        ),
-      }
-    );
+        renderCell: (row) => row.ciStatus,
+      });
+    }
+    tableColumns.push({
+      key: "updated",
+      label: controlledSort ? (
+        <SortableColumnLabel
+          column="updated"
+          label={updatedLabel}
+          sort={sort}
+          onSortChange={onSortChange}
+        />
+      ) : (
+        updatedLabel
+      ),
+      width: SETTINGS_TABLE_COL.valueMd,
+      renderCell: (row) => (
+        <span className="whitespace-nowrap text-text-3">{row.updated}</span>
+      ),
+    });
     if (hasActions) {
       tableColumns.push({
         key: "actions",
@@ -350,7 +360,15 @@ export function WorkManagementTable({
       });
     }
     return tableColumns;
-  }, [hasActions, hasAssignees, hasSelection, onSortChange, sort, t]);
+  }, [
+    hasActions,
+    hasAssignees,
+    hasCiStatus,
+    hasSelection,
+    onSortChange,
+    sort,
+    t,
+  ]);
   const footer = pagination ? (
     <div className="flex h-12 shrink-0 items-center border-t border-border-1 px-4">
       <SettingsTablePagination
@@ -386,7 +404,7 @@ export function WorkManagementTable({
         footer={footer}
         onRowClick={(row) => row.onClick?.()}
         rowClassName="group"
-        className={`[&_.table-row:not(:last-child)_.table-td]:!border-b [&_.table-row:not(:last-child)_.table-td]:!border-border-1 [&_.table-row_.table-td:first-child]:!align-top [&_.table-row_.table-td:first-child_.table-td-inner]:!items-start [&_.table-td-inner]:!h-auto [&_.table-td-inner]:w-full [&_.table-td]:!h-auto [&_.table-td]:!py-2 ${
+        className={`[&_.table-fixed-header]:scrollbar-hide [&_.table-row:not(:last-child)_.table-td]:!border-b [&_.table-row:not(:last-child)_.table-td]:!border-border-1 [&_.table-row_.table-td:first-child]:!align-top [&_.table-row_.table-td:first-child_.table-td-inner]:!items-start [&_.table-scroll]:scrollbar-hide [&_.table-td-inner]:!h-auto [&_.table-td-inner]:w-full [&_.table-td]:!h-auto [&_.table-td]:!py-2 ${
           hasSelection
             ? "[&_.table-row_.table-td:nth-child(2)]:!align-top [&_.table-row_.table-td:nth-child(2)_.table-td-inner]:!items-start"
             : ""

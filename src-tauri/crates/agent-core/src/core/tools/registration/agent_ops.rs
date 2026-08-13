@@ -1,5 +1,5 @@
 //! Agent operations tool registration: session, comms, question, nodes,
-//! project, agent definition.
+//! agent definition.
 //!
 //! Note: The unified `agent` tool is registered separately in OS/SDE init
 //! because it requires additional dependencies (LLM provider).
@@ -15,8 +15,6 @@ use crate::tools::impls::nodes::manage_nodes::NodesTool;
 use crate::tools::impls::orchestration::ask_user_questions::{QuestionTool, QuestionToolContext};
 use crate::tools::impls::orchestration::manage_secrets::{SecretTool, SecretToolContext};
 use crate::tools::impls::orchestration::manage_session::SessionTool;
-use crate::tools::impls::project::manage_project::ProjectTool;
-use crate::tools::impls::project::manage_work_item::WorkItemTool;
 use crate::tools::registry::ToolRegistry;
 
 use super::{register_if_enabled, ToolDeps};
@@ -30,8 +28,7 @@ fn should_register_question_tool(
 
 /// Register all agent-operations tools that `deps` can support.
 ///
-/// Covers: `session`, `message`, `question`, `nodes`,
-/// `project`, `agent_definition`.
+/// Covers: `session`, `message`, `question`, `nodes`, `agent_definition`.
 ///
 /// Note: The unified `agent` tool is registered separately in OS/SDE agent init
 /// because it requires an LLM provider which is created at agent initialization time.
@@ -87,26 +84,6 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
             disabled,
         );
     }
-
-    // ── Project / work items ──
-    register_if_enabled(
-        registry,
-        Box::new(ProjectTool::new(
-            deps.app_handle.clone(),
-            deps.session_account_id.clone(),
-            deps.agent_model.clone(),
-            deps.session_org_id.clone(),
-        )),
-        disabled,
-    );
-    register_if_enabled(
-        registry,
-        Box::new(WorkItemTool::new(
-            deps.session_id.clone(),
-            deps.session_org_id.clone(),
-        )),
-        disabled,
-    );
 
     // ── Agent definition ──
     if let Some(ref handle) = deps.app_handle {

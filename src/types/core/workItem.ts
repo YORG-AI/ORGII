@@ -14,6 +14,7 @@ import type {
   WorkItemExecutionLock,
   WorkItemHandoff,
   WorkItemHistoryEvent,
+  WorkItemOriginSession,
   WorkItemRoutineSource,
   WorkItemSchedule,
   WorkItemWorkProduct,
@@ -146,6 +147,12 @@ export interface WorkItemComment {
   content: string;
   created_at: string;
   mentioned_user_ids?: string[];
+  parent_id?: string;
+  thread_id?: string;
+  resolved_at?: string;
+  resolved_by?: string;
+  conclusion?: boolean;
+  agent_session_id?: string;
 }
 
 // ============================================
@@ -160,6 +167,7 @@ export type {
   LinkedSessionType,
   LinkedSessionStatus,
   LinkedSession,
+  WorkItemOriginSession,
   DiffStats,
   TestResults,
   ProofOfWork,
@@ -213,6 +221,7 @@ export interface WorkItem extends WorkItemBase {
   startDate?: string;
   endDate?: string;
   linkedSessions?: LinkedSession[];
+  originSession?: WorkItemOriginSession;
   subIssueCount?: number;
   todos?: TodoItem[];
   comments?: WorkItemComment[];

@@ -55,9 +55,9 @@ describe("getPrStatusVariant", () => {
       textClass: "text-danger-6",
     });
     expect(getPrStatusVariant("draft")).toEqual({
-      badgeClass: "bg-warning-1 text-warning-6",
-      dotClass: "bg-warning-6",
-      textClass: "text-warning-6",
+      badgeClass: "bg-fill-2 text-text-2",
+      dotClass: "bg-text-2",
+      textClass: "text-text-2",
     });
   });
 

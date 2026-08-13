@@ -9,6 +9,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { getImportedHistoryCliResume } from "@src/api/tauri/externalHistory";
+import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 
 import {
@@ -55,7 +56,7 @@ export function ChatViewPostHistoryOverlays({
         <div
           ref={composerRef}
           data-testid="external-history-fork-composer"
-          className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pb-2 pt-1"
+          className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
         >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent" />
           <div

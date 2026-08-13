@@ -22,6 +22,7 @@ import {
 } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
 import { PrDetailPanel } from "./PrDetailPanel";
+import { formatPrFilesCount } from "./prFilesDisplay";
 
 const childProps = vi.hoisted(() => ({
   changes: null as Record<string, unknown> | null,
@@ -32,6 +33,9 @@ const childProps = vi.hoisted(() => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string | Record<string, unknown>) => {
+      if (key === "git.pr.actions.resolveConflicts") {
+        return "Localized conflict label";
+      }
       if (typeof fallback === "string") return fallback;
       if (typeof fallback?.defaultValue !== "string") return key;
       const count = Number(fallback.count ?? 0);
@@ -119,6 +123,12 @@ describe("PrDetailPanel tabs", () => {
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
   });
 
+  it("marks the GitHub PR-files ceiling as a lower bound", () => {
+    expect(formatPrFilesCount(2999)).toBe(2999);
+    expect(formatPrFilesCount(3000)).toBe("3000+");
+    expect(formatPrFilesCount(3200)).toBe("3000+");
+  });
+
   beforeEach(() => {
     childProps.changes = null;
     childProps.commits = null;
@@ -180,17 +190,83 @@ describe("PrDetailPanel tabs", () => {
     ]);
     expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
     expect(tabs[0]?.className).toContain("rounded-t-md");
+    expect(tabs[0]?.className).toContain("text-text-1");
+    for (const tab of tabs.slice(1)) {
+      expect(tab.className).toContain("text-text-2");
+      expect(tab.className).not.toContain("text-text-3");
+    }
     expect(tabList?.className).toContain("border-b");
     expect(tabList?.className).not.toContain("border-t");
+    expect(tabList?.className).toContain("gap-px");
+    expect(tabList?.className).not.toContain("h-10");
+    expect(tabs[0]?.className).toContain("after:-bottom-px");
+    expect(tabs[0]?.className).toContain("after:bg-bg-2");
+    for (const tab of tabs) {
+      expect(tab.className).toContain("py-1.5");
+      expect(tab.className).not.toContain("h-9");
+    }
     const actions = container.querySelector("[data-testid='pr-level-actions']");
     expect(actions?.textContent).toContain("Enable auto-merge");
     expect(actions?.textContent).toContain("Reviewers");
-    expect(actions?.textContent).toContain("Close pull request");
+    expect(actions?.textContent).toContain("Close");
+    expect(actions?.textContent).not.toContain("Close pull request");
+    const closeAction = actions?.querySelector<HTMLButtonElement>(
+      '[data-testid="pr-state-action"]'
+    );
+    expect(closeAction?.className).toContain("text-text-1");
+    expect(closeAction?.className).not.toContain("text-danger-6");
+    expect(
+      actions?.querySelector<HTMLButtonElement>(
+        '[data-testid="pr-merge-action"]'
+      )?.style.height
+    ).toBe("28px");
+    expect(
+      actions?.querySelector<HTMLButtonElement>(
+        '[data-testid="pr-reviewer-action"]'
+      )?.style.height
+    ).toBe("28px");
+    expect(
+      actions?.querySelector<HTMLButtonElement>(
+        '[data-testid="pr-state-action"]'
+      )?.style.height
+    ).toBe("28px");
     expect(actions?.className).not.toContain("bg-");
     expect(actions?.className).not.toContain("border");
     expect(
       container.querySelector('[role="tabpanel"]')?.contains(actions)
     ).toBe(true);
+    expect(
+      container.querySelector('[data-testid="pr-detail-navigation-rail"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="pr-detail-navigation-trail"]')
+    ).not.toBeNull();
+
+    for (const tabIndex of [1, 2, 3]) {
+      act(() => {
+        tabs[tabIndex]?.click();
+      });
+      const activePanel = container.querySelector<HTMLElement>(
+        '[role="tabpanel"][aria-hidden="false"]'
+      );
+      const conversationPanel = container.querySelector<HTMLElement>(
+        "#pr-detail-tabpanel-conversation"
+      );
+      expect(activePanel?.id).toBe(
+        `pr-detail-tabpanel-${["commits", "checks", "changes"][tabIndex - 1]}`
+      );
+      expect(
+        container.querySelector('[data-testid="pr-detail-navigation-rail"]')
+      ).not.toBeNull();
+      expect(conversationPanel?.style.display).toBe("none");
+    }
+
+    act(() => {
+      tabs[0]?.click();
+    });
+    expect(
+      container.querySelector('[data-testid="pr-detail-navigation-rail"]')
+    ).not.toBeNull();
 
     act(() => {
       tabs[3]?.click();
@@ -199,15 +275,67 @@ describe("PrDetailPanel tabs", () => {
       "changes"
     );
     expect(tabs[3]?.getAttribute("aria-selected")).toBe("true");
-    expect(container.querySelector('[role="tabpanel"]')?.id).toBe(
-      "pr-detail-tabpanel-changes"
-    );
+    expect(
+      container.querySelector('[role="tabpanel"][aria-hidden="false"]')?.id
+    ).toBe("pr-detail-tabpanel-changes");
     expect(
       container.querySelector('[data-testid="pr-detail-navigation-rail"]')
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="pr-detail-navigation-trail"]')
     ).not.toBeNull();
+    expect(
+      container.querySelector<HTMLElement>("#pr-detail-tabpanel-conversation")
+        ?.style.display
+    ).toBe("none");
+  });
+
+  it("renders GraphQL merge conflicts as a disabled danger action", () => {
+    const store = createStore();
+    const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
+    store.set(workstationSelectedPrAtomFamily(scopeKey), {
+      ...initialSelectedPrState,
+      loading: false,
+      detail: {
+        state: "open",
+        mergeable: true,
+        mergeable_state: "clean",
+        merge_state_status: "DIRTY",
+      },
+    });
+
+    act(() => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(PrDetailPanel, {
+            identity: {
+              number: 42,
+              title: "Expose merge conflicts",
+              url: "https://github.com/org/repo/pull/42",
+              status: "open",
+              headBranch: "feature/conflicts",
+              baseBranch: "main",
+            },
+            repoPath: "/repo",
+            showHeader: false,
+          })
+        )
+      );
+    });
+
+    const conflictAction = container.querySelector<HTMLButtonElement>(
+      '[data-testid="pr-merge-action"]'
+    );
+    expect(conflictAction?.textContent).toBe("Merge conflicts");
+    expect(conflictAction?.disabled).toBe(true);
+    expect(conflictAction?.className).toContain("!opacity-100");
+    expect(conflictAction?.className).toContain("text-danger-6");
+    expect(conflictAction?.querySelector(".lucide-circle-x")).not.toBeNull();
+    expect(
+      conflictAction?.parentElement?.querySelector(".lucide-chevron-down")
+    ).toBeNull();
   });
 
   it("restores the per-PR sub-tab and nested selection after remount", () => {
@@ -327,15 +455,19 @@ describe("PrDetailPanel tabs", () => {
     );
     expect(externalLink?.getAttribute("target")).toBe("_blank");
     expect(externalLink?.getAttribute("style")).toContain("height: 28px");
+    expect(externalLink?.querySelector(".lucide-globe")).not.toBeNull();
     expect(
       container.querySelectorAll('a[aria-label="Open on GitHub"]')
     ).toHaveLength(1);
     expect(header?.textContent).toContain("Use compact PR metadata");
-    const mergedBadge = Array.from(header?.querySelectorAll("span") ?? []).find(
-      (element) => element.textContent?.trim() === "merged"
+    const mergedStatus = header?.querySelector(
+      "[data-testid='pr-detail-status']"
     );
-    expect(mergedBadge?.className).toContain("bg-purple-1");
-    expect(mergedBadge?.className).toContain("text-purple-6");
+    expect(mergedStatus?.className).toContain("text-purple-6");
+    expect(mergedStatus?.className).not.toContain("bg-purple-1");
+    expect(mergedStatus?.className).not.toContain("rounded-full");
+    expect(mergedStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
+    expect(mergedStatus?.textContent).toBe("");
     expect(header?.textContent).not.toContain("develop");
     expect(header?.textContent).not.toContain(
       "fix/issue-556-delete-agent-org-workers"
@@ -363,10 +495,24 @@ describe("PrDetailPanel tabs", () => {
     expect(summary?.textContent).toContain("No CI checks");
     expect(summary?.textContent).toContain("Status");
     expect(summary?.textContent).toContain("merged");
-    const summaryStatus = Array.from(
-      summary?.querySelectorAll("div") ?? []
-    ).find((element) => element.textContent?.trim() === "merged");
+    const summaryStatus = summary?.querySelector(
+      "[data-testid='pr-summary-status']"
+    );
     expect(summaryStatus?.className).toContain("text-purple-6");
+    expect(summaryStatus?.className).not.toContain("rounded-full");
+    expect(summaryStatus?.className).not.toContain("bg-purple-1");
+    expect(summaryStatus?.textContent).toBe("merged");
+    expect(summaryStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
+    const summaryStatusLabel = summary?.querySelector(
+      "[data-testid='pr-summary-status-label']"
+    );
+    expect(summaryStatusLabel?.className).toContain("text-text-3");
+    expect(
+      summaryStatusLabel?.querySelector(".lucide-circle-dot")
+    ).not.toBeNull();
+    expect(
+      summaryStatusLabel?.querySelector(".lucide-circle-dot")?.className
+    ).not.toContain("text-purple-6");
     expect(summary?.className).not.toContain("border-b");
     expect(summary?.firstElementChild?.className).toContain("px-6");
     expect(summary?.firstElementChild?.className).toContain("pt-4");

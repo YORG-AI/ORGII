@@ -956,7 +956,7 @@ static CLI_ALIAS_MAP: LazyLock<HashMap<&'static str, AliasEntry>> = LazyLock::ne
 
     // NOTE: Built-in tool names (manage_workspace, query_lsp, manage_lsp,
     // setup_repo, manage_nodes, control_orgii,
-    // query_knowledge, manage_project, manage_work_item) are intentionally
+    // query_knowledge) are intentionally
     // NOT aliased here. The old entries collapsed their identity to
     // `UiCanonical::ToolCall` ("tool_call"), which masked the per-tool
     // `label_running/done/failed` and `chat_block` declared in

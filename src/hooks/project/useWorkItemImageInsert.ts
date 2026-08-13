@@ -39,6 +39,14 @@ function extensionFromMime(mime: string): string {
   return MIME_TO_EXT[mime] ?? "png";
 }
 
+export function extensionForOptimizedImage(
+  dataUrl: string,
+  sourceMime: string
+): string {
+  const outputMime = /^data:([^;,]+)/u.exec(dataUrl)?.[1] ?? sourceMime;
+  return extensionFromMime(outputMime);
+}
+
 export function useWorkItemImageInsert({
   projectSlug,
   editorRef,
@@ -65,7 +73,9 @@ export function useWorkItemImageInsert({
           );
           const hash = await computeFileHash(binaryData.buffer);
           const shortHash = hash.slice(0, 16);
-          const ext = extensionFromMime(file.type);
+          // optimizeImage can flatten an oversized animation to JPEG. Persist
+          // using the produced bytes' MIME type rather than the source suffix.
+          const ext = extensionForOptimizedImage(base64Full, file.type);
           const filename = `${shortHash}.${ext}`;
 
           await projectApi.saveAsset(projectSlug, filename, base64Data);

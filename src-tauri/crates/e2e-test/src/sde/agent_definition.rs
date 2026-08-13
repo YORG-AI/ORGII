@@ -9,20 +9,14 @@ use agent_core::definitions::builtin::ADE_MANAGER_ID;
 use agent_core::definitions::{OS_AGENT_ID, SDE_AGENT_ID};
 use agent_core::tools::names::{
     ASK_USER_QUESTIONS, CONTROL_BROWSER_WITH_PLAYWRIGHT, CONTROL_DESKTOP_WITH_PEEKABOO,
-    CONTROL_ORGII, EDIT_FILE, MANAGE_AGENT_DEF, MANAGE_PROJECT, MANAGE_SESSION, MANAGE_WORK_ITEM,
-    READ_FILE, RUN_SHELL,
+    CONTROL_ORGII, EDIT_FILE, MANAGE_AGENT_DEF, MANAGE_SESSION, READ_FILE, RUN_SHELL,
 };
 
 use super::tmp_workspace_path;
 use crate::config::Config;
 use crate::harness;
 
-const MANAGEMENT_TOOLS: [&str; 4] = [
-    MANAGE_SESSION,
-    MANAGE_PROJECT,
-    MANAGE_WORK_ITEM,
-    MANAGE_AGENT_DEF,
-];
+const MANAGEMENT_TOOLS: [&str; 2] = [MANAGE_SESSION, MANAGE_AGENT_DEF];
 
 pub async fn agent_definition_sde_endpoint_rejects_missing_explicit_definition(
     cfg: &Config,

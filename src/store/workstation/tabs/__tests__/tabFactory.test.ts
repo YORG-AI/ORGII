@@ -398,6 +398,29 @@ describe("Project Manager Factories", () => {
 
       expect(tab.data.workItemStatus).toBe("open");
     });
+
+    it("isolates identical standalone short IDs by organization", () => {
+      const personal = createWorkItemDetailTab(
+        undefined,
+        "Standalone Work Items",
+        "WI-0001",
+        "Personal item"
+      );
+      const cloud = createWorkItemDetailTab(
+        undefined,
+        "Cloud",
+        "WI-0001",
+        "Cloud item",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "cloud-org"
+      );
+
+      expect(personal.id).not.toBe(cloud.id);
+      expect(cloud.data.orgId).toBe("cloud-org");
+    });
   });
 
   describe("createGitHubIssueDetailTab", () => {

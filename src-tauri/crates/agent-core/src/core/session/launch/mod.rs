@@ -44,6 +44,9 @@ pub(crate) const MAX_AUTO_NAME_LEN: usize = 80;
 
 #[derive(Debug, Clone)]
 pub(crate) struct AgentRunLaunchRequest {
+    /// Stable WorkItemRun id used for deterministic Session and turn ids.
+    /// `None` preserves the ordinary user-launch behavior.
+    pub durable_run_id: Option<String>,
     pub content: String,
     pub target: AgentRunTarget,
     pub resources: LaunchResourceSelection,
@@ -152,6 +155,59 @@ pub(crate) struct AgentRunLaunchResult {
     pub project_slug: Option<String>,
     pub work_item_id: Option<String>,
     pub agent_role: Option<String>,
+    pub product_mode: Option<String>,
+}
+
+/// Write the fail-closed session-context marker (design M6) into the
+/// session workspace: `org2-pm` locks its identity to this file when
+/// present, so an agent inside the workspace can never act as a human
+/// or as another session.
+pub fn write_agent_session_marker(
+    workspace_path: &str,
+    session_id: &str,
+    agent_definition_id: Option<&str>,
+    product_mode: Option<&str>,
+    project_slug: Option<&str>,
+    org_id: Option<&str>,
+) {
+    if workspace_path.trim().is_empty() {
+        return;
+    }
+    let agent = agent_definition_id
+        .unwrap_or("os")
+        .trim_start_matches("builtin:");
+    // Historical rows may store NULL for ordinary Build, but the marker is a
+    // fail-closed authority boundary and must always carry an explicit mode.
+    // Otherwise `org2-pm --mode project` could elevate a Build session.
+    let product_mode = product_mode.unwrap_or("build");
+    let capabilities: Vec<&str> = if product_mode == "project" {
+        vec![
+            "work.read",
+            "work.mutate",
+            "routine.invoke",
+            "project.mutate",
+        ]
+    } else {
+        vec!["work.read"]
+    };
+    let marker = serde_json::json!({
+        "apiVersion": "orgtrack/v1",
+        "sessionRef": format!("org2:{session_id}"),
+        "actor": format!("agent:{agent}"),
+        "productMode": product_mode,
+        "scope": project_slug,
+        "org": project_management::projects::io::resolve_local_org_scope(org_id),
+        "capabilities": capabilities,
+        "issuedAt": chrono::Utc::now().to_rfc3339(),
+    });
+    let dir = std::path::Path::new(workspace_path).join(".orgii");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let path = dir.join("agent_session_context.json");
+    if let Ok(raw) = serde_json::to_string_pretty(&marker) {
+        let _ = std::fs::write(path, raw);
+    }
 }
 
 async fn generate_title_before_first_turn(
@@ -249,6 +305,7 @@ fn spawn_session_title_generation(
 /// This remains as the public WorkItem-facing adapter for existing callers;
 /// all actual launch behavior is delegated to `launch_rust_agent_run`.
 pub struct WorkItemLaunchRequest<'a> {
+    pub durable_run_id: Option<&'a str>,
     pub workspace_path: &'a str,
     pub prompt: &'a str,
     pub model: &'a str,
@@ -268,6 +325,7 @@ pub async fn launch_agent_session(
 ) -> Result<String, String> {
     let state: tauri::State<'_, AgentAppState> = app.state();
     let WorkItemLaunchRequest {
+        durable_run_id,
         workspace_path,
         prompt,
         model,
@@ -299,6 +357,7 @@ pub async fn launch_agent_session(
         &state,
         None,
         AgentRunLaunchRequest {
+            durable_run_id: durable_run_id.map(str::to_string),
             content: prompt.to_string(),
             target: AgentRunTarget::AgentDefinition {
                 agent_definition_id: agent_definition_id.map(str::to_string),
@@ -490,6 +549,7 @@ pub(crate) async fn launch_rust_agent_run(
         request.product_mode.clone(),
         request.resources.native_harness_type.clone(),
         request.parent_session_id.clone(),
+        request.durable_run_id.clone(),
     )
     .await?;
 
@@ -498,6 +558,10 @@ pub(crate) async fn launch_rust_agent_run(
         .and_then(|value| value.as_str())
         .ok_or("create_session_impl did not return sessionId")?
         .to_string();
+    let resolved_product_mode = create_result
+        .get("productMode")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
 
     if let (Some(project_slug_value), Some(work_item_id_value)) =
         (project_slug.as_deref(), work_item_id.as_deref())
@@ -598,6 +662,7 @@ pub(crate) async fn launch_rust_agent_run(
         let sub_agent_ids_for_send = request.sub_agent_ids.clone();
         let agent_definition_id_for_send = agent_definition_id.clone();
         let agent_org_run_id_for_background = agent_org_run_id.clone();
+        let durable_run_id_for_background = request.durable_run_id.clone();
         let project_slug_for_background = project_slug.clone();
         let work_item_id_for_background = work_item_id.clone();
         let app_handle_for_background = state.app_handle.clone();
@@ -667,6 +732,7 @@ pub(crate) async fn launch_rust_agent_run(
                 agent_definition_id_for_send,
                 sub_agent_ids_for_send,
                 agent_org_run_id_for_background.clone(),
+                durable_run_id_for_background,
                 crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
             )
             .await;
@@ -710,6 +776,7 @@ pub(crate) async fn launch_rust_agent_run(
             project_slug,
             work_item_id,
             agent_role,
+            product_mode: resolved_product_mode.clone(),
         });
     }
 
@@ -742,7 +809,29 @@ pub(crate) async fn launch_rust_agent_run(
         }
     };
 
-    if has_initial_content {
+    write_agent_session_marker(
+        &prepared_workspace
+            .worktree_path
+            .clone()
+            .unwrap_or_else(|| workspace_path.clone()),
+        &session_id,
+        agent_definition_id.as_deref(),
+        resolved_product_mode.as_deref(),
+        project_slug.as_deref(),
+        Some(request.org_context.org_id.as_str()),
+    );
+
+    let durable_turn_already_accepted = match request.durable_run_id.as_deref() {
+        // Any persisted status proves this exact durable intent was accepted
+        // previously. Never enqueue it twice. The dispatcher reconciles
+        // terminal/pre-durable statuses into Run finality.
+        Some(run_id) => {
+            crate::foundation::session_bridge::get_turn_intent_status(&session_id, run_id).is_some()
+        }
+        None => false,
+    };
+
+    if has_initial_content && !durable_turn_already_accepted {
         let state_for_send = state.clone();
         let session_id_for_send = session_id.clone();
         let workspace_path_for_send = prepared_workspace
@@ -758,11 +847,12 @@ pub(crate) async fn launch_rust_agent_run(
         let sub_agent_ids_for_send = request.sub_agent_ids.clone();
         let agent_definition_id_for_send = agent_definition_id.clone();
         let agent_org_run_id_for_send = agent_org_run_id.clone();
+        let durable_run_id_for_send = request.durable_run_id.clone();
         let project_slug_for_send = project_slug.clone();
         let work_item_id_for_send = work_item_id.clone();
         let app_handle_for_send = state.app_handle.clone();
 
-        tokio::spawn(async move {
+        let send_task = async move {
             // Title generation runs concurrently — it must not delay the
             // first turn. See `spawn_session_title_generation`.
             spawn_session_title_generation(
@@ -793,6 +883,7 @@ pub(crate) async fn launch_rust_agent_run(
                 agent_definition_id_for_send,
                 sub_agent_ids_for_send,
                 agent_org_run_id_for_send.clone(),
+                durable_run_id_for_send,
                 crate::foundation::session_bridge::TurnIntentBridgeSource::UserSubmit,
             )
             .await;
@@ -813,8 +904,22 @@ pub(crate) async fn launch_rust_agent_run(
                     "[session_launch] failed to mark session failed after first-message error",
                 )
                 .await;
+                return Err(message);
             }
-        });
+            Ok::<(), String>(())
+        };
+
+        if request.durable_run_id.is_some() {
+            // Durable delivery is acknowledged only after the turn has been
+            // accepted by the scheduler. Returning before this await would
+            // leave a crash window where the outbox says delivered but no
+            // executable turn exists.
+            send_task.await?;
+        } else {
+            tokio::spawn(async move {
+                let _ = send_task.await;
+            });
+        }
     }
 
     Ok(AgentRunLaunchResult {
@@ -837,5 +942,6 @@ pub(crate) async fn launch_rust_agent_run(
         project_slug,
         work_item_id,
         agent_role,
+        product_mode: resolved_product_mode,
     })
 }

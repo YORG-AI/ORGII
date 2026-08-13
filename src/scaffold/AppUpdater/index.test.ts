@@ -28,6 +28,7 @@ interface CapturedModalProps {
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(),
+  getBuildProvenance: vi.fn(),
   getVersion: vi.fn(),
   messageError: vi.fn(),
   messageInfo: vi.fn(),
@@ -108,6 +109,11 @@ vi.mock("./channelCheck", () => ({
   checkAppUpdateOnChannel: mocks.check,
 }));
 
+vi.mock("./buildProvenance", () => ({
+  getAppBuildProvenance: mocks.getBuildProvenance,
+  resetAppBuildProvenanceForTests: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/plugin-process", () => ({
   relaunch: mocks.relaunch,
 }));
@@ -162,6 +168,12 @@ describe("AppUpdater", () => {
       mocks.storeValues.set(target, value);
     });
     mocks.getVersion.mockResolvedValue("1.1.21");
+    mocks.getBuildProvenance.mockResolvedValue({
+      kind: "release",
+      gitRef: "release/1.1.21",
+      gitSha: "test-release-sha",
+      installStrategy: "inPlace",
+    });
     resetAppUpdaterForTests();
   });
 
@@ -195,6 +207,27 @@ describe("AppUpdater", () => {
         title: "Update available",
       })
     );
+  });
+
+  it("offers an update-now action on the available-update notice", async () => {
+    const update = createUpdate();
+    mocks.check.mockResolvedValue(update);
+
+    await checkForUpdatesManually();
+
+    const checkNotices = mocks.messageInfo.mock.calls
+      .filter(([message]) => message?.id === "app-update-check")
+      .map(([message]) => message);
+    const availableNotice = checkNotices[checkNotices.length - 1];
+
+    expect(availableNotice).toEqual(
+      expect.objectContaining({
+        title: "Update available",
+        content: "Version 1.1.22 is ready to install.",
+        action: expect.objectContaining({ label: "Update now" }),
+      })
+    );
+    expect(typeof availableNotice?.action?.onClick).toBe("function");
   });
 
   it("clears a stale available update after a failed manual check", async () => {
@@ -293,6 +326,13 @@ describe("AppUpdater", () => {
     await checkForUpdatesManually();
 
     const pendingDownload = installAvailableAppUpdate();
+    await vi.waitFor(() => {
+      expect(
+        mocks.messageInfo.mock.calls.some(
+          ([message]) => message.id === "app-update-progress"
+        )
+      ).toBe(true);
+    });
     const progressNotice = mocks.messageInfo.mock.calls.find(
       ([message]) => message.id === "app-update-progress"
     )?.[0];

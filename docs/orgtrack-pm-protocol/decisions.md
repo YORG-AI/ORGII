@@ -142,3 +142,40 @@ seq INTEGER NOT NULL)`；
 - 云端 `orgii_acquire_work_item_lock` 保持为 human 协作**编辑锁**：编辑锁 ≠
   工作 claim，两者并存但互不代理；Phase 2a 落地时在 service 层写清依赖关系
   （持有编辑锁不阻止 claim，claim 不授予编辑权）。
+
+## 修订记录
+
+### 2026-08-07 — S0 conformance 收敛（PR #737）
+
+- `execution-context.schema.json`：`scopeId` 与 `actor` 增加 null 分支——未初始化 workspace 下的裸 `org2 context` 输出 null 是合法状态，schema 此前与实现矛盾（实现自 Phase 3 起即输出 null）。
+- 错误 fixture 文案与实现对齐（byte-golden 前置）：`actor-required`（补 `<kind:id>` 格式提示）、`idempotency-conflict`（去尾词 "body"）、`invalid-transition`（统一为信封映射的通用句式）、`project-mode-required`（"WorkItem mutation" → "WorkItem/Routine mutation"）。
+- claim 竞争的第二分支（active linked session）修正为 `ALREADY_CLAIMED`（此前误落 `STORE_UNAVAILABLE`，违反 §3 的 claim 竞争优先规则）。
+- `ALREADY_EXISTS` 获得生产者：`work.create` 全局存在性守卫（跨 scope 短 ID 碰撞从静默覆盖改为结构化拒绝）。
+
+### 2026-08-07 — S1 载荷形态裁决（PR #737）
+
+- `work.*` 成功载荷本轮**维持存储形态**（`frontmatter` + `portableState` + `revision`）。阻塞：`work-item.schema.json` 的 `id` 要求 `^work_[A-Za-z0-9]+$` 持久 id，而存储沿用 `id = short_id`（如 `AAA-0001`）；在 id 方案迁移落地前切换会产出无法通过自身 schema 的载荷。schema 与 6 个 success fixture 明确标记为 **id 迁移后的目标形态**，`commands.rs` 头部 residual 注记为唯一真相点的状态就此解除——真相点移至本条。
+- 分页（`--cursor`/`meta.nextCursor`）、portable `--status` 词表、`work assign/release`、`org2 project` 命令族（无 delete）已实装并入 conformance 覆盖。
+
+### 2026-08-07 — PM Case CLI 载体裁决（用户拍板）
+
+修订 §4/§9 的"本轮无 PM CLI"条目：**PM Case 的 agent 载体从出生即 CLI**。`org2 pm` 命令族携独立版本 `org2/pm/v1` contract，与 PM Case 实现同期落地（不提前、不做类型化工具例外）。
+
+理由：agent 平面已统一走 `org2-pm`（见 agent-cli-unification-design.md §5.6）；PM 工具若做唯一类型化例外会破坏"agent 可见面 = CLI 面"等式，且 conformance 是必修课，早接比晚接便宜。
+
+约束：
+
+- `org2 pm` 落地时必须同步 schemas、fixtures、权限矩阵、入口一致性测试，且**不得静默改变 `orgtrack/v1`**（独立版本命名空间）。
+- 不向 agent 暴露的动词永不进 CLI 面：`commit-confirmed-graph`、`promote-standalone-to-project` 只存在于用户确认 handler 内部。
+- 本条不改变本轮范围——本轮仍不实现 PM Case，故 `org2 pm` 仍未落地；改变的只是"未来它以何种形态出现"从未决转为已定。
+
+### 2026-08-07 — S4 类型化工具退役执行（PR #737）
+
+`manage_work_item` / `manage_project` 从工具面删除（impl、注册、编排 fresh-registry 分支、builtin 表项、能力种子）。agent 平面唯一入口自此为 `org2-pm`；product_mode 的 deny-delta 工具层（`product_mode_layer`/`with_modes`）随之退役——门控收敛到 CLI 的 application boundary（`ORGII_MODE` + `require_project_mode`）。
+
+配套裁决：
+
+- 工具名进入 `SUBAGENT_RETIRED_TOOL_ALIASES` 防御旧 checkpoint；常量保留用于历史转录渲染（前端渲染路径不删，先例同 `manage_story`）。
+- standalone（无项目）工作项获得 CLI 面：`work show/update/create --standalone`，org 上下文经 `ORGII_ORG` env 与 session marker `org` 字段注入；`--schedule-cron`/`--schedule-at` 补齐周期任务能力。
+- 子代理 CLI 身份解析到**顶层祖先 session**（workspace marker 绑定所有者，env 必须与之一致，否则共享 workspace 的 worker 全部被拒为冒充）；子代理 session record 继承父 `product_mode`。
+- `debug_session_execute_tool` 收窄为 `read_file`；两条经 debug hook 驱动类型化工具的 e2e 场景删除（agent 平面覆盖由 `orgtrack-pm-cli` 跨进程 e2e 承接）。

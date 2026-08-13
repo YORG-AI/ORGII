@@ -50,8 +50,7 @@ pub const CHANNEL: &str = "channel";
 /// Cross-channel messaging (`send_message`, `send_to_inbox`).
 pub const COMMS: &str = "comms";
 
-/// Project / work-item management tools (`manage_project`,
-/// `manage_work_item`, `setup_repo`).
+/// Project-adjacent tools (`setup_repo`).
 pub const PROJECT: &str = "project";
 
 /// Knowledge-graph node management (`manage_nodes`).

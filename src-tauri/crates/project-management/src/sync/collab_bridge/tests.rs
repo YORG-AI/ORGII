@@ -16,6 +16,10 @@ use crate::projects::types::{
 };
 use crate::sync::io;
 use crate::sync::types::OutboxStatus;
+use crate::work_item_features::{
+    PropertyConfig, PropertyType, SetWorkItemPropertyValueRequest, UpsertPropertyDefinitionRequest,
+    WorkItemScope,
+};
 use rusqlite::params;
 use serde_json::{json, Value};
 use test_helpers::test_env;
@@ -67,9 +71,11 @@ fn work_item_frontmatter(short_id: &str, title: &str) -> WorkItemFrontmatter {
         labels: vec![],
         milestone: None,
         parent: None,
+        stage: None,
         start_date: None,
         target_date: None,
         created_by: None,
+        origin_session: None,
         created_at: String::new(),
         updated_at: String::new(),
         deleted_at: None,
@@ -344,6 +350,18 @@ fn apply_remote_creates_entities_without_echo() {
                     "workItemPrefix": "REM",
                     "description": "from teammate",
                     "updatedAt": "2026-07-01T00:00:00Z",
+                    "propertyDefinitions": [{
+                        "id": "prop_remote_effort",
+                        "orgId": ORG,
+                        "name": "Remote effort",
+                        "propertyType": "number",
+                        "description": null,
+                        "config": { "options": [] },
+                        "position": 0,
+                        "archivedAt": null,
+                        "createdAt": "2026-07-01T00:00:00Z",
+                        "updatedAt": "2026-07-01T00:00:00Z"
+                    }],
                 }),
                 version: 3,
                 updated_by: Some("member-b".to_string()),
@@ -361,6 +379,12 @@ fn apply_remote_creates_entities_without_echo() {
                     "priority": "none",
                     "labels": [],
                     "updatedAt": "2026-07-01T00:00:00Z",
+                    "propertyDefinitions": [],
+                    "propertyValues": [{
+                        "propertyId": "prop_remote_effort",
+                        "value": 5,
+                        "updatedAt": "2026-07-01T00:00:00Z"
+                    }],
                 }),
                 version: 2,
                 updated_by: Some("member-b".to_string()),
@@ -378,6 +402,15 @@ fn apply_remote_creates_entities_without_echo() {
     let item = read_work_item("remote-project", "REM-0001").expect("item exists");
     assert_eq!(item.frontmatter.title, "Remote item");
     assert_eq!(item.body, "remote body");
+    let values = crate::work_item_features::properties::list_values(&WorkItemScope {
+        project_slug: Some("remote-project".to_string()),
+        org_id: ORG.to_string(),
+        work_item_id: "REM-0001".to_string(),
+    })
+    .expect("remote typed property exists");
+    assert_eq!(values.len(), 1);
+    assert_eq!(values[0].definition.name, "Remote effort");
+    assert_eq!(values[0].value, json!(5));
 
     // No echo: remote application must not enqueue bridge rows.
     assert_eq!(pending_org_rows(), 0, "apply_remote echoed into the outbox");
@@ -439,6 +472,7 @@ fn standalone_pending_update_rebases_and_merges_remote_tail_without_conflict_loo
         content: "local pending comment".to_string(),
         created_at: "2026-07-29T01:00:00Z".to_string(),
         mentioned_user_ids: vec![],
+        ..Default::default()
     };
     update_standalone_work_item_partial(
         Some(ORG),
@@ -458,6 +492,7 @@ fn standalone_pending_update_rebases_and_merges_remote_tail_without_conflict_loo
         content: "remote teammate comment".to_string(),
         created_at: "2026-07-29T01:00:01Z".to_string(),
         mentioned_user_ids: vec!["member-a".to_string()],
+        ..Default::default()
     };
     let applied = apply_remote(
         ORG,
@@ -864,6 +899,7 @@ fn pending_local_push_blocks_remote_tail_clobber_and_unions_lists() {
         content: "local pending comment".to_string(),
         created_at: "2026-07-01T00:01:00Z".to_string(),
         mentioned_user_ids: Vec::new(),
+        ..Default::default()
     }]);
     update_work_item_partial("remote-project", "REM-0001", &update).expect("local comment");
     assert!(pending_org_rows() >= 1, "local comment should be pending");
@@ -1414,6 +1450,166 @@ fn drain_project_carries_per_field_revisions() {
         !revisions.contains_key("name"),
         "untouched fields must stay absent from the wire map: {:?}",
         revisions
+    );
+}
+
+#[test]
+fn typed_properties_round_trip_and_preserve_pending_local_value() {
+    let _sandbox = test_env::sandbox();
+    seed_collab_org();
+    seed_project("alpha");
+    write_work_item(
+        "alpha",
+        "AAA-0001",
+        &work_item_frontmatter("AAA-0001", "Typed properties"),
+        "",
+    )
+    .expect("write item");
+    let scope = WorkItemScope {
+        project_slug: Some("alpha".to_string()),
+        org_id: ORG.to_string(),
+        work_item_id: "AAA-0001".to_string(),
+    };
+    crate::work_item_features::properties::upsert_definition(UpsertPropertyDefinitionRequest {
+        id: Some("prop_effort".to_string()),
+        org_id: ORG.to_string(),
+        name: "Effort".to_string(),
+        property_type: PropertyType::Number,
+        description: None,
+        config: PropertyConfig::default(),
+        position: 0,
+    })
+    .expect("create property");
+    crate::work_item_features::properties::set_value(SetWorkItemPropertyValueRequest {
+        scope: scope.clone(),
+        property_id: "prop_effort".to_string(),
+        value: Some(json!(8)),
+    })
+    .expect("set value");
+
+    let pushed = drain_outbox(ORG, 50).expect("drain typed property snapshot");
+    let work_item = pushed
+        .iter()
+        .find(|item| item.kind == KIND_WORK_ITEM)
+        .expect("work item push");
+    let project = pushed
+        .iter()
+        .find(|item| item.kind == KIND_PROJECT)
+        .expect("project definition carrier");
+    let mut remote_payload = work_item.payload.clone().expect("work item payload");
+    assert_eq!(
+        project.payload.as_ref().unwrap()["propertyDefinitions"][0]["id"],
+        "prop_effort"
+    );
+    assert_eq!(remote_payload["propertyDefinitions"], json!([]));
+    assert_eq!(remote_payload["propertyValues"][0]["value"], json!(8));
+    ack_outbox(
+        pushed
+            .iter()
+            .map(|item| CollabAckResult {
+                entry_ids: item.entry_ids.clone(),
+                kind: item.kind.clone(),
+                entity_id: item.entity_id.clone(),
+                ok: true,
+                remote_version: Some(1),
+                error: None,
+            })
+            .collect(),
+    )
+    .expect("ack initial snapshot");
+
+    remote_payload["propertyValues"][0]["value"] = json!(13);
+    remote_payload["propertyValues"][0]["updatedAt"] = json!("2099-01-01T00:00:00Z");
+    assert_eq!(
+        apply_remote(
+            ORG,
+            None,
+            vec![CollabRemoteEntity {
+                kind: KIND_WORK_ITEM.to_string(),
+                payload: remote_payload.clone(),
+                version: 2,
+                updated_by: Some("member-b".to_string()),
+                deleted_at: None,
+            }],
+        )
+        .expect("apply remote value"),
+        1
+    );
+    let values = crate::work_item_features::properties::list_values(&scope)
+        .expect("list remote property value");
+    assert_eq!(values[0].value, json!(13));
+
+    crate::work_item_features::properties::set_value(SetWorkItemPropertyValueRequest {
+        scope: scope.clone(),
+        property_id: "prop_effort".to_string(),
+        value: Some(json!(21)),
+    })
+    .expect("set pending local value");
+    remote_payload["propertyValues"][0]["value"] = json!(7);
+    remote_payload["propertyValues"][0]["updatedAt"] = json!("2100-01-01T00:00:00Z");
+    apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: remote_payload.clone(),
+            version: 3,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: None,
+        }],
+    )
+    .expect("apply conflicting remote value");
+    let values = crate::work_item_features::properties::list_values(&scope)
+        .expect("list protected property value");
+    assert_eq!(
+        values[0].value,
+        json!(21),
+        "a pending local edit wins the OCC rebase for the same property"
+    );
+    let retry = drain_outbox(ORG, 50).expect("drain rebased property value");
+    let retry_item = retry
+        .iter()
+        .find(|item| item.kind == KIND_WORK_ITEM)
+        .expect("rebased work item");
+    assert_eq!(retry_item.base_version, Some(3));
+    assert_eq!(
+        retry_item.payload.as_ref().unwrap()["propertyValues"][0]["value"],
+        json!(21)
+    );
+    ack_outbox(
+        retry
+            .iter()
+            .map(|item| CollabAckResult {
+                entry_ids: item.entry_ids.clone(),
+                kind: item.kind.clone(),
+                entity_id: item.entity_id.clone(),
+                ok: true,
+                remote_version: Some(4),
+                error: None,
+            })
+            .collect(),
+    )
+    .expect("ack rebased value");
+
+    remote_payload["propertyValues"][0]["value"] = Value::Null;
+    remote_payload["propertyValues"][0]["updatedAt"] = json!("2101-01-01T00:00:00Z");
+    apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: remote_payload,
+            version: 5,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: None,
+        }],
+    )
+    .expect("apply clear tombstone");
+    assert!(
+        crate::work_item_features::properties::list_values(&scope)
+            .expect("list after clear")
+            .is_empty(),
+        "a remote null tombstone clears the visible value"
     );
 }
 

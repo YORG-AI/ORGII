@@ -192,14 +192,14 @@ fn test_fresh_registry_management_tools_require_management_capability() {
     let agent_without_management = AgentDefinition {
         id: "custom:no-management".to_string(),
         tools: AgentToolSelection {
-            system_restrict_to_tools: Some(vec![tool_names::MANAGE_PROJECT.to_string()]),
+            system_restrict_to_tools: Some(vec![tool_names::MANAGE_AGENT_DEF.to_string()]),
             ..Default::default()
         },
         ..Default::default()
     };
     assert!(!agent_supports_builtin_tool(
         &agent_without_management,
-        tool_names::MANAGE_PROJECT
+        tool_names::MANAGE_AGENT_DEF
     ));
 
     let agent_with_management = AgentDefinition {
@@ -209,14 +209,14 @@ fn test_fresh_registry_management_tools_require_management_capability() {
             ..Default::default()
         }),
         tools: AgentToolSelection {
-            system_restrict_to_tools: Some(vec![tool_names::MANAGE_PROJECT.to_string()]),
+            system_restrict_to_tools: Some(vec![tool_names::MANAGE_AGENT_DEF.to_string()]),
             ..Default::default()
         },
         ..Default::default()
     };
     assert!(agent_supports_builtin_tool(
         &agent_with_management,
-        tool_names::MANAGE_PROJECT
+        tool_names::MANAGE_AGENT_DEF
     ));
 }
 
@@ -224,10 +224,9 @@ fn test_fresh_registry_management_tools_require_management_capability() {
 //
 // The worker policy is built from the parent's BASE policy (captured at
 // init, no per-turn mode layers). `overlay_parent_modes` must re-apply
-// the parent's CURRENT exec + product modes so a Plan-mode parent
-// cannot escape its read-only guarantee through `builtin:general`, and
-// a non-Project parent cannot escape the PM deny-delta by delegating
-// `manage_work_item` / `manage_project` to a specialist subagent.
+// the parent's CURRENT exec mode so a Plan-mode parent cannot escape
+// its read-only guarantee through `builtin:general`. Product mode is
+// enforced by `org2-pm` at the application boundary, not by tool policy.
 
 #[test]
 fn plan_mode_parent_overlay_makes_worker_policy_read_only() {
@@ -238,7 +237,6 @@ fn plan_mode_parent_overlay_makes_worker_policy_read_only() {
     let overlaid = AgentTool::overlay_parent_modes(
         ResolvedToolPolicy::permissive(),
         Some(AgentExecMode::Plan),
-        Some("project"),
     );
     for denied in ["edit_file", "run_shell", "apply_patch", "delete_file"] {
         assert!(
@@ -265,55 +263,16 @@ fn build_or_absent_parent_mode_leaves_worker_policy_untouched() {
     let build = AgentTool::overlay_parent_modes(
         ResolvedToolPolicy::permissive(),
         Some(AgentExecMode::Build),
-        Some("project"),
     );
     assert!(
         build.is_allowed("edit_file"),
         "Build-mode parent keeps write tools for workers"
     );
 
-    let absent =
-        AgentTool::overlay_parent_modes(ResolvedToolPolicy::permissive(), None, Some("project"));
+    let absent = AgentTool::overlay_parent_modes(ResolvedToolPolicy::permissive(), None);
     assert!(
         absent.is_allowed("edit_file"),
         "no parent mode => no overlay"
-    );
-}
-
-#[test]
-fn non_project_parent_overlay_denies_pm_tools_for_workers() {
-    use super::AgentTool;
-    use crate::tools::policy::ResolvedToolPolicy;
-
-    // None and non-project product modes both subtract the PM surface,
-    // even when the worker's own policy (inherited or fresh-registry
-    // allowlist) would grant it.
-    for product_mode in [None, Some("build"), Some("plan")] {
-        let overlaid = AgentTool::overlay_parent_modes(
-            ResolvedToolPolicy::permissive(),
-            None,
-            product_mode,
-        );
-        for denied in [tool_names::MANAGE_WORK_ITEM, tool_names::MANAGE_PROJECT] {
-            assert!(
-                !overlaid.is_allowed(denied),
-                "{product_mode:?} parent must deny {denied} for workers"
-            );
-        }
-        assert!(
-            overlaid.is_allowed("read_file"),
-            "non-PM tools must survive the product-mode overlay"
-        );
-    }
-
-    let project = AgentTool::overlay_parent_modes(
-        ResolvedToolPolicy::permissive(),
-        None,
-        Some("project"),
-    );
-    assert!(
-        project.is_allowed(tool_names::MANAGE_WORK_ITEM),
-        "Project parent keeps the PM surface for workers"
     );
 }
 

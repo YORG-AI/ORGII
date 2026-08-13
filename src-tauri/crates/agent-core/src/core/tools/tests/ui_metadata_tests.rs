@@ -36,8 +36,6 @@ fn invokable_canonical_tool_names() -> BTreeSet<&'static str> {
         names::SPOTLIGHT,
         names::REPLY_SESSION_COMMENT,
         names::AGENT,
-        names::MANAGE_PROJECT,
-        names::MANAGE_WORK_ITEM,
         names::MANAGE_AGENT_DEF,
         names::MANAGE_NODES,
         names::ASK_USER_QUESTIONS,
@@ -171,8 +169,6 @@ fn every_renderable_tool_has_non_default_chat_block() {
         names::CONTROL_ORGII,
         names::SPOTLIGHT,
         names::REPLY_SESSION_COMMENT,
-        names::MANAGE_PROJECT,
-        names::MANAGE_WORK_ITEM,
         names::MANAGE_AGENT_DEF,
         names::MANAGE_NODES,
         names::ASK_USER_QUESTIONS,
@@ -222,24 +218,6 @@ fn every_builtin_tool_has_detail_text() {
             tool.name,
             detail
         );
-    }
-}
-
-#[test]
-fn project_tools_route_to_project_manager() {
-    let tools = builtin_tool_entries("builtin".into());
-    for tool_name in [names::MANAGE_PROJECT, names::MANAGE_WORK_ITEM] {
-        let tool = tools
-            .iter()
-            .find(|entry| entry.name == tool_name)
-            .unwrap_or_else(|| panic!("missing project tool metadata for {tool_name}"));
-
-        assert_eq!(
-            tool.simulator_app,
-            SimulatorApp::ProjectManager,
-            "{tool_name}"
-        );
-        assert_eq!(tool.app_subtool, AppSubtool::Project, "{tool_name}");
     }
 }
 

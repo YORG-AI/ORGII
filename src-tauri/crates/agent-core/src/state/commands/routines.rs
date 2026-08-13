@@ -193,7 +193,7 @@ async fn launch_routine_direct_session(
 async fn create_work_item_from_routine(
     routine: &types::RoutineDefinition,
     pending_fire: &types::RoutineFire,
-    app: &tauri::AppHandle,
+    _app: &tauri::AppHandle,
 ) -> Result<types::RoutineFireResult, String> {
     let routine_owned = routine.clone();
     let pending_fire_owned = pending_fire.clone();
@@ -232,6 +232,7 @@ async fn create_work_item_from_routine(
             .unwrap_or_else(|| routine.run_template.prompt.clone());
 
         let frontmatter = types::WorkItemFrontmatter {
+            stage: None,
             id: short_id.clone(),
             short_id: short_id.clone(),
             title,
@@ -246,6 +247,7 @@ async fn create_work_item_from_routine(
             start_date: None,
             target_date: None,
             created_by: Some(ROUTINE_CREATED_BY.to_string()),
+            origin_session: None,
             created_at: now.clone(),
             updated_at: now.clone(),
             deleted_at: None,
@@ -286,16 +288,7 @@ async fn create_work_item_from_routine(
     // requires a project slug (standalone items cannot run the orchestrator).
     if routine.output_policy.auto_start {
         if let Some(slug) = project_slug.as_deref() {
-            match crate::tool_infra::start_work_item_with_reason(
-                slug,
-                &short_id,
-                app,
-                None,
-                None,
-                types::WorkItemExecutionLockReason::RoutineAutoStart,
-            )
-            .await
-            {
+            match enqueue_routine_work_item_run(routine, pending_fire, slug, &short_id).await {
                 Ok(_) => {
                     let fire_id = pending_fire.id.clone();
                     let short_id_for_mark = short_id.clone();
@@ -341,7 +334,7 @@ async fn create_work_item_from_routine(
 async fn update_existing_work_item_from_routine(
     routine: &types::RoutineDefinition,
     pending_fire: &types::RoutineFire,
-    app: &tauri::AppHandle,
+    _app: &tauri::AppHandle,
 ) -> Result<types::RoutineFireResult, String> {
     let short_id = routine
         .output_policy
@@ -406,15 +399,7 @@ async fn update_existing_work_item_from_routine(
         .map_err(|err| format!("Task join error: {}", err))??;
     }
 
-    crate::tool_infra::start_work_item_with_reason(
-        &project_slug,
-        &short_id,
-        app,
-        None,
-        None,
-        types::WorkItemExecutionLockReason::RoutineAutoStart,
-    )
-    .await?;
+    enqueue_routine_work_item_run(routine, pending_fire, &project_slug, &short_id).await?;
 
     let fire_id = pending_fire.id.clone();
     let short_id_for_mark = short_id.clone();
@@ -431,12 +416,66 @@ async fn update_existing_work_item_from_routine(
     })
 }
 
+async fn enqueue_routine_work_item_run(
+    routine: &types::RoutineDefinition,
+    pending_fire: &types::RoutineFire,
+    project_slug: &str,
+    short_id: &str,
+) -> Result<project_management::projects::types::WorkItemRun, String> {
+    let (agent_definition_id, agent_org_id) = match &routine.run_template.target {
+        types::RoutineRunTarget::AgentDefinition {
+            agent_definition_id,
+        } => (agent_definition_id.clone(), None),
+        types::RoutineRunTarget::AgentOrg { agent_org_id } => (None, Some(agent_org_id.clone())),
+    };
+    let request = types::EnqueueWorkItemRunRequest {
+        project_slug: Some(project_slug.to_string()),
+        org_id: types::PERSONAL_ORG_ID.to_string(),
+        work_item_id: short_id.to_string(),
+        trigger: types::WorkItemRunTrigger::Routine {
+            routine_id: routine.id.clone(),
+            fire_id: pending_fire.id.clone(),
+        },
+        target_snapshot: types::WorkItemRunTargetSnapshot {
+            target: types::WorkItemRunTarget::StartWorkItem {
+                account_id: routine.run_template.resources.account_id.clone(),
+                model_id: routine.run_template.resources.model.clone(),
+            },
+            work_item_revision: 0,
+            work_item_title: None,
+            work_item_body: None,
+            project_description: None,
+            workspace_path: routine_workspace_path(&routine.run_template.workspace),
+            repository: None,
+            repository_ref: None,
+            default_branch: None,
+            linked_repositories: Vec::new(),
+            allow_shared_checkout: false,
+            workspace_mode: routine_workspace_mode(&routine.run_template.workspace),
+            agent_definition_id,
+            agent_org_id,
+        },
+        input: serde_json::json!({
+            "prompt": routine.run_template.prompt,
+            "routineName": routine.name,
+            "routineFireId": pending_fire.id,
+        }),
+        idempotency_key: format!("routine-fire:{}", pending_fire.id),
+        max_attempts: 3,
+        parent_run_id: None,
+    };
+    tokio::task::spawn_blocking(move || project_management::work_run_service::enqueue(request))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
+}
+
 fn routine_to_orchestrator_config(routine: &types::RoutineDefinition) -> types::OrchestratorConfig {
     let mut config = types::OrchestratorConfig {
         selected_account_id: routine.run_template.resources.account_id.clone(),
         selected_model_id: routine.run_template.resources.model.clone(),
         agent_mode: routine.run_template.mode.clone(),
         worktree_path: routine_workspace_path(&routine.run_template.workspace),
+        workspace_mode: routine_workspace_mode(&routine.run_template.workspace),
         ..Default::default()
     };
 
@@ -454,6 +493,20 @@ fn routine_to_orchestrator_config(routine: &types::RoutineDefinition) -> types::
     }
 
     config
+}
+
+fn routine_workspace_mode(
+    workspace: &types::RoutineWorkspaceTarget,
+) -> Option<types::WorkspaceExecutionMode> {
+    match workspace {
+        types::RoutineWorkspaceTarget::None => None,
+        types::RoutineWorkspaceTarget::LocalWorkspace { .. } => {
+            Some(types::WorkspaceExecutionMode::LocalWorkspace)
+        }
+        types::RoutineWorkspaceTarget::Worktree { .. } => {
+            Some(types::WorkspaceExecutionMode::Worktree)
+        }
+    }
 }
 
 fn routine_workspace_path(workspace: &types::RoutineWorkspaceTarget) -> Option<String> {
@@ -518,6 +571,7 @@ fn routine_to_launch_request(
     };
 
     AgentRunLaunchRequest {
+        durable_run_id: None,
         content: routine.run_template.prompt.clone(),
         target,
         resources: LaunchResourceSelection {

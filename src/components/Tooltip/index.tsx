@@ -424,9 +424,20 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
     const enterTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const leaveTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
-    // Callback ref for trigger element
+    // Stable composed ref. Recreating the callback ref every time the child
+    // element's identity changes makes React detach (call with `null`) and
+    // reattach (call with the node) on every parent render, so
+    // `setTriggerElement` fires null→node churn each render. A parent that
+    // re-renders in a loop then escalates into React error #185
+    // ("maximum update depth"). Holding the composed ref stable and reading
+    // the latest child ref from a ref means React only invokes it when the
+    // DOM node actually changes — mount and unmount, not every render.
+    const childRefHolder = useRef<React.Ref<HTMLElement> | undefined>(
+      undefined
+    );
     const triggerRef = useCallback((node: HTMLElement | null) => {
-      setTriggerElement(node);
+      setTriggerElement((prev) => (prev === node ? prev : node));
+      applyRef(childRefHolder.current, node);
     }, []);
 
     const isControlled = popupVisible !== undefined;
@@ -644,15 +655,16 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       // used for dropdown positioning). Without this, wrapping an element
       // in Tooltip would silently break refs like useDropdownEngine's
       // triggerRef, causing click-to-open dropdowns to never position.
-      const childRef = originalProps.ref;
-      const composedRef = (node: HTMLElement | null) => {
-        triggerRef(node);
-        applyRef(childRef, node);
-      };
+      // The value is read through `childRefHolder` inside the STABLE
+      // `triggerRef`, so a changing child ref never re-thrashes the DOM ref.
+      // Writing the holder here is idempotent and only read post-commit from
+      // the ref callback — never during render — so it cannot cause tearing.
+      // eslint-disable-next-line react-hooks/refs
+      childRefHolder.current = originalProps.ref;
 
       // eslint-disable-next-line react-hooks/refs
       return cloneElement(children as React.ReactElement<ElementProps>, {
-        ref: composedRef,
+        ref: triggerRef,
         onMouseEnter: (e: React.MouseEvent) => {
           handleMouseEnter();
           originalProps.onMouseEnter?.(e);

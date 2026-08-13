@@ -342,11 +342,14 @@ export const AgentMessageEvent: React.FC<AgentMessageEventProps> = (props) => {
   );
 
   const variant = normalizedProps?.variant ?? props.variant;
+  const isTurnPreviewOnly =
+    props.event?.args?.turnPreviewOnly === true ||
+    normalizedProps?.args?.turnPreviewOnly === true;
 
   if (!normalizedProps && variant !== "chat") return null;
 
   if (variant === "chat") {
-    if (hasUnloadedTurnPayload(props)) return null;
+    if (hasUnloadedTurnPayload(props) && !isTurnPreviewOnly) return null;
 
     return (
       <ChatVariant

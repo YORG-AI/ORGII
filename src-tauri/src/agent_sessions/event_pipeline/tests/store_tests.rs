@@ -1493,7 +1493,9 @@ fn test_unload_turn_body_missing_turn_is_noop() {
     assert_eq!(removed, 0);
     assert!(store.get_by_id("turn-1").is_some());
     assert!(store.get_by_id("turn-1-body-1").is_some());
-    assert!(store.get_by_id("turn-placeholder-turn-does-not-exist").is_none());
+    assert!(store
+        .get_by_id("turn-placeholder-turn-does-not-exist")
+        .is_none());
 }
 
 #[test]

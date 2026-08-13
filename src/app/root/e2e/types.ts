@@ -258,7 +258,10 @@ export interface E2EHelpers {
     body: string
   ) => Promise<{ ok: true } | Err>;
   allocateStandaloneWorkItemId: () => Promise<Result<{ shortId: string }>>;
-  readStandaloneWorkItems: () => Promise<Result<{ items: Json[] }>>;
+  readStandaloneWorkItems: (
+    orgId?: string
+  ) => Promise<Result<{ items: Json[] }>>;
+  readProjectOrgs: () => Promise<Result<{ orgs: Json[] }>>;
   readStandaloneWorkItem: (shortId: string) => Promise<Result<{ item: Json }>>;
   writeStandaloneWorkItem: (
     shortId: string,

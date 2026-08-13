@@ -130,6 +130,21 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
         .ok();
     conn.execute("ALTER TABLE code_sessions ADD COLUMN agent_role TEXT", [])
         .ok();
+    // Product-mode axis (orgtrack/v1 §5.2) for CLI sessions: parity with
+    // agent_sessions so external CLIs can enter Project mode.
+    conn.execute("ALTER TABLE code_sessions ADD COLUMN product_mode TEXT", [])
+        .ok();
+    conn.execute(
+        "UPDATE code_sessions
+         SET product_mode = CASE
+             WHEN work_item_id IS NOT NULL THEN 'project'
+             ELSE 'build'
+         END
+         WHERE product_mode IS NULL
+            OR product_mode NOT IN ('build', 'plan', 'ask', 'project')
+            OR (work_item_id IS NOT NULL AND product_mode != 'project')",
+        [],
+    )?;
 
     // Schema update: add hosted_token column for proxy token release on session cleanup
     conn.execute("ALTER TABLE code_sessions ADD COLUMN hosted_token TEXT", [])
@@ -210,6 +225,15 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
         [],
     )
     .ok();
+    conn.execute(
+        "UPDATE code_sessions
+         SET agent_exec_mode = 'build'
+         WHERE agent_exec_mode IS NULL
+            OR TRIM(agent_exec_mode) = ''
+            OR agent_exec_mode NOT IN ('build', 'ask', 'plan', 'debug', 'review', 'wingman')
+            OR product_mode = 'project'",
+        [],
+    )?;
 
     // P3 — per-session composer state (draft text + reply target).
     // Mirrors the same two columns added to `agent_sessions`; the

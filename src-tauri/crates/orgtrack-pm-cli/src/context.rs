@@ -16,6 +16,7 @@ pub const ENV_MODE: &str = "ORGII_MODE";
 pub const ENV_ACTOR: &str = "ORGII_ACTOR";
 pub const ENV_SCOPE: &str = "ORGII_SCOPE";
 pub const ENV_SESSION_REF: &str = "ORGII_SESSION_REF";
+pub const ENV_ORG: &str = "ORGII_ORG";
 
 pub const ALL_CAPABILITIES: &[&str] = &[
     "work.read",
@@ -176,6 +177,36 @@ impl ExecutionContext {
     }
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionMarker {
+    session_ref: String,
+    actor: String,
+    #[serde(default)]
+    product_mode: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,
+    #[serde(default)]
+    org: Option<String>,
+}
+
+/// Fail-closed session context (design M6): a harness-managed workspace
+/// carries `.orgii/agent_session_context.json`, and inside it the CLI
+/// locks its identity to the marker — the model cannot act as a human
+/// or as another session no matter what flags it types.
+fn read_session_marker() -> Option<SessionMarker> {
+    let mut dir = std::env::current_dir().ok()?;
+    loop {
+        let path = dir.join(".orgii/agent_session_context.json");
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            return serde_json::from_str(&raw).ok();
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
 fn read_manifest() -> Option<WorkspaceManifest> {
     let path = std::env::current_dir().ok()?.join(".orgii/orgtrack.json");
     let raw = std::fs::read_to_string(path).ok()?;
@@ -205,7 +236,10 @@ pub fn resolve(
     let mode = ProductMode::parse(&mode_raw).ok_or_else(|| {
         CliError::new(
             ErrorCode::InvalidArgument,
-            format!("Unknown mode '{}'; expected build|plan|ask|project", mode_raw),
+            format!(
+                "Unknown mode '{}'; expected build|plan|ask|project",
+                mode_raw
+            ),
         )
         .with_details(serde_json::json!({ "field": "--mode", "value": mode_raw }))
     })?;
@@ -246,11 +280,66 @@ pub fn resolve(
         None => None,
     };
 
+    let marker = read_session_marker();
+    let (mode, scope_id, actor, session_ref, marker_org) = if let Some(marker) = marker {
+        let marker_actor = ActorRef::parse(&marker.actor).ok_or_else(|| {
+            CliError::new(
+                ErrorCode::ContextRequired,
+                "Session marker is unreadable; relaunch the session",
+            )
+        })?;
+        if let Some(explicit) = &actor {
+            if explicit.kind != marker_actor.kind || explicit.id != marker_actor.id {
+                return Err(CliError::new(
+                    ErrorCode::PermissionDenied,
+                    format!(
+                        "This workspace is bound to session actor '{}:{}'; --actor/{} may not override it",
+                        marker_actor.kind, marker_actor.id, ENV_ACTOR
+                    ),
+                ));
+            }
+        }
+        let marker_session = SessionRef::parse(&marker.session_ref).ok_or_else(|| {
+            CliError::new(
+                ErrorCode::ContextRequired,
+                "Session marker carries an invalid session ref; relaunch the session",
+            )
+        })?;
+        if let Some(explicit) = &session_ref {
+            if explicit.provider != marker_session.provider
+                || explicit.external_id != marker_session.external_id
+            {
+                return Err(CliError::new(
+                    ErrorCode::PermissionDenied,
+                    "This workspace is bound to another session; --session-ref may not override it",
+                ));
+            }
+        }
+        let mode = match marker.product_mode.as_deref().and_then(ProductMode::parse) {
+            Some(marker_mode) => marker_mode,
+            None => mode,
+        };
+        let scope_id = scope_id.or(marker.scope);
+        (
+            mode,
+            scope_id,
+            Some(marker_actor),
+            Some(marker_session),
+            marker.org,
+        )
+    } else {
+        (mode, scope_id, actor, session_ref, None)
+    };
+
     let capabilities = ExecutionContext::capabilities_for(mode);
     Ok(ExecutionContext {
         mode,
         scope_id,
-        org_id: manifest.as_ref().and_then(|m| m.org_id.clone()),
+        org_id: std::env::var(ENV_ORG)
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| manifest.as_ref().and_then(|m| m.org_id.clone()))
+            .or(marker_org),
         actor,
         session_ref,
         capabilities,

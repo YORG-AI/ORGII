@@ -172,7 +172,7 @@ fn duration_until(deadline: DateTime<Utc>, now: DateTime<Utc>) -> Duration {
 async fn trigger_candidate(
     candidate: &ScheduledWorkItemCandidate,
     reason: &str,
-    app: &tauri::AppHandle,
+    _app: &tauri::AppHandle,
 ) -> Duration {
     let config = candidate.orchestrator_config.clone().unwrap_or_default();
     if config.selected_account_id.is_none() {
@@ -190,22 +190,40 @@ async fn trigger_candidate(
         "[scheduler] Triggering work item {} ({}) in project {}",
         candidate.short_id, reason, candidate.project_slug
     );
-    match crate::tool_infra::start_work_item_with_reason(
-        &candidate.project_slug,
-        &candidate.short_id,
-        app,
-        None,
-        None,
-        project_management::projects::types::WorkItemExecutionLockReason::RoutineAutoStart,
-    )
+    let schedule_key = candidate
+        .schedule
+        .as_ref()
+        .and_then(|schedule| schedule.at.clone())
+        .or_else(|| candidate.start_date.clone())
+        .unwrap_or_else(|| reason.to_string());
+    let request = project_management::projects::types::EnqueueWorkItemRunRequest {
+        project_slug: Some(candidate.project_slug.clone()),
+        org_id: project_management::projects::types::PERSONAL_ORG_ID.to_string(),
+        work_item_id: candidate.short_id.clone(),
+        trigger: project_management::projects::types::WorkItemRunTrigger::Schedule {
+            schedule_key: schedule_key.clone(),
+        },
+        target_snapshot: project_management::projects::types::WorkItemRunTargetSnapshot::new(
+            project_management::projects::types::WorkItemRunTarget::StartWorkItem {
+                account_id: config.selected_account_id.clone(),
+                model_id: config.selected_model_id.clone(),
+            },
+        ),
+        input: serde_json::json!({ "reason": reason }),
+        idempotency_key: format!("schedule:{schedule_key}"),
+        max_attempts: 3,
+        parent_run_id: None,
+    };
+    match tokio::task::spawn_blocking(move || {
+        project_management::work_run_service::enqueue(request)
+    })
     .await
     {
-        Ok(msg) => {
-            info!("[scheduler] Started: {}", msg);
-            update_status_in_progress(&candidate.project_slug, &candidate.short_id).await;
+        Ok(Ok(run)) => {
+            info!("[scheduler] Queued durable Run: {}", run.id);
             Duration::from_secs(MAX_IDLE_RESCAN_SECS)
         }
-        Err(err) => {
+        Ok(Err(err)) => {
             warn!(
                 "[scheduler] Failed to start {}: {}",
                 candidate.short_id, err
@@ -219,24 +237,13 @@ async fn trigger_candidate(
             .await;
             Duration::from_secs(FAILED_START_RETRY_SECS)
         }
-    }
-}
-
-async fn update_status_in_progress(slug: &str, short_id: &str) {
-    let slug = slug.to_string();
-    let short_id = short_id.to_string();
-    match tokio::task::spawn_blocking(move || {
-        io::update_work_item_atomic(&slug, &short_id, |fm, _body| {
-            fm.status = "in_progress".to_string();
-            fm.updated_at = Utc::now().to_rfc3339();
-            Ok(fm.title.clone())
-        })
-    })
-    .await
-    {
-        Ok(Ok(_)) => {}
-        Ok(Err(err)) => warn!("[scheduler] Status update failed: {}", err),
-        Err(err) => warn!("[scheduler] Status update worker failed: {}", err),
+        Err(err) => {
+            warn!(
+                "[scheduler] Failed to enqueue {}: {}",
+                candidate.short_id, err
+            );
+            Duration::from_secs(FAILED_START_RETRY_SECS)
+        }
     }
 }
 
@@ -297,7 +304,10 @@ pub fn migrate_cron_schedules() -> Result<usize, String> {
                 name: format!("Recurring: {}", fm.title),
                 description: format!("Migrated from work item {} recurring schedule", fm.short_id),
                 enabled: true,
-                trigger: RoutineTrigger::Cron { cron },
+                trigger: RoutineTrigger::Cron {
+                    cron,
+                    timezone: "UTC".to_string(),
+                },
                 run_template: RoutineRunTemplate {
                     prompt: fm.title.clone(),
                     target: RoutineRunTarget::AgentDefinition {
@@ -321,6 +331,11 @@ pub fn migrate_cron_schedules() -> Result<usize, String> {
                 },
                 last_evaluated_at: None,
                 next_fire_at: None,
+                last_fire_at: None,
+                last_fire_status: None,
+                last_fire_error: None,
+                last_fire_session_id: None,
+                last_fire_work_item_id: None,
                 created_at: String::new(),
                 updated_at: String::new(),
             };
@@ -511,9 +526,11 @@ mod tests {
             labels: vec![],
             milestone: None,
             parent: None,
+            stage: None,
             start_date: start_date.map(|s| s.to_string()),
             target_date: None,
             created_by: None,
+            origin_session: None,
             created_at: "2025-01-01T00:00:00Z".into(),
             updated_at: "2025-01-01T00:00:00Z".into(),
             deleted_at: None,

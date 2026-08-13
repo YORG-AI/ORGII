@@ -63,6 +63,7 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
   showActionFlyouts = false,
   onImageUpload,
   showModeRows = true,
+  includeProjectMode = false,
   addressComments,
 }) => {
   const { t } = useTranslation("sessions");
@@ -81,6 +82,7 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     showActionFlyouts,
     hasImageUpload: Boolean(onImageUpload),
     showModeRows,
+    includeProjectMode,
   });
 
   const [highlightIndex, setHighlightIndex] = useState(0);

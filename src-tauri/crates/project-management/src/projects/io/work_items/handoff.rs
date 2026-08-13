@@ -134,6 +134,7 @@ pub fn transition_standalone_work_item_handoff(
         org_id,
         short_id,
         Some(&transition.actor),
+        crate::projects::io::work_items::atomic::AtomicServiceOptions::default(),
         |frontmatter, _body| {
             let handoff = frontmatter
                 .handoff

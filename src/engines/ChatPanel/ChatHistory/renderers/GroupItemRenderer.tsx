@@ -35,7 +35,7 @@ import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import { NewEventDivider } from "../components/NewEventDivider";
 import TurnMetadataFooterSlot from "../components/TurnMetadataFooterSlot";
 import { CHAT_FOOTER_SPACER } from "../config/chatFooterSpacer";
-import { getUnloadedTurnMeta } from "../hooks/useChatGroups";
+import { getUnloadedTurnMeta, isTurnPreviewItem } from "../hooks/useChatGroups";
 import { ChatItemRenderer } from "./ChatItemRenderer";
 import ChatItemWrap from "./ChatItemWrap";
 
@@ -454,13 +454,15 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
     );
 
     const isStructuralUnloadedTurnItem = getUnloadedTurnMeta(chatItem) !== null;
+    const isHiddenUnloadedTurnItem =
+      isStructuralUnloadedTurnItem && !isTurnPreviewItem(chatItem);
     const isStructuralOnlyItem = chatItem?.structuralOnly === true;
     const groupMessageWrapClass = showGroupBubbleSenderChrome
       ? "!pt-2 !pb-0"
       : "!pt-1 !pb-0";
 
     const renderedItem =
-      chatItem && !isStructuralUnloadedTurnItem && !isStructuralOnlyItem ? (
+      chatItem && !isHiddenUnloadedTurnItem && !isStructuralOnlyItem ? (
         inboxTranscriptLabel && event ? (
           <ChatItemWrap variant="text" className="!py-1">
             <InboxTranscriptCard event={event} title={inboxTranscriptLabel} />

@@ -698,6 +698,7 @@ export function useInputArea(
     handleSlashAppendSelect: slashCommand.handleSlashAppendSelect,
     handleModeSelect: slashCommand.handleModeSelect,
     currentMode: slashCommand.currentMode,
+    includeProjectMode: slashCommand.includeProjectMode,
     filteredSlashItems: slashCommand.filteredItems,
     slashLoading: slashCommand.slashLoading,
     prefetchSlashItems: slashCommand.prefetchItems,

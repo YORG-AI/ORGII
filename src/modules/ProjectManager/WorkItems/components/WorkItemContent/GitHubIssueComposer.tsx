@@ -4,7 +4,10 @@ import { useTranslation } from "react-i18next";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
-import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import ComposerSurface from "@src/components/ComposerSurface";
+import RichMarkdownEditor, {
+  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS,
+} from "@src/modules/shared/components/RichMarkdownEditor";
 import { LoadingBar } from "@src/modules/shared/layouts/blocks";
 
 import GitHubIssueCloseButton from "./GitHubIssueCloseButton";
@@ -73,7 +76,7 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
     <section
       data-testid="github-issue-inline-composer"
       aria-label={t("git.issues.composer.addComment")}
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-1.5"
     >
       {interaction.canManageStatus ? (
         <div
@@ -87,37 +90,12 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
         </div>
       ) : null}
 
-      <ComposerShell
+      <ComposerSurface
         variant="default"
-        className="!gap-0 overflow-visible !p-0"
+        className="overflow-visible !pt-1.5"
         data-testid="github-issue-comment-input"
-      >
-        <RichMarkdownEditor
-          value={commentBody}
-          onChange={(markdown) => setCommentBody(markdown)}
-          onSubmit={() => void handleComment()}
-          placeholder={t("git.issues.composer.commentPlaceholder")}
-          minHeight={100}
-          maxHeight={500}
-          appearance="plain"
-          toolbarMode="inline"
-          toolbarSize="mini"
-          toolbarClassName="!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5"
-          toolbarDropdownPosition="top-start"
-          editable={interaction.canComment && !interaction.submittingComment}
-          dataTestId="github-issue-comment-editor"
-        />
-
-        {interaction.error ? (
-          <p className="px-3 pb-2 text-xs text-danger-6" role="status">
-            {interaction.error === "comment"
-              ? t("git.issues.composer.commentFailed")
-              : t("git.issues.composer.statusFailed")}
-          </p>
-        ) : null}
-
-        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-2 py-1.5">
-          {interaction.viewer ? (
+        leadingActions={
+          interaction.viewer ? (
             <div
               className="flex min-w-0 items-center gap-2"
               data-testid="github-issue-comment-viewer"
@@ -136,12 +114,13 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
             <span className="text-xs text-text-3">
               {t("git.issues.composer.identityUnavailable")}
             </span>
-          )}
-
+          )
+        }
+        trailingActions={
           <Button
             htmlType="button"
             variant="primary"
-            size="default"
+            size="small"
             shape="round"
             loading={interaction.submittingComment}
             disabled={!hasComment || !interaction.canComment}
@@ -150,8 +129,32 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
           >
             {t("git.issues.composer.submitComment")}
           </Button>
-        </div>
-      </ComposerShell>
+        }
+      >
+        <RichMarkdownEditor
+          value={commentBody}
+          onChange={(markdown) => setCommentBody(markdown)}
+          onSubmit={() => void handleComment()}
+          placeholder={t("git.issues.composer.commentPlaceholder")}
+          minHeight={100}
+          maxHeight={500}
+          appearance="plain"
+          toolbarMode="inline"
+          toolbarSize="mini"
+          toolbarClassName={RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS}
+          toolbarDropdownPosition="top-start"
+          editable={interaction.canComment && !interaction.submittingComment}
+          dataTestId="github-issue-comment-editor"
+        />
+
+        {interaction.error ? (
+          <p className="px-3 pb-2 text-xs text-danger-6" role="status">
+            {interaction.error === "comment"
+              ? t("git.issues.composer.commentFailed")
+              : t("git.issues.composer.statusFailed")}
+          </p>
+        ) : null}
+      </ComposerSurface>
     </section>
   );
 };

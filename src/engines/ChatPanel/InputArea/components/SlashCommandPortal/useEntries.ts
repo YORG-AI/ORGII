@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 
-import { AGENT_EXEC_MODES } from "@src/config/sessionCreatorConfig";
+import {
+  AGENT_EXEC_MODES,
+  COMPOSER_MODES,
+} from "@src/config/sessionCreatorConfig";
 import type { SlashItem } from "@src/types/extensions";
 import { fuzzyMatch } from "@src/util/search/fuzzy";
 
@@ -19,6 +22,8 @@ interface UseEntriesOptions {
   hasImageUpload: boolean;
   /** When false, hides mode rows in inline search results. */
   showModeRows?: boolean;
+  /** Offer the Project product mode alongside the exec modes (§5.2). */
+  includeProjectMode?: boolean;
 }
 
 interface UseEntriesResult {
@@ -45,6 +50,7 @@ export function useEntries({
   showActionFlyouts,
   hasImageUpload,
   showModeRows = true,
+  includeProjectMode = false,
 }: UseEntriesOptions): UseEntriesResult {
   return useMemo(() => {
     const result: ListEntry[] = [];
@@ -57,8 +63,11 @@ export function useEntries({
         !query ||
         fuzzyMatch(query, "Upload Image") ||
         fuzzyMatch(query, "Image");
+      const modeEntries = includeProjectMode
+        ? COMPOSER_MODES
+        : AGENT_EXEC_MODES;
       const matchedModes = showModeRows
-        ? AGENT_EXEC_MODES.filter(
+        ? modeEntries.filter(
             (mode) =>
               !query ||
               fuzzyMatch(query, mode.name) ||
@@ -189,7 +198,9 @@ export function useEntries({
 
     // Mode rows when showActionFlyouts=false and searching (filter by query)
     if (showModeRows && !showActionFlyouts && isSearching) {
-      const matchedModes = AGENT_EXEC_MODES.filter(
+      const matchedModes = (
+        includeProjectMode ? COMPOSER_MODES : AGENT_EXEC_MODES
+      ).filter(
         (m) => fuzzyMatch(searchQuery, m.name) || fuzzyMatch(searchQuery, m.id)
       );
       if (matchedModes.length > 0) {
@@ -227,5 +238,12 @@ export function useEntries({
     }
 
     return { entries: result, totalFlat: idx };
-  }, [items, searchQuery, showActionFlyouts, hasImageUpload, showModeRows]);
+  }, [
+    items,
+    searchQuery,
+    showActionFlyouts,
+    hasImageUpload,
+    showModeRows,
+    includeProjectMode,
+  ]);
 }

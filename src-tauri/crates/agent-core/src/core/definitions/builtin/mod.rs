@@ -19,10 +19,10 @@
 //!
 //! The old gateway router and specialist-agent wrappers were retired:
 //! - The gateway router pattern rejected general conversational traffic.
-//! - Specialist wrappers only wrapped 2-3 tools each (`manage_project`,
-//!   `manage_work_item`, `manage_agent_def`); making them parent-callable
-//!   tools on OS Agent removes a delegation hop and lets users
-//!   toggle them on/off per agent like any other built-in tool.
+//! - Specialist wrappers only wrapped 2-3 tools each (e.g.
+//!   `manage_agent_def`); making them parent-callable tools on OS Agent
+//!   removes a delegation hop and lets users toggle them on/off per
+//!   agent like any other built-in tool.
 
 mod ade_manager;
 mod ai_research;

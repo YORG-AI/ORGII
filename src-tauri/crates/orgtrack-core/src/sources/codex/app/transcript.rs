@@ -53,6 +53,7 @@ struct CodexTurnCatalogEntry {
     byte_offset: u64,
     started_at: String,
     user_preview: String,
+    last_agent_preview: Option<String>,
     following_line_count: usize,
 }
 
@@ -372,6 +373,7 @@ impl<'a> CodexTranscriptCollector<'a> {
     }
 
     fn compact_completed_turn(&mut self, completed: CompletedCodexTurn) {
+        let last_agent_preview = last_assistant_preview_from_chunks(&completed.chunks);
         if let Some(user_chunk) = completed.chunks.into_iter().find(is_codex_user_chunk) {
             let compacted_limit = match &self.mode {
                 CodexTranscriptCollectionMode::Initial { recent_turn_count } => {
@@ -392,6 +394,7 @@ impl<'a> CodexTranscriptCollector<'a> {
                     self.session_id,
                     &completed.summary,
                     completed.next_turn_id,
+                    last_agent_preview.as_deref(),
                 ),
             ]);
         }
@@ -423,6 +426,21 @@ fn is_codex_user_chunk(chunk: &ActivityChunk) -> bool {
     chunk.function == imported_history::FUNCTION_USER_MESSAGE
 }
 
+fn last_assistant_preview_from_chunks(chunks: &[ActivityChunk]) -> Option<String> {
+    chunks.iter().rev().find_map(|chunk| {
+        if chunk.function != imported_history::FUNCTION_ASSISTANT {
+            return None;
+        }
+        chunk
+            .result
+            .get("observation")
+            .or_else(|| chunk.result.get("content"))
+            .and_then(Value::as_str)
+            .filter(|message| !message.trim().is_empty())
+            .map(bounded_codex_turn_preview)
+    })
+}
+
 fn codex_sequence_from_chunk_id(chunk_id: &str) -> Option<i64> {
     chunk_id.rsplit('-').next()?.parse().ok()
 }
@@ -431,15 +449,22 @@ fn build_unloaded_turn_placeholder_chunk(
     session_id: &str,
     turn: &ProjectedTurnMetadata,
     next_turn_id: Option<String>,
+    last_agent_preview: Option<&str>,
 ) -> ActivityChunk {
+    let internal_placeholder = format!("Codex turn {} is not loaded yet.", turn.turn_id);
+    let display_content = last_agent_preview.unwrap_or(&internal_placeholder);
     let mut chunk = ActivityChunk::new(session_id, "assistant", "assistant");
     chunk.chunk_id = format!("codex-unloaded-turn-{}", turn.turn_id);
     chunk.created_at = turn
         .ended_at
         .clone()
         .unwrap_or_else(|| turn.started_at.clone());
+    if last_agent_preview.is_some() {
+        chunk.args = json!({ "turnPreviewOnly": true });
+    }
     chunk.result = json!({
-        "observation": format!("Codex turn {} is not loaded yet.", turn.turn_id),
+        "observation": display_content,
+        "content": display_content,
         "role": "assistant",
         "is_delta": false,
         "is_full_content": true,
@@ -579,11 +604,11 @@ pub fn load_codex_app_turn_from_path(
         sequence: initial_sequence,
     }];
     if start_offset > 0 {
-        if let Some(previous_offset) = find_recent_codex_user_offsets(path, start_offset, 1)?
+        if let Some(previous_entry) = find_recent_codex_user_offsets(path, start_offset, 1)?
             .into_iter()
             .next()
-            .map(|entry| entry.byte_offset)
         {
+            let previous_offset = previous_entry.byte_offset;
             if let Some((previous_user, mut previous_summary)) =
                 load_codex_turn_header(session_id, path, previous_offset)?
             {
@@ -602,6 +627,7 @@ pub fn load_codex_app_turn_from_path(
                     session_id,
                     &previous_summary,
                     Some(turn_id.to_string()),
+                    previous_entry.last_agent_preview.as_deref(),
                 ));
                 remembered_offsets.push(CodexTurnOffset {
                     turn_id: previous_summary.turn_id,
@@ -717,6 +743,7 @@ fn load_codex_app_initial_tail_window(
             session_id,
             &summary,
             next_turn_id,
+            entry.last_agent_preview.as_deref(),
         ));
         turns.push(summary);
     }
@@ -934,6 +961,7 @@ fn find_codex_user_offsets_in_range(
     let mut discarding_oversized_line = false;
     let mut entries = Vec::with_capacity(limit.min(CODEX_INITIAL_TURN_LIMIT));
     let mut lines_since_boundary = 0usize;
+    let mut last_agent_preview = None;
 
     while cursor > after_inclusive && entries.len() < limit {
         let block_start = cursor
@@ -965,6 +993,7 @@ fn find_codex_user_offsets_in_range(
                     &mut entries,
                     limit,
                     &mut lines_since_boundary,
+                    &mut last_agent_preview,
                 );
             } else {
                 skipped_boundary_fragment = true;
@@ -988,6 +1017,7 @@ fn find_codex_user_offsets_in_range(
                     &mut entries,
                     limit,
                     &mut lines_since_boundary,
+                    &mut last_agent_preview,
                 );
             }
         } else if discarding_oversized_line {
@@ -1010,12 +1040,43 @@ fn observe_codex_catalog_line(
     entries: &mut Vec<CodexTurnCatalogEntry>,
     limit: usize,
     lines_since_boundary: &mut usize,
+    last_agent_preview: &mut Option<String>,
 ) {
     const USER_MESSAGE_NEEDLE: &[u8] = b"\"user_message\"";
+    const AGENT_MESSAGE_NEEDLE: &[u8] = b"\"agent_message\"";
+    const ASSISTANT_ROLE_NEEDLE: &[u8] = b"\"assistant\"";
     if line.is_empty() {
         return;
     }
-    if entries.len() >= limit || memmem::find(line, USER_MESSAGE_NEEDLE).is_none() {
+    if entries.len() >= limit {
+        return;
+    }
+    if memmem::find(line, USER_MESSAGE_NEEDLE).is_none() {
+        if last_agent_preview.is_none()
+            && (memmem::find(line, AGENT_MESSAGE_NEEDLE).is_some()
+                || memmem::find(line, ASSISTANT_ROLE_NEEDLE).is_some())
+        {
+            if let Ok(parsed) = serde_json::from_slice::<CodexJsonlLine>(line) {
+                let payload_type = parsed.payload.get("type").and_then(Value::as_str);
+                let message = match payload_type {
+                    Some("agent_message") => parsed
+                        .payload
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .map(ToString::to_string),
+                    Some("message")
+                        if parsed.payload.get("role").and_then(Value::as_str)
+                            == Some("assistant") =>
+                    {
+                        content_text_from_payload(&parsed.payload)
+                    }
+                    _ => None,
+                };
+                *last_agent_preview = message
+                    .filter(|message| !message.trim().is_empty())
+                    .map(|message| bounded_codex_turn_preview(&message));
+            }
+        }
         *lines_since_boundary = lines_since_boundary.saturating_add(1);
         return;
     }
@@ -1040,6 +1101,7 @@ fn observe_codex_catalog_line(
         byte_offset,
         started_at,
         user_preview: bounded_codex_turn_preview(&message),
+        last_agent_preview: last_agent_preview.take(),
         following_line_count: *lines_since_boundary,
     });
     *lines_since_boundary = 0;

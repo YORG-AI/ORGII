@@ -10,7 +10,7 @@ import type {
 } from "react";
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
-import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type { MenuItemId } from "@src/scaffold/ContextMenu/config";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
 import type { SlashItem } from "@src/types/extensions/types";
@@ -208,8 +208,9 @@ export interface UseInputAreaReturn {
   handleSlashCommandClose: () => void;
   handleSlashSelect: (item: SlashItem) => void;
   handleSlashAppendSelect: (item: SlashItem) => void;
-  handleModeSelect: (mode: AgentExecMode) => void;
-  currentMode: AgentExecMode;
+  handleModeSelect: (mode: ComposerModeEntry["id"]) => void;
+  currentMode: ComposerModeEntry["id"];
+  includeProjectMode: boolean;
   filteredSlashItems: SlashItem[];
   slashLoading: boolean;
   prefetchSlashItems: (query: string) => void;

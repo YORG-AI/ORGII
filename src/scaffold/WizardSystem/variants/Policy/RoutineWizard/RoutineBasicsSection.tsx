@@ -7,6 +7,7 @@ import Select from "@src/components/Select";
 import Textarea from "@src/components/Textarea";
 import TimePicker from "@src/components/TimePicker";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { useTimezoneSelect } from "@src/hooks/geo/useTimezoneSelect";
 import {
   type CronParts,
   type ScheduleFrequency,
@@ -38,6 +39,13 @@ const RoutineBasicsSection: React.FC<RoutineBasicsSectionProps> = ({
   onOpenAgentPalette,
 }) => {
   const { t } = useTranslation("integrations");
+  const timezoneSelectProps = useTimezoneSelect({
+    value: draft.timezone,
+    onChange: (value) => updateDraft("timezone", value),
+    excludeAuto: true,
+    offsetPrefix: "UTC",
+    style: SECTION_CONTROL_STYLE,
+  });
 
   const triggerOptions = useMemo(
     () => [
@@ -236,29 +244,43 @@ const RoutineBasicsSection: React.FC<RoutineBasicsSectionProps> = ({
                     onChange={(hour, minute) =>
                       updateCronParts({ ...cronParts, hour, minute })
                     }
-                    variant="ghost"
+                    appearance="ghost"
+                  />
+                </SectionRow>
+                <SectionRow label={t("common:common.timezone")} indent>
+                  <Select
+                    {...timezoneSelectProps}
+                    dataTestId="routine-wizard-timezone-select"
                   />
                 </SectionRow>
               </>
             )}
             {draft.customCron && (
-              <SectionRow
-                label={t("routineFields.cronExpression")}
-                required
-                indent
-              >
-                <Input
-                  value={draft.cron}
-                  onChange={(value) => updateDraft("cron", value)}
-                  placeholder="0 9 * * 1"
-                  size="default"
-                  style={SECTION_CONTROL_STYLE}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  data-testid="routine-wizard-cron-input"
-                />
-              </SectionRow>
+              <>
+                <SectionRow
+                  label={t("routineFields.cronExpression")}
+                  required
+                  indent
+                >
+                  <Input
+                    value={draft.cron}
+                    onChange={(value) => updateDraft("cron", value)}
+                    placeholder="0 9 * * 1"
+                    size="default"
+                    style={SECTION_CONTROL_STYLE}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    data-testid="routine-wizard-cron-input"
+                  />
+                </SectionRow>
+                <SectionRow label={t("common:common.timezone")} indent>
+                  <Select
+                    {...timezoneSelectProps}
+                    dataTestId="routine-wizard-timezone-select"
+                  />
+                </SectionRow>
+              </>
             )}
             <SectionRow label="" indent>
               <button

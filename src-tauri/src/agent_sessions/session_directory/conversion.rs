@@ -164,9 +164,7 @@ pub fn cli_session_to_aggregate_record(
         agent_icon_id: None,
         agent_display_name: None,
         agent_exec_mode: session.agent_exec_mode,
-        // CLI sessions carry no product mode yet (code_sessions has no
-        // column); None = build, the safe non-mutating default.
-        product_mode: None,
+        product_mode: session.product_mode,
         draft_text: session.draft_text,
         reply_target_event_id: session.reply_target_event_id,
         pinned: session.pinned,

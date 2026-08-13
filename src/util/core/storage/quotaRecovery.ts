@@ -9,7 +9,7 @@
 
 export const BROWSER_CACHE_STORAGE_KEYS = {
   githubIssues: "orgii.ghcache.issues.v2",
-  githubPullRequests: "orgii.ghcache.prs.v3",
+  githubPullRequests: "orgii.ghcache.prs.v4",
   sessionList: "orgii:sessionsAtom:v1",
 } as const;
 
@@ -17,6 +17,7 @@ const OBSOLETE_BROWSER_CACHE_KEYS = new Set([
   "orgii.ghcache.issues.v1",
   "orgii.ghcache.prs.v1",
   "orgii.ghcache.prs.v2",
+  "orgii.ghcache.prs.v3",
 ]);
 
 const GITHUB_CACHE_PREFIX = "orgii.ghcache.";

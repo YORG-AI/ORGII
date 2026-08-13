@@ -24,6 +24,7 @@ import {
   PILL_SM_LABEL_CLASS,
 } from "@src/components/CompoundPill/config";
 import Tooltip, { type TooltipPosition } from "@src/components/Tooltip";
+import type { BareControlAppearance } from "@src/components/controlAppearance";
 
 // ── Size variants ────────────────────────────────────────────────────────────
 // "sm" — h-[28px] px-3 text-[12px]  14px icon  (toolbar pills: ModePill, RunningLocationPill)
@@ -60,7 +61,6 @@ const ICON_SIZES = {
 } as const;
 
 export type SelectorPillSize = keyof typeof SIZE_CLASSES;
-export type SelectorPillVariant = "default" | "ghost";
 
 interface SelectorPillContentProps {
   icon: React.ReactNode;
@@ -73,6 +73,7 @@ interface SelectorPillContentProps {
   hoverIcon?: React.ReactNode;
   iconColor: string;
   chevronColor: string;
+  chevronClassName?: string;
   labelColor: string;
   labelClassName?: string;
   iconSize: number;
@@ -90,6 +91,7 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
   hoverIcon,
   iconColor,
   chevronColor,
+  chevronClassName,
   labelColor,
   labelClassName,
   iconSize,
@@ -159,7 +161,7 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
 
       {trailingChevron && !textOnly && (
         <span
-          className={`inline-flex shrink-0 items-center justify-center ${chevronColor}`}
+          className={`inline-flex shrink-0 items-center justify-center ${chevronColor} ${chevronClassName ?? ""}`}
         >
           {active ? (
             <ChevronUp size={14} strokeWidth={2} />
@@ -189,14 +191,16 @@ export interface SelectorPillProps {
   tooltipFramedWide?: boolean;
   /** Tooltip position — defaults to "top" */
   tooltipPosition?: TooltipPosition;
+  /** Delay before showing the tooltip. Defaults to 400 ms. */
+  tooltipMouseEnterDelay?: number;
   /** Whether the pill is in an open/active state */
   active?: boolean;
   /** Render label in danger color to signal a missing required selection */
   danger?: boolean;
   /** Size variant */
   size?: SelectorPillSize;
-  /** Visual variant */
-  variant?: SelectorPillVariant;
+  /** Visual appearance */
+  appearance?: BareControlAppearance;
   /** Show a persistent right-side chevron instead of swapping the leading icon on hover */
   trailingChevron?: boolean;
   /** Label-only trigger — no leading icon slot and no hover chevron. */
@@ -210,8 +214,11 @@ export interface SelectorPillProps {
   onFocus?: React.FocusEventHandler<HTMLButtonElement>;
   onBlur?: React.FocusEventHandler<HTMLButtonElement>;
   ariaLabel?: string;
+  ariaExpanded?: boolean;
   className?: string;
   labelClassName?: string;
+  /** Additional classes for the persistent trailing chevron. */
+  chevronClassName?: string;
   labelStyle?: React.CSSProperties;
   dataTestId?: string;
   disabled?: boolean;
@@ -228,9 +235,11 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       tooltipFramed = false,
       tooltipFramedWide = false,
       tooltipPosition = "top",
+      tooltipMouseEnterDelay = 400,
       active = false,
       danger = false,
       size = "sm",
+      appearance = "default",
       trailingChevron = false,
       textOnly = false,
       hoverIcon,
@@ -241,29 +250,35 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       onFocus,
       onBlur,
       ariaLabel,
+      ariaExpanded,
       className = "",
       labelClassName,
+      chevronClassName,
       labelStyle,
       dataTestId,
       disabled,
     },
     ref
   ) => {
+    const idleColor = "text-text-1";
     const labelColor = danger
       ? "text-primary-6"
       : active
         ? "text-primary-6"
-        : "text-text-1";
+        : idleColor;
     const iconSize = ICON_SIZES[size];
-    const iconColor = danger ? "text-primary-6" : "text-text-1";
+    const iconColor = danger ? "text-primary-6" : idleColor;
     const chevronColor = danger
       ? "text-primary-6"
       : active
         ? "text-primary-6"
-        : "text-text-1";
-    const variantClasses = active
-      ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
-      : PILL_CONTROL_HOVER_CLASS;
+        : idleColor;
+    const appearanceClasses =
+      appearance === "bare"
+        ? ""
+        : active
+          ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
+          : PILL_CONTROL_HOVER_CLASS;
 
     // Controlled tooltip visibility so that opening the dropdown (active=true)
     // immediately hides the tooltip instead of leaving it covering the panel.
@@ -291,9 +306,10 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
         onBlur={onBlur}
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-expanded={ariaExpanded}
         data-testid={dataTestId}
         title={tooltip ? undefined : (title ?? label)}
-        className={`group/pill flex min-w-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${buttonSizeClass} ${labelClassName ? "font-normal" : "font-medium"} ${variantClasses} ${className}`}
+        className={`group/pill flex min-w-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${buttonSizeClass} ${labelClassName ? "font-normal" : "font-medium"} ${appearanceClasses} ${className}`}
       >
         <SelectorPillContent
           icon={icon}
@@ -306,6 +322,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
           hoverIcon={hoverIcon}
           iconColor={iconColor}
           chevronColor={chevronColor}
+          chevronClassName={chevronClassName}
           labelColor={labelColor}
           labelClassName={labelClassName}
           iconSize={iconSize}
@@ -319,7 +336,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
         <Tooltip
           content={tooltip}
           position={tooltipPosition}
-          mouseEnterDelay={400}
+          mouseEnterDelay={tooltipMouseEnterDelay}
           popupVisible={tooltipVisible}
           onVisibleChange={handleTooltipVisibleChange}
           framedPanel={tooltipFramed}

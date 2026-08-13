@@ -36,6 +36,7 @@ import {
 } from "@src/store/session";
 import { lastUserMessageAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
+import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefaultProductModeAtom";
 import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
 import { worktreeLaunchSelectionAtom } from "@src/store/session/worktreeLaunchSourceAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
@@ -101,6 +102,7 @@ export function useSessionLaunch(
   const selectedAgentDefId = useAtomValue(selectedAgentDefinitionIdAtom);
   const selectedAgentOrgId = useAtomValue(selectedAgentOrgIdAtom);
   const agentExecMode = useAtomValue(creatorDefaultExecModeAtom);
+  const creatorProductMode = useAtomValue(creatorDefaultProductModeAtom);
   const runningLocation = useAtomValue(runningLocationAtom);
   const worktreeLaunchSelection = useAtomValue(worktreeLaunchSelectionAtom);
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
@@ -212,6 +214,13 @@ export function useSessionLaunch(
 
       const result = await sessionLaunch({
         ...launchParams,
+        // Creator-selected Project mode (§5.2): stamp the product axis on
+        // kinds that carry it. An explicit work-item context wins below.
+        ...(creatorProductMode &&
+        !resolvedWorkItemContext?.productMode &&
+        (dispatchCategory === "rust_agent" || dispatchCategory === "cli_agent")
+          ? { productMode: creatorProductMode }
+          : {}),
         ...(resolvedWorkItemContext
           ? {
               orgId: resolvedWorkItemContext.orgId,
@@ -228,6 +237,9 @@ export function useSessionLaunch(
                     agentDefinitionId:
                       resolvedWorkItemContext.agentDefinitionId,
                   }
+                : {}),
+              ...(resolvedWorkItemContext.agentExecMode
+                ? { mode: resolvedWorkItemContext.agentExecMode }
                 : {}),
               agentRole: resolvedWorkItemContext.agentRole,
               projectSlug: resolvedWorkItemContext.projectSlug,
@@ -337,6 +349,7 @@ export function useSessionLaunch(
     editorContent,
     t,
     guardAgainstSecrets,
+    creatorProductMode,
     effectiveSource,
     composerInputRef,
     launchMode,

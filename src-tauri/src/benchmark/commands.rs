@@ -43,6 +43,7 @@ use super::launch::{
 use super::paths::benchmark_agent_submission_patch_path;
 use super::preflight::{run_swe_bench_preflight, run_terminal_bench_preflight};
 use super::process::terminate_process;
+use super::retention::{prune_terminal_agent_batches, prune_terminal_runs};
 use super::run::trim_logs;
 use super::swe_bench::{
     build_swe_bench_run_plan, run_swe_bench_patch_only_worktree, run_swe_bench_process,
@@ -215,7 +216,9 @@ pub async fn benchmark_cancel_run(
                 .push("Cancel requested for evaluator process.".to_string());
             trim_logs(&mut status.logs);
         }
-        status.process_id
+        let process_id = status.process_id;
+        prune_terminal_runs(&mut runs);
+        process_id
     };
 
     if let Some(pid) = process_id {
@@ -623,6 +626,7 @@ pub async fn benchmark_cancel_agent_batch(
     batch.finished_at = Some(now);
     refresh_agent_batch_counts(batch);
     let status = batch.clone();
+    prune_terminal_agent_batches(&mut batches);
     drop(batches);
     persist_agent_batch_status(&status)?;
     Ok(status)

@@ -19,8 +19,10 @@ import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/ContextMenuPortal";
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
 import { useComposerInput } from "@src/hooks/input";
-import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
-import type { RichMarkdownEditorRef } from "@src/modules/shared/components/RichMarkdownEditor";
+import RichMarkdownEditor, {
+  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS,
+  type RichMarkdownEditorRef,
+} from "@src/modules/shared/components/RichMarkdownEditor";
 import type { SlashItem } from "@src/types/extensions";
 
 export interface ProjectContentEditorRef {
@@ -65,10 +67,14 @@ export interface ProjectContentEditorProps {
   titleActions?: ReactNode;
   metaContent?: ReactNode;
   descriptionClassName?: string;
+  /** Formatting controls for the description editor. */
+  descriptionToolbarMode?: "floating" | "inline";
   descriptionMinHeight?: number;
   descriptionMaxHeight?: number | string;
   repoPath?: string | null;
   dataTestId?: string;
+  /** Direction used by @ mention and slash-command menus. */
+  dropdownDirection?: "up" | "down";
 }
 
 export const ProjectContentTitleInput = forwardRef<
@@ -95,8 +101,7 @@ export const ProjectContentTitleInput = forwardRef<
         placeholder={titlePlaceholder}
         autoFocus={autoFocusTitle}
         readOnly={!editable}
-        borderless
-        bgless
+        appearance="bare"
         autoHeight
         className="mb-1 min-w-0 flex-1"
         inputClassName={`text-[22px] font-semibold text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
@@ -137,10 +142,12 @@ const ProjectContentEditor = forwardRef<
       titleActions,
       metaContent,
       descriptionClassName = "",
+      descriptionToolbarMode = "floating",
       descriptionMinHeight = 200,
       descriptionMaxHeight,
       repoPath,
       dataTestId,
+      dropdownDirection = "down",
     },
     ref
   ) => {
@@ -349,8 +356,7 @@ const ProjectContentEditor = forwardRef<
             onChange={(nextSummary) => onSummaryChange?.(nextSummary)}
             placeholder={summaryPlaceholder}
             readOnly={!editable && !onSummaryChange}
-            borderless
-            bgless
+            appearance="bare"
             autoHeight
             className="mb-5 w-full"
             inputClassName={`text-[13px] text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
@@ -388,7 +394,12 @@ const ProjectContentEditor = forwardRef<
               minHeight={descriptionMinHeight}
               maxHeight={descriptionMaxHeight}
               editable={editable}
-              toolbarClassName="work-item-toolbar"
+              toolbarMode={descriptionToolbarMode}
+              toolbarClassName={
+                descriptionToolbarMode === "inline"
+                  ? RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS
+                  : "work-item-toolbar"
+              }
               toolbarSize="mini"
               toolbarDropdownPosition="top-start"
               className={`noDrag flex-1 cursor-text rounded-md text-text-1 ${descriptionClassName}`.trim()}
@@ -403,12 +414,12 @@ const ProjectContentEditor = forwardRef<
               keyboardOpened={contextMenuKeyboardOpened}
               repoPath={repoPath ?? undefined}
               keyboardHandlerRef={contextMenuKeyboardHandlerRef}
-              placement="down"
+              placement={dropdownDirection}
             />
             <SlashCommandPortal
               visible={showSlashMenu}
               containerRef={editorContainerRef}
-              placement="down"
+              placement={dropdownDirection}
               items={skillSlashItems}
               loading={slashLoading}
               currentMode={currentMode}

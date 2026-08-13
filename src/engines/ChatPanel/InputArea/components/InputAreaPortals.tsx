@@ -1,6 +1,6 @@
 import React from "react";
 
-import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type { CustomMentionOption } from "@src/engines/ChatPanel/hooks/useInputArea/types";
 import type { AddressCommentsFlyoutData } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashCommand";
 import type { MenuItemId } from "@src/scaffold/ContextMenu/config";
@@ -27,11 +27,12 @@ interface InputAreaPortalsProps {
   showSlashMenu: boolean;
   filteredSlashItems: SlashItem[];
   slashLoading: boolean;
-  currentMode: AgentExecMode;
+  currentMode: ComposerModeEntry["id"];
+  includeProjectMode?: boolean;
   slashQuery: string;
   onSlashCommandClose: () => void;
   onSlashSelect: (item: SlashItem) => void;
-  onModeSelect: (mode: AgentExecMode) => void;
+  onModeSelect: (mode: ComposerModeEntry["id"]) => void;
   slashCommandKeyboardHandlerRef: React.MutableRefObject<
     ((event: KeyboardEvent) => boolean) | null
   >;
@@ -73,6 +74,7 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
   filteredSlashItems,
   slashLoading,
   currentMode,
+  includeProjectMode,
   slashQuery,
   onSlashCommandClose,
   onSlashSelect,
@@ -122,6 +124,7 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
         items={filteredSlashItems}
         loading={slashLoading}
         currentMode={currentMode}
+        includeProjectMode={includeProjectMode}
         searchQuery={slashQuery}
         onClose={onSlashCommandClose}
         onSelect={onSlashSelect}
@@ -141,6 +144,7 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
         items={filteredSlashItems}
         loading={slashLoading}
         currentMode={currentMode}
+        includeProjectMode={includeProjectMode}
         searchQuery={plusSlashQuery}
         onClose={onPlusSlashClose}
         onSelect={(item) => {

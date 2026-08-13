@@ -1,5 +1,6 @@
 import React from "react";
 
+import type { WorkItemData as WorkItemDataPayload } from "@src/api/http/project";
 import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
 import type {
   AgentDefinition,
@@ -15,7 +16,6 @@ import type {
   WorkItemProject,
 } from "@src/types/core/workItem";
 
-import type { AgentRole } from "../../constants";
 import WorkItemContent from "../WorkItemContent";
 import WorkItemProperties from "../WorkItemProperties";
 import type { WorkItemExternalStatusConfig } from "../WorkItemProperties/types";
@@ -38,15 +38,12 @@ interface WorkItemDetailBodyProps {
   showTime: boolean;
   repoPath?: string | null;
   projectSlug?: string | null;
+  orgId?: string | null;
   shortId?: string | null;
-  isStartingAgent: boolean;
   activeAgentSessionId?: string | null;
-  activeAgentRole?: AgentRole | null;
-  isLockedByOther: boolean;
-  lockHolderName: string | null;
+  onOpenSubItem?: (item: WorkItemDataPayload) => void;
   onUpdateWorkItem: (updates: Partial<WorkItemExtended>) => void;
   onUpdateWorkItemImmediate: (updates: Partial<WorkItemExtended>) => void;
-  onStartAgent: (instructions?: string) => void;
   onCancelAgent: () => void;
   onRetry: (instructions?: string) => void;
   onAcceptAsIs: () => void;
@@ -74,15 +71,12 @@ export function WorkItemDetailBody({
   showTime,
   repoPath,
   projectSlug,
+  orgId,
   shortId,
-  isStartingAgent,
   activeAgentSessionId,
-  activeAgentRole,
-  isLockedByOther,
-  lockHolderName,
+  onOpenSubItem,
   onUpdateWorkItem,
   onUpdateWorkItemImmediate,
-  onStartAgent,
   onCancelAgent,
   onRetry,
   onAcceptAsIs,
@@ -130,9 +124,8 @@ export function WorkItemDetailBody({
               teamMembers={availableMembers}
               repoPath={repoPath}
               projectSlug={projectSlug}
+              orgId={orgId}
               shortId={shortId}
-              onStartAgent={onStartAgent}
-              isStartingAgent={isStartingAgent}
               onCancelAgent={onCancelAgent}
               onRetry={onRetry}
               onAcceptAsIs={onAcceptAsIs}
@@ -141,11 +134,9 @@ export function WorkItemDetailBody({
               onOpenFileDiff={onOpenFileDiff}
               onOpenFileAtLine={onOpenFileAtLine}
               onReviewAllFiles={onReviewAllFiles}
+              onOpenSubItem={onOpenSubItem}
               onRefreshWorkflow={onRefreshWorkItem}
               activeAgentSessionId={activeAgentSessionId}
-              activeAgentRole={activeAgentRole}
-              isLockedByOther={isLockedByOther}
-              lockHolderName={lockHolderName}
               onCreatePr={onCreatePr}
             />
           </div>

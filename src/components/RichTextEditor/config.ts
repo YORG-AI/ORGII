@@ -40,7 +40,11 @@ export function createEditorExtensions(placeholder: string): Extensions {
     Image.configure({
       inline: false,
       allowBase64: true,
-      HTMLAttributes: { class: "rich-text-editor-image" },
+      HTMLAttributes: {
+        class: "rich-text-editor-image",
+        loading: "lazy",
+        decoding: "async",
+      },
     }),
     Markdown.configure({
       html: true,

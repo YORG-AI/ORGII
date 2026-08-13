@@ -54,6 +54,19 @@ describe("RichTextEditor markdown persistence", () => {
     expect(getMarkdown(editor)).toContain("- [x] Complete");
   });
 
+  it("renders inserted images with lazy asynchronous decoding", () => {
+    editor = new Editor({
+      element: document.createElement("div"),
+      extensions: createEditorExtensions("Write a description"),
+      content: "",
+    });
+
+    editor.commands.setImage({ src: "asset://example/animation.gif" });
+
+    expect(editor.getHTML()).toContain('loading="lazy"');
+    expect(editor.getHTML()).toContain('decoding="async"');
+  });
+
   it("keeps file-pill metadata in the saved document", () => {
     editor = new Editor({
       element: document.createElement("div"),

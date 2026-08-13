@@ -124,7 +124,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
       : variantConfig.containerClass,
     !hasButton && variantConfig.containerHoverClass,
     disabled && "opacity-50 cursor-not-allowed",
-    compact && "py-1.5",
+    compact && layout === "inline" && "h-9 px-2 py-0",
     className
   );
 
@@ -180,7 +180,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
 
   const inlineContent = (
     <>
-      <div className="flex items-center gap-2">
+      <div className={cn("flex items-center gap-2", compact && "h-full")}>
         {showCheckbox && !showRadio && (
           <CheckboxIndicator selected={selected} />
         )}

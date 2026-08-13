@@ -26,6 +26,7 @@ pub(super) mod member_idle;
 mod post_turn_dispatch;
 pub(super) mod prefetch;
 mod prompt;
+mod receipt_fallback;
 
 use serde_json::Value;
 use std::sync::atomic::Ordering;
@@ -253,21 +254,12 @@ impl UnifiedMessageProcessor {
     }
 
     /// Tool policy actually used for this turn, including the exec-mode
-    /// and product-mode overlays (`orgtrack/v1` §5.1: only Project
-    /// sessions expose the WorkItem/Routine mutation tools).
+    /// overlay. Product mode is not a tool overlay: `org2-pm` enforces
+    /// it at the application boundary via the injected ORGII_MODE.
     fn effective_tool_policy(&self) -> Arc<ResolvedToolPolicy> {
-        let product_mode = tokio::task::block_in_place(|| {
-            unified_persistence::get_session(&self.session.id)
-                .ok()
-                .flatten()
-                .and_then(|record| record.product_mode)
-        });
         match self.agent_mode {
-            Some(mode) => Arc::new(self.policy.with_modes(mode, product_mode.as_deref())),
-            None => match ResolvedToolPolicy::product_mode_layer(product_mode.as_deref()) {
-                Some(layer) => Arc::new(self.policy.with_extra_layer(layer)),
-                None => Arc::clone(&self.policy),
-            },
+            Some(mode) => Arc::new(self.policy.with_exec_mode(mode)),
+            None => Arc::clone(&self.policy),
         }
     }
 
@@ -514,6 +506,9 @@ impl UnifiedMessageProcessor {
             .turn_id
             .clone()
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        // Anchor for the receipt-fallback audit window: CLI writes during
+        // this turn carry occurred_at >= this instant.
+        let turn_started_at_ms = chrono::Utc::now().timestamp_millis();
 
         // 0b. Restore persisted SM state on first turn (lazy init)
         if self.sm_config.enabled {
@@ -1034,6 +1029,7 @@ impl UnifiedMessageProcessor {
             result: &result,
             tool_calls_count,
             final_turn_state,
+            turn_started_at_ms,
         })
         .await;
 

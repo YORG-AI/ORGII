@@ -147,7 +147,10 @@ pub mod error {
 
 /// Substitute `{{ inputs.<name> }}` template markers (with or without
 /// inner spaces) in root-work templates. Declarative only.
-fn substitute_inputs(template: &str, inputs: &std::collections::BTreeMap<String, String>) -> String {
+fn substitute_inputs(
+    template: &str,
+    inputs: &std::collections::BTreeMap<String, String>,
+) -> String {
     let mut result = template.to_string();
     for (name, value) in inputs {
         for marker in [
@@ -160,7 +163,8 @@ fn substitute_inputs(template: &str, inputs: &std::collections::BTreeMap<String,
     result
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InvokedRun {
     pub run_id: String,
     pub root_short_id: String,
@@ -178,8 +182,8 @@ pub fn invoke(
     scope_project_slug: &str,
     inputs: &std::collections::BTreeMap<String, String>,
     created_by: Option<&crate::projects::types::WorkItemMutationActor>,
+    invoke_key: Option<&str>,
 ) -> Result<InvokedRun, String> {
-    // 1. Load the current definition.
     let connection = project_io::helpers::conn()?;
     let (spec_json, spec_hash, revision): (String, String, i64) = connection
         .query_row(
@@ -197,23 +201,108 @@ pub fn invoke(
     let snapshot: spec::RoutineSpecFile =
         serde_json::from_str(&spec_json).map_err(|err| format!("snapshot parse: {err}"))?;
 
-    // 2. Validate inputs against the snapshot's contract.
     for (name, decl) in &snapshot.spec.inputs {
         if decl.required && !inputs.contains_key(name) {
-            return Err(format!("{}:missing required input '{}'", error::INPUTS_INVALID, name));
+            return Err(format!(
+                "{}:missing required input '{}'",
+                error::INPUTS_INVALID,
+                name
+            ));
         }
     }
     for name in inputs.keys() {
         if !snapshot.spec.inputs.contains_key(name) {
-            return Err(format!("{}:unknown input '{}'", error::INPUTS_INVALID, name));
+            return Err(format!(
+                "{}:unknown input '{}'",
+                error::INPUTS_INVALID,
+                name
+            ));
         }
     }
 
     let now = chrono::Utc::now().timestamp_millis();
     let run_id = format!("run_{}{:05}", now, std::process::id() % 100_000);
+    let actor_id = created_by
+        .map(|actor| actor.id.as_str())
+        .unwrap_or("system");
+    let canonical_request = serde_json::json!({
+        "routine": routine_name,
+        "scope": scope_project_slug,
+        "inputs": inputs,
+    });
+    let canonical = serde_json::to_string(&canonical_request)
+        .map_err(|err| format!("routine invoke canonicalize: {err}"))?;
 
-    // 3. Materialize the work graph through the canonical create handler.
-    let root_short_id = project_io::allocate_short_id(scope_project_slug)?;
+    // The whole graph — idempotency check, id allocation, every item,
+    // every relation, the run row, all audit rows and one watermark bump
+    // — commits or rolls back as a unit.
+    let mut connection = project_io::helpers::conn()?;
+    let tx = connection
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|err| format!("routine invoke tx: {err}"))?;
+
+    if let Some(key) = invoke_key {
+        let existing: Option<(String, Option<String>)> = tx
+            .query_row(
+                "SELECT request_hash, response_json FROM pm_idempotency
+                 WHERE actor_id = ?1 AND operation = 'routine.invoke' AND scope_id = ?2 AND idem_key = ?3",
+                rusqlite::params![actor_id, scope_project_slug, key],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map(Some)
+            .or_else(|err| match err {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(format!("routine invoke idempotency: {other}")),
+            })?;
+        if let Some((stored_request, stored_response)) = existing {
+            if stored_request != canonical {
+                return Err(format!(
+                    "{}:routine.invoke:{}",
+                    work_service::error::IDEMPOTENCY_CONFLICT,
+                    key
+                ));
+            }
+            let replayed: InvokedRun = stored_response
+                .as_deref()
+                .and_then(|raw| serde_json::from_str(raw).ok())
+                .ok_or_else(|| "routine invoke replay: stored response unreadable".to_string())?;
+            return Ok(replayed);
+        }
+    }
+
+    let (project_id, org_id) = project_io::resolve_project_scope_in_tx(&tx, scope_project_slug)?;
+    let seq = work_service::audit::bump_change_seq(&tx)?;
+
+    let create_item =
+        |short_id: &str, request: &work_service::CreateWorkItemRequest| -> Result<(), String> {
+            work_service::guard_new_work_item_id_in_tx(&tx, short_id)?;
+            let frontmatter = work_service::build_frontmatter_for_graph(short_id, request);
+            project_io::write_work_item_in_tx(
+                &tx,
+                Some(project_id.clone()),
+                &org_id,
+                short_id,
+                &frontmatter,
+                &request.body,
+                true,
+            )?;
+            work_service::audit::append_audit_event(
+                &tx,
+                &work_service::audit::AuditEventRow {
+                    operation: "work.create",
+                    entity_type: "work_item",
+                    entity_id: short_id,
+                    project_slug: Some(scope_project_slug),
+                    org_id: None,
+                    actor: created_by,
+                    revision: 0,
+                    seq,
+                    payload: serde_json::json!({}),
+                },
+            )
+        };
+
+    let root_short_id = project_io::allocate_short_id_in_tx(&tx, scope_project_slug)?;
     let root_request = work_service::CreateWorkItemRequest {
         title: substitute_inputs(&snapshot.spec.root_work.title, inputs),
         body: snapshot
@@ -228,11 +317,11 @@ pub fn invoke(
         created_by: created_by.map(|actor| actor.id.clone()),
         ..Default::default()
     };
-    work_service::create_project_work_item(scope_project_slug, &root_short_id, &root_request, created_by)?;
+    create_item(&root_short_id, &root_request)?;
 
     let mut step_ids: Vec<(String, String)> = Vec::new();
     for step in &snapshot.spec.steps {
-        let child_short_id = project_io::allocate_short_id(scope_project_slug)?;
+        let child_short_id = project_io::allocate_short_id_in_tx(&tx, scope_project_slug)?;
         let mut body = step
             .instruction
             .as_deref()
@@ -258,45 +347,49 @@ pub fn invoke(
             created_by: created_by.map(|actor| actor.id.clone()),
             ..Default::default()
         };
-        work_service::create_project_work_item(
-            scope_project_slug,
-            &child_short_id,
-            &child_request,
-            created_by,
-        )?;
+        create_item(&child_short_id, &child_request)?;
         step_ids.push((step.id.clone(), child_short_id));
     }
 
-    // 4. Durable graph edges: dependencies + run provenance.
     let index: std::collections::HashMap<&str, &str> = step_ids
         .iter()
         .map(|(step_id, short_id)| (step_id.as_str(), short_id.as_str()))
         .collect();
+    let relate_now = chrono::Utc::now().timestamp_millis();
+    let insert_relation = |entity_id: &str, kind: &str, target_ref: &str| -> Result<(), String> {
+        tx.execute(
+            "INSERT INTO pm_relations (entity_type, entity_id, kind, target_ref, created_at, actor_id)
+             VALUES ('work_item', ?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![entity_id, kind, target_ref, relate_now, actor_id],
+        )
+        .map_err(|err| format!("routine invoke relation: {err}"))?;
+        work_service::audit::append_audit_event(
+            &tx,
+            &work_service::audit::AuditEventRow {
+                operation: "work.relate",
+                entity_type: "work_item",
+                entity_id,
+                project_slug: Some(scope_project_slug),
+                org_id: None,
+                actor: created_by,
+                revision: 0,
+                seq,
+                payload: serde_json::json!({ "kind": kind, "targetRef": target_ref }),
+            },
+        )
+    };
     for step in &snapshot.spec.steps {
         let child = index[step.id.as_str()];
         for need in &step.needs {
-            work_service::relate_project_work_item(
-                scope_project_slug,
+            insert_relation(
                 child,
                 "depends_on",
                 &format!("work://{}/{}", scope_project_slug, index[need.as_str()]),
-                created_by,
             )?;
         }
-        work_service::relate_project_work_item(
-            scope_project_slug,
-            child,
-            "generated_by",
-            &format!("run://{}", run_id),
-            created_by,
-        )?;
+        insert_relation(child, "generated_by", &format!("run://{}", run_id))?;
     }
 
-    // 5. The run row + audit, one transaction.
-    let mut connection = project_io::helpers::conn()?;
-    let tx = connection
-        .transaction()
-        .map_err(|err| format!("routine invoke tx: {err}"))?;
     tx.execute(
         "INSERT INTO pm_routine_runs
             (id, routine_name, routine_revision, snapshot_json, snapshot_hash,
@@ -317,7 +410,6 @@ pub fn invoke(
         ],
     )
     .map_err(|err| format!("routine invoke: {err}"))?;
-    let seq = work_service::audit::bump_change_seq(&tx)?;
     work_service::audit::append_audit_event(
         &tx,
         &work_service::audit::AuditEventRow {
@@ -336,14 +428,49 @@ pub fn invoke(
             }),
         },
     )?;
+
+    let invoked = InvokedRun {
+        run_id: run_id.clone(),
+        root_short_id: root_short_id.clone(),
+        steps: step_ids,
+    };
+    if let Some(key) = invoke_key {
+        let response_raw = serde_json::to_string(&invoked)
+            .map_err(|err| format!("routine invoke serialize: {err}"))?;
+        tx.execute(
+            "INSERT INTO pm_idempotency
+                (actor_id, operation, scope_id, idem_key, request_hash, response_json, created_at)
+             VALUES (?1, 'routine.invoke', ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                actor_id,
+                scope_project_slug,
+                key,
+                canonical,
+                response_raw,
+                now
+            ],
+        )
+        .map_err(|err| format!("routine invoke idempotency record: {err}"))?;
+    }
     tx.commit()
         .map_err(|err| format!("routine invoke commit: {err}"))?;
+    crate::projects::events::notify_work_item_schedule_changed();
+    let _ = crate::sync::collab_bridge::record_work_item_write(
+        &org_id,
+        Some(scope_project_slug),
+        &root_short_id,
+        false,
+    );
+    for (_, child_id) in &invoked.steps {
+        let _ = crate::sync::collab_bridge::record_work_item_write(
+            &org_id,
+            Some(scope_project_slug),
+            child_id,
+            false,
+        );
+    }
 
-    Ok(InvokedRun {
-        run_id,
-        root_short_id,
-        steps: step_ids,
-    })
+    Ok(invoked)
 }
 
 /// Set the host-local default scope binding used by scheduled invokes.
@@ -421,7 +548,11 @@ pub fn scheduled_candidates() -> Result<Vec<ScheduledCandidate>, String> {
 }
 
 /// Persist the scheduler watermark after an evaluation pass.
-pub fn mark_evaluated(name: &str, evaluated_at: i64, next_fire_at: Option<i64>) -> Result<(), String> {
+pub fn mark_evaluated(
+    name: &str,
+    evaluated_at: i64,
+    next_fire_at: Option<i64>,
+) -> Result<(), String> {
     let connection = project_io::helpers::conn()?;
     connection
         .execute(
@@ -433,17 +564,95 @@ pub fn mark_evaluated(name: &str, evaluated_at: i64, next_fire_at: Option<i64>) 
 }
 
 /// True when the routine has a non-terminal run (running or pending).
+/// Stored 'running' runs whose generated items are all terminal get their
+/// outcome written back so they stop suppressing the next scheduled fire.
 pub fn has_active_run(name: &str) -> Result<bool, String> {
     let connection = project_io::helpers::conn()?;
-    let count: i64 = connection
-        .query_row(
-            "SELECT COUNT(*) FROM pm_routine_runs
+    let mut statement = connection
+        .prepare(
+            "SELECT id, status, scope_id FROM pm_routine_runs
              WHERE routine_name = ?1 AND status IN ('running', 'pending')",
-            rusqlite::params![name],
-            |row| row.get(0),
         )
         .map_err(|err| format!("routine has_active_run: {err}"))?;
-    Ok(count > 0)
+    let candidates: Vec<(String, String, String)> = statement
+        .query_map(rusqlite::params![name], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .map_err(|err| format!("routine has_active_run: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("routine has_active_run: {err}"))?;
+    drop(statement);
+    drop(connection);
+
+    for (run_id, status, scope_id) in candidates {
+        if status == "pending" {
+            return Ok(true);
+        }
+        if reconcile_running_run(&run_id, &scope_id)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn reconcile_running_run(run_id: &str, scope_id: &str) -> Result<bool, String> {
+    use work_service::WorkItemState::{Cancelled, Completed, Failed};
+
+    let connection = project_io::helpers::conn()?;
+    let mut statement = connection
+        .prepare(
+            "SELECT entity_id FROM pm_relations
+             WHERE kind = 'generated_by' AND target_ref = ?1
+             ORDER BY id",
+        )
+        .map_err(|err| format!("routine has_active_run: {err}"))?;
+    let child_ids: Vec<String> = statement
+        .query_map(rusqlite::params![format!("run://{run_id}")], |row| {
+            row.get(0)
+        })
+        .map_err(|err| format!("routine has_active_run: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("routine has_active_run: {err}"))?;
+    drop(statement);
+    drop(connection);
+
+    if child_ids.is_empty() {
+        return Ok(true);
+    }
+
+    let mut states = Vec::new();
+    for child_id in &child_ids {
+        let Ok(item) = project_io::read_work_item(scope_id, child_id) else {
+            return Ok(true);
+        };
+        states.push(work_service::state::map_legacy_status(
+            &item.frontmatter.status,
+        ));
+    }
+
+    let all_terminal = states
+        .iter()
+        .all(|state| matches!(state, Some(Completed) | Some(Failed) | Some(Cancelled)));
+    if !all_terminal {
+        return Ok(true);
+    }
+
+    let outcome = if states.contains(&Some(Failed)) {
+        "failed"
+    } else if states.iter().all(|state| *state == Some(Completed)) {
+        "succeeded"
+    } else {
+        "cancelled"
+    };
+
+    let connection = project_io::helpers::conn()?;
+    connection
+        .execute(
+            "UPDATE pm_routine_runs SET status = ?2 WHERE id = ?1 AND status = 'running'",
+            rusqlite::params![run_id, outcome],
+        )
+        .map_err(|err| format!("routine has_active_run: {err}"))?;
+    Ok(false)
 }
 
 /// Audit a suppressed automatic fire (skip/coalesce/queue while active).
@@ -516,10 +725,7 @@ pub fn set_enabled(name: &str, enabled: bool) -> Result<(), String> {
 /// List routine runs, newest first, optionally filtered to one scope.
 /// Row-level listing for the Runs surface — per-run WorkItem projection
 /// stays in [`run_status`], which the UI calls on expand.
-pub fn list_runs(
-    scope_id: Option<&str>,
-    limit: usize,
-) -> Result<Vec<serde_json::Value>, String> {
+pub fn list_runs(scope_id: Option<&str>, limit: usize) -> Result<Vec<serde_json::Value>, String> {
     let connection = project_io::helpers::conn()?;
     let mut statement = connection
         .prepare(

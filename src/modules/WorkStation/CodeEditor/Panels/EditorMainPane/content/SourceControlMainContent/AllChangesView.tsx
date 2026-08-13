@@ -155,6 +155,7 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
       onRequestContent={handleRequestContent}
       onExpansionChange={handleExpansionChange}
       showRenamePath
+      compactHeaderGutter
       hideBottomPadding
     />
   );

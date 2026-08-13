@@ -264,6 +264,22 @@ async function main() {
     "\x1b[1m[build-fast-parallel] Phase 2: tauri build + bundle\x1b[0m"
   );
 
+  // Stage the org2-pm sidecar (externalBin) before the tauri CLI runs; it
+  // shares the dev-build dep cache so this is nearly free after the first
+  // compile.
+  const sidecarResult = spawnSync(
+    process.execPath,
+    [
+      path.join(__dirname, "prepare-sidecars.cjs"),
+      "--profile",
+      "dev-build",
+    ],
+    { cwd: rootDir, env, stdio: "inherit" }
+  );
+  if (sidecarResult.status !== 0) {
+    process.exit(sidecarResult.status ?? 1);
+  }
+
   const configOverride = JSON.stringify({
     ...(instanceProfile
       ? {

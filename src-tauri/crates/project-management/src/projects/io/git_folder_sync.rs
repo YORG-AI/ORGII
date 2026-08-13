@@ -586,7 +586,13 @@ fn write_work_item_markdown(path: &Path, work_item: &WorkItemData) -> Result<(),
         fs::create_dir_all(parent)
             .map_err(|err| format!("Failed to create folder {}: {}", parent.display(), err))?;
     }
-    let frontmatter = serde_yaml::to_string(&work_item.frontmatter)
+    // Execution state stays out of the git-synced markdown: sessions and
+    // orchestrator runs are per-device runtime facts, not durable spec.
+    let mut frontmatter_for_export = work_item.frontmatter.clone();
+    frontmatter_for_export.linked_sessions = Vec::new();
+    frontmatter_for_export.origin_session = None;
+    frontmatter_for_export.orchestrator_state = None;
+    let frontmatter = serde_yaml::to_string(&frontmatter_for_export)
         .map_err(|err| format!("Failed to encode work item frontmatter: {}", err))?;
     let contents = format!("---\n{}---\n{}", frontmatter, work_item.body);
     fs::write(path, contents)
@@ -654,9 +660,11 @@ mod tests {
             labels: Vec::new(),
             milestone: None,
             parent: None,
+            stage: None,
             start_date: None,
             target_date: None,
             created_by: None,
+            origin_session: None,
             created_at: "2026-01-01T00:00:00+00:00".to_string(),
             updated_at: updated_at.to_string(),
             deleted_at: None,

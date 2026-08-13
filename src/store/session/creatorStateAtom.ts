@@ -67,6 +67,7 @@ export interface SessionLaunchOrgContext {
   projectName?: string;
   workItemId?: string;
   agentRole?: AgentRole | string;
+  productMode?: string;
 }
 
 export function createDefaultSessionLaunchOrgContext(): SessionLaunchOrgContext {

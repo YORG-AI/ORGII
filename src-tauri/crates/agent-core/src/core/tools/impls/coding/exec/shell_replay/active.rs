@@ -33,8 +33,9 @@ impl ActiveReplayState {
     }
 }
 
-pub(super) static ACTIVE_REPLAYS: LazyLock<RwLock<HashMap<String, HashMap<String, ActiveReplayState>>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
+pub(super) static ACTIVE_REPLAYS: LazyLock<
+    RwLock<HashMap<String, HashMap<String, ActiveReplayState>>>,
+> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 #[derive(Debug, Clone)]
 pub struct ShellReplayTarget {

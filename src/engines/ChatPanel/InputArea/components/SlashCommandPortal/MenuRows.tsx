@@ -13,7 +13,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import type {
   AgentExecMode,
-  AgentExecModeEntry,
+  ComposerModeEntry,
 } from "@src/config/sessionCreatorConfig";
 import { MenuItemRow } from "@src/scaffold/ContextMenu/ResultItems";
 import type { SlashItem, SlashItemCategory } from "@src/types/extensions";
@@ -89,7 +89,7 @@ ImageRow.displayName = "ImageRow";
 // ── ModeRow ───────────────────────────────────────────────────────────────────
 
 interface ModeRowProps {
-  mode: AgentExecModeEntry;
+  mode: ComposerModeEntry;
   isActive: boolean;
   isCurrent: boolean;
   onMouseEnter: () => void;

@@ -358,6 +358,9 @@ export function buildSessionFromLaunchResult(options: {
     ...((result.agentRole ?? launchOrgContext?.agentRole)
       ? { agentRole: result.agentRole ?? launchOrgContext?.agentRole }
       : {}),
+    ...((result.productMode ?? launchOrgContext?.productMode)
+      ? { productMode: result.productMode ?? launchOrgContext?.productMode }
+      : {}),
     ...(result.background ? { background: true } : {}),
     ...(result.worktreePath ? { worktreePath: result.worktreePath } : {}),
     ...(result.worktreeBranch ? { worktreeBranch: result.worktreeBranch } : {}),

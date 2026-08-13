@@ -432,6 +432,7 @@ export const SessionLaunchResultSchema = z
     projectSlug: z.string().nullable().optional(),
     workItemId: z.string().nullable().optional(),
     agentRole: z.string().nullable().optional(),
+    productMode: z.string().nullable().optional(),
     worktreePath: z.string().nullable().optional(),
     worktreeBranch: z.string().nullable().optional(),
     baseRef: z.string().nullable().optional(),

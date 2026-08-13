@@ -117,6 +117,7 @@ subagent_history.json
 *_subagent_history.json
 
 # Downloaded / locally built sidecar binaries
+src-tauri/binaries/
 src-tauri/bin/agent-browser-*
 src-tauri/bin/peekaboo*
 src-tauri/bin/qdrant-*

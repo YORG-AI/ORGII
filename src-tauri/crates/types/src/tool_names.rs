@@ -74,7 +74,10 @@ pub const MANAGE_SECRETS: &str = "manage_secrets";
 /// and sets `0o600` on Unix.
 pub const WRITE_ENV_FILE: &str = "write_env_file";
 
-// ── Project ─────────────────────────────────────────────────────────
+// ── Project (retired) ───────────────────────────────────────────────
+// The typed PM tools were retired in favour of the `org2-pm` CLI; the
+// names remain for retired-alias denial and historical transcript
+// rendering.
 pub const MANAGE_PROJECT: &str = "manage_project";
 pub const MANAGE_WORK_ITEM: &str = "manage_work_item";
 

@@ -8,6 +8,8 @@ import {
   useState,
 } from "react";
 
+import type { PullRequestListState } from "@src/api/tauri/github";
+
 import {
   GITHUB_QUERY_SCOPE,
   GITHUB_QUERY_STATE,
@@ -62,7 +64,7 @@ export function normalizeGitHubSearchQueryForScope(
   const repairedQuery = restoreGitHubQualifierBoundaries(rawQuery);
   const query = parseGitHubSearchQuery(repairedQuery);
   query.scope = scope;
-  if (scope === GITHUB_QUERY_SCOPE.PR) {
+  if (scope === GITHUB_QUERY_SCOPE.PR && query.state === null) {
     query.state = GITHUB_QUERY_STATE.OPEN;
   }
   const normalizedQuery = serializeGitHubSearchQuery(query);
@@ -102,6 +104,16 @@ export function getSelectedGitHubPersonalFilters(
   ];
 }
 
+export function areRequestedPrStatesLoaded(
+  states: PullRequestListState[],
+  openLoaded: boolean,
+  closedLoaded: boolean
+): boolean {
+  return states.every((state) =>
+    state === GITHUB_QUERY_STATE.OPEN ? openLoaded : closedLoaded
+  );
+}
+
 export function useGitHubWorkItemsViewState({
   scope,
 }: {
@@ -117,7 +129,7 @@ export function useGitHubWorkItemsViewState({
   const parsedSearchQuery = useMemo(() => {
     const query = parseGitHubSearchQuery(searchQuery);
     query.scope = scope;
-    if (scope === GITHUB_QUERY_SCOPE.PR) {
+    if (scope === GITHUB_QUERY_SCOPE.PR && query.state === null) {
       query.state = GITHUB_QUERY_STATE.OPEN;
     }
     return query;

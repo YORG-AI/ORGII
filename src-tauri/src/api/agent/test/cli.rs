@@ -180,6 +180,7 @@ pub async fn test_cursor_cli_runtime(
         project_slug: None,
         work_item_id: None,
         agent_role: None,
+        product_mode: None,
     };
 
     let created = match cli_agent_create(create_params).await {
@@ -291,6 +292,7 @@ pub async fn test_cursor_cli_account_switch(
         project_slug: None,
         work_item_id: None,
         agent_role: None,
+        product_mode: None,
     };
 
     let created = match cli_agent_create(create_params).await {
@@ -401,6 +403,7 @@ pub async fn test_claude_code_cli_account_switch(
         project_slug: None,
         work_item_id: None,
         agent_role: None,
+        product_mode: None,
     };
 
     let created = match cli_agent_create(create_params).await {
@@ -550,6 +553,7 @@ pub async fn test_codex_cli_account_switch(
         project_slug: None,
         work_item_id: None,
         agent_role: None,
+        product_mode: None,
     };
 
     let created = match cli_agent_create(create_params).await {
@@ -714,6 +718,7 @@ pub async fn test_cli_resume_lock_isolation() -> Json<serde_json::Value> {
         project_slug: None,
         work_item_id: None,
         agent_role: None,
+        product_mode: None,
     };
 
     let stale_session = match cli_agent_create(create_params("E2E stale resume lock probe")).await {

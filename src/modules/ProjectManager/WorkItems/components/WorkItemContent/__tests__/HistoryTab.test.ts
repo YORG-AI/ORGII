@@ -177,6 +177,7 @@ describe("HistoryTab discussion and activity presentation", () => {
     const commentDock = container.querySelector(
       "[data-testid='work-item-thread-comment-dock']"
     );
+    expect(commentDock?.className).toContain("pb-3");
     expect(commentDock?.className).toContain("bg-transparent");
     expect(commentDock?.className).not.toContain("bg-bg-1");
     expect(commentDock?.className).not.toContain("border-t");
@@ -210,6 +211,72 @@ describe("HistoryTab discussion and activity presentation", () => {
     ).not.toBeNull();
   });
 
+  it("renders persisted reply threads with resolve, reopen, and reply actions", () => {
+    const onReplyToComment = vi.fn();
+    const onResolveThread = vi.fn();
+    const onReopenThread = vi.fn();
+    act(() => {
+      root.render(
+        createElement(HistoryTab, {
+          ...baseProps,
+          timelineEntries: [],
+          presentation: "thread",
+          comments: [
+            {
+              id: "comment-root",
+              author: "user-1",
+              content: "Please show the proof.",
+              created_at: "2026-08-08T10:00:00.000Z",
+              thread_id: "comment-root",
+            },
+            {
+              id: "comment-reply",
+              author: "user-1",
+              content: "Proof attached.",
+              created_at: "2026-08-08T10:01:00.000Z",
+              parent_id: "comment-root",
+              thread_id: "comment-root",
+            },
+          ],
+          replyToCommentId: "comment-root",
+          onReplyToComment,
+          onResolveThread,
+          onReopenThread,
+        })
+      );
+    });
+
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-discussion-thread-comment-root']"
+      )?.textContent
+    ).toContain("Proof attached.");
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-discussion-reply-context']"
+      )
+    ).not.toBeNull();
+
+    act(() => {
+      (
+        container.querySelector(
+          "[data-testid='work-item-discussion-reply-comment-reply']"
+        ) as HTMLButtonElement
+      ).click();
+      (
+        container.querySelector(
+          "[data-testid='work-item-discussion-resolve-comment-root']"
+        ) as HTMLButtonElement
+      ).click();
+    });
+    expect(onReplyToComment).toHaveBeenCalledWith("comment-reply");
+    expect(onResolveThread).toHaveBeenCalledWith(
+      "comment-root",
+      "comment-reply"
+    );
+    expect(onReopenThread).not.toHaveBeenCalled();
+  });
+
   it("keeps the full editor treatment in the default presentation", () => {
     renderHistory();
 
@@ -226,6 +293,10 @@ describe("HistoryTab discussion and activity presentation", () => {
     ).toBeNull();
     expect(editor?.getAttribute("data-appearance")).toBe("outlined");
     expect(editor?.getAttribute("data-min-height")).toBe("60");
+    expect(
+      container.querySelector("[data-testid='work-item-default-comment-dock']")
+        ?.className
+    ).toContain("pb-3");
   });
 
   it("keeps machine events in a collapsed activity-history disclosure", () => {

@@ -19,6 +19,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 test_helpers = { path = "../test-helpers" }
+jsonschema = "0.26"
 rusqlite = { workspace = true }
 # database is already a normal dependency; integration tests reuse it for
 # sandbox schema init.

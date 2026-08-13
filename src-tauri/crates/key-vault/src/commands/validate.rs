@@ -66,7 +66,10 @@ pub struct OAuthModelCatalogResponse {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OAuthModelCatalogSource {
+    /// Credential-backed discovery succeeded. Codex responses may also contain
+    /// ORGII's built-in bases when the local CLI returned a version-limited list.
     Live,
+    /// Credential-backed discovery was unavailable and the static catalog was used.
     Fallback,
 }
 
@@ -1311,23 +1314,53 @@ fn fallback_discovered_models(agent_type: &str) -> Result<Vec<DiscoveredModel>, 
 
 pub(super) fn resolved_oauth_catalog(
     agent_type: &str,
-    discovered: Vec<DiscoveredModel>,
+    mut discovered: Vec<DiscoveredModel>,
     source: OAuthModelCatalogSource,
 ) -> Result<OAuthModelCatalogResponse, String> {
-    let (_, fallback_defaults) = oauth_static_catalog(agent_type)
+    let (static_models, fallback_defaults) = oauth_static_catalog(agent_type)
         .ok_or_else(|| format!("Unsupported OAuth model catalog agent type: {agent_type}"))?;
+
+    // Codex model discovery is version-gated by the installed CLI and by the
+    // client_version sent to the compatibility endpoint. ORGII supports these
+    // model families independently of that local discovery version, so retain
+    // live metadata for every returned model and append any missing built-in
+    // Codex bases. Claude Code remains strictly account-visible.
+    if agent_type == "codex" {
+        for model in static_models {
+            if discovered
+                .iter()
+                .any(|discovered_model| discovered_model.id == *model)
+            {
+                continue;
+            }
+            discovered.push(DiscoveredModel {
+                id: (*model).to_string(),
+                ..DiscoveredModel::default()
+            });
+        }
+    }
+
     let models: Vec<String> = discovered.iter().map(|model| model.id.clone()).collect();
     let mut default_enabled_models: Vec<String> = discovered
         .iter()
         .filter(|model| model.is_default)
         .map(|model| model.id.clone())
         .collect();
-    if default_enabled_models.is_empty() {
-        default_enabled_models = fallback_defaults
-            .iter()
-            .filter(|model| models.iter().any(|available| available.as_str() == **model))
-            .map(|model| (*model).to_string())
-            .collect();
+    // All built-in GPT-5.6 Codex families are product defaults even when an
+    // older live catalog names a different default. Preserve that live default
+    // and append the built-ins so rescans never turn a user's existing default
+    // off while making Sol, Terra, and Luna immediately runnable.
+    if agent_type == "codex" || default_enabled_models.is_empty() {
+        for model in fallback_defaults {
+            if !models.iter().any(|available| available.as_str() == *model)
+                || default_enabled_models
+                    .iter()
+                    .any(|enabled| enabled == *model)
+            {
+                continue;
+            }
+            default_enabled_models.push((*model).to_string());
+        }
     }
     if default_enabled_models.is_empty() {
         default_enabled_models.extend(models.first().cloned());
@@ -1367,8 +1400,9 @@ fn is_oauth_discovery_auth_error(error: &str) -> bool {
 }
 
 /// Resolve one authoritative OAuth catalog for every wizard and refresh entry
-/// point. A successful account-visible response is never unioned with baked
-/// models; the static catalog is used only when discovery is unavailable.
+/// point. Codex keeps live capability metadata while completing the response
+/// with ORGII's built-in model bases; other OAuth providers remain strictly
+/// account-visible. The full static catalog remains the discovery fallback.
 #[tauri::command]
 pub async fn oauth_model_catalog(
     request: OAuthModelCatalogRequest,

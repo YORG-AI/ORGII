@@ -437,7 +437,7 @@ export const ProjectWorkItemsTabContent: React.FC<
         }),
         onChange: (value) => setStatusFilter(value as StatusFilterType),
         minWidth: 172,
-        variant: "default",
+        appearance: "default",
       },
     ];
     if (allowExternalSources) {
@@ -452,7 +452,7 @@ export const ProjectWorkItemsTabContent: React.FC<
         onChange: (value) =>
           setWorkspaceSourceMode(value as WorkspaceSourceMode),
         minWidth: 150,
-        variant: "default",
+        appearance: "default",
       });
     }
     return filters;

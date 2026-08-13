@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectOrg } from "@src/api/http/project";
 import type { QuickAction } from "@src/modules/WorkStation/shared";
 import { openCreateTargetInChatPanelStartPageAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   CHAT_PANEL_CREATE_TARGET,
   activeStationChatVisibleAtom,
@@ -34,7 +35,6 @@ import {
   STORY_ORG_SCOPE,
   STORY_PERSONAL_ORG_FILTER_ID,
   STORY_PERSONAL_ORG_NAME,
-  createChatSessionTab,
   createProjectDashboardTab,
   createProjectLinearProjectsTab,
   createProjectLinearWorkItemsTab,
@@ -379,19 +379,30 @@ export function useProjectTabActions({
     [activeTab?.id, openTab]
   );
 
+  const openSessionInChatPanel = useSetAtom(
+    openOrFocusSessionInChatPanelTabAtom
+  );
   const handleOpenChatSession = useCallback(
     (
       sessionId: string,
       title?: string,
-      workItemId?: string,
-      workItemShortId?: string
+      _workItemId?: string,
+      _workItemShortId?: string
     ) => {
-      const tabTitle = title || `Chat: ${sessionId.slice(0, 12)}`;
-      openTab(
-        createChatSessionTab(sessionId, tabTitle, workItemId, workItemShortId)
-      );
+      // Conversations live in the LEFT chat panel; the station keeps
+      // showing the item/list the session was opened from. Activating a
+      // session switches the station to that session's workspace, so the
+      // tab being read is re-opened there to keep the right pane stable.
+      // The station chat tab remains reachable only through the explicit
+      // drag placement gesture (`sessionTabPlacementAtom`).
+      const pinnedTab =
+        activeTab?.type === "workItem-detail" ? activeTab : null;
+      openSessionInChatPanel({ sessionId, sessionName: title });
+      if (pinnedTab) {
+        openTab(pinnedTab);
+      }
     },
-    [openTab]
+    [activeTab, openSessionInChatPanel, openTab]
   );
 
   // --- Sidebar toggle ---

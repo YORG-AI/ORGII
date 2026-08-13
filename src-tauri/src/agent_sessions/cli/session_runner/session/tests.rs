@@ -1,7 +1,7 @@
 use super::super::env_setup::{
     atlascloud_model_id, clear_codex_compatible_profile, codex_needs_compatible_profile,
-    opencode_zenmux_model_id, setup_codex_compatible_profile, setup_codex_hosted_profile,
-    setup_opencode_atlascloud_profile, setup_opencode_zenmux_profile,
+    opencode_zenmux_model_id, resolve_orgtrack_product_mode, setup_codex_compatible_profile,
+    setup_codex_hosted_profile, setup_opencode_atlascloud_profile, setup_opencode_zenmux_profile,
     validate_codex_own_key_provider,
 };
 use super::super::input_assembly::cli_exec_mode_bridge;
@@ -20,6 +20,29 @@ use std::path::Path;
 use std::sync::Mutex as StdMutex;
 
 static ORGII_HOME_TEST_LOCK: StdMutex<()> = StdMutex::new(());
+
+#[test]
+fn project_is_always_build_execution_while_ordinary_modes_stay_distinct() {
+    assert_eq!(
+        resolve_cli_effective_mode(Some("project"), Some("ask"), Some("plan")),
+        AgentExecMode::Build
+    );
+    assert_eq!(
+        resolve_cli_effective_mode(Some("build"), Some("ask"), Some("build")),
+        AgentExecMode::Ask
+    );
+    assert_eq!(
+        resolve_cli_effective_mode(Some("build"), None, Some("plan")),
+        AgentExecMode::Plan
+    );
+}
+
+#[test]
+fn project_scope_does_not_grant_project_product_capability() {
+    assert_eq!(resolve_orgtrack_product_mode(Some("build"), false), "build");
+    assert_eq!(resolve_orgtrack_product_mode(None, false), "build");
+    assert_eq!(resolve_orgtrack_product_mode(None, true), "project");
+}
 
 fn with_temp_orgii_home<R>(run: impl FnOnce(&Path) -> R) -> R {
     let _guard = ORGII_HOME_TEST_LOCK
@@ -671,6 +694,13 @@ fn cli_plan_mode_bridge_preserves_side_chat_semantics() {
 }
 
 #[test]
+fn cli_build_mode_bridge_requires_byte_exact_verification() {
+    let bridge = cli_exec_mode_bridge(Some("build")).expect("build bridge");
+    assert!(bridge.contains("verify byte count and trailing bytes"));
+    assert!(bridge.contains("trimmed text readers hide trailing newlines"));
+}
+
+#[test]
 fn cli_plan_markdown_detection_accepts_buildable_plan_text_only() {
     assert!(looks_like_buildable_plan_body(
         "### Build Approval Plan\n\nChange: Create `artifact.md`.\n\nScope: one low-risk filesystem change.\n\nVerification: confirm the file exists and content matches."
@@ -884,7 +914,11 @@ async fn a_reader_the_grandchild_holds_open_is_aborted_not_detached() {
         child.stderr.take().expect("stderr was piped"),
         "test-session".to_string(),
     );
-    assert!(child.wait().await.expect("wait for stderr writer").success());
+    assert!(child
+        .wait()
+        .await
+        .expect("wait for stderr writer")
+        .success());
 
     let lines = collector.lines();
     assert_eq!(

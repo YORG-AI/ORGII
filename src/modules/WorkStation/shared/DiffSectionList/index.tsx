@@ -36,6 +36,8 @@ export interface DiffSectionListProps<TFile extends DiffFileSectionData> {
   showRenamePath?: boolean;
   /** When true, each section renders a flat FileHeader instead of the collapsible chevron button. */
   flat?: boolean;
+  /** Use the compact header gutter for panes with their own left divider/chrome. */
+  compactHeaderGutter?: boolean;
   /** When true, removes the bottom scroll padding (for contexts that have no bottom panel). */
   hideBottomPadding?: boolean;
 }
@@ -73,6 +75,7 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
   showBottomBorder,
   showRenamePath = false,
   flat = false,
+  compactHeaderGutter = false,
   hideBottomPadding = false,
 }: DiffSectionListProps<TFile>) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -233,6 +236,7 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
                 showBottomBorder={showBottomBorder}
                 showRenamePath={showRenamePath}
                 flat={flat}
+                compactHeaderGutter={compactHeaderGutter}
                 noBottomPadding={hideBottomPadding}
               />
             );

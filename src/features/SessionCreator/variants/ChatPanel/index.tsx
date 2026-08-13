@@ -73,6 +73,7 @@ const SessionCreatorChatPanelContent: React.FC<
   centerFullScreenContent = false,
   className = "",
   composerHeaderContent,
+  heroFooterSlot,
   pinnedActionsContent,
   innerClassName,
   footerSlot,
@@ -89,6 +90,7 @@ const SessionCreatorChatPanelContent: React.FC<
   onSessionStart,
   hidePresenceButton = false,
   launchMode,
+  layout = "default",
   variant = "default",
   workItemContext,
   resolveWorkItemContext,
@@ -213,6 +215,7 @@ const SessionCreatorChatPanelContent: React.FC<
     handleSlashSelect,
     handleModeSelect,
     currentMode,
+    includeProjectMode,
     filteredSlashItems,
     slashLoading,
   } = useSessionCreator({
@@ -263,7 +266,6 @@ const SessionCreatorChatPanelContent: React.FC<
   }, [openCategoryPickerSignal]);
 
   const agentHeroRef = useRef<HTMLButtonElement>(null);
-  const workItemPanelHostRef = useRef<HTMLDivElement>(null);
   const modelPickerStyle = useAtomValue(modelPickerStyleAtom);
 
   // ── Handlers via extracted hook ───────────────────────────────────────────
@@ -430,6 +432,7 @@ const SessionCreatorChatPanelContent: React.FC<
           composerHeaderContent
         )
       }
+      heroFooterSlot={heroFooterSlot}
       composerInputRef={composerInputRef}
       editorAreaProps={{
         variant: "chatPanelFullScreen",
@@ -472,7 +475,9 @@ const SessionCreatorChatPanelContent: React.FC<
           : undefined,
         requestModelOpen: isHumanMode ? false : requestModelOpen,
         onModelOpenHandled: () => setRequestModelOpen(false),
-        shellClassName: "session-creator-chat-panel-fullscreen-input-shell",
+        shellClassName: `session-creator-chat-panel-fullscreen-input-shell ${
+          layout === "launchpad" ? "composer-breathing" : ""
+        }`.trim(),
         initialContent: initialRestoreText || initialContent || undefined,
         autoFocus: !isHumanMode,
         showSlashMenu,
@@ -483,6 +488,7 @@ const SessionCreatorChatPanelContent: React.FC<
         onSlashSelect: handleSlashSelect,
         onModeSelect: handleModeSelect,
         currentMode,
+        includeProjectMode: isHumanMode ? false : includeProjectMode,
         filteredSlashItems,
         slashLoading,
         dropdownDirection,
@@ -500,6 +506,7 @@ const SessionCreatorChatPanelContent: React.FC<
       isCliTuiMode={isCliTuiMode}
       isFullScreenVariant={isFullScreenVariant}
       isLoading={isHumanMode ? humanCreating : isLoading}
+      isLaunchpadLayout={layout === "launchpad"}
       isOrgMembersPanelOpen={isOrgMembersPanelOpen}
       isWingmanMode={isWingmanMode}
       leadingActionSlot={leadingActionSlot}
@@ -564,12 +571,10 @@ const SessionCreatorChatPanelContent: React.FC<
         onWorktreeLocationChange: handleWorktreeLocationChange,
         onWorktreeSourceSelect: handleWorktreeSourceSelect,
         fullWidth: true,
-        pillVariant: headerLayout === "compact" ? "ghost" : undefined,
       }}
       showMissingGitAlert={!isHumanMode && showMissingGitAlert}
       hideSessionSetupControls={isHumanMode}
       workItemContext={attachedWorkItemContext}
-      workItemPanelHostRef={workItemPanelHostRef}
     />
   );
 };

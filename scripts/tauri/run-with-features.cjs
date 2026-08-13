@@ -30,6 +30,29 @@ if (featureString.length > 0) {
 args.push(...extraArgs);
 
 const rootDir = path.join(__dirname, "..", "..");
+
+// `externalBin` requires the staged org2-pm sidecar to exist before the
+// tauri CLI starts (dev copies it next to the debug binary; build bundles
+// and signs it).
+if (subcommand === "dev" || subcommand === "build") {
+  const targetIndex = extraArgs.indexOf("--target");
+  const sidecarArgs = [
+    path.join(__dirname, "prepare-sidecars.cjs"),
+    "--profile",
+    subcommand === "build" ? "release" : "debug",
+  ];
+  if (targetIndex >= 0 && extraArgs[targetIndex + 1]) {
+    sidecarArgs.push("--target", extraArgs[targetIndex + 1]);
+  }
+  const sidecarResult = spawnSync(process.execPath, sidecarArgs, {
+    stdio: "inherit",
+    cwd: rootDir,
+  });
+  if (sidecarResult.status !== 0) {
+    process.exit(sidecarResult.status ?? 1);
+  }
+}
+
 const result = spawnSync("tauri", args, {
   stdio: "inherit",
   shell: true,

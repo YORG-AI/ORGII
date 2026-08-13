@@ -101,10 +101,6 @@ const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
               </section>
             </div>
           </div>
-
-          <div className="w-11 shrink-0 border-l border-border-1 px-3 py-5">
-            <SkeletonBar className="h-24 w-1 rounded-full" />
-          </div>
         </div>
       </div>
     );

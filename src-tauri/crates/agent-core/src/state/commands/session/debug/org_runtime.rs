@@ -156,12 +156,9 @@ pub async fn debug_session_execute_tool(
     tool_name: String,
     params: Value,
 ) -> Result<DebugOrgToolResult, String> {
-    if !matches!(
-        tool_name.as_str(),
-        names::READ_FILE | names::MANAGE_PROJECT | names::MANAGE_WORK_ITEM
-    ) {
+    if tool_name.as_str() != names::READ_FILE {
         return Err(format!(
-            "debug_session_execute_tool only allows audited tools [read_file, manage_project, manage_work_item]; got '{tool_name}'"
+            "debug_session_execute_tool only allows audited tools [read_file]; got '{tool_name}'"
         ));
     }
 
@@ -178,9 +175,9 @@ pub async fn debug_session_execute_tool(
         .ok_or_else(|| format!("session runtime not initialized: {session_id}"))?;
 
     // Enforce the same per-turn policy composition the LLM path uses
-    // (exec-mode + product-mode layers over the base policy). Without
-    // this the debug hook silently bypasses the PM deny-delta and E2E
-    // runs prove nothing about the gated surface.
+    // (exec-mode layer over the base policy). Without this the debug
+    // hook silently bypasses mode restrictions and E2E runs prove
+    // nothing about the gated surface.
     let session_record = crate::session::persistence::get_session(&session_id)
         .map_err(|err| format!("failed to load session record {session_id}: {err}"))?;
     let record_exec_mode = session_record
@@ -188,14 +185,11 @@ pub async fn debug_session_execute_tool(
         .and_then(|record| record.agent_exec_mode.as_deref())
         .and_then(crate::session::AgentExecMode::parse)
         .unwrap_or_default();
-    let product_mode = session_record
-        .as_ref()
-        .and_then(|record| record.product_mode.as_deref());
-    let effective_policy = runtime.policy.with_modes(record_exec_mode, product_mode);
+    let effective_policy = runtime.policy.with_exec_mode(record_exec_mode);
     if !effective_policy.is_allowed(&tool_name) {
         return Err(format!(
             "tool '{tool_name}' is denied by the session's effective policy \
-             (exec_mode={record_exec_mode:?}, product_mode={product_mode:?})"
+             (exec_mode={record_exec_mode:?})"
         ));
     }
 

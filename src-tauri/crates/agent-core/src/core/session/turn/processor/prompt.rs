@@ -19,28 +19,100 @@ use crate::core::session::prompt::cache::SkillListingCacheKey;
 use crate::core::session::prompt::sections::build_agent_org_context_section_with_task_snapshot;
 use crate::core::session::types::{SystemPromptConfig, ToolSummary};
 
+fn render_orgtrack_cli_brief(
+    product_mode: Option<&str>,
+    project_slug: Option<&str>,
+) -> Option<String> {
+    if product_mode != Some("project") {
+        return None;
+    }
+    let scope_line = match project_slug {
+        Some(slug) => format!("Your scope is injected (ORGII_SCOPE={slug}); omit --scope."),
+        None => "No Project is required. This session uses the current organization's standalone Work Item scope; omit --scope. Work list/create route there automatically.".to_string(),
+    };
+    Some(format!(
+        "## Work Management (org2-pm)\n\n\
+         The work system is also reachable from your shell through the `org2-pm` CLI. \
+         Use `--output json`; run `org2-pm --help` or `org2-pm <command> --help` for anything beyond the core set.\n\n\
+         - `org2-pm work show <id>` / `org2-pm work list [--status <state>] [--ready]`\n\
+         - `org2-pm work create --title \"...\" [--body ...] [--parent <id>]`\n\
+         - `org2-pm work update <id> [--title ...] [--body ...|--body-file <path>] [--expected-revision N]`\n\
+         - `org2-pm work transition <id> --to <state> --reason \"...\"`\n\
+         - `org2-pm work claim <id>` / `org2-pm work release <id>`\n\
+         - `org2-pm work note <id> --kind <comment|progress|blocker|decision|handoff|review> --body \"...\"`\n\n\
+         For multi-line or code-bearing bodies, write the text to a file in your working \
+         directory and pass `--body-file <path>` — inline --body goes through the shell, \
+         which mangles backticks and $().\n\n\
+         Rules:\n\
+         - Your session identity is injected; never pass --actor yourself.\n\
+         - {}\n\
+         - Split the work into sub items (`work create --parent <id>`) whenever the plan has \
+         more than one independently completable step; keep single-step work on the item itself.\n\
+         - When you finish working an item, post exactly ONE receipt on it — \
+         `org2-pm work note <id> --kind progress --body \"...\"` — stating the outcome, not the \
+         process. Do NOT post progress updates or plans as notes while you work. Chat text is \
+         not delivered to the work item; only notes land on it.\n\
+         - If blocked, run `org2-pm work transition <id> --to blocked --reason \"...\"` and post \
+         one note explaining the blocker.\n\
+         - Your harness's built-in planning tools (task lists, todos) are local scratch state — \
+         they do NOT update the work system. Only `org2-pm` writes count.",
+        scope_line
+    ))
+}
+
 fn render_linked_work_item_context(work_item_id: &str, project_slug: Option<&str>) -> String {
-    let scope_instruction = match project_slug {
-        Some(project_slug) => format!(
-            "Set `project_slug` to {} on every `manage_work_item` call for this item.",
-            serde_json::to_string(project_slug).expect("project slug is JSON serializable")
+    let (scope_instruction, standalone_flag) = match project_slug {
+        Some(project_slug) => (
+            format!(
+                "Pass `--scope {}` on every `org2-pm work` command for this item (or rely on the injected ORGII_SCOPE).",
+                project_slug
+            ),
+            "",
         ),
-        None => "Omit `project_slug` on every `manage_work_item` call for this standalone item."
-            .to_string(),
+        None => (
+            "This item is standalone (no project): pass `--standalone` on every `org2-pm work` command for it and omit `--scope`."
+                .to_string(),
+            " --standalone",
+        ),
     };
 
     format!(
         "## Linked Work Item\n\n\
-         This planning session is already linked to Work Item `short_id` {}. \
+         This planning session is already linked to Work Item {}. \
          {} \
+         Use the `org2-pm` CLI from your shell to read and fill it: `org2-pm work show <id>{}` to read, \
+         `org2-pm work update <id>{} --title \"...\" --body \"...\"` to fill or refine the draft. \
+         ⚠️ Every deliverable of this session MUST land on the Work Item through `org2-pm` — \
+         whatever the user asks for here IS this item's content: write it into the item body \
+         (and sub items via `org2-pm work create{} --parent {}` when the work has multiple \
+         independently completable steps), then post one receipt with \
+         `org2-pm work note <id>{} --kind progress --body \"...\"`. \
+         Chat replies are conversation, not delivery; a turn that ends with the work only in \
+         chat has delivered nothing, even when the content itself is correct. \
          Scope rule: the linked item is THIS session's original deliverable. \
          When the user iterates on that same request (refine, expand, correct, retitle), update the linked draft instead of creating a duplicate. \
-         When the user asks for a NEW or additional Work Item — a different topic, an example, \"another one\" — create a fresh item with `manage_work_item(action=create_item)` and leave the linked item untouched; never repurpose it by overwriting its title and body with unrelated content. \
-         Keep the current session linked after every update. \
+         When the user asks for a NEW or additional Work Item — a different topic, an example, \"another one\" — create a fresh item with `org2-pm work create{} --title \"...\"` and leave the linked item untouched; never repurpose it by overwriting its title and body with unrelated content. \
          Apply all of this silently: never announce the linkage, ids, or drafting mechanics to the user (no \"this session is already linked to…\") — just acknowledge the request and do the work.",
         serde_json::to_string(work_item_id).expect("work item id is JSON serializable"),
         scope_instruction,
+        standalone_flag,
+        standalone_flag,
+        standalone_flag,
+        serde_json::to_string(work_item_id).expect("work item id is JSON serializable"),
+        standalone_flag,
+        standalone_flag,
     )
+}
+
+fn linked_work_item_context_for_session(
+    product_mode: Option<&str>,
+    work_item_id: Option<&str>,
+    project_slug: Option<&str>,
+) -> Option<String> {
+    if product_mode != Some("project") {
+        return None;
+    }
+    work_item_id.map(|work_item_id| render_linked_work_item_context(work_item_id, project_slug))
 }
 
 impl UnifiedMessageProcessor {
@@ -68,6 +140,13 @@ impl UnifiedMessageProcessor {
             .and_then(|ctx| ctx.user_profile.clone())
             .or_else(crate::interaction::profile_state::global_profile);
 
+        let product_mode = tokio::task::block_in_place(|| {
+            super::unified_persistence::get_session(session_id)
+                .ok()
+                .flatten()
+                .and_then(|record| record.product_mode)
+        });
+
         let prompt_config = SystemPromptConfig {
             model: self.runtime.model.clone(),
             agent_id: self.agent_id.clone(),
@@ -80,6 +159,7 @@ impl UnifiedMessageProcessor {
             channel: self.channel.clone(),
             chat_id: self.chat_id.clone(),
             agent_mode: self.agent_mode,
+            product_mode,
             ide_context: self.ide_context.clone(),
             user_presence,
             user_profile,
@@ -190,25 +270,29 @@ impl UnifiedMessageProcessor {
             }
         }
 
-        // The ChatPanel "Create with AI" flow persists a draft before launch
-        // so the planning session has a durable Work Item target. Any agent
-        // launched through that flow (session agent_role "custom") needs the
-        // linkage in its prompt, or the model can create a second item and
-        // strand the original "AI Work Item Draft". Orchestrator-launched
-        // sessions carry work item context in their launch prompt and are
-        // excluded here. Keep this volatile (session-specific).
+        // Every Project-mode entrance owns a durable linked Work Item. Keep
+        // that identity in the per-turn prompt even when an orchestrator also
+        // supplied launch context: ordinary SDE sessions bootstrap the link
+        // after launch, and without this live row the model rediscovers
+        // projects, creates duplicates, or asks for a scope that is optional.
+        // Keep this volatile because the bootstrap link is session-specific.
         {
             let linked_session =
                 tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
             match linked_session {
                 Ok(Some(session)) => {
-                    if session.agent_role.as_deref() == Some("custom") {
-                        if let Some(work_item_id) = session.work_item_id.as_deref() {
-                            dynamic_sections.push(render_linked_work_item_context(
-                                work_item_id,
-                                session.project_slug.as_deref(),
-                            ));
-                        }
+                    if let Some(context) = linked_work_item_context_for_session(
+                        session.product_mode.as_deref(),
+                        session.work_item_id.as_deref(),
+                        session.project_slug.as_deref(),
+                    ) {
+                        dynamic_sections.push(context);
+                    }
+                    if let Some(brief) = render_orgtrack_cli_brief(
+                        session.product_mode.as_deref(),
+                        session.project_slug.as_deref(),
+                    ) {
+                        dynamic_sections.push(brief);
                     }
                 }
                 Ok(None) => {}
@@ -484,14 +568,18 @@ impl UnifiedMessageProcessor {
 
 #[cfg(test)]
 mod linked_work_item_context_tests {
-    use super::render_linked_work_item_context;
+    use super::{
+        linked_work_item_context_for_session, render_linked_work_item_context,
+        render_orgtrack_cli_brief,
+    };
 
     #[test]
     fn renders_project_scope_without_ambiguous_discovery() {
         let prompt = render_linked_work_item_context("AUTH-0042", Some("auth-core"));
 
-        assert!(prompt.contains("`short_id` \"AUTH-0042\""));
-        assert!(prompt.contains("Set `project_slug` to \"auth-core\""));
+        assert!(prompt.contains("Work Item \"AUTH-0042\""));
+        assert!(prompt.contains("--scope auth-core"));
+        assert!(!prompt.contains("--standalone"));
         assert!(prompt.contains("instead of creating a duplicate"));
     }
 
@@ -499,8 +587,32 @@ mod linked_work_item_context_tests {
     fn renders_standalone_scope_without_fake_project() {
         let prompt = render_linked_work_item_context("ORG-0042", None);
 
-        assert!(prompt.contains("`short_id` \"ORG-0042\""));
-        assert!(prompt.contains("Omit `project_slug`"));
+        assert!(prompt.contains("Work Item \"ORG-0042\""));
+        assert!(prompt.contains("`org2-pm work show <id> --standalone`"));
+        assert!(prompt.contains("`org2-pm work create --standalone"));
+        assert!(!prompt.contains("--scope auth-core"));
         assert!(!prompt.contains("personal-org"));
+    }
+
+    #[test]
+    fn every_project_session_with_a_link_receives_linked_item_context() {
+        let prompt = linked_work_item_context_for_session(Some("project"), Some("WI-0095"), None)
+            .expect("linked context");
+
+        assert!(prompt.contains("Work Item \"WI-0095\""));
+        assert!(prompt.contains("standalone (no project)"));
+        assert!(
+            linked_work_item_context_for_session(Some("build"), Some("WI-0095"), None).is_none()
+        );
+    }
+
+    #[test]
+    fn projectless_brief_says_project_is_optional() {
+        let prompt =
+            render_orgtrack_cli_brief(Some("project"), None).expect("Project-mode CLI brief");
+
+        assert!(prompt.contains("No Project is required"));
+        assert!(prompt.contains("route there automatically"));
+        assert!(!prompt.contains("Pass --scope"));
     }
 }

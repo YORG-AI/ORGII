@@ -26,9 +26,11 @@ pub(crate) fn bump_change_seq(tx: &Transaction<'_>) -> Result<i64, String> {
          ON CONFLICT(id) DO UPDATE SET seq = seq + 1",
         [],
     ))?;
-    map_db(tx.query_row("SELECT seq FROM pm_change_seq WHERE id = 1", [], |row| {
-        row.get(0)
-    }))
+    map_db(
+        tx.query_row("SELECT seq FROM pm_change_seq WHERE id = 1", [], |row| {
+            row.get(0)
+        }),
+    )
 }
 
 pub(crate) struct AuditEventRow<'a> {
@@ -78,4 +80,63 @@ pub(crate) fn append_audit_event(
         ],
     ))?;
     Ok(())
+}
+
+/// One work-item status crossing recorded in the audit stream.
+#[derive(Debug, Clone)]
+pub struct AuditStatusTransition {
+    pub seq: i64,
+    pub entity_id: String,
+    pub project_slug: Option<String>,
+    pub org_id: Option<String>,
+    pub status_from: String,
+    pub status_to: String,
+}
+
+/// Read work-item status transitions committed after `after_seq`.
+///
+/// Serves the desktop's cross-process bridge: CLI mutations audit their
+/// `status_from`/`status_to` in the same transaction, so scanning the
+/// stream is the reliable way to observe transitions made by other
+/// processes (the in-process notifier cannot fire for them).
+pub fn read_status_transitions_since(after_seq: i64) -> Result<Vec<AuditStatusTransition>, String> {
+    let connection =
+        database::db::get_projects_connection().map_err(|err| format!("pm audit: {}", err))?;
+    let mut stmt = map_db(connection.prepare(
+        "SELECT seq, entity_id, project_slug, org_id, payload_json
+         FROM pm_audit_events
+         WHERE entity_type = 'work_item' AND seq > ?1 AND payload_json LIKE '%status_to%'
+         ORDER BY seq ASC",
+    ))?;
+    let rows = map_db(stmt.query_map(params![after_seq], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, String>(4)?,
+        ))
+    }))?;
+    let mut transitions = Vec::new();
+    for row in rows {
+        let (seq, entity_id, project_slug, org_id, payload_json) = map_db(row)?;
+        let Ok(payload) = serde_json::from_str::<serde_json::Value>(&payload_json) else {
+            continue;
+        };
+        let (Some(status_from), Some(status_to)) = (
+            payload.get("status_from").and_then(|value| value.as_str()),
+            payload.get("status_to").and_then(|value| value.as_str()),
+        ) else {
+            continue;
+        };
+        transitions.push(AuditStatusTransition {
+            seq,
+            entity_id,
+            project_slug,
+            org_id,
+            status_from: status_from.to_string(),
+            status_to: status_to.to_string(),
+        });
+    }
+    Ok(transitions)
 }

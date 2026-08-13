@@ -13,9 +13,10 @@ use std::collections::{HashMap, HashSet};
 
 use crate::projectors::turn_metadata::{project_activity_chunks, ProjectedTurnMetadata};
 
-use super::{load_activity_chunks_for_session, FUNCTION_USER_MESSAGE};
+use super::{load_activity_chunks_for_session, FUNCTION_ASSISTANT, FUNCTION_USER_MESSAGE};
 
 const ORPHAN_INITIAL_CHUNK_LIMIT: usize = 200;
+const TURN_PREVIEW_MAX_BYTES: usize = 512;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,19 +41,52 @@ fn is_user_chunk(chunk: &ActivityChunk) -> bool {
     chunk.function == FUNCTION_USER_MESSAGE
 }
 
+fn bounded_turn_preview(message: &str) -> String {
+    if message.len() <= TURN_PREVIEW_MAX_BYTES {
+        return message.to_string();
+    }
+    let mut cut = TURN_PREVIEW_MAX_BYTES;
+    while !message.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!("{}…", &message[..cut])
+}
+
+fn assistant_preview_text(chunk: &ActivityChunk) -> Option<String> {
+    if chunk.function != FUNCTION_ASSISTANT {
+        return None;
+    }
+    chunk
+        .result
+        .get("observation")
+        .or_else(|| chunk.result.get("content"))
+        .or_else(|| chunk.result.pointer("/message/content"))
+        .or_else(|| chunk.args.get("content"))
+        .and_then(Value::as_str)
+        .filter(|message| !message.trim().is_empty())
+        .map(bounded_turn_preview)
+}
+
 fn build_unloaded_turn_placeholder_chunk(
     session_id: &str,
     turn: &ProjectedTurnMetadata,
     next_turn_id: Option<&str>,
+    last_agent_preview: Option<&str>,
 ) -> ActivityChunk {
+    let internal_placeholder = format!("Imported turn {} is not loaded yet.", turn.turn_id);
+    let display_content = last_agent_preview.unwrap_or(&internal_placeholder);
     let mut chunk = ActivityChunk::new(session_id, "assistant", "assistant");
     chunk.chunk_id = format!("imported-unloaded-turn-{}", turn.turn_id);
     chunk.created_at = turn
         .ended_at
         .clone()
         .unwrap_or_else(|| turn.started_at.clone());
+    if last_agent_preview.is_some() {
+        chunk.args = json!({ "turnPreviewOnly": true });
+    }
     chunk.result = json!({
-        "observation": format!("Imported turn {} is not loaded yet.", turn.turn_id),
+        "observation": display_content,
+        "content": display_content,
         "role": "assistant",
         "is_delta": false,
         "is_full_content": true,
@@ -155,18 +189,27 @@ pub fn build_initial_window_from_turns(
         } else {
             if let Some(turn) = turns.get(current_turn_index) {
                 window.push(build_user_preview_chunk(session_id, &chunk, turn));
+                let mut last_agent_preview = None;
+                while chunks.peek().is_some_and(|next| !is_user_chunk(next)) {
+                    if let Some(body) = chunks.next() {
+                        if let Some(preview) = assistant_preview_text(&body) {
+                            last_agent_preview = Some(preview);
+                        }
+                    }
+                }
                 window.push(build_unloaded_turn_placeholder_chunk(
                     session_id,
                     turn,
                     turns
                         .get(current_turn_index + 1)
                         .map(|next| next.turn_id.as_str()),
+                    last_agent_preview.as_deref(),
                 ));
             } else {
                 window.push(chunk);
-            }
-            while chunks.peek().is_some_and(|next| !is_user_chunk(next)) {
-                chunks.next();
+                while chunks.peek().is_some_and(|next| !is_user_chunk(next)) {
+                    chunks.next();
+                }
             }
         }
     }
@@ -320,6 +363,22 @@ mod tests {
         );
         assert!(window.chunks.iter().any(|chunk| chunk.chunk_id == "a3"));
         assert!(!window.chunks.iter().any(|chunk| chunk.chunk_id == "a1"));
+        let placeholders = window
+            .chunks
+            .iter()
+            .filter(|chunk| chunk.result.get("unloadedTurn").is_some())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            placeholders
+                .iter()
+                .filter_map(|chunk| chunk.result.get("observation"))
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>(),
+            vec!["answer one", "answer two"]
+        );
+        assert!(placeholders
+            .iter()
+            .all(|chunk| chunk.args.get("turnPreviewOnly") == Some(&Value::Bool(true))));
         let first_preview = window
             .chunks
             .iter()
@@ -329,6 +388,30 @@ mod tests {
             .expect("first preview");
         assert!(first_preview.len() <= 515);
         assert!(first_preview.ends_with('…'));
+    }
+
+    #[test]
+    fn initial_window_bounds_last_reply_preview_on_a_utf8_boundary() {
+        let long_reply = "🙂".repeat(200);
+        let chunks = vec![
+            chunk("u1", FUNCTION_USER_MESSAGE, "one"),
+            chunk("a1", FUNCTION_ASSISTANT, &long_reply),
+            chunk("u2", FUNCTION_USER_MESSAGE, "two"),
+            chunk("a2", FUNCTION_ASSISTANT, "answer two"),
+        ];
+
+        let window = build_initial_window("test-session", chunks, 1);
+        let preview = window.chunks[1]
+            .result
+            .get("observation")
+            .and_then(Value::as_str)
+            .expect("last reply preview");
+
+        assert!(preview.len() <= TURN_PREVIEW_MAX_BYTES + '…'.len_utf8());
+        assert!(preview.ends_with('…'));
+        assert!(preview[..preview.len() - '…'.len_utf8()]
+            .chars()
+            .all(|character| character == '🙂'));
     }
 
     #[test]

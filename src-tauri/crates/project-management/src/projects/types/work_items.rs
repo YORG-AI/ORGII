@@ -214,6 +214,21 @@ pub struct WorkItemWorkProduct {
     pub updated_at: String,
 }
 
+/// Session provenance captured when a Work Item is created from an agent turn.
+///
+/// This is intentionally separate from `linked_sessions`: the latter models
+/// sessions that execute the Work Item and feeds lifecycle/token accounting,
+/// while an origin session may already be executing a different root item.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkItemOriginSession {
+    pub session_id: String,
+    pub provider: String,
+    pub actor_id: String,
+    pub session_type: String,
+    pub captured_at: String,
+}
+
 /// YAML frontmatter of a `work-items/{SHORT_ID}.md` file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkItemFrontmatter {
@@ -237,12 +252,16 @@ pub struct WorkItemFrontmatter {
     pub milestone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_session: Option<WorkItemOriginSession>,
     pub created_at: String,
     pub updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -261,19 +280,18 @@ pub struct WorkItemFrontmatter {
     pub handoff: Option<WorkItemHandoff>,
     // --- Agent Workflow Fields ---
     //
-    // `linked_sessions` and `orchestrator_state` are persisted in SQLite
-    // (`orchestrator_runs` / `orchestrator_linked_sessions`), NOT in the
-    // `.md` frontmatter. We keep the in-memory fields so existing mutator
-    // closures work unchanged, but they are skipped during YAML
-    // serialization. Deserialization is preserved so legacy `.md` files
-    // can still be parsed during the one-time migration.
-    #[serde(default, skip_serializing)]
+    // `linked_sessions` and `orchestrator_state` are execution state.
+    // They serialize normally (IPC reads must carry them — the detail
+    // surfaces render the Execution Log from this struct), but the
+    // git-folder `.md` export strips them at its own boundary so the
+    // synced markdown stays free of run-time state.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub linked_sessions: Vec<LinkedSession>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proof_of_work: Option<ProofOfWork>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub orchestrator_config: Option<OrchestratorConfig>,
-    #[serde(default, skip_serializing)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub orchestrator_state: Option<OrchestratorState>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub follow_up_items: Vec<FollowUpRef>,
@@ -482,6 +500,8 @@ pub struct WorkItemPartialUpdate {
         skip_serializing_if = "Option::is_none"
     )]
     pub milestone: Option<Option<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage: Option<Option<u32>>,
     #[serde(
         default,
         deserialize_with = "deserialize_optional_update",

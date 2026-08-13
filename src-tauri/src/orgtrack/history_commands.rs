@@ -91,6 +91,9 @@ impl ImportedTurnProjectionCache {
             .position(|entry| entry.session_id == session_id)?;
         let entry = self.entries.remove(index)?;
         if entry.signature != signature {
+            // A stale caller must miss without evicting the newer projection
+            // that another reader already cached for this session.
+            self.entries.push_back(entry);
             return None;
         }
         if entry.quality < min_quality {

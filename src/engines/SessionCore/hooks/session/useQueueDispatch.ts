@@ -27,7 +27,10 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { getSession } from "@src/api/tauri/agent";
 import { Message } from "@src/components/Message";
-import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import {
+  type AgentExecMode,
+  resolveSessionAgentExecMode,
+} from "@src/config/sessionCreatorConfig";
 import {
   beginOptimisticTurn,
   failOptimisticTurn,
@@ -51,7 +54,6 @@ import {
   lastUserMessageAtom,
   setSessionRuntimeStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
-import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import {
   type LastModelSelection,
   creatorDefaultModelSelectionAtom,
@@ -186,8 +188,7 @@ export function useQueueDispatch(): void {
         );
       const agentExecMode: AgentExecMode =
         msg.agentExecMode ??
-        (session?.agentExecMode as AgentExecMode | undefined) ??
-        store.get(creatorDefaultExecModeAtom);
+        resolveSessionAgentExecMode(session?.agentExecMode);
       const { model, accountId } = resolveModelForMessage(lastModelSelection);
 
       // Synchronous turn reserve BEFORE any await: from this instant every

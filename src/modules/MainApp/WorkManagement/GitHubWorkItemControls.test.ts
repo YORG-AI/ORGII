@@ -71,6 +71,7 @@ const draftPr: ManagedPrItem = {
     head_branch: "audit-workspace",
     base_branch: "develop",
     draft: true,
+    ci_status: "pending",
     created_at: "2026-07-21T08:00:00Z",
     updated_at: "2026-07-21T08:10:00Z",
   },
@@ -94,7 +95,7 @@ describe("ManagedIssueContextMeta", () => {
 
     expect(markup).toContain("lucide-git-pull-request");
     expect(markup).toContain("lucide-message-circle");
-    expect(markup).toContain("text-primary-6");
+    expect(markup).toContain("text-text-1");
     expect(markup).toContain(">2<");
     expect(markup).toContain(">4<");
   });
@@ -145,7 +146,9 @@ describe("ManagedIssueAssigneeCell", () => {
     expect(markup).toContain("width:24px;height:24px");
     expect(markup).toContain("https://example.com/o.png");
     expect(markup).toContain("lucide-chevron-down");
-    expect(markup).toContain("bg-bg-2");
+    expect(markup).toContain("bg-fill-1");
+    expect(markup).toContain("enabled:hover:bg-fill-2");
+    expect(markup).toContain("hover:border-border-3");
     expect(markup).toContain("w-12");
     expect(markup).toContain("px-px");
   });
@@ -178,7 +181,7 @@ describe("ManagedIssueAssigneeCell", () => {
 
     expect(markup).toContain('aria-disabled="true"');
     expect(markup).toContain("lucide-chevron-down");
-    expect(markup).toContain("bg-bg-2");
+    expect(markup).toContain("bg-fill-1");
     expect(markup).toContain("w-12");
     expect(markup).toContain("px-px");
     expect(markup).not.toContain("opacity-80");
@@ -204,6 +207,7 @@ describe("ManagedIssueAssigneeCell", () => {
 
     expect(markup).toContain('title="No permission"');
     expect(markup).toContain("disabled");
+    expect(markup).toContain("bg-fill-1");
     expect(markup).not.toContain("lucide-chevron-down");
   });
 });

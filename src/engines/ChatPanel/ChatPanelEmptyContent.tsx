@@ -7,6 +7,7 @@ import { PRODUCT_MODE_PROJECT } from "@src/config/sessionCreatorConfig";
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { SESSION_CREATOR_LAUNCH_MODE } from "@src/features/SessionCreator/types";
 import type { CreatedOrgResult } from "@src/features/TeamCollaboration/components/CreateCollabOrgView";
+import type { CreatedProjectResult } from "@src/modules/ProjectManager/Projects/components/CreateProjectView";
 import type { CreatedWorkItemResult } from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView";
 import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
@@ -47,6 +48,14 @@ const BenchmarkRunBuilder = React.lazy(() =>
 );
 
 type SessionCreatorSlot = NonNullable<ChatPanelProps["sessionCreatorSlot"]>;
+type SessionCreatorSlotProps = React.ComponentProps<SessionCreatorSlot>;
+
+interface EmbeddedAgentComposerOptions {
+  heroFooterSlot?: React.ReactNode;
+  onSessionStart: NonNullable<SessionCreatorSlotProps["onSessionStart"]>;
+  resolveWorkItemContext?: SessionCreatorSlotProps["resolveWorkItemContext"];
+  workItemContext?: SessionCreatorSlotProps["workItemContext"];
+}
 
 interface DefaultAiWorkItemAssignee {
   id: string;
@@ -86,7 +95,7 @@ interface ChatPanelEmptyContentProps {
   handleCancelWorkItemCreate: () => void;
   handleCancelCollabOrgCreate: () => void;
   handleCancelProjectCreate: () => void;
-  handleChatPanelProjectCreated: (options?: { keepOpen?: boolean }) => void;
+  handleChatPanelProjectCreated: (result?: CreatedProjectResult) => void;
   handleChatPanelCollabOrgCreated: (result: CreatedOrgResult) => void;
   handleChatPanelWorkItemCreated: (result?: CreatedWorkItemResult) => void;
   handleOpenCliTerminal: NonNullable<
@@ -96,6 +105,7 @@ interface ChatPanelEmptyContentProps {
   handleStartPageAddApiKey: () => void;
   handleCreateTargetChange: (target: ChatPanelCreateTarget) => void;
   handleStartPageInstallLatestUpdate: () => void;
+  handleStartPageShowRuntime: () => void;
   handleStartPageSessionStart: (info: SessionLaunchSuccessInfo) => void;
   handleProjectAgentCreatorToggle: (enabled: boolean) => void;
   handleWorkItemAgentCreatorToggle: (enabled: boolean) => void;
@@ -129,6 +139,7 @@ export function ChatPanelEmptyContent({
   handleStartPageAddApiKey,
   handleCreateTargetChange,
   handleStartPageInstallLatestUpdate,
+  handleStartPageShowRuntime,
   handleStartPageSessionStart,
   handleProjectAgentCreatorToggle,
   handleWorkItemAgentCreatorToggle,
@@ -157,7 +168,43 @@ export function ChatPanelEmptyContent({
   const handleCreateWorkItem = useCallback(() => {
     handleCreateTargetChange(CHAT_PANEL_CREATE_TARGET.WORK_ITEM);
   }, [handleCreateTargetChange]);
-  const renderWorkItemCreator = (showInlineAiModePanel: boolean) => {
+  const createEmbeddedAgentComposer = SessionCreatorSlot
+    ? ({
+        heroFooterSlot,
+        onSessionStart,
+        resolveWorkItemContext,
+        workItemContext,
+      }: EmbeddedAgentComposerOptions) =>
+        function renderEmbeddedComposer(
+          composerHeaderContent: React.ReactNode,
+          pinnedActionsContent: React.ReactNode
+        ) {
+          return (
+            <SessionCreatorSlot
+              className="h-full min-h-0 flex-1"
+              variant={creatorVariant}
+              layout="launchpad"
+              heroFooterSlot={heroFooterSlot}
+              composerHeaderContent={composerHeaderContent}
+              pinnedActionsContent={pinnedActionsContent}
+              hidePresenceButton
+              hideWorkItemAttachmentControl
+              includeHumanSession={false}
+              launchMode={SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND}
+              onOpenCliTerminal={handleOpenCliTerminal}
+              onRegionNoticeChange={handleRegionNoticeChange}
+              onSessionStart={onSessionStart}
+              resolveWorkItemContext={resolveWorkItemContext}
+              workItemContext={workItemContext}
+            />
+          );
+        }
+    : undefined;
+  const renderWorkItemCreator = (
+    suggestionPills?: React.ReactNode,
+    manualMiddleContent?: React.ReactNode,
+    creatorModeControl?: React.ReactNode
+  ) => {
     return (
       <WorkspaceScopedContent>
         {({ workspacePath }) => {
@@ -179,39 +226,15 @@ export function ChatPanelEmptyContent({
                   aiGenerateMode={showWorkItemAgentCreator}
                   onAiGenerateModeChange={handleWorkItemAgentCreatorToggle}
                   showAiModePanel={false}
-                  centerLauncherContent={showInlineAiModePanel}
                   showFooter
                   chatPanelFooter
-                  renderAgentComposer={
-                    SessionCreatorSlot
-                      ? (headerContent, pinnedActionsContent) => (
-                          <SessionCreatorSlot
-                            className={
-                              showInlineAiModePanel
-                                ? "shrink-0"
-                                : "min-h-0 flex-1"
-                            }
-                            variant={creatorVariant}
-                            centerFullScreenContent
-                            composerHeaderContent={headerContent}
-                            pinnedActionsContent={pinnedActionsContent}
-                            innerClassName={
-                              showInlineAiModePanel ? "pb-2 pt-1" : undefined
-                            }
-                            hidePresenceButton
-                            hideWorkItemAttachmentControl
-                            includeHumanSession={false}
-                            launchMode={
-                              SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND
-                            }
-                            onOpenCliTerminal={handleOpenCliTerminal}
-                            onRegionNoticeChange={handleRegionNoticeChange}
-                            onSessionStart={handleAiWorkItemSessionStart}
-                            resolveWorkItemContext={resolveAiWorkItemContext}
-                          />
-                        )
-                      : undefined
-                  }
+                  middleContent={manualMiddleContent}
+                  creatorModeControl={creatorModeControl}
+                  renderAgentComposer={createEmbeddedAgentComposer?.({
+                    heroFooterSlot: suggestionPills,
+                    onSessionStart: handleAiWorkItemSessionStart,
+                    resolveWorkItemContext: resolveAiWorkItemContext,
+                  })}
                   defaultAiAssignee={defaultAiWorkItemAssignee}
                 />
               </Suspense>
@@ -222,12 +245,17 @@ export function ChatPanelEmptyContent({
     );
   };
 
-  const renderSessionLauncher = (className: string) =>
+  const renderSessionLauncher = (
+    className: string,
+    layout: "default" | "launchpad" = "default",
+    heroFooterSlot?: React.ReactNode
+  ) =>
     SessionCreatorSlot ? (
       <SessionCreatorSlot
         className={className}
         variant={creatorVariant}
-        innerClassName="pb-2 pt-1"
+        layout={layout}
+        heroFooterSlot={heroFooterSlot}
         hidePresenceButton
         onCreateWorkItem={handleCreateWorkItem}
         onOpenCliTerminal={handleOpenCliTerminal}
@@ -236,7 +264,11 @@ export function ChatPanelEmptyContent({
       />
     ) : null;
 
-  const renderProjectCreator = () => {
+  const renderProjectCreator = (
+    suggestionPills?: React.ReactNode,
+    manualMiddleContent?: React.ReactNode,
+    creatorModeControl?: React.ReactNode
+  ) => {
     return (
       <WorkspaceScopedContent>
         {({ workspaceName, workspacePath }) => (
@@ -249,51 +281,31 @@ export function ChatPanelEmptyContent({
                 repoPath={workspacePath ?? undefined}
                 repoName={workspaceName}
                 scopeBreadcrumbLabel={
-                  createProjectContext?.scopeBreadcrumbLabel ??
-                  t("projects:orgs.personalOrg")
+                  createProjectContext?.scopeBreadcrumbLabel
                 }
-                orgId={
-                  createProjectContext?.orgId ?? STORY_PERSONAL_ORG_FILTER_ID
-                }
+                orgId={createProjectContext?.orgId}
                 onSetUnsaved={() => undefined}
                 onProjectCreated={handleChatPanelProjectCreated}
                 aiGenerateMode={showProjectAgentCreator}
-                centerLauncherContent={showStartPage}
-                renderAgentComposer={
-                  SessionCreatorSlot
-                    ? (headerContent, pinnedActionsContent) => (
-                        <SessionCreatorSlot
-                          className={
-                            showStartPage ? "shrink-0" : "min-h-0 flex-1"
-                          }
-                          variant={creatorVariant}
-                          centerFullScreenContent
-                          composerHeaderContent={headerContent}
-                          pinnedActionsContent={pinnedActionsContent}
-                          innerClassName={
-                            showStartPage ? "pb-2 pt-1" : undefined
-                          }
-                          hidePresenceButton
-                          launchMode={
-                            SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND
-                          }
-                          onOpenCliTerminal={handleOpenCliTerminal}
-                          onRegionNoticeChange={handleRegionNoticeChange}
-                          onSessionStart={handleProjectCreatorSessionStart}
-                          workItemContext={{
-                            orgId:
-                              projectDraftOrgId ??
-                              createProjectContext?.orgId ??
-                              STORY_PERSONAL_ORG_FILTER_ID,
-                            // The whole flow is "create a project via manage_project" —
-                            // without a workItemId the resolver would default to build
-                            // and the PM tools would be policy-denied (§5.2 deny-delta).
-                            productMode: PRODUCT_MODE_PROJECT,
-                          }}
-                        />
-                      )
-                    : undefined
-                }
+                middleContent={manualMiddleContent}
+                creatorModeControl={creatorModeControl}
+                renderAgentComposer={createEmbeddedAgentComposer?.({
+                  heroFooterSlot: suggestionPills,
+                  onSessionStart: handleProjectCreatorSessionStart,
+                  workItemContext: {
+                    orgId:
+                      projectDraftOrgId ??
+                      createProjectContext?.orgId ??
+                      STORY_PERSONAL_ORG_FILTER_ID,
+                    // The whole flow is "create a project via org2-pm" —
+                    // without a workItemId the resolver would default to build
+                    // and org2-pm would refuse project.mutate (§5.2). The
+                    // exec-mode pin keeps run_shell available: read-only
+                    // modes deny the shell the CLI rides on.
+                    productMode: PRODUCT_MODE_PROJECT,
+                    agentExecMode: "build",
+                  },
+                })}
               />
             </Suspense>
           </div>
@@ -336,7 +348,8 @@ export function ChatPanelEmptyContent({
   );
 
   if (showStartPage) {
-    const sessionLauncher = renderSessionLauncher("shrink-0");
+    const sessionLauncher = (heroFooterSlot: React.ReactNode) =>
+      renderSessionLauncher("h-full", "launchpad", heroFooterSlot);
     const moreCreateTarget =
       createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ||
       createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT ||
@@ -344,9 +357,17 @@ export function ChatPanelEmptyContent({
       createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
         ? createTarget
         : CHAT_PANEL_CREATE_TARGET.PROJECT;
-    const moreLauncher =
+    const moreLauncher = (
+      suggestionPills: React.ReactNode,
+      manualMiddleContent: React.ReactNode,
+      creatorModeControl?: React.ReactNode
+    ) =>
       moreCreateTarget === CHAT_PANEL_CREATE_TARGET.PROJECT
-        ? renderProjectCreator()
+        ? renderProjectCreator(
+            suggestionPills,
+            manualMiddleContent,
+            creatorModeControl
+          )
         : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
           ? renderGithubIssuesCreator()
           : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
@@ -361,6 +382,7 @@ export function ChatPanelEmptyContent({
         onAddApiKey={handleStartPageAddApiKey}
         onCreateTarget={handleCreateTargetChange}
         onInstallLatestUpdate={handleStartPageInstallLatestUpdate}
+        onShowRuntime={handleStartPageShowRuntime}
         onProjectAgentModeChange={handleProjectAgentCreatorToggle}
         onWorkItemAgentModeChange={handleWorkItemAgentCreatorToggle}
         moreLauncher={moreLauncher}
@@ -368,7 +390,17 @@ export function ChatPanelEmptyContent({
         t={t}
         projectAgentMode={showProjectAgentCreator}
         workItemAgentMode={showWorkItemAgentCreator}
-        workItemLauncher={renderWorkItemCreator(true)}
+        workItemLauncher={(
+          suggestionPills,
+          manualMiddleContent,
+          creatorModeControl
+        ) =>
+          renderWorkItemCreator(
+            suggestionPills,
+            manualMiddleContent,
+            creatorModeControl
+          )
+        }
       />
     );
   }
@@ -382,7 +414,7 @@ export function ChatPanelEmptyContent({
   }
 
   if (createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM) {
-    return renderWorkItemCreator(false);
+    return renderWorkItemCreator();
   }
 
   if (createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG) {

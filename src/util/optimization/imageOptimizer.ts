@@ -6,6 +6,12 @@
  * - Compresses to target quality
  * - Converts to efficient format (JPEG for photos)
  */
+import {
+  GIF_LIMITS,
+  getGifLimitViolation,
+  parseGifMetadata,
+  readGifLogicalScreen,
+} from "./gifMetadata";
 
 // Browser and storage limits
 export const IMAGE_LIMITS = {
@@ -67,12 +73,66 @@ export class ImageOptimizationError extends Error {
     public code:
       | "FILE_TOO_LARGE"
       | "DIMENSION_TOO_LARGE"
+      | "GIF_LIMIT_EXCEEDED"
       | "LOAD_FAILED"
       | "CANVAS_FAILED"
       | "UNKNOWN"
   ) {
     super(message);
     this.name = "ImageOptimizationError";
+  }
+}
+
+async function validateGifBeforeDecode(file: File): Promise<void> {
+  const header = new Uint8Array(await file.slice(0, 13).arrayBuffer());
+  let logicalScreen: { width: number; height: number } | null;
+  try {
+    logicalScreen = readGifLogicalScreen(header);
+  } catch (error) {
+    throw new ImageOptimizationError(
+      error instanceof Error ? error.message : "GIF header is invalid.",
+      "LOAD_FAILED"
+    );
+  }
+  if (!logicalScreen) return;
+
+  // Reject from the 13-byte header before allocating an inspection buffer or
+  // handing the file to Chromium's animated-image decoder.
+  const headerViolation = getGifLimitViolation(
+    {
+      ...logicalScreen,
+      frameCount: 1,
+      estimatedDecodedBytes: logicalScreen.width * logicalScreen.height * 4,
+    },
+    file.size
+  );
+  if (
+    headerViolation === "FILE_TOO_LARGE" ||
+    headerViolation === "DIMENSION_TOO_LARGE"
+  ) {
+    throw new ImageOptimizationError(
+      `GIF exceeds the safe upload limit (${formatBytes(GIF_LIMITS.MAX_FILE_SIZE)}, ${GIF_LIMITS.MAX_DIMENSION}×${GIF_LIMITS.MAX_DIMENSION}).`,
+      "GIF_LIMIT_EXCEEDED"
+    );
+  }
+
+  let metadata;
+  try {
+    metadata = parseGifMetadata(new Uint8Array(await file.arrayBuffer()));
+  } catch (error) {
+    throw new ImageOptimizationError(
+      error instanceof Error ? error.message : "GIF metadata is invalid.",
+      "LOAD_FAILED"
+    );
+  }
+  if (!metadata) return;
+
+  const violation = getGifLimitViolation(metadata, file.size);
+  if (violation) {
+    throw new ImageOptimizationError(
+      `Animated GIF is too complex to load safely (${metadata.width}×${metadata.height}, ${metadata.frameCount} frames).`,
+      "GIF_LIMIT_EXCEEDED"
+    );
   }
 }
 
@@ -210,6 +270,8 @@ export const optimizeImage = async (
       "FILE_TOO_LARGE"
     );
   }
+
+  await validateGifBeforeDecode(file);
 
   // Load the image
   const img = await loadImage(file);

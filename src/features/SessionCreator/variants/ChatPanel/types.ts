@@ -14,12 +14,15 @@ import type { DropdownDirection } from "../../components/ControlButtons";
 
 export type SessionCreatorChatPanelVariant = "default" | "fullScreen";
 export type SessionCreatorChatPanelHeaderLayout = "hero" | "compact";
+export type SessionCreatorChatPanelLayout = "default" | "launchpad";
 
 export interface SessionCreatorChatPanelProps {
   centerFullScreenContent?: boolean;
   className?: string;
   /** Optional content rendered at the top of the composer input shell. */
   composerHeaderContent?: React.ReactNode;
+  /** Launchpad-only actions displayed below the centered agent prompt. */
+  heroFooterSlot?: React.ReactNode;
   /** Optional content rendered in the pinned Skills & Tools row. */
   pinnedActionsContent?: React.ReactNode;
   /** Override classes on the inner content-padding div (e.g. to reduce bottom padding). */
@@ -33,6 +36,8 @@ export interface SessionCreatorChatPanelProps {
   /** Whether the category picker may select Work log. Agent-only embedded creators disable it. */
   includeHumanSession?: boolean;
   initialContent?: string;
+  /** Launchpad keeps the identity prompt centered and the composer docked below it. */
+  layout?: SessionCreatorChatPanelLayout;
   dropdownDirection?: DropdownDirection;
   onOpenCliTerminal?: (options: ChatPanelCliTerminalLaunchOptions) => void;
   /** Navigate to the owning Work Item creation view instead of creating inline. */

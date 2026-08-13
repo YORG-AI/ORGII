@@ -328,6 +328,7 @@ pub async fn create_work_item(
         // Canonical work.create: the application service owns row
         // construction and audits the creation.
         let request = project_management::work_service::CreateWorkItemRequest {
+            stage: None,
             title: title.clone(),
             body: body.clone(),
             project_id: project,
@@ -341,6 +342,7 @@ pub async fn create_work_item(
             start_date,
             target_date,
             created_by: Some("agent".to_string()),
+            origin_session: None,
             starred,
             schedule,
             orchestrator_config,

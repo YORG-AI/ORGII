@@ -176,6 +176,7 @@ const CursorSetup: React.FC<CursorSetupProps> = ({
                 options={cursorSetupOptions}
                 selected={selectedMethod}
                 cardVariant="subtle"
+                compactCards
                 onSelect={(key) => handleMethodChange(key)}
               />
             </SectionRow>

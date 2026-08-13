@@ -33,6 +33,7 @@ pub struct SessionMetadata {
     pub session_id: String,
     pub event_count: i64,
     pub cached_at: i64,
+    pub content_revision: i64,
     pub time_range_start: Option<String>,
     pub time_range_end: Option<String>,
     pub specs_json: Option<String>,

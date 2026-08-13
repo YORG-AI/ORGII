@@ -5,7 +5,7 @@ import type { ChangeEvent, MutableRefObject, RefObject } from "react";
 
 import type { AgentInfo, ProviderInfo } from "@src/api/http/config";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
-import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type {
   AdvancedConfig,
   UploadedFile,
@@ -65,8 +65,9 @@ export interface UseSessionCreatorReturn {
   handleSlashCommand: (query: string) => void;
   handleSlashCommandClose: () => void;
   handleSlashSelect: (item: SlashItem) => void;
-  handleModeSelect: (mode: AgentExecMode) => void;
-  currentMode: AgentExecMode;
+  handleModeSelect: (mode: ComposerModeEntry["id"]) => void;
+  currentMode: ComposerModeEntry["id"];
+  includeProjectMode: boolean;
   filteredSlashItems: SlashItem[];
   slashLoading: boolean;
   prefetchSlashItems: (query: string) => void;

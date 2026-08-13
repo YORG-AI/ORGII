@@ -126,7 +126,6 @@ vi.mock("../useTeamInboxGitHubIssue", () => ({
 vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
   WorkItemThreadSurface: ({
     workItem,
-    onStartAgent,
     onOpenSession,
     propertyProps,
     onUpdateWorkItem,
@@ -135,7 +134,6 @@ vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
     ...threadProps
   }: {
     workItem: WorkItem;
-    onStartAgent?: () => void;
     onOpenSession?: (sessionId: string) => void;
     propertyProps?: Record<string, unknown>;
     onUpdateWorkItem?: (updates: Partial<WorkItem>) => void;
@@ -164,15 +162,6 @@ vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
             "data-property-configured": "true",
           })
         : null,
-      createElement(
-        "button",
-        {
-          type: "button",
-          "data-testid": "start-agent",
-          onClick: onStartAgent,
-        },
-        "Start Agent"
-      ),
       createElement(
         "button",
         {
@@ -267,31 +256,6 @@ describe("AssignedWorkItemDetail navigation actions", () => {
 
   afterAll(() => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
-  });
-
-  it("requests canonical Work Item start instead of mounting an Inbox orchestrator", () => {
-    const onNavigate = vi.fn();
-    act(() => {
-      root.render(
-        createElement(AssignedWorkItemDetail, {
-          item,
-          onNavigate,
-        })
-      );
-    });
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>("[data-testid='start-agent']")
-        ?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith({
-      kind: "open_work_item",
-      projectId: "project-1",
-      workItemId: "work-item-1",
-      action: "start_agent",
-    });
   });
 
   it("shows separate browser and Work Item actions for GitHub-backed items", async () => {

@@ -38,7 +38,13 @@ function referenceKey(reference: CloudSessionReference): string {
 }
 
 export const CloudSessionReferencePreview = memo(
-  function CloudSessionReferencePreview({ text }: { text: string }) {
+  function CloudSessionReferencePreview({
+    text,
+    className = "",
+  }: {
+    text: string;
+    className?: string;
+  }) {
     const deferredText = useDeferredValue(text);
     const scanned = useMemo(
       () => collectUniqueCloudSessionReferences(deferredText),
@@ -61,7 +67,7 @@ export const CloudSessionReferencePreview = memo(
       // so gap-1 composes to the 8px rhythm of sibling gap-2 chip rows and
       // the negative margin returns the first pill to the flush left edge.
       <div
-        className="-mx-0.5 flex flex-wrap items-center gap-1"
+        className={`-mx-0.5 flex flex-wrap items-center gap-1 ${className}`.trim()}
         data-testid="session-reference-preview"
       >
         {references.map((reference) => (

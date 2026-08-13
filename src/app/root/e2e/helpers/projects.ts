@@ -148,13 +148,23 @@ export function createProjectHelpers(store: E2EStore) {
     }
   };
 
-  const readStandaloneWorkItems = async (): Promise<
-    Result<{ items: Json[] }>
-  > => {
+  const readStandaloneWorkItems = async (
+    orgId?: string
+  ): Promise<Result<{ items: Json[] }>> => {
     try {
-      const items =
-        (await projectApi.readStandaloneWorkItems()) as unknown as Json[];
+      const items = (await projectApi.readStandaloneWorkItems(
+        orgId ? { orgId } : undefined
+      )) as unknown as Json[];
       return { ok: true, items };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
+  const readProjectOrgs = async (): Promise<Result<{ orgs: Json[] }>> => {
+    try {
+      const orgs = (await projectApi.readOrgs()) as unknown as Json[];
+      return { ok: true, orgs };
     } catch (err) {
       return asError(err);
     }
@@ -309,6 +319,7 @@ export function createProjectHelpers(store: E2EStore) {
     writeWorkItem,
     allocateStandaloneWorkItemId,
     readStandaloneWorkItems,
+    readProjectOrgs,
     readStandaloneWorkItem,
     writeStandaloneWorkItem,
     deleteWorkItem,

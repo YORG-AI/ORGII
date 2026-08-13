@@ -7,6 +7,20 @@ import {
 } from "./prLevelActions";
 
 describe("PR-level action presentation", () => {
+  it("uses concise merge-method labels", () => {
+    const presentation = presentPullRequestActions({
+      detail: { state: "open" },
+      fallbackStatus: "open",
+      checks: null,
+    });
+
+    expect(presentation.methods.map(({ label }) => label)).toEqual([
+      "Merge",
+      "Squash and merge",
+      "Rebase and merge",
+    ]);
+  });
+
   it("uses repository merge settings and allows a clean PR to merge", () => {
     const presentation = presentPullRequestActions({
       detail: {
@@ -69,11 +83,29 @@ describe("PR-level action presentation", () => {
     });
 
     expect(presentation.directMergeAvailable).toBe(false);
-    expect(presentation.label).toBe("Resolve conflicts");
+    expect(presentation.hasConflicts).toBe(true);
+    expect(presentation.label).toBe("Merge conflicts");
     expect(presentation.autoMergeAction).toEqual({
       kind: "disable",
       label: "Disable auto-merge",
     });
+  });
+
+  it("prefers GraphQL conflict state while REST mergeability is unsettled", () => {
+    const presentation = presentPullRequestActions({
+      detail: {
+        state: "open",
+        mergeable_state: "unknown",
+        merge_state_status: "DIRTY",
+      },
+      fallbackStatus: "open",
+      checks: { sha: "head", check_runs: [], statuses: [], state: "success" },
+    });
+
+    expect(presentation.hasConflicts).toBe(true);
+    expect(presentation.directMergeAvailable).toBe(false);
+    expect(presentation.label).toBe("Merge conflicts");
+    expect(presentation.autoMergeAction).toBeNull();
   });
 
   it("trusts GitHub mergeability when optional checks are still running", () => {

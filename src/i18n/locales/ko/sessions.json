@@ -893,6 +893,9 @@
       "addApiKey": {
         "title": "API 키 추가"
       },
+      "showRuntime": {
+        "title": "런타임 보기"
+      },
       "installLatestUpdate": {
         "title": "최신 업데이트 설치"
       },
@@ -1186,14 +1189,14 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
-        "issueTitlePlaceholder": "Issue title",
-        "issueBodyPlaceholder": "Description",
-        "createIssue": "Create issue",
-        "creatingIssue": "Creating…",
+        "newIssueTitle": "GitHub issue 만들기",
+        "issueTitlePlaceholder": "issue 제목",
+        "issueBodyPlaceholder": "설명",
+        "createIssue": "issue 만들기",
+        "creatingIssue": "만드는 중…",
         "addToChat": "Add",
-        "repositoryLabel": "Repository",
-        "createIssueFailed": "Failed to create issue",
+        "repositoryLabel": "리포지토리",
+        "createIssueFailed": "issue를 만들지 못했습니다",
         "sourceIssues": "Issues",
         "sourcePrs": "PRs",
         "stateOpen": "Open",
@@ -2070,6 +2073,10 @@
     },
     "searchModels": "모델 검색...",
     "newItem": "새 항목",
+    "solveWorkItem": "작업 항목 해결",
+    "launchpadQuestion": "",
+    "launchpadQuestionSuffix": "와 함께 무엇을 만들고 싶으신가요?",
+    "manualLaunchpadQuestion": "무엇을 만들고 싶으신가요?",
     "start": "시작",
     "assign": "할당",
     "send": "보내기",

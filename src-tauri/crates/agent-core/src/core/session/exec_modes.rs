@@ -276,7 +276,7 @@ impl AgentExecMode {
                 "### Review process\n",
                 "1. Run `git diff <base_branch>..HEAD` via `run_shell` to get the full diff (the base branch is provided in the task)\n",
                 "2. Read changed files for full context around the diff hunks and search for callers, dependencies, or impact when the diff crosses symbol boundaries\n",
-                "3. Use the `manage_work_item` tool (action `read_item`) to read the linked work item for requirements and acceptance criteria\n",
+                "3. Read the linked work item for requirements and acceptance criteria with `org2-pm work show <id> --output json` via `run_shell`\n",
                 "4. Evaluate: correctness, edge cases, error handling, security, performance, test coverage, code style\n",
                 "5. Produce your verdict in the EXACT structured format below\n\n",
                 "### Output format (MANDATORY)\n",

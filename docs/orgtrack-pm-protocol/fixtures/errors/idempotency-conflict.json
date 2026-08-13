@@ -3,7 +3,7 @@
   "ok": false,
   "error": {
     "code": "IDEMPOTENCY_CONFLICT",
-    "message": "Idempotency key 'session_abc:complete' was already used with a different canonical request body",
+    "message": "Idempotency key 'session_abc:complete' was already used with a different canonical request",
     "retryable": false,
     "details": {
       "idempotencyKey": "session_abc:complete",

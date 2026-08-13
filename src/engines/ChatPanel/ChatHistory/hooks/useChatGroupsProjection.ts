@@ -100,7 +100,9 @@ function isUnloadedTurnItem(item: OptimizedChatItem | undefined): boolean {
   return getUnloadedTurnMeta(item) !== null;
 }
 
-function isTurnPreviewItem(item: OptimizedChatItem | undefined): boolean {
+export function isTurnPreviewItem(
+  item: OptimizedChatItem | undefined
+): boolean {
   return item?.event?.args?.turnPreviewOnly === true;
 }
 

@@ -471,6 +471,7 @@ fn apply_project(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, Stri
     write_project_remote(&slug, &meta, &description, &adopted_revisions)?;
 
     let conn = io::conn()?;
+    crate::work_item_features::properties::apply_wire_definitions(&conn, org_id, &entity.payload)?;
     store_remote_version(&conn, KIND_PROJECT, &project_id, entity.version)?;
     Ok(true)
 }
@@ -656,9 +657,14 @@ fn frontmatter_from_wire(
         labels: tail(payload, "labels"),
         milestone: string_field(payload, "milestone"),
         parent: string_field(payload, "parentId"),
+        stage: payload
+            .get("stage")
+            .and_then(|value| value.as_u64())
+            .map(|value| value as u32),
         start_date: string_field(payload, "startDate"),
         target_date: string_field(payload, "targetDate"),
         created_by: string_field(payload, "createdBy"),
+        origin_session: tail_opt(payload, "originSession"),
         created_at: string_field(payload, "createdAt").unwrap_or_else(|| now_iso.clone()),
         updated_at: string_field(payload, "updatedAt").unwrap_or(now_iso),
         deleted_at: None,
@@ -846,8 +852,6 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
                     decision.new_revisions,
                     &update,
                 )?;
-                let conn = io::conn()?;
-                store_remote_version(&conn, KIND_WORK_ITEM, &work_item_id, entity.version)?;
             } else {
                 // Standalone (or a standalone row moving into a project):
                 // use the same per-field resolver as project-scoped items.
@@ -892,8 +896,6 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
                     decision.new_revisions,
                     &update,
                 )?;
-                let conn = io::conn()?;
-                store_remote_version(&conn, KIND_WORK_ITEM, &work_item_id, entity.version)?;
             }
         }
         None => {
@@ -932,10 +934,16 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
                 }
                 apply_remote_merge(slug, &short_id, revisions, None)?;
             }
-            let conn = io::conn()?;
-            store_remote_version(&conn, KIND_WORK_ITEM, &work_item_id, entity.version)?;
         }
     }
+    let conn = io::conn()?;
+    crate::work_item_features::properties::apply_work_item_wire_snapshot(
+        &conn,
+        org_id,
+        &work_item_id,
+        &entity.payload,
+    )?;
+    store_remote_version(&conn, KIND_WORK_ITEM, &work_item_id, entity.version)?;
     Ok(true)
 }
 

@@ -151,10 +151,6 @@ fn review_mode_uses_deny_delta() {
         "Review must deny create_plan"
     );
     assert!(
-        !deny.contains(&"manage_work_item".to_string()),
-        "Review must allow manage_work_item"
-    );
-    assert!(
         !deny.contains(&"read_file".to_string()),
         "Review must allow read_file"
     );
@@ -449,8 +445,6 @@ fn mode_prompts_never_reference_tools_their_policy_denies() {
         crate::tools::names::TOOL_SEARCH,
         crate::tools::names::CREATE_PLAN,
         crate::tools::names::SUGGEST_MODE_SWITCH,
-        crate::tools::names::MANAGE_WORK_ITEM,
-        crate::tools::names::MANAGE_PROJECT,
         crate::tools::names::MANAGE_AGENT_DEF,
         crate::tools::names::SEND_TO_INBOX,
         crate::tools::names::CONTROL_DESKTOP_WITH_PEEKABOO,

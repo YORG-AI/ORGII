@@ -892,6 +892,9 @@
       "addApiKey": {
         "title": "API key hinzufügen"
       },
+      "showRuntime": {
+        "title": "Laufzeit anzeigen"
+      },
       "installLatestUpdate": {
         "title": "Neueste Aktualisierung installieren"
       },
@@ -1185,14 +1188,14 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
-        "issueTitlePlaceholder": "Issue title",
-        "issueBodyPlaceholder": "Description",
-        "createIssue": "Create issue",
-        "creatingIssue": "Creating…",
+        "newIssueTitle": "GitHub issue erstellen",
+        "issueTitlePlaceholder": "Issue-Titel",
+        "issueBodyPlaceholder": "Beschreibung",
+        "createIssue": "Issue erstellen",
+        "creatingIssue": "Wird erstellt…",
         "addToChat": "Add",
         "repositoryLabel": "Repository",
-        "createIssueFailed": "Failed to create issue",
+        "createIssueFailed": "Issue konnte nicht erstellt werden",
         "sourceIssues": "Issues",
         "sourcePrs": "PRs",
         "stateOpen": "Open",
@@ -2069,6 +2072,10 @@
     },
     "searchModels": "Modelle suchen...",
     "newItem": "Neues Element",
+    "solveWorkItem": "Arbeitselement lösen",
+    "launchpadQuestion": "Was möchtest du mit",
+    "launchpadQuestionSuffix": "erstellen?",
+    "manualLaunchpadQuestion": "Was möchtest du erstellen?",
     "start": "Starten",
     "assign": "Zuweisen",
     "send": "Senden",

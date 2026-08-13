@@ -1,4 +1,9 @@
-import type { AnchorHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import type {
+  AnchorHTMLAttributes,
+  ButtonHTMLAttributes,
+  HTMLAttributes,
+  ReactNode,
+} from "react";
 
 import { classNames } from "@src/util/ui/classNames";
 
@@ -18,6 +23,9 @@ type ToolResultCardFrameProps = ToolResultCardFrameBaseProps &
 
 type ToolResultCardFrameLinkProps = ToolResultCardFrameBaseProps &
   AnchorHTMLAttributes<HTMLAnchorElement>;
+
+type ToolResultCardFrameButtonProps = ToolResultCardFrameBaseProps &
+  ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function ToolResultCardFrame({
   children,
@@ -60,5 +68,30 @@ export function ToolResultCardFrameLink({
     >
       {children}
     </a>
+  );
+}
+
+export function ToolResultCardFrameButton({
+  children,
+  className,
+  padded = true,
+  hoverable = true,
+  type = "button",
+  ...props
+}: ToolResultCardFrameButtonProps) {
+  return (
+    <button
+      type={type}
+      className={classNames(
+        CARD_FRAME_BASE,
+        "block w-[calc(100%-1.5rem)] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6",
+        hoverable && "cursor-pointer hover:bg-fill-3",
+        padded && CARD_FRAME_PADDED,
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </button>
   );
 }

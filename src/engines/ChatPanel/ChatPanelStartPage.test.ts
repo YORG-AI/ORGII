@@ -31,9 +31,12 @@ const createTargetProps = {
   ],
   onCreateTarget: vi.fn(),
   onProjectAgentModeChange: vi.fn(),
+  onShowRuntime: vi.fn(),
   onWorkItemAgentModeChange: vi.fn(),
   projectAgentMode: true,
   workItemAgentMode: true,
+  moreLauncher: (...content: React.ReactNode[]) =>
+    createElement("div", null, ...content),
 };
 
 describe("ChatPanelStartPage", () => {
@@ -52,11 +55,14 @@ describe("ChatPanelStartPage", () => {
     const markup = renderToStaticMarkup(
       createElement(ChatPanelStartPage, {
         ...createTargetProps,
-        moreLauncher: createElement(
-          "div",
-          { "data-testid": "embedded-more-creator" },
-          "Embedded creator"
-        ),
+        moreLauncher: (middleContent, _manualMiddleContent, modeControl) =>
+          createElement(
+            "div",
+            { "data-testid": "embedded-more-creator" },
+            "Embedded creator",
+            middleContent,
+            modeControl
+          ),
         onAddApiKey: vi.fn(),
         onInstallLatestUpdate: vi.fn(),
         t,
@@ -70,10 +76,14 @@ describe("ChatPanelStartPage", () => {
     expect(markup).toContain("text-text-2");
     expect(markup).not.toContain("group-hover:text-warning-6");
     expect(markup).toContain("gap-2");
-    expect(markup).toContain("rounded-full");
-    expect(markup).toContain("p-2");
-    expect(markup).toContain("bg-warning-6/5");
-    expect(markup).toContain("@[800px]/startactions:grid-cols-3");
+    expect(markup).toContain("rounded-lg");
+    expect(markup).toContain("mx-auto w-full");
+    expect(markup).toContain("min-h-[68px]");
+    expect(markup).toContain("px-2.5 py-2");
+    expect(markup).toContain("border-warning-6/20");
+    expect(markup).toContain("text-warning-6");
+    expect(markup).toContain("hidden @[640px]/focusedchat:block");
+    expect(markup).toContain("@[560px]/startactions:grid-cols-4");
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-create-target-select"'
     );
@@ -85,9 +95,6 @@ describe("ChatPanelStartPage", () => {
     );
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-trailing-separator"'
-    );
-    expect(markup).toContain(
-      'data-testid="chat-panel-start-page-project-mode-separator"'
     );
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-project-mode-toggle"'
@@ -104,28 +111,16 @@ describe("ChatPanelStartPage", () => {
     ).toBeLessThan(
       markup.indexOf('data-testid="chat-panel-start-page-create-target-select"')
     );
-    expect(
-      markup.indexOf('data-testid="chat-panel-start-page-create-target-select"')
-    ).toBeLessThan(
-      markup.indexOf(
-        'data-testid="chat-panel-start-page-project-mode-separator"'
-      )
-    );
-    expect(
-      markup.indexOf(
-        'data-testid="chat-panel-start-page-project-mode-separator"'
-      )
-    ).toBeLessThan(
+    expect(markup).toContain("inline-flex h-[28px]");
+    expect(markup.indexOf('data-testid="embedded-more-creator"')).toBeLessThan(
       markup.indexOf('data-testid="chat-panel-start-page-project-mode-toggle"')
     );
     expect(
       markup.match(/data-testid="chat-panel-start-page-trailing-separator"/g)
     ).toHaveLength(1);
-    expect(
-      markup.match(
-        /data-testid="chat-panel-start-page-project-mode-separator"/g
-      )
-    ).toHaveLength(1);
+    expect(markup).not.toContain(
+      'data-testid="chat-panel-start-page-project-mode-separator"'
+    );
     expect(markup).not.toContain("Agent session");
     expect(markup).not.toContain("Create Work Item");
     expect(markup).toContain(
@@ -145,10 +140,14 @@ describe("ChatPanelStartPage", () => {
     const addApiKeyIndex = markup.indexOf(
       'data-testid="chat-panel-start-page-add-api-key"'
     );
+    const showRuntimeIndex = markup.indexOf(
+      'data-testid="chat-panel-start-page-show-runtime"'
+    );
 
     expect(updateIndex).toBeGreaterThanOrEqual(0);
     expect(importSessionIndex).toBeGreaterThan(updateIndex);
     expect(addApiKeyIndex).toBeGreaterThan(importSessionIndex);
+    expect(showRuntimeIndex).toBeGreaterThan(addApiKeyIndex);
     expect(markup).not.toContain(
       'data-testid="chat-panel-start-page-new-work-item"'
     );
@@ -195,14 +194,20 @@ describe("ChatPanelStartPage", () => {
     const addApiKeyIndex = markup.indexOf(
       'data-testid="chat-panel-start-page-add-api-key"'
     );
+    const showRuntimeIndex = markup.indexOf(
+      'data-testid="chat-panel-start-page-show-runtime"'
+    );
 
     expect(importSessionIndex).toBeGreaterThanOrEqual(0);
     expect(addApiKeyIndex).toBeGreaterThan(importSessionIndex);
+    expect(showRuntimeIndex).toBeGreaterThan(addApiKeyIndex);
+    expect(markup).toContain("@[440px]/startactions:grid-cols-3");
     expect(markup).toContain("navigation:cloud.share.importEntry");
     expect(markup).toContain("border-border-2");
     expect(markup).toContain("hover:border-border-3");
-    expect(markup).toContain("!bg-bg-2");
-    expect(markup).toContain("enabled:hover:!bg-surface-hover");
+    expect(markup).toContain("bg-transparent");
+    expect(markup).not.toContain("bg-bg-1");
+    expect(markup).toContain("hover:bg-surface-hover");
     expect(markup).not.toContain("group-hover:bg-fill-3");
   });
 
@@ -223,11 +228,18 @@ describe("ChatPanelStartPage", () => {
         onInstallLatestUpdate: vi.fn(),
         t,
         workItemAgentMode: false,
-        workItemLauncher: createElement(
-          "div",
-          { "data-testid": "full-work-item-creator" },
-          "Full work item creator"
-        ),
+        workItemLauncher: (
+          _suggestionPills,
+          manualMiddleContent,
+          modeControl
+        ) =>
+          createElement(
+            "div",
+            { "data-testid": "full-work-item-creator" },
+            "Full work item creator",
+            manualMiddleContent,
+            modeControl
+          ),
       })
     );
 
@@ -236,29 +248,39 @@ describe("ChatPanelStartPage", () => {
     );
     expect(markup).toContain('data-testid="full-work-item-creator"');
     expect(markup).toContain("Full work item creator");
-    expect(markup).toContain(
+    expect(markup).not.toContain(
       'data-testid="chat-panel-start-page-trailing-control"'
-    );
-    expect(markup).toContain(
-      'data-testid="chat-panel-start-page-trailing-separator"'
     );
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-work-item-mode-toggle"'
     );
     expect(markup).toContain("common:tooltips.manual");
-    expect(markup).toContain('aria-pressed="false"');
-    expect(
-      markup.match(/data-testid="chat-panel-start-page-trailing-separator"/g)
-    ).toHaveLength(1);
+    expect(markup).toContain("creator.manualLaunchpadQuestion");
     expect(markup).toContain(
+      'data-testid="chat-panel-start-page-manual-middle-content"'
+    );
+    expect(markup).toContain('aria-pressed="false"');
+    expect(markup).toContain("inline-flex h-[28px]");
+    expect(markup.indexOf('data-testid="full-work-item-creator"')).toBeLessThan(
+      markup.indexOf(
+        'data-testid="chat-panel-start-page-work-item-mode-toggle"'
+      )
+    );
+    expect(markup).not.toContain(
       'data-testid="chat-panel-start-page-utility-actions"'
     );
     expect(markup).toContain('data-testid="chat-panel-start-page-add-api-key"');
+    expect(markup).toContain(
+      'data-testid="chat-panel-start-page-show-runtime"'
+    );
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-import-session"'
     );
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-install-latest-update"'
+    );
+    expect(markup.indexOf("creator.manualLaunchpadQuestion")).toBeLessThan(
+      markup.indexOf('data-testid="chat-panel-start-page-import-session"')
     );
     expect(markup).not.toContain(
       'data-testid="chat-panel-start-page-new-work-item"'
@@ -289,7 +311,7 @@ describe("ChatPanelStartPage", () => {
     );
   });
 
-  it("centers the Session, Work Item, and More tabs above the launcher", () => {
+  it("fills the Session launchpad beneath the tabs", () => {
     mocks.useAvailableAppUpdate.mockReturnValue(null);
     const t = ((key: string) => key) as TFunction<
       ["sessions", "common", "projects", "navigation"]
@@ -301,7 +323,8 @@ describe("ChatPanelStartPage", () => {
         createTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
         onAddApiKey: vi.fn(),
         onInstallLatestUpdate: vi.fn(),
-        sessionLauncher: createElement("div", null, "Session launcher"),
+        sessionLauncher: (heroFooterSlot) =>
+          createElement("div", null, "Session launcher", heroFooterSlot),
         t,
       })
     );
@@ -310,10 +333,10 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-session-launcher"'
     );
     expect(markup).toContain(
-      'data-testid="chat-panel-start-page-session-centered-launcher"'
+      'data-testid="chat-panel-start-page-session-content"'
     );
-    expect(markup).toContain("my-auto");
-    expect(markup).toContain("py-6");
+    expect(markup).toContain("flex h-full min-h-0 w-full");
+    expect(markup).toContain('class="h-full w-full"');
     expect(markup).toContain('data-testid="chat-panel-start-page-tabs"');
     expect(markup).toContain('data-testid="chat-panel-start-page-tab-session"');
     expect(markup).toContain(
@@ -325,12 +348,14 @@ describe("ChatPanelStartPage", () => {
     expect(markup).toContain("chat.startPage.tabs.more");
     expect(markup).not.toContain("chat.startPage.tabs.manage");
     expect(markup).not.toContain("chat.startPage.tabs.runtime");
-    expect(markup).toContain('data-testid="chat-panel-start-page-hints"');
-    expect(markup).toContain(
+    expect(markup).not.toContain('data-testid="chat-panel-start-page-hints"');
+    expect(markup).not.toContain(
       'data-testid="chat-panel-start-page-utility-actions"'
     );
-    expect(markup).toContain('data-testid="chat-panel-start-page-actions"');
     expect(markup).toContain('data-testid="chat-panel-start-page-add-api-key"');
+    expect(markup).toContain(
+      'data-testid="chat-panel-start-page-show-runtime"'
+    );
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-import-session"'
     );

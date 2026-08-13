@@ -68,7 +68,7 @@ export function ManagedIssueContextMeta({
   issue: ManagedIssueItem;
 }): React.ReactNode {
   return (
-    <div className="flex shrink-0 items-center gap-2 text-[11px] text-primary-6">
+    <div className="flex shrink-0 items-center gap-2 text-[11px] text-text-1">
       {issue.linkedPullRequests > 0 ? (
         <span className="flex items-center gap-1">
           <GitPullRequest size={12} strokeWidth={1.8} />

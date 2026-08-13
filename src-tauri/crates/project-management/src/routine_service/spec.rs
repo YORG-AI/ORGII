@@ -233,7 +233,11 @@ pub fn validate(file: &RoutineSpecFile) -> Vec<SpecViolation> {
             );
         }
         if !step_ids.insert(step.id.clone()) {
-            push(&mut violations, &path, format!("duplicate step id '{}'", step.id));
+            push(
+                &mut violations,
+                &path,
+                format!("duplicate step id '{}'", step.id),
+            );
         }
     }
 
@@ -249,15 +253,14 @@ pub fn validate(file: &RoutineSpecFile) -> Vec<SpecViolation> {
                 continue;
             }
             if !step_ids.contains(need) {
-                push(
-                    &mut violations,
-                    &path,
-                    format!("unknown step '{need}'"),
-                );
+                push(&mut violations, &path, format!("unknown step '{need}'"));
                 continue;
             }
             *in_degree.entry(step.id.as_str()).or_insert(0) += 1;
-            dependents.entry(need.as_str()).or_default().push(step.id.as_str());
+            dependents
+                .entry(need.as_str())
+                .or_default()
+                .push(step.id.as_str());
         }
     }
     let mut queue: Vec<&str> = in_degree
@@ -304,7 +307,11 @@ pub fn validate(file: &RoutineSpecFile) -> Vec<SpecViolation> {
             };
             if let Some(name) = inner.strip_prefix("inputs.") {
                 if !file.spec.inputs.contains_key(name) {
-                    push(&mut violations, &path, format!("unknown routine input '{name}'"));
+                    push(
+                        &mut violations,
+                        &path,
+                        format!("unknown routine input '{name}'"),
+                    );
                 }
                 continue;
             }
@@ -331,7 +338,9 @@ pub fn validate(file: &RoutineSpecFile) -> Vec<SpecViolation> {
                                 push(
                                     &mut violations,
                                     &path,
-                                    format!("step '{source_id}' declares no output '{output_name}'"),
+                                    format!(
+                                        "step '{source_id}' declares no output '{output_name}'"
+                                    ),
                                 );
                             }
                         }
@@ -366,6 +375,12 @@ pub fn validate(file: &RoutineSpecFile) -> Vec<SpecViolation> {
             }
             if timezone.trim().is_empty() {
                 push(&mut violations, &path, "timezone is required".into());
+            } else if timezone.parse::<chrono_tz::Tz>().is_err() {
+                push(
+                    &mut violations,
+                    &path,
+                    format!("timezone '{timezone}' must be a valid IANA timezone"),
+                );
             }
         }
     }
@@ -416,7 +431,9 @@ mod tests {
         file.spec.steps[1].needs = vec!["missing-step".to_string()];
         let violations = validate(&file);
         assert!(
-            violations.iter().any(|v| v.message.contains("unknown step")),
+            violations
+                .iter()
+                .any(|v| v.message.contains("unknown step")),
             "{violations:?}"
         );
     }

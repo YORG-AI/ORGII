@@ -71,6 +71,7 @@ const ClaudeCodeSetup: React.FC<ClaudeCodeSetupProps> = ({
               options={methodOptions}
               selected={selectedMethod}
               cardVariant="subtle"
+              compactCards
               onSelect={(key) => onChange({ setup_method: key })}
             />
           </SectionRow>

@@ -14,7 +14,7 @@
  *
  * Semantic colors per PR state (kept consistent across every surface):
  *   open → success (green), merged → GitHub purple, closed → danger (red),
- *   draft → warning (amber), unknown → neutral.
+ *   draft → neutral secondary text, unknown → neutral muted text.
  */
 import type { PrStatus } from "@src/api/http/project/types/agentWorkflow";
 
@@ -52,9 +52,9 @@ const PR_STATUS_VARIANTS: Record<string, PrStatusVariant> = {
     textClass: "text-danger-6",
   },
   draft: {
-    badgeClass: "bg-warning-1 text-warning-6",
-    dotClass: "bg-warning-6",
-    textClass: "text-warning-6",
+    badgeClass: "bg-fill-2 text-text-2",
+    dotClass: "bg-text-2",
+    textClass: "text-text-2",
   },
 };
 

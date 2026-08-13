@@ -121,8 +121,6 @@ pub struct ToolDeps {
     /// from member; `agent_id` can be shared by multiple participants.
     pub agent_org_current_member_id: Option<String>,
 
-    pub session_org_id: Option<String>,
-
     // ── Channel workspace ──
     /// Origin channel context — set for channel-attached sessions (OS agent
     /// serving external channels). Provides the source channel and chat_id

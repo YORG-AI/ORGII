@@ -171,6 +171,10 @@ fn default_false() -> bool {
     false
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 /// Combined project data returned to the frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectData {
@@ -206,7 +210,7 @@ fn default_todo_status() -> String {
 }
 
 /// A comment on a work item
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CommentEntry {
     pub id: String,
     pub author: String,
@@ -214,6 +218,20 @@ pub struct CommentEntry {
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mentioned_user_ids: Vec<String>,
+    /// Replies form a stable thread tree. `thread_id` always names the root;
+    /// top-level comments use their own id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_by: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub conclusion: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_session_id: Option<String>,
 }
 
 /// A market delegation entry on a work item

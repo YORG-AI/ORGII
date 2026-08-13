@@ -98,6 +98,8 @@ export const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
               alt={alt}
               className="h-full w-full object-cover"
               draggable={false}
+              loading="lazy"
+              decoding="async"
             />
           ) : loadFailed ? (
             <ImageOff size={16} strokeWidth={1.5} aria-label={alt} />

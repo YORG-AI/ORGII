@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type React from "react";
 
-import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type { SlashItem } from "@src/types/extensions";
 
 import type { ListEntry, OpenFlyoutState } from "./types";
@@ -17,7 +17,7 @@ interface UseKeyboardOptions {
   setKeyboardNavigated: (navigated: boolean) => void;
   setOpenFlyout: (state: OpenFlyoutState | null) => void;
   onSelect: (item: SlashItem) => void;
-  onModeSelect: (mode: AgentExecMode) => void;
+  onModeSelect: (mode: ComposerModeEntry["id"]) => void;
   onImageUpload?: () => void;
   onClose: () => void;
   keyboardHandlerRef: React.MutableRefObject<

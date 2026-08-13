@@ -48,6 +48,7 @@ mod resume_state_tests {
                 project_slug: None,
                 work_item_id: None,
                 agent_role: None,
+                product_mode: None,
             },
         )
         .expect("create test CLI session");

@@ -14,9 +14,11 @@ fn make_frontmatter() -> WorkItemFrontmatter {
         labels: vec![],
         milestone: None,
         parent: None,
+        stage: None,
         start_date: None,
         target_date: None,
         created_by: None,
+        origin_session: None,
         created_at: "2024-01-01T00:00:00Z".to_string(),
         updated_at: "2024-01-01T00:00:00Z".to_string(),
         deleted_at: None,
@@ -104,7 +106,7 @@ fn effective_config_returns_default_when_none() {
 // ========== on_session_complete ==========
 
 #[test]
-fn on_session_complete_without_review_completes() {
+fn on_session_complete_without_review_does_not_complete_work_item() {
     let mut fm = make_frontmatter();
     snapshot_config(&mut fm);
     let result = on_session_complete(&mut fm);
@@ -112,7 +114,7 @@ fn on_session_complete_without_review_completes() {
     let state = fm.orchestrator_state.as_ref().unwrap();
     assert_eq!(state.current_phase, OrchestratorPhase::Completed);
     assert!(state.active_config.is_none());
-    assert_eq!(fm.status, "completed");
+    assert_eq!(fm.status, "in_progress");
 }
 
 #[test]
@@ -178,7 +180,7 @@ fn on_session_failed_fails_immediately_without_retry() {
 // ========== on_review_complete ==========
 
 #[test]
-fn on_review_complete_approved_completes() {
+fn on_review_complete_approved_does_not_complete_work_item() {
     let mut fm = make_frontmatter();
     fm.orchestrator_config = Some(OrchestratorConfig {
         review_enabled: true,
@@ -190,7 +192,7 @@ fn on_review_complete_approved_completes() {
     assert_eq!(result, TransitionResult::Completed);
     let state = fm.orchestrator_state.as_ref().unwrap();
     assert_eq!(state.current_phase, OrchestratorPhase::Completed);
-    assert_eq!(fm.status, "completed");
+    assert_eq!(fm.status, "in_review");
 }
 
 #[test]
@@ -368,4 +370,28 @@ fn complete_linked_session_falls_back_to_pending() {
     );
     assert_eq!(fm.linked_sessions[0].session_id, "real-sess-id");
     assert_eq!(fm.linked_sessions[0].status, LinkedSessionStatus::Completed);
+}
+
+#[test]
+fn complete_linked_session_prefers_latest_running_duplicate() {
+    let mut fm = make_frontmatter();
+    add_linked_session(
+        &mut fm,
+        "sess-1",
+        AgentRole::Coding,
+        LinkedSessionType::Native,
+    );
+    fm.linked_sessions[0].status = LinkedSessionStatus::Completed;
+    add_linked_session(
+        &mut fm,
+        "sess-1",
+        AgentRole::Coding,
+        LinkedSessionType::Native,
+    );
+
+    complete_linked_session(&mut fm, "sess-1", LinkedSessionStatus::Completed, 0.25, 750);
+
+    assert_eq!(fm.linked_sessions[0].total_tokens, 0);
+    assert_eq!(fm.linked_sessions[1].status, LinkedSessionStatus::Completed);
+    assert_eq!(fm.linked_sessions[1].total_tokens, 750);
 }

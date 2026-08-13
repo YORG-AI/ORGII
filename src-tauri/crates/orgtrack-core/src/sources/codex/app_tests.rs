@@ -258,11 +258,29 @@ fn codex_initial_window_catalogs_old_turns_and_loads_one_turn_on_demand() {
         Some(window.chunks[2].chunk_id.as_str())
     );
     assert_eq!(
+        window.chunks[1]
+            .result
+            .get("observation")
+            .and_then(Value::as_str),
+        Some("first reply")
+    );
+    assert_eq!(
+        window.chunks[1].args.get("turnPreviewOnly"),
+        Some(&Value::Bool(true))
+    );
+    assert_eq!(
         window.chunks[2]
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
         Some("second")
+    );
+    assert_eq!(
+        window.chunks[3]
+            .result
+            .get("observation")
+            .and_then(Value::as_str),
+        Some("second reply")
     );
     assert_eq!(
         window.chunks[4]
@@ -292,6 +310,13 @@ fn codex_initial_window_catalogs_old_turns_and_loads_one_turn_on_demand() {
     assert!(context_placeholder
         .chunk_id
         .starts_with("codex-unloaded-turn-"));
+    assert_eq!(
+        context_placeholder
+            .result
+            .get("observation")
+            .and_then(Value::as_str),
+        Some("first reply")
+    );
     assert_eq!(context_placeholder.created_at, turn.chunks[2].created_at);
     assert_ne!(context_placeholder.created_at, turn.chunks[0].created_at);
 
@@ -335,6 +360,13 @@ fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
         Some("first")
     );
     assert!(window.chunks[1].result.get("unloadedTurn").is_some());
+    assert_eq!(
+        window.chunks[1]
+            .result
+            .get("observation")
+            .and_then(Value::as_str),
+        Some("first reply")
+    );
     assert_eq!(
         window.chunks[2]
             .result
@@ -411,6 +443,18 @@ fn codex_initial_window_keeps_one_hundred_rounds_discoverable() {
             .filter(|chunk| chunk.result.get("unloadedTurn").is_some())
             .count(),
         99
+    );
+    assert!(window
+        .chunks
+        .iter()
+        .filter(|chunk| chunk.result.get("unloadedTurn").is_some())
+        .all(|chunk| chunk.args.get("turnPreviewOnly") == Some(&Value::Bool(true))));
+    assert_eq!(
+        window.chunks[197]
+            .result
+            .get("observation")
+            .and_then(Value::as_str),
+        Some("reply 98")
     );
     for (chunk_index, expected) in [(0, "round 0"), (98, "round 49"), (198, "round 99")] {
         assert_eq!(
@@ -494,6 +538,11 @@ fn codex_initial_window_real_fixture_catalog_stats() {
         .iter()
         .filter(|chunk| chunk.result.get("unloadedTurn").is_some())
         .count();
+    let preview_count = window
+        .chunks
+        .iter()
+        .filter(|chunk| chunk.args.get("turnPreviewOnly") == Some(&Value::Bool(true)))
+        .count();
 
     let warm_started = std::time::Instant::now();
     let warm = load_codex_app_initial_window_from_path("codexapp-real-catalog", path, 1)
@@ -511,7 +560,7 @@ fn codex_initial_window_real_fixture_catalog_stats() {
     assert_eq!(warm.turns.len(), window.turns.len());
     assert_eq!(placeholder_count, window.turns.len().saturating_sub(1));
     eprintln!(
-        "source_bytes={source_bytes} rounds={} chunks={} placeholders={placeholder_count} serialized_window_bytes={serialized_bytes} cold_ms={} warm_ms={}",
+        "source_bytes={source_bytes} rounds={} chunks={} placeholders={placeholder_count} previews={preview_count} serialized_window_bytes={serialized_bytes} cold_ms={} warm_ms={}",
         window.turns.len(),
         window.chunks.len(),
         cold_elapsed.as_millis(),

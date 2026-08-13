@@ -11,7 +11,6 @@ import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
 import {
-  CreateComposerAgentFrame,
   CreateComposerHeader,
   CreateComposerPinnedActions,
   DetailSplitLayout,
@@ -79,8 +78,10 @@ export interface CreateWorkItemViewProps {
   showFooter?: boolean;
   showSubmitAction?: boolean;
   chatPanelFooter?: boolean;
-  /** Center the Launchpad toggle and composer as one stack. */
-  centerLauncherContent?: boolean;
+  /** Optional content centered in the page above the bottom-docked manual composer. */
+  middleContent?: React.ReactNode;
+  /** Agent/Manual segmented control rendered with the creator setup pills. */
+  creatorModeControl?: React.ReactNode;
   /** Render Session Creator in Agent mode with Work Item fields in its composer. */
   renderAgentComposer?: (
     headerContent: React.ReactNode,
@@ -121,7 +122,8 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   showFooter = true,
   showSubmitAction = true,
   chatPanelFooter = false,
-  centerLauncherContent = false,
+  middleContent,
+  creatorModeControl,
   renderAgentComposer,
   defaultAiAssignee = null,
 }) => {
@@ -271,6 +273,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   );
   const workItemPropertyPills = (
     <CreateComposerPinnedActions dataTestId="create-work-item-pinned-actions">
+      {creatorModeControl}
       {inlineFields.workItemProjectPill}
       {inlineFields.inlinePropertyPills}
     </CreateComposerPinnedActions>
@@ -337,8 +340,11 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
       }
       leftContent={
         <CreatorContentLayout
-          centered={centerLauncherContent}
-          centeredDataTestId="create-work-item-centered-launcher"
+          placement={
+            resolvedAiGenerateMode && renderAgentComposer ? "fill" : "bottom"
+          }
+          contentDataTestId="create-work-item-creator-content"
+          middleContent={middleContent}
         >
           {showAiModePanel ? (
             <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 py-2`}>
@@ -360,15 +366,9 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
             </div>
           ) : null}
           {resolvedAiGenerateMode && renderAgentComposer ? (
-            <CreateComposerAgentFrame centered={centerLauncherContent}>
-              {renderAgentComposer(
-                composerHeaderContent,
-                workItemPropertyPills
-              )}
-            </CreateComposerAgentFrame>
+            renderAgentComposer(composerHeaderContent, workItemPropertyPills)
           ) : renderAgentComposer ? (
             <ManualCreateComposer
-              centered={centerLauncherContent}
               dataTestId="create-work-item-manual-composer"
               editorRef={editorRef}
               headerContent={composerHeaderContent}

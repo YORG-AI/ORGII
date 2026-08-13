@@ -33,7 +33,17 @@ vi.mock("@src/components/IntegrationIcon", () => ({
     createElement("span", { "data-integration-icon": type }),
 }));
 
+// The product renderer is lazy-loaded behind Suspense. These server-rendered
+// structure tests need a synchronous leaf so React 19 does not abort static
+// markup generation while the dynamic Markdown chunk is loading.
+vi.mock("@src/components/MarkDown", () => ({
+  default: ({ textContent }: { textContent: string }) =>
+    createElement("div", { "data-testid": "markdown" }, textContent),
+}));
+
 vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
+  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS:
+    "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5",
   default: forwardRef(function MockRichMarkdownEditor(
     {
       appearance,

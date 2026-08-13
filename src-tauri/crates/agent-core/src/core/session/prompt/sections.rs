@@ -290,12 +290,12 @@ impl PromptSection for BehavioralRulesSection {
     }
     fn render(&self, ctx: &PromptCtx) -> Option<String> {
         if ctx.is_channel_session {
-            // Tool summaries are already policy-filtered (product-mode
-            // layer included), so the PM guidance tracks the surface the
-            // model can actually call this turn.
+            // Only Project sessions may mutate the work system through
+            // `org2-pm`; the guidance tracks that application-boundary
+            // gate rather than a tool surface.
             Some(build_channel_behavioral_rules(
                 ctx.config,
-                ctx.has_tool(tool_names::MANAGE_WORK_ITEM),
+                ctx.config.product_mode.as_deref() == Some("project"),
             ))
         } else if ctx.config.workspace.is_some() {
             Some(sde_behavioral_rules())
@@ -749,7 +749,7 @@ impl PromptSection for TaskRoutingSection {
     }
     fn render(&self, ctx: &PromptCtx) -> Option<String> {
         Some(build_task_routing_section(
-            ctx.has_tool(tool_names::MANAGE_WORK_ITEM),
+            ctx.config.product_mode.as_deref() == Some("project"),
         ))
     }
 }

@@ -2,7 +2,7 @@
  * PrDetailPanel
  *
  * GitHub-style tabbed Pull Request detail rendered in the Source Control main
- * pane: a header (status pill · #number · title) over
+ * pane: a header (status icon · #number · title) over
  * a Conversation / Commits / Checks / Changes sub-tab bar.
  *
  * Mounts `useWorkstationPrDetail` (which parallel-fetches every source and
@@ -18,26 +18,31 @@ import {
   FileDiff,
   GitBranch,
   GitCommitHorizontal,
-  GitMerge,
+  Globe,
   ListChecks,
   MessageCircle,
   MessagesSquare,
-  SquareArrowOutUpRight,
 } from "lucide-react";
 import React, { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  GitHubChecksSummary,
-  GitHubPrReview,
-  PrFile,
+import {
+  type GitHubChecksSummary,
+  type GitHubPrReview,
+  type PrFile,
 } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
-import { PanelHeader, ScrollTrail } from "@src/modules/shared/layouts/blocks";
+import {
+  DetailHeaderTabs,
+  DetailTabStrip,
+  PanelHeader,
+  PersistentDetailTabPanel,
+  ScrollTrail,
+} from "@src/modules/shared/layouts/blocks";
 import { resolvePullRequestDetailStatus } from "@src/shared/pr/prLevelActions";
 import { getPrStatusVariant } from "@src/shared/pr/prStatus";
 import {
@@ -51,8 +56,9 @@ import { PrChangesTab } from "./PrChangesTab";
 import { PrChecksTab } from "./PrChecksTab";
 import { PrCommitsTab } from "./PrCommitsTab";
 import { PrConversationTab } from "./PrConversationTab";
-import { PrDetailHeaderContent } from "./PrDetailHeaderContent";
+import { PrDetailHeaderContent, PrStatusIcon } from "./PrDetailHeaderContent";
 import { PrLevelActions } from "./PrLevelActions";
+import { formatPrFilesCount } from "./prFilesDisplay";
 
 export { PrDetailHeaderContent } from "./PrDetailHeaderContent";
 
@@ -70,6 +76,8 @@ interface PrDetailPanelProps {
    * lifts it into the 40px tab-header strip via {@link PrDetailHeaderContent}).
    */
   showHeader?: boolean;
+  /** Place the title and detail tabs together in the same 40px header row. */
+  combineHeaderAndTabs?: boolean;
   onFileSelect?: (path: string) => void;
 }
 
@@ -93,9 +101,7 @@ export function PrDetailExternalLinkButton({
       variant="tertiary"
       size="small"
       iconOnly
-      icon={
-        <SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
-      }
+      icon={<Globe size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />}
       title={title}
       aria-label={title}
     />
@@ -191,7 +197,6 @@ export function PrDetailSummary({
     readNumber(detail, "deletions") ??
     files.reduce((total, file) => total + file.deletions, 0);
   const commentCount = readNumber(detail, "comments") ?? conversationCount;
-  const statusLabel = t(`git.pr.status.${identity.status}`, identity.status);
   const statusColorClass = getPrStatusVariant(identity.status).textClass;
 
   return (
@@ -273,23 +278,20 @@ export function PrDetailSummary({
         </div>
         <div className="text-text-1">{checksLabel(checks, t)}</div>
 
-        <div className="flex items-center gap-2 text-text-3">
-          {identity.status === "merged" ? (
-            <GitMerge
-              size={14}
-              strokeWidth={1.75}
-              className={statusColorClass}
-            />
-          ) : (
-            <CircleDot
-              size={14}
-              strokeWidth={1.75}
-              className={statusColorClass}
-            />
-          )}
+        <div
+          className="flex items-center gap-2 text-text-3"
+          data-testid="pr-summary-status-label"
+        >
+          <CircleDot size={14} strokeWidth={1.75} />
           <span>{t("git.pr.summary.status", "Status")}</span>
         </div>
-        <div className={`capitalize ${statusColorClass}`}>{statusLabel}</div>
+        <div
+          className={`inline-flex items-center gap-1 capitalize ${statusColorClass}`}
+          data-testid="pr-summary-status"
+        >
+          <PrStatusIcon status={identity.status} />
+          <span>{identity.status}</span>
+        </div>
       </div>
     </section>
   );
@@ -302,6 +304,7 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
   headerActions,
   headerClassName,
   showHeader = true,
+  combineHeaderAndTabs = false,
   onFileSelect,
 }) => {
   const { t } = useTranslation("common");
@@ -359,16 +362,9 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
     },
     [setDetailViewState]
   );
-  const setTabContentNode = useCallback(
-    (node: HTMLDivElement | null) => {
-      tabContentRef.current = node;
-      if (activeTab !== "conversation") {
-        trailScrollContainerRef.current = node;
-        trailContentRef.current = node;
-      }
-    },
-    [activeTab]
-  );
+  const setTabContentNode = useCallback((node: HTMLDivElement | null) => {
+    tabContentRef.current = node;
+  }, []);
   const setConversationScrollNode = useCallback(
     (node: HTMLDivElement | null) => {
       trailScrollContainerRef.current = node ?? tabContentRef.current;
@@ -439,7 +435,7 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
         key: "changes" as const,
         label: t("git.pr.changes.title", "Files changed"),
         icon: <FileDiff size={15} strokeWidth={1.8} />,
-        count: state.files.length,
+        count: formatPrFilesCount(state.files.length),
       },
     ],
     [
@@ -463,6 +459,7 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
         <PanelHeader
           className={headerClassName ?? DETAIL_PANEL_TOKENS.headerPadding}
           dataTestId="pr-detail-header"
+          borderBottom={combineHeaderAndTabs}
           actions={
             headerActions ?? (
               <PrDetailExternalLinkButton
@@ -472,44 +469,36 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
             )
           }
         >
-          <PrDetailHeaderContent identity={currentIdentity} />
+          {combineHeaderAndTabs ? (
+            <DetailHeaderTabs
+              title={<PrDetailHeaderContent identity={currentIdentity} />}
+              tabs={
+                <DetailTabStrip
+                  activeTab={activeTab}
+                  ariaLabel={t("git.pr.summary.label", "Pull request summary")}
+                  idPrefix="pr-detail"
+                  tabs={tabs}
+                  onChange={setActiveTab}
+                  variant="header"
+                />
+              }
+            />
+          ) : (
+            <PrDetailHeaderContent identity={currentIdentity} />
+          )}
         </PanelHeader>
       ) : null}
 
       {/* GitHub-style PR navigation */}
-      <div
-        role="tablist"
-        aria-label={t("git.pr.summary.label", "Pull request summary")}
-        className="flex h-10 shrink-0 items-end gap-1 border-b border-border-2 bg-bg-2 px-3"
-      >
-        {tabs.map((tab) => {
-          const selected = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              id={`pr-detail-tab-${tab.key}`}
-              aria-controls={`pr-detail-tabpanel-${tab.key}`}
-              aria-selected={selected}
-              className={`relative -mb-px flex h-9 shrink-0 items-center gap-1.5 rounded-t-md border px-3 text-[12px] font-medium transition-colors ${
-                selected
-                  ? "border-border-2 bg-bg-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-bg-2"
-                  : "border-transparent text-text-3 hover:bg-fill-1 hover:text-text-1"
-              }`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              <span className="shrink-0" aria-hidden>
-                {tab.icon}
-              </span>
-              <span>{tab.label}</span>
-              <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fill-2 px-1.5 text-[10px] font-semibold tabular-nums text-text-2">
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {!combineHeaderAndTabs || !showHeader ? (
+        <DetailTabStrip
+          activeTab={activeTab}
+          ariaLabel={t("git.pr.summary.label", "Pull request summary")}
+          idPrefix="pr-detail"
+          tabs={tabs}
+          onChange={setActiveTab}
+        />
+      ) : null}
 
       {/* Error banner */}
       {state.error ? (
@@ -518,18 +507,18 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
         </div>
       ) : null}
 
-      {/* Active tab */}
-      <div
-        role="tabpanel"
-        id={`pr-detail-tabpanel-${activeTab}`}
-        aria-labelledby={`pr-detail-tab-${activeTab}`}
-        className="flex min-h-0 flex-1 overflow-hidden"
-      >
-        <div
-          ref={setTabContentNode}
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      {/* Detail tabs mount lazily, then remain mounted to preserve view state. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <PersistentDetailTabPanel
+          active={activeTab === "conversation"}
+          id="pr-detail-tabpanel-conversation"
+          ariaLabelledBy="pr-detail-tab-conversation"
+          className="min-w-0 overflow-hidden"
         >
-          {activeTab === "conversation" && (
+          <div
+            ref={setTabContentNode}
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          >
             <PrConversationTab
               levelActions={
                 <PrLevelActions
@@ -574,8 +563,28 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
               trailScrollContainerRef={setConversationScrollNode}
               trailContentRef={setConversationContentNode}
             />
-          )}
-          {activeTab === "commits" && (
+          </div>
+          <div
+            className="relative w-11 shrink-0"
+            data-testid="pr-detail-navigation-rail"
+          >
+            <ScrollTrail
+              scrollContainerRef={trailScrollContainerRef}
+              contentRef={trailContentRef}
+              ariaLabel={t("git.pr.navigationTrail", "Pull request navigation")}
+              placement="rail"
+              testId="pr-detail-navigation-trail"
+            />
+          </div>
+        </PersistentDetailTabPanel>
+
+        <PersistentDetailTabPanel
+          active={activeTab === "commits"}
+          id="pr-detail-tabpanel-commits"
+          ariaLabelledBy="pr-detail-tab-commits"
+          className="min-w-0 flex-col overflow-hidden"
+        >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <PrCommitsTab
               commits={state.commits}
               prNumber={identity.number}
@@ -587,11 +596,27 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
               onSelectedCommitShaChange={setSelectedCommitSha}
               onFileSelect={onFileSelect}
             />
-          )}
-          {activeTab === "checks" && (
+          </div>
+        </PersistentDetailTabPanel>
+
+        <PersistentDetailTabPanel
+          active={activeTab === "checks"}
+          id="pr-detail-tabpanel-checks"
+          ariaLabelledBy="pr-detail-tab-checks"
+          className="min-w-0 flex-col overflow-hidden"
+        >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <PrChecksTab checks={state.checks} loading={state.loading} />
-          )}
-          {activeTab === "changes" && (
+          </div>
+        </PersistentDetailTabPanel>
+
+        <PersistentDetailTabPanel
+          active={activeTab === "changes"}
+          id="pr-detail-tabpanel-changes"
+          ariaLabelledBy="pr-detail-tab-changes"
+          className="min-w-0 flex-col overflow-hidden"
+        >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <PrChangesTab
               repoFullName={repoFullName}
               detail={state.detail}
@@ -605,21 +630,8 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
               onFileSelect={onFileSelect}
               onReplyInlineComment={replyInlineComment}
             />
-          )}
-        </div>
-        <div
-          className="relative w-11 shrink-0"
-          data-testid="pr-detail-navigation-rail"
-        >
-          <ScrollTrail
-            key={activeTab}
-            scrollContainerRef={trailScrollContainerRef}
-            contentRef={trailContentRef}
-            ariaLabel={t("git.pr.navigationTrail", "Pull request navigation")}
-            placement="rail"
-            testId="pr-detail-navigation-trail"
-          />
-        </div>
+          </div>
+        </PersistentDetailTabPanel>
       </div>
     </div>
   );

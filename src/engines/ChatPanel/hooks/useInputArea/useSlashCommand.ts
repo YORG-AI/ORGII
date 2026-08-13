@@ -10,7 +10,13 @@ import { type RefObject, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
-import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import {
+  type AgentExecMode,
+  type ComposerModeEntry,
+  PRODUCT_MODE_PROJECT,
+  execModeForComposerSelection,
+  resolveSessionAgentExecMode,
+} from "@src/config/sessionCreatorConfig";
 import { buildMcpToolCommand } from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal/slashItemUtils";
 import { buildAddressCommentsPillPath } from "@src/features/Org2Cloud/addressCommentsSlashToken";
 import {
@@ -18,9 +24,17 @@ import {
   type AddressCommentsThreadOption,
   useAddressCommentsSlashCommand,
 } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
-import { useSessionExecModeField } from "@src/hooks/session/useSessionPatch";
+import {
+  useSessionComposerModeFields,
+  useSessionExecModeField,
+} from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
+import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefaultProductModeAtom";
 import { SLASH_ACTIONS, type SlashItem } from "@src/types/extensions";
+import {
+  isAgentSession,
+  isCliSession,
+} from "@src/util/session/sessionDispatch";
 
 import { useSlashItemsCache } from "./useSlashItemsCache";
 
@@ -60,8 +74,10 @@ export interface SlashCommandHandlers {
   handleSlashCommandClose: () => void;
   handleSlashSelect: (item: SlashItem) => void;
   handleSlashAppendSelect: (item: SlashItem) => void;
-  handleModeSelect: (mode: AgentExecMode) => void;
-  currentMode: AgentExecMode;
+  handleModeSelect: (mode: ComposerModeEntry["id"]) => void;
+  currentMode: ComposerModeEntry["id"];
+  /** Whether the `/` mode picker should offer the Project product mode. */
+  includeProjectMode: boolean;
   filteredItems: SlashItem[];
   slashLoading: boolean;
   /**
@@ -95,20 +111,59 @@ export function useSlashCommand(
   const isInSession = !forceCreatorDefault && Boolean(sessionId);
   const creatorDefaultMode = useAtomValue(creatorDefaultExecModeAtom);
   const setCreatorDefaultMode = useSetAtom(creatorDefaultExecModeAtom);
+  const creatorProductDefault = useAtomValue(creatorDefaultProductModeAtom);
+  const setCreatorProductDefault = useSetAtom(creatorDefaultProductModeAtom);
   const { agentExecMode: sessionMode, setMode: setSessionMode } =
     useSessionExecModeField(sessionId ?? "");
-  const currentMode: AgentExecMode = isInSession
-    ? ((sessionMode as AgentExecMode | undefined) ?? creatorDefaultMode)
+  const { productMode, setComposerMode } = useSessionComposerModeFields(
+    sessionId ?? ""
+  );
+  // §5.2: only agent and CLI sessions carry the product-mode axis; the
+  // creator always offers it because those are the kinds it launches.
+  const carriesProductMode = isInSession
+    ? Boolean(
+        sessionId && (isAgentSession(sessionId) || isCliSession(sessionId))
+      )
+    : true;
+  const currentExecMode: AgentExecMode = isInSession
+    ? resolveSessionAgentExecMode(sessionMode)
     : creatorDefaultMode;
+  const currentMode: ComposerModeEntry["id"] = carriesProductMode
+    ? isInSession
+      ? productMode === PRODUCT_MODE_PROJECT
+        ? PRODUCT_MODE_PROJECT
+        : currentExecMode
+      : creatorProductDefault === PRODUCT_MODE_PROJECT
+        ? PRODUCT_MODE_PROJECT
+        : currentExecMode
+    : currentExecMode;
   const setMode = useCallback(
-    (mode: AgentExecMode) => {
+    (selected: ComposerModeEntry["id"]) => {
+      const derivedExecMode = execModeForComposerSelection(selected);
       if (isInSession) {
-        void setSessionMode(mode);
+        // Mirror ModePill's §5.2 dispatch: persist both axes atomically.
+        // Swallow rejections — the patch hooks roll back optimistic
+        // writes and rethrow, which would otherwise hit the boundary.
+        if (carriesProductMode) {
+          void setComposerMode(selected, derivedExecMode).catch(() => {});
+        } else {
+          void setSessionMode(derivedExecMode).catch(() => {});
+        }
       } else {
-        setCreatorDefaultMode(mode);
+        setCreatorDefaultMode(derivedExecMode);
+        setCreatorProductDefault(
+          selected === PRODUCT_MODE_PROJECT ? PRODUCT_MODE_PROJECT : null
+        );
       }
     },
-    [isInSession, setSessionMode, setCreatorDefaultMode]
+    [
+      isInSession,
+      carriesProductMode,
+      setComposerMode,
+      setSessionMode,
+      setCreatorDefaultMode,
+      setCreatorProductDefault,
+    ]
   );
 
   const queryRef = useRef("");
@@ -289,7 +344,7 @@ export function useSlashCommand(
   );
 
   const handleModeSelect = useCallback(
-    (mode: AgentExecMode) => {
+    (mode: ComposerModeEntry["id"]) => {
       setMode(mode);
       setShowSlashMenu(false);
       setSlashQuery("");
@@ -308,6 +363,7 @@ export function useSlashCommand(
     handleSlashAppendSelect,
     handleModeSelect,
     currentMode,
+    includeProjectMode: carriesProductMode,
     filteredItems,
     slashLoading,
     prefetchItems,

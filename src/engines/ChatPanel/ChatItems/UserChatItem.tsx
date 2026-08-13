@@ -18,6 +18,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import Avatar from "@src/components/Avatar";
 import {
   CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS,
   ChatBubbleCopyButton,
@@ -30,6 +31,7 @@ import {
   SessionLinkCard,
   type SessionLinkCardData,
 } from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards";
+import { createCollabAvatarIdentity } from "@src/store/collaboration/protocol";
 import {
   formatSmartDateTime,
   toIntlLocaleTag,
@@ -39,7 +41,9 @@ import { imageRefToRustPath } from "@src/util/file/imageRefs";
 import UserMessageContent from "../ChatHistory/components/UserMessageContent";
 import InputArea from "../InputArea";
 import { stripExpandedPillContent } from "../InputArea/utils/pillContentParser";
+import { useSharedConversationSender } from "./SharedConversationSenderContext";
 import { normalizeUserMessageText } from "./normalizeUserMessageText";
+import { resolveUserMessageSide } from "./userMessageSide";
 
 const USER_MSG_MAX_LINES = 3;
 const USER_MSG_MAX_CHARS = 120;
@@ -187,7 +191,7 @@ CachedFileChip.displayName = "CachedFileChip";
  * message toolbar whenever the mouse was anywhere in the pane.
  */
 const DISPLAY_CONTAINER_BASE =
-  "relative w-fit max-w-[min(600px,100%)] rounded-2xl bg-fill-2 px-3 py-2 transition-colors hover:bg-fill-3";
+  "relative w-fit max-w-[min(600px,100%)] rounded-2xl bg-fill-2 px-3 py-2";
 
 // ============================================
 // Component
@@ -200,6 +204,7 @@ const UserChatItem = ({
   onRestoreCheckpoint,
 }: UserChatItemProps) => {
   const { t, i18n } = useTranslation("sessions");
+  const sharedConversationSender = useSharedConversationSender();
   const [isEditing, setIsEditing] = useState(false);
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -379,6 +384,11 @@ const UserChatItem = ({
   if (!hasDisplayContent) return null;
 
   const displayNeedsTruncation = needsTruncation;
+  const messageSide = resolveUserMessageSide(event);
+  const isRemoteSharedMessage = messageSide === "left";
+  const senderName =
+    sharedConversationSender?.displayName.trim() || "Shared user";
+  const senderAvatar = createCollabAvatarIdentity(senderName);
 
   const containerClass = `${DISPLAY_CONTAINER_BASE} ${isEditableDisplay ? "cursor-pointer outline-none" : ""}`;
 
@@ -476,7 +486,11 @@ const UserChatItem = ({
       {(timestampLabel || fullContent || toolbarActions) && (
         <div className="relative mt-1 flex min-h-6 items-center px-1 text-[11px] leading-none text-text-3">
           {(fullContent || toolbarActions) && (
-            <div className="absolute right-full top-1/2 mr-1 flex -translate-y-1/2 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover/msg:opacity-100">
+            <div
+              className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover/msg:opacity-100 ${
+                isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"
+              }`}
+            >
               {fullContent && (
                 <ChatBubbleCopyButton
                   content={fullContent}
@@ -530,8 +544,33 @@ const UserChatItem = ({
   );
 
   return (
-    <div className="group/msg flex w-full flex-col items-end pl-24">
-      {display}
+    <div
+      className={`group/msg flex w-full flex-col ${
+        isRemoteSharedMessage ? "items-start pr-24" : "items-end pl-24"
+      }`}
+      data-message-side={messageSide}
+    >
+      {isRemoteSharedMessage ? (
+        <div className="flex max-w-full items-start gap-2.5">
+          <span
+            className="mt-0.5 shrink-0"
+            title={senderName}
+            aria-label={senderName}
+            data-testid="shared-message-sender-avatar"
+          >
+            <Avatar
+              size={28}
+              src={sharedConversationSender?.avatarUrl}
+              style={{ backgroundColor: "var(--color-fill-2)" }}
+            >
+              {senderAvatar.initials}
+            </Avatar>
+          </span>
+          <div className="flex min-w-0 flex-col items-start">{display}</div>
+        </div>
+      ) : (
+        display
+      )}
     </div>
   );
 };

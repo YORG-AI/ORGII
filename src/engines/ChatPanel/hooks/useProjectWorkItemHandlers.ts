@@ -2,8 +2,12 @@ import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import { workItemDataToUI } from "@src/api/http/project";
+import type { CreatedProjectResult } from "@src/modules/ProjectManager/Projects/components/CreateProjectView";
 import type { CreatedWorkItemResult } from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView";
-import { openWorkItemInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import {
+  openProjectInChatPanelTabAtom,
+  openWorkItemInChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelCreateProjectContext,
@@ -51,15 +55,34 @@ export function useProjectWorkItemHandlers({
   setWorkItemCreateDraft,
   setWorkstationActiveSessionId,
 }: UseProjectWorkItemHandlersOptions) {
+  const openProjectTab = useSetAtom(openProjectInChatPanelTabAtom);
   const openWorkItemTab = useSetAtom(openWorkItemInChatPanelTabAtom);
   const handleChatPanelProjectCreated = useCallback(
-    (options?: { keepOpen?: boolean }) => {
+    (result?: CreatedProjectResult) => {
       bumpProjectListRefresh((previous) => previous + 1);
-      if (options?.keepOpen) return;
+      if (result) {
+        setShowProjectAgentCreator(sessionCreatorAvailable);
+        setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
+        dispatchClearSession();
+        setWorkstationActiveSessionId(null);
+        setActiveSessionId(null);
+        openProjectTab(result);
+        return;
+      }
       setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
       handleReturnToSessionCreator();
     },
-    [bumpProjectListRefresh, handleReturnToSessionCreator, setCreateTarget]
+    [
+      bumpProjectListRefresh,
+      dispatchClearSession,
+      handleReturnToSessionCreator,
+      openProjectTab,
+      sessionCreatorAvailable,
+      setActiveSessionId,
+      setCreateTarget,
+      setShowProjectAgentCreator,
+      setWorkstationActiveSessionId,
+    ]
   );
 
   const handleCancelWorkItemCreate = useCallback(() => {

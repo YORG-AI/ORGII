@@ -74,6 +74,7 @@ const KiroSetup: React.FC<KiroSetupProps> = ({
               options={kiroSetupOptions}
               selected={setupMethod}
               cardVariant="subtle"
+              compactCards
               onSelect={(key) => setLocalMethod(key as "autodetect" | "signin")}
             />
           </SectionRow>

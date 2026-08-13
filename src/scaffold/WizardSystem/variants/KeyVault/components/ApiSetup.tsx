@@ -360,6 +360,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
                         options={complexMethodOptions}
                         selected={data.setup_method ?? null}
                         cardVariant="subtle"
+                        compactCards
                         onSelect={(key) => onChange({ setup_method: key })}
                       />
                     </SectionRow>
@@ -381,6 +382,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
                         options={complexMethodOptions}
                         selected={data.setup_method ?? null}
                         cardVariant="subtle"
+                        compactCards
                         onSelect={(key) => onChange({ setup_method: key })}
                       />
                     </SectionRow>

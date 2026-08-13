@@ -16,8 +16,10 @@
 //! - [`nodes`]     — compute-node CRUD (`manage_nodes`)
 //! - [`orchestration`] — subagent invocation, session management, mode/next-step suggestions, ask_user_questions
 //! - [`plan_mode`] — plan-mode planning tool (`create_plan`)
-//! - [`project`]   — Project + work-item CRUD (`manage_project`, `manage_work_item`)
 //! - [`web`]       — web search/fetch, browser control
+//!
+//! Work-item / project management is not a tool surface: agents reach the
+//! work system through the `org2-pm` CLI from their shell.
 
 pub mod agent_def;
 pub mod coding;
@@ -27,5 +29,4 @@ pub mod meta;
 pub mod nodes;
 pub mod orchestration;
 pub mod plan_mode;
-pub mod project;
 pub mod web;

@@ -190,6 +190,7 @@ mod tests {
         assert_eq!(usage.input_tokens, 1500);
         assert_eq!(usage.output_tokens, 300);
         assert_eq!(usage.cache_read_tokens, 500);
+        assert_eq!(usage.total_tokens, 1800);
     }
 
     #[test]

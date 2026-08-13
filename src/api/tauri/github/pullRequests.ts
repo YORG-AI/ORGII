@@ -31,6 +31,13 @@ export async function createPRLocal(
   });
 }
 
+export type PullRequestCiStatus =
+  | "success"
+  | "failure"
+  | "pending"
+  | "none"
+  | "unavailable";
+
 export interface OpenPRItem {
   number: number;
   url: string;
@@ -46,6 +53,7 @@ export interface OpenPRItem {
   head_branch: string;
   base_branch: string;
   draft: boolean;
+  ci_status: PullRequestCiStatus;
   created_at: string;
   updated_at: string;
 }

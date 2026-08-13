@@ -254,14 +254,6 @@ fn search_tool_llm_description_contains_repo() {
 }
 
 #[test]
-fn work_item_tool_llm_description_mentions_global_store() {
-    use crate::tools::impls::project::manage_work_item::WorkItemTool;
-    let tool = WorkItemTool::new("test-session".to_string(), None);
-    let desc = tool.llm_description().expect("should return description");
-    assert!(desc.contains("global project store"));
-}
-
-#[test]
 fn mode_switch_llm_description_none_without_mode() {
     use crate::interaction::mode_switch::ModeSwitchManager;
     use crate::tools::impls::orchestration::suggest_mode_switch::{

@@ -169,10 +169,25 @@ impl CliError {
             )
             .with_details(serde_json::json!({ "from": from, "to": to }));
         }
+        if let Some(rest) = err.strip_prefix(pm::ALREADY_EXISTS) {
+            let short_id = rest.trim_start_matches(':').to_string();
+            return CliError::new(
+                ErrorCode::AlreadyExists,
+                format!(
+                    "Work item '{}' already exists; creation refuses to overwrite",
+                    short_id
+                ),
+            )
+            .with_details(serde_json::json!({ "shortId": short_id }));
+        }
         if err.contains("not found") || err.contains("Not found") {
             return CliError::new(ErrorCode::NotFound, err);
         }
-        if err.contains("already has an active execution session") {
+        if err.contains("already has an active execution session")
+            || err.contains("already has a running linked session")
+            || err.contains("is claimed by another session")
+            || err.contains("has no active claim to release")
+        {
             return CliError::new(ErrorCode::AlreadyClaimed, err);
         }
         CliError::new(ErrorCode::StoreUnavailable, err)
@@ -189,7 +204,11 @@ fn request_id() -> String {
 }
 
 /// Print the success envelope to stdout and return exit code 0.
-pub fn emit_success(data: serde_json::Value, revision: Option<i64>, next_cursor: Option<String>) -> i32 {
+pub fn emit_success(
+    data: serde_json::Value,
+    revision: Option<i64>,
+    next_cursor: Option<String>,
+) -> i32 {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Success {
@@ -288,5 +307,9 @@ mod tests {
 
         let err = CliError::from_service("Work item 'X' not found".into());
         assert_eq!(err.code, ErrorCode::NotFound);
+
+        let err = CliError::from_service("PM_ERR:ALREADY_EXISTS:AAA-0001".into());
+        assert_eq!(err.code, ErrorCode::AlreadyExists);
+        assert_eq!(err.details["shortId"], "AAA-0001");
     }
 }

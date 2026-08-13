@@ -11,7 +11,6 @@ import { createLogger } from "@src/hooks/logger";
 import {
   openOrFocusSessionInChatPanelTabAtom,
   openWorkItemInChatPanelTabAtom,
-  requestChatPanelWorkItemActionAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { sessionsAtom } from "@src/store/session";
 
@@ -26,7 +25,6 @@ export function useTeamInboxNavigation(): (
   const sessions = useAtomValue(sessionsAtom);
   const openSession = useSetAtom(openOrFocusSessionInChatPanelTabAtom);
   const openWorkItem = useSetAtom(openWorkItemInChatPanelTabAtom);
-  const requestWorkItemAction = useSetAtom(requestChatPanelWorkItemActionAtom);
 
   return useCallback(
     (intent: TeamInboxNavigationIntent) => {
@@ -70,12 +68,6 @@ export function useTeamInboxNavigation(): (
             t("teamInbox.detail.standaloneProject"),
           orgId: project?.meta.org_id ?? intent.orgId,
         });
-        if (intent.action) {
-          requestWorkItemAction({
-            workItemShortId: shortId,
-            action: intent.action,
-          });
-        }
       };
 
       if (!intent.projectId) {
@@ -116,6 +108,6 @@ export function useTeamInboxNavigation(): (
           log.warn("Failed to open project Team Inbox Work Item", error);
         });
     },
-    [openSession, openWorkItem, requestWorkItemAction, sessions, t]
+    [openSession, openWorkItem, sessions, t]
   );
 }

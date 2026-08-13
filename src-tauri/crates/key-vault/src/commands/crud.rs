@@ -331,7 +331,8 @@ pub const CODEX_OAUTH_MODELS: &[&str] = &[
     "codex-auto-review",
 ];
 
-pub const CODEX_OAUTH_DEFAULT_ENABLED_MODELS: &[&str] = &["gpt-5.6-sol"];
+pub const CODEX_OAUTH_DEFAULT_ENABLED_MODELS: &[&str] =
+    &["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
 
 /// Claude models whose Messages requests carry `output_config.effort`.
 pub fn model_supports_output_config_effort(model: &str) -> bool {
@@ -544,7 +545,8 @@ fn discovered_anthropic_variants(model: &DiscoveredModel) -> Vec<ModelVariantInf
 
 /// Produce the exact variant/default metadata rendered in the OAuth wizard
 /// and later returned for the saved account. Live capability metadata wins;
-/// the family tables are used only for the baked fallback catalog.
+/// the family tables supply metadata for the baked fallback catalog and for
+/// built-in Codex bases completed onto version-limited live discovery.
 pub(super) fn oauth_model_metadata(
     agent_type: &str,
     models: &[DiscoveredModel],

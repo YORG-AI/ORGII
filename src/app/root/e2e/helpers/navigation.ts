@@ -6,6 +6,7 @@ import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { agentOrgsActiveTabAtom } from "@src/modules/MainApp/AgentOrgs/store/agentOrgsActiveTabAtom";
 import { allAgentDefsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import { router } from "@src/router";
+import { openWorkItemInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { reposAtom, selectedRepoIdAtom } from "@src/store/repo/atoms";
 import {
   CHAT_PANEL_CONTENT_MODE,
@@ -239,13 +240,17 @@ export function createNavigationHelpers(store: E2EStore) {
       store.set(chatPanelMaximizedAtom, true);
       store.set(chatWidthAtom, 560);
       store.set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
-      store.set(chatPanelSelectedWorkItemAtom, {
+      const selection = {
         workItem: enrichedWorkItemToUI(workItem),
         projectId: project?.slug ?? projectSlug,
         projectName: project?.meta?.name ?? projectSlug,
         projectSlug,
         shortId,
-      });
+      };
+      store.set(chatPanelSelectedWorkItemAtom, selection);
+      // The active tab owns the visible surface since the launchpad rework;
+      // a bare selection write no longer switches away from the start page.
+      store.set(openWorkItemInChatPanelTabAtom, selection);
       await new Promise((resolve) => window.setTimeout(resolve, 100));
       return { ok: true };
     } catch (err) {

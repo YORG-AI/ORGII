@@ -128,6 +128,7 @@ const KeyInputSection: React.FC<KeyInputSectionProps> = ({
             options={methodOptions}
             selected={setupMethod}
             cardVariant="subtle"
+            compactCards
             onSelect={handleMethodChange}
           />
         </SectionRow>

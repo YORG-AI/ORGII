@@ -28,7 +28,13 @@ import {
   AppUpdaterScheduler,
   type AutomaticUpdateReason,
 } from "./appUpdaterScheduler";
+import {
+  type AppBuildProvenance,
+  getAppBuildProvenance,
+  resetAppBuildProvenanceForTests,
+} from "./buildProvenance";
 import { checkAppUpdateOnChannel } from "./channelCheck";
+import { installAppUpdateSeparately } from "./separateInstall";
 
 const log = createLogger("AppUpdater");
 
@@ -48,6 +54,8 @@ const CHECK_TOAST_ID = "app-update-check";
 const INSTALL_TOAST_ID = "app-update-progress";
 const SKIPPED_UPDATE_VERSION_STORAGE_KEY =
   "orgii:updater:skipped-update-version";
+const SEPARATELY_INSTALLED_RELEASE_VERSION_STORAGE_KEY =
+  "orgii:updater:separately-installed-release-version";
 
 export interface CheckForAppUpdatesOptions {
   notify?: boolean;
@@ -57,15 +65,20 @@ export interface CheckForAppUpdatesOptions {
 const appUpdaterStateAtom = atom<AppUpdaterState>(
   createInitialAppUpdaterState()
 );
+const appBuildProvenanceAtom = atom<AppBuildProvenance | null>(null);
 const availableAppUpdateAtom = atom((get) => get(appUpdaterStateAtom).update);
 const appUpdateInstallPromptAtom = atom(false);
+const separateAppUpdateInstallingAtom = atom(false);
 const appUpdateDownloadProgressAtom = atom<AppUpdateDownloadProgress>(
   EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS
 );
 const isAppUpdateInstallingAtom = atom((get) => {
   const phase = get(appUpdaterStateAtom).phase;
   return (
-    phase === "downloading" || phase === "installing" || phase === "relaunching"
+    get(separateAppUpdateInstallingAtom) ||
+    phase === "downloading" ||
+    phase === "installing" ||
+    phase === "relaunching"
   );
 });
 
@@ -133,6 +146,35 @@ function clearSkippedUpdateVersion(version: string): void {
   }
 }
 
+function getSeparatelyInstalledReleaseVersion(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(
+    SEPARATELY_INSTALLED_RELEASE_VERSION_STORAGE_KEY
+  );
+}
+
+function setSeparatelyInstalledReleaseVersion(version: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    SEPARATELY_INSTALLED_RELEASE_VERSION_STORAGE_KEY,
+    version
+  );
+}
+
+function usesSeparateApplicationInstall(
+  provenance: AppBuildProvenance
+): boolean {
+  return provenance.installStrategy === "separateMacosApplication";
+}
+
+async function resolveAppBuildProvenance(): Promise<AppBuildProvenance> {
+  const cached = store().get(appBuildProvenanceAtom);
+  if (cached) return cached;
+  const provenance = await getAppBuildProvenance();
+  store().set(appBuildProvenanceAtom, provenance);
+  return provenance;
+}
+
 function createCoordinator(): AppUpdaterCoordinator {
   return new AppUpdaterCoordinator({
     check: () => checkAppUpdateOnChannel(UPDATE_CHECK_TIMEOUT_MS),
@@ -162,7 +204,8 @@ function getDownloadErrorMessage(error: unknown): string {
 function notifyCheckSuccess(
   update: Update | null,
   currentVersion: string | undefined,
-  notify: boolean
+  notify: boolean,
+  provenance: AppBuildProvenance
 ): void {
   if (!notify) return;
 
@@ -172,6 +215,12 @@ function notifyCheckSuccess(
       title: "Update available",
       content: `Version ${update.version} is ready to install.`,
       duration: UPDATE_TOAST_DURATION_MS,
+      action: {
+        label: usesSeparateApplicationInstall(provenance)
+          ? "Install official app"
+          : "Update now",
+        onClick: () => void installAvailableAppUpdate(),
+      },
     });
     return;
   }
@@ -213,7 +262,28 @@ export async function checkForAppUpdates(
 
   try {
     const result = await coordinator.checkForUpdate(force);
-    notifyCheckSuccess(result.update, result.currentVersion, notify);
+    const provenance = await resolveAppBuildProvenance();
+    if (
+      result.update &&
+      usesSeparateApplicationInstall(provenance) &&
+      getSeparatelyInstalledReleaseVersion() === result.update.version
+    ) {
+      coordinator.clearAvailableUpdate();
+      if (notify) {
+        Message.success({
+          id: CHECK_TOAST_ID,
+          content: `Official ORGII v${result.update.version} is already installed in /Applications.`,
+          duration: UPDATE_TOAST_DURATION_MS,
+        });
+      }
+      return null;
+    }
+    notifyCheckSuccess(
+      result.update,
+      result.currentVersion,
+      notify,
+      provenance
+    );
     return result.update;
   } catch (error) {
     // A manual check is an explicit freshness request. Do not keep showing an
@@ -282,10 +352,17 @@ async function prepareAvailableAppUpdate(
   update: Update,
   silentDownload: boolean
 ): Promise<void> {
+  const provenance = await resolveAppBuildProvenance();
   const progressReporter = silentDownload
     ? undefined
     : createProgressReporter();
   clearSkippedUpdateVersion(update.version);
+
+  if (usesSeparateApplicationInstall(provenance)) {
+    store().set(appUpdateInstallPromptAtom, true);
+    return;
+  }
+
   if (progressReporter) beginDownloadProgress();
 
   try {
@@ -295,6 +372,51 @@ async function prepareAvailableAppUpdate(
   } catch (error) {
     if (progressReporter) endDownloadProgress();
     throw error;
+  }
+}
+
+let pendingSeparateApplicationInstall: Promise<void> | null = null;
+
+async function installOfficialApplicationBesideLocal(
+  update: Update
+): Promise<void> {
+  if (pendingSeparateApplicationInstall) {
+    await pendingSeparateApplicationInstall;
+    return;
+  }
+
+  const operation = (async () => {
+    store().set(separateAppUpdateInstallingAtom, true);
+    beginDownloadProgress();
+    try {
+      const result = await installAppUpdateSeparately(
+        update,
+        createProgressReporter()
+      );
+      endDownloadProgress();
+      setSeparatelyInstalledReleaseVersion(result.version);
+      coordinator.clearAvailableUpdate();
+      Message.success({
+        id: INSTALL_TOAST_ID,
+        title: "Official app installed",
+        content: `${result.version} is installed at ${result.targetPath}. This local build is still running and unchanged.`,
+        duration: 6000,
+      });
+    } catch (error) {
+      endDownloadProgress();
+      throw error;
+    } finally {
+      store().set(separateAppUpdateInstallingAtom, false);
+    }
+  })();
+
+  pendingSeparateApplicationInstall = operation;
+  try {
+    await operation;
+  } finally {
+    if (pendingSeparateApplicationInstall === operation) {
+      pendingSeparateApplicationInstall = null;
+    }
   }
 }
 
@@ -341,6 +463,17 @@ export async function installAvailableAppUpdate(
   }
 
   try {
+    const provenance = await resolveAppBuildProvenance();
+    if (usesSeparateApplicationInstall(provenance)) {
+      await installOfficialApplicationBesideLocal(update);
+      return;
+    }
+    if (provenance.installStrategy === "unavailable") {
+      throw new Error(
+        "This local build cannot safely install a published release on this platform."
+      );
+    }
+
     Message.info({
       id: INSTALL_TOAST_ID,
       title: "Installing update",
@@ -400,6 +533,15 @@ async function executeAutomaticUpdate(
     return;
   }
 
+  const provenance = await resolveAppBuildProvenance();
+  if (
+    usesSeparateApplicationInstall(provenance) &&
+    getSeparatelyInstalledReleaseVersion() === update.version
+  ) {
+    coordinator.clearAvailableUpdate();
+    return;
+  }
+
   try {
     // Installing can terminate the app on Windows. Every automatic path only
     // prepares the package and asks the user before installing or relaunching.
@@ -425,9 +567,14 @@ export function useIsAppUpdateInstalling(): boolean {
   return useAtomValue(isAppUpdateInstallingAtom);
 }
 
+export function useAppBuildProvenance(): AppBuildProvenance | null {
+  return useAtomValue(appBuildProvenanceAtom);
+}
+
 export const AppUpdater: React.FC = () => {
   const { t } = useTranslation(["settings", "common"]);
   const availableUpdate = useAtomValue(availableAppUpdateAtom);
+  const buildProvenance = useAtomValue(appBuildProvenanceAtom);
   const downloadProgress = useAtomValue(appUpdateDownloadProgressAtom);
   const [installPromptVisible, setInstallPromptVisible] = useAtom(
     appUpdateInstallPromptAtom
@@ -452,19 +599,31 @@ export const AppUpdater: React.FC = () => {
   useEffect(() => {
     if (!settingsLoaded) return;
 
-    const scheduler = new AppUpdaterScheduler({
-      startupDelayMs: STARTUP_CHECK_DELAY_MS,
-      intervalMs: UPDATE_CHECK_INTERVAL_MS,
-      foregroundDebounceMs: FOREGROUND_EVENT_DEBOUNCE_MS,
-      retryBaseDelayMs: UPDATE_RETRY_BASE_DELAY_MS,
-      retryMaxDelayMs: UPDATE_RETRY_MAX_DELAY_MS,
-      retryJitterRatio: UPDATE_RETRY_JITTER_RATIO,
-    });
-    activeAutomaticScheduler = scheduler;
-    scheduler.start((reason) => executeAutomaticUpdate(reason, scheduler));
+    let cancelled = false;
+    let scheduler: AppUpdaterScheduler | null = null;
+    void resolveAppBuildProvenance()
+      .then(() => {
+        if (cancelled) return;
+        scheduler = new AppUpdaterScheduler({
+          startupDelayMs: STARTUP_CHECK_DELAY_MS,
+          intervalMs: UPDATE_CHECK_INTERVAL_MS,
+          foregroundDebounceMs: FOREGROUND_EVENT_DEBOUNCE_MS,
+          retryBaseDelayMs: UPDATE_RETRY_BASE_DELAY_MS,
+          retryMaxDelayMs: UPDATE_RETRY_MAX_DELAY_MS,
+          retryJitterRatio: UPDATE_RETRY_JITTER_RATIO,
+        });
+        activeAutomaticScheduler = scheduler;
+        scheduler.start((reason) =>
+          executeAutomaticUpdate(reason, scheduler as AppUpdaterScheduler)
+        );
+      })
+      .catch((error) => {
+        log.error("Cannot resolve app build provenance", error);
+      });
 
     return () => {
-      scheduler.stop();
+      cancelled = true;
+      scheduler?.stop();
       if (activeAutomaticScheduler === scheduler) {
         activeAutomaticScheduler = null;
       }
@@ -475,7 +634,11 @@ export const AppUpdater: React.FC = () => {
     <>
       <Modal
         visible={installPromptVisible && Boolean(availableUpdate)}
-        title={t("update.installConfirmTitle")}
+        title={
+          buildProvenance && usesSeparateApplicationInstall(buildProvenance)
+            ? t("update.installOfficialConfirmTitle")
+            : t("update.installConfirmTitle")
+        }
         width={620}
         closable={false}
         maskClosable={false}
@@ -512,7 +675,10 @@ export const AppUpdater: React.FC = () => {
                 onClick={handleInstallConfirm}
                 data-modal-primary-action
               >
-                {t("update.installAndRestart")}
+                {buildProvenance &&
+                usesSeparateApplicationInstall(buildProvenance)
+                  ? t("update.installOfficial")
+                  : t("update.installAndRestart")}
               </Button>
             </div>
           </div>
@@ -525,9 +691,12 @@ export const AppUpdater: React.FC = () => {
             glyphClassName="text-text-1"
           />
           <p className="min-w-0 flex-1 text-sm leading-6 text-text-2">
-            {t("update.installConfirmDesc", {
-              version: availableUpdate?.version,
-            })}
+            {t(
+              buildProvenance && usesSeparateApplicationInstall(buildProvenance)
+                ? "update.installOfficialConfirmDesc"
+                : "update.installConfirmDesc",
+              { version: availableUpdate?.version }
+            )}
           </p>
         </div>
       </Modal>
@@ -544,6 +713,10 @@ export function resetAppUpdaterForTests(): void {
   activeAutomaticScheduler?.stop();
   activeAutomaticScheduler = null;
   coordinator.reset();
+  pendingSeparateApplicationInstall = null;
+  resetAppBuildProvenanceForTests();
+  store().set(appBuildProvenanceAtom, null);
+  store().set(separateAppUpdateInstallingAtom, false);
   store().set(appUpdateInstallPromptAtom, false);
   setDownloadProgress(EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS);
 }

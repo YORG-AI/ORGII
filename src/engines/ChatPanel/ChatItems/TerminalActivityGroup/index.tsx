@@ -5,12 +5,15 @@
  * the same collapsible stack used by exploration summaries. Every item still
  * renders through the registry, preserving its specialized behavior.
  */
+import { useAtomValue } from "jotai";
 import React, { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
 import { isMcpToolEvent } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/classifiers";
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
+import OrgtrackEnvelopeCard from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards/OrgtrackEnvelopeCard";
+import { parseOrgtrackEnvelope } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers";
 import {
   ChatLoadingBlock,
   StackedBlock,
@@ -22,6 +25,7 @@ import {
 } from "@src/engines/SessionCore/core/types";
 import { getChatLazyComponent } from "@src/engines/SessionCore/rendering/registry/events";
 import { getRegistryEventType } from "@src/lib/activityData/activityNormalizers";
+import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 
 interface TerminalActivityGroupProps {
   events: SessionEvent[];
@@ -31,6 +35,29 @@ interface TerminalActivityGroupProps {
 interface TerminalEventItem {
   event: SessionEvent;
   isLastItem: boolean;
+}
+
+function parseTerminalOrgtrackEnvelope(
+  event: SessionEvent,
+  context: {
+    projectSlug?: string;
+    projectName?: string;
+    projectId?: string;
+    orgId?: string;
+  }
+) {
+  const extractedOutput =
+    event.extracted?.kind === "shell" ? event.extracted.output : undefined;
+  const durableOutput =
+    event.shellReplay?.terminalPreview || extractedOutput || undefined;
+  const result = durableOutput
+    ? {
+        ...(event.result ?? {}),
+        stdout: durableOutput,
+        exit_code: event.shellExitCode,
+      }
+    : (event.result ?? {});
+  return parseOrgtrackEnvelope(event.args ?? {}, result, context);
 }
 
 export function buildGroupSummary(
@@ -157,6 +184,7 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
   closedByBoundary = true,
 }) => {
   const { t } = useTranslation("sessions");
+  const session = useAtomValue(sessionByIdAtom(events[0]?.sessionId ?? ""));
   const items = useMemo<TerminalEventItem[]>(
     () =>
       events.map((event, index) => ({
@@ -164,6 +192,29 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
         isLastItem: index === events.length - 1,
       })),
     [events]
+  );
+  const workItemResults = useMemo(
+    () =>
+      events.flatMap((event) => {
+        const card = parseTerminalOrgtrackEnvelope(event, {
+          projectSlug: session?.projectSlug,
+          projectName: session?.projectName,
+          projectId: session?.projectId,
+          orgId: session?.orgId,
+        });
+        return card?.ok &&
+          ["work.create", "work.update"].includes(card.operationId) &&
+          card.shortId
+          ? [card]
+          : [];
+      }),
+    [
+      events,
+      session?.orgId,
+      session?.projectId,
+      session?.projectName,
+      session?.projectSlug,
+    ]
   );
 
   if (items.length === 0) return null;
@@ -173,31 +224,41 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
   const groupSummary = buildGroupSummary(events, t);
 
   return (
-    <div
-      data-tool-call-event-id={firstEvent.id}
-      data-tool-call-name={
-        firstEvent.functionName ||
-        firstEvent.uiCanonical ||
-        firstEvent.actionType
-      }
-    >
-      <StackedBlock
-        items={items}
-        icon={getToolIcon("run_shell", {
-          size: 14,
-          className: "text-text-2",
-        })}
-        label={t("tools.runCommands")}
-        groupSummary={groupSummary}
-        defaultCollapsed={closedByBoundary}
-        collapseWhen={closedByBoundary}
-        eventId={firstEvent.id}
-        rightContent={
-          groupToolUsage ? <ToolUsageBadge usage={groupToolUsage} /> : undefined
+    <>
+      <div
+        data-tool-call-event-id={firstEvent.id}
+        data-tool-call-name={
+          firstEvent.functionName ||
+          firstEvent.uiCanonical ||
+          firstEvent.actionType
         }
-        renderItem={renderTerminalEvent}
-      />
-    </div>
+      >
+        <StackedBlock
+          items={items}
+          icon={getToolIcon("run_shell", {
+            size: 14,
+            className: "text-text-2",
+          })}
+          label={t("tools.runCommands")}
+          groupSummary={groupSummary}
+          defaultCollapsed={closedByBoundary}
+          collapseWhen={closedByBoundary}
+          eventId={firstEvent.id}
+          rightContent={
+            groupToolUsage ? (
+              <ToolUsageBadge usage={groupToolUsage} />
+            ) : undefined
+          }
+          renderItem={renderTerminalEvent}
+        />
+      </div>
+      {workItemResults.map((card, index) => (
+        <OrgtrackEnvelopeCard
+          key={`${card.operationId}:${card.shortId}:${index}`}
+          card={card}
+        />
+      ))}
+    </>
   );
 };
 
