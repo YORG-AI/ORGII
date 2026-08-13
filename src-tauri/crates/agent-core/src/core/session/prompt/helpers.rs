@@ -163,83 +163,6 @@ fn expand_memory_imports(content: &str, base_dir: &Path) -> String {
     out.join("\n")
 }
 
-#[cfg(test)]
-mod convention_tests {
-    use super::{load_conventions, strip_retired_brick_managed_blocks};
-
-    const RETIRED_BLOCK: &str = "<!-- brick:managed:start v=9 -->\nRun `brick explain src/main.rs:1` first.\n<!-- brick:managed:end -->";
-
-    #[test]
-    fn strips_complete_and_unterminated_retired_managed_blocks() {
-        let content = format!("Keep before.\n\n{RETIRED_BLOCK}\n\nKeep after.");
-        let sanitized = strip_retired_brick_managed_blocks(&content);
-        assert!(sanitized.contains("Keep before."));
-        assert!(sanitized.contains("Keep after."));
-        assert!(!sanitized.contains("brick explain"));
-
-        let repeated = format!("{RETIRED_BLOCK}\nKeep middle.\n{RETIRED_BLOCK}");
-        let sanitized = strip_retired_brick_managed_blocks(&repeated);
-        assert!(sanitized.contains("Keep middle."));
-        assert!(!sanitized.contains("brick:managed"));
-
-        let unterminated =
-            "Keep before.\n<!-- brick:managed:start v=9 -->\nRun `brick explain` forever.";
-        assert_eq!(
-            strip_retired_brick_managed_blocks(unterminated),
-            "Keep before.\n"
-        );
-    }
-
-    #[test]
-    fn workspace_instruction_loader_filters_retired_blocks_from_all_sources() {
-        let workspace = tempfile::tempdir().expect("workspace");
-        let orgii = workspace.path().join(".orgii");
-        std::fs::create_dir_all(&orgii).expect("create .orgii");
-        std::fs::write(
-            orgii.join("agent-rules.md"),
-            format!("{RETIRED_BLOCK}\n\nKeep native rule."),
-        )
-        .expect("write native rules");
-        std::fs::write(
-            workspace.path().join("CLAUDE.md"),
-            "Keep Claude rule.\n@retired-instructions.md",
-        )
-        .expect("write CLAUDE.md");
-        std::fs::write(
-            workspace.path().join("retired-instructions.md"),
-            RETIRED_BLOCK,
-        )
-        .expect("write imported rules");
-        std::fs::write(workspace.path().join("AGENTS.md"), RETIRED_BLOCK).expect("write AGENTS.md");
-        std::fs::write(
-            workspace.path().join("CLAUDE.local.md"),
-            format!("{RETIRED_BLOCK}\n\nKeep local rule."),
-        )
-        .expect("write local rules");
-
-        let loaded = load_conventions(workspace.path()).expect("remaining instructions");
-        assert!(loaded.contains("Keep native rule."));
-        assert!(loaded.contains("Keep Claude rule."));
-        assert!(loaded.contains("Keep local rule."));
-        assert!(!loaded.contains("brick explain"));
-        assert!(!loaded.contains("brick:managed"));
-        assert!(!loaded.contains(&format!(
-            "<!-- from {} -->",
-            workspace.path().join("AGENTS.md").display()
-        )));
-    }
-
-    #[test]
-    fn retired_only_native_rule_file_does_not_create_prompt_content() {
-        let workspace = tempfile::tempdir().expect("workspace");
-        let orgii = workspace.path().join(".orgii");
-        std::fs::create_dir_all(&orgii).expect("create .orgii");
-        std::fs::write(orgii.join("agent-rules.md"), RETIRED_BLOCK).expect("write native rules");
-
-        assert!(load_conventions(workspace.path()).is_none());
-    }
-}
-
 // ============================================
 // Text truncation / formatting
 // ============================================
@@ -369,5 +292,82 @@ pub(super) fn append_personal_workspace_context(lines: &mut Vec<String>, workspa
             slugs.len(),
             slugs.join(", ")
         ));
+    }
+}
+
+#[cfg(test)]
+mod convention_tests {
+    use super::{load_conventions, strip_retired_brick_managed_blocks};
+
+    const RETIRED_BLOCK: &str = "<!-- brick:managed:start v=9 -->\nRun `brick explain src/main.rs:1` first.\n<!-- brick:managed:end -->";
+
+    #[test]
+    fn strips_complete_and_unterminated_retired_managed_blocks() {
+        let content = format!("Keep before.\n\n{RETIRED_BLOCK}\n\nKeep after.");
+        let sanitized = strip_retired_brick_managed_blocks(&content);
+        assert!(sanitized.contains("Keep before."));
+        assert!(sanitized.contains("Keep after."));
+        assert!(!sanitized.contains("brick explain"));
+
+        let repeated = format!("{RETIRED_BLOCK}\nKeep middle.\n{RETIRED_BLOCK}");
+        let sanitized = strip_retired_brick_managed_blocks(&repeated);
+        assert!(sanitized.contains("Keep middle."));
+        assert!(!sanitized.contains("brick:managed"));
+
+        let unterminated =
+            "Keep before.\n<!-- brick:managed:start v=9 -->\nRun `brick explain` forever.";
+        assert_eq!(
+            strip_retired_brick_managed_blocks(unterminated),
+            "Keep before.\n"
+        );
+    }
+
+    #[test]
+    fn workspace_instruction_loader_filters_retired_blocks_from_all_sources() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let orgii = workspace.path().join(".orgii");
+        std::fs::create_dir_all(&orgii).expect("create .orgii");
+        std::fs::write(
+            orgii.join("agent-rules.md"),
+            format!("{RETIRED_BLOCK}\n\nKeep native rule."),
+        )
+        .expect("write native rules");
+        std::fs::write(
+            workspace.path().join("CLAUDE.md"),
+            "Keep Claude rule.\n@retired-instructions.md",
+        )
+        .expect("write CLAUDE.md");
+        std::fs::write(
+            workspace.path().join("retired-instructions.md"),
+            RETIRED_BLOCK,
+        )
+        .expect("write imported rules");
+        std::fs::write(workspace.path().join("AGENTS.md"), RETIRED_BLOCK).expect("write AGENTS.md");
+        std::fs::write(
+            workspace.path().join("CLAUDE.local.md"),
+            format!("{RETIRED_BLOCK}\n\nKeep local rule."),
+        )
+        .expect("write local rules");
+
+        let loaded = load_conventions(workspace.path()).expect("remaining instructions");
+        assert!(loaded.contains("Keep native rule."));
+        assert!(loaded.contains("Keep Claude rule."));
+        assert!(loaded.contains("Keep local rule."));
+        assert!(!loaded.contains("brick explain"));
+        assert!(!loaded.contains("brick:managed"));
+        assert!(!loaded.contains(&format!(
+            "<!-- from {} -->",
+            workspace.path().join("AGENTS.md").display()
+        )));
+    }
+
+    #[test]
+    fn retired_only_native_rule_file_does_not_create_prompt_content() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let orgii = workspace.path().join(".orgii");
+        std::fs::create_dir_all(&orgii).expect("create .orgii");
+        std::fs::write(orgii.join("agent-rules.md"), RETIRED_BLOCK).expect("write native rules");
+
+        assert!(load_conventions(workspace.path()).is_none());
     }
 }
