@@ -82,7 +82,7 @@ const WorkItemsStatusFilterSelect: React.FC<
       }}
       options={statusFilterOptions}
       size="small"
-      variant="ghost"
+      appearance="ghost"
       radius="lg"
       dropdownWidthMode="match"
       dropdownMinWidth={172}

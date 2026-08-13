@@ -18,7 +18,7 @@ describe("TabPill", () => {
     const markup = renderToStaticMarkup(
       createElement(TabPill, {
         variant: "pill",
-        colorScheme: "ghost",
+        appearance: "ghost",
         activeTab: "list",
         tabs: [
           { key: "list", label: "List", dataTestId: "list-tab" },
@@ -27,7 +27,7 @@ describe("TabPill", () => {
       })
     );
 
-    expect(getButtonTag(markup, "list-tab")).toContain("bg-fill-1");
+    expect(getButtonTag(markup, "list-tab")).toContain("bg-surface-hover");
     expect(getButtonTag(markup, "board-tab")).toContain(
       "hover:bg-surface-hover"
     );

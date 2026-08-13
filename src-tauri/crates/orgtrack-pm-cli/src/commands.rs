@@ -19,7 +19,8 @@ use std::collections::HashMap;
 
 use project_management::projects::io as pio;
 use project_management::projects::types::{
-    WorkItemData, WorkItemExecutionLockReason, WorkItemMutationActor, WorkItemSchedule,
+    WorkItemData, WorkItemExecutionLockReason, WorkItemMutationActor, WorkItemOriginSession,
+    WorkItemSchedule,
 };
 use project_management::work_service;
 
@@ -36,6 +37,26 @@ fn mutation_actor(context: &ExecutionContext) -> Result<WorkItemMutationActor, C
         id: format!("{}:{}", actor.kind, actor.id),
         name: actor.id.clone(),
     })
+}
+
+fn origin_session(
+    context: &ExecutionContext,
+    actor: &WorkItemMutationActor,
+) -> Option<WorkItemOriginSession> {
+    context
+        .session_ref
+        .as_ref()
+        .map(|session| WorkItemOriginSession {
+            session_id: session.external_id.clone(),
+            provider: session.provider.clone(),
+            actor_id: actor.id.clone(),
+            session_type: if session.external_id.starts_with("cliagent-") {
+                "cli".to_string()
+            } else {
+                "native".to_string()
+            },
+            captured_at: chrono::Utc::now().to_rfc3339(),
+        })
 }
 
 fn item_to_wire(item: &WorkItemData, revision: Option<i64>) -> serde_json::Value {
@@ -304,6 +325,7 @@ fn cmd_work_create(context: &ExecutionContext, flags: &HashMap<String, String>) 
         Ok(actor) => actor,
         Err(err) => return emit_error(err),
     };
+    let origin_session = origin_session(context, &actor);
     let Some(title) = flags.get("title").filter(|value| !value.trim().is_empty()) else {
         return emit_error(CliError::new(
             ErrorCode::InvalidArgument,
@@ -350,6 +372,7 @@ fn cmd_work_create(context: &ExecutionContext, flags: &HashMap<String, String>) 
             status: flags.get("status").cloned(),
             priority: flags.get("priority").cloned(),
             created_by: Some(actor.id.clone()),
+            origin_session: origin_session.clone(),
             schedule: schedule.clone(),
             parent: parent.clone(),
             stage,
@@ -389,6 +412,7 @@ fn cmd_work_create(context: &ExecutionContext, flags: &HashMap<String, String>) 
         status: flags.get("status").cloned(),
         priority: flags.get("priority").cloned(),
         created_by: Some(actor.id.clone()),
+        origin_session,
         schedule,
         parent,
         stage,

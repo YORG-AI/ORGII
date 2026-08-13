@@ -664,6 +664,7 @@ fn frontmatter_from_wire(
         start_date: string_field(payload, "startDate"),
         target_date: string_field(payload, "targetDate"),
         created_by: string_field(payload, "createdBy"),
+        origin_session: tail_opt(payload, "originSession"),
         created_at: string_field(payload, "createdAt").unwrap_or_else(|| now_iso.clone()),
         updated_at: string_field(payload, "updatedAt").unwrap_or(now_iso),
         deleted_at: None,
