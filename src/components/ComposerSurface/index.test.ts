@@ -27,4 +27,17 @@ describe("ComposerSurface", () => {
     expect(markup).toContain("justify-between px-1");
     expect(markup).not.toContain("composer-skills-tools-button");
   });
+
+  it("omits an empty action row for editor-only composers", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        ComposerSurface,
+        { "data-testid": "editor-only-composer" },
+        createElement("div", null, "Markdown editor")
+      )
+    );
+
+    expect(markup).toContain("Markdown editor");
+    expect(markup).not.toContain("h-9 min-h-9 w-full");
+  });
 });

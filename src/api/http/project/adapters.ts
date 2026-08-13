@@ -273,6 +273,7 @@ export function workItemDataToUI(
     assignee,
     assigneeType: frontmatter.assignee_type,
     createdBy,
+    originSession: frontmatter.origin_session,
     labels,
     project: frontmatter.project
       ? { id: frontmatter.project, name: projectName }
@@ -333,6 +334,7 @@ export function standaloneWorkItemDataToEnriched(
     updatedAt: frontmatter.updated_at,
     deletedAt: frontmatter.deleted_at,
     createdBy: frontmatter.created_by,
+    originSession: frontmatter.origin_session,
     createdByPerson: resolveMemberId(frontmatter.created_by, emptyMemberMap),
     todos: frontmatter.todos ?? [],
     comments: frontmatter.comments ?? [],
@@ -399,6 +401,8 @@ export function uiWorkItemToFrontmatter(
     start_date: workItem.startDate,
     target_date: targetDate,
     created_by: createdBy,
+    origin_session:
+      workItem.originSession ?? existingFrontmatter?.origin_session,
     created_at: createdAt,
     updated_at: now,
     starred,
@@ -470,6 +474,7 @@ export function enrichedWorkItemToUI(item: EnrichedWorkItem): UIWorkItem {
     assignee: item.assignee,
     assigneeType: item.assigneeType,
     createdBy: item.createdByPerson,
+    originSession: item.originSession,
     labels: item.labels,
     project: item.project,
     milestone: item.milestone,

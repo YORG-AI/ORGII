@@ -291,7 +291,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
     size: "small" as const,
     dropdownAlign: "right" as const,
     dropdownWidthMode: "match" as const,
-    variant: "ghost" as const,
+    appearance: "ghost" as const,
     className: "w-full",
     getPopupContainer: getSelectPopupContainer,
   };
@@ -366,7 +366,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
               hour={oneShotHour}
               minute={oneShotMinute}
               onChange={handleOneShotTimeChange}
-              variant="ghost"
+              appearance="ghost"
             />
           </div>
         </div>
@@ -422,7 +422,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
               hour={cronParts.hour}
               minute={cronParts.minute}
               onChange={handleCronTimeChange}
-              variant="ghost"
+              appearance="ghost"
             />
           </div>
 

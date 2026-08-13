@@ -315,6 +315,8 @@ export function WorkManagementTable({
               triggerVariant="pill"
               fieldVariant="pill"
               compactPill
+              idleSurface="fill"
+              focusTreatment="field"
               placement="portal"
               borderless
             />

@@ -571,7 +571,6 @@ const SessionCreatorChatPanelContent: React.FC<
         onWorktreeLocationChange: handleWorktreeLocationChange,
         onWorktreeSourceSelect: handleWorktreeSourceSelect,
         fullWidth: true,
-        pillVariant: headerLayout === "compact" ? "ghost" : undefined,
       }}
       showMissingGitAlert={!isHumanMode && showMissingGitAlert}
       hideSessionSetupControls={isHumanMode}
