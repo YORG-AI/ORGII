@@ -126,8 +126,8 @@ export function coalesceGitHubListRequest<T>(
 // are persisted (not the heavier per-PR detail cache).
 
 const STORAGE_KEY_ISSUES = BROWSER_CACHE_STORAGE_KEYS.githubIssues;
-// v2 adds author + outstanding-reviewer identity to every PR list item.
-// A key bump prevents v1 entries from being silently classified as unrelated.
+// v4 adds CI status to every PR list item. A key bump prevents older entries
+// from rendering a missing wire field as an unknown table state.
 const STORAGE_KEY_PRS = BROWSER_CACHE_STORAGE_KEYS.githubPullRequests;
 
 function safeLocalStorage(): Storage | null {

@@ -244,9 +244,45 @@ pub fn update_standalone_work_item_atomic<T, F>(
 where
     F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
 {
+    update_standalone_work_item_atomic_by(org_id, None, short_id, mutator)
+}
+
+pub fn update_standalone_work_item_atomic_by<T, F>(
+    org_id: Option<&str>,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    short_id: &str,
+    mutator: F,
+) -> Result<T, String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
+    update_standalone_work_item_atomic_serviced(
+        org_id,
+        actor,
+        AtomicServiceOptions::default(),
+        short_id,
+        mutator,
+    )
+}
+
+/// Standalone counterpart of [`update_work_item_atomic_serviced`]: same
+/// atomic RMW, but the caller stamps the canonical audit operation
+/// (e.g. `work.note`) instead of the default `work.patch`.
+pub fn update_standalone_work_item_atomic_serviced<T, F>(
+    org_id: Option<&str>,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    service: AtomicServiceOptions,
+    short_id: &str,
+    mutator: F,
+) -> Result<T, String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
     let org_id = org_id.unwrap_or("personal-org");
     let (value, changed_fields, payload_tail_changed) =
-        update_standalone_work_item_atomic_as(org_id, short_id, None, |fm, body| mutator(fm, body))?;
+        update_standalone_work_item_atomic_as(org_id, short_id, actor, service, |fm, body| {
+            mutator(fm, body)
+        })?;
     if !changed_fields.is_empty() || payload_tail_changed {
         let data = super::crud::read_standalone_work_item(Some(org_id), short_id)?;
         crate::sync::collab_bridge::record_work_item_write(
@@ -263,6 +299,7 @@ pub(super) fn update_standalone_work_item_atomic_as<T, F>(
     org_id: &str,
     short_id: &str,
     actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    service: AtomicServiceOptions,
     mutator: F,
 ) -> Result<(T, Vec<&'static str>, bool), String>
 where
@@ -273,7 +310,7 @@ where
         short_id,
         HashMap::new(),
         actor,
-        AtomicServiceOptions::default(),
+        service,
         mutator,
     )
 }
@@ -434,9 +471,10 @@ where
     let status_changed = core.status != frontmatter.status;
     let mut fsm_violation: Option<String> = None;
     if status_changed {
-        if let Err(violation) =
-            crate::work_service::state::validate_legacy_transition(&core.status, &frontmatter.status)
-        {
+        if let Err(violation) = crate::work_service::state::validate_legacy_transition(
+            &core.status,
+            &frontmatter.status,
+        ) {
             if service.strict_fsm {
                 return Err(crate::work_service::error::invalid_transition(
                     &core.status,
@@ -536,7 +574,8 @@ where
             project_id    = ?13,
             created_at    = ?14,
             updated_at    = ?15,
-            local_version = ?16
+            local_version = ?16,
+            deleted_at    = ?18
          WHERE id = ?17",
         params![
             frontmatter.title,
@@ -556,6 +595,10 @@ where
             now,
             next_version,
             &core.work_item_id,
+            frontmatter
+                .deleted_at
+                .as_deref()
+                .map(crate::projects::io::helpers::from_iso8601),
         ],
     ))?;
 
@@ -672,6 +715,31 @@ where
     if scheduler_changed {
         crate::projects::events::notify_work_item_schedule_changed();
     }
+    if status_changed {
+        use crate::work_service::state::{map_legacy_status, WorkItemState};
+        let was_terminal = matches!(
+            map_legacy_status(&core.status),
+            Some(WorkItemState::Completed | WorkItemState::Failed | WorkItemState::Cancelled)
+        );
+        let is_terminal = matches!(
+            map_legacy_status(&frontmatter.status),
+            Some(WorkItemState::Completed | WorkItemState::Failed | WorkItemState::Cancelled)
+        );
+        if is_terminal && !was_terminal {
+            crate::projects::events::notify_work_item_terminal(
+                crate::projects::events::WorkItemTerminalEvent {
+                    org_id: next_org_id.clone(),
+                    project_slug: match scope {
+                        AtomicWorkItemScope::Project(slug) => Some(slug.to_string()),
+                        AtomicWorkItemScope::Standalone { .. } => None,
+                    },
+                    short_id: core.short_id.clone(),
+                    parent: frontmatter.parent.clone(),
+                    status: frontmatter.status.clone(),
+                },
+            );
+        }
+    }
     Ok((result, changed_fields, payload_tail_changed))
 }
 
@@ -686,9 +754,11 @@ fn payload_tail_fingerprint(fm: &WorkItemFrontmatter) -> serde_json::Value {
     serde_json::json!({
         "project": fm.project,
         "parent": fm.parent,
+        "stage": fm.stage,
         "assignee_type": fm.assignee_type,
         "starred": fm.starred,
         "created_by": fm.created_by,
+        "origin_session": fm.origin_session,
         "todos": fm.todos,
         "comments": fm.comments,
         "handoff": fm.handoff,
@@ -779,6 +849,7 @@ fn touches_payload_tail(updates: &WorkItemPartialUpdate) -> bool {
         || updates.assignee_type.is_some()
         || updates.project.is_some()
         || updates.created_by.is_some()
+        || updates.stage.is_some()
 }
 
 /// Build the JSON payload that gets persisted to
@@ -917,6 +988,9 @@ fn update_work_item_partial_scoped(
             }
             if let Some(milestone) = updates.milestone.as_ref() {
                 fm.milestone = milestone.clone();
+            }
+            if let Some(stage) = updates.stage.as_ref() {
+                fm.stage = *stage;
             }
             if let Some(start_date) = updates.start_date.as_ref() {
                 fm.start_date = start_date.clone();
@@ -1121,9 +1195,11 @@ fn build_frontmatter(
         labels,
         milestone: core.milestone.clone(),
         parent: core.parent.clone(),
+        stage: extras.stage,
         start_date: core.start_date.clone(),
         target_date: core.target_date.clone(),
         created_by: extras.created_by.clone(),
+        origin_session: extras.origin_session.clone(),
         created_at: to_iso8601(core.created_at_ms),
         updated_at: to_iso8601(core.updated_at_ms),
         deleted_at: core.deleted_at_ms.map(to_iso8601),

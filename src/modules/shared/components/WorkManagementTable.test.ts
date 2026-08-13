@@ -42,6 +42,8 @@ describe("WorkManagementTable", () => {
     expect(markup).toContain("max-w-[1232px]");
     expect(markup).toContain("px-4");
     expect(markup).toContain("settings-table-root");
+    expect(markup).toContain("[&amp;_.table-fixed-header]:scrollbar-hide");
+    expect(markup).toContain("[&amp;_.table-scroll]:scrollbar-hide");
     expect(markup).not.toContain("table-settings-header-border");
     expect(markup).toContain(">ID<");
     expect(markup).toContain("table-th-sortable");
@@ -53,6 +55,8 @@ describe("WorkManagementTable", () => {
     expect(markup).toContain(">Status<");
     expect(markup).toContain(">Updated<");
     expect(markup).toContain("maintenance");
+    expect(markup).toContain("text-[11px] text-text-1");
+    expect(markup).toContain("leading-none text-text-1");
     expect(markup.indexOf("2 links")).toBeLessThan(
       markup.indexOf("maintenance")
     );
@@ -188,6 +192,9 @@ describe("WorkManagementTable", () => {
 
     expect(markup).toContain('data-testid="shared-status-select"');
     expect(markup).toContain("!px-2");
+    expect(markup).toContain("!bg-fill-1");
+    expect(markup).toContain("enabled:hover:!bg-fill-2");
+    expect(markup).toContain("enabled:hover:!border-border-3");
     expect(markup).toContain('data-value="open"');
     expect(markup).toContain(
       'class="inline-flex min-w-0 max-w-full items-center gap-1"'

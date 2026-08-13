@@ -537,7 +537,7 @@ mod tests {
     fn user_allowed_tools_do_not_override_missing_capabilities() {
         let mut def =
             with_pinned_model(get_builtin_agent("builtin:sde").expect("sde builtin exists"));
-        def.tools.user_allowed_tools = vec![crate::tools::names::MANAGE_PROJECT.to_string()];
+        def.tools.user_allowed_tools = vec![crate::tools::names::MANAGE_SESSION.to_string()];
 
         let resolved = ResolvedAgent::resolve(&def, None, &empty_overrides()).expect("resolves");
 
@@ -545,14 +545,14 @@ mod tests {
             resolved
                 .tools
                 .excluded
-                .contains(&crate::tools::names::MANAGE_PROJECT.to_string()),
+                .contains(&crate::tools::names::MANAGE_SESSION.to_string()),
             "SDE cannot regain management tools through stale or user-authored user_allowed_tools"
         );
         assert!(
             !resolved
                 .tools
                 .restrict_to
-                .contains(&crate::tools::names::MANAGE_PROJECT.to_string()),
+                .contains(&crate::tools::names::MANAGE_SESSION.to_string()),
             "capability-blocked tools must not enter strict allow-lists either"
         );
     }

@@ -25,7 +25,27 @@ pub fn acquire_execution_lock(
         operation: Some("work.claim"),
         ..AtomicServiceOptions::default()
     };
-    update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
+    update_work_item_atomic_serviced(
+        project_slug,
+        short_id,
+        None,
+        service,
+        |frontmatter, _body| {
+            apply_execution_claim(frontmatter, short_id, session_id, agent_role, reason)
+        },
+    )
+}
+
+/// Pure frontmatter mutation shared by the standalone lock acquisition
+/// and the single-transaction `work.claim` service handler.
+pub(crate) fn apply_execution_claim(
+    frontmatter: &mut crate::projects::types::WorkItemFrontmatter,
+    short_id: &str,
+    session_id: &str,
+    agent_role: Option<&str>,
+    reason: WorkItemExecutionLockReason,
+) -> Result<(), String> {
+    {
         if let Some(lock) = frontmatter.execution_lock.as_ref() {
             if let Some(active_session_id) = lock.active_session_id.as_deref() {
                 if active_session_id != session_id {
@@ -50,31 +70,49 @@ pub fn acquire_execution_lock(
 
         let now = chrono::Utc::now().to_rfc3339();
         let role = parse_agent_role(agent_role);
-        match frontmatter.linked_sessions.iter_mut().rev().find(|linked| {
-            linked.session_id == PENDING_SESSION_PLACEHOLDER
-                && linked.status == LinkedSessionStatus::Running
-        }) {
-            Some(pending) => {
-                pending.session_id = session_id.to_string();
-                pending.agent_role = role.clone();
-                pending.session_type = LinkedSessionType::Native;
-                pending.started_at = now.clone();
+        match frontmatter
+            .linked_sessions
+            .iter_mut()
+            .rev()
+            .find(|linked| linked.session_id == session_id)
+        {
+            Some(existing) => {
+                // A barrier wake resumes the same durable Session. Reuse its
+                // timeline row instead of appending a duplicate with the same
+                // ID; terminal mirroring keys by Session ID.
+                existing.agent_role = role.clone();
+                existing.session_type = LinkedSessionType::Native;
+                existing.status = LinkedSessionStatus::Running;
+                existing.completed_at = None;
             }
             None => {
-                frontmatter.linked_sessions.push(LinkedSession {
-                    session_id: session_id.to_string(),
-                    session_type: LinkedSessionType::Native,
-                    agent_role: role.clone(),
-                    started_at: now.clone(),
-                    completed_at: None,
-                    status: LinkedSessionStatus::Running,
-                    cost_usd: 0.0,
-                    total_tokens: 0,
-                    parent_session_id: None,
-                    sub_agent_name: None,
-                    sub_agent_instance: None,
-                    result_preview: None,
-                });
+                match frontmatter.linked_sessions.iter_mut().rev().find(|linked| {
+                    linked.session_id == PENDING_SESSION_PLACEHOLDER
+                        && linked.status == LinkedSessionStatus::Running
+                }) {
+                    Some(pending) => {
+                        pending.session_id = session_id.to_string();
+                        pending.agent_role = role.clone();
+                        pending.session_type = LinkedSessionType::Native;
+                        pending.started_at = now.clone();
+                    }
+                    None => {
+                        frontmatter.linked_sessions.push(LinkedSession {
+                            session_id: session_id.to_string(),
+                            session_type: LinkedSessionType::Native,
+                            agent_role: role.clone(),
+                            started_at: now.clone(),
+                            completed_at: None,
+                            status: LinkedSessionStatus::Running,
+                            cost_usd: 0.0,
+                            total_tokens: 0,
+                            parent_session_id: None,
+                            sub_agent_name: None,
+                            sub_agent_instance: None,
+                            result_preview: None,
+                        });
+                    }
+                }
             }
         }
 
@@ -93,7 +131,7 @@ pub fn acquire_execution_lock(
         });
         frontmatter.updated_at = now;
         Ok(())
-    })
+    }
 }
 
 pub fn release_execution_lock(
@@ -105,18 +143,24 @@ pub fn release_execution_lock(
         operation: Some("work.release"),
         ..AtomicServiceOptions::default()
     };
-    update_work_item_atomic_serviced(project_slug, short_id, None, service, |frontmatter, _body| {
-        if frontmatter
-            .execution_lock
-            .as_ref()
-            .and_then(|lock| lock.active_session_id.as_deref())
-            == Some(session_id)
-        {
-            frontmatter.execution_lock = None;
-            frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
-        }
-        Ok(())
-    })
+    update_work_item_atomic_serviced(
+        project_slug,
+        short_id,
+        None,
+        service,
+        |frontmatter, _body| {
+            if frontmatter
+                .execution_lock
+                .as_ref()
+                .and_then(|lock| lock.active_session_id.as_deref())
+                == Some(session_id)
+            {
+                frontmatter.execution_lock = None;
+                frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
+            }
+            Ok(())
+        },
+    )
 }
 
 fn parse_agent_role(raw: Option<&str>) -> AgentRole {

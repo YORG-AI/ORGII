@@ -27,6 +27,7 @@ import React, {
   useState,
 } from "react";
 
+import type { FieldAppearance } from "@src/components/controlAppearance";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
@@ -106,19 +107,13 @@ export interface TextareaProps extends Omit<
   resize?: "none" | "vertical" | "horizontal" | "both";
 
   /**
-   * Remove the wrapper border and focus ring while preserving layout.
+   * Visual field treatment.
+   *
+   * `ghost` is transparent at rest and uses the shared interactive surface
+   * while hovered or focused. `bare` stays permanently chromeless.
+   * @default 'default'
    */
-  borderless?: boolean;
-
-  /**
-   * Remove the wrapper background while preserving layout.
-   */
-  bgless?: boolean;
-
-  /**
-   * Standard field presentation for inline editable text surfaces.
-   */
-  fieldVariant?: "default" | "ghost";
+  appearance?: FieldAppearance;
 
   /**
    * Additional class name for textarea element
@@ -147,9 +142,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       showWordLimit = false,
       autoSize = false,
       resize = "vertical",
-      borderless = false,
-      bgless = false,
-      fieldVariant = "default",
+      appearance = "default",
       className = "",
       style,
       textareaClassName = "",
@@ -221,9 +214,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       textarea.style.height = `${newHeight}px`;
     }, [currentValue, autoSize]);
 
-    const isGhostField = fieldVariant === "ghost";
-    const resolvedBorderless = borderless || isGhostField;
-    const resolvedBgless = bgless || isGhostField;
+    const isChromeless = appearance !== "default";
 
     const wrapperClasses = [
       "textarea-wrapper",
@@ -233,9 +224,8 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       disabled && "textarea-disabled",
       isFocused && "textarea-focused",
       readOnly && "textarea-readonly",
-      resolvedBorderless && "textarea-borderless",
-      resolvedBgless && "textarea-bgless",
-      isGhostField && "textarea-field-ghost",
+      appearance === "bare" && "textarea-field-bare",
+      appearance === "ghost" && "textarea-field-ghost",
       isDark && "textarea-dark",
       className,
     ]
@@ -314,10 +304,9 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       resize: autoSize ? "none" : resize,
     };
 
-    const textareaInnerClassName =
-      resolvedBorderless && resolvedBgless
-        ? "textarea-inner"
-        : "textarea-inner rounded-lg border border-solid border-border-2 bg-bg-2";
+    const textareaInnerClassName = isChromeless
+      ? "textarea-inner"
+      : "textarea-inner rounded-lg border border-solid border-border-2 bg-bg-2";
 
     return (
       <div className={wrapperClasses} style={style}>

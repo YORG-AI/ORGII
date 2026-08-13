@@ -1,6 +1,8 @@
-import React, { useId, useRef } from "react";
+import React, { createContext, useContext, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
 import {
   DetailPanelContainer,
@@ -17,6 +19,10 @@ interface WorkItemThreadLayoutProps {
   floatingFooter?: React.ReactNode;
 }
 
+/** Optional host beneath a floating properties trail for the section navigator. */
+export const WorkItemThreadNavigationPortalContext =
+  createContext<HTMLDivElement | null>(null);
+
 export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
   path,
   properties,
@@ -24,6 +30,7 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
   floatingFooter,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
+  const navigationTrailHost = useContext(WorkItemThreadNavigationPortalContext);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const floatingFooterRef = useRef<HTMLDivElement>(null);
@@ -37,6 +44,25 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
   const headerPolicy = resolveWorkItemThreadHeaderPolicy(
     Boolean(path),
     Boolean(properties)
+  );
+  const navigationRail = (
+    <div
+      className={
+        navigationTrailHost ? "relative h-full w-11" : "relative w-11 shrink-0"
+      }
+      data-testid="work-item-thread-navigation-rail"
+    >
+      <ScrollTrail
+        scrollContainerRef={scrollContainerRef}
+        contentRef={contentRef}
+        alignment={navigationTrailHost ? "start" : "center"}
+        ariaLabel={t("projects:workItems.navigationTrail", {
+          defaultValue: "Work item navigation",
+        })}
+        placement="rail"
+        testId="work-item-thread-navigation-trail"
+      />
+    </div>
   );
 
   return (
@@ -72,7 +98,9 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
         {floatingFooter ? (
           <div
             ref={floatingFooterRef}
-            className="absolute bottom-0 left-0 right-11 z-50 flex flex-col items-center px-2 pb-2 pt-1"
+            className={`absolute bottom-0 left-0 ${
+              navigationTrailHost ? "right-0" : "right-11"
+            } z-50 flex flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
             data-testid="work-item-thread-floating-footer"
           >
             <div
@@ -84,20 +112,9 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
             </div>
           </div>
         ) : null}
-        <div
-          className="relative w-11 shrink-0"
-          data-testid="work-item-thread-navigation-rail"
-        >
-          <ScrollTrail
-            scrollContainerRef={scrollContainerRef}
-            contentRef={contentRef}
-            ariaLabel={t("projects:workItems.navigationTrail", {
-              defaultValue: "Work item navigation",
-            })}
-            placement="rail"
-            testId="work-item-thread-navigation-trail"
-          />
-        </div>
+        {navigationTrailHost
+          ? createPortal(navigationRail, navigationTrailHost)
+          : navigationRail}
       </div>
     </DetailPanelContainer>
   );

@@ -149,6 +149,8 @@ export interface UseWorktreeSourceDataOptions {
   open: boolean;
   repoId?: string;
   repoPath?: string;
+  /** Skip branch I/O for consumers that only need the shared GitHub slice. */
+  loadBranches?: boolean;
 }
 
 export interface WorktreeGithubSlice {
@@ -179,11 +181,12 @@ export function useWorktreeSourceData({
   open,
   repoId,
   repoPath,
+  loadBranches = true,
 }: UseWorktreeSourceDataOptions): UseWorktreeSourceDataResult {
   const githubRepoKey = resolveWorktreeRepoKey(repoId, repoPath);
   // Branch cache is keyed by raw repoId (matching `BranchPalette` /
   // `useBranchFetch`) so both selectors share one entry; fall back to repoPath.
-  const branchKey = repoId || repoPath || null;
+  const branchKey = loadBranches ? repoId || repoPath || null : null;
 
   // ============ GITHUB ============
   const [githubCache, setGithubCache] = useAtom(worktreeGithubCacheAtom);

@@ -16,6 +16,7 @@ import {
 export {
   getUnloadedTurnMeta,
   isTurnCollapseEligible,
+  isTurnPreviewItem,
 } from "./useChatGroupsProjection";
 export type {
   ChatGroupMeta,

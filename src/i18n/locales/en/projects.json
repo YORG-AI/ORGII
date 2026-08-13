@@ -502,6 +502,7 @@
       "title": "Agent Workflow",
       "startAgent": "Start Agent",
       "startAgentAndChat": "Start Agent & Open Chat",
+      "noWorkspaceForAgent": "Open a repository workspace before starting an agent on this item.",
       "running": "Running...",
       "pendingLaunch": "Pending launch...",
       "completed": "Completed",
@@ -610,7 +611,9 @@
       "newSession": "New Session",
       "starting": "Starting...",
       "emptyOverview": "No sessions yet",
-      "emptyOverviewHint": "Start an Agent session to track execution here."
+      "emptyOverviewHint": "Start an Agent session to track execution here.",
+      "originTitle": "Creation session",
+      "originStatus": "Created this item"
     },
     "outputTab": {
       "prSection": "Pull Request",
@@ -634,7 +637,27 @@
       "cycles": "cycles"
     },
     "viewWorkItems": "View work items",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "subItems": {
+      "title": "Sub-items",
+      "parent": "Parent",
+      "progress": "{{completed}} of {{total}} completed",
+      "add": "Add sub-item",
+      "addFirst": "Add the first sub-item",
+      "titlePlaceholder": "Add a sub-item title",
+      "stagePicker": "Sub-item stage",
+      "noStage": "No stage",
+      "stage": "Stage {{stage}}",
+      "openStatus": "Open",
+      "completedStatus": "Completed",
+      "cancelledStatus": "Cancelled",
+      "createError": "Could not create the sub-item. Try again."
+    },
+    "sessionRail": {
+      "notOnDeviceTitle": "Session not on this device",
+      "notOnDeviceHint": "This session ran on another device. Its transcript is not synced here.",
+      "finalOutput": "Final output"
+    }
   },
   "settings": {
     "sidebarGeneral": "General",

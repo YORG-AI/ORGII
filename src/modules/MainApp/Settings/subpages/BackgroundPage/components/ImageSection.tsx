@@ -93,6 +93,8 @@ export const ImageSection: React.FC<ImageSectionProps> = ({
                     src={img.thumbnail}
                     alt=""
                     className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
               </button>
@@ -115,6 +117,8 @@ export const ImageSection: React.FC<ImageSectionProps> = ({
                       src={imageDataUrl}
                       alt={`Custom ${index + 1}`}
                       className="h-full w-full object-cover"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </div>
                 </button>

@@ -44,9 +44,11 @@ fn work_item_fixture(id: &str, short_id: &str, title: &str) -> WorkItemFrontmatt
         labels: vec![],
         milestone: None,
         parent: None,
+        stage: None,
         start_date: None,
         target_date: None,
         created_by: None,
+        origin_session: None,
         created_at: String::new(),
         updated_at: String::new(),
         deleted_at: None,
@@ -349,6 +351,7 @@ fn extras_round_trip_carries_todos_and_comments() {
         content: "lgtm".into(),
         created_at: "2026-01-01T00:00:00Z".into(),
         mentioned_user_ids: Vec::new(),
+        ..Default::default()
     }];
 
     write_work_item("demo", "AAA-0001", &fm, "").expect("write");

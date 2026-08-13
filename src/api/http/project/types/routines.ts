@@ -10,7 +10,7 @@ export interface WorkItemSchedule {
 
 export type RoutineTrigger =
   | { kind: "one_time"; at: string }
-  | { kind: "cron"; cron: string };
+  | { kind: "cron"; cron: string; timezone: string };
 
 export const ROUTINE_FIRE_STATUS = {
   PENDING: "pending",
@@ -120,6 +120,12 @@ export interface RoutineDefinition {
   lastEvaluatedAt?: string;
   /** Next computed fire time (ISO 8601), backend-managed, display only. */
   nextFireAt?: string;
+  /** Latest durable occurrence summary, projected by the backend. */
+  lastFireAt?: string;
+  lastFireStatus?: RoutineFireStatus;
+  lastFireError?: string;
+  lastFireSessionId?: string;
+  lastFireWorkItemId?: string;
   createdAt: string;
   updatedAt: string;
 }

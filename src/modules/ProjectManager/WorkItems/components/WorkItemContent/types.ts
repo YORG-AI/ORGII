@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type {
   OrchestratorPhase,
   PrStatus,
+  WorkItemData as WorkItemDataPayload,
   WorkItemHandoffTransition,
   WorkItemHistoryAction,
 } from "@src/api/http/project";
@@ -13,8 +14,8 @@ import type {
 } from "@src/api/tauri/github";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
+import type { WorkItemComment } from "@src/types/core/workItem";
 
-import type { AgentRole } from "../../constants";
 import type { WorkItemContentPresentation } from "./presentation";
 
 export const SESSION_TAB_KEYS = ["session", "output", "history"] as const;
@@ -39,6 +40,9 @@ export interface WorkItemContentProps {
   repoPath?: string | null;
   projectSlug?: string | null;
   shortId?: string | null;
+  orgId?: string | null;
+  /** Open a parent/child item from the Sub-items section (host-specific navigation). */
+  onOpenSubItem?: (item: WorkItemDataPayload) => void;
   /**
    * Reuse activity already owned by the surrounding GitHub detail controller.
    * When omitted, project-backed Work Items resolve and load their own issue
@@ -50,8 +54,6 @@ export interface WorkItemContentProps {
   };
   /** Inline GitHub-native body, comment, and status actions for thread surfaces. */
   githubIssueInteraction?: GitHubIssueInteractionConfig;
-  onStartAgent?: (instructions?: string) => void;
-  isStartingAgent?: boolean;
   onCancelAgent?: () => void;
   onRetry?: () => void;
   onAcceptAsIs?: () => void;
@@ -69,9 +71,6 @@ export interface WorkItemContentProps {
     transition: WorkItemHandoffTransition
   ) => Promise<WorkItemExtended>;
   activeAgentSessionId?: string | null;
-  activeAgentRole?: AgentRole | null;
-  isLockedByOther?: boolean;
-  lockHolderName?: string | null;
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
 }
 
@@ -109,6 +108,9 @@ export interface GitHubIssueInteractionConfig {
 export interface OutputTabContentProps {
   workItem: WorkItemExtended;
   repoPath?: string | null;
+  projectSlug?: string | null;
+  shortId?: string | null;
+  orgId?: string | null;
   onOpenFileDiff?: (filePath: string) => void;
   onOpenFileAtLine?: (filePath: string, line?: number) => void;
   onReviewAllFiles?: (filePaths: string[]) => void;
@@ -127,6 +129,9 @@ export interface PrSectionProps {
   phase: OrchestratorPhase;
   autoCreatePr: boolean;
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
+  projectSlug?: string | null;
+  orgId?: string | null;
+  shortId?: string | null;
 }
 
 export type PrCreationState = "idle" | "creating" | "error";
@@ -143,6 +148,11 @@ export interface HistoryTabProps {
   teamMembers?: Person[];
   onCommentSubmit: () => void;
   isSubmittingComment: boolean;
+  comments?: WorkItemComment[];
+  replyToCommentId?: string | null;
+  onReplyToComment?: (commentId: string | null) => void;
+  onResolveThread?: (threadId: string, conclusionCommentId?: string) => void;
+  onReopenThread?: (threadId: string) => void;
   presentation?: WorkItemContentPresentation;
   canComment?: boolean;
   threadNavigation?: ReactNode;

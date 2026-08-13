@@ -908,6 +908,9 @@
       "addApiKey": {
         "title": "新增 API 金鑰"
       },
+      "showRuntime": {
+        "title": "顯示執行階段"
+      },
       "installLatestUpdate": {
         "title": "安裝最新更新"
       },
@@ -1201,14 +1204,14 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
-        "issueTitlePlaceholder": "Issue title",
-        "issueBodyPlaceholder": "Description",
-        "createIssue": "Create issue",
-        "creatingIssue": "Creating…",
+        "newIssueTitle": "建立 GitHub issue",
+        "issueTitlePlaceholder": "issue 標題",
+        "issueBodyPlaceholder": "描述",
+        "createIssue": "建立 issue",
+        "creatingIssue": "正在建立…",
         "addToChat": "Add",
-        "repositoryLabel": "Repository",
-        "createIssueFailed": "Failed to create issue",
+        "repositoryLabel": "儲存庫",
+        "createIssueFailed": "建立 issue 失敗",
         "sourceIssues": "Issues",
         "sourcePrs": "PRs",
         "stateOpen": "Open",
@@ -2085,6 +2088,10 @@
     },
     "searchModels": "搜索模型...",
     "newItem": "新建專案",
+    "solveWorkItem": "處理工作項",
+    "launchpadQuestion": "你想使用",
+    "launchpadQuestionSuffix": "建構什麼？",
+    "manualLaunchpadQuestion": "你想建構什麼？",
     "start": "開始",
     "assign": "分配",
     "send": "發送",

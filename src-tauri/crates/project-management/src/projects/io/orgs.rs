@@ -32,6 +32,31 @@ pub fn read_project_orgs() -> Result<Vec<ProjectOrg>, String> {
     Ok(orgs)
 }
 
+/// Map a session-plane org scope to a local project-org id. Session rows
+/// carry looser scopes than the projects store: the implicit personal org
+/// (`personal-org`), bare project-org uuids, and cloud sidebar tags
+/// (`cloud:<uuid>`). The standalone FK only accepts local `project_orgs`
+/// rows, so anything else resolves to `None` — the personal standalone
+/// scope — instead of failing the insert downstream.
+pub fn resolve_local_org_scope(raw: Option<&str>) -> Option<String> {
+    let bare = raw?.trim();
+    let bare = bare.strip_prefix("cloud:").unwrap_or(bare);
+    if bare.is_empty() || bare == PERSONAL_ORG_ID {
+        return None;
+    }
+    let connection = conn().ok()?;
+    let exists = connection
+        .query_row(
+            "SELECT 1 FROM project_orgs WHERE id = ?1",
+            params![bare],
+            |_| Ok(()),
+        )
+        .optional()
+        .ok()?
+        .is_some();
+    exists.then(|| bare.to_string())
+}
+
 pub fn read_project_org(org_id: &str) -> Result<ProjectOrg, String> {
     let connection = conn()?;
     map_db(

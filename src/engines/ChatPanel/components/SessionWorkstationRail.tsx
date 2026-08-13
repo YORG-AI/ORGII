@@ -2,6 +2,7 @@ import { useSetAtom } from "jotai";
 import React, { useCallback } from "react";
 
 import { useChannelWorkItem } from "@src/features/DiscussionChannels/ChannelPanelView/useChannelWorkItem";
+import { parseCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { getWorkItemStatusConfig } from "@src/modules/ProjectManager/config/manage";
 import {
   type FocusedChatSessionContext,
@@ -17,10 +18,12 @@ interface SessionWorkstationRailProps {
   compactMenuHost: HTMLSpanElement | null;
   conversationMinimapHostRef: (node: HTMLDivElement | null) => void;
   session: Session | null | undefined;
+  topInset?: number;
 }
 
 export interface ResolvedSessionWorkstationContext {
   branchName?: string;
+  orgId?: string;
   projectSlug?: string;
   repoName?: string;
   workItemId?: string;
@@ -41,9 +44,14 @@ export function resolveSessionWorkstationContext(
     undefined;
   const workItemId =
     session?.productMode === "project" ? session.workItemId : undefined;
+  const sessionOrgId = session?.orgId ?? undefined;
+  const orgId = sessionOrgId
+    ? (parseCloudOrgSelectorValue(sessionOrgId) ?? sessionOrgId)
+    : undefined;
 
   return {
     branchName,
+    orgId,
     projectSlug: session?.projectSlug ?? undefined,
     repoName,
     workItemId: workItemId ?? undefined,
@@ -66,10 +74,12 @@ const ConnectedSessionWorkstationRail: React.FC<
   context,
   conversationMinimapHostRef,
   projectSlug,
+  topInset,
   workItemId,
 }) => {
   const openWorkItem = useSetAtom(openWorkItemInChatPanelTabAtom);
   const { resolved } = useChannelWorkItem({
+    orgId: context.orgId,
     projectSlug,
     shortId: workItemId,
   });
@@ -86,9 +96,9 @@ const ConnectedSessionWorkstationRail: React.FC<
       projectId: resolved.projectId,
       projectSlug,
       projectName: resolved.projectName,
-      orgId: resolved.orgId,
+      orgId: resolved.orgId ?? context.orgId,
     });
-  }, [openWorkItem, projectSlug, resolved, workItemId]);
+  }, [context.orgId, openWorkItem, projectSlug, resolved, workItemId]);
 
   const sessionContext: FocusedChatSessionContext = {
     branchName: context.branchName,
@@ -105,6 +115,7 @@ const ConnectedSessionWorkstationRail: React.FC<
       compactMenuHost={compactMenuHost}
       conversationMinimapHostRef={conversationMinimapHostRef}
       sessionContext={sessionContext}
+      topInset={topInset}
     />
   );
 };
@@ -113,6 +124,7 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
   compactMenuHost,
   conversationMinimapHostRef,
   session,
+  topInset,
 }) => {
   const context = resolveSessionWorkstationContext(session);
   const baseSessionContext: FocusedChatSessionContext = {
@@ -121,13 +133,14 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
     workItem: context.workItemId ? { label: context.workItemId } : undefined,
   };
 
-  if (context.workItemId && context.projectSlug) {
+  if (context.workItemId) {
     return (
       <ConnectedSessionWorkstationRail
         compactMenuHost={compactMenuHost}
         context={context}
         conversationMinimapHostRef={conversationMinimapHostRef}
-        projectSlug={context.projectSlug}
+        projectSlug={context.projectSlug ?? ""}
+        topInset={topInset}
         workItemId={context.workItemId}
       />
     );
@@ -138,6 +151,7 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
       compactMenuHost={compactMenuHost}
       conversationMinimapHostRef={conversationMinimapHostRef}
       sessionContext={baseSessionContext}
+      topInset={topInset}
     />
   );
 };

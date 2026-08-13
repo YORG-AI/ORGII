@@ -1,8 +1,10 @@
+import { ExternalLink } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { RoutineDefinition, RoutineFire } from "@src/api/http/project";
 import { projectApi } from "@src/api/http/project";
+import Message from "@src/components/Message";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
@@ -10,6 +12,7 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
 import TabPill from "@src/components/TabPill";
+import { useRoutineResultNavigation } from "@src/hooks/navigation";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -55,20 +58,38 @@ const FIRE_STATUS_COLOR: Record<string, string> = {
   queued: "bg-warning-6",
 };
 
+function getRoutineProjectSlug(routine: RoutineDefinition): string | undefined {
+  if (routine.outputPolicy.mode === "create_work_item") {
+    return routine.outputPolicy.createWorkItemProjectSlug;
+  }
+  if (routine.outputPolicy.mode === "update_existing_work_item") {
+    return routine.outputPolicy.updateWorkItemProjectSlug;
+  }
+  return undefined;
+}
+
 /** Expanded-row fire history list, lazily fetched per routine. */
-const RoutineFireHistory: React.FC<{ routineId: string }> = ({ routineId }) => {
+const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
+  routine,
+}) => {
   const { t } = useTranslation("integrations");
   const [fires, setFires] = useState<RoutineFire[] | null>(null);
+  const openResult = useRoutineResultNavigation();
 
   useEffect(() => {
     let cancelled = false;
-    projectApi.listRoutineFires(routineId).then((result) => {
-      if (!cancelled) setFires(result);
-    });
+    projectApi
+      .listRoutineFires(routine.id)
+      .then((result) => {
+        if (!cancelled) setFires(result);
+      })
+      .catch(() => {
+        if (!cancelled) setFires([]);
+      });
     return () => {
       cancelled = true;
     };
-  }, [routineId]);
+  }, [routine.id, routine.lastFireAt, routine.lastFireStatus]);
 
   if (fires === null) return null;
   if (fires.length === 0) {
@@ -82,12 +103,12 @@ const RoutineFireHistory: React.FC<{ routineId: string }> = ({ routineId }) => {
   return (
     <div
       className="flex max-h-48 flex-col gap-1 overflow-y-auto"
-      data-testid={`integrations-routine-fires-${routineId}`}
+      data-testid={`integrations-routine-fires-${routine.id}`}
     >
       {fires.slice(0, 20).map((fire) => (
         <div
           key={fire.id}
-          className="flex items-center gap-2 text-[12px] text-text-2"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded px-1 py-0.5 text-[12px] text-text-2"
         >
           <StatusDot
             color={FIRE_STATUS_COLOR[fire.status] ?? "bg-fill-3"}
@@ -97,10 +118,50 @@ const RoutineFireHistory: React.FC<{ routineId: string }> = ({ routineId }) => {
             {new Date(fire.firedAt).toLocaleString()}
           </span>
           {fire.sessionId && (
-            <span className="truncate text-text-4">{fire.sessionId}</span>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-primary-6 hover:underline"
+              onClick={(event) => {
+                event.stopPropagation();
+                void openResult({ sessionId: fire.sessionId }).catch(() =>
+                  Message.error(
+                    t("routineFields.openSessionError", {
+                      defaultValue: "Could not open the session",
+                    })
+                  )
+                );
+              }}
+            >
+              {t("routineFields.openSession")}
+              <ExternalLink size={11} />
+            </button>
           )}
           {fire.workItemId && (
-            <span className="truncate text-text-4">{fire.workItemId}</span>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-primary-6 hover:underline"
+              onClick={(event) => {
+                event.stopPropagation();
+                void openResult({
+                  workItemId: fire.workItemId,
+                  projectSlug: getRoutineProjectSlug(routine),
+                }).catch(() =>
+                  Message.error(
+                    t("routineFields.openWorkItemError", {
+                      defaultValue: "Could not open the Work Item",
+                    })
+                  )
+                );
+              }}
+            >
+              {t("routineFields.openWorkItem")}
+              <ExternalLink size={11} />
+            </button>
+          )}
+          {fire.error && (
+            <span className="w-full break-words pl-4 text-danger-6">
+              {fire.error}
+            </span>
           )}
         </div>
       ))}
@@ -111,7 +172,7 @@ const RoutineFireHistory: React.FC<{ routineId: string }> = ({ routineId }) => {
 function getTriggerLabel(routine: RoutineDefinition): string {
   if (routine.trigger.kind === "one_time")
     return `One-time: ${routine.trigger.at}`;
-  return `Cron: ${routine.trigger.cron}`;
+  return `Cron: ${routine.trigger.cron} · ${routine.trigger.timezone}`;
 }
 
 function getNextFireLabel(routine: RoutineDefinition): string | null {
@@ -193,16 +254,38 @@ export const RoutinesTable: React.FC<RoutinesTableProps> = ({
         ),
       },
       {
-        key: "target",
-        label: t("routineFields.target"),
+        key: "lastRun",
+        label: t("common:schedule.lastRun"),
         width: SETTINGS_TABLE_COL.valueLg,
         sorter: (rowA, rowB) =>
-          getRoutineTargetLabel(rowA).localeCompare(
-            getRoutineTargetLabel(rowB)
-          ),
+          (rowA.lastFireAt ?? "").localeCompare(rowB.lastFireAt ?? ""),
+        renderCell: (routine) => (
+          <div className="flex flex-col gap-0.5">
+            {routine.lastFireStatus ? (
+              <StatusDot
+                color={FIRE_STATUS_COLOR[routine.lastFireStatus] ?? "bg-fill-3"}
+                label={routine.lastFireStatus}
+              />
+            ) : (
+              <span className={SETTINGS_TABLE_CELL.value}>—</span>
+            )}
+            {routine.lastFireAt && (
+              <span className="text-[11px] text-text-3">
+                {new Date(routine.lastFireAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "nextRun",
+        label: t("routineFields.nextFire"),
+        width: SETTINGS_TABLE_COL.valueLg,
+        sorter: (rowA, rowB) =>
+          (rowA.nextFireAt ?? "").localeCompare(rowB.nextFireAt ?? ""),
         renderCell: (routine) => (
           <span className={SETTINGS_TABLE_CELL.value}>
-            {getRoutineTargetLabel(routine)}
+            {getNextFireLabel(routine) ?? "—"}
           </span>
         ),
       },
@@ -267,11 +350,11 @@ export const RoutinesTable: React.FC<RoutinesTableProps> = ({
               columns={routinesColumns}
               rows={filteredRoutines}
               getRowKey={(routine) => routine.id}
-              onRowClick={(routine) =>
-                onSelectRoutine(
-                  selectedRowId === routine.id ? null : routine.id
-                )
-              }
+              onRowClick={(routine) => {
+                const isExpanded = expandedKeys.includes(routine.id);
+                setExpandedKeys(isExpanded ? [] : [routine.id]);
+                onSelectRoutine(isExpanded ? null : routine.id);
+              }}
               rowClassName={selectedRowClassName(
                 (routine: RoutineDefinition) => routine.id,
                 selectedRowId
@@ -356,7 +439,7 @@ export const RoutinesTable: React.FC<RoutinesTableProps> = ({
                                 label={t("routineFields.fireHistory")}
                                 layout="vertical"
                               >
-                                <RoutineFireHistory routineId={routine.id} />
+                                <RoutineFireHistory routine={routine} />
                               </InfoRow>
                             </InlineCardColumnStack>
                           }

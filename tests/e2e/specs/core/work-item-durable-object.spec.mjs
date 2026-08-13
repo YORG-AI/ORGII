@@ -42,10 +42,6 @@ const CREATE_WORK_ITEM_AI_GENERATE_UI_SCENARIO =
 const CREATE_WORK_ITEM_AUTO_EXECUTE_GUARD_UI_SCENARIO =
   "create-work-item-auto-execute-guard-ui";
 const SESSION_LINK_WORK_ITEM_UI_SCENARIO = "session-link-work-item-ui";
-const WORK_ITEM_MANAGER_MULTI_PROJECT_BATCH_SCENARIO =
-  "work-item-manager-multi-project-batch";
-const WORK_ITEM_MANAGER_AUTO_CREATE_PROJECT_EXECUTE_SCENARIO =
-  "work-item-manager-auto-create-project-execute";
 const WORK_ITEM_RERUN_UI_LLM_SCENARIO = "work-item-rerun-ui-llm-execution";
 const ROUTINE_CREATE_WORK_ITEM_UI_LLM_SCENARIO =
   "routine-create-work-item-ui-llm-execution";
@@ -102,16 +98,6 @@ function unwrap(result, label) {
     throw new Error(`${label} failed: ${result?.error ?? "unknown"}`);
   }
   return result;
-}
-
-function unwrapDebugToolResult(result, label) {
-  const debugResult = unwrap(result, label).result;
-  if (!debugResult || debugResult.ok !== true || !debugResult.result) {
-    throw new Error(
-      `${label} tool failed: ${debugResult?.error ?? JSON.stringify(debugResult)}`
-    );
-  }
-  return debugResult.result;
 }
 
 function selectRustAgentAccount(accounts) {
@@ -406,10 +392,75 @@ async function switchDisabledState(selector) {
   `);
 }
 
+async function workItemAgentModeState() {
+  return execJS(`
+    const toggle = document.querySelector('[data-testid="chat-panel-start-page-work-item-mode-toggle"]');
+    if (toggle) {
+      return {
+        exists: true,
+        disabled: Boolean(toggle.disabled || toggle.getAttribute('aria-disabled') === 'true'),
+        checked: toggle.getAttribute('aria-pressed') === 'true',
+        surface: 'launchpad-toggle',
+      };
+    }
+    const legacy = document.querySelector('[data-testid="chat-panel-work-item-agent-switch"]');
+    const control = legacy?.matches('button,input,[role="switch"]')
+      ? legacy
+      : legacy?.querySelector('button,input,[role="switch"]');
+    return {
+      exists: Boolean(legacy),
+      disabled: Boolean(control?.disabled || control?.getAttribute('aria-disabled') === 'true'),
+      checked: Boolean(control?.checked || control?.getAttribute('aria-checked') === 'true'),
+      surface: legacy ? 'legacy-switch' : 'none',
+    };
+  `);
+}
+
 async function selectChatPanelWorkItemCreateTarget(
   label,
   { agentMode = false } = {}
 ) {
+  const launchpadTab = await clickSelector(
+    '[data-testid="chat-panel-start-page-tab-work-item"]'
+  );
+  if (launchpadTab === "clicked") {
+    await waitForVisibleSelector(
+      '[data-testid="chat-panel-start-page-work-item-mode-toggle"]',
+      `${label} Work Item mode toggle`,
+      MOUNT_TIMEOUT_MS
+    );
+    const toggleState = await workItemAgentModeState();
+    if (!toggleState.exists || toggleState.disabled) {
+      throw new Error(
+        `${label} Work Item mode toggle unavailable: ${JSON.stringify(toggleState)}`
+      );
+    }
+    if (toggleState.checked !== agentMode) {
+      const toggleClick = await clickSelector(
+        '[data-testid="chat-panel-start-page-work-item-mode-toggle"]'
+      );
+      if (toggleClick !== "clicked") {
+        throw new Error(
+          `${label} Work Item mode toggle click failed: ${toggleClick}`
+        );
+      }
+    }
+    if (agentMode) {
+      await waitForVisibleSelector(
+        '[data-testid="session-creator-chat-panel"]',
+        `${label} Work Item agent creator`,
+        MOUNT_TIMEOUT_MS
+      );
+      return;
+    }
+    await waitForVisibleSelector(
+      '[data-testid="create-work-item-editor"]',
+      `${label} create Work Item editor`,
+      MOUNT_TIMEOUT_MS
+    );
+    return;
+  }
+
   const startPageAction = await clickSelector(
     '[data-testid="chat-panel-start-page-new-work-item"]'
   );
@@ -486,16 +537,42 @@ async function selectChatPanelWorkItemCreateTarget(
   );
 }
 
+function workItemCreatedAtMs(item) {
+  const raw = item.frontmatter?.created_at ?? item.frontmatter?.createdAt;
+  if (!raw) return 0;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 1_000_000_000_000) return numeric;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function collectStandaloneItemsAcrossOrgs(label) {
+  const rows = [];
+  const personal = unwrap(
+    await invokeE2E("readStandaloneWorkItems"),
+    `readStandaloneWorkItems(${label}:personal)`
+  );
+  rows.push(...personal.items.map((item) => ({ item, orgId: null })));
+  const orgsResult = await invokeE2E("readProjectOrgs");
+  const orgs = orgsResult?.ok ? (orgsResult.orgs ?? []) : [];
+  for (const org of orgs) {
+    const orgId = org?.id;
+    if (!orgId || orgId === "personal-org") continue;
+    const scoped = await invokeE2E("readStandaloneWorkItems", orgId);
+    if (scoped?.ok) {
+      rows.push(...scoped.items.map((item) => ({ item, orgId })));
+    }
+  }
+  return rows;
+}
+
 async function waitForStandaloneWorkItemByTitle(title, label) {
   let matchedItem = null;
   await browser.waitUntil(
     async () => {
-      const result = unwrap(
-        await invokeE2E("readStandaloneWorkItems"),
-        `readStandaloneWorkItems(${label})`
-      );
+      const rows = await collectStandaloneItemsAcrossOrgs(label);
       matchedItem =
-        result.items.find((item) => item.frontmatter?.title === title) ?? null;
+        rows.find((row) => row.item.frontmatter?.title === title)?.item ?? null;
       return Boolean(
         matchedItem?.frontmatter?.short_id || matchedItem?.frontmatter?.shortId
       );
@@ -1142,10 +1219,6 @@ describe("Work Item durable object runtime invariants", function () {
       !shouldRunScenario(CREATE_WORK_ITEM_AI_GENERATE_UI_SCENARIO) &&
       !shouldRunScenario(CREATE_WORK_ITEM_AUTO_EXECUTE_GUARD_UI_SCENARIO) &&
       !shouldRunScenario(SESSION_LINK_WORK_ITEM_UI_SCENARIO) &&
-      !shouldRunScenario(WORK_ITEM_MANAGER_MULTI_PROJECT_BATCH_SCENARIO) &&
-      !shouldRunScenario(
-        WORK_ITEM_MANAGER_AUTO_CREATE_PROJECT_EXECUTE_SCENARIO
-      ) &&
       !shouldRunScenario(WORK_ITEM_RERUN_UI_LLM_SCENARIO) &&
       !shouldRunScenario(ROUTINE_CREATE_WORK_ITEM_UI_LLM_SCENARIO)
     ) {
@@ -1593,509 +1666,6 @@ describe("Work Item durable object runtime invariants", function () {
     }
   });
 
-  it("lets Work Item Manager batch-create standalone, single-project, and multi-project Work Items", async function () {
-    if (!shouldRunScenario(WORK_ITEM_MANAGER_MULTI_PROJECT_BATCH_SCENARIO)) {
-      this.skip();
-      return;
-    }
-
-    const accounts = unwrap(
-      await invokeE2E("listAccounts"),
-      "listAccounts(work item manager batch)"
-    ).accounts;
-    const account = selectRustAgentAccount(accounts);
-    if (!account) {
-      if (
-        isScenarioExplicitlyRequested(
-          WORK_ITEM_MANAGER_MULTI_PROJECT_BATCH_SCENARIO
-        )
-      ) {
-        throw new Error(
-          `No enabled Rust-agent account matched agentType=${API_AGENT_TYPE} model=${PREFERRED_API_MODEL_ID} account=${API_ACCOUNT_NAME ?? "<any>"}`
-        );
-      }
-      this.skip();
-      return;
-    }
-
-    const repo = unwrap(
-      await invokeE2E("ensureRepoSelected", { repoPath: E2E_REPO_PATH }),
-      "ensureRepoSelected(work item manager batch)"
-    );
-    const projectASlug = `e2e-manager-a-${RUN_ID}`;
-    const projectBSlug = `e2e-manager-b-${RUN_ID}`;
-    const projectAName = `E2E Manager Project A ${RUN_ID}`;
-    const projectBName = `E2E Manager Project B ${RUN_ID}`;
-    await invokeE2E("deleteProject", projectASlug);
-    await invokeE2E("deleteProject", projectBSlug);
-    unwrap(
-      await invokeE2E(
-        "writeProject",
-        projectASlug,
-        createProjectMeta(projectASlug, projectAName, repo.path),
-        "E2E Work Item Manager batch project A.",
-        true
-      ),
-      "writeProject(work item manager batch A)"
-    );
-    unwrap(
-      await invokeE2E(
-        "writeProject",
-        projectBSlug,
-        createProjectMeta(projectBSlug, projectBName, repo.path),
-        "E2E Work Item Manager batch project B.",
-        true
-      ),
-      "writeProject(work item manager batch B)"
-    );
-
-    const launched = unwrap(
-      await invokeE2E("launchSession", {
-        category: "rust_agent",
-        content:
-          "E2E Work Item Manager runtime probe. Reply OK only; tests will call tools directly.",
-        prompt:
-          "E2E Work Item Manager runtime probe. Reply OK only; tests will call tools directly.",
-        accountId: account.id,
-        model: PREFERRED_API_MODEL_ID,
-        workspacePath: E2E_REPO_PATH,
-        agentDefinitionId: "builtin:os",
-        agentExecMode: "ask",
-        // PM tools are product-mode gated (orgtrack/v1 §5.2); without
-        // this the probe session would have them policy-denied.
-        productMode: "project",
-        agentRole: "orchestrator",
-      }),
-      "launchSession(work item manager batch)"
-    ).result;
-    const sessionId = launched.sessionId ?? launched.session_id;
-    if (!sessionId) {
-      throw new Error(
-        `Work Item Manager launch did not return session id: ${JSON.stringify(launched)}`
-      );
-    }
-    await waitForSessionAggregateRow(
-      sessionId,
-      (session) => session.sessionId === sessionId,
-      "Work Item Manager aggregate row"
-    );
-
-    const standaloneTitle = `E2E manager standalone ${RUN_ID}`;
-    const projectATitleOne = `E2E manager project A one ${RUN_ID}`;
-    const projectATitleTwo = `E2E manager project A two ${RUN_ID}`;
-    const projectBTitle = `E2E manager project B ${RUN_ID}`;
-
-    const batchResult = unwrapDebugToolResult(
-      await invokeE2E(
-        "debugSessionExecuteTool",
-        sessionId,
-        "manage_work_item",
-        {
-          action: "batch",
-          agent_role: "orchestrator",
-          items: [
-            {
-              action: "create",
-              title: standaloneTitle,
-              description:
-                "Standalone Work Item created by Work Item Manager batch.",
-              status: "planned",
-              priority: "medium",
-              labels: ["e2e", "manager", "standalone"],
-            },
-            {
-              action: "create",
-              project_slug: projectASlug,
-              title: projectATitleOne,
-              description:
-                "First Project A Work Item created by Work Item Manager batch.",
-              status: "planned",
-              priority: "high",
-              labels: ["e2e", "manager", "project-a"],
-            },
-            {
-              action: "create",
-              project_slug: projectASlug,
-              title: projectATitleTwo,
-              description:
-                "Second Project A Work Item created by Work Item Manager batch.",
-              status: "backlog",
-              priority: "low",
-            },
-            {
-              action: "create",
-              project_slug: projectBSlug,
-              title: projectBTitle,
-              description:
-                "Project B Work Item created by Work Item Manager multi-project batch.",
-              status: "planned",
-              priority: "medium",
-            },
-          ],
-        }
-      ),
-      "debugSessionExecuteTool(manage_work_item batch)"
-    );
-    const batchText = String(batchResult?.text ?? batchResult ?? "");
-    if (!batchText.includes("Batch completed: 4 operation(s)")) {
-      throw new Error(`Unexpected manage_work_item batch output: ${batchText}`);
-    }
-    if (batchText.includes("ERROR:")) {
-      throw new Error(`manage_work_item batch reported an error: ${batchText}`);
-    }
-
-    const immediateProjectAItems = unwrap(
-      await invokeE2E("readWorkItemsEnriched", projectASlug),
-      "readWorkItemsEnriched(Work Item Manager immediate project A)"
-    ).items;
-    const immediateProjectBItems = unwrap(
-      await invokeE2E("readWorkItemsEnriched", projectBSlug),
-      "readWorkItemsEnriched(Work Item Manager immediate project B)"
-    ).items;
-    const immediateStandaloneItems = unwrap(
-      await invokeE2E("readStandaloneWorkItems"),
-      "readStandaloneWorkItems(Work Item Manager immediate standalone)"
-    ).items;
-    if (
-      immediateProjectAItems.length === 0 ||
-      immediateProjectBItems.length === 0
-    ) {
-      throw new Error(
-        `Work Item Manager batch did not populate project lists. output=${batchText} projectA=${JSON.stringify(immediateProjectAItems)} projectB=${JSON.stringify(immediateProjectBItems)} standalone=${JSON.stringify(immediateStandaloneItems.slice(-8))}`
-      );
-    }
-
-    const standaloneItem = await waitForStandaloneWorkItemByTitle(
-      standaloneTitle,
-      "Work Item Manager standalone batch result"
-    );
-    if (standaloneItem.frontmatter?.project) {
-      throw new Error(
-        `Work Item Manager standalone item unexpectedly has project: ${JSON.stringify(standaloneItem)}`
-      );
-    }
-    const findImmediateItem = (items, title) =>
-      items.find((item) => (item.title ?? item.frontmatter?.title) === title) ??
-      null;
-    const projectAItemOne = findImmediateItem(
-      immediateProjectAItems,
-      projectATitleOne
-    );
-    const projectAItemTwo = findImmediateItem(
-      immediateProjectAItems,
-      projectATitleTwo
-    );
-    const projectBItem = findImmediateItem(
-      immediateProjectBItems,
-      projectBTitle
-    );
-    if (!projectAItemOne || !projectAItemTwo || !projectBItem) {
-      throw new Error(
-        `Work Item Manager batch readback missed created items. output=${batchText} projectA=${JSON.stringify(immediateProjectAItems)} projectB=${JSON.stringify(immediateProjectBItems)}`
-      );
-    }
-    for (const [label, item, slug] of [
-      ["project A one", projectAItemOne, projectASlug],
-      ["project A two", projectAItemTwo, projectASlug],
-      ["project B", projectBItem, projectBSlug],
-    ]) {
-      const actualProject =
-        item.project?.id ?? item.project ?? item.frontmatter?.project;
-      if (actualProject !== slug) {
-        throw new Error(
-          `Work Item Manager ${label} item has wrong project: expected=${slug} item=${JSON.stringify(item)}`
-        );
-      }
-    }
-
-    const projectACount = immediateProjectAItems.filter(
-      (item) => (item.title ?? item.frontmatter?.title) === projectATitleOne
-    ).length;
-    const projectBLeakCount = immediateProjectBItems.filter(
-      (item) => (item.title ?? item.frontmatter?.title) === projectATitleOne
-    ).length;
-    if (projectACount !== 1 || projectBLeakCount !== 0) {
-      throw new Error(
-        `Work Item Manager project isolation failed: projectACount=${projectACount} projectBLeakCount=${projectBLeakCount}`
-      );
-    }
-  });
-
-  it("auto-creates Projects, breaks work into multiple Project scopes, and starts execution through manage_project", async function () {
-    if (
-      !shouldRunScenario(WORK_ITEM_MANAGER_AUTO_CREATE_PROJECT_EXECUTE_SCENARIO)
-    ) {
-      this.skip();
-      return;
-    }
-
-    const accounts = unwrap(
-      await invokeE2E("listAccounts"),
-      "listAccounts(work item manager auto-create project execute)"
-    ).accounts;
-    const account = selectRustAgentAccount(accounts);
-    if (!account) {
-      if (
-        isScenarioExplicitlyRequested(
-          WORK_ITEM_MANAGER_AUTO_CREATE_PROJECT_EXECUTE_SCENARIO
-        )
-      ) {
-        throw new Error(
-          `No enabled Rust-agent account matched agentType=${API_AGENT_TYPE} model=${PREFERRED_API_MODEL_ID} account=${API_ACCOUNT_NAME ?? "<any>"}`
-        );
-      }
-      this.skip();
-      return;
-    }
-
-    const repo = unwrap(
-      await invokeE2E("ensureRepoSelected", { repoPath: E2E_REPO_PATH }),
-      "ensureRepoSelected(work item manager auto-create project execute)"
-    );
-    const projectAName = `E2E Auto Alpha ${RUN_ID}`;
-    const projectBName = `E2E Auto Beta ${RUN_ID}`;
-    const projectASlug = `e2e-auto-alpha-${RUN_ID}`;
-    const projectBSlug = `e2e-auto-beta-${RUN_ID}`;
-    await invokeE2E("deleteProject", projectASlug);
-    await invokeE2E("deleteProject", projectBSlug);
-
-    const launched = unwrap(
-      await invokeE2E("launchSession", {
-        category: "rust_agent",
-        content:
-          "E2E Work Item Manager auto-create project probe. Use project tools only; tests execute tools directly.",
-        prompt:
-          "E2E Work Item Manager auto-create project probe. Use project tools only; tests execute tools directly.",
-        accountId: account.id,
-        model: PREFERRED_API_MODEL_ID,
-        workspacePath: repo.path,
-        agentDefinitionId: "builtin:os",
-        agentExecMode: "ask",
-        // PM tools are product-mode gated (orgtrack/v1 §5.2); without
-        // this the probe session would have them policy-denied.
-        productMode: "project",
-        agentRole: "orchestrator",
-      }),
-      "launchSession(work item manager auto-create project execute)"
-    ).result;
-    const sessionId = launched.sessionId ?? launched.session_id;
-    if (!sessionId) {
-      throw new Error(
-        `Work Item Manager auto-create launch did not return session id: ${JSON.stringify(launched)}`
-      );
-    }
-    await waitForSessionAggregateRow(
-      sessionId,
-      (session) => session.sessionId === sessionId,
-      "Work Item Manager auto-create aggregate row"
-    );
-
-    const createAlpha = unwrapDebugToolResult(
-      await invokeE2E("debugSessionExecuteTool", sessionId, "manage_project", {
-        action: "create",
-        name: projectAName,
-        description:
-          "Auto-created Project Alpha for multi-project Work Item breakdown E2E.",
-        status: "planned",
-        priority: "high",
-        linked_repos: [repo.path],
-      }),
-      "debugSessionExecuteTool(manage_project create alpha)"
-    );
-    const createBeta = unwrapDebugToolResult(
-      await invokeE2E("debugSessionExecuteTool", sessionId, "manage_project", {
-        action: "create",
-        name: projectBName,
-        description:
-          "Auto-created Project Beta for multi-project Work Item breakdown E2E.",
-        status: "planned",
-        priority: "medium",
-        linked_repos: [repo.path],
-      }),
-      "debugSessionExecuteTool(manage_project create beta)"
-    );
-    for (const [label, result, slug] of [
-      ["alpha", createAlpha, projectASlug],
-      ["beta", createBeta, projectBSlug],
-    ]) {
-      const text = String(result?.text ?? result ?? "");
-      if (!text.includes(`slug: ${slug}`) || text.includes("ERROR:")) {
-        throw new Error(
-          `manage_project create ${label} did not create expected slug ${slug}: ${text}`
-        );
-      }
-    }
-
-    const alphaUiTitle = `E2E auto alpha UI ${RUN_ID}`;
-    const alphaApiTitle = `E2E auto alpha API ${RUN_ID}`;
-    const betaOpsTitle = `E2E auto beta ops ${RUN_ID}`;
-    const createItems = [
-      {
-        slug: projectASlug,
-        title: alphaUiTitle,
-        description:
-          "Implement the visible UI slice for the auto-created Alpha project. Reply briefly and do not modify files.",
-        priority: "high",
-      },
-      {
-        slug: projectASlug,
-        title: alphaApiTitle,
-        description:
-          "Implement the API slice for the auto-created Alpha project.",
-        priority: "medium",
-      },
-      {
-        slug: projectBSlug,
-        title: betaOpsTitle,
-        description:
-          "Implement the operations slice for the auto-created Beta project.",
-        priority: "medium",
-      },
-    ];
-    for (const item of createItems) {
-      const result = unwrapDebugToolResult(
-        await invokeE2E(
-          "debugSessionExecuteTool",
-          sessionId,
-          "manage_project",
-          {
-            action: "create_item",
-            slug: item.slug,
-            title: item.title,
-            description: item.description,
-            status: "planned",
-            priority: item.priority,
-            labels: ["e2e", "auto-breakdown"],
-            selected_account_id: account.id,
-            selected_model_id: PREFERRED_API_MODEL_ID,
-            agent_definition_id: "builtin:sde",
-            agent_mode: "ask",
-          }
-        ),
-        `debugSessionExecuteTool(manage_project create_item ${item.title})`
-      );
-      const text = String(result?.text ?? result ?? "");
-      if (!text.includes("Created work item") || text.includes("ERROR:")) {
-        throw new Error(
-          `manage_project create_item failed for ${item.title}: ${text}`
-        );
-      }
-    }
-
-    const alphaUiItem = await waitForWorkItemByTitle(
-      projectASlug,
-      alphaUiTitle,
-      "auto-created alpha UI item"
-    );
-    const alphaApiItem = await waitForWorkItemByTitle(
-      projectASlug,
-      alphaApiTitle,
-      "auto-created alpha API item"
-    );
-    const betaOpsItem = await waitForWorkItemByTitle(
-      projectBSlug,
-      betaOpsTitle,
-      "auto-created beta ops item"
-    );
-    const alphaItems = unwrap(
-      await invokeE2E("readWorkItemsEnriched", projectASlug),
-      "readWorkItemsEnriched(auto-created alpha project)"
-    ).items;
-    const betaItems = unwrap(
-      await invokeE2E("readWorkItemsEnriched", projectBSlug),
-      "readWorkItemsEnriched(auto-created beta project)"
-    ).items;
-    if (
-      alphaItems.some(
-        (item) => (item.title ?? item.frontmatter?.title) === betaOpsTitle
-      ) ||
-      betaItems.some(
-        (item) => (item.title ?? item.frontmatter?.title) === alphaUiTitle
-      )
-    ) {
-      throw new Error(
-        `Auto-created multi-project breakdown leaked items across projects: alpha=${JSON.stringify(alphaItems)} beta=${JSON.stringify(betaItems)}`
-      );
-    }
-
-    for (const [label, item, slug] of [
-      ["alpha UI", alphaUiItem, projectASlug],
-      ["alpha API", alphaApiItem, projectASlug],
-      ["beta ops", betaOpsItem, projectBSlug],
-    ]) {
-      const actualProject =
-        item.project?.id ?? item.project ?? item.frontmatter?.project;
-      if (actualProject !== slug && actualProject !== `project-${slug}`) {
-        throw new Error(
-          `Auto-created ${label} Work Item has wrong project scope: expected=${slug} item=${JSON.stringify(item)}`
-        );
-      }
-    }
-
-    const startShortId =
-      alphaUiItem.shortId ??
-      alphaUiItem.short_id ??
-      alphaUiItem.frontmatter?.short_id;
-    if (!startShortId) {
-      throw new Error(
-        `Auto-created alpha UI Work Item had no short id: ${JSON.stringify(alphaUiItem)}`
-      );
-    }
-    const startResult = unwrapDebugToolResult(
-      await invokeE2E("debugSessionExecuteTool", sessionId, "manage_project", {
-        action: "start_item",
-        slug: projectASlug,
-        short_id: startShortId,
-      }),
-      "debugSessionExecuteTool(manage_project start_item)"
-    );
-    const startText = String(startResult?.text ?? startResult ?? "");
-    if (startText.includes("ERROR:")) {
-      throw new Error(
-        `manage_project start_item reported an error: ${startText}`
-      );
-    }
-
-    const startedItem = await waitForWorkItemLock(
-      projectASlug,
-      startShortId,
-      "manage_project start_item auto-created Work Item"
-    );
-    const activeSessionId =
-      startedItem.frontmatter?.execution_lock?.activeSessionId;
-    if (!activeSessionId || activeSessionId === PENDING_SESSION_ID) {
-      throw new Error(
-        `manage_project start_item did not persist an active execution lock: ${JSON.stringify(startedItem.frontmatter?.execution_lock)}`
-      );
-    }
-    await waitForSessionAggregateRow(
-      activeSessionId,
-      (session) =>
-        session.sessionId === activeSessionId &&
-        session.category === "rust_agent" &&
-        session.workItemId === startShortId &&
-        session.projectSlug === projectASlug &&
-        session.accountId === account.id &&
-        session.model === PREFERRED_API_MODEL_ID,
-      "manage_project start_item session aggregate linkage"
-    );
-
-    unwrap(
-      await invokeE2E(
-        "openProjectWorkItemsTab",
-        projectASlug,
-        projectAName,
-        projectASlug
-      ),
-      "openProjectWorkItemsTab(auto-created project alpha)"
-    );
-    await waitForVisibleSelector(
-      `[data-testid="work-item-row-${startShortId}"]`,
-      "auto-created started Work Item row",
-      MOUNT_TIMEOUT_MS
-    );
-  });
-
   it("renders standalone Work Items in the aggregate UI and opens their detail view", async function () {
     if (!shouldRunScenario(RENDERED_STANDALONE_WORK_ITEM_UI_SCENARIO)) {
       this.skip();
@@ -2426,9 +1996,7 @@ describe("Work Item durable object runtime invariants", function () {
       agentMode: true,
     });
 
-    const agentSwitchState = await switchDisabledState(
-      '[data-testid="chat-panel-work-item-agent-switch"]'
-    );
+    const agentSwitchState = await workItemAgentModeState();
     if (
       !agentSwitchState.exists ||
       agentSwitchState.disabled ||
@@ -2444,25 +2012,44 @@ describe("Work Item durable object runtime invariants", function () {
       MOUNT_TIMEOUT_MS
     );
 
-    const beforeItems = unwrap(
-      await invokeE2E("readStandaloneWorkItems"),
-      "readStandaloneWorkItems(before Create with AI)"
-    ).items;
+    let beforeRows = await collectStandaloneItemsAcrossOrgs(
+      "before Create with AI"
+    );
+    await browser.waitUntil(
+      async () => {
+        const again = await collectStandaloneItemsAcrossOrgs(
+          "before Create with AI (settle)"
+        );
+        const settled = again.length === beforeRows.length;
+        beforeRows = again;
+        return settled;
+      },
+      {
+        timeout: PERSIST_TIMEOUT_MS,
+        interval: 1_500,
+        timeoutMsg:
+          "standalone listing never settled before the Create with AI scan",
+      }
+    );
     const beforeIds = new Set(
-      beforeItems
+      beforeRows
         .map(
-          (item) =>
+          ({ item }) =>
             item.frontmatter?.short_id ?? item.frontmatter?.shortId ?? null
         )
         .filter(Boolean)
     );
     const generatedTitle = `E2E AI-created linked Work Item ${RUN_ID}`;
     const generatedBody = `Created through the rendered Create with AI flow ${RUN_ID}.`;
+    // Time fence for the new-item scans: background DB derivation can land
+    // pre-existing (seeded) rows between scans, so "new" additionally means
+    // "created after this test started composing".
+    const composeFenceMs = Date.now() - 10_000;
     const prompt =
       `Update the linked draft Work Item to the exact title "${generatedTitle}" ` +
       `and exact description "${generatedBody}". Keep it standalone, planned, ` +
-      "and medium priority. Use manage_work_item update, keep this session linked, " +
-      "and do not create another Work Item.";
+      "and medium priority. Use the org2-pm CLI to update the linked draft, " +
+      "keep this session linked, and do not create another Work Item.";
     await setComposerText(
       '[data-testid="session-creator-chat-panel"]',
       prompt,
@@ -2497,22 +2084,27 @@ describe("Work Item durable object runtime invariants", function () {
     }
 
     let draftItem = null;
+    let draftOrgId = null;
     let linkedSessionId = null;
     let latestNewItems = [];
     await browser.waitUntil(
       async () => {
-        const items = unwrap(
-          await invokeE2E("readStandaloneWorkItems"),
-          "readStandaloneWorkItems(Create with AI draft)"
-        ).items;
-        const newItems = items.filter((item) => {
+        const rows = await collectStandaloneItemsAcrossOrgs(
+          "Create with AI draft"
+        );
+        const newRows = rows.filter(({ item }) => {
           const shortId =
             item.frontmatter?.short_id ?? item.frontmatter?.shortId ?? null;
-          return shortId && !beforeIds.has(shortId);
+          return (
+            shortId &&
+            !beforeIds.has(shortId) &&
+            workItemCreatedAtMs(item) >= composeFenceMs
+          );
         });
-        latestNewItems = newItems;
-        if (newItems.length !== 1) return false;
-        draftItem = newItems[0];
+        latestNewItems = newRows.map(({ item }) => item);
+        if (newRows.length !== 1) return false;
+        draftItem = newRows[0].item;
+        draftOrgId = newRows[0].orgId;
         return true;
       },
       {
@@ -2563,19 +2155,25 @@ describe("Work Item durable object runtime invariants", function () {
     let finalItem = null;
     await browser.waitUntil(
       async () => {
-        finalItem = unwrap(
-          await invokeE2E("readStandaloneWorkItem", shortId),
-          "readStandaloneWorkItem(Create with AI final)"
-        ).item;
+        const scoped = draftOrgId
+          ? await invokeE2E("readStandaloneWorkItems", draftOrgId)
+          : await invokeE2E("readStandaloneWorkItems");
+        if (!scoped?.ok) return false;
+        finalItem =
+          scoped.items.find((item) => {
+            const id =
+              item.frontmatter?.short_id ?? item.frontmatter?.shortId ?? null;
+            return id === shortId;
+          }) ?? null;
         return (
-          finalItem.frontmatter?.title === generatedTitle &&
-          finalItem.body === generatedBody
+          finalItem?.frontmatter?.title === generatedTitle &&
+          finalItem?.body === generatedBody
         );
       },
       {
         timeout: LLM_COMPLETION_PERSIST_TIMEOUT_MS,
         interval: 1_000,
-        timeoutMsg: `Work Item Manager did not update linked draft ${shortId}`,
+        timeoutMsg: `OS Agent did not update linked draft ${shortId}: ${JSON.stringify(finalItem)}`,
       }
     );
     await waitForSessionAggregateRow(
@@ -2588,13 +2186,14 @@ describe("Work Item durable object runtime invariants", function () {
       "completed Create with AI session retains standalone Work Item linkage",
       LLM_COMPLETION_PERSIST_TIMEOUT_MS
     );
-    const finalItems = unwrap(
-      await invokeE2E("readStandaloneWorkItems"),
-      "readStandaloneWorkItems(after Create with AI)"
-    ).items;
-    const newlyCreatedIds = finalItems
+    const finalRows = await collectStandaloneItemsAcrossOrgs(
+      "after Create with AI"
+    );
+    const newlyCreatedIds = finalRows
+      .filter((row) => (row.orgId ?? null) === (draftOrgId ?? null))
+      .filter(({ item }) => workItemCreatedAtMs(item) >= composeFenceMs)
       .map(
-        (item) =>
+        ({ item }) =>
           item.frontmatter?.short_id ?? item.frontmatter?.shortId ?? null
       )
       .filter((shortId) => shortId && !beforeIds.has(shortId));
@@ -2645,9 +2244,7 @@ describe("Work Item durable object runtime invariants", function () {
       "Create Work Item AI generate UI"
     );
 
-    const agentSwitchState = await switchDisabledState(
-      '[data-testid="chat-panel-work-item-agent-switch"]'
-    );
+    const agentSwitchState = await workItemAgentModeState();
     if (!agentSwitchState.exists || agentSwitchState.disabled) {
       throw new Error(
         `ChatPanel Work Item Agent switch should be available: ${JSON.stringify(agentSwitchState)}`

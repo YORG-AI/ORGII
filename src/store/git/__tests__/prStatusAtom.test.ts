@@ -20,6 +20,7 @@ function pr(overrides: Partial<OpenPRItem> & { head_branch: string }) {
     requested_reviewer_logins: [],
     base_branch: "main",
     draft: false,
+    ci_status: "unavailable",
     created_at: "2026-07-01T00:00:00Z",
     updated_at: "2026-07-01T00:00:00Z",
     ...overrides,

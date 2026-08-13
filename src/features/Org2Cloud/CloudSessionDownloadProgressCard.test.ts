@@ -61,14 +61,17 @@ function renderProgress(
 }
 
 describe("CloudSessionDownloadProgressCard", () => {
-  it("renders progress and its pill together in one top-bar line", () => {
+  it("renders a content-width progress bar above a centered floating pill", () => {
     const markup = renderProgress();
 
     expect(markup).toContain('role="progressbar"');
     expect(markup).toContain('aria-valuenow="54"');
     expect(markup).toContain("h-0.5");
     expect(markup).toContain("!rounded-none");
-    expect(markup).toContain("absolute -left-3 -right-3 -top-2");
+    expect(markup).toContain("absolute inset-x-0 -top-2");
+    expect(markup).toContain("items-center justify-center");
+    expect(markup).not.toContain("items-center justify-end");
+    expect(markup).not.toContain("relative mx-1 mb-2");
     expect(markup).toContain(
       'data-testid="cloud-session-download-progress-pill"'
     );

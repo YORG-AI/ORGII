@@ -489,10 +489,13 @@ export function useWorkstationIssues({
         ? closedPagination.error
         : null));
 
-  const refresh = useCallback(() => {
-    void fetchOpen();
-    if (closedLoadState === "ready") void fetchClosed();
-  }, [fetchOpen, fetchClosed, closedLoadState]);
+  const refresh = useCallback(
+    (includeClosed = false) => {
+      void fetchOpen();
+      if (includeClosed && closedLoadState !== "loading") void fetchClosed();
+    },
+    [fetchOpen, fetchClosed, closedLoadState]
+  );
 
   // Keep the shared atom in sync (used by external consumers like agent callbacks)
   useEffect(() => {

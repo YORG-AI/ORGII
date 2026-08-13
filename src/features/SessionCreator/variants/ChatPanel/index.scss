@@ -14,8 +14,135 @@
       justify-content: center;
       overflow-y: auto;
       padding-top: 24px;
-      padding-bottom: 24px;
     }
+
+    .session-creator-chat-panel-launchpad-middle {
+      position: static;
+      flex-shrink: 0;
+      align-items: flex-start;
+      transform: none;
+    }
+
+    .session-creator-agent-hero-question {
+      justify-content: flex-start;
+      padding-left: 8px;
+      padding-right: 0;
+      text-align: left;
+
+      [role="heading"] {
+        justify-content: flex-start;
+      }
+    }
+
+    .session-creator-chat-panel-launchpad-suggestions > * {
+      margin-inline: 0;
+    }
+
+    &.session-creator-chat-panel-work-item-picker-open {
+      .session-creator-chat-panel-content {
+        overflow: hidden;
+        padding-top: 12px;
+      }
+
+      .session-creator-chat-panel-launchpad-middle {
+        position: relative;
+        min-height: 0;
+        flex: 1 1 0%;
+        align-items: center;
+        overflow: hidden;
+      }
+
+      .session-creator-chat-panel-launchpad-suggestions {
+        display: flex;
+        min-height: 0;
+        flex: 1 1 0%;
+      }
+
+      .session-creator-chat-panel-launchpad-suggestions > * {
+        margin-inline: auto;
+      }
+
+      .work-item-picker-toolbar {
+        padding-top: 4px;
+        padding-bottom: 8px;
+      }
+
+      .work-item-picker-tab {
+        padding-top: 4px;
+        padding-bottom: 4px;
+      }
+
+      .work-item-picker-option {
+        padding-top: 6px;
+        padding-bottom: 6px;
+      }
+
+      .work-item-picker-option-metadata {
+        margin-top: 2px;
+      }
+
+      .work-item-picker-footer {
+        padding-top: 4px;
+        padding-bottom: 4px;
+      }
+    }
+  }
+
+  @media (max-height: 600px) {
+    .session-creator-chat-panel-content {
+      padding-top: 12px;
+    }
+
+    .session-creator-chat-panel-launchpad-middle {
+      gap: 0;
+    }
+
+    .session-creator-chat-panel-launchpad-suggestions {
+      display: none;
+    }
+
+    &.session-creator-chat-panel-work-item-picker-open {
+      .session-creator-chat-panel-launchpad-middle {
+        gap: 4px;
+      }
+
+      .session-creator-chat-panel-launchpad-suggestions {
+        display: flex;
+      }
+
+      .work-item-picker-toolbar {
+        padding-bottom: 4px;
+      }
+
+      .work-item-picker-option {
+        padding-top: 4px;
+        padding-bottom: 4px;
+      }
+    }
+  }
+
+  @media (min-height: 1000px) {
+    &.session-creator-chat-panel-work-item-picker-open {
+      .session-creator-chat-panel-launchpad-suggestions {
+        max-height: 520px;
+        flex: 0 1 520px;
+      }
+    }
+  }
+
+  .work-item-picker-list {
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+  }
+
+  .work-item-picker-option {
+    padding-top: 6px;
+    padding-bottom: 6px;
   }
 
   .session-creator-chat-panel-fullscreen-composer {
@@ -29,15 +156,18 @@
 
   .session-creator-chat-panel-fullscreen-input-shell {
     background: var(--color-chat-input) !important;
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.05),
-      0 0 0 1px rgba(0, 0, 0, 0.02) !important;
 
-    &:focus-within {
+    &:not(.composer-breathing) {
       box-shadow:
-        0 0 0 2px color-mix(in srgb, var(--color-primary-6) 15%, transparent),
         0 1px 3px rgba(0, 0, 0, 0.05),
         0 0 0 1px rgba(0, 0, 0, 0.02) !important;
+
+      &:focus-within {
+        box-shadow:
+          0 0 0 2px color-mix(in srgb, var(--color-primary-6) 15%, transparent),
+          0 1px 3px rgba(0, 0, 0, 0.05),
+          0 0 0 1px rgba(0, 0, 0, 0.02) !important;
+      }
     }
   }
 
@@ -67,5 +197,11 @@
     border-radius: 0 0 12px 12px;
     background: var(--color-chat-container);
     box-shadow: none;
+  }
+
+  .session-creator-chat-panel-fullscreen-repo-row-above {
+    margin-top: 0;
+    margin-bottom: -6px;
+    border-radius: 12px 12px 0 0;
   }
 }

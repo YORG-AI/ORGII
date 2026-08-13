@@ -20,7 +20,7 @@ import {
   transferCloudOwnership,
   updateCloudMemberRole,
 } from "./org2CloudManagementClient";
-import { sha256Hex } from "./org2CloudOrgManagement";
+import { CLOUD_INVITE_WEB_BASE_URL, sha256Hex } from "./org2CloudOrgManagement";
 
 const fetchMock = vi.fn();
 
@@ -124,7 +124,7 @@ describe("invites", () => {
     );
     expect(created.inviteId).toBe("inv-1");
     expect(created.inviteLink).toBe(
-      `orgii://cloud/join?invite=${created.inviteCode}`
+      `${CLOUD_INVITE_WEB_BASE_URL}#invite=${created.inviteCode}`
     );
   });
 

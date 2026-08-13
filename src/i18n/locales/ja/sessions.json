@@ -893,6 +893,9 @@
       "addApiKey": {
         "title": "API キーを追加"
       },
+      "showRuntime": {
+        "title": "ランタイムを表示"
+      },
       "installLatestUpdate": {
         "title": "最新アップデートをインストール"
       },
@@ -1186,14 +1189,14 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
-        "issueTitlePlaceholder": "Issue title",
-        "issueBodyPlaceholder": "Description",
-        "createIssue": "Create issue",
-        "creatingIssue": "Creating…",
+        "newIssueTitle": "GitHub issue を作成",
+        "issueTitlePlaceholder": "issue のタイトル",
+        "issueBodyPlaceholder": "説明",
+        "createIssue": "issue を作成",
+        "creatingIssue": "作成中…",
         "addToChat": "Add",
-        "repositoryLabel": "Repository",
-        "createIssueFailed": "Failed to create issue",
+        "repositoryLabel": "リポジトリ",
+        "createIssueFailed": "issue を作成できませんでした",
         "sourceIssues": "Issues",
         "sourcePrs": "PRs",
         "stateOpen": "Open",
@@ -2070,6 +2073,10 @@
     },
     "searchModels": "モデルを検索...",
     "newItem": "新しいアイテム",
+    "solveWorkItem": "作業項目を解決",
+    "launchpadQuestion": "",
+    "launchpadQuestionSuffix": "で何を作りますか？",
+    "manualLaunchpadQuestion": "何を作りますか？",
     "start": "開始",
     "assign": "割り当て",
     "send": "送信",

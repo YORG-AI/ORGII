@@ -27,7 +27,7 @@ import { useTranslation } from "react-i18next";
 import { gitApi } from "@src/api/http/git";
 import { CheckoutBlockedDialog } from "@src/components/GitDialogs/CheckoutBlockedDialog";
 import { CheckoutConflictDialog } from "@src/components/GitDialogs/CheckoutConflictDialog";
-import PillGroup, { type PillGroupVariant } from "@src/components/PillGroup";
+import PillGroup from "@src/components/PillGroup";
 import RunningLocationDropdownPanel from "@src/components/RunningLocationDropdownPanel";
 import {
   RUNNING_LOCATIONS,
@@ -112,15 +112,12 @@ export interface SessionInfoLineProps {
    */
   hideBranch?: boolean;
   /**
-   * `PillGroup` visual variant. Use `ghost` for dense factory headers where
-   * the surrounding chrome already provides visual separation.
-   */
-  pillVariant?: PillGroupVariant;
-  /**
    * When true, the row sits in a full-width SessionCreator surface (e.g. the
    * fullScreen ChatPanel creator) immediately under the composer input.
    */
   fullWidth?: boolean;
+  /** Direction used by anchored repo, branch, and location menus. */
+  dropdownDirection?: "up" | "down";
   /**
    * When provided, adds a third segment for selecting the running location
    * (This Mac / New Worktree / Cloud) — modelled after Cursor's context bar.
@@ -264,8 +261,8 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   branchName,
   onBranchChange,
   branchLoading,
-  pillVariant = "default",
   fullWidth: _fullWidth = false,
+  dropdownDirection = "down",
   worktreeLocation,
   selectedWorktreePath,
   worktreeSourceLabel,
@@ -316,9 +313,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   } = useDropdownEngine<HTMLButtonElement, LocationRow>({
     gap: 6,
     align: "left",
-    // Default: open downward; flip up only if the panel would clip
-    // against the bottom of the viewport.
-    placement: "auto",
+    placement: dropdownDirection === "up" ? "top" : "bottom",
     listNavigation: {
       items: LOCATION_ROWS,
       onSelect: handleLocationRowSelect,
@@ -615,11 +610,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
   return (
     <>
-      <PillGroup
-        segments={segments}
-        className="flex-wrap"
-        variant={pillVariant}
-      />
+      <PillGroup segments={segments} className="flex-wrap" strongSurface />
 
       {/* Repo Selector */}
       {useDropdownPicker ? (
@@ -629,6 +620,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
           onSelect={handleRepoSelected}
           currentRepoId={repoId}
           anchorRef={repoTriggerRef}
+          placement={dropdownDirection === "up" ? "top" : "bottom"}
           leadingRepos={systemPathSourceItems}
           repoFilter={orgScopeRepoFilter ?? undefined}
         />
@@ -658,6 +650,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
             currentBranchName={branchName}
             groupWorktreeBranches={false}
             anchorRef={branchTriggerRef}
+            placement={dropdownDirection === "up" ? "top" : "bottom"}
           />
         ) : (
           <BranchPalette

@@ -894,6 +894,9 @@
       "addApiKey": {
         "title": "Ajouter une clé API"
       },
+      "showRuntime": {
+        "title": "Afficher l’exécution"
+      },
       "installLatestUpdate": {
         "title": "Installer la dernière mise à jour"
       },
@@ -1187,14 +1190,14 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
-        "issueTitlePlaceholder": "Issue title",
+        "newIssueTitle": "Créer une issue GitHub",
+        "issueTitlePlaceholder": "Titre de l’issue",
         "issueBodyPlaceholder": "Description",
-        "createIssue": "Create issue",
-        "creatingIssue": "Creating…",
+        "createIssue": "Créer l’issue",
+        "creatingIssue": "Création…",
         "addToChat": "Add",
-        "repositoryLabel": "Repository",
-        "createIssueFailed": "Failed to create issue",
+        "repositoryLabel": "Dépôt",
+        "createIssueFailed": "Échec de la création de l’issue",
         "sourceIssues": "Issues",
         "sourcePrs": "PRs",
         "stateOpen": "Open",
@@ -2071,6 +2074,10 @@
     },
     "searchModels": "Rechercher des modèles...",
     "newItem": "Nouvel élément",
+    "solveWorkItem": "Résoudre un élément de travail",
+    "launchpadQuestion": "Que souhaitez-vous créer avec",
+    "launchpadQuestionSuffix": " ?",
+    "manualLaunchpadQuestion": "Que souhaitez-vous créer ?",
     "start": "Démarrer",
     "assign": "Assigner",
     "send": "Envoyer",

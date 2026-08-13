@@ -32,5 +32,8 @@ describe("buildSessionInfoSegments", () => {
       "branch",
       "location",
     ]);
+    expect(segments.map((segment) => segment.tooltipMouseEnterDelay)).toEqual([
+      2000, 2000, 2000,
+    ]);
   });
 });

@@ -90,7 +90,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
       dropdownWidthMode = SELECT_DEFAULTS.dropdownWidthMode,
       panelZIndex,
       radius = SELECT_DEFAULTS.radius,
-      variant = "default",
+      appearance = "default",
       dataTestId,
       ariaLabel,
     },
@@ -217,6 +217,17 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
       [resetHighlight, onSearch]
     );
 
+    // The search field lives in a portal that is a sibling of the trigger,
+    // so its key events cannot bubble to the trigger's navigation handler.
+    // Forward navigation keys explicitly while preserving Tauri's Cmd/Ctrl+A.
+    const handleSearchKeyDown = useCallback(
+      (event: React.KeyboardEvent<HTMLInputElement>) => {
+        tauriSelectAll(event);
+        if (!event.defaultPrevented) handleKeyDown(event);
+      },
+      [handleKeyDown, tauriSelectAll]
+    );
+
     // ---- Focus search input on open ----
     useEffect(() => {
       if (currentPopupVisible && showSearch) {
@@ -291,7 +302,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
     const wrapperClasses = [
       "select-wrapper",
       `select-size-${size}`,
-      variant === "ghost" && "select-ghost",
+      appearance !== "default" && `select-${appearance}`,
       error && "select-error",
       disabled && "select-disabled",
       currentPopupVisible && "select-open",
@@ -354,7 +365,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
         >
           <div
             className={`select-selector ${radiusClass} ${
-              variant === "ghost"
+              appearance !== "default"
                 ? ""
                 : "border border-solid border-border-2 bg-bg-2"
             } ${selectorClassName}`}
@@ -376,9 +387,9 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
                 />
               )}
               <ChevronDown
-                size={variant === "ghost" ? 12 : 16}
+                size={appearance === "ghost" ? 12 : 16}
                 className={`select-arrow shrink-0 transition-transform ${
-                  variant === "ghost" ? "text-text-3" : ""
+                  appearance === "ghost" ? "text-text-3" : ""
                 } ${currentPopupVisible ? "rotate-180" : ""}`}
               />
             </div>
@@ -401,11 +412,11 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder={t("common:common.searchPlaceholder")}
+                    placeholder={t("common:actions.search")}
                     value={searchValue}
                     onChange={handleSearchChange}
                     onClick={(event) => event.stopPropagation()}
-                    onKeyDown={tauriSelectAll}
+                    onKeyDown={handleSearchKeyDown}
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck={false}

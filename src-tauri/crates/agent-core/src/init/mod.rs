@@ -464,7 +464,6 @@ async fn ensure_session_initialized(
     let agent_org_current_member_id = session_record
         .as_ref()
         .and_then(|record| record.org_member_id.clone());
-    let session_org_id = session_record.and_then(|record| record.org_id);
 
     let mut readonly_extra_dirs = vec![crate::skills::loader::global_skills_dir()];
     readonly_extra_dirs.extend(
@@ -512,7 +511,6 @@ async fn ensure_session_initialized(
         plan_slot_cache: Some(session_handle.plan_slot_cache.clone()),
         agent_org_context: agent_org_context.clone(),
         agent_org_current_member_id: agent_org_current_member_id.clone(),
-        session_org_id,
         channel_context: None,
     };
 

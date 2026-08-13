@@ -72,4 +72,17 @@ describe("ActionCard accessibility contract", () => {
     expect(html).toContain("Recommended");
     expect(html).not.toContain("<svg");
   });
+
+  it("renders compact inline cards at the 36px segmented-control height", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ActionCard, {
+        title: "Auto-detect",
+        onClick: vi.fn(),
+        compact: true,
+      })
+    );
+
+    expect(html).toContain("h-9 px-2 py-0");
+    expect(html).toContain("flex items-center gap-2 h-full");
+  });
 });

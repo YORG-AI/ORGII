@@ -29,6 +29,7 @@ interface WorkItemContextMenuProps {
   items: ContextMenuItem[];
   position: { x: number; y: number };
   onClose: () => void;
+  openDirection?: "up" | "down";
 }
 
 interface SubmenuState {
@@ -40,6 +41,7 @@ const WorkItemContextMenu: React.FC<WorkItemContextMenuProps> = ({
   items,
   position,
   onClose,
+  openDirection = "down",
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,8 @@ const WorkItemContextMenu: React.FC<WorkItemContextMenuProps> = ({
     const { width: viewportWidth, height: viewportHeight } = getViewportSize();
 
     let adjustedX = position.x;
-    let adjustedY = position.y;
+    let adjustedY =
+      openDirection === "up" ? position.y - rect.height : position.y;
 
     if (position.x + rect.width > viewportWidth) {
       adjustedX = Math.max(8, viewportWidth - rect.width - 8);
@@ -71,7 +74,7 @@ const WorkItemContextMenu: React.FC<WorkItemContextMenuProps> = ({
     menu.style.top = `${adjustedY}px`;
     menu.style.opacity = "1";
     menu.style.pointerEvents = "auto";
-  }, [position]);
+  }, [openDirection, position]);
 
   useLayoutEffect(() => {
     if (!openSubmenu || !submenuRef.current) return;

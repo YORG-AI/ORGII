@@ -2,6 +2,7 @@
 
 use rusqlite::{params, OptionalExtension};
 
+use super::super::routine_schedule;
 use super::helpers::{conn, from_iso8601, map_db, now_ms, to_iso8601};
 use crate::projects::types::{
     RoutineConcurrencyPolicy, RoutineDefinition, RoutineFire, RoutineFireStatus,
@@ -45,14 +46,33 @@ fn row_to_routine(row: &rusqlite::Row<'_>) -> rusqlite::Result<RoutineDefinition
         output_policy: decode_output_policy(&output_policy_json)?,
         last_evaluated_at: row.get::<_, Option<i64>>(9)?.map(to_iso8601),
         next_fire_at: row.get::<_, Option<i64>>(10)?.map(to_iso8601),
+        last_fire_at: row.get::<_, Option<i64>>(11)?.map(to_iso8601),
+        last_fire_status: row
+            .get::<_, Option<String>>(12)?
+            .map(|status| parse_fire_status(&status, 12))
+            .transpose()?,
+        last_fire_error: row.get(13)?,
+        last_fire_session_id: row.get(14)?,
+        last_fire_work_item_id: row.get(15)?,
         created_at: to_iso8601(row.get(7)?),
         updated_at: to_iso8601(row.get(8)?),
     })
 }
 
 const ROUTINE_SELECT_COLUMNS: &str =
-    "id, name, description, enabled, trigger_json, run_template_json,
-     output_policy_json, created_at, updated_at, last_evaluated_at, next_fire_at";
+    "routine.id, routine.name, routine.description, routine.enabled,
+     routine.trigger_json, routine.run_template_json, routine.output_policy_json,
+     routine.created_at, routine.updated_at, routine.last_evaluated_at,
+     routine.next_fire_at,
+     latest_fire.fired_at, latest_fire.status, latest_fire.error,
+     latest_fire.session_id, latest_fire.work_item_id";
+
+const ROUTINE_FROM: &str = "routine_definitions AS routine
+     LEFT JOIN routine_fires AS latest_fire ON latest_fire.id = (
+       SELECT fire.id FROM routine_fires AS fire
+       WHERE fire.routine_id = routine.id
+       ORDER BY fire.fired_at DESC, fire.id DESC LIMIT 1
+     )";
 
 const FIRE_SELECT_COLUMNS: &str = "id, routine_id, fired_at, status, session_id, agent_org_run_id,
      work_item_id, coalesced_into_fire_id, idempotency_key, started_at,
@@ -69,22 +89,7 @@ fn decode_output_policy(raw: &str) -> rusqlite::Result<RoutineOutputPolicy> {
 
 fn row_to_fire(row: &rusqlite::Row<'_>) -> rusqlite::Result<RoutineFire> {
     let status_raw: String = row.get(3)?;
-    let status = match status_raw.as_str() {
-        "pending" => RoutineFireStatus::Pending,
-        "started" => RoutineFireStatus::Started,
-        "succeeded" => RoutineFireStatus::Succeeded,
-        "failed" => RoutineFireStatus::Failed,
-        "skipped" => RoutineFireStatus::Skipped,
-        "coalesced" => RoutineFireStatus::Coalesced,
-        "queued" => RoutineFireStatus::Queued,
-        other => {
-            return Err(rusqlite::Error::FromSqlConversionFailure(
-                3,
-                rusqlite::types::Type::Text,
-                format!("unknown routine fire status: {other}").into(),
-            ));
-        }
-    };
+    let status = parse_fire_status(&status_raw, 3)?;
 
     Ok(RoutineFire {
         id: row.get(0)?,
@@ -99,6 +104,25 @@ fn row_to_fire(row: &rusqlite::Row<'_>) -> rusqlite::Result<RoutineFire> {
         started_at: row.get::<_, Option<i64>>(9)?.map(to_iso8601),
         completed_at: row.get::<_, Option<i64>>(10)?.map(to_iso8601),
         error: row.get(11)?,
+    })
+}
+
+fn parse_fire_status(raw: &str, column: usize) -> rusqlite::Result<RoutineFireStatus> {
+    Ok(match raw {
+        "pending" => RoutineFireStatus::Pending,
+        "started" => RoutineFireStatus::Started,
+        "succeeded" => RoutineFireStatus::Succeeded,
+        "failed" => RoutineFireStatus::Failed,
+        "skipped" => RoutineFireStatus::Skipped,
+        "coalesced" => RoutineFireStatus::Coalesced,
+        "queued" => RoutineFireStatus::Queued,
+        other => {
+            return Err(rusqlite::Error::FromSqlConversionFailure(
+                column,
+                rusqlite::types::Type::Text,
+                format!("unknown routine fire status: {other}").into(),
+            ));
+        }
     })
 }
 
@@ -118,8 +142,8 @@ pub fn list_routines() -> Result<Vec<RoutineDefinition>, String> {
     let connection = conn()?;
     let mut stmt = map_db(connection.prepare(&format!(
         "SELECT {ROUTINE_SELECT_COLUMNS}
-         FROM routine_definitions
-         ORDER BY updated_at DESC, created_at DESC",
+         FROM {ROUTINE_FROM}
+         ORDER BY routine.updated_at DESC, routine.created_at DESC",
     )))?;
     let rows = map_db(stmt.query_map([], row_to_routine))?;
     let mut routines = Vec::new();
@@ -149,9 +173,9 @@ pub fn list_enabled_routines() -> Result<Vec<RoutineDefinition>, String> {
     let connection = conn()?;
     let mut stmt = map_db(connection.prepare(&format!(
         "SELECT {ROUTINE_SELECT_COLUMNS}
-         FROM routine_definitions
-         WHERE enabled = 1
-         ORDER BY created_at ASC",
+         FROM {ROUTINE_FROM}
+         WHERE routine.enabled = 1
+         ORDER BY routine.created_at ASC",
     )))?;
     let rows = map_db(stmt.query_map([], row_to_routine))?;
     let mut routines = Vec::new();
@@ -168,8 +192,8 @@ pub fn read_routine(id: &str) -> Result<RoutineDefinition, String> {
             .query_row(
                 &format!(
                     "SELECT {ROUTINE_SELECT_COLUMNS}
-                     FROM routine_definitions
-                     WHERE id = ?1",
+                     FROM {ROUTINE_FROM}
+                     WHERE routine.id = ?1",
                 ),
                 params![id],
                 row_to_routine,
@@ -194,12 +218,20 @@ pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinitio
     let trigger_json = encode_json("routine trigger", &routine.trigger)?;
     let template_json = encode_json("routine run template", &routine.run_template)?;
     let output_policy_json = encode_json("routine output policy", &routine.output_policy)?;
+    let computed_next_fire =
+        routine_schedule::next_occurrence(&routine.trigger, &chrono::Utc::now())?;
+    let next_fire_at_ms = if routine.enabled {
+        computed_next_fire.map(|value| value.timestamp_millis())
+    } else {
+        None
+    };
 
     map_db(connection.execute(
         "INSERT INTO routine_definitions (
             id, name, description, enabled, trigger_json, run_template_json,
-            output_policy_json, created_at, updated_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            output_policy_json, created_at, updated_at, last_evaluated_at,
+            next_fire_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)
          ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             description = excluded.description,
@@ -207,6 +239,12 @@ pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinitio
             trigger_json = excluded.trigger_json,
             run_template_json = excluded.run_template_json,
             output_policy_json = excluded.output_policy_json,
+            last_evaluated_at = CASE
+                WHEN routine_definitions.trigger_json != excluded.trigger_json
+                THEN excluded.last_evaluated_at
+                ELSE routine_definitions.last_evaluated_at
+            END,
+            next_fire_at = excluded.next_fire_at,
             updated_at = excluded.updated_at",
         params![
             routine.id,
@@ -218,6 +256,7 @@ pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinitio
             output_policy_json,
             created_at_ms,
             now,
+            next_fire_at_ms,
         ],
     ))?;
 
@@ -268,7 +307,8 @@ pub fn list_routine_fires(routine_id: &str) -> Result<Vec<RoutineFire>, String> 
                 completed_at, error
          FROM routine_fires
          WHERE routine_id = ?1
-         ORDER BY fired_at DESC",
+         ORDER BY fired_at DESC
+         LIMIT 100",
     ))?;
     let rows = map_db(stmt.query_map([routine_id], row_to_fire))?;
     let mut fires = Vec::new();
@@ -560,6 +600,66 @@ pub fn mark_routine_fire_succeeded(fire_id: &str) -> Result<RoutineFire, String>
     read_routine_fire(fire_id)
 }
 
+/// Recover Routine fires whose newest durable execution episode is terminal
+/// failed. This includes both a failure before the first Session was linked
+/// and a typed Retry that failed before it could resume or replace the
+/// original Session.
+pub fn reconcile_terminal_dispatch_fires() -> Result<Vec<RoutineFire>, String> {
+    let connection = conn()?;
+    let candidates = {
+        let mut statement = map_db(connection.prepare(
+            "WITH RECURSIVE run_lineage(id, root_trigger_json) AS (
+                 SELECT id, trigger_json
+                 FROM pm_work_item_runs
+                 WHERE parent_run_id IS NULL
+                 UNION ALL
+                 SELECT child.id, parent.root_trigger_json
+                 FROM pm_work_item_runs child
+                 JOIN run_lineage parent ON child.parent_run_id = parent.id
+             )
+             SELECT fire_id, error
+             FROM (
+                 SELECT fire.id AS fire_id,
+                        COALESCE(json_extract(run.failure_json, '$.message'),
+                                 'Work Item dispatch terminated before Session launch') AS error,
+                        fire.fired_at,
+                        run.status AS run_status,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY fire.id
+                            ORDER BY run.attempt DESC, run.created_at DESC
+                        ) AS terminal_rank
+                 FROM routine_fires fire
+                 JOIN run_lineage lineage
+                   ON json_extract(lineage.root_trigger_json, '$.kind') = 'routine'
+                  AND json_extract(lineage.root_trigger_json, '$.fireId') = fire.id
+                 JOIN pm_work_item_runs run ON run.id = lineage.id
+                 WHERE fire.status IN ('pending', 'started')
+             )
+             WHERE terminal_rank = 1 AND run_status IN ('failed', 'cancelled')
+             ORDER BY fired_at ASC",
+        ))?;
+        let rows = map_db(statement.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        }))?;
+        map_db(rows.collect::<rusqlite::Result<Vec<_>>>())?
+    };
+
+    let now = now_ms();
+    for (fire_id, error) in &candidates {
+        map_db(connection.execute(
+            "UPDATE routine_fires
+             SET status = 'failed', error = ?2, completed_at = ?3
+             WHERE id = ?1 AND status IN ('pending', 'started')",
+            params![fire_id, error, now],
+        ))?;
+    }
+
+    candidates
+        .into_iter()
+        .map(|(fire_id, _)| read_routine_fire(&fire_id))
+        .collect()
+}
+
 /// Look up the non-terminal fire that launched `session_id`, if any.
 /// Used by the session-terminal write-back path.
 pub fn find_started_fire_by_session(session_id: &str) -> Result<Option<RoutineFire>, String> {
@@ -718,6 +818,11 @@ mod tests {
             output_policy: policy,
             last_evaluated_at: None,
             next_fire_at: None,
+            last_fire_at: None,
+            last_fire_status: None,
+            last_fire_error: None,
+            last_fire_session_id: None,
+            last_fire_work_item_id: None,
             created_at: String::new(),
             updated_at: String::new(),
         }
@@ -758,6 +863,46 @@ mod tests {
 
         let read = read_routine("routine-roundtrip").expect("read routine");
         assert_eq!(read.output_policy, saved.output_policy);
+    }
+
+    #[test]
+    fn upsert_computes_next_fire_immediately_in_declared_timezone() {
+        use chrono::Timelike;
+
+        let _sandbox = test_env::sandbox();
+        let mut routine = routine_fixture(
+            "routine-next-fire",
+            policy(RoutineConcurrencyPolicy::AlwaysCreate),
+        );
+        routine.trigger = RoutineTrigger::Cron {
+            cron: "0 9 * * *".to_string(),
+            timezone: "America/Vancouver".to_string(),
+        };
+
+        let saved = upsert_routine(routine).expect("upsert routine");
+        let next = saved.next_fire_at.expect("next fire projected on save");
+        let next = chrono::DateTime::parse_from_rfc3339(&next)
+            .expect("next fire is RFC3339")
+            .with_timezone(&"America/Vancouver".parse::<chrono_tz::Tz>().unwrap());
+        assert_eq!(next.hour(), 9);
+        assert_eq!(next.minute(), 0);
+    }
+
+    #[test]
+    fn routine_projects_the_latest_fire_result() {
+        let _sandbox = test_env::sandbox();
+        upsert_routine(routine_fixture(
+            "routine-latest-result",
+            policy(RoutineConcurrencyPolicy::AlwaysCreate),
+        ))
+        .expect("upsert routine");
+        let fire = create_routine_fire("routine-latest-result").expect("create fire");
+        mark_routine_fire_work_item_created(&fire.id, "ABC-0001").expect("link work item");
+
+        let routine = read_routine("routine-latest-result").expect("read routine");
+        assert_eq!(routine.last_fire_status, Some(RoutineFireStatus::Succeeded));
+        assert_eq!(routine.last_fire_work_item_id.as_deref(), Some("ABC-0001"));
+        assert!(routine.last_fire_at.is_some());
     }
 
     #[test]
@@ -911,6 +1056,168 @@ mod tests {
         assert_eq!(failed.error.as_deref(), Some("provider unavailable"));
         assert_eq!(failed.session_id.as_deref(), Some("session-1"));
         assert!(failed.completed_at.is_some());
+    }
+
+    #[test]
+    fn reconciliation_closes_pre_session_terminal_dispatch_fire() {
+        use crate::projects::types::{
+            EnqueueWorkItemRunRequest, WorkItemRunTarget, WorkItemRunTargetSnapshot,
+            WorkItemRunTrigger,
+        };
+        use crate::work_service::{self, CreateWorkItemRequest};
+
+        let _sandbox = test_env::sandbox();
+        upsert_routine(routine_fixture(
+            "routine-reconcile-dispatch",
+            policy(RoutineConcurrencyPolicy::CoalesceIfActive),
+        ))
+        .expect("upsert routine");
+        let fire = create_routine_fire("routine-reconcile-dispatch").expect("create fire");
+
+        work_service::tests_support::seed_project("demo", "project-1");
+        work_service::create_project_work_item(
+            "demo",
+            "AAA-0001",
+            &CreateWorkItemRequest {
+                title: "Routine dispatch".to_string(),
+                ..Default::default()
+            },
+            None,
+        )
+        .expect("seed work item");
+        mark_routine_fire_work_item_started(&fire.id, "AAA-0001", None)
+            .expect("link fire before dispatch");
+
+        crate::work_run_service::enqueue(EnqueueWorkItemRunRequest {
+            project_slug: Some("demo".to_string()),
+            org_id: "personal-org".to_string(),
+            work_item_id: "AAA-0001".to_string(),
+            trigger: WorkItemRunTrigger::Routine {
+                routine_id: "routine-reconcile-dispatch".to_string(),
+                fire_id: fire.id.clone(),
+            },
+            target_snapshot: WorkItemRunTargetSnapshot::new(WorkItemRunTarget::StartWorkItem {
+                account_id: Some("account-1".to_string()),
+                model_id: Some("model-1".to_string()),
+            }),
+            input: serde_json::json!({"prompt": "run"}),
+            idempotency_key: format!("routine-fire:{}", fire.id),
+            max_attempts: 3,
+            parent_run_id: None,
+        })
+        .expect("enqueue run");
+        let lease = crate::work_run_service::claim_next_dispatch("desktop-test", 30_000)
+            .expect("claim")
+            .expect("lease");
+        crate::work_run_service::record_dispatch_failure(
+            &lease.dispatch_id,
+            &lease.lease_token,
+            "Unauthorized: invalid API key (status 401)",
+        )
+        .expect("terminalize dispatch");
+
+        let recovered = reconcile_terminal_dispatch_fires().expect("reconcile");
+        assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].id, fire.id);
+        assert_eq!(recovered[0].status, RoutineFireStatus::Failed);
+        assert!(recovered[0].session_id.is_none());
+        assert!(recovered[0]
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("Unauthorized")));
+        assert!(reconcile_terminal_dispatch_fires()
+            .expect("idempotent reconcile")
+            .is_empty());
+    }
+
+    #[test]
+    fn reconciliation_follows_retry_ancestry_to_close_started_fire() {
+        use crate::projects::types::{
+            EnqueueWorkItemRunRequest, WorkItemRunTarget, WorkItemRunTargetSnapshot,
+            WorkItemRunTrigger, WorkItemRunUsage,
+        };
+        use crate::work_run_service::WorkItemRunTerminalOutcome;
+        use crate::work_service::{self, CreateWorkItemRequest};
+
+        let _sandbox = test_env::sandbox();
+        upsert_routine(routine_fixture(
+            "routine-reconcile-retry",
+            policy(RoutineConcurrencyPolicy::CoalesceIfActive),
+        ))
+        .expect("upsert routine");
+        let fire = create_routine_fire("routine-reconcile-retry").expect("create fire");
+        work_service::tests_support::seed_project("demo", "project-1");
+        work_service::create_project_work_item(
+            "demo",
+            "AAA-0001",
+            &CreateWorkItemRequest {
+                title: "Routine retry dispatch".to_string(),
+                ..Default::default()
+            },
+            None,
+        )
+        .expect("seed work item");
+
+        let first = crate::work_run_service::enqueue(EnqueueWorkItemRunRequest {
+            project_slug: Some("demo".to_string()),
+            org_id: "personal-org".to_string(),
+            work_item_id: "AAA-0001".to_string(),
+            trigger: WorkItemRunTrigger::Routine {
+                routine_id: "routine-reconcile-retry".to_string(),
+                fire_id: fire.id.clone(),
+            },
+            target_snapshot: WorkItemRunTargetSnapshot::new(WorkItemRunTarget::StartWorkItem {
+                account_id: Some("account-1".to_string()),
+                model_id: Some("model-1".to_string()),
+            }),
+            input: serde_json::json!({"prompt": "run"}),
+            idempotency_key: format!("routine-fire:{}", fire.id),
+            max_attempts: 3,
+            parent_run_id: None,
+        })
+        .expect("enqueue first run");
+        let first_lease = crate::work_run_service::claim_next_dispatch("desktop-test", 30_000)
+            .expect("claim first")
+            .expect("first lease");
+        crate::work_run_service::acknowledge_dispatch_started(
+            &first_lease.dispatch_id,
+            &first_lease.lease_token,
+            "session-retry",
+        )
+        .expect("ack first");
+        mark_routine_fire_work_item_started(&fire.id, "AAA-0001", Some("session-retry"))
+            .expect("link started fire");
+        crate::work_run_service::record_run_terminal(
+            &first.id,
+            Some("session-retry"),
+            WorkItemRunTerminalOutcome::Failed,
+            WorkItemRunUsage::default(),
+            Some("request timed out"),
+        )
+        .expect("fail first run");
+
+        let retry = crate::work_run_service::retry(&first.id, "retry:fire-reconcile")
+            .expect("enqueue retry");
+        let retry_lease = crate::work_run_service::claim_next_dispatch("desktop-test", 30_000)
+            .expect("claim retry")
+            .expect("retry lease");
+        assert_eq!(retry_lease.run.id, retry.id);
+        crate::work_run_service::record_dispatch_failure(
+            &retry_lease.dispatch_id,
+            &retry_lease.lease_token,
+            "invalid input while resuming Session",
+        )
+        .expect("fail retry dispatch");
+
+        let recovered = reconcile_terminal_dispatch_fires().expect("reconcile retry ancestry");
+        assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].id, fire.id);
+        assert_eq!(recovered[0].status, RoutineFireStatus::Failed);
+        assert_eq!(recovered[0].session_id.as_deref(), Some("session-retry"));
+        assert!(recovered[0]
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("invalid input")));
     }
 
     #[test]

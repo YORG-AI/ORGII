@@ -31,7 +31,7 @@ import {
   buildOrgRuntimeTodaySnapshot,
   recentSharedSessions,
 } from "./teamRuntimeData";
-import { bucketLabelKey } from "./usageBuckets";
+import { BucketIcon, bucketLabelKey } from "./usageBuckets";
 import {
   formatInt,
   formatPercent,
@@ -192,7 +192,7 @@ function TeamRuntimeToday({
                     String(value) === ALL_MEMBERS ? null : String(value)
                   )
                 }
-                variant="ghost"
+                appearance="ghost"
                 size="small"
                 dataTestId="team-runtime-person-select"
               />
@@ -357,8 +357,15 @@ function TeamRuntimeToday({
                   className="flex items-center justify-between gap-3 border-b border-border-1 px-4 py-3 last:border-b-0"
                   data-testid={`team-runtime-source-${source.bucket}`}
                 >
-                  <span className="min-w-0 truncate text-sm text-text-2">
-                    {tUsage(bucketLabelKey(source.bucket))}
+                  <span className="flex min-w-0 items-center gap-2 text-sm text-text-2">
+                    <BucketIcon
+                      bucket={source.bucket}
+                      size={16}
+                      className="shrink-0"
+                    />
+                    <span className="truncate">
+                      {tUsage(bucketLabelKey(source.bucket))}
+                    </span>
                   </span>
                   <span className="shrink-0 text-right text-xs text-text-3">
                     <span className="font-medium text-text-1">

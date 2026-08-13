@@ -130,7 +130,7 @@ export interface ActionCardProps {
   dataTestId?: string;
 
   /**
-   * Use compact vertical padding when the card has no leading icon.
+   * Render an inline card as a compact 36px segmented control.
    */
   compact?: boolean;
 

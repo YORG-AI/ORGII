@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import type { WorkItemData } from "@src/api/http/project";
 import type {
   PayloadRef,
   ToolUsageMetadata,
@@ -185,6 +186,34 @@ export interface CommandResultData {
 }
 
 /**
+ * Parsed `org2-pm` CLI envelope surfaced from a shell tool call, so an
+ * agent-plane work-system write renders as a work card instead of a raw
+ * terminal block (design S3 envelope renderer).
+ */
+export interface OrgtrackEnvelopeData {
+  command: string;
+  ok: boolean;
+  operationId: string;
+  operation: string;
+  exitCode: number;
+  shortId?: string;
+  title?: string;
+  status?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  retryable?: boolean;
+  itemCount?: number;
+  /** Canonical create/update result used to open the real Work Item detail surface. */
+  workItem?: WorkItemData;
+  /** Resolved navigation context; empty for standalone items. */
+  projectSlug?: string;
+  projectName?: string;
+  projectId?: string;
+  orgId?: string;
+  isStandalone?: boolean;
+}
+
+/**
  * Inter-agent message sent via the Agent Team messaging tool.
  * Rendered as a compact speech-bubble card with recipient, kind, and summary.
  */
@@ -242,6 +271,7 @@ export type StyledOutput =
   | { type: "workItemCard"; card: WorkItemCardData }
   | { type: "projectCard"; card: ProjectCardData }
   | { type: "commandResult"; card: CommandResultData }
+  | { type: "orgtrackEnvelope"; card: OrgtrackEnvelopeData }
   | { type: "agentMessageCard"; card: AgentMessageCardData };
 
 export interface OutputContentProps {

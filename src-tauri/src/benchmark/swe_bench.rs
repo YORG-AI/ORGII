@@ -22,6 +22,7 @@ use super::paths::{
 };
 use super::preflight::run_swe_bench_preflight;
 use super::process::{command_version_in_dir, ensure_benchmark_python_env};
+use super::retention::prune_terminal_runs;
 use super::run::{append_run_log, finish_run, finish_run_with_result, set_run_process_id};
 use super::{
     BENCHMARK_RUNS, BENCHMARK_RUN_STATUS_APPLIED, BENCHMARK_RUN_STATUS_FAILED,
@@ -200,10 +201,10 @@ pub(super) async fn run_swe_bench_patch_only_worktree(
         },
     };
 
-    BENCHMARK_RUNS
-        .lock()
-        .await
-        .insert(plan.run_id.clone(), status_value.clone());
+    let mut runs = BENCHMARK_RUNS.lock().await;
+    runs.insert(plan.run_id.clone(), status_value.clone());
+    prune_terminal_runs(&mut runs);
+    drop(runs);
 
     Ok(status_value)
 }

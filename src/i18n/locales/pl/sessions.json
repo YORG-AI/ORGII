@@ -895,6 +895,9 @@
       "addApiKey": {
         "title": "Dodaj API key"
       },
+      "showRuntime": {
+        "title": "Pokaż środowisko wykonawcze"
+      },
       "installLatestUpdate": {
         "title": "Zainstaluj najnowszą aktualizację"
       },
@@ -1200,14 +1203,14 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
-        "issueTitlePlaceholder": "Issue title",
-        "issueBodyPlaceholder": "Description",
-        "createIssue": "Create issue",
-        "creatingIssue": "Creating…",
+        "newIssueTitle": "Utwórz issue GitHub",
+        "issueTitlePlaceholder": "Tytuł issue",
+        "issueBodyPlaceholder": "Opis",
+        "createIssue": "Utwórz issue",
+        "creatingIssue": "Tworzenie…",
         "addToChat": "Add",
-        "repositoryLabel": "Repository",
-        "createIssueFailed": "Failed to create issue",
+        "repositoryLabel": "Repozytorium",
+        "createIssueFailed": "Nie udało się utworzyć issue",
         "sourceIssues": "Issues",
         "sourcePrs": "PRs",
         "stateOpen": "Open",
@@ -2124,6 +2127,10 @@
     },
     "searchModels": "Wyszukaj modele...",
     "newItem": "Nowy element",
+    "solveWorkItem": "Rozwiąż element pracy",
+    "launchpadQuestion": "Co chcesz zbudować za pomocą",
+    "launchpadQuestionSuffix": "?",
+    "manualLaunchpadQuestion": "Co chcesz zbudować?",
     "start": "Start",
     "assign": "Przypisz",
     "send": "Wyślij",

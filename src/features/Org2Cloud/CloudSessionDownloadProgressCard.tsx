@@ -250,13 +250,13 @@ const CardProgress: React.FC<{
 
   return (
     <div
-      className="pointer-events-auto relative mx-1 mb-2 flex items-center justify-end"
+      className="pointer-events-auto relative mb-2 flex items-center justify-center"
       data-testid="cloud-session-download-progress"
     >
       <DownloadBar
         percent={percent}
         paused={paused}
-        className="absolute -left-3 -right-3 -top-2"
+        className="absolute inset-x-0 -top-2"
         compact
         ariaLabel={statusLabel}
         ariaValuetext={progressValueText}

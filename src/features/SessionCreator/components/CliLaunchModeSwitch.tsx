@@ -1,5 +1,6 @@
 import React from "react";
 
+import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import { CLI_LAUNCH_MODE, type CliLaunchMode } from "@src/store/session";
 
 export interface CliLaunchModeSwitchProps {
@@ -15,37 +16,22 @@ export const CliLaunchModeSwitch: React.FC<CliLaunchModeSwitchProps> = ({
   onModeChange,
   className = "",
 }) => {
-  const guiSelected = mode === CLI_LAUNCH_MODE.GUI && supportsGui;
-  const tuiSelected = mode === CLI_LAUNCH_MODE.TUI || !supportsGui;
+  const selectedMode =
+    mode === CLI_LAUNCH_MODE.GUI && supportsGui
+      ? CLI_LAUNCH_MODE.GUI
+      : CLI_LAUNCH_MODE.TUI;
 
   return (
-    <div
-      className={`inline-flex h-[28px] items-center rounded-full bg-fill-2 p-0.5 text-[12px] font-medium ${className}`}
-    >
-      <button
-        type="button"
-        className={`h-6 rounded-full px-2.5 py-0 transition-colors ${
-          guiSelected ? "bg-bg-2 text-text-1 shadow-sm" : "text-text-3"
-        } ${supportsGui ? "hover:text-text-1" : "cursor-not-allowed opacity-50"}`}
-        disabled={!supportsGui}
-        aria-pressed={guiSelected}
-        onClick={() => onModeChange(CLI_LAUNCH_MODE.GUI)}
-      >
-        GUI
-      </button>
-      <button
-        type="button"
-        className={`h-6 rounded-full px-2.5 py-0 transition-colors ${
-          tuiSelected
-            ? "bg-bg-2 text-text-1 shadow-sm"
-            : "text-text-3 hover:text-text-1"
-        }`}
-        aria-pressed={tuiSelected}
-        onClick={() => onModeChange(CLI_LAUNCH_MODE.TUI)}
-      >
-        TUI
-      </button>
-    </div>
+    <SegmentedTextPill
+      ariaLabel="GUI / TUI"
+      className={className}
+      value={selectedMode}
+      options={[
+        { value: CLI_LAUNCH_MODE.GUI, label: "GUI", disabled: !supportsGui },
+        { value: CLI_LAUNCH_MODE.TUI, label: "TUI" },
+      ]}
+      onChange={onModeChange}
+    />
   );
 };
 

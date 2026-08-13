@@ -3,6 +3,7 @@
 use chrono::Utc;
 use serde_json::Value;
 
+use super::retention::prune_terminal_runs;
 use super::{BENCHMARK_RUNS, BENCHMARK_RUN_STATUS_CANCELLED, MAX_RUN_LOG_LINES};
 
 pub(super) async fn set_run_process_id(run_id: &str, process_id: u32) {
@@ -60,6 +61,7 @@ pub(super) async fn finish_run_with_result(
             .logs
             .push(format!("Run finished with status: {status_value}"));
         trim_logs(&mut status.logs);
+        prune_terminal_runs(&mut runs);
     }
 }
 

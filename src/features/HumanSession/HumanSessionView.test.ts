@@ -167,6 +167,10 @@ describe("HumanSessionView", () => {
     expect(
       container.querySelector('[data-testid="human-session-input-area"]')
     ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="human-session-composer"]')
+        ?.className
+    ).toContain("pb-3");
   });
 
   it("mounts only the virtual row window for a long work log", async () => {

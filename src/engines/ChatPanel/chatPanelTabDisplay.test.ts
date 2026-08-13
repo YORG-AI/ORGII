@@ -10,7 +10,7 @@ import {
 } from "./chatPanelTabDisplay";
 
 const labels: ChatPanelTabDisplayLabels = {
-  launchpad: "Launchpad",
+  newSession: "New session",
   runtime: "Runtime",
   organization: "Manage ORG",
   teamInbox: "Inbox",
@@ -97,10 +97,10 @@ describe("resolveChatPanelTabDisplayTitle", () => {
     ).toBe("Work Items");
   });
 
-  it("keeps the Launchpad tab name isolated from surface titles", () => {
+  it("uses the localized New session label for the start page", () => {
     expect(
       resolveChatPanelTabDisplayTitle(tab("start-page"), null, labels)
-    ).toBe("Launchpad");
+    ).toBe("New session");
   });
 
   it("shows the workspace name for a workspace tab", () => {

@@ -12,6 +12,7 @@ import {
 import ComposerInput, {
   type ComposerInputRef,
 } from "@src/components/ComposerInput";
+import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import InputArea from "@src/engines/ChatPanel/InputArea";
 import {
@@ -261,7 +262,10 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
         </main>
       </div>
 
-      <footer className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-col items-center px-2 pb-2 pt-1">
+      <footer
+        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+        data-testid="human-session-composer"
+      >
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"

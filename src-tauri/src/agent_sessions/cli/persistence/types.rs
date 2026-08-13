@@ -80,6 +80,9 @@ pub struct CodeSession {
     /// `code_session_chunks`) or `native` (the CLI's own store via the
     /// imported-history loaders). Frozen at creation time.
     pub transcript_source: String,
+    /// Product-mode axis (orgtrack/v1 §5.2); `Some("project")` gates the
+    /// WorkItem/Routine mutation surface, mirroring `agent_sessions`.
+    pub product_mode: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -139,4 +142,7 @@ pub struct CreateCodeSessionParams {
     pub project_slug: Option<String>,
     pub work_item_id: Option<String>,
     pub agent_role: Option<String>,
+    /// Product-mode axis (orgtrack/v1 §5.2); `Some("project")` gates the
+    /// WorkItem/Routine mutation surface, mirroring `agent_sessions`.
+    pub product_mode: Option<String>,
 }

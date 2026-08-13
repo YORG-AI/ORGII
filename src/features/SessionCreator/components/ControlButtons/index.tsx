@@ -10,6 +10,7 @@ import React, { memo, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import ModelSelectorPill from "@src/components/ModelSelectorPill";
+import { INPUT_AREA_CONTROL_GROUP_CLASS } from "@src/config/inputAreaTokens";
 import ModePill from "@src/engines/ChatPanel/InputArea/components/ModePill";
 import type { AgentExecMode } from "@src/features/SessionCreator/config";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
@@ -75,7 +76,7 @@ const ControlButtons: React.FC<ControlButtonsProps> = memo(
     );
 
     return (
-      <div className="flex min-w-0 items-center gap-px">
+      <div className={INPUT_AREA_CONTROL_GROUP_CLASS}>
         {!hideModePill && usesOrgiiExecMode && (
           <ModePill
             forceVisible

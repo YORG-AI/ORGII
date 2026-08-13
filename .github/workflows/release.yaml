@@ -155,6 +155,9 @@ jobs:
         run: python3 scripts/tools/download_sidecars.py
 
       # ── Build Tauri app (sign + notarize + updater artifacts) ─
+      - name: Stage org2-pm sidecar
+        run: node scripts/tauri/prepare-sidecars.cjs --profile release --target aarch64-apple-darwin
+
       - name: Build ORGII
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -165,6 +168,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           ORGII_DIAGNOSTICS_TOKEN: ${{ secrets.ORGII_DIAGNOSTICS_TOKEN }}
           ORGII_APP_VERSION: ${{ env.SEMVER }}
+          ORGII_BUILD_KIND: release
+          ORGII_BUILD_REF: ${{ github.ref_name }}
+          ORGII_BUILD_SHA: ${{ github.sha }}
         run: pnpm tauri build --target aarch64-apple-darwin
 
       # ── Locate build artifacts ────────────────────────────────
@@ -306,12 +312,18 @@ jobs:
           shared-key: "release-windows-x64"
 
       # ── Build Tauri app ──────────────────────────────────────────
+      - name: Stage org2-pm sidecar
+        run: node scripts/tauri/prepare-sidecars.cjs --profile release --target x86_64-pc-windows-msvc
+
       - name: Build ORGII
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           ORGII_DIAGNOSTICS_TOKEN: ${{ secrets.ORGII_DIAGNOSTICS_TOKEN }}
           ORGII_APP_VERSION: ${{ env.SEMVER }}
+          ORGII_BUILD_KIND: release
+          ORGII_BUILD_REF: ${{ github.ref_name }}
+          ORGII_BUILD_SHA: ${{ github.sha }}
         run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles ${{ env.WIN_BUNDLES }}
 
       # ── Sign with Azure Trusted Signing ─────────────────────────
@@ -517,12 +529,18 @@ jobs:
           shared-key: "release-linux-x64"
 
       # ── Build Tauri app ──────────────────────────────────────────
+      - name: Stage org2-pm sidecar
+        run: node scripts/tauri/prepare-sidecars.cjs --profile release --target x86_64-unknown-linux-gnu
+
       - name: Build ORGII
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           ORGII_DIAGNOSTICS_TOKEN: ${{ secrets.ORGII_DIAGNOSTICS_TOKEN }}
           ORGII_APP_VERSION: ${{ env.SEMVER }}
+          ORGII_BUILD_KIND: release
+          ORGII_BUILD_REF: ${{ github.ref_name }}
+          ORGII_BUILD_SHA: ${{ github.sha }}
         run: pnpm tauri build --target x86_64-unknown-linux-gnu --bundles deb,appimage
 
       # ── Gather artifacts ─────────────────────────────────────────

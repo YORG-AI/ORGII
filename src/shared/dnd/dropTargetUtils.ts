@@ -43,6 +43,8 @@ interface InsertPillOptions {
   pointerX?: number;
   pointerY?: number;
   contextText?: string;
+  /** Suppress the toast when a caller inserts several pills as one action. */
+  notify?: boolean;
 }
 
 function getDisplayName(path: string, name: string | undefined): string {
@@ -71,7 +73,7 @@ export function insertPillFromTabPayload(
   const isFolder = payload.isFolder ?? iconType === "folder";
   const displayName = getDisplayName(payload.path, payload.name);
 
-  if (payload.contextText) {
+  if (payload.contextText && iconType !== "workitem") {
     storePillText(payload.path, capPillText(payload.contextText));
   }
 
@@ -93,14 +95,21 @@ export function insertPillFromTabPayload(
 
   if (iconType === "workitem") {
     const pillPath = `workitem://${payload.path}/${Date.now()}`;
+    if (payload.contextText) {
+      storePillText(pillPath, capPillText(payload.contextText));
+    }
     composerInputRef.current.insertFilePill(
       pillPath,
       false,
       "workitem",
       displayName
     );
-    loadWorkItemPillContent(payload.path, pillPath);
-    Message.success(i18n.t("toasts.addedAsContext", { name: displayName }));
+    if (!payload.contextText) {
+      loadWorkItemPillContent(payload.path, pillPath);
+    }
+    if (payload.notify !== false) {
+      Message.success(i18n.t("toasts.addedAsContext", { name: displayName }));
+    }
     return;
   }
 
@@ -110,7 +119,9 @@ export function insertPillFromTabPayload(
     iconType,
     displayName
   );
-  Message.success(i18n.t("toasts.addedAsContext", { name: displayName }));
+  if (payload.notify !== false) {
+    Message.success(i18n.t("toasts.addedAsContext", { name: displayName }));
+  }
 }
 
 export function insertTabAsPill(

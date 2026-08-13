@@ -190,6 +190,42 @@ pub(super) async fn run_python_import(
     })
 }
 
+/// Synchronous variant of [`terminate_process`] for shutdown paths that run
+/// outside the async runtime (the Tauri `ExitRequested` handler).
+pub(super) fn terminate_process_sync(process_id: u32) -> Result<(), String> {
+    #[cfg(unix)]
+    let output = std::process::Command::new("kill")
+        .arg("-TERM")
+        .arg(process_id.to_string())
+        .output();
+
+    #[cfg(windows)]
+    let output = {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new("taskkill");
+        cmd.arg("/PID")
+            .arg(process_id.to_string())
+            .arg("/T")
+            .arg("/F");
+        // Suppress the console window on Windows.
+        cmd.creation_flags(app_platform::CREATE_NO_WINDOW);
+        cmd.output()
+    };
+
+    let output =
+        output.map_err(|error| format!("Failed to terminate process {process_id}: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if stderr.is_empty() {
+            format!("Process termination exited with {}", output.status)
+        } else {
+            stderr
+        })
+    }
+}
+
 pub(super) async fn terminate_process(process_id: u32) -> Result<(), String> {
     #[cfg(unix)]
     let output = Command::new("kill")

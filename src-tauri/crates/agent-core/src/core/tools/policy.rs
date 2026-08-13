@@ -73,12 +73,7 @@ pub const TOOL_GROUPS: &[(&str, &[&str])] = &[
     ),
     (
         "group:project",
-        &[
-            tool_names::MANAGE_PROJECT,
-            tool_names::MANAGE_WORK_ITEM,
-            tool_names::AGENT,
-            tool_names::MANAGE_WORKSPACE,
-        ],
+        &[tool_names::AGENT, tool_names::MANAGE_WORKSPACE],
     ),
     ("group:search", &[tool_names::CODE_SEARCH]),
     (
@@ -271,38 +266,6 @@ impl ResolvedToolPolicy {
         match mode.policy_layer() {
             Some(layer) => self.with_extra_layer(layer),
             None => self.clone(),
-        }
-    }
-
-    /// Product-mode deny-delta (`orgtrack/v1` §5.1): only `project`
-    /// sessions expose the persistent WorkItem/Routine mutation surface;
-    /// every other product mode (build/plan/ask, or unset = build)
-    /// subtracts the PM tools. Deny-delta like exec modes — product mode
-    /// never grants tools, so switching to Project cannot escalate an
-    /// actor beyond what its definition/policy already allows.
-    pub fn product_mode_layer(product_mode: Option<&str>) -> Option<ToolPolicyLayer> {
-        if product_mode == Some("project") {
-            return None;
-        }
-        Some(ToolPolicyLayer::deny_only(vec![
-            crate::tools::names::MANAGE_WORK_ITEM.to_string(),
-            crate::tools::names::MANAGE_PROJECT.to_string(),
-        ]))
-    }
-
-    /// The full per-turn composition: exec-mode overlay + product-mode
-    /// overlay. Same single-composition-point contract as
-    /// [`Self::with_exec_mode`] — the per-turn executor and the
-    /// effective-tools RPC both call this.
-    pub fn with_modes(
-        &self,
-        exec_mode: crate::session::AgentExecMode,
-        product_mode: Option<&str>,
-    ) -> Self {
-        let composed = self.with_exec_mode(exec_mode);
-        match Self::product_mode_layer(product_mode) {
-            Some(layer) => composed.with_extra_layer(layer),
-            None => composed,
         }
     }
 

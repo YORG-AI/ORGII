@@ -356,43 +356,110 @@ fn codex_gpt_5_6_ultra_tier_limited_to_sol_and_terra() {
 }
 
 #[test]
-fn live_oauth_catalog_is_authoritative_and_preserves_capabilities() {
+fn live_codex_catalog_preserves_capabilities_and_completes_builtin_models() {
+    use crate::commands::crud::CODEX_OAUTH_MODELS;
     use crate::commands::validate::{resolved_oauth_catalog, OAuthModelCatalogSource};
     use crate::types::DiscoveredModel;
 
     let catalog = resolved_oauth_catalog(
         "codex",
-        vec![DiscoveredModel {
-            id: "account-visible-model".to_string(),
-            context_window: Some(777_000),
-            supported_efforts: vec!["low".to_string(), "high".to_string()],
-            default_effort: Some("high".to_string()),
-            is_default: true,
-            ..DiscoveredModel::default()
-        }],
+        vec![
+            DiscoveredModel {
+                id: "account-visible-model".to_string(),
+                context_window: Some(777_000),
+                supported_efforts: vec!["low".to_string(), "high".to_string()],
+                default_effort: Some("high".to_string()),
+                is_default: true,
+                ..DiscoveredModel::default()
+            },
+            DiscoveredModel {
+                id: "gpt-5.6-sol".to_string(),
+                context_window: Some(1_050_000),
+                supported_efforts: vec!["ultra".to_string()],
+                default_effort: Some("ultra".to_string()),
+                ..DiscoveredModel::default()
+            },
+        ],
         OAuthModelCatalogSource::Live,
     )
     .expect("resolved live catalog");
 
-    assert_eq!(catalog.models, vec!["account-visible-model"]);
+    let expected_models: Vec<_> = ["account-visible-model", "gpt-5.6-sol"]
+        .into_iter()
+        .map(str::to_string)
+        .chain(
+            CODEX_OAUTH_MODELS
+                .iter()
+                .filter(|model| **model != "gpt-5.6-sol")
+                .map(|model| (*model).to_string()),
+        )
+        .collect();
+    assert_eq!(catalog.models, expected_models);
+    for model in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+        assert!(catalog.models.iter().any(|available| available == model));
+    }
     assert_eq!(
         catalog.default_enabled_models,
-        vec!["account-visible-model"]
+        vec![
+            "account-visible-model",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+        ]
     );
     assert_eq!(
         catalog.model_context_lengths.get("account-visible-model"),
         Some(&777_000)
     );
+    assert_eq!(
+        catalog.model_context_lengths.get("gpt-5.6-sol"),
+        Some(&1_050_000)
+    );
+    assert_eq!(
+        catalog
+            .models
+            .iter()
+            .filter(|model| model.as_str() == "gpt-5.6-sol")
+            .count(),
+        1
+    );
     assert_eq!(catalog.source, OAuthModelCatalogSource::Live);
-    assert_eq!(catalog.model_variants.len(), 2);
+    let account_variants: Vec<_> = catalog
+        .model_variants
+        .iter()
+        .filter(|variant| variant.base_model == "account-visible-model")
+        .collect();
+    assert_eq!(account_variants.len(), 2);
     assert!(catalog
         .model_variants
         .iter()
         .any(|variant| variant.model == "account-visible-model-high"));
-    assert_eq!(catalog.default_variants.len(), 1);
+    assert!(catalog.default_variants.iter().any(|variant| {
+        variant.base_model == "account-visible-model"
+            && variant.model == "account-visible-model-high"
+    }));
+}
+
+#[test]
+fn live_claude_catalog_remains_account_visible_only() {
+    use crate::commands::validate::{resolved_oauth_catalog, OAuthModelCatalogSource};
+    use crate::types::DiscoveredModel;
+
+    let catalog = resolved_oauth_catalog(
+        "claude_code",
+        vec![DiscoveredModel {
+            id: "account-visible-claude".to_string(),
+            is_default: true,
+            ..DiscoveredModel::default()
+        }],
+        OAuthModelCatalogSource::Live,
+    )
+    .expect("resolved Claude live catalog");
+
+    assert_eq!(catalog.models, vec!["account-visible-claude"]);
     assert_eq!(
-        catalog.default_variants[0].model,
-        "account-visible-model-high"
+        catalog.default_enabled_models,
+        vec!["account-visible-claude"]
     );
 }
 

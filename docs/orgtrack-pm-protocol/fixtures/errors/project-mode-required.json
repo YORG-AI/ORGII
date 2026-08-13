@@ -3,7 +3,7 @@
   "ok": false,
   "error": {
     "code": "PROJECT_MODE_REQUIRED",
-    "message": "work.claim is a WorkItem mutation; current mode is 'build'. Switch the session to Project mode or pass --mode project",
+    "message": "work.claim is a WorkItem/Routine mutation; current mode is 'build'. Switch the session to Project mode or pass --mode project",
     "retryable": false,
     "details": {
       "operation": "work.claim",

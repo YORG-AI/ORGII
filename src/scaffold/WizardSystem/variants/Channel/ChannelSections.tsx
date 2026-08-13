@@ -150,6 +150,7 @@ export const ProjectContent: React.FC<ProjectContentProps> = ({
             options={projectMethodOptions}
             selected={projectAuthMethod}
             cardVariant="subtle"
+            compactCards
             onSelect={onProjectMethodChange}
           />
         </SectionRow>
@@ -320,6 +321,7 @@ export const GitContent: React.FC<GitContentProps> = ({
             options={methodOptions}
             selected={gitMethod}
             cardVariant="subtle"
+            compactCards
             onSelect={onGitMethodChange}
           />
         </SectionRow>

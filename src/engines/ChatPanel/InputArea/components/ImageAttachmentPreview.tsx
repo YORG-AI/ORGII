@@ -56,6 +56,8 @@ const ImageThumbnail: React.FC<ImageThumbnailProps> = memo(
             alt={image.fileName}
             className="h-full w-full object-cover"
             draggable={false}
+            loading="lazy"
+            decoding="async"
             data-testid="chat-image-attachment-img"
           />
           <button

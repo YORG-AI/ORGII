@@ -12,14 +12,15 @@
 //!   `open -> in_progress` transition; the lock is rolled back when the
 //!   transition is rejected. Single-transaction claim replaces this
 //!   composition when the claim service handler lands.
-//! - `--idempotency-key` is accepted but not yet deduplicated
+//! - `--idempotency-key` deduplicates every mutation via `pm_idempotency`
 //!   (`pm_idempotency` wiring is the next slice).
 
 use std::collections::HashMap;
 
 use project_management::projects::io as pio;
 use project_management::projects::types::{
-    WorkItemData, WorkItemExecutionLockReason, WorkItemMutationActor, WorkItemPartialUpdate,
+    WorkItemData, WorkItemExecutionLockReason, WorkItemMutationActor, WorkItemOriginSession,
+    WorkItemSchedule,
 };
 use project_management::work_service;
 
@@ -36,6 +37,26 @@ fn mutation_actor(context: &ExecutionContext) -> Result<WorkItemMutationActor, C
         id: format!("{}:{}", actor.kind, actor.id),
         name: actor.id.clone(),
     })
+}
+
+fn origin_session(
+    context: &ExecutionContext,
+    actor: &WorkItemMutationActor,
+) -> Option<WorkItemOriginSession> {
+    context
+        .session_ref
+        .as_ref()
+        .map(|session| WorkItemOriginSession {
+            session_id: session.external_id.clone(),
+            provider: session.provider.clone(),
+            actor_id: actor.id.clone(),
+            session_type: if session.external_id.starts_with("cliagent-") {
+                "cli".to_string()
+            } else {
+                "native".to_string()
+            },
+            captured_at: chrono::Utc::now().to_rfc3339(),
+        })
 }
 
 fn item_to_wire(item: &WorkItemData, revision: Option<i64>) -> serde_json::Value {
@@ -56,9 +77,11 @@ pub fn dispatch_work(
 ) -> i32 {
     match positionals.first().map(String::as_str) {
         Some("list") => cmd_work_list(context, flags),
-        Some("show") => cmd_work_show(context, positionals.get(1)),
+        Some("show") => cmd_work_show(context, positionals.get(1), flags),
         Some("create") => cmd_work_create(context, flags),
         Some("update") => cmd_work_update(context, positionals.get(1), flags),
+        Some("assign") => cmd_work_assign(context, positionals.get(1), flags),
+        Some("release") => cmd_work_release(context, positionals.get(1), flags),
         Some("claim") => cmd_work_claim(context, positionals.get(1), flags),
         Some("transition") => cmd_work_transition(context, positionals.get(1), flags),
         Some("note") => cmd_work_note(context, positionals.get(1), flags),
@@ -98,6 +121,40 @@ fn guarded(
     }
 }
 
+/// Body text from `--body` or `--body-file <path>` (file wins). Shell
+/// quoting mangles backticks/`$()` in inline bodies; agents write the
+/// body to a file and pass the path instead.
+fn resolve_body_flag(flags: &HashMap<String, String>) -> Result<Option<String>, CliError> {
+    if let Some(path) = flags
+        .get("body-file")
+        .filter(|value| !value.trim().is_empty())
+    {
+        return std::fs::read_to_string(path).map(Some).map_err(|err| {
+            CliError::new(
+                ErrorCode::InvalidArgument,
+                format!("--body-file {path}: {err}"),
+            )
+        });
+    }
+    Ok(flags.get("body").cloned())
+}
+
+/// Route a bare short id to the org's standalone store when it cannot be
+/// served from a project scope: either no scope resolves at all, or the
+/// resolved project has no such item while a standalone row exists. Lets
+/// a session bound to a standalone root item (Project-mode bootstrap)
+/// address it without knowing the `--standalone` flag.
+fn standalone_fallback_item(context: &ExecutionContext, short_id: &str) -> Option<WorkItemData> {
+    let org = context.org_id.as_deref();
+    match context.require_scope() {
+        Err(_) => pio::read_standalone_work_item(org, short_id).ok(),
+        Ok(scope) => match pio::read_work_item(scope, short_id) {
+            Ok(_) => None,
+            Err(_) => pio::read_standalone_work_item(org, short_id).ok(),
+        },
+    }
+}
+
 fn require_short_id(short_id: Option<&String>) -> Result<String, CliError> {
     short_id.cloned().ok_or_else(|| {
         CliError::new(
@@ -107,28 +164,60 @@ fn require_short_id(short_id: Option<&String>) -> Result<String, CliError> {
     })
 }
 
+/// A missing project scope is the canonical org-level Work Item scope, not an
+/// incomplete context. `--standalone` remains useful when a project-scoped
+/// session intentionally targets an org-level item, but projectless sessions
+/// should not need to know or spell an implementation flag.
+fn uses_standalone_scope(context: &ExecutionContext, flags: &HashMap<String, String>) -> bool {
+    flags.contains_key("standalone") || context.scope_id.is_none()
+}
+
 fn cmd_work_list(context: &ExecutionContext, flags: &HashMap<String, String>) -> i32 {
-    let scope = match context.require_scope() {
-        Ok(scope) => scope.to_string(),
-        Err(err) => return emit_error(err),
+    let items = if uses_standalone_scope(context, flags) {
+        match pio::read_standalone_work_items(context.org_id.as_deref()) {
+            Ok(items) => items,
+            Err(err) => return emit_error(CliError::from_service(err)),
+        }
+    } else {
+        let scope = match context.require_scope() {
+            Ok(scope) => scope.to_string(),
+            Err(err) => return emit_error(err),
+        };
+        match pio::read_all_work_items(&scope) {
+            Ok(items) => items,
+            Err(err) => return emit_error(CliError::from_service(err)),
+        }
     };
-    let items = match pio::read_all_work_items(&scope) {
-        Ok(items) => items,
-        Err(err) => return emit_error(CliError::from_service(err)),
+    let status_filter = match flags.get("status") {
+        None => None,
+        Some(raw) => match parse_portable_state(raw) {
+            Ok(state) => Some(state),
+            Err(err) => return emit_error(err),
+        },
     };
-    let status_filter = flags.get("status");
     let ready_only = flags.contains_key("ready");
     let limit: usize = flags
         .get("limit")
         .and_then(|value| value.parse().ok())
         .unwrap_or(50);
+    let cursor = flags.get("cursor").cloned();
 
-    let filtered: Vec<serde_json::Value> = items
-        .iter()
+    let mut sorted: Vec<_> = items.iter().collect();
+    sorted.sort_by(|a, b| a.frontmatter.short_id.cmp(&b.frontmatter.short_id));
+    let mut matched: Vec<&_> = sorted
+        .into_iter()
         .filter(|item| item.frontmatter.deleted_at.is_none())
         .filter(|item| {
+            cursor
+                .as_deref()
+                .map(|last| item.frontmatter.short_id.as_str() > last)
+                .unwrap_or(true)
+        })
+        .filter(|item| {
             status_filter
-                .map(|status| &item.frontmatter.status == status)
+                .map(|state| {
+                    work_service::state::map_legacy_status(&item.frontmatter.status) == Some(state)
+                })
                 .unwrap_or(true)
         })
         .filter(|item| {
@@ -149,20 +238,70 @@ fn cmd_work_list(context: &ExecutionContext, flags: &HashMap<String, String>) ->
                 .is_none();
             open && unclaimed
         })
-        .take(limit)
+        .collect();
+    let next_cursor = if matched.len() > limit {
+        matched
+            .get(limit - 1)
+            .map(|item| item.frontmatter.short_id.clone())
+    } else {
+        None
+    };
+    matched.truncate(limit);
+    let filtered: Vec<serde_json::Value> = matched
+        .iter()
         .map(|item| item_to_wire(item, None))
         .collect();
 
-    emit_success(serde_json::json!({ "items": filtered }), None, None)
+    emit_success(serde_json::json!({ "items": filtered }), None, next_cursor)
 }
 
-fn cmd_work_show(context: &ExecutionContext, short_id: Option<&String>) -> i32 {
-    let scope = match context.require_scope() {
-        Ok(scope) => scope.to_string(),
-        Err(err) => return emit_error(err),
-    };
+fn parse_portable_state(raw: &str) -> Result<work_service::WorkItemState, CliError> {
+    use work_service::WorkItemState::*;
+    match raw {
+        "open" => Ok(Open),
+        "in_progress" => Ok(InProgress),
+        "blocked" => Ok(Blocked),
+        "completed" => Ok(Completed),
+        "failed" => Ok(Failed),
+        "cancelled" => Ok(Cancelled),
+        other => Err(CliError::new(
+            ErrorCode::InvalidArgument,
+            format!(
+                "Unknown state '{}'; expected open|in_progress|blocked|completed|failed|cancelled",
+                other
+            ),
+        )),
+    }
+}
+
+fn cmd_work_show(
+    context: &ExecutionContext,
+    short_id: Option<&String>,
+    flags: &HashMap<String, String>,
+) -> i32 {
     let short_id = match require_short_id(short_id) {
         Ok(short_id) => short_id,
+        Err(err) => return emit_error(err),
+    };
+    if uses_standalone_scope(context, flags) {
+        let org = context.org_id.as_deref();
+        let item = match pio::read_standalone_work_item(org, &short_id) {
+            Ok(item) => item,
+            Err(err) => return emit_error(CliError::from_service(err)),
+        };
+        let wire = item_to_wire(&item, None);
+        return emit_success(wire, None, None);
+    }
+    if let Some(item) = standalone_fallback_item(context, &short_id) {
+        let relations = work_service::list_work_item_relations(&short_id).unwrap_or_default();
+        let mut wire = item_to_wire(&item, None);
+        if let Some(object) = wire.as_object_mut() {
+            object.insert("relations".into(), serde_json::json!(relations));
+        }
+        return emit_success(wire, None, None);
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
         Err(err) => return emit_error(err),
     };
     let item = match pio::read_work_item(&scope, &short_id) {
@@ -182,33 +321,101 @@ fn cmd_work_create(context: &ExecutionContext, flags: &HashMap<String, String>) 
     if let Err(err) = context.require_project_mode("work.create") {
         return emit_error(err);
     }
-    let scope = match context.require_scope() {
-        Ok(scope) => scope.to_string(),
-        Err(err) => return emit_error(err),
-    };
     let actor = match mutation_actor(context) {
         Ok(actor) => actor,
         Err(err) => return emit_error(err),
     };
+    let origin_session = origin_session(context, &actor);
     let Some(title) = flags.get("title").filter(|value| !value.trim().is_empty()) else {
         return emit_error(CliError::new(
             ErrorCode::InvalidArgument,
             "work create requires --title",
         ));
     };
+    let schedule = match (flags.get("schedule-cron"), flags.get("schedule-at")) {
+        (None, None) => None,
+        (cron, at) => Some(WorkItemSchedule {
+            at: at.cloned(),
+            cron: cron.cloned(),
+            enabled: true,
+            last_run: None,
+        }),
+    };
+    let parent = flags
+        .get("parent")
+        .filter(|value| !value.trim().is_empty())
+        .cloned();
+    let stage = match flags.get("stage") {
+        None => None,
+        Some(raw) => match raw.trim().parse::<u32>() {
+            Ok(value) if value >= 1 => Some(value),
+            _ => {
+                return emit_error(
+                    CliError::new(
+                        ErrorCode::InvalidArgument,
+                        format!("Invalid --stage '{}'; expected a positive integer", raw),
+                    )
+                    .with_details(serde_json::json!({ "field": "--stage", "value": raw })),
+                )
+            }
+        },
+    };
+    let body_flag = match resolve_body_flag(flags) {
+        Ok(body) => body,
+        Err(err) => return emit_error(err),
+    };
+    if uses_standalone_scope(context, flags) {
+        let org = context.org_id.clone();
+        let request = work_service::CreateWorkItemRequest {
+            title: title.clone(),
+            body: body_flag.clone().unwrap_or_default(),
+            status: flags.get("status").cloned(),
+            priority: flags.get("priority").cloned(),
+            created_by: Some(actor.id.clone()),
+            origin_session: origin_session.clone(),
+            schedule: schedule.clone(),
+            parent: parent.clone(),
+            stage,
+            ..Default::default()
+        };
+        let result = (|| {
+            let short_id = pio::allocate_standalone_short_id(org.as_deref())
+                .map_err(CliError::from_service)?;
+            let item = work_service::create_standalone_work_item(
+                org.as_deref(),
+                &short_id,
+                &request,
+                Some(&actor),
+            )
+            .map_err(CliError::from_service)?;
+            Ok::<_, CliError>(item_to_wire(&item, None))
+        })();
+        return match result {
+            Ok(wire) => emit_success(wire, None, None),
+            Err(err) => emit_error(err),
+        };
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
+        Err(err) => return emit_error(err),
+    };
     let canonical = serde_json::json!({
         "op": "work.create",
         "title": title,
-        "body": flags.get("body"),
+        "body": body_flag,
         "status": flags.get("status"),
         "priority": flags.get("priority"),
     });
     let request = work_service::CreateWorkItemRequest {
         title: title.clone(),
-        body: flags.get("body").cloned().unwrap_or_default(),
+        body: body_flag.clone().unwrap_or_default(),
         status: flags.get("status").cloned(),
         priority: flags.get("priority").cloned(),
         created_by: Some(actor.id.clone()),
+        origin_session,
+        schedule,
+        parent,
+        stage,
         ..Default::default()
     };
     let scope_for_exec = scope.clone();
@@ -246,10 +453,52 @@ fn cmd_work_update(
     if let Err(err) = context.require_project_mode("work.update") {
         return emit_error(err);
     }
-    let scope = match context.require_scope() {
-        Ok(scope) => scope.to_string(),
+    let body_flag = match resolve_body_flag(flags) {
+        Ok(body) => body,
         Err(err) => return emit_error(err),
     };
+    let stage_update: Option<Option<u32>> = match flags.get("stage") {
+        None => None,
+        Some(raw) if raw.trim() == "none" => Some(None),
+        Some(raw) => match raw.trim().parse::<u32>() {
+            Ok(value) if value >= 1 => Some(Some(value)),
+            _ => {
+                return emit_error(
+                    CliError::new(
+                        ErrorCode::InvalidArgument,
+                        format!(
+                            "Invalid --stage '{}'; expected a positive integer or 'none'",
+                            raw
+                        ),
+                    )
+                    .with_details(serde_json::json!({ "field": "--stage", "value": raw })),
+                )
+            }
+        },
+    };
+    if flags.contains_key("standalone") {
+        let short_id = match require_short_id(short_id) {
+            Ok(short_id) => short_id,
+            Err(err) => return emit_error(err),
+        };
+        let actor = match mutation_actor(context) {
+            Ok(actor) => actor,
+            Err(err) => return emit_error(err),
+        };
+        let org = context.org_id.clone();
+        match work_service::patch_standalone_work_item(
+            org.as_deref(),
+            &short_id,
+            flags.get("title").map(String::as_str),
+            body_flag.as_deref(),
+            flags.get("priority").map(String::as_str),
+            stage_update,
+            Some(&actor),
+        ) {
+            Ok(item) => return emit_success(item_to_wire(&item, None), None, None),
+            Err(err) => return emit_error(CliError::from_service(err)),
+        }
+    }
     let short_id = match require_short_id(short_id) {
         Ok(short_id) => short_id,
         Err(err) => return emit_error(err),
@@ -266,19 +515,205 @@ fn cmd_work_update(
             "work update does not change state; use work transition --to <state>",
         ));
     }
-    let updates = WorkItemPartialUpdate {
-        title: flags.get("title").cloned(),
-        body: flags.get("body").cloned(),
-        priority: flags.get("priority").cloned(),
-        actor: Some(actor),
-        ..Default::default()
+    if standalone_fallback_item(context, &short_id).is_some() {
+        return match work_service::patch_standalone_work_item(
+            context.org_id.as_deref(),
+            &short_id,
+            flags.get("title").map(String::as_str),
+            body_flag.as_deref(),
+            flags.get("priority").map(String::as_str),
+            stage_update,
+            Some(&actor),
+        ) {
+            Ok(item) => emit_success(item_to_wire(&item, None), None, None),
+            Err(err) => emit_error(CliError::from_service(err)),
+        };
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
+        Err(err) => return emit_error(err),
     };
-    match pio::update_work_item_partial(&scope, &short_id, &updates) {
-        Ok(item) => {
-            let revision = work_service::read_project_work_item_revision(&scope, &short_id).ok();
-            emit_success(item_to_wire(&item, revision), revision, None)
+    let expected_revision = flags
+        .get("expected-revision")
+        .and_then(|value| value.parse::<i64>().ok());
+    let canonical = serde_json::json!({
+        "op": "work.update",
+        "shortId": short_id,
+        "title": flags.get("title"),
+        "body": body_flag,
+        "priority": flags.get("priority"),
+        "expectedRevision": expected_revision,
+    });
+    let scope_for_exec = scope.clone();
+    let short_id_for_exec = short_id.clone();
+    let caller_session = context
+        .session_ref
+        .as_ref()
+        .map(|session| session.external_id.clone());
+    let title = flags.get("title").cloned();
+    let body = body_flag.clone();
+    let priority = flags.get("priority").cloned();
+    let result = guarded(
+        &actor.id.clone(),
+        "work.update",
+        &scope,
+        flags.get("idempotency-key"),
+        canonical,
+        move || {
+            let item = work_service::patch_project_work_item(
+                &scope_for_exec,
+                &short_id_for_exec,
+                title.as_deref(),
+                body.as_deref(),
+                priority.as_deref(),
+                stage_update,
+                Some(&actor),
+                expected_revision,
+                caller_session.as_deref(),
+            )?;
+            let revision =
+                work_service::read_project_work_item_revision(&scope_for_exec, &short_id_for_exec)
+                    .ok();
+            Ok(item_to_wire(&item, revision))
+        },
+    );
+    match result {
+        Ok(wire) => emit_success(wire, None, None),
+        Err(err) => emit_error(err),
+    }
+}
+
+fn cmd_work_assign(
+    context: &ExecutionContext,
+    short_id: Option<&String>,
+    flags: &HashMap<String, String>,
+) -> i32 {
+    if let Err(err) = context.require_project_mode("work.assign") {
+        return emit_error(err);
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
+        Err(err) => return emit_error(err),
+    };
+    let short_id = match require_short_id(short_id) {
+        Ok(short_id) => short_id,
+        Err(err) => return emit_error(err),
+    };
+    let actor = match mutation_actor(context) {
+        Ok(actor) => actor,
+        Err(err) => return emit_error(err),
+    };
+    let Some(assignee) = flags.get("actor-target").or_else(|| flags.get("assignee")) else {
+        return emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            "work assign requires --assignee <kind:id>",
+        ));
+    };
+    let (assignee_type, assignee_id) = match assignee.split_once(':') {
+        Some((kind, id)) if matches!(kind, "human" | "agent") && !id.is_empty() => (kind, id),
+        _ => {
+            return emit_error(CliError::new(
+                ErrorCode::InvalidArgument,
+                "work assign --assignee must be human:<id> or agent:<id>",
+            ));
         }
-        Err(err) => emit_error(CliError::from_service(err)),
+    };
+    let expected_revision = flags
+        .get("expected-revision")
+        .and_then(|value| value.parse::<i64>().ok());
+    let canonical = serde_json::json!({
+        "op": "work.assign",
+        "shortId": short_id,
+        "assignee": assignee,
+        "expectedRevision": expected_revision,
+    });
+    let scope_for_exec = scope.clone();
+    let short_id_for_exec = short_id.clone();
+    let assignee_id = assignee_id.to_string();
+    let assignee_type = assignee_type.to_string();
+    let result = guarded(
+        &actor.id.clone(),
+        "work.assign",
+        &scope,
+        flags.get("idempotency-key"),
+        canonical,
+        move || {
+            let item = work_service::assign_project_work_item(
+                &scope_for_exec,
+                &short_id_for_exec,
+                &assignee_id,
+                Some(&assignee_type),
+                Some(&actor),
+                expected_revision,
+            )?;
+            let revision =
+                work_service::read_project_work_item_revision(&scope_for_exec, &short_id_for_exec)
+                    .ok();
+            Ok(item_to_wire(&item, revision))
+        },
+    );
+    match result {
+        Ok(wire) => emit_success(wire, None, None),
+        Err(err) => emit_error(err),
+    }
+}
+
+fn cmd_work_release(
+    context: &ExecutionContext,
+    short_id: Option<&String>,
+    flags: &HashMap<String, String>,
+) -> i32 {
+    if let Err(err) = context.require_project_mode("work.release") {
+        return emit_error(err);
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
+        Err(err) => return emit_error(err),
+    };
+    let short_id = match require_short_id(short_id) {
+        Ok(short_id) => short_id,
+        Err(err) => return emit_error(err),
+    };
+    let actor = match mutation_actor(context) {
+        Ok(actor) => actor,
+        Err(err) => return emit_error(err),
+    };
+    let Some(session_ref) = context.session_ref.as_ref() else {
+        return emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            "work release requires --session-ref <provider:id> (only the claim holder releases)",
+        ));
+    };
+    let canonical = serde_json::json!({
+        "op": "work.release",
+        "shortId": short_id,
+        "sessionRef": format!("{}:{}", session_ref.provider, session_ref.external_id),
+    });
+    let scope_for_exec = scope.clone();
+    let short_id_for_exec = short_id.clone();
+    let session_id = session_ref.external_id.clone();
+    let result = guarded(
+        &actor.id.clone(),
+        "work.release",
+        &scope,
+        flags.get("idempotency-key"),
+        canonical,
+        move || {
+            let item = work_service::release_project_work_item(
+                &scope_for_exec,
+                &short_id_for_exec,
+                &session_id,
+                Some(&actor),
+            )?;
+            let revision =
+                work_service::read_project_work_item_revision(&scope_for_exec, &short_id_for_exec)
+                    .ok();
+            Ok(item_to_wire(&item, revision))
+        },
+    );
+    match result {
+        Ok(wire) => emit_success(wire, None, None),
+        Err(err) => emit_error(err),
     }
 }
 
@@ -290,10 +725,6 @@ fn cmd_work_claim(
     if let Err(err) = context.require_project_mode("work.claim") {
         return emit_error(err);
     }
-    let scope = match context.require_scope() {
-        Ok(scope) => scope.to_string(),
-        Err(err) => return emit_error(err),
-    };
     let short_id = match require_short_id(short_id) {
         Ok(short_id) => short_id,
         Err(err) => return emit_error(err),
@@ -312,16 +743,34 @@ fn cmd_work_claim(
         &session_ref.provider,
         &session_ref.external_id,
     ) {
-        return emit_error(
-            CliError::new(ErrorCode::InvalidArgument, err).with_details(serde_json::json!({
+        return emit_error(CliError::new(ErrorCode::InvalidArgument, err).with_details(
+            serde_json::json!({
                 "field": "--session-ref",
                 "provider": session_ref.provider,
-            })),
-        );
+            }),
+        ));
     }
     let expected_revision = flags
         .get("expected-revision")
         .and_then(|value| value.parse::<i64>().ok());
+    if flags.contains_key("standalone") || standalone_fallback_item(context, &short_id).is_some() {
+        return match work_service::claim_standalone_work_item(
+            context.org_id.as_deref(),
+            &short_id,
+            &session_ref.external_id,
+            Some("custom"),
+            WorkItemExecutionLockReason::ManualStart,
+            Some(&actor),
+            expected_revision,
+        ) {
+            Ok(item) => emit_success(item_to_wire(&item, None), None, None),
+            Err(err) => emit_error(CliError::from_service(err)),
+        };
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
+        Err(err) => return emit_error(err),
+    };
 
     let canonical = serde_json::json!({
         "op": "work.claim",
@@ -340,41 +789,19 @@ fn cmd_work_claim(
         flags.get("idempotency-key"),
         canonical,
         move || {
-            // Acquire the claim record first (CAS — fails when another
-            // session holds it), then the strict open -> in_progress
-            // transition; roll the lock back if the transition is rejected.
-            pio::acquire_execution_lock(
+            let item = work_service::claim_project_work_item(
                 &scope_for_exec,
                 &short_id_for_exec,
                 &session_id,
                 Some("custom"),
                 WorkItemExecutionLockReason::ManualStart,
-            )?;
-            match work_service::transition_project_work_item(
-                &scope_for_exec,
-                &short_id_for_exec,
-                "in_progress",
-                Some("claimed"),
                 Some(&actor_for_exec),
                 expected_revision,
-            ) {
-                Ok(item) => {
-                    let revision = work_service::read_project_work_item_revision(
-                        &scope_for_exec,
-                        &short_id_for_exec,
-                    )
+            )?;
+            let revision =
+                work_service::read_project_work_item_revision(&scope_for_exec, &short_id_for_exec)
                     .ok();
-                    Ok(item_to_wire(&item, revision))
-                }
-                Err(err) => {
-                    let _ = pio::release_execution_lock(
-                        &scope_for_exec,
-                        &short_id_for_exec,
-                        &session_id,
-                    );
-                    Err(err)
-                }
-            }
+            Ok(item_to_wire(&item, revision))
         },
     );
     match result {
@@ -391,10 +818,6 @@ fn cmd_work_transition(
     if let Err(err) = context.require_project_mode("work.transition") {
         return emit_error(err);
     }
-    let scope = match context.require_scope() {
-        Ok(scope) => scope.to_string(),
-        Err(err) => return emit_error(err),
-    };
     let short_id = match require_short_id(short_id) {
         Ok(short_id) => short_id,
         Err(err) => return emit_error(err),
@@ -432,6 +855,28 @@ fn cmd_work_transition(
     let expected_revision = flags
         .get("expected-revision")
         .and_then(|value| value.parse::<i64>().ok());
+    if flags.contains_key("standalone") || standalone_fallback_item(context, &short_id).is_some() {
+        let caller_session = context
+            .session_ref
+            .as_ref()
+            .map(|session| session.external_id.clone());
+        return match work_service::transition_standalone_work_item(
+            context.org_id.as_deref(),
+            &short_id,
+            to_state,
+            flags.get("reason").map(String::as_str),
+            Some(&actor),
+            expected_revision,
+            caller_session.as_deref(),
+        ) {
+            Ok(item) => emit_success(item_to_wire(&item, None), None, None),
+            Err(err) => emit_error(CliError::from_service(err)),
+        };
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
+        Err(err) => return emit_error(err),
+    };
     let canonical = serde_json::json!({
         "op": "work.transition",
         "shortId": short_id,
@@ -444,6 +889,10 @@ fn cmd_work_transition(
     let to_state_owned = to_state.clone();
     let reason = flags.get("reason").cloned();
     let actor_for_exec = actor.clone();
+    let caller_session = context
+        .session_ref
+        .as_ref()
+        .map(|session| session.external_id.clone());
     let result = guarded(
         &actor.id,
         "work.transition",
@@ -451,19 +900,18 @@ fn cmd_work_transition(
         flags.get("idempotency-key"),
         canonical,
         move || {
-            let item = work_service::transition_project_work_item(
+            let item = work_service::transition_project_work_item_scoped(
                 &scope_for_exec,
                 &short_id_for_exec,
                 &to_state_owned,
                 reason.as_deref(),
                 Some(&actor_for_exec),
                 expected_revision,
+                caller_session.as_deref(),
             )?;
-            let revision = work_service::read_project_work_item_revision(
-                &scope_for_exec,
-                &short_id_for_exec,
-            )
-            .ok();
+            let revision =
+                work_service::read_project_work_item_revision(&scope_for_exec, &short_id_for_exec)
+                    .ok();
             Ok(item_to_wire(&item, revision))
         },
     );
@@ -481,10 +929,56 @@ fn cmd_work_note(
     if let Err(err) = context.require_project_mode("work.note") {
         return emit_error(err);
     }
-    let scope = match context.require_scope() {
-        Ok(scope) => scope.to_string(),
-        Err(err) => return emit_error(err),
-    };
+    if flags.contains_key("standalone") {
+        let short_id = match require_short_id(short_id) {
+            Ok(short_id) => short_id,
+            Err(err) => return emit_error(err),
+        };
+        let actor = match mutation_actor(context) {
+            Ok(actor) => actor,
+            Err(err) => return emit_error(err),
+        };
+        let body = match resolve_body_flag(flags) {
+            Ok(Some(body)) if !body.trim().is_empty() => body,
+            Ok(_) => {
+                return emit_error(CliError::new(
+                    ErrorCode::InvalidArgument,
+                    "work note requires --body or --body-file",
+                ))
+            }
+            Err(err) => return emit_error(err),
+        };
+        let body = body.as_str();
+        let parent_id = flags.get("parent-id").map(String::as_str);
+        let kind = flags.get("kind").map(String::as_str).unwrap_or("comment");
+        const KINDS: &[&str] = &[
+            "comment", "progress", "blocker", "decision", "handoff", "review",
+        ];
+        if !KINDS.contains(&kind) {
+            return emit_error(CliError::new(
+                ErrorCode::InvalidArgument,
+                format!(
+                    "Unknown note kind '{}'; expected comment|progress|blocker|decision|handoff|review",
+                    kind
+                ),
+            ));
+        }
+        return match work_service::note_standalone_work_item_threaded(
+            context.org_id.as_deref(),
+            &short_id,
+            kind,
+            body,
+            parent_id,
+            Some(&actor),
+        ) {
+            Ok(()) => emit_success(
+                serde_json::json!({ "appended": true, "kind": kind }),
+                None,
+                None,
+            ),
+            Err(err) => emit_error(CliError::from_service(err)),
+        };
+    }
     let short_id = match require_short_id(short_id) {
         Ok(short_id) => short_id,
         Err(err) => return emit_error(err),
@@ -493,17 +987,22 @@ fn cmd_work_note(
         Ok(actor) => actor,
         Err(err) => return emit_error(err),
     };
-    let Some(body) = flags.get("body").filter(|value| !value.trim().is_empty()) else {
-        return emit_error(CliError::new(
-            ErrorCode::InvalidArgument,
-            "work note requires --body",
-        ));
+    let body = match resolve_body_flag(flags) {
+        Ok(Some(body)) if !body.trim().is_empty() => body,
+        Ok(_) => {
+            return emit_error(CliError::new(
+                ErrorCode::InvalidArgument,
+                "work note requires --body or --body-file",
+            ))
+        }
+        Err(err) => return emit_error(err),
     };
-    let kind = flags
-        .get("kind")
-        .map(String::as_str)
-        .unwrap_or("comment");
-    const KINDS: &[&str] = &["comment", "progress", "blocker", "decision", "handoff", "review"];
+    let body = body.as_str();
+    let parent_id = flags.get("parent-id").map(String::as_str);
+    let kind = flags.get("kind").map(String::as_str).unwrap_or("comment");
+    const KINDS: &[&str] = &[
+        "comment", "progress", "blocker", "decision", "handoff", "review",
+    ];
     if !KINDS.contains(&kind) {
         return emit_error(CliError::new(
             ErrorCode::InvalidArgument,
@@ -513,8 +1012,40 @@ fn cmd_work_note(
             ),
         ));
     }
-    match work_service::note_project_work_item(&scope, &short_id, kind, body, Some(&actor)) {
-        Ok(()) => emit_success(serde_json::json!({ "appended": true, "kind": kind }), None, None),
+    if standalone_fallback_item(context, &short_id).is_some() {
+        return match work_service::note_standalone_work_item_threaded(
+            context.org_id.as_deref(),
+            &short_id,
+            kind,
+            body,
+            parent_id,
+            Some(&actor),
+        ) {
+            Ok(()) => emit_success(
+                serde_json::json!({ "appended": true, "kind": kind }),
+                None,
+                None,
+            ),
+            Err(err) => emit_error(CliError::from_service(err)),
+        };
+    }
+    let scope = match context.require_scope() {
+        Ok(scope) => scope.to_string(),
+        Err(err) => return emit_error(err),
+    };
+    match work_service::note_project_work_item_threaded(
+        &scope,
+        &short_id,
+        kind,
+        body,
+        parent_id,
+        Some(&actor),
+    ) {
+        Ok(()) => emit_success(
+            serde_json::json!({ "appended": true, "kind": kind }),
+            None,
+            None,
+        ),
         Err(err) => emit_error(CliError::from_service(err)),
     }
 }
@@ -552,12 +1083,12 @@ fn cmd_work_relate(
         if let Err(err) =
             project_management::provider_host::validate_session_ref(provider, external_id)
         {
-            return emit_error(
-                CliError::new(ErrorCode::InvalidArgument, err).with_details(serde_json::json!({
+            return emit_error(CliError::new(ErrorCode::InvalidArgument, err).with_details(
+                serde_json::json!({
                     "field": "--target",
                     "provider": provider,
-                })),
-            );
+                }),
+            ));
         }
     }
     match work_service::relate_project_work_item(&scope, &short_id, kind, target, Some(&actor)) {
@@ -602,7 +1133,10 @@ fn load_spec_file(path: &str) -> Result<routine_service::spec::RoutineSpecFile, 
     serde_yaml::from_str(&raw).map_err(|err| {
         CliError::new(
             ErrorCode::InvalidArgument,
-            format!("Routine file '{}' does not match the portable spec: {}", path, err),
+            format!(
+                "Routine file '{}' does not match the portable spec: {}",
+                path, err
+            ),
         )
     })
 }
@@ -611,11 +1145,8 @@ fn routine_error(err: String) -> CliError {
     if let Some(details) = err.strip_prefix(routine_service::error::SPEC_INVALID) {
         let violations: serde_json::Value =
             serde_json::from_str(details.trim_start_matches(':')).unwrap_or_default();
-        return CliError::new(
-            ErrorCode::InvalidArgument,
-            "Routine spec failed validation",
-        )
-        .with_details(serde_json::json!({ "violations": violations }));
+        return CliError::new(ErrorCode::InvalidArgument, "Routine spec failed validation")
+            .with_details(serde_json::json!({ "violations": violations }));
     }
     if let Some(rest) = err.strip_prefix(routine_service::error::INPUTS_INVALID) {
         return CliError::new(
@@ -708,7 +1239,8 @@ pub fn dispatch_routine(
             };
             let input_map: std::collections::BTreeMap<String, String> =
                 inputs.iter().cloned().collect();
-            match routine_service::invoke(name, &scope, &input_map, Some(&actor)) {
+            let invoke_key = flags.get("idempotency-key").map(String::as_str);
+            match routine_service::invoke(name, &scope, &input_map, Some(&actor), invoke_key) {
                 Ok(run) => emit_success(
                     serde_json::json!({
                         "runId": run.run_id,
@@ -778,4 +1310,213 @@ pub fn dispatch_routine(
 #[allow(dead_code)]
 fn _mode_witness(mode: ProductMode) -> &'static str {
     mode.as_str()
+}
+
+pub fn dispatch_project(
+    context: &ExecutionContext,
+    positionals: &[String],
+    flags: &HashMap<String, String>,
+) -> i32 {
+    match positionals.first().map(String::as_str) {
+        Some("list") => cmd_project_list(context, flags),
+        Some("show") => cmd_project_show(positionals.get(1)),
+        Some("find") => cmd_project_find(positionals.get(1)),
+        Some("members") => cmd_project_members(positionals.get(1)),
+        Some("create") => cmd_project_create(context, flags),
+        Some("update") => cmd_project_update(context, positionals.get(1), flags),
+        other => emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            format!(
+                "Unknown project subcommand '{}'; expected list|show|find|members|create|update",
+                other.unwrap_or("<none>")
+            ),
+        )),
+    }
+}
+
+fn project_to_wire(
+    project: &project_management::projects::types::ProjectData,
+) -> serde_json::Value {
+    serde_json::json!({
+        "slug": project.slug,
+        "name": project.meta.name,
+        "orgId": project.meta.org_id,
+        "status": project.meta.status,
+        "priority": project.meta.priority,
+        "lead": project.meta.lead,
+        "labels": project.meta.labels,
+        "workItemPrefix": project.meta.work_item_prefix,
+        "createdAt": project.meta.created_at,
+        "updatedAt": project.meta.updated_at,
+    })
+}
+
+fn cmd_project_list(_context: &ExecutionContext, flags: &HashMap<String, String>) -> i32 {
+    let org = flags.get("org").map(String::as_str);
+    match pio::read_all_projects_scoped(org) {
+        Ok(projects) => {
+            let items: Vec<serde_json::Value> = projects.iter().map(project_to_wire).collect();
+            emit_success(serde_json::json!({ "items": items }), None, None)
+        }
+        Err(err) => emit_error(CliError::from_service(err)),
+    }
+}
+
+fn cmd_project_show(slug: Option<&String>) -> i32 {
+    let Some(slug) = slug else {
+        return emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            "Usage: org2 project show <slug>",
+        ));
+    };
+    match pio::read_project(slug) {
+        Ok(project) => {
+            let mut wire = project_to_wire(&project);
+            wire["description"] = serde_json::Value::String(project.description.clone());
+            emit_success(wire, None, None)
+        }
+        Err(err) => emit_error(CliError::from_service(err)),
+    }
+}
+
+fn cmd_project_find(query: Option<&String>) -> i32 {
+    let Some(query) = query else {
+        return emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            "Usage: org2 project find <query>",
+        ));
+    };
+    let needle = query.to_lowercase();
+    match pio::read_all_projects_scoped(None) {
+        Ok(projects) => {
+            let items: Vec<serde_json::Value> = projects
+                .iter()
+                .filter(|project| {
+                    project.slug.to_lowercase().contains(&needle)
+                        || project.meta.name.to_lowercase().contains(&needle)
+                })
+                .map(project_to_wire)
+                .collect();
+            emit_success(serde_json::json!({ "items": items }), None, None)
+        }
+        Err(err) => emit_error(CliError::from_service(err)),
+    }
+}
+
+fn cmd_project_members(slug: Option<&String>) -> i32 {
+    let Some(slug) = slug else {
+        return emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            "Usage: org2 project members <slug>",
+        ));
+    };
+    match pio::read_project(slug) {
+        Ok(project) => emit_success(
+            serde_json::json!({
+                "lead": project.meta.lead,
+                "members": project.meta.members,
+            }),
+            None,
+            None,
+        ),
+        Err(err) => emit_error(CliError::from_service(err)),
+    }
+}
+
+fn cmd_project_create(context: &ExecutionContext, flags: &HashMap<String, String>) -> i32 {
+    if let Err(err) = context.require_project_mode("project.create") {
+        return emit_error(err);
+    }
+    let actor = match mutation_actor(context) {
+        Ok(actor) => actor,
+        Err(err) => return emit_error(err),
+    };
+    let Some(name) = flags.get("name").filter(|value| !value.trim().is_empty()) else {
+        return emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            "project create requires --name",
+        ));
+    };
+    let request = project_management::project_service::CreateProjectRequest {
+        name: name.clone(),
+        description: flags.get("description").cloned().unwrap_or_default(),
+        org_id: flags.get("org").cloned(),
+        status: flags.get("status").cloned(),
+        priority: flags.get("priority").cloned(),
+        lead: flags.get("lead").cloned(),
+        labels: vec![],
+    };
+    let canonical = serde_json::json!({
+        "op": "project.create",
+        "name": name,
+        "org": flags.get("org"),
+    });
+    let result = guarded(
+        &actor.id,
+        "project.create",
+        flags
+            .get("org")
+            .map(String::as_str)
+            .unwrap_or("personal-org"),
+        flags.get("idempotency-key"),
+        canonical,
+        move || {
+            let project = project_management::project_service::create_project(&request)?;
+            Ok(project_to_wire(&project))
+        },
+    );
+    match result {
+        Ok(wire) => emit_success(wire, None, None),
+        Err(err) => emit_error(err),
+    }
+}
+
+fn cmd_project_update(
+    context: &ExecutionContext,
+    slug: Option<&String>,
+    flags: &HashMap<String, String>,
+) -> i32 {
+    if let Err(err) = context.require_project_mode("project.update") {
+        return emit_error(err);
+    }
+    let Some(slug) = slug else {
+        return emit_error(CliError::new(
+            ErrorCode::InvalidArgument,
+            "Usage: org2 project update <slug> [--name ...] [--status ...]",
+        ));
+    };
+    let actor = match mutation_actor(context) {
+        Ok(actor) => actor,
+        Err(err) => return emit_error(err),
+    };
+    let request = project_management::project_service::UpdateProjectRequest {
+        name: flags.get("name").cloned(),
+        description: flags.get("description").cloned(),
+        status: flags.get("status").cloned(),
+        priority: flags.get("priority").cloned(),
+        lead: flags.get("lead").cloned(),
+    };
+    let canonical = serde_json::json!({
+        "op": "project.update",
+        "slug": slug,
+        "name": flags.get("name"),
+        "status": flags.get("status"),
+    });
+    let slug_owned = slug.clone();
+    let result = guarded(
+        &actor.id,
+        "project.update",
+        &slug_owned.clone(),
+        flags.get("idempotency-key"),
+        canonical,
+        move || {
+            let project =
+                project_management::project_service::update_project(&slug_owned, &request)?;
+            Ok(project_to_wire(&project))
+        },
+    );
+    match result {
+        Ok(wire) => emit_success(wire, None, None),
+        Err(err) => emit_error(err),
+    }
 }

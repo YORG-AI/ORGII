@@ -58,6 +58,7 @@ function createPullRequest(
       head_branch: "feat/team-inbox",
       base_branch: "main",
       draft: false,
+      ci_status: "success",
       created_at: "2026-07-28T00:00:00.000Z",
       updated_at: "2026-07-28T00:05:00.000Z",
     },

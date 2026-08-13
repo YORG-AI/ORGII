@@ -5,8 +5,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RoutineTrigger {
-    OneTime { at: String },
-    Cron { cron: String },
+    OneTime {
+        at: String,
+    },
+    Cron {
+        cron: String,
+        #[serde(default = "default_routine_timezone")]
+        timezone: String,
+    },
+}
+
+pub fn default_routine_timezone() -> String {
+    "UTC".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -171,6 +181,17 @@ pub struct RoutineDefinition {
     /// Next computed fire time (ISO 8601), for display only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_fire_at: Option<String>,
+    /// Latest occurrence summary, projected from `routine_fires` for list UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_fire_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_fire_status: Option<RoutineFireStatus>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_fire_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_fire_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_fire_work_item_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

@@ -3,7 +3,6 @@ export type WorkItemContentPresentation = "default" | "thread";
 export interface WorkItemContentSectionPolicy {
   showTabbedLowerSection: boolean;
   showLinkedSessionsTable: boolean;
-  showInlineWorkflow: boolean;
   showInlineOutput: boolean;
 }
 
@@ -11,9 +10,9 @@ export interface WorkItemContentSectionPolicy {
  * Keep the Work Item presentation policy explicit and testable.
  *
  * The default surface retains its existing tabs/table. Team Inbox uses the
- * thread policy: workflow/session cards stay in Overview, local Discussion is
- * a drill-in view, and the duplicate linked-session table is absent. GitHub
- * issues supply their native floating comment composer separately.
+ * thread policy: the linked-session table stays in Overview, local Discussion
+ * is a drill-in view. GitHub issues supply their native floating comment
+ * composer separately.
  */
 export function resolveWorkItemContentSectionPolicy(
   presentation: WorkItemContentPresentation,
@@ -22,8 +21,7 @@ export function resolveWorkItemContentSectionPolicy(
   if (presentation === "thread") {
     return {
       showTabbedLowerSection: false,
-      showLinkedSessionsTable: false,
-      showInlineWorkflow: true,
+      showLinkedSessionsTable: true,
       showInlineOutput: hasProofOfWork,
     };
   }
@@ -31,7 +29,6 @@ export function resolveWorkItemContentSectionPolicy(
   return {
     showTabbedLowerSection: true,
     showLinkedSessionsTable: true,
-    showInlineWorkflow: false,
     showInlineOutput: false,
   };
 }

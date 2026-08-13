@@ -4,34 +4,22 @@
 //! - **Path A**: inherit parent registry, overlay policy (deny + optional
 //!   allow).
 //! - **Path B**: build a fresh registry from an explicit allowlist — used
-//!   for specialist agents whose tools (`manage_project`, `manage_work_item`,
-//!   `manage_agent_def`) are deliberately denied on the parent overlay.
+//!   for specialist agents whose tools (`manage_agent_def`) are
+//!   deliberately denied on the parent overlay.
 
 use tracing::warn;
 
 use crate::definitions::AgentDefinition;
 use crate::tools::builtin_tools::builtin_tool_required_capability;
 use crate::tools::defaults::{subagent_forbidden_tools, SUBAGENT_RETIRED_TOOL_ALIASES};
-use crate::tools::impls::project::manage_work_item::WorkItemTool;
 use crate::tools::names as tool_names;
 use crate::tools::policy::{ResolvedToolPolicy, ToolPolicyLayer};
 use crate::tools::registry::ToolRegistry;
 use crate::tools::traits::ToolError;
 
 use crate::tools::impls::agent_def::AgentDefinitionTool;
-use crate::tools::impls::project::manage_project::ProjectTool;
 
 use super::AgentTool;
-
-fn session_org_for(session_id: &str) -> Option<String> {
-    if session_id.is_empty() {
-        return None;
-    }
-    crate::session::persistence::get_session(session_id)
-        .ok()
-        .flatten()
-        .and_then(|record| record.org_id)
-}
 
 pub(super) fn agent_supports_builtin_tool(agent: &AgentDefinition, tool_name: &str) -> bool {
     let Some(required) = builtin_tool_required_capability(tool_name) else {
@@ -69,29 +57,24 @@ impl AgentTool {
         ToolPolicyLayer { allow: None, deny }
     }
 
-    /// Layer the parent session's CURRENT exec mode and product mode onto
-    /// a freshly-built worker policy.
+    /// Layer the parent session's CURRENT exec mode onto a freshly-built
+    /// worker policy.
     ///
     /// `parent_policy` is the session's BASE policy captured at init — it
     /// never carries the per-turn deny overlays the parent itself runs
-    /// under (`ResolvedToolPolicy::with_modes` composes those per turn).
-    /// Without re-applying them here, a Plan-mode parent could escape its
-    /// read-only guarantee by delegating writes to `builtin:general`
-    /// (which inherits edit_file/run_shell), and a non-Project parent
-    /// could escape the PM deny-delta by delegating `manage_work_item` /
-    /// `manage_project` to a specialist subagent (both dispatch paths —
-    /// inherited and fresh-registry — flow through this overlay).
+    /// under. Without re-applying them here, a Plan-mode parent could
+    /// escape its read-only guarantee by delegating writes to
+    /// `builtin:general` (which inherits edit_file/run_shell); both
+    /// dispatch paths — inherited and fresh-registry — flow through this
+    /// overlay. Work-system access is not tool-mediated: `org2-pm`
+    /// enforces product mode at the application boundary via the
+    /// injected ORGII_MODE, so there is no PM tool layer to re-apply.
     pub(super) fn overlay_parent_modes(
         policy: ResolvedToolPolicy,
         parent_exec_mode: Option<crate::session::AgentExecMode>,
-        parent_product_mode: Option<&str>,
     ) -> ResolvedToolPolicy {
-        let policy = match parent_exec_mode {
+        match parent_exec_mode {
             Some(mode) => policy.with_exec_mode(mode),
-            None => policy,
-        };
-        match ResolvedToolPolicy::product_mode_layer(parent_product_mode) {
-            Some(layer) => policy.with_extra_layer(layer),
             None => policy,
         }
     }
@@ -152,10 +135,10 @@ impl AgentTool {
     // ── Path B: Fresh registry for allowlist specialists ────────────
     //
     // Used for subagents that declare `tools.system_restrict_to_tools = Some(list)`
-    // where the listed tools include management-capability tools (manage_project,
-    // manage_work_item, manage_agent_def) that may be absent from the
-    // parent session's overlay. Rebuilds just those tools with
-    // the same constructors registration uses.
+    // where the listed tools include management-capability tools
+    // (manage_agent_def) that may be absent from the parent session's
+    // overlay. Rebuilds just those tools with the same constructors
+    // registration uses.
 
     pub(super) async fn build_fresh_registry(
         &self,
@@ -186,24 +169,6 @@ impl AgentTool {
             }
 
             match tool_name.as_str() {
-                tool_names::MANAGE_PROJECT => {
-                    let parent_session_id = self.parent_session_id.lock().await.clone();
-                    let project_tool = ProjectTool::new(
-                        self.config.app_handle.clone(),
-                        self.config.session_account_id.clone(),
-                        self.config.agent_model.clone(),
-                        session_org_for(&parent_session_id),
-                    );
-                    registry.register(Box::new(project_tool));
-                }
-                tool_names::MANAGE_WORK_ITEM => {
-                    let parent_session_id = self.parent_session_id.lock().await.clone();
-                    let session_org_id = session_org_for(&parent_session_id);
-                    registry.register(Box::new(WorkItemTool::new(
-                        parent_session_id,
-                        session_org_id,
-                    )));
-                }
                 tool_names::MANAGE_AGENT_DEF => {
                     let handle = self.config.app_handle.as_ref().ok_or_else(|| {
                         ToolError::ExecutionFailed("App handle not available".into())

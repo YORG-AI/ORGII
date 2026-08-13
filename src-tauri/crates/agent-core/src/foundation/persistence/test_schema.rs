@@ -43,6 +43,7 @@ pub(crate) const AGENT_SESSIONS_TEST_DDL: &str = r#"
         workspace_additional_json TEXT NOT NULL DEFAULT '{}',
         key_source TEXT NOT NULL DEFAULT 'own_key',
         agent_exec_mode TEXT,
+        product_mode TEXT,
         native_harness_type TEXT,
         draft_text TEXT,
         reply_target_event_id TEXT,
@@ -143,6 +144,7 @@ pub(crate) fn ensure_agent_sessions_schema(conn: &rusqlite::Connection) {
         ("reply_target_event_id", "reply_target_event_id TEXT"),
         ("pinned", "pinned INTEGER NOT NULL DEFAULT 0"),
         ("agent_exec_mode", "agent_exec_mode TEXT"),
+        ("product_mode", "product_mode TEXT"),
         (
             "workspace_additional_json",
             "workspace_additional_json TEXT NOT NULL DEFAULT '{}'",

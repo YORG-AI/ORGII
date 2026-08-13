@@ -47,6 +47,7 @@ instruction, consider it in the context of software engineering tasks and the cu
 - If an approach fails, diagnose why before switching tactics — read the error, check your assumptions, try a focused fix. Do not retry the identical action blindly, but do not abandon a viable approach after a single failure either.
 - If the user denies a tool call, do NOT re-attempt the exact same call. The denial is deliberate — reconsider the approach, adjust the parameters, or ask the user what they would prefer.
 - Be careful not to introduce security vulnerabilities such as command injection, XSS, SQL injection, and other OWASP top 10 vulnerabilities. If you notice insecure code, fix it immediately.
+- When the task specifies literal output constraints, re-read the produced artifact against them before claiming completion. For exact-content files, verify byte count and trailing bytes (for example with `wc -c` plus a hex/byte dump); command substitution and trimmed text readers hide trailing newlines and are not proof of byte equality.
 
 ## Code style
 
@@ -251,10 +252,10 @@ pub(super) fn build_channel_behavioral_rules(
 ) -> String {
     let workspace_path = resolve_workspace_path_string(config);
 
-    // The PM guidance must track the effective tool surface: outside a
-    // Project session the product-mode policy strips `manage_project` /
-    // `manage_work_item`, and instructing the model to call tools it
-    // cannot see degrades every turn.
+    // The PM guidance must track the effective surface: outside a
+    // Project session `org2-pm` refuses mutations at the application
+    // boundary, and instructing the model to run commands that will be
+    // refused degrades every turn.
     let mut guidelines: Vec<String> = vec![
         "Always read files before editing them.".to_string(),
         "Prefer minimal, precise edits over rewriting entire files.".to_string(),
@@ -265,12 +266,12 @@ pub(super) fn build_channel_behavioral_rules(
         "When asked to browse the web, use the `browser` tool freely. You can navigate to any website, interact with pages, fill forms, search, shop, or extract information. Do not refuse web tasks.".to_string(),
     ];
     if include_pm_guidance {
-        guidelines.push("Projects and work items live in a global workspace store. Use `manage_project` (actions: list/read/create/update/delete/find/list_members/list_contributors) and `manage_work_item` (actions: list_items/read_item/create_item/update_item/delete_item/start_item) directly. Examples: \"find work items about authentication\", \"list all projects\", \"create a work item for Alice to fix the login bug in project X\".".to_string());
+        guidelines.push("Projects and work items live in a global workspace store reachable from your shell through the `org2-pm` CLI: `org2-pm project list|show|find|create|update`, `org2-pm work list|show|create|update|transition|claim|note`. Always pass `--output json`. Examples: `org2-pm project find --query authentication`, `org2-pm work create --title \"Fix login bug\" --scope project-x`.".to_string());
     }
     guidelines.push(format!("Your personal workspace is at `{workspace_path}`. Use it for tasks NOT related to any code repository — personal reminders, shopping lists, non-coding research, life tasks. Use the personal workspace path when creating personal projects/items. For coding or repo-related tasks, the default repo is used automatically. Unless the user explicitly asks to create a new project, check the Personal Workspace section above first — if a suitable project already exists, add the work item to it instead of creating a duplicate."));
     if include_pm_guidance {
         guidelines.push("Before creating a work item, decide: is this task about the code in the active repository? Look at the repository description and project list above. If yes, use the default repo. If no (personal errand, general research, non-code task), route it to your personal workspace instead.".to_string());
-        guidelines.push("When the user asks for a **periodic or recurring task** (e.g. \"check this website every morning\", \"send me a daily summary\", \"remind me every Monday\"), always create a **work item with a schedule** via `manage_work_item(action=create_item)`. Set a `schedule` field with a cron expression (e.g. `0 9 * * *` for daily at 9 AM, `0 9 * * 1` for every Monday). Do NOT use one-off reminders or rely on memory for repeating tasks.".to_string());
+        guidelines.push("When the user asks for a **periodic or recurring task** (e.g. \"check this website every morning\", \"send me a daily summary\", \"remind me every Monday\"), always create a **work item with a schedule**: `org2-pm work create --title ... --schedule-cron \"0 9 * * *\"` (daily at 9 AM; `0 9 * * 1` = every Monday). Do NOT use one-off reminders or rely on memory for repeating tasks.".to_string());
     }
     guidelines.push("Use `send_to_inbox` to deliver results, summaries, or notifications to the user. Whenever you complete a task that produces output the user should review later (reports, research findings, periodic check results), send a summary to the inbox. Do not only print results in chat — the user may not be watching.".to_string());
     guidelines.push("Agent and organization management lives in `~/.orgii/`. Use `manage_agent_def` directly (actions: list/get/create/update/remove/list_orgs/get_org/create_org/update_org/remove_org) to inspect or modify the user's library of custom agents and orgs. Examples: \"create an agent called QA-Bot that runs tests\", \"list all agent organizations\", \"disable the browser tool for my Reviewer agent\".".to_string());
@@ -534,11 +535,11 @@ pub(super) fn build_task_routing_section(include_pm_guidance: bool) -> String {
      - Casual requests (open app, search the web, run a command)\n\
      - Simple file edits (change a config value, update an env var)\n\n"
         .to_string();
-    // Only Project sessions expose `manage_work_item`; elsewhere the
-    // create-a-work-item branch would point at a policy-denied tool.
+    // Only Project sessions may mutate the work system; elsewhere the
+    // create-a-work-item branch would point at a refused command.
     if include_pm_guidance {
         section.push_str(
-            "**Create a work item (via `manage_work_item(action=create_item)`) when:**\n\
+            "**Create a work item (via `org2-pm work create`) when:**\n\
              - The task needs a full coding workflow (branch, tests, commit, PR)\n\
              - The user explicitly asks to track/schedule something\n\
              - The task requires long async execution the user wants to monitor\n\
@@ -546,7 +547,8 @@ pub(super) fn build_task_routing_section(include_pm_guidance: bool) -> String {
              **When unsure**, ask the user.\n\n",
         );
     }
-    section.push_str("**Never** treat status checks, polling, or follow-up questions as new tasks.\n");
+    section
+        .push_str("**Never** treat status checks, polling, or follow-up questions as new tasks.\n");
     section
 }
 

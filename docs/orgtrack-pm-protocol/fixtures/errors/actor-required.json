@@ -3,7 +3,7 @@
   "ok": false,
   "error": {
     "code": "ACTOR_REQUIRED",
-    "message": "No actor resolved: pass --actor or set ORGII_ACTOR (actors are never inferred from OS username or git owner)",
+    "message": "No actor resolved: pass --actor <kind:id> or set ORGII_ACTOR (actors are never inferred from OS username or git owner)",
     "retryable": false,
     "details": {
       "missing": ["actor"]

@@ -221,6 +221,7 @@ export function TableBody<T>({
                           setHoverSuppressedRowKey(rowKey);
                           toggleRowExpand(rowKey);
                         }}
+                        aria-label={isExpanded ? "Collapse row" : "Expand row"}
                         aria-expanded={isExpanded}
                       >
                         {isExpanded ? (

@@ -891,6 +891,9 @@
       "addApiKey": {
         "title": "Thêm API key"
       },
+      "showRuntime": {
+        "title": "Hiển thị môi trường chạy"
+      },
       "installLatestUpdate": {
         "title": "Cài đặt bản cập nhật mới nhất"
       },
@@ -1184,14 +1187,14 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
-        "issueTitlePlaceholder": "Issue title",
-        "issueBodyPlaceholder": "Description",
-        "createIssue": "Create issue",
-        "creatingIssue": "Creating…",
+        "newIssueTitle": "Tạo issue GitHub",
+        "issueTitlePlaceholder": "Tiêu đề issue",
+        "issueBodyPlaceholder": "Mô tả",
+        "createIssue": "Tạo issue",
+        "creatingIssue": "Đang tạo…",
         "addToChat": "Add",
-        "repositoryLabel": "Repository",
-        "createIssueFailed": "Failed to create issue",
+        "repositoryLabel": "Kho lưu trữ",
+        "createIssueFailed": "Không thể tạo issue",
         "sourceIssues": "Issues",
         "sourcePrs": "PRs",
         "stateOpen": "Open",
@@ -2068,6 +2071,10 @@
     },
     "searchModels": "Tìm kiếm mô hình...",
     "newItem": "Mục mới",
+    "solveWorkItem": "Giải quyết hạng mục công việc",
+    "launchpadQuestion": "Bạn muốn xây dựng gì với",
+    "launchpadQuestionSuffix": "?",
+    "manualLaunchpadQuestion": "Bạn muốn xây dựng gì?",
     "start": "Bắt đầu",
     "assign": "Gán",
     "send": "Gửi",

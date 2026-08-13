@@ -38,6 +38,7 @@ pub(super) struct PostTurnInputs<'a> {
     pub result: &'a TurnResult,
     pub tool_calls_count: u32,
     pub final_turn_state: DialogTurnState,
+    pub turn_started_at_ms: i64,
 }
 
 impl UnifiedMessageProcessor {
@@ -52,6 +53,7 @@ impl UnifiedMessageProcessor {
             result,
             tool_calls_count,
             final_turn_state,
+            turn_started_at_ms,
         } = inputs;
 
         // 9. Broadcast completion FIRST — user sees "done" immediately.
@@ -151,6 +153,14 @@ impl UnifiedMessageProcessor {
                 })
                 .await;
             }
+        }
+
+        // 9d½. Work Item receipt fallback — when a linked-item turn ends
+        // with no `work.note` from this agent, synthesize the Discussion
+        // receipt from the final output (fire-and-forget; gating on the
+        // session record happens inside the spawned task).
+        if final_turn_state == DialogTurnState::Completed && !result.is_stream_error {
+            self.spawn_work_item_receipt_fallback(session_id, response_text, turn_started_at_ms);
         }
 
         // 9e. Goal continuation loop (Ralph loop) — judge the completed

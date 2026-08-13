@@ -24,6 +24,7 @@ export interface PullRequestActionPresentation {
   status: string;
   label: string;
   tooltip: string;
+  hasConflicts: boolean;
   directMergeAvailable: boolean;
   methods: PullRequestMergeMethodOption[];
   defaultMethod: PullRequestMergeMethod;
@@ -31,7 +32,7 @@ export interface PullRequestActionPresentation {
 }
 
 const MERGE_METHODS: PullRequestMergeMethodOption[] = [
-  { method: "merge", label: "Merge pull request" },
+  { method: "merge", label: "Merge" },
   { method: "squash", label: "Squash and merge" },
   { method: "rebase", label: "Rebase and merge" },
 ];
@@ -133,13 +134,27 @@ export function presentPullRequestActions({
   const inMergeQueue = readBoolean(detail, "is_in_merge_queue") === true;
   const reviewDecision = readString(detail, "review_decision")?.toUpperCase();
   const mergeable = readBoolean(detail, "mergeable");
-  const mergeableState = readString(detail, "mergeable_state")?.toLowerCase();
+  const restMergeableState = readString(
+    detail,
+    "mergeable_state"
+  )?.toLowerCase();
+  const graphqlMergeState = readString(
+    detail,
+    "merge_state_status"
+  )?.toLowerCase();
+  // GraphQL mergeStateStatus reports DIRTY reliably while REST mergeability
+  // can remain unknown during GitHub's asynchronous mergeability calculation.
+  const mergeableState =
+    graphqlMergeState && graphqlMergeState !== "unknown"
+      ? graphqlMergeState
+      : restMergeableState;
   const hasMergeMetadata = mergeable !== null || mergeableState !== undefined;
   const hasConflicts = mergeable === false || mergeableState === "dirty";
   const policyBlocked =
     mergeableState === "blocked" || mergeableState === "behind";
   const unstable = mergeableState === "unstable";
   const openAndReady = status === "open";
+  const showConflictAction = openAndReady && !inMergeQueue && hasConflicts;
   const directMergeAvailable =
     openAndReady &&
     !mergeQueueRequired &&
@@ -164,15 +179,15 @@ export function presentPullRequestActions({
   } else if (inMergeQueue) {
     label = "In merge queue";
     tooltip = "GitHub will merge this pull request through the merge queue";
+  } else if (showConflictAction) {
+    label = "Merge conflicts";
+    tooltip = "Resolve merge conflicts before merging";
   } else if (reviewDecision === "REVIEW_REQUIRED") {
     label = "Approval required";
     tooltip = "GitHub requires review approval before merging";
   } else if (reviewDecision === "CHANGES_REQUESTED") {
     label = "Changes requested";
     tooltip = "Requested changes must be resolved before merging";
-  } else if (hasConflicts) {
-    label = "Resolve conflicts";
-    tooltip = "Resolve merge conflicts before merging";
   } else if (checks?.state === "failure") {
     label = "Checks failed";
     tooltip = "Required checks must pass before merging";
@@ -207,6 +222,7 @@ export function presentPullRequestActions({
     status,
     label,
     tooltip,
+    hasConflicts: showConflictAction,
     directMergeAvailable,
     methods,
     defaultMethod,

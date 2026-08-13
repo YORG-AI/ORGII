@@ -45,7 +45,7 @@ const RUST_CANONICAL_TOOLS = [
   "manage_todo",
   "setup_repo",
   "ask_user_questions",
-  // Project
+  // Project (retired tools — kept for historical transcript rendering)
   "manage_story",
   "manage_work_item",
   // Web

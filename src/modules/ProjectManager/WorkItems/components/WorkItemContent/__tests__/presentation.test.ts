@@ -7,16 +7,14 @@ describe("resolveWorkItemContentSectionPolicy", () => {
     expect(resolveWorkItemContentSectionPolicy("default", true)).toEqual({
       showTabbedLowerSection: true,
       showLinkedSessionsTable: true,
-      showInlineWorkflow: false,
       showInlineOutput: false,
     });
   });
 
-  it("keeps workflow in Overview without the legacy linked-session table", () => {
+  it("keeps the linked-session table in Overview without the tab strip", () => {
     expect(resolveWorkItemContentSectionPolicy("thread", true)).toEqual({
       showTabbedLowerSection: false,
-      showLinkedSessionsTable: false,
-      showInlineWorkflow: true,
+      showLinkedSessionsTable: true,
       showInlineOutput: true,
     });
   });

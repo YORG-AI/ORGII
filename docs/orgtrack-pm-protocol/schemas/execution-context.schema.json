@@ -13,20 +13,54 @@
     "capabilities"
   ],
   "properties": {
-    "apiVersion": { "$ref": "common.schema.json#/definitions/apiVersion" },
-    "mode": { "$ref": "common.schema.json#/definitions/productMode" },
+    "apiVersion": {
+      "$ref": "common.schema.json#/definitions/apiVersion"
+    },
+    "mode": {
+      "$ref": "common.schema.json#/definitions/productMode"
+    },
     "runtimeExecutionMode": {
       "type": "string",
       "description": "Existing agent/provider wire values (build|ask|plan|debug|review|wingman|provider extension). Distinct from the Rust ExecutionMode{Direct,WorkStation} type — see decisions.md §2."
     },
-    "scopeId": { "type": "string", "minLength": 1 },
-    "orgId": { "type": "string", "minLength": 1 },
-    "workspace": { "type": "string" },
-    "actor": { "$ref": "common.schema.json#/definitions/actorRef" },
+    "scopeId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Null when no scope is resolved (bare `org2 context` outside an initialized workspace)."
+    },
+    "orgId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workspace": {
+      "type": "string"
+    },
+    "actor": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/definitions/actorRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Null when no actor is resolved; mutations then require --actor or ORGII_ACTOR."
+    },
     "sessionRef": {
       "oneOf": [
-        { "$ref": "common.schema.json#/definitions/sessionRef" },
-        { "type": "null" }
+        {
+          "$ref": "common.schema.json#/definitions/sessionRef"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "runtimeProvider": {
@@ -34,7 +68,10 @@
       "additionalProperties": false,
       "required": ["id", "profiles"],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
         "profiles": {
           "type": "array",
           "items": {
@@ -45,11 +82,20 @@
       }
     },
     "activeWorkItemId": {
-      "oneOf": [{ "type": "string" }, { "type": "null" }]
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "capabilities": {
       "type": "array",
-      "items": { "$ref": "common.schema.json#/definitions/capabilityId" },
+      "items": {
+        "$ref": "common.schema.json#/definitions/capabilityId"
+      },
       "uniqueItems": true
     }
   }

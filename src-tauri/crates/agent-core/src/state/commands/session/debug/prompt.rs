@@ -182,6 +182,10 @@ pub async fn prompt_dump(
         channel: None,
         chat_id: None,
         agent_mode: None,
+        product_mode: crate::session::persistence::get_session(&session_id)
+            .ok()
+            .flatten()
+            .and_then(|record| record.product_mode),
         ide_context: None,
         user_presence: None,
         user_profile: None,

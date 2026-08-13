@@ -187,8 +187,10 @@ export function getCodeEditorWebSocket(): CodeEditorWebSocketClient | null {
   return wsClientInstance;
 }
 
-// Initialize on module load
-if (typeof window !== "undefined") {
+// Initialize on module load in the app. Unit tests import broad UI graphs in
+// jsdom; opening a real socket there leaks asynchronous undici events across
+// test files and can fail after the owning test has already completed.
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
   // Auto-connect when app loads
   wsClientInstance = new CodeEditorWebSocketClient();
   wsClientInstance.connect().catch((err) => {

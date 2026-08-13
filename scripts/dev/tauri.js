@@ -563,6 +563,18 @@ function startFrontendDev() {
 }
 
 function startTauriDev(features) {
+  // `externalBin` requires the staged org2-pm sidecar before the tauri CLI
+  // starts (dev copies it next to the debug binary).
+  const sidecarResult = execFileSync(
+    process.execPath,
+    [
+      path.join(rootDir, "scripts", "tauri", "prepare-sidecars.cjs"),
+      "--profile",
+      "debug",
+    ],
+    { cwd: rootDir, stdio: "inherit" }
+  );
+  void sidecarResult;
   const args = createTauriArgs({
     features,
     devUrl: createDevUrl(),

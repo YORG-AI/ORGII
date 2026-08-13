@@ -103,6 +103,8 @@ export interface DiffFileSectionProps {
    * instead of the collapsible chevron button. Content is always expanded.
    */
   flat?: boolean;
+  /** Reduce the section-header gutter when adjacent pane chrome already supplies separation. */
+  compactHeaderGutter?: boolean;
   /**
    * When true, suppresses the bottom padding added by the diff viewer
    * (used in contexts without a bottom panel, e.g. agent station diff).
@@ -142,6 +144,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
   dataPath,
   showRenamePath = false,
   flat = false,
+  compactHeaderGutter = false,
   noBottomPadding = false,
 }) => {
   const { t } = useTranslation();
@@ -416,7 +419,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
         data-diff-section-path={dataPath}
       >
         <button
-          className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${EDITOR_TAB_CANVAS_BG_CLASS}`}
+          className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${compactHeaderGutter ? "px-2" : "px-3"} ${EDITOR_TAB_CANVAS_BG_CLASS}`}
           onClick={toggleExpanded}
           disabled={isDeleted}
         >

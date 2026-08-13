@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@src/api/http/project", () => ({
   projectApi: {
     transitionWorkItemHandoff: mocks.transitionWorkItemHandoff,
+    readWorkItems: () => Promise.resolve([]),
+    readStandaloneWorkItems: () => Promise.resolve([]),
   },
 }));
 
@@ -44,6 +46,7 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@src/hooks/project", () => ({
   useWorkItemImageInsert: () => ({ handleImageInsert: vi.fn() }),
+  useProjectDataChanged: () => undefined,
 }));
 
 vi.mock("@src/components/Avatar", () => ({
@@ -213,7 +216,37 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
   ScrollTrail: () => null,
   ScrollTrailTarget: ({ children }: { children?: React.ReactNode }) =>
     createElement("div", null, children),
-  SessionTable: () => null,
+  SessionTable: ({
+    items,
+    onSelect,
+  }: {
+    items: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      disabled?: boolean;
+      testId?: string;
+    }>;
+    onSelect?: (item: { id: string }) => void;
+  }) =>
+    createElement(
+      "div",
+      { "data-testid": "mock-session-table" },
+      ...items.map((item) =>
+        createElement(
+          "button",
+          {
+            key: item.id,
+            type: "button",
+            disabled: item.disabled,
+            "data-testid": item.testId,
+            onClick: () => onSelect?.(item),
+          },
+          item.title,
+          item.description
+        )
+      )
+    ),
   PanelFooter: ({
     secondaryActions = [],
     primaryAction,
@@ -260,16 +293,18 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     ),
 }));
 
-vi.mock("../../AgentWorkflow", () => ({
-  default: () => createElement("div", { "data-testid": "mock-agent-workflow" }),
-}));
 vi.mock("../../TodoChecklist", () => ({ default: () => null }));
 vi.mock("../ThreadTodoChecklist", () => ({
   default: () => createElement("div", { "data-testid": "mock-thread-todos" }),
 }));
 vi.mock("../../WorkItemContentStack", () => ({
-  default: ({ descriptionContent }: { descriptionContent?: React.ReactNode }) =>
-    createElement("div", null, descriptionContent),
+  default: ({
+    descriptionContent,
+    lowerContent,
+  }: {
+    descriptionContent?: React.ReactNode;
+    lowerContent?: React.ReactNode;
+  }) => createElement("div", null, descriptionContent, lowerContent),
 }));
 vi.mock("../HistoryTab", () => ({
   default: ({
@@ -412,6 +447,39 @@ describe("WorkItemContent description editing", () => {
       editor?.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
+
+  it("shows a creation-session row and opens it without treating it as an execution run", () => {
+    const onOpenSession = vi.fn();
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            originSession: {
+              session_id: "sdeagent-origin-1",
+              provider: "org2",
+              actor_id: "agent:sde",
+              session_type: "native",
+              captured_at: "2026-08-12T23:54:19.640Z",
+            },
+          },
+          onOpenSession,
+        })
+      );
+    });
+
+    const originRow = container.querySelector<HTMLButtonElement>(
+      "[data-testid='work-item-origin-session-sdeagent-origin-1']"
+    );
+    expect(originRow).not.toBeNull();
+    expect(originRow?.textContent).toContain("sdeagent-origin-1");
+    expect(
+      container.querySelector("[data-testid='work-item-usage-summary']")
+    ).toBeNull();
+
+    act(() => originRow?.click());
+    expect(onOpenSession).toHaveBeenCalledWith("sdeagent-origin-1");
+  });
 
   it("is editable by default and only shows Cancel/Save after a change", () => {
     act(() => {
@@ -886,9 +954,6 @@ describe("WorkItemContent description editing", () => {
     expect(
       container.querySelector("[data-testid='mock-thread-todos']")
     ).not.toBeNull();
-    expect(
-      container.querySelector("[data-testid='mock-agent-workflow']")
-    ).not.toBeNull();
     expect(container.querySelector("[data-testid='mock-activity']")).toBeNull();
 
     act(() => discussionAction?.click());
@@ -910,9 +975,6 @@ describe("WorkItemContent description editing", () => {
     ).toBeNull();
     expect(
       container.querySelector("[data-testid='mock-thread-todos']")
-    ).toBeNull();
-    expect(
-      container.querySelector("[data-testid='mock-agent-workflow']")
     ).toBeNull();
 
     act(() => backAction?.click());

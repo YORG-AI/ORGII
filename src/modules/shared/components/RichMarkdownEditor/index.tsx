@@ -14,6 +14,10 @@ import type {
 
 export type RichMarkdownEditorRef = RichTextEditorRef;
 
+/** Inline Markdown controls shared by comment, review, and create composers. */
+export const RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS =
+  "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5";
+
 export interface RichMarkdownEditorProps extends Omit<
   RichTextEditorProps,
   "initialContent" | "onContentChange"

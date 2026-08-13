@@ -62,6 +62,14 @@ pub struct CliLaunchParams {
     pub project_slug: Option<String>,
     pub work_item_id: Option<String>,
     pub agent_role: Option<String>,
+    /// Product-mode axis (orgtrack/v1 §5.2), persisted on the CLI session
+    /// row so Project-mode CLI sessions bootstrap a root Work Item and
+    /// get the `work.mutate` capability surface.
+    pub product_mode: Option<String>,
+    /// Stable WorkItemRun id when this launch came from the durable
+    /// dispatcher. The first CLI turn must keep this identity through
+    /// terminal accounting.
+    pub durable_run_id: Option<String>,
 
     // Run-side params
     pub user_input: String,
@@ -120,6 +128,33 @@ pub async fn launch_cli_agent(params: CliLaunchParams) -> Result<CliLaunchOutcom
                  run during app::run startup"
                 .to_string())
         }
+    }
+}
+
+/// Durable resume delivery for an already-materialized CLI session.
+#[derive(Debug, Clone)]
+pub struct CliTurnDispatchParams {
+    pub session_id: String,
+    pub content: String,
+    pub turn_intent_id: String,
+    pub client_message_id: String,
+}
+
+pub type DispatchCliTurnFn =
+    fn(
+        CliTurnDispatchParams,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send>>;
+
+static DISPATCH_CLI_TURN: OnceLock<DispatchCliTurnFn> = OnceLock::new();
+
+pub fn register_dispatch_cli_turn(implementation: DispatchCliTurnFn) {
+    let _ = DISPATCH_CLI_TURN.set(implementation);
+}
+
+pub async fn dispatch_cli_turn(params: CliTurnDispatchParams) -> Result<(), String> {
+    match DISPATCH_CLI_TURN.get() {
+        Some(implementation) => implementation(params).await,
+        None => Err("session-bridge: CLI turn dispatcher is not registered".to_string()),
     }
 }
 
@@ -375,7 +410,7 @@ pub fn clear_cli_resume_state(session_id: &str, mutation_reason: &str) -> rusqli
 // `TurnIntentStatus` / `TurnIntentSource` types from session_persistence so
 // the bridge signature stays leaf-level and the adapter parses them.
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TurnIntentBridgeStatus {
     Optimistic,
     Queued,
@@ -467,10 +502,14 @@ pub type UpsertTurnIntentFn = fn(
 pub type UpdateTurnIntentStatusFn =
     fn(session_id: &str, turn_intent_id: &str, new_status: TurnIntentBridgeStatus);
 
+pub type GetTurnIntentStatusFn =
+    fn(session_id: &str, turn_intent_id: &str) -> Option<TurnIntentBridgeStatus>;
+
 pub type MarkPendingTurnIntentsStaleFn = fn(session_id: &str);
 
 static UPSERT_TURN_INTENT: OnceLock<UpsertTurnIntentFn> = OnceLock::new();
 static UPDATE_TURN_INTENT_STATUS: OnceLock<UpdateTurnIntentStatusFn> = OnceLock::new();
+static GET_TURN_INTENT_STATUS: OnceLock<GetTurnIntentStatusFn> = OnceLock::new();
 static MARK_PENDING_TURN_INTENTS_STALE: OnceLock<MarkPendingTurnIntentsStaleFn> = OnceLock::new();
 
 pub fn register_upsert_turn_intent(implementation: UpsertTurnIntentFn) {
@@ -479,6 +518,10 @@ pub fn register_upsert_turn_intent(implementation: UpsertTurnIntentFn) {
 
 pub fn register_update_turn_intent_status(implementation: UpdateTurnIntentStatusFn) {
     let _ = UPDATE_TURN_INTENT_STATUS.set(implementation);
+}
+
+pub fn register_get_turn_intent_status(implementation: GetTurnIntentStatusFn) {
+    let _ = GET_TURN_INTENT_STATUS.set(implementation);
 }
 
 pub fn register_mark_pending_turn_intents_stale(implementation: MarkPendingTurnIntentsStaleFn) {
@@ -524,6 +567,19 @@ pub fn update_turn_intent_status(
     if let Some(implementation) = UPDATE_TURN_INTENT_STATUS.get() {
         implementation(session_id, turn_intent_id, new_status);
     }
+}
+
+/// Read a durable intent status for crash-safe dispatch reconciliation.
+pub fn get_turn_intent_status(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Option<TurnIntentBridgeStatus> {
+    if turn_intent_id.is_empty() {
+        return None;
+    }
+    GET_TURN_INTENT_STATUS
+        .get()
+        .and_then(|implementation| implementation(session_id, turn_intent_id))
 }
 
 /// Bulk-mark every `optimistic` / `queued` row for the session as `stale`.

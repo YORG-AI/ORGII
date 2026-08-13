@@ -17,6 +17,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::api::websocket_handler;
+use agent_core::session::AgentExecMode;
 use key_vault::key_store::{KeyService, ModelType, KEY_SERVICE};
 
 use super::super::launch_profile_store::resolve_cli_launch_profile;
@@ -207,6 +208,21 @@ fn resolve_session_model(
     }
 }
 
+fn resolve_cli_effective_mode(
+    product_mode: Option<&str>,
+    requested_mode: Option<&str>,
+    persisted_mode: Option<&str>,
+) -> AgentExecMode {
+    if product_mode == Some("project") {
+        AgentExecMode::Build
+    } else {
+        requested_mode
+            .and_then(AgentExecMode::parse)
+            .or_else(|| persisted_mode.and_then(AgentExecMode::parse))
+            .unwrap_or(AgentExecMode::Build)
+    }
+}
+
 /// Run a code session: spawn CLI, parse stdout, broadcast events.
 ///
 /// This is spawned as a background Tokio task.
@@ -266,6 +282,29 @@ pub async fn run_session(
     let model = resolve_session_model(&agent, key_model_type.as_ref(), session.model.as_deref());
     let repo_path = session.repo_path.as_deref();
     let account_id = session.account_id.as_deref();
+    let effective_mode = resolve_cli_effective_mode(
+        session.product_mode.as_deref(),
+        mode,
+        session.agent_exec_mode.as_deref(),
+    );
+    if session.agent_exec_mode.as_deref() != Some(effective_mode.as_str()) {
+        persistence::update_agent_exec_mode(&session_id, effective_mode.as_str())
+            .map_err(|err| format!("normalize CLI session mode: {err}"))?;
+    }
+    let effective_mode_str = effective_mode.as_str();
+    let base_working_dir = repo_path.filter(|path| !path.is_empty()).ok_or_else(|| {
+        "repo_path is required — cannot run agent without a working directory".to_string()
+    })?;
+    let working_dir = session
+        .worktree_path
+        .as_deref()
+        .filter(|path| !path.is_empty() && std::path::Path::new(path).is_dir())
+        .unwrap_or(base_working_dir);
+    if !std::path::Path::new(working_dir).is_dir() {
+        return Err(format!(
+            "Working directory does not exist or is not a directory: {working_dir}"
+        ));
+    }
 
     if matches!(agent, ModelType::CursorCli) && session.key_source == KeySource::OwnKey {
         let has_api_key = selected_key
@@ -288,12 +327,11 @@ pub async fn run_session(
 
     // Sync .orgii/agent-rules.md → agent-native rules file
     let mut synced_rule_files: Vec<std::path::PathBuf> = Vec::new();
-    if let Some(path) = repo_path {
-        let project = std::path::Path::new(path);
-        synced_rule_files.extend(super::super::skill_sync::sync_conventions_for_agent(
-            &agent, project,
-        ));
-    }
+    let active_workspace = std::path::Path::new(working_dir);
+    synced_rule_files.extend(super::super::skill_sync::sync_conventions_for_agent(
+        &agent,
+        active_workspace,
+    ));
 
     // Sync skills to agent-native rules files.
     //
@@ -302,15 +340,12 @@ pub async fn run_session(
     // are a host-wide concern carried on the SDE definition) and read
     // `skills.enabled` + `skills.disabled` off `ResolvedAgent`.
     let skills_cfg = resolve_sde_skills();
-    if let Some(path) = repo_path {
-        let project = std::path::Path::new(path);
-        synced_rule_files.extend(super::super::skill_sync::sync_skills_for_agent(
-            &agent,
-            project,
-            skills_cfg.enabled,
-            &skills_cfg.disabled,
-        ));
-    }
+    synced_rule_files.extend(super::super::skill_sync::sync_skills_for_agent(
+        &agent,
+        active_workspace,
+        skills_cfg.enabled,
+        &skills_cfg.disabled,
+    ));
 
     // Pre-message anchor snapshot for CLI rollback support.
     // `snapshot_cli_file_edit` populates this snapshot with git-HEAD bytes of
@@ -352,18 +387,37 @@ pub async fn run_session(
 
     let image_paths = persist_attached_images(&session_id, images.as_deref()).await;
 
-    let effective_input = super::input_assembly::build_effective_input(
+    let lifecycle_hook_context = super::harness_hooks::prepare_turn(
+        &session_id,
+        &agent,
+        model.as_deref(),
+        Some(working_dir),
         &user_input,
-        mode,
+        cli_resume_id.is_none(),
+    )
+    .await;
+
+    let mut effective_input = super::input_assembly::build_effective_input(
+        &user_input,
+        Some(effective_mode_str),
+        session.product_mode.as_deref(),
+        session.project_slug.as_deref(),
+        session.work_item_id.as_deref(),
         &session_id,
         cli_resume_id.is_none(),
         &agent,
         &image_paths,
         use_codex_app_server,
-        repo_path,
+        Some(working_dir),
         skills_cfg.enabled,
         &skills_cfg.disabled,
     );
+    if let Some(context) = lifecycle_hook_context {
+        effective_input = format!(
+            "<orgii_hook_context event=\"session_start\">\n{}\n</orgii_hook_context>\n\n{}",
+            context, effective_input
+        );
+    }
 
     // Build CLI command
     let api_key_for_cli = if session.key_source == KeySource::HostedKey
@@ -390,8 +444,8 @@ pub async fn run_session(
         resume_id: cli_resume_id.as_deref(),
         api_key: api_key_for_cli,
         endpoint: endpoint_for_cli,
-        mode,
-        repo_path,
+        mode: Some(effective_mode_str),
+        repo_path: Some(working_dir),
         additional_dirs,
     });
 
@@ -435,23 +489,6 @@ pub async fn run_session(
             redacted_args.join(" "),
             cli_resume_id,
         );
-    }
-
-    let base_working_dir = repo_path.filter(|p| !p.is_empty()).ok_or_else(|| {
-        "repo_path is required — cannot run agent without a working directory".to_string()
-    })?;
-
-    let working_dir = session
-        .worktree_path
-        .as_deref()
-        .filter(|p| !p.is_empty() && std::path::Path::new(p).is_dir())
-        .unwrap_or(base_working_dir);
-
-    if !std::path::Path::new(&working_dir).is_dir() {
-        return Err(format!(
-            "Working directory does not exist or is not a directory: {}",
-            working_dir
-        ));
     }
 
     let snapshot_working_dir = working_dir.to_string();
@@ -521,6 +558,13 @@ pub async fn run_session(
     )?;
 
     super::env_setup::apply_system_proxy_passthrough(&mut env_vars);
+
+    super::env_setup::inject_orgtrack_environment(
+        &session,
+        &session_id,
+        working_dir,
+        &mut env_vars,
+    );
 
     sanitize_cli_oauth_env_for_child(&agent, &mut env_vars);
 
@@ -742,7 +786,7 @@ pub async fn run_session(
                 oauth_retry_eligible,
                 overload_retry_eligible,
                 agent.clone(),
-                mode,
+                Some(effective_mode_str),
                 account_id,
                 model.as_deref(),
                 session_timeout,

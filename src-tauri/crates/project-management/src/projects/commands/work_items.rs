@@ -18,9 +18,9 @@
 
 use super::super::io;
 use super::super::types::{
-    BatchDeleteResult, BatchUpdateResult, EnrichedWorkItem, WorkItemData, WorkItemFrontmatter,
-    WorkItemHandoffTransition, WorkItemPartialUpdate, WorkItemReadBucket, WorkItemsViewData,
-    WorkspaceWorkItemsData,
+    BatchDeleteResult, BatchUpdateResult, EnqueueWorkItemRunRequest, EnrichedWorkItem,
+    WorkItemData, WorkItemFrontmatter, WorkItemHandoffTransition, WorkItemPartialUpdate,
+    WorkItemReadBucket, WorkItemRun, WorkItemRunStatus, WorkItemsViewData, WorkspaceWorkItemsData,
 };
 
 // ---------------------------------------------------------------------
@@ -177,7 +177,13 @@ pub async fn project_write_work_item(
     body: String,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        io::write_work_item(&project_slug, &short_id, &frontmatter, &body)
+        crate::work_service::overwrite_project_work_item(
+            &project_slug,
+            &short_id,
+            &frontmatter,
+            &body,
+            None,
+        )
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
@@ -191,7 +197,13 @@ pub async fn work_item_write_standalone_item(
     body: String,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        io::write_standalone_work_item(org_id.as_deref(), &short_id, &frontmatter, &body)
+        crate::work_service::overwrite_standalone_work_item(
+            org_id.as_deref(),
+            &short_id,
+            &frontmatter,
+            &body,
+            None,
+        )
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
@@ -283,12 +295,25 @@ pub async fn project_transition_work_item(
     expected_revision: Option<i64>,
 ) -> Result<WorkItemData, String> {
     tokio::task::spawn_blocking(move || {
+        if matches!(to_status.as_str(), "completed" | "closed") {
+            crate::work_item_features::readiness::guard_completion(
+                &crate::work_item_features::WorkItemScope {
+                    project_slug: Some(project_slug.clone()),
+                    org_id: "personal-org".to_string(),
+                    work_item_id: short_id.clone(),
+                },
+            )?;
+        }
+        let actor = crate::projects::types::WorkItemMutationActor {
+            id: "human:desktop".to_string(),
+            name: "Desktop".to_string(),
+        };
         crate::work_service::transition_project_work_item(
             &project_slug,
             &short_id,
             &to_status,
             reason.as_deref(),
-            None,
+            Some(&actor),
             expected_revision,
         )
     })
@@ -312,6 +337,70 @@ pub async fn project_update_work_item_partial(
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Enqueue a durable Work Item execution episode. Producers use this instead
+/// of sending directly to a Session so delivery survives process exit.
+#[tauri::command]
+pub async fn project_enqueue_work_item_run(
+    request: EnqueueWorkItemRunRequest,
+) -> Result<WorkItemRun, String> {
+    tokio::task::spawn_blocking(move || crate::work_run_service::enqueue(request))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn project_list_work_item_runs(
+    project_slug: Option<String>,
+    org_id: Option<String>,
+    short_id: String,
+    limit: Option<usize>,
+) -> Result<Vec<WorkItemRun>, String> {
+    tokio::task::spawn_blocking(move || {
+        crate::work_run_service::list_for_work_item(
+            project_slug.as_deref(),
+            org_id.as_deref().unwrap_or("personal-org"),
+            &short_id,
+            limit.unwrap_or(50),
+        )
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn project_retry_latest_work_item_run(
+    project_slug: Option<String>,
+    org_id: Option<String>,
+    short_id: String,
+    session_id: String,
+    idempotency_key: String,
+) -> Result<WorkItemRun, String> {
+    tokio::task::spawn_blocking(move || {
+        let runs = crate::work_run_service::list_for_work_item(
+            project_slug.as_deref(),
+            org_id.as_deref().unwrap_or("personal-org"),
+            &short_id,
+            200,
+        )?;
+        let failed = runs
+            .into_iter()
+            .find(|run| {
+                run.status == WorkItemRunStatus::Failed
+                    && run.session_id.as_deref() == Some(session_id.as_str())
+            })
+            .ok_or_else(|| {
+                format!(
+                    "{}:no failed Run for Session {}",
+                    crate::work_run_service::error::NOT_FOUND,
+                    session_id
+                )
+            })?;
+        crate::work_run_service::retry(&failed.id, &idempotency_key)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
 }
 
 /// Atomic partial update for an org-scoped Work Item without a project row.

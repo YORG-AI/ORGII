@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
 
 import {
-  CreateComposerAgentFrame,
   CreateComposerHeader,
   CreateComposerPinnedActions,
   CreateComposerTitleInput,
@@ -21,10 +20,9 @@ const editorRef = {
 };
 
 describe("CreateComposerScaffold", () => {
-  it("keeps create fields, pinned actions, and submit inside one manual composer shell", () => {
+  it("places pinned actions above the manual composer shell", () => {
     const markup = renderToStaticMarkup(
       createElement(ManualCreateComposer, {
-        centered: true,
         dataTestId: "manual-create-composer",
         editorRef,
         headerContent: createElement("div", null, "Title field"),
@@ -38,12 +36,21 @@ describe("CreateComposerScaffold", () => {
     expect(markup).toContain(
       "session-creator-chat-panel-fullscreen-input-shell"
     );
+    expect(markup).toContain("composer-breathing");
     expect(markup).toContain("Title field");
     expect(markup).toContain("Description field");
     expect(markup).toContain("Property pills");
     expect(markup).toContain("Submit");
     expect(markup).toContain('type="file"');
     expect(markup).toContain("multiple");
+    const composerShellIndex = markup.indexOf(
+      "session-creator-chat-panel-fullscreen-input-shell"
+    );
+    expect(markup.indexOf("Property pills")).toBeLessThan(composerShellIndex);
+    expect(markup.indexOf("Title field")).toBeGreaterThan(composerShellIndex);
+    expect(markup.indexOf("Description field")).toBeGreaterThan(
+      composerShellIndex
+    );
   });
 
   it("uses body typography for the shared Project and Work Item title", () => {
@@ -61,35 +68,60 @@ describe("CreateComposerScaffold", () => {
     expect(markup).toContain("!font-normal");
   });
 
-  it("shares centered, Agent, header, and pinned-action layout primitives", () => {
+  it("docks shared manual creator content to the bottom of the page", () => {
     const markup = renderToStaticMarkup(
       createElement(
         CreatorContentLayout,
         {
-          centered: true,
-          centeredDataTestId: "centered-create",
+          placement: "bottom",
+          contentDataTestId: "bottom-create-content",
+          middleContent: createElement(
+            "div",
+            { "data-testid": "creator-middle-content" },
+            "Suggestions"
+          ),
         },
         createElement(
-          CreateComposerAgentFrame,
-          { centered: true },
+          CreateComposerHeader,
+          { dataTestId: "create-header" },
           createElement(
-            CreateComposerHeader,
-            { dataTestId: "create-header" },
-            createElement(
-              CreateComposerPinnedActions,
-              { dataTestId: "create-actions" },
-              "Actions"
-            )
+            CreateComposerPinnedActions,
+            { dataTestId: "create-actions" },
+            "Actions"
           )
         )
       )
     );
 
-    expect(markup).toContain('data-testid="centered-create"');
+    expect(markup).toContain('data-testid="bottom-create-content"');
     expect(markup).toContain('data-testid="create-header"');
     expect(markup).toContain('data-testid="create-actions"');
-    expect(markup).toContain("my-auto");
-    expect(markup).toContain("shrink-0 flex-col py-6");
-    expect(markup).not.toContain("shrink-0 pt-6");
+    expect(markup).toContain('data-testid="creator-middle-content"');
+    expect(markup).toContain(
+      "absolute inset-x-0 flex -translate-y-1/2 items-center justify-center"
+    );
+    expect(markup).toContain("top:clamp(9rem, 42%, calc(100% - 20rem))");
+    expect(markup).toContain("w-full shrink-0 flex-col pb-3 pt-4");
+    expect(markup.indexOf("Suggestions")).toBeLessThan(
+      markup.indexOf('data-testid="bottom-create-content"')
+    );
+    expect(markup).toContain("mt-auto");
+    expect(markup).not.toContain("my-auto");
+  });
+
+  it("lets Agent launchers fill the shared creator page", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        CreatorContentLayout,
+        { placement: "fill", contentDataTestId: "agent-create-content" },
+        createElement("div", null, "Agent composer")
+      )
+    );
+
+    expect(markup).toContain('data-testid="agent-create-content"');
+    expect(markup).toContain(
+      "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+    );
+    expect(markup).not.toContain("mt-auto");
   });
 });

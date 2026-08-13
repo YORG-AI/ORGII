@@ -282,6 +282,10 @@ pub struct SystemPromptConfig {
     pub channel: Option<String>,
     pub chat_id: Option<String>,
     pub agent_mode: Option<AgentExecMode>,
+    /// Product mode (`orgtrack/v1` §5.2) of the session. Gates the PM
+    /// guidance sections: only `project` sessions are told to mutate the
+    /// work system through `org2-pm`.
+    pub product_mode: Option<String>,
     pub ide_context: Option<IdeContext>,
     /// User presence snapshot (online / invisible / away). Plumbed out
     /// of [`IdeContext::user_presence`] at prompt-build time so the

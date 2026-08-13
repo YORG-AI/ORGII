@@ -37,6 +37,7 @@ export interface StatusHealthPriorityFieldsProps {
   t: (key: string) => string;
   fieldVariant?: FieldRowVariant;
   visibleFields: Set<ProjectPropertyFieldKey>;
+  showLabels?: boolean;
 }
 
 const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
@@ -52,6 +53,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
   t,
   fieldVariant = "row",
   visibleFields,
+  showLabels = true,
 }) => (
   <>
     {/* Status */}
@@ -66,7 +68,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
         <FieldRow
           icon={<Circle size={DROPDOWN_ITEM.iconSize} />}
           iconColor={currentStatus?.color}
-          label={t("properties.status")}
+          label={showLabels ? t("properties.status") : undefined}
           value={
             currentStatus ? t(currentStatus.labelKey) : t("properties.noStatus")
           }
@@ -77,7 +79,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
         />
         {openPicker === "status" && (
           <SearchableDropdown
-            placeholder={t("properties.searchStatus")}
+            placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
             align={fieldVariant === "pill" ? "auto" : "left"}
           >
@@ -117,7 +119,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
         <FieldRow
           icon={<Circle size={DROPDOWN_ITEM.iconSize} />}
           iconColor={currentHealth?.color}
-          label={t("properties.health")}
+          label={showLabels ? t("properties.health") : undefined}
           value={
             currentHealth
               ? t(currentHealth.labelKey)
@@ -130,7 +132,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
         />
         {openPicker === "health" && (
           <SearchableDropdown
-            placeholder={t("properties.searchHealth")}
+            placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
             align={fieldVariant === "pill" ? "auto" : "left"}
           >
@@ -170,7 +172,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
         <FieldRow
           icon={<Flag size={DROPDOWN_ITEM.iconSize} />}
           iconColor={currentPriority?.color}
-          label={t("properties.priority")}
+          label={showLabels ? t("properties.priority") : undefined}
           value={
             currentPriority
               ? t(currentPriority.labelKey)
@@ -183,7 +185,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
         />
         {openPicker === "priority" && (
           <SearchableDropdown
-            placeholder={t("properties.searchPriority")}
+            placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
             align={fieldVariant === "pill" ? "auto" : "left"}
           >

@@ -8,3 +8,5 @@ export type {
 } from "./useAppNavigation";
 export { useWizardParam } from "./useWizardParam";
 export type { UseWizardParamReturn } from "./useWizardParam";
+export { useRoutineResultNavigation } from "./useRoutineResultNavigation";
+export type { RoutineResultTarget } from "./useRoutineResultNavigation";

@@ -30,7 +30,7 @@ const TabPill: React.FC<TabPillProps> = ({
   fillWidth = true,
   wrap = false,
   size = "default",
-  colorScheme = "default",
+  appearance = "default",
   buttonStyle = false,
   height,
   onDropdownRef,
@@ -338,7 +338,7 @@ const TabPill: React.FC<TabPillProps> = ({
                   : isMulti
                     ? "bg-fill-1 text-text-2"
                     : "bg-transparent text-text-1 hover:bg-surface-hover"
-              : colorScheme === "layout"
+              : appearance === "layout"
                 ? isActive
                   ? size === "large"
                     ? "bg-fill-2 font-semibold text-text-1"
@@ -348,17 +348,17 @@ const TabPill: React.FC<TabPillProps> = ({
                     : isMulti
                       ? "bg-transparent text-text-2 hover:bg-fill-1"
                       : "bg-transparent text-text-1 hover:bg-fill-1"
-                : colorScheme === "muted"
+                : appearance === "muted"
                   ? isActive || isDropdownOpen
                     ? size === "large"
                       ? "bg-fill-2 font-semibold text-text-1"
                       : "bg-fill-2 font-semibold text-primary-6"
                     : "bg-fill-1 text-text-1"
-                  : colorScheme === "ghost"
+                  : appearance === "ghost"
                     ? isActive || isDropdownOpen
                       ? size === "large"
-                        ? "bg-fill-1 font-semibold text-text-1"
-                        : "bg-fill-1 font-semibold text-primary-6"
+                        ? "bg-surface-hover font-semibold text-text-1"
+                        : "bg-surface-hover font-semibold text-primary-6"
                       : isMulti
                         ? "bg-transparent text-text-2 hover:bg-surface-hover"
                         : "bg-transparent text-text-1 hover:bg-surface-hover"

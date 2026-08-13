@@ -509,6 +509,7 @@ export interface SessionLaunchResult {
   projectSlug?: string | null;
   workItemId?: string | null;
   agentRole?: string | null;
+  productMode?: string | null;
   worktreePath?: string | null;
   /** Actual branch checked out in the worktree (for example `agent/<id>`). */
   worktreeBranch?: string | null;

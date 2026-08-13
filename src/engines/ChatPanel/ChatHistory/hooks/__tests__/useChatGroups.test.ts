@@ -20,6 +20,7 @@ import { useChatGroups } from "../useChatGroups";
 import {
   type ChatGroupMeta,
   isTurnCollapseEligible,
+  isTurnPreviewItem,
   projectChatGroups,
 } from "../useChatGroupsProjection";
 
@@ -173,6 +174,26 @@ function turnPreviewItem(text: string): OptimizedChatItem {
   return preview;
 }
 
+function unloadedTurnPreviewItem(
+  turnId: string,
+  bodyEventCount: number,
+  text: string
+): OptimizedChatItem {
+  const preview = unloadedTurnItem(turnId, bodyEventCount);
+  preview.event!.functionName = "assistant";
+  preview.event!.actionType = "assistant";
+  preview.event!.source = "assistant";
+  preview.event!.displayText = text;
+  preview.event!.displayVariant = "message";
+  preview.event!.args = { turnPreviewOnly: true };
+  preview.event!.result = {
+    ...preview.event!.result,
+    observation: text,
+    content: text,
+  };
+  return preview;
+}
+
 function flatTexts(items: OptimizedChatItem[]): string[] {
   return items.map((entry) => entry.event?.displayText ?? "");
 }
@@ -264,6 +285,27 @@ describe("useChatGroups collapse — terminal error survival", () => {
     expect(result.groupMeta[0].unloadedTurn?.turnId).toBe(firstTurn.event!.id);
     expect(flatTexts(result.flatItems)).toContain("unloaded final reply");
     expect(flatTexts(result.flatItems)).not.toContain("Turn is not loaded yet");
+  });
+
+  it("shows a final-reply preview carried by the unloaded-turn placeholder", () => {
+    const firstTurn = userItem("first turn");
+    const preview = unloadedTurnPreviewItem(
+      firstTurn.event!.id,
+      12,
+      "bounded final reply"
+    );
+    const history = [
+      firstTurn,
+      preview,
+      userItem("current turn"),
+      assistantItem("current reply"),
+    ];
+
+    const result = useChatGroups(history);
+
+    expect(isTurnPreviewItem(preview)).toBe(true);
+    expect(result.groupMeta[0].unloadedTurn?.turnId).toBe(firstTurn.event!.id);
+    expect(flatTexts(result.flatItems)).toContain("bounded final reply");
   });
 
   it("keeps the error card when a collapsed turn has no completed assistant reply", () => {

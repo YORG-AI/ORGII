@@ -1,6 +1,8 @@
+import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GitHubRepoPermissions } from "@src/api/tauri/github";
+import { resetGitHubIssueDetailCoordinator } from "@src/modules/shared/githubIssueDetailCoordinator";
 
 import type { GitHubRepoSource } from "./githubWorkItemsTypes";
 import {
@@ -9,18 +11,20 @@ import {
   type GitHubWorkItemsLifecycleSnapshot,
   getGitHubLifecycleRetentionKey,
   loadRepoPermissions,
+  loadRepoPrs,
   mergeRepoIssueLoadResults,
   retainGitHubWorkItemsLifecycleSnapshot,
 } from "./useGitHubWorkItemsLoadLifecycle";
 
 const mocks = vi.hoisted(() => ({
   getGitHubRepoPermissionsLocal: vi.fn(),
+  listPRsLocal: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/github", () => ({
   getGitHubRepoPermissionsLocal: mocks.getGitHubRepoPermissionsLocal,
   getGitHubViewerLogin: vi.fn(),
-  listPRsLocal: vi.fn(),
+  listPRsLocal: mocks.listPRsLocal,
 }));
 
 const source: GitHubRepoSource = {
@@ -41,30 +45,57 @@ const permissions: GitHubRepoPermissions = {
 
 describe("GitHub work-item permission loading", () => {
   beforeEach(() => {
+    resetGitHubIssueDetailCoordinator();
     mocks.getGitHubRepoPermissionsLocal.mockReset();
     mocks.getGitHubRepoPermissionsLocal.mockResolvedValue(permissions);
   });
 
-  it("shares one in-flight request per viewer and repository", async () => {
-    const requests = new Map<string, Promise<GitHubRepoPermissions | null>>();
+  it("shares and retains one request per auth scope and repository", async () => {
+    const store = createStore();
 
     const [first, second] = await Promise.all([
-      loadRepoPermissions(source, "viewer", requests),
-      loadRepoPermissions(source, "viewer", requests),
+      loadRepoPermissions(store, source, "github.com:viewer"),
+      loadRepoPermissions(store, source, "github.com:viewer"),
     ]);
+    const third = await loadRepoPermissions(store, source, "github.com:viewer");
 
     expect(first).toEqual([source.repoFullName, permissions]);
     expect(second).toEqual(first);
+    expect(third).toEqual(first);
     expect(mocks.getGitHubRepoPermissionsLocal).toHaveBeenCalledTimes(1);
   });
 
-  it("does not reuse a permission request across viewer identities", async () => {
-    const requests = new Map<string, Promise<GitHubRepoPermissions | null>>();
+  it("does not reuse permissions across auth scopes", async () => {
+    const store = createStore();
 
-    await loadRepoPermissions(source, "viewer", requests);
-    await loadRepoPermissions(source, "other-viewer", requests);
+    await loadRepoPermissions(store, source, "github.com:viewer");
+    await loadRepoPermissions(store, source, "github.com:other-viewer");
 
     expect(mocks.getGitHubRepoPermissionsLocal).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("GitHub work-item PR loading", () => {
+  beforeEach(() => {
+    mocks.listPRsLocal.mockReset();
+    mocks.listPRsLocal.mockResolvedValue([]);
+  });
+
+  it("single-flights concurrent list loads and reuses the fresh result", async () => {
+    const uniqueSource = {
+      ...source,
+      repoPath: `/repo-${crypto.randomUUID()}`,
+    };
+
+    const [first, second] = await Promise.all([
+      loadRepoPrs(uniqueSource, "open", true),
+      loadRepoPrs(uniqueSource, "open", true),
+    ]);
+    const cached = await loadRepoPrs(uniqueSource, "open", false);
+
+    expect(first).toEqual(second);
+    expect(cached).toEqual(first);
+    expect(mocks.listPRsLocal).toHaveBeenCalledTimes(1);
   });
 });
 

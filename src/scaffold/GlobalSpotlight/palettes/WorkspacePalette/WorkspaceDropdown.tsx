@@ -203,6 +203,8 @@ export interface WorkspaceDropdownProps {
   currentRepoId?: string;
   /** Element the dropdown is anchored to. */
   anchorRef: React.RefObject<HTMLElement | null>;
+  /** Preferred vertical side of the anchor. */
+  placement?: "top" | "bottom" | "auto";
   /** Optional first-class system path source rows. */
   leadingRepos?: readonly RepoItem[];
   /** Row eligibility predicate (e.g. active cloud org repo scope). */
@@ -218,6 +220,7 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
   onSelect,
   currentRepoId,
   anchorRef,
+  placement = "bottom",
   leadingRepos = [],
   repoFilter,
 }) => {
@@ -560,7 +563,7 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
       if (!open) onClose();
     },
     anchorRef,
-    placement: "bottom",
+    placement,
     gap: DROPDOWN_PANEL.triggerGap,
     listNavigation: {
       items: dropdownItems,

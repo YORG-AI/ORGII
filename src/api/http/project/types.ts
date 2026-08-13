@@ -16,3 +16,5 @@ export * from "./types/projectRecords";
 export * from "./types/routines";
 export * from "./types/sync";
 export * from "./types/workItems";
+export * from "./types/workItemFeatures";
+export * from "./types/workRuns";

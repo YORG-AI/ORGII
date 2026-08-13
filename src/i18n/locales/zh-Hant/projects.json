@@ -502,6 +502,7 @@
       "title": "Agent 工作流",
       "startAgent": "啓動 Agent",
       "startAgentAndChat": "啓動 Agent 並打開 Chat",
+      "noWorkspaceForAgent": "請先開啟一個儲存庫工作區，再對該事項啟動 agent。",
       "running": "運行中...",
       "pendingLaunch": "等待啓動...",
       "completed": "已完成",
@@ -634,7 +635,27 @@
       "cycles": "輪次"
     },
     "viewWorkItems": "查看 Work Items",
-    "fromRoutine": "来自 Routine：{{name}}"
+    "fromRoutine": "来自 Routine：{{name}}",
+    "subItems": {
+      "title": "子任務",
+      "parent": "父任務",
+      "progress": "已完成 {{completed}} / {{total}}",
+      "add": "新增子任務",
+      "addFirst": "新增第一個子任務",
+      "titlePlaceholder": "輸入子任務標題",
+      "stagePicker": "子任務階段",
+      "noStage": "無階段",
+      "stage": "階段 {{stage}}",
+      "openStatus": "未完成",
+      "completedStatus": "已完成",
+      "cancelledStatus": "已取消",
+      "createError": "無法建立子任務，請重試。"
+    },
+    "sessionRail": {
+      "notOnDeviceTitle": "會話不在此裝置",
+      "notOnDeviceHint": "該會話在其他裝置上執行，轉錄未同步到本機。",
+      "finalOutput": "最終輸出"
+    }
   },
   "settings": {
     "sidebarGeneral": "常規",

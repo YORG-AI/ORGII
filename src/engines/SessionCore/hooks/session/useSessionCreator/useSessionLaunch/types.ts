@@ -23,17 +23,24 @@ export interface SessionLaunchWorkItemContext extends Partial<SessionLaunchOrgCo
    * orgtrack/v1 §5.2 product-mode axis for the launched session. Flows
    * whose whole purpose is PM mutation (Create Project with AI) must set
    * "project" explicitly — without a workItemId the backend resolver
-   * defaults to build and the PM tools are policy-denied.
+   * defaults to build and `org2-pm` refuses mutations.
    */
   productMode?: string;
   /**
    * Agent definition override for the launched session. The AI
-   * work-item creator needs an agent that actually registers
-   * `manage_work_item` (builtin:os) — launching whatever agent the
-   * composer happens to have selected (usually SDE) produces a session
-   * that cannot fill the draft it was created for.
+   * work-item creator launches builtin:os, which always carries
+   * run_shell and therefore the injected `org2-pm` CLI used to fill
+   * the linked draft.
    */
   agentDefinitionId?: string;
+  /**
+   * Exec-mode override for the launched session. PM mutation flows
+   * pin "build": the work system is reached through `org2-pm` from
+   * the shell, and the read-only exec modes (ask/plan/debug) deny
+   * run_shell — inheriting the composer's mode would launch a filler
+   * that cannot fill.
+   */
+  agentExecMode?: string;
   metadata?: Record<string, unknown>;
 }
 

@@ -20,9 +20,8 @@
 //!   `user_allowed_tools` on top of this list (capability-gated) and
 //!   honours `excluded_tools` from either source.
 //!
-//! `manage_project`, `manage_work_item`, and `manage_agent_def` are
-//! management-capability tools for OS/coordinator-style sessions, not
-//! default SDE worker tools.
+//! `manage_agent_def` is a management-capability tool for
+//! OS/coordinator-style sessions, not a default SDE worker tool.
 
 use async_trait::async_trait;
 use serde_json::Value;
@@ -404,7 +403,6 @@ impl AgentTool {
             plan_slot_cache: None,
             agent_org_context: self.config.agent_org_context.as_deref().cloned(),
             agent_org_current_member_id: None,
-            session_org_id: None,
             channel_context: None,
         };
         let mut overlay = ToolRegistry::with_fallback(base_registry);
@@ -1041,17 +1039,16 @@ impl Tool for AgentTool {
         };
 
         // Mode overlay (see the comment above step 6): the worker's
-        // policy must reflect the parent's CURRENT exec + product modes,
-        // not the base policy snapshotted at init. A Plan-mode parent
-        // therefore spawns read-only workers, and a non-Project parent
-        // spawns workers with the PM mutation tools denied (deny-delta —
-        // delegation cannot escalate past the parent's own surface).
+        // policy must reflect the parent's CURRENT exec mode, not the
+        // base policy snapshotted at init. A Plan-mode parent therefore
+        // spawns read-only workers. Product mode is not a tool overlay:
+        // the child record inherits it below, and `org2-pm` enforces it
+        // at the application boundary via the injected ORGII_MODE.
         let effective_policy = Self::overlay_parent_modes(
             effective_policy,
             parent_agent_exec_mode
                 .as_deref()
                 .and_then(crate::session::AgentExecMode::parse),
-            parent_product_mode.as_deref(),
         );
 
         {
@@ -1076,6 +1073,7 @@ impl Tool for AgentTool {
                 // fallback writes to ~/.orgii/plans/{agent_id}/ instead.
                 workspace_path: self.config.workspace_path.clone(),
                 agent_exec_mode: parent_agent_exec_mode,
+                product_mode: parent_product_mode,
                 native_harness_type: parent_native_harness_type,
                 created_at: chrono::Utc::now().to_rfc3339(),
                 updated_at: chrono::Utc::now().to_rfc3339(),

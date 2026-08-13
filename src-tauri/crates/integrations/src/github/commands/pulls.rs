@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tauri::command;
 
 use super::super::client::GitHubClient;
@@ -52,6 +52,32 @@ query PullRequestMergeAutomation($id: ID!) {
       mergeQueueEntry { id }
       mergeStateStatus
       reviewDecision
+    }
+  }
+}
+"#;
+
+const PULL_REQUEST_CI_STATUS_QUERY: &str = r#"
+query PullRequestCiStatuses($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on PullRequest {
+      number
+      commits(last: 1) {
+        nodes {
+          commit {
+            statusCheckRollup {
+              state
+              contexts(first: 100) {
+                nodes {
+                  __typename
+                  ... on CheckRun { conclusion }
+                  ... on StatusContext { state }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -196,6 +222,16 @@ pub async fn github_find_pull_request(
 }
 
 /// Response item for a single PR in `github_list_prs`.
+#[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum PullRequestCiStatus {
+    Success,
+    Failure,
+    Pending,
+    None,
+    Unavailable,
+}
+
 #[derive(Debug, Serialize)]
 pub struct OpenPRItem {
     pub number: u64,
@@ -210,6 +246,7 @@ pub struct OpenPRItem {
     pub head_branch: String,
     pub base_branch: String,
     pub draft: bool,
+    pub ci_status: PullRequestCiStatus,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -238,8 +275,88 @@ fn parse_open_pr_item(item: &Value) -> OpenPRItem {
         head_branch: item["head"]["ref"].as_str().unwrap_or("").to_string(),
         base_branch: item["base"]["ref"].as_str().unwrap_or("").to_string(),
         draft: item["draft"].as_bool().unwrap_or(false),
+        ci_status: PullRequestCiStatus::Unavailable,
         created_at: item["created_at"].as_str().unwrap_or("").to_string(),
         updated_at: item["updated_at"].as_str().unwrap_or("").to_string(),
+    }
+}
+
+fn parse_pull_request_ci_status(node: &Value) -> PullRequestCiStatus {
+    let rollup = &node["commits"]["nodes"][0]["commit"]["statusCheckRollup"];
+    if rollup.is_null() {
+        return PullRequestCiStatus::None;
+    }
+    let has_failed_context = rollup["contexts"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|context| match context["__typename"].as_str() {
+            Some("CheckRun") => matches!(
+                context["conclusion"].as_str(),
+                Some("FAILURE" | "TIMED_OUT" | "ACTION_REQUIRED" | "CANCELLED" | "STARTUP_FAILURE")
+            ),
+            Some("StatusContext") => {
+                matches!(context["state"].as_str(), Some("FAILURE" | "ERROR"))
+            }
+            _ => false,
+        });
+    if has_failed_context {
+        return PullRequestCiStatus::Failure;
+    }
+    match rollup["state"].as_str() {
+        Some("SUCCESS") => PullRequestCiStatus::Success,
+        Some("FAILURE" | "ERROR") => PullRequestCiStatus::Failure,
+        Some("PENDING" | "EXPECTED") => PullRequestCiStatus::Pending,
+        _ => PullRequestCiStatus::Unavailable,
+    }
+}
+
+fn apply_pull_request_ci_statuses(items: &mut [OpenPRItem], response: &Value) {
+    let statuses = response["data"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|node| {
+            node["number"]
+                .as_u64()
+                .map(|number| (number, parse_pull_request_ci_status(node)))
+        })
+        .collect::<HashMap<_, _>>();
+    for item in items {
+        if let Some(status) = statuses.get(&item.number) {
+            item.ci_status = *status;
+        }
+    }
+}
+
+async fn enrich_pull_request_ci_statuses(
+    client: &GitHubClient,
+    repo_full_name: &str,
+    source_items: &[Value],
+    items: &mut [OpenPRItem],
+) {
+    let ids = source_items
+        .iter()
+        .filter_map(|item| item["node_id"].as_str())
+        .collect::<Vec<_>>();
+    if ids.is_empty() {
+        return;
+    }
+    match client
+        .graphql(PULL_REQUEST_CI_STATUS_QUERY, json!({ "ids": ids }))
+        .await
+    {
+        Ok(response) => {
+            if let Some(error) = graphql_error(&response) {
+                log::warn!(
+                    "[GitHub][Cmd] PR CI GraphQL query returned errors for {repo_full_name}: {error}"
+                );
+            }
+            apply_pull_request_ci_statuses(items, &response);
+        }
+        Err(error) => {
+            log::warn!("[GitHub][Cmd] PR CI enrichment failed for {repo_full_name}: {error}");
+        }
     }
 }
 
@@ -294,6 +411,21 @@ impl PullRequestMergeAutomationContext {
                 self.review_decision.as_deref(),
                 Some("REVIEW_REQUIRED" | "CHANGES_REQUESTED")
             )
+    }
+}
+
+/// Adds GraphQL-only merge metadata to the REST pull-request detail payload.
+fn apply_pull_request_merge_context(
+    detail: &mut Value,
+    context: PullRequestMergeAutomationContext,
+) {
+    detail["merge_queue_required"] = json!(context.merge_queue_enabled);
+    detail["is_in_merge_queue"] = json!(context.merge_queue_entry_id.is_some());
+    if let Some(merge_state_status) = context.merge_state_status {
+        detail["merge_state_status"] = json!(merge_state_status);
+    }
+    if let Some(review_decision) = context.review_decision {
+        detail["review_decision"] = json!(review_decision);
     }
 }
 
@@ -629,6 +761,26 @@ mod pr_action_payload_tests {
     }
 
     #[test]
+    fn pr_detail_enrichment_preserves_graphql_merge_state() {
+        let mut detail = json!({ "mergeable_state": "unknown" });
+
+        apply_pull_request_merge_context(
+            &mut detail,
+            PullRequestMergeAutomationContext {
+                merge_queue_enabled: true,
+                merge_queue_entry_id: Some("queue-entry".to_string()),
+                merge_state_status: Some("DIRTY".to_string()),
+                review_decision: Some("CHANGES_REQUESTED".to_string()),
+            },
+        );
+
+        assert_eq!(detail["merge_queue_required"], json!(true));
+        assert_eq!(detail["is_in_merge_queue"], json!(true));
+        assert_eq!(detail["merge_state_status"], json!("DIRTY"));
+        assert_eq!(detail["review_decision"], json!("CHANGES_REQUESTED"));
+    }
+
+    #[test]
     fn reviewer_logins_are_trimmed_and_deduplicated_case_insensitively() {
         assert_eq!(
             normalize_reviewer_logins(vec![
@@ -738,6 +890,7 @@ mod open_pr_item_tests {
             json!(["viewer", "second-reviewer"])
         );
         assert_eq!(serialized["state"], "open");
+        assert_eq!(serialized["ci_status"], "unavailable");
     }
 
     #[test]
@@ -756,6 +909,98 @@ mod open_pr_item_tests {
         assert_eq!(serialized["author_login"], "");
         assert_eq!(serialized["author_avatar_url"], Value::Null);
         assert_eq!(serialized["requested_reviewer_logins"], json!([]));
+    }
+
+    #[test]
+    fn maps_batched_pull_request_ci_rollups() {
+        assert!(PULL_REQUEST_CI_STATUS_QUERY.contains("nodes(ids: $ids)"));
+        assert!(PULL_REQUEST_CI_STATUS_QUERY.contains("contexts(first: 100)"));
+
+        let mut items = vec![
+            parse_open_pr_item(&json!({ "number": 17 })),
+            parse_open_pr_item(&json!({ "number": 18 })),
+            parse_open_pr_item(&json!({ "number": 19 })),
+            parse_open_pr_item(&json!({ "number": 20 })),
+            parse_open_pr_item(&json!({ "number": 21 })),
+        ];
+
+        apply_pull_request_ci_statuses(
+            &mut items,
+            &json!({
+                "data": {
+                    "nodes": [
+                        {
+                            "number": 17,
+                            "commits": {
+                                "nodes": [{
+                                    "commit": {
+                                        "statusCheckRollup": { "state": "SUCCESS" }
+                                    }
+                                }]
+                            }
+                        },
+                        {
+                            "number": 18,
+                            "commits": {
+                                "nodes": [{
+                                    "commit": {
+                                        "statusCheckRollup": { "state": "PENDING" }
+                                    }
+                                }]
+                            }
+                        },
+                        {
+                            "number": 21,
+                            "commits": {
+                                "nodes": [{
+                                    "commit": {
+                                        "statusCheckRollup": {
+                                            "state": "PENDING",
+                                            "contexts": {
+                                                "nodes": [
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "conclusion": "FAILURE"
+                                                    },
+                                                    {
+                                                        "__typename": "CheckRun",
+                                                        "conclusion": null
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }]
+                            }
+                        },
+                        {
+                            "number": 19,
+                            "commits": {
+                                "nodes": [{
+                                    "commit": { "statusCheckRollup": null }
+                                }]
+                            }
+                        },
+                        {
+                            "number": 20,
+                            "commits": {
+                                "nodes": [{
+                                    "commit": {
+                                        "statusCheckRollup": { "state": "FAILURE" }
+                                    }
+                                }]
+                            }
+                        }
+                    ]
+                }
+            }),
+        );
+
+        assert_eq!(items[0].ci_status, PullRequestCiStatus::Success);
+        assert_eq!(items[1].ci_status, PullRequestCiStatus::Pending);
+        assert_eq!(items[2].ci_status, PullRequestCiStatus::None);
+        assert_eq!(items[3].ci_status, PullRequestCiStatus::Failure);
+        assert_eq!(items[4].ci_status, PullRequestCiStatus::Failure);
     }
 
     #[test]
@@ -787,10 +1032,9 @@ pub async fn github_list_prs(
             "/repos/{repo_full_name}/pulls?state={state}&sort=updated&direction=desc&per_page={limit}"
         ))
         .await?;
-    let items: Vec<OpenPRItem> = data
-        .as_array()
-        .map(|arr| arr.iter().map(parse_open_pr_item).collect())
-        .unwrap_or_default();
+    let source_items = data.as_array().cloned().unwrap_or_default();
+    let mut items: Vec<OpenPRItem> = source_items.iter().map(parse_open_pr_item).collect();
+    enrich_pull_request_ci_statuses(&client, &repo_full_name, &source_items, &mut items).await;
     log::info!(
         "[GitHub][Cmd] list_prs state={state} found {} PRs",
         items.len()
@@ -849,13 +1093,7 @@ pub async fn github_get_pr(repo_full_name: String, pr_number: u64) -> Result<Val
 
     if let Some(result) = merge_context {
         match result {
-            Ok(context) => {
-                detail["merge_queue_required"] = json!(context.merge_queue_enabled);
-                detail["is_in_merge_queue"] = json!(context.merge_queue_entry_id.is_some());
-                if let Some(review_decision) = context.review_decision {
-                    detail["review_decision"] = json!(review_decision);
-                }
-            }
+            Ok(context) => apply_pull_request_merge_context(&mut detail, context),
             Err(error) => {
                 log::warn!("[GitHub][Cmd] get_pr merge metadata failed: {error}");
             }

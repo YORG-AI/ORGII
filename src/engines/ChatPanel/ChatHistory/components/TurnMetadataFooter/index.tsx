@@ -242,7 +242,7 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                 activeTab={activeTab}
                 onChange={handleTabChange}
                 variant="pill"
-                colorScheme="ghost"
+                appearance="ghost"
                 fillWidth={false}
                 size="chatPanel"
               />

@@ -91,7 +91,7 @@ interface SharedGridProps<T extends string = string> {
   cardClassName?: string;
   /** When using showSelect on cards, show the trailing checkmark (default true). */
   showSelectionCheck?: boolean;
-  /** Use compact card padding, useful for text-only picker cards. */
+  /** Render inline choice cards as compact 36px segmented controls. */
   compactCards?: boolean;
   /** Optional class name for the grid wrapper. */
   className?: string;

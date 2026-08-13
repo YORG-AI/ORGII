@@ -256,6 +256,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
             options={genericSetupOptions}
             selected={activeSetupMethod}
             cardVariant="subtle"
+            compactCards
             onSelect={(key) => handleSetupMethodChange(key)}
           />
         </SectionRow>

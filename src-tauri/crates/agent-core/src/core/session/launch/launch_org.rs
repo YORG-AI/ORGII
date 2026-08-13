@@ -246,6 +246,8 @@ pub(super) async fn materialize_org_member_sessions(
                 project_slug: project_slug.clone(),
                 work_item_id: work_item_id.clone(),
                 agent_role: None,
+                product_mode: work_item_id.as_ref().map(|_| "project".to_string()),
+                durable_run_id: None,
                 user_input: String::new(),
                 ide_context: None,
                 mode: agent_exec_mode.clone(),
@@ -311,9 +313,11 @@ pub(super) async fn send_initial_turn(
     agent_definition_id: Option<String>,
     sub_agent_ids: Vec<String>,
     intent_org_run_id: Option<String>,
+    durable_run_id: Option<String>,
     source: crate::foundation::session_bridge::TurnIntentBridgeSource,
 ) -> Result<(), String> {
     if sub_agent_ids.is_empty() {
+        let client_message_id = durable_run_id.clone();
         crate::state::commands::session::message::send_message_impl(
             state,
             session_id.to_string(),
@@ -330,8 +334,8 @@ pub(super) async fn send_initial_turn(
             ide_context,
             false,
             false,
-            None,
-            None,
+            client_message_id,
+            durable_run_id,
             None,
             intent_org_run_id,
             source,
@@ -353,6 +357,7 @@ pub(super) async fn send_initial_turn(
     .await?;
     crate::init::init_session(state, launch_spec).await?;
 
+    let client_message_id = durable_run_id.clone();
     crate::state::commands::session::message::send_message_impl(
         state,
         session_id.to_string(),
@@ -369,8 +374,8 @@ pub(super) async fn send_initial_turn(
         ide_context,
         false,
         false,
-        None,
-        None,
+        client_message_id,
+        durable_run_id,
         None,
         intent_org_run_id,
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,

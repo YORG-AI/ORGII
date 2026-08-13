@@ -30,6 +30,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 chrono = { workspace = true }
+chrono-tz = "0.10.4"
+croner = "2"
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = "0.1.37"
@@ -42,6 +44,7 @@ subtle = "2.6"
 base64 = { workspace = true }
 hex = "0.4"
 rand = { workspace = true }
+uuid = { version = "1", features = ["v4"] }
 urlencoding = "2.1"
 
 # HTTP client — rustls only. Workspace-shared so cargo unifies feature

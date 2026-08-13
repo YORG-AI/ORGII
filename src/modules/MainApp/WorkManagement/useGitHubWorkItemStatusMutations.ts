@@ -157,7 +157,12 @@ export function useGitHubWorkItemStatusMutations({
         return;
       }
       try {
-        const pullRequest = await updatePRStateLocal(item.repo, item.id, value);
+        const pullRequest = {
+          ...(await updatePRStateLocal(item.repo, item.id, value)),
+          // State mutation responses do not run the list's batched CI
+          // enrichment. Preserve the authoritative status already shown.
+          ci_status: item.rawPr.ci_status,
+        };
         updatePrMap((current) => {
           const key = getRepoIssueMapKey(source);
           const nextState = replacePrInRepoState(

@@ -147,9 +147,32 @@ export function useTimezoneSelect({
     null
   );
 
-  const baseOptions = excludeAuto
-    ? TIMEZONE_OPTIONS.filter((opt) => opt.value !== "auto")
-    : TIMEZONE_OPTIONS;
+  const baseOptions = useMemo(() => {
+    const configuredOptions = excludeAuto
+      ? TIMEZONE_OPTIONS.filter((option) => option.value !== "auto")
+      : TIMEZONE_OPTIONS;
+    if (
+      value === "auto" ||
+      value === "utc" ||
+      configuredOptions.some((option) => option.value === value)
+    ) {
+      return configuredOptions;
+    }
+
+    const city = value.split("/").at(-1)?.replace(/_/g, " ") || value;
+    const { offset, offsetMinutes } = getTimezoneOffset(value);
+    return [
+      ...configuredOptions,
+      {
+        value,
+        label: city,
+        labelKey: value.toLowerCase().replace(/\//g, "_"),
+        offset,
+        offsetMinutes,
+        region: value.split("/")[0],
+      },
+    ];
+  }, [excludeAuto, value]);
 
   /** Resolve localized label for a timezone item */
   const getLocalizedLabel = useCallback(

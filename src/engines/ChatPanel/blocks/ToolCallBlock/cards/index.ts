@@ -1,5 +1,6 @@
 export { default as AgentMessageCard } from "./AgentMessageCard";
 export { default as CommandResultCard } from "./CommandResultCard";
+export { default as OrgtrackEnvelopeCard } from "./OrgtrackEnvelopeCard";
 export { default as FileCard } from "./FileCard";
 export { default as SessionLinkCard } from "./SessionLinkCard";
 export type { SessionLinkCardData } from "./SessionLinkCard";

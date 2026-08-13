@@ -441,6 +441,9 @@ describe("DiscussionChannelPanelView", () => {
       "cloud.channels.feed.composerPlaceholder"
     );
     expect(
+      container.querySelector("[data-testid='channel-composer']")?.className
+    ).toContain("pb-3");
+    expect(
       container.querySelector("[data-testid='channel-composer-input']")
     ).toBeNull();
   });

@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +20,7 @@ import {
   WizardShell,
   WizardStepLayout,
 } from "@src/scaffold/WizardSystem/primitives";
+import { timezoneAtom } from "@src/store/ui/timezoneAtom";
 
 import RoutineBasicsSection from "./RoutineBasicsSection";
 import RoutineExecutionSections from "./RoutineExecutionSections";
@@ -55,8 +57,15 @@ const RoutineWizard: React.FC<RoutineWizardProps> = ({
   onCancel,
 }) => {
   const { t } = useTranslation("integrations");
+  const configuredTimezone = useAtomValue(timezoneAtom);
+  const defaultTimezone = useMemo(() => {
+    if (!configuredTimezone || configuredTimezone === "auto") {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "utc";
+    }
+    return configuredTimezone;
+  }, [configuredTimezone]);
   const [draft, setDraft] = useState<RoutineDraft>(() =>
-    createRoutineDraft(routine)
+    createRoutineDraft(routine, defaultTimezone)
   );
   const [agentOrgs, setAgentOrgs] = useState<AgentOrgOption[]>([]);
   const [projects, setProjects] = useState<RoutineProjectOption[]>([]);
@@ -65,8 +74,8 @@ const RoutineWizard: React.FC<RoutineWizardProps> = ({
   const [isModelPaletteOpen, setIsModelPaletteOpen] = useState(false);
 
   useEffect(() => {
-    setDraft(createRoutineDraft(routine));
-  }, [routine]);
+    setDraft(createRoutineDraft(routine, defaultTimezone));
+  }, [defaultTimezone, routine]);
 
   useEffect(() => {
     let cancelled = false;

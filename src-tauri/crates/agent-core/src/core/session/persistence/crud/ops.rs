@@ -329,6 +329,20 @@ pub fn mark_stale_running_sessions_abandoned() -> SqliteResult<usize> {
     })
 }
 
+/// Statuses that settle a turn from the Work Item's point of view: the
+/// linked-session mirror only runs once a session leaves the in-flight /
+/// pre-flight set, so `linked_sessions` never flaps mid-turn.
+fn settles_linked_session(status: SessionStatus) -> bool {
+    !matches!(
+        status,
+        SessionStatus::Pending
+            | SessionStatus::Running
+            | SessionStatus::WaitingForUser
+            | SessionStatus::WaitingForFunds
+            | SessionStatus::Paused
+    )
+}
+
 /// Update session status.
 pub fn update_status(session_id: &str, status: SessionStatus) -> SqliteResult<bool> {
     let changed = with_sessions_writer(|| -> SqliteResult<bool> {
@@ -342,6 +356,9 @@ pub fn update_status(session_id: &str, status: SessionStatus) -> SqliteResult<bo
     })?;
     if changed {
         notify_session_mirror(session_id);
+        if settles_linked_session(status) {
+            super::super::linked_work_item::mirror_session_status_to_linked_work_item(session_id);
+        }
     }
     Ok(changed)
 }
@@ -383,6 +400,9 @@ pub fn finalize_terminal_turn_status(
     })?;
     if changed {
         notify_session_mirror(session_id);
+        if settles_linked_session(session_status) {
+            super::super::linked_work_item::mirror_session_status_to_linked_work_item(session_id);
+        }
     }
     Ok(changed)
 }
@@ -617,6 +637,31 @@ pub fn update_agent_exec_mode(session_id: &str, mode: &str) -> SqliteResult<bool
         let affected = conn.execute(
             "UPDATE agent_sessions SET agent_exec_mode = ?2 WHERE session_id = ?1",
             params![session_id, mode],
+        )?;
+        Ok(affected > 0)
+    })?;
+    if changed {
+        notify_session_mirror(session_id);
+    }
+    Ok(changed)
+}
+
+/// Atomically update the product-mode and execution-mode axes behind one
+/// composer selection. This prevents a concurrently dispatched turn from
+/// observing Project capability with a stale Ask/Plan execution policy (or
+/// the inverse while leaving Project).
+pub fn update_mode_axes(
+    session_id: &str,
+    product_mode: &str,
+    agent_exec_mode: &str,
+) -> SqliteResult<bool> {
+    let changed = with_sessions_writer(|| -> SqliteResult<bool> {
+        let conn = get_connection()?;
+        let affected = conn.execute(
+            "UPDATE agent_sessions
+             SET product_mode = ?2, agent_exec_mode = ?3
+             WHERE session_id = ?1",
+            params![session_id, product_mode, agent_exec_mode],
         )?;
         Ok(affected > 0)
     })?;
@@ -1099,6 +1144,7 @@ mod tests {
                 record.draft_text,
                 record.reply_target_event_id,
                 record.pinned as i64,
+                record.product_mode,
             ],
         )
         .unwrap();

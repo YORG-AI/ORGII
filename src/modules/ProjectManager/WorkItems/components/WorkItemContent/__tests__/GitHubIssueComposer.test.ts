@@ -31,6 +31,8 @@ vi.mock("@src/components/Avatar", () => ({
 }));
 
 vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
+  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS:
+    "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5",
   default: ({
     value,
     onChange,
@@ -141,15 +143,26 @@ describe("GitHubIssueComposer", () => {
     const levelActions = container.querySelector(
       "[data-testid='github-issue-level-actions']"
     );
+    const composer = container.querySelector(
+      "[data-testid='github-issue-inline-composer']"
+    );
     const input = container.querySelector(
       "[data-testid='github-issue-comment-input']"
     );
     expect(levelActions?.nextElementSibling).toBe(input);
+    expect(composer?.className).toContain("gap-1.5");
     expect(input?.contains(levelActions as Node)).toBe(false);
     expect(levelActions?.className).not.toContain("border-");
     expect(
       input?.querySelector("[data-testid='github-issue-comment-submit']")
     ).not.toBeNull();
+    expect(input?.className).toContain("px-1.5");
+    expect(input?.className).toContain("!pt-1.5");
+    expect(input?.className).toContain("pb-1.5");
+    expect(
+      input?.querySelector("[data-testid='github-issue-comment-submit']")
+        ?.parentElement?.parentElement?.className
+    ).toContain("px-1");
     expect(
       input?.querySelector("[data-testid='github-issue-comment-submit']")
         ?.parentElement?.className

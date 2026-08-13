@@ -78,8 +78,9 @@ pub fn os_agent() -> AgentDefinition {
         // OS Agent ships with capability-mismatched tools excluded by
         // default (coding tools — edit_file, query_lsp, etc.).
         // Desktop, browser, plugins, management, and core tools remain available.
-        // `manage_project`, `manage_work_item`, and `manage_agent_def`
-        // are available directly as management-capability tools.
+        // `manage_agent_def` is available directly as a
+        // management-capability tool; work items and projects are
+        // reached through the `org2-pm` CLI, not tools.
         tools: AgentToolSelection {
             excluded_tools,
             ..Default::default()

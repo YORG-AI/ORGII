@@ -235,5 +235,4 @@ export type TeamInboxNavigationIntent =
       orgId?: string;
       projectId: string;
       workItemId: string;
-      action?: "start_agent";
     };

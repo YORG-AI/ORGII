@@ -142,7 +142,10 @@ pub fn convert_definition(
                 .to_string(),
         );
     }
-    if !matches!(definition.run_template.workspace, RoutineWorkspaceTarget::None) {
+    if !matches!(
+        definition.run_template.workspace,
+        RoutineWorkspaceTarget::None
+    ) {
         warnings.push(
             "workspace/worktree target dropped from the portable spec; re-express as an execution binding"
                 .to_string(),
@@ -161,9 +164,9 @@ pub fn convert_definition(
     }
 
     let activation = match &definition.trigger {
-        RoutineTrigger::Cron { cron } => Activation::Schedule {
+        RoutineTrigger::Cron { cron, timezone } => Activation::Schedule {
             cron: cron.clone(),
-            timezone: "UTC".to_string(),
+            timezone: timezone.clone(),
             policies,
         },
         RoutineTrigger::OneTime { at } => {
@@ -230,10 +233,13 @@ pub fn convert_definition(
 /// expressible ones into `pm_routines` and reporting the rest.
 ///
 /// With `disable_converted_legacy`, successfully converted legacy rows
-/// are disabled in the same pass so the legacy scheduler can never fire
-/// them again — the portable scheduler is their only driver from then
-/// on (no double-fire window). Skipped definitions stay enabled on the
-/// legacy path until they become expressible.
+/// that carry a scope binding are disabled in the same pass so the legacy
+/// scheduler can never fire them again — the portable scheduler is their
+/// only driver from then on (no double-fire window). Conversions without
+/// a scope binding keep their legacy row enabled: the portable pass
+/// cannot fire them, so disabling would silently kill the routine.
+/// Skipped definitions stay enabled on the legacy path until they become
+/// expressible.
 pub fn convert_all(disable_converted_legacy: bool) -> Result<ConversionReport, String> {
     let definitions = crate::projects::io::list_routines()?;
     let mut report = ConversionReport::default();
@@ -245,14 +251,20 @@ pub fn convert_all(disable_converted_legacy: bool) -> Result<ConversionReport, S
                 // target project. CreateWorkItem routines carried it on
                 // the legacy policy; DirectSession ones did not — those
                 // stay manual-only until the operator binds a scope.
-                if let Some(scope) = definition
+                let scope_bound = if let Some(scope) = definition
                     .output_policy
                     .create_work_item_project_slug
                     .as_deref()
                 {
                     super::set_default_scope(&applied.name, scope)?;
-                }
-                if disable_converted_legacy && definition.enabled {
+                    true
+                } else {
+                    false
+                };
+                // Disabling the legacy row without a scope binding would
+                // leave the routine with no working driver: the portable
+                // pass suppresses every scheduled fire as no_scope_binding.
+                if disable_converted_legacy && definition.enabled && scope_bound {
                     crate::projects::io::disable_routine(&definition.id)?;
                 }
                 report.converted.push(ConvertedRoutine {

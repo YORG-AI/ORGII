@@ -15,6 +15,7 @@ use chrono::{DateTime, Utc};
 use tracing::{info, warn};
 
 use project_management::projects::io;
+use project_management::projects::routine_schedule::{due_times, next_occurrence};
 use project_management::projects::types::{
     RoutineCatchUpPolicy, RoutineDefinition, RoutineTrigger,
 };
@@ -66,8 +67,7 @@ async fn tick(app: &tauri::AppHandle, now: DateTime<Utc>) -> Result<(), String> 
 }
 
 /// Evaluate the portable `pm_routines` schedule activations (design
-/// §10.4). Cron is evaluated in UTC for now — the declared timezone is
-/// carried in the spec and honored once tz-aware evaluation lands.
+/// §10.4). Cron is evaluated in the timezone declared by the portable spec.
 /// Catch-up: both portable policies (`none`, `fire_once`) reduce to
 /// "fire the latest missed tick once", matching the legacy collapse.
 async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
@@ -84,6 +84,7 @@ async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
             .unwrap_or_else(|| now - chrono::Duration::seconds(POLL_INTERVAL_SECS as i64));
         let trigger = RoutineTrigger::Cron {
             cron: candidate.cron.clone(),
+            timezone: candidate.timezone.clone(),
         };
         let due = match due_times(&trigger, &window_start, &now) {
             Ok(due) => due,
@@ -114,7 +115,9 @@ async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
                     routines::audit_suppressed_fire(&name, "no_scope_binding", scheduled_millis)?;
                     return Ok(());
                 };
-                let run = routines::invoke(&name, &scope, &Default::default(), None)?;
+                let invoke_key = format!("{}:{}", name, scheduled_millis);
+                let run =
+                    routines::invoke(&name, &scope, &Default::default(), None, Some(&invoke_key))?;
                 info!(
                     "[routine-scheduler] portable routine {} fired run {}",
                     name, run.run_id
@@ -134,6 +137,7 @@ async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
         let next = next_occurrence(
             &RoutineTrigger::Cron {
                 cron: candidate.cron.clone(),
+                timezone: candidate.timezone.clone(),
             },
             &now,
         )
@@ -241,48 +245,6 @@ fn watermark(routine: &RoutineDefinition, now: DateTime<Utc>) -> DateTime<Utc> {
         .unwrap_or_else(|| now - chrono::Duration::seconds(POLL_INTERVAL_SECS as i64))
 }
 
-/// All trigger times in `(window_start, now]`.
-fn due_times(
-    trigger: &RoutineTrigger,
-    window_start: &DateTime<Utc>,
-    now: &DateTime<Utc>,
-) -> Result<Vec<DateTime<Utc>>, String> {
-    match trigger {
-        RoutineTrigger::OneTime { at } => {
-            let at_time = parse_trigger_time(at)?;
-            if at_time > *window_start && at_time <= *now {
-                Ok(vec![at_time])
-            } else if at_time <= *window_start {
-                // Missed while the app was closed — still due exactly once;
-                // catch-up policy decides whether it actually runs.
-                Ok(vec![at_time])
-            } else {
-                Ok(Vec::new())
-            }
-        }
-        RoutineTrigger::Cron { cron } => {
-            let parsed = croner::Cron::new(cron)
-                .parse()
-                .map_err(|err| format!("invalid cron expression '{cron}': {err}"))?;
-            let mut due = Vec::new();
-            let mut cursor = *window_start;
-            // Bounded to avoid unbounded loops on pathological expressions
-            // after long downtime.
-            const MAX_DUE: usize = 1000;
-            while due.len() < MAX_DUE {
-                match parsed.find_next_occurrence(&cursor, false) {
-                    Ok(next) if next <= *now => {
-                        due.push(next);
-                        cursor = next;
-                    }
-                    _ => break,
-                }
-            }
-            Ok(due)
-        }
-    }
-}
-
 /// Reduce the due list according to the catch-up policy. The latest due time
 /// always fires; earlier (missed) ones are policy-dependent.
 fn apply_catch_up_policy(
@@ -313,34 +275,6 @@ fn apply_catch_up_policy(
     }
 }
 
-fn next_occurrence(
-    trigger: &RoutineTrigger,
-    now: &DateTime<Utc>,
-) -> Result<Option<DateTime<Utc>>, String> {
-    match trigger {
-        RoutineTrigger::OneTime { at } => {
-            let at_time = parse_trigger_time(at)?;
-            Ok((at_time > *now).then_some(at_time))
-        }
-        RoutineTrigger::Cron { cron } => {
-            let parsed = croner::Cron::new(cron)
-                .parse()
-                .map_err(|err| format!("invalid cron expression '{cron}': {err}"))?;
-            Ok(parsed.find_next_occurrence(now, false).ok())
-        }
-    }
-}
-
-fn parse_trigger_time(raw: &str) -> Result<DateTime<Utc>, String> {
-    if let Ok(parsed) = DateTime::parse_from_rfc3339(raw) {
-        return Ok(parsed.with_timezone(&Utc));
-    }
-    if let Ok(parsed) = chrono::NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M:%S") {
-        return Ok(parsed.and_utc());
-    }
-    Err(format!("invalid one-time trigger timestamp: {raw}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -358,6 +292,7 @@ mod tests {
     fn cron_no_tick_in_window_returns_empty() {
         let trigger = RoutineTrigger::Cron {
             cron: "0 9 * * *".to_string(),
+            timezone: "UTC".to_string(),
         };
         let window_start = at(2026, 6, 10, 10, 0);
         let now = at(2026, 6, 10, 10, 5);
@@ -368,6 +303,7 @@ mod tests {
     fn cron_single_tick_in_window() {
         let trigger = RoutineTrigger::Cron {
             cron: "0 9 * * *".to_string(),
+            timezone: "UTC".to_string(),
         };
         let window_start = at(2026, 6, 10, 8, 0);
         let now = at(2026, 6, 10, 10, 0);
@@ -379,6 +315,7 @@ mod tests {
     fn cron_multiple_missed_ticks_accumulate() {
         let trigger = RoutineTrigger::Cron {
             cron: "0 9 * * *".to_string(),
+            timezone: "UTC".to_string(),
         };
         // Three days of downtime → three missed 09:00 ticks.
         let window_start = at(2026, 6, 7, 12, 0);
@@ -398,6 +335,7 @@ mod tests {
     fn cron_invalid_expression_is_error() {
         let trigger = RoutineTrigger::Cron {
             cron: "not a cron".to_string(),
+            timezone: "UTC".to_string(),
         };
         let now = Utc::now();
         assert!(due_times(&trigger, &now, &now).is_err());
@@ -490,6 +428,7 @@ mod tests {
     fn next_occurrence_cron() {
         let trigger = RoutineTrigger::Cron {
             cron: "0 9 * * *".to_string(),
+            timezone: "UTC".to_string(),
         };
         let now = at(2026, 6, 10, 10, 0);
         let next = next_occurrence(&trigger, &now).unwrap().unwrap();
@@ -527,6 +466,7 @@ mod tests {
             enabled: true,
             trigger: RoutineTrigger::Cron {
                 cron: "* * * * *".into(),
+                timezone: "UTC".into(),
             },
             run_template: project_management::projects::types::RoutineRunTemplate {
                 prompt: String::new(),
@@ -546,6 +486,11 @@ mod tests {
             output_policy: Default::default(),
             last_evaluated_at: None,
             next_fire_at: None,
+            last_fire_at: None,
+            last_fire_status: None,
+            last_fire_error: None,
+            last_fire_session_id: None,
+            last_fire_work_item_id: None,
             created_at: String::new(),
             updated_at: String::new(),
         };

@@ -270,15 +270,17 @@ impl CodexParser {
 
                 // Extract usage
                 if let Some(usage) = data.get("usage") {
+                    let input_tokens = usage
+                        .get("input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let output_tokens = usage
+                        .get("output_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
                     self.usage = Some(TokenUsage {
-                        input_tokens: usage
-                            .get("input_tokens")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0),
-                        output_tokens: usage
-                            .get("output_tokens")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0),
+                        input_tokens,
+                        output_tokens,
                         cache_read_tokens: usage
                             .get("cached_input_tokens")
                             .and_then(|v| v.as_u64())
@@ -287,7 +289,8 @@ impl CodexParser {
                         total_tokens: usage
                             .get("total_tokens")
                             .and_then(|v| v.as_u64())
-                            .unwrap_or(0),
+                            .filter(|value| *value > 0)
+                            .unwrap_or_else(|| input_tokens.saturating_add(output_tokens)),
                         model: data
                             .get("model")
                             .and_then(|v| v.as_str())

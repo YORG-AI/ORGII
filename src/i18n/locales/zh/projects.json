@@ -503,6 +503,7 @@
       "title": "Agent 工作流",
       "startAgent": "启动 Agent",
       "startAgentAndChat": "启动 Agent 并打开 Chat",
+      "noWorkspaceForAgent": "请先打开一个仓库工作区，再对该事项启动 agent。",
       "running": "运行中...",
       "pendingLaunch": "等待启动...",
       "completed": "已完成",
@@ -611,7 +612,9 @@
       "newSession": "新建会话",
       "starting": "正在启动...",
       "emptyOverview": "暂无 Sessions",
-      "emptyOverviewHint": "启动 Agent Session 后，可在此跟踪执行。"
+      "emptyOverviewHint": "启动 Agent Session 后，可在此跟踪执行。",
+      "originTitle": "创建来源 Session",
+      "originStatus": "由此 Session 创建"
     },
     "outputTab": {
       "prSection": "Pull Request",
@@ -635,7 +638,27 @@
       "cycles": "轮次"
     },
     "viewWorkItems": "查看 Work Items",
-    "fromRoutine": "来自 Routine：{{name}}"
+    "fromRoutine": "来自 Routine：{{name}}",
+    "subItems": {
+      "title": "子任务",
+      "parent": "父任务",
+      "progress": "已完成 {{completed}} / {{total}}",
+      "add": "添加子任务",
+      "addFirst": "添加第一个子任务",
+      "titlePlaceholder": "输入子任务标题",
+      "stagePicker": "子任务阶段",
+      "noStage": "无阶段",
+      "stage": "阶段 {{stage}}",
+      "openStatus": "未完成",
+      "completedStatus": "已完成",
+      "cancelledStatus": "已取消",
+      "createError": "无法创建子任务，请重试。"
+    },
+    "sessionRail": {
+      "notOnDeviceTitle": "会话不在此设备",
+      "notOnDeviceHint": "该会话在其他设备上运行，转录未同步到本机。",
+      "finalOutput": "最终输出"
+    }
   },
   "settings": {
     "sidebarGeneral": "常规",

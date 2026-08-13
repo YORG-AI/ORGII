@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { AgentOrgMemberIntervention } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
+import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import {
   ChatRetryBanner,
@@ -215,7 +216,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     return (
       <div
         ref={composerRef}
-        className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pb-2 pt-1"
+        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
       >
         <div
           aria-hidden

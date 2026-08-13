@@ -30,8 +30,7 @@ pub enum RequiredCapability {
     Gateway,
     /// Requires `data: Some(_)` (manage_nodes).
     Data,
-    /// Requires `management: Some(_)` (manage_session, manage_project,
-    /// manage_work_item, manage_agent_def).
+    /// Requires `management: Some(_)` (manage_session, manage_agent_def).
     Management,
     /// Agent orchestration plumbing (agent, tool_search, …). Always available.
     Orchestration,

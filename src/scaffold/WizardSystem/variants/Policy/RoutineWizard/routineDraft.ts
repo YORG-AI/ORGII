@@ -46,6 +46,8 @@ export interface RoutineDraft {
   triggerKind: keyof typeof ROUTINE_TRIGGER_KIND;
   at: string;
   cron: string;
+  /** IANA timezone used to evaluate the cron schedule. */
+  timezone: string;
   /** Whether the user is typing a raw cron instead of using the builder. */
   customCron: boolean;
   /** Consolidated "Agent responsible for this routine" — agent def or org. */
@@ -110,7 +112,10 @@ function inputToIso(value: string): string {
   return date.toISOString();
 }
 
-export function createRoutineDraft(routine?: RoutineDefinition): RoutineDraft {
+export function createRoutineDraft(
+  routine?: RoutineDefinition,
+  defaultTimezone = "utc"
+): RoutineDraft {
   const isCron = routine?.trigger.kind === ROUTINE_TRIGGER_KIND.CRON;
   const target = routine?.runTemplate.target;
   const workspace = routine?.runTemplate.workspace;
@@ -151,6 +156,12 @@ export function createRoutineDraft(routine?: RoutineDefinition): RoutineDraft {
         ? isoForInput(routine.trigger.at)
         : "",
     cron: existingCron,
+    timezone:
+      routine?.trigger.kind === ROUTINE_TRIGGER_KIND.CRON
+        ? routine.trigger.timezone.toLowerCase() === "utc"
+          ? "utc"
+          : routine.trigger.timezone
+        : defaultTimezone,
     customCron: existingCron !== "" && parseCron(existingCron) === null,
     target: storedTarget,
     targetLabel: "",
@@ -220,7 +231,12 @@ export function createRoutineDefinition(
 
   const trigger =
     draft.triggerKind === "CRON"
-      ? { kind: ROUTINE_TRIGGER_KIND.CRON, cron: draft.cron.trim() }
+      ? {
+          kind: ROUTINE_TRIGGER_KIND.CRON,
+          cron: draft.cron.trim(),
+          timezone:
+            draft.timezone.toLowerCase() === "utc" ? "UTC" : draft.timezone,
+        }
       : { kind: ROUTINE_TRIGGER_KIND.ONE_TIME, at: inputToIso(draft.at) };
 
   const target: RoutineRunTarget =

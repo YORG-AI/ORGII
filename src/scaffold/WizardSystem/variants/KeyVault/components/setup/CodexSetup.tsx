@@ -105,6 +105,7 @@ const CodexSetup: React.FC<CodexSetupProps> = ({
               options={methodOptions}
               selected={selectedMethod}
               cardVariant="subtle"
+              compactCards
               onSelect={(key) => onChange({ setup_method: key })}
             />
           </SectionRow>

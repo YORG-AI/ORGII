@@ -18,6 +18,8 @@ import {
   projectApi,
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
+import Message from "@src/components/Message";
+import { useRoutineResultNavigation } from "@src/hooks/navigation";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 const STATUS_TONE: Record<string, string> = {
@@ -41,9 +43,27 @@ interface RunRowProps {
 }
 
 const RunRow: React.FC<RunRowProps> = ({ run }) => {
+  const { t } = useTranslation("sessions");
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<RoutineRunStatus | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const openResult = useRoutineResultNavigation();
+
+  const openWorkItem = useCallback(
+    (workItemId: string) => {
+      void openResult({
+        workItemId,
+        projectSlug: run.scopeId,
+      }).catch(() =>
+        Message.error(
+          t("kanban.openRoutineWorkItemError", {
+            defaultValue: "Could not open the Work Item",
+          })
+        )
+      );
+    },
+    [openResult, run.scopeId, t]
+  );
 
   const toggle = useCallback(() => {
     setExpanded((previous) => !previous);
@@ -112,19 +132,23 @@ const RunRow: React.FC<RunRowProps> = ({ run }) => {
           ) : (
             <ul className="flex flex-col gap-1">
               {detail.workItems.map((item) => (
-                <li
-                  key={item.shortId}
-                  className="flex items-center gap-2 text-[12px]"
-                >
-                  <span className="font-medium text-text-2">
-                    {item.shortId}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-text-2">
-                    {item.title}
-                  </span>
-                  <span className="text-text-3">
-                    {item.portableState ?? item.status}
-                  </span>
+                <li key={item.shortId} className="text-[12px]">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-fill-1"
+                    onClick={() => openWorkItem(item.shortId)}
+                    data-testid={`routine-run-work-item-${item.shortId}`}
+                  >
+                    <span className="font-medium text-primary-6">
+                      {item.shortId}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-text-2">
+                      {item.title}
+                    </span>
+                    <span className="text-text-3">
+                      {item.portableState ?? item.status}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>

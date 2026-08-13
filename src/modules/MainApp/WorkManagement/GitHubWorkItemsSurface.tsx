@@ -29,6 +29,7 @@ import { useGitHubWorkItemsLoadLifecycle } from "./useGitHubWorkItemsLoadLifecyc
 import {
   GITHUB_FILTER_PRESET,
   ISSUE_REPO_FILTER,
+  areRequestedPrStatesLoaded,
   useGitHubWorkItemsViewState,
 } from "./useGitHubWorkItemsViewState";
 import type { WorkManagementDetailHost } from "./workManagementDetailHost";
@@ -109,6 +110,8 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     hasMoreFilteredIssues,
     totalLoadedPages,
     pagedItems,
+    openPrLoaded,
+    closedPrLoaded,
   } = useGitHubWorkItemsDerivedState({
     repoSources,
     repoIssueMap,
@@ -121,6 +124,17 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     currentWorkstationValue: ISSUE_REPO_FILTER.CURRENT_WORKSTATION,
     sort: workItemsSort,
   });
+  const requestedPrDataLoaded = areRequestedPrStatesLoaded(
+    selectedPrListStates,
+    openPrLoaded,
+    closedPrLoaded
+  );
+  const listLoading =
+    loading ||
+    (scope === GITHUB_QUERY_SCOPE.PR &&
+      loadError === null &&
+      paginatedSources.length > 0 &&
+      !requestedPrDataLoaded);
 
   const issuePersonalFilterOptions = useMemo<SelectOption[]>(
     () =>
@@ -253,7 +267,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
   return (
     <GitHubWorkItemsView
       scope={scope}
-      loading={loading}
+      loading={listLoading}
       loadError={loadError}
       loadingMore={loadingMore}
       allItemsCount={allItems.length}

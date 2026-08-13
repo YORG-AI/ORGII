@@ -1,12 +1,14 @@
 import { listen } from "@tauri-apps/api/event";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   type RoutineDefinition,
   invalidateProjectCache,
   projectApi,
 } from "@src/api/http/project";
+import Message from "@src/components/Message";
 import { WIZARD_IDS } from "@src/config/mainAppPaths";
 import { useWizardParam } from "@src/hooks/navigation";
 import {
@@ -34,6 +36,7 @@ export function useRoutinesState(
   category: IntegrationCategory,
   setDetailMode: (mode: DetailMode) => void
 ): UseRoutinesStateReturn {
+  const { t } = useTranslation("integrations");
   const routinesActive = category === "routines";
   const [routines, setRoutines] = useState<RoutineDefinition[]>([]);
   const [routinesLoading, setRoutinesLoading] = useState(false);
@@ -160,9 +163,36 @@ export function useRoutinesState(
 
   const handleFire = useCallback(async () => {
     if (!selectedRoutine) return;
-    await projectApi.fireRoutine(selectedRoutine.id);
-    await refreshRoutines();
-  }, [selectedRoutine, refreshRoutines]);
+    try {
+      const result = await projectApi.fireRoutine(selectedRoutine.id);
+      await refreshRoutines();
+      if (
+        result.fire.status === "queued" ||
+        result.fire.status === "coalesced" ||
+        result.fire.status === "skipped"
+      ) {
+        Message.info(
+          t("routineFields.fireAccepted", {
+            defaultValue: `Run ${result.fire.status}`,
+          })
+        );
+      } else {
+        Message.success(
+          t("routineFields.fireStarted", {
+            defaultValue: "Routine run started",
+          })
+        );
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      Message.error(
+        t("routineFields.fireError", {
+          defaultValue: `Could not start the Routine: ${detail}`,
+        }),
+        5000
+      );
+    }
+  }, [selectedRoutine, refreshRoutines, t]);
 
   const openNewRoutineWizard = useCallback(() => {
     openWizard(WIZARD_IDS.ROUTINE_ADD);

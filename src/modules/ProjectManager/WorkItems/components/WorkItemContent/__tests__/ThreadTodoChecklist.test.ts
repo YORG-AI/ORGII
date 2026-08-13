@@ -65,4 +65,47 @@ describe("ThreadTodoChecklist", () => {
     expect(addButton?.className).toContain("hover:bg-fill-2");
     expect(addButton?.querySelector(".lucide-plus")).not.toBeNull();
   });
+
+  it("uses flat square tertiary ghost actions in the inline composer", () => {
+    act(() => {
+      root.render(
+        createElement(ThreadTodoChecklist, {
+          todos: [],
+          onChange: vi.fn(),
+        })
+      );
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-thread-todo-add']"
+        )
+        ?.click();
+    });
+
+    const commitButton = container.querySelector<HTMLButtonElement>(
+      "[data-testid='work-item-thread-todo-commit']"
+    );
+    const cancelButton = container.querySelector<HTMLButtonElement>(
+      "[data-testid='work-item-thread-todo-cancel']"
+    );
+    const inputWrapper = container
+      .querySelector("[data-testid='work-item-thread-todo-input']")
+      ?.closest(".input-wrapper");
+    const composer = container.querySelector(
+      "[data-testid='work-item-thread-todo-input']"
+    )?.parentElement?.parentElement?.parentElement;
+
+    for (const button of [commitButton, cancelButton]) {
+      expect(button?.className).toContain("border-0");
+      expect(button?.className).toContain("bg-transparent");
+      expect(button?.style.borderRadius).toBe("8px");
+    }
+    expect(composer?.className).not.toContain("bg-fill-1");
+    expect(composer?.className).toContain("py-2");
+    expect(inputWrapper?.className).toContain("input-field-ghost");
+    expect(commitButton?.querySelector(".lucide-plus")).not.toBeNull();
+    expect(cancelButton?.querySelector(".lucide-x")).not.toBeNull();
+  });
 });

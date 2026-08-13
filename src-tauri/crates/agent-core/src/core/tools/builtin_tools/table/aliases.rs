@@ -12,8 +12,7 @@ pub(super) use crate::definitions::capabilities::RequiredCapability;
 pub(super) use AppSubtool::{
     Browser as SubBrowser, Explore, FileRead, FileWrite, Glob as SubGlob,
     InternalBrowser as SubInternalBrowser, Message, OtherInteractions, OtherTool,
-    Project as SubProject, Search as SubSearch, Shell, Subagent as SubSubagent,
-    Thinking as SubThinking, Todo as SubTodo,
+    Search as SubSearch, Shell, Subagent as SubSubagent, Thinking as SubThinking, Todo as SubTodo,
 };
 // ChatBlock aliases — one per actual React block component.
 pub(super) use ChatBlock::{
@@ -32,7 +31,7 @@ pub(super) use HumanToolKey::{
 };
 pub(super) use SimulatorApp::{
     BackgroundTasks as AppBackgroundTasks, Browser as AppBrowser, Canvas as AppCanvas,
-    Channels as AppChannels, CodeEditor as AppCode, ProjectManager as AppProject,
+    Channels as AppChannels, CodeEditor as AppCode,
 };
 pub(super) use ToolDisplayBehavior::{
     Instant as DisplayInstant, Stream as DisplayStream, WaitForResult as DisplayWaitForResult,

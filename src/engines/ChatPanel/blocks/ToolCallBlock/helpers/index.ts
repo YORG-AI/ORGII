@@ -22,6 +22,7 @@ export {
 export {
   parseAgentMessageCard,
   parseCommandResult,
+  parseOrgtrackEnvelope,
   parseFileCardResult,
   parseProjectCardResult,
   parseWebsiteCardResult,

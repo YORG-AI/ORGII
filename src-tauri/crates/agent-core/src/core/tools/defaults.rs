@@ -51,8 +51,15 @@ pub const SUBAGENT_FORBIDDEN_TOOLS: &[&str] = &[
 ///
 /// `task` and `spawn_sub_agent` were both early names for what is now
 /// the singular `agent` tool — see commit history of
-/// `core/tools/impls/orchestration/agent`.
-pub const SUBAGENT_RETIRED_TOOL_ALIASES: &[&str] = &["task", "spawn_sub_agent"];
+/// `core/tools/impls/orchestration/agent`. `manage_project` and
+/// `manage_work_item` were the typed PM tools retired in favour of the
+/// `org2-pm` CLI (orgtrack/v1 agent-plane unification).
+pub const SUBAGENT_RETIRED_TOOL_ALIASES: &[&str] = &[
+    "task",
+    "spawn_sub_agent",
+    tool_names::MANAGE_PROJECT,
+    tool_names::MANAGE_WORK_ITEM,
+];
 
 const NON_BUILTIN_REGISTERED_TOOLS: &[&str] = &[
     tool_names::LIST_KNOWN_WORKSPACES,
@@ -97,11 +104,9 @@ pub fn derive_disabled_tools(restrict_to: &[String], excluded: &[String]) -> Has
 /// keeps Settings/Wizard affordances aligned with the default harness role.
 pub fn supported_agents_for(tool_name: &str) -> Vec<AgentKind> {
     match tool_name {
-        tool_names::CONTROL_ORGII
-        | tool_names::MANAGE_SESSION
-        | tool_names::MANAGE_PROJECT
-        | tool_names::MANAGE_WORK_ITEM
-        | tool_names::MANAGE_AGENT_DEF => vec![AgentKind::Os, AgentKind::Custom],
+        tool_names::CONTROL_ORGII | tool_names::MANAGE_SESSION | tool_names::MANAGE_AGENT_DEF => {
+            vec![AgentKind::Os, AgentKind::Custom]
+        }
         _ => vec![AgentKind::Os, AgentKind::Sde, AgentKind::Custom],
     }
 }
@@ -180,12 +185,7 @@ mod tests {
 
     #[test]
     fn management_tools_are_not_advertised_for_sde_workers() {
-        for tool in [
-            tool_names::MANAGE_SESSION,
-            tool_names::MANAGE_PROJECT,
-            tool_names::MANAGE_WORK_ITEM,
-            tool_names::MANAGE_AGENT_DEF,
-        ] {
+        for tool in [tool_names::MANAGE_SESSION, tool_names::MANAGE_AGENT_DEF] {
             let agents = supported_agents_for(tool);
             assert!(agents.contains(&AgentKind::Os), "{tool} on OS");
             assert!(!agents.contains(&AgentKind::Sde), "{tool} not on SDE");
@@ -303,12 +303,7 @@ mod tests {
             excluded.contains(&tool_names::CONTROL_INTERNAL_BROWSER.to_string()),
             "SDE should exclude internal browser automation by default"
         );
-        for tool in [
-            tool_names::MANAGE_SESSION,
-            tool_names::MANAGE_PROJECT,
-            tool_names::MANAGE_WORK_ITEM,
-            tool_names::MANAGE_AGENT_DEF,
-        ] {
+        for tool in [tool_names::MANAGE_SESSION, tool_names::MANAGE_AGENT_DEF] {
             assert!(
                 excluded.contains(&tool.to_string()),
                 "SDE should exclude management tool {tool} by default"

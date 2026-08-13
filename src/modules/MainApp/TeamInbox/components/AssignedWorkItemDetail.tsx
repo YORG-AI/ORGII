@@ -188,18 +188,6 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
             githubIssueInteraction={
               isGitHubIssue ? githubIssue.interaction : undefined
             }
-            onStartAgent={
-              onNavigate
-                ? () =>
-                    onNavigate({
-                      kind: "open_work_item",
-                      orgId: item.target.orgId,
-                      projectId: item.target.projectId,
-                      workItemId: item.target.workItemId,
-                      action: "start_agent",
-                    })
-                : undefined
-            }
             onOpenSession={
               onNavigate
                 ? (sessionId) =>

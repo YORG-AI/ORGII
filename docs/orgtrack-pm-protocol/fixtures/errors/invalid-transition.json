@@ -3,7 +3,7 @@
   "ok": false,
   "error": {
     "code": "INVALID_TRANSITION",
-    "message": "completed -> in_progress is not allowed; in_progress is only entered via work.claim or blocked -> in_progress",
+    "message": "completed -> in_progress is not an allowed transition",
     "retryable": false,
     "details": {
       "from": "completed",

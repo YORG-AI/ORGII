@@ -45,6 +45,7 @@ const pr = {
   head_branch: "fix/crash",
   base_branch: "main",
   draft: false,
+  ci_status: "success",
   created_at: "2026-07-20T10:00:00.000Z",
 } as OpenPRItem;
 

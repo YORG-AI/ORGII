@@ -91,6 +91,8 @@ export interface BranchDropdownProps {
   groupWorktreeBranches?: boolean;
   /** Element the dropdown is anchored to. */
   anchorRef: React.RefObject<HTMLElement | null>;
+  /** Preferred vertical side of the anchor. */
+  placement?: "top" | "bottom" | "auto";
 }
 
 export const BranchDropdown: React.FC<BranchDropdownProps> = ({
@@ -104,6 +106,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
   githubRepoFullName,
   groupWorktreeBranches = true,
   anchorRef,
+  placement = "bottom",
 }) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -204,7 +207,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
       if (!open) onClose();
     },
     anchorRef,
-    placement: "bottom",
+    placement,
     gap: DROPDOWN_PANEL.triggerGap,
     listNavigation: {
       items: visibleBranches,
