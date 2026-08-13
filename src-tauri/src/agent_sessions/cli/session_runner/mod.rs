@@ -23,6 +23,7 @@ mod context_bridge;
 mod cursor_usage;
 mod env_setup;
 mod finalize;
+mod harness_hooks;
 mod helpers;
 mod input_assembly;
 pub(crate) mod launch_profiles;
@@ -33,7 +34,9 @@ mod proxy_release;
 mod session;
 mod token_sync;
 
+pub(crate) use harness_hooks::stop_session as stop_session_hooks;
 pub use helpers::{flush_cli_streams_for_session, RUNNING_SESSIONS};
+pub(crate) use input_assembly::forget_session_context;
 pub use lifecycle::{
     cancel_session, cleanup_cursor_config_dir, kill_running_agent, terminate_process_tree,
 };

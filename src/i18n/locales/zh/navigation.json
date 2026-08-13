@@ -788,6 +788,7 @@
         "inviteRevoked": "该邀请已被撤销。",
         "inviteExpired": "该邀请已过期。",
         "inviteExhausted": "该邀请的使用次数已用完。",
+        "alreadyMember": "你已经是该组织的成员。",
         "network": "无法连接云服务。请检查网络后重试。"
       }
     },

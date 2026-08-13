@@ -10,7 +10,10 @@ import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@src/components/Button";
-import { pillControlStateClass } from "@src/components/CompoundPill/config";
+import {
+  type PillControlFocusTreatment,
+  pillControlStateClass,
+} from "@src/components/CompoundPill/config";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
 import {
@@ -28,6 +31,7 @@ import { usePropertyDropdownDirection } from "./PropertyDropdownDirection";
 // ============================================
 
 export type FieldRowVariant = "row" | "pill";
+export type FieldRowIdleSurface = "background" | "fill";
 
 export interface FieldRowProps {
   icon: React.ReactNode;
@@ -43,6 +47,9 @@ export interface FieldRowProps {
   suffix?: React.ReactNode;
   variant?: FieldRowVariant;
   compactPill?: boolean;
+  idleSurface?: FieldRowIdleSurface;
+  /** Border treatment while hovered/open. Defaults to the standard pill accent. */
+  focusTreatment?: PillControlFocusTreatment;
   borderless?: boolean;
   disabled?: boolean;
   clearLabel?: string;
@@ -63,6 +70,8 @@ export const FieldRow: React.FC<FieldRowProps> = ({
   suffix,
   variant = "row",
   compactPill = false,
+  idleSurface = "background",
+  focusTreatment = "accent",
   borderless = false,
   disabled = false,
   onClick,
@@ -89,7 +98,7 @@ export const FieldRow: React.FC<FieldRowProps> = ({
           icon={iconContent}
           onClick={onClick}
           disabled={disabled}
-          className={`max-w-[220px] ${compactPill ? "!px-2" : ""} ${pillBorderClass} ${pillControlStateClass(isActive)}`}
+          className={`max-w-[220px] ${compactPill ? "!px-2" : ""} ${pillBorderClass} ${pillControlStateClass(isActive, idleSurface, focusTreatment)}`}
           data-field-row
         >
           <span className="inline-flex min-w-0 max-w-full items-center gap-1">
@@ -228,7 +237,7 @@ export interface SearchableDropdownProps {
 
 export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   children,
-  placeholder = "Search...",
+  placeholder,
   className = "",
   maxHeight = DROPDOWN_PANEL.maxHeight,
   widthMode = "match-parent",
@@ -240,11 +249,10 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     top: number;
     left?: number;
     right?: number;
+    width?: number;
   } | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const { dropdownRef, resolvedAlign } = useResolvedDropdownAlign(align);
-  const shouldPortal = widthMode === "menu";
-
   const positionClass =
     widthMode === "menu"
       ? resolvedAlign === "right"
@@ -256,13 +264,20 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   const widthClass = widthMode === "menu" ? DROPDOWN_WIDTHS.wideMenuClass : "";
 
   useLayoutEffect(() => {
-    if (!shouldPortal) return;
-
     const updatePosition = () => {
       const anchorElement = anchorRef.current;
       if (!anchorElement) return;
 
       const rect = anchorElement.getBoundingClientRect();
+      if (widthMode === "match-parent") {
+        setPortalPosition({
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+        });
+        return;
+      }
+
       const menuWidth = 200;
       const viewportPadding = 8;
       const { width: vw } = getViewportSize();
@@ -286,7 +301,7 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [dropdownDirection, resolvedAlign, shouldPortal]);
+  }, [dropdownDirection, resolvedAlign, widthMode]);
 
   const dropdownContent = (
     <>
@@ -302,46 +317,33 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     </>
   );
 
-  if (shouldPortal) {
-    return (
-      <>
-        <div
-          ref={anchorRef}
-          className={`absolute ${positionClass} ${
-            dropdownDirection === "up" ? "bottom-full mb-1" : "top-full mt-1"
-          } h-0 w-0`}
-        />
-        {portalPosition &&
-          createPortal(
-            <div
-              ref={dropdownRef}
-              data-property-dropdown
-              className={`fixed flex flex-col ${widthClass} ${DROPDOWN_CLASSES.panelAnimated} ${className}`}
-              style={{
-                top: portalPosition.top,
-                left: portalPosition.left,
-                right: portalPosition.right,
-                translate: dropdownDirection === "up" ? "0 -100%" : undefined,
-              }}
-            >
-              {dropdownContent}
-            </div>,
-            document.body
-          )}
-      </>
-    );
-  }
-
   return (
-    <div
-      ref={dropdownRef}
-      data-property-dropdown
-      className={`absolute ${positionClass} ${
-        dropdownDirection === "up" ? "bottom-full mb-1" : "top-full mt-1"
-      } flex flex-col ${widthClass} ${DROPDOWN_CLASSES.panelAnimated} ${className}`}
-    >
-      {dropdownContent}
-    </div>
+    <>
+      <div
+        ref={anchorRef}
+        className={`absolute ${positionClass} ${
+          dropdownDirection === "up" ? "bottom-full mb-1" : "top-full mt-1"
+        } h-0 ${widthMode === "menu" ? "w-0" : ""}`}
+      />
+      {portalPosition &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            data-property-dropdown
+            className={`fixed flex flex-col ${widthClass} ${DROPDOWN_CLASSES.panelAnimated} ${className}`}
+            style={{
+              top: portalPosition.top,
+              left: portalPosition.left,
+              right: portalPosition.right,
+              width: portalPosition.width,
+              translate: dropdownDirection === "up" ? "0 -100%" : undefined,
+            }}
+          >
+            {dropdownContent}
+          </div>,
+          document.body
+        )}
+    </>
   );
 };
 

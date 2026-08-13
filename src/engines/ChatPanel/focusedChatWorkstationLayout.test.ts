@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS,
+  resolveFocusedChatWorkstationRailInsetStyle,
   resolveFocusedChatWorkstationRailTrackClass,
   resolveFocusedChatWorkstationSectionOrder,
   shouldMountFocusedChatWorkstationControls,
+  shouldReserveFocusedChatWorkstationPlaceholder,
 } from "./focusedChatWorkstationLayout";
+import { CHAT_PANEL_HEADER_STACK_HEIGHT_PX } from "./header/chatPanelHeaderLayout";
 
 describe("shouldMountFocusedChatWorkstationControls", () => {
   it("mounts only for a maximized session with visible session content", () => {
@@ -39,6 +42,38 @@ describe("shouldMountFocusedChatWorkstationControls", () => {
   });
 });
 
+describe("shouldReserveFocusedChatWorkstationPlaceholder", () => {
+  it("reserves the collapsed rail track for a focused visible Launchpad", () => {
+    expect(
+      shouldReserveFocusedChatWorkstationPlaceholder({
+        activeTabType: "start-page",
+        isChatFocus: true,
+        startPageOpen: true,
+      })
+    ).toBe(true);
+  });
+
+  it.each([
+    {
+      activeTabType: "start-page" as const,
+      isChatFocus: false,
+      startPageOpen: true,
+    },
+    {
+      activeTabType: "start-page" as const,
+      isChatFocus: true,
+      startPageOpen: false,
+    },
+    {
+      activeTabType: "session" as const,
+      isChatFocus: true,
+      startPageOpen: true,
+    },
+  ])("does not reserve the track outside Launchpad focus", (input) => {
+    expect(shouldReserveFocusedChatWorkstationPlaceholder(input)).toBe(false);
+  });
+});
+
 describe("resolveFocusedChatWorkstationRailTrackClass", () => {
   it("uses fixed expanded and collapsed tracks without resize geometry", () => {
     expect(resolveFocusedChatWorkstationRailTrackClass(false)).toBe(
@@ -47,6 +82,23 @@ describe("resolveFocusedChatWorkstationRailTrackClass", () => {
     expect(resolveFocusedChatWorkstationRailTrackClass(true)).toBe(
       "w-0 @[1100px]/focusedchat:w-11 @[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2"
     );
+  });
+});
+
+describe("resolveFocusedChatWorkstationRailInsetStyle", () => {
+  it("restores the rail below the overlaid two-row chat header", () => {
+    expect(
+      resolveFocusedChatWorkstationRailInsetStyle(
+        CHAT_PANEL_HEADER_STACK_HEIGHT_PX
+      )
+    ).toEqual({
+      marginTop: "84px",
+      height: "calc(100% - 84px)",
+    });
+  });
+
+  it("does not alter non-overlay rail placement", () => {
+    expect(resolveFocusedChatWorkstationRailInsetStyle(0)).toEqual({});
   });
 });
 

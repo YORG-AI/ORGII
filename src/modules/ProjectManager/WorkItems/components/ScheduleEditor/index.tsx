@@ -28,6 +28,7 @@ interface ScheduleEditorProps {
   schedule?: WorkItemSchedule | null;
   onChange: (schedule: ScheduleValue) => void;
   t: (key: string, opts?: Record<string, unknown>) => string;
+  compact?: boolean;
 }
 
 const FREQUENCY_OPTIONS: { value: ScheduleFrequency; labelKey: string }[] = [
@@ -76,6 +77,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
   schedule,
   onChange,
   t,
+  compact = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const currentMode: ScheduleMode = useMemo(() => {
@@ -289,13 +291,13 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
     size: "small" as const,
     dropdownAlign: "right" as const,
     dropdownWidthMode: "match" as const,
-    variant: "ghost" as const,
+    appearance: "ghost" as const,
     className: "w-full",
     getPopupContainer: getSelectPopupContainer,
   };
 
   return (
-    <div ref={containerRef} className="space-y-3 p-3">
+    <div ref={containerRef} className={`space-y-3 ${compact ? "p-2" : "p-3"}`}>
       <div>
         <div className="mb-1 text-[11px] font-medium text-text-3">
           {t("common:schedule.scheduleType")}
@@ -364,7 +366,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
               hour={oneShotHour}
               minute={oneShotMinute}
               onChange={handleOneShotTimeChange}
-              variant="ghost"
+              appearance="ghost"
             />
           </div>
         </div>
@@ -420,7 +422,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
               hour={cronParts.hour}
               minute={cronParts.minute}
               onChange={handleCronTimeChange}
-              variant="ghost"
+              appearance="ghost"
             />
           </div>
 

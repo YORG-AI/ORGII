@@ -46,6 +46,7 @@ import {
 } from "@src/features/Org2Cloud/org2CloudAuthLoopback";
 import { resetOrgEntitlementCoordinator } from "@src/features/Org2Cloud/org2CloudEntitlementCoordinator";
 import {
+  CLOUD_INVITE_DEEP_LINK_HOST,
   type CloudInviteDeepLink,
   type CloudShareDeepLink,
   parseCloudInviteDeepLink,
@@ -143,6 +144,22 @@ function parseDeepLink(
   } catch (error) {
     logError("DeepLinkHandler", "Failed to parse deep link:", error);
     return null;
+  }
+}
+
+// Unclaimed orgii://cloud/… URLs must never reach the generic conversion:
+// /orgii/cloud/… matches no route (404 error page), and getCurrent() would
+// re-deliver the URL on every boot, resurrecting that page after restarts.
+// Only correct when called AFTER the dedicated cloud parsers had their turn.
+export function isUnclaimedCloudDeepLink(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed.toLowerCase().startsWith("orgii://")) return false;
+  try {
+    return (
+      new URL(trimmed).hostname.toLowerCase() === CLOUD_INVITE_DEEP_LINK_HOST
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -380,6 +397,15 @@ export function useDeepLinkHandler(): void {
               break;
             }
 
+            if (isUnclaimedCloudDeepLink(url)) {
+              processedDeepLinks.current.add(url);
+              logWarn(
+                "DeepLinkHandler",
+                "Ignoring malformed ORG2 Cloud deep link"
+              );
+              continue;
+            }
+
             const parsed = parseDeepLink(url);
             if (!parsed) {
               logWarn("DeepLinkHandler", "Could not parse deep link:", url);
@@ -499,6 +525,15 @@ export function useDeepLinkHandler(): void {
                 );
               }
               break;
+            }
+
+            if (isUnclaimedCloudDeepLink(url)) {
+              processedDeepLinks.current.add(url);
+              logWarn(
+                "DeepLinkHandler",
+                "Ignoring malformed initial ORG2 Cloud deep link"
+              );
+              continue;
             }
 
             const parsed = parseDeepLink(url);

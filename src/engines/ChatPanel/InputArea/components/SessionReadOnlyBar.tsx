@@ -41,7 +41,6 @@ const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
           onUpload={() => undefined}
           hideAddButton
           dropdownDirection="up"
-          toolbarItemGap={false}
           showContextInfo={false}
           pills={pills}
           submitButton={

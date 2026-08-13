@@ -190,7 +190,7 @@ export function AssigneePropertyField({
           triggerVariant={triggerVariant ?? fieldVariant}
           selected={currentExternalOptions.length > 0}
           searchable
-          searchPlaceholder={t("properties.searchAssignee")}
+          searchPlaceholder={t("common:actions.search")}
           active={active ?? externalPickerOpen}
           onActiveChange={handleExternalActiveChange}
           readonly={externalDisabled}
@@ -270,7 +270,7 @@ export function AssigneePropertyField({
       triggerVariant={triggerVariant ?? fieldVariant}
       selected={!!workItem.assignee}
       searchable
-      searchPlaceholder={t("properties.searchAssignee")}
+      searchPlaceholder={t("common:actions.search")}
       active={active}
       onActiveChange={onActiveChange}
       onClear={() => onAssigneeChange(null)}

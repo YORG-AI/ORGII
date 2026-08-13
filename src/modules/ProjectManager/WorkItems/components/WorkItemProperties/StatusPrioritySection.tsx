@@ -110,7 +110,7 @@ export function StatusPrioritySection({
             }
             isSelected={!!externalStatusConfig.currentStatusId}
             isActive={openPicker === "status"}
-            searchPlaceholder={t("properties.searchStatus")}
+            searchPlaceholder={t("common:actions.search")}
             getLabel={(value) =>
               externalStatusConfig.options.find((option) => option.id === value)
                 ?.label ?? value
@@ -135,7 +135,7 @@ export function StatusPrioritySection({
             }
             isSelected
             isActive={openPicker === "status"}
-            searchPlaceholder={t("properties.searchStatus")}
+            searchPlaceholder={t("common:actions.search")}
             getLabel={(value) => t(`workItems.statusLabels.${value}`)}
             fieldVariant={fieldVariant}
             onPickerActiveChange={(active) =>
@@ -158,7 +158,7 @@ export function StatusPrioritySection({
           }
           isSelected={!!workItem.priority && workItem.priority !== "none"}
           isActive={openPicker === "priority"}
-          searchPlaceholder={t("properties.searchPriority")}
+          searchPlaceholder={t("common:actions.search")}
           getLabel={(value) => t(`workItems.priorityLabels.${value}`)}
           fieldVariant={fieldVariant}
           onPickerActiveChange={(active) =>

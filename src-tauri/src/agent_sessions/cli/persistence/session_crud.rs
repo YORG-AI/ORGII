@@ -88,6 +88,15 @@ pub fn create_session(
         .as_ref()
         .filter(|v| !v.is_empty())
         .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "[]".to_string()));
+    let product_mode = if params.work_item_id.is_some() {
+        "project".to_string()
+    } else {
+        params
+            .product_mode
+            .clone()
+            .filter(|mode| matches!(mode.as_str(), "build" | "plan" | "ask" | "project"))
+            .unwrap_or_else(|| "build".to_string())
+    };
 
     // Native-transcript capability is decided once at creation and frozen:
     // a later capability flip must never re-route an existing session's
@@ -104,8 +113,8 @@ pub fn create_session(
              proxy_session_id, background, key_source, additional_directories,
              parent_session_id, org_member_id, org_id, project_id, project_name,
              project_slug, work_item_id, agent_role, created_at, updated_at,
-             transcript_source, product_mode)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)",
+             transcript_source, product_mode, agent_exec_mode)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31)",
         params![
             session_id, name, SessionStatus::Pending.as_ref(), flow, runner, params.cli_agent_type,
             params.model, params.tier, params.account_id,
@@ -114,7 +123,7 @@ pub fn create_session(
             additional_dirs_json, params.parent_session_id, params.org_member_id,
             org_id, params.project_id, params.project_name, params.project_slug,
             params.work_item_id, params.agent_role, ts, ts, transcript_source,
-            params.product_mode,
+            product_mode, AgentExecMode::Build.as_str(),
         ],
     )?;
 
@@ -775,9 +784,6 @@ pub fn update_model_and_account(
     Ok(affected > 0)
 }
 
-/// Update the per-session execution mode on a CLI session row.
-/// Mirrors `agent_core::session::persistence::update_agent_exec_mode`.
-/// Does not bump `updated_at`; this is composer control state, not activity.
 /// Link the Project root Work Item created by the bootstrap flow.
 /// Guarded on `work_item_id IS NULL` so a concurrent duplicate submit
 /// can never repoint an already-linked session (same contract as the
@@ -809,6 +815,9 @@ pub fn update_product_mode(session_id: &str, product_mode: &str) -> SqliteResult
     Ok(affected > 0)
 }
 
+/// Update the per-session execution mode on a CLI session row.
+/// Mirrors `agent_core::session::persistence::update_agent_exec_mode`.
+/// Does not bump `updated_at`; this is composer control state, not activity.
 pub fn update_agent_exec_mode(session_id: &str, mode: &str) -> SqliteResult<bool> {
     let parsed = AgentExecMode::parse(mode).ok_or_else(|| {
         rusqlite::Error::ToSqlConversionFailure(
@@ -819,6 +828,31 @@ pub fn update_agent_exec_mode(session_id: &str, mode: &str) -> SqliteResult<bool
     let affected = conn.execute(
         "UPDATE code_sessions SET agent_exec_mode = ?2 WHERE session_id = ?1",
         params![session_id, parsed.as_str()],
+    )?;
+    if affected > 0 {
+        sync_orgtrack_mirror(session_id);
+    }
+    Ok(affected > 0)
+}
+
+/// Atomically update the product-mode and execution-mode axes behind one
+/// composer selection. See the native-session equivalent for the invariant.
+pub fn update_mode_axes(
+    session_id: &str,
+    product_mode: &str,
+    agent_exec_mode: &str,
+) -> SqliteResult<bool> {
+    let parsed = AgentExecMode::parse(agent_exec_mode).ok_or_else(|| {
+        rusqlite::Error::ToSqlConversionFailure(
+            format!("unknown AgentExecMode value: {agent_exec_mode:?}").into(),
+        )
+    })?;
+    let conn = get_connection()?;
+    let affected = conn.execute(
+        "UPDATE code_sessions
+         SET product_mode = ?2, agent_exec_mode = ?3
+         WHERE session_id = ?1",
+        params![session_id, product_mode, parsed.as_str()],
     )?;
     if affected > 0 {
         sync_orgtrack_mirror(session_id);

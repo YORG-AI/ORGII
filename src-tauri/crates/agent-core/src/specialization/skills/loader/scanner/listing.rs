@@ -1,8 +1,8 @@
 //! Per-turn skill listing rendering: entries, budgeted description
 //! truncation, and the `always: true` skills manifest.
 
-use super::SkillsLoader;
 use super::super::types::{SkillInfo, SkillListingEntry};
+use super::SkillsLoader;
 
 // Listing budget mirrors the reference harness: the listing exists for
 // discovery only (full bodies load via the `skill` tool), so verbose

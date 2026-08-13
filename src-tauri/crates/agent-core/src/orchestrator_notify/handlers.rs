@@ -276,10 +276,7 @@ pub(super) fn apply_proof_of_work(
         project_management::orchestrator::proof_of_work::set_branch(frontmatter, branch_name);
     }
     if let Some(ref stats) = collected.diff_stats {
-        project_management::orchestrator::proof_of_work::set_diff_stats(
-            frontmatter,
-            stats.clone(),
-        );
+        project_management::orchestrator::proof_of_work::set_diff_stats(frontmatter, stats.clone());
     }
 }
 

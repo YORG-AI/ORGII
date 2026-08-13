@@ -35,6 +35,7 @@ import { diffViewModeAtom } from "@src/store/workstation/codeEditor";
 import type { GitFile } from "@src/types/git/types";
 
 import { PrReviewThreadsPanel } from "./PrReviewThreadsPanel";
+import { formatPrFilesCount } from "./prFilesDisplay";
 import { usePrFileContent } from "./usePrFileContent";
 
 function readNestedString(
@@ -223,6 +224,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
             >
               <GitFileList
                 files={gitFiles}
+                unfilteredCountLabel={String(formatPrFilesCount(files.length))}
                 selectedFileId={selectedFilePath}
                 onFileSelect={updateSelectedFilePath}
               />

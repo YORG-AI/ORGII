@@ -42,6 +42,7 @@ import {
 } from "@src/features/Org2Cloud/org2CloudCommentsBus";
 import {
   parseCloudInviteDeepLink,
+  parseCloudInviteInput,
   parseCloudShareDeepLink,
 } from "@src/features/Org2Cloud/org2CloudOrgManagement";
 import {
@@ -645,13 +646,23 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
     link: string;
   }): Promise<Result<{ inviteCode: string }>> => {
     try {
-      // Production parser: a link the deep-link handler would reject must
-      // fail here too, not silently open the dialog.
-      const parsed = parseCloudInviteDeepLink(opts.link);
+      // Production parsers only: an orgii:// link the deep-link handler
+      // would reject, or an HTTPS link the join dialog would reject, must
+      // fail here too, not silently open the dialog. Raw codes stay
+      // rejected — the OS only ever delivers links.
+      const trimmed = opts.link.trim();
+      const parsed = trimmed.toLowerCase().startsWith("orgii://")
+        ? parseCloudInviteDeepLink(trimmed)
+        : /^https:\/\//i.test(trimmed)
+          ? (() => {
+              const inviteCode = parseCloudInviteInput(trimmed);
+              return inviteCode ? { inviteCode } : null;
+            })()
+          : null;
       if (!parsed) {
         return {
           ok: false,
-          error: `cloudSeedPendingInvite: not a valid orgii://cloud/join link: ${opts.link}`,
+          error: `cloudSeedPendingInvite: not a valid cloud invite link: ${opts.link}`,
         };
       }
       store.set(org2CloudPendingInviteAtom, parsed);

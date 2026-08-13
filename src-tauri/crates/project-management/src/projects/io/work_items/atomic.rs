@@ -471,9 +471,10 @@ where
     let status_changed = core.status != frontmatter.status;
     let mut fsm_violation: Option<String> = None;
     if status_changed {
-        if let Err(violation) =
-            crate::work_service::state::validate_legacy_transition(&core.status, &frontmatter.status)
-        {
+        if let Err(violation) = crate::work_service::state::validate_legacy_transition(
+            &core.status,
+            &frontmatter.status,
+        ) {
             if service.strict_fsm {
                 return Err(crate::work_service::error::invalid_transition(
                     &core.status,
@@ -757,6 +758,7 @@ fn payload_tail_fingerprint(fm: &WorkItemFrontmatter) -> serde_json::Value {
         "assignee_type": fm.assignee_type,
         "starred": fm.starred,
         "created_by": fm.created_by,
+        "origin_session": fm.origin_session,
         "todos": fm.todos,
         "comments": fm.comments,
         "handoff": fm.handoff,
@@ -1197,6 +1199,7 @@ fn build_frontmatter(
         start_date: core.start_date.clone(),
         target_date: core.target_date.clone(),
         created_by: extras.created_by.clone(),
+        origin_session: extras.origin_session.clone(),
         created_at: to_iso8601(core.created_at_ms),
         updated_at: to_iso8601(core.updated_at_ms),
         deleted_at: core.deleted_at_ms.map(to_iso8601),

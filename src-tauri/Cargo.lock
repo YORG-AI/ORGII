@@ -5340,6 +5340,7 @@ dependencies = [
  "dirs",
  "dispatch2",
  "file_ops",
+ "flate2",
  "foreign-types",
  "futures-util",
  "git",
@@ -5357,6 +5358,7 @@ dependencies = [
  "orgtrack_core",
  "parking_lot 0.12.5",
  "perf_utils",
+ "plist",
  "portable-pty",
  "project_management",
  "rand 0.9.4",
@@ -5372,6 +5374,7 @@ dependencies = [
  "sha2",
  "shared_state",
  "system_services",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-auth-session",
@@ -6244,6 +6247,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "urlencoding",
+ "uuid",
  "wiremock",
 ]
 

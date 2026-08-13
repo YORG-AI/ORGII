@@ -11,7 +11,10 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import type { WorkManagementSection } from "@src/store/workstation";
 
-import { buildDefaultLaunchpadTab } from "./chatPanelTabFactories";
+import {
+  buildDefaultLaunchpadTab,
+  getChatPanelWorkItemTabKey,
+} from "./chatPanelTabFactories";
 import { activateChatPanelTabAtom } from "./chatPanelTabPresentationAtoms";
 import {
   type ChatPanelSelectedChannel,
@@ -134,18 +137,20 @@ closeOrganizationChatPanelTabAtom.debugLabel = "closeOrganizationChatPanelTab";
  */
 export const closeWorkItemChatPanelTabAtom = atom(
   null,
-  (get, set, shortId: string) => {
+  (get, set, workItem: ChatPanelSelectedWorkItem) => {
+    const workItemKey = getChatPanelWorkItemTabKey(workItem);
     const tab = get(chatPanelTabsAtom).tabs.find(
       (candidate) =>
         candidate.type === "work-item" &&
-        candidate.workItem?.shortId === shortId
+        candidate.workItem !== undefined &&
+        getChatPanelWorkItemTabKey(candidate.workItem) === workItemKey
     );
     if (tab) {
       set(closeChatPanelTabAtom, tab.id);
       return;
     }
     const selected = get(chatPanelSelectedWorkItemAtom);
-    if (selected?.shortId === shortId) {
+    if (selected && getChatPanelWorkItemTabKey(selected) === workItemKey) {
       set(chatPanelSelectedWorkItemAtom, null);
     }
   }
@@ -360,17 +365,21 @@ export const setChatPanelTabTitleAtom = atom(
  * Keep a work-item tab's stored payload in sync with in-place edits made
  * through `chatPanelSelectedWorkItemAtom` (rename / status change / refresh).
  * Without this, switching away and back would replay the stale payload and
- * revert the edit. Matched by `shortId`; a no-op (returns the previous state)
- * when the payload reference is unchanged — e.g. the seed written on tab
- * activation — so it never churns tab state or persistence.
+ * revert the edit. Matched by organization, project, and short ID; a no-op
+ * (returns the previous state) when the payload reference is unchanged — e.g.
+ * the seed written on tab activation — so it never churns tab state or
+ * persistence.
  */
 export const patchChatPanelWorkItemTabAtom = atom(
   null,
   (_get, set, workItem: ChatPanelSelectedWorkItem) => {
+    const workItemKey = getChatPanelWorkItemTabKey(workItem);
     set(chatPanelTabsAtom, (prev) => {
       const target = prev.tabs.find(
         (tab) =>
-          tab.type === "work-item" && tab.workItem?.shortId === workItem.shortId
+          tab.type === "work-item" &&
+          tab.workItem !== undefined &&
+          getChatPanelWorkItemTabKey(tab.workItem) === workItemKey
       );
       if (!target || target.workItem === workItem) return prev;
       return {
