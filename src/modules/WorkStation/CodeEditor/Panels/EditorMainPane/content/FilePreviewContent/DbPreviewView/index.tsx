@@ -136,7 +136,7 @@ export const DbPreviewView: React.FC<DbPreviewViewProps> = memo(
         }}
         options={tableOptions}
         size="small"
-        variant="ghost"
+        appearance="ghost"
         radius="lg"
         showSearch
         dropdownMinWidth={220}

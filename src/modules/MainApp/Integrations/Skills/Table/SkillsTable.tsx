@@ -359,7 +359,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
                   activeTab={sourceFilter}
                   onChange={(key) => setSourceFilter(key as SourceFilterKey)}
                   variant="pill"
-                  colorScheme="ghost"
+                  appearance="ghost"
                   fillWidth={false}
                   size="mini"
                 />

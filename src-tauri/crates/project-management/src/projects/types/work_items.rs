@@ -214,6 +214,21 @@ pub struct WorkItemWorkProduct {
     pub updated_at: String,
 }
 
+/// Session provenance captured when a Work Item is created from an agent turn.
+///
+/// This is intentionally separate from `linked_sessions`: the latter models
+/// sessions that execute the Work Item and feeds lifecycle/token accounting,
+/// while an origin session may already be executing a different root item.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkItemOriginSession {
+    pub session_id: String,
+    pub provider: String,
+    pub actor_id: String,
+    pub session_type: String,
+    pub captured_at: String,
+}
+
 /// YAML frontmatter of a `work-items/{SHORT_ID}.md` file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkItemFrontmatter {
@@ -245,6 +260,8 @@ pub struct WorkItemFrontmatter {
     pub target_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_session: Option<WorkItemOriginSession>,
     pub created_at: String,
     pub updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]

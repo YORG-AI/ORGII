@@ -32,7 +32,7 @@ const ChatPanelHumanSessionHeader: React.FC<
         maxLength={HUMAN_SESSION_TITLE_MAX_LENGTH}
         autoFocus
         disabled={humanCreating}
-        fieldVariant="ghost"
+        appearance="ghost"
         size="small"
         className="flex-1 focus-within:!bg-transparent hover:!bg-transparent"
         inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}

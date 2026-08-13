@@ -4,14 +4,15 @@
  * a focused hook so this entry point only wires their contracts together.
  */
 import { useAtomValue } from "jotai";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { loadEventComponent } from "@src/engines/SessionCore/rendering/registry/events";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
-import { sessionByIdAtom } from "@src/store/session/sessionAtom";
+import { type Session, sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
+import { SharedConversationSenderProvider } from "../ChatItems/SharedConversationSenderContext";
 import { useChatSessionId } from "../ChatSessionContext";
 import {
   type ChatHistoryProps,
@@ -40,6 +41,22 @@ export type {
 } from "./ChatHistory.types";
 
 const EMPTY_ORG_MEMBERS: ChatHistoryProps["agentOrgMembers"] = [];
+
+function resolveSharedConversationSender(session: Session | undefined) {
+  if (session?.importedFrom) {
+    return {
+      displayName:
+        session.importedFrom.ownerDisplayName?.trim() || "Shared user",
+      avatarUrl: session.importedFrom.ownerAvatarUrl,
+    };
+  }
+  if (session?.forkedFrom) {
+    return {
+      displayName: session.forkedFrom.ownerDisplayName.trim() || "Shared user",
+    };
+  }
+  return null;
+}
 
 const ChatHistory: React.FC<ChatHistoryProps> = ({
   surfaceBgClass = "bg-chat-pane",
@@ -80,6 +97,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   const historyState = useChatHistoryState();
   const isAgentWorking = useAtomValue(isSessionActiveAtom);
   const groupChat = useGroupChatContext();
+  const sharedConversationSender = useMemo(
+    () => resolveSharedConversationSender(activeSession),
+    [activeSession]
+  );
 
   useEffect(() => {
     // Canvas payloads can reach the WorkStation as soon as the tool call is
@@ -181,39 +202,41 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   });
 
   return (
-    <ChatHistoryView
-      actions={actions}
-      activeId={activeId}
-      agentOrgCurrentMemberId={agentOrgCurrentMemberId}
-      agentOrgCurrentMemberName={agentOrgCurrentMemberName}
-      agentOrgMembers={agentOrgMembers}
-      agentOrgOverviewPanel={agentOrgOverviewPanel}
-      bottomInset={bottomInset}
-      chatPanelPosition={chatPanelPosition}
-      displayMode={displayMode}
-      emptyState={emptyState}
-      groupChatEnabled={Boolean(groupChat?.enabled)}
-      groupChatViewActive={groupChatViewActive}
-      groupChatViewAvailable={groupChatViewAvailable}
-      handlePlanningIndicatorCount={handlePlanningIndicatorCount}
-      handleReloadSession={handleReloadSession}
-      hideGroupUserMessage={hideGroupUserMessage}
-      historyState={historyState}
-      mutationActionsDisabled={mutationActionsDisabled}
-      navigation={navigation}
-      newEventDividerLabel={newEventDividerLabel}
-      onAgentOrgMemberSelect={onAgentOrgMemberSelect}
-      onAgentOrgRunViewRefresh={onAgentOrgRunViewRefresh}
-      onGroupChatViewToggle={onGroupChatViewToggle}
-      paginationTrailingSlot={paginationTrailingSlot}
-      pinnedHeaderPortalHost={pinnedHeaderPortalHost}
-      planningIndicatorScope={planningIndicatorScope}
-      projection={projection}
-      search={search}
-      surfaceBgClass={surfaceBgClass}
-      turnPaginationEnabled={turnPaginationEnabled}
-      viewport={viewport}
-    />
+    <SharedConversationSenderProvider value={sharedConversationSender}>
+      <ChatHistoryView
+        actions={actions}
+        activeId={activeId}
+        agentOrgCurrentMemberId={agentOrgCurrentMemberId}
+        agentOrgCurrentMemberName={agentOrgCurrentMemberName}
+        agentOrgMembers={agentOrgMembers}
+        agentOrgOverviewPanel={agentOrgOverviewPanel}
+        bottomInset={bottomInset}
+        chatPanelPosition={chatPanelPosition}
+        displayMode={displayMode}
+        emptyState={emptyState}
+        groupChatEnabled={Boolean(groupChat?.enabled)}
+        groupChatViewActive={groupChatViewActive}
+        groupChatViewAvailable={groupChatViewAvailable}
+        handlePlanningIndicatorCount={handlePlanningIndicatorCount}
+        handleReloadSession={handleReloadSession}
+        hideGroupUserMessage={hideGroupUserMessage}
+        historyState={historyState}
+        mutationActionsDisabled={mutationActionsDisabled}
+        navigation={navigation}
+        newEventDividerLabel={newEventDividerLabel}
+        onAgentOrgMemberSelect={onAgentOrgMemberSelect}
+        onAgentOrgRunViewRefresh={onAgentOrgRunViewRefresh}
+        onGroupChatViewToggle={onGroupChatViewToggle}
+        paginationTrailingSlot={paginationTrailingSlot}
+        pinnedHeaderPortalHost={pinnedHeaderPortalHost}
+        planningIndicatorScope={planningIndicatorScope}
+        projection={projection}
+        search={search}
+        surfaceBgClass={surfaceBgClass}
+        turnPaginationEnabled={turnPaginationEnabled}
+        viewport={viewport}
+      />
+    </SharedConversationSenderProvider>
   );
 };
 
