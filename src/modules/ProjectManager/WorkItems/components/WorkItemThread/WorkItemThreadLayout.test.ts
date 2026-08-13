@@ -12,7 +12,11 @@ import {
   vi,
 } from "vitest";
 
-import { WorkItemThreadLayout } from ".";
+import { WorkItemThreadLayout, WorkItemThreadNavigationPortalContext } from ".";
+
+const { renderScrollTrail } = vi.hoisted(() => ({
+  renderScrollTrail: vi.fn(),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -21,7 +25,10 @@ vi.mock("react-i18next", () => ({
 vi.mock("@src/modules/shared/layouts/blocks", () => ({
   DetailPanelContainer: ({ children }: { children: ReactNode }) =>
     createElement("div", null, children),
-  ScrollTrail: () => null,
+  ScrollTrail: (props: unknown) => {
+    renderScrollTrail(props);
+    return null;
+  },
 }));
 
 describe("WorkItemThreadLayout floating footer", () => {
@@ -40,6 +47,7 @@ describe("WorkItemThreadLayout floating footer", () => {
   beforeEach(() => {
     observe.mockClear();
     disconnect.mockClear();
+    renderScrollTrail.mockClear();
     vi.stubGlobal(
       "ResizeObserver",
       class ResizeObserverMock {
@@ -82,6 +90,7 @@ describe("WorkItemThreadLayout floating footer", () => {
     );
     expect(footer?.className).toContain("absolute");
     expect(footer?.className).toContain("bottom-0");
+    expect(footer?.className).toContain("right-11");
     expect(footer?.className).toContain("pb-3");
     expect(content?.getAttribute("style")).toContain("padding-bottom: 240px");
     expect(observe).toHaveBeenCalledWith(footer);
@@ -94,6 +103,46 @@ describe("WorkItemThreadLayout floating footer", () => {
       "resize",
       expect.any(Function)
     );
+  });
+
+  it("moves the navigation rail beneath a supplied properties trail host", () => {
+    const navigationTrailHost = document.createElement("div");
+    document.body.appendChild(navigationTrailHost);
+    const layoutProps: ComponentProps<typeof WorkItemThreadLayout> = {
+      floatingFooter: createElement("div", null, "Composer"),
+      children: createElement("div", null, "Timeline"),
+    };
+
+    act(() => {
+      root.render(
+        createElement(
+          WorkItemThreadNavigationPortalContext.Provider,
+          { value: navigationTrailHost },
+          createElement(WorkItemThreadLayout, layoutProps)
+        )
+      );
+    });
+
+    const portaledRail = navigationTrailHost.querySelector(
+      '[data-testid="work-item-thread-navigation-rail"]'
+    );
+    expect(portaledRail).not.toBeNull();
+    expect(portaledRail?.className).toContain("h-full");
+    expect(renderScrollTrail).toHaveBeenLastCalledWith(
+      expect.objectContaining({ alignment: "start" })
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="work-item-thread-navigation-rail"]'
+      )
+    ).toBeNull();
+    const footer = container.querySelector(
+      '[data-testid="work-item-thread-floating-footer"]'
+    );
+    expect(footer?.className).toContain("right-0");
+    expect(footer?.className).not.toContain("right-11");
+
+    navigationTrailHost.remove();
   });
 
   it("does not retain measurement resources without a floating footer", () => {

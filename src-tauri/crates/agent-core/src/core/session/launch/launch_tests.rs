@@ -13,6 +13,26 @@ use core_types::key_source::KeySource;
 use std::collections::HashMap;
 
 #[test]
+fn session_marker_writes_explicit_build_for_legacy_null_product_mode() {
+    let workspace = tempfile::tempdir().expect("workspace");
+    super::write_agent_session_marker(
+        workspace.path().to_str().expect("workspace path"),
+        "build-session",
+        Some("builtin:sde"),
+        None,
+        Some("scoped-project"),
+        Some("personal-org"),
+    );
+    let marker =
+        std::fs::read_to_string(workspace.path().join(".orgii/agent_session_context.json"))
+            .expect("read marker");
+    let marker: serde_json::Value = serde_json::from_str(&marker).expect("parse marker");
+    assert_eq!(marker["productMode"], "build");
+    assert_eq!(marker["scope"], "scoped-project");
+    assert_eq!(marker["capabilities"], serde_json::json!(["work.read"]));
+}
+
+#[test]
 fn launch_validation_rejects_missing_agent_definition_before_session_create() {
     let _sandbox = test_helpers::test_env::sandbox();
 

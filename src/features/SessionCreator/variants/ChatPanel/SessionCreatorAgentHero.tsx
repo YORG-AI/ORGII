@@ -52,7 +52,7 @@ const SessionCreatorAgentHero = memo(
                 active={active}
                 danger={danger}
                 size="lg"
-                variant="ghost"
+                appearance="bare"
                 trailingChevron
                 onClick={onClick}
                 ariaLabel={name}

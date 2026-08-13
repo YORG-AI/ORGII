@@ -10,6 +10,8 @@ import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsState";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
+import { resolveChatPanelShortcutOwnership } from "./chatPanelShortcutOwnership";
+
 export interface UseChatPanelTabShortcutsOptions {
   onNewSession: () => void;
   onNewTerminal: () => void;
@@ -55,25 +57,11 @@ export function useChatPanelTabShortcuts({
     }
 
     const updatePaneOwnership = (target: EventTarget | null) => {
-      const container = containerRef.current;
-      if (!container || !(target instanceof Node)) return;
-
-      const chatSurface =
-        container.closest<HTMLElement>("[data-fullmode-chat-wrapper]") ??
-        container;
-      if (chatSurface.contains(target)) {
-        paneOwnsShortcutsRef.current = true;
-        return;
-      }
-
-      if (
-        target instanceof Element &&
-        target.closest(
-          "[data-workbench-surface], [data-workstation-pane-control]"
-        )
-      ) {
-        paneOwnsShortcutsRef.current = false;
-      }
+      paneOwnsShortcutsRef.current = resolveChatPanelShortcutOwnership(
+        containerRef.current,
+        target,
+        paneOwnsShortcutsRef.current
+      );
     };
     const handlePointerDown = (event: PointerEvent) => {
       updatePaneOwnership(event.target);

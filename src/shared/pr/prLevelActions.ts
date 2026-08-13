@@ -32,7 +32,7 @@ export interface PullRequestActionPresentation {
 }
 
 const MERGE_METHODS: PullRequestMergeMethodOption[] = [
-  { method: "merge", label: "Merge pull request" },
+  { method: "merge", label: "Merge" },
   { method: "squash", label: "Squash and merge" },
   { method: "rebase", label: "Rebase and merge" },
 ];

@@ -638,7 +638,18 @@
     "fromRoutine": "来自 Routine：{{name}}",
     "subItems": {
       "title": "子任務",
-      "parent": "父任務"
+      "parent": "父任務",
+      "progress": "已完成 {{completed}} / {{total}}",
+      "add": "新增子任務",
+      "addFirst": "新增第一個子任務",
+      "titlePlaceholder": "輸入子任務標題",
+      "stagePicker": "子任務階段",
+      "noStage": "無階段",
+      "stage": "階段 {{stage}}",
+      "openStatus": "未完成",
+      "completedStatus": "已完成",
+      "cancelledStatus": "已取消",
+      "createError": "無法建立子任務，請重試。"
     },
     "sessionRail": {
       "notOnDeviceTitle": "會話不在此裝置",

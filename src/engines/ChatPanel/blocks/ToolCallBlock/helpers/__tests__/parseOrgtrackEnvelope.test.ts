@@ -100,6 +100,80 @@ describe("parseOrgtrackEnvelope", () => {
     expect(card?.workItem?.frontmatter.short_id).toBe("WI-0099");
   });
 
+  it("keeps a standalone work.update item navigable for a host-bootstrapped root", () => {
+    const card = parseOrgtrackEnvelope(
+      shell("org2-pm work update WI-0100 --standalone --title x"),
+      {
+        stdout: JSON.stringify({
+          apiVersion: "orgtrack/v1",
+          ok: true,
+          data: {
+            body: "Original request",
+            filename: "WI-0100",
+            frontmatter: {
+              id: "WI-0100",
+              short_id: "WI-0100",
+              title: "Updated root",
+              status: "backlog",
+              priority: "none",
+              labels: [],
+              todos: [],
+              starred: false,
+              created_at: "2026-08-09T00:00:00Z",
+              updated_at: "2026-08-09T00:01:00Z",
+            },
+          },
+        }),
+      }
+    );
+
+    expect(card).toMatchObject({
+      operationId: "work.update",
+      isStandalone: true,
+      shortId: "WI-0100",
+      title: "Updated root",
+    });
+    expect(card?.workItem?.frontmatter.short_id).toBe("WI-0100");
+  });
+
+  it("recovers a navigable update card when a shell pipeline truncates the envelope", () => {
+    const card = parseOrgtrackEnvelope(
+      shell(
+        'org2-pm work update WI-0106 --standalone --title "vince222" --output json 2>&1 | head -40'
+      ),
+      {
+        stdout: `{
+  "apiVersion": "orgtrack/v1",
+  "ok": true,
+  "data": {
+    "body": "request",
+    "filename": "WI-0106",
+    "frontmatter": {
+      "origin_session": {
+        "provider": "org2",
+`,
+      }
+    );
+
+    expect(card).toMatchObject({
+      operationId: "work.update",
+      operation: "Updated work item",
+      shortId: "WI-0106",
+      title: "vince222",
+      isStandalone: true,
+    });
+    expect(card?.workItem).toBeUndefined();
+  });
+
+  it("does not recover truncated output without a confirmed successful envelope", () => {
+    expect(
+      parseOrgtrackEnvelope(
+        shell("org2-pm work update WI-0106 --standalone | head -1"),
+        { exit_code: 0, stdout: '{\n  "apiVersion": "orgtrack/v1"' }
+      )
+    ).toBeNull();
+  });
+
   it("renders an error envelope with the wire code", () => {
     const card = parseOrgtrackEnvelope(shell("org2-pm work claim AAA-0001"), {
       exit_code: 4,

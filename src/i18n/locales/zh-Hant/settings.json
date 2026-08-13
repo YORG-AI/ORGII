@@ -837,6 +837,10 @@
     "installConfirmTitle": "更新已準備好安裝",
     "installConfirmDesc": "版本 {{version}} 已下載。安裝並重新啓動 ORGII 前，請儲存正在進行的工作。",
     "installAndRestart": "安裝並重新啓動",
+    "installOfficialConfirmTitle": "正式版已準備好安裝",
+    "installOfficialConfirmDesc": "將正式版 {{version}} 安裝到 /Applications/ORG2.app。目前本機構建會保持開啓且不受影響。",
+    "installOfficial": "安裝正式版 App",
+    "localBuild": "本機構建",
     "skipVersion": "跳過此版本"
   },
   "monitor": {

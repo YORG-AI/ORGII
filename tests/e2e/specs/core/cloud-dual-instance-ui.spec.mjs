@@ -52,6 +52,9 @@ import {
   waitForRenderedOn,
 } from "../../support/core/dualCloudHarness.mjs";
 
+// Rendered shape of buildCloudInviteLink (org2CloudOrgManagement.ts).
+const CLOUD_INVITE_LINK_PREFIX = "https://invite.org2.dev/#invite=";
+
 const TEAM_NAME = `Dual-instance Team ${RUN_ID}`;
 const RENAMED_TEAM_NAME = `Renamed dual team ${RUN_ID}`;
 let sessionId = `dual-instance-session-${RUN_ID}`;
@@ -701,7 +704,7 @@ async function createInviteFromOwner(previousLink = "") {
         )) ?? ""
       );
       return (
-        link.startsWith("orgii://cloud/join?invite=") && link !== previousLink
+        link.startsWith(CLOUD_INVITE_LINK_PREFIX) && link !== previousLink
       );
     },
     {
@@ -1239,8 +1242,8 @@ describe("Cloud collaboration with two independent rendered app instances", func
     inviteLink = await execJS(`
       return document.querySelector('[data-testid="cloud-org-invite-link"]')?.textContent?.trim() ?? '';
     `);
-    if (!String(inviteLink).startsWith("orgii://cloud/join?invite=")) {
-      throw new Error("rendered team invite is not a valid orgii join link");
+    if (!String(inviteLink).startsWith(CLOUD_INVITE_LINK_PREFIX)) {
+      throw new Error("rendered team invite is not a valid invite handoff link");
     }
 
     unwrapOn(
