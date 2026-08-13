@@ -204,7 +204,7 @@ const TerminalActivityGroup: React.FC<TerminalActivityGroupProps> = ({
         });
         return card?.ok &&
           ["work.create", "work.update"].includes(card.operationId) &&
-          card.workItem
+          card.shortId
           ? [card]
           : [];
       }),

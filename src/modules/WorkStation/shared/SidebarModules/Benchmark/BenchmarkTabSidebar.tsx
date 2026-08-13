@@ -278,8 +278,7 @@ const BenchmarkTabSidebar: TabSidebarComponent = memo(() => {
               onChange={setFilterText}
               placeholder={t("creator.benchmark.searchPlaceholder")}
               size="small"
-              borderless
-              bgless
+              appearance="bare"
               className="w-full"
               inputClassName="text-[12px]"
             />

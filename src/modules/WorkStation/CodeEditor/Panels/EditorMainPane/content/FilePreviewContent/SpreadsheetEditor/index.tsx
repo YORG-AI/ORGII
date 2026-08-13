@@ -71,7 +71,7 @@ export const SpreadsheetEditor: React.FC<SpreadsheetEditorProps> = memo(
           onChange={handleSheetSelect}
           options={sheetOptions}
           size="small"
-          variant="ghost"
+          appearance="ghost"
           radius="lg"
           showSearch
           dropdownMinWidth={180}

@@ -126,7 +126,7 @@ const KanbanOrgScopeSelect: React.FC = memo(() => {
       placeholder={t("collaboration.switchOrg")}
       showSearch={options.length > 8}
       size="small"
-      variant="ghost"
+      appearance="ghost"
       radius="lg"
       dropdownMinWidth={168}
       dropdownWidthMode="auto"

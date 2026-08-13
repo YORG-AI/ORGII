@@ -60,7 +60,7 @@ pub use state::WorkItemState;
 use crate::projects::io as project_io;
 use crate::projects::types::{
     LinkedSession, OrchestratorConfig, TodoEntry, WorkItemData, WorkItemFrontmatter,
-    WorkItemHandoff, WorkItemMutationActor, WorkItemSchedule,
+    WorkItemHandoff, WorkItemMutationActor, WorkItemOriginSession, WorkItemSchedule,
 };
 
 /// Result of projecting a successful execution episode onto the human-owned
@@ -878,6 +878,8 @@ pub struct CreateWorkItemRequest {
     pub start_date: Option<String>,
     pub target_date: Option<String>,
     pub created_by: Option<String>,
+    /// Immutable provenance for an agent turn that created this item.
+    pub origin_session: Option<WorkItemOriginSession>,
     #[serde(default)]
     pub starred: bool,
     pub schedule: Option<WorkItemSchedule>,
@@ -923,6 +925,7 @@ fn build_frontmatter(short_id: &str, request: &CreateWorkItemRequest) -> WorkIte
         start_date: request.start_date.clone(),
         target_date: request.target_date.clone(),
         created_by: request.created_by.clone(),
+        origin_session: request.origin_session.clone(),
         created_at: now.clone(),
         updated_at: now,
         deleted_at: None,
@@ -1460,6 +1463,17 @@ pub fn bootstrap_root_standalone_item(
                 title,
                 body,
                 created_by: Some(actor_for_execute.id.clone()),
+                origin_session: Some(WorkItemOriginSession {
+                    session_id: session_id.to_string(),
+                    provider: "org2".to_string(),
+                    actor_id: actor_for_execute.id.clone(),
+                    session_type: if session_id.starts_with("cliagent-") {
+                        "cli".to_string()
+                    } else {
+                        "native".to_string()
+                    },
+                    captured_at: chrono::Utc::now().to_rfc3339(),
+                }),
                 ..Default::default()
             };
             create_standalone_work_item(

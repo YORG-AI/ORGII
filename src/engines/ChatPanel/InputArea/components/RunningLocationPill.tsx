@@ -30,20 +30,12 @@ export interface RunningLocationPillProps {
   value?: RunningLocation;
   /** Dropdown placement direction */
   placement?: "top" | "bottom";
-  /** Visual pill variant */
-  variant?: "default" | "ghost";
 }
 
 type LocationRow = { id: RunningLocation; disabled: boolean };
 
 const RunningLocationPill: React.FC<RunningLocationPillProps> = memo(
-  ({
-    forceVisible = false,
-    onLocationChange,
-    value,
-    placement = "top",
-    variant = "default",
-  }) => {
+  ({ forceVisible = false, onLocationChange, value, placement = "top" }) => {
     const { t } = useTranslation("sessions");
     const { sessionId } = useSessionId();
 
@@ -157,7 +149,6 @@ const RunningLocationPill: React.FC<RunningLocationPillProps> = memo(
           onClick={handleTriggerClick}
           className="h-[28px] text-[13px]"
           size="sm"
-          variant={variant === "ghost" ? "ghost" : "default"}
         />
 
         {!isLockedToWorktree &&
