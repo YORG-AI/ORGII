@@ -89,10 +89,7 @@ pub fn cleanup_synced_skill_files(paths: &[PathBuf]) {
             continue;
         }
         // Safety check: only delete files containing our marker
-        let is_ours = fs::read_to_string(path)
-            .map(|content| content.contains(ORGII_MARKER))
-            .unwrap_or(false);
-        if !is_ours {
+        if !is_orgii_managed_file(path) {
             tracing::warn!(
                 "[skill_sync] Skipping cleanup of {} — missing orgii marker",
                 path.display()
@@ -107,6 +104,12 @@ pub fn cleanup_synced_skill_files(paths: &[PathBuf]) {
             );
         }
     }
+}
+
+fn is_orgii_managed_file(path: &Path) -> bool {
+    fs::read_to_string(path)
+        .map(|content| content.contains(ORGII_MARKER))
+        .unwrap_or(false)
 }
 
 /// Determine the rule file path(s) to write for a given agent.
@@ -330,24 +333,33 @@ fn format_markdown(content: &str) -> String {
 /// Replaces the old `sync_conventions_to_cursorrules()` which wrote to the
 /// deprecated `.cursorrules` file (which Cursor agent mode ignores).
 pub fn sync_conventions_for_agent(agent: &ModelType, workspace_path: &Path) -> Vec<PathBuf> {
+    let targets = convention_targets_for_agent(agent, workspace_path);
     let conventions_path = workspace_path.join(".orgii").join("agent-rules.md");
     let content = match fs::read_to_string(&conventions_path) {
-        Ok(content) if !content.trim().is_empty() => content,
-        _ => return Vec::new(),
+        Ok(content) => {
+            agent_core::session::prompt::strip_retired_workspace_instruction_blocks(&content)
+        }
+        Err(_) => String::new(),
     };
 
-    let targets = convention_targets_for_agent(agent, workspace_path);
+    // A missing/empty source must also remove an older ORGII-managed copy.
+    // Otherwise uninstalling the source leaves the provider's native rules
+    // active until some unrelated cleanup happens to find them.
+    if content.trim().is_empty() {
+        let stale_managed_targets = targets
+            .into_iter()
+            .filter(|target| is_orgii_managed_file(target))
+            .collect::<Vec<_>>();
+        cleanup_synced_skill_files(&stale_managed_targets);
+        return Vec::new();
+    }
+
     let mut written: Vec<PathBuf> = Vec::new();
 
     for target in targets {
         // Skip if a non-orgii file already exists at this path
-        if target.exists() {
-            let is_ours = fs::read_to_string(&target)
-                .map(|existing| existing.contains(ORGII_MARKER))
-                .unwrap_or(false);
-            if !is_ours {
-                continue;
-            }
+        if target.exists() && !is_orgii_managed_file(&target) {
+            continue;
         }
 
         match write_rule_file(&target, &content) {
@@ -397,7 +409,10 @@ fn convention_targets_for_agent(agent: &ModelType, workspace_path: &Path) -> Vec
 
 #[cfg(test)]
 mod tests {
-    use super::build_skills_prompt_injection;
+    use super::{build_skills_prompt_injection, sync_conventions_for_agent, ORGII_MARKER};
+    use key_vault::key_store::ModelType;
+
+    const RETIRED_BLOCK: &str = "<!-- brick:managed:start v=9 -->\nRun `brick explain src/main.rs:1` first.\n<!-- brick:managed:end -->";
 
     #[test]
     fn provider_skill_catalog_is_stable_bounded_and_keeps_load_paths() {
@@ -432,6 +447,58 @@ mod tests {
             first.chars().count() <= 12_000,
             "catalog must stay near its 8k entry budget: {} chars",
             first.chars().count()
+        );
+    }
+
+    #[test]
+    fn convention_sync_filters_retired_managed_blocks() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let orgii = workspace.path().join(".orgii");
+        std::fs::create_dir_all(&orgii).expect("create .orgii");
+        std::fs::write(
+            orgii.join("agent-rules.md"),
+            format!("{RETIRED_BLOCK}\n\nKeep this rule."),
+        )
+        .expect("write conventions");
+
+        let written = sync_conventions_for_agent(&ModelType::CursorCli, workspace.path());
+        assert_eq!(written.len(), 1);
+        let content = std::fs::read_to_string(&written[0]).expect("read synced rules");
+        assert!(content.contains("Keep this rule."));
+        assert!(!content.contains("brick explain"));
+        assert!(!content.contains("brick:managed"));
+    }
+
+    #[test]
+    fn retired_only_source_removes_stale_orgii_managed_copy() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let orgii = workspace.path().join(".orgii");
+        let target = workspace.path().join(".cursor/rules/orgii-conventions.mdc");
+        std::fs::create_dir_all(&orgii).expect("create .orgii");
+        std::fs::create_dir_all(target.parent().expect("target parent"))
+            .expect("create target parent");
+        std::fs::write(orgii.join("agent-rules.md"), RETIRED_BLOCK).expect("write conventions");
+        std::fs::write(&target, format!("{ORGII_MARKER}\n\nOld generated rules."))
+            .expect("write stale target");
+
+        let written = sync_conventions_for_agent(&ModelType::CursorCli, workspace.path());
+        assert!(written.is_empty());
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn empty_source_preserves_user_owned_native_rules_file() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let target = workspace.path().join(".cursor/rules/orgii-conventions.mdc");
+        std::fs::create_dir_all(target.parent().expect("target parent"))
+            .expect("create target parent");
+        std::fs::write(&target, "User-owned rule.").expect("write user target");
+
+        let written = sync_conventions_for_agent(&ModelType::CursorCli, workspace.path());
+        assert!(written.is_empty());
+        assert_eq!(
+            std::fs::read_to_string(target).expect("read user target"),
+            "User-owned rule."
         );
     }
 }

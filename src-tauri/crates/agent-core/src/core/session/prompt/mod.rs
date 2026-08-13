@@ -21,5 +21,11 @@ pub fn load_workspace_instructions(workspace_path: &std::path::Path) -> Option<S
     helpers::load_conventions(workspace_path)
 }
 
+/// Strip retired managed instruction blocks before an external adapter writes
+/// workspace conventions into a provider-native rules file.
+pub fn strip_retired_workspace_instruction_blocks(content: &str) -> String {
+    helpers::strip_retired_brick_managed_blocks(content)
+}
+
 #[cfg(test)]
 pub(crate) mod section_tests;
