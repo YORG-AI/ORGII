@@ -51,6 +51,7 @@ fn work_item_fixture(id: &str, short_id: &str, title: &str) -> WorkItemFrontmatt
         start_date: None,
         target_date: None,
         created_by: None,
+        origin_session: None,
         created_at: String::new(),
         updated_at: String::new(),
         deleted_at: None,
@@ -155,6 +156,62 @@ fn mutations_outside_project_mode_are_gated() {
     ]);
     assert_eq!(exit, 5, "envelope: {envelope}");
     assert_eq!(envelope["error"]["code"], "PROJECT_MODE_REQUIRED");
+}
+
+#[test]
+fn work_create_captures_origin_session_without_faking_an_execution_link() {
+    let _sandbox = test_env::sandbox();
+    seed("demo");
+    let (exit, created) = run_cli(&[
+        "work",
+        "create",
+        "--title",
+        "Created from agent turn",
+        "--mode",
+        "project",
+        "--scope",
+        "demo",
+        "--actor",
+        "agent:sde",
+        "--session-ref",
+        "org2:sdeagent-origin-1",
+    ]);
+    assert_eq!(exit, 0, "create envelope: {created}");
+    let frontmatter = &created["data"]["frontmatter"];
+    assert_eq!(
+        frontmatter["origin_session"]["session_id"],
+        "sdeagent-origin-1"
+    );
+    assert_eq!(frontmatter["origin_session"]["provider"], "org2");
+    assert_eq!(frontmatter["origin_session"]["actor_id"], "agent:sde");
+    assert_eq!(frontmatter["origin_session"]["session_type"], "native");
+    assert!(
+        frontmatter.get("linked_sessions").is_none()
+            || frontmatter["linked_sessions"]
+                .as_array()
+                .is_some_and(Vec::is_empty),
+        "origin provenance must not create an execution link: {frontmatter}"
+    );
+
+    let short_id = frontmatter["short_id"].as_str().expect("short id");
+    let (exit, shown) = run_cli(&[
+        "work",
+        "show",
+        short_id,
+        "--mode",
+        "project",
+        "--scope",
+        "demo",
+        "--actor",
+        "agent:sde",
+        "--session-ref",
+        "org2:sdeagent-origin-1",
+    ]);
+    assert_eq!(exit, 0, "show envelope: {shown}");
+    assert_eq!(
+        shown["data"]["frontmatter"]["origin_session"]["session_id"],
+        "sdeagent-origin-1"
+    );
 }
 
 #[test]

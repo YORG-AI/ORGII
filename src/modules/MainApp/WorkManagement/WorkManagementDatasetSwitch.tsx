@@ -66,7 +66,7 @@ export function WorkManagementDatasetSwitch({
         onChange(value as WorkManagementDataset);
       }}
       size="small"
-      variant="ghost"
+      appearance="ghost"
       radius="lg"
       dropdownWidthMode="auto"
       dropdownMinWidth={180}

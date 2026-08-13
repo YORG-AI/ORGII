@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { projectDataToUI, standaloneWorkItemDataToEnriched } from "./adapters";
-import type { LinkedSession, ProjectData, WorkItemData } from "./types";
+import type {
+  LinkedSession,
+  ProjectData,
+  WorkItemData,
+  WorkItemOriginSession,
+} from "./types";
 
 function buildProjectData(overrides: Partial<ProjectData> = {}): ProjectData {
   return {
@@ -61,11 +66,19 @@ describe("standaloneWorkItemDataToEnriched", () => {
       total_tokens: 0,
       result_preview: "Plan",
     };
+    const originSession: WorkItemOriginSession = {
+      session_id: "creator-session",
+      provider: "org2",
+      actor_id: "agent:sde",
+      session_type: "native",
+      captured_at: "2026-07-01T00:00:00.000Z",
+    };
     const enriched = standaloneWorkItemDataToEnriched(
       buildStandaloneItem({
         assignee: "member-1",
         assignee_type: "human",
         linked_sessions: [linkedSession],
+        origin_session: originSession,
         execution_lock: { lockedByMemberId: "member-2" },
       })
     );
@@ -82,6 +95,7 @@ describe("standaloneWorkItemDataToEnriched", () => {
       expect.objectContaining({ id: "member-1", name: "member-1" })
     );
     expect(enriched.linkedSessions).toEqual([linkedSession]);
+    expect(enriched.originSession).toEqual(originSession);
     expect(enriched.executionLock).toEqual(
       expect.objectContaining({ lockedByMemberId: "member-2" })
     );

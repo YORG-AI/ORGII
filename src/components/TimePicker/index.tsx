@@ -1,5 +1,7 @@
 import React, { useCallback } from "react";
 
+import type { ControlAppearance } from "@src/components/controlAppearance";
+
 export interface TimePickerProps {
   hour: number;
   minute: number;
@@ -7,7 +9,7 @@ export interface TimePickerProps {
   minuteStep?: number;
   disabled?: boolean;
   className?: string;
-  variant?: "default" | "ghost";
+  appearance?: ControlAppearance;
 }
 
 function formatTime(hour: number, minute: number): string {
@@ -40,7 +42,7 @@ const TimePicker: React.FC<TimePickerProps> = ({
   minuteStep = 5,
   disabled = false,
   className = "",
-  variant = "default",
+  appearance = "default",
 }) => {
   const handleTimeChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,8 +56,8 @@ const TimePicker: React.FC<TimePickerProps> = ({
   const inputClassName = [
     "h-7 rounded-lg px-2 text-[13px] text-text-1 outline-none transition-colors",
     "[color-scheme:light_dark]",
-    variant === "ghost"
-      ? "border border-transparent bg-transparent hover:bg-surface-hover focus:bg-fill-2"
+    appearance === "ghost"
+      ? "border border-transparent bg-transparent hover:bg-surface-hover focus:bg-surface-hover"
       : "border border-border-2 bg-bg-2 focus:border-primary-6 focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]",
     disabled && "cursor-not-allowed opacity-50",
   ]

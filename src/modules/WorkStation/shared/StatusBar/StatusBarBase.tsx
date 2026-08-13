@@ -17,6 +17,7 @@
  */
 import React, { forwardRef, memo } from "react";
 
+import type { ButtonVariant } from "@src/components/Button";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { classNames } from "@src/util/ui/classNames";
 
@@ -44,13 +45,13 @@ export interface BaseStatusBarProps {
 // ============================================
 
 /**
- * Visual variant for {@link StatusBarButton}.
- * - `ghost` (default): transparent, hover fill — used for icon toggles
- *   and inline counters.
- * - `primary`: brand-filled call-to-action — for actions like
- *   "Add to Chat".
+ * Semantic importance for {@link StatusBarButton}. The status-bar treatment
+ * is ghost by default; `primary` opts into the brand-filled call-to-action.
  */
-export type StatusBarButtonVariant = "ghost" | "primary";
+export type StatusBarButtonVariant = Extract<
+  ButtonVariant,
+  "primary" | "tertiary"
+>;
 
 export interface StatusBarButtonProps {
   /** Button content */
@@ -71,9 +72,9 @@ export interface StatusBarButtonProps {
    * labelled without the browser also rendering its native tooltip.
    */
   ariaLabel?: string;
-  /** Whether the button is active/selected (ghost only) */
+  /** Whether the button is active/selected (tertiary only) */
   active?: boolean;
-  /** Visual variant — see {@link StatusBarButtonVariant} */
+  /** Semantic importance — see {@link StatusBarButtonVariant} */
   variant?: StatusBarButtonVariant;
   /** Additional class name */
   className?: string;
@@ -102,7 +103,7 @@ export const StatusBarButton = memo(
         title,
         ariaLabel,
         active = false,
-        variant = "ghost",
+        variant = "tertiary",
         className,
         dataTestId,
         onMouseEnter,
@@ -112,11 +113,11 @@ export const StatusBarButton = memo(
       },
       ref
     ) => {
-      // `active` only applies to the ghost variant — the primary fill
+      // `active` only applies to the tertiary variant — the primary fill
       // already reads as a pressed CTA, so adding bg-fill-2 on top would
       // mute the brand color.
       const activeClass =
-        variant === "ghost" && active ? SURFACE_TOKENS.selected : "";
+        variant === "tertiary" && active ? SURFACE_TOKENS.selected : "";
       const variantClass =
         variant === "primary"
           ? STATUS_BAR_TOKENS.buttonPrimary

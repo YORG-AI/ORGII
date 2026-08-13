@@ -25,6 +25,10 @@ import type {
 } from "../sync/CollabSyncBackend";
 import { computeSegmentHash } from "../sync/collabGzip";
 import {
+  __IMPORT_CURSOR_REGISTRY_INTERNALS,
+  recordImportCursor,
+} from "./collabImportCursorRegistry";
+import {
   computeFrozenEventCount,
   deriveImportedSessionId,
   forkSession,
@@ -560,6 +564,10 @@ describe("importRemoteSession", () => {
     localStorage.removeItem(
       __GUEST_IMPORT_REGISTRY_INTERNALS.GUEST_IMPORT_REGISTRY_STORAGE_KEY
     );
+    localStorage.removeItem(
+      __IMPORT_CURSOR_REGISTRY_INTERNALS.IMPORT_CURSOR_REGISTRY_STORAGE_KEY
+    );
+    __IMPORT_CURSOR_REGISTRY_INTERNALS.resetCacheForTests();
     eventStoreMock.set.mockResolvedValue(undefined);
     eventStoreMock.clear.mockResolvedValue(undefined);
     eventStoreMock.clearPersistedHistory.mockResolvedValue(undefined);
@@ -711,6 +719,289 @@ describe("importRemoteSession", () => {
       0
     );
     expect(indexCollaborationSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("rescues an atom-evicted import via the durable cursor registry", async () => {
+    // The sessionsAtom snapshot keeps only the most recent rows — this
+    // import's row is gone, but its replay is fully persisted locally and
+    // the registry still holds the cursor. The refresh must append past the
+    // cursor, never clear + fully restream the synced copy.
+    const localSessionId = await deriveImportedSessionId(
+      "org-1",
+      "remote-1",
+      "unknown-cloud-endpoint"
+    );
+    recordImportCursor(localSessionId, {
+      orgId: "org-1",
+      sourceSessionId: "remote-1",
+      sourceEndpointUrl: "unknown-cloud-endpoint",
+      epoch: 1,
+      seq: 1,
+      count: 1,
+      frozenCount: 1,
+    });
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
+    eventStoreMock.finalizePersistedImport.mockResolvedValue(2);
+    const tailPage = await sealSnapshot({
+      epoch: 1,
+      frozenSeq: 1,
+      tailHash: null,
+      count: 2,
+      segments: [
+        {
+          seq: 0,
+          isTail: true,
+          events: [
+            {
+              id: "e2",
+              sessionId: "remote-1",
+              displayStatus: "completed",
+            } as unknown as SessionEvent,
+          ],
+          eventCount: 1,
+          segmentHash: "",
+        },
+      ],
+    });
+    const client = {
+      getSessionEventSegments: vi.fn(),
+      streamSessionEventSegments: vi.fn(
+        async (
+          _input: unknown,
+          onPage: (page: SessionEventSegmentsSnapshot) => Promise<void>
+        ) => {
+          await onPage(tailPage);
+          return {
+            epoch: 1,
+            frozenSeq: 1,
+            count: 2,
+            tailHash: tailPage.segments[0].segmentHash,
+          };
+        }
+      ),
+    } satisfies Pick<
+      CollabSyncBackendClient,
+      "getSessionEventSegments" | "streamSessionEventSegments"
+    >;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        eventsEpoch: 1,
+        eventsFrozenSeq: 1,
+        eventsCount: 2,
+        eventsTailHash: tailPage.segments[0].segmentHash,
+      }),
+      workspaceRepoPath: "/viewer/ORG2",
+    });
+
+    expect(result).toMatchObject({ localSessionId, updated: true });
+    expect(client.streamSessionEventSegments).toHaveBeenCalledWith(
+      expect.objectContaining({ afterSeq: 1 }),
+      expect.any(Function)
+    );
+    expect(eventStoreMock.clearPersistedHistory).not.toHaveBeenCalled();
+    const registry = JSON.parse(
+      localStorage.getItem(
+        __IMPORT_CURSOR_REGISTRY_INTERNALS.IMPORT_CURSOR_REGISTRY_STORAGE_KEY
+      ) ?? "{}"
+    );
+    expect(registry[localSessionId]).toMatchObject({ count: 2 });
+  });
+
+  it("still fully restreams on an epoch rewrite despite a registry cursor", async () => {
+    // Epoch bump = the owner rewrote history. The registry must never keep
+    // that authoritative path from running.
+    const localSessionId = await deriveImportedSessionId(
+      "org-1",
+      "remote-1",
+      "unknown-cloud-endpoint"
+    );
+    recordImportCursor(localSessionId, {
+      orgId: "org-1",
+      sourceSessionId: "remote-1",
+      sourceEndpointUrl: "unknown-cloud-endpoint",
+      epoch: 1,
+      seq: 1,
+      count: 1,
+      frozenCount: 1,
+    });
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
+    eventStoreMock.finalizePersistedImport.mockResolvedValue(1);
+    const freshPage = await sealSnapshot({
+      epoch: 2,
+      frozenSeq: 1,
+      tailHash: null,
+      count: 1,
+      segments: [
+        {
+          seq: 1,
+          isTail: false,
+          events: [
+            {
+              id: "e1",
+              sessionId: "remote-1",
+              displayStatus: "completed",
+            } as unknown as SessionEvent,
+          ],
+          eventCount: 1,
+          segmentHash: "",
+        },
+      ],
+    });
+    const client = {
+      getSessionEventSegments: vi.fn(),
+      streamSessionEventSegments: vi.fn(
+        async (
+          _input: unknown,
+          onPage: (page: SessionEventSegmentsSnapshot) => Promise<void>
+        ) => {
+          await onPage(freshPage);
+          return { epoch: 2, frozenSeq: 1, count: 1, tailHash: null };
+        }
+      ),
+    } satisfies Pick<
+      CollabSyncBackendClient,
+      "getSessionEventSegments" | "streamSessionEventSegments"
+    >;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        eventsEpoch: 2,
+        eventsFrozenSeq: 1,
+        eventsCount: 1,
+      }),
+      workspaceRepoPath: "/viewer/ORG2",
+    });
+
+    expect(result).toMatchObject({ updated: true });
+    expect(client.streamSessionEventSegments).toHaveBeenCalledWith(
+      expect.objectContaining({ afterSeq: 0 }),
+      expect.any(Function)
+    );
+    expect(eventStoreMock.clearPersistedHistory).toHaveBeenCalled();
+  });
+
+  it("refuses a registry cursor whose identity does not match", async () => {
+    const localSessionId = await deriveImportedSessionId(
+      "org-1",
+      "remote-1",
+      "unknown-cloud-endpoint"
+    );
+    // Corrupt/foreign entry at the same key: identity says another org.
+    localStorage.setItem(
+      __IMPORT_CURSOR_REGISTRY_INTERNALS.IMPORT_CURSOR_REGISTRY_STORAGE_KEY,
+      JSON.stringify({
+        [localSessionId]: {
+          orgId: "org-OTHER",
+          sourceSessionId: "remote-1",
+          sourceEndpointUrl: "unknown-cloud-endpoint",
+          epoch: 1,
+          seq: 1,
+          count: 1,
+          frozenCount: 1,
+          updatedAtMs: 1,
+        },
+      })
+    );
+    __IMPORT_CURSOR_REGISTRY_INTERNALS.resetCacheForTests();
+    eventStoreMock.finalizePersistedImport.mockResolvedValue(1);
+    const freshPage = await sealSnapshot(makeSnapshot());
+    const client = {
+      getSessionEventSegments: vi.fn(),
+      streamSessionEventSegments: vi.fn(
+        async (
+          _input: unknown,
+          onPage: (page: SessionEventSegmentsSnapshot) => Promise<void>
+        ) => {
+          await onPage(freshPage);
+          return { epoch: 1, frozenSeq: 1, count: 1, tailHash: null };
+        }
+      ),
+    } satisfies Pick<
+      CollabSyncBackendClient,
+      "getSessionEventSegments" | "streamSessionEventSegments"
+    >;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote(),
+      workspaceRepoPath: "/viewer/ORG2",
+    });
+
+    expect(result).toMatchObject({ updated: true });
+    expect(client.streamSessionEventSegments).toHaveBeenCalledWith(
+      expect.objectContaining({ afterSeq: 0 }),
+      expect.any(Function)
+    );
+  });
+
+  it("no-op refreshes settle without further registry writes", async () => {
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+    const remote = makeRemote({ eventsTailHash: undefined });
+
+    const first = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: remote,
+      workspaceRepoPath: "/viewer/ORG2",
+    });
+    expect(first).toMatchObject({ updated: true });
+    eventStoreMock.countPersistedEvents.mockResolvedValue(1);
+
+    const setItemSpy = vi.spyOn(localStorage, "setItem");
+    try {
+      // Two unchanged refreshes — the engine re-materializes imports every
+      // pass, so this is the hot path; the registry must stay read-only.
+      for (let refresh = 0; refresh < 2; refresh += 1) {
+        const again = await importRemoteSession({
+          client,
+          orgId: "org-1",
+          remoteSession: remote,
+          workspaceRepoPath: "/viewer/ORG2",
+        });
+        expect(again).toMatchObject({ updated: false });
+      }
+      const registryWrites = setItemSpy.mock.calls.filter(
+        ([key]) =>
+          key ===
+          __IMPORT_CURSOR_REGISTRY_INTERNALS.IMPORT_CURSOR_REGISTRY_STORAGE_KEY
+      );
+      expect(registryWrites).toHaveLength(0);
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
+
+  it("records the cursor durably after a fresh import", async () => {
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote(),
+      workspaceRepoPath: "/viewer/ORG2",
+    });
+
+    const registry = JSON.parse(
+      localStorage.getItem(
+        __IMPORT_CURSOR_REGISTRY_INTERNALS.IMPORT_CURSOR_REGISTRY_STORAGE_KEY
+      ) ?? "{}"
+    );
+    expect(registry[result?.localSessionId ?? ""]).toMatchObject({
+      orgId: "org-1",
+      sourceSessionId: "remote-1",
+      epoch: 1,
+      count: 1,
+    });
   });
 
   it("rejects on a failed durable write, clears the orphan, and reuses the deterministic id on retry", async () => {

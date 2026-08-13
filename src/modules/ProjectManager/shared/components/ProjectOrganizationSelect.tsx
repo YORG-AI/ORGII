@@ -41,7 +41,7 @@ const ProjectOrganizationSelect: FC<ProjectOrganizationSelectProps> = ({
       disabled={disabled}
       loading={loading}
       size="small"
-      variant="ghost"
+      appearance="ghost"
       prefix={<Network size={14} strokeWidth={1.75} />}
       showSearch
       dropdownWidthMode="min-match"

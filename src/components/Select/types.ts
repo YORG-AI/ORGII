@@ -4,6 +4,7 @@ import type {
   DropdownOption,
   DropdownOptionGroup,
 } from "@src/components/Dropdown/types";
+import type { FieldAppearance } from "@src/components/controlAppearance";
 
 /**
  * SelectOption is an alias for DropdownOption.
@@ -71,8 +72,8 @@ export interface SelectProps {
   panelZIndex?: number;
   /** @default 'lg' */
   radius?: "none" | "sm" | "md" | "lg" | "pill";
-  /** @default 'default' */
-  variant?: "default" | "ghost";
+  /** Visual field treatment. @default 'default' */
+  appearance?: FieldAppearance;
   /** Stable selector for rendered UI tests. */
   dataTestId?: string;
   /** Accessible name for the keyboard-focusable select trigger. */

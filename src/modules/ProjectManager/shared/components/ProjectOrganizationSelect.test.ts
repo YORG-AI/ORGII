@@ -11,7 +11,7 @@ vi.mock("@src/components/Select", () => ({
     className,
     prefix,
     size,
-    variant,
+    appearance,
     placement,
     showSearch,
     dropdownMinWidth,
@@ -21,7 +21,7 @@ vi.mock("@src/components/Select", () => ({
       {
         className,
         "data-size": size,
-        "data-variant": variant,
+        "data-appearance": appearance,
         "data-placement": placement,
         "data-search": String(showSearch),
         "data-dropdown-min-width": dropdownMinWidth,
@@ -47,7 +47,7 @@ describe("ProjectOrganizationSelect", () => {
     );
 
     expect(markup).toContain('data-size="small"');
-    expect(markup).toContain('data-variant="ghost"');
+    expect(markup).toContain('data-appearance="ghost"');
     expect(markup).toContain('data-placement="top"');
     expect(markup).toContain('data-search="true"');
     expect(markup).toContain('data-dropdown-min-width="220"');

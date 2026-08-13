@@ -515,6 +515,89 @@ function hasStandaloneFlag(command: string): boolean {
   return /(?:^|\s)--standalone(?:\s|$)/.test(command);
 }
 
+function parseTitleFlag(command: string): string | undefined {
+  const match = command.match(
+    /(?:^|\s)--title(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s|;&]+))/
+  );
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function parseUpdatedWorkItemId(command: string): string | undefined {
+  const match = command.match(
+    /(?:^|\s)(?:[^\s/]*\/)?(?:org2-pm|org2)\s+work\s+update\s+(?:"([^"]+)"|'([^']+)'|([^\s|;&]+))/
+  );
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function parseJsonStringPrefix(
+  source: string,
+  property: string
+): string | undefined {
+  const match = source.match(
+    new RegExp('"' + property + '"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"')
+  );
+  if (!match) return undefined;
+  try {
+    return JSON.parse('"' + match[1] + '"') as string;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseTruncatedOrgtrackSuccess(
+  command: string,
+  stdout: string,
+  exitCode: number | undefined,
+  context: OrgtrackEnvelopeContext
+): OrgtrackEnvelopeData | null {
+  if (
+    (exitCode !== undefined && exitCode !== 0) ||
+    parseJsonStringPrefix(stdout, "apiVersion") !== "orgtrack/v1" ||
+    !/"ok"\s*:\s*true/.test(stdout)
+  ) {
+    return null;
+  }
+
+  const operationId = inferOrgtrackOperation(command);
+  if (!["work.create", "work.update"].includes(operationId)) return null;
+
+  const shortId =
+    parseJsonStringPrefix(stdout, "short_id") ??
+    parseJsonStringPrefix(stdout, "filename") ??
+    (operationId === "work.update"
+      ? parseUpdatedWorkItemId(command)
+      : undefined);
+  if (!shortId) return null;
+
+  const explicitProjectSlug = parseScopeFlag(command);
+  const projectSlug = explicitProjectSlug ?? context.projectSlug;
+  const projectContextMatches =
+    !explicitProjectSlug || explicitProjectSlug === context.projectSlug;
+  const isStandalone =
+    hasStandaloneFlag(command) || (!projectSlug && !context.projectId);
+
+  return {
+    command,
+    ok: true,
+    operationId,
+    operation: ORGTRACK_OP_LABELS[operationId] ?? operationId,
+    exitCode: exitCode ?? 0,
+    shortId,
+    title:
+      parseJsonStringPrefix(stdout, "title") ??
+      parseTitleFlag(command) ??
+      shortId,
+    status: parseJsonStringPrefix(stdout, "status"),
+    projectSlug: isStandalone ? undefined : projectSlug,
+    projectName:
+      isStandalone || !projectContextMatches ? undefined : context.projectName,
+    projectId:
+      isStandalone || !projectContextMatches ? undefined : context.projectId,
+    orgId: context.orgId,
+    isStandalone,
+  };
+}
+
 function parseWorkItem(data: unknown): WorkItemData | undefined {
   const item = asRecord(data);
   const frontmatter = asRecord(item?.frontmatter);
@@ -554,7 +637,12 @@ export function parseOrgtrackEnvelope(
     if (!parsed || typeof parsed !== "object") return null;
     envelope = parsed as Record<string, unknown>;
   } catch {
-    return null;
+    return parseTruncatedOrgtrackSuccess(
+      command,
+      trimmed,
+      shell.exitCode,
+      context
+    );
   }
   if (envelope.apiVersion !== "orgtrack/v1") return null;
 

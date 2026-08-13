@@ -47,20 +47,29 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
     },
     ref
   ) {
+    const hasActionBar = Boolean(
+      leadingActions ||
+      trailingActions ||
+      (onAddContent && onUpload) ||
+      showContextInfo
+    );
+
     return (
       <ComposerShell ref={ref} {...shellProps}>
         {children}
-        <ComposerBar
-          onAddContent={onAddContent}
-          onUpload={onUpload}
-          onOpenSkillsTools={onOpenSkillsTools}
-          dropdownDirection={dropdownDirection}
-          leftPrefix={leadingActions}
-          repoPath={repoPath}
-          submitButton={trailingActions}
-          hideAddButton={!onAddContent || !onUpload}
-          showContextInfo={showContextInfo}
-        />
+        {hasActionBar ? (
+          <ComposerBar
+            onAddContent={onAddContent}
+            onUpload={onUpload}
+            onOpenSkillsTools={onOpenSkillsTools}
+            dropdownDirection={dropdownDirection}
+            leftPrefix={leadingActions}
+            repoPath={repoPath}
+            submitButton={trailingActions}
+            hideAddButton={!onAddContent || !onUpload}
+            showContextInfo={showContextInfo}
+          />
+        ) : null}
       </ComposerShell>
     );
   }
