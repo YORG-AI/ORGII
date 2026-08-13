@@ -194,7 +194,7 @@ const SessionCreatorChatPanelView: React.FC<
         tooltipPosition="top"
         onClick={onCategoryPickerOpen}
         ariaLabel={heroContent.name}
-        variant="ghost"
+        appearance="bare"
       />
       <div className="ml-auto flex min-w-0 flex-1 flex-wrap items-center justify-end gap-0.5">
         {sessionInfoLine}

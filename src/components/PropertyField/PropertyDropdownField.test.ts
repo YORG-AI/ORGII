@@ -73,6 +73,100 @@ describe("PropertyDropdownField", () => {
     expect(activeMarkup).toContain("!border-primary-6");
   });
 
+  it("supports the neutral fill idle surface for table pills", () => {
+    const statusMarkup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "open",
+        label: "Open",
+        icon: null,
+        active: false,
+        fieldVariant: "pill",
+        idleSurface: "fill",
+      })
+    );
+    const assigneeMarkup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "ada",
+        label: "Ada",
+        icon: null,
+        active: false,
+        triggerVariant: "iconChevron",
+        fieldVariant: "pill",
+        idleSurface: "fill",
+      })
+    );
+    const activeStatusMarkup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "open",
+        label: "Open",
+        icon: null,
+        active: true,
+        searchable: false,
+        fieldVariant: "pill",
+        idleSurface: "fill",
+      })
+    );
+
+    expect(statusMarkup).toContain("!bg-fill-1");
+    expect(statusMarkup).toContain("enabled:hover:!bg-fill-2");
+    expect(statusMarkup).not.toContain("!bg-bg-2");
+    expect(assigneeMarkup).toContain("bg-fill-1");
+    expect(assigneeMarkup).toContain("enabled:hover:bg-fill-2");
+    expect(activeStatusMarkup).toContain("!bg-fill-2");
+    expect(activeStatusMarkup).toContain("!border-primary-6");
+  });
+
+  it("matches field hover and open borders when requested", () => {
+    const idleStatusMarkup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "open",
+        label: "Open",
+        icon: null,
+        active: false,
+        fieldVariant: "pill",
+        idleSurface: "fill",
+        focusTreatment: "field",
+      })
+    );
+    const activeStatusMarkup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "open",
+        label: "Open",
+        icon: null,
+        active: true,
+        searchable: false,
+        fieldVariant: "pill",
+        idleSurface: "fill",
+        focusTreatment: "field",
+      })
+    );
+    const activeAssigneeMarkup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "ada",
+        label: "Ada",
+        icon: null,
+        active: true,
+        searchable: false,
+        triggerVariant: "iconChevron",
+        fieldVariant: "pill",
+        idleSurface: "fill",
+        focusTreatment: "field",
+      })
+    );
+
+    expect(idleStatusMarkup).toContain("enabled:hover:!border-border-3");
+    expect(activeStatusMarkup).toContain("!border-primary-6");
+    expect(activeStatusMarkup).toContain(
+      "!shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]"
+    );
+    expect(activeStatusMarkup).not.toContain("!text-primary-6");
+    expect(activeAssigneeMarkup).toContain("!border-primary-6");
+    expect(activeAssigneeMarkup).toContain(
+      "!shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]"
+    );
+    expect(activeAssigneeMarkup).not.toContain("text-primary-6");
+  });
+
   it("opens inline property menus above bottom-docked creator rows", () => {
     const markup = renderToStaticMarkup(
       React.createElement(

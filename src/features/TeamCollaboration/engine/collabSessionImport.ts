@@ -26,6 +26,11 @@ import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayM
 
 import { namespaceCopyEventId } from "../copyEventId";
 import {
+  clearImportCursor,
+  readImportCursor,
+  recordImportCursor,
+} from "./collabImportCursorRegistry";
+import {
   deriveImportedSessionId,
   findImportedSession,
   normalizeSourceEndpointUrl,
@@ -318,7 +323,14 @@ async function streamIncrementalRemoteSessionToCache(
   // what the cursor claims before a delta may be spliced onto it.
   const persistedCount =
     await eventStoreProxy.countPersistedEvents(localSessionId);
-  if (persistedCount !== cursor.count) return null;
+  if (persistedCount !== cursor.count) {
+    log.info("incremental declined: persisted count diverged from cursor", {
+      localSessionId,
+      persistedCount,
+      cursorCount: cursor.count,
+    });
+    return null;
+  }
 
   let expectedFrozenSeq = cursor.seq;
   let appendedFrozenCount = 0;
@@ -714,6 +726,11 @@ export async function importRemoteSession(
   return result;
 }
 
+type ImportReplayCursor = Pick<
+  SessionImportedFrom,
+  "epoch" | "seq" | "count" | "frozenCount" | "tailHash"
+>;
+
 async function importRemoteSessionInner(
   options: ImportRemoteSessionOptions
 ): Promise<ImportRemoteSessionResult | null> {
@@ -734,7 +751,8 @@ async function importRemoteSessionInner(
     sourceEndpointUrl
   );
   // Legacy (error_message) imports have no usable cursor → full refetch.
-  const cursor = existing?.importedFrom ?? null;
+  let cursor: ImportReplayCursor | null = existing?.importedFrom ?? null;
+  let localSessionId = existing?.session_id;
 
   if (
     remoteSession.eventsEpoch === undefined ||
@@ -765,13 +783,24 @@ async function importRemoteSessionInner(
     );
     if (persistedCount > 0 || remoteSession.eventsCount === 0) {
       refreshImportedSessionPresentation(existing, remoteSession);
+      // Write-through: heals installs whose registry predates this row, so
+      // the cursor survives the atom row's eventual eviction.
+      recordImportCursor(existing.session_id, {
+        orgId,
+        sourceSessionId: remoteSession.sourceSessionId,
+        sourceEndpointUrl,
+        epoch: cursor.epoch,
+        seq: cursor.seq,
+        count: cursor.count,
+        frozenCount: cursor.frozenCount,
+        tailHash: cursor.tailHash,
+      });
       return { localSessionId: existing.session_id, updated: false };
     }
   }
 
   let assembled: AssembledSegments | null = null;
   let streamed: PersistedStreamSummary | null = null;
-  let localSessionId = existing?.session_id;
   if (options.client.streamSessionEventSegments) {
     // Streamed imports persist bounded pages straight to SQLite — the full
     // replay never materializes in WebView memory. An existing import first
@@ -785,6 +814,18 @@ async function importRemoteSessionInner(
       sourceEndpointUrl
     );
     onBeforeWrite?.(localSessionId);
+    // The atom row is a UI cache bounded to the most recently active
+    // sessions; when it (or its cursor) is gone, the durable registry is
+    // the cursor of record — without it a fully-synced local replay would
+    // be mistaken for a first import and cleared + fully restreamed.
+    if (!cursor || cursor.frozenCount === undefined) {
+      cursor =
+        readImportCursor(localSessionId, {
+          orgId,
+          sourceSessionId: remoteSession.sourceSessionId,
+          sourceEndpointUrl,
+        }) ?? cursor;
+    }
     if (options.resumeCursor) {
       // Paused-download continuation: the incremental streamer already
       // guards everything a stale cursor could break (count probe, in-epoch
@@ -797,7 +838,6 @@ async function importRemoteSessionInner(
     }
     if (
       !streamed &&
-      existing &&
       cursor &&
       cursor.epoch >= 1 &&
       cursor.epoch === remoteSession.eventsEpoch &&
@@ -814,6 +854,23 @@ async function importRemoteSessionInner(
           frozenCount: cursor.frozenCount,
         }
       );
+    }
+    if (!streamed) {
+      // Every full restream costs a whole-session DELETE+INSERT (twice,
+      // through the FTS triggers) plus the full download — it must always
+      // say why, or churn like the cursor-loss regression stays invisible.
+      log.info("full restream", {
+        localSessionId,
+        reason: !cursor
+          ? "no cursor"
+          : cursor.frozenCount === undefined
+            ? "legacy cursor without frozenCount"
+            : cursor.epoch !== remoteSession.eventsEpoch
+              ? `epoch ${cursor.epoch} -> ${remoteSession.eventsEpoch}`
+              : (remoteSession.eventsFrozenSeq ?? 0) < cursor.seq
+                ? "frozen line regressed"
+                : "incremental declined",
+      });
     }
     streamed ??= await streamFreshRemoteSessionToCache(options, localSessionId);
     if (!streamed) {
@@ -837,6 +894,7 @@ async function importRemoteSessionInner(
           await eventStoreProxy
             .clear(existing.session_id)
             .catch(() => undefined);
+          clearImportCursor(existing.session_id);
           return null;
         }
       }
@@ -1013,6 +1071,16 @@ async function importRemoteSessionInner(
       completed_at: activityAt,
     });
     recordGuestImportedSession(importedRow);
+    recordImportCursor(localSessionId, {
+      orgId,
+      sourceSessionId: remoteSession.sourceSessionId,
+      sourceEndpointUrl,
+      epoch: importedFrom.epoch,
+      seq: importedFrom.seq,
+      count: importedFrom.count,
+      frozenCount: importedFrom.frozenCount,
+      tailHash: importedFrom.tailHash,
+    });
     persistSessions(store.get(sessionsAtom) as Session[]);
   } catch (error) {
     if (storageMutated) {
@@ -1031,6 +1099,7 @@ async function importRemoteSessionInner(
         }
       } else {
         await eventStoreProxy.clear(localSessionId).catch(() => undefined);
+        clearImportCursor(localSessionId);
       }
     }
     throw error;

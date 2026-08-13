@@ -372,7 +372,7 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
             activeTab={draftMode}
             onChange={handleModeChange}
             variant="pill"
-            colorScheme="layout"
+            appearance="layout"
             fillWidth
             size="small"
           />

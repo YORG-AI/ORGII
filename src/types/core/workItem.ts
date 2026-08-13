@@ -14,6 +14,7 @@ import type {
   WorkItemExecutionLock,
   WorkItemHandoff,
   WorkItemHistoryEvent,
+  WorkItemOriginSession,
   WorkItemRoutineSource,
   WorkItemSchedule,
   WorkItemWorkProduct,
@@ -166,6 +167,7 @@ export type {
   LinkedSessionType,
   LinkedSessionStatus,
   LinkedSession,
+  WorkItemOriginSession,
   DiffStats,
   TestResults,
   ProofOfWork,
@@ -219,6 +221,7 @@ export interface WorkItem extends WorkItemBase {
   startDate?: string;
   endDate?: string;
   linkedSessions?: LinkedSession[];
+  originSession?: WorkItemOriginSession;
   subIssueCount?: number;
   todos?: TodoItem[];
   comments?: WorkItemComment[];

@@ -37,6 +37,7 @@ import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ROUTES } from "@src/config/routes";
 import {
   FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS,
+  resolveFocusedChatWorkstationRailInsetStyle,
   resolveFocusedChatWorkstationRailTrackClass,
   resolveFocusedChatWorkstationSectionOrder,
 } from "@src/engines/ChatPanel/focusedChatWorkstationLayout";
@@ -126,6 +127,8 @@ interface FocusedChatWorkstationRailProps {
   conversationMinimapHostRef: (node: HTMLDivElement | null) => void;
   /** Active session scope moved out of the transcript's former context row. */
   sessionContext?: FocusedChatSessionContext;
+  /** Height of overlaid chat chrome that the rail must remain below. */
+  topInset?: number;
 }
 
 export interface FocusedChatSessionContext {
@@ -493,6 +496,7 @@ export function FocusedChatWorkstationRail({
   compactMenuHost,
   conversationMinimapHostRef,
   sessionContext,
+  topInset = 0,
 }: FocusedChatWorkstationRailProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -813,6 +817,7 @@ export function FocusedChatWorkstationRail({
         className={`relative flex h-full shrink-0 flex-col items-start transition-[width] duration-200 ease-out motion-reduce:transition-none ${resolveFocusedChatWorkstationRailTrackClass(
           collapsed
         )}`}
+        style={resolveFocusedChatWorkstationRailInsetStyle(topInset)}
       >
         <WorkstationTrailSurface
           as="aside"

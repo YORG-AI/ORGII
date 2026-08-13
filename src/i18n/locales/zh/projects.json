@@ -612,7 +612,9 @@
       "newSession": "新建会话",
       "starting": "正在启动...",
       "emptyOverview": "暂无 Sessions",
-      "emptyOverviewHint": "启动 Agent Session 后，可在此跟踪执行。"
+      "emptyOverviewHint": "启动 Agent Session 后，可在此跟踪执行。",
+      "originTitle": "创建来源 Session",
+      "originStatus": "由此 Session 创建"
     },
     "outputTab": {
       "prSection": "Pull Request",
@@ -639,7 +641,18 @@
     "fromRoutine": "来自 Routine：{{name}}",
     "subItems": {
       "title": "子任务",
-      "parent": "父任务"
+      "parent": "父任务",
+      "progress": "已完成 {{completed}} / {{total}}",
+      "add": "添加子任务",
+      "addFirst": "添加第一个子任务",
+      "titlePlaceholder": "输入子任务标题",
+      "stagePicker": "子任务阶段",
+      "noStage": "无阶段",
+      "stage": "阶段 {{stage}}",
+      "openStatus": "未完成",
+      "completedStatus": "已完成",
+      "cancelledStatus": "已取消",
+      "createError": "无法创建子任务，请重试。"
     },
     "sessionRail": {
       "notOnDeviceTitle": "会话不在此设备",
