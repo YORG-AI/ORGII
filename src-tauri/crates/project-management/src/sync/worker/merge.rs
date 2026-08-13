@@ -550,6 +550,7 @@ fn build_inbound_create_frontmatter(
         start_date: pick_string("start_date"),
         target_date: pick_string("target_date"),
         created_by: pick_string("created_by"),
+        origin_session: None,
         created_at: now_iso.clone(),
         updated_at: now_iso,
         deleted_at: None,

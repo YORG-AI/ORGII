@@ -192,7 +192,7 @@ function TeamRuntimeToday({
                     String(value) === ALL_MEMBERS ? null : String(value)
                   )
                 }
-                variant="ghost"
+                appearance="ghost"
                 size="small"
                 dataTestId="team-runtime-person-select"
               />

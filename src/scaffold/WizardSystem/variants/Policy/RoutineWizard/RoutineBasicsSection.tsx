@@ -244,7 +244,7 @@ const RoutineBasicsSection: React.FC<RoutineBasicsSectionProps> = ({
                     onChange={(hour, minute) =>
                       updateCronParts({ ...cronParts, hour, minute })
                     }
-                    variant="ghost"
+                    appearance="ghost"
                   />
                 </SectionRow>
                 <SectionRow label={t("common:common.timezone")} indent>
