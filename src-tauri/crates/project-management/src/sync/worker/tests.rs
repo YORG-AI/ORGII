@@ -524,6 +524,7 @@ fn wi_fm(short_id: &str, title: &str, status: &str) -> WorkItemFrontmatter {
         start_date: None,
         target_date: None,
         created_by: None,
+        origin_session: None,
         created_at: String::new(),
         updated_at: String::new(),
         deleted_at: None,

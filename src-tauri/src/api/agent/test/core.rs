@@ -1124,6 +1124,7 @@ async fn debug_work_item_runtime_launch_impl(
                 start_date: None,
                 target_date: None,
                 created_by: Some("e2e".to_string()),
+                origin_session: None,
                 created_at: now.clone(),
                 updated_at: now,
                 deleted_at: None,

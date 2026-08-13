@@ -128,7 +128,7 @@ function WorkItemBreadcrumbTitle({
           placeholder={fallbackTitle}
           aria-label={renameLabel}
           data-testid="work-item-header-title-input"
-          fieldVariant="ghost"
+          appearance="ghost"
           className="min-w-[4ch]"
           style={{ width: `${inputWidth}ch` }}
         />

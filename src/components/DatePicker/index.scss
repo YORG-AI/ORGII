@@ -50,7 +50,7 @@
 
     // Override native selection highlight
     &::selection {
-      background: var(--color-fill-2);
+      background: var(--color-surface-hover);
       color: var(--color-text-1);
     }
 

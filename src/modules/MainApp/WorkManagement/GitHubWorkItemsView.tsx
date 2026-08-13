@@ -126,6 +126,28 @@ interface GitHubWorkItemsViewProps {
   ) => void;
 }
 
+export function getManagedIssueStatusAccent(status: ManagedIssueStatusValue): {
+  iconColor: string;
+  valueClassName: string;
+} {
+  if (status === "open") {
+    return {
+      iconColor: "var(--color-success-6)",
+      valueClassName: "text-success-6",
+    };
+  }
+  if (status === "closed_completed") {
+    return {
+      iconColor: "var(--color-purple-6)",
+      valueClassName: "text-purple-6",
+    };
+  }
+  return {
+    iconColor: "var(--color-text-3)",
+    valueClassName: "text-text-2",
+  };
+}
+
 export function GitHubWorkItemsView({
   scope,
   loading,
@@ -216,7 +238,7 @@ export function GitHubWorkItemsView({
         })),
         onChange: (value) => onRepoSelect(String(value)),
         minWidth: 190,
-        variant: "default",
+        appearance: "default",
       },
     ],
     [effectiveSelectedRepo, onRepoSelect, repoOptions]
@@ -358,12 +380,13 @@ export function GitHubWorkItemsView({
               : item.rawIssue.state_reason === "not_planned"
                 ? "closed_not_planned"
                 : "closed_completed";
+        const issueStatusAccent = getManagedIssueStatusAccent(issueStatusValue);
         const issueStatusOptions = [
           {
             value: "open",
             label: t("chat.panels.manageIssues.stateOpen"),
             icon: <CircleDot size={14} strokeWidth={1.8} />,
-            iconColor: "var(--color-success-6)",
+            iconColor: getManagedIssueStatusAccent("open").iconColor,
           },
           {
             value: "closed_completed",
@@ -371,7 +394,8 @@ export function GitHubWorkItemsView({
               defaultValue: "Close as completed",
             }),
             icon: <CheckCircle2 size={14} strokeWidth={1.8} />,
-            iconColor: "var(--color-text-3)",
+            iconColor:
+              getManagedIssueStatusAccent("closed_completed").iconColor,
           },
           {
             value: "closed_not_planned",
@@ -429,8 +453,7 @@ export function GitHubWorkItemsView({
                 : t("chat.panels.manageIssues.stateClosed"),
             icon: selectedIssueStatus.icon,
             iconColor: selectedIssueStatus.iconColor,
-            valueClassName:
-              item.state === "open" ? "text-success-6" : "text-text-2",
+            valueClassName: issueStatusAccent.valueClassName,
             options: issueStatusOptions,
             onChange: (value) =>
               onIssueStatusChange(item, value as ManagedIssueStatusValue),

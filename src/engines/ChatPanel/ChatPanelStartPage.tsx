@@ -272,7 +272,7 @@ export function ChatPanelStartPage({
                   }
                 }}
                 size="large"
-                variant="ghost"
+                appearance="ghost"
                 radius="pill"
                 dropdownMinWidth={168}
                 dropdownWidthMode="auto"

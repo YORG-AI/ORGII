@@ -12,7 +12,7 @@
  * <LanguageSelector />
  *
  * // Compact version for toolbar/header
- * <LanguageSelector size="small" variant="ghost" />
+ * <LanguageSelector size="small" appearance="ghost" />
  * ```
  */
 import { useAtom } from "jotai";
@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import type { ControlAppearance } from "@src/components/controlAppearance";
 import {
   LANGUAGE_NAMES,
   LANGUAGE_PREFERENCE,
@@ -44,10 +45,10 @@ export interface LanguageSelectorProps {
   size?: "mini" | "small" | "default" | "large";
 
   /**
-   * Visual variant
+   * Visual appearance
    * @default 'default'
    */
-  variant?: "default" | "ghost";
+  appearance?: ControlAppearance;
 
   /**
    * Show globe icon prefix
@@ -75,7 +76,7 @@ export interface LanguageSelectorProps {
 
 export function LanguageSelector({
   size = "default",
-  variant = "default",
+  appearance = "default",
   showIcon = true,
   className,
   ariaLabel,
@@ -117,7 +118,7 @@ export function LanguageSelector({
       options={options}
       onChange={handleChange}
       size={size}
-      variant={variant}
+      appearance={appearance}
       prefix={showIcon ? <Globe className="h-4 w-4" /> : undefined}
       className={className}
       ariaLabel={ariaLabel}

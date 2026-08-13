@@ -89,4 +89,46 @@ describe("Dropdown", () => {
     await renderVisibleState(false);
     expect(store.get(activeOverlayCountAtom)).toBe(0);
   });
+
+  it("keeps options-mode keyboard navigation working from a portaled search input", async () => {
+    const props: React.ComponentProps<typeof Dropdown> = {
+      defaultPopupVisible: true,
+      showSearch: true,
+      options: [
+        {
+          label: "One",
+          value: "one",
+          dataTestId: "dropdown-option-one",
+        },
+        {
+          label: "Two",
+          value: "two",
+          dataTestId: "dropdown-option-two",
+        },
+      ],
+      getPopupContainer: () => document.body,
+      children: React.createElement("button", { type: "button" }, "Open"),
+    };
+    await act(async () => {
+      root.render(React.createElement(Dropdown, props));
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+
+    const searchInput =
+      document.body.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(searchInput).not.toBeNull();
+    act(() => searchInput?.focus());
+    expect(document.activeElement).toBe(searchInput);
+
+    act(() => {
+      searchInput?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })
+      );
+    });
+
+    const secondOption = document.body.querySelector<HTMLElement>(
+      '[data-testid="dropdown-option-two"]'
+    );
+    expect(secondOption?.classList.contains("bg-fill-2")).toBe(true);
+  });
 });

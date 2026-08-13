@@ -177,6 +177,15 @@ export interface WorkItemHandoffTransition {
   note?: string;
 }
 
+/** Immutable provenance for the agent session that created a Work Item. */
+export interface WorkItemOriginSession {
+  session_id: string;
+  provider: string;
+  actor_id: string;
+  session_type: "native" | "cli";
+  captured_at: string;
+}
+
 export interface WorkItemFrontmatter {
   id: string;
   short_id: string;
@@ -193,6 +202,7 @@ export interface WorkItemFrontmatter {
   start_date?: string;
   target_date?: string;
   created_by?: string;
+  origin_session?: WorkItemOriginSession;
   created_at: string;
   updated_at: string;
   deleted_at?: string;
@@ -309,6 +319,7 @@ export interface EnrichedWorkItem {
   updatedAt: string;
   deletedAt?: string;
   createdBy?: string;
+  originSession?: WorkItemOriginSession;
   createdByPerson?: ResolvedPerson;
 
   todos: TodoEntry[];
