@@ -26,8 +26,8 @@ use serde_json::Value as JsonValue;
 use crate::projects::types::{
     CommentEntry, DelegationEntry, FollowUpRef, LinkedSession, OrchestratorConfig,
     OrchestratorState, ProofOfWork, TodoEntry, WorkItemCloseOut, WorkItemExecutionLock,
-    WorkItemFrontmatter, WorkItemHandoff, WorkItemHistoryEvent, WorkItemRoutineSource,
-    WorkItemSchedule, WorkItemWorkProduct,
+    WorkItemFrontmatter, WorkItemHandoff, WorkItemHistoryEvent, WorkItemOriginSession,
+    WorkItemRoutineSource, WorkItemSchedule, WorkItemWorkProduct,
 };
 
 /// Per-field watermark stamped by the sync framework. Used by the
@@ -51,6 +51,8 @@ pub const REVISION_SOURCE_LOCAL: &str = "local";
 pub(super) struct ExtrasPayload {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin_session: Option<WorkItemOriginSession>,
     #[serde(default)]
     pub starred: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -107,6 +109,7 @@ impl ExtrasPayload {
     pub(super) fn from_frontmatter(fm: &WorkItemFrontmatter) -> Self {
         Self {
             created_by: fm.created_by.clone(),
+            origin_session: fm.origin_session.clone(),
             starred: fm.starred,
             todos: fm.todos.clone(),
             comments: fm.comments.clone(),

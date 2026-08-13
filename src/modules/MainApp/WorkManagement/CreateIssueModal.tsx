@@ -1,10 +1,15 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
+import ComposerSurface from "@src/components/ComposerSurface";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
+import RichMarkdownEditor, {
+  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS,
+  type RichMarkdownEditorRef,
+} from "@src/modules/shared/components/RichMarkdownEditor";
 import Modal from "@src/scaffold/ModalSystem";
 
 import type { GitHubRepoSource } from "./githubWorkItemsTypes";
@@ -43,11 +48,21 @@ export function CreateIssueModal({
   const [repoKey, setRepoKey] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const bodyEditorRef = useRef<RichMarkdownEditorRef>(null);
+  const bodyDropTargetRef = useRef<HTMLDivElement>(null);
+  const insertDroppedReference = useCallback(
+    (text: string, dropPoint?: { clientX: number; clientY: number }) => {
+      bodyEditorRef.current?.insertText(text, {
+        separateFromAdjacentText: true,
+        clientX: dropPoint?.clientX,
+        clientY: dropPoint?.clientY,
+      });
+    },
+    []
+  );
   const { isDragOver: bodyDragOver } = useSessionReferenceDropTarget({
-    elementRef: bodyRef,
-    value: body,
-    onChange: setBody,
+    elementRef: bodyDropTargetRef,
+    onInsertText: insertDroppedReference,
     enabled: open,
   });
   const effectiveRepoKey =
@@ -90,38 +105,51 @@ export function CreateIssueModal({
       okText={creating ? labels.creating : labels.create}
       cancelText={labels.cancel}
       okButtonProps={{ loading: creating, disabled: !source || !title.trim() }}
-      width={520}
+      width={640}
       bodyClassName="p-4"
     >
       <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1.5 text-[12px] font-medium text-text-2">
-          {labels.repository}
-          <Select
-            value={effectiveRepoKey}
-            options={repoOptions}
-            onChange={(value) => setRepoKey(String(value))}
-            showSearch
-            size="small"
-            panelZIndex={10001}
-            dropdownWidthMode="match"
-          />
-        </label>
+        <Select
+          value={effectiveRepoKey}
+          options={repoOptions}
+          onChange={(value) => setRepoKey(String(value))}
+          showSearch
+          size="small"
+          panelZIndex={10001}
+          dropdownWidthMode="match"
+          ariaLabel={labels.repository}
+        />
         <Input
           value={title}
           onChange={setTitle}
           placeholder={labels.issueTitlePlaceholder}
           size="default"
         />
-        <textarea
-          ref={bodyRef}
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          className={`bg-surface-0 focus:border-accent-5 min-h-28 w-full resize-none rounded-lg border px-3 py-2 text-[13px] text-text-1 outline-none placeholder:text-text-4 ${
-            bodyDragOver ? "border-primary-6" : "border-border-2"
-          }`}
-          placeholder={labels.issueBodyPlaceholder}
-        />
-        <CloudSessionReferencePreview text={body} />
+        <ComposerSurface
+          ref={bodyDropTargetRef}
+          variant="default"
+          className={`overflow-visible !pt-1.5 ${
+            bodyDragOver ? "!ring-2 !ring-primary-6" : ""
+          }`.trim()}
+          data-testid="create-github-issue-description"
+        >
+          <RichMarkdownEditor
+            ref={bodyEditorRef}
+            value={body}
+            onChange={setBody}
+            placeholder={labels.issueBodyPlaceholder}
+            minHeight={180}
+            maxHeight={420}
+            appearance="plain"
+            toolbarMode="inline"
+            toolbarSize="mini"
+            toolbarClassName={RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS}
+            toolbarDropdownPosition="top-start"
+            editable={!creating}
+            dataTestId="create-github-issue-description-editor"
+          />
+          <CloudSessionReferencePreview text={body} className="px-1.5" />
+        </ComposerSurface>
       </div>
     </Modal>
   );

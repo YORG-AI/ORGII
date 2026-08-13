@@ -340,6 +340,18 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   }
 
   /** Soft-tombstone a prior push and clear every local pushed marker. */
+  /** Live server rows this ACCOUNT owns in the org, regardless of which
+   * device pushed them or whether local push markers survived. */
+  async listSelfOwnedLiveRemoteSessionIds(
+    auth: Org2CloudAuthState,
+    orgId: string
+  ): Promise<string[]> {
+    const result = await this.client.listOrgSessions(auth.accessToken, orgId);
+    return result.sessions
+      .filter((row) => row.ownerUserId === auth.userId && !row.deletedAt)
+      .map((row) => row.sourceSessionId);
+  }
+
   async retractSession(
     auth: Org2CloudAuthState,
     orgId: string,

@@ -101,8 +101,7 @@ export const ProjectContentTitleInput = forwardRef<
         placeholder={titlePlaceholder}
         autoFocus={autoFocusTitle}
         readOnly={!editable}
-        borderless
-        bgless
+        appearance="bare"
         autoHeight
         className="mb-1 min-w-0 flex-1"
         inputClassName={`text-[22px] font-semibold text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
@@ -357,8 +356,7 @@ const ProjectContentEditor = forwardRef<
             onChange={(nextSummary) => onSummaryChange?.(nextSummary)}
             placeholder={summaryPlaceholder}
             readOnly={!editable && !onSummaryChange}
-            borderless
-            bgless
+            appearance="bare"
             autoHeight
             className="mb-5 w-full"
             inputClassName={`text-[13px] text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}

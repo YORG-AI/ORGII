@@ -10,7 +10,7 @@ use super::project::{CommentEntry, TodoEntry};
 use super::routines::WorkItemRoutineSource;
 use super::work_items::{
     WorkItemCloseOut, WorkItemExecutionLock, WorkItemHandoff, WorkItemHistoryEvent,
-    WorkItemWorkProduct,
+    WorkItemOriginSession, WorkItemWorkProduct,
 };
 
 // ============================================
@@ -89,6 +89,8 @@ pub struct EnrichedWorkItem {
     pub deleted_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin_session: Option<WorkItemOriginSession>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_by_person: Option<ResolvedPerson>,
 

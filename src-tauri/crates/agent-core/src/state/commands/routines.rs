@@ -247,6 +247,7 @@ async fn create_work_item_from_routine(
             start_date: None,
             target_date: None,
             created_by: Some(ROUTINE_CREATED_BY.to_string()),
+            origin_session: None,
             created_at: now.clone(),
             updated_at: now.clone(),
             deleted_at: None,

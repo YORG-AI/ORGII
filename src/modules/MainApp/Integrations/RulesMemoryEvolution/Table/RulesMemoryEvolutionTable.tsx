@@ -367,7 +367,7 @@ export const RulesMemoryEvolutionTable: React.FC<
                           setScopeFilter(key as RuleScopeFilterKey)
                         }
                         variant="pill"
-                        colorScheme="ghost"
+                        appearance="ghost"
                         fillWidth={false}
                         size="mini"
                       />

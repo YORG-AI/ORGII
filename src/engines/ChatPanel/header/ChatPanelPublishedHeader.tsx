@@ -20,7 +20,7 @@ export const ChatPanelPublishedHeader: React.FC<ChatPanelPublishedHeaderProps> =
 
     return (
       <div
-        className={`flex h-10 shrink-0 items-center gap-2 pr-2 ${
+        className={`relative z-40 flex h-10 shrink-0 items-center gap-2 pr-2 ${
           slots.joinWithFollowingRow ? "" : "border-b border-border-2"
         }`}
         data-testid="chat-panel-published-header"
