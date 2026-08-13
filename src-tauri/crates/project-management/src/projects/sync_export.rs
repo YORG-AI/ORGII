@@ -222,6 +222,7 @@ mod tests {
                 start_date: None,
                 target_date: None,
                 created_by: None,
+                origin_session: None,
                 created_at: "2026-06-15T00:00:00Z".to_string(),
                 updated_at: "2026-06-15T01:00:00Z".to_string(),
                 deleted_at: None,

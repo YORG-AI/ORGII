@@ -48,22 +48,23 @@ function normalizeWorkItemOrgId(orgId: string | undefined): string | undefined {
 export function buildWorkItemNavigationTarget(
   card: OrgtrackEnvelopeData
 ): WorkItemNavigationTarget | null {
+  const shortId = card.workItem?.frontmatter.short_id ?? card.shortId;
   if (
     !card.ok ||
     !NAVIGABLE_WORK_ITEM_OPERATIONS.has(card.operationId) ||
-    !card.workItem ||
+    !shortId ||
     (!card.isStandalone && !card.projectSlug)
   ) {
     return null;
   }
 
   return {
-    shortId: card.workItem.frontmatter.short_id,
-    title: card.workItem.frontmatter.title,
-    status: card.workItem.frontmatter.status,
+    shortId,
+    title: card.workItem?.frontmatter.title ?? card.title ?? shortId,
+    status: card.workItem?.frontmatter.status ?? card.status ?? "backlog",
     projectId: card.isStandalone
       ? undefined
-      : (card.projectId ?? card.workItem.frontmatter.project),
+      : (card.projectId ?? card.workItem?.frontmatter.project),
     projectSlug: card.isStandalone ? undefined : card.projectSlug,
     projectName: card.isStandalone
       ? undefined

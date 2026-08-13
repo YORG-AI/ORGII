@@ -9,12 +9,13 @@
  * Start intake stage with <InlineDropdown value="orgii" options={agents} onChange={...} />
  */
 import cn from "classnames";
-import { ChevronDown, Loader2, Search } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 
 import Dropdown from "@src/components/Dropdown";
-import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -86,20 +87,11 @@ function InlineDropdown({
   const droplistContent = (
     <div className={`${DROPDOWN_CLASSES.panel} flex flex-col`}>
       {showSearch && (
-        <div className={DROPDOWN_CLASSES.searchContainer}>
-          <Search
-            size={DROPDOWN_ITEM.iconSize}
-            className="shrink-0 text-text-3"
-          />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search..."
-            onClick={(event) => event.stopPropagation()}
-            className={DROPDOWN_CLASSES.searchInput}
-          />
-        </div>
+        <DropdownSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          autoFocus
+        />
       )}
 
       {loading ? (
@@ -112,24 +104,24 @@ function InlineDropdown({
       ) : (
         <div className={DROPDOWN_CLASSES.optionsContainer}>
           {filteredOptions.map((opt) => (
-            <div
+            <DropdownItem
               key={opt.value}
+              selected={value === opt.value}
+              disabled={opt.disabled}
+              showCheckmark
               onClick={() => handleSelect(opt)}
-              className={cn(
-                DROPDOWN_CLASSES.item,
-                DROPDOWN_CLASSES.itemHover,
-                value === opt.value && DROPDOWN_CLASSES.itemSelected,
-                opt.disabled && DROPDOWN_CLASSES.itemDisabled
-              )}
+              className={cn("w-full", opt.icon ? "" : "pl-2")}
+              icon={
+                opt.icon
+                  ? React.createElement(opt.icon, {
+                      size: DROPDOWN_ITEM.iconSize,
+                      className: "shrink-0",
+                    })
+                  : undefined
+              }
             >
-              {opt.icon &&
-                React.createElement(opt.icon, {
-                  size: DROPDOWN_ITEM.iconSize,
-                  className: "shrink-0",
-                })}
               <span className="flex-1 truncate">{opt.label}</span>
-              {value === opt.value && <DropdownSelectedCheck />}
-            </div>
+            </DropdownItem>
           ))}
         </div>
       )}
@@ -146,6 +138,7 @@ function InlineDropdown({
       trigger="click"
       position="bottom-start"
       popupVisible={isOpen}
+      keyboardNavigation
       onVisibleChange={(visible) => {
         setIsOpen(visible);
         if (!visible) setSearchQuery("");

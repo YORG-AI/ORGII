@@ -786,6 +786,7 @@ fn work_item_wire(
         "labels": frontmatter.labels,
         "starred": frontmatter.starred,
         "createdBy": frontmatter.created_by,
+        "originSession": to_value(&frontmatter.origin_session),
         "createdAt": frontmatter.created_at,
         "updatedAt": frontmatter.updated_at,
         "todos": to_value(&frontmatter.todos),

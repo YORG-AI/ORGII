@@ -143,10 +143,13 @@
     }
   }
 
-  &.input-borderless {
+  &.input-field-ghost,
+  &.input-field-bare {
     .input-inner {
       border-color: transparent;
       box-shadow: none;
+      background: transparent;
+      background-color: transparent;
     }
 
     &:hover:not(.input-disabled):not(.input-readonly):not(.input-focused) {
@@ -160,13 +163,6 @@
         border-color: transparent;
         box-shadow: none;
       }
-    }
-  }
-
-  &.input-bgless {
-    .input-inner {
-      background: transparent;
-      background-color: transparent;
     }
   }
 
@@ -203,11 +199,12 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 400;
       color: var(--color-text-1);
     }
 
-    &:hover:not(.input-disabled) {
+    &:hover:not(.input-disabled),
+    &.input-focused {
       background: var(--color-surface-hover);
     }
   }

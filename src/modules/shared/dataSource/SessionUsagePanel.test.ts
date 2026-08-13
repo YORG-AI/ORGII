@@ -141,7 +141,7 @@ describe("SessionUsagePanel", () => {
     expect(markup).toContain('data-testid="usage-source-range-controls"');
     expect(markup).toContain("h-4 w-px shrink-0 bg-border-2");
     expect(markup).toContain("select-size-small");
-    expect(markup).toContain("bg-fill-1 font-semibold text-primary-6");
+    expect(markup).toContain("bg-surface-hover font-semibold text-primary-6");
     expect(markup).toContain('data-testid="usage-title-controls"');
     expect(markup).toContain('data-testid="usage-refresh"');
     expect(markup).toContain('aria-label="usage.refresh"');

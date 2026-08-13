@@ -186,4 +186,53 @@ describe("buildGroupSummary", () => {
     expect(markup).toContain('data-work-item-id="WI-0101"');
     expect(markup).toContain("Updated bootstrap root");
   });
+
+  it("keeps a truncated host-bootstrap update visible outside the command stack", () => {
+    const stdout = `{
+  "apiVersion": "orgtrack/v1",
+  "ok": true,
+  "data": {
+    "body": "Create a root item",
+    "filename": "WI-0106",
+    "frontmatter": {
+      "created_at": "2026-08-13T04:33:34.178+00:00",
+      "origin_session": {
+        "provider": "org2",
+`;
+    const baseEvent = makeSessionEvent({
+      action_type: "tool_call",
+      function: "run_shell",
+      uiCanonical: "run_shell",
+      args: {
+        command:
+          'org2-pm work update WI-0106 --standalone --title "vince222" --output json 2>&1 | head -40',
+      },
+      result: {},
+      shellExitCode: 0,
+    });
+    const event = {
+      ...baseEvent,
+      shellReplay: {
+        ref: {
+          sessionId: baseEvent.sessionId,
+          callId: "call-truncated-update",
+          formatVersion: 1,
+        },
+        bookmark: { visibleThroughSequence: 1, visibleBytes: stdout.length },
+        terminalPreview: stdout,
+        status: "complete" as const,
+      },
+    };
+
+    const markup = renderToStaticMarkup(
+      createElement(TerminalActivityGroup, {
+        events: [event],
+        closedByBoundary: true,
+      })
+    );
+
+    expect(markup).toContain('data-testid="work-item-result-card"');
+    expect(markup).toContain('data-work-item-id="WI-0106"');
+    expect(markup).toContain("vince222");
+  });
 });

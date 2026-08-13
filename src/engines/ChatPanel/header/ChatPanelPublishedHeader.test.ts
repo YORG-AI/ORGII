@@ -25,6 +25,8 @@ describe("ChatPanelPublishedHeader", () => {
     expect(markup).toContain("h-10");
     expect(markup).toContain("pl-[15px]");
     expect(markup).toContain("border-b border-border-2");
+    expect(markup).not.toContain("bg-chat-pane/40");
+    expect(markup).not.toContain("backdrop-blur-xl");
     expect(markup).toContain("Leading");
     expect(markup).toContain("Content");
     expect(markup).toContain("Trailing");
