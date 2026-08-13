@@ -64,7 +64,7 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
               options={view.options}
               onChange={view.onChange}
               size="small"
-              variant="ghost"
+              appearance="ghost"
               radius="lg"
               dropdownAlign="right"
               dropdownMinWidth={160}

@@ -2,7 +2,10 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { GitHubWorkItemsView } from "./GitHubWorkItemsView";
+import {
+  GitHubWorkItemsView,
+  getManagedIssueStatusAccent,
+} from "./GitHubWorkItemsView";
 import { GITHUB_ITEM_KIND, type ManagedPrItem } from "./githubManagedItemModel";
 import { parseGitHubSearchQuery } from "./githubWorkItemsSearchQuery";
 import { DEFAULT_GITHUB_ISSUES_SORT } from "./githubWorkItemsSort";
@@ -11,6 +14,19 @@ vi.mock("@src/components/IntegrationIcon", () => ({
   default: ({ type }: { type: string }) =>
     React.createElement("span", { "data-integration-icon": type }),
 }));
+
+describe("GitHub issue status accents", () => {
+  it("uses purple for close-as-completed while keeping other closed reasons neutral", () => {
+    expect(getManagedIssueStatusAccent("closed_completed")).toEqual({
+      iconColor: "var(--color-purple-6)",
+      valueClassName: "text-purple-6",
+    });
+    expect(getManagedIssueStatusAccent("closed_not_planned")).toEqual({
+      iconColor: "var(--color-text-3)",
+      valueClassName: "text-text-2",
+    });
+  });
+});
 
 function createPullRequest(
   id: number,

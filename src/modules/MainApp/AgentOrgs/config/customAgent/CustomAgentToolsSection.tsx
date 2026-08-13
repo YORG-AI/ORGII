@@ -328,7 +328,7 @@ const CustomAgentToolsSection: React.FC<CustomAgentToolsSectionProps> = ({
                     activeTab={activeFilter}
                     onChange={setActiveFilter}
                     variant="pill"
-                    colorScheme="muted"
+                    appearance="muted"
                     fillWidth={false}
                     wrap
                     size="small"

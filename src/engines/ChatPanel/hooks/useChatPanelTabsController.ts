@@ -17,13 +17,13 @@ import type { ChatPanelCliTerminalLaunchOptions } from "../types";
 import { findOpenCliTerminalTab } from "./chatPanelTerminalTabLookup";
 
 interface UseChatPanelTabsControllerOptions {
-  launchpadTitle: string;
+  newSessionTitle: string;
   kanbanTitle: string;
   showSessionSurface: () => void;
 }
 
 export function useChatPanelTabsController({
-  launchpadTitle,
+  newSessionTitle,
   kanbanTitle,
   showSessionSurface,
 }: UseChatPanelTabsControllerOptions) {
@@ -87,12 +87,12 @@ export function useChatPanelTabsController({
   // New-session and launchpad both open the singleton start page (Work
   // section), focusing the existing tab instead of stacking a new one.
   const handleNewSessionTab = useCallback(() => {
-    openStartPageTab({ title: launchpadTitle });
-  }, [openStartPageTab, launchpadTitle]);
+    openStartPageTab({ title: newSessionTitle });
+  }, [newSessionTitle, openStartPageTab]);
 
   const handleOpenLaunchpadTab = useCallback(() => {
-    openStartPageTab({ title: launchpadTitle });
-  }, [openStartPageTab, launchpadTitle]);
+    openStartPageTab({ title: newSessionTitle });
+  }, [newSessionTitle, openStartPageTab]);
 
   const handleOpenKanbanTab = useCallback(() => {
     openKanbanTab({

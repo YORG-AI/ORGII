@@ -53,6 +53,7 @@ fn work_item_fixture(id: &str, short_id: &str, title: &str) -> WorkItemFrontmatt
         start_date: None,
         target_date: None,
         created_by: None,
+        origin_session: None,
         created_at: String::new(),
         updated_at: String::new(),
         deleted_at: None,
@@ -468,6 +469,15 @@ fn root_bootstrap_is_idempotent_and_falls_back_to_personal_scope() {
     let item = crate::projects::io::read_standalone_work_item(None, &first).expect("read root");
     assert_eq!(item.frontmatter.title, "Ship the export flow");
     assert!(item.body.contains("with full history"));
+    let origin = item
+        .frontmatter
+        .origin_session
+        .as_ref()
+        .expect("bootstrap records its source session");
+    assert_eq!(origin.session_id, "cliagent-boot-1");
+    assert_eq!(origin.provider, "org2");
+    assert_eq!(origin.session_type, "cli");
+    assert!(item.frontmatter.linked_sessions.is_empty());
 
     let other = bootstrap_root_standalone_item("cliagent-boot-2", None, "Second session root")
         .expect("bootstrap 2");

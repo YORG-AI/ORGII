@@ -41,7 +41,7 @@ export const SearchBar: React.FC<SearchBarProps> = memo(
           advancedAvailable={advancedAvailable}
           disabled={isLoading}
           size="small"
-          variant="default"
+          appearance="default"
           className="w-[168px]"
         />
 

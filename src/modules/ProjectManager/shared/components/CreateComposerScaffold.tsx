@@ -28,7 +28,7 @@ export function CreateComposerTitleInput({
       onChange={onChange}
       placeholder={placeholder}
       autoFocus
-      fieldVariant="ghost"
+      appearance="ghost"
       size="small"
       className="flex-1 focus-within:!bg-transparent hover:!bg-transparent"
       inputClassName={`!text-[14px] !font-normal ${GHOST_INPUT_PLACEHOLDER_CLASS}`}

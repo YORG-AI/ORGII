@@ -64,7 +64,7 @@ const KanbanHeaderTrailingControls: React.FC<
         }
         size="small"
         radius="lg"
-        variant="ghost"
+        appearance="ghost"
         dropdownAlign="right"
         dropdownWidthMode="min-match"
         className="w-auto text-[12px]"
@@ -75,7 +75,7 @@ const KanbanHeaderTrailingControls: React.FC<
         onChange={(value) => onTimeFilterChange(value as KanbanTimeFilter)}
         size="small"
         radius="lg"
-        variant="ghost"
+        appearance="ghost"
         dropdownAlign="right"
         dropdownWidthMode="min-match"
         className="w-auto text-[12px]"
