@@ -568,7 +568,7 @@ export const McpTable: React.FC<McpTableProps> = ({
                   activeTab={activeScopeTab}
                   onChange={handleScopeTabChange}
                   variant="pill"
-                  colorScheme="ghost"
+                  appearance="ghost"
                   fillWidth={false}
                   size="mini"
                 />

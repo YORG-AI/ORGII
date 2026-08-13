@@ -132,9 +132,35 @@ export function useSettingsSync(): void {
           void cover.hide();
         });
     };
+
+    // WKWebView can drop the `prefers-color-scheme` change event entirely, or
+    // deliver it while the display is off and the swap machinery is paused
+    // (App Nap / occlusion). Re-check on every return to visibility so a
+    // scheme flip that happened during sleep always converges — without this,
+    // the app stays on the stale scheme until the user manually toggles the
+    // OS appearance twice.
+    const resyncSystemTheme = () => {
+      if (document.visibilityState === "hidden") return;
+      if (document.documentElement.dataset.theme === getSystemColorScheme()) {
+        return;
+      }
+      // Coverless: this runs at wake, where the mismatch is already visible;
+      // a veil would only add a second visual hiccup.
+      const resolvedThemeId = resolveGlobalThemePreference(themePreference);
+      const selectedTheme = getGlobalTheme(resolvedThemeId);
+      void swapThemeCss(selectedTheme.baseCssPath).then(() => {
+        setSystemColorScheme(getSystemColorScheme());
+      });
+    };
+
     mediaQuery.addEventListener("change", handleSystemThemeChange);
-    return () =>
+    document.addEventListener("visibilitychange", resyncSystemTheme);
+    window.addEventListener("focus", resyncSystemTheme);
+    return () => {
       mediaQuery.removeEventListener("change", handleSystemThemeChange);
+      document.removeEventListener("visibilitychange", resyncSystemTheme);
+      window.removeEventListener("focus", resyncSystemTheme);
+    };
   }, [settingsLoaded, settings, setSystemColorScheme]);
 
   // Sync language to i18next + localStorage after settings load from disk.

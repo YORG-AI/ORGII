@@ -43,7 +43,7 @@ export function OrganizationScopeHeader({
             }}
             showSearch={options.length > 8}
             size="large"
-            variant="ghost"
+            appearance="ghost"
             radius="pill"
             dropdownMinWidth={168}
             dropdownWidthMode="auto"

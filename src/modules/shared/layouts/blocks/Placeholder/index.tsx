@@ -22,6 +22,8 @@ import Button from "@src/components/Button";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 
+import { normalizePlaceholderSubtitle } from "./normalizePlaceholderSubtitle";
+
 export const PLACEHOLDER_TOKENS = {
   iconSize: 32,
 } as const;
@@ -141,7 +143,9 @@ export const Placeholder: React.FC<PlaceholderProps> = memo(
 
     const defaultText = defaults[variant];
     const resolvedTitle = title ?? defaultText.title;
-    const resolvedSubtitle = subtitle ?? defaultText.subtitle;
+    const resolvedSubtitle = normalizePlaceholderSubtitle(
+      subtitle ?? defaultText.subtitle
+    );
     const isError = variant === "error";
     const isLoading = variant === "loading";
 

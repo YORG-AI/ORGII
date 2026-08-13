@@ -27,7 +27,7 @@ import { useTranslation } from "react-i18next";
 import { gitApi } from "@src/api/http/git";
 import { CheckoutBlockedDialog } from "@src/components/GitDialogs/CheckoutBlockedDialog";
 import { CheckoutConflictDialog } from "@src/components/GitDialogs/CheckoutConflictDialog";
-import PillGroup, { type PillGroupVariant } from "@src/components/PillGroup";
+import PillGroup from "@src/components/PillGroup";
 import RunningLocationDropdownPanel from "@src/components/RunningLocationDropdownPanel";
 import {
   RUNNING_LOCATIONS,
@@ -111,11 +111,6 @@ export interface SessionInfoLineProps {
    * interesting to display.
    */
   hideBranch?: boolean;
-  /**
-   * `PillGroup` visual variant. Use `ghost` for dense factory headers where
-   * the surrounding chrome already provides visual separation.
-   */
-  pillVariant?: PillGroupVariant;
   /**
    * When true, the row sits in a full-width SessionCreator surface (e.g. the
    * fullScreen ChatPanel creator) immediately under the composer input.
@@ -266,7 +261,6 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   branchName,
   onBranchChange,
   branchLoading,
-  pillVariant = "default",
   fullWidth: _fullWidth = false,
   dropdownDirection = "down",
   worktreeLocation,
@@ -616,12 +610,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
   return (
     <>
-      <PillGroup
-        segments={segments}
-        className="flex-wrap"
-        variant={pillVariant}
-        strongSurface
-      />
+      <PillGroup segments={segments} className="flex-wrap" strongSurface />
 
       {/* Repo Selector */}
       {useDropdownPicker ? (
