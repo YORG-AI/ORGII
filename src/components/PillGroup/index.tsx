@@ -108,8 +108,6 @@ export interface PillGroupSegment {
   renderButton?: (props: PillGroupSegmentButtonProps) => React.ReactNode;
 }
 
-export type PillGroupVariant = "default" | "ghost";
-
 interface PillGroupSegmentRowProps {
   segment: PillGroupSegment;
   index: number;
@@ -117,7 +115,6 @@ interface PillGroupSegmentRowProps {
   segments: PillGroupSegment[];
   hoveredIndex: number | null;
   segmentClassName?: string;
-  variant: PillGroupVariant;
   strongSurface: boolean;
   onEnter: (index: number) => void;
   onLeave: (index: number) => void;
@@ -130,7 +127,6 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
   segments,
   hoveredIndex,
   segmentClassName,
-  variant,
   strongSurface,
   onEnter,
   onLeave,
@@ -141,7 +137,7 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
   const isHovered = hoveredIndex === index;
   const isActive = !!segment.active;
   const isPillStyled = isHovered || isActive;
-  const usesFill3Surface = strongSurface || variant === "ghost";
+  const usesFill3Surface = strongSurface;
   const resolvedSegmentClassName = `${segmentClassName ?? ""} ${
     usesFill3Surface
       ? isActive
@@ -198,7 +194,6 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
       active={isActive}
       danger={segment.danger}
       disabled={segment.disabled}
-      variant={variant}
       tooltip={segment.tooltip}
       tooltipFramed={segment.tooltipFramed}
       tooltipFramedWide={segment.tooltipFramedWide}
@@ -242,32 +237,12 @@ export interface PillGroupProps {
   className?: string;
   /** Optional class applied to every segment button. */
   segmentClassName?: string;
-  /**
-   * Visual variant for hover/active styling.
-   *
-   * - `default` — at rest segments are transparent + divider visible; on
-   *   hover/active a segment gains a fill without adding a border ring.
-   * - `ghost` — same resting behaviour, but on hover/active only the fill
-   *   appears (no border ring). Used inside dense factory headers where a
-   *   bordered pill would clash with the surrounding chrome.
-   * - `solid` — resting state is transparent (same as `default`), but
-   *   hover/active fills with `bg-chat-input` so the lit pill matches the
-   *   composer input directly above. No border ring. Used by the full-width
-   *   SessionCreator repo/branch/location row sitting under the composer.
-   */
-  variant?: PillGroupVariant;
   /** Use a higher-contrast hover/open surface for prominent selector rows. */
   strongSurface?: boolean;
 }
 
 const PillGroup: React.FC<PillGroupProps> = memo(
-  ({
-    segments,
-    className,
-    segmentClassName,
-    variant = "default",
-    strongSurface = false,
-  }) => {
+  ({ segments, className, segmentClassName, strongSurface = false }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
     const [groupHovered, setGroupHovered] = useState(false);
     const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -327,7 +302,6 @@ const PillGroup: React.FC<PillGroupProps> = memo(
             segments={segments}
             hoveredIndex={hoveredIndex}
             segmentClassName={segmentClassName}
-            variant={variant}
             strongSurface={strongSurface}
             onEnter={handleEnter}
             onLeave={handleLeave}
