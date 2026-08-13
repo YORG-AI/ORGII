@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import PillGroup, { type PillGroupSegment } from ".";
 
-function renderGhostSegment(active = false): string {
+function renderStrongSegment(active = false): string {
   const segments: PillGroupSegment[] = [
     {
       id: "repo",
@@ -15,17 +15,17 @@ function renderGhostSegment(active = false): string {
   ];
 
   return renderToStaticMarkup(
-    createElement(PillGroup, { segments, variant: "ghost" })
+    createElement(PillGroup, { segments, strongSurface: true })
   );
 }
 
 describe("PillGroup", () => {
-  it("gives ghost segments a hover surface", () => {
-    expect(renderGhostSegment()).toContain("enabled:hover:!bg-fill-3");
+  it("gives strong segments a hover surface", () => {
+    expect(renderStrongSegment()).toContain("enabled:hover:!bg-fill-3");
   });
 
-  it("keeps the surface while a ghost segment is active", () => {
-    expect(renderGhostSegment(true)).toContain("!bg-fill-3");
+  it("keeps the surface while a strong segment is active", () => {
+    expect(renderStrongSegment(true)).toContain("!bg-fill-3");
   });
 
   it("uses a higher-contrast surface when requested", () => {

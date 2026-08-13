@@ -87,6 +87,8 @@ export interface NavigationSidebarProps {
   preListContent?: React.ReactNode;
   /** Show loading placeholder instead of menu items */
   isLoading?: boolean;
+  /** Optional loading UI that mirrors the current sidebar surface. */
+  loadingContent?: React.ReactNode;
   /** Paint an opaque sidebar surface instead of honoring sidebar transparency. */
   solidSurface?: boolean;
   /** Enable collapse/expand on section headers (separator-based groups) */
@@ -252,6 +254,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
     search,
     preListContent,
     isLoading = false,
+    loadingContent,
     solidSurface = false,
     collapsibleSections = false,
     collapsedSectionIds,
@@ -506,6 +509,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
         {/* Section Container */}
         <SidebarList
           isLoading={isLoading}
+          loadingContent={loadingContent}
           topPadding={listTopPadding}
           scrollContainerRef={menuRevealRootRef}
         >

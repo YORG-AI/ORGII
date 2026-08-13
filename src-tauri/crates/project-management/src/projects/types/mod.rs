@@ -10,6 +10,7 @@ pub mod project;
 pub mod routines;
 pub mod views;
 pub mod work_items;
+pub mod work_runs;
 
 pub use config::*;
 pub use enriched::*;
@@ -18,3 +19,4 @@ pub use project::*;
 pub use routines::*;
 pub use views::*;
 pub use work_items::*;
+pub use work_runs::*;

@@ -2,7 +2,11 @@ import { Bot, Pencil, Repeat, RotateCcw, Terminal } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type WorkItemHandoff, projectApi } from "@src/api/http/project";
+import {
+  type WorkItemHandoff,
+  type WorkItemOriginSession,
+  projectApi,
+} from "@src/api/http/project";
 import Avatar from "@src/components/Avatar";
 import TabPill from "@src/components/TabPill";
 import { useWorkItemImageInsert } from "@src/hooks/project";
@@ -46,11 +50,13 @@ import {
   type WorkItemThreadView,
   WorkItemThreadViewAction,
 } from "../WorkItemThread";
+import CustomPropertiesSection from "./CustomPropertiesSection";
 import GitHubIssueComposer from "./GitHubIssueComposer";
 import HistoryTab from "./HistoryTab";
 import OutputTab from "./OutputTab";
 import ThreadTodoChecklist from "./ThreadTodoChecklist";
 import WorkItemHandoffNotice from "./WorkItemHandoffNotice";
+import WorkItemRunUsageSummary from "./WorkItemRunUsageSummary";
 import { normalizeLegacyEscapedMarkdown } from "./descriptionMarkdown";
 import { retryFailedLinkedSession } from "./discussionCommentForward";
 import { useGitHubIssueTimeline } from "./hooks/useGitHubIssueTimeline";
@@ -60,7 +66,10 @@ import type { SessionTab, WorkItemContentProps } from "./types";
 
 interface LinkedSessionsListProps {
   sessions: LinkedSession[];
+  originSession?: WorkItemOriginSession;
   shortId?: string | null;
+  projectSlug?: string | null;
+  orgId?: string | null;
   activeAgentSessionId?: string | null;
   onOpenSession?: (sessionId: string) => void;
 }
@@ -80,7 +89,10 @@ function getLinkedSessionTitle(session: LinkedSession): string {
 
 const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
   sessions,
+  originSession,
   shortId,
+  projectSlug,
+  orgId,
   activeAgentSessionId,
   onOpenSession,
 }) => {
@@ -94,7 +106,7 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
     [i18n.resolvedLanguage, t]
   );
   const tableItems = useMemo<SessionTableItem[]>(() => {
-    if (sessions.length === 0) {
+    if (sessions.length === 0 && !originSession) {
       return [
         {
           id: "work-item-linked-sessions-empty",
@@ -106,7 +118,7 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
       ];
     }
 
-    return sessions.map((session) => {
+    const executionItems = sessions.map((session) => {
       const roleLabelKey = ROLE_I18N_KEYS[session.agent_role];
       const statusLabelKey = STATUS_I18N_KEYS[session.status];
       const roleLabel = roleLabelKey
@@ -163,6 +175,8 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
               className="flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
               onClick={() => {
                 retryFailedLinkedSession({
+                  projectSlug,
+                  orgId,
                   shortId,
                   sessionId: session.session_id,
                 });
@@ -179,10 +193,56 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
           ) : undefined,
       };
     });
+    if (
+      !originSession ||
+      sessions.some(
+        (session) => session.session_id === originSession.session_id
+      )
+    ) {
+      return executionItems;
+    }
+    return [
+      {
+        id: originSession.session_id,
+        title: t("workItems.sessions.originTitle", {
+          defaultValue: "Creation session",
+        }),
+        description: originSession.session_id,
+        statusLabel: t("workItems.sessions.originStatus", {
+          defaultValue: "Created this item",
+        }),
+        statusColor: "var(--color-primary-6)",
+        agentIcon:
+          originSession.session_type === "cli" ? (
+            <Terminal size={14} strokeWidth={1.75} className="text-text-3" />
+          ) : (
+            <Bot size={14} strokeWidth={1.75} className="text-text-3" />
+          ),
+        agentLabel: originSession.actor_id.replace(/^agent:/, ""),
+        modelLabel: originSession.session_type,
+        startedLabel: formatReplayDateLabel(originSession.captured_at, {
+          ...dateTimeLabelOptions,
+          withSeconds: false,
+          monthStyle: "short",
+        }),
+        lastUpdatedLabel: formatReplayDateLabel(originSession.captured_at, {
+          ...dateTimeLabelOptions,
+          withSeconds: false,
+          monthStyle: "short",
+        }),
+        active: originSession.session_id === activeAgentSessionId,
+        disabled: originSession.provider !== "org2",
+        testId: `work-item-origin-session-${originSession.session_id}`,
+      },
+      ...executionItems,
+    ];
   }, [
     activeAgentSessionId,
     dateTimeLabelOptions,
     onOpenSession,
+    originSession,
+    orgId,
+    projectSlug,
     sessions,
     shortId,
     t,
@@ -276,10 +336,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     setActiveSessionTab,
     commentText,
     setCommentText,
+    replyToCommentId,
+    setReplyToCommentId,
     mentionedUserIds,
     setMentionedUserIds,
     isSubscribed,
-    setIsSubscribed,
+    handleToggleSubscription,
     isSubmittingComment,
     sessionTabItems,
     resolvedDescription,
@@ -289,6 +351,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     handleDescriptionChange,
     handleTodosChange,
     handleCommentSubmit,
+    handleResolveDiscussionThread,
+    handleReopenDiscussionThread,
   } = useWorkItemContentState({
     workItem,
     onUpdateWorkItem,
@@ -297,6 +361,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     teamMembers,
     projectSlug,
     shortId,
+    orgId,
   });
 
   const creatorName =
@@ -687,10 +752,29 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     </ScrollTrailTarget>
   );
 
+  const customPropertiesSection = !isGitHubWorkItem ? (
+    <ScrollTrailTarget
+      enabled={isThread}
+      label={t("workItems.properties.title", {
+        defaultValue: "Custom properties",
+      })}
+    >
+      <CustomPropertiesSection
+        projectSlug={projectSlug}
+        orgId={orgId}
+        shortId={shortId ?? workItem.shortId}
+        editable={Boolean(onUpdateWorkItem)}
+      />
+    </ScrollTrailTarget>
+  ) : null;
+
   const outputContent = (
     <OutputTab
       workItem={workItem}
       repoPath={repoPath}
+      projectSlug={projectSlug}
+      shortId={shortId ?? workItem.shortId}
+      orgId={orgId}
       onOpenFileDiff={onOpenFileDiff}
       onOpenFileAtLine={onOpenFileAtLine}
       onReviewAllFiles={onReviewAllFiles}
@@ -709,7 +793,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       timelineEntries={timelineEntries}
       currentUser={currentUser}
       isSubscribed={isSubscribed}
-      onToggleSubscribe={() => setIsSubscribed(!isSubscribed)}
+      onToggleSubscribe={handleToggleSubscription}
       commentText={commentText}
       onCommentTextChange={setCommentText}
       mentionedUserIds={mentionedUserIds}
@@ -717,6 +801,11 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       teamMembers={teamMembers}
       onCommentSubmit={handleCommentSubmit}
       isSubmittingComment={isSubmittingComment}
+      comments={workItem.comments ?? []}
+      replyToCommentId={replyToCommentId}
+      onReplyToComment={setReplyToCommentId}
+      onResolveThread={handleResolveDiscussionThread}
+      onReopenThread={handleReopenDiscussionThread}
       presentation={presentation}
       canComment={Boolean(onUpdateWorkItem)}
       threadNavigation={
@@ -752,7 +841,10 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         (sectionPolicy.showLinkedSessionsTable ? (
           <LinkedSessionsList
             sessions={workItem.linkedSessions ?? []}
+            originSession={workItem.originSession}
             shortId={shortId ?? workItem.shortId}
+            projectSlug={projectSlug}
+            orgId={orgId}
             activeAgentSessionId={activeAgentSessionId}
             onOpenSession={onOpenSession}
           />
@@ -766,7 +858,16 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
   const threadLowerSection = (
     <>
-      {(workItem.linkedSessions?.length ?? 0) > 0 ? (
+      {!isGitHubWorkItem && !sectionPolicy.showInlineOutput ? (
+        <WorkItemRunUsageSummary
+          projectSlug={projectSlug}
+          orgId={orgId}
+          shortId={shortId ?? workItem.shortId}
+          navigationEnabled={isThread}
+          onOpenSession={onOpenSession}
+        />
+      ) : null}
+      {(workItem.linkedSessions?.length ?? 0) > 0 || workItem.originSession ? (
         <ScrollTrailTarget
           enabled={isThread}
           label={t("workItems.linkedSessions.title", {
@@ -775,7 +876,10 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         >
           <LinkedSessionsList
             sessions={workItem.linkedSessions ?? []}
+            originSession={workItem.originSession}
             shortId={shortId ?? workItem.shortId}
+            projectSlug={projectSlug}
+            orgId={orgId}
             activeAgentSessionId={activeAgentSessionId}
             onOpenSession={onOpenSession}
           />
@@ -813,6 +917,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
             <ScrollTrailTarget label={t("workItems.todos.title")}>
               {todosSection}
             </ScrollTrailTarget>
+            {customPropertiesSection}
             {subItemsSection}
             {threadLowerSection}
             {!isGitHubWorkItem ? (
@@ -862,6 +967,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         todosContent={todosSection}
         lowerContent={
           <>
+            {customPropertiesSection}
             {subItemsSection}
             {sectionPolicy.showTabbedLowerSection
               ? tabbedLowerSection

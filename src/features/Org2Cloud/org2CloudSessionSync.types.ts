@@ -44,6 +44,8 @@ export interface PreparedPushEvents {
   mode: "full" | "incremental";
   /** Absolute count of validated events omitted from `events`. */
   baseEventCount: number;
+  /** Durable native-cache revision covered by this materialization. */
+  localContentRevision?: number;
   events: SessionEvent[];
   plan(): Promise<PreparedPushPlan>;
 }

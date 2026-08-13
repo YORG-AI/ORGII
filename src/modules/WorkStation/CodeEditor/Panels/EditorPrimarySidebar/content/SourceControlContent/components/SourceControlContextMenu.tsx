@@ -7,11 +7,6 @@
  *
  * Uses dispatch() for actions per GUI Action System guidelines.
  */
-import {
-  MenuItem,
-  PredefinedMenuItem,
-  Menu as TauriMenu,
-} from "@tauri-apps/api/menu";
 import i18next from "i18next";
 import { useEffect, useRef } from "react";
 
@@ -19,6 +14,10 @@ import { createLogger } from "@src/hooks/logger";
 import type { GitFile } from "@src/types/git/types";
 import { copyText } from "@src/util/data/clipboard";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 
 import { GIT_LABELS } from "../config";
 
@@ -117,204 +116,191 @@ export default function SourceControlContextMenu(
 
     async function showNativeMenu() {
       try {
-        const ctx = contextMenuRef.current;
-        if (!ctx) {
-          onClose();
-          return;
-        }
+        await popupNativeMenu({
+          source: "source-control",
+          buildItems: () => {
+            const ctx = contextMenuRef.current;
+            if (!ctx) return [];
 
-        const { file, repoPath: _repoPath, isConflictFile, isDirectory } = ctx;
-        const t = i18next.t.bind(i18next);
-        const files = ctx.files ?? [file];
-        const labels = getSourceControlContextMenuActionLabels({
-          isDirectory: !!isDirectory,
-          isStaged: file.staged,
-          changeCount: files.length,
-        });
+            const { file, isConflictFile, isDirectory } = ctx;
+            const t = i18next.t.bind(i18next);
+            const files = ctx.files ?? [file];
+            const labels = getSourceControlContextMenuActionLabels({
+              isDirectory: !!isDirectory,
+              isStaged: file.staged,
+              changeCount: files.length,
+            });
 
-        const items: (MenuItem | PredefinedMenuItem)[] = [];
+            const items: NativeMenuItemOptions[] = [];
 
-        if (!isDirectory) {
-          // --- Open Changes (diff view) ---
-          items.push(
-            await MenuItem.new({
-              text: GIT_LABELS.openChanges,
-              action: () => {
+            if (!isDirectory) {
+              // --- Open Changes (diff view) ---
+              items.push({
+                text: GIT_LABELS.openChanges,
+                action: () => {
+                  const ref = contextMenuRef.current;
+                  if (ref?.onSelect) {
+                    ref.onSelect(ref.file.id);
+                  }
+                },
+              });
+
+              // --- Open File ---
+              items.push({
+                text: t("common:actions.openFile"),
+                action: () => {
+                  const ref = contextMenuRef.current;
+                  if (ref) {
+                    const absPath = ref.repoPath
+                      ? `${ref.repoPath}/${ref.file.path}`
+                      : ref.file.path;
+                    ref.dispatch(
+                      "file.openAtLine",
+                      { path: absPath, line: 1 },
+                      "user"
+                    );
+                  }
+                },
+              });
+
+              // --- Separator ---
+              items.push({ item: "Separator" });
+            }
+
+            // --- Stage / Unstage ---
+            if (!isConflictFile) {
+              items.push({
+                text: labels.stageToggle,
+                action: async () => {
+                  const ref = contextMenuRef.current;
+                  if (ref?.onStageToggle) {
+                    const files = ref.files ?? [ref.file];
+                    await Promise.all(
+                      files.map((file) =>
+                        ref.onStageToggle?.(file.id, !ref.file.staged)
+                      )
+                    );
+                  }
+                },
+              });
+            }
+
+            // --- Stage Resolved (conflict files) ---
+            if (isConflictFile) {
+              items.push({
+                text: labels.markResolved,
+                action: async () => {
+                  const ref = contextMenuRef.current;
+                  if (ref?.onStageResolved) {
+                    const files = ref.files ?? [ref.file];
+                    await Promise.all(
+                      files.map((file) => ref.onStageResolved?.(file.id))
+                    );
+                  }
+                },
+              });
+            }
+
+            // --- Discard Changes ---
+            items.push({
+              text: labels.discard,
+              action: async () => {
                 const ref = contextMenuRef.current;
-                if (ref?.onSelect) {
-                  ref.onSelect(ref.file.id);
+                if (ref?.onDiscardFiles && ref.files) {
+                  await ref.onDiscardFiles(ref.files.map((file) => file.id));
+                } else if (ref?.onDiscard) {
+                  await ref.onDiscard(ref.file.id);
                 }
               },
-            })
-          );
+            });
 
-          // --- Open File ---
-          items.push(
-            await MenuItem.new({
-              text: t("common:actions.openFile"),
+            // --- Conflict resolution options ---
+            if (isConflictFile) {
+              items.push({ item: "Separator" });
+
+              items.push({
+                text: GIT_LABELS.acceptCurrentChange,
+                action: async () => {
+                  const ref = contextMenuRef.current;
+                  if (ref) {
+                    const files = ref.files ?? [ref.file];
+                    await resolveConflictsForFiles(ref.dispatch, files, "ours");
+                  }
+                },
+              });
+
+              items.push({
+                text: GIT_LABELS.acceptIncomingChange,
+                action: async () => {
+                  const ref = contextMenuRef.current;
+                  if (ref) {
+                    const files = ref.files ?? [ref.file];
+                    await resolveConflictsForFiles(
+                      ref.dispatch,
+                      files,
+                      "theirs"
+                    );
+                  }
+                },
+              });
+            }
+
+            // --- Separator ---
+            items.push({ item: "Separator" });
+
+            // --- Copy Path ---
+            items.push({
+              text: t("common:actions.copyPath"),
+              accelerator: "CmdOrCtrl+Alt+C",
+              action: async () => {
+                const ref = contextMenuRef.current;
+                if (ref) {
+                  const targetPath = ref.targetPath ?? ref.file.path;
+                  const absPath = ref.repoPath
+                    ? `${ref.repoPath}/${targetPath}`
+                    : targetPath;
+                  await copyText(absPath);
+                }
+              },
+            });
+
+            // --- Copy Relative Path ---
+            items.push({
+              text: t("common:actions.copyRelativePath"),
+              accelerator: "CmdOrCtrl+Shift+C",
+              action: async () => {
+                const ref = contextMenuRef.current;
+                if (ref) {
+                  await copyText(ref.targetPath ?? ref.file.path);
+                }
+              },
+            });
+
+            // --- Separator ---
+            items.push({ item: "Separator" });
+
+            // --- Reveal in OS file manager ---
+            items.push({
+              text: t(getFileManagerRevealLabelKey()),
               action: () => {
                 const ref = contextMenuRef.current;
                 if (ref) {
+                  const targetPath = ref.targetPath ?? ref.file.path;
                   const absPath = ref.repoPath
-                    ? `${ref.repoPath}/${ref.file.path}`
-                    : ref.file.path;
+                    ? `${ref.repoPath}/${targetPath}`
+                    : targetPath;
                   ref.dispatch(
-                    "file.openAtLine",
-                    { path: absPath, line: 1 },
+                    "file.revealInFinder",
+                    { path: absPath },
                     "user"
                   );
                 }
               },
-            })
-          );
+            });
 
-          // --- Separator ---
-          items.push(await PredefinedMenuItem.new({ item: "Separator" }));
-        }
-
-        // --- Stage / Unstage ---
-        if (!isConflictFile) {
-          items.push(
-            await MenuItem.new({
-              text: labels.stageToggle,
-              action: async () => {
-                const ref = contextMenuRef.current;
-                if (ref?.onStageToggle) {
-                  const files = ref.files ?? [ref.file];
-                  await Promise.all(
-                    files.map((file) =>
-                      ref.onStageToggle?.(file.id, !ref.file.staged)
-                    )
-                  );
-                }
-              },
-            })
-          );
-        }
-
-        // --- Stage Resolved (conflict files) ---
-        if (isConflictFile) {
-          items.push(
-            await MenuItem.new({
-              text: labels.markResolved,
-              action: async () => {
-                const ref = contextMenuRef.current;
-                if (ref?.onStageResolved) {
-                  const files = ref.files ?? [ref.file];
-                  await Promise.all(
-                    files.map((file) => ref.onStageResolved?.(file.id))
-                  );
-                }
-              },
-            })
-          );
-        }
-
-        // --- Discard Changes ---
-        items.push(
-          await MenuItem.new({
-            text: labels.discard,
-            action: async () => {
-              const ref = contextMenuRef.current;
-              if (ref?.onDiscardFiles && ref.files) {
-                await ref.onDiscardFiles(ref.files.map((file) => file.id));
-              } else if (ref?.onDiscard) {
-                await ref.onDiscard(ref.file.id);
-              }
-            },
-          })
-        );
-
-        // --- Conflict resolution options ---
-        if (isConflictFile) {
-          items.push(await PredefinedMenuItem.new({ item: "Separator" }));
-
-          items.push(
-            await MenuItem.new({
-              text: GIT_LABELS.acceptCurrentChange,
-              action: async () => {
-                const ref = contextMenuRef.current;
-                if (ref) {
-                  const files = ref.files ?? [ref.file];
-                  await resolveConflictsForFiles(ref.dispatch, files, "ours");
-                }
-              },
-            })
-          );
-
-          items.push(
-            await MenuItem.new({
-              text: GIT_LABELS.acceptIncomingChange,
-              action: async () => {
-                const ref = contextMenuRef.current;
-                if (ref) {
-                  const files = ref.files ?? [ref.file];
-                  await resolveConflictsForFiles(ref.dispatch, files, "theirs");
-                }
-              },
-            })
-          );
-        }
-
-        // --- Separator ---
-        items.push(await PredefinedMenuItem.new({ item: "Separator" }));
-
-        // --- Copy Path ---
-        items.push(
-          await MenuItem.new({
-            text: t("common:actions.copyPath"),
-            accelerator: "CmdOrCtrl+Alt+C",
-            action: async () => {
-              const ref = contextMenuRef.current;
-              if (ref) {
-                const targetPath = ref.targetPath ?? ref.file.path;
-                const absPath = ref.repoPath
-                  ? `${ref.repoPath}/${targetPath}`
-                  : targetPath;
-                await copyText(absPath);
-              }
-            },
-          })
-        );
-
-        // --- Copy Relative Path ---
-        items.push(
-          await MenuItem.new({
-            text: t("common:actions.copyRelativePath"),
-            accelerator: "CmdOrCtrl+Shift+C",
-            action: async () => {
-              const ref = contextMenuRef.current;
-              if (ref) {
-                await copyText(ref.targetPath ?? ref.file.path);
-              }
-            },
-          })
-        );
-
-        // --- Separator ---
-        items.push(await PredefinedMenuItem.new({ item: "Separator" }));
-
-        // --- Reveal in OS file manager ---
-        items.push(
-          await MenuItem.new({
-            text: t(getFileManagerRevealLabelKey()),
-            action: () => {
-              const ref = contextMenuRef.current;
-              if (ref) {
-                const targetPath = ref.targetPath ?? ref.file.path;
-                const absPath = ref.repoPath
-                  ? `${ref.repoPath}/${targetPath}`
-                  : targetPath;
-                ref.dispatch("file.revealInFinder", { path: absPath }, "user");
-              }
-            },
-          })
-        );
-
-        // Build and show menu — popup() resolves when the menu closes
-        // (whether an item was selected or dismissed by clicking elsewhere)
-        const menu = await TauriMenu.new({ items });
-        await menu.popup();
+            return items;
+          },
+        });
       } catch (error) {
         log.error("[SourceControlContextMenu] Failed to show menu:", error);
       } finally {
@@ -323,7 +309,7 @@ export default function SourceControlContextMenu(
       }
     }
 
-    showNativeMenu();
+    void showNativeMenu();
   }, [onClose]);
 
   // Native menu renders nothing in React

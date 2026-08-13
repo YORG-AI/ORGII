@@ -11,11 +11,10 @@
  *     writes `creatorDefaultExecModeAtom` (the localStorage-backed
  *     default for *new* sessions).
  *  3. In-session (sessionId present, not controlled, not forceVisible)
- *     — reads / writes the per-session row via `useSessionExecModeField`.
- *     Falls back to the creator default *only* when the session has
- *     never been patched (`agentExecMode === undefined`), then promotes
- *     the next user click into a real `session_patch` so subsequent
- *     reads come from the row instead of the global atom.
+ *     — reads / writes the per-session row via
+ *     `useSessionComposerModeFields`.
+ *     Historical missing/unknown values resolve to Build. The creator default
+ *     is never consulted for an existing session.
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import { X } from "lucide-react";
@@ -38,13 +37,13 @@ import {
   DEFAULT_AGENT_EXEC_MODE,
   PRODUCT_MODE_PROJECT,
   execModeForComposerSelection,
-  normalizeAgentExecMode,
+  resolveSessionAgentExecMode,
 } from "@src/config/sessionCreatorConfig";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
+  useSessionComposerModeFields,
   useSessionExecModeField,
-  useSessionProductModeField,
 } from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefaultProductModeAtom";
@@ -92,7 +91,7 @@ const ModePill: React.FC<ModePillProps> = memo(
     const setCreatorProductDefault = useSetAtom(creatorDefaultProductModeAtom);
     const { agentExecMode: sessionMode, setMode: setSessionMode } =
       useSessionExecModeField(sessionId ?? "");
-    const { productMode, setProductMode } = useSessionProductModeField(
+    const { productMode, setComposerMode } = useSessionComposerModeFields(
       sessionId ?? ""
     );
 
@@ -101,7 +100,7 @@ const ModePill: React.FC<ModePillProps> = memo(
     const mode: AgentExecMode = isControlled
       ? (value as AgentExecMode)
       : isInSessionMode
-        ? (normalizeAgentExecMode(sessionMode) ?? creatorDefault)
+        ? resolveSessionAgentExecMode(sessionMode)
         : creatorDefault;
 
     // Product-mode axis (orgtrack/v1 §5.2): when the session is in
@@ -167,16 +166,17 @@ const ModePill: React.FC<ModePillProps> = memo(
           if (isInSessionMode) {
             // §5.2: the selector writes the PRODUCT mode; the runtime
             // exec mode is derived (project → build, identity
-            // otherwise). Both patches are fire-and-forget — the hooks
-            // do optimistic store writes before awaiting the RPC, so
-            // the pill repaints with the new value on the same frame.
-            // Swallow the rejection here: usePatchSession rethrows after
+            // otherwise). Both axes land in one atomic patch. The hook
+            // performs the optimistic store write before awaiting the RPC,
+            // so the pill repaints on the same frame. Swallow the rejection
+            // here: usePatchSession rethrows after
             // rolling back its optimistic write, and an uncaught RPC
             // error would escalate to the full-screen ErrorBoundary.
             if (carriesProductMode) {
-              setProductMode(selected).catch(() => {});
+              setComposerMode(selected, derivedExecMode).catch(() => {});
+            } else {
+              setSessionMode(derivedExecMode).catch(() => {});
             }
-            setSessionMode(derivedExecMode).catch(() => {});
           } else {
             setCreatorDefault(derivedExecMode);
             setCreatorProductDefault(
@@ -191,7 +191,7 @@ const ModePill: React.FC<ModePillProps> = memo(
         isInSessionMode,
         carriesProductMode,
         setSessionMode,
-        setProductMode,
+        setComposerMode,
         setCreatorDefault,
         setCreatorProductDefault,
         onModeChange,

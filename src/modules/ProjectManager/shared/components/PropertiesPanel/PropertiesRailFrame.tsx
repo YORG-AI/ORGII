@@ -1,9 +1,10 @@
 import React from "react";
 
+import { WORKSTATION_TRAIL_RAIL_PADDING_CLASS } from "@src/modules/shared/layouts/blocks/WorkstationTrailSurface";
 import { classNames } from "@src/util/ui/classNames";
 
 interface PropertiesRailFrameProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   width?: number | string;
   minWidth?: number | string;
   maxWidth?: number | string;
@@ -35,7 +36,7 @@ const PropertiesRailFrame: React.FC<PropertiesRailFrameProps> = ({
     return (
       <div
         className={classNames(
-          "box-border flex h-full shrink-0 flex-col",
+          `box-border flex h-full shrink-0 flex-col ${WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`,
           className
         )}
         style={sizeStyle}

@@ -16,6 +16,7 @@ import {
   eventStoreMock,
   makeEvent,
   messageMock,
+  notifyScopeKeysResolved,
   notifySessionEvents,
   peekMock,
   primeMock,
@@ -677,6 +678,29 @@ describe("Org2CloudSyncEngine session publishing", () => {
     await engine.runSyncPass();
     expect(primeMock).toHaveBeenCalledWith(REPO_PATH);
     expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+  });
+
+  it("does not materialize local histories when cold-start summary hydration is offline", async () => {
+    client.listOrgSessions.mockRejectedValueOnce(new Error("offline"));
+    eventStoreMock.getPersistedEvents.mockClear();
+
+    await engine.runSyncPass();
+
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
+  });
+
+  it("runs one event-driven pass when a repository identity finishes resolving", async () => {
+    await vi.advanceTimersByTimeAsync(0);
+    await engine.runSyncPassAndWaitForDrain();
+    const passCount = engine.startedPassCount;
+
+    notifyScopeKeysResolved();
+    notifyScopeKeysResolved();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(engine.startedPassCount).toBe(passCount + 1);
   });
 
   it("never pushes a tagged out-of-scope session and drops the stale tag", async () => {

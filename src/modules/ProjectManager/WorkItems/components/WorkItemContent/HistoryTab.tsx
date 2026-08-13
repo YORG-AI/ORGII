@@ -1,4 +1,13 @@
-import { ArrowUp, Bell, BellOff, ChevronRight } from "lucide-react";
+import {
+  ArrowUp,
+  Bell,
+  BellOff,
+  CheckCircle2,
+  ChevronRight,
+  CornerUpLeft,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,13 +16,177 @@ import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { MarkdownContent } from "@src/modules/shared/components/ActivityTimeline";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 import { ScrollTrailTarget } from "@src/modules/shared/layouts/blocks";
+import type { Person } from "@src/types/core/shared";
+import type { WorkItemComment } from "@src/types/core/workItem";
 
 import { WorkItemActivityTimeline } from "./WorkItemActivityTimeline";
 import WorkItemMentionPicker from "./WorkItemMentionPicker";
 import { partitionDiscussionTimeline } from "./discussionTimelineModel";
 import type { HistoryTabProps } from "./types";
+
+interface DiscussionThreadsProps {
+  comments: WorkItemComment[];
+  currentUser: Person;
+  teamMembers: Person[];
+  onReply?: (commentId: string | null) => void;
+  onResolve?: (threadId: string, conclusionCommentId?: string) => void;
+  onReopen?: (threadId: string) => void;
+}
+
+function commentAuthor(
+  comment: WorkItemComment,
+  currentUser: Person,
+  teamMembers: Person[]
+): Person {
+  return (
+    teamMembers.find((member) => member.id === comment.author) ??
+    (currentUser.id === comment.author
+      ? currentUser
+      : { id: comment.author, name: comment.author })
+  );
+}
+
+const DiscussionThreads: React.FC<DiscussionThreadsProps> = ({
+  comments,
+  currentUser,
+  teamMembers,
+  onReply,
+  onResolve,
+  onReopen,
+}) => {
+  const { t } = useTranslation("projects");
+  const roots = comments.filter((comment) => !comment.parent_id);
+
+  return (
+    <div
+      className="flex flex-col gap-3"
+      data-testid="work-item-discussion-threads"
+    >
+      {roots.map((root) => {
+        const threadId = root.thread_id || root.id;
+        const replies = comments.filter(
+          (comment) => comment.id !== root.id && comment.thread_id === threadId
+        );
+        const conclusionId = replies.at(-1)?.id ?? root.id;
+        const threadComments = [root, ...replies];
+        return (
+          <article
+            key={root.id}
+            className="overflow-hidden rounded-xl border border-border-1 bg-bg-2"
+            data-testid={`work-item-discussion-thread-${threadId}`}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-border-1 px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2 text-xs text-text-3">
+                <span>
+                  {t("workItems.activity.messageCount", {
+                    defaultValue: `${replies.length + 1} messages`,
+                    count: replies.length + 1,
+                  })}
+                </span>
+                {root.resolved_at ? (
+                  <span className="inline-flex items-center gap-1 text-success-6">
+                    <CheckCircle2 size={12} aria-hidden />
+                    {t("workItems.activity.resolved", {
+                      defaultValue: "Resolved",
+                    })}
+                  </span>
+                ) : null}
+              </div>
+              {(root.resolved_at && onReopen) ||
+              (!root.resolved_at && onResolve) ? (
+                <Button
+                  variant="tertiary"
+                  appearance="ghost"
+                  size="mini"
+                  icon={
+                    root.resolved_at ? (
+                      <RotateCcw size={13} aria-hidden />
+                    ) : (
+                      <CheckCircle2 size={13} aria-hidden />
+                    )
+                  }
+                  onClick={() =>
+                    root.resolved_at
+                      ? onReopen?.(threadId)
+                      : onResolve?.(threadId, conclusionId)
+                  }
+                  data-testid={`work-item-discussion-${root.resolved_at ? "reopen" : "resolve"}-${threadId}`}
+                >
+                  {root.resolved_at
+                    ? t("workItems.activity.reopen", {
+                        defaultValue: "Reopen",
+                      })
+                    : t("workItems.activity.resolve", {
+                        defaultValue: "Resolve",
+                      })}
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex flex-col divide-y divide-border-1">
+              {threadComments.map((comment, index) => {
+                const author = commentAuthor(comment, currentUser, teamMembers);
+                return (
+                  <div
+                    key={comment.id}
+                    className={index === 0 ? "p-3" : "bg-fill-1 p-3 pl-8"}
+                    data-testid={`work-item-discussion-comment-${comment.id}`}
+                  >
+                    <div className="mb-2 flex items-center gap-2">
+                      <Avatar
+                        size={22}
+                        src={author.avatar}
+                        style={{
+                          backgroundColor:
+                            author.color || "var(--color-fill-3)",
+                          color: "var(--color-text-white)",
+                        }}
+                      >
+                        {author.name.charAt(0).toUpperCase()}
+                      </Avatar>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-1">
+                        {author.name}
+                      </span>
+                      {comment.conclusion ? (
+                        <span className="text-success-7 rounded-full bg-success-1 px-2 py-0.5 text-xs">
+                          {t("workItems.activity.conclusion", {
+                            defaultValue: "Conclusion",
+                          })}
+                        </span>
+                      ) : null}
+                      <time className="text-xs text-text-4">
+                        {new Date(comment.created_at).toLocaleString()}
+                      </time>
+                    </div>
+                    <MarkdownContent body={comment.content} clamped={false} />
+                    {onReply ? (
+                      <div className="mt-2 flex justify-end">
+                        <Button
+                          variant="tertiary"
+                          appearance="ghost"
+                          size="mini"
+                          icon={<CornerUpLeft size={13} aria-hidden />}
+                          onClick={() => onReply(comment.id)}
+                          data-testid={`work-item-discussion-reply-${comment.id}`}
+                        >
+                          {t("workItems.activity.reply", {
+                            defaultValue: "Reply",
+                          })}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+};
 
 const HistoryTab: React.FC<HistoryTabProps> = ({
   timelineEntries,
@@ -27,6 +200,11 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   teamMembers = [],
   onCommentSubmit,
   isSubmittingComment,
+  comments = [],
+  replyToCommentId,
+  onReplyToComment,
+  onResolveThread,
+  onReopenThread,
   presentation = "default",
   canComment = true,
   threadNavigation,
@@ -75,6 +253,17 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       navigationEnabled={isThread}
     />
   );
+  const discussionThreads =
+    comments.length > 0 ? (
+      <DiscussionThreads
+        comments={comments}
+        currentUser={currentUser}
+        teamMembers={teamMembers}
+        onReply={onReplyToComment}
+        onResolve={onResolveThread}
+        onReopen={onReopenThread}
+      />
+    ) : null;
   const activityTimeline = (
     <WorkItemActivityTimeline
       entries={activityEntries}
@@ -113,6 +302,33 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
         {currentUser.name.charAt(0).toUpperCase()}
       </Avatar>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        {replyToCommentId ? (
+          <div
+            className="flex items-center justify-between gap-2 rounded-lg bg-fill-2 px-2 py-1 text-xs text-text-3"
+            data-testid="work-item-discussion-reply-context"
+          >
+            <span className="truncate">
+              {t("workItems.activity.replyingInThread", {
+                defaultValue: "Replying in thread",
+              })}
+            </span>
+            <Button
+              variant="tertiary"
+              appearance="ghost"
+              size="mini"
+              shape="circle"
+              iconOnly
+              icon={<X size={12} aria-hidden />}
+              aria-label={t("workItems.activity.cancelReply", {
+                defaultValue: "Cancel reply",
+              })}
+              title={t("workItems.activity.cancelReply", {
+                defaultValue: "Cancel reply",
+              })}
+              onClick={() => onReplyToComment?.(null)}
+            />
+          </div>
+        ) : null}
         <ComposerShell
           variant="comment"
           data-testid="work-item-comment-composer"
@@ -185,7 +401,9 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           {threadNavigation}
           {subscriptionControl}
         </div>
-        {discussionEntries.length > 0 ? (
+        {comments.length > 0 ? (
+          discussionThreads
+        ) : discussionEntries.length > 0 ? (
           discussionTimeline
         ) : (
           <div

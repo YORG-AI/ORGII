@@ -342,6 +342,7 @@ pub async fn create_work_item(
             start_date,
             target_date,
             created_by: Some("agent".to_string()),
+            origin_session: None,
             starred,
             schedule,
             orchestrator_config,

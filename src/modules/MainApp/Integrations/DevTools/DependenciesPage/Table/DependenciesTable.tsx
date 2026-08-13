@@ -187,7 +187,7 @@ const DependenciesTable: React.FC<DependenciesTableProps> = ({
             activeTab={activeCategory}
             onChange={handleCategoryChange}
             variant="pill"
-            colorScheme="ghost"
+            appearance="ghost"
             fillWidth={false}
             wrap
             size="mini"

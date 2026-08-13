@@ -362,7 +362,37 @@ pub(crate) async fn send_message_impl(
     // no active WorkItem creates and links its root. Resumes replay an
     // already-accepted submission, so they never bootstrap.
     if !is_resume {
-        super::project_bootstrap::ensure_project_root_work_item(&session_id, &content).await;
+        super::project_bootstrap::ensure_project_root_work_item(&session_id, &content).await?;
+        if let Some(run) = super::project_bootstrap::enqueue_project_turn_if_needed(
+            &session_id,
+            &content,
+            display_text.as_deref(),
+            &effective_turn_intent_id,
+            client_message_id.as_deref(),
+            source,
+        )
+        .await?
+        {
+            tracing::info!(
+                session_id = %session_id,
+                run_id = %run.id,
+                "queued Project turn through durable WorkItem dispatcher"
+            );
+            return Ok(AgentResponse {
+                content: serde_json::json!({
+                    "queued": true,
+                    "durableRunId": run.id,
+                    "messageId": client_message_id
+                        .as_deref()
+                        .unwrap_or(&effective_turn_intent_id),
+                    "queuePosition": 0,
+                    "duplicate": false,
+                })
+                .to_string(),
+                session_id,
+                model: effective_model,
+            });
+        }
     }
 
     // ── 5. Build the processing closure ──────────────────────────────────
@@ -544,6 +574,65 @@ pub(crate) async fn send_message_impl(
                     &turn_intent_id,
                     status,
                 );
+            }
+
+            // A durable WorkItemRun owns exactly this turn, not the whole
+            // Session. Persist its terminal state before lifecycle fan-out so
+            // app exit cannot lose finality and a later turn on the same
+            // Session cannot be mistaken for this Run.
+            if turn_intent_id.starts_with("wir_") {
+                let run_id = turn_intent_id.clone();
+                let run_session_id = sid.clone();
+                let outcome = match final_turn_state {
+                    crate::session::DialogTurnState::Cancelled => {
+                        project_management::work_run_service::WorkItemRunTerminalOutcome::Cancelled
+                    }
+                    crate::session::DialogTurnState::Failed => {
+                        project_management::work_run_service::WorkItemRunTerminalOutcome::Failed
+                    }
+                    crate::session::DialogTurnState::Running
+                    | crate::session::DialogTurnState::Completed => {
+                        project_management::work_run_service::WorkItemRunTerminalOutcome::Succeeded
+                    }
+                };
+                let usage = response
+                    .as_ref()
+                    .ok()
+                    .map(
+                        |result| project_management::projects::types::WorkItemRunUsage {
+                            input_tokens: u64::try_from(result.prompt_tokens).unwrap_or(0),
+                            output_tokens: u64::try_from(result.completion_tokens).unwrap_or(0),
+                            total_tokens: u64::try_from(result.total_tokens).unwrap_or(0),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap_or_default();
+                let terminal_error = response.as_ref().err().cloned();
+                match tokio::task::spawn_blocking(move || {
+                    project_management::work_run_service::record_run_terminal(
+                        &run_id,
+                        Some(&run_session_id),
+                        outcome,
+                        usage,
+                        terminal_error.as_deref(),
+                    )
+                })
+                .await
+                {
+                    Ok(Ok(_)) => {}
+                    Ok(Err(err)) => tracing::error!(
+                        session_id = %sid,
+                        turn_intent_id = %turn_intent_id,
+                        error = %err,
+                        "failed to persist Work Item Run terminal"
+                    ),
+                    Err(err) => tracing::error!(
+                        session_id = %sid,
+                        turn_intent_id = %turn_intent_id,
+                        error = %err,
+                        "Work Item Run terminal task failed"
+                    ),
+                }
             }
 
             let terminal_turn =

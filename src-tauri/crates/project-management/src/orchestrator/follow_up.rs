@@ -40,6 +40,7 @@ pub fn create_follow_up(
         start_date: None,
         target_date: parent.target_date.clone(),
         created_by: Some("orchestrator".to_string()),
+        origin_session: None,
         created_at: now.clone(),
         updated_at: now,
         deleted_at: None,

@@ -10,15 +10,14 @@
  * - ResizableSplitPanel (Code Editor sidebar)
  * - EditorBottomPanel (bottom panel height)
  */
-import {
-  MenuItem,
-  PredefinedMenuItem,
-  Menu as TauriMenu,
-} from "@tauri-apps/api/menu";
 import i18next from "i18next";
 import { type MouseEvent, useCallback } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 
 const log = createLogger("useResizeContextMenu");
 
@@ -79,62 +78,57 @@ export function useResizeContextMenu({
       const interpolateMin =
         dimension === "width" ? { width: minSize } : { height: minSize };
 
-      (async () => {
-        try {
-          const resizeDefaultItem = await MenuItem.new({
-            text: i18next.t(keys.resizeToDefault, interpolate),
-            enabled: !isAlreadyDefault,
-            action: () => {
-              onSizeChange(defaultSize);
+      void popupNativeMenu({
+        source: "resize-handle",
+        buildItems: () => {
+          const items: NativeMenuItemOptions[] = [
+            {
+              text: i18next.t(keys.resizeToDefault, interpolate),
+              enabled: !isAlreadyDefault,
+              action: () => {
+                onSizeChange(defaultSize);
+              },
             },
-          });
-          const minimizeItem = await MenuItem.new({
-            text: i18next.t(keys.minimize, interpolateMin),
-            enabled: !isAlreadyMin,
-            action: () => {
-              onSizeChange(minSize);
+            {
+              text: i18next.t(keys.minimize, interpolateMin),
+              enabled: !isAlreadyMin,
+              action: () => {
+                onSizeChange(minSize);
+              },
             },
-          });
-
-          const items: Array<
-            | Awaited<ReturnType<typeof MenuItem.new>>
-            | Awaited<ReturnType<typeof PredefinedMenuItem.new>>
-          > = [resizeDefaultItem, minimizeItem];
+          ];
 
           if (positionAction) {
-            const positionSeparator = await PredefinedMenuItem.new({
-              item: "Separator",
-            });
-            const positionItem = await MenuItem.new({
-              text: i18next.t(
-                positionAction.target === "left"
-                  ? "spotlightActions.moveWorkstationSidebarLeft"
-                  : "spotlightActions.moveWorkstationSidebarRight"
-              ),
-              action: positionAction.onSelect,
-            });
-            items.push(positionSeparator, positionItem);
+            items.push(
+              { item: "Separator" },
+              {
+                text: i18next.t(
+                  positionAction.target === "left"
+                    ? "spotlightActions.moveWorkstationSidebarLeft"
+                    : "spotlightActions.moveWorkstationSidebarRight"
+                ),
+                action: positionAction.onSelect,
+              }
+            );
           }
 
           if (onClose) {
-            const closeSeparator = await PredefinedMenuItem.new({
-              item: "Separator",
-            });
-            const closeItem = await MenuItem.new({
-              text: i18next.t("tooltips.closePanel"),
-              action: () => {
-                onClose();
-              },
-            });
-            items.push(closeSeparator, closeItem);
+            items.push(
+              { item: "Separator" },
+              {
+                text: i18next.t("tooltips.closePanel"),
+                action: () => {
+                  onClose();
+                },
+              }
+            );
           }
 
-          const menu = await TauriMenu.new({ items });
-          await menu.popup();
-        } catch (error) {
-          log.error("Failed to show resize context menu:", error);
-        }
-      })();
+          return items;
+        },
+      }).catch((error) => {
+        log.error("Failed to show resize context menu:", error);
+      });
     },
     [
       dimension,

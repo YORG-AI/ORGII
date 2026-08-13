@@ -24,6 +24,7 @@ import {
   PILL_SM_LABEL_CLASS,
 } from "@src/components/CompoundPill/config";
 import Tooltip, { type TooltipPosition } from "@src/components/Tooltip";
+import type { BareControlAppearance } from "@src/components/controlAppearance";
 
 // ── Size variants ────────────────────────────────────────────────────────────
 // "sm" — h-[28px] px-3 text-[12px]  14px icon  (toolbar pills: ModePill, RunningLocationPill)
@@ -60,7 +61,6 @@ const ICON_SIZES = {
 } as const;
 
 export type SelectorPillSize = keyof typeof SIZE_CLASSES;
-export type SelectorPillVariant = "default" | "ghost";
 
 interface SelectorPillContentProps {
   icon: React.ReactNode;
@@ -199,8 +199,8 @@ export interface SelectorPillProps {
   danger?: boolean;
   /** Size variant */
   size?: SelectorPillSize;
-  /** Visual variant */
-  variant?: SelectorPillVariant;
+  /** Visual appearance */
+  appearance?: BareControlAppearance;
   /** Show a persistent right-side chevron instead of swapping the leading icon on hover */
   trailingChevron?: boolean;
   /** Label-only trigger — no leading icon slot and no hover chevron. */
@@ -239,7 +239,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       active = false,
       danger = false,
       size = "sm",
-      variant = "default",
+      appearance = "default",
       trailingChevron = false,
       textOnly = false,
       hoverIcon,
@@ -273,8 +273,8 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       : active
         ? "text-primary-6"
         : idleColor;
-    const variantClasses =
-      variant === "ghost"
+    const appearanceClasses =
+      appearance === "bare"
         ? ""
         : active
           ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
@@ -309,7 +309,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
         aria-expanded={ariaExpanded}
         data-testid={dataTestId}
         title={tooltip ? undefined : (title ?? label)}
-        className={`group/pill flex min-w-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${buttonSizeClass} ${labelClassName ? "font-normal" : "font-medium"} ${variantClasses} ${className}`}
+        className={`group/pill flex min-w-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${buttonSizeClass} ${labelClassName ? "font-normal" : "font-medium"} ${appearanceClasses} ${className}`}
       >
         <SelectorPillContent
           icon={icon}

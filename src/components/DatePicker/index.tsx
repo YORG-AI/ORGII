@@ -35,6 +35,8 @@ import { Calendar, X } from "lucide-react";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ControlAppearance } from "@src/components/controlAppearance";
+
 import "./index.scss";
 
 export interface DatePickerProps {
@@ -79,10 +81,10 @@ export interface DatePickerProps {
   size?: "mini" | "small" | "default" | "large";
 
   /**
-   * Visual variant
+   * Visual appearance
    * @default 'default'
    */
-  variant?: "default" | "ghost";
+  appearance?: ControlAppearance;
 
   /**
    * Change callback
@@ -192,7 +194,7 @@ const DatePicker: React.FC<DatePickerProps> & {
   disabled = false,
   allowClear = true,
   size = "default",
-  variant = "default",
+  appearance = "default",
   onChange,
   min,
   max,
@@ -229,7 +231,7 @@ const DatePicker: React.FC<DatePickerProps> & {
   const pickerClasses = [
     "datepicker",
     `datepicker-${size}`,
-    variant === "ghost" && "datepicker-ghost",
+    appearance === "ghost" && "datepicker-ghost",
     disabled && "datepicker-disabled",
     className,
   ]

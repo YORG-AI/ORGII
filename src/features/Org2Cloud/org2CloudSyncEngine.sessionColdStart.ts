@@ -36,7 +36,7 @@ export class Org2CloudSessionColdStart {
     orgId: string,
     generation: number,
     isCurrentGeneration: (generation: number) => boolean
-  ): Promise<Map<string, RemoteTeammateSessionMetadata> | undefined> {
+  ): Promise<Map<string, RemoteTeammateSessionMetadata> | undefined | null> {
     if (this.hydratedOrgIds.has(orgId)) return undefined;
     try {
       const result = await this.client.listOrgSessions(auth.accessToken, orgId);
@@ -52,7 +52,11 @@ export class Org2CloudSessionColdStart {
         `cloud session summary hydration failed for org ${orgId}:`,
         error
       );
-      return undefined;
+      // Distinguish a failed prerequisite from an already-hydrated org. The
+      // caller must not materialize local transcripts while the network is
+      // unavailable merely to discover that their eventual upload also
+      // cannot run; reconnect/visibility/user events will retry this read.
+      return null;
     }
   }
 }

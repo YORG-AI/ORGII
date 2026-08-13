@@ -4,7 +4,10 @@
 //! Rust-agent launch service or the CLI launch bridge.
 
 use key_vault::{AuthMethod, ModelType};
-use project_management::projects::types::PERSONAL_ORG_ID;
+use project_management::projects::types::{
+    EnqueueWorkItemRunRequest, WorkItemRunTarget, WorkItemRunTargetSnapshot, WorkItemRunTrigger,
+    WorkspaceExecutionMode, PERSONAL_ORG_ID,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -27,7 +30,7 @@ pub const SESSION_CATEGORY_RUST_AGENT: &str = "rust_agent";
 /// process (Cursor CLI, Claude Code, Codex, Gemini, …).
 pub const SESSION_CATEGORY_CLI_AGENT: &str = "cli_agent";
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionLaunchParams {
     /// "rust_agent" or "cli_agent"
@@ -84,6 +87,13 @@ pub struct SessionLaunchParams {
     pub project_slug: Option<String>,
     pub parent_session_id: Option<String>,
 
+    /// Internal durable Work Item Run identity. Ordinary frontend launches
+    /// omit this; `session_launch_impl` creates and claims the Run before
+    /// materializing the Session. Recovery deliveries set it explicitly so
+    /// they never enqueue a second episode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub durable_run_id: Option<String>,
+
     /// Extra workspace folders granted at launch time (multi-root IDE
     /// workspaces). Each path is injected into the session's
     /// `SessionWorkspace.additional_directories` with
@@ -130,7 +140,7 @@ pub struct SessionLaunchResult {
 pub async fn session_launch_impl(
     state: &AgentAppState,
     org_store: Option<&AgentOrgsStore>,
-    params: SessionLaunchParams,
+    mut params: SessionLaunchParams,
 ) -> Result<SessionLaunchResult, String> {
     validate_workspace_launch_fields(
         params.isolate,
@@ -139,6 +149,85 @@ pub async fn session_launch_impl(
         params.worktree_base_ref.as_deref(),
     )?;
     let auto_name = derive_name(params.name.as_deref(), &params.content);
+
+    if params.work_item_id.is_some() && params.durable_run_id.is_none() {
+        let work_item_id = params.work_item_id.clone().unwrap_or_default();
+        let org_id = params
+            .org_id
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| PERSONAL_ORG_ID.to_string());
+        let mut target_snapshot =
+            WorkItemRunTargetSnapshot::new(WorkItemRunTarget::StartWorkItem {
+                account_id: params.account_id.clone(),
+                model_id: params.model.clone(),
+            });
+        target_snapshot.workspace_path = params.workspace_path.clone();
+        target_snapshot.workspace_mode = Some(
+            if params.isolate
+                || params
+                    .worktree_path
+                    .as_deref()
+                    .is_some_and(|path| !path.trim().is_empty())
+            {
+                WorkspaceExecutionMode::Worktree
+            } else {
+                WorkspaceExecutionMode::LocalWorkspace
+            },
+        );
+        target_snapshot.agent_definition_id = params.agent_definition_id.clone();
+        target_snapshot.agent_org_id = params.agent_org_id.clone();
+        let launch_snapshot = serde_json::to_value(&params)
+            .map_err(|err| format!("manual Work Item launch snapshot: {err}"))?;
+        let run = project_management::work_run_service::enqueue_for_inline_dispatch(
+            EnqueueWorkItemRunRequest {
+                project_slug: params.project_slug.clone(),
+                org_id,
+                work_item_id,
+                trigger: WorkItemRunTrigger::Manual,
+                target_snapshot,
+                input: serde_json::json!({
+                    "content": params.content.clone(),
+                    "displayText": params.content.clone(),
+                    "sessionLaunchParams": launch_snapshot,
+                }),
+                idempotency_key: format!("manual-launch:{}", uuid::Uuid::new_v4().simple()),
+                max_attempts: 3,
+                parent_run_id: None,
+            },
+        )?;
+        let worker_id = format!("inline_session_{}", uuid::Uuid::new_v4().simple());
+        let lease = project_management::work_run_service::claim_dispatch_for_run(
+            &run.id, &worker_id, 30_000,
+        )?;
+        params.durable_run_id = Some(run.id);
+
+        let result = match params.category.as_str() {
+            SESSION_CATEGORY_RUST_AGENT => {
+                launch_rust_agent(state, org_store, params, auto_name).await
+            }
+            SESSION_CATEGORY_CLI_AGENT => launch_cli_agent(params, auto_name).await,
+            other => Err(format!("Unknown session category: {other}")),
+        };
+        return match result {
+            Ok(result) => {
+                project_management::work_run_service::acknowledge_dispatch_started(
+                    &lease.dispatch_id,
+                    &lease.lease_token,
+                    &result.session_id,
+                )?;
+                Ok(result)
+            }
+            Err(err) => {
+                let _ = project_management::work_run_service::record_dispatch_failure(
+                    &lease.dispatch_id,
+                    &lease.lease_token,
+                    &err,
+                );
+                Err(err)
+            }
+        };
+    }
 
     match params.category.as_str() {
         SESSION_CATEGORY_RUST_AGENT => launch_rust_agent(state, org_store, params, auto_name).await,
@@ -244,6 +333,7 @@ async fn launch_rust_agent(
         state,
         org_store,
         AgentRunLaunchRequest {
+            durable_run_id: params.durable_run_id.clone(),
             content: params.content,
             target,
             resources: LaunchResourceSelection {
@@ -387,6 +477,7 @@ async fn launch_cli_agent(
         work_item_id: work_item_id.clone(),
         agent_role: agent_role.clone(),
         product_mode: params.product_mode.clone(),
+        durable_run_id: params.durable_run_id.clone(),
         user_input: params.content,
         ide_context: params.ide_context,
         mode: params.mode,

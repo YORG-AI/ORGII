@@ -90,6 +90,8 @@ export interface WorkItemPropertiesProps {
   pillLayout?: "nowrap" | "wrap";
   visibleFields?: WorkItemPropertyFieldKey[];
   showMoreMenu?: boolean;
+  /** Row panels can use legacy cards or the shared Workstation trail layout. */
+  panelVariant?: "cards" | "workstation-trail";
 }
 
 export interface WorkItemPropertyHandlers {

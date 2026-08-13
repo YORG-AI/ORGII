@@ -406,7 +406,7 @@ export default function SessionUsagePanel() {
               }}
               variant="pill"
               size="mini"
-              colorScheme="ghost"
+              appearance="ghost"
               fillWidth={false}
             />
             <span
@@ -421,7 +421,7 @@ export default function SessionUsagePanel() {
                 setRoundPageIndex(0);
               }}
               options={rangeOptions}
-              variant="ghost"
+              appearance="ghost"
               size="small"
             />
           </div>

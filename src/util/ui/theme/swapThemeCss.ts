@@ -98,10 +98,27 @@ function cssPathSelector(path: string): string {
   return path.replace(/"/g, '\\"');
 }
 
+/**
+ * WKWebView pauses `requestAnimationFrame` while the window is occluded or
+ * the display is asleep, and can leave it dead after system sleep until the
+ * next repaint. Waiting on frames must therefore never be unbounded: the
+ * timer keeps the swap moving when frames don't come (nobody is looking at
+ * the intermediate paint state in that case anyway).
+ */
+const PAINT_FALLBACK_MS = 250;
+
 function nextPaint(): Promise<void> {
   return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timerId);
+      resolve();
+    };
+    const timerId = setTimeout(finish, PAINT_FALLBACK_MS);
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => resolve());
+      requestAnimationFrame(finish);
     });
   });
 }

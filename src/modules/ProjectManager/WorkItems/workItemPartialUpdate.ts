@@ -65,6 +65,12 @@ export function toWorkItemPartialUpdate(
       content: comment.content,
       created_at: comment.created_at,
       mentioned_user_ids: comment.mentioned_user_ids,
+      parent_id: comment.parent_id,
+      thread_id: comment.thread_id,
+      resolved_at: comment.resolved_at,
+      resolved_by: comment.resolved_by,
+      conclusion: comment.conclusion,
+      agent_session_id: comment.agent_session_id,
     }));
   }
   if (updates.linkedSessions !== undefined) {

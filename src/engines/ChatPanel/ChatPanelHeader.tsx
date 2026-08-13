@@ -27,6 +27,10 @@ import {
   ChatPanelPublishedHeader,
   chatPanelHeaderSlotsAtom,
 } from "./header";
+import {
+  CHAT_PANEL_HEADER_STACK_HEIGHT_PX,
+  CHAT_PANEL_TAB_HEADER_HEIGHT_PX,
+} from "./header/chatPanelHeaderLayout";
 import type { ChatPanelRegionNotice } from "./types";
 
 const CHAT_PANEL_HEADER_ICON_SIZE = 14;
@@ -81,6 +85,8 @@ interface ChatPanelHeaderProps {
   sessionHeaderExtras?: React.ReactNode;
   /** Canonical session-name breadcrumb rendered in the published 40px row. */
   sessionHeaderContent?: React.ReactNode;
+  /** Let the GUI transcript scroll beneath the published session header. */
+  overlayPublishedHeader?: boolean;
 }
 
 export function ChatPanelHeader({
@@ -128,6 +134,7 @@ export function ChatPanelHeader({
   tabStripPlus,
   sessionHeaderExtras,
   sessionHeaderContent,
+  overlayPublishedHeader = false,
 }: ChatPanelHeaderProps): React.ReactNode {
   const publishedHeaderSlots = useAtomValue(chatPanelHeaderSlotsAtom);
   const windowsHost = isWindows();
@@ -276,7 +283,21 @@ export function ChatPanelHeader({
   return (
     <>
       <div
-        className="workspace-header header-tab-group relative flex h-11 min-h-11 flex-shrink-0 items-center gap-1.5 pl-2 pr-[7px] pt-2"
+        className="pointer-events-none absolute left-0 right-0 top-0 z-30 bg-chat-pane/55 backdrop-blur-xl backdrop-saturate-150"
+        data-testid="chat-panel-header-glass"
+        aria-hidden
+        style={{
+          height: effectivePublishedHeaderSlots
+            ? CHAT_PANEL_HEADER_STACK_HEIGHT_PX
+            : CHAT_PANEL_TAB_HEADER_HEIGHT_PX,
+        }}
+      />
+      <div
+        className={`workspace-header header-tab-group z-40 flex h-11 min-h-11 items-center gap-1.5 pl-2 pr-[7px] pt-2 ${
+          overlayPublishedHeader
+            ? "absolute left-0 right-0 top-0"
+            : "relative flex-shrink-0"
+        }`}
         data-testid="chat-panel-header"
         data-tauri-drag-region={windowsHost ? undefined : true}
         style={
@@ -298,10 +319,19 @@ export function ChatPanelHeader({
         {tabStrip}
         {tabBarToolbar}
       </div>
-      <ChatPanelPublishedHeader
-        slots={effectivePublishedHeaderSlots}
-        windowsHost={windowsHost}
-      />
+      {overlayPublishedHeader && effectivePublishedHeaderSlots ? (
+        <div className="absolute left-0 right-0 top-11 z-40">
+          <ChatPanelPublishedHeader
+            slots={effectivePublishedHeaderSlots}
+            windowsHost={windowsHost}
+          />
+        </div>
+      ) : (
+        <ChatPanelPublishedHeader
+          slots={effectivePublishedHeaderSlots}
+          windowsHost={windowsHost}
+        />
+      )}
     </>
   );
 }

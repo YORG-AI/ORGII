@@ -27,7 +27,6 @@ export interface ComposerSurfaceProps extends Omit<
   onUpload?: () => void;
   onOpenSkillsTools?: () => void;
   dropdownDirection?: "up" | "down";
-  toolbarItemGap?: boolean;
   showContextInfo?: boolean;
   repoPath?: string;
 }
@@ -42,28 +41,35 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
       onUpload,
       onOpenSkillsTools,
       dropdownDirection = "up",
-      toolbarItemGap = false,
       showContextInfo = false,
       repoPath,
       ...shellProps
     },
     ref
   ) {
+    const hasActionBar = Boolean(
+      leadingActions ||
+      trailingActions ||
+      (onAddContent && onUpload) ||
+      showContextInfo
+    );
+
     return (
       <ComposerShell ref={ref} {...shellProps}>
         {children}
-        <ComposerBar
-          onAddContent={onAddContent}
-          onUpload={onUpload}
-          onOpenSkillsTools={onOpenSkillsTools}
-          dropdownDirection={dropdownDirection}
-          leftPrefix={leadingActions}
-          repoPath={repoPath}
-          submitButton={trailingActions}
-          toolbarItemGap={toolbarItemGap}
-          hideAddButton={!onAddContent || !onUpload}
-          showContextInfo={showContextInfo}
-        />
+        {hasActionBar ? (
+          <ComposerBar
+            onAddContent={onAddContent}
+            onUpload={onUpload}
+            onOpenSkillsTools={onOpenSkillsTools}
+            dropdownDirection={dropdownDirection}
+            leftPrefix={leadingActions}
+            repoPath={repoPath}
+            submitButton={trailingActions}
+            hideAddButton={!onAddContent || !onUpload}
+            showContextInfo={showContextInfo}
+          />
+        ) : null}
       </ComposerShell>
     );
   }
