@@ -79,14 +79,22 @@
   padding: 0 16px;
 }
 
-// Ghost variant - text-only trigger with no border or background.
-.select-ghost .select-selector {
+// Chromeless appearances remove the standard field shell.
+.select-ghost .select-selector,
+.select-bare .select-selector {
   border: none !important;
   box-shadow: none !important;
+  background: transparent;
+}
+
+// Ghost appearance - transparent at rest, matching ghost Input's surface-hover
+// feedback while hovered or open.
+.select-ghost .select-selector {
   color: var(--color-text-2);
   font-weight: 400;
-  background: transparent;
-  transition: color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.1s cubic-bezier(0, 0, 1, 1);
 }
 
 .select-ghost.select-size-mini .select-selector {
@@ -102,7 +110,7 @@
 .select-ghost:hover:not(.select-disabled) .select-selector,
 .select-ghost.select-open .select-selector {
   color: var(--color-text-1);
-  background: transparent;
+  background: var(--color-surface-hover);
 }
 
 .select-ghost:hover:not(.select-disabled) .select-arrow,

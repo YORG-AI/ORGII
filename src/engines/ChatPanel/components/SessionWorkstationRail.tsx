@@ -18,6 +18,7 @@ interface SessionWorkstationRailProps {
   compactMenuHost: HTMLSpanElement | null;
   conversationMinimapHostRef: (node: HTMLDivElement | null) => void;
   session: Session | null | undefined;
+  topInset?: number;
 }
 
 export interface ResolvedSessionWorkstationContext {
@@ -73,6 +74,7 @@ const ConnectedSessionWorkstationRail: React.FC<
   context,
   conversationMinimapHostRef,
   projectSlug,
+  topInset,
   workItemId,
 }) => {
   const openWorkItem = useSetAtom(openWorkItemInChatPanelTabAtom);
@@ -113,6 +115,7 @@ const ConnectedSessionWorkstationRail: React.FC<
       compactMenuHost={compactMenuHost}
       conversationMinimapHostRef={conversationMinimapHostRef}
       sessionContext={sessionContext}
+      topInset={topInset}
     />
   );
 };
@@ -121,6 +124,7 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
   compactMenuHost,
   conversationMinimapHostRef,
   session,
+  topInset,
 }) => {
   const context = resolveSessionWorkstationContext(session);
   const baseSessionContext: FocusedChatSessionContext = {
@@ -136,6 +140,7 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
         context={context}
         conversationMinimapHostRef={conversationMinimapHostRef}
         projectSlug={context.projectSlug ?? ""}
+        topInset={topInset}
         workItemId={context.workItemId}
       />
     );
@@ -146,6 +151,7 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
       compactMenuHost={compactMenuHost}
       conversationMinimapHostRef={conversationMinimapHostRef}
       sessionContext={baseSessionContext}
+      topInset={topInset}
     />
   );
 };

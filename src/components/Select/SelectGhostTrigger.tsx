@@ -1,8 +1,8 @@
 /**
  * SelectGhostTrigger
  *
- * Ghost-variant trigger that visually matches `Select` with
- * `size="small"`, `variant="ghost"`, and `radius="lg"` — the same
+ * Ghost-appearance trigger that visually matches `Select` with
+ * `size="small"`, `appearance="ghost"`, and `radius="lg"` — the same
  * configuration used by Source Control header filter selects.
  *
  * Use when a custom droplist (`Dropdown` droplist mode, spotlight palette,

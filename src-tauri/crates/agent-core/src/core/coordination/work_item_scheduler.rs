@@ -530,6 +530,7 @@ mod tests {
             start_date: start_date.map(|s| s.to_string()),
             target_date: None,
             created_by: None,
+            origin_session: None,
             created_at: "2025-01-01T00:00:00Z".into(),
             updated_at: "2025-01-01T00:00:00Z".into(),
             deleted_at: None,

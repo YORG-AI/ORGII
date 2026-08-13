@@ -15,6 +15,7 @@ import {
   SEARCH_WRAPPER_SIDEBAR,
 } from "@src/components/SearchInput/searchControlInputStyles";
 import Select from "@src/components/Select";
+import type { ControlAppearance } from "@src/components/controlAppearance";
 
 // ============================================
 // Types
@@ -33,8 +34,8 @@ export interface SearchModeSelectProps {
   disabled?: boolean;
   /** Size variant */
   size?: "small" | "default" | "large";
-  /** Visual variant - "default" has bg/border, "ghost" has none */
-  variant?: "default" | "ghost";
+  /** Visual appearance - "default" has bg/border, "ghost" has none */
+  appearance?: ControlAppearance;
   /** Background surface token for the selector box */
   surface?: "default" | "pane";
   /** Additional class name */
@@ -83,7 +84,7 @@ export const SearchModeSelect: React.FC<SearchModeSelectProps> = memo(
     advancedAvailable = false,
     disabled = false,
     size = "small",
-    variant = "default",
+    appearance = "default",
     surface = "default",
     className = "",
   }) => {
@@ -122,7 +123,7 @@ export const SearchModeSelect: React.FC<SearchModeSelectProps> = memo(
           size={size}
           placeholder={t("placeholders.searchMode")}
           disabled={disabled}
-          variant={variant}
+          appearance={appearance}
           selectorClassName={selectorClassName}
         />
       </div>

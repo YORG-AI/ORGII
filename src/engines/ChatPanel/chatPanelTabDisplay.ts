@@ -5,7 +5,7 @@ import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 import { stripPillReferences } from "@src/util/session/stripPillReferences";
 
 export interface ChatPanelTabDisplayLabels {
-  launchpad: string;
+  newSession: string;
   runtime: string;
   organization: string;
   teamInbox: string;
@@ -40,7 +40,7 @@ export function resolveChatPanelTabDisplayTitle(
 ): string {
   switch (tab.type) {
     case "start-page":
-      return labels.launchpad;
+      return labels.newSession;
     case "runtime":
       return labels.runtime;
     case "team-inbox":

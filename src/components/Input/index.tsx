@@ -25,6 +25,7 @@
 import { Eye, EyeOff, X } from "lucide-react";
 import React, { forwardRef, useCallback, useState } from "react";
 
+import type { FieldAppearance } from "@src/components/controlAppearance";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
@@ -127,24 +128,18 @@ export interface InputProps extends Omit<
   visibilityToggle?: boolean;
 
   /**
-   * Remove the wrapper border and focus ring while preserving layout.
+   * Visual field treatment.
+   *
+   * `ghost` is transparent at rest and uses the shared interactive surface
+   * while hovered or focused. `bare` stays permanently chromeless.
+   * @default 'default'
    */
-  borderless?: boolean;
-
-  /**
-   * Remove the wrapper background while preserving layout.
-   */
-  bgless?: boolean;
+  appearance?: FieldAppearance;
 
   /**
    * Let content determine height instead of using the preset size height.
    */
   autoHeight?: boolean;
-
-  /**
-   * Standard field presentation for inline editable text surfaces.
-   */
-  fieldVariant?: "default" | "ghost";
 
   /**
    * Additional class name for input element
@@ -177,10 +172,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       showWordLimit = false,
       type = "text",
       visibilityToggle = true,
-      borderless = false,
-      bgless = false,
+      appearance = "default",
       autoHeight = false,
-      fieldVariant = "default",
       className = "",
       style,
       inputClassName = "",
@@ -202,9 +195,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     const currentValue = isControlled ? value : internalValue;
 
     const hasError = error || !!errorMessage;
-    const isGhostField = fieldVariant === "ghost";
-    const resolvedBorderless = borderless || isGhostField;
-    const resolvedBgless = bgless || isGhostField;
+    const isChromeless = appearance !== "default";
 
     const wrapperClasses = [
       "input-wrapper",
@@ -213,10 +204,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       disabled && "input-disabled",
       isFocused && "input-focused",
       readOnly && "input-readonly",
-      resolvedBorderless && "input-borderless",
-      resolvedBgless && "input-bgless",
+      appearance === "bare" && "input-field-bare",
       autoHeight && "input-auto-height",
-      isGhostField && "input-field-ghost",
+      appearance === "ghost" && "input-field-ghost",
       isDark && "input-dark",
       className,
     ]
@@ -224,10 +214,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       .join(" ");
 
     const inputClasses = ["input", inputClassName].filter(Boolean).join(" ");
-    const inputInnerClassName =
-      resolvedBorderless && resolvedBgless
-        ? "input-inner"
-        : "input-inner rounded-lg bg-bg-2";
+    const inputInnerClassName = isChromeless
+      ? "input-inner"
+      : "input-inner rounded-lg bg-bg-2";
 
     const handleChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {

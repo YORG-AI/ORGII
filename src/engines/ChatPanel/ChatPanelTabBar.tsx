@@ -195,7 +195,7 @@ const TabPill = memo(function TabPill({
   const agentStatus = terminalSession?.agentStatus;
 
   const defaultDisplayTitle = resolveChatPanelTabDisplayTitle(tab, session, {
-    launchpad: t("navigation:routes.launchpad"),
+    newSession: t("sessions:chat.startPage.newSession.title"),
     runtime: t("sessions:chat.startPage.tabs.runtime"),
     organization: t("navigation:collaboration.manageOrg"),
     teamInbox: t("navigation:labels.inbox"),
@@ -210,15 +210,15 @@ const TabPill = memo(function TabPill({
     tab.type !== "start-page"
       ? defaultDisplayTitle
       : createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT
-        ? t("creator.createTarget.project")
+        ? t("sessions:creator.createTarget.project")
         : createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM
-          ? t("creator.createTarget.workItem")
+          ? t("sessions:creator.createTarget.workItem")
           : createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
             ? t("projects:githubIssuesImport.createTarget")
             : createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
               ? t("navigation:collaboration.addOrg")
               : createTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS
-                ? t("creator.createTarget.manageAgents")
+                ? t("sessions:creator.createTarget.manageAgents")
                 : defaultDisplayTitle;
 
   const iconColorClass = isActive ? "text-primary-6" : "text-text-2";
@@ -489,14 +489,13 @@ export function PlusMenuContent({
   const { t } = useTranslation(["sessions", "navigation"]);
   const MOD = isMacOS() ? "⌘" : "Ctrl";
 
-  // "New session" and "Launchpad" now open the same singleton start page, so
-  // only the Launchpad entry is kept. It carries the ⌘N hint since that
-  // shortcut (handled in ChatPanelTabBar) opens the same start page.
+  // New session opens the singleton start page. It carries the ⌘N hint since
+  // that shortcut (handled in ChatPanelTabBar) opens the same surface.
   const items = [
     {
       id: "launchpad",
       icon: <LayoutGrid size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
-      label: t("navigation:routes.launchpad"),
+      label: t("sessions:chat.startPage.newSession.title"),
       hint: `${MOD}N`,
       onClick: onOpenLaunchpad,
     },
@@ -515,7 +514,7 @@ export function PlusMenuContent({
     {
       id: "new-project",
       icon: <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
-      label: t("creator.createTarget.project"),
+      label: t("sessions:creator.createTarget.project"),
       onClick: onNewProject,
     },
     {
