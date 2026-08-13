@@ -45,12 +45,12 @@ export function useChatPanelCreateTarget({
     () => [
       {
         value: CHAT_PANEL_CREATE_TARGET.PROJECT,
-        label: t("creator.createTarget.project"),
+        label: t("sessions:creator.createTarget.project"),
         dataTestId: "chat-panel-create-target-project-option",
       },
       {
         value: CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS,
-        label: t("creator.createTarget.manageAgents"),
+        label: t("sessions:creator.createTarget.manageAgents"),
         dataTestId: "chat-panel-create-target-manage-agents-option",
       },
       {

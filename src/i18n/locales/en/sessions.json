@@ -1249,7 +1249,7 @@
       "manageIssues": {
         "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
         "createIssueTrigger": "Issue",
-        "newIssueTitle": "New GitHub Issue",
+        "newIssueTitle": "Create GitHub issue",
         "issueTitlePlaceholder": "Issue title",
         "issueBodyPlaceholder": "Description",
         "createIssue": "Create issue",

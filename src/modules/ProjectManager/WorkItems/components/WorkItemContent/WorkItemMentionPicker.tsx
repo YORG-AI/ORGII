@@ -46,7 +46,7 @@ const WorkItemMentionPicker: React.FC<WorkItemMentionPickerProps> = ({
     <Select
       mode="multiple"
       size="mini"
-      variant="ghost"
+      appearance="ghost"
       value={[...value]}
       options={options}
       prefix={<AtSign size={13} aria-hidden />}

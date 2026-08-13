@@ -152,4 +152,44 @@ describe("OrgtrackEnvelopeCard", () => {
       data: { workItemId: "WI-0101" },
     });
   });
+
+  it("opens a recovered card when a truncated envelope has no canonical item", () => {
+    const store = createStore();
+    store.set(workstationLayoutAtom, {
+      mainPane: { tabs: [], activeTabId: null },
+    });
+    const card = workItemCard("work.update");
+    card.workItem = undefined;
+
+    act(() => {
+      root = createRoot(container);
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(OrgtrackEnvelopeCard, { card })
+        )
+      );
+    });
+
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="work-item-result-card"]'
+    );
+    expect(button).not.toBeNull();
+
+    act(() => button?.click());
+
+    const panel = store.get(workstationLayoutAtom).mainPane;
+    expect(
+      panel.tabs.find((tab) => tab.id === panel.activeTabId)
+    ).toMatchObject({
+      type: "workItem-detail",
+      title: "Card",
+      data: {
+        workItemId: "WI-0101",
+        workItemName: "Card",
+        workItemStatus: "backlog",
+      },
+    });
+  });
 });
