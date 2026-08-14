@@ -39,7 +39,7 @@ pub(super) fn create_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
     let role = optional_string(params, "role").unwrap_or_else(|| "leader".to_string());
     let leader_agent_id = optional_string(params, "agent_id").unwrap_or_default();
     // Model-authored create input never controls stable identities.
-    let members = parse_org_members(params, false);
+    let members = parse_org_members(params, false).map_err(ToolError::InvalidParams)?;
     let orgs = store.list().map_err(ToolError::ExecutionFailed)?;
 
     if orgs
@@ -110,7 +110,18 @@ pub(super) fn update_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
                 org_id, unknown_id
             )));
         }
-        let new_members = parse_org_members(params, true);
+        let mut new_members = parse_org_members(params, true).map_err(ToolError::InvalidParams)?;
+        // Model updates never carry runtime configuration; surviving members
+        // keep whatever runtime_config the user persisted for them.
+        for member in new_members.iter_mut() {
+            if let Some(existing) = org
+                .members
+                .iter()
+                .find(|existing| existing.member_id == member.member_id)
+            {
+                member.runtime_config = existing.runtime_config.clone();
+            }
+        }
         let retained_ids = new_members
             .iter()
             .filter(|member| existing_ids.contains(member.member_id.as_str()))
@@ -172,7 +183,7 @@ pub(super) fn remove_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
 mod tests {
     use super::*;
     use crate::definitions::builtin::SDE_AGENT_ID;
-    use crate::definitions::orgs::PlanApprovalPolicy;
+    use crate::definitions::orgs::{OrgMemberRuntimeConfig, PlanApprovalPolicy};
     use serde_json::json;
 
     #[test]
@@ -235,6 +246,10 @@ mod tests {
         original.plan_approval_policy = PlanApprovalPolicy::User;
         original.additional_task_graph_writer_member_ids = vec![alice_id.clone(), bob_id.clone()];
         original.member_communication_links.clear();
+        original.members[0].runtime_config = Some(OrgMemberRuntimeConfig {
+            model: Some("user-pinned-model".to_string()),
+            ..Default::default()
+        });
         store.replace(original.clone()).expect("seed user policy");
 
         update_org(
@@ -254,6 +269,15 @@ mod tests {
         assert_eq!(updated.members[0].member_id, alice_id);
         assert_ne!(updated.members[1].member_id, bob_id);
         assert_eq!(
+            updated.members[0]
+                .runtime_config
+                .as_ref()
+                .and_then(|config| config.model.as_deref()),
+            Some("user-pinned-model"),
+            "surviving member keeps persisted runtime_config through a model update"
+        );
+        assert!(updated.members[1].runtime_config.is_none());
+        assert_eq!(
             updated.additional_task_graph_writer_member_ids,
             vec![alice_id.clone()]
         );
@@ -264,5 +288,100 @@ mod tests {
                 updated.members[1].member_id.clone()
             )]
         );
+    }
+
+    #[test]
+    fn model_update_rejects_malformed_member_entries_instead_of_dropping_them() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let store = AgentOrgsStore::new();
+        create_org(
+            &store,
+            &json!({
+                "name": "Malformed Update Team",
+                "agent_id": SDE_AGENT_ID,
+                "members": [
+                    {"name": "Alice", "agent_id": SDE_AGENT_ID},
+                    {"name": "Bob", "agent_id": SDE_AGENT_ID}
+                ]
+            }),
+        )
+        .expect("create Team");
+        let original = store
+            .list()
+            .expect("list Teams")
+            .into_iter()
+            .find(|org| org.name == "Malformed Update Team")
+            .expect("created Team");
+        let alice_id = original.members[0].member_id.clone();
+
+        // members[1] lacks 'name' — previously it was silently dropped,
+        // deleting Bob and cascading into grant/link removal.
+        let err = update_org(
+            &store,
+            &json!({
+                "org_id": original.id,
+                "members": [
+                    {"member_id": alice_id, "name": "Alice", "agent_id": SDE_AGENT_ID},
+                    {"role": "Reviewer", "agent_id": SDE_AGENT_ID}
+                ]
+            }),
+        )
+        .expect_err("malformed member entry must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("members[1]") && message.contains("name"),
+            "error must name the malformed entry index and field: {message}"
+        );
+
+        // Non-string field types are structured errors too.
+        let err = update_org(
+            &store,
+            &json!({
+                "org_id": original.id,
+                "members": [
+                    {"name": "Alice", "role": 7, "agent_id": SDE_AGENT_ID}
+                ]
+            }),
+        )
+        .expect_err("non-string role must be rejected");
+        assert!(err.to_string().contains("members[0]"));
+
+        for invalid_member_id in [json!(7), json!(""), json!(" alice ")] {
+            let err = update_org(
+                &store,
+                &json!({
+                    "org_id": original.id,
+                    "members": [
+                        {
+                            "member_id": invalid_member_id,
+                            "name": "Alice",
+                            "agent_id": SDE_AGENT_ID
+                        }
+                    ]
+                }),
+            )
+            .expect_err("malformed member_id must be rejected instead of replaced");
+            let message = err.to_string();
+            assert!(
+                message.contains("members[0]") && message.contains("member_id"),
+                "error must name the malformed member_id: {message}"
+            );
+        }
+
+        // The org is unchanged after the rejected updates.
+        let unchanged = store.get(&original.id).expect("org still present");
+        assert_eq!(unchanged.members.len(), 2);
+
+        // create_org rejects malformed entries the same way.
+        let err = create_org(
+            &store,
+            &json!({
+                "name": "Another Team",
+                "agent_id": SDE_AGENT_ID,
+                "members": [{"agent_id": SDE_AGENT_ID}]
+            }),
+        )
+        .expect_err("malformed member entry must be rejected on create");
+        assert!(err.to_string().contains("members[0]"));
     }
 }
