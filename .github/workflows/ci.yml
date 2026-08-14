@@ -1,6 +1,7 @@
 # CI — runs on every pull request to develop / release / master.
 #
-# Two parallel jobs:
+# Three parallel jobs:
+#   gitleaks  — full-history secret scan with an exact false-positive baseline
 #   frontend  — TypeScript typecheck + ESLint + Vitest unit tests
 #   rust      — advisory clippy (subsumes cargo check)
 #
@@ -22,7 +23,31 @@ concurrency:
   group: ci-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  # ── Secret scan ────────────────────────────────────────────────────────────
+  gitleaks:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Scan git history for secrets
+        run: >
+          docker run --rm
+          -v "$PWD:/repo"
+          -e GIT_CONFIG_COUNT=1
+          -e GIT_CONFIG_KEY_0=safe.directory
+          -e GIT_CONFIG_VALUE_0=/repo
+          ghcr.io/gitleaks/gitleaks:v8.24.3
+          git /repo --log-opts=HEAD --no-banner --redact --verbose
+
   # ── Frontend ────────────────────────────────────────────────────────────────
   frontend:
     name: Frontend (typecheck · lint · test)
