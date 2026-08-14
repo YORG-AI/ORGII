@@ -67,6 +67,8 @@ import {
   upsertCloudSessionDownloadProgressAtom,
 } from "./cloudSessionDownloadProgressAtom";
 import {
+  buildCloudPendingPlayEntry,
+  resolveCloudSessionEnvironmentIdentity,
   resolveCloudSessionReplayIconId,
   runImmediateCloudSessionReplay,
 } from "./cloudSessionReplayLifecycle";
@@ -257,13 +259,13 @@ export function useCloudSessionActions(
             ));
           store.set(setCloudDownloadPendingPlayAtom, {
             localSessionId: pendingLocalId,
-            entry: {
-              rowId: remoteSession.id,
+            entry: buildCloudPendingPlayEntry({
+              remoteSession,
               orgId,
               pendingEvents,
               etaMs: decision.etaMs,
               kind: "replay",
-            },
+            }),
           });
           dismissCloudReferenceOpeningToast();
           if (options?.openSurface) {
@@ -362,6 +364,8 @@ export function useCloudSessionActions(
             progress: {
               rowId: remoteSession.id,
               orgId,
+              sessionEnvironment:
+                resolveCloudSessionEnvironmentIdentity(remoteSession),
               loadedEvents: maxLoadedEvents,
               totalEvents,
               baseEvents,
@@ -543,6 +547,8 @@ export function useCloudSessionActions(
               progress: {
                 rowId: remoteSession.id,
                 orgId,
+                sessionEnvironment:
+                  resolveCloudSessionEnvironmentIdentity(remoteSession),
                 loadedEvents: heldLoaded,
                 totalEvents: heldTotal,
                 startedAtMs: lastProgress?.startedAtMs ?? Date.now(),
@@ -659,13 +665,13 @@ export function useCloudSessionActions(
               ));
             store.set(setCloudDownloadPendingPlayAtom, {
               localSessionId: pendingLocalId,
-              entry: {
-                rowId: remoteSession.id,
+              entry: buildCloudPendingPlayEntry({
+                remoteSession,
                 orgId,
                 pendingEvents,
                 etaMs: decision.etaMs,
                 kind: "fork",
-              },
+              }),
             });
             openOrReplaceSessionTab({
               sessionId: pendingLocalId,
@@ -751,6 +757,8 @@ export function useCloudSessionActions(
                 progress: {
                   rowId: remoteSession.id,
                   orgId,
+                  sessionEnvironment:
+                    resolveCloudSessionEnvironmentIdentity(remoteSession),
                   loadedEvents: maxLoadedEvents,
                   totalEvents,
                   baseEvents,
@@ -825,6 +833,8 @@ export function useCloudSessionActions(
                   progress: {
                     rowId: remoteSession.id,
                     orgId,
+                    sessionEnvironment:
+                      resolveCloudSessionEnvironmentIdentity(remoteSession),
                     loadedEvents: heldLoaded,
                     totalEvents: heldTotal,
                     startedAtMs: lastProgress?.startedAtMs ?? Date.now(),

@@ -16,9 +16,9 @@ const tableSource = readFileSync(
 );
 
 describe("SettingsTable sticky toolbar contract", () => {
-  it("separates raised table chrome from the chat-pane row surface", () => {
+  it("keeps the body on the raised table surface by default", () => {
     expect(tableStyles).toMatch(
-      /\.table-settings\s*\{[\s\S]*--settings-table-surface:\s*var\(--color-primary-container\);[\s\S]*--settings-table-body-surface:\s*var\(--color-chat-pane\);/
+      /\.table-settings\s*\{[\s\S]*--settings-table-surface:\s*var\(--color-primary-container\);[\s\S]*--settings-table-body-surface:\s*var\(--settings-table-surface\);/
     );
     expect(tableStyles).toMatch(
       /\.table,\s*\.table-tbody\s*\{\s*background:\s*var\(--settings-table-body-surface\);/
@@ -28,7 +28,16 @@ describe("SettingsTable sticky toolbar contract", () => {
     );
   });
 
-  it("keeps title rows, frozen columns, and covering shades on the chat pane", () => {
+  it("blends the body into the chat pane only for pane-body tables", () => {
+    expect(tableStyles).toMatch(
+      /&\.table-settings-pane-body\s*\{\s*--settings-table-body-surface:\s*var\(--color-chat-pane\);\s*\}/
+    );
+    expect(settingsTableSource).toContain(
+      'bodySurface === "pane" && "table-settings-pane-body"'
+    );
+  });
+
+  it("keeps title rows, frozen columns, and covering shades on the body surface", () => {
     expect(tableStyles).toMatch(
       /\.table-fixed-header\s*\{[\s\S]*background:\s*var\(--settings-table-body-surface\);/
     );

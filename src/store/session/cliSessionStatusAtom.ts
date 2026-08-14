@@ -276,7 +276,7 @@ closePostStopDispatchEpisodeAtom.debugLabel = "closePostStopDispatchEpisode";
  *
  * Set when a user-initiated cancel needs to put the active in-flight prompt
  * back into the composer. `useInputArea` observes this atom and injects the
- * text into the tiptap editor, then clears the signal.
+ * text into the active composer, then clears the signal.
  *
  * Object shape (not just a string) so we can include imageDataUrls in a
  * follow-up without another atom.

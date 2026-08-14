@@ -28,11 +28,22 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import ComposerSurface from "@src/components/ComposerSurface";
+import { PILL_CONTROL_ACTIVE_ACCENT_CLASS } from "@src/components/CompoundPill/config";
 import Dropdown from "@src/components/Dropdown";
+import {
+  DROPDOWN_CLASSES,
+  DROPDOWN_WIDTHS,
+} from "@src/components/Dropdown/tokens";
 import Message from "@src/components/Message";
 import TextButton from "@src/components/TextButton";
-import Textarea from "@src/components/Textarea";
 import Tooltip from "@src/components/Tooltip";
+import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+  type MarkdownTextareaEditorRef,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import type { CloudOrgMember } from "../org2CloudClient";
@@ -100,6 +111,8 @@ const THREAD_STATUS_LABEL_KEYS: Record<CommentThreadStatus, string> = {
   wont_fix: "cloud.comments.wontFix",
 };
 
+const MEMBER_MENTION_DROPDOWN_CLASS = `${DROPDOWN_CLASSES.panel} ${DROPDOWN_WIDTHS.fileTreeClass} flex flex-col`;
+
 export interface CommentThreadListProps {
   threads: CommentThread[];
   viewerUserId: string | null;
@@ -163,8 +176,10 @@ const CommentComposer: React.FC<ComposerProps> = ({
   const { t } = useTranslation("navigation");
   const [body, setBody] = useState("");
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
+  const [mentionDropdownOpen, setMentionDropdownOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
+  const editorRef = useRef<MarkdownTextareaEditorRef | null>(null);
   const trimmed = body.trim();
   const showAgentSuggestion =
     allowAgentMention && shouldShowAgentSuggestion(body);
@@ -189,6 +204,7 @@ const CommentComposer: React.FC<ComposerProps> = ({
       await onSubmit(trimmed, mentionedUserIds);
       setBody("");
       setMentionedUserIds([]);
+      setEditorMode("write");
     } catch {
       // Draft restore: the text stays in the composer.
       Message.error(t("cloud.comments.addError"));
@@ -197,101 +213,135 @@ const CommentComposer: React.FC<ComposerProps> = ({
     }
   }, [trimmed, busy, disabled, mentionedUserIds, onSubmit, t]);
 
-  return (
-    <div className="flex flex-col gap-1.5" data-testid={testId}>
-      <Textarea
-        ref={textareaRef}
-        value={body}
-        onChange={(value) => setBody(value)}
-        placeholder={placeholder}
-        size="small"
-        autoSize
-        rows={2}
-        maxLength={CLOUD_COMMENT_MAX_BODY_LENGTH}
-        disabled={disabled || busy}
-        autoFocus={autoFocus}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault();
-            void submit();
+  const mentionActions =
+    mentionOptions.length > 0 ? (
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <Dropdown
+          className={MEMBER_MENTION_DROPDOWN_CLASS}
+          options={mentionOptions}
+          value={mentionedUserIds}
+          mode="multiple"
+          showSearch
+          searchPlaceholder={t(
+            "cloud.comments.searchMembers",
+            "Search members"
+          )}
+          position="top-start"
+          avoidViewportOverflow
+          onVisibleChange={setMentionDropdownOpen}
+          onSelect={(value) =>
+            setMentionedUserIds(Array.isArray(value) ? value.map(String) : [])
           }
-        }}
-      />
-      {showAgentSuggestion ? (
-        <button
-          type="button"
-          className="flex items-center gap-1.5 rounded-md border border-border-2 bg-bg-1 px-2 py-1.5 text-left text-[11px] text-text-2 transition-colors hover:bg-fill-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
-          data-testid="session-comment-agent-suggestion"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            setBody(AGENT_COMPOSER_PREFIX);
-            requestAnimationFrame(() => textareaRef.current?.focus());
-          }}
         >
-          <Bot size={12} strokeWidth={2} className="text-primary-6" />
-          <span className="font-medium">@agent</span>
-          <span className="text-text-3">
-            {t("cloud.comments.task.mentionSuggestion")}
-          </span>
-        </button>
-      ) : null}
-      {mentionOptions.length > 0 ? (
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
-          <Dropdown
-            options={mentionOptions}
-            value={mentionedUserIds}
-            mode="multiple"
-            showSearch
-            searchPlaceholder={t(
-              "cloud.comments.searchMembers",
-              "Search members"
-            )}
-            position="top-start"
-            avoidViewportOverflow
-            onSelect={(value) =>
-              setMentionedUserIds(Array.isArray(value) ? value.map(String) : [])
-            }
-          >
-            <Button
-              htmlType="button"
-              variant="tertiary"
-              size="mini"
-              icon={<AtSign size={12} strokeWidth={2} />}
-              disabled={disabled || busy}
-              data-testid={testId ? `${testId}-mention-members` : undefined}
-            >
-              {t("cloud.comments.mentionMembers", "Mention")}
-            </Button>
-          </Dropdown>
-          {mentionedNames.map((member) => (
-            <MemberMentionChip key={member.id} {...member} />
-          ))}
-        </div>
-      ) : null}
-      <div className="flex items-center justify-end gap-1.5">
-        {onCancel && (
           <Button
             htmlType="button"
             variant="tertiary"
-            size="mini"
-            data-testid={testId ? `${testId}-cancel` : undefined}
-            onClick={onCancel}
+            size="small"
+            shape="round"
+            icon={<AtSign size={12} strokeWidth={2} />}
+            className={
+              mentionDropdownOpen ? PILL_CONTROL_ACTIVE_ACCENT_CLASS : ""
+            }
+            disabled={disabled || busy}
+            aria-expanded={mentionDropdownOpen}
+            aria-haspopup="listbox"
+            data-testid={testId ? `${testId}-mention-members` : undefined}
           >
-            {t("cloud.comments.cancel")}
+            {t("cloud.comments.mentionMembers", "Mention")}
           </Button>
-        )}
+        </Dropdown>
+        {mentionedNames.map((member) => (
+          <MemberMentionChip key={member.id} {...member} />
+        ))}
+      </div>
+    ) : undefined;
+
+  const submitActions = (
+    <div className="flex items-center gap-1">
+      {onCancel ? (
         <Button
           htmlType="button"
-          variant="primary"
-          size="mini"
-          loading={busy}
-          disabled={!trimmed || disabled}
-          data-testid={testId ? `${testId}-submit` : undefined}
-          onClick={() => void submit()}
+          variant="tertiary"
+          size="small"
+          shape="round"
+          disabled={busy}
+          data-testid={testId ? `${testId}-cancel` : undefined}
+          onClick={onCancel}
         >
-          {submitLabel}
+          {t("cloud.comments.cancel")}
         </Button>
-      </div>
+      ) : null}
+      <Button
+        htmlType="button"
+        variant="primary"
+        size="small"
+        shape="round"
+        loading={busy}
+        disabled={!trimmed || disabled || busy}
+        data-testid={testId ? `${testId}-submit` : undefined}
+        onClick={() => void submit()}
+      >
+        {submitLabel}
+      </Button>
+    </div>
+  );
+  const modeActions = (
+    <MarkdownEditorModeSwitch
+      mode={editorMode}
+      onModeChange={setEditorMode}
+      disabled={disabled || busy}
+      dataTestId={testId ? `${testId}-mode-switch` : undefined}
+    />
+  );
+  const trailingActions = (
+    <div className="flex min-w-0 items-center justify-end gap-1.5">
+      {mentionActions}
+      {submitActions}
+    </div>
+  );
+
+  return (
+    <div data-testid={testId}>
+      <ComposerSurface
+        variant="default"
+        className="overflow-visible !pt-1.5"
+        leadingActions={modeActions}
+        trailingActions={trailingActions}
+      >
+        <MarkdownTextareaEditor
+          ref={editorRef}
+          value={body}
+          onChange={setBody}
+          placeholder={placeholder}
+          minHeight={72}
+          maxHeight={240}
+          maxLength={CLOUD_COMMENT_MAX_BODY_LENGTH}
+          disabled={disabled || busy}
+          autoFocus={autoFocus}
+          onSubmit={() => void submit()}
+          mode={editorMode}
+          onModeChange={setEditorMode}
+          dataTestId={testId ? `${testId}-editor` : undefined}
+        />
+        {showAgentSuggestion ? (
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-md border border-border-2 bg-bg-1 px-2 py-1.5 text-left text-[11px] text-text-2 transition-colors hover:bg-fill-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+            data-testid="session-comment-agent-suggestion"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              setBody(AGENT_COMPOSER_PREFIX);
+              editorRef.current?.focus();
+            }}
+          >
+            <Bot size={12} strokeWidth={2} className="text-primary-6" />
+            <span className="font-medium">@agent</span>
+            <span className="text-text-3">
+              {t("cloud.comments.task.mentionSuggestion")}
+            </span>
+          </button>
+        ) : null}
+      </ComposerSurface>
     </div>
   );
 };
@@ -326,6 +376,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState("");
   const [rowBusy, setRowBusy] = useState(false);
+  const [editMode, setEditMode] = useState<MarkdownEditorMode>("write");
 
   const isTombstone = Boolean(comment.deletedAt);
   const isAuthor = Boolean(
@@ -461,6 +512,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
                 icon={<Pencil size={12} strokeWidth={2} />}
                 onClick={() => {
                   setEditBody(comment.body);
+                  setEditMode("write");
                   setEditing(true);
                 }}
               />
@@ -489,40 +541,59 @@ const CommentRow: React.FC<CommentRowProps> = ({
         </span>
       </div>
       {editing ? (
-        <div className="flex flex-col gap-1.5">
-          <Textarea
+        <ComposerSurface
+          variant="default"
+          className="overflow-visible !pt-1.5"
+          leadingActions={
+            <MarkdownEditorModeSwitch
+              mode={editMode}
+              onModeChange={setEditMode}
+              disabled={rowBusy}
+              dataTestId="session-comment-edit-mode-switch"
+            />
+          }
+          trailingActions={
+            <div className="flex items-center gap-1">
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                size="small"
+                shape="round"
+                disabled={rowBusy}
+                data-testid="session-comment-edit-cancel"
+                onClick={() => setEditing(false)}
+              >
+                {t("cloud.comments.cancel")}
+              </Button>
+              <Button
+                htmlType="button"
+                variant="primary"
+                size="small"
+                shape="round"
+                loading={rowBusy}
+                disabled={!editBody.trim() || rowBusy}
+                data-testid="session-comment-edit-save"
+                onClick={() => void saveEdit()}
+              >
+                {t("cloud.comments.save")}
+              </Button>
+            </div>
+          }
+        >
+          <MarkdownTextareaEditor
             value={editBody}
-            onChange={(value) => setEditBody(value)}
-            size="small"
-            autoSize
-            rows={2}
+            onChange={setEditBody}
+            minHeight={72}
+            maxHeight={240}
             maxLength={CLOUD_COMMENT_MAX_BODY_LENGTH}
             disabled={rowBusy}
             autoFocus
+            onSubmit={() => void saveEdit()}
+            mode={editMode}
+            onModeChange={setEditMode}
+            dataTestId="session-comment-edit-editor"
           />
-          <div className="flex items-center justify-end gap-1.5">
-            <Button
-              htmlType="button"
-              variant="tertiary"
-              size="mini"
-              data-testid="session-comment-edit-cancel"
-              onClick={() => setEditing(false)}
-            >
-              {t("cloud.comments.cancel")}
-            </Button>
-            <Button
-              htmlType="button"
-              variant="primary"
-              size="mini"
-              loading={rowBusy}
-              disabled={!editBody.trim()}
-              data-testid="session-comment-edit-save"
-              onClick={() => void saveEdit()}
-            >
-              {t("cloud.comments.save")}
-            </Button>
-          </div>
-        </div>
+        </ComposerSurface>
       ) : isTombstone ? (
         <div className="text-[12px] italic text-text-3">
           {t("cloud.comments.deletedComment")}
@@ -540,23 +611,21 @@ const CommentRow: React.FC<CommentRowProps> = ({
               ))}
             </div>
           ) : null}
-          <div className="whitespace-pre-wrap break-words text-[12px] text-text-1">
-            {agentMention ? (
-              <>
-                <span
-                  className="mr-1 inline-flex items-center gap-1 rounded-full border border-primary-3 bg-primary-1 px-1.5 py-0.5 align-middle text-[10px] font-medium leading-none text-primary-7"
-                  data-testid="comment-agent-mention-pill"
-                  aria-label={agentMention.mention}
-                >
-                  <Bot size={10} strokeWidth={2.25} aria-hidden="true" />
-                  {agentMention.mention}
-                </span>
-                {agentMention.brief}
-              </>
-            ) : (
-              comment.body
-            )}
-          </div>
+          {agentMention ? (
+            <span
+              className="inline-flex w-fit items-center gap-1 rounded-full border border-primary-3 bg-primary-1 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-7"
+              data-testid="comment-agent-mention-pill"
+              aria-label={agentMention.mention}
+            >
+              <Bot size={10} strokeWidth={2.25} aria-hidden="true" />
+              {agentMention.mention}
+            </span>
+          ) : null}
+          <MarkdownContent
+            body={agentMention?.brief ?? comment.body}
+            clamped={false}
+            className="break-words text-[12px]"
+          />
         </>
       )}
     </div>

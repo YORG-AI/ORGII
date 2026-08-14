@@ -8,21 +8,20 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import DiffStatsBadge from "@src/components/DiffStatsBadge";
+import FileTypeIcon from "@src/components/FileTypeIcon";
 import { VirtualizedListBase } from "@src/components/TreeRow";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 
-import { SessionDerivedViewShell } from "./SessionDerivedViewShell";
+import {
+  SESSION_DERIVED_SUMMARY_HEIGHT_PX,
+  SessionDerivedViewShell,
+} from "./SessionDerivedViewShell";
 import type { ChangedFileRow } from "./sessionViewProjections";
 import { projectSessionChanges } from "./sessionViewProjections";
 import type { SessionDerivedViewProps } from "./types";
 
 const ROW_HEIGHT = 34;
-
-const STATUS_TONE: Record<ChangedFileRow["status"], string> = {
-  created: "bg-success-6",
-  modified: "bg-warning-6",
-  deleted: "bg-danger-6",
-};
 
 const ChangedFileRowView: React.FC<{ row: ChangedFileRow }> = memo(
   ({ row }) => {
@@ -35,9 +34,10 @@ const ChangedFileRowView: React.FC<{ row: ChangedFileRow }> = memo(
         data-testid="session-changes-row"
         data-path={row.path}
       >
-        <span
-          className={`size-1.5 shrink-0 rounded-full ${STATUS_TONE[row.status]}`}
-          aria-hidden
+        <FileTypeIcon
+          fileName={row.fileName}
+          size="medium"
+          className="shrink-0"
         />
         <span className="shrink-0 truncate text-text-1">{row.fileName}</span>
         <span className="min-w-0 flex-1 truncate text-text-3" title={row.path}>
@@ -51,11 +51,17 @@ const ChangedFileRowView: React.FC<{ row: ChangedFileRow }> = memo(
             })}
           </span>
         )}
-        <span className="w-12 shrink-0 text-right tabular-nums text-success-6">
-          {row.additions > 0 ? `+${row.additions}` : ""}
-        </span>
-        <span className="w-12 shrink-0 text-right tabular-nums text-danger-6">
-          {row.deletions > 0 ? `−${row.deletions}` : ""}
+        <span
+          className="flex w-28 shrink-0 justify-end"
+          data-testid="session-changes-diff-stats"
+        >
+          <DiffStatsBadge
+            additions={row.additions}
+            deletions={row.deletions}
+            variant="plain"
+            size="sm"
+            weight="normal"
+          />
         </span>
       </div>
     );
@@ -64,8 +70,20 @@ const ChangedFileRowView: React.FC<{ row: ChangedFileRow }> = memo(
 
 ChangedFileRowView.displayName = "ChangedFileRowView";
 
+function computeChangedFileKey(row: ChangedFileRow): string {
+  return row.path;
+}
+
+function getChangedFilePath(row: ChangedFileRow): string {
+  return row.path;
+}
+
+function renderChangedFileRow(row: ChangedFileRow): React.ReactNode {
+  return <ChangedFileRowView row={row} />;
+}
+
 const SessionChangesView: React.FC<SessionDerivedViewProps> = memo(
-  ({ turns, loading, error }) => {
+  ({ turns, loading, error, topInset }) => {
     const { t } = useTranslation("sessions");
     const changes = useMemo(() => projectSessionChanges(turns), [turns]);
 
@@ -78,6 +96,7 @@ const SessionChangesView: React.FC<SessionDerivedViewProps> = memo(
         emptyLabel={t("chat.sessionViews.changesEmpty", {
           defaultValue: "This session did not write any files.",
         })}
+        topInset={topInset}
         summary={
           <span className="flex items-center gap-2">
             <span>
@@ -86,21 +105,26 @@ const SessionChangesView: React.FC<SessionDerivedViewProps> = memo(
                 defaultValue: "{{count}} files",
               })}
             </span>
-            <span className="tabular-nums text-success-6">
-              +{changes.totalAdditions}
-            </span>
-            <span className="tabular-nums text-danger-6">
-              −{changes.totalDeletions}
-            </span>
+            <DiffStatsBadge
+              additions={changes.totalAdditions}
+              deletions={changes.totalDeletions}
+              variant="plain"
+              size="sm"
+              weight="normal"
+              reserveValueWidth={false}
+            />
           </span>
         }
       >
         <VirtualizedListBase<ChangedFileRow>
           items={changes.files}
           itemHeight={ROW_HEIGHT}
-          computeItemKey={(row) => row.path}
-          getItemPath={(row) => row.path}
-          renderItem={(row) => <ChangedFileRowView row={row} />}
+          paddingTop={
+            topInset ? topInset + SESSION_DERIVED_SUMMARY_HEIGHT_PX : undefined
+          }
+          computeItemKey={computeChangedFileKey}
+          getItemPath={getChangedFilePath}
+          renderItem={renderChangedFileRow}
         />
       </SessionDerivedViewShell>
     );

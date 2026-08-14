@@ -22,7 +22,12 @@ use crate::harness;
 use super::tmp_workspace_path;
 
 const MIN_SESSIONS: usize = 5;
-const WAIT_AFTER_TURN_SECS: u64 = 10;
+/// Auto-dream is coordinator-owned and serializes behind the session's own
+/// session-memory and workspace-extraction jobs on the global memory permit,
+/// so the lock can take tens of seconds to appear. Poll instead of a fixed
+/// short sleep.
+const LOCK_POLL_TIMEOUT_SECS: u64 = 120;
+const LOCK_POLL_INTERVAL_SECS: u64 = 2;
 
 fn seed_fake_sessions(workspace: &Path, count: usize) -> Result<(), String> {
     let session_dir = workspace.join(".orgii").join("sessions");
@@ -124,8 +129,13 @@ pub async fn auto_dream_from_config(cfg: &Config) -> bool {
         println!("  [warn] turn failed: {err}");
     }
 
-    println!("  [step 4] Waiting {WAIT_AFTER_TURN_SECS}s for background auto-dream...");
-    tokio::time::sleep(Duration::from_secs(WAIT_AFTER_TURN_SECS)).await;
+    println!(
+        "  [step 4] Polling up to {LOCK_POLL_TIMEOUT_SECS}s for the coordinator-queued auto-dream..."
+    );
+    let poll_deadline = std::time::Instant::now() + Duration::from_secs(LOCK_POLL_TIMEOUT_SECS);
+    while !lock_path.exists() && std::time::Instant::now() < poll_deadline {
+        tokio::time::sleep(Duration::from_secs(LOCK_POLL_INTERVAL_SECS)).await;
+    }
 
     let lock_exists = lock_path.exists();
     // Same reasoning as the first assertion site: surface read

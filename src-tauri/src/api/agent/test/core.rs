@@ -14,6 +14,7 @@
 //! - `test_subagent_dispatch_check`
 //! - `test_resolve_agent`
 //! - `test_background_jobs`
+//! - `test_memory_metrics`
 //! - `test_events_recent` / `test_events_reset`
 //!
 //! Only compiled in dev builds; `create_routes` in `api/agent/mod.rs`
@@ -1288,6 +1289,22 @@ pub async fn test_background_jobs(
         "count": items.len(),
         "jobs": items,
         "reminder_text": reminder_text,
+    }))
+}
+
+/// GET `/agent/test/memory-metrics`: current memory background-job
+/// coordinator counters. Same snapshot the coordinator attaches to its
+/// terminal-state log lines; counters are process-lifetime job counts.
+pub async fn test_memory_metrics() -> Json<serde_json::Value> {
+    let metrics = agent_core::memory::background::memory_job_metrics();
+    Json(serde_json::json!({
+        "submitted": metrics.submitted,
+        "coalesced": metrics.coalesced,
+        "started": metrics.started,
+        "completed": metrics.completed,
+        "failed": metrics.failed,
+        "cancelled": metrics.cancelled,
+        "timed_out": metrics.timed_out,
     }))
 }
 

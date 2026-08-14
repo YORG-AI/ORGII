@@ -27,6 +27,8 @@ interface ChatPanelContentProps {
   alternateSessionView?: React.ReactNode;
   /** Which per-session view the header select currently resolves to. */
   sessionViewMode?: SessionViewMode;
+  /** Height of the floating chat chrome the session view must clear. */
+  chromeTopInset?: number;
 }
 
 /**
@@ -49,6 +51,7 @@ export function ChatPanelContent({
   showSessionContent,
   alternateSessionView,
   sessionViewMode = "gui",
+  chromeTopInset = 0,
 }: ChatPanelContentProps): React.ReactNode {
   const alternateActive = sessionViewMode !== "gui";
   return (
@@ -73,6 +76,7 @@ export function ChatPanelContent({
               displayMode={displayMode}
               turnPaginationEnabled={paginationEnabled}
               position={position}
+              chromeTopInset={chromeTopInset}
               onSessionContinuation={onSessionContinuation}
             />
           </div>

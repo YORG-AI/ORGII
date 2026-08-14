@@ -153,6 +153,9 @@ export function useGitHubWorkItemActions({
         prStatus: pr.rawPr.draft ? "draft" : pr.state,
         headBranch: pr.sourceBranch,
         baseBranch: pr.targetBranch,
+        updatedAt: pr.updatedAt,
+        additions: pr.rawPr.additions,
+        deletions: pr.rawPr.deletions,
         repoPath: pr.repoPath,
         repoId: pr.repoId,
       };

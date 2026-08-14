@@ -40,11 +40,11 @@ impl Default for E2eAgentSection {
 }
 
 fn default_model() -> String {
-    std::env::var("SOYD_E2E_MODEL").unwrap_or_else(|_| "o5.4-mini".to_string())
+    std::env::var("SOYD_E2E_MODEL").unwrap_or_else(|_| "deepseek-v4-flash".to_string())
 }
 
 fn default_account() -> String {
-    std::env::var("SOYD_E2E_ACCOUNT_ID").unwrap_or_else(|_| "4e0974ab".to_string())
+    std::env::var("SOYD_E2E_ACCOUNT_ID").unwrap_or_else(|_| "166a5ee8".to_string())
 }
 
 fn default_timeout() -> u64 {

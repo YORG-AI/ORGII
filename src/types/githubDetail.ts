@@ -19,6 +19,11 @@ export interface GitHubPrDetailTabData {
   prStatus: string;
   headBranch: string;
   baseBranch?: string;
+  /** Optional list timestamp used by compact PR previews such as hover cards. */
+  updatedAt?: string;
+  /** Optional list diff stats used by compact PR previews. */
+  additions?: number | null;
+  deletions?: number | null;
   repoPath: string;
   repoId?: string;
 }

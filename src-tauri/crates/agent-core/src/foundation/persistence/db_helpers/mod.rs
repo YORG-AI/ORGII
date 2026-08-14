@@ -490,38 +490,46 @@ fn insert_message_retry_with<T>(
     Err(last_err)
 }
 
+/// Column list every `AgentMessageRow` query must select, in the order
+/// [`read_agent_message_row`] consumes.
+pub(crate) const AGENT_MESSAGE_ROW_COLUMNS: &str =
+    "id, session_id, role, content, tool_name, tool_call_id,
+     tool_input, tool_output, model, sequence, created_at, images,
+     compact_from_sequence, compact_tokens_before, compact_tokens_after";
+
+/// Map one result row selected via [`AGENT_MESSAGE_ROW_COLUMNS`].
+pub(crate) fn read_agent_message_row(row: &rusqlite::Row<'_>) -> SqliteResult<AgentMessageRow> {
+    Ok(AgentMessageRow {
+        id: row.get(0)?,
+        session_id: row.get(1)?,
+        role: row.get(2)?,
+        content: row.get(3)?,
+        tool_name: row.get(4)?,
+        tool_call_id: row.get(5)?,
+        tool_input: row.get(6)?,
+        tool_output: row.get(7)?,
+        model: row.get(8)?,
+        sequence: row.get(9)?,
+        created_at: row.get(10)?,
+        images: row.get(11)?,
+        compact_from_sequence: row.get(12)?,
+        compact_tokens_before: row.get(13)?,
+        compact_tokens_after: row.get(14)?,
+    })
+}
+
 /// Load all messages for a session, ordered by sequence.
 pub fn load_messages(prefix: &str, session_id: &str) -> SqliteResult<Vec<AgentMessageRow>> {
     let conn = get_connection()?;
     let sql = format!(
-        "SELECT id, session_id, role, content, tool_name, tool_call_id,
-                tool_input, tool_output, model, sequence, created_at, images,
-                compact_from_sequence, compact_tokens_before, compact_tokens_after
+        "SELECT {AGENT_MESSAGE_ROW_COLUMNS}
          FROM {prefix}_messages
          WHERE session_id = ?1
          ORDER BY sequence ASC"
     );
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
-        .query_map([session_id], |row| {
-            Ok(AgentMessageRow {
-                id: row.get(0)?,
-                session_id: row.get(1)?,
-                role: row.get(2)?,
-                content: row.get(3)?,
-                tool_name: row.get(4)?,
-                tool_call_id: row.get(5)?,
-                tool_input: row.get(6)?,
-                tool_output: row.get(7)?,
-                model: row.get(8)?,
-                sequence: row.get(9)?,
-                created_at: row.get(10)?,
-                images: row.get(11)?,
-                compact_from_sequence: row.get(12)?,
-                compact_tokens_before: row.get(13)?,
-                compact_tokens_after: row.get(14)?,
-            })
-        })?
+        .query_map([session_id], read_agent_message_row)?
         .collect::<SqliteResult<Vec<_>>>()?;
     Ok(rows)
 }

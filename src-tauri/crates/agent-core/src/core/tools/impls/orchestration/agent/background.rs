@@ -313,8 +313,8 @@ impl AgentTool {
             // parent is still running (the next turn's reminder covers that)
             // or when no app handle is installed (headless / tests). Mirrors
             // Claude Code's task-notification → idle-queue-processor design.
-            crate::tools::impls::orchestration::subagent_wake::current_subagent_completion_wake_hook()
-                .wake_parent(&bg_parent_session_id);
+            crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()
+                .wake_owner(&bg_parent_session_id);
 
             // Remove from registry once the parent has consumed the result,
             // or after a hard cap if it never does.
@@ -323,30 +323,14 @@ impl AgentTool {
             // raced the parent: a worker that finished while the parent was
             // idle (and slow to take its next turn) had its result deleted
             // before the Background Jobs reminder could ever surface it, so
-            // the parent never learned the worker completed. Now we retain
-            // the job until `acknowledge_output` is called (the reminder /
-            // await path marks it read), polling at a coarse interval, with
-            // a hard upper bound so a parent that never returns cannot leak
-            // the entry forever.
-            const ACK_POLL_INTERVAL: Duration = Duration::from_secs(5);
-            const MAX_RETENTION: Duration = Duration::from_secs(30 * 60);
-            let retain_deadline = std::time::Instant::now() + MAX_RETENTION;
-            loop {
-                tokio::time::sleep(ACK_POLL_INTERVAL).await;
-                // Missing (already removed elsewhere) or acknowledged → done.
-                match job_registry::is_output_acknowledged(&bg_session_id) {
-                    None | Some(true) => break,
-                    Some(false) => {}
-                }
-                if std::time::Instant::now() >= retain_deadline {
-                    warn!(
-                        "[agent:bg] '{}' result was never acknowledged within retention window; evicting",
-                        bg_session_id
-                    );
-                    break;
-                }
-            }
-            job_registry::remove(&bg_session_id);
+            // the parent never learned the worker completed. Retaining until
+            // `acknowledge_output` (bounded) closes that race.
+            job_registry::retain_until_acknowledged_then_remove(
+                &bg_session_id,
+                Duration::from_secs(30 * 60),
+                "agent:bg",
+            )
+            .await;
         });
 
         // Store JoinHandle so registry::kill_subagent can abort it

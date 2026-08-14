@@ -1,5 +1,5 @@
 import { Provider, createStore } from "jotai";
-import { createElement } from "react";
+import { type ReactNode, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,6 +25,58 @@ vi.mock("@src/components/IntegrationIcon", () => ({
       "data-integration-icon": type,
       "data-icon-size": size,
     }),
+}));
+
+vi.mock("@src/components/WorkItemHoverCard", () => ({
+  default: ({
+    workItem,
+    position,
+    children,
+  }: {
+    workItem?: { id: string; title: string; status: string };
+    position?: string;
+    children: ReactNode;
+  }) =>
+    createElement(
+      "div",
+      {
+        "data-work-item-hover-card-id": workItem?.id,
+        "data-work-item-hover-card-title": workItem?.title,
+        "data-work-item-hover-card-status": workItem?.status,
+        "data-work-item-hover-card-position": position,
+      },
+      children
+    ),
+}));
+
+vi.mock("@src/components/PrHoverCard", () => ({
+  default: ({
+    pr,
+    position,
+    children,
+  }: {
+    pr?: {
+      number: number;
+      title: string;
+      additions?: number | null;
+      deletions?: number | null;
+      updated_at?: string;
+    };
+    position?: string;
+    children: ReactNode;
+  }) =>
+    createElement(
+      "div",
+      {
+        "data-pr-hover-card-number": pr?.number,
+        "data-pr-hover-card-title": pr?.title,
+        "data-pr-hover-card-additions": pr?.additions,
+        "data-pr-hover-card-deletions": pr?.deletions,
+        "data-pr-hover-card-updated-at": pr?.updated_at,
+        "data-pr-hover-card-position": position,
+      },
+      children
+    ),
 }));
 
 describe("ChatPanelTabBar", () => {
@@ -173,6 +225,66 @@ describe("ChatPanelTabBar", () => {
 
     expect(markup).toContain("lucide-box");
     expect(markup).toContain("lucide-list-checks");
+  });
+
+  it("reuses the sidebar hover cards for work-item and pull-request tabs", () => {
+    const store = createStore();
+    store.set(chatPanelTabsAtom, {
+      tabs: [
+        {
+          id: "work-item-local",
+          type: "work-item",
+          title: "Local work item",
+          workItem: {
+            workItem: {
+              session_id: "work-item-local",
+              name: "Local work item",
+              status: "in_progress",
+              workItemStatus: "in_progress",
+            },
+            shortId: "LOCAL-1",
+            projectId: "project-local",
+            projectName: "Local project",
+            projectSlug: "local-project",
+          } as ChatPanelSelectedWorkItem,
+        },
+        {
+          id: "github-pr-42",
+          type: "github-pr",
+          title: "#42 Reuse previews",
+          githubPr: {
+            prNumber: 42,
+            prTitle: "Reuse previews",
+            prUrl: "https://github.com/orgii/orgii/pull/42",
+            prStatus: "open",
+            headBranch: "feature/reuse-previews",
+            baseBranch: "develop",
+            additions: 42,
+            deletions: 7,
+            updatedAt: "2026-08-13T10:00:00Z",
+            repoPath: "/workspace/orgii",
+          },
+        },
+      ],
+      activeTabId: "github-pr-42",
+    });
+
+    const markup = renderToStaticMarkup(
+      createElement(Provider, { store }, createElement(ChatPanelTabBar))
+    );
+
+    expect(markup).toContain('data-work-item-hover-card-id="work-item-local"');
+    expect(markup).toContain('data-work-item-hover-card-status="in_progress"');
+    expect(markup).toContain(
+      'data-work-item-hover-card-position="bottom-start"'
+    );
+    expect(markup).toContain('data-pr-hover-card-number="42"');
+    expect(markup).toContain('data-pr-hover-card-additions="42"');
+    expect(markup).toContain('data-pr-hover-card-deletions="7"');
+    expect(markup).toContain(
+      'data-pr-hover-card-updated-at="2026-08-13T10:00:00Z"'
+    );
+    expect(markup).toContain('data-pr-hover-card-position="bottom-start"');
   });
 
   it("offers the supported creation surfaces in the new-tab menu", () => {

@@ -287,7 +287,7 @@ export default function UsageRoundsTable({
         loading={loading}
         footer={
           showPagination ? (
-            <div className="flex h-12 w-full items-center border-t border-border-1 px-4">
+            <div className="flex h-10 w-full items-center border-t border-border-1 px-4">
               <SettingsTablePagination
                 pageIndex={pageIndex}
                 pageSize={pageSize}

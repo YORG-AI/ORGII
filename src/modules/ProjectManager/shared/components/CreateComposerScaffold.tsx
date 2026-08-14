@@ -85,6 +85,7 @@ export interface ManualCreateComposerProps {
   editorRef: RefObject<ManualCreateEditorRef | null>;
   headerContent: ReactNode;
   pinnedActionsContent: ReactNode;
+  leadingActions?: ReactNode;
   submitButton?: ReactNode;
 }
 
@@ -95,6 +96,7 @@ export function ManualCreateComposer({
   editorRef,
   headerContent,
   pinnedActionsContent,
+  leadingActions,
   submitButton,
 }: ManualCreateComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +129,8 @@ export function ManualCreateComposer({
             onOpenSkillsTools={() => editorRef.current?.triggerSlashContext()}
             dropdownDirection="up"
             showContextInfo={false}
+            secondaryControlsPosition="right"
+            leadingActions={leadingActions}
             trailingActions={submitButton}
           >
             {headerContent}

@@ -17,7 +17,7 @@ export interface UseCloudSessionsSectionParams {
   sessions: readonly Session[];
   /** Active Team-sessions filter (all, directed-to-me, or one owner). */
   filter: CloudSessionFilter;
-  /** Currently active local session, used to map replay imports to cloud rows. */
+  /** Active session surface key, including a replay parked before download. */
   activeSessionId: string;
   /** Demand bound for exact local hydration in the My Conversations section. */
   localSessionHydrationLimit: number;
@@ -33,7 +33,7 @@ export interface UseCloudSessionsSectionResult {
   cloudFlatListExcludedSessionIds: ReadonlySet<string>;
   /** Local-origin cloud row ids that belong in the active My section. */
   cloudLocalSessionIds: ReadonlySet<string>;
-  /** Cloud row key corresponding to the active local replay/import session. */
+  /** Cloud row key corresponding to the active replay/import surface. */
   selectedCloudMenuItemId: string | null;
   /** Click resolver for Team rows and the Team section's pagination row. */
   handleCloudSessionItemClick: (item: NavigationMenuItem) => boolean;

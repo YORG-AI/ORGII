@@ -40,17 +40,17 @@ vi.mock(
   () => ({ default: () => null })
 );
 
-vi.mock("@src/modules/shared/components/RichMarkdownEditor", async () => {
+vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", async () => {
   const { forwardRef } = await import("react");
   return {
-    RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS: "shared-inline-markdown-toolbar",
     default: forwardRef<HTMLDivElement, Record<string, unknown>>(
-      function MockRichMarkdownEditor(props, ref) {
+      function MockMarkdownTextareaEditor(props, ref) {
         return createElement("div", {
           ref,
           "data-testid": "mock-markdown-editor",
-          "data-toolbar-mode": props.toolbarMode,
-          "data-toolbar-class": props.toolbarClassName,
+          "data-editor-kind": "write-preview",
+          "data-min-height": props.minHeight,
+          "data-editable": String(props.editable),
         });
       }
     ),
@@ -65,26 +65,20 @@ const baseProps = {
 };
 
 describe("ProjectContentEditor", () => {
-  it("exposes the shared inline Markdown formats for composer surfaces", () => {
-    const markup = renderToStaticMarkup(
-      createElement(ProjectContentEditor, {
-        ...baseProps,
-        descriptionToolbarMode: "inline",
-      })
-    );
-
-    expect(markup).toContain('data-toolbar-mode="inline"');
-    expect(markup).toContain(
-      'data-toolbar-class="shared-inline-markdown-toolbar"'
-    );
-  });
-
-  it("preserves the selection toolbar for existing content editors", () => {
+  it("uses the consolidated Write / Preview Markdown editor", () => {
     const markup = renderToStaticMarkup(
       createElement(ProjectContentEditor, baseProps)
     );
 
-    expect(markup).toContain('data-toolbar-mode="floating"');
-    expect(markup).toContain('data-toolbar-class="work-item-toolbar"');
+    expect(markup).toContain('data-editor-kind="write-preview"');
+    expect(markup).toContain('data-min-height="200"');
+  });
+
+  it("propagates read-only descriptions to the shared editor", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ProjectContentEditor, { ...baseProps, editable: false })
+    );
+
+    expect(markup).toContain('data-editable="false"');
   });
 });

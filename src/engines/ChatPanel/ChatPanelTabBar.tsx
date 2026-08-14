@@ -72,7 +72,11 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import PrHoverCard, { type PrHoverCardData } from "@src/components/PrHoverCard";
 import SessionHoverCard from "@src/components/SessionHoverCard";
+import WorkItemHoverCard, {
+  type WorkItemHoverCardData,
+} from "@src/components/WorkItemHoverCard";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { TERMINAL_AGENT_STATUS } from "@src/engines/TerminalCore/types";
@@ -142,6 +146,83 @@ interface TabPillProps {
   onClose: (id: string) => void;
   onContextMenu: (event: React.MouseEvent, id: string) => void;
 }
+
+interface TabPillHoverCardProps {
+  tab: ChatPanelTab;
+  children: React.ReactElement;
+}
+
+function getWorkItemHoverCardData(
+  selection: NonNullable<ChatPanelTab["workItem"]>
+): WorkItemHoverCardData {
+  const { workItem } = selection;
+  return {
+    id: workItem.session_id,
+    title: workItem.name,
+    status: workItem.workItemStatus ?? workItem.status,
+    priority: workItem.priority ?? "none",
+    projectName: selection.projectName,
+    orgName: selection.orgName ?? selection.sourceProject?.orgName,
+    source: "local",
+    assignee: workItem.assignee,
+    labels: workItem.labels,
+    createdAt: workItem.created_time,
+    updatedAt: workItem.updated_time,
+  };
+}
+
+function getPrHoverCardData(
+  detail: NonNullable<ChatPanelTab["githubPr"]>
+): PrHoverCardData {
+  const isDraft = detail.prStatus === "draft";
+  return {
+    number: detail.prNumber,
+    url: detail.prUrl,
+    title: detail.prTitle,
+    state: isDraft ? "open" : detail.prStatus,
+    head_branch: detail.headBranch,
+    base_branch: detail.baseBranch,
+    draft: isDraft,
+    additions: detail.additions,
+    deletions: detail.deletions,
+    updated_at: detail.updatedAt,
+  };
+}
+
+/** Keep entity-preview selection in one place as new tab types are added. */
+const TabPillHoverCard: React.FC<TabPillHoverCardProps> = ({
+  tab,
+  children,
+}) => {
+  if (tab.type === "session" && tab.sessionId) {
+    return (
+      <SessionHoverCard sessionId={tab.sessionId} position="bottom-start">
+        {children}
+      </SessionHoverCard>
+    );
+  }
+  if (tab.type === "work-item" && tab.workItem) {
+    return (
+      <WorkItemHoverCard
+        workItem={getWorkItemHoverCardData(tab.workItem)}
+        position="bottom-start"
+      >
+        {children}
+      </WorkItemHoverCard>
+    );
+  }
+  if (tab.type === "github-pr" && tab.githubPr) {
+    return (
+      <PrHoverCard
+        pr={getPrHoverCardData(tab.githubPr)}
+        position="bottom-start"
+      >
+        {children}
+      </PrHoverCard>
+    );
+  }
+  return children;
+};
 
 const TabPill = memo(function TabPill({
   tab,
@@ -455,16 +536,7 @@ const TabPill = memo(function TabPill({
     </WorkStationTabPillSurface>
   );
 
-  // Session tabs with an active session get the hover card
-  if (tab.type === "session" && tab.sessionId) {
-    return (
-      <SessionHoverCard sessionId={tab.sessionId} position="bottom-start">
-        {pill}
-      </SessionHoverCard>
-    );
-  }
-
-  return pill;
+  return <TabPillHoverCard tab={tab}>{pill}</TabPillHoverCard>;
 });
 
 // ─── Plus-menu dropdown ───────────────────────────────────────────────────────

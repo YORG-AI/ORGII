@@ -183,7 +183,12 @@ export interface RemoteTeammateSessionMetadata {
    * sharing). Must be mirrored in RemoteTeammateSessionMetadataSchema.
    */
   repoScopeKey?: string;
+  /** Session checkout branch name; safe display metadata (never a path). */
   branch?: string;
+  /** Branch the session started from; absent on older clients. */
+  baseBranch?: string;
+  /** Dedicated worktree branch name; the owner worktree path is never shared. */
+  worktreeBranch?: string;
   /**
    * Owner's agent/model identity for the teammate hover card (display
    * only). Rides in the opaque payload jsonb like repoScopeKey — absent on

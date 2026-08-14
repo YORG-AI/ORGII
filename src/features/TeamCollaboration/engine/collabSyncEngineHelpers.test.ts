@@ -608,6 +608,32 @@ describe("importRemoteSession", () => {
     });
   });
 
+  it("persists remote session, base, and worktree branch names on the imported row", async () => {
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        branch: "develop",
+        baseBranch: "main",
+        worktreeBranch: "agent/remote-1",
+      }),
+    });
+
+    expect(
+      store
+        .get(sessionsAtom)
+        .find((session) => session.session_id === result?.localSessionId)
+    ).toMatchObject({
+      branch: "develop",
+      baseBranch: "main",
+      worktreeBranch: "agent/remote-1",
+    });
+  });
+
   it("streams a fresh replay into bounded durable batches without assembling the full history", async () => {
     const pageOne = await sealSnapshot({
       epoch: 3,

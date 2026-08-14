@@ -230,6 +230,8 @@ impl UnifiedMessageProcessor {
             session.id.clone()
         });
 
+        let sm_state = Arc::clone(&session.sm_state);
+
         Self {
             runtime,
             session,
@@ -243,7 +245,7 @@ impl UnifiedMessageProcessor {
             screenshot_store,
             event_handler_config,
             compaction_state: tokio::sync::Mutex::new(CompactionState::default()),
-            sm_state: Arc::new(tokio::sync::Mutex::new(SessionMemoryState::default())),
+            sm_state,
             sm_config: SessionMemoryConfig::default(),
             sm_compact_config: SessionMemoryCompactConfig::default(),
             replacement_state: tokio::sync::Mutex::new(ReplacementState::new()),
@@ -510,6 +512,12 @@ impl UnifiedMessageProcessor {
         // this turn carry occurred_at >= this instant.
         let turn_started_at_ms = chrono::Utc::now().timestamp_millis();
 
+        // Any newly accepted turn means the session is active again. Cancel
+        // coordinator generations left by the prior turn (especially the
+        // quiescence-debounced reflection/observation jobs) before they can
+        // race the new transcript.
+        crate::memory::background::cancel_memory_jobs_for_session(session_id);
+
         // 0b. Restore persisted SM state on first turn (lazy init)
         if self.sm_config.enabled {
             let mut sm_state = self.sm_state.lock().await;
@@ -526,7 +534,7 @@ impl UnifiedMessageProcessor {
                             persisted.content.as_ref().map(|c| c.len()).unwrap_or(0),
                         );
                         sm_state.content = persisted.content;
-                        sm_state.last_summarized_msg_idx = persisted.last_msg_idx;
+                        sm_state.last_summarized_seq = persisted.last_seq;
                         sm_state.initialized = true;
                     }
                 }
@@ -808,19 +816,19 @@ impl UnifiedMessageProcessor {
 
         // 4d. Subagent-wake prefill safety net.
         //
-        // A background-subagent completion resumes the parent with empty
-        // content (no persisted user row → same round, no new bubble). But a
-        // plain SDE session has no inbox_drain to append a trailing user
-        // message, so the conversation can still end on the parent's last
-        // assistant turn ("已在后台启动。"). Providers (Anthropic, OpenAI)
-        // reject that with HTTP 400 "conversation must end with a user
-        // message". When a resume leaves an assistant-tailed message list,
-        // append a single TRANSIENT user nudge — in-memory only, never
-        // persisted, so it neither creates a round nor a visible bubble.
-        // Mirrors inbox_drain's transient injection, generalized to the SDE
-        // path.
+        // A background-job completion (subagent or backgrounded shell)
+        // resumes the owner with empty content (no persisted user row → same
+        // round, no new bubble). But a plain SDE session has no inbox_drain
+        // to append a trailing user message, so the conversation can still
+        // end on the owner's last assistant turn ("已在后台启动。").
+        // Providers (Anthropic, OpenAI) reject that with HTTP 400
+        // "conversation must end with a user message". When a resume leaves
+        // an assistant-tailed message list, append a single TRANSIENT user
+        // nudge — in-memory only, never persisted, so it neither creates a
+        // round nor a visible bubble. Mirrors inbox_drain's transient
+        // injection, generalized to the SDE path.
         if context.is_resume {
-            Self::inject_subagent_wake_nudge_if_needed(&mut messages, session_id);
+            Self::inject_job_wake_nudge_if_needed(&mut messages, session_id);
         }
 
         // 5/5b/6. Pre-turn message-list compaction (microcompact +
@@ -1021,15 +1029,26 @@ impl UnifiedMessageProcessor {
 
         // 9–10. Post-turn dispatch (broadcast, Stop hook, CU lock,
         // session-memory / extract-memories / auto-dream / digest spawns).
+        // The SM gate inputs are computed here because the dispatcher no
+        // longer sees the in-memory transcript: provider-reported prompt
+        // tokens when available, a local count only as fallback.
+        let sm_current_tokens = if result.prompt_tokens > 0 {
+            result.prompt_tokens as usize
+        } else {
+            crate::model_context::tokenizer::count_messages_tokens(&messages)
+        };
+        let sm_last_turn_has_tool_calls =
+            crate::model_context::session_memory::last_turn_has_tool_calls(&messages);
         self.dispatch_post_turn_work(post_turn_dispatch::PostTurnInputs {
             session_id,
             turn_id: &turn_id,
             response_text: &response_text,
-            messages: &messages,
             result: &result,
             tool_calls_count,
             final_turn_state,
             turn_started_at_ms,
+            sm_current_tokens,
+            sm_last_turn_has_tool_calls,
         })
         .await;
 
@@ -1103,18 +1122,19 @@ impl UnifiedMessageProcessor {
     /// Append a transient, in-memory-only trailing user message when a resumed
     /// turn's assembled message list still ends on an assistant turn.
     ///
-    /// Background-subagent wakes resume the parent with empty content (so no
-    /// user row is persisted and no new round is created), but a plain SDE
-    /// session has no inbox_drain to supply the trailing user message that
-    /// providers require ("conversation must end with a user message"). This
-    /// closes that gap without persisting anything: the nudge lives only in
-    /// the provider request, never in the DB or the UI, so the parent
-    /// continues in the SAME round with no synthetic bubble.
+    /// Background-job wakes (subagent or backgrounded shell completions)
+    /// resume the owner with empty content (so no user row is persisted and
+    /// no new round is created), but a plain SDE session has no inbox_drain
+    /// to supply the trailing user message that providers require
+    /// ("conversation must end with a user message"). This closes that gap
+    /// without persisting anything: the nudge lives only in the provider
+    /// request, never in the DB or the UI, so the owner continues in the
+    /// SAME round with no synthetic bubble.
     ///
     /// No-op unless the last non-system message is an assistant message —
     /// normal resumes (e.g. mode-switch) that already end on a user or tool
     /// message are left untouched.
-    fn inject_subagent_wake_nudge_if_needed(messages: &mut Vec<Value>, session_id: &str) {
+    fn inject_job_wake_nudge_if_needed(messages: &mut Vec<Value>, session_id: &str) {
         let last_non_system_role = messages
             .iter()
             .rev()
@@ -1125,10 +1145,10 @@ impl UnifiedMessageProcessor {
             return;
         }
 
-        const WAKE_NUDGE: &str = "<system-reminder>A background subagent you launched has \
-            finished. Its result is now available in the Background Jobs list above. Read the \
-            completed worker's output and continue the task you were doing — do not re-launch \
-            it.</system-reminder>";
+        const WAKE_NUDGE: &str = "<system-reminder>A background job you launched (shell \
+            process or subagent) has finished or needs attention. Its status and output are \
+            in the Background Jobs list above. Act on it and continue the task you were \
+            doing — do not re-launch finished jobs.</system-reminder>";
 
         messages.push(serde_json::json!({
             "role": "user",
@@ -1136,7 +1156,7 @@ impl UnifiedMessageProcessor {
         }));
 
         info!(
-            "[unified_processor] Injected transient subagent-wake nudge to satisfy prefill (session={})",
+            "[unified_processor] Injected transient job-wake nudge to satisfy prefill (session={})",
             session_id
         );
     }

@@ -578,6 +578,10 @@ function refreshImportedSessionPresentation(
   const ownerAvatarUrl =
     remoteSession.ownerAvatarUrl ?? importedFrom.ownerAvatarUrl;
   const repoPath = remoteSession.repoPath ?? existing.repoPath;
+  const branch = remoteSession.branch ?? existing.branch;
+  const baseBranch = remoteSession.baseBranch ?? existing.baseBranch;
+  const worktreeBranch =
+    remoteSession.worktreeBranch ?? existing.worktreeBranch;
   const refreshedImportedFrom: SessionImportedFrom = {
     ...importedFrom,
     ownerMemberId: remoteSession.ownerMemberId,
@@ -616,6 +620,9 @@ function refreshImportedSessionPresentation(
     timestampsUnchanged &&
     existing.name === remoteSession.title &&
     existing.repoPath === repoPath &&
+    existing.branch === branch &&
+    existing.baseBranch === baseBranch &&
+    existing.worktreeBranch === worktreeBranch &&
     existing.agentDisplayName === sourcePresentation.agentLabel &&
     existing.agentIconId === sourcePresentation.agentIconId &&
     importedFrom.ownerMemberId === remoteSession.ownerMemberId &&
@@ -642,6 +649,9 @@ function refreshImportedSessionPresentation(
       : {}),
     name: remoteSession.title,
     repoPath,
+    branch,
+    baseBranch,
+    worktreeBranch,
     agentDisplayName: sourcePresentation.agentLabel,
     agentIconId: sourcePresentation.agentIconId,
     importedFrom: refreshedImportedFrom,
@@ -1006,6 +1016,9 @@ async function importRemoteSessionInner(
       completed_at: activityAt,
       name: remoteSession.title,
       repoPath: remoteSession.repoPath,
+      branch: remoteSession.branch,
+      baseBranch: remoteSession.baseBranch,
+      worktreeBranch: remoteSession.worktreeBranch,
       category: "external_history",
       // No runnable model: the imported copy's composer is a FORK ENTRY, not a
       // live agent. The source model is retained under importedFrom.sourceDisplay

@@ -37,6 +37,8 @@ describe("control appearance API", () => {
     expect(selectStyles).toContain(
       ".select-ghost.select-open .select-selector"
     );
+    expect(selectStyles).toContain(".select-title-row.select-bare");
+    expect(selectStyles).toContain("text-decoration-line: underline");
   });
 
   it("does not retain the old visual naming on migrated composite controls", () => {

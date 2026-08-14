@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
 import { sessionHydrationByIdAtom } from "@src/engines/SessionCore";
+import { useCloudSessionPendingPlayEntry } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import type { Session } from "@src/store/session";
 import { resolveSessionRowIconPresentation } from "@src/util/session/sessionSidebarRow";
 
@@ -13,6 +14,22 @@ interface SessionIdentityIconProps {
 }
 
 export const SESSION_IDENTITY_ICON_SIZE = 14;
+
+export function resolveSessionIdentityIconSource(
+  session: Session | null | undefined,
+  sessionId: string,
+  pendingIconId: string | null | undefined,
+  hydrationIconId: string | null | undefined
+): Session | { session_id: string; agentIconId: string } | string {
+  if (pendingIconId) {
+    return { session_id: sessionId, agentIconId: pendingIconId };
+  }
+  if (session) return session;
+  if (hydrationIconId) {
+    return { session_id: sessionId, agentIconId: hydrationIconId };
+  }
+  return sessionId;
+}
 
 export function resolveSessionIdentityIconColorClass(
   isSelected: boolean,
@@ -26,11 +43,14 @@ export function resolveSessionIdentityIconColorClass(
 const SessionIdentityIcon: React.FC<SessionIdentityIconProps> = memo(
   ({ session, sessionId, isSelected = true, className = "" }) => {
     const hydration = useAtomValue(sessionHydrationByIdAtom(sessionId));
+    const pendingPlay = useCloudSessionPendingPlayEntry(sessionId);
     const { Icon, isMonochromeBrandIcon } = resolveSessionRowIconPresentation(
-      session ??
-        (hydration?.iconId
-          ? { session_id: sessionId, agentIconId: hydration.iconId }
-          : sessionId)
+      resolveSessionIdentityIconSource(
+        session,
+        sessionId,
+        pendingPlay?.iconId,
+        hydration?.iconId
+      )
     );
     const colorClass = resolveSessionIdentityIconColorClass(
       isSelected,

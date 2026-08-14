@@ -92,12 +92,14 @@ pub async fn agent_delete_session(
     .map_err(|err| format!("session deletion planning worker failed: {err}"))??;
 
     let Some(plan) = plan else {
+        crate::memory::background::cancel_memory_jobs_for_session(&session_id);
         let deleted_session_id = session_id.clone();
         tokio::task::spawn_blocking(move || {
             session_persistence::delete_session(&deleted_session_id).map_err(|err| err.to_string())
         })
         .await
         .map_err(|err| format!("session deletion worker failed: {err}"))??;
+        state.remove_session(&session_id).await;
         return Ok(DeleteSessionReceipt {
             deleted_session_ids: vec![session_id],
         });

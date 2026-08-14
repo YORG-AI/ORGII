@@ -34,6 +34,7 @@ import {
   ProjectContentEditor,
   type ProjectContentEditorRef,
 } from "@src/modules/ProjectManager/shared";
+import type { MarkdownEditorMode } from "@src/modules/shared/components/MarkdownTextareaEditor";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -81,6 +82,8 @@ export interface InlineCreateWorkItemFieldsState {
   draft: WorkItemDraft;
   editorResetKey: number;
   editorRef: React.RefObject<ProjectContentEditorRef | null>;
+  editorMode: MarkdownEditorMode;
+  setEditorMode: React.Dispatch<React.SetStateAction<MarkdownEditorMode>>;
   availableAgents: AgentDefinition[];
   availableOrgs: OrgMember[];
   handlePropertyUpdate: (updates: Partial<WorkItemExtended>) => void;
@@ -139,6 +142,7 @@ export function useInlineCreateWorkItemFields({
   const { t } = useTranslation("projects");
   const { t: tSessions } = useTranslation("sessions");
   const [editorResetKey, setEditorResetKey] = useState(0);
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
   const { agents: customAgents } = useAgentDefinitions();
   const { orgs: availableOrgs } = useAgentOrgs();
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
@@ -464,9 +468,10 @@ export function useInlineCreateWorkItemFields({
       separatorVisible={false}
       descriptionPlaceholder={tSessions("creator.placeholderDefault")}
       onImageInsert={handleImageInsert}
-      descriptionClassName="no-bottom-border [&_.ProseMirror]:!pl-1.5 [&_.ProseMirror]:!pt-0 [&_.rich-text-editor-toolbar-inline]:!mb-1.5 [&_.rich-text-editor-toolbar-inline]:!pl-0"
-      descriptionToolbarMode={aiGenerateMode ? "floating" : "inline"}
+      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5 [&_textarea]:!pt-0 [&_.markdown-formatting-toolbar]:!mb-1.5 [&_.markdown-formatting-toolbar]:!pl-0"
       descriptionMaxHeight="100%"
+      descriptionMode={editorMode}
+      onDescriptionModeChange={setEditorMode}
       repoPath={repoPath}
       className="flex min-h-0 flex-1 flex-col"
       dataTestId="create-work-item-editor"
@@ -487,6 +492,7 @@ export function useInlineCreateWorkItemFields({
     draft,
     editorResetKey,
     editorRef,
+    editorMode,
     handlePropertyUpdate,
     inlinePropertyPills,
     resetDraftForCreateMore,
@@ -494,6 +500,7 @@ export function useInlineCreateWorkItemFields({
     resolvedMembers,
     resolvedProjects,
     selectedProjectSlug,
+    setEditorMode,
     setDraft,
     showManualInputs,
     stubWorkItem,

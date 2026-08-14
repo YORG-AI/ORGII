@@ -72,6 +72,8 @@ export const RemoteTeammateSessionMetadataSchema = z.object({
     .transform((value) => value ?? undefined)
     .optional(),
   branch: z.string().optional(),
+  baseBranch: z.string().optional(),
+  worktreeBranch: z.string().optional(),
   // Owner agent/model identity (teammate hover card): opaque-payload
   // passengers like repoScopeKey — absent on rows from older clients.
   cliAgentType: z.string().optional(),

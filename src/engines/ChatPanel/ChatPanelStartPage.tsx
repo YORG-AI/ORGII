@@ -272,11 +272,11 @@ export function ChatPanelStartPage({
                   }
                 }}
                 size="large"
-                appearance="ghost"
+                appearance="bare"
                 radius="pill"
                 dropdownMinWidth={168}
                 dropdownWidthMode="auto"
-                className="w-auto"
+                className="select-title-row w-auto"
                 selectorClassName="max-w-[240px] !gap-2 !px-1 !text-[16px] !leading-6 [&_.select-suffix]:!ml-0"
                 dataTestId="chat-panel-start-page-create-target-select"
               />

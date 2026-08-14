@@ -10,6 +10,7 @@ import {
   Folder,
   FolderKanban,
   GitBranch,
+  GitFork,
   GitPullRequest,
   Globe,
   LayoutList,
@@ -37,6 +38,7 @@ import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ROUTES } from "@src/config/routes";
 import {
   FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS,
+  isSameFocusedChatGitEnvironment,
   resolveFocusedChatWorkstationRailInsetStyle,
   resolveFocusedChatWorkstationRailTrackClass,
   resolveFocusedChatWorkstationSectionOrder,
@@ -83,6 +85,7 @@ import {
 } from "./blocks";
 
 const FOCUSED_CHAT_RAIL_SECTIONS = {
+  session: { key: "session", label: null },
   tabs: { key: "tabs", label: null },
   workspace: { key: "workspace", label: null },
 } as const;
@@ -118,6 +121,7 @@ type FocusedChatRailSection = {
   key: string;
   label: string | null;
   items: FocusedChatRailItem[];
+  environment?: FocusedChatSessionContext;
 };
 
 interface FocusedChatWorkstationRailProps {
@@ -134,6 +138,9 @@ interface FocusedChatWorkstationRailProps {
 export interface FocusedChatSessionContext {
   branchName?: string;
   repoName?: string;
+  repoPath?: string;
+  worktreeBranchName?: string;
+  worktreePath?: string;
   workItem?: {
     label: string;
     onClick?: () => void;
@@ -142,12 +149,9 @@ export interface FocusedChatSessionContext {
 }
 
 interface WorkstationSectionsProps {
-  branchName?: string;
   compact?: boolean;
   onRequestClose?: () => void;
-  repoName?: string;
   sections: FocusedChatRailSection[];
-  workItem?: FocusedChatSessionContext["workItem"];
 }
 
 const WORKSTATION_HOST_ROUTES: Record<WorkstationTabHost, string> = {
@@ -202,6 +206,7 @@ function WorkspaceContextRow({
   onClick,
   onRequestClose,
   testId,
+  title,
 }: {
   compact?: boolean;
   icon: LucideIcon;
@@ -209,9 +214,10 @@ function WorkspaceContextRow({
   onClick?: () => void;
   onRequestClose?: () => void;
   testId?: string;
+  title?: string;
 }) {
   const className = compact
-    ? "flex h-8 min-w-0 items-center gap-2 overflow-hidden rounded-md px-1.5 text-text-1"
+    ? "flex h-8 min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 text-text-1"
     : "flex h-7 min-w-0 items-center gap-1.5 overflow-hidden rounded-lg px-2 text-text-1";
   const content = (
     <>
@@ -231,7 +237,7 @@ function WorkspaceContextRow({
       <button
         type="button"
         className={`${className} w-full text-left transition-colors hover:bg-fill-2`}
-        title={label}
+        title={title ?? label}
         data-testid={testId}
         role={compact ? "menuitem" : undefined}
         onClick={() => {
@@ -245,7 +251,7 @@ function WorkspaceContextRow({
   }
 
   return (
-    <div className={className} title={label} data-testid={testId}>
+    <div className={className} title={title ?? label} data-testid={testId}>
       {content}
     </div>
   );
@@ -271,7 +277,7 @@ function WorkstationItemRow({
       type="button"
       className={
         compact
-          ? `${DROPDOWN_CLASSES.item} min-w-0 flex-1 text-left ${
+          ? `${DROPDOWN_CLASSES.item} min-w-0 flex-1 !px-2 text-left ${
               item.onClick
                 ? DROPDOWN_CLASSES.itemHover
                 : `${DROPDOWN_CLASSES.itemDisabled} text-text-3`
@@ -421,16 +427,13 @@ function resolveRailStatusDotClass(state: BranchCiStatus): string {
 }
 
 function WorkstationSections({
-  branchName,
   compact = false,
   onRequestClose,
-  repoName,
   sections,
-  workItem,
 }: WorkstationSectionsProps) {
   return (
     <div
-      className={compact ? "space-y-2 p-1" : "space-y-3"}
+      className={compact ? "space-y-2" : "space-y-3"}
       role={compact ? "menu" : undefined}
     >
       {sections.map((section) => (
@@ -439,39 +442,48 @@ function WorkstationSections({
           className={compact ? "space-y-0.5" : "space-y-1"}
         >
           {section.label && (
-            <div
-              className={`text-[11px] font-medium uppercase tracking-wide text-text-3 ${
-                compact ? "px-1.5" : "px-1"
-              }`}
-            >
+            <div className="px-2 text-left text-[11px] font-medium uppercase tracking-wide text-text-3">
               {section.label}
             </div>
           )}
-          {section.key === "workspace" &&
-            (repoName || branchName || workItem) && (
+          {section.environment &&
+            (section.environment.repoName ||
+              section.environment.branchName ||
+              section.environment.worktreeBranchName ||
+              section.environment.workItem) && (
               <>
-                {repoName && (
+                {section.environment.repoName && (
                   <WorkspaceContextRow
                     compact={compact}
                     icon={Folder}
-                    label={repoName}
+                    label={section.environment.repoName}
                   />
                 )}
-                {branchName && (
+                {section.environment.branchName && (
                   <WorkspaceContextRow
                     compact={compact}
                     icon={GitBranch}
-                    label={branchName}
+                    label={section.environment.branchName}
                   />
                 )}
-                {workItem && (
+                {section.environment.worktreeBranchName && (
+                  <WorkspaceContextRow
+                    compact={compact}
+                    icon={GitFork}
+                    label={section.environment.worktreeBranchName}
+                    title={section.environment.worktreePath}
+                  />
+                )}
+                {section.environment.workItem && (
                   <WorkspaceContextRow
                     compact={compact}
                     icon={FolderKanban}
-                    label={`${workItem.label}${
-                      workItem.statusLabel ? ` · ${workItem.statusLabel}` : ""
+                    label={`${section.environment.workItem.label}${
+                      section.environment.workItem.statusLabel
+                        ? ` · ${section.environment.workItem.statusLabel}`
+                        : ""
                     }`}
-                    onClick={workItem.onClick}
+                    onClick={section.environment.workItem.onClick}
                     onRequestClose={onRequestClose}
                     testId="session-active-work-item-pill"
                   />
@@ -508,8 +520,6 @@ export function FocusedChatWorkstationRail({
     activeWorkspaceRoot?.repo?.name ?? activeWorkspaceRoot?.name ?? undefined;
   const { currentBranch } = useRepoSelection({ autoLoad: false });
   const activeBranchName = currentBranch || undefined;
-  const repoName = sessionContext?.repoName ?? activeRepoName;
-  const branchName = sessionContext?.branchName ?? activeBranchName;
 
   const { repoId, repoPath: activeRepoPath } = useActiveRepoRef();
   const { additions: reviewAdditions, deletions: reviewDeletions } =
@@ -523,6 +533,35 @@ export function FocusedChatWorkstationRail({
     repoId,
     repoPath: activeRepoPath,
   });
+  const sessionSharesLocalGitEnvironment = isSameFocusedChatGitEnvironment({
+    localBranchName: activeBranchName,
+    localRepoPath: activeRepoPath,
+    sessionBranchName:
+      sessionContext?.worktreeBranchName ?? sessionContext?.branchName,
+    sessionRepoPath: sessionContext?.repoPath,
+  });
+  const sessionGitLookupEnabled = Boolean(
+    (sessionContext?.worktreeBranchName ?? sessionContext?.branchName) &&
+    sessionContext.repoPath &&
+    !sessionSharesLocalGitEnvironment
+  );
+  const { ciStatus: sessionBranchCiStatus, pr: sessionBranchPullRequest } =
+    useBranchPullRequestStatus({
+      branchName: sessionGitLookupEnabled
+        ? (sessionContext?.worktreeBranchName ?? sessionContext?.branchName)
+        : undefined,
+      repoPath: sessionGitLookupEnabled ? sessionContext?.repoPath : undefined,
+    });
+  const resolvedSessionBranchCiStatus = sessionSharesLocalGitEnvironment
+    ? branchCiStatus
+    : sessionGitLookupEnabled
+      ? sessionBranchCiStatus
+      : null;
+  const resolvedSessionBranchPullRequest = sessionSharesLocalGitEnvironment
+    ? branchPullRequest
+    : sessionGitLookupEnabled
+      ? sessionBranchPullRequest
+      : null;
 
   const tabEntries = useAtomValue(tabRegistryAtom);
   const terminalSessions = useAtomValue(terminalSessionsAtom);
@@ -739,19 +778,110 @@ export function FocusedChatWorkstationRail({
     ]
   );
 
-  const sections = useMemo<FocusedChatRailSection[]>(
+  const sessionPullRequestStatus = useMemo<
+    FocusedChatRailItem["status"] | undefined
+  >(() => {
+    if (!resolvedSessionBranchPullRequest || !resolvedSessionBranchCiStatus) {
+      return undefined;
+    }
+    const label =
+      resolvedSessionBranchCiStatus === "success"
+        ? t("common:git.pr.checks.passedShort")
+        : resolvedSessionBranchCiStatus === "failure"
+          ? t("common:git.pr.checks.failedShort")
+          : resolvedSessionBranchCiStatus === "pending"
+            ? t("common:git.pr.checks.runningShort")
+            : resolvedSessionBranchCiStatus === "checking"
+              ? t("common:git.pr.checks.checkingShort")
+              : resolvedSessionBranchCiStatus === "none"
+                ? t("common:git.pr.checks.noneShort")
+                : t("common:git.pr.checks.unavailableShort");
+    return {
+      label,
+      state: resolvedSessionBranchCiStatus,
+      title: t("common:git.pr.checks.branchStatus", {
+        number: resolvedSessionBranchPullRequest.number,
+        status: label,
+      }),
+    };
+  }, [resolvedSessionBranchCiStatus, resolvedSessionBranchPullRequest, t]);
+
+  const sessionItems = useMemo<FocusedChatRailItem[]>(
     () =>
-      resolveFocusedChatWorkstationSectionOrder(openTabItems.length > 0).map(
-        (sectionKey) => ({
-          ...FOCUSED_CHAT_RAIL_SECTIONS[sectionKey],
-          label: sectionKey === "tabs" ? t("common:git.rail.openTabs") : null,
-          items: sectionKey === "tabs" ? openTabItems : workspaceItems,
-        })
-      ),
-    [openTabItems, t, workspaceItems]
+      resolvedSessionBranchPullRequest
+        ? [
+            {
+              key: `session-pull-request:${resolvedSessionBranchPullRequest.number}`,
+              label: t("common:git.pr.linkedBranch", {
+                number: resolvedSessionBranchPullRequest.number,
+              }),
+              icon: GitPullRequest,
+              external: true,
+              status: sessionPullRequestStatus,
+              onClick: () =>
+                void openExternalLink(resolvedSessionBranchPullRequest.url),
+            },
+          ]
+        : [],
+    [resolvedSessionBranchPullRequest, sessionPullRequestStatus, t]
   );
 
-  const environmentLabel = t("navigation:labels.environment");
+  const hasSessionEnvironment = Boolean(
+    sessionContext?.repoName ||
+    sessionContext?.branchName ||
+    sessionContext?.worktreeBranchName ||
+    sessionContext?.workItem
+  );
+  const sections = useMemo<FocusedChatRailSection[]>(() => {
+    const localEnvironment: FocusedChatSessionContext = {
+      repoName: activeRepoName,
+      branchName: activeBranchName,
+    };
+    return resolveFocusedChatWorkstationSectionOrder(
+      openTabItems.length > 0,
+      hasSessionEnvironment
+    ).map((sectionKey) => ({
+      ...FOCUSED_CHAT_RAIL_SECTIONS[sectionKey],
+      label:
+        sectionKey === "session"
+          ? null
+          : sectionKey === "workspace"
+            ? t("navigation:labels.localEnvironment")
+            : t("common:git.rail.openTabs"),
+      items:
+        sectionKey === "tabs"
+          ? openTabItems
+          : sectionKey === "workspace"
+            ? workspaceItems
+            : sessionItems,
+      environment:
+        sectionKey === "session"
+          ? sessionContext
+          : sectionKey === "workspace"
+            ? localEnvironment
+            : undefined,
+    }));
+  }, [
+    activeBranchName,
+    activeRepoName,
+    hasSessionEnvironment,
+    openTabItems,
+    sessionContext,
+    sessionItems,
+    t,
+    workspaceItems,
+  ]);
+
+  const environmentLabel = t("navigation:labels.sessionEnvironment");
+  const compactSections = useMemo<FocusedChatRailSection[]>(
+    () =>
+      sections.map((section) =>
+        section.key === "session"
+          ? { ...section, label: environmentLabel }
+          : section
+      ),
+    [environmentLabel, sections]
+  );
   const toggleCollapsed = () => {
     setCollapsed((current) => {
       const next = !current;
@@ -769,25 +899,15 @@ export function FocusedChatWorkstationRail({
             onVisibleChange={setMenuOpen}
             className={`${DROPDOWN_CLASSES.menuPanelWithHeaderBase} w-72`}
             droplist={
-              <>
-                <div className="flex h-10 items-center border-b border-border-2 px-3">
-                  <span className="text-[13px] font-medium text-text-2">
-                    {environmentLabel}
-                  </span>
-                </div>
-                <div
-                  className={`${DROPDOWN_CLASSES.optionsContainerOverlay} max-h-96 py-2`}
-                >
-                  <WorkstationSections
-                    branchName={branchName}
-                    compact
-                    onRequestClose={() => setMenuOpen(false)}
-                    repoName={repoName}
-                    sections={sections}
-                    workItem={sessionContext?.workItem}
-                  />
-                </div>
-              </>
+              <div
+                className={`${DROPDOWN_CLASSES.optionsContainerOverlay} max-h-96`}
+              >
+                <WorkstationSections
+                  compact
+                  onRequestClose={() => setMenuOpen(false)}
+                  sections={compactSections}
+                />
+              </div>
             }
           >
             <Button
@@ -877,12 +997,7 @@ export function FocusedChatWorkstationRail({
             </div>
           ) : (
             <WorkstationTrailBody>
-              <WorkstationSections
-                branchName={branchName}
-                repoName={repoName}
-                sections={sections}
-                workItem={sessionContext?.workItem}
-              />
+              <WorkstationSections sections={sections} />
             </WorkstationTrailBody>
           )}
         </WorkstationTrailSurface>
