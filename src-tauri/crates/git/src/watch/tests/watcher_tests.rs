@@ -1,8 +1,9 @@
 use notify::{event::ModifyKind, Event, EventKind};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
-use crate::watch::types::RepoChangeType;
-use crate::watch::watcher::RepoWatcher;
+use crate::watch::types::{RepoChangeType, WatchActivity};
+use crate::watch::watcher::{select_watch_eviction_victims, RepoWatcher};
 
 fn make_event(paths: Vec<PathBuf>) -> Event {
     Event {
@@ -10,6 +11,53 @@ fn make_event(paths: Vec<PathBuf>) -> Event {
         paths,
         attrs: Default::default(),
     }
+}
+
+fn watch_activity(repo_id: &str, age: Duration, has_in_flight_jobs: bool) -> WatchActivity {
+    WatchActivity {
+        repo_id: repo_id.to_string(),
+        last_activity: Instant::now() - age,
+        has_in_flight_jobs,
+    }
+}
+
+// ============================================
+// watch capacity eviction
+// ============================================
+
+#[test]
+fn watch_capacity_evicts_oldest_idle_repositories() {
+    let activity = vec![
+        watch_activity("recent", Duration::from_secs(10), false),
+        watch_activity("oldest", Duration::from_secs(30), false),
+        watch_activity("older", Duration::from_secs(20), false),
+    ];
+
+    assert_eq!(
+        select_watch_eviction_victims(&activity, &[], 2),
+        vec!["oldest".to_string(), "older".to_string()]
+    );
+}
+
+#[test]
+fn watch_capacity_preserves_protected_and_busy_repositories() {
+    let activity = vec![
+        watch_activity("active-poll", Duration::from_secs(40), false),
+        watch_activity("busy", Duration::from_secs(30), true),
+        watch_activity("eligible", Duration::from_secs(20), false),
+    ];
+
+    assert_eq!(
+        select_watch_eviction_victims(&activity, &["active-poll", "incoming"], 3),
+        vec!["eligible".to_string()]
+    );
+}
+
+#[test]
+fn watch_capacity_does_nothing_without_overflow() {
+    let activity = vec![watch_activity("repo", Duration::from_secs(10), false)];
+
+    assert!(select_watch_eviction_victims(&activity, &[], 0).is_empty());
 }
 
 // ============================================

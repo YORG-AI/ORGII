@@ -85,6 +85,19 @@ impl RepoState {
     }
 }
 
+/// Lightweight per-repo record used to pick watch-capacity eviction victims.
+///
+/// Cloning whole `RepoState` values would allocate in proportion to every
+/// cached status file list; capacity checks only need identity, recency, and
+/// whether work is still in flight.
+#[derive(Debug, Clone)]
+pub struct WatchActivity {
+    pub repo_id: String,
+    /// Most recent of the last filesystem event and the last status refresh.
+    pub last_activity: Instant,
+    pub has_in_flight_jobs: bool,
+}
+
 // ============================================
 // Git Status
 // ============================================
