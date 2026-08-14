@@ -1254,6 +1254,21 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
     .map_err(|error| error.to_string())??;
 
     for run in runs {
+        recover_one_agent_org_starting_run(state, &run).await?;
+    }
+    Ok(())
+}
+
+/// One Starting run's recovery step: rematerialize members, persist the
+/// initial input, and finish (or fail) Starting. Shared by the startup
+/// one-shot and the bounded watchdog-tick retry owner.
+async fn recover_one_agent_org_starting_run(
+    state: &AgentAppState,
+    run: &crate::coordination::agent_org_runs::AgentOrgRunRecord,
+) -> Result<(), String> {
+    {
+        // Body kept at its historical indentation to preserve blame; the
+        // former loop `continue`s are per-run `return Ok(())` outcomes.
         let Some(root_session_id) = run.root_session_id.as_deref() else {
             AgentOrgRunStore::fail_starting(
                 &run.id,
@@ -1263,7 +1278,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
                     "Starting run has no coordinator Session identity",
                 ),
             )?;
-            continue;
+            return Ok(());
         };
         let root = persistence::get_session(root_session_id)
             .map_err(|error| error.to_string())?
@@ -1279,7 +1294,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
                         message,
                     ),
                 )?;
-                continue;
+                return Ok(());
             }
         };
         let Some(snapshot_raw) = run.org_snapshot_json.as_deref() else {
@@ -1291,7 +1306,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
                     format!("Starting run {} has no launch snapshot", run.id),
                 ),
             )?;
-            continue;
+            return Ok(());
         };
         let snapshot: crate::definitions::orgs::OrgDefinition =
             match serde_json::from_str(snapshot_raw) {
@@ -1305,7 +1320,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
                             error.to_string(),
                         ),
                     )?;
-                    continue;
+                    return Ok(());
                 }
             };
         let workspace_path = root
@@ -1335,17 +1350,17 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
                     run.activation_generation,
                     error.failure(),
                 )?;
-                continue;
+                return Ok(());
             }
             tracing::warn!(run_id = %run.id, error = %error, "[agent-org-startup] materialization retry deferred");
-            continue;
+            return Ok(());
         }
 
         let initial_input = match AgentOrgRunStore::initial_input(&run.id) {
             Ok(input) => input,
             Err(error) => {
                 tracing::warn!(run_id = %run.id, error = %error, "[agent-org-startup] initial input lookup retry deferred");
-                continue;
+                return Ok(());
             }
         };
         if let Some(input) = initial_input {
@@ -1363,7 +1378,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
                 } else {
                     tracing::warn!(run_id = %run.id, error = %error, "[agent-org-startup] initial input persistence retry deferred");
                 }
-                continue;
+                return Ok(());
             }
         }
         if let Err(error) = AgentOrgRunStore::finish_starting(&run.id, run.activation_generation) {
@@ -1384,62 +1399,192 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
     Ok(())
 }
 
-async fn recover_agent_org_initial_dispatches(state: &AgentAppState) -> Result<(), String> {
-    let inputs = tokio::task::spawn_blocking(|| {
-        AgentOrgRunStore::recoverable_initial_inputs(AGENT_ORG_STARTUP_RECOVERY_LIMIT)
+/// Starting runs younger than this are still owned by their in-process
+/// launch task; only older ones are presumed abandoned by a transient error
+/// and re-driven from the watchdog tick.
+pub(crate) const STARTING_RETRY_GRACE_SECS: i64 = 2 * 60;
+/// Bounded per-tick Starting retries so the watchdog tick stays cheap.
+pub(crate) const STARTING_RETRY_MAX_RUNS_PER_TICK: usize = 10;
+
+/// Select the bounded set of Starting runs old enough for a tick-driven
+/// retry. An unparseable `updated_at` counts as aged: a corrupt timestamp
+/// must escalate into recovery rather than silently exempt the run forever.
+pub(crate) fn select_aged_starting_runs(
+    runs: Vec<crate::coordination::agent_org_runs::AgentOrgRunRecord>,
+    now: chrono::DateTime<chrono::Utc>,
+    grace_secs: i64,
+    limit: usize,
+) -> Vec<crate::coordination::agent_org_runs::AgentOrgRunRecord> {
+    let aged_before = now - chrono::Duration::seconds(grace_secs);
+    runs.into_iter()
+        .filter(|run| {
+            match chrono::DateTime::parse_from_rfc3339(&run.updated_at) {
+                Ok(updated_at) => updated_at.with_timezone(&chrono::Utc) <= aged_before,
+                Err(error) => {
+                    tracing::warn!(
+                        run_id = %run.id,
+                        updated_at = %run.updated_at,
+                        error = %error,
+                        "[agent-org-watchdog] unparseable Starting run updated_at; treating as aged"
+                    );
+                    true
+                }
+            }
+        })
+        .take(limit)
+        .collect()
+}
+
+/// Bounded Starting retry owner driven from the watchdog tick. Transient
+/// launch errors used to defer to the next app restart while the frontend
+/// polled the Starting team forever; this pass re-drives the same per-run
+/// startup recovery routine for at most
+/// [`STARTING_RETRY_MAX_RUNS_PER_TICK`] aged runs per tick, sharing the
+/// watchdog's scan deadline. A team that reaches Running here may still hold
+/// its queued canonical initial input, so the bounded dispatch pass is
+/// re-driven under the same deadline.
+pub(crate) async fn recover_aged_starting_runs_from_tick(
+    state: &AgentAppState,
+    deadline: std::time::Instant,
+) -> Result<(), String> {
+    let runs = tokio::task::spawn_blocking(|| {
+        AgentOrgRunStore::list_starting_runs(AGENT_ORG_STARTUP_RECOVERY_LIMIT)
     })
     .await
     .map_err(|error| error.to_string())??;
+    let aged = select_aged_starting_runs(
+        runs,
+        chrono::Utc::now(),
+        STARTING_RETRY_GRACE_SECS,
+        STARTING_RETRY_MAX_RUNS_PER_TICK,
+    );
+    for run in aged {
+        if std::time::Instant::now() >= deadline {
+            return Ok(());
+        }
+        if let Err(error) = recover_one_agent_org_starting_run(state, &run).await {
+            tracing::warn!(
+                run_id = %run.id,
+                error = %error,
+                "[agent-org-watchdog] Starting retry failed for one team; continuing"
+            );
+        }
+    }
+    recover_agent_org_initial_dispatches_bounded(
+        state,
+        STARTING_RETRY_MAX_RUNS_PER_TICK,
+        Some(deadline),
+    )
+    .await
+}
+
+async fn recover_agent_org_initial_dispatches(state: &AgentAppState) -> Result<(), String> {
+    recover_agent_org_initial_dispatches_bounded(state, AGENT_ORG_STARTUP_RECOVERY_LIMIT, None)
+        .await
+}
+
+/// Re-dispatch recoverable canonical initial inputs. Failures are isolated
+/// per team: the previous `?`-in-loop meant one bad payload starved every
+/// later team on every boot. `deadline` lets the bounded watchdog-tick caller
+/// share its scan budget.
+pub(crate) async fn recover_agent_org_initial_dispatches_bounded(
+    state: &AgentAppState,
+    limit: usize,
+    deadline: Option<std::time::Instant>,
+) -> Result<(), String> {
+    let inputs =
+        tokio::task::spawn_blocking(move || AgentOrgRunStore::recoverable_initial_inputs(limit))
+            .await
+            .map_err(|error| error.to_string())??;
 
     for input in inputs {
-        let Some(run) = AgentOrgRunStore::load(&input.org_run_id)? else {
-            continue;
-        };
-        let Some(root_session_id) = run.root_session_id.as_deref() else {
-            continue;
-        };
-        let Some(root) =
-            persistence::get_session(root_session_id).map_err(|error| error.to_string())?
-        else {
-            continue;
-        };
-        persistence::update_status(root_session_id, crate::session::SessionStatus::Idle)
-            .map_err(|error| error.to_string())?;
-        let workspace_path = root
-            .worktree_path
-            .clone()
-            .or(root.workspace_path.clone())
-            .unwrap_or_default();
-        let native_harness_type = root
-            .native_harness_type
-            .as_deref()
-            .map(|raw| {
-                core_types::providers::NativeHarnessType::parse(raw)
-                    .ok_or_else(|| format!("Unknown native_harness_type: {raw:?}"))
-            })
-            .transpose()?;
-        let payload = decode_agent_org_initial_input_payload(&input)?;
-        send_initial_turn(
-            state,
-            root_session_id,
-            input.content.clone(),
-            root.model,
-            root.account_id,
-            workspace_path,
-            native_harness_type,
-            root.agent_exec_mode,
-            payload.images,
-            payload.ide_context,
-            Some(run.coordinator_agent_id),
-            payload.sub_agent_ids,
-            Some(run.id.clone()),
-            Some(input.message_id.clone()),
-            Some(input.turn_intent_id.clone()),
-            crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
-        )
-        .await?;
-        AgentOrgRunStore::mark_initial_input_dispatched(&run.id, &input.turn_intent_id)?;
+        if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+            break;
+        }
+        if let Err(error) = recover_one_agent_org_initial_dispatch(state, &input).await {
+            tracing::warn!(
+                run_id = %input.org_run_id,
+                turn_intent_id = %input.turn_intent_id,
+                error = %error,
+                "[agent-org-startup] initial dispatch recovery failed for one team; continuing"
+            );
+        }
     }
+    Ok(())
+}
+
+async fn recover_one_agent_org_initial_dispatch(
+    state: &AgentAppState,
+    input: &crate::coordination::agent_org_runs::AgentOrgInitialInput,
+) -> Result<(), String> {
+    let Some(run) = AgentOrgRunStore::load(&input.org_run_id)? else {
+        return Ok(());
+    };
+    let Some(root_session_id) = run.root_session_id.as_deref() else {
+        return Ok(());
+    };
+    let Some(root) = persistence::get_session(root_session_id).map_err(|error| error.to_string())?
+    else {
+        return Ok(());
+    };
+    // An undecodable durable payload on a Running run can never dispatch;
+    // retrying it every boot (and every watchdog pass) is pure noise. Reject
+    // the queued canonical intent — a legal queued→rejected transition — so
+    // the input stops matching the recoverable query forever.
+    let payload = match decode_agent_org_initial_input_payload(input) {
+        Ok(payload) => payload,
+        Err(error) if is_permanent_initial_input_payload_error(&error) => {
+            tracing::error!(
+                run_id = %run.id,
+                root_session_id = %root_session_id,
+                turn_intent_id = %input.turn_intent_id,
+                error = %error,
+                "[agent-org-startup] initial input payload is permanently undecodable; rejecting the canonical intent so recovery stops retrying it"
+            );
+            crate::foundation::session_bridge::update_turn_intent_status(
+                root_session_id,
+                &input.turn_intent_id,
+                crate::foundation::session_bridge::TurnIntentBridgeStatus::Rejected,
+            );
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
+    persistence::update_status(root_session_id, crate::session::SessionStatus::Idle)
+        .map_err(|error| error.to_string())?;
+    let workspace_path = root
+        .worktree_path
+        .clone()
+        .or(root.workspace_path.clone())
+        .unwrap_or_default();
+    let native_harness_type = root
+        .native_harness_type
+        .as_deref()
+        .map(|raw| {
+            core_types::providers::NativeHarnessType::parse(raw)
+                .ok_or_else(|| format!("Unknown native_harness_type: {raw:?}"))
+        })
+        .transpose()?;
+    send_initial_turn(
+        state,
+        root_session_id,
+        input.content.clone(),
+        root.model,
+        root.account_id,
+        workspace_path,
+        native_harness_type,
+        root.agent_exec_mode,
+        payload.images,
+        payload.ide_context,
+        Some(run.coordinator_agent_id.clone()),
+        payload.sub_agent_ids,
+        Some(run.id.clone()),
+        Some(input.message_id.clone()),
+        Some(input.turn_intent_id.clone()),
+        crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
+    )
+    .await?;
+    AgentOrgRunStore::mark_initial_input_dispatched(&run.id, &input.turn_intent_id)?;
     Ok(())
 }
 

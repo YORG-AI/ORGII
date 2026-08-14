@@ -23,8 +23,13 @@ pub fn spawn(app_handle: AppHandle) {
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
+            // One deadline for the whole tick: the Working scan and the
+            // Starting retry pass share the same bounded budget.
+            let deadline = Instant::now() + WATCHDOG_SCAN_BUDGET;
             let handle = app_handle.clone();
-            match tokio::task::spawn_blocking(move || recover_all_stalled_runs(handle)).await {
+            match tokio::task::spawn_blocking(move || recover_all_stalled_runs(handle, deadline))
+                .await
+            {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
                     tracing::warn!(error = %err, "[agent_org_watchdog] watchdog scan failed")
@@ -33,12 +38,27 @@ pub fn spawn(app_handle: AppHandle) {
                     tracing::warn!(error = %err, "[agent_org_watchdog] watchdog task join failed")
                 }
             }
+            // Bounded Starting retry owner: transient launch errors otherwise
+            // wait for the next app restart while the frontend polls the
+            // Starting team forever.
+            use tauri::Manager;
+            if let Some(state) = app_handle.try_state::<crate::state::AgentAppState>() {
+                if let Err(err) = crate::core::session::launch::recover_aged_starting_runs_from_tick(
+                    &state, deadline,
+                )
+                .await
+                {
+                    tracing::warn!(
+                        error = %err,
+                        "[agent_org_watchdog] Starting retry pass failed"
+                    );
+                }
+            }
         }
     });
 }
 
-fn recover_all_stalled_runs(app_handle: AppHandle) -> Result<(), String> {
-    let deadline = Instant::now() + WATCHDOG_SCAN_BUDGET;
+fn recover_all_stalled_runs(app_handle: AppHandle, deadline: Instant) -> Result<(), String> {
     let runs = AgentOrgRunStore::list_running_runs(WATCHDOG_MAX_RUNS)?;
     recover_listed_runs_until(app_handle, runs, deadline, recover_stalled_run)
 }
