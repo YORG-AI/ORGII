@@ -89,16 +89,21 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
   };
 
   const defaultClassName =
-    "flex items-center border w-fit border-border-2 border-solid rounded-[8px] px-3 py-[1px] gap-1 text-text-2 text-[14px] bg-bg-3 cursor-pointer hover:bg-fill-2 transition-colors";
+    "flex items-center border w-fit border-border-2 border-solid rounded-[8px] px-3 py-[1px] gap-1 text-text-2 text-[14px] bg-bg-3 cursor-pointer hover:bg-fill-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30";
 
   return (
     <div className={`date-range-selector ${className}`}>
-      <div className={`${defaultClassName}`} onClick={() => setIsOpen(!isOpen)}>
+      <button
+        type="button"
+        className={`${defaultClassName}`}
+        onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+      >
         <Calendar className="text-[14px] text-text-2" size={14} />
         <span className="text-[14px] font-[400] text-text-2">
           {dateRange || placeholder}
         </span>
-      </div>
+      </button>
 
       {isOpen && (
         <div className="date-range-selector__picker">

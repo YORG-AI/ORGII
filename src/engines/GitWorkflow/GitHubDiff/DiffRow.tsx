@@ -8,6 +8,8 @@ import hljs from "highlight.js";
 import { ChevronDown, ChevronRight, Minus, Plus } from "lucide-react";
 import React, { useMemo } from "react";
 
+import { createKeyboardActivationHandler } from "@src/util/dom/keyboardActivation";
+
 import type { DiffRowProps, SplitDiffRowProps } from "./types";
 
 // ============================================
@@ -233,7 +235,14 @@ interface CollapsedSectionProps {
 export const CollapsedSection: React.FC<CollapsedSectionProps> = React.memo(
   ({ lineCount, isExpanded, onToggle }) => {
     return (
-      <div className="diff-collapsed-section" onClick={onToggle}>
+      <div
+        className="diff-collapsed-section"
+        onClick={onToggle}
+        onKeyDown={createKeyboardActivationHandler(onToggle)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+      >
         <div className="diff-collapsed-icon">
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </div>

@@ -6,6 +6,8 @@
 import { ArrowDownFromLine, ArrowUpFromLine, FoldVertical } from "lucide-react";
 import React from "react";
 
+import { createKeyboardActivationHandler } from "@src/util/dom/keyboardActivation";
+
 import type { CollapsedSection } from "../types";
 
 interface CollapseRowProps {
@@ -28,7 +30,15 @@ export const CollapseRow: React.FC<CollapseRowProps> = ({
         : FoldVertical;
 
   return (
-    <div className="split-row split-row-collapse" onClick={onExpand}>
+    <div
+      className="split-row split-row-collapse"
+      onClick={onExpand}
+      onKeyDown={createKeyboardActivationHandler(onExpand)}
+      role="button"
+      tabIndex={0}
+      aria-expanded={false}
+      aria-label={`Expand ${collapsedSection.collapsedCount} unchanged lines`}
+    >
       {/* Left pane */}
       <div className="split-row-pane split-row-pane-left split-row-context">
         <div className="split-row-content collapse-placeholder" />

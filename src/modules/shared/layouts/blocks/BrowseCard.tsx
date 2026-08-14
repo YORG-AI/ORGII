@@ -5,7 +5,9 @@
  * and the Open VSX extension market.
  *
  * When `actionButton` is provided the chevron is replaced by the action area
- * and the outer element becomes a `<div>` so the nested button is valid HTML.
+ * and the card's primary click target becomes a stretched sibling `<button>`
+ * (absolutely positioned overlay) so the action button is never nested inside
+ * another button and both stay keyboard-operable.
  */
 import { ChevronRight } from "lucide-react";
 import React from "react";
@@ -52,8 +54,10 @@ const BrowseCard: React.FC<BrowseCardProps> = ({
   className = "",
 }) => {
   const baseClasses = `group/card relative flex w-full items-start gap-3 rounded-lg bg-fill-2 px-4 py-3 text-left transition-colors hover:bg-fill-2 ${className}`;
+  const focusRingClasses =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30";
 
-  const content = (
+  const mainContent = (
     <>
       {icon && <div className="shrink-0">{icon}</div>}
       <div className="min-w-0 flex-1">
@@ -75,28 +79,38 @@ const BrowseCard: React.FC<BrowseCardProps> = ({
         )}
         {meta && <div className="mt-1.5">{meta}</div>}
       </div>
-      {actionButton ? (
-        <div className="shrink-0">{actionButton}</div>
-      ) : (
-        <ChevronRight
-          size={14}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-text-2 opacity-0 transition-opacity group-hover/card:opacity-100"
-        />
-      )}
     </>
   );
 
   if (actionButton) {
     return (
-      <div className={baseClasses} onClick={onClick} role="group">
-        {content}
+      <div className={baseClasses} role="group">
+        {onClick && (
+          <button
+            type="button"
+            onClick={onClick}
+            aria-label={title}
+            className={`absolute inset-0 cursor-pointer rounded-lg ${focusRingClasses}`}
+          />
+        )}
+        {mainContent}
+        {/* Positioned above the stretched overlay so it receives its own clicks */}
+        <div className="relative z-10 shrink-0">{actionButton}</div>
       </div>
     );
   }
 
   return (
-    <button type="button" className={baseClasses} onClick={onClick}>
-      {content}
+    <button
+      type="button"
+      className={`${baseClasses} ${focusRingClasses}`}
+      onClick={onClick}
+    >
+      {mainContent}
+      <ChevronRight
+        size={14}
+        className="absolute right-4 top-1/2 -translate-y-1/2 text-text-2 opacity-0 transition-opacity group-hover/card:opacity-100"
+      />
     </button>
   );
 };

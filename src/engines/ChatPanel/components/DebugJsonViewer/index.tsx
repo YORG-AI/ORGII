@@ -4,6 +4,8 @@
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 
+import { createKeyboardActivationHandler } from "@src/util/dom/keyboardActivation";
+
 import "./index.scss";
 
 // ============================================
@@ -34,6 +36,21 @@ const JsonNode: React.FC<JsonNodeProps> = memo(
         setIsExpanded((prev) => !prev);
       }
     }, [isExpandable]);
+
+    const handleToggleKeyDown = useMemo(
+      () => createKeyboardActivationHandler(toggleExpand),
+      [toggleExpand]
+    );
+
+    // Only expandable rows are interactive; primitive rows stay inert.
+    const interactiveRowProps = isExpandable
+      ? {
+          role: "button" as const,
+          tabIndex: 0,
+          "aria-expanded": isExpanded,
+          onKeyDown: handleToggleKeyDown,
+        }
+      : {};
 
     // Render primitive value
     const renderValue = () => {
@@ -104,7 +121,11 @@ const JsonNode: React.FC<JsonNodeProps> = memo(
 
     return (
       <div className="json-node" style={{ paddingLeft: depth * 16 }}>
-        <div className="json-node__row" onClick={toggleExpand}>
+        <div
+          className="json-node__row"
+          onClick={isExpandable ? toggleExpand : undefined}
+          {...interactiveRowProps}
+        >
           {/* Expand/Collapse Arrow */}
           {isExpandable &&
             (isExpanded ? (
