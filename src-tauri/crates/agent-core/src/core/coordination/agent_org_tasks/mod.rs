@@ -1,6 +1,6 @@
 //! Agent Org task store: Task schema, persisted to SQLite.
 //!
-//! Tasks are stored in a single `agent_org_tasks` table scoped by
+//! Tasks are stored in a single `agent_org_runtime_tasks` table scoped by
 //! `org_run_id` (one Agent Org run = one team execution).
 //!
 //! This module exposes the schema, structs, and store CRUD used by the Agent
@@ -646,7 +646,11 @@ pub fn new_task_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-/// Initialize the `agent_org_tasks` table.
+/// Initialize the `agent_org_runtime_tasks` table.
+///
+/// Tests-only convenience: production initialization goes through the
+/// namespace coordinator (`coordination::schema::initialize`), never this
+/// module-level entry point.
 ///
 /// Hot-path indexes:
 /// - `(org_run_id, status, owner)` -- bounded status/owner summaries and

@@ -2727,7 +2727,7 @@ async fn post_member_idle_with_failure_reason(
 ///    agent_id and `reason = "available"`.
 /// 2. The production `InboxStoreMemberIdleHook` (installed at app
 ///    boot, no test override) persists a `MemberIdle` envelope into
-///    `agent_inbox` addressed from `_system` to the coordinator.
+///    `agent_org_runtime_inbox` addressed from `_system` to the coordinator.
 /// 3. A subsequent `inbox/list-by-run` asserts the row exists with
 ///    the right sender / recipient / payload shape — i.e. the LLM
 ///    cannot forge it from a peer, and the coordinator's next drain

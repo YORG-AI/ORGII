@@ -50,7 +50,7 @@ const LEGACY_TABLES: [&str; 13] = [
 const RUNTIME_OBJECTS_QUERY: &str = "SELECT type, name, tbl_name, sql
      FROM sqlite_master
      WHERE sql IS NOT NULL
-       AND type IN ('table', 'index', 'trigger')
+       AND type IN ('table', 'index', 'trigger', 'view')
        AND (name LIKE 'agent_org_runtime_%' OR tbl_name LIKE 'agent_org_runtime_%')
      ORDER BY type, name";
 
@@ -193,7 +193,7 @@ fn count_known_tables(conn: &Connection, names: &[&str]) -> SqliteResult<usize> 
 fn count_legacy_objects(conn: &Connection) -> SqliteResult<usize> {
     let mut statement = conn.prepare(
         "SELECT name, tbl_name FROM sqlite_master
-         WHERE type IN ('table', 'index', 'trigger')",
+         WHERE type IN ('table', 'index', 'trigger', 'view')",
     )?;
     let rows = statement.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -211,7 +211,7 @@ fn count_legacy_objects(conn: &Connection) -> SqliteResult<usize> {
 fn unknown_agent_org_objects(conn: &Connection) -> SqliteResult<Vec<String>> {
     let mut statement = conn.prepare(
         "SELECT name FROM sqlite_master
-         WHERE type IN ('table', 'index', 'trigger')
+         WHERE type IN ('table', 'index', 'trigger', 'view')
            AND (name LIKE 'agent_org_%' OR name LIKE 'agent_inbox%' OR name LIKE 'agent_member_%')
          ORDER BY name",
     )?;

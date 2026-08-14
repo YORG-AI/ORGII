@@ -6,6 +6,9 @@
 
 use super::*;
 
+/// Tests-only convenience: production initialization goes through the
+/// namespace coordinator (`coordination::schema::initialize`), never this
+/// module-level entry point.
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     create_schema(conn)
 }

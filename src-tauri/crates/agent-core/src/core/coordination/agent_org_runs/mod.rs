@@ -388,8 +388,11 @@ impl AgentOrgStartingFailure {
 }
 
 /// Initialize the redesigned runtime run envelope in an already-isolated
-/// namespace. Production startup uses the complete schema coordinator; this
-/// narrower entry point remains available to focused unit tests.
+/// namespace.
+///
+/// Tests-only convenience: production initialization goes through the
+/// namespace coordinator (`coordination::schema::initialize`), never this
+/// module-level entry point.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     create_schema(conn)
 }
