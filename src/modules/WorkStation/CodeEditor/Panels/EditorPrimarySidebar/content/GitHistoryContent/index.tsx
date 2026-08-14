@@ -46,6 +46,13 @@ import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import GitHistoryContextMenu from "./GitHistoryContextMenu";
 import {
+  type FilterScanBudget,
+  extendFilterScanBudget,
+  isFilterScanCapped,
+  resolveFilterScanBudget,
+  shouldAutoLoadMoreForFilter,
+} from "./filterAutoLoad";
+import {
   type CommitGraphNode,
   DOT_RADIUS,
   LANE_WIDTH,
@@ -285,6 +292,8 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
     () => initialHistory?.hasMore ?? false
   );
   const [error, setError] = useState<string | null>(null);
+  const [filterScanBudget, setFilterScanBudget] =
+    useState<FilterScanBudget | null>(null);
   const [contextMenuCommit, setContextMenuCommit] =
     useState<GitCommitInfo | null>(null);
   const loadGenerationRef = useRef(0);
@@ -401,13 +410,28 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
     return commits.filter((c) => c.summary.toLowerCase().includes(lower));
   }, [commits, filterQuery]);
 
+  const filterScan = {
+    filterQuery,
+    matchCount: filteredCommits.length,
+    loadedCommitCount: commits.length,
+    hasMore,
+    maxScannedCommits: resolveFilterScanBudget(filterScanBudget, filterQuery),
+  };
+  const filterScanCapped = isFilterScanCapped(filterScan);
+  const autoLoadMoreForFilter = shouldAutoLoadMoreForFilter(filterScan);
+
   // The old visible sentinel continued paging when the loaded page had no
   // filter matches. Keep that behavior so a match in older history remains
-  // discoverable even though there is no virtual row to reach yet.
+  // discoverable even though there is no virtual row to reach yet — bounded,
+  // so one keystroke cannot page an entire repository into memory.
   useEffect(() => {
-    if (!filterQuery || filteredCommits.length > 0 || !hasMore) return;
+    if (!autoLoadMoreForFilter) return;
     void handleLoadMore();
-  }, [filterQuery, filteredCommits.length, handleLoadMore, hasMore]);
+  }, [autoLoadMoreForFilter, handleLoadMore]);
+
+  const handleSearchOlderCommits = useCallback(() => {
+    setFilterScanBudget(extendFilterScanBudget(filterQuery, commits.length));
+  }, [commits.length, filterQuery]);
 
   // Compute graph layout — pure function, deterministic output for same input
   // When a filter is active we skip the graph (flat list only)
@@ -517,6 +541,26 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
           variant="empty"
           placement="sidebar"
           title={t("placeholders.noResults", "No results")}
+          subtitle={
+            filterScanCapped
+              ? t("git.history.filterScanLimit", {
+                  defaultValue: "Searched the newest {{count}} commits",
+                  count: commits.length,
+                })
+              : undefined
+          }
+          action={
+            filterScanCapped
+              ? {
+                  label: t("git.history.searchOlderCommits", {
+                    defaultValue: "Search older commits",
+                  }),
+                  onClick: handleSearchOlderCommits,
+                  disabled: loadingMore,
+                  dataTestId: "git-history-search-older",
+                }
+              : undefined
+          }
           fillParentHeight
         />
       ) : (
