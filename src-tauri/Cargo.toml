@@ -107,7 +107,9 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", default-features = false }
 petgraph = { version = "0.6.4", default-features = false, features = ["serde-1"] }
 chrono = { version = "0.4", features = ["serde"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+# `trace` powers the statement-count assertions in the Agent Org schema
+# coordinator tests (no-op boots must execute a constant statement count).
+rusqlite = { version = "0.32", features = ["bundled", "trace"] }
 axum = { version = "0.8", features = ["ws"] }
 
 # Modern Objective-C bindings (replaces the unmaintained `objc 0.2` /

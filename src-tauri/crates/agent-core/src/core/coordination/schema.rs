@@ -457,7 +457,7 @@ fn schema_error(message: String) -> SqliteError {
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Barrier};
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     use super::*;
 
@@ -1054,38 +1054,87 @@ mod tests {
         assert!(availability::agent_org_runtime_unavailable_reason().is_none());
     }
 
+    /// Guard for the per-boot O(data) fixes: a canonical no-op boot must
+    /// execute exactly as many SQL statements on a database holding 2000
+    /// inbox rows + 2000 receipts + 2000 tasks as on an empty one.
+    /// Statement-count equality is robust where time thresholds are not.
     #[test]
-    fn measures_constant_scale_startup_paths() {
-        const SAMPLES: usize = 25;
-        let mut fresh = Vec::with_capacity(SAMPLES);
-        let mut no_op = Vec::with_capacity(SAMPLES);
-        let mut cleanup = Vec::with_capacity(SAMPLES);
+    fn no_op_boot_statement_count_is_independent_of_data_scale() {
+        use std::cell::Cell;
 
-        for _ in 0..SAMPLES {
-            let conn = connection();
-            let started = Instant::now();
-            initialize(&conn).expect("fresh init");
-            fresh.push(started.elapsed());
-
-            let started = Instant::now();
-            initialize(&conn).expect("canonical no-op init");
-            no_op.push(started.elapsed());
-
-            create_legacy_fixture(&conn, 13, true);
-            let started = Instant::now();
-            initialize(&conn).expect("legacy cleanup init");
-            cleanup.push(started.elapsed());
+        thread_local! {
+            static STATEMENTS: Cell<usize> = const { Cell::new(0) };
+        }
+        fn count_statement(_sql: &str) {
+            STATEMENTS.with(|counter| counter.set(counter.get() + 1));
+        }
+        fn measured_no_op_boot(conn: &mut Connection) -> usize {
+            conn.trace(Some(count_statement));
+            STATEMENTS.with(|counter| counter.set(0));
+            initialize(conn).expect("canonical no-op boot");
+            conn.trace(None);
+            STATEMENTS.with(|counter| counter.get())
         }
 
-        fn summary(samples: &mut [Duration]) -> (Duration, Duration) {
-            samples.sort_unstable();
-            (samples[samples.len() / 2], *samples.last().unwrap())
-        }
-        let (fresh_median, fresh_max) = summary(&mut fresh);
-        let (no_op_median, no_op_max) = summary(&mut no_op);
-        let (cleanup_median, cleanup_max) = summary(&mut cleanup);
-        eprintln!(
-            "Agent Org schema init, {SAMPLES} samples: fresh median={fresh_median:?} max={fresh_max:?}; canonical no-op median={no_op_median:?} max={no_op_max:?}; 13-table cleanup median={cleanup_median:?} max={cleanup_max:?}"
+        // Baseline: fresh create, one settle boot, then a measured no-op.
+        let mut empty = connection();
+        initialize(&empty).expect("fresh init");
+        initialize(&empty).expect("settle boot");
+        let empty_statements = measured_no_op_boot(&mut empty);
+
+        // Seeded: identical boot sequence with 20 runs, 2000 unread inbox
+        // rows, 2000 materialization receipts, and 2000 tasks (100 per run,
+        // inside the per-run limit) present.
+        let mut seeded = connection();
+        initialize(&seeded).expect("fresh init");
+        seeded
+            .execute_batch(
+                "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<20)
+                 INSERT INTO agent_org_runtime_runs (
+                     id, org_id, coordinator_agent_id, root_session_id,
+                     org_snapshot_json, entry_mode, status, created_at, updated_at
+                 )
+                 SELECT 'run-'||printf('%02d', n), 'org-scale', 'coordinator-a', 'root-'||n,
+                        '{}', 'standalone_session', 'idle',
+                        '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z'
+                 FROM seq;
+                 WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<2000)
+                 INSERT INTO agent_org_runtime_inbox (
+                     recipient_agent_id, recipient_member_id, sender_agent_id,
+                     sender_member_id, org_run_id, payload_kind, payload_json,
+                     created_at, read_at
+                 )
+                 SELECT 'agent-a', 'member-a', 'coordinator-a', 'coordinator',
+                        'run-'||printf('%02d', 1+(n%20)), 'message', '{}',
+                        '2026-08-01T00:00:00Z', NULL
+                 FROM seq;
+                 WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<2000)
+                 INSERT INTO agent_org_runtime_inbox_materializations (
+                     inbox_id, session_id, transcript_message_id,
+                     transcript_intent_id, materialized_at
+                 )
+                 SELECT n, 'session-'||n, 'message-'||n, 'turn-'||n,
+                        '2026-08-01T00:00:01Z'
+                 FROM seq;
+                 WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<2000)
+                 INSERT INTO agent_org_runtime_tasks (
+                     id, org_run_id, subject, description, status,
+                     blocks_json, blocked_by_json, created_at, updated_at
+                 )
+                 SELECT 'task-'||n, 'run-'||printf('%02d', 1+(n%20)), 'Task '||n, '',
+                        'pending', '[]', '[]',
+                        '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z'
+                 FROM seq;",
+            )
+            .expect("seed 20 runs, 2000 inbox rows, 2000 receipts, 2000 tasks");
+        initialize(&seeded).expect("settle boot marks every run's normalization");
+        let seeded_statements = measured_no_op_boot(&mut seeded);
+
+        assert!(empty_statements > 0, "trace hook must observe the boot");
+        assert_eq!(
+            seeded_statements, empty_statements,
+            "canonical no-op boot must execute a constant statement count \
+             regardless of stored data volume"
         );
     }
 }
