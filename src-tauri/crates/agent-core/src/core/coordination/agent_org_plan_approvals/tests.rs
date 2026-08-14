@@ -230,18 +230,18 @@ fn approval_dispatches_task_from_legacy_blocks_only_edge() {
 
     let conn = get_connection().expect("test sqlite connection");
     conn.execute(
-        "UPDATE agent_org_tasks SET blocks_json='[\"legacy-build-task\"]'
+        "UPDATE agent_org_runtime_tasks SET blocks_json='[\"legacy-build-task\"]'
              WHERE org_run_id=?1 AND id='plan-task'",
         params![&context.run_id],
     )
     .expect("seed legacy upstream blocks edge");
     conn.execute(
-        "UPDATE agent_org_tasks SET blocked_by_json='[]'
+        "UPDATE agent_org_runtime_tasks SET blocked_by_json='[]'
              WHERE org_run_id=?1 AND id='legacy-build-task'",
         params![&context.run_id],
     )
     .expect("preserve legacy blocks-only representation");
-    conn.execute("DELETE FROM agent_inbox", [])
+    conn.execute("DELETE FROM agent_org_runtime_inbox", [])
         .expect("remove create-time assignment noise");
 
     let pending = create_pending_approval(&context);
@@ -398,7 +398,7 @@ fn watchdog_pending_task_projection_never_materializes_plan_markdown() {
     get_connection()
         .unwrap()
         .execute(
-            "UPDATE agent_org_plan_approvals
+            "UPDATE agent_org_runtime_plan_approvals
                  SET plan_content=CAST(X'80' AS TEXT)
                  WHERE approval_id=?1",
             params![&pending.approval_id],
@@ -417,7 +417,7 @@ fn coordinator_request_insert_failure_rolls_back_pending_creation() {
     create_plan_task(&context);
     get_connection()
         .expect("test db")
-        .execute("DROP TABLE agent_inbox", [])
+        .execute("DROP TABLE agent_org_runtime_inbox", [])
         .expect("remove inbox to force request delivery failure");
 
     let params = approval_params(&context);
@@ -643,7 +643,7 @@ fn feedback_insert_failure_rolls_back_changes_requested_status() {
     let pending = create_pending_approval(&context);
     get_connection()
         .expect("test db")
-        .execute("DROP TABLE agent_inbox", [])
+        .execute("DROP TABLE agent_org_runtime_inbox", [])
         .expect("remove inbox to force delivery failure");
 
     AgentOrgPlanApprovalStore::request_changes(

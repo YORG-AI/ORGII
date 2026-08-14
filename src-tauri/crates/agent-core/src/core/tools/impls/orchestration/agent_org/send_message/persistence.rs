@@ -118,7 +118,7 @@ pub(super) fn persist_ordinary_message_if_running(
             .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
         let run_status: Option<String> = tx
             .query_row(
-                "SELECT status FROM agent_org_runs WHERE id=?1",
+                "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
                 params![run_id],
                 |row| row.get(0),
             )

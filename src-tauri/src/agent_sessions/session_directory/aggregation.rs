@@ -1692,7 +1692,7 @@ mod tests {
             .expect("seed coding session");
         }
         conn.execute(
-            "INSERT INTO agent_org_runs (
+            "INSERT INTO agent_org_runtime_runs (
                 id, org_id, coordinator_agent_id, root_session_id,
                 entry_mode, status, created_at, updated_at
              ) VALUES (

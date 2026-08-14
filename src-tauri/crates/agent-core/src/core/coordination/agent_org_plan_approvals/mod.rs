@@ -149,8 +149,12 @@ pub struct AgentOrgPlanInboxDelivery {
 }
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
+    create_schema(conn)
+}
+
+pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_plan_approvals (
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_plan_approvals (
             approval_id TEXT PRIMARY KEY,
             plan_revision_id TEXT NOT NULL UNIQUE,
             request_id TEXT NOT NULL UNIQUE,
@@ -169,10 +173,10 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             created_at TEXT NOT NULL,
             resolved_at TEXT
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_plan_approvals_run_status
-            ON agent_org_plan_approvals(org_run_id, status, created_at);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_plan_approvals_task
-            ON agent_org_plan_approvals(org_run_id, source_task_id, created_at);",
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_plan_approvals_run_status
+            ON agent_org_runtime_plan_approvals(org_run_id, status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_plan_approvals_task
+            ON agent_org_runtime_plan_approvals(org_run_id, source_task_id, created_at);",
     )?;
     Ok(())
 }

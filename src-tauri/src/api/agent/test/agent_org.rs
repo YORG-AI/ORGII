@@ -1541,7 +1541,7 @@ pub async fn test_agent_org_durable_invariants(
         let conn = database::db::get_connection().map_err(|err| err.to_string())?;
         let run_row: Option<(String, Option<String>)> = conn
             .query_row(
-                "SELECT status, root_session_id FROM agent_org_runs WHERE id = ?1",
+                "SELECT status, root_session_id FROM agent_org_runtime_runs WHERE id = ?1",
                 params![org_run_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -1553,7 +1553,7 @@ pub async fn test_agent_org_durable_invariants(
 
         let open_task_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM agent_org_tasks
+                "SELECT COUNT(*) FROM agent_org_runtime_tasks
                  WHERE org_run_id = ?1 AND status IN ('pending', 'in_progress')",
                 params![org_run_id],
                 |row| row.get(0),
@@ -1561,7 +1561,7 @@ pub async fn test_agent_org_durable_invariants(
             .map_err(|err| err.to_string())?;
         let ownerless_in_progress_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM agent_org_tasks
+                "SELECT COUNT(*) FROM agent_org_runtime_tasks
                  WHERE org_run_id = ?1
                    AND status = 'in_progress'
                    AND (owner IS NULL OR TRIM(owner) = '')",
@@ -1571,7 +1571,7 @@ pub async fn test_agent_org_durable_invariants(
             .map_err(|err| err.to_string())?;
         let unread_inbox_count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM agent_inbox
+                "SELECT COUNT(*) FROM agent_org_runtime_inbox
                  WHERE org_run_id = ?1 AND read_at IS NULL",
                 params![org_run_id],
                 |row| row.get(0),
@@ -1713,12 +1713,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
         agent_core::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
             .map_err(|err| err.to_string())?;
         agent_core::core::session::persistence::init(&conn).map_err(|err| err.to_string())?;
-        agent_core::coordination::agent_org_runs::init_schema(&conn)
-            .map_err(|err| err.to_string())?;
-        agent_core::coordination::agent_member_interventions::init_schema(&conn)
-            .map_err(|err| err.to_string())?;
-        agent_core::coordination::agent_org_tasks::init_schema(&conn)
-            .map_err(|err| err.to_string())?;
+        agent_core::coordination::init_agent_org_schemas(&conn).map_err(|err| err.to_string())?;
 
         let now = fixture_updated_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         upsert_session(&UnifiedSessionRecord {
@@ -1931,7 +1926,7 @@ pub async fn test_agent_org_session_delete_snapshot(
         for run_id in run_ids {
             let exists = conn
                 .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM agent_org_runs WHERE id=?1)",
+                    "SELECT EXISTS(SELECT 1 FROM agent_org_runtime_runs WHERE id=?1)",
                     [&run_id],
                     |row| row.get::<_, bool>(0),
                 )
@@ -2629,7 +2624,7 @@ pub async fn test_agent_org_run_cleanup(
             let mut stmt = conn
                 .prepare(
                     "SELECT id
-                     FROM agent_org_runs
+                     FROM agent_org_runtime_runs
                      WHERE org_id LIKE ?1
                        AND (?2 IS NULL OR id = ?2)",
                 )
@@ -3061,12 +3056,7 @@ pub async fn test_agent_org_seed_cli_member_run(
         agent_core::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
             .map_err(|err| err.to_string())?;
         agent_core::core::session::persistence::init(&conn).map_err(|err| err.to_string())?;
-        agent_core::coordination::agent_org_runs::init_schema(&conn)
-            .map_err(|err| err.to_string())?;
-        agent_core::coordination::agent_member_interventions::init_schema(&conn)
-            .map_err(|err| err.to_string())?;
-        agent_core::coordination::agent_org_tasks::init_schema(&conn)
-            .map_err(|err| err.to_string())?;
+        agent_core::coordination::init_agent_org_schemas(&conn).map_err(|err| err.to_string())?;
         crate::agent_sessions::cli::init_cli_agent_tables(&conn).map_err(|err| err.to_string())?;
 
         let now = chrono::Utc::now().to_rfc3339();

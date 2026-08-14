@@ -88,7 +88,7 @@ impl AgentOrgRunStore {
                     created_at,
                     updated_at,
                     idled_at
-             FROM agent_org_runs
+             FROM agent_org_runtime_runs
              WHERE root_session_id IN ({placeholders})
              ORDER BY updated_at DESC, id DESC"
         );
@@ -324,8 +324,8 @@ impl AgentOrgRunStore {
                 .query_row(
                     "SELECT materialization.agent_id, materialization.session_id,
                             run.root_session_id, materialization.status
-                     FROM agent_org_member_materializations materialization
-                     JOIN agent_org_runs run ON run.id=materialization.org_run_id
+                     FROM agent_org_runtime_member_materializations materialization
+                     JOIN agent_org_runtime_runs run ON run.id=materialization.org_run_id
                      WHERE materialization.org_run_id=?1
                        AND materialization.member_id=?2
                        AND materialization.generation=?3
@@ -377,7 +377,7 @@ impl AgentOrgRunStore {
             }
             let changed = transaction
                 .execute(
-                    "UPDATE agent_org_member_materializations
+                    "UPDATE agent_org_runtime_member_materializations
                      SET status='succeeded', error_code=NULL, error_json=NULL,
                          updated_at=?5
                      WHERE org_run_id=?1 AND member_id=?2 AND generation=?3
@@ -410,7 +410,7 @@ impl AgentOrgRunStore {
             let run: Option<(String, String, i64, bool)> = transaction
                 .query_row(
                     "SELECT status, root_session_id, activation_generation, has_initial_work
-                     FROM agent_org_runs WHERE id=?1",
+                     FROM agent_org_runtime_runs WHERE id=?1",
                     [run_id],
                     |row| {
                         Ok((
@@ -440,7 +440,7 @@ impl AgentOrgRunStore {
             let invalid_materialized_identities: i64 = transaction
                 .query_row(
                     "SELECT COUNT(*)
-                     FROM agent_org_member_materializations materialization
+                     FROM agent_org_runtime_member_materializations materialization
                      LEFT JOIN agent_sessions session
                        ON session.session_id=materialization.session_id
                      WHERE materialization.org_run_id=?1
@@ -484,7 +484,7 @@ impl AgentOrgRunStore {
             }
             let incomplete_materializations: i64 = transaction
                 .query_row(
-                    "SELECT COUNT(*) FROM agent_org_member_materializations
+                    "SELECT COUNT(*) FROM agent_org_runtime_member_materializations
                      WHERE org_run_id=?1 AND generation=?2 AND status<>'succeeded'",
                     params![run_id, expected_generation],
                     |row| row.get(0),
@@ -532,7 +532,7 @@ impl AgentOrgRunStore {
                 )?;
                 transaction
                     .execute(
-                        "UPDATE agent_org_initial_inputs
+                        "UPDATE agent_org_runtime_initial_inputs
                          SET status='queued', updated_at=?2
                          WHERE org_run_id=?1 AND status='pending_persistence'",
                         params![run_id, chrono::Utc::now().to_rfc3339()],
@@ -552,7 +552,7 @@ impl AgentOrgRunStore {
             let now = chrono::Utc::now().to_rfc3339();
             let changed = transaction
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                      SET status=?1, updated_at=?2,
                          idled_at=CASE WHEN ?1='idle' THEN ?2 ELSE NULL END
                      WHERE id=?3 AND status='starting'
@@ -578,7 +578,7 @@ impl AgentOrgRunStore {
             let connection = get_connection().map_err(|error| error.to_string())?;
             let changed = connection
                 .execute(
-                    "UPDATE agent_org_initial_inputs
+                    "UPDATE agent_org_runtime_initial_inputs
                      SET status='dispatched', updated_at=?3
                      WHERE org_run_id=?1 AND turn_intent_id=?2
                        AND status IN ('queued', 'dispatched')",
@@ -603,7 +603,7 @@ impl AgentOrgRunStore {
             let conn = get_connection().map_err(|err| err.to_string())?;
             let rows_changed = conn
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                      SET status = ?1,
                          updated_at = ?2
                      WHERE id = ?3
@@ -651,7 +651,7 @@ impl AgentOrgRunStore {
             let conn = get_connection().map_err(|err| err.to_string())?;
             let rows_changed = conn
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                      SET status = ?1,
                          updated_at = ?2
                      WHERE id = ?3
@@ -682,7 +682,7 @@ impl AgentOrgRunStore {
                 .map_err(|err| err.to_string())?;
             let changed = tx
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                  SET status = 'failed',
                      last_error = ?2,
                      failure_json = ?3,
@@ -779,7 +779,7 @@ impl AgentOrgRunStore {
                 .map_err(|err| err.to_string())?;
             let status: Option<String> = tx
                 .query_row(
-                    "SELECT status FROM agent_org_runs WHERE id=?1",
+                    "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
                     params![run_id],
                     |row| row.get(0),
                 )
@@ -797,7 +797,7 @@ impl AgentOrgRunStore {
             let unresolved_task_ids = {
                 let mut stmt = tx
                     .prepare(
-                        "SELECT id FROM agent_org_tasks
+                        "SELECT id FROM agent_org_runtime_tasks
                          WHERE org_run_id=?1 AND status<>?2
                          ORDER BY created_at ASC, id ASC",
                     )
@@ -871,7 +871,7 @@ impl AgentOrgRunStore {
                 .and_then(|progress| progress.completion_summary.as_deref());
             let changed = tx
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                          SET status='idle',
                              summary=COALESCE(?1, summary),
                              last_activity_outcome='completed',
@@ -880,8 +880,8 @@ impl AgentOrgRunStore {
                          WHERE id=?3 AND status='running'
                            AND activation_generation=?4
                            AND EXISTS (
-                               SELECT 1 FROM agent_org_run_progress progress
-                               WHERE progress.org_run_id=agent_org_runs.id
+                               SELECT 1 FROM agent_org_runtime_run_progress progress
+                               WHERE progress.org_run_id=agent_org_runtime_runs.id
                                  AND progress.work_revision=?5
                            )",
                     params![
@@ -949,7 +949,7 @@ impl AgentOrgRunStore {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let root_session_id: Option<String> = conn
             .query_row(
-                "SELECT root_session_id FROM agent_org_runs WHERE id = ?1",
+                "SELECT root_session_id FROM agent_org_runtime_runs WHERE id = ?1",
                 params![org_run_id],
                 |row| row.get::<_, Option<String>>(0),
             )
@@ -971,7 +971,7 @@ impl AgentOrgRunStore {
                 tracing::warn!(
                     session_id = %session_id,
                     cycle_at = %current_id,
-                    "[agent_org_runs] parent_session_id chain has a cycle; aborting walk"
+                    "[agent_org_runtime_runs] parent_session_id chain has a cycle; aborting walk"
                 );
                 return Ok(None);
             }
@@ -982,7 +982,7 @@ impl AgentOrgRunStore {
                 tracing::warn!(
                     session_id = %session_id,
                     last_visited = %current_id,
-                    "[agent_org_runs] parent_session_id walk exceeded max depth ({}); giving up",
+                    "[agent_org_runtime_runs] parent_session_id walk exceeded max depth ({}); giving up",
                     MAX_PARENT_WALK_DEPTH
                 );
                 return Ok(None);
@@ -1026,7 +1026,7 @@ impl AgentOrgRunStore {
                         created_at,
                         updated_at,
                         idled_at
-                 FROM agent_org_runs
+                 FROM agent_org_runtime_runs
                  WHERE root_session_id IS NOT NULL
                  ORDER BY updated_at DESC
                  LIMIT ?1",
@@ -1079,7 +1079,7 @@ impl AgentOrgRunStore {
                         created_at,
                         updated_at,
                         idled_at
-                 FROM agent_org_runs
+                 FROM agent_org_runtime_runs
                  WHERE root_session_id IS NOT NULL
                    AND status = ?1
                  ORDER BY updated_at ASC, id ASC
@@ -1108,7 +1108,7 @@ impl AgentOrgRunStore {
     ) -> Result<Option<AgentOrgRunStatus>, String> {
         let status_raw: Option<String> = conn
             .query_row(
-                "SELECT status FROM agent_org_runs WHERE id = ?1 LIMIT 1",
+                "SELECT status FROM agent_org_runtime_runs WHERE id = ?1 LIMIT 1",
                 params![run_id],
                 |row| row.get(0),
             )
@@ -1151,10 +1151,10 @@ impl AgentOrgRunStore {
             let mut stmt = conn
                 .prepare(
                     "SELECT DISTINCT approval.source_session_id, approval.plan_path
-                     FROM agent_org_plan_approvals approval
+                     FROM agent_org_runtime_plan_approvals approval
                      WHERE approval.org_run_id=?1
                        AND NOT EXISTS (
-                         SELECT 1 FROM agent_org_plan_approvals other
+                         SELECT 1 FROM agent_org_runtime_plan_approvals other
                          WHERE other.plan_path=approval.plan_path
                            AND other.org_run_id<>?1
                        )",
@@ -1178,25 +1178,25 @@ impl AgentOrgRunStore {
         )
         .map_err(|err| err.to_string())?;
         conn.execute(
-            "DELETE FROM agent_inbox_materializations
+            "DELETE FROM agent_org_runtime_inbox_materializations
              WHERE inbox_id IN (
-                 SELECT id FROM agent_inbox WHERE org_run_id=?1
+                 SELECT id FROM agent_org_runtime_inbox WHERE org_run_id=?1
              )",
             params![run_id],
         )
         .map_err(|err| {
-            format!("failed to delete agent_inbox_materializations rows for {run_id}: {err}")
+            format!("failed to delete agent_org_runtime_inbox_materializations rows for {run_id}: {err}")
         })?;
         for table in [
-            "agent_org_plan_approvals",
-            "agent_org_recovery_attempts",
-            "agent_org_task_events",
-            "agent_org_tasks",
-            "agent_inbox_delivery_resolutions",
-            "agent_inbox",
-            "agent_member_interventions",
-            "agent_org_run_progress",
-            "agent_org_task_run_schema_migrations",
+            "agent_org_runtime_plan_approvals",
+            "agent_org_runtime_recovery_attempts",
+            "agent_org_runtime_task_events",
+            "agent_org_runtime_tasks",
+            "agent_org_runtime_inbox_delivery_resolutions",
+            "agent_org_runtime_inbox",
+            "agent_org_runtime_member_interventions",
+            "agent_org_runtime_run_progress",
+            "agent_org_runtime_task_schema_migrations",
         ] {
             conn.execute(
                 &format!("DELETE FROM {table} WHERE org_run_id=?1"),
@@ -1205,7 +1205,10 @@ impl AgentOrgRunStore {
             .map_err(|err| format!("failed to delete {table} rows for {run_id}: {err}"))?;
         }
         let deleted = conn
-            .execute("DELETE FROM agent_org_runs WHERE id=?1", params![run_id])
+            .execute(
+                "DELETE FROM agent_org_runtime_runs WHERE id=?1",
+                params![run_id],
+            )
             .map_err(|err| err.to_string())?
             > 0;
         Ok(AgentOrgRunDeleteOutcome {
@@ -1273,7 +1276,7 @@ impl AgentOrgRunStore {
                 "SELECT s.session_id,
                         s.status,
                         s.updated_at
-                 FROM agent_org_runs r
+                 FROM agent_org_runtime_runs r
                  JOIN agent_sessions s ON s.session_id = r.root_session_id
                  WHERE r.id = ?1
                  LIMIT 1",
@@ -1347,7 +1350,7 @@ impl AgentOrgRunStore {
     ) -> Result<Option<HashSet<String>>, String> {
         let snapshot_json: Option<String> = conn
             .query_row(
-                "SELECT org_snapshot_json FROM agent_org_runs WHERE id=?1",
+                "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id=?1",
                 params![org_run_id],
                 |row| row.get(0),
             )
@@ -1385,7 +1388,7 @@ impl AgentOrgRunStore {
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
         let root_session_id: Option<String> = conn
             .query_row(
-                "SELECT root_session_id FROM agent_org_runs WHERE id = ?1",
+                "SELECT root_session_id FROM agent_org_runtime_runs WHERE id = ?1",
                 params![org_run_id],
                 |row| row.get::<_, Option<String>>(0),
             )
@@ -1408,7 +1411,7 @@ impl AgentOrgRunStore {
                      FROM agent_sessions child
                      WHERE child.parent_session_id = ?1
                        AND NOT EXISTS (
-                           SELECT 1 FROM agent_org_runs nested
+                           SELECT 1 FROM agent_org_runtime_runs nested
                            WHERE nested.id <> ?2
                              AND nested.root_session_id = child.session_id
                        )
@@ -1417,7 +1420,7 @@ impl AgentOrgRunStore {
                      FROM agent_sessions s
                      JOIN descendants d ON s.parent_session_id = d.session_id
                      WHERE NOT EXISTS (
-                         SELECT 1 FROM agent_org_runs nested
+                         SELECT 1 FROM agent_org_runtime_runs nested
                          WHERE nested.id <> ?2
                            AND nested.root_session_id = s.session_id
                      )

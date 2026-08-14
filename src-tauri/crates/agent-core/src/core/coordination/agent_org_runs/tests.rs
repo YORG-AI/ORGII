@@ -3,67 +3,7 @@ use super::*;
 use crate::core::session::persistence::{upsert_session, UnifiedSessionRecord};
 use crate::core::session::SessionStatus;
 use crate::definitions::orgs::{AgentOrgsStore, FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
-use rusqlite::{params, Connection};
-
-const LEGACY_AGENT_ORG_RUNS_DDL: &str = "CREATE TABLE agent_org_runs (
-    id TEXT PRIMARY KEY,
-    org_id TEXT NOT NULL,
-    coordinator_agent_id TEXT NOT NULL,
-    root_session_id TEXT,
-    org_snapshot_json TEXT,
-    entry_mode TEXT NOT NULL,
-    status TEXT NOT NULL,
-    work_item_id TEXT,
-    project_slug TEXT,
-    routine_fire_id TEXT,
-    summary TEXT,
-    last_error TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    completed_at TEXT
-);";
-
-fn memory_connection() -> Connection {
-    let conn = Connection::open_in_memory().expect("in-memory sqlite");
-    conn.execute_batch("PRAGMA foreign_keys = ON;")
-        .expect("enable foreign keys");
-    conn
-}
-
-fn insert_legacy_run(conn: &Connection) {
-    conn.execute(
-        "INSERT INTO agent_org_runs (
-            id, org_id, coordinator_agent_id, root_session_id,
-            org_snapshot_json, entry_mode, status, summary, last_error,
-            created_at, updated_at
-         ) VALUES (
-            'legacy-run', 'legacy-org', 'legacy-coordinator', 'legacy-root',
-            '{}', 'standalone_session', 'running', 'legacy summary', 'legacy error',
-            '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'
-         )",
-        [],
-    )
-    .expect("insert legacy run sentinel");
-}
-
-fn row_count(conn: &Connection, table: &str) -> i64 {
-    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
-        row.get(0)
-    })
-    .unwrap_or_else(|error| panic!("count {table}: {error}"))
-}
-
-fn index_names(conn: &Connection) -> Vec<String> {
-    conn.prepare(
-        "SELECT name FROM sqlite_master
-         WHERE type='index' AND name LIKE 'idx_agent_org_%' ORDER BY name",
-    )
-    .expect("prepare index query")
-    .query_map([], |row| row.get(0))
-    .expect("query indexes")
-    .collect::<rusqlite::Result<Vec<_>>>()
-    .expect("collect indexes")
-}
+use rusqlite::params;
 
 #[test]
 fn enum_values_round_trip() {
@@ -94,7 +34,7 @@ fn canonical_schema_snapshot_contains_only_the_long_lived_run_states() {
     let run_ddl: String = conn
         .query_row(
             "SELECT sql FROM sqlite_master
-             WHERE type='table' AND name='agent_org_runs'",
+             WHERE type='table' AND name='agent_org_runtime_runs'",
             [],
             |row| row.get(0),
         )
@@ -119,7 +59,7 @@ fn canonical_schema_snapshot_contains_only_the_long_lived_run_states() {
     let materialization_ddl: String = conn
         .query_row(
             "SELECT sql FROM sqlite_master
-             WHERE type='table' AND name='agent_org_member_materializations'",
+             WHERE type='table' AND name='agent_org_runtime_member_materializations'",
             [],
             |row| row.get(0),
         )
@@ -130,208 +70,13 @@ fn canonical_schema_snapshot_contains_only_the_long_lived_run_states() {
     let initial_input_ddl: String = conn
         .query_row(
             "SELECT sql FROM sqlite_master
-             WHERE type='table' AND name='agent_org_initial_inputs'",
+             WHERE type='table' AND name='agent_org_runtime_initial_inputs'",
             [],
             |row| row.get(0),
         )
         .expect("canonical initial-input DDL");
     assert!(initial_input_ddl.contains("UNIQUE(turn_intent_id)"));
     assert!(initial_input_ddl.contains("UNIQUE(message_id)"));
-}
-
-#[test]
-fn exact_legacy_run_schema_resets_only_the_agent_org_runtime_envelope() {
-    let conn = memory_connection();
-    conn.execute_batch(LEGACY_AGENT_ORG_RUNS_DDL)
-        .expect("legacy run schema");
-    insert_legacy_run(&conn);
-    materialization::init_schema(&conn).expect("materialization schema from bad binary");
-    progress::init_schema(&conn).expect("legacy progress schema");
-    conn.execute_batch(
-        "UPDATE agent_org_run_progress SET work_revision=7 WHERE org_run_id='legacy-run';
-         INSERT INTO agent_org_member_materializations (
-            org_run_id, member_id, agent_id, generation, session_id,
-            authority_class, status, created_at, updated_at
-         ) VALUES (
-            'legacy-run', 'legacy-member', 'legacy-agent', 1, 'legacy-member-session',
-            'starting', 'succeeded', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
-         );
-         INSERT INTO agent_org_initial_inputs (
-            org_run_id, turn_intent_id, message_id, content, payload_json,
-            status, created_at, updated_at
-         ) VALUES (
-            'legacy-run', 'legacy-turn', 'legacy-message', 'legacy input', '{}',
-            'dispatched', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
-         );
-         CREATE TABLE agent_sessions (
-            session_id TEXT PRIMARY KEY, title TEXT, status TEXT, updated_at TEXT
-         );
-         CREATE TABLE code_sessions (
-            session_id TEXT PRIMARY KEY, cli_agent_type TEXT, status TEXT, updated_at TEXT
-         );
-         INSERT INTO agent_sessions VALUES (
-            'rust-sentinel', 'Rust sentinel', 'idle', '2025-12-01T00:00:00Z'
-         );
-         INSERT INTO code_sessions VALUES (
-            'cli-sentinel', 'codex', 'completed', '2025-12-02T00:00:00Z'
-         );",
-    )
-    .expect("legacy runtime and ordinary session sentinels");
-
-    init_schema(&conn).expect("reset exact legacy schema");
-
-    for table in [
-        "agent_org_initial_inputs",
-        "agent_org_member_materializations",
-        "agent_org_run_progress",
-        "agent_org_runs",
-    ] {
-        assert_eq!(row_count(&conn, table), 0, "{table} must be reset");
-    }
-    let new_column_count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('agent_org_runs')
-             WHERE name IN ('activation_generation', 'has_initial_work', 'failure_json',
-                            'last_activity_outcome', 'idled_at')",
-            [],
-            |row| row.get(0),
-        )
-        .expect("canonical run columns");
-    assert_eq!(new_column_count, 5);
-    let run_ddl: String = conn
-        .query_row(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_org_runs'",
-            [],
-            |row| row.get(0),
-        )
-        .expect("canonical run DDL");
-    assert!(run_ddl.contains("'starting', 'running', 'paused', 'idle', 'failed', 'archived'"));
-    assert!(!run_ddl.contains("completed_at"));
-    let rust_unchanged: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM agent_sessions WHERE session_id='rust-sentinel'
-         AND title='Rust sentinel' AND status='idle' AND updated_at='2025-12-01T00:00:00Z'",
-            [],
-            |row| row.get(0),
-        )
-        .expect("Rust session sentinel");
-    let cli_unchanged: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM code_sessions WHERE session_id='cli-sentinel'
-         AND cli_agent_type='codex' AND status='completed'
-         AND updated_at='2025-12-02T00:00:00Z'",
-            [],
-            |row| row.get(0),
-        )
-        .expect("CLI session sentinel");
-    assert_eq!((rust_unchanged, cli_unchanged), (1, 1));
-
-    conn.execute(
-        "INSERT INTO agent_org_runs (
-            id, org_id, coordinator_agent_id, entry_mode, status, created_at, updated_at
-         ) VALUES (
-            'new-run', 'new-org', 'new-coordinator', 'standalone_session', 'starting',
-            '2026-02-01T00:00:00Z', '2026-02-01T00:00:00Z'
-         )",
-        [],
-    )
-    .expect("insert canonical starting run");
-    let defaults: (String, i64, i64) = conn
-        .query_row(
-            "SELECT status, activation_generation, has_initial_work
-             FROM agent_org_runs WHERE id='new-run'",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
-        .expect("read canonical starting run");
-    assert_eq!(defaults, ("starting".into(), 1, 0));
-}
-
-#[test]
-fn canonical_schema_init_is_idempotent_and_preserves_runtime_data() {
-    let conn = memory_connection();
-    init_schema(&conn).expect("create canonical schema");
-    conn.execute_batch(
-        "INSERT INTO agent_org_runs (
-            id, org_id, coordinator_agent_id, entry_mode, status, created_at, updated_at
-         ) VALUES (
-            'current-run', 'current-org', 'current-coordinator',
-            'standalone_session', 'starting', '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'
-         );
-         INSERT INTO agent_org_run_progress (
-            org_run_id, work_revision, completion_requested, completion_summary, updated_at
-         ) VALUES ('current-run', 9, 1, 'done', '2026-03-01T00:00:00Z');
-         INSERT INTO agent_org_member_materializations (
-            org_run_id, member_id, agent_id, generation, session_id,
-            authority_class, status, created_at, updated_at
-         ) VALUES (
-            'current-run', 'member-a', 'agent-a', 1, 'session-a', 'starting', 'succeeded',
-            '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'
-         );
-         INSERT INTO agent_org_initial_inputs (
-            org_run_id, turn_intent_id, message_id, content, payload_json,
-            status, created_at, updated_at
-         ) VALUES (
-            'current-run', 'turn-a', 'message-a', 'hello', '{}', 'queued',
-            '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'
-         );",
-    )
-    .expect("canonical runtime fixtures");
-    let indexes_before = index_names(&conn);
-
-    init_schema(&conn).expect("repeat canonical init");
-
-    assert_eq!(index_names(&conn), indexes_before);
-    assert_eq!(row_count(&conn, "agent_org_runs"), 1);
-    assert_eq!(row_count(&conn, "agent_org_run_progress"), 1);
-    assert_eq!(row_count(&conn, "agent_org_member_materializations"), 1);
-    assert_eq!(row_count(&conn, "agent_org_initial_inputs"), 1);
-    let preserved: i64 = conn
-        .query_row(
-            "SELECT COUNT(*)
-             FROM agent_org_run_progress progress
-             JOIN agent_org_member_materializations materialization
-               ON materialization.org_run_id=progress.org_run_id
-             JOIN agent_org_initial_inputs input ON input.org_run_id=progress.org_run_id
-             WHERE progress.work_revision=9 AND progress.completion_summary='done'
-               AND materialization.session_id='session-a' AND input.content='hello'",
-            [],
-            |row| row.get(0),
-        )
-        .expect("preserved canonical data");
-    assert_eq!(preserved, 1);
-}
-
-#[test]
-fn unknown_run_schemas_never_trigger_destructive_reset() {
-    for ddl in [
-        LEGACY_AGENT_ORG_RUNS_DDL.replace(
-            "completed_at TEXT\n);",
-            "completed_at TEXT, unknown_column TEXT\n);",
-        ),
-        LEGACY_AGENT_ORG_RUNS_DDL.replace("org_id TEXT NOT NULL", "org_id BLOB NOT NULL"),
-        LEGACY_AGENT_ORG_RUNS_DDL
-            .replace("root_session_id TEXT,", "root_session_id TEXT NOT NULL,"),
-        LEGACY_AGENT_ORG_RUNS_DDL.replace("summary TEXT,", "summary TEXT DEFAULT 'legacy',"),
-        LEGACY_AGENT_ORG_RUNS_DDL.replace("id TEXT PRIMARY KEY", "id TEXT"),
-    ] {
-        let conn = memory_connection();
-        conn.execute_batch(&ddl)
-            .expect("create unknown schema fixture");
-        insert_legacy_run(&conn);
-
-        let _ = init_schema(&conn);
-
-        assert_eq!(row_count(&conn, "agent_org_runs"), 1);
-        let sentinel: String = conn
-            .query_row(
-                "SELECT summary FROM agent_org_runs WHERE id='legacy-run'",
-                [],
-                |row| row.get(0),
-            )
-            .expect("read unknown schema sentinel");
-        assert_eq!(sentinel, "legacy summary");
-    }
 }
 
 /// Build an `AgentOrgsStore` pre-loaded with a single org definition.
@@ -746,7 +491,7 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     .expect("attach managed workspace to source session");
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_org_plan_approvals (
+        "INSERT INTO agent_org_runtime_plan_approvals (
             approval_id, plan_revision_id, request_id, org_run_id,
             source_task_id, source_member_id, source_session_id,
             root_session_id, policy, status, plan_title, plan_path,
@@ -759,7 +504,7 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO agent_org_plan_approvals (
+        "INSERT INTO agent_org_runtime_plan_approvals (
             approval_id, plan_revision_id, request_id, org_run_id,
             source_task_id, source_member_id, source_session_id,
             root_session_id, policy, status, plan_title, plan_path,
@@ -772,7 +517,7 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO agent_org_recovery_attempts
+        "INSERT INTO agent_org_runtime_recovery_attempts
          (org_run_id, action_kind, target_key, reason_fingerprint, attempts,
           next_allowed_at, updated_at)
          VALUES (?1,'member_rewake','member-w1','delete',1,?2,?2)",
@@ -780,7 +525,7 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO agent_org_task_run_schema_migrations
+        "INSERT INTO agent_org_runtime_task_schema_migrations
          (name, org_run_id, applied_at)
          VALUES ('delete-test', ?1, ?2)",
         params![&run.id, &now],
@@ -797,14 +542,14 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     AgentOrgRunStore::delete_by_id(&run.id).expect("delete run-owned state");
 
     for table in [
-        "agent_org_run_progress",
-        "agent_org_tasks",
-        "agent_org_task_events",
-        "agent_inbox",
-        "agent_member_interventions",
-        "agent_org_plan_approvals",
-        "agent_org_recovery_attempts",
-        "agent_org_task_run_schema_migrations",
+        "agent_org_runtime_run_progress",
+        "agent_org_runtime_tasks",
+        "agent_org_runtime_task_events",
+        "agent_org_runtime_inbox",
+        "agent_org_runtime_member_interventions",
+        "agent_org_runtime_plan_approvals",
+        "agent_org_runtime_recovery_attempts",
+        "agent_org_runtime_task_schema_migrations",
     ] {
         let count: i64 = conn
             .query_row(
@@ -1569,14 +1314,14 @@ fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
             "a {terminal_status} turn intent must not keep the run open"
         );
         conn.execute(
-            "UPDATE agent_org_runs SET status='running', idled_at=NULL WHERE id=?1",
+            "UPDATE agent_org_runtime_runs SET status='running', idled_at=NULL WHERE id=?1",
             params![&run.id],
         )
         .expect("reset run for next terminal status");
     }
     let legacy_resume_after = (chrono::Utc::now() + chrono::Duration::minutes(3)).to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_member_interventions (
+        "INSERT INTO agent_org_runtime_member_interventions (
              org_run_id, member_id, agent_id, session_id, status, reason,
              entered_at, last_user_activity_at, resume_after, cleared_at
          ) VALUES (?1, ?2, 'agent-coord', ?3, 'user_intervention',
@@ -1605,7 +1350,7 @@ fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
     assert!(reloaded.idled_at.is_some());
     let legacy_cleared_at: Option<String> = conn
         .query_row(
-            "SELECT cleared_at FROM agent_member_interventions
+            "SELECT cleared_at FROM agent_org_runtime_member_interventions
              WHERE org_run_id=?1 AND member_id=?2",
             params![&run.id, COORDINATOR_MEMBER_ID],
             |row| row.get(0),
@@ -1729,7 +1474,7 @@ fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_quiescence() {
     };
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
-        "INSERT INTO agent_inbox (
+        "INSERT INTO agent_org_runtime_inbox (
              recipient_agent_id, recipient_member_id,
              sender_agent_id, sender_member_id, org_run_id,
              payload_kind, payload_json, created_at

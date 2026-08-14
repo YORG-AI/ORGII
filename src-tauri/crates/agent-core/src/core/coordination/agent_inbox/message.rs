@@ -683,7 +683,7 @@ mod tests {
     fn seed_minimal_running_run_for_delivery_resolution(run_id: &str) {
         let conn = get_connection().expect("open sandbox database");
         conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS agent_org_runs (
+            "CREATE TABLE IF NOT EXISTS agent_org_runtime_runs (
                  id TEXT PRIMARY KEY,
                  status TEXT NOT NULL,
                  org_snapshot_json TEXT,
@@ -705,7 +705,7 @@ mod tests {
                  org_member_id TEXT,
                  updated_at TEXT NOT NULL
              );
-             CREATE TABLE IF NOT EXISTS agent_org_tasks (
+             CREATE TABLE IF NOT EXISTS agent_org_runtime_tasks (
                  id TEXT PRIMARY KEY,
                  org_run_id TEXT NOT NULL
              );",
@@ -721,7 +721,7 @@ mod tests {
         )
         .expect("seed coordinator session");
         conn.execute(
-            "INSERT INTO agent_org_runs (id, status, org_snapshot_json, root_session_id)
+            "INSERT INTO agent_org_runtime_runs (id, status, org_snapshot_json, root_session_id)
              VALUES (?1, 'running', NULL, ?2)",
             params![run_id, &root_session_id],
         )
@@ -736,7 +736,7 @@ mod tests {
         let payload_json = serde_json::to_string(&message).expect("serialize legacy payload");
         let conn = get_connection().expect("open sandbox database");
         conn.execute(
-            "INSERT INTO agent_inbox (
+            "INSERT INTO agent_org_runtime_inbox (
                  recipient_agent_id, recipient_member_id,
                  sender_agent_id, sender_member_id, org_run_id,
                  payload_kind, payload_json, request_id,
@@ -1384,7 +1384,7 @@ mod tests {
         );
         let conn = get_connection().expect("open sandbox database");
         conn.execute(
-            "INSERT INTO agent_inbox_materializations (
+            "INSERT INTO agent_org_runtime_inbox_materializations (
                  inbox_id, session_id, transcript_message_id,
                  transcript_intent_id, materialized_at
              ) VALUES (?1, 'old-session', 'message-1', 'intent-1', ?2)",
@@ -1457,7 +1457,7 @@ mod tests {
         let source = seed_legacy_orphan_inbox_row(run_id, "Original", "Original work");
         let conn = get_connection().expect("open sandbox database");
         conn.execute(
-            "INSERT INTO agent_org_tasks (id, org_run_id) VALUES ('replacement-task', ?1)",
+            "INSERT INTO agent_org_runtime_tasks (id, org_run_id) VALUES ('replacement-task', ?1)",
             params![run_id],
         )
         .expect("seed replacement task");
@@ -1532,7 +1532,7 @@ mod tests {
         };
         let conn = get_connection().expect("open sandbox database");
         conn.execute(
-            "UPDATE agent_org_runs SET org_snapshot_json=?1 WHERE id=?2",
+            "UPDATE agent_org_runtime_runs SET org_snapshot_json=?1 WHERE id=?2",
             params![
                 serde_json::to_string(&crate::definitions::orgs::AgentOrgLaunchSnapshot::from(
                     &org

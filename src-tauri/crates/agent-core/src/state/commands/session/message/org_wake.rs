@@ -23,7 +23,7 @@ pub(super) fn promote_agent_org_wake_session_to_running(
         "WITH RECURSIVE
          run_anchor(root_session_id) AS (
              SELECT root_session_id
-             FROM agent_org_runs
+             FROM agent_org_runtime_runs
              WHERE id=?4 AND status=?5 AND root_session_id IS NOT NULL
          ),
          descendants(session_id) AS (
@@ -33,7 +33,7 @@ pub(super) fn promote_agent_org_wake_session_to_running(
              FROM agent_sessions child
              JOIN descendants parent ON child.parent_session_id=parent.session_id
              WHERE NOT EXISTS (
-                 SELECT 1 FROM agent_org_runs nested
+                 SELECT 1 FROM agent_org_runtime_runs nested
                  WHERE nested.id<>?4
                    AND nested.root_session_id=child.session_id
              )
@@ -64,7 +64,7 @@ pub(super) fn promote_agent_org_wake_session_to_running(
            )
            AND NOT EXISTS (
                SELECT 1
-               FROM agent_member_interventions intervention
+               FROM agent_org_runtime_member_interventions intervention
                WHERE intervention.org_run_id=?4
                  AND intervention.member_id=CASE
                      WHEN agent_sessions.session_id=(SELECT root_session_id FROM run_anchor)
@@ -106,7 +106,7 @@ pub(super) fn promote_agent_org_direct_session_to_running(
 
     let run_status = conn
         .query_row(
-            "SELECT status FROM agent_org_runs WHERE id=?1",
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
             [run_id],
             |row| row.get::<_, String>(0),
         )
@@ -165,13 +165,13 @@ pub(super) fn resolve_agent_org_wake_mode(
         .prepare(
             "WITH delivery_candidates AS (
                  SELECT id, payload_kind, payload_json, sender_member_id
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE org_run_id=?1
                    AND recipient_member_id=?2
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )
                  ORDER BY id ASC
                  LIMIT ?3
@@ -215,23 +215,23 @@ pub(super) fn resolve_agent_org_wake_mode(
                          THEN json_extract(control.payload_json, '$.mode')
                          ELSE NULL END,
                     EXISTS(
-                        SELECT 1 FROM agent_org_tasks owned
+                        SELECT 1 FROM agent_org_runtime_tasks owned
                         WHERE owned.org_run_id=?1
                           AND owned.owner=?2
                           AND owned.status IN ('pending','in_progress')
                     ) AS has_open_owned_task
              FROM control
-             LEFT JOIN agent_org_tasks assigned
+             LEFT JOIN agent_org_runtime_tasks assigned
                ON control.payload_kind='task_assigned'
               AND json_type(control.payload_json, '$.task_id')='text'
               AND assigned.org_run_id=?1
               AND assigned.id=json_extract(control.payload_json, '$.task_id')
-             LEFT JOIN agent_org_plan_approvals approval
+             LEFT JOIN agent_org_runtime_plan_approvals approval
                ON control.payload_kind='plan_approval_response'
               AND json_type(control.payload_json, '$.request_id')='text'
               AND approval.org_run_id=?1
               AND approval.request_id=json_extract(control.payload_json, '$.request_id')
-             LEFT JOIN agent_org_tasks approval_task
+             LEFT JOIN agent_org_runtime_tasks approval_task
                ON approval_task.org_run_id=?1
               AND approval_task.id=approval.source_task_id
              ORDER BY control.id DESC",

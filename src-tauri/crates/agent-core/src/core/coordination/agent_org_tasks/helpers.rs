@@ -138,7 +138,7 @@ pub(super) fn insert_task_history_event(
     actor_member_id: Option<&str>,
 ) -> Result<(), String> {
     tx.execute(
-        "INSERT INTO agent_org_task_events (
+        "INSERT INTO agent_org_runtime_task_events (
             id, org_run_id, task_id, event_type, previous_owner, next_owner,
             previous_status, next_status, actor_member_id, created_at
         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -164,7 +164,7 @@ pub(super) fn list_tasks_with_conn(
     org_run_id: &str,
 ) -> Result<Vec<Task>, String> {
     let sql = format!(
-        "SELECT {SELECT_COLUMNS} FROM agent_org_tasks
+        "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
          WHERE org_run_id = ?1
          ORDER BY created_at ASC, id ASC"
     );

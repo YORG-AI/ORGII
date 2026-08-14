@@ -1096,7 +1096,7 @@ fn materialized_batch_replay_delivers_only_rows_that_arrived_later() {
     let receipt_count: i64 = database::db::get_connection()
         .expect("receipt connection")
         .query_row(
-            "SELECT COUNT(*) FROM agent_inbox_materializations",
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox_materializations",
             [],
             |row| row.get(0),
         )
@@ -1277,7 +1277,7 @@ fn shutdown_notification_failure_leaves_source_unread_and_retries_before_deliver
     let conn = database::db::get_connection().expect("db");
     conn.execute_batch(
         "CREATE TRIGGER fail_member_terminated
-         BEFORE INSERT ON agent_inbox
+         BEFORE INSERT ON agent_org_runtime_inbox
          WHEN NEW.payload_kind='member_terminated'
          BEGIN
            SELECT RAISE(ABORT, 'forced member termination insert failure');

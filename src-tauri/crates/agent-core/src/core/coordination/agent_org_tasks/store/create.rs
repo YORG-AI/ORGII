@@ -146,7 +146,7 @@ impl AgentOrgTaskStore {
             let blocked_by_json = encode_json_array(&task.blocked_by)?;
 
             tx.execute(
-                "INSERT INTO agent_org_tasks (
+                "INSERT INTO agent_org_runtime_tasks (
                     id, org_run_id, subject, description, active_form, owner,
                     status, blocks_json, blocked_by_json, metadata_json,
                     created_at, updated_at
@@ -327,7 +327,7 @@ impl AgentOrgTaskStore {
                 let blocked_by_json = encode_json_array(&task.blocked_by)?;
                 let metadata_json = encode_metadata(task.metadata.as_ref())?;
                 tx.execute(
-                    "INSERT INTO agent_org_tasks (
+                    "INSERT INTO agent_org_runtime_tasks (
                         id, org_run_id, subject, description, active_form, owner,
                         status, blocks_json, blocked_by_json, metadata_json,
                         created_at, updated_at

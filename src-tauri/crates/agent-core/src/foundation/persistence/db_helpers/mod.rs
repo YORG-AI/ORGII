@@ -190,7 +190,7 @@ fn delete_session_rows_with_connection(
         let receipts_exist: bool = conn.query_row(
             "SELECT EXISTS(
                  SELECT 1 FROM sqlite_master
-                 WHERE type='table' AND name='agent_inbox_materializations'
+                 WHERE type='table' AND name='agent_org_runtime_inbox_materializations'
              )",
             [],
             |row| row.get(0),
@@ -199,7 +199,7 @@ fn delete_session_rows_with_connection(
             // Keep the source Inbox rows unread while atomically removing
             // receipts for transcript rows deleted by this cascade.
             conn.execute(
-                "DELETE FROM agent_inbox_materializations WHERE session_id=?1",
+                "DELETE FROM agent_org_runtime_inbox_materializations WHERE session_id=?1",
                 [session_id],
             )?;
         }

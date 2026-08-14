@@ -184,19 +184,6 @@ fn parse_agent_defs_for_execution(
     })
 }
 
-fn parse_agent_orgs_for_execution(
-    content: &str,
-    path: &std::path::Path,
-) -> Result<Vec<crate::definitions::orgs::OrgDefinition>, String> {
-    serde_json::from_str(content).map_err(|err| {
-        format!(
-            "parse agent organizations for work-item launch from {}: {}",
-            path.display(),
-            err
-        )
-    })
-}
-
 /// `#[doc(hidden)]` — only the `app::api::agent::test::core` debug
 /// route calls this, via the `agent_core::tool_infra::*` re-export.
 #[cfg(debug_assertions)]
@@ -208,9 +195,9 @@ pub fn debug_parse_work_item_launch_sources(kind: &str, content: &str) -> Result
             std::path::Path::new("work-item-agent-definitions-test.json"),
         )
         .map(|items| items.len()),
-        "agent_orgs" => parse_agent_orgs_for_execution(
-            content,
-            std::path::Path::new("work-item-agent-orgs-test.json"),
+        "agent_orgs" => crate::definitions::orgs::parse_definitions_content(
+            content.as_bytes(),
+            std::path::Path::new("work-item-agent-org-definitions-test.json"),
         )
         .map(|items| items.len()),
         _ => Err(format!("unknown work-item launch source kind: {kind}")),
@@ -261,39 +248,14 @@ fn resolve_agent_def_id_from_assignee(
             let Some(org_id) = frontmatter.assignee.as_deref().filter(|s| !s.is_empty()) else {
                 return Ok(None);
             };
-            let orgs_path = app_paths::agent_orgs();
-            if !orgs_path.exists() {
-                return Err(format!(
-                    "agent organization '{}' is referenced by the work item but {} does not exist",
-                    org_id,
-                    orgs_path.display()
-                ));
-            }
-            let content = std::fs::read_to_string(&orgs_path).map_err(|err| {
-                format!(
-                    "read agent organizations for work-item launch from {}: {}",
-                    orgs_path.display(),
-                    err
-                )
-            })?;
-            let orgs = parse_agent_orgs_for_execution(&content, &orgs_path)?;
-            let org = orgs
-                .iter()
-                .find(|org| org.id == org_id)
-                .ok_or_else(|| {
-                    format!(
-                        "agent organization '{}' is referenced by the work item but was not found in {}",
-                        org_id,
-                        orgs_path.display()
-                    )
-                })?;
+            let org = crate::definitions::orgs::orgs_store().get(org_id)?;
             if org.agent_id.is_empty() {
                 return Err(format!(
                     "agent organization '{}' has an empty agent_id and cannot launch a work item",
                     org_id
                 ));
             }
-            Ok(Some(org.agent_id.clone()))
+            Ok(Some(org.agent_id))
         }
         _ => Ok(None),
     }
@@ -878,7 +840,7 @@ pub async fn launch_phase_session(
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_agent_defs_for_execution, parse_agent_orgs_for_execution};
+    use super::parse_agent_defs_for_execution;
 
     #[test]
     fn parse_agent_defs_for_execution_reports_invalid_json() {
@@ -887,17 +849,6 @@ mod tests {
 
         assert!(
             err.contains("parse agent definitions for work-item launch"),
-            "got: {err}"
-        );
-    }
-
-    #[test]
-    fn parse_agent_orgs_for_execution_reports_invalid_json() {
-        let err = parse_agent_orgs_for_execution("{ invalid", std::path::Path::new("orgs.json"))
-            .unwrap_err();
-
-        assert!(
-            err.contains("parse agent organizations for work-item launch"),
             "got: {err}"
         );
     }

@@ -25,12 +25,12 @@ pub(super) const UNREAD_COUNTS_BY_RECIPIENT_SQL: &str = "SELECT recipient_agent_
             recipient_member_id,
             COUNT(*) AS unread_count,
             MAX(id) AS max_unread_id
-     FROM agent_inbox INDEXED BY idx_agent_inbox_run_unread_recipient
+     FROM agent_org_runtime_inbox INDEXED BY idx_agent_org_runtime_inbox_run_unread_recipient
      WHERE org_run_id = ?1
        AND read_at IS NULL
        AND NOT EXISTS (
-            SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-            WHERE resolution.inbox_id=agent_inbox.id
+            SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+            WHERE resolution.inbox_id=agent_org_runtime_inbox.id
        )
      GROUP BY recipient_member_id, recipient_agent_id
      ORDER BY recipient_member_id ASC, recipient_agent_id ASC";
@@ -39,7 +39,7 @@ pub(super) fn task_assignment_lookup_sql() -> String {
     let payload_max = limits::AGENT_INBOX_PAYLOAD_MAX_BYTES;
     format!(
         "SELECT payload_json
-         FROM agent_inbox INDEXED BY idx_agent_inbox_run_task_assignment_v4
+         FROM agent_org_runtime_inbox INDEXED BY idx_agent_org_runtime_inbox_run_task_assignment_v4
          WHERE org_run_id=?1
            AND recipient_member_id=?2
            AND payload_kind='task_assigned'
@@ -121,7 +121,7 @@ fn load_delivery_resolution(
             "SELECT inbox_id, org_run_id, resolution_kind,
                     resolved_by_member_id, reason,
                     replacement_inbox_id, replacement_task_id, created_at
-             FROM agent_inbox_delivery_resolutions
+             FROM agent_org_runtime_inbox_delivery_resolutions
              WHERE inbox_id=?1 AND org_run_id=?2
              LIMIT 1",
             params![inbox_id, org_run_id],
@@ -185,7 +185,7 @@ impl AgentInboxStore {
                         request_id,
                         created_at,
                         read_at
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE org_run_id = ?1
                  ORDER BY id ASC",
             )
@@ -245,7 +245,7 @@ impl AgentInboxStore {
                         CASE WHEN request_id IS NULL THEN NULL ELSE substr(request_id,1,1000) END,
                         substr(created_at,1,64),
                         CASE WHEN read_at IS NULL THEN NULL ELSE substr(read_at,1,64) END
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE org_run_id=?1 AND id>?2
                  ORDER BY id ASC
                  LIMIT ?3",
@@ -303,7 +303,7 @@ impl AgentInboxStore {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM agent_inbox WHERE org_run_id=?1",
+                "SELECT COUNT(*) FROM agent_org_runtime_inbox WHERE org_run_id=?1",
                 params![org_run_id],
                 |row| row.get(0),
             )
@@ -357,7 +357,7 @@ impl AgentInboxStore {
                     CASE WHEN request_id IS NULL THEN NULL ELSE substr(request_id,1,1000) END,
                     substr(created_at,1,64),
                     CASE WHEN read_at IS NULL THEN NULL ELSE substr(read_at,1,64) END
-             FROM agent_inbox
+             FROM agent_org_runtime_inbox
              WHERE org_run_id=?1 AND id=?2
              LIMIT 1",
             params![
@@ -465,7 +465,7 @@ impl AgentInboxStore {
                 let source: Option<(Option<String>, Option<String>)> = tx
                     .query_row(
                         "SELECT recipient_member_id, read_at
-                     FROM agent_inbox
+                     FROM agent_org_runtime_inbox
                      WHERE id=?1 AND org_run_id=?2
                      LIMIT 1",
                         params![params.inbox_id, &params.org_run_id],
@@ -531,10 +531,10 @@ impl AgentInboxStore {
                                 inbox.read_at,
                                 EXISTS(
                                     SELECT 1
-                                    FROM agent_inbox_delivery_resolutions resolution
+                                    FROM agent_org_runtime_inbox_delivery_resolutions resolution
                                     WHERE resolution.inbox_id=inbox.id
                                 )
-                         FROM agent_inbox inbox
+                         FROM agent_org_runtime_inbox inbox
                          WHERE inbox.id=?1 AND inbox.org_run_id=?2
                          LIMIT 1",
                             params![replacement_inbox_id, &params.org_run_id],
@@ -570,7 +570,7 @@ impl AgentInboxStore {
                     let replacement_exists: bool = tx
                         .query_row(
                             "SELECT EXISTS(
-                             SELECT 1 FROM agent_org_tasks
+                             SELECT 1 FROM agent_org_runtime_tasks
                              WHERE id=?1 AND org_run_id=?2
                          )",
                             params![replacement_task_id, &params.org_run_id],
@@ -587,7 +587,7 @@ impl AgentInboxStore {
 
                 let created_at = chrono::Utc::now().to_rfc3339();
                 tx.execute(
-                    "INSERT INTO agent_inbox_delivery_resolutions (
+                    "INSERT INTO agent_org_runtime_inbox_delivery_resolutions (
                     inbox_id, org_run_id, resolution_kind,
                     resolved_by_member_id, reason,
                     replacement_inbox_id, replacement_task_id, created_at
@@ -608,7 +608,7 @@ impl AgentInboxStore {
                 // not later acknowledge it as delivered. The guarded mark-read
                 // path also rechecks the resolution table.
                 tx.execute(
-                    "DELETE FROM agent_inbox_materializations WHERE inbox_id=?1",
+                    "DELETE FROM agent_org_runtime_inbox_materializations WHERE inbox_id=?1",
                     params![params.inbox_id],
                 )
                 .map_err(|err| storage(err.to_string()))?;
@@ -677,7 +677,7 @@ impl AgentInboxStore {
                             request_id,
                             created_at,
                             read_at
-                     FROM agent_inbox
+                     FROM agent_org_runtime_inbox
                      WHERE org_run_id = ?1
                      ORDER BY id DESC
                      LIMIT ?2
@@ -788,11 +788,11 @@ impl AgentInboxStore {
                             ELSE NULL END AS display_preview,
                             (
                                 SELECT resolution.resolution_kind
-                                FROM agent_inbox_delivery_resolutions resolution
-                                WHERE resolution.inbox_id=agent_inbox.id
+                                FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                                WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                                 LIMIT 1
                             ) AS delivery_resolution
-                     FROM agent_inbox
+                     FROM agent_org_runtime_inbox
                      WHERE org_run_id = ?1
                      ORDER BY id DESC
                      LIMIT ?2
@@ -841,11 +841,11 @@ impl AgentInboxStore {
                         SUM(CASE WHEN read_at IS NULL
                                       AND NOT EXISTS (
                                           SELECT 1
-                                          FROM agent_inbox_delivery_resolutions resolution
-                                          WHERE resolution.inbox_id=agent_inbox.id
+                                          FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                                          WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                                       )
                                  THEN 1 ELSE 0 END) AS unread_count
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE org_run_id = ?1
                  GROUP BY recipient_member_id, recipient_agent_id
                  ORDER BY recipient_member_id ASC, recipient_agent_id ASC",
@@ -906,7 +906,7 @@ impl AgentInboxStore {
         let mut stmt = conn
             .prepare(
                 "SELECT DISTINCT json_extract(payload_json, '$.task_id')
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE org_run_id=?1
                    AND payload_kind='task_assigned'
                    AND json_valid(payload_json)
@@ -940,7 +940,7 @@ impl AgentInboxStore {
         let mut task_stmt = conn
             .prepare(
                 "SELECT id, owner
-                 FROM agent_org_tasks
+                 FROM agent_org_runtime_tasks
                  WHERE org_run_id=?1
                    AND status IN ('pending','in_progress')
                    AND owner IS NOT NULL
@@ -1018,13 +1018,13 @@ impl AgentInboxStore {
         let (max_id, count): (Option<i64>, i64) = conn
             .query_row(
                 "SELECT MAX(id), COUNT(*)
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )",
                 params![recipient_member_id, org_run_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),

@@ -127,8 +127,8 @@ pub(super) fn load_group_chat_history_page(
                     substr(inbox.created_at, 1, 64),
                     CASE WHEN inbox.read_at IS NULL THEN NULL ELSE substr(inbox.read_at, 1, 64) END,
                     resolution.resolution_kind
-             FROM agent_inbox inbox
-             LEFT JOIN agent_inbox_delivery_resolutions resolution
+             FROM agent_org_runtime_inbox inbox
+             LEFT JOIN agent_org_runtime_inbox_delivery_resolutions resolution
                ON resolution.inbox_id=inbox.id
              WHERE inbox.org_run_id=?1
                AND inbox.sender_agent_id=?2
@@ -416,7 +416,7 @@ pub(super) fn persist_group_chat_message(
             .map_err(|err| err.to_string())?;
         let run_status: Option<String> = tx
             .query_row(
-                "SELECT status FROM agent_org_runs WHERE id=?1",
+                "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
                 params![&context.run_id],
                 |row| row.get(0),
             )
@@ -460,13 +460,13 @@ pub(super) fn persist_group_chat_message(
         )?;
         if let Some(display_text) = display_text {
             tx.execute(
-                "UPDATE agent_inbox SET display_text=?1 WHERE id=?2",
+                "UPDATE agent_org_runtime_inbox SET display_text=?1 WHERE id=?2",
                 params![display_text, row.id],
             )
             .map_err(|err| err.to_string())?;
         }
         tx.execute(
-            "UPDATE agent_member_interventions
+            "UPDATE agent_org_runtime_member_interventions
              SET cleared_at=?3
              WHERE org_run_id=?1 AND member_id=?2 AND cleared_at IS NULL",
             params![

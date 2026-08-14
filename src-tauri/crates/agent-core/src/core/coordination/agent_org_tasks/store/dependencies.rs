@@ -37,7 +37,7 @@ pub(super) fn persist_dependency_projection(
 ) -> Result<(), String> {
     let mut stmt = conn
         .prepare(
-            "UPDATE agent_org_tasks
+            "UPDATE agent_org_runtime_tasks
              SET blocks_json=?1, blocked_by_json=?2
              WHERE org_run_id=?3 AND id=?4
                AND (blocks_json<>?1 OR blocked_by_json<>?2)",
@@ -64,23 +64,14 @@ pub(super) fn normalize_legacy_dependency_rows(
     conn: &rusqlite::Connection,
 ) -> rusqlite::Result<()> {
     const MIGRATION_NAME: &str = "canonical_blocked_by_v1";
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_task_run_schema_migrations (
-            name TEXT NOT NULL,
-            org_run_id TEXT NOT NULL,
-            applied_at TEXT NOT NULL,
-            PRIMARY KEY (name, org_run_id)
-        );",
-    )?;
-
     let mut after_run_id: Option<String> = None;
     loop {
         let run_ids = {
             let mut stmt = conn.prepare(
                 "SELECT task.org_run_id
-                 FROM agent_org_tasks task
+                 FROM agent_org_runtime_tasks task
                  WHERE NOT EXISTS (
-                     SELECT 1 FROM agent_org_task_run_schema_migrations migration
+                     SELECT 1 FROM agent_org_runtime_task_schema_migrations migration
                      WHERE migration.name=?1
                        AND migration.org_run_id=task.org_run_id
                  )
@@ -105,7 +96,7 @@ pub(super) fn normalize_legacy_dependency_rows(
                 let already_applied: bool = conn
                     .query_row(
                         "SELECT EXISTS(
-                         SELECT 1 FROM agent_org_task_run_schema_migrations
+                         SELECT 1 FROM agent_org_runtime_task_schema_migrations
                          WHERE name=?1 AND org_run_id=?2
                      )",
                         params![MIGRATION_NAME, &run_id],
@@ -127,7 +118,7 @@ pub(super) fn normalize_legacy_dependency_rows(
                 canonicalize_dependencies(&mut tasks, &run_id)?;
                 persist_dependency_projection(conn, &tasks)?;
                 conn.execute(
-                    "INSERT INTO agent_org_task_run_schema_migrations(
+                    "INSERT INTO agent_org_runtime_task_schema_migrations(
                      name, org_run_id, applied_at
                  ) VALUES (?1, ?2, ?3)",
                     params![MIGRATION_NAME, &run_id, now_rfc3339()],
@@ -159,7 +150,7 @@ pub(super) fn run_is_safe_for_dependency_normalization(
 ) -> Result<bool, String> {
     let count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_tasks WHERE org_run_id=?1",
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id=?1",
             params![run_id],
             |row| row.get(0),
         )
@@ -183,7 +174,7 @@ pub(super) fn run_is_safe_for_dependency_normalization(
                     CASE WHEN metadata_json IS NULL
                               OR length(CAST(metadata_json AS BLOB))<={metadata_max}
                          THEN metadata_json ELSE '!' END AS metadata_json
-             FROM agent_org_tasks WHERE org_run_id=?1
+             FROM agent_org_runtime_tasks WHERE org_run_id=?1
          ) AS bounded_tasks"
     );
     let corrupt: i64 = conn

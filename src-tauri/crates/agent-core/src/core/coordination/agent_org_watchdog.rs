@@ -36,6 +36,7 @@ mod reservation;
 mod tests;
 
 pub use budget::clear_rewake_budget;
+pub(crate) use budget::create_schema;
 pub use budget::init_schema;
 pub(crate) use budget::member_rewake_fingerprint;
 #[cfg(test)]

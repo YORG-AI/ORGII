@@ -49,13 +49,13 @@ pub fn clear_messages(prefix: &str, session_id: &str) -> SqliteResult<i64> {
     with_sessions_writer(|| {
         let mut conn = get_connection()?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if prefix == "agent" && table_exists(&tx, "agent_inbox_materializations")? {
+        if prefix == "agent" && table_exists(&tx, "agent_org_runtime_inbox_materializations")? {
             // Rewind/clear removes the durable transcript but intentionally
             // leaves the source Inbox row unread. Deleting its receipt lets
             // the next wake materialize the input again instead of pointing
             // forever at a transcript that no longer exists.
             tx.execute(
-                "DELETE FROM agent_inbox_materializations WHERE session_id=?1",
+                "DELETE FROM agent_org_runtime_inbox_materializations WHERE session_id=?1",
                 [session_id],
             )?;
         }
@@ -87,9 +87,9 @@ pub fn truncate_messages_from_sequence(
     with_sessions_writer(|| {
         let mut conn = get_connection()?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if prefix == "agent" && table_exists(&tx, "agent_inbox_materializations")? {
+        if prefix == "agent" && table_exists(&tx, "agent_org_runtime_inbox_materializations")? {
             tx.execute(
-                "DELETE FROM agent_inbox_materializations
+                "DELETE FROM agent_org_runtime_inbox_materializations
                  WHERE session_id=?1
                    AND transcript_message_id IN (
                        SELECT id FROM agent_messages

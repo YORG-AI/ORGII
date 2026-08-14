@@ -33,15 +33,11 @@ pub mod work_item_recovery;
 pub mod work_item_run_dispatcher;
 pub mod work_item_scheduler;
 
+mod schema;
+
 /// Initialize the complete durable Agent Org runtime schema in dependency
 /// order. Production and sandbox test entry points share this registry so a
 /// newly-added recovery table cannot silently exist in only one environment.
 pub fn init_agent_org_schemas(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-    agent_org_runs::init_schema(conn)?;
-    agent_inbox::init_schema(conn)?;
-    agent_org_tasks::init_schema(conn)?;
-    agent_org_plan_approvals::init_schema(conn)?;
-    agent_member_interventions::init_schema(conn)?;
-    agent_org_watchdog::init_schema(conn)?;
-    Ok(())
+    schema::initialize(conn)
 }
