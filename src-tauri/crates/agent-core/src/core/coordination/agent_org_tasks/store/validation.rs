@@ -66,7 +66,7 @@ pub(super) fn ensure_run_allows_task_mutation(
 ) -> Result<(), String> {
     let status: Option<String> = conn
         .query_row(
-            "SELECT status FROM agent_org_runs WHERE id=?1",
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
             params![org_run_id],
             |row| row.get(0),
         )
@@ -232,7 +232,7 @@ pub(super) fn validate_task_persistence_invariants(
 
     let snapshot_json: Option<String> = conn
         .query_row(
-            "SELECT org_snapshot_json FROM agent_org_runs WHERE id=?1",
+            "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id=?1",
             params![org_run_id],
             |row| row.get(0),
         )

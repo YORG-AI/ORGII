@@ -212,7 +212,7 @@ mod tests {
         crate::coordination::agent_org_runs::init_schema(conn).expect("Agent Org run schema");
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
-            "INSERT INTO agent_org_runs (
+            "INSERT INTO agent_org_runtime_runs (
                  id, org_id, coordinator_agent_id, root_session_id,
                  entry_mode, status, created_at, updated_at
              ) VALUES (?1, 'org-1', 'coord', 'root-1', 'build', ?2, ?3, ?3)",

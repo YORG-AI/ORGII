@@ -46,7 +46,7 @@ impl AgentInboxStore {
             let running: bool = tx
                 .query_row(
                     "SELECT EXISTS(
-                         SELECT 1 FROM agent_org_runs WHERE id=?1 AND status='running'
+                         SELECT 1 FROM agent_org_runtime_runs WHERE id=?1 AND status='running'
                      )",
                     params![&run_id],
                     |row| row.get(0),
@@ -146,7 +146,7 @@ impl AgentInboxStore {
         let now = chrono::Utc::now().to_rfc3339();
 
         let insert_sql = if causation_inbox_id.is_some() {
-            "INSERT OR IGNORE INTO agent_inbox (
+            "INSERT OR IGNORE INTO agent_org_runtime_inbox (
                     recipient_agent_id,
                     recipient_member_id,
                     sender_agent_id,
@@ -160,7 +160,7 @@ impl AgentInboxStore {
                     causation_inbox_id
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10)"
         } else {
-            "INSERT INTO agent_inbox (
+            "INSERT INTO agent_org_runtime_inbox (
                     recipient_agent_id,
                     recipient_member_id,
                     sender_agent_id,
@@ -209,7 +209,7 @@ impl AgentInboxStore {
                             request_id,
                             created_at,
                             read_at
-                     FROM agent_inbox
+                     FROM agent_org_runtime_inbox
                      WHERE causation_inbox_id = ?1
                        AND payload_kind = ?2
                        AND recipient_agent_id = ?3

@@ -132,7 +132,7 @@ fn init_inbox_schema() -> test_helpers::test_env::SandboxGuard {
     .expect("CLI session schema");
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_org_runs (
+        "INSERT INTO agent_org_runtime_runs (
              id, org_id, coordinator_agent_id, root_session_id,
              entry_mode, status, created_at, updated_at
          ) VALUES ('run-1', 'org-1', 'agent-coord', 'root-1',
@@ -361,7 +361,7 @@ async fn ordinary_message_does_not_create_unread_work_after_run_is_archived() {
     let _sandbox = init_inbox_schema();
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
-        "UPDATE agent_org_runs SET status='archived' WHERE id='run-1'",
+        "UPDATE agent_org_runtime_runs SET status='archived' WHERE id='run-1'",
         [],
     )
     .expect("archive run");

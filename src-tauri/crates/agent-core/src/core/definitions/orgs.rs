@@ -2,16 +2,15 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 #[cfg(not(test))]
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{error, info, warn};
 
-use app_paths::agent_orgs as storage_path;
+use app_paths::agent_org_definitions as storage_path;
 use key_vault::ModelType;
 
 #[cfg(not(test))]
@@ -364,7 +363,6 @@ struct AgentOrgDefinitionsFile {
 enum LoadOutcome {
     Missing,
     Loaded(Vec<OrgDefinition>),
-    LegacyReset,
     Blocked(String),
 }
 
@@ -381,11 +379,11 @@ impl Default for AgentOrgsStore {
 
 impl AgentOrgsStore {
     pub fn new() -> Self {
+        retire_legacy_definitions_file();
         let path = storage_path();
         let (mut orgs, persistence_blocked, should_persist) = match load_from_disk(&path) {
             LoadOutcome::Missing => (Vec::new(), None, true),
             LoadOutcome::Loaded(orgs) => (orgs, None, false),
-            LoadOutcome::LegacyReset => (Vec::new(), None, true),
             LoadOutcome::Blocked(message) => {
                 error!("[agent-orgs] {}", message);
                 (Vec::new(), Some(message), false)
@@ -984,123 +982,64 @@ fn load_from_disk(path: &Path) -> LoadOutcome {
             return LoadOutcome::Blocked(format!("Failed to read {}: {}", path.display(), err));
         }
     };
-    let value: serde_json::Value = match serde_json::from_slice(&bytes) {
-        Ok(value) => value,
-        Err(err) => {
-            return LoadOutcome::Blocked(format!("Failed to parse {}: {}", path.display(), err));
-        }
+    let definitions = match parse_definitions_content(&bytes, path) {
+        Ok(definitions) => definitions,
+        Err(err) => return LoadOutcome::Blocked(err),
     };
+    info!(
+        "[agent-orgs] Loaded {} definitions from {}",
+        definitions.len(),
+        path.display()
+    );
+    LoadOutcome::Loaded(definitions)
+}
 
-    if value.is_array() || contains_legacy_hierarchy(&value) {
-        match backup_legacy_file(path, &bytes) {
-            Ok(backup_path) => {
-                warn!(
-                    "[agent-orgs] Backed up legacy recursive definitions to {} before reset",
-                    backup_path.display()
-                );
-                return LoadOutcome::LegacyReset;
-            }
-            Err(err) => return LoadOutcome::Blocked(err),
-        }
-    }
-
-    let mut file: AgentOrgDefinitionsFile = match serde_json::from_value(value) {
-        Ok(file) => file,
-        Err(err) => {
-            return LoadOutcome::Blocked(format!(
-                "Unrecognized Agent Org definitions file {}: {}",
-                path.display(),
-                err
-            ));
-        }
-    };
+pub(crate) fn parse_definitions_content(
+    bytes: &[u8],
+    path: &Path,
+) -> Result<Vec<OrgDefinition>, String> {
+    let value: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
+    let mut file: AgentOrgDefinitionsFile = serde_json::from_value(value).map_err(|err| {
+        format!(
+            "Unrecognized Agent Org definitions file {}: {}",
+            path.display(),
+            err
+        )
+    })?;
     if file.schema_version != AGENT_ORGS_FILE_SCHEMA_VERSION {
-        return LoadOutcome::Blocked(format!(
+        return Err(format!(
             "Unsupported Agent Org definitions schema version {} in {}",
             file.schema_version,
             path.display()
         ));
     }
-    if let Err(err) = canonicalize_and_validate_definitions(&mut file.definitions) {
-        return LoadOutcome::Blocked(format!(
+    canonicalize_and_validate_definitions(&mut file.definitions).map_err(|err| {
+        format!(
             "Invalid Agent Org definitions in {}: {}",
             path.display(),
             err
-        ));
-    }
-    info!(
-        "[agent-orgs] Loaded {} definitions from {}",
-        file.definitions.len(),
-        path.display()
-    );
-    LoadOutcome::Loaded(file.definitions)
+        )
+    })?;
+    Ok(file.definitions)
 }
 
-fn contains_legacy_hierarchy(value: &serde_json::Value) -> bool {
-    match value {
-        serde_json::Value::Object(object) => {
-            object.contains_key("children")
-                || object.contains_key("hierarchyMode")
-                || object.values().any(contains_legacy_hierarchy)
-        }
-        serde_json::Value::Array(values) => values.iter().any(contains_legacy_hierarchy),
-        _ => false,
+fn retire_legacy_definitions_file() {
+    let legacy_path = app_paths::agent_orgs();
+    match std::fs::remove_file(&legacy_path) {
+        Ok(()) => info!(
+            event = "agent_org_legacy_definitions_retired",
+            path = %legacy_path.display(),
+            "removed retired Agent Org definitions file"
+        ),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => warn!(
+            event = "agent_org_legacy_definitions_retirement_failed",
+            path = %legacy_path.display(),
+            error = %err,
+            "could not remove retired Agent Org definitions file; canonical store remains isolated"
+        ),
     }
-}
-
-fn backup_legacy_file(path: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|err| {
-            format!(
-                "System clock error while backing up legacy definitions: {}",
-                err
-            )
-        })?
-        .as_millis();
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("agent-orgs.json");
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    for suffix in 0..1000u16 {
-        let suffix_text = if suffix == 0 {
-            String::new()
-        } else {
-            format!("-{}", suffix)
-        };
-        let backup_path = parent.join(format!(
-            "{}.legacy-{}{}.bak",
-            file_name, timestamp, suffix_text
-        ));
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&backup_path)
-        {
-            Ok(mut file) => {
-                file.write_all(bytes)
-                    .and_then(|_| file.sync_all())
-                    .map_err(|err| {
-                        format!(
-                            "Failed to write legacy Agent Org backup {}: {}",
-                            backup_path.display(),
-                            err
-                        )
-                    })?;
-                return Ok(backup_path);
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(err) => {
-                return Err(format!(
-                    "Failed to create legacy Agent Org backup {}: {}",
-                    backup_path.display(),
-                    err
-                ));
-            }
-        }
-    }
-    Err("Could not allocate a unique legacy Agent Org backup path".to_string())
 }
 
 fn save_to_disk(path: &Path, orgs: &[OrgDefinition]) -> Result<(), String> {
@@ -1310,21 +1249,63 @@ mod tests {
     }
 
     #[test]
-    fn legacy_array_is_backed_up_before_reset() {
+    fn legacy_live_file_is_deleted_without_parsing_and_new_builtins_are_created() {
         let _sandbox = test_helpers::test_env::sandbox();
-        let path = storage_path();
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let legacy = br#"[{"id":"old","children":[]}]"#;
-        std::fs::write(&path, legacy).unwrap();
+        let new_path = storage_path();
+        let legacy_path = app_paths::agent_orgs();
+        let unrelated_path = legacy_path.parent().unwrap().join("agent-definitions.json");
+        std::fs::create_dir_all(new_path.parent().unwrap()).unwrap();
+        std::fs::write(&legacy_path, b"not even JSON").unwrap();
+        std::fs::write(&unrelated_path, b"unrelated sentinel").unwrap();
+
         let store = AgentOrgsStore::new();
+
         assert!(store.get(DEFAULT_SDE_TEMPLATE_TEAM_ID).is_ok());
-        let backups = std::fs::read_dir(path.parent().unwrap())
-            .unwrap()
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().contains("legacy-"))
-            .collect::<Vec<_>>();
-        assert_eq!(backups.len(), 1);
-        assert_eq!(std::fs::read(backups[0].path()).unwrap(), legacy);
+        assert!(!legacy_path.exists());
+        assert!(new_path.exists());
+        assert_eq!(
+            std::fs::read(unrelated_path).unwrap(),
+            b"unrelated sentinel"
+        );
+    }
+
+    #[test]
+    fn downgrade_recreated_legacy_file_is_deleted_without_changing_new_bytes() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let store = AgentOrgsStore::new();
+        let mut org = custom_org(&["alice", "bob"]);
+        org.id = "preserved-org".to_string();
+        org.name = "Preserved Org".to_string();
+        org.additional_task_graph_writer_member_ids = vec!["alice".to_string()];
+        org.member_communication_links = vec![MemberCommunicationLink::canonical("alice", "bob")];
+        store.insert(org.clone()).expect("persist canonical Team");
+        let new_path = storage_path();
+        let new_bytes = std::fs::read(&new_path).expect("canonical bytes");
+        let legacy_path = app_paths::agent_orgs();
+        std::fs::write(&legacy_path, br#"[{"id":"downgrade-team"}]"#)
+            .expect("downgrade legacy file");
+
+        let restarted = AgentOrgsStore::new();
+
+        assert!(!legacy_path.exists());
+        assert_eq!(
+            std::fs::read(&new_path).expect("new bytes after cleanup"),
+            new_bytes
+        );
+        assert_eq!(restarted.get(&org.id).expect("preserved Team"), org);
+    }
+
+    #[test]
+    fn legacy_cleanup_failure_never_redirects_the_store_to_the_old_path() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let legacy_path = app_paths::agent_orgs();
+        std::fs::create_dir_all(&legacy_path).expect("directory blocks file cleanup");
+
+        let store = AgentOrgsStore::new();
+
+        assert!(legacy_path.is_dir());
+        assert!(storage_path().is_file());
+        assert!(store.get(DEFAULT_SDE_TEMPLATE_TEAM_ID).is_ok());
     }
 
     #[test]
@@ -1350,8 +1331,13 @@ mod tests {
         org.member_communication_links = vec![MemberCommunicationLink::canonical("alice", "carol")];
         store.insert(org.clone()).expect("persist custom Team");
 
+        let bytes_before = std::fs::read(storage_path()).expect("canonical bytes before restart");
         let restarted = AgentOrgsStore::new();
         assert_eq!(restarted.get(&org.id).expect("reloaded Team"), org);
+        assert_eq!(
+            std::fs::read(storage_path()).expect("canonical bytes after restart"),
+            bytes_before
+        );
     }
 
     #[test]

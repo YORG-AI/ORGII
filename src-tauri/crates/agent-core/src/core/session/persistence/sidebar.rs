@@ -58,7 +58,7 @@ fn list_agent_sessions_page(
         Some(true) => {
             "AND EXISTS (
                 SELECT 1
-                FROM agent_org_runs r
+                FROM agent_org_runtime_runs r
                 WHERE r.root_session_id = s.session_id
             )"
         }
@@ -66,7 +66,7 @@ fn list_agent_sessions_page(
             "AND s.org_member_id IS NULL
             AND NOT EXISTS (
                 SELECT 1
-                FROM agent_org_runs r
+                FROM agent_org_runtime_runs r
                 WHERE r.root_session_id = s.session_id
             )"
         }
@@ -206,7 +206,7 @@ mod tests {
         ensure_runtime_schemas();
         let conn = database::db::get_connection().expect("test sqlite connection");
         conn.execute(
-            "INSERT INTO agent_org_runs (
+            "INSERT INTO agent_org_runtime_runs (
                 id,
                 org_id,
                 coordinator_agent_id,
@@ -404,7 +404,7 @@ mod tests {
                    AND s.org_member_id IS NULL
                    AND NOT EXISTS (
                        SELECT 1
-                       FROM agent_org_runs r
+                       FROM agent_org_runtime_runs r
                        WHERE r.root_session_id = s.session_id
                    )
                  ORDER BY s.updated_at DESC, s.session_id DESC
@@ -423,7 +423,7 @@ mod tests {
             "session page did not use ordered pin/type index:\n{details}"
         );
         assert!(
-            details.contains("idx_agent_org_runs_root_session"),
+            details.contains("idx_agent_org_runtime_runs_root_session"),
             "root membership probe did not use root-session index:\n{details}"
         );
     }

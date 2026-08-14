@@ -30,7 +30,7 @@ pub(super) fn create_pending_in_tx(
     validate_owned_plan_path_with_connection(tx, &params.source_session_id, &params.plan_path)?;
     let run_status: Option<String> = tx
         .query_row(
-            "SELECT status FROM agent_org_runs WHERE id=?1",
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
             params![&params.org_run_id],
             |row| row.get(0),
         )
@@ -46,7 +46,7 @@ pub(super) fn create_pending_in_tx(
 
     let task: Option<(Option<String>, String, Option<String>)> = tx
         .query_row(
-            "SELECT owner, status, metadata_json FROM agent_org_tasks
+            "SELECT owner, status, metadata_json FROM agent_org_runtime_tasks
              WHERE org_run_id=?1 AND id=?2",
             params![&params.org_run_id, &params.source_task_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -88,7 +88,7 @@ pub(super) fn create_pending_in_tx(
 
     let now = chrono::Utc::now().to_rfc3339();
     tx.execute(
-        "UPDATE agent_org_plan_approvals
+        "UPDATE agent_org_runtime_plan_approvals
          SET status=?1, resolved_at=?2
          WHERE org_run_id=?3 AND source_task_id=?4 AND status=?5",
         params![
@@ -166,7 +166,7 @@ pub(super) fn approve_pending_in_tx(
     let resolved_at = chrono::Utc::now().to_rfc3339();
     let changed = tx
         .execute(
-            "UPDATE agent_org_plan_approvals
+            "UPDATE agent_org_runtime_plan_approvals
              SET status=?1, decision_by=?2, plan_content=?3, resolved_at=?4
              WHERE approval_id=?5 AND plan_revision_id=?6 AND status=?7",
             params![
@@ -292,7 +292,7 @@ fn participant_agent_ids_in_tx(
     let (coordinator_agent_id, snapshot_json): (String, Option<String>) = tx
         .query_row(
             "SELECT coordinator_agent_id, org_snapshot_json
-             FROM agent_org_runs WHERE id=?1 AND status='running'",
+             FROM agent_org_runtime_runs WHERE id=?1 AND status='running'",
             params![run_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )

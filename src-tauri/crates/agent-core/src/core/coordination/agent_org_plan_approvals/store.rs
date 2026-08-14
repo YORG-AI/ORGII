@@ -227,7 +227,7 @@ impl AgentOrgPlanApprovalStore {
                         source_task_id, source_member_id, source_session_id,
                         root_session_id, policy, status, plan_title, plan_path,
                         plan_content, decision_by, feedback, created_at, resolved_at
-                 FROM agent_org_plan_approvals
+                 FROM agent_org_runtime_plan_approvals
                  WHERE org_run_id=?1 AND status=?2
                  ORDER BY created_at ASC, approval_id ASC",
             )
@@ -247,7 +247,7 @@ impl AgentOrgPlanApprovalStore {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
-                "SELECT source_task_id FROM agent_org_plan_approvals
+                "SELECT source_task_id FROM agent_org_runtime_plan_approvals
                  WHERE org_run_id=?1 AND status=?2
                  ORDER BY created_at ASC, approval_id ASC",
             )
@@ -280,7 +280,7 @@ impl AgentOrgPlanApprovalStore {
                         source_task_id, source_member_id, source_session_id,
                         root_session_id, policy, status, plan_title,
                         length(CAST(plan_content AS BLOB)), created_at
-                 FROM agent_org_plan_approvals
+                 FROM agent_org_runtime_plan_approvals
                  WHERE org_run_id=?1 AND status=?2
                  ORDER BY created_at ASC, approval_id ASC",
             )
@@ -449,7 +449,7 @@ impl AgentOrgPlanApprovalStore {
             authorize_decision(approval.policy, decision_by)?;
             let run_status: String = tx
                 .query_row(
-                    "SELECT status FROM agent_org_runs WHERE id=?1",
+                    "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
                     params![&approval.org_run_id],
                     |row| row.get(0),
                 )
@@ -463,7 +463,7 @@ impl AgentOrgPlanApprovalStore {
             let resolved_at = chrono::Utc::now().to_rfc3339();
             let changed = tx
                 .execute(
-                    "UPDATE agent_org_plan_approvals
+                    "UPDATE agent_org_runtime_plan_approvals
                  SET status=?1, decision_by=?2, feedback=?3, resolved_at=?4
                  WHERE approval_id=?5 AND plan_revision_id=?6 AND status=?7",
                     params![
@@ -630,15 +630,15 @@ impl AgentOrgPlanApprovalStore {
                     let mut stmt = conn
                         .prepare(
                             "SELECT DISTINCT approval.org_run_id
-                         FROM agent_org_plan_approvals approval
+                         FROM agent_org_runtime_plan_approvals approval
                          WHERE approval.status=?1
                            AND (
                              NOT EXISTS (
-                               SELECT 1 FROM agent_org_runs run
+                               SELECT 1 FROM agent_org_runtime_runs run
                                WHERE run.id=approval.org_run_id
                              )
                              OR EXISTS (
-                               SELECT 1 FROM agent_org_runs run
+                               SELECT 1 FROM agent_org_runtime_runs run
                                WHERE run.id=approval.org_run_id
                                  AND run.status IN ('failed','archived')
                              )
@@ -656,17 +656,17 @@ impl AgentOrgPlanApprovalStore {
                 };
                 let changed = conn
                     .execute(
-                        "UPDATE agent_org_plan_approvals
+                        "UPDATE agent_org_runtime_plan_approvals
                  SET status=?1, decision_by='system', resolved_at=?2
                  WHERE status=?3
                    AND (
                      NOT EXISTS (
-                       SELECT 1 FROM agent_org_runs run
-                       WHERE run.id=agent_org_plan_approvals.org_run_id
+                       SELECT 1 FROM agent_org_runtime_runs run
+                       WHERE run.id=agent_org_runtime_plan_approvals.org_run_id
                      )
                      OR EXISTS (
-                       SELECT 1 FROM agent_org_runs run
-                       WHERE run.id=agent_org_plan_approvals.org_run_id
+                       SELECT 1 FROM agent_org_runtime_runs run
+                       WHERE run.id=agent_org_runtime_plan_approvals.org_run_id
                          AND run.status IN ('failed','archived')
                      )
                    )",

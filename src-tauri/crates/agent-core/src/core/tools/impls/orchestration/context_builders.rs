@@ -129,30 +129,14 @@ pub fn build_agent_definitions_context() -> Option<String> {
 
 /// Build a compact listing of agent organizations.
 ///
-/// Same fail-soft policy as [`build_agent_definitions_context`]:
-/// invalid on-disk JSON is logged via `warn!` and the section is
-/// silently dropped from the prompt rather than aborting the launch.
+/// Uses the canonical process store so prompt assembly observes exactly the
+/// same versioned definitions and fail-closed validation as settings, launch,
+/// Work Items, and Routines.
 pub fn build_agent_orgs_context() -> Option<String> {
-    let orgs_path = app_paths::agent_orgs();
-    if !orgs_path.exists() {
-        return None;
-    }
-    let content = std::fs::read_to_string(&orgs_path)
+    let orgs = crate::definitions::orgs::orgs_store()
+        .list()
         .map_err(|err| {
-            warn!(
-                "[agent] read agent organizations context from {}: {}; section skipped",
-                orgs_path.display(),
-                err
-            );
-        })
-        .ok()?;
-    let orgs: Vec<crate::definitions::orgs::OrgDefinition> = serde_json::from_str(&content)
-        .map_err(|err| {
-            warn!(
-                "[agent] parse agent organizations context from {}: {}; section skipped",
-                orgs_path.display(),
-                err
-            );
+            warn!("[agent] load canonical Agent Org context: {err}; section skipped");
         })
         .ok()?;
     if orgs.is_empty() {

@@ -189,7 +189,7 @@ pub(super) fn resume_agent_org_context_sync(
             .map_err(|err| err.to_string())?;
         let status: Option<String> = tx
             .query_row(
-                "SELECT status FROM agent_org_runs WHERE id=?1",
+                "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
                 params![&context.run_id],
                 |row| row.get(0),
             )
@@ -199,7 +199,7 @@ pub(super) fn resume_agent_org_context_sync(
         let run_is_running = transitioned || status.as_deref() == Some("running");
         if transitioned {
             tx.execute(
-                "UPDATE agent_org_runs
+                "UPDATE agent_org_runtime_runs
                  SET status='running', updated_at=?2
                  WHERE id=?1 AND status='paused'",
                 params![&context.run_id, chrono::Utc::now().to_rfc3339()],
@@ -321,13 +321,13 @@ fn seed_coordinator_resume_inbox_in_tx(
     let has_unread: bool = tx
         .query_row(
             "SELECT EXISTS(
-                 SELECT 1 FROM agent_inbox
+                 SELECT 1 FROM agent_org_runtime_inbox
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )
              )",
             params![coordinator_member_id, &context.run_id],

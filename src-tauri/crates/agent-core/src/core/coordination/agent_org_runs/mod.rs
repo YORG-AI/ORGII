@@ -45,26 +45,6 @@ use crate::definitions::orgs::{
     AgentOrgCapabilityIndex, AgentOrgLaunchSnapshot, PlanApprovalPolicy,
 };
 
-type RunSchemaColumn = (i64, String, String, i64, Option<String>, i64);
-
-const LEGACY_RUN_SCHEMA: [(&str, &str, i64, Option<&str>, i64); 15] = [
-    ("id", "TEXT", 0, None, 1),
-    ("org_id", "TEXT", 1, None, 0),
-    ("coordinator_agent_id", "TEXT", 1, None, 0),
-    ("root_session_id", "TEXT", 0, None, 0),
-    ("org_snapshot_json", "TEXT", 0, None, 0),
-    ("entry_mode", "TEXT", 1, None, 0),
-    ("status", "TEXT", 1, None, 0),
-    ("work_item_id", "TEXT", 0, None, 0),
-    ("project_slug", "TEXT", 0, None, 0),
-    ("routine_fire_id", "TEXT", 0, None, 0),
-    ("summary", "TEXT", 0, None, 0),
-    ("last_error", "TEXT", 0, None, 0),
-    ("created_at", "TEXT", 1, None, 0),
-    ("updated_at", "TEXT", 1, None, 0),
-    ("completed_at", "TEXT", 0, None, 0),
-];
-
 pub use core_types::agent_org::COORDINATOR_MEMBER_ID;
 pub(crate) const DEFAULT_COORDINATOR_DISPLAY_NAME: &str = "Coordinator";
 
@@ -407,65 +387,16 @@ impl AgentOrgStartingFailure {
     }
 }
 
-/// Initialize runtime Agent Org tables in `sessions.db`.
+/// Initialize the redesigned runtime run envelope in an already-isolated
+/// namespace. Production startup uses the complete schema coordinator; this
+/// narrower entry point remains available to focused unit tests.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
-    let columns = conn
-        .prepare(
-            "SELECT cid, name, type, \"notnull\", dflt_value, pk
-             FROM pragma_table_info('agent_org_runs') ORDER BY cid",
-        )?
-        .query_map([], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
-            ))
-        })?
-        .collect::<SqliteResult<Vec<RunSchemaColumn>>>()?;
-
-    let is_legacy_run_schema = columns.len() == LEGACY_RUN_SCHEMA.len()
-        && columns
-            .iter()
-            .zip(LEGACY_RUN_SCHEMA.iter())
-            .enumerate()
-            .all(|(cid, (actual, expected))| {
-                actual.0 == cid as i64
-                    && actual.1 == expected.0
-                    && actual.2 == expected.1
-                    && actual.3 == expected.2
-                    && actual.4.as_deref() == expected.3
-                    && actual.5 == expected.4
-            });
-
-    if is_legacy_run_schema {
-        let legacy_run_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM agent_org_runs", [], |row| row.get(0))?;
-        let tx = database::db::begin_immediate(conn)?;
-        tx.execute_batch(
-            "DROP TABLE IF EXISTS agent_org_initial_inputs;
-             DROP TABLE IF EXISTS agent_org_member_materializations;
-             DROP TABLE IF EXISTS agent_org_run_progress;
-             DROP TABLE agent_org_runs;",
-        )?;
-        create_canonical_schema(&tx)?;
-        tx.commit()?;
-        tracing::info!(
-            event = "agent_org_legacy_run_schema_reset",
-            legacy_run_count,
-            "reset legacy Agent Org runtime envelope"
-        );
-        return Ok(());
-    }
-
-    create_canonical_schema(conn)
+    create_schema(conn)
 }
 
-fn create_canonical_schema(conn: &Connection) -> SqliteResult<()> {
+pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_runs (
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_runs (
             id TEXT PRIMARY KEY,
             org_id TEXT NOT NULL,
             coordinator_agent_id TEXT NOT NULL,
@@ -492,14 +423,14 @@ fn create_canonical_schema(conn: &Connection) -> SqliteResult<()> {
             updated_at TEXT NOT NULL,
             idled_at TEXT
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_org_updated
-            ON agent_org_runs(org_id, updated_at);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_root_session
-            ON agent_org_runs(root_session_id);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_work_item
-            ON agent_org_runs(work_item_id);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_status
-            ON agent_org_runs(status);",
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_runs_org_updated
+            ON agent_org_runtime_runs(org_id, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_runs_root_session
+            ON agent_org_runtime_runs(root_session_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_runs_work_item
+            ON agent_org_runtime_runs(work_item_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_runs_status
+            ON agent_org_runtime_runs(status);",
     )?;
     materialization::init_schema(conn)?;
     progress::init_schema(conn)?;

@@ -138,7 +138,7 @@ pub struct CreateAgentOrgInitialInput {
 
 pub(super) fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_member_materializations (
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_member_materializations (
             org_run_id TEXT NOT NULL,
             member_id TEXT NOT NULL,
             agent_id TEXT NOT NULL,
@@ -156,12 +156,12 @@ pub(super) fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             updated_at TEXT NOT NULL,
             PRIMARY KEY(org_run_id, member_id, generation),
             UNIQUE(org_run_id, session_id),
-            FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
+            FOREIGN KEY(org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_materializations_pending
-            ON agent_org_member_materializations(status, org_run_id, generation);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_member_materializations_pending
+            ON agent_org_runtime_member_materializations(status, org_run_id, generation);
 
-        CREATE TABLE IF NOT EXISTS agent_org_initial_inputs (
+        CREATE TABLE IF NOT EXISTS agent_org_runtime_initial_inputs (
             org_run_id TEXT PRIMARY KEY,
             turn_intent_id TEXT NOT NULL,
             message_id TEXT NOT NULL,
@@ -174,10 +174,10 @@ pub(super) fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             updated_at TEXT NOT NULL,
             UNIQUE(turn_intent_id),
             UNIQUE(message_id),
-            FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
+            FOREIGN KEY(org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_initial_inputs_dispatch
-            ON agent_org_initial_inputs(status, org_run_id);",
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_initial_inputs_dispatch
+            ON agent_org_runtime_initial_inputs(status, org_run_id);",
     )
 }
 
@@ -194,7 +194,7 @@ pub(super) fn insert_materialization_intent(
         AgentOrgMaterializationStatus::Pending
     };
     conn.execute(
-        "INSERT INTO agent_org_member_materializations (
+        "INSERT INTO agent_org_runtime_member_materializations (
             org_run_id, member_id, agent_id, generation, session_id,
             authority_class, status, created_at, updated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, 'starting', ?6, ?7, ?7)",
@@ -219,7 +219,7 @@ pub(super) fn insert_initial_input(
     now: &str,
 ) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO agent_org_initial_inputs (
+        "INSERT INTO agent_org_runtime_initial_inputs (
             org_run_id, turn_intent_id, message_id, content, payload_json,
             status, created_at, updated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
@@ -246,7 +246,7 @@ pub(super) fn list_materializations_with_connection(
             "SELECT org_run_id, member_id, agent_id, generation, session_id,
                     authority_class, status, error_code, error_json,
                     created_at, updated_at
-             FROM agent_org_member_materializations
+             FROM agent_org_runtime_member_materializations
              WHERE org_run_id=?1
              ORDER BY member_id ASC",
         )
@@ -265,7 +265,7 @@ pub(super) fn load_initial_input_with_connection(
     conn.query_row(
         "SELECT org_run_id, turn_intent_id, message_id, content, payload_json,
                 status, created_at, updated_at
-         FROM agent_org_initial_inputs WHERE org_run_id=?1",
+         FROM agent_org_runtime_initial_inputs WHERE org_run_id=?1",
         [org_run_id],
         row_to_initial_input,
     )
@@ -280,7 +280,7 @@ pub(super) fn load_initial_input_by_turn_with_connection(
     conn.query_row(
         "SELECT org_run_id, turn_intent_id, message_id, content, payload_json,
                 status, created_at, updated_at
-         FROM agent_org_initial_inputs WHERE turn_intent_id=?1",
+         FROM agent_org_runtime_initial_inputs WHERE turn_intent_id=?1",
         [turn_intent_id],
         row_to_initial_input,
     )
@@ -303,8 +303,8 @@ pub(super) fn list_recoverable_initial_inputs_with_connection(
                     initial.message_id, initial.content, initial.payload_json,
                     initial.status,
                     initial.created_at, initial.updated_at
-             FROM agent_org_initial_inputs initial
-             JOIN agent_org_runs run ON run.id=initial.org_run_id
+             FROM agent_org_runtime_initial_inputs initial
+             JOIN agent_org_runtime_runs run ON run.id=initial.org_run_id
              JOIN session_turn_intents turn
                ON turn.org_run_id=initial.org_run_id
               AND turn.turn_intent_id=initial.turn_intent_id

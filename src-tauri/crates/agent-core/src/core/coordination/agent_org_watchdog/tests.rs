@@ -152,7 +152,7 @@ fn running_query_is_limited_and_never_visits_quiet_states() {
     let now = Utc::now().to_rfc3339();
     for index in 0..105 {
         conn.execute(
-            "INSERT INTO agent_org_runs (
+            "INSERT INTO agent_org_runtime_runs (
                  id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
                  created_at, updated_at
              ) VALUES (?1, 'watchdog-org', 'coordinator', ?2, 'standalone_session',
@@ -167,7 +167,7 @@ fn running_query_is_limited_and_never_visits_quiet_states() {
     }
     for status in ["starting", "paused", "idle", "failed", "archived"] {
         conn.execute(
-            "INSERT INTO agent_org_runs (
+            "INSERT INTO agent_org_runtime_runs (
                  id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
                  created_at, updated_at
              ) VALUES (?1, 'watchdog-org', 'coordinator', ?2, 'standalone_session',
@@ -214,7 +214,7 @@ fn rewake_budget_exhaustion_requires_all_attempts_and_an_expired_cooldown() {
     assert!(!rewake_budget_exhausted(&run_id, member_id, fingerprint).expect("initial budget"));
     let expired_at = (Utc::now() - ChronoDuration::seconds(1)).to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_org_recovery_attempts
+        "INSERT INTO agent_org_runtime_recovery_attempts
              (org_run_id, action_kind, target_key, reason_fingerprint, attempts,
               next_allowed_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",

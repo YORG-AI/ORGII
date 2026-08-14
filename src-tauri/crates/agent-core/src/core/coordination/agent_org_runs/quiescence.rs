@@ -296,12 +296,12 @@ pub(crate) fn guaranteed_current_turn_effects_with_connection(
         .prepare(
             "SELECT EXISTS(
                  SELECT 1
-                 FROM agent_inbox inbox
-                 JOIN agent_inbox_materializations receipt
+                 FROM agent_org_runtime_inbox inbox
+                 JOIN agent_org_runtime_inbox_materializations receipt
                    ON receipt.inbox_id=inbox.id AND receipt.session_id=?2
                  WHERE inbox.id=?1 AND inbox.org_run_id=?3 AND inbox.read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
                        WHERE resolution.inbox_id=inbox.id
                    )
              )",
@@ -330,7 +330,7 @@ pub(super) fn load_and_assess(
     let run_row: Option<(String, Option<String>, i64)> = conn
         .query_row(
             "SELECT status, root_session_id, activation_generation
-             FROM agent_org_runs WHERE id=?1",
+             FROM agent_org_runtime_runs WHERE id=?1",
             params![run_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
@@ -397,7 +397,7 @@ pub(super) fn load_and_assess(
         crate::coordination::agent_org_tasks::corrupt_task_row_predicate_sql();
     let persisted_task_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_tasks WHERE org_run_id=?1",
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id=?1",
             params![run_id],
             |row| row.get(0),
         )
@@ -432,7 +432,7 @@ pub(super) fn load_and_assess(
                     CASE WHEN metadata_json IS NULL
                               OR length(CAST(metadata_json AS BLOB))<={metadata_max}
                          THEN metadata_json ELSE '!' END AS metadata_json
-             FROM agent_org_tasks WHERE org_run_id=?1
+             FROM agent_org_runtime_tasks WHERE org_run_id=?1
          ) AS bounded_tasks"
     );
     let (
@@ -457,11 +457,11 @@ pub(super) fn load_and_assess(
     let unread_inbox_count: i64 = conn
         .query_row(
             "SELECT COUNT(*)
-             FROM agent_inbox
+             FROM agent_org_runtime_inbox
              WHERE org_run_id=?1 AND read_at IS NULL
                AND NOT EXISTS (
-                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                   WHERE resolution.inbox_id=agent_inbox.id
+                   SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                )",
             params![run_id],
             |row| row.get(0),
@@ -470,7 +470,7 @@ pub(super) fn load_and_assess(
     let active_intervention_member_ids = {
         let mut stmt = conn
             .prepare(
-                "SELECT DISTINCT member_id FROM agent_member_interventions
+                "SELECT DISTINCT member_id FROM agent_org_runtime_member_interventions
                  WHERE org_run_id=?1 AND member_id<>'coordinator'
                    AND cleared_at IS NULL
                    AND datetime(resume_after)>datetime(?2)
@@ -512,7 +512,7 @@ pub(super) fn load_and_assess(
         .map_err(|err| err.to_string())?;
     let pending_formal_materialization_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_member_materializations
+            "SELECT COUNT(*) FROM agent_org_runtime_member_materializations
              WHERE org_run_id=?1 AND generation=?2
                AND authority_class IN ('starting', 'formal')
                AND status<>'succeeded'",
@@ -522,7 +522,7 @@ pub(super) fn load_and_assess(
         .map_err(|err| err.to_string())?;
     let active_recovery_reservation_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_recovery_attempts
+            "SELECT COUNT(*) FROM agent_org_runtime_recovery_attempts
              WHERE org_run_id=?1 AND reservation_token IS NOT NULL",
             params![run_id],
             |row| row.get(0),
@@ -530,7 +530,7 @@ pub(super) fn load_and_assess(
         .map_err(|err| err.to_string())?;
     let pending_plan_approval_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_plan_approvals
+            "SELECT COUNT(*) FROM agent_org_runtime_plan_approvals
              WHERE org_run_id=?1 AND status='pending'",
             params![run_id],
             |row| row.get(0),

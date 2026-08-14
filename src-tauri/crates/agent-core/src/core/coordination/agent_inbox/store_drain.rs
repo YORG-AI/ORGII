@@ -26,13 +26,13 @@ impl AgentInboxStore {
         let conn = get_connection().map_err(|err| err.to_string())?;
         conn.query_row(
             "SELECT EXISTS(
-                 SELECT 1 FROM agent_inbox
+                 SELECT 1 FROM agent_org_runtime_inbox
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )
              )",
             params![recipient_member_id, org_run_id],
@@ -60,13 +60,13 @@ impl AgentInboxStore {
                         request_id,
                         created_at,
                         read_at
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )
                  ORDER BY id ASC",
             )
@@ -90,13 +90,13 @@ impl AgentInboxStore {
     ) -> Result<Option<i64>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
         conn.query_row(
-            "SELECT MAX(id) FROM agent_inbox
+            "SELECT MAX(id) FROM agent_org_runtime_inbox
              WHERE recipient_member_id=?1
                AND org_run_id=?2
                AND read_at IS NULL
                AND NOT EXISTS (
-                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                   WHERE resolution.inbox_id=agent_inbox.id
+                   SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                )",
             params![recipient_member_id, org_run_id],
             |row| row.get(0),
@@ -115,14 +115,14 @@ impl AgentInboxStore {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM agent_inbox
+                "SELECT COUNT(*) FROM agent_org_runtime_inbox
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND id<=?3
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )",
                 params![recipient_member_id, org_run_id, boundary_id],
                 |row| row.get(0),
@@ -165,13 +165,13 @@ impl AgentInboxStore {
                         request_id,
                         created_at,
                         read_at
-                 FROM agent_inbox
+                 FROM agent_org_runtime_inbox
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )
                  ORDER BY id ASC
                  LIMIT ?3",
@@ -255,16 +255,16 @@ impl AgentInboxStore {
                                 "SELECT read_at,
                                     EXISTS(
                                         SELECT 1
-                                        FROM agent_inbox_materializations receipt
-                                        WHERE receipt.inbox_id=agent_inbox.id
+                                        FROM agent_org_runtime_inbox_materializations receipt
+                                        WHERE receipt.inbox_id=agent_org_runtime_inbox.id
                                           AND receipt.session_id=?2
                                     ),
                                     EXISTS(
                                         SELECT 1
-                                        FROM agent_inbox_delivery_resolutions resolution
-                                        WHERE resolution.inbox_id=agent_inbox.id
+                                        FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                                        WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                                     )
-                             FROM agent_inbox WHERE id=?1",
+                             FROM agent_org_runtime_inbox WHERE id=?1",
                             )
                             .map_err(|err| err.to_string())?;
                         for id in ids {
@@ -282,16 +282,16 @@ impl AgentInboxStore {
                         }
                         let mut stmt = tx
                             .prepare(
-                                "UPDATE agent_inbox
+                                "UPDATE agent_org_runtime_inbox
                              SET read_at=?1
                              WHERE id=?2 AND read_at IS NULL
                                AND NOT EXISTS (
-                                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                                   WHERE resolution.inbox_id=agent_inbox.id
+                                   SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                                   WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                                )
                                AND EXISTS (
-                                   SELECT 1 FROM agent_inbox_materializations receipt
-                                   WHERE receipt.inbox_id=agent_inbox.id
+                                   SELECT 1 FROM agent_org_runtime_inbox_materializations receipt
+                                   WHERE receipt.inbox_id=agent_org_runtime_inbox.id
                                      AND receipt.session_id=?3
                                )",
                             )
@@ -299,7 +299,7 @@ impl AgentInboxStore {
                         for id in ids {
                             let org_run_id = tx
                             .query_row(
-                                "SELECT org_run_id FROM agent_inbox WHERE id=?1 AND read_at IS NULL",
+                                "SELECT org_run_id FROM agent_org_runtime_inbox WHERE id=?1 AND read_at IS NULL",
                                 params![id],
                                 |row| row.get::<_, Option<String>>(0),
                             )
@@ -319,19 +319,19 @@ impl AgentInboxStore {
                     } else {
                         let mut stmt = tx
                             .prepare(
-                                "UPDATE agent_inbox
+                                "UPDATE agent_org_runtime_inbox
                              SET read_at=?1
                              WHERE id=?2 AND read_at IS NULL
                                AND NOT EXISTS (
-                                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                                   WHERE resolution.inbox_id=agent_inbox.id
+                                   SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                                   WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                                )",
                             )
                             .map_err(|err| err.to_string())?;
                         for id in ids {
                             let org_run_id = tx
                             .query_row(
-                                "SELECT org_run_id FROM agent_inbox WHERE id=?1 AND read_at IS NULL",
+                                "SELECT org_run_id FROM agent_org_runtime_inbox WHERE id=?1 AND read_at IS NULL",
                                 params![id],
                                 |row| row.get::<_, Option<String>>(0),
                             )
@@ -354,7 +354,7 @@ impl AgentInboxStore {
                     if let Some(session_id) = materialization_session_id {
                         let mut stmt = tx
                             .prepare(
-                                "DELETE FROM agent_inbox_materializations
+                                "DELETE FROM agent_org_runtime_inbox_materializations
                              WHERE inbox_id=?1 AND session_id=?2",
                             )
                             .map_err(|err| err.to_string())?;
@@ -364,7 +364,7 @@ impl AgentInboxStore {
                         }
                     } else {
                         let mut stmt = tx
-                            .prepare("DELETE FROM agent_inbox_materializations WHERE inbox_id=?1")
+                            .prepare("DELETE FROM agent_org_runtime_inbox_materializations WHERE inbox_id=?1")
                             .map_err(|err| err.to_string())?;
                         for id in ids {
                             stmt.execute(params![id]).map_err(|err| err.to_string())?;
