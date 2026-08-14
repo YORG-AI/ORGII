@@ -1,10 +1,14 @@
-//! `agent_inbox` table DDL, column back-fills, and receipt self-heal.
+//! `agent_org_runtime_inbox` table DDL and receipt self-heal.
 
 use rusqlite::{Connection, Result as SqliteResult};
 
 use crate::coordination::agent_org_payload_limits as limits;
 
-/// Initialize the `agent_inbox` table.
+/// Initialize the `agent_org_runtime_inbox` table.
+///
+/// Tests-only convenience: production initialization goes through the
+/// namespace coordinator (`coordination::schema::initialize`), never this
+/// module-level entry point.
 ///
 /// Hot-path indexes:
 /// - `(recipient_member_id, read_at, created_at)` — materialized org member drain query.
@@ -83,11 +87,8 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
                          THEN payload_json ELSE '{{}}' END,
                     '$.task_id'
                   )='text';
-        DROP INDEX IF EXISTS idx_agent_org_runtime_inbox_run_task_assignment_v3;
-        DROP INDEX IF EXISTS idx_agent_org_runtime_inbox_run_task_assignment_v2;
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_inbox_request_id
             ON agent_org_runtime_inbox(request_id);
-        DROP INDEX IF EXISTS idx_agent_org_runtime_inbox_causation_once;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_org_runtime_inbox_causation_recipient_once
             ON agent_org_runtime_inbox(
                 causation_inbox_id,

@@ -104,7 +104,7 @@ pub const MANAGE_AGENT_DEF: &str = "manage_agent_def";
 /// Typed messaging inside an Agent Org run. Distinct from [`SEND_MESSAGE`]
 /// (chat-channel egress) — this targets coordinator/member participants in
 /// the same org by name or stable agent_id and persists to the typed
-/// `agent_inbox` table.
+/// `agent_org_runtime_inbox` table.
 pub const ORG_SEND_MESSAGE: &str = "org_send_message";
 
 // ── Agent Org Tasks ─────────────────────────────────────────────────

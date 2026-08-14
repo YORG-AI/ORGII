@@ -58,6 +58,9 @@ pub struct AgentMemberInterventionRecord {
     pub cleared_at: Option<String>,
 }
 
+/// Tests-only convenience: production initialization goes through the
+/// namespace coordinator (`coordination::schema::initialize`), never this
+/// module-level entry point.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     create_schema(conn)
 }
