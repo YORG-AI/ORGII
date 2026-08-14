@@ -30,6 +30,8 @@ use super::{
     CreateStartingAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 
+use crate::definitions::orgs::serialize_launch_snapshot;
+
 /// Stable machine prefix for permanent Session-identity failures raised by
 /// the materialization / finish-Starting certificate checks in this store.
 /// Launch recovery classifies retryable-vs-permanent on these prefixes; never
@@ -54,15 +56,6 @@ pub fn is_materialization_identity_mismatch_error(error: &str) -> bool {
 pub fn is_permanent_finish_starting_error(error: &str) -> bool {
     is_materialization_identity_mismatch_error(error)
         || error.starts_with(STARTING_INPUT_CERTIFICATE_ERROR_PREFIX)
-}
-
-fn serialize_launch_snapshot(
-    snapshot: &crate::definitions::orgs::AgentOrgLaunchSnapshot,
-) -> Result<String, String> {
-    crate::definitions::orgs::validate_launch_snapshot(snapshot)?;
-    let encoded = serde_json::to_string(snapshot)
-        .map_err(|err| format!("failed to serialize Agent Org launch snapshot: {err}"))?;
-    Ok(encoded)
 }
 
 pub struct AgentOrgRunStore;
