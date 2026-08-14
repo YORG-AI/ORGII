@@ -7,6 +7,7 @@ import { WorkStationViewService } from "@src/services/workStation/WorkStationVie
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { isTauriDesktop } from "@src/util/platform/tauri";
+import { AsyncUnlistenScope } from "@src/util/platform/tauri/asyncUnlistenScope";
 
 import { useGlobalKeydownShortcuts } from "./useGlobalKeydownShortcuts";
 
@@ -225,8 +226,7 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
   useEffect(() => {
     if (!isTauriDesktop()) return;
 
-    let cancelled = false;
-    const unlisteners: Array<() => void> = [];
+    const listenerScope = new AsyncUnlistenScope();
 
     const setupListeners = async () => {
       const { listen } = await import("@tauri-apps/api/event");
@@ -281,29 +281,30 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
         zoomReset: handleZoomReset,
       };
 
-      for (const [event, handler] of Object.entries(menuHandlers)) {
-        const unlisten = await listen(event, () => {
-          if (!cancelled) handler();
-        });
-        unlisteners.push(unlisten);
-      }
-
-      const unlistenInlineShortcut = await listen<{
-        shortcut: string;
-        keys: string;
-      }>("inline-webview-shortcut", (event) => {
-        if (cancelled) return;
-        const handler = inlineShortcutHandlers[event.payload.shortcut];
-        handler?.();
-      });
-      unlisteners.push(unlistenInlineShortcut);
+      await listenerScope.registerAll([
+        ...Object.entries(menuHandlers).map(
+          ([event, handler]) =>
+            () =>
+              listen(event, () => {
+                if (!listenerScope.isDisposed) handler();
+              })
+        ),
+        () =>
+          listen<{ shortcut: string; keys: string }>(
+            "inline-webview-shortcut",
+            (event) => {
+              if (listenerScope.isDisposed) return;
+              const handler = inlineShortcutHandlers[event.payload.shortcut];
+              handler?.();
+            }
+          ),
+      ]);
     };
 
-    setupListeners();
+    void setupListeners().catch(() => undefined);
 
     return () => {
-      cancelled = true;
-      unlisteners.forEach((unlisten) => unlisten());
+      listenerScope.dispose();
     };
   }, [
     handleCreateNewSession,

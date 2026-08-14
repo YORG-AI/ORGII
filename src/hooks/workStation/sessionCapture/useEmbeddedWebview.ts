@@ -5,7 +5,7 @@
  * - Unique label generation
  * - Open / close / updatePosition
  * - isOpen / isLoading / currentUrl state
- * - URL-change event listener with isMounted guard
+ * - Race-safe URL-change event listener teardown
  * - Observer-driven KeepAlive visibility (auto-close when host container is hidden)
  * - Unmount cleanup
  *
@@ -13,7 +13,7 @@
  * because each auth flow uses different Rust commands.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   type RefObject,
@@ -25,6 +25,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 
 import { createLogger } from "@src/hooks/logger";
+import { AsyncUnlistenScope } from "@src/util/platform/tauri/asyncUnlistenScope";
 import { toNativeFrame } from "@src/util/platform/tauri/nativeFrame";
 
 const moduleLog = createLogger("useEmbeddedWebview");
@@ -80,7 +81,6 @@ export function useEmbeddedWebview({
   const [currentUrl, setCurrentUrl] = useState("");
 
   const labelRef = useRef(`${labelPrefix}-${uuidv4()}`);
-  const urlListenerRef = useRef<UnlistenFn | null>(null);
 
   const log = useCallback(
     (...args: unknown[]) => {
@@ -179,29 +179,26 @@ export function useEmbeddedWebview({
 
   // URL-change event listener
   useEffect(() => {
-    let isMounted = true;
+    const listenerScope = new AsyncUnlistenScope();
 
-    const setup = async () => {
-      const unlisten = await listen<{ url: string; webviewLabel?: string }>(
-        commands.urlChangedEvent,
-        (event) => {
-          if (!isMounted) return;
-          const { url, webviewLabel } = event.payload;
-          if (webviewLabel && webviewLabel !== labelRef.current) return;
-          if (ignoreAboutBlank && url === "about:blank") return;
-          setCurrentUrl(url);
-          log("URL changed:", url);
-        }
-      );
-      if (isMounted) urlListenerRef.current = unlisten;
-    };
-
-    setup().catch(() => {});
+    void listenerScope
+      .register(() =>
+        listen<{ url: string; webviewLabel?: string }>(
+          commands.urlChangedEvent,
+          (event) => {
+            if (listenerScope.isDisposed) return;
+            const { url, webviewLabel } = event.payload;
+            if (webviewLabel && webviewLabel !== labelRef.current) return;
+            if (ignoreAboutBlank && url === "about:blank") return;
+            setCurrentUrl(url);
+            log("URL changed:", url);
+          }
+        )
+      )
+      .catch(() => undefined);
 
     return () => {
-      isMounted = false;
-      urlListenerRef.current?.();
-      urlListenerRef.current = null;
+      listenerScope.dispose();
     };
   }, [commands.urlChangedEvent, ignoreAboutBlank, log]);
 
