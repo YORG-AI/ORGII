@@ -6,7 +6,9 @@ use crate::coordination::agent_member_interventions::AgentMemberInterventionStor
 use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task, TaskStatus};
 use crate::session::SessionStatus;
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 
 use super::helpers::{
     context_for_run_record, flatten_members, insert_run, load_by_id, load_by_root_session,
@@ -63,7 +65,7 @@ impl AgentOrgRunStore {
         if root_session_ids.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let placeholders = (1..=root_session_ids.len())
             .map(|index| format!("?{index}"))
             .collect::<Vec<_>>()
@@ -131,7 +133,7 @@ impl AgentOrgRunStore {
         };
 
         with_sessions_writer(|| -> Result<(), String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -234,7 +236,7 @@ impl AgentOrgRunStore {
         }
 
         with_sessions_writer(|| -> Result<(), String> {
-            let mut connection = get_connection().map_err(|error| error.to_string())?;
+            let mut connection = runtime_connection().map_err(|error| error.to_string())?;
             let transaction = connection
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|error| error.to_string())?;
@@ -281,24 +283,24 @@ impl AgentOrgRunStore {
     }
 
     pub fn materializations(run_id: &str) -> Result<Vec<AgentOrgMaterializationIntent>, String> {
-        let connection = get_connection().map_err(|error| error.to_string())?;
+        let connection = runtime_connection().map_err(|error| error.to_string())?;
         list_materializations_with_connection(&connection, run_id)
     }
 
     pub fn initial_input(run_id: &str) -> Result<Option<AgentOrgInitialInput>, String> {
-        let connection = get_connection().map_err(|error| error.to_string())?;
+        let connection = runtime_connection().map_err(|error| error.to_string())?;
         load_initial_input_with_connection(&connection, run_id)
     }
 
     pub fn initial_input_for_turn(
         turn_intent_id: &str,
     ) -> Result<Option<AgentOrgInitialInput>, String> {
-        let connection = get_connection().map_err(|error| error.to_string())?;
+        let connection = runtime_connection().map_err(|error| error.to_string())?;
         load_initial_input_by_turn_with_connection(&connection, turn_intent_id)
     }
 
     pub fn recoverable_initial_inputs(limit: usize) -> Result<Vec<AgentOrgInitialInput>, String> {
-        let connection = get_connection().map_err(|error| error.to_string())?;
+        let connection = runtime_connection().map_err(|error| error.to_string())?;
         list_recoverable_initial_inputs_with_connection(&connection, limit)
     }
 
@@ -316,7 +318,7 @@ impl AgentOrgRunStore {
         session_id: &str,
     ) -> Result<bool, String> {
         with_sessions_writer(|| -> Result<bool, String> {
-            let mut connection = get_connection().map_err(|error| error.to_string())?;
+            let mut connection = runtime_connection().map_err(|error| error.to_string())?;
             let transaction = connection
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|error| error.to_string())?;
@@ -403,7 +405,7 @@ impl AgentOrgRunStore {
         expected_generation: i64,
     ) -> Result<AgentOrgRunStatus, String> {
         let status = with_sessions_writer(|| -> Result<AgentOrgRunStatus, String> {
-            let mut connection = get_connection().map_err(|error| error.to_string())?;
+            let mut connection = runtime_connection().map_err(|error| error.to_string())?;
             let transaction = connection
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|error| error.to_string())?;
@@ -575,7 +577,7 @@ impl AgentOrgRunStore {
         turn_intent_id: &str,
     ) -> Result<bool, String> {
         with_sessions_writer(|| {
-            let connection = get_connection().map_err(|error| error.to_string())?;
+            let connection = runtime_connection().map_err(|error| error.to_string())?;
             let changed = connection
                 .execute(
                     "UPDATE agent_org_runtime_initial_inputs
@@ -600,7 +602,7 @@ impl AgentOrgRunStore {
         let running = validate_status(AgentOrgRunStatus::Running.as_str())?;
         let now = chrono::Utc::now().to_rfc3339();
         let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             let rows_changed = conn
                 .execute(
                     "UPDATE agent_org_runtime_runs
@@ -648,7 +650,7 @@ impl AgentOrgRunStore {
         let paused = validate_status(AgentOrgRunStatus::Paused.as_str())?;
         let now = chrono::Utc::now().to_rfc3339();
         let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             let rows_changed = conn
                 .execute(
                     "UPDATE agent_org_runtime_runs
@@ -676,7 +678,7 @@ impl AgentOrgRunStore {
             .map_err(|error| format!("failed to serialize Starting failure: {error}"))?;
         let now = chrono::Utc::now().to_rfc3339();
         let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -709,7 +711,7 @@ impl AgentOrgRunStore {
     }
 
     pub fn progress(run_id: &str) -> Result<Option<AgentOrgRunProgress>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         load_progress_with_conn(&conn, run_id)
     }
 
@@ -718,7 +720,7 @@ impl AgentOrgRunStore {
     /// revision to `observed`; newer concurrent task mutations remain newer.
     pub fn stage_coordinator_work_revision(run_id: &str) -> Result<Option<i64>, String> {
         let revision = with_sessions_writer(|| {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             stage_coordinator_presented_with_conn(&conn, run_id)
         })?;
         if revision.is_some() {
@@ -736,7 +738,7 @@ impl AgentOrgRunStore {
     ) -> Result<(Option<i64>, Vec<Task>), String> {
         let (revision, tasks) =
             with_sessions_writer(|| -> Result<(Option<i64>, Vec<Task>), String> {
-                let mut conn = get_connection().map_err(|err| err.to_string())?;
+                let mut conn = runtime_connection().map_err(|err| err.to_string())?;
                 let tx = conn
                     .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                     .map_err(|err| err.to_string())?;
@@ -756,7 +758,7 @@ impl AgentOrgRunStore {
         presented_work_revision: i64,
     ) -> Result<Option<i64>, String> {
         let observed_revision = with_sessions_writer(|| {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             mark_coordinator_observed_revision_with_conn(&conn, run_id, presented_work_revision)
         })?;
         if observed_revision.is_some() {
@@ -773,7 +775,7 @@ impl AgentOrgRunStore {
         summary: &str,
     ) -> Result<AgentOrgCompletionRequestOutcome, String> {
         let outcome = with_sessions_writer(|| {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -827,7 +829,7 @@ impl AgentOrgRunStore {
     }
 
     pub fn assess_run_quiescence(run_id: &str) -> Result<AgentOrgQuiescenceAssessment, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Deferred)
             .map_err(|err| err.to_string())?;
@@ -845,7 +847,7 @@ impl AgentOrgRunStore {
         expected_work_revision: i64,
     ) -> Result<bool, String> {
         let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -946,7 +948,7 @@ impl AgentOrgRunStore {
     }
 
     pub fn is_root_session(org_run_id: &str, session_id: &str) -> Result<bool, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let root_session_id: Option<String> = conn
             .query_row(
                 "SELECT root_session_id FROM agent_org_runtime_runs WHERE id = ?1",
@@ -1004,7 +1006,7 @@ impl AgentOrgRunStore {
     /// Inbox renders those as transient client-side draft rows until the
     /// anchor exists.
     pub fn list_runs(limit: usize) -> Result<Vec<AgentOrgRunRecord>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -1057,7 +1059,7 @@ impl AgentOrgRunStore {
         }
         let bounded_limit = i64::try_from(limit)
             .map_err(|_| format!("Agent Org run list limit is too large: {limit}"))?;
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -1098,7 +1100,7 @@ impl AgentOrgRunStore {
 
     /// Return the current status of the run without fetching the full record.
     pub fn get_run_status(run_id: &str) -> Result<Option<AgentOrgRunStatus>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::get_run_status_with_connection(&conn, run_id)
     }
 
@@ -1130,7 +1132,7 @@ impl AgentOrgRunStore {
 
     pub fn delete_by_id(run_id: &str) -> Result<(), String> {
         let outcome = with_sessions_writer(|| -> Result<AgentOrgRunDeleteOutcome, String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -1259,7 +1261,7 @@ impl AgentOrgRunStore {
         org_run_id: &str,
         member_id: &str,
     ) -> Result<Option<WorkerSessionInfo>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::find_coordinator_session_by_member_id_with_connection(&conn, org_run_id, member_id)
     }
 
@@ -1306,7 +1308,7 @@ impl AgentOrgRunStore {
         org_run_id: &str,
         member_ids: &[String],
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::list_worker_sessions_by_member_ids_with_connection(&conn, org_run_id, member_ids)
     }
 
@@ -1378,7 +1380,7 @@ impl AgentOrgRunStore {
     pub fn list_descendant_worker_sessions(
         org_run_id: &str,
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::list_descendant_worker_sessions_with_connection(&conn, org_run_id)
     }
 

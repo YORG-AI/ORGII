@@ -4,7 +4,9 @@ use std::sync::OnceLock;
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 
 use super::persistence::query_record;
 use super::AgentOrgPlanApproval;
@@ -427,7 +429,7 @@ pub(super) fn list_distinct_plan_paths_after(
     after_path: Option<&str>,
     limit: usize,
 ) -> Result<Vec<String>, String> {
-    let conn = get_connection().map_err(|err| err.to_string())?;
+    let conn = runtime_connection().map_err(|err| err.to_string())?;
     let mut stmt = conn
         .prepare(
             "SELECT DISTINCT plan_path
@@ -458,7 +460,7 @@ fn latest_plan_revision_for_path_with_connection(
 }
 
 fn latest_plan_revision_for_path(plan_path: &str) -> Result<Option<AgentOrgPlanApproval>, String> {
-    let conn = get_connection().map_err(|err| err.to_string())?;
+    let conn = runtime_connection().map_err(|err| err.to_string())?;
     latest_plan_revision_for_path_with_connection(&conn, plan_path)
 }
 
@@ -467,7 +469,7 @@ fn stage_plan_artifact_if_needed(
     plan_path: &str,
     canonical_content: &str,
 ) -> Result<Option<StagedPlanArtifact>, String> {
-    let conn = get_connection().map_err(|err| err.to_string())?;
+    let conn = runtime_connection().map_err(|err| err.to_string())?;
     let Some(owned) =
         owned_plan_path_for_existing_revision_with_connection(&conn, source_session_id, plan_path)?
     else {
@@ -526,7 +528,7 @@ pub(super) fn repair_latest_plan_artifact_for_path(plan_path: &str) -> Result<bo
 
         let _artifact_guard = plan_artifact_install_lock().lock();
         let should_install = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             let latest = latest_plan_revision_for_path_with_connection(&conn, plan_path)?;
             let still_current = latest.as_ref().is_some_and(|record| {
                 record.approval_id == canonical.approval_id

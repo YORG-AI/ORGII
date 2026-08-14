@@ -2,7 +2,9 @@
 //! `blocked_by`, and (optionally) only applies to the exact inspected row
 //! version to close the check-then-write race.
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 use rusqlite::params;
 
 use super::super::helpers::{insert_task_history_event, list_tasks_with_conn, now_rfc3339};
@@ -43,7 +45,7 @@ impl AgentOrgTaskStore {
         task_id: &str,
         expected_updated_at: Option<&str>,
     ) -> Result<bool, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;

@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use rusqlite::{params, Connection, TransactionBehavior};
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 
 use crate::coordination::agent_inbox::{
     AgentInboxRecord, AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
@@ -50,7 +52,7 @@ impl AgentOrgPlanApprovalStore {
         file_name: &str,
     ) -> Result<PathBuf, String> {
         validate_plan_file_name(file_name)?;
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let (root, _) = expected_plan_root_with_connection(&conn, source_session_id)?;
         Ok(root.join(file_name))
     }
@@ -63,7 +65,7 @@ impl AgentOrgPlanApprovalStore {
         source_session_id: &str,
         plan_path: &str,
     ) -> Result<bool, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let owned =
             match validate_owned_plan_path_with_connection(&conn, source_session_id, plan_path) {
                 Ok(owned) => owned,
@@ -108,7 +110,7 @@ impl AgentOrgPlanApprovalStore {
         params: CreateAgentOrgPlanApprovalParams,
     ) -> Result<AgentOrgPlanApproval, String> {
         validate_create_params(&params)?;
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let staged_artifact = Some(stage_plan_artifact_with_connection(
             &conn,
             &params.source_session_id,
@@ -144,7 +146,7 @@ impl AgentOrgPlanApprovalStore {
         }
         validate_delivery(&delivery)?;
         validate_create_params(&params)?;
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let staged_artifact = Some(stage_plan_artifact_with_connection(
             &conn,
             &params.source_session_id,
@@ -189,7 +191,7 @@ impl AgentOrgPlanApprovalStore {
             return Err("automatic plan approval requires automatic policy".to_string());
         }
         validate_create_params(&params)?;
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let staged_artifact = Some(stage_plan_artifact_with_connection(
             &conn,
             &params.source_session_id,
@@ -220,7 +222,7 @@ impl AgentOrgPlanApprovalStore {
     }
 
     pub fn list_pending_by_run(run_id: &str) -> Result<Vec<AgentOrgPlanApproval>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT approval_id, plan_revision_id, request_id, org_run_id,
@@ -244,7 +246,7 @@ impl AgentOrgPlanApprovalStore {
     /// Lightweight watchdog projection. Plan Markdown can be hundreds of KB;
     /// recovery only needs to know which task ids are waiting for approval.
     pub fn pending_source_task_ids_by_run(run_id: &str) -> Result<Vec<String>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT source_task_id FROM agent_org_runtime_plan_approvals
@@ -265,7 +267,7 @@ impl AgentOrgPlanApprovalStore {
     pub fn list_pending_summaries_by_run(
         run_id: &str,
     ) -> Result<Vec<AgentOrgPlanApprovalSummary>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::list_pending_summaries_by_run_with_connection(&conn, run_id)
     }
 
@@ -298,7 +300,7 @@ impl AgentOrgPlanApprovalStore {
         run_id: &str,
         request_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         query_record(
             &conn,
             "WHERE org_run_id=?1 AND request_id=?2 AND status='pending'",
@@ -316,7 +318,7 @@ impl AgentOrgPlanApprovalStore {
         run_id: &str,
         request_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         query_record(
             &conn,
             "WHERE org_run_id=?1 AND request_id=?2",
@@ -338,7 +340,7 @@ impl AgentOrgPlanApprovalStore {
                 PLAN_CONTENT_MAX_BYTES,
             )?;
         }
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let current = query_record(&conn, "WHERE approval_id=?1", params![approval_id])?
             .ok_or_else(|| format!("agent_org_plan_approval_not_found: {approval_id}"))?;
         authorize_decision(current.policy, decision_by)?;
@@ -436,7 +438,7 @@ impl AgentOrgPlanApprovalStore {
         )?;
         validate_delivery(&delivery)?;
         let result = with_sessions_writer(|| {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -515,7 +517,7 @@ impl AgentOrgPlanApprovalStore {
     }
 
     pub fn get(approval_id: &str) -> Result<Option<AgentOrgPlanApproval>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         query_record(&conn, "WHERE approval_id=?1", params![approval_id])
     }
 
@@ -530,7 +532,7 @@ impl AgentOrgPlanApprovalStore {
         approval_id: &str,
         plan_revision_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let record = query_record(
             &conn,
             "WHERE approval_id=?1 AND plan_revision_id=?2",
@@ -560,7 +562,7 @@ impl AgentOrgPlanApprovalStore {
         approval_id: &str,
         plan_revision_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let record = query_record(
             &conn,
             "WHERE org_run_id=?1 AND approval_id=?2 AND plan_revision_id=?3",
@@ -625,7 +627,7 @@ impl AgentOrgPlanApprovalStore {
     pub fn cancel_pending_for_terminal_or_missing_runs() -> Result<usize, String> {
         let (changed, run_ids) =
             with_sessions_writer(|| -> Result<(usize, Vec<String>), String> {
-                let conn = get_connection().map_err(|err| err.to_string())?;
+                let conn = runtime_connection().map_err(|err| err.to_string())?;
                 let run_ids = {
                     let mut stmt = conn
                         .prepare(

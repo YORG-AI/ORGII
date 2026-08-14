@@ -761,7 +761,7 @@ fn coordinator_unread_recovery_with_connection(
 }
 
 pub fn inspect_stalled_run(run_id: &str) -> Result<StallRecoveryPlan, String> {
-    let mut conn = get_connection().map_err(|err| err.to_string())?;
+    let mut conn = runtime_connection().map_err(|err| err.to_string())?;
     let tx = conn
         .transaction_with_behavior(rusqlite::TransactionBehavior::Deferred)
         .map_err(|err| err.to_string())?;

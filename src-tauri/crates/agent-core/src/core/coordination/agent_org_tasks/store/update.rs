@@ -3,7 +3,9 @@
 //! `if_unchanged` variants), and the shared `update_inner` that recanonicalizes
 //! dependencies and reports a `TaskMutationOutcome`.
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 use rusqlite::{params, OptionalExtension};
 
 use crate::coordination::agent_org_payload_limits::validate_task_dependency_ids;
@@ -217,7 +219,7 @@ impl AgentOrgTaskStore {
         if let Some(blocked_by) = patch.blocked_by.as_ref() {
             validate_task_dependency_ids("blocked_by", blocked_by)?;
         }
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;

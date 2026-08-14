@@ -656,6 +656,44 @@ mod tests {
     }
 
     #[test]
+    fn scoped_init_degrades_to_unavailable_without_failing_db_init() {
+        use crate::coordination::availability;
+
+        let conn = connection();
+        initialize(&conn).expect("canonical runtime");
+        conn.execute_batch("DROP TABLE agent_org_runtime_initial_inputs;")
+            .expect("corrupt the runtime namespace");
+
+        // The production startup entry: coordinator failure is scoped, not
+        // propagated into whole sessions.db init failure.
+        crate::coordination::init_agent_org_schemas_scoped(&conn);
+
+        let reason =
+            availability::agent_org_runtime_unavailable_reason().expect("failure recorded");
+        assert!(reason.contains("Agent Org runtime schema"), "{reason}");
+
+        // Connection-layer init proceeds: later initializers still run DDL
+        // on the same connection, so ordinary chat keeps working.
+        conn.execute_batch("CREATE TABLE ordinary_chat_sentinel (id INTEGER PRIMARY KEY);")
+            .expect("whole-DB init continues past the coordinator failure");
+
+        // Every Agent Org store entry acquires its connection through the
+        // gate and receives the structured unavailable error.
+        let error = availability::runtime_connection().expect_err("gated store entry");
+        assert!(
+            error
+                .to_string()
+                .contains(availability::AGENT_ORG_RUNTIME_UNAVAILABLE_PREFIX),
+            "{error}"
+        );
+
+        // A later successful coordinator run restores availability.
+        let healthy = connection();
+        crate::coordination::init_agent_org_schemas_scoped(&healthy);
+        assert!(availability::agent_org_runtime_unavailable_reason().is_none());
+    }
+
+    #[test]
     fn measures_constant_scale_startup_paths() {
         const SAMPLES: usize = 25;
         let mut fresh = Vec::with_capacity(SAMPLES);

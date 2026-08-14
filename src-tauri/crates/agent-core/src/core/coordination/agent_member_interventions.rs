@@ -7,7 +7,9 @@
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::Serialize;
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 
 use super::agent_org_runs::COORDINATOR_MEMBER_ID;
 
@@ -115,7 +117,7 @@ impl AgentMemberInterventionStore {
         let status = MemberInterventionStatus::UserIntervention;
 
         with_sessions_writer(|| -> Result<(), String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             conn.execute(
                 "INSERT INTO agent_org_runtime_member_interventions (
                 org_run_id,
@@ -166,7 +168,7 @@ impl AgentMemberInterventionStore {
     pub fn clear(org_run_id: &str, member_id: &str) -> Result<bool, String> {
         let now = chrono::Utc::now().to_rfc3339();
         let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             let updated = conn
                 .execute(
                     "UPDATE agent_org_runtime_member_interventions
@@ -195,7 +197,7 @@ impl AgentMemberInterventionStore {
     ) -> Result<(bool, Option<i64>), String> {
         let now = chrono::Utc::now().to_rfc3339();
         with_sessions_writer(|| -> Result<(bool, Option<i64>), String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -230,7 +232,7 @@ impl AgentMemberInterventionStore {
         org_run_id: &str,
         member_id: &str,
     ) -> Result<Option<AgentMemberInterventionRecord>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         conn.query_row(
             "SELECT org_run_id,
                     member_id,
@@ -278,7 +280,7 @@ impl AgentMemberInterventionStore {
     pub fn clear_expired_and_legacy() -> Result<usize, String> {
         let now = chrono::Utc::now().to_rfc3339();
         with_sessions_writer(|| -> Result<usize, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             conn.execute(
                 "UPDATE agent_org_runtime_member_interventions
                  SET cleared_at = ?1
@@ -304,7 +306,7 @@ impl AgentMemberInterventionStore {
     pub fn clear_all_active_on_startup() -> Result<usize, String> {
         let now = chrono::Utc::now().to_rfc3339();
         with_sessions_writer(|| -> Result<usize, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             let updated = conn
                 .execute(
                     "UPDATE agent_org_runtime_member_interventions
@@ -318,7 +320,7 @@ impl AgentMemberInterventionStore {
     }
 
     pub fn list_active(org_run_id: &str) -> Result<Vec<AgentMemberInterventionRecord>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::list_active_with_connection(&conn, org_run_id)
     }
 
@@ -397,7 +399,7 @@ mod tests {
 
     fn setup() -> test_helpers::test_env::SandboxGuard {
         let sandbox = test_helpers::test_env::sandbox();
-        let conn = get_connection().expect("db connection");
+        let conn = runtime_connection().expect("db connection");
         init_schema(&conn).expect("schema");
         conn.execute("DELETE FROM agent_org_runtime_member_interventions", [])
             .expect("clear");
@@ -457,7 +459,7 @@ mod tests {
     fn legacy_coordinator_intervention_is_hidden_without_mutating_on_read() {
         let _sandbox = setup();
         let now = chrono::Utc::now();
-        let conn = get_connection().expect("db connection");
+        let conn = runtime_connection().expect("db connection");
         conn.execute(
             "INSERT INTO agent_org_runtime_member_interventions (
                 org_run_id, member_id, agent_id, session_id, status, reason,
@@ -557,7 +559,7 @@ mod tests {
     #[test]
     fn active_for_member_returns_none_after_ttl_expires() {
         let _sandbox = setup();
-        let conn = get_connection().expect("db connection");
+        let conn = runtime_connection().expect("db connection");
 
         AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
             org_run_id: "run-1".into(),

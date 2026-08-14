@@ -9,7 +9,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 use rusqlite::{params, Connection, Result as SqliteResult};
 
 use crate::coordination::agent_org_runs::{
@@ -794,7 +796,7 @@ pub(crate) fn enqueue_task_assignments_if_still_ready_for_recovery(
         return Ok(Vec::new());
     }
     with_sessions_writer(|| -> Result<Vec<i64>, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;

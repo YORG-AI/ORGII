@@ -3,7 +3,7 @@ use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use crate::definitions::orgs::{
     validate_launch_snapshot, AgentOrgCapabilityIndex, AgentOrgLaunchSnapshot,
 };
-use database::db::get_connection;
+use crate::coordination::availability::runtime_connection;
 
 use super::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunEntryMode, AgentOrgRunRecord,
@@ -19,7 +19,7 @@ use super::{
 /// but has no parent". Both cases terminate the walk identically;
 /// distinguishing them would not change the resolver outcome.
 pub(super) fn parent_session_id_of(session_id: &str) -> SqliteResult<Option<String>> {
-    let conn = get_connection()?;
+    let conn = runtime_connection()?;
     let parent = conn
         .query_row(
             "SELECT parent_session_id FROM agent_sessions WHERE session_id = ?1",
@@ -42,7 +42,7 @@ pub(super) fn parent_session_id_of(session_id: &str) -> SqliteResult<Option<Stri
 }
 
 pub(super) fn load_by_id(run_id: &str) -> SqliteResult<Option<AgentOrgRunRecord>> {
-    let conn = get_connection()?;
+    let conn = runtime_connection()?;
     conn.query_row(
         "SELECT id,
                 org_id,
@@ -75,7 +75,7 @@ pub(super) fn load_by_id(run_id: &str) -> SqliteResult<Option<AgentOrgRunRecord>
 pub(super) fn load_by_root_session(
     root_session_id: &str,
 ) -> SqliteResult<Option<AgentOrgRunRecord>> {
-    let conn = get_connection()?;
+    let conn = runtime_connection()?;
     conn.query_row(
         "SELECT id,
                 org_id,

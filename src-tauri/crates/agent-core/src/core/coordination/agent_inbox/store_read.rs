@@ -6,7 +6,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashSet;
 
 use crate::coordination::agent_org_payload_limits as limits;
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 
 use super::message::AgentMessage;
 #[cfg(test)]
@@ -171,7 +173,7 @@ impl AgentInboxStore {
     /// tiny number of rows. Production and debug paths use bounded pages.
     #[cfg(test)]
     pub fn list_by_run(org_run_id: &str) -> Result<Vec<AgentInboxRecord>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -209,7 +211,7 @@ impl AgentInboxStore {
         limit: usize,
     ) -> Result<AgentInboxPage, String> {
         let bounded_limit = limit.clamp(1, MAX_INBOX_HISTORY_PAGE_ROWS);
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -300,7 +302,7 @@ impl AgentInboxStore {
     }
 
     pub fn count_by_run(org_run_id: &str) -> Result<usize, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM agent_org_runtime_inbox WHERE org_run_id=?1",
@@ -322,7 +324,7 @@ impl AgentInboxStore {
         if inbox_id <= 0 {
             return Err("inbox_id must be a positive integer".to_string());
         }
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         conn.query_row(
             "SELECT id,
                     CASE WHEN length(CAST(recipient_agent_id AS BLOB))<=?3
@@ -376,7 +378,7 @@ impl AgentInboxStore {
         org_run_id: &str,
         inbox_id: i64,
     ) -> Result<Option<AgentInboxDeliveryResolution>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         load_delivery_resolution(&conn, org_run_id, inbox_id)
     }
 
@@ -448,7 +450,7 @@ impl AgentInboxStore {
 
         with_sessions_writer(
             || -> Result<AgentInboxDeliveryResolution, ResolveInboxDeliveryError> {
-                let mut conn = get_connection().map_err(|err| storage(err.to_string()))?;
+                let mut conn = runtime_connection().map_err(|err| storage(err.to_string()))?;
                 let tx = conn
                     .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                     .map_err(|err| storage(err.to_string()))?;
@@ -639,7 +641,7 @@ impl AgentInboxStore {
             return Ok(Vec::new());
         }
         let bounded_limit = limit.min(MAX_RUN_INBOX_SNAPSHOT_ROWS) as i64;
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -705,7 +707,7 @@ impl AgentInboxStore {
         org_run_id: &str,
         limit: usize,
     ) -> Result<Vec<AgentInboxPreviewRecord>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::list_recent_previews_by_run_with_connection(&conn, org_run_id, limit)
     }
 
@@ -823,7 +825,7 @@ impl AgentInboxStore {
     pub fn run_counts_by_recipient(
         org_run_id: &str,
     ) -> Result<Vec<AgentInboxRecipientCounts>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::run_counts_by_recipient_with_connection(&conn, org_run_id)
     }
 
@@ -902,7 +904,7 @@ impl AgentInboxStore {
     /// inbox history in Rust.
     #[cfg(test)]
     pub(super) fn task_assignment_ids_by_run(org_run_id: &str) -> Result<HashSet<String>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT DISTINCT json_extract(payload_json, '$.task_id')
@@ -1003,7 +1005,7 @@ impl AgentInboxStore {
         recipient_member_id: &str,
         org_run_id: &str,
     ) -> Result<Option<String>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::unread_fingerprint_for_member_with_connection(&conn, recipient_member_id, org_run_id)
     }
 

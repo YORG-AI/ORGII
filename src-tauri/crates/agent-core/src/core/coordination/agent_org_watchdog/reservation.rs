@@ -35,7 +35,7 @@ pub(crate) fn reserve_member_rewake_dispatch(
     fingerprint: &str,
 ) -> Result<MemberRewakeReservationOutcome, String> {
     with_sessions_writer(|| -> Result<MemberRewakeReservationOutcome, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
@@ -96,7 +96,7 @@ pub(crate) fn commit_member_rewake_reservation(
     reservation: &MemberRewakeReservation,
 ) -> Result<(), String> {
     with_sessions_writer(|| -> Result<(), String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         conn.execute(
             "UPDATE agent_org_runtime_recovery_attempts
              SET reservation_token=NULL
@@ -118,7 +118,7 @@ pub(crate) fn refund_member_rewake_reservation(
     reservation: &MemberRewakeReservation,
 ) -> Result<bool, String> {
     with_sessions_writer(|| -> Result<bool, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;

@@ -4,7 +4,9 @@
 
 use std::collections::HashSet;
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 use rusqlite::params;
 
 use crate::coordination::agent_org_payload_limits::{
@@ -89,7 +91,7 @@ impl AgentOrgTaskStore {
         let now = now_rfc3339();
 
         let (task, effect) = with_sessions_writer(|| -> Result<(Task, T), String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -235,7 +237,7 @@ impl AgentOrgTaskStore {
         }
 
         let (tasks, effect) = with_sessions_writer(|| -> Result<(Vec<Task>, T), String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;

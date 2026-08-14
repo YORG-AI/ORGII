@@ -53,7 +53,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 use rusqlite::{params, Connection, OptionalExtension};
 use tauri::AppHandle;
 

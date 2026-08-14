@@ -3,7 +3,9 @@
 //! and requeue a failed member's `in_progress` tasks back to the unassigned
 //! pool.
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 use rusqlite::params;
 
 use super::super::helpers::{insert_task_history_event, now_rfc3339, row_to_task, SELECT_COLUMNS};
@@ -37,7 +39,7 @@ impl AgentOrgTaskStore {
         org_run_id: &str,
         owner_member_id: &str,
     ) -> Result<Vec<Task>, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
@@ -154,7 +156,7 @@ impl AgentOrgTaskStore {
         org_run_id: &str,
         owner_member_id: &str,
     ) -> Result<Vec<Task>, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;

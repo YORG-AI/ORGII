@@ -27,6 +27,7 @@ pub mod agent_org_run_events;
 pub mod agent_org_runs;
 pub mod agent_org_tasks;
 pub mod agent_org_watchdog;
+pub mod availability;
 pub mod child_done_wake;
 pub mod routine_scheduler;
 pub mod work_item_recovery;
@@ -40,4 +41,25 @@ mod schema;
 /// newly-added recovery table cannot silently exist in only one environment.
 pub fn init_agent_org_schemas(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     schema::initialize(conn)
+}
+
+/// Production startup entry: initialize the namespace, scoping any failure
+/// to the Agent Org surface instead of failing whole sessions.db init.
+///
+/// On coordinator failure the full diagnostic is logged at error level and
+/// recorded in [`availability`]; every Agent Org store entry then returns
+/// the structured "agent-org runtime unavailable" error while ordinary
+/// chat (and the rest of sessions.db init) proceeds normally.
+pub fn init_agent_org_schemas_scoped(conn: &rusqlite::Connection) {
+    match schema::initialize(conn) {
+        Ok(()) => availability::mark_agent_org_runtime_available(),
+        Err(error) => {
+            tracing::error!(
+                event = "agent_org_runtime_namespace_unavailable",
+                error = %error,
+                "Agent Org runtime namespace init failed; Agent Org features are disabled for this process while ordinary chat continues"
+            );
+            availability::mark_agent_org_runtime_unavailable(error.to_string());
+        }
+    }
 }

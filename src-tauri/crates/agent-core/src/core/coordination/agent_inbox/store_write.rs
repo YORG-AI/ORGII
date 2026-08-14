@@ -4,7 +4,9 @@
 use rusqlite::{params, Connection};
 
 use crate::coordination::agent_org_payload_limits as limits;
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 
 use super::record::row_to_record;
 use super::{AgentInboxRecord, AgentInboxStore, InsertInboxParams};
@@ -17,7 +19,7 @@ impl AgentInboxStore {
     pub fn insert(params: InsertInboxParams) -> Result<AgentInboxRecord, String> {
         let changed_org_run_id = params.org_run_id.clone();
         let record = with_sessions_writer(|| -> Result<AgentInboxRecord, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             Self::insert_in_tx(&conn, params)
         })?;
         if let Some(org_run_id) = changed_org_run_id {
@@ -39,7 +41,7 @@ impl AgentInboxStore {
             .ok_or_else(|| "insert_if_run_running requires org_run_id".to_string())?
             .to_string();
         with_sessions_writer(|| -> Result<Option<AgentInboxRecord>, String> {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let mut conn = runtime_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
@@ -76,7 +78,7 @@ impl AgentInboxStore {
             return Err("causation_inbox_id must be a positive inbox row id".into());
         }
         with_sessions_writer(|| -> Result<(AgentInboxRecord, bool), String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
             Self::insert_in_tx_with_causation(&conn, params, Some(causation_inbox_id))
         })
     }

@@ -228,7 +228,7 @@ fn execute_stall_recovery_plan(
 
 fn clear_coordinator_notice_budget_if_recovered(run_id: &str) -> Result<(), String> {
     with_sessions_writer(|| -> Result<(), String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
@@ -267,7 +267,7 @@ fn insert_member_continuation_if_tasks_current(
     action: &MemberContinuationAction,
 ) -> Result<bool, String> {
     with_sessions_writer(|| -> Result<bool, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
@@ -396,7 +396,7 @@ fn insert_coordinator_stall_notice(
     expected_inbox_fingerprint: Option<&str>,
 ) -> Result<CoordinatorNoticeDispatch, String> {
     with_sessions_writer(|| -> Result<CoordinatorNoticeDispatch, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;

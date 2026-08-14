@@ -42,7 +42,7 @@ pub(super) fn budget_disposition(
     target_key: &str,
     fingerprint: &str,
 ) -> Result<BudgetDisposition, String> {
-    let conn = get_connection().map_err(|err| err.to_string())?;
+    let conn = runtime_connection().map_err(|err| err.to_string())?;
     budget_disposition_with_connection(&conn, run_id, action_kind, target_key, fingerprint)
 }
 
@@ -108,7 +108,7 @@ pub(super) fn record_attempt(
     fingerprint: &str,
 ) -> Result<(), String> {
     with_sessions_writer(|| -> Result<(), String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let mut conn = runtime_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
@@ -172,7 +172,7 @@ pub(super) fn record_attempt_with_connection(
 
 pub fn clear_rewake_budget(run_id: &str, member_id: &str) -> Result<(), String> {
     with_sessions_writer(|| {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         conn.execute(
             "DELETE FROM agent_org_runtime_recovery_attempts
              WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3",

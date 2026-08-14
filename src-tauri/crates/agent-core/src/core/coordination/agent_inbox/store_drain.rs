@@ -6,7 +6,9 @@ use std::collections::HashSet;
 
 use rusqlite::{params, OptionalExtension};
 
-use database::db::{get_connection, with_sessions_writer};
+use database::db::with_sessions_writer;
+
+use crate::coordination::availability::runtime_connection;
 
 use crate::coordination::agent_org_payload_limits as limits;
 
@@ -23,7 +25,7 @@ impl AgentInboxStore {
         recipient_member_id: &str,
         org_run_id: &str,
     ) -> Result<bool, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         conn.query_row(
             "SELECT EXISTS(
                  SELECT 1 FROM agent_org_runtime_inbox
@@ -46,7 +48,7 @@ impl AgentInboxStore {
         recipient_member_id: &str,
         org_run_id: &str,
     ) -> Result<Vec<AgentInboxRecord>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -88,7 +90,7 @@ impl AgentInboxStore {
         recipient_member_id: &str,
         org_run_id: &str,
     ) -> Result<Option<i64>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         conn.query_row(
             "SELECT MAX(id) FROM agent_org_runtime_inbox
              WHERE recipient_member_id=?1
@@ -112,7 +114,7 @@ impl AgentInboxStore {
         org_run_id: &str,
         boundary_id: i64,
     ) -> Result<usize, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM agent_org_runtime_inbox
@@ -139,7 +141,7 @@ impl AgentInboxStore {
         recipient_member_id: &str,
         org_run_id: &str,
     ) -> Result<AgentInboxBatch, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -239,7 +241,7 @@ impl AgentInboxStore {
         }
         let (updated, changed_run_ids) = with_sessions_writer(
             || -> Result<(usize, HashSet<String>), String> {
-                let mut conn = get_connection().map_err(|err| err.to_string())?;
+                let mut conn = runtime_connection().map_err(|err| err.to_string())?;
                 let tx = conn
                     .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                     .map_err(|err| err.to_string())?;

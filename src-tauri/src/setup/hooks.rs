@@ -64,7 +64,13 @@ pub(crate) fn register_database_schemas() {
             );
         }
 
-        agent_core::coordination::init_agent_org_schemas(conn)?;
+        // Scoped degradation: a failed Agent Org runtime namespace must not
+        // take sessions.db (and with it ordinary chat) down. The scoped
+        // variant logs the full diagnostic, records the failure in
+        // `coordination::availability` — where every Agent Org command/store
+        // entry consults it and returns a structured unavailable error —
+        // and lets the remaining sessions.db initializers proceed.
+        agent_core::coordination::init_agent_org_schemas_scoped(conn);
         match session_persistence::turn_intents::reconcile_agent_org_in_flight_after_restart(conn) {
             Ok(0) => {}
             Ok(count) => tracing::info!(

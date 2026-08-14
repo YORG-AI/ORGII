@@ -2,7 +2,7 @@
 //! recovery and prompt snapshots, the compact byte-budgeted summary page, the
 //! open-task-id preview, and (test-only) history listing.
 
-use database::db::get_connection;
+use crate::coordination::availability::runtime_connection;
 use rusqlite::{params, OptionalExtension};
 
 use crate::coordination::agent_org_payload_limits::{
@@ -60,7 +60,7 @@ impl AgentOrgTaskStore {
     }
 
     pub fn get(org_run_id: &str, task_id: &str) -> Result<Option<Task>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let sql = format!(
             "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
              WHERE org_run_id=?1 AND id=?2"
@@ -71,7 +71,7 @@ impl AgentOrgTaskStore {
     }
 
     pub fn list(org_run_id: &str) -> Result<Vec<Task>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         list_tasks_with_conn(&conn, org_run_id)
     }
 
@@ -80,7 +80,7 @@ impl AgentOrgTaskStore {
     /// behind `get`/`task_get`; a periodic watchdog or model prompt must not
     /// deserialize up to 64 KiB of result metadata for every task.
     pub fn list_operational(org_run_id: &str) -> Result<Vec<Task>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::list_operational_with_connection(&conn, org_run_id)
     }
 
@@ -183,7 +183,7 @@ impl AgentOrgTaskStore {
         after_task_id: Option<&str>,
         limit: usize,
     ) -> Result<TaskSummaryPage, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         Self::list_summary_page_with_connection(
             &conn,
             org_run_id,
@@ -554,7 +554,7 @@ impl AgentOrgTaskStore {
 
     #[cfg(test)]
     pub fn list_history(org_run_id: &str) -> Result<Vec<TaskHistoryEvent>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
                 "SELECT id, org_run_id, task_id, event_type, previous_owner, next_owner,
