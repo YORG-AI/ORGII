@@ -59,6 +59,14 @@ async fn preflight_agent_org_turn_before_runtime(
     run_id_hint: Option<&str>,
     has_persisted_agent_org_identity: bool,
 ) -> Result<Option<String>, String> {
+    // Legacy passthrough: with the redesign gate off (the production default)
+    // the durable Team lifecycle fence does not exist. A session persisted by
+    // the pre-redesign stack still carries `org_member_id`, so hard-failing
+    // here would brick every historical org session. Skip the fence entirely
+    // and let the message flow as an ordinary session turn (old behavior).
+    if !crate::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return Ok(None);
+    }
     if let (Some(explicit), Some(hint)) = (explicit_run_id, run_id_hint) {
         if explicit != hint {
             return Err(format!(
@@ -86,7 +94,6 @@ async fn preflight_agent_org_turn_before_runtime(
         return Ok(None);
     };
 
-    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let status_run_id = run_id.clone();
     let status = tokio::task::spawn_blocking(move || {
         crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(&status_run_id)
@@ -234,18 +241,27 @@ pub(crate) async fn send_message_impl(
         .agent_org_context
         .as_ref()
         .map(|context| context.run_id.clone());
-    let effective_intent_org_run_id = match (
-        intent_org_run_id.as_deref(),
-        runtime_org_run_id.as_deref(),
+    // Gate-off legacy passthrough: without the redesign fence the turn must
+    // not claim durable Agent Org run ownership either — the execute-time
+    // promote would otherwise fence on run status and silently no-op the
+    // turn for legacy runs. Keep the whole path an ordinary session turn.
+    let effective_intent_org_run_id = if !crate::coordination::agent_org_runs::agent_org_redesign_enabled(
     ) {
-        (Some(explicit), Some(runtime_id)) if explicit != runtime_id => {
-            return Err(format!(
-                "Agent Org turn intent run mismatch for session {session_id}: explicit run {explicit}, runtime run {runtime_id}"
-            ));
+        None
+    } else {
+        match (
+            intent_org_run_id.as_deref(),
+            runtime_org_run_id.as_deref(),
+        ) {
+            (Some(explicit), Some(runtime_id)) if explicit != runtime_id => {
+                return Err(format!(
+                    "Agent Org turn intent run mismatch for session {session_id}: explicit run {explicit}, runtime run {runtime_id}"
+                ));
+            }
+            (Some(_), _) => intent_org_run_id,
+            (None, Some(_)) => runtime_org_run_id,
+            (None, None) => preflight_org_run_id,
         }
-        (Some(_), _) => intent_org_run_id,
-        (None, Some(_)) => runtime_org_run_id,
-        (None, None) => preflight_org_run_id,
     };
 
     // Wingman resume: reopen the bottom bar. On fresh start the frontend

@@ -77,7 +77,16 @@ pub async fn agent_org_group_chat_history_page_impl(
     before_id: Option<i64>,
     limit: Option<usize>,
 ) -> Result<AgentOrgGroupChatHistoryPage, String> {
-    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
+    // Gate off (production default): history is a read surface the Group Chat
+    // view fetches unconditionally once mounted. Return an empty page instead
+    // of a raw `agent_org_redesign_disabled` error.
+    if !crate::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return Ok(AgentOrgGroupChatHistoryPage {
+            rows: Vec::new(),
+            has_more: false,
+            next_before_id: None,
+        });
+    }
     if before_id.is_some_and(|id| id <= 0) {
         return Err("before_id must be a positive Inbox row id".to_string());
     }

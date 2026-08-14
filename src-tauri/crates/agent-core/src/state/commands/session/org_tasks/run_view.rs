@@ -172,7 +172,13 @@ pub async fn agent_org_session_run_view_impl(
     state: &AgentAppState,
     session_id: &str,
 ) -> Result<Option<AgentOrgRunView>, String> {
-    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
+    // Gate off (production default): the frontend polls this projection for
+    // any session; `None` is the canonical "not an Agent Org session" reply,
+    // so an unconditional caller degrades gracefully instead of surfacing a
+    // raw `agent_org_redesign_disabled` error.
+    if !crate::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return Ok(None);
+    }
     let Some(read_context) = session_org_read_context(state, session_id).await? else {
         return Ok(None);
     };
