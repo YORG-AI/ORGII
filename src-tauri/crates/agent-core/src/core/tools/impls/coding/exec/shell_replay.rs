@@ -25,8 +25,8 @@ pub use cleanup::{
     retry_pending_replay_cleanups,
 };
 pub use range::{
-    load_replay_state, read_replay_tail, shell_replay_read_range, ShellReplayFrame,
-    ShellReplayRange,
+    load_replay_state, read_replay_tail, replay_command_meta, shell_replay_read_range,
+    ReplayCommandMeta, ShellReplayFrame, ShellReplayRange,
 };
 pub use recovery::recover_incomplete_replays;
 pub use writer::ShellReplayWriter;

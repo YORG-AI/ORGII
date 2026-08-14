@@ -46,6 +46,7 @@ describe("cloud download control atoms", () => {
       entry: {
         rowId: "row-1",
         orgId: "org-1",
+        iconId: "codex",
         pendingEvents: 4450,
         etaMs: 17_000,
         kind: "replay",
@@ -53,8 +54,7 @@ describe("cloud download control atoms", () => {
     });
     expect(
       store.get(cloudDownloadPendingPlayAtom).get("imported-session-abc")
-        ?.pendingEvents
-    ).toBe(4450);
+    ).toMatchObject({ pendingEvents: 4450, iconId: "codex" });
 
     store.set(clearCloudDownloadPendingPlayAtom, "imported-session-abc");
     expect(store.get(cloudDownloadPendingPlayAtom).size).toBe(0);

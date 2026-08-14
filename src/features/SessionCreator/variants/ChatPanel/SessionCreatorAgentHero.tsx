@@ -50,6 +50,7 @@ const SessionCreatorAgentHero = memo(
                   <span className="whitespace-normal break-words">{name}</span>
                 }
                 active={active}
+                activeTone="neutral"
                 danger={danger}
                 size="lg"
                 appearance="bare"
@@ -59,8 +60,20 @@ const SessionCreatorAgentHero = memo(
                 ariaExpanded={active}
                 dataTestId="session-creator-agent-selector"
                 className="!flex !min-h-0 !bg-transparent !p-2 !text-[18px] !font-normal !leading-relaxed !tracking-tight !text-text-1 sm:!text-[20px]"
-                labelClassName="!whitespace-normal !break-words !text-[18px] !font-bold !leading-relaxed !tracking-tight !text-text-1 group-hover/pill:!text-primary-6 group-hover/pill:underline group-hover/pill:underline-offset-4 sm:!text-[20px]"
-                chevronClassName="transition-colors group-hover/pill:!text-primary-6"
+                labelClassName={`!whitespace-normal !break-words !text-[18px] !font-bold !leading-relaxed !tracking-tight sm:!text-[20px] ${
+                  danger
+                    ? "!text-primary-6"
+                    : active
+                      ? "!text-text-1 underline underline-offset-4"
+                      : "!text-text-2 group-hover/pill:!text-text-1 group-hover/pill:underline group-hover/pill:underline-offset-4"
+                }`}
+                chevronClassName={`transition-colors ${
+                  danger
+                    ? "!text-primary-6"
+                    : active
+                      ? "!text-text-1"
+                      : "!text-text-3 group-hover/pill:!text-text-1"
+                }`}
               />
               {questionSuffix && (
                 <span className="hidden @[640px]/focusedchat:inline">

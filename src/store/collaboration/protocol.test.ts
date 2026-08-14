@@ -76,6 +76,28 @@ describe("collaboration protocol helpers", () => {
     ).toThrow();
   });
 
+  it("round-trips optional branch dimensions for remote session environments", () => {
+    const parsed = RemoteTeammateSessionMetadataSchema.parse({
+      id: "org-1:m1:session-1",
+      orgId: "org-1",
+      ownerMemberId: "m1",
+      ownerUserId: "m1",
+      ownerDisplayName: "Ada",
+      ownerIdentityKind: COLLAB_IDENTITY_KIND.HUMAN,
+      sourceSessionId: "session-1",
+      title: "Session",
+      branch: "develop",
+      baseBranch: "main",
+      worktreeBranch: "agent/session-1",
+    });
+
+    expect(parsed).toMatchObject({
+      branch: "develop",
+      baseBranch: "main",
+      worktreeBranch: "agent/session-1",
+    });
+  });
+
   it("parses the 0014 comment counters additively (session comments)", () => {
     const base = {
       id: "org-1:m1:session-1",

@@ -54,6 +54,10 @@ pub struct JobSnapshot {
     /// processes and still-running jobs). Lets the per-turn reminder inject
     /// the result directly instead of forcing an extra `await_output` hop.
     pub final_result: Option<String>,
+    /// The stall watchdog latched this running shell as apparently blocked on
+    /// an interactive prompt (no output growth + prompt-like tail). Cleared
+    /// automatically if output resumes.
+    pub stalled_waiting_input: bool,
 }
 
 const MAX_RECENT_LINES: usize = 200;
@@ -84,17 +88,31 @@ pub struct BackgroundJob {
     /// from the per-turn system reminder to avoid the stale-reminder
     /// problem common to background bash notifications.
     output_acknowledged: bool,
-    /// Set to `true` once a parent-session wake has been dispatched to deliver
-    /// this (completed) subagent's result. Distinct from `output_acknowledged`:
-    /// dispatch means "we resumed the idle parent so it COULD read the result",
+    /// Set to `true` once an owner-session wake has been dispatched to deliver
+    /// this (completed) job's result. Distinct from `output_acknowledged`:
+    /// dispatch means "we resumed the idle owner so it COULD read the result",
     /// ack means "the agent actually read it via await_output". Together they
-    /// make the subagent-wake coordinator behaviour-independent and exactly-once:
+    /// make the job-wake coordinator behaviour-independent and exactly-once:
     /// a result triggers AT MOST ONE wake dispatch, regardless of whether the
     /// woken agent goes on to read it. This single flag subsumes both the
-    /// empty-wake loop (woken parent ignores the result → no re-wake) and the
+    /// empty-wake loop (woken owner ignores the result → no re-wake) and the
     /// retry storm (a failed wake turn → no re-wake for the same result).
-    /// Always `false` for shell jobs (only subagents trigger parent wakes).
+    /// Applies to both kinds: subagents wake their parent session, shells wake
+    /// the session that launched them.
     wake_dispatched: bool,
+    /// Monotonic count of output lines pushed into `recent_lines`. Unlike the
+    /// bounded deque (which plateaus once full), this never stops advancing,
+    /// so it serves as the progress cursor for jobs whose output only lives
+    /// in the rolling buffer (subagents).
+    output_seq: u64,
+    /// Latched by the shell stall watchdog when output stopped growing and
+    /// the tail looks like an interactive prompt. Cleared when output
+    /// resumes. Always `false` for subagents.
+    stalled_waiting_input: bool,
+    /// Whether the stalled-state advisory has been delivered to the owner
+    /// (mid-turn note or idle wake). Separate from `wake_dispatched` so a
+    /// stall advisory never consumes the job's one completion wake.
+    stall_delivered: bool,
 }
 
 impl BackgroundJob {
@@ -118,6 +136,7 @@ impl BackgroundJob {
             self.recent_lines.pop_front();
         }
         self.recent_lines.push_back(line);
+        self.output_seq = self.output_seq.saturating_add(1);
     }
 
     pub fn recent_output(&self) -> String {
@@ -146,6 +165,7 @@ impl BackgroundJob {
             } else {
                 None
             },
+            stalled_waiting_input: self.stalled_waiting_input && self.is_running(),
         }
     }
 }
@@ -246,6 +266,9 @@ fn register_shell_inner(
         cancel_flag: None,
         output_acknowledged: false,
         wake_dispatched: false,
+        output_seq: 0,
+        stalled_waiting_input: false,
+        stall_delivered: false,
     };
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     reg.insert(handle, job);
@@ -307,6 +330,9 @@ pub fn register_subagent_with_flag(
         cancel_flag: Some(Arc::clone(&cancel_flag)),
         output_acknowledged: false,
         wake_dispatched: false,
+        output_seq: 0,
+        stalled_waiting_input: false,
+        stall_delivered: false,
     };
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     reg.insert(handle.clone(), job);
@@ -519,63 +545,154 @@ pub fn list_jobs_for_reminder(session_id: &str) -> Vec<JobSnapshot> {
         .collect()
 }
 
-/// Atomically claim every completed-but-unconsumed **subagent** job for
-/// `session_id` that has not already had a parent wake dispatched, marking
-/// each as `wake_dispatched` and returning whether any were claimed.
+/// Whether a finished job's result should ever wake its owner session.
 ///
-/// This is the single exactly-once primitive behind the subagent-wake
-/// coordinator. "Needs a wake" means the job is:
-///   * a subagent (shells never wake the parent),
-///   * finished (not running),
-///   * not yet acknowledged (the agent hasn't read it via await_output), and
-///   * not yet wake-dispatched (no prior wake already delivered it).
+/// Both kinds qualify — subagents wake the parent, shells wake the session
+/// that launched them — with one exception: a **killed shell** never wakes.
+/// A shell only ends up `Killed` because the model called
+/// `run_shell(kill_handle=...)` or the user pressed Stop; whoever killed it
+/// already knows, so resuming an idle session to announce it would be noise.
+/// Killed subagents DO wake: the parent is a different session that must
+/// learn its worker was cancelled to re-plan.
+fn job_completion_is_wakeworthy(job: &BackgroundJob) -> bool {
+    !(matches!(job.kind, JobKind::Shell { .. }) && matches!(job.status, JobStatus::Killed))
+}
+
+/// Atomically claim every undelivered job event for `session_id`, returning
+/// whether any were claimed.
 ///
-/// Marking `wake_dispatched = true` in the same locked pass guarantees a
-/// given result triggers AT MOST ONE wake, no matter how many triggers fire
-/// (the completion push AND the turn-end re-check both call this; whichever
-/// runs first claims it, the other sees nothing). This makes exactly-once an
-/// invariant of the registry, not of caller ordering — and subsumes both the
-/// empty-wake loop and the failed-wake retry storm without any `response.is_ok`
-/// / status gating in the callers.
+/// This is the single exactly-once primitive behind the job-wake
+/// coordinator and the mid-turn note injector. Two event kinds need
+/// delivery:
+///   * **completion** — the job is finished (not running), wake-worthy (see
+///     [`job_completion_is_wakeworthy`] — killed shells are not), not yet
+///     acknowledged, and not yet wake-dispatched. Claimed by marking
+///     `wake_dispatched = true`.
+///   * **stall advisory** — a running shell latched as waiting for
+///     interactive input whose advisory has not been delivered. Claimed by
+///     marking `stall_delivered = true` (a separate flag, so an advisory
+///     never consumes the job's one completion wake).
 ///
-/// Returns `true` if at least one job was newly claimed (caller should
-/// dispatch a wake), `false` if there was nothing new to deliver.
-pub fn claim_subagent_wake_for_session(session_id: &str) -> bool {
+/// Marking in the same locked pass guarantees a given event triggers AT MOST
+/// ONE delivery, no matter how many triggers fire (completion push, stall
+/// watchdog, mid-turn injector, turn-end re-check — whichever runs first
+/// claims it, the others see nothing). This makes exactly-once an invariant
+/// of the registry, not of caller ordering — and subsumes both the
+/// empty-wake loop and the failed-wake retry storm without any
+/// `response.is_ok` / status gating in the callers.
+pub fn claim_completion_wake_for_session(session_id: &str) -> bool {
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     let mut claimed = false;
     for job in reg.values_mut() {
-        if job.session_id == session_id
-            && matches!(job.kind, JobKind::Subagent { .. })
-            && !job.is_running()
+        if job.session_id != session_id {
+            continue;
+        }
+        if !job.is_running()
+            && job_completion_is_wakeworthy(job)
             && !job.output_acknowledged
             && !job.wake_dispatched
         {
             job.wake_dispatched = true;
             claimed = true;
         }
+        if job.is_running() && job.stalled_waiting_input && !job.stall_delivered {
+            job.stall_delivered = true;
+            claimed = true;
+        }
     }
     claimed
 }
 
-/// Release a wake claim previously taken by `claim_subagent_wake_for_session`
-/// for every completed-unconsumed subagent of `session_id`.
+/// Release a claim previously taken by `claim_completion_wake_for_session`
+/// for every still-undelivered job event of `session_id`.
 ///
-/// Used when the coordinator claimed a result but then found the parent was
+/// Used when the coordinator claimed an event but then found the owner was
 /// still running (so it could not dispatch a resume turn). Releasing restores
-/// `wake_dispatched = false` so the turn-end re-check can re-claim it once the
-/// parent goes idle. Only clears the flag on jobs that are still unconsumed —
-/// an already-acknowledged job needs no further wake regardless.
-pub fn release_subagent_wake_for_session(session_id: &str) {
+/// the claim flags so the mid-turn injector or the turn-end re-check can
+/// re-claim once possible. Only clears completion claims on jobs that are
+/// still unconsumed — an already-acknowledged job needs no further wake
+/// regardless.
+pub fn release_completion_wake_for_session(session_id: &str) {
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     for job in reg.values_mut() {
-        if job.session_id == session_id
-            && matches!(job.kind, JobKind::Subagent { .. })
-            && !job.is_running()
-            && !job.output_acknowledged
-        {
+        if job.session_id != session_id {
+            continue;
+        }
+        if !job.is_running() && !job.output_acknowledged {
             job.wake_dispatched = false;
         }
+        if job.is_running() && job.stalled_waiting_input {
+            job.stall_delivered = false;
+        }
     }
+}
+
+/// Latch a running shell as apparently blocked on an interactive prompt.
+/// Returns `true` when newly latched (the watchdog announces + wakes once),
+/// `false` when already latched, not running, or unknown.
+pub fn mark_stalled_waiting_input(handle: &str) -> bool {
+    let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+    match reg.get_mut(handle) {
+        Some(job) if job.is_running() && !job.stalled_waiting_input => {
+            job.stalled_waiting_input = true;
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Clear the stall latch after output resumed growing, re-arming the
+/// advisory so a later distinct stall can be delivered again.
+pub fn clear_stalled_waiting_input(handle: &str) {
+    let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(job) = reg.get_mut(handle) {
+        job.stalled_waiting_input = false;
+        job.stall_delivered = false;
+    }
+}
+
+/// Whether a running job is currently latched as waiting for interactive
+/// input. `None` when the handle is not registered.
+pub fn is_stalled_waiting_input(handle: &str) -> Option<bool> {
+    let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+    reg.get(handle)
+        .map(|job| job.stalled_waiting_input && job.is_running())
+}
+
+/// Monotonic output-line counter for a job's rolling buffer. `None` when the
+/// handle is no longer registered. Used as the progress cursor for subagent
+/// jobs (shell jobs use the replay bookmark / log size instead).
+pub fn get_output_seq(handle: &str) -> Option<u64> {
+    let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+    reg.get(handle).map(|job| job.output_seq)
+}
+
+/// Retain a finished job in the registry until its output is acknowledged
+/// (read via the reminder / await path), polling at a coarse interval, then
+/// remove it. Bounded by `max_retention` so an owner that never returns
+/// cannot leak the entry forever. Shared GC tail for every completion path
+/// (background subagent, fg→bg transition, backgrounded shell).
+pub async fn retain_until_acknowledged_then_remove(
+    handle: &str,
+    max_retention: std::time::Duration,
+    log_tag: &str,
+) {
+    const ACK_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+    let retain_deadline = Instant::now() + max_retention;
+    loop {
+        tokio::time::sleep(ACK_POLL_INTERVAL).await;
+        match is_output_acknowledged(handle) {
+            None | Some(true) => break,
+            Some(false) => {}
+        }
+        if Instant::now() >= retain_deadline {
+            tracing::warn!(
+                "[{log_tag}] '{handle}' result was never acknowledged within retention window; evicting"
+            );
+            break;
+        }
+    }
+    remove(handle);
 }
 
 /// Lightweight snapshot of a running shell job, suitable for frontend

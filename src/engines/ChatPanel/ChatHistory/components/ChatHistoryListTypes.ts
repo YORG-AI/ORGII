@@ -37,6 +37,8 @@ export interface ChatHistoryListProps {
   codeBlockContainerWidth: number;
   footerSpacerHeight: number;
   bottomInset: number;
+  /** Top padding keeping content clear of the floating chrome; see chatPanelHeaderLayout. */
+  topPaddingPx?: number;
   planningIndicatorCount: number;
   planningVariantIndex: number;
   planningFooterMode: PlanningFooterMode;

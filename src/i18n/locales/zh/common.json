@@ -1317,6 +1317,10 @@
         "removedFromQueue": "已从合并队列中移除",
         "autoMergeEnabled": "已启用自动合并",
         "autoMergeDisabled": "已禁用自动合并",
+        "markReady": "标记为可供审查",
+        "markedReady": "pull request 已标记为可供审查",
+        "convertToDraft": "转换为草稿",
+        "convertedToDraft": "pull request 已转换为草稿",
         "confirmCloseTitle": "关闭 pull request？",
         "confirmCloseMessage": "此 pull request 将保留，稍后可重新打开。",
         "closeSuccess": "pull request 已关闭",
@@ -1367,6 +1371,7 @@
       "summary": {
         "label": "pull request 摘要",
         "branch": "分支",
+        "createdBy": "创建者",
         "reviewers": "审查者",
         "noReviewers": "无审查者",
         "comments": "评论",

@@ -5,6 +5,7 @@ import {
   removePRReviewersLocal,
   requestPRReviewersLocal,
   setPRAutoMergeLocal,
+  updatePRDraftStateLocal,
 } from "./pullRequests";
 
 const mocks = vi.hoisted(() => ({
@@ -59,6 +60,22 @@ describe("pull request action IPC payloads", () => {
       2,
       "github_remove_pr_reviewers",
       { repoFullName: "org/repo", prNumber: 42, reviewers: ["reviewer"] }
+    );
+  });
+
+  it("sends explicit draft and ready-for-review states", async () => {
+    await updatePRDraftStateLocal("org/repo", 42, true);
+    await updatePRDraftStateLocal("org/repo", 42, false);
+
+    expect(mocks.invokeWithAuth).toHaveBeenNthCalledWith(
+      1,
+      "github_update_pr_draft_state",
+      { repoFullName: "org/repo", prNumber: 42, draft: true }
+    );
+    expect(mocks.invokeWithAuth).toHaveBeenNthCalledWith(
+      2,
+      "github_update_pr_draft_state",
+      { repoFullName: "org/repo", prNumber: 42, draft: false }
     );
   });
 });

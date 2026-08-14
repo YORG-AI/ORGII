@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import SessionIdentityIcon, {
   SESSION_IDENTITY_ICON_SIZE,
   resolveSessionIdentityIconColorClass,
+  resolveSessionIdentityIconSource,
 } from "./SessionIdentityIcon";
 
 describe("SessionIdentityIcon", () => {
@@ -40,5 +41,29 @@ describe("resolveSessionIdentityIconColorClass", () => {
     expect(resolveSessionIdentityIconColorClass(false, true)).toBe(
       "text-text-2"
     );
+  });
+});
+
+describe("resolveSessionIdentityIconSource", () => {
+  it("uses the parked remote source identity before any local session", () => {
+    expect(
+      resolveSessionIdentityIconSource(
+        null,
+        "pending-session",
+        "codex",
+        undefined
+      )
+    ).toEqual({ session_id: "pending-session", agentIconId: "codex" });
+  });
+
+  it("keeps pending remote identity authoritative over a stale local row", () => {
+    expect(
+      resolveSessionIdentityIconSource(
+        { session_id: "pending-session", agentIconId: "orgii" },
+        "pending-session",
+        "codex",
+        undefined
+      )
+    ).toEqual({ session_id: "pending-session", agentIconId: "codex" });
   });
 });

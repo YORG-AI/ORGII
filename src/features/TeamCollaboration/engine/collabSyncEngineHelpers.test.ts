@@ -608,6 +608,32 @@ describe("importRemoteSession", () => {
     });
   });
 
+  it("persists remote session, base, and worktree branch names on the imported row", async () => {
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+
+    const result = await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        branch: "develop",
+        baseBranch: "main",
+        worktreeBranch: "agent/remote-1",
+      }),
+    });
+
+    expect(
+      store
+        .get(sessionsAtom)
+        .find((session) => session.session_id === result?.localSessionId)
+    ).toMatchObject({
+      branch: "develop",
+      baseBranch: "main",
+      worktreeBranch: "agent/remote-1",
+    });
+  });
+
   it("streams a fresh replay into bounded durable batches without assembling the full history", async () => {
     const pageOne = await sealSnapshot({
       epoch: 3,
@@ -2075,7 +2101,11 @@ describe("forkSession (design §16.11, fork & continue)", () => {
     const result = await forkSession({
       client,
       orgId: "org-1",
-      remoteSession: makeRemote(),
+      remoteSession: makeRemote({
+        branch: "feature/source-session",
+        baseBranch: "develop",
+        worktreeBranch: "agent/source-session",
+      }),
     });
 
     expect(result).not.toBeNull();
@@ -2113,6 +2143,9 @@ describe("forkSession (design §16.11, fork & continue)", () => {
       rootSessionId: "remote-1",
     });
     expect(record!.repoPath).toBe("/repo/shared");
+    expect(record!.branch).toBe("feature/source-session");
+    expect(record!.baseBranch).toBe("develop");
+    expect(record!.worktreeBranch).toBe("agent/source-session");
     expect(record!.name).toBe("⑂ Remote session");
     // Ownership stamp (member fork context): the fork files under the source
     // org so the sidebar org filter lists it alongside the org's sessions.

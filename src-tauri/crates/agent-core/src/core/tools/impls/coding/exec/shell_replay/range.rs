@@ -103,6 +103,40 @@ pub(super) fn load_row(session_id: &str, call_id: &str) -> Result<Option<ReplayR
     .map_err(|err| err.to_string())
 }
 
+/// Rust-authoritative launch metadata for a shell replay: the command line
+/// and working directory recorded when the replay was created, which happens
+/// strictly before the exact-event seed publish. Lets the event-pipeline
+/// bridge synthesize a canonical `tool-call-<call_id>` event for sessions
+/// that have no frontend ingestion (headless debug/e2e sessions) without
+/// widening the bridge signature.
+#[derive(Debug, Clone)]
+pub struct ReplayCommandMeta {
+    pub command: String,
+    pub cwd: String,
+    pub created_at: String,
+}
+
+pub fn replay_command_meta(
+    session_id: &str,
+    call_id: &str,
+) -> Result<Option<ReplayCommandMeta>, String> {
+    let conn = database::db::get_connection().map_err(|err| err.to_string())?;
+    conn.query_row(
+        "SELECT command, cwd, created_at
+         FROM shell_replays WHERE session_id = ?1 AND call_id = ?2",
+        params![session_id, call_id],
+        |row| {
+            Ok(ReplayCommandMeta {
+                command: row.get(0)?,
+                cwd: row.get(1)?,
+                created_at: row.get(2)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|err| err.to_string())
+}
+
 pub fn load_replay_state(
     session_id: &str,
     call_id: &str,

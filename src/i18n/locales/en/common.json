@@ -1365,6 +1365,10 @@
         "removedFromQueue": "Removed from merge queue",
         "autoMergeEnabled": "Auto-merge enabled",
         "autoMergeDisabled": "Auto-merge disabled",
+        "markReady": "Mark ready for review",
+        "markedReady": "Pull request marked ready for review",
+        "convertToDraft": "Convert to draft",
+        "convertedToDraft": "Pull request converted to draft",
         "confirmCloseTitle": "Close pull request?",
         "confirmCloseMessage": "The pull request will remain available and can be reopened later.",
         "closeSuccess": "Pull request closed",
@@ -1415,6 +1419,7 @@
       "summary": {
         "label": "Pull request summary",
         "branch": "Branch",
+        "createdBy": "Created by",
         "reviewers": "Reviewers",
         "noReviewers": "No reviewers",
         "comments": "Comments",

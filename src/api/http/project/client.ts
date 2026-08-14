@@ -385,13 +385,48 @@ export async function readWorkItemsEnriched(
   );
 }
 
+type WorkspaceWorkItemsWireData = Omit<
+  WorkspaceWorkItemsData,
+  "standaloneWorkItems"
+> & {
+  standaloneWorkItems: Array<
+    Omit<WorkspaceWorkItemsData["standaloneWorkItems"][number], "workItem"> & {
+      workItem: Omit<WorkItemData, "frontmatter"> & {
+        frontmatter: Omit<WorkItemFrontmatter, "todos"> & {
+          todos?: WorkItemFrontmatter["todos"];
+        };
+      };
+    }
+  >;
+};
+
 export async function readWorkspaceWorkItemsData(
   options?: WorkItemsReadOptions
 ): Promise<WorkspaceWorkItemsData> {
-  return invoke("project_read_workspace_work_items_data", {
-    ...scopeInvokePayload(options),
-    readBucket: options?.readBucket ?? null,
-  });
+  const data = await invoke<WorkspaceWorkItemsWireData>(
+    "project_read_workspace_work_items_data",
+    {
+      ...scopeInvokePayload(options),
+      readBucket: options?.readBucket ?? null,
+    }
+  );
+
+  // Empty Vec fields are omitted from standalone WorkItem frontmatter by
+  // Rust's persisted-file serializer. Restore the required frontend shape at
+  // the IPC boundary so consumers can safely treat todos as an array.
+  return {
+    ...data,
+    standaloneWorkItems: data.standaloneWorkItems.map((entry) => ({
+      ...entry,
+      workItem: {
+        ...entry.workItem,
+        frontmatter: {
+          ...entry.workItem.frontmatter,
+          todos: entry.workItem.frontmatter.todos ?? [],
+        },
+      },
+    })),
+  };
 }
 
 /**

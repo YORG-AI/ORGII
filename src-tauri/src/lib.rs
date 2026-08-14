@@ -743,18 +743,19 @@ pub fn run() {
             agent_core::coordination::agent_org_watchdog::spawn(app.handle().clone());
             tracing::info!("[AgentOrgWatchdog] Agent Org watchdog started");
 
-            // Install the production `SubagentCompletionWakeHook` so a
-            // background subagent that finishes while its parent is idle
-            // resumes the parent's turn loop (which then consumes the result
-            // via the Background Jobs reminder). Without this, an idle parent
-            // never learns the worker completed. Mirrors Claude Code's
-            // task-notification → idle-queue-processor wake.
-            agent_core::tools::impls::orchestration::subagent_wake::install_subagent_completion_wake_hook(
-                agent_core::tools::impls::orchestration::subagent_wake::AppHandleSubagentCompletionWakeHook::new(
+            // Install the production `JobCompletionWakeHook` so a background
+            // job — subagent worker or backgrounded shell — that finishes
+            // while its owning session is idle resumes that session's turn
+            // loop (which then consumes the result via the Background Jobs
+            // reminder). Without this, an idle owner never learns the job
+            // completed. Mirrors Claude Code's task-notification →
+            // idle-queue-processor wake.
+            agent_core::tools::impls::orchestration::job_wake::install_job_completion_wake_hook(
+                agent_core::tools::impls::orchestration::job_wake::AppHandleJobCompletionWakeHook::new(
                     app.handle().clone(),
                 ),
             );
-            tracing::info!("[SubagentWake] Subagent completion wake hook installed");
+            tracing::info!("[JobWake] Job completion wake hook installed");
 
             let housekeeper_compaction_state = unified_state.clone();
             app.manage(unified_state);

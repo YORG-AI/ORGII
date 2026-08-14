@@ -14,6 +14,12 @@ export interface ChatViewProps {
   turnPaginationEnabled?: boolean;
   /** Dock side for the containing chat panel, used to place side previews inward. */
   position?: "left" | "right";
+  /**
+   * Height of the floating tab/published-header chrome overlaying the pane
+   * top. The pinned-header host and transcript top padding clear this
+   * region; 0 when the chrome is rendered in flow.
+   */
+  chromeTopInset?: number;
   /** Opaque background class for sticky headers (must match the container surface).
    *  Defaults to "bg-chat-pane" (side panel). Pass EDITOR_TAB_CANVAS_BG_CLASS for WorkStation. */
   surfaceBgClass?: string;

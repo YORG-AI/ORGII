@@ -13,6 +13,8 @@
     "browser": "Browser",
     "editor": "Editor",
     "environment": "Umgebung",
+    "sessionEnvironment": "Sitzungsumgebung",
+    "localEnvironment": "Lokale Umgebung",
     "workspace": "Arbeitsbereich",
     "codeEditor": "Code-Editor",
     "databaseManager": "Datenbank-Manager",

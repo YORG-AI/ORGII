@@ -195,6 +195,8 @@ export interface SelectorPillProps {
   tooltipMouseEnterDelay?: number;
   /** Whether the pill is in an open/active state */
   active?: boolean;
+  /** Color treatment for the open/active state. */
+  activeTone?: "primary" | "neutral";
   /** Render label in danger color to signal a missing required selection */
   danger?: boolean;
   /** Size variant */
@@ -237,6 +239,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       tooltipPosition = "top",
       tooltipMouseEnterDelay = 400,
       active = false,
+      activeTone = "primary",
       danger = false,
       size = "sm",
       appearance = "default",
@@ -261,17 +264,18 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
     ref
   ) => {
     const idleColor = "text-text-1";
+    const activeColor = activeTone === "neutral" ? idleColor : "text-primary-6";
     const labelColor = danger
       ? "text-primary-6"
       : active
-        ? "text-primary-6"
+        ? activeColor
         : idleColor;
     const iconSize = ICON_SIZES[size];
     const iconColor = danger ? "text-primary-6" : idleColor;
     const chevronColor = danger
       ? "text-primary-6"
       : active
-        ? "text-primary-6"
+        ? activeColor
         : idleColor;
     const appearanceClasses =
       appearance === "bare"

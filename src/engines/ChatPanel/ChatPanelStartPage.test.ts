@@ -88,7 +88,9 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-create-target-select"'
     );
     expect(markup).toContain("select-size-large");
-    expect(markup).toContain("select-ghost");
+    expect(markup).toContain("select-bare");
+    expect(markup).toContain("select-title-row");
+    expect(markup).not.toContain("select-ghost");
     expect(markup).toContain("Create project");
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-trailing-control"'

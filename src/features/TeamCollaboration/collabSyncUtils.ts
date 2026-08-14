@@ -258,7 +258,11 @@ export function toRemoteMetadata(
     // against org.repoScopes — repoPath above is display-only (the owner's
     // local absolute path). Absent ⇒ repo has no git remote ⇒ out of scope.
     repoScopeKey: repoScopeKey ?? undefined,
-    branch: session.branch || session.worktreeBranch,
+    // Branch names are safe cross-machine display metadata. Preserve their
+    // distinct meanings; never publish the owner's absolute worktree path.
+    branch: session.branch || session.baseBranch || session.worktreeBranch,
+    baseBranch: session.baseBranch,
+    worktreeBranch: session.worktreeBranch,
     // Agent/model identity for the teammate hover card (display only;
     // raw values — the consumer formats via formatAgentType/ModelIcon).
     cliAgentType: session.cliAgentType ?? undefined,

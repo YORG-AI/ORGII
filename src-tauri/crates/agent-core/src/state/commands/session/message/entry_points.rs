@@ -13,24 +13,25 @@ use crate::state::AgentAppState;
 
 use super::send::send_message_impl;
 
-/// Wake-only entry point for the **background-subagent** completion hook.
+/// Wake-only entry point for the **background-job** completion hook
+/// (subagent workers and backgrounded shell processes).
 ///
-/// Resumes the parent with **empty content** (`is_resume = true`), exactly
+/// Resumes the owner with **empty content** (`is_resume = true`), exactly
 /// like the Agent Org inbox auto-resume — so NO new user message is persisted
-/// and NO new chat round is created. The parent continues inside the same
+/// and NO new chat round is created. The owner continues inside the same
 /// round it was already in.
 ///
 /// A plain SDE session has no inbox to drain, so unlike the Agent Org path
 /// nothing converts to a trailing user message on its own. That would leave
-/// the conversation ending on the parent's last *assistant* message
+/// the conversation ending on the owner's last *assistant* message
 /// ("已在后台启动。"), which providers reject with `HTTP 400: ... conversation
 /// must end with a user message`. The unified processor closes that gap: on a
 /// resume whose assembled message list still ends with an assistant turn, it
 /// appends a **transient** (in-memory only, never persisted) user nudge so the
-/// prefill invariant holds — see `inject_subagent_wake_nudge_if_needed` in
-/// `turn/processor/mod.rs`. The actual subagent result still arrives via the
+/// prefill invariant holds — see `inject_job_wake_nudge_if_needed` in
+/// `turn/processor/mod.rs`. The actual job result still arrives via the
 /// background-jobs system reminder.
-pub async fn send_message_impl_for_subagent_wake(
+pub async fn send_message_impl_for_job_wake(
     state: &AgentAppState,
     session_id: String,
 ) -> Result<AgentResponse, String> {

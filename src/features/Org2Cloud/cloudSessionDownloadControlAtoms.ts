@@ -66,6 +66,10 @@ clearCloudPausedDownloadAtom.debugLabel = "org2cloud/clearPausedDownload";
 export interface CloudPendingPlay {
   rowId: string;
   orgId: string;
+  /** Canonical source icon shown before a local replay row exists. */
+  iconId: string;
+  /** Safe remote workspace/branch labels retained until a local row exists. */
+  sessionEnvironment?: CloudSessionEnvironmentIdentity;
   /** Events the download would actually fetch (listing count minus covered). */
   pendingEvents: number;
   etaMs: number;
@@ -75,6 +79,13 @@ export interface CloudPendingPlay {
    * by this.
    */
   kind: "replay" | "fork";
+}
+
+export interface CloudSessionEnvironmentIdentity {
+  repoName?: string;
+  branchName?: string;
+  baseBranchName?: string;
+  worktreeBranchName?: string;
 }
 
 /** Keyed by the LOCAL imported-session id (the Chat Pane tab's key). */
