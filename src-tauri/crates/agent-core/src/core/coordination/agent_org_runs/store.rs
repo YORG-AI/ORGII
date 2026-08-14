@@ -31,6 +31,32 @@ use super::{
     CreateStartingAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 
+/// Stable machine prefix for permanent Session-identity failures raised by
+/// the materialization / finish-Starting certificate checks in this store.
+/// Launch recovery classifies retryable-vs-permanent on these prefixes; never
+/// match the human-readable remainder of the message.
+pub const MATERIALIZATION_IDENTITY_MISMATCH_PREFIX: &str = "materialization_identity_mismatch:";
+
+/// Stable machine prefix for permanent initial-input certificate failures
+/// raised by [`AgentOrgRunStore::finish_starting`].
+pub const STARTING_INPUT_CERTIFICATE_ERROR_PREFIX: &str = "starting_input_certificate_invalid:";
+
+/// True for permanent Session-identity failures from
+/// [`AgentOrgRunStore::mark_materialization_succeeded`] /
+/// [`AgentOrgRunStore::finish_starting`]. Retrying these can never succeed:
+/// the durable identity certificate itself is wrong.
+pub fn is_materialization_identity_mismatch_error(error: &str) -> bool {
+    error.starts_with(MATERIALIZATION_IDENTITY_MISMATCH_PREFIX)
+}
+
+/// True for every permanent (non-retryable) failure class that
+/// [`AgentOrgRunStore::finish_starting`] can return. Everything else from
+/// that call is treated as transient and retried by the recovery owners.
+pub fn is_permanent_finish_starting_error(error: &str) -> bool {
+    is_materialization_identity_mismatch_error(error)
+        || error.starts_with(STARTING_INPUT_CERTIFICATE_ERROR_PREFIX)
+}
+
 pub struct AgentOrgRunStore;
 
 pub(crate) struct AgentOrgRunDeleteOutcome {
@@ -336,7 +362,7 @@ impl AgentOrgRunStore {
             };
             if expected_session_id != session_id {
                 return Err(format!(
-                    "materialization session mismatch for {run_id}/{member_id}: expected {expected_session_id}, got {session_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} materialization session mismatch for {run_id}/{member_id}: expected {expected_session_id}, got {session_id}"
                 ));
             }
             if status == "succeeded" {
@@ -357,7 +383,7 @@ impl AgentOrgRunStore {
                 persisted_identity
             else {
                 return Err(format!(
-                    "materialized Session {session_id} is missing for {run_id}/{member_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} materialized Session {session_id} is missing for {run_id}/{member_id}"
                 ));
             };
             let expected_parent = (member_id != COORDINATOR_MEMBER_ID).then_some(root_session_id);
@@ -366,7 +392,7 @@ impl AgentOrgRunStore {
                 || parent_session_id != expected_parent
             {
                 return Err(format!(
-                    "materialized Session identity mismatch for {run_id}/{member_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} materialized Session identity mismatch for {run_id}/{member_id}"
                 ));
             }
             let changed = transaction
@@ -473,7 +499,7 @@ impl AgentOrgRunStore {
                 .map_err(|error| error.to_string())?;
             if invalid_materialized_identities != 0 {
                 return Err(format!(
-                    "materialization_identity_mismatch: {invalid_materialized_identities} certified Session identity row(s) are invalid for {run_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} {invalid_materialized_identities} certified Session identity row(s) are invalid for {run_id}"
                 ));
             }
             let incomplete_materializations: i64 = transaction
@@ -492,7 +518,9 @@ impl AgentOrgRunStore {
             let initial_input = load_initial_input_with_connection(&transaction, run_id)?;
             if has_initial_work {
                 let input = initial_input.as_ref().ok_or_else(|| {
-                    format!("initial input certificate missing for Starting run {run_id}")
+                    format!(
+                        "{STARTING_INPUT_CERTIFICATE_ERROR_PREFIX} initial input certificate missing for Starting run {run_id}"
+                    )
                 })?;
                 let message_exists: bool = transaction
                     .query_row(
@@ -534,7 +562,7 @@ impl AgentOrgRunStore {
                     .map_err(|error| error.to_string())?;
             } else if initial_input.is_some() {
                 return Err(format!(
-                    "unexpected initial input certificate for no-work Starting run {run_id}"
+                    "{STARTING_INPUT_CERTIFICATE_ERROR_PREFIX} unexpected initial input certificate for no-work Starting run {run_id}"
                 ));
             }
 
