@@ -57,32 +57,47 @@ pub(super) fn persist_dependency_projection(
     Ok(())
 }
 
+const MIGRATION_NAME: &str = "canonical_blocked_by_v1";
+/// Terminal marker for runs whose historical rows can never be normalized
+/// safely. Written once (with a single warn) so subsequent boots stop
+/// rediscovering and re-warning about the same run. Repairing such a run
+/// happens through the runtime repair surfaces, not this boot migration.
+const MIGRATION_SKIPPED_NAME: &str = "canonical_blocked_by_v1_skipped";
+
 /// One-time migration for the historical dual-write dependency fields.
 /// Legacy `blocks`-only edges are folded into canonical `blocked_by`, then
 /// both stored columns are rewritten as a consistent forward/reverse pair.
+///
+/// Discovery is driven from `agent_org_runtime_runs` (small, one row per
+/// run) anti-joined to the per-run migration markers — never from a scan
+/// of all task rows. A canonical no-op boot therefore costs exactly one
+/// SELECT over the runs table regardless of stored data volume.
 pub(super) fn normalize_legacy_dependency_rows(
     conn: &rusqlite::Connection,
 ) -> rusqlite::Result<()> {
-    const MIGRATION_NAME: &str = "canonical_blocked_by_v1";
     let mut after_run_id: Option<String> = None;
     loop {
         let run_ids = {
             let mut stmt = conn.prepare(
-                "SELECT task.org_run_id
-                 FROM agent_org_runtime_tasks task
+                "SELECT run.id
+                 FROM agent_org_runtime_runs run
                  WHERE NOT EXISTS (
                      SELECT 1 FROM agent_org_runtime_task_schema_migrations migration
-                     WHERE migration.name=?1
-                       AND migration.org_run_id=task.org_run_id
+                     WHERE migration.name IN (?1, ?2)
+                       AND migration.org_run_id=run.id
                  )
-                   AND (?2 IS NULL OR task.org_run_id>?2)
-                 GROUP BY task.org_run_id
-                 ORDER BY task.org_run_id
+                   AND (?3 IS NULL OR run.id>?3)
+                 ORDER BY run.id
                  LIMIT 256",
             )?;
-            let rows = stmt.query_map(params![MIGRATION_NAME, after_run_id.as_deref()], |row| {
-                row.get::<_, String>(0)
-            })?;
+            let rows = stmt.query_map(
+                params![
+                    MIGRATION_NAME,
+                    MIGRATION_SKIPPED_NAME,
+                    after_run_id.as_deref()
+                ],
+                |row| row.get::<_, String>(0),
+            )?;
             rows.collect::<Result<Vec<_>, _>>()?
         };
         if run_ids.is_empty() {
@@ -93,17 +108,17 @@ pub(super) fn normalize_legacy_dependency_rows(
         for run_id in run_ids {
             conn.execute_batch("BEGIN IMMEDIATE")?;
             let normalized = (|| -> Result<(), String> {
-                let already_applied: bool = conn
+                let already_resolved: bool = conn
                     .query_row(
                         "SELECT EXISTS(
                          SELECT 1 FROM agent_org_runtime_task_schema_migrations
-                         WHERE name=?1 AND org_run_id=?2
+                         WHERE name IN (?1, ?2) AND org_run_id=?3
                      )",
-                        params![MIGRATION_NAME, &run_id],
+                        params![MIGRATION_NAME, MIGRATION_SKIPPED_NAME, &run_id],
                         |row| row.get(0),
                     )
                     .map_err(|err| err.to_string())?;
-                if already_applied {
+                if already_resolved {
                     return Ok(());
                 }
 
@@ -131,11 +146,20 @@ pub(super) fn normalize_legacy_dependency_rows(
                 Ok(()) => conn.execute_batch("COMMIT")?,
                 Err(error) => {
                     let _ = conn.execute_batch("ROLLBACK");
+                    // Warn exactly once, then mark the run terminally
+                    // skipped so the next boot neither rediscovers nor
+                    // re-warns about it.
                     warn!(
                         org_run_id = %run_id,
                         error = %error,
-                        "deferring corrupt Agent Org task board dependency normalization"
+                        "permanently skipping Agent Org task board dependency normalization; the run requires repair through the runtime repair surfaces"
                     );
+                    conn.execute(
+                        "INSERT OR IGNORE INTO agent_org_runtime_task_schema_migrations(
+                         name, org_run_id, applied_at
+                     ) VALUES (?1, ?2, ?3)",
+                        params![MIGRATION_SKIPPED_NAME, &run_id, now_rfc3339()],
+                    )?;
                 }
             }
         }

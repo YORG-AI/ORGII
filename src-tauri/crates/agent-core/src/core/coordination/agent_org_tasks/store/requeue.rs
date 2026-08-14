@@ -235,10 +235,28 @@ impl AgentOrgTaskStore {
 mod migration_tests {
     use super::*;
 
+    fn seed_run(conn: &rusqlite::Connection, run_id: &str) {
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                id, org_id, coordinator_agent_id, root_session_id,
+                org_snapshot_json, entry_mode, status, created_at, updated_at
+             ) VALUES (?1, 'org-a', 'coordinator-a', 'root-a', '{}',
+                       'standalone_session', 'idle',
+                       '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')",
+            params![run_id],
+        )
+        .expect("seed runtime run row");
+    }
+
     #[test]
-    fn dependency_migration_skips_corrupt_run_and_normalizes_valid_run() {
+    fn dependency_migration_terminally_skips_corrupt_run_and_normalizes_valid_run() {
         let conn = rusqlite::Connection::open_in_memory().expect("open in-memory database");
+        crate::coordination::agent_org_runs::init_schema(&conn).expect("create run schema");
         super::super::super::init_schema(&conn).expect("create task schema");
+        // Discovery is driven from the runs table, so historical task rows
+        // are only normalized for runs that actually exist.
+        seed_run(&conn, "valid-run");
+        seed_run(&conn, "corrupt-run");
 
         let now = now_rfc3339();
         for (id, blocks_json, blocked_by_json) in
@@ -292,52 +310,85 @@ mod migration_tests {
             .expect("corrupt row remains available for runtime repair");
         assert_eq!(corrupt_blocks, "not-json");
 
-        let valid_marked: bool = conn
-            .query_row(
+        let marker = |name: &str, run: &str| -> bool {
+            conn.query_row(
                 "SELECT EXISTS(
                      SELECT 1 FROM agent_org_runtime_task_schema_migrations
-                     WHERE name='canonical_blocked_by_v1' AND org_run_id='valid-run'
+                     WHERE name=?1 AND org_run_id=?2
                  )",
-                [],
+                params![name, run],
                 |row| row.get(0),
             )
-            .expect("read valid marker");
-        let corrupt_marked: bool = conn
-            .query_row(
-                "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runtime_task_schema_migrations
-                     WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
-                 )",
-                [],
-                |row| row.get(0),
-            )
-            .expect("read corrupt marker");
-        assert!(valid_marked, "healthy run receives its own success marker");
+            .expect("read migration marker")
+        };
         assert!(
-            !corrupt_marked,
-            "corrupt run remains unmarked so a later startup can retry"
+            marker("canonical_blocked_by_v1", "valid-run"),
+            "healthy run receives its own success marker"
+        );
+        assert!(
+            !marker("canonical_blocked_by_v1", "corrupt-run"),
+            "corrupt run is never marked as normalized"
+        );
+        assert!(
+            marker("canonical_blocked_by_v1_skipped", "corrupt-run"),
+            "corrupt run is terminally skipped after one warn instead of \
+             being rediscovered and re-warned on every boot"
         );
 
+        // Even after the row is repaired, the terminal skip holds: the
+        // boot migration never revisits the run (repair goes through the
+        // runtime repair surfaces, which normalize on write).
         conn.execute(
             "UPDATE agent_org_runtime_tasks SET blocks_json='[]'
              WHERE org_run_id='corrupt-run' AND id='corrupt-task'",
             [],
         )
         .expect("repair corrupt historical row");
-        super::super::super::init_schema(&conn).expect("retry repaired run");
-        let corrupt_marked_after_retry: bool = conn
+        super::super::super::init_schema(&conn).expect("boot after repair");
+        assert!(
+            !marker("canonical_blocked_by_v1", "corrupt-run"),
+            "terminally skipped run is not retried by the boot migration"
+        );
+        assert!(marker("canonical_blocked_by_v1_skipped", "corrupt-run"));
+    }
+
+    #[test]
+    fn discovery_never_rescans_marked_runs() {
+        let conn = rusqlite::Connection::open_in_memory().expect("open in-memory database");
+        crate::coordination::agent_org_runs::init_schema(&conn).expect("create run schema");
+        super::super::super::init_schema(&conn).expect("create task schema");
+        seed_run(&conn, "settled-run");
+
+        // First boot discovers the run (no tasks — trivially normalized).
+        super::super::super::init_schema(&conn).expect("marker boot");
+        let applied_at: String = conn
             .query_row(
-                "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runtime_task_schema_migrations
-                     WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
-                 )",
+                "SELECT applied_at FROM agent_org_runtime_task_schema_migrations
+                 WHERE name='canonical_blocked_by_v1' AND org_run_id='settled-run'",
                 [],
                 |row| row.get(0),
             )
-            .expect("read retry marker");
-        assert!(
-            corrupt_marked_after_retry,
-            "a repaired run is retried and marked independently"
-        );
+            .expect("run marked on first boot");
+
+        // Subsequent boots leave the marker untouched (anti-join excludes it).
+        super::super::super::init_schema(&conn).expect("steady-state boot");
+        let applied_at_after: String = conn
+            .query_row(
+                "SELECT applied_at FROM agent_org_runtime_task_schema_migrations
+                 WHERE name='canonical_blocked_by_v1' AND org_run_id='settled-run'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("marker survives");
+        assert_eq!(applied_at, applied_at_after);
+        let marker_rows: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_org_runtime_task_schema_migrations
+                 WHERE org_run_id='settled-run'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count markers");
+        assert_eq!(marker_rows, 1);
     }
 }
