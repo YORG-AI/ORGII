@@ -39,6 +39,7 @@ import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { allocateCloudAwareWorkItemId } from "@src/features/Org2Cloud/cloudShortId";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { useProjectOrgCloudPermissions } from "@src/features/Org2Cloud/useProjectOrgCloudPermissions";
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import {
   useCurrentUserMemberIds,
@@ -105,6 +106,16 @@ interface ProjectPanelViewProps {
 
 const PROJECT_PANEL_TABS: ProjectPanelTab[] = ["overview", "list", "kanban"];
 
+interface ProjectWorkItemsResource {
+  shortIds: Map<string, string>;
+  workItems: WorkItem[];
+}
+
+const EMPTY_PROJECT_WORK_ITEMS: ProjectWorkItemsResource = {
+  shortIds: new Map(),
+  workItems: [],
+};
+
 function getProjectOverviewDescription(
   project: ChatPanelSelectedProject["project"]
 ) {
@@ -136,12 +147,6 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   const [projectBodyLoading, setProjectBodyLoading] = useState(false);
   const [projectBodyError, setProjectBodyError] = useState<string | null>(null);
   const lastSavedDescriptionRef = useRef(sidebarProjectDescription);
-  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
-  const [workItemShortIds, setWorkItemShortIds] = useState<Map<string, string>>(
-    new Map()
-  );
-  const [workItemsLoading, setWorkItemsLoading] = useState(false);
-  const [workItemsError, setWorkItemsError] = useState<string | null>(null);
   const [projectSyncAdapter, setProjectSyncAdapter] = useState<{
     projectSlug: string;
     adapterId: string | null;
@@ -365,36 +370,34 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     };
   }, [projectSlug, selectedProject.project.id, sidebarProjectDescription]);
 
-  const loadProjectWorkItems = useCallback(async () => {
-    if (!projectSlug) {
-      setWorkItems([]);
-      setWorkItemShortIds(new Map());
-      return;
-    }
-
-    setWorkItemsLoading(true);
-    setWorkItemsError(null);
-    try {
-      const viewData = await projectApi.readWorkItemsViewData(projectSlug, {
-        view: "list",
-      });
-      setWorkItemShortIds(
-        new Map(viewData.items.map((item) => [item.id, item.shortId]))
+  const fetchProjectWorkItems = useCallback(
+    async (scopeProjectSlug: string) => {
+      const viewData = await projectApi.readWorkItemsViewData(
+        scopeProjectSlug,
+        { view: "list" }
       );
-      setWorkItems(viewData.items.map(enrichedWorkItemToUI));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to load work items";
-      logger.error("Failed to load project work items:", error);
-      setWorkItemsError(message);
-    } finally {
-      setWorkItemsLoading(false);
-    }
-  }, [projectSlug]);
-
-  useEffect(() => {
-    void loadProjectWorkItems();
-  }, [loadProjectWorkItems]);
+      return {
+        shortIds: new Map(
+          viewData.items.map((item) => [item.id, item.shortId])
+        ),
+        workItems: viewData.items.map(enrichedWorkItemToUI),
+      };
+    },
+    []
+  );
+  const workItemsResource = useAsyncResource({
+    enabled: Boolean(projectSlug),
+    fetcher: fetchProjectWorkItems,
+    initialData: EMPTY_PROJECT_WORK_ITEMS,
+    scopeKey: projectSlug || null,
+  });
+  const {
+    data: { shortIds: workItemShortIds, workItems },
+    error: workItemsError,
+    loading: workItemsLoading,
+    refresh: loadProjectWorkItems,
+    setData: setWorkItemsData,
+  } = workItemsResource;
 
   useProjectDataChanged(
     useCallback(
@@ -826,13 +829,14 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
         payload
       );
       const updatedItem = enrichedWorkItemToUI(updated);
-      setWorkItems((currentItems) =>
-        currentItems.map((item) =>
+      setWorkItemsData((current) => ({
+        ...current,
+        workItems: current.workItems.map((item) =>
           item.session_id === workItemId ? updatedItem : item
-        )
-      );
+        ),
+      }));
     },
-    [currentUser, getWorkItemShortId, projectSlug, setWorkItems]
+    [currentUser, getWorkItemShortId, projectSlug, setWorkItemsData]
   );
 
   const handleAddKanbanTask = useCallback(

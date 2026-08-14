@@ -25,14 +25,10 @@
  * } = useKiroSessionCapture({ debug: true, containerRef });
  */
 import { invoke } from "@tauri-apps/api/core";
-import { type UnlistenFn, listen } from "@tauri-apps/api/event";
-import {
-  type RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { listen } from "@tauri-apps/api/event";
+import { type RefObject, useCallback, useEffect, useState } from "react";
+
+import { AsyncUnlistenScope } from "@src/util/platform/tauri/asyncUnlistenScope";
 
 import { useEmbeddedWebview } from "./useEmbeddedWebview";
 
@@ -161,93 +157,80 @@ export function useKiroSessionCapture(
     debug,
   });
 
-  // Refs for Tauri event listeners
-  const progressListenerRef = useRef<UnlistenFn | null>(null);
-  const completeListenerRef = useRef<UnlistenFn | null>(null);
-
   // ============================================
   // Auth event listeners (Kiro-specific)
   // ============================================
 
   useEffect(() => {
-    let isMounted = true;
+    const listenerScope = new AsyncUnlistenScope();
 
     const setupListeners = async () => {
       try {
-        const progressUnlisten = await listen<KiroLoginProgressPayload>(
-          "kiro-login-progress",
-          (event) => {
-            if (!isMounted) return;
+        await listenerScope.registerAll([
+          () =>
+            listen<KiroLoginProgressPayload>("kiro-login-progress", (event) => {
+              if (listenerScope.isDisposed) return;
 
-            const {
-              status,
-              deviceCode: code,
-              verificationUrl: url,
-              error: errMsg,
-            } = event.payload;
+              const {
+                status,
+                deviceCode: code,
+                verificationUrl: url,
+                error: errMsg,
+              } = event.payload;
 
-            if (status === "browser_ready") {
-              if (code) setDeviceCode(code);
-              if (url) setVerificationUrl(url);
-            }
+              if (status === "browser_ready") {
+                if (code) setDeviceCode(code);
+                if (url) setVerificationUrl(url);
+              }
 
-            if (status === "error" && errMsg) {
-              setError(errMsg);
+              if (status === "error" && errMsg) {
+                setError(errMsg);
+                setIsLoggingIn(false);
+              }
+            }),
+          () =>
+            listen<KiroLoginCompletePayload>("kiro-login-complete", (event) => {
+              if (listenerScope.isDisposed) return;
+
+              const {
+                success,
+                accessToken: at,
+                refreshToken: rt,
+                clientId: cid,
+                clientSecret: csecret,
+                startUrl: surl,
+                region: reg,
+                expiresAt: exp,
+                error: errMsg,
+              } = event.payload;
+
               setIsLoggingIn(false);
-            }
-          }
-        );
-        if (isMounted) progressListenerRef.current = progressUnlisten;
 
-        const completeUnlisten = await listen<KiroLoginCompletePayload>(
-          "kiro-login-complete",
-          (event) => {
-            if (!isMounted) return;
-
-            const {
-              success,
-              accessToken: at,
-              refreshToken: rt,
-              clientId: cid,
-              clientSecret: csecret,
-              startUrl: surl,
-              region: reg,
-              expiresAt: exp,
-              error: errMsg,
-            } = event.payload;
-
-            setIsLoggingIn(false);
-
-            if (success && at) {
-              setAccessToken(at);
-              setRefreshToken(rt || null);
-              setClientId(cid || null);
-              setClientSecret(csecret || null);
-              setStartUrl(surl || null);
-              setRegion(reg || null);
-              setExpiresAt(exp || null);
-              setIsLoggedIn(true);
-              setError(null);
-            } else {
-              setError(errMsg || "Login failed");
-              setIsLoggedIn(false);
-            }
-          }
-        );
-        if (isMounted) completeListenerRef.current = completeUnlisten;
+              if (success && at) {
+                setAccessToken(at);
+                setRefreshToken(rt || null);
+                setClientId(cid || null);
+                setClientSecret(csecret || null);
+                setStartUrl(surl || null);
+                setRegion(reg || null);
+                setExpiresAt(exp || null);
+                setIsLoggedIn(true);
+                setError(null);
+              } else {
+                setError(errMsg || "Login failed");
+                setIsLoggedIn(false);
+              }
+            }),
+        ]);
       } catch {
         // Ignore listener setup errors
       }
     };
 
-    setupListeners();
+    void setupListeners();
 
     return () => {
-      isMounted = false;
-      progressListenerRef.current?.();
-      progressListenerRef.current = null;
-      completeListenerRef.current?.();
-      completeListenerRef.current = null;
+      listenerScope.dispose();
     };
   }, []);
 

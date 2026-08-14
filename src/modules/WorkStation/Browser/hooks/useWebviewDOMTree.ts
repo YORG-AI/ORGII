@@ -11,12 +11,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import {
   DEBOUNCE_DELAYS,
   useDebouncedCallback,
 } from "@src/hooks/perf/useDebouncedCallback";
-import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
+import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
 
 const log = createLogger("useWebviewDOMTree");
 
@@ -165,17 +169,10 @@ export function useWebviewDOMTree(
     onTreeFetched,
   } = options;
 
-  const [tree, setTree] = useState<DOMTreeNode | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(
     new Set(["/body"])
   );
   const [highlightedXpath, setHighlightedXpath] = useState<string | null>(null);
-
-  // In-flight guard — prevents dirty-poll tick or navigation from stacking
-  // concurrent refetches on slow pages (YouTube search with 10k nodes).
-  const inFlightRef = useRef(false);
 
   // Keep callback ref up to date
   const onTreeFetchedRef = useRef(onTreeFetched);
@@ -183,149 +180,88 @@ export function useWebviewDOMTree(
     onTreeFetchedRef.current = onTreeFetched;
   }, [onTreeFetched]);
 
-  // Fetch DOM tree
-  const refresh = useCallback(async () => {
-    if (!webviewLabel || !enabled) return;
-    if (inFlightRef.current) return;
-
-    inFlightRef.current = true;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await invoke<DOMTreeNode | null>("get_webview_dom_tree", {
-        label: webviewLabel,
-        maxDepth,
-      });
-
-      setTree(result);
-      onTreeFetchedRef.current?.(result);
-
-      // Auto-expand first 2 levels on initial fetch only.
-      // Functional update preserves prior expandToNode changes made during
-      // an overlapping async fetch.
-      if (result) {
-        setExpandedNodes((currentExpanded) => {
-          if (currentExpanded.size <= 1) {
-            return new Set(collectXpathsToDepth(result, 2));
-          }
-          return currentExpanded;
-        });
-      }
-    } catch (err) {
-      if (isMissingWebviewError(err)) {
-        setTree(null);
-        onTreeFetchedRef.current?.(null);
-      } else {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
-      }
-    } finally {
-      setLoading(false);
-      inFlightRef.current = false;
-    }
-  }, [webviewLabel, enabled, maxDepth]);
-
-  // Initial fetch
-  useEffect(() => {
-    if (!enabled || !webviewLabel) return;
-
-    let cancelled = false;
-
-    const doFetch = async () => {
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      setLoading(true);
-      setError(null);
-
+  const fetchTree = useCallback(
+    async (
+      serializedScope: string,
+      context: AsyncResourceFetchContext<DOMTreeNode | null>
+    ) => {
+      const scope = JSON.parse(serializedScope) as {
+        maxDepth: number;
+        webviewLabel: string;
+      };
       try {
         const result = await invoke<DOMTreeNode | null>(
           "get_webview_dom_tree",
           {
-            label: webviewLabel,
-            maxDepth,
+            label: scope.webviewLabel,
+            maxDepth: scope.maxDepth,
           }
         );
-
-        if (cancelled) return;
-
-        setTree(result);
-        onTreeFetchedRef.current?.(result);
-
-        if (result) {
-          setExpandedNodes((currentExpanded) => {
-            if (currentExpanded.size <= 1) {
-              return new Set(collectXpathsToDepth(result, 2));
-            }
-            return currentExpanded;
-          });
+        if (context.isCurrent()) {
+          onTreeFetchedRef.current?.(result);
+          if (result) {
+            setExpandedNodes((currentExpanded) => {
+              if (currentExpanded.size <= 1) {
+                return new Set(collectXpathsToDepth(result, 2));
+              }
+              return currentExpanded;
+            });
+          }
         }
-      } catch (err) {
-        if (cancelled) return;
-        if (isMissingWebviewError(err)) {
-          setTree(null);
-          onTreeFetchedRef.current?.(null);
-        } else {
-          const message = err instanceof Error ? err.message : String(err);
-          setError(message);
+        return result;
+      } catch (error) {
+        if (isMissingWebviewError(error)) {
+          if (context.isCurrent()) onTreeFetchedRef.current?.(null);
+          return null;
         }
-      } finally {
-        if (!cancelled) setLoading(false);
-        inFlightRef.current = false;
+        log.error("[useWebviewDOMTree] Fetch failed:", error);
+        throw error;
       }
-    };
+    },
+    []
+  );
+  const treeScopeKey =
+    enabled && webviewLabel ? JSON.stringify({ maxDepth, webviewLabel }) : null;
+  const treeResource = useAsyncResource<DOMTreeNode | null>({
+    enabled: Boolean(treeScopeKey),
+    fetcher: fetchTree,
+    initialData: null,
+    scopeKey: treeScopeKey,
+  });
+  const tree = treeResource.data;
+  const refresh = treeResource.refresh;
+  const reloadTree = treeResource.reload;
 
-    doFetch();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, webviewLabel, maxDepth]);
-
-  // Smart dirty-check polling.
-  //
-  // Rather than unconditionally refetching the whole tree every tick, we
-  // poll a cheap boolean command that returns `true` only when
-  // MutationObserver in the webview recorded structural changes since the
-  // last read. On an idle page, this costs one eval per tick; the
-  // expensive walk + JSON.stringify only runs when the DOM actually
-  // changed.
-  //
-  // If a refresh is already in-flight (initial fetch, navigation debounce,
-  // user click), the tick skips — `refresh` itself also guards via
-  // `inFlightRef`, this is just an extra short-circuit to avoid noise.
+  // Smart dirty-check polling. The visibility-aware recursive timer retains no
+  // hidden-page timer and never overlaps a tree fetch.
   useEffect(() => {
     if (!enabled || !webviewLabel || pollInterval <= 0) return;
-
     let active = true;
-
-    const tick = async () => {
-      if (!active) return;
-      if (inFlightRef.current) return;
-      try {
-        const dirty = await invoke<boolean>("check_webview_dom_dirty", {
-          label: webviewLabel,
-        });
-        if (!active) return;
-        if (dirty) {
-          await refresh();
+    const poll = startVisibilityAwarePoll({
+      intervalMs: pollInterval,
+      task: async () => {
+        try {
+          const dirty = await invoke<boolean>("check_webview_dom_dirty", {
+            label: webviewLabel,
+          });
+          if (active && dirty) {
+            await reloadTree({ background: true });
+          }
+        } catch {
+          // The webview may have been torn down between scheduling and invoke.
         }
-      } catch {
-        // Swallow — the webview may have been torn down between the
-        // interval scheduling and the actual call. Next tick will retry.
-      }
-    };
-
-    const stopPolling = startVisibilityAwarePoller(
-      document,
-      tick,
-      pollInterval
-    );
+      },
+    });
     return () => {
       active = false;
-      stopPolling();
+      poll.stop();
     };
-  }, [enabled, webviewLabel, pollInterval, refresh]);
+  }, [enabled, pollInterval, reloadTree, webviewLabel]);
+
+  /*
+   * Tree loading is owned by useAsyncResource above. Interaction state below
+   * remains local because expansion and hover are user intent, not fetch state.
+   */
 
   // Toggle expanded state
   const toggleExpanded = useCallback((xpath: string) => {
@@ -451,8 +387,8 @@ export function useWebviewDOMTree(
 
   return {
     tree,
-    loading,
-    error,
+    loading: treeResource.loading,
+    error: treeResource.error,
     refresh,
     expandedNodes,
     toggleExpanded,

@@ -26,6 +26,7 @@ import type {
   BrowserFrameEvent,
   BrowserStatusEvent,
 } from "@src/store/workstation/browser/browserAutomationAtom";
+import { AsyncUnlistenScope } from "@src/util/platform/tauri/asyncUnlistenScope";
 import { invokeTauri, listenTauri } from "@src/util/platform/tauri/init";
 
 /** Options for the useBrowserAutomation hook. */
@@ -83,42 +84,33 @@ export function useBrowserAutomation(
   useEffect(() => {
     if (!enabled) return;
 
-    let cancelled = false;
-    const unlisteners: Array<() => void> = [];
+    const listenerScope = new AsyncUnlistenScope();
 
     const setup = async () => {
       try {
-        const unlistenFrame = await listenTauri<BrowserFrameEvent>(
-          "browser:frame",
-          (event) => {
-            if (!cancelled) {
-              dispatchFrame(event.payload);
-            }
-          }
-        );
-        if (!cancelled) unlisteners.push(unlistenFrame);
-
-        const unlistenStatus = await listenTauri<BrowserStatusEvent>(
-          "browser:status",
-          (event) => {
-            if (!cancelled) {
-              dispatchStatus(event.payload);
-            }
-          }
-        );
-        if (!cancelled) unlisteners.push(unlistenStatus);
+        await listenerScope.registerAll([
+          () =>
+            listenTauri<BrowserFrameEvent>("browser:frame", (event) => {
+              if (!listenerScope.isDisposed) {
+                dispatchFrame(event.payload);
+              }
+            }),
+          () =>
+            listenTauri<BrowserStatusEvent>("browser:status", (event) => {
+              if (!listenerScope.isDisposed) {
+                dispatchStatus(event.payload);
+              }
+            }),
+        ]);
       } catch {
         // Tauri events may not be available in web dev mode
       }
     };
 
-    setup();
+    void setup();
 
     return () => {
-      cancelled = true;
-      for (const unlisten of unlisteners) {
-        unlisten();
-      }
+      listenerScope.dispose();
     };
   }, [enabled, dispatchFrame, dispatchStatus]);
 

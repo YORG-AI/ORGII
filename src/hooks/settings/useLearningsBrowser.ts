@@ -7,7 +7,7 @@
  * so the hook lives under `src/hooks/settings/` (single-module use).
  */
 import { useAtom } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
 import type {
@@ -18,6 +18,7 @@ import type {
   LearningsStatusReport,
   SettableLearningStatusValue,
 } from "@src/api/tauri/rpc/schemas/learning";
+import { useAsyncResource } from "@src/hooks/async";
 import { learningsBrowserInitialFilterAtom } from "@src/store";
 
 export interface LearningsBrowserFilters {
@@ -47,88 +48,96 @@ export interface UseLearningsBrowserReturn {
   remove: (id: string) => Promise<void>;
 }
 
+interface LearningsBrowserData {
+  items: LearningRecord[];
+  status: LearningsStatusReport | null;
+}
+
+interface LearningsBrowserRequest {
+  agentScopes?: string[];
+  filters: LearningsBrowserFilters;
+}
+
+const EMPTY_LEARNINGS_BROWSER_DATA: LearningsBrowserData = {
+  items: [],
+  status: null,
+};
+
 export function useLearningsBrowser(
   options: UseLearningsBrowserOptions = {}
 ): UseLearningsBrowserReturn {
-  const [items, setItems] = useState<LearningRecord[]>([]);
-  const [status, setStatusReport] = useState<LearningsStatusReport | null>(
-    null
-  );
-  const [filters, setFiltersState] = useState<LearningsBrowserFilters>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [initialFilter, setInitialFilter] = useAtom(
     learningsBrowserInitialFilterAtom
+  );
+  const [filters, setFiltersState] = useState<LearningsBrowserFilters>(() =>
+    initialFilter ? { status: initialFilter } : {}
   );
 
   useEffect(() => {
     if (initialFilter) {
-      setFiltersState((prev) => ({ ...prev, status: initialFilter }));
       setInitialFilter(null);
     }
   }, [initialFilter, setInitialFilter]);
 
-  const fetchAll = useCallback(
-    async (current: LearningsBrowserFilters) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const scopes = current.agentScope
-          ? [current.agentScope]
-          : options.agentScopes;
-        if (scopes && scopes.length > 0) {
-          const lists = await Promise.all(
-            scopes.map((agentScope) =>
-              rpc.learning.browseList({
-                agentScope,
-                status: current.status,
-                source: current.source,
-                category: current.category,
-                search: current.search,
-              })
-            )
-          );
-          const byId = new Map<string, LearningRecord>();
-          for (const list of lists) {
-            for (const row of list) byId.set(row.id, row);
-          }
-          const merged = [...byId.values()].sort((rowA, rowB) =>
-            rowB.updated_at.localeCompare(rowA.updated_at)
-          );
-          setItems(merged);
-          setStatusReport(null);
-          return;
-        }
+  const scopeKey = useMemo(
+    () =>
+      JSON.stringify({
+        agentScopes: options.agentScopes,
+        filters,
+      } satisfies LearningsBrowserRequest),
+    [filters, options.agentScopes]
+  );
 
-        const [list, report] = await Promise.all([
+  const fetchAll = useCallback(async (serializedRequest: string) => {
+    const request = JSON.parse(serializedRequest) as LearningsBrowserRequest;
+    const current = request.filters;
+    const scopes = current.agentScope
+      ? [current.agentScope]
+      : request.agentScopes;
+    if (scopes && scopes.length > 0) {
+      const lists = await Promise.all(
+        scopes.map((agentScope) =>
           rpc.learning.browseList({
-            agentScope: current.agentScope,
+            agentScope,
             status: current.status,
             source: current.source,
             category: current.category,
             search: current.search,
-          }),
-          rpc.learning.getStatus({ agentScope: current.agentScope }),
-        ]);
-        setItems(list);
-        setStatusReport(report);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
-      } finally {
-        setLoading(false);
+          })
+        )
+      );
+      const byId = new Map<string, LearningRecord>();
+      for (const list of lists) {
+        for (const row of list) byId.set(row.id, row);
       }
-    },
-    [options.agentScopes]
-  );
+      return {
+        items: [...byId.values()].sort((rowA, rowB) =>
+          rowB.updated_at.localeCompare(rowA.updated_at)
+        ),
+        status: null,
+      };
+    }
 
-  useEffect(() => {
-    void fetchAll(filters);
-  }, [filters, fetchAll]);
+    const [items, status] = await Promise.all([
+      rpc.learning.browseList({
+        agentScope: current.agentScope,
+        status: current.status,
+        source: current.source,
+        category: current.category,
+        search: current.search,
+      }),
+      rpc.learning.getStatus({ agentScope: current.agentScope }),
+    ]);
+    return { items, status };
+  }, []);
 
-  const refresh = useCallback(async () => {
-    await fetchAll(filters);
-  }, [fetchAll, filters]);
+  const resource = useAsyncResource({
+    fetcher: fetchAll,
+    initialData: EMPTY_LEARNINGS_BROWSER_DATA,
+    scopeKey,
+  });
+
+  const refresh = resource.refresh;
 
   const setFilters = useCallback((next: LearningsBrowserFilters) => {
     setFiltersState(next);
@@ -137,25 +146,25 @@ export function useLearningsBrowser(
   const setStatus = useCallback(
     async (id: string, next: SettableLearningStatusValue) => {
       await rpc.learning.setStatus({ learningId: id, next });
-      await fetchAll(filters);
+      await refresh();
     },
-    [fetchAll, filters]
+    [refresh]
   );
 
   const remove = useCallback(
     async (id: string) => {
       await rpc.learning.remove({ learningId: id });
-      await fetchAll(filters);
+      await refresh();
     },
-    [fetchAll, filters]
+    [refresh]
   );
 
   return {
-    items,
-    loading,
-    error,
+    items: resource.data.items,
+    loading: resource.loading,
+    error: resource.error,
     filters,
-    status,
+    status: resource.data.status,
     setFilters,
     refresh,
     setStatus,

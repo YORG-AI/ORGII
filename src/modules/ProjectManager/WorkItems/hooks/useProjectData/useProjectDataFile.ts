@@ -26,7 +26,7 @@ function normalizeWorkItemPrefix(prefix: string): string {
   return prefix.trim().toUpperCase();
 }
 
-interface FetchFromFilesResult {
+export interface FetchFromFilesResult {
   project: ProjectData | null;
   allProjects: { id: string; name: string; slug: string }[];
   labels: Label[];

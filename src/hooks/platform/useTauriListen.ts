@@ -5,12 +5,14 @@
  *
  * The naive pattern of `await listen(...)` inside an effect can leak
  * subscriptions when cleanup runs before the await resolves (React 18
- * StrictMode, fast unmount, deps churn). We track a `cancelled` flag and,
- * if cancelled before resolution, immediately invoke the returned
- * `unlisten()` so no listener stays registered.
+ * StrictMode, fast unmount, deps churn). `AsyncUnlistenScope` immediately
+ * invokes any handle that resolves after cleanup and rolls back partial
+ * multi-listener setup.
  */
-import { type UnlistenFn, listen } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
+
+import { AsyncUnlistenScope } from "@src/util/platform/tauri/asyncUnlistenScope";
 
 interface UseTauriListenOptions {
   enabled?: boolean;
@@ -36,23 +38,20 @@ export function useTauriListen<T = unknown>(
   useEffect(() => {
     if (!enabled || !event) return;
 
-    let cancelled = false;
-    let unlisten: UnlistenFn | null = null;
+    const listenerScope = new AsyncUnlistenScope();
 
-    (async () => {
-      const fn = await listen<T>(event, (e) => {
-        handlerRef.current(e.payload);
-      });
-      if (cancelled) {
-        fn();
-        return;
-      }
-      unlisten = fn;
-    })();
+    void listenerScope
+      .register(() =>
+        listen<T>(event, (e) => {
+          if (!listenerScope.isDisposed) {
+            handlerRef.current(e.payload);
+          }
+        })
+      )
+      .catch(() => undefined);
 
     return () => {
-      cancelled = true;
-      if (unlisten) unlisten();
+      listenerScope.dispose();
     };
   }, [event, enabled]);
 }
@@ -79,29 +78,27 @@ export function useTauriListenMany(
     );
     if (active.length === 0) return;
 
-    let cancelled = false;
-    const unlisteners: UnlistenFn[] = [];
+    const listenerScope = new AsyncUnlistenScope();
 
-    (async () => {
-      for (const reg of active) {
-        const fn = await listen<unknown>(reg.event, (e) => {
-          const idx = registrationsRef.current.findIndex(
-            (r) => r?.event === reg.event
-          );
-          const current = idx >= 0 ? registrationsRef.current[idx] : undefined;
-          current?.handler(e.payload);
-        });
-        if (cancelled) {
-          fn();
-          return;
-        }
-        unlisteners.push(fn);
-      }
-    })();
+    void listenerScope
+      .registerAll(
+        active.map(
+          (reg) => () =>
+            listen<unknown>(reg.event, (e) => {
+              if (listenerScope.isDisposed) return;
+              const idx = registrationsRef.current.findIndex(
+                (candidate) => candidate?.event === reg.event
+              );
+              const current =
+                idx >= 0 ? registrationsRef.current[idx] : undefined;
+              current?.handler(e.payload);
+            })
+        )
+      )
+      .catch(() => undefined);
 
     return () => {
-      cancelled = true;
-      unlisteners.forEach((fn) => fn());
+      listenerScope.dispose();
     };
   }, [eventKey, enabled]);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { PROJECT_ORG_SYNC_PROVIDER, projectApi } from "@src/api/http/project";
 import type {
@@ -6,6 +6,7 @@ import type {
   ProjectData,
   ProjectOrg,
 } from "@src/api/http/project";
+import { useAsyncResource } from "@src/hooks/async";
 import type { Label } from "@src/types/core/shared";
 
 interface LabelsByProject {
@@ -33,46 +34,72 @@ function mergeLabels(projectLabels: LabelsByProject[]): Label[] {
   );
 }
 
+interface ProjectOrgCatalogResource {
+  labelsByProject: LabelsByProject[];
+  org: ProjectOrg | null;
+  projects: ProjectData[];
+}
+
+const EMPTY_PROJECT_ORG_CATALOG: ProjectOrgCatalogResource = {
+  labelsByProject: [],
+  org: null,
+  projects: [],
+};
+
 export function useProjectOrgCatalogData(orgId: string) {
-  const [org, setOrg] = useState<ProjectOrg | null>(null);
-  const [projects, setProjects] = useState<ProjectData[]>([]);
-  const [labelsByProject, setLabelsByProject] = useState<LabelsByProject[]>([]);
-  const [folderPath, setFolderPath] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [folderDraft, setFolderDraft] = useState<{
+    baseValue: string;
+    orgId: string;
+    value: string;
+  } | null>(null);
 
-  const loadOrgCatalog = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const [allOrgs, orgProjects] = await Promise.all([
-        projectApi.readOrgs(),
-        projectApi.readProjects({ orgId }),
-      ]);
-      const currentOrg = allOrgs.find((entry) => entry.id === orgId);
-      if (!currentOrg) {
-        throw new Error(`Project org not found: ${orgId}`);
-      }
-      const nextLabelsByProject = await Promise.all(
-        orgProjects.map(async (project) => ({
-          projectSlug: project.slug,
-          labels: (await projectApi.readLabels(project.slug)).labels,
-        }))
-      );
-      setOrg(currentOrg);
-      setProjects(orgProjects);
-      setLabelsByProject(nextLabelsByProject);
-      setFolderPath(parseGitFolderPath(currentOrg));
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
+  const fetchOrgCatalog = useCallback(async (scopeOrgId: string) => {
+    const [allOrgs, projects] = await Promise.all([
+      projectApi.readOrgs(),
+      projectApi.readProjects({ orgId: scopeOrgId }),
+    ]);
+    const org = allOrgs.find((entry) => entry.id === scopeOrgId);
+    if (!org) {
+      throw new Error(`Project org not found: ${scopeOrgId}`);
     }
-  }, [orgId]);
+    const labelsByProject = await Promise.all(
+      projects.map(async (project) => ({
+        projectSlug: project.slug,
+        labels: (await projectApi.readLabels(project.slug)).labels,
+      }))
+    );
+    return { labelsByProject, org, projects };
+  }, []);
 
-  useEffect(() => {
-    void loadOrgCatalog();
-  }, [loadOrgCatalog]);
+  const resource = useAsyncResource({
+    enabled: Boolean(orgId),
+    fetcher: fetchOrgCatalog,
+    initialData: EMPTY_PROJECT_ORG_CATALOG,
+    scopeKey: orgId || null,
+  });
+  const {
+    data: catalog,
+    error: loadError,
+    loading,
+    refresh: reload,
+    setData: setCatalog,
+  } = resource;
+  const { labelsByProject, org, projects } = catalog;
+  const storedFolderPath = parseGitFolderPath(org);
+  const folderPath =
+    folderDraft?.orgId === orgId && folderDraft.baseValue === storedFolderPath
+      ? folderDraft.value
+      : storedFolderPath;
+  const setFolderPath = useCallback(
+    (value: string) => {
+      setFolderDraft({
+        baseValue: storedFolderPath,
+        orgId,
+        value,
+      });
+    },
+    [orgId, storedFolderPath]
+  );
 
   const labels = useMemo(() => mergeLabels(labelsByProject), [labelsByProject]);
 
@@ -84,14 +111,15 @@ export function useProjectOrgCatalogData(orgId: string) {
           projectApi.writeLabels(project.slug, { labels: updatedLabels })
         )
       );
-      setLabelsByProject(
-        projects.map((project) => ({
+      setCatalog((current) => ({
+        ...current,
+        labelsByProject: projects.map((project) => ({
           projectSlug: project.slug,
           labels: updatedLabels,
-        }))
-      );
+        })),
+      }));
     },
-    [projects]
+    [projects, setCatalog]
   );
 
   const handleConfigureGitFolder = useCallback(async () => {
@@ -99,22 +127,25 @@ export function useProjectOrgCatalogData(orgId: string) {
       org_id: orgId,
       folder_path: folderPath.trim(),
     });
-    setOrg(configuredOrg);
-    setFolderPath(parseGitFolderPath(configuredOrg));
-  }, [folderPath, orgId]);
+    setCatalog((current) => ({ ...current, org: configuredOrg }));
+    const configuredFolderPath = parseGitFolderPath(configuredOrg);
+    setFolderDraft({
+      baseValue: configuredFolderPath,
+      orgId,
+      value: configuredFolderPath,
+    });
+  }, [folderPath, orgId, setCatalog]);
 
   const handleSyncGitFolder = useCallback(async () => {
     const result = await projectApi.syncOrgGitFolder({ org_id: orgId });
-    await loadOrgCatalog();
+    await reload();
     return result;
-  }, [loadOrgCatalog, orgId]);
+  }, [orgId, reload]);
 
   const handleDeleteOrg = useCallback(async () => {
     await projectApi.deleteOrg(orgId);
-    setOrg(null);
-    setProjects([]);
-    setLabelsByProject([]);
-  }, [orgId]);
+    setCatalog(EMPTY_PROJECT_ORG_CATALOG);
+  }, [orgId, setCatalog]);
 
   const isGitFolderSynced =
     org?.sync_provider === PROJECT_ORG_SYNC_PROVIDER.GIT_FOLDER;
@@ -132,6 +163,6 @@ export function useProjectOrgCatalogData(orgId: string) {
     handleConfigureGitFolder,
     handleSyncGitFolder,
     handleDeleteOrg,
-    reload: loadOrgCatalog,
+    reload,
   };
 }

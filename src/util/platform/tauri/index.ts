@@ -269,12 +269,14 @@ export const getTauriVersion = (): string | null => {
  *
  * @example
  * ```ts
- * useEffect(() => {
- *   let unlisten: UnlistenFn | null = null;
- *   listen("my-event", handler).then(fn => { unlisten = fn; });
- *   return () => safeUnlisten(unlisten);
- * }, []);
+ * const scope = new AsyncUnlistenScope();
+ * void scope.register(() => listen("my-event", handler));
+ * // Effect cleanup:
+ * scope.dispose();
  * ```
+ * Use `AsyncUnlistenScope` when listener creation is asynchronous; calling
+ * this helper on a nullable variable alone cannot close an unmount-before-
+ * resolution race.
  */
 export function safeUnlisten(
   unlistenFn: (() => void) | null | undefined,

@@ -8,8 +8,9 @@
  * the corresponding UI lands.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("useLspGlobalConfig");
@@ -47,42 +48,38 @@ const DEFAULT_CONFIG: GlobalLspConfig = {
 };
 
 export function useLspGlobalConfig() {
-  const [config, setConfig] = useState<GlobalLspConfig>(DEFAULT_CONFIG);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const loadConfig = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
     try {
-      const result = await invoke<GlobalLspConfig>("lsp_get_global_config");
-      setConfig(result);
+      return await invoke<GlobalLspConfig>("lsp_get_global_config");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
       log.error("[useLspGlobalConfig] Failed to load config:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadConfig();
-  }, [loadConfig]);
-
-  const setAutoInstall = useCallback(async (enabled: boolean) => {
-    try {
-      await invoke("lsp_set_auto_install", { enabled });
-      setConfig((prev) => ({ ...prev, autoInstall: enabled }));
-    } catch (err) {
-      log.error("[useLspGlobalConfig] Failed to set auto-install:", err);
       throw err;
     }
   }, []);
+  const configResource = useAsyncResource({
+    fetcher: loadConfig,
+    initialData: DEFAULT_CONFIG,
+    scopeKey: "lsp-global-config",
+  });
+  const setConfig = configResource.setData;
+
+  const setAutoInstall = useCallback(
+    async (enabled: boolean) => {
+      try {
+        await invoke("lsp_set_auto_install", { enabled });
+        setConfig((prev) => ({ ...prev, autoInstall: enabled }));
+      } catch (err) {
+        log.error("[useLspGlobalConfig] Failed to set auto-install:", err);
+        throw err;
+      }
+    },
+    [setConfig]
+  );
 
   return {
-    config,
-    isLoading,
-    error,
+    config: configResource.data,
+    isLoading: configResource.loading,
+    error: configResource.error,
     setAutoInstall,
   };
 }
