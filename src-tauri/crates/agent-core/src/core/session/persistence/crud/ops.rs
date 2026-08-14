@@ -4,7 +4,7 @@
 //! mapper in [`super::record`] so the column list stays in one place.
 
 use chrono::Utc;
-use rusqlite::{params, Result as SqliteResult};
+use rusqlite::{params, OptionalExtension, Result as SqliteResult};
 use tracing::warn;
 
 use crate::persistence::db_helpers as shared;
@@ -502,6 +502,20 @@ pub fn link_bootstrap_work_item(session_id: &str, work_item_id: &str) -> SqliteR
         )?;
         Ok(updated > 0)
     })
+}
+
+/// Targeted point read of the canonical Agent Org roster member id.
+/// The send-boundary Agent Org fence probes this for cache-hit sessions
+/// without pulling the whole session record.
+pub fn get_org_member_id(session_id: &str) -> SqliteResult<Option<String>> {
+    let conn = get_connection()?;
+    conn.query_row(
+        "SELECT org_member_id FROM agent_sessions WHERE session_id = ?1",
+        params![session_id],
+        |row| row.get::<_, Option<String>>(0),
+    )
+    .optional()
+    .map(Option::flatten)
 }
 
 /// Set the canonical Agent Org roster member id for a session.
