@@ -1978,7 +1978,7 @@
       "orgDescriptionPlaceholder": "Que fait cette organisation ?",
       "members": "Membres",
       "addMember": "Ajouter un Membre",
-      "noMembers": "Ajoutez des membres pour construire la hiérarchie de votre org",
+      "noMembers": "Ajoutez des membres pour constituer votre équipe",
       "membersLabel": "Membres de l'équipe",
       "membersDesc": "Chaque ligne est un membre avec une autorisation Writer et des réglages de communication indépendants. Les noms doivent être uniques ; le rôle décrit uniquement la spécialité.",
       "memberName": "Nom",

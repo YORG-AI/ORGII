@@ -1975,7 +1975,7 @@
       "orgDescriptionPlaceholder": "이 조직은 무엇을 하나요?",
       "members": "멤버",
       "addMember": "멤버 추가",
-      "noMembers": "멤버를 추가하여 Org 계층 구조를 구축하세요",
+      "noMembers": "멤버를 추가하여 팀을 구성하세요",
       "membersLabel": "팀 멤버",
       "membersDesc": "각 행은 멤버이며 Writer 권한과 통신 설정은 서로 독립적입니다. 이름은 고유해야 하며 역할은 전문 분야 설명에만 사용됩니다.",
       "memberName": "이름",

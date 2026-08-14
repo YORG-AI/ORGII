@@ -1940,7 +1940,7 @@
       "orgDescriptionPlaceholder": "What does this agent team do?",
       "members": "Members",
       "addMember": "Add Member",
-      "noMembers": "Add members to build your team hierarchy",
+      "noMembers": "Add members to build your team",
       "planApprovalPolicy": {
         "label": "Plan approval",
         "description": "Who decides when a Planner's submitted plan is ready to unlock dependent tasks",

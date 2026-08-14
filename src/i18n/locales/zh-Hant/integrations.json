@@ -2008,7 +2008,7 @@
       "orgDescriptionPlaceholder": "這個組織做什麼？",
       "members": "成員",
       "addMember": "添加成員",
-      "noMembers": "添加成員來構建組織層級",
+      "noMembers": "新增成員來組建團隊",
       "membersLabel": "團隊成員",
       "membersDesc": "每一行都是一位成員；Writer 權限與通訊設定彼此獨立。名稱必須唯一，角色只用於描述專長。",
       "memberName": "名稱",

@@ -18,7 +18,6 @@ use crate::coordination::agent_org_runs::{
     AgentOrgRunContext, AgentOrgRunStore, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task};
-use crate::definitions::orgs::AgentOrgsStore;
 use crate::session::persistence;
 use crate::state::AgentAppState;
 use crate::tools::impls::orchestration::agent_org::tasks::{
@@ -271,7 +270,6 @@ pub async fn debug_session_execute_org_tool(
 
 #[tauri::command]
 pub async fn debug_agent_org_execute_tool_as_agent(
-    _org_store: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
     run_id: String,
     sender_member_id: String,
     tool_name: String,
@@ -376,7 +374,6 @@ fn task_tools_context(
 
 #[tauri::command]
 pub async fn debug_agent_org_emit_member_idle(
-    _org_store: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
     run_id: String,
     member_id: String,
     reason: String,

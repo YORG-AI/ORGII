@@ -1975,7 +1975,7 @@
       "orgDescriptionPlaceholder": "Bu ekip ne yapar?",
       "members": "Üyeler",
       "addMember": "Üye Ekle",
-      "noMembers": "Org hiyerarşinizi oluşturmak için üye ekleyin",
+      "noMembers": "Ekibinizi oluşturmak için üye ekleyin",
       "membersLabel": "Takım Üyeleri",
       "membersDesc": "Her satır, bağımsız Writer izni ve iletişim ayarları olan bir üyedir. Adlar benzersiz olmalıdır; rol yalnızca uzmanlığı açıklar.",
       "memberName": "Ad",
