@@ -330,28 +330,17 @@ impl AgentTool {
                         "[agent] '{}' finished after fg→bg transition; delivering via background path",
                         task_session_id
                     );
-                    crate::tools::impls::orchestration::subagent_wake::current_subagent_completion_wake_hook()
-                        .wake_parent(&task_parent_session_id);
+                    crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook(
+                    )
+                    .wake_owner(&task_parent_session_id);
                     // Registry retention: same ack-polling GC as the native
                     // background path so the result survives until consumed.
-                    const ACK_POLL_INTERVAL: Duration = Duration::from_secs(5);
-                    const MAX_RETENTION: Duration = Duration::from_secs(30 * 60);
-                    let retain_deadline = std::time::Instant::now() + MAX_RETENTION;
-                    loop {
-                        tokio::time::sleep(ACK_POLL_INTERVAL).await;
-                        match job_registry::is_output_acknowledged(&task_session_id) {
-                            None | Some(true) => break,
-                            Some(false) => {}
-                        }
-                        if std::time::Instant::now() >= retain_deadline {
-                            warn!(
-                                "[agent] '{}' transitioned result never acknowledged; evicting",
-                                task_session_id
-                            );
-                            break;
-                        }
-                    }
-                    job_registry::remove(&task_session_id);
+                    job_registry::retain_until_acknowledged_then_remove(
+                        &task_session_id,
+                        Duration::from_secs(30 * 60),
+                        "agent",
+                    )
+                    .await;
                 }
             }
         });

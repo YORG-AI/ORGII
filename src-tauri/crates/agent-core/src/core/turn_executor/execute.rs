@@ -22,7 +22,7 @@ use super::stream_normalizer::{NormalizedStreamEvent, TurnStreamNormalizer};
 
 use crate::model_context::microcompact;
 
-use super::backoff::{MAX_CONTEXT_RESCUE_ATTEMPTS, MAX_REPEAT_STREAK};
+use super::backoff::MAX_CONTEXT_RESCUE_ATTEMPTS;
 use super::context_accounting::ContextUsageSnapshot;
 use super::continuation::{
     should_auto_continue, should_inject_todo_reminder, ANTI_RUSH_MIN_PERCENT, ANTI_RUSH_MIN_WINDOW,
@@ -33,6 +33,7 @@ use super::helpers::{add_assistant_message, add_tool_result};
 use super::length_recovery::{maybe_recover_from_length, LengthRecoveryOutcome};
 #[cfg(debug_assertions)]
 use super::provider_request_capture;
+use super::repeat_guard::{RepeatGuard, RepeatVerdict};
 use super::screenshot::resolve_screenshot_markers;
 use super::stream_error_recovery::{handle_stream_error, RetryBudgets, StreamErrorOutcome};
 use super::tool_execution::{execute_tool_calls, is_cancelled, ToolBatchOutcome};
@@ -77,8 +78,7 @@ pub async fn execute_turn(
     let mut usage_telemetry = UsageTelemetryCollector::default();
     let mut context_usage_snapshot: Option<ContextUsageSnapshot> = None;
 
-    let mut last_tool_signature: Option<String> = None;
-    let mut repeat_count: u32 = 0;
+    let mut repeat_guard = RepeatGuard::default();
     let mut consecutive_errors: u32 = 0;
     let mut output_recovery_count: u32 = 0;
     // True once we've burned the one silent Tier-1 escalation (max_tokens →
@@ -196,6 +196,43 @@ pub async fn execute_turn(
                         .join("\n")
                 ),
             }));
+        }
+
+        // Mid-turn background-job update: deliver job events that landed
+        // while this turn was already running — completions with unread
+        // output and shells latched as waiting for interactive input — so
+        // the model learns about them at the next iteration instead of
+        // polling or waiting for the next turn's reminder. Skipped on the
+        // first iteration: the turn-start Background Jobs reminder owns
+        // turn-boundary delivery. Claiming here consumes the same
+        // exactly-once flags as the idle wake, so an event delivered
+        // mid-turn never also wakes the session at turn end.
+        if iteration > 1
+            && crate::tools::impls::coding::exec::registry::claim_completion_wake_for_session(
+                session_id,
+            )
+        {
+            use crate::core::session::turn::background_reminder;
+            let jobs: Vec<_> =
+                crate::tools::impls::coding::exec::registry::list_jobs_for_reminder(session_id)
+                    .into_iter()
+                    .filter(|job| job.has_unread_output || job.stalled_waiting_input)
+                    .collect();
+            if !jobs.is_empty() {
+                info!(
+                    "[agent-core] mid-turn background-job note injected ({} job(s), session={})",
+                    jobs.len(),
+                    session_id
+                );
+                let note = background_reminder::build_completion_notification(&jobs);
+                crate::tools::impls::coding::exec::registry::acknowledge_outputs(
+                    &background_reminder::inlined_result_handles(&jobs),
+                );
+                messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": note,
+                }));
+            }
         }
 
         // Stale-todo reminder: same injection point as the other mid-turn
@@ -671,27 +708,64 @@ pub async fn execute_turn(
                 .collect::<Vec<_>>()
                 .join("|");
 
-            if Some(&current_signature) == last_tool_signature.as_ref() {
-                repeat_count += 1;
-                if repeat_count >= MAX_REPEAT_STREAK {
-                    let preview: String =
-                        crate::utils::safe_truncate_chars_to_string(&current_signature, 200);
-                    warn!(
-                        "[agent-core] Detected {} repeated identical tool calls, breaking loop: {}",
-                        repeat_count, preview
-                    );
-                    final_content = Some(format!(
-                        "I attempted the same action {} times without progress and stopped to avoid an infinite loop. \
-                         The last tool call was: {}",
-                        repeat_count + 1,
-                        preview
-                    ));
-                    break;
+            // Progress probe for the repeat guard: tools that legitimately
+            // get re-invoked with identical args while an observed job
+            // advances (await_output) expose a fingerprint of that job's
+            // state. The batch carries a fingerprint when ANY call does, so
+            // an all-default batch keeps pure args-identity semantics.
+            let current_fingerprint: Option<String> = {
+                let parts: Vec<Option<String>> = response
+                    .tool_calls
+                    .iter()
+                    .map(|tc| {
+                        tools
+                            .get(&tc.name)
+                            .and_then(|tool| tool.progress_fingerprint(&tc.arguments))
+                    })
+                    .collect();
+                if parts.iter().any(Option::is_some) {
+                    Some(
+                        parts
+                            .into_iter()
+                            .map(|p| p.unwrap_or_default())
+                            .collect::<Vec<_>>()
+                            .join("|"),
+                    )
+                } else {
+                    None
                 }
-            } else {
-                repeat_count = 0;
+            };
+
+            if let RepeatVerdict::Break {
+                executed_attempts,
+                progress_aware,
+            } = repeat_guard.observe(current_signature.clone(), current_fingerprint)
+            {
+                let preview: String =
+                    crate::utils::safe_truncate_chars_to_string(&current_signature, 200);
+                warn!(
+                    "[agent-core] Breaking loop after {} identical no-progress tool calls (progress_aware={}): {}",
+                    executed_attempts, progress_aware, preview
+                );
+                final_content = Some(if progress_aware {
+                    format!(
+                        "The last {} checks of the same background job(s) found no new output or \
+                         status change, so I'm pausing this turn instead of continuing to poll. \
+                         If a job is still running, the session resumes automatically when it \
+                         completes; you can also send a message to continue sooner. The repeated \
+                         tool call was: {}",
+                        executed_attempts, preview
+                    )
+                } else {
+                    format!(
+                        "I called the same tool with identical arguments {} times in a row \
+                         without new information, so I stopped before repeating it again to \
+                         avoid an infinite loop. The last tool call was: {}",
+                        executed_attempts, preview
+                    )
+                });
+                break;
             }
-            last_tool_signature = Some(current_signature);
 
             let tool_call_values: Vec<Value> = response
                 .tool_calls

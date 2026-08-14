@@ -5,6 +5,7 @@ import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import { resolveTranscriptTopPaddingPx } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
 import CloudSessionDownloadProgressCard from "@src/features/Org2Cloud/CloudSessionDownloadProgressCard";
 import { useCloudSessionHasDownloadSurface } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
@@ -51,6 +52,7 @@ interface ChatHistoryViewProps {
   agentOrgMembers: AgentOrgRunMemberView[];
   agentOrgOverviewPanel?: React.ReactNode;
   bottomInset: number;
+  chromeTopInset: number;
   chatPanelPosition: "left" | "right";
   displayMode: ChatHistoryDisplayMode;
   emptyState: UseChatEmptyStateReturn;
@@ -85,6 +87,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   agentOrgMembers,
   agentOrgOverviewPanel,
   bottomInset,
+  chromeTopInset,
   chatPanelPosition,
   displayMode,
   emptyState,
@@ -255,6 +258,10 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     turnPaginationEnabled ||
     Boolean(agentOrgCurrentMemberName) ||
     Boolean(agentOrgOverviewPanel);
+  const transcriptTopPaddingPx = resolveTranscriptTopPaddingPx(
+    chromeTopInset,
+    turnPaginationEnabled || groupChatViewActive
+  );
   const pinnedHeaderLayer = (
     <ChatPinnedHeaderLayer
       showTurnContextRow={showTurnContextRow}
@@ -469,6 +476,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       codeBlockContainerWidth={codeBlockContainerWidth ?? 0}
                       footerSpacerHeight={footerSpacerHeight}
                       bottomInset={bottomInset}
+                      topPaddingPx={transcriptTopPaddingPx}
                       virtualListRef={virtualListRef}
                       virtualListDataKey={virtualListDataKey}
                       getIsWpGeneWorking={getIsWpGeneWorking}

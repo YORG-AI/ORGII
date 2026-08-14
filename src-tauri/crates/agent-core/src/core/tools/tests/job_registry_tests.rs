@@ -93,15 +93,18 @@ fn test_list_shell_for_session() {
 
 #[test]
 fn test_subagent_not_in_shell_list() {
+    // Session id must be unique to this test: `test_list_shell_for_session`
+    // registers real shells under "session_x" concurrently, and the shared
+    // process-global registry would make this list non-empty mid-flight.
     let handle = "agent-builtin:explore-xyz".to_string();
     let (_tx, _cancel) = registry::register_subagent(
         handle.clone(),
         "explore".into(),
         "Explorer".into(),
-        "session_x".into(),
+        "session_subagent_only".into(),
     );
 
-    let list = registry::list_shell_for_session("session_x");
+    let list = registry::list_shell_for_session("session_subagent_only");
     assert!(list.is_empty());
 
     registry::remove(&handle);
@@ -182,12 +185,12 @@ async fn test_cancel_subagents_for_session_scopes_to_session() {
     registry::remove(&other);
 }
 
-/// Wake-claim lifecycle: `claim_subagent_wake_for_session` is the exactly-once
-/// signal the subagent-wake coordinator uses. It claims a finished,
-/// not-acknowledged, not-yet-dispatched subagent result and marks it dispatched
+/// Wake-claim lifecycle: `claim_completion_wake_for_session` is the
+/// exactly-once signal the job-wake coordinator uses. It claims a finished,
+/// not-acknowledged, not-yet-dispatched job result and marks it dispatched
 /// in the same pass — so a second call returns false (no double wake).
 #[test]
-fn test_claim_subagent_wake_lifecycle() {
+fn test_claim_completion_wake_lifecycle() {
     let session = "wake-claim-session";
     let handle = "agent-builtin:explore-wakeclaim".to_string();
     let (_tx, _cancel) = registry::register_subagent(
@@ -198,47 +201,49 @@ fn test_claim_subagent_wake_lifecycle() {
     );
 
     // Still running → nothing to claim.
-    assert!(!registry::claim_subagent_wake_for_session(session));
+    assert!(!registry::claim_completion_wake_for_session(session));
 
     // Completed but unacknowledged → first claim succeeds.
     registry::set_final_result(&handle, "explored 12 files".into());
     registry::mark_exited(&handle, JobStatus::Completed);
-    assert!(registry::claim_subagent_wake_for_session(session));
+    assert!(registry::claim_completion_wake_for_session(session));
 
     // EXACTLY-ONCE invariant: a second claim of the same result returns false,
     // because the first marked it wake_dispatched. This is what makes the two
     // wake triggers (completion push + turn-end re-check) collapse to a single
     // dispatch regardless of ordering.
     assert!(
-        !registry::claim_subagent_wake_for_session(session),
+        !registry::claim_completion_wake_for_session(session),
         "a result must be claimable at most once"
     );
 
-    // After release, it becomes claimable again (the running-parent path frees
+    // After release, it becomes claimable again (the running-owner path frees
     // the claim so the turn-end re-check can pick it up).
-    registry::release_subagent_wake_for_session(session);
-    assert!(registry::claim_subagent_wake_for_session(session));
+    registry::release_completion_wake_for_session(session);
+    assert!(registry::claim_completion_wake_for_session(session));
 
     // Once acknowledged (the agent read it), no further claims fire.
     registry::acknowledge_output(&handle);
-    registry::release_subagent_wake_for_session(session);
+    registry::release_completion_wake_for_session(session);
     assert!(
-        !registry::claim_subagent_wake_for_session(session),
+        !registry::claim_completion_wake_for_session(session),
         "an acknowledged result needs no wake"
     );
 
     // Other sessions are never matched.
-    assert!(!registry::claim_subagent_wake_for_session(
+    assert!(!registry::claim_completion_wake_for_session(
         "some-other-session"
     ));
 
     registry::remove(&handle);
 }
 
-/// A finished **shell** job must NOT trigger a subagent wake — the coordinator
-/// is subagent-specific (shells surface via the reminder only).
+/// A finished **shell** job wakes its owning session exactly like a subagent:
+/// exited shells (success or failure) are claimable once; a **killed** shell
+/// is never claimable — whoever killed it (model kill_handle / user Stop)
+/// already knows, so waking an idle session to announce it would be noise.
 #[test]
-fn test_claim_subagent_wake_ignores_shell_jobs() {
+fn test_claim_completion_wake_covers_shell_jobs() {
     let session = "wake-claim-shell-session";
     let pid = 99997;
     let _tx = registry::register_shell(
@@ -248,11 +253,90 @@ fn test_claim_subagent_wake_ignores_shell_jobs() {
         session.into(),
     );
     let handle = pid.to_string();
+
+    // Still running → nothing to claim.
+    assert!(!registry::claim_completion_wake_for_session(session));
+
     registry::mark_exited(&handle, JobStatus::Exited(0));
+    assert!(
+        registry::claim_completion_wake_for_session(session),
+        "a completed shell with unread output must wake its owner"
+    );
+    assert!(
+        !registry::claim_completion_wake_for_session(session),
+        "shell results are claimable at most once"
+    );
+    registry::remove(&handle);
+
+    let killed_pid = 99998;
+    let _tx = registry::register_shell(
+        killed_pid,
+        "npm run dev".into(),
+        PathBuf::from("/tmp/wakeclaim-killed.txt"),
+        session.into(),
+    );
+    let killed_handle = killed_pid.to_string();
+    registry::mark_exited(&killed_handle, JobStatus::Killed);
+    assert!(
+        !registry::claim_completion_wake_for_session(session),
+        "a killed shell must never wake its owner"
+    );
+    registry::remove(&killed_handle);
+}
+
+/// Stall-advisory claim lifecycle: a running shell latched as waiting for
+/// input is claimable exactly once via its own `stall_delivered` flag —
+/// which must NOT consume the job's one completion wake. Output resuming
+/// clears the latch and re-arms the advisory.
+#[test]
+fn test_stall_advisory_claim_lifecycle() {
+    let session = "stall-claim-session";
+    let pid = 99995;
+    let _tx = registry::register_shell(
+        pid,
+        "git push".into(),
+        PathBuf::from("/tmp/stall-claim.txt"),
+        session.into(),
+    );
+    let handle = pid.to_string();
+
+    // Running, not stalled → nothing to claim.
+    assert!(!registry::claim_completion_wake_for_session(session));
+
+    assert!(registry::mark_stalled_waiting_input(&handle));
+    assert!(
+        !registry::mark_stalled_waiting_input(&handle),
+        "latch is one-shot until cleared"
+    );
+    assert_eq!(registry::is_stalled_waiting_input(&handle), Some(true));
 
     assert!(
-        !registry::claim_subagent_wake_for_session(session),
-        "a completed shell job must not be mistaken for an unconsumed subagent result"
+        registry::claim_completion_wake_for_session(session),
+        "a stalled running shell must be claimable for delivery"
+    );
+    assert!(
+        !registry::claim_completion_wake_for_session(session),
+        "the advisory is delivered at most once"
+    );
+
+    // A released claim (owner was running) becomes claimable again.
+    registry::release_completion_wake_for_session(session);
+    assert!(registry::claim_completion_wake_for_session(session));
+
+    // Output resumed → latch cleared and advisory re-armed for a future
+    // distinct stall.
+    registry::clear_stalled_waiting_input(&handle);
+    assert_eq!(registry::is_stalled_waiting_input(&handle), Some(false));
+    assert!(!registry::claim_completion_wake_for_session(session));
+    assert!(registry::mark_stalled_waiting_input(&handle));
+    assert!(registry::claim_completion_wake_for_session(session));
+
+    // The stall advisory never consumed the completion wake: once the job
+    // exits, the completion is still claimable.
+    registry::mark_exited(&handle, JobStatus::Exited(0));
+    assert!(
+        registry::claim_completion_wake_for_session(session),
+        "completion wake must survive prior stall deliveries"
     );
 
     registry::remove(&handle);

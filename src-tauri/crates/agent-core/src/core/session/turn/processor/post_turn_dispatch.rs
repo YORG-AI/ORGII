@@ -1,13 +1,13 @@
-//! Post-turn dispatch: broadcasts, hooks, locks, fire-and-forget jobs.
+//! Post-turn dispatch: broadcasts, hooks, locks, and bounded background submissions.
 //!
 //! Runs after `turn_executor::execute_turn` returns. Order matters:
 //!
 //! 1. **`agent:complete` broadcast** — first, so the user sees "done"
 //!    before any background work fires.
 //! 2. **Computer Use lock release** — best-effort, no-op if not held.
-//! 3. **Session memory extraction** — fire-and-forget, 60s timeout.
-//! 4. **Extract memories** — forked extractor agent, fire-and-forget.
-//! 5. **Auto-dream** — periodic memory consolidation, fire-and-forget.
+//! 3. **Session memory extraction** — coordinator-owned, 60s timeout.
+//! 4. **Extract memories** — coordinator-owned forked extractor.
+//! 5. **Auto-dream** — coordinator-owned periodic consolidation.
 //!
 //! (`HookEvent::Stop` no longer fires here — it runs *inside* the turn
 //! loop as a blocking gate; see `on_turn_stop_check`.)
@@ -34,26 +34,28 @@ pub(super) struct PostTurnInputs<'a> {
     pub session_id: &'a str,
     pub turn_id: &'a str,
     pub response_text: &'a str,
-    pub messages: &'a [serde_json::Value],
     pub result: &'a TurnResult,
     pub tool_calls_count: u32,
     pub final_turn_state: DialogTurnState,
     pub turn_started_at_ms: i64,
+    pub sm_current_tokens: usize,
+    pub sm_last_turn_has_tool_calls: bool,
 }
 
 impl UnifiedMessageProcessor {
     /// Runs every post-turn step (broadcast, Stop hook, CU lock release,
-    /// four fire-and-forget spawns) in order.
+    /// bounded memory submissions) in order.
     pub(super) async fn dispatch_post_turn_work(&self, inputs: PostTurnInputs<'_>) {
         let PostTurnInputs {
             session_id,
             turn_id,
             response_text,
-            messages,
             result,
             tool_calls_count,
             final_turn_state,
             turn_started_at_ms,
+            sm_current_tokens,
+            sm_last_turn_has_tool_calls,
         } = inputs;
 
         // 9. Broadcast completion FIRST — user sees "done" immediately.
@@ -99,59 +101,79 @@ impl UnifiedMessageProcessor {
             workspace: self.runtime.workspace_state.read().clone(),
         };
 
-        // 9b. Session memory extraction (fire-and-forget, 60s timeout).
+        // 9b. Coordinator-owned session-memory extraction. SM is part of the
+        // context-window pipeline, not long-term memory, so it is gated by
+        // `sm_config.enabled` alone — never by the learnings policy. The gate
+        // and counter bookkeeping run here at dispatch: a job cancelled while
+        // queued can no longer lose them, and only due extractions are ever
+        // submitted.
         if should_run_post_turn_work(self.sm_config.enabled, final_turn_state) {
-            post_turn_jobs::spawn_session_memory_extraction(
-                post_turn_jobs::SessionMemoryExtractionInput {
-                    session_id,
-                    messages,
-                    prompt_tokens: result.prompt_tokens,
-                    tool_calls_count,
-                    sm_state: self.sm_state.clone(),
-                    sm_config: self.sm_config.clone(),
-                    fork_provider: fork_provider.clone(),
-                },
-            )
-            .await;
+            let should_extract_now = {
+                let mut sm_state = self.sm_state.lock().await;
+                sm_state.record_tool_calls(tool_calls_count as usize);
+                crate::model_context::session_memory::should_extract(
+                    &sm_state,
+                    &self.sm_config,
+                    sm_current_tokens,
+                    sm_last_turn_has_tool_calls,
+                )
+            };
+            if should_extract_now {
+                post_turn_jobs::spawn_session_memory_extraction(
+                    post_turn_jobs::SessionMemoryExtractionInput {
+                        session_id,
+                        agent_id: self.runtime.agent_definition_id.clone(),
+                        current_tokens: sm_current_tokens,
+                        sm_state: self.sm_state.clone(),
+                        sm_config: self.sm_config.clone(),
+                        fork_provider: fork_provider.clone(),
+                    },
+                );
+            }
         }
 
         // 9c. Extract memories — forked extractor agent (fire-and-forget).
         // Subagents bypass this branch structurally (they don't go through
         // UnifiedMessageProcessor), so no explicit agent_id check is needed.
+        // The turn counter advances here at dispatch so cancelled or
+        // coalesced jobs cannot lose it; the job body no longer records.
         if should_run_post_turn_work(
-            self.runtime.resolved.learnings.extract_memories_enabled,
+            self.runtime.resolved.learnings.enabled
+                && self.runtime.resolved.learnings.extract_memories_enabled,
             final_turn_state,
         ) && !result.is_stream_error
         {
             if let Some(ws_path) = self.workspace_root() {
+                {
+                    let mut em_state = self.session.em_state.lock().await;
+                    crate::memory::workspace_memory::extract::record_turn(&mut em_state);
+                }
                 post_turn_jobs::spawn_extract_memories(post_turn_jobs::ExtractMemoriesInput {
                     session_id,
+                    agent_id: self.runtime.agent_definition_id.clone(),
                     ws_path,
-                    messages,
-                    final_text: result.content.as_deref(),
                     em_state: self.session.em_state.clone(),
                     fork_provider: fork_provider.clone(),
                     tool_registry: self.runtime.tool_registry.clone(),
-                })
-                .await;
+                });
             }
         }
 
         // 9d. Auto-dream — periodic memory consolidation (fire-and-forget).
         if should_run_post_turn_work(
-            self.runtime.resolved.learnings.auto_dream_enabled,
+            self.runtime.resolved.learnings.enabled
+                && self.runtime.resolved.learnings.auto_dream_enabled,
             final_turn_state,
         ) {
             if let Some(ws_path) = self.workspace_root() {
                 post_turn_jobs::spawn_auto_dream(post_turn_jobs::AutoDreamInput {
                     session_id,
+                    agent_id: self.runtime.agent_definition_id.clone(),
                     ws_path,
-                    messages: messages.to_vec(),
                     ad_state: self.session.ad_state.clone(),
                     fork_provider: fork_provider.clone(),
                     tool_registry: self.runtime.tool_registry.clone(),
-                })
-                .await;
+                });
             }
         }
 

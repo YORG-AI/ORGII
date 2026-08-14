@@ -35,6 +35,7 @@
 //! `core/model_context/session_memory.rs` because it is part of the
 //! per-turn context-window pipeline, not long-term memory.
 
+pub mod background;
 pub mod commands;
 pub mod consolidation;
 pub mod embeddings;
@@ -52,4 +53,8 @@ pub struct MemoryAgentParams<'a> {
     pub parent_tools: std::sync::Arc<crate::tools::registry::ToolRegistry>,
     pub session_id: &'a str,
     pub definitions_store: Option<std::sync::Arc<crate::definitions::AgentDefinitionsStore>>,
+    /// Coordinator-owned cancellation for this exact background job. Memory
+    /// agent turn loops receive this flag so disabling/teardown stops provider
+    /// retries and tool iterations instead of merely dropping the outer future.
+    pub cancel_flag: Option<&'a std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }

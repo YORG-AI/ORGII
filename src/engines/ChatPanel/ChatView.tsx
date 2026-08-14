@@ -102,6 +102,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
     surfaceBgClass = "bg-chat-pane",
     readOnly = false,
     secondary = false,
+    chromeTopInset = 0,
     onSessionContinuation,
   }) => {
     const { t: tNavigation } = useTranslation("navigation");
@@ -438,6 +439,13 @@ const ChatView: React.FC<ChatViewProps> = memo(
                 ? "flex flex-shrink-0 flex-col"
                 : "absolute inset-x-0 top-0 z-40 flex flex-col"
             }
+            style={
+              chromeTopInset > 0
+                ? turnPaginationEnabled || groupChatViewActive
+                  ? { paddingTop: chromeTopInset }
+                  : { top: chromeTopInset }
+                : undefined
+            }
             data-chat-pinned-header-portal-host
           />
           <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
@@ -467,6 +475,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
               turnPaginationEnabled={turnPaginationEnabled}
               paginationTrailingSlot={groupChatHistoryAction}
               pinnedHeaderHost={pinnedHeaderHost}
+              chromeTopInset={chromeTopInset}
               historyBottomInset={historyBottomInset}
               groupChatViewAvailable={groupChatViewAvailable}
               handleGroupChatViewToggle={handleGroupChatViewToggle}

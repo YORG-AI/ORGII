@@ -15,7 +15,7 @@
 //!      `extract_memories_enabled=true`.
 //!   2. Send a tool-heavy SDE turn with the `enable_extract_memories`
 //!      HTTP flag left **off**.
-//!   3. Assert `em_state.last_processed_idx` advances — only possible
+//!   3. Assert `em_state.last_processed_seq` advances — only possible
 //!      if the resolver honored the overlay.
 //!
 //! Positive+negative assertion compliance: teardown resets the overlay so the next scenario
@@ -123,7 +123,7 @@ pub async fn extract_memories_agent_def_opts_in(cfg: &Config) -> bool {
     loop {
         match harness::fetch_em_state(cfg, &session_id).await {
             Ok(snap) => {
-                let advanced = snap.last_processed_idx.is_some();
+                let advanced = snap.last_processed_seq.is_some();
                 last_snapshot = Some(snap);
                 if advanced {
                     break;
@@ -141,10 +141,10 @@ pub async fn extract_memories_agent_def_opts_in(cfg: &Config) -> bool {
 
     let (cursor_advanced, snap_repr) = match last_snapshot.as_ref() {
         Some(snap) => (
-            snap.last_processed_idx.is_some(),
+            snap.last_processed_seq.is_some(),
             format!(
-                "last_processed_idx={:?} in_progress={} turns_since_extraction={}",
-                snap.last_processed_idx, snap.in_progress, snap.turns_since_extraction,
+                "last_processed_seq={:?} in_progress={} turns_since_extraction={}",
+                snap.last_processed_seq, snap.in_progress, snap.turns_since_extraction,
             ),
         ),
         None => (false, "em_state fetch never succeeded".to_string()),

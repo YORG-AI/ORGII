@@ -5,6 +5,7 @@
 //! - [`find_last_safe_boundary`] — picks the highest message index safe to mark
 //!   as the SM boundary (avoids splitting a tool_use → tool_result pair)
 
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use serde_json::Value;
@@ -14,9 +15,20 @@ use tracing::{info, warn};
 use super::config::SessionMemoryConfig;
 use super::sections::{analyze_section_sizes, generate_section_reminders};
 use super::state::SessionMemoryState;
-use crate::core::model_context::tokenizer;
 use crate::core::side_query::{self, SideQueryConfig, StructuredOutput};
 use crate::providers::traits::LLMProvider;
+
+/// Resolve a sequence anchor to "index of the last summarized message" in the
+/// frame described by `start_seqs`. `None` when nothing in the frame is at or
+/// below the anchor (or no anchor exists) — callers then treat the whole
+/// frame as unsummarized.
+pub fn resolve_summarized_boundary_idx(
+    anchor_seq: Option<i64>,
+    start_seqs: &[i64],
+) -> Option<usize> {
+    let seq = anchor_seq?;
+    start_seqs.partition_point(|s| *s <= seq).checked_sub(1)
+}
 
 /// SM extraction system prompt — 9-section template.
 const SM_EXTRACTION_SYSTEM_PROMPT: &str = r#"You are a session memory extractor. Your job is to maintain a structured summary of an ongoing conversation between a user and an AI coding assistant.
@@ -95,12 +107,16 @@ pub fn should_extract(
 ///
 /// Makes a single LLM side-call with the SM system prompt, current SM
 /// content, and recent messages. Returns the updated SM markdown.
+#[allow(clippy::too_many_arguments)]
 pub async fn extract_session_memory(
     messages: &[Value],
+    start_seqs: &[i64],
     sm_state: Arc<Mutex<SessionMemoryState>>,
     config: &SessionMemoryConfig,
     provider: &dyn LLMProvider,
     model: &str,
+    current_tokens: usize,
+    cancel_flag: Option<&Arc<AtomicBool>>,
 ) -> Result<String, String> {
     use crate::core::model_context::summarization;
 
@@ -112,8 +128,8 @@ pub async fn extract_session_memory(
         let mut state = sm_state.lock().await;
         state.extraction_in_progress = true;
         let start_idx = state
-            .last_summarized_msg_idx
-            .map(|idx| idx + 1)
+            .last_summarized_seq
+            .map(|seq| start_seqs.partition_point(|s| *s <= seq))
             .unwrap_or(0);
         (
             start_idx,
@@ -226,7 +242,14 @@ pub async fn extract_session_memory(
         "content": user_content,
     })];
 
-    let result = side_query::side_query(provider, &user_messages, &sq_config, model).await;
+    let result = side_query::side_query_with_options(
+        provider,
+        &user_messages,
+        &sq_config,
+        model,
+        cancel_flag,
+    )
+    .await;
 
     // ── Finalize: brief lock to merge the result back. Concurrent
     // `record_tool_calls` increments that arrived while the LLM was running
@@ -249,20 +272,22 @@ pub async fn extract_session_memory(
                 sq_result.content
             };
             state.content = Some(sm_content.clone());
-            state.tokens_at_last_extraction = tokenizer::count_messages_tokens(messages);
+            state.tokens_at_last_extraction = current_tokens;
             state.tool_calls_since_extraction = state
                 .tool_calls_since_extraction
                 .saturating_sub(consumed_tool_calls);
             state.initialized = true;
 
             if let Some(last_safe_idx) = find_last_safe_boundary(messages) {
-                state.last_summarized_msg_idx = Some(last_safe_idx);
+                if let Some(seq) = start_seqs.get(last_safe_idx) {
+                    state.last_summarized_seq = Some(*seq);
+                }
             }
 
             info!(
-                "[session_memory] Extraction complete ({} chars, boundary={})",
+                "[session_memory] Extraction complete ({} chars, boundary_seq={})",
                 sm_content.len(),
-                state.last_summarized_msg_idx.unwrap_or(0),
+                state.last_summarized_seq.unwrap_or(-1),
             );
 
             Ok(sm_content)

@@ -49,6 +49,15 @@ pub async fn agent_definitions_remove(
 ) -> Result<bool, String> {
     let removed = state.remove(&agent_id)?;
     if removed {
+        let cancelled_memory_jobs =
+            crate::memory::background::cancel_memory_jobs_for_agent(&agent_id);
+        if cancelled_memory_jobs > 0 {
+            tracing::info!(
+                agent_id = %agent_id,
+                cancelled_memory_jobs,
+                "[agent_def_remove] cancelled background memory jobs for removed agent"
+            );
+        }
         app_state
             .invalidate_prompt_caches_for_agent_definition(
                 &agent_id,
@@ -277,6 +286,15 @@ pub async fn agent_def_update_patch(
     } else {
         state.update(&agent_id, |def| patch.apply(def))
     }?;
+    let cancelled_memory_jobs =
+        crate::memory::background::cancel_disabled_memory_jobs_for_agent(&agent_id);
+    if cancelled_memory_jobs > 0 {
+        tracing::info!(
+            agent_id = %agent_id,
+            cancelled_memory_jobs,
+            "[agent_def_update] cancelled background memory jobs disabled by hot policy update"
+        );
+    }
     app_state
         .invalidate_prompt_caches_for_agent_definition(
             &agent_id,
@@ -297,6 +315,15 @@ pub async fn agent_def_reset_builtin(
     agent_id: String,
 ) -> Result<AgentDefinition, String> {
     state.reset_builtin(&agent_id)?;
+    let cancelled_memory_jobs =
+        crate::memory::background::cancel_disabled_memory_jobs_for_agent(&agent_id);
+    if cancelled_memory_jobs > 0 {
+        tracing::info!(
+            agent_id = %agent_id,
+            cancelled_memory_jobs,
+            "[agent_def_reset] cancelled background memory jobs disabled by reset policy"
+        );
+    }
     let definition = state
         .get(&agent_id)
         .ok_or_else(|| format!("builtin '{}' missing after reset", agent_id))?;

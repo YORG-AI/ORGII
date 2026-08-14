@@ -1,25 +1,28 @@
-//! Post-turn background work.
+//! Post-turn memory/evolution dispatch.
 //!
-//! Fire-and-forget tasks that run after the user has received `agent:complete`:
-//! session-memory extraction, workspace-memory extraction, and auto-dream consolidation.
-//! Each helper is a thin wrapper around a `tokio::spawn` block — kept out of
-//! `processor::process` so the core turn orchestration stays readable.
-//!
-//! All post-turn work is gated by `should_run_post_turn_work` on the caller
-//! side; cancelled turns skip every branch (never do background LLM work for
-//! a turn the user explicitly stopped).
+//! The turn path submits lightweight jobs to the process-wide memory
+//! coordinator. The coordinator owns admission, per-session coalescing,
+//! deadlines and cancellation. Transcripts are loaded from the canonical
+//! message store only once a job actually runs, and only as a bounded tail —
+//! never the full history: session-memory extraction
+//! starts right after its turn (context-pipeline work, never queued behind
+//! evolution jobs), while the heavy forked agents wait for the bounded
+//! global memory permit.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde_json::Value;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::info;
 
 use super::super::persistence as unified_persistence;
 use super::streaming::broadcast_agent_warning;
 use crate::config::ReliabilityConfig;
+use crate::memory::background::{
+    bridge_cancel_flag, memory_job_is_enabled, submit_memory_job, MemoryJob, MemoryJobKind,
+    MemoryJobOutcome,
+};
 use crate::memory::workspace_memory::auto_dream::{self as auto_dream, AutoDreamState};
 use crate::memory::workspace_memory::extract::{self as extract_memories, ExtractMemoriesState};
 use crate::model_context::session_memory::{self, SessionMemoryConfig, SessionMemoryState};
@@ -27,6 +30,11 @@ use crate::providers::LLMProvider;
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::registry::ToolRegistry;
 use core_types::providers::NativeHarnessType;
+
+const SESSION_MEMORY_TIMEOUT: Duration = Duration::from_secs(60);
+const WORKSPACE_EXTRACTION_TIMEOUT: Duration = Duration::from_secs(180);
+const AUTO_DREAM_TIMEOUT: Duration = Duration::from_secs(300);
+const MEMORY_TRANSCRIPT_MAX_BYTES: usize = 512 * 1024;
 
 #[derive(Clone)]
 pub(super) struct ForkProviderSpec {
@@ -50,393 +58,515 @@ async fn fresh_fork_provider(spec: &ForkProviderSpec) -> Result<Arc<dyn LLMProvi
     .map_err(|err| format!("Failed to create fork provider: {err}"))
 }
 
+/// The bounded loader stops reading once the tail is guaranteed to exceed
+/// the budget, so peak allocation is proportional to
+/// `MEMORY_TRANSCRIPT_MAX_BYTES` while `bound_memory_transcript` still sees
+/// every message it could possibly keep — its output is byte-identical to
+/// bounding a full load.
+fn load_durable_history(session_id: &str) -> Result<(Vec<serde_json::Value>, Vec<i64>), String> {
+    let (messages, start_seqs) = unified_persistence::load_llm_history_text_only_bounded(
+        session_id,
+        MEMORY_TRANSCRIPT_MAX_BYTES,
+    )
+    .map_err(|err| format!("Failed to load durable memory transcript: {err}"))?;
+    Ok(bound_memory_transcript(
+        messages,
+        start_seqs,
+        MEMORY_TRANSCRIPT_MAX_BYTES,
+    ))
+}
+
+/// SQLite loads are synchronous; keep them off the async runtime threads,
+/// matching every other async caller of the history loaders.
+async fn load_durable_history_blocking(
+    session_id: String,
+) -> Result<(Vec<serde_json::Value>, Vec<i64>), String> {
+    tokio::task::spawn_blocking(move || load_durable_history(&session_id))
+        .await
+        .map_err(|err| format!("history loader worker failed: {err}"))?
+}
+
+fn message_estimated_bytes(message: &serde_json::Value) -> usize {
+    serde_json::to_vec(message).map_or(0, |encoded| encoded.len())
+}
+
+/// Keep a recent suffix under the memory-job input budget while preserving an
+/// assistant tool-call row together with all immediately following tool rows.
+/// An oversized newest group is kept intact: structural validity beats a hard
+/// byte cut that would make every provider retry fail.
+///
+/// `start_seqs` is truncated in lockstep so sequence anchors stay aligned
+/// with the surviving suffix.
+fn bound_memory_transcript(
+    messages: Vec<serde_json::Value>,
+    start_seqs: Vec<i64>,
+    max_bytes: usize,
+) -> (Vec<serde_json::Value>, Vec<i64>) {
+    if messages.is_empty() || max_bytes == 0 {
+        return (messages, start_seqs);
+    }
+
+    let mut paired: Vec<(serde_json::Value, i64)> = Vec::with_capacity(messages.len());
+    let mut seqs = start_seqs.into_iter();
+    for message in messages {
+        let seq = seqs.next().unwrap_or(i64::MAX);
+        paired.push((message, seq));
+    }
+
+    let mut groups: Vec<Vec<(serde_json::Value, i64)>> = Vec::new();
+    for entry in paired {
+        let role = entry.0.get("role").and_then(|value| value.as_str());
+        if role == Some("tool") {
+            if let Some(last) = groups.last_mut() {
+                last.push(entry);
+                continue;
+            }
+        }
+        groups.push(vec![entry]);
+    }
+
+    let mut kept: Vec<Vec<(serde_json::Value, i64)>> = Vec::new();
+    let mut used = 0usize;
+    for group in groups.into_iter().rev() {
+        let group_bytes = group
+            .iter()
+            .map(|(message, _)| message_estimated_bytes(message))
+            .sum::<usize>();
+        if !kept.is_empty() && used.saturating_add(group_bytes) > max_bytes {
+            break;
+        }
+        used = used.saturating_add(group_bytes);
+        kept.push(group);
+    }
+    kept.reverse();
+    kept.into_iter().flatten().unzip()
+}
+
 // ── Session memory extraction (step 9b) ─────────────────────────────
 
-/// Input bundle for [`spawn_session_memory_extraction`].
 pub(super) struct SessionMemoryExtractionInput<'a> {
     pub session_id: &'a str,
-    pub messages: &'a [Value],
-    pub prompt_tokens: i64,
-    pub tool_calls_count: u32,
+    pub agent_id: Option<String>,
+    pub current_tokens: usize,
     pub sm_state: Arc<Mutex<SessionMemoryState>>,
     pub sm_config: SessionMemoryConfig,
     pub fork_provider: ForkProviderSpec,
 }
 
-/// Spawn the session-memory extractor if `should_extract` returns true.
-///
-/// Runs with a 60s timeout. Persists the result to the SM-state DB on success;
-/// broadcasts `agent:warning` on failure or timeout.
-pub(super) async fn spawn_session_memory_extraction(input: SessionMemoryExtractionInput<'_>) {
+/// The extraction gate and counter bookkeeping already ran at dispatch
+/// (`post_turn_dispatch` 9b), so the job body only loads, extracts, and
+/// persists. SM is context-pipeline state — no learnings policy check here.
+pub(super) fn spawn_session_memory_extraction(input: SessionMemoryExtractionInput<'_>) {
     let SessionMemoryExtractionInput {
         session_id,
-        messages,
-        prompt_tokens,
-        tool_calls_count,
+        agent_id,
+        current_tokens,
         sm_state,
         sm_config,
         fork_provider,
     } = input;
+    let sid = session_id.to_string();
+    let job_sid = sid.clone();
+    let cleanup_sid = sid.clone();
+    let cleanup_state = Arc::clone(&sm_state);
 
-    // Everything below — including the `sm_state.lock()` gate pre-check —
-    // runs inside a detached task. This is the turn-completion hot path:
-    // `dispatch_post_turn_work` awaits this fn and the scheduler only emits
-    // the idle queue-status (which hides the "Planning…" footer) AFTER
-    // `process()` returns. The previous version `await`ed the `sm_state.lock()`
-    // pre-check directly here, so when the PRIOR turn's extractor still held
-    // that lock across its (up-to-60s) LLM round-trip, this turn's completion
-    // signal was blocked for the whole extraction. Spawning the entire body
-    // keeps the function a true fire-and-forget so completion is instant.
-    let sm_messages = messages.to_vec();
-    let sm_session_id = session_id.to_string();
+    let job = MemoryJob::new(
+        sid,
+        agent_id,
+        MemoryJobKind::SessionMemory,
+        SESSION_MEMORY_TIMEOUT,
+        move |cancel| async move {
+            let (messages, start_seqs) = load_durable_history_blocking(job_sid.clone()).await?;
 
-    tokio::spawn(async move {
-        let current_tokens = if prompt_tokens > 0 {
-            prompt_tokens as usize
-        } else {
-            crate::model_context::tokenizer::count_messages_tokens(&sm_messages)
-        };
-        let has_tool_calls = session_memory::last_turn_has_tool_calls(&sm_messages);
-        let mut sm_state_guard = sm_state.lock().await;
-
-        sm_state_guard.record_tool_calls(tool_calls_count as usize);
-
-        if !session_memory::should_extract(
-            &sm_state_guard,
-            &sm_config,
-            current_tokens,
-            has_tool_calls,
-        ) {
-            return;
-        }
-
-        info!(
-            "[unified_processor] Spawning async SM extraction for session {} (tokens={}, tc_since={})",
-            sm_session_id, current_tokens, sm_state_guard.tool_calls_since_extraction
-        );
-        drop(sm_state_guard);
-
-        const SM_TIMEOUT: Duration = Duration::from_secs(60);
-
-        let extraction = async {
+            info!(
+                session_id = %job_sid,
+                current_tokens,
+                "[memory_background] starting session-memory extraction"
+            );
             let provider = fresh_fork_provider(&fork_provider).await?;
-            // `extract_session_memory` now manages the `sm_state` lock
-            // internally (brief prepare + finalize, never across the LLM
-            // call), so we pass the Arc instead of holding the guard here.
+            let cancel_bridge = bridge_cancel_flag(cancel);
             let result = session_memory::extract_session_memory(
-                &sm_messages,
-                sm_state.clone(),
+                &messages,
+                &start_seqs,
+                Arc::clone(&sm_state),
                 &sm_config,
                 provider.as_ref(),
                 &fork_provider.model,
+                current_tokens,
+                Some(cancel_bridge.flag()),
             )
             .await;
 
-            if let Ok(ref sm_content) = result {
-                let sid = sm_session_id.clone();
-                let content = sm_content.clone();
-                let last_idx = sm_state.lock().await.last_summarized_msg_idx;
-                tokio::task::block_in_place(|| {
-                    if let Err(err) =
-                        unified_persistence::save_session_memory_state(&sid, &content, last_idx)
-                    {
-                        warn!("[sm_extraction] Failed to persist SM state: {}", err);
-                    }
-                });
-            }
-            result
-        };
-
-        match tokio::time::timeout(SM_TIMEOUT, extraction).await {
-            Ok(Ok(_)) => {
-                info!("[sm_extraction] Completed for session {}", sm_session_id);
-            }
-            Ok(Err(err)) => {
-                warn!(
-                    "[sm_extraction] Failed for session {}: {}",
-                    sm_session_id, err
-                );
+            let content = result?;
+            let last_seq = sm_state.lock().await.last_summarized_seq;
+            let persist_sid = job_sid.clone();
+            tokio::task::spawn_blocking(move || {
+                unified_persistence::save_session_memory_state(&persist_sid, &content, last_seq)
+            })
+            .await
+            .map_err(|err| format!("SM persist worker failed: {err}"))?
+            .map_err(|err| format!("Failed to persist session memory state: {err}"))?;
+            Ok(())
+        },
+    )
+    .with_cleanup(move |outcome| async move {
+        match outcome {
+            MemoryJobOutcome::Completed | MemoryJobOutcome::Cancelled => {}
+            MemoryJobOutcome::Failed | MemoryJobOutcome::TimedOut => {
                 broadcast_agent_warning(
-                    &sm_session_id,
-                    &format!("Session memory extraction failed: {}", err),
-                    "session_memory",
-                );
-            }
-            Err(_elapsed) => {
-                warn!(
-                    "[sm_extraction] Timed out after {}s for session {}",
-                    SM_TIMEOUT.as_secs(),
-                    sm_session_id
-                );
-                broadcast_agent_warning(
-                    &sm_session_id,
-                    &format!(
-                        "Session memory extraction timed out after {}s",
-                        SM_TIMEOUT.as_secs()
-                    ),
+                    &cleanup_sid,
+                    "Session memory extraction did not complete; it will retry on a later turn",
                     "session_memory",
                 );
             }
         }
+        if outcome != MemoryJobOutcome::Completed {
+            cleanup_state.lock().await.extraction_in_progress = false;
+        }
     });
+    submit_memory_job(job);
 }
 
-// ── Extract memories (step 9c) ──────────────────────────────────────
+// ── Workspace-memory extraction (step 9c) ──────────────────────────
 
-/// Input bundle for [`spawn_extract_memories`].
 pub(super) struct ExtractMemoriesInput<'a> {
     pub session_id: &'a str,
+    pub agent_id: Option<String>,
     pub ws_path: PathBuf,
-    pub messages: &'a [Value],
-    pub final_text: Option<&'a str>,
     pub em_state: Arc<Mutex<ExtractMemoriesState>>,
     pub fork_provider: ForkProviderSpec,
     pub tool_registry: Arc<ToolRegistry>,
 }
 
-/// Spawn the workspace-memory extractor agent if the gate conditions pass.
-///
-/// Gate stages:
-/// 1. Skip if the main agent already wrote `memory_*` this turn — its
-///    edits already captured the relevant facts; just advance the cursor
-///    and return.
-/// 2. If `should_extract` says no, stash-on-in-progress so a trailing run
-///    picks up this transcript when the current fork completes. This is
-///    what guarantees we never silently drop a transcript that arrived
-///    while an extraction was already running.
-/// 3. Spawn the fork; the task loops so it drains any pending trailing
-///    transcript after its main extraction finishes, restoring the
-///    "at most one extractor in flight, no transcript left behind"
-///    invariant.
-pub(super) async fn spawn_extract_memories(input: ExtractMemoriesInput<'_>) {
+pub(super) fn spawn_extract_memories(input: ExtractMemoriesInput<'_>) {
     let ExtractMemoriesInput {
         session_id,
+        agent_id,
         ws_path,
-        messages,
-        final_text,
         em_state,
         fork_provider,
         tool_registry,
     } = input;
-
-    // Build synthetic transcript that includes the assistant's final reply.
-    // For text-only turns execute_turn does NOT append the assistant message,
-    // so count_new_messages would under-count and gate us off.
-    let mut em_messages = messages.to_vec();
-    if let Some(text) = final_text {
-        if !text.is_empty() {
-            em_messages.push(serde_json::json!({
-                "role": "assistant",
-                "content": text,
-            }));
-        }
-    }
-    let messages = em_messages;
-
-    // Everything below — including the gate pre-checks that lock `em_state` —
-    // runs inside a detached task. This is the turn-completion hot path:
-    // `dispatch_post_turn_work` awaits this fn, and the scheduler only
-    // broadcasts the idle queue-status (which hides the "Planning…" footer)
-    // AFTER `process()` returns. The previous version `await`ed the
-    // `em_state.lock()` gate pre-checks directly here, so when the PRIOR
-    // turn's extractor still held that lock across its (minutes-long) LLM
-    // round-trip, this turn's completion signal was blocked for the whole
-    // extraction — the footer kept spinning "Figuring out what to do next…"
-    // long after the agent had clearly finished. Spawning the entire body
-    // keeps the function a true fire-and-forget so completion is instant.
     let sid = session_id.to_string();
-    tokio::spawn(async move {
-        run_extract_memories_task(RunExtractMemoriesTask {
-            session_id: sid,
-            ws_path,
-            messages,
-            em_state,
-            fork_provider,
-            tool_registry,
-        })
-        .await;
+    let job_sid = sid.clone();
+    let job_agent_id = agent_id.clone();
+    let cleanup_state = Arc::clone(&em_state);
+
+    let job = MemoryJob::new(
+        sid,
+        agent_id,
+        MemoryJobKind::WorkspaceExtraction,
+        WORKSPACE_EXTRACTION_TIMEOUT,
+        move |cancel| async move {
+            if let Some(agent_id) = job_agent_id.as_deref() {
+                if !memory_job_is_enabled(agent_id, MemoryJobKind::WorkspaceExtraction) {
+                    return Ok(());
+                }
+            }
+
+            let (messages, start_seqs) = load_durable_history_blocking(job_sid.clone()).await?;
+            let main_wrote = {
+                let mut state = em_state.lock().await;
+                extract_memories::skip_if_main_agent_wrote_memory(
+                    &mut state,
+                    &messages,
+                    &start_seqs,
+                    ws_path.as_path(),
+                )
+            };
+            let should_run = if main_wrote {
+                false
+            } else {
+                let state = em_state.lock().await;
+                extract_memories::should_extract(
+                    &state,
+                    &messages,
+                    &start_seqs,
+                    Some(ws_path.as_path()),
+                )
+            };
+            if !should_run {
+                return Ok(());
+            }
+
+            let provider = fresh_fork_provider(&fork_provider).await?;
+            let cancel_bridge = bridge_cancel_flag(cancel);
+            let params = crate::memory::MemoryAgentParams {
+                messages: &messages,
+                provider,
+                model: &fork_provider.model,
+                workspace: &ws_path,
+                parent_tools: tool_registry,
+                session_id: &job_sid,
+                definitions_store: None,
+                cancel_flag: Some(cancel_bridge.flag()),
+            };
+            extract_memories::run_extraction(Arc::clone(&em_state), params, &start_seqs).await
+        },
+    )
+    .with_cleanup(move |outcome| async move {
+        if outcome != MemoryJobOutcome::Completed {
+            cleanup_state.lock().await.clear_in_progress();
+        }
     });
+    submit_memory_job(job);
 }
 
-struct RunExtractMemoriesTask {
-    session_id: String,
-    ws_path: PathBuf,
-    messages: Vec<Value>,
-    em_state: Arc<Mutex<ExtractMemoriesState>>,
-    fork_provider: ForkProviderSpec,
-    tool_registry: Arc<ToolRegistry>,
-}
+// ── Auto-dream consolidation (step 9d) ─────────────────────────────
 
-/// Owned-data body of [`spawn_extract_memories`], run inside a detached task.
-///
-/// Performs the gate pre-checks (Stages 1–2) and then the extraction loop.
-/// All `em_state` lock contention lives here, off the turn-completion path.
-async fn run_extract_memories_task(task: RunExtractMemoriesTask) {
-    let RunExtractMemoriesTask {
-        session_id,
-        ws_path,
-        messages,
-        em_state,
-        fork_provider,
-        tool_registry,
-    } = task;
-
-    // Stage 1: main agent wrote memory → skip + advance cursor.
-    let main_wrote = {
-        let mut state = em_state.lock().await;
-        extract_memories::skip_if_main_agent_wrote_memory(&mut state, &messages, ws_path.as_path())
-    };
-
-    let should_run = if main_wrote {
-        false
-    } else {
-        let state = em_state.lock().await;
-        extract_memories::should_extract(&state, &messages, Some(ws_path.as_path()))
-    };
-
-    // Stage 2: in_progress blocked us → stash for a trailing run.
-    let stashed_for_trailing = !should_run && !main_wrote && {
-        let state = em_state.lock().await;
-        state.is_in_progress()
-    };
-    if stashed_for_trailing {
-        let mut state = em_state.lock().await;
-        extract_memories::stash_pending(&mut state, &messages);
-        info!(
-            "[extract_memories] Stashed trailing-run context for session {}",
-            session_id
-        );
-    }
-
-    if !should_run {
-        let mut state = em_state.lock().await;
-        extract_memories::record_turn(&mut state);
-        return;
-    }
-
-    let sid = session_id;
-    info!(
-        "[unified_processor] Spawning extract_memories for session {}",
-        sid
-    );
-
-    // Already inside a detached task (see `spawn_extract_memories`); run the
-    // extraction loop inline. Loop until no pending trailing transcript
-    // remains. Each iteration runs the extractor on the current transcript
-    // and, if a new transcript was stashed while we were running, picks it up
-    // on the next pass — guaranteeing every transcript is processed even when
-    // extractions arrive faster than they finish.
-    let mut current_msgs = messages;
-    loop {
-        // `fresh_fork_provider` and `run_extraction` both run WITHOUT holding
-        // `em_state` — provider creation can do a network preflight and the
-        // extractor runs a multi-iteration forked agent, neither of which may
-        // block the next turn's brief `em_state` reads. `run_extraction`
-        // manages the lock internally (brief prepare + finalize).
-        let provider = match fresh_fork_provider(&fork_provider).await {
-            Ok(provider) => provider,
-            Err(err) => {
-                warn!("[extract_memories] Failed for session {}: {}", sid, err);
-                em_state.lock().await.clear_in_progress();
-                break;
-            }
-        };
-        let params = crate::memory::MemoryAgentParams {
-            messages: &current_msgs,
-            provider,
-            model: &fork_provider.model,
-            workspace: &ws_path,
-            parent_tools: tool_registry.clone(),
-            session_id: &sid,
-            definitions_store: None,
-        };
-        if let Err(err) = extract_memories::run_extraction(em_state.clone(), params).await {
-            warn!("[extract_memories] Failed for session {}: {}", sid, err);
-            // Still drain pending to avoid stashed work becoming stuck.
-        }
-        let trailing = {
-            let mut state = em_state.lock().await;
-            extract_memories::take_pending(&mut state)
-        };
-        match trailing {
-            Some(next) => {
-                info!(
-                    "[extract_memories] Running trailing extraction for session {}",
-                    sid
-                );
-                current_msgs = next;
-            }
-            None => break,
-        }
-    }
-}
-
-// ── Auto-dream consolidation (step 9d) ──────────────────────────────
-
-/// Input bundle for [`spawn_auto_dream`].
 pub(super) struct AutoDreamInput<'a> {
     pub session_id: &'a str,
+    pub agent_id: Option<String>,
     pub ws_path: PathBuf,
-    pub messages: Vec<Value>,
     pub ad_state: Arc<Mutex<AutoDreamState>>,
     pub fork_provider: ForkProviderSpec,
     pub tool_registry: Arc<ToolRegistry>,
 }
 
-/// Spawn periodic auto-dream consolidation if the gate says so.
-pub(super) async fn spawn_auto_dream(input: AutoDreamInput<'_>) {
+pub(super) fn spawn_auto_dream(input: AutoDreamInput<'_>) {
     let AutoDreamInput {
         session_id,
+        agent_id,
         ws_path,
-        messages,
         ad_state,
         fork_provider,
         tool_registry,
     } = input;
-
-    // Everything below — including the `ad_state.lock()` gate pre-check —
-    // runs inside a detached task. This is the turn-completion hot path:
-    // `dispatch_post_turn_work` awaits this fn and the scheduler only emits
-    // the idle queue-status (which hides the "Planning…" footer) AFTER
-    // `process()` returns. The previous version `await`ed the `ad_state.lock()`
-    // pre-check directly here, so when the PRIOR turn's consolidation still
-    // held that lock across its (minutes-long) LLM round-trip, this turn's
-    // completion signal was blocked. Spawning the entire body keeps the
-    // function a true fire-and-forget so completion is instant.
     let sid = session_id.to_string();
-    tokio::spawn(async move {
-        // Brief lock ONLY for the throttle gate + advance — never held across
-        // the consolidation LLM call below.
-        {
-            let mut state = ad_state.lock().await;
-            if !auto_dream::should_attempt(&state, &ws_path) {
-                return;
+    let job_sid = sid.clone();
+    let job_agent_id = agent_id.clone();
+
+    let job = MemoryJob::new(
+        sid,
+        agent_id,
+        MemoryJobKind::AutoDream,
+        AUTO_DREAM_TIMEOUT,
+        move |cancel| async move {
+            if let Some(agent_id) = job_agent_id.as_deref() {
+                if !memory_job_is_enabled(agent_id, MemoryJobKind::AutoDream) {
+                    return Ok(());
+                }
             }
-            state.mark_scan_now();
+            {
+                let mut state = ad_state.lock().await;
+                if !auto_dream::should_attempt(&state, &ws_path) {
+                    return Ok(());
+                }
+                state.mark_scan_now();
+            }
+
+            let (messages, _start_seqs) = load_durable_history_blocking(job_sid.clone()).await?;
+            let provider = fresh_fork_provider(&fork_provider).await?;
+            let cancel_bridge = bridge_cancel_flag(cancel);
+            let params = crate::memory::MemoryAgentParams {
+                messages: &messages,
+                provider,
+                model: &fork_provider.model,
+                workspace: &ws_path,
+                parent_tools: tool_registry,
+                session_id: &job_sid,
+                definitions_store: None,
+                cancel_flag: Some(cancel_bridge.flag()),
+            };
+            auto_dream::run_consolidation(params).await
+        },
+    );
+    submit_memory_job(job);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_helpers::test_env;
+
+    fn seed_agent_session(session_id: &str) {
+        let conn = database::db::get_connection().expect("get_connection");
+        crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS agent_messages (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                tool_name TEXT,
+                tool_call_id TEXT,
+                tool_input TEXT,
+                tool_output TEXT,
+                model TEXT,
+                sequence INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                images TEXT,
+                compact_from_sequence INTEGER,
+                compact_tokens_before INTEGER,
+                compact_tokens_after INTEGER
+             );",
+        )
+        .expect("create agent_messages table");
+        conn.execute(
+            "INSERT OR IGNORE INTO agent_sessions
+             (session_id, session_type, status, created_at, updated_at)
+             VALUES (?1, 'agent', 'running', datetime('now'), datetime('now'))",
+            [session_id],
+        )
+        .expect("seed session row");
+    }
+
+    /// One conversation turn: user text, a two-result tool group, and an
+    /// assistant reply, all sized by `payload_bytes`.
+    fn save_turn(session_id: &str, turn: usize, payload_bytes: usize) {
+        let payload = format!("t{turn}-{}", "x".repeat(payload_bytes));
+        unified_persistence::save_user_msg(session_id, &payload, None).expect("save user");
+        let call_id = format!("call-{turn}");
+        unified_persistence::save_tool_call_msg(
+            session_id,
+            &call_id,
+            "read_file",
+            &format!("{{\"path\":\"/tmp/{turn}\"}}"),
+        )
+        .expect("save tool call");
+        unified_persistence::save_tool_result_msg(session_id, &call_id, "read_file", &payload)
+            .expect("save tool result");
+        unified_persistence::save_tool_result_msg(session_id, &call_id, "read_file", "short")
+            .expect("save second tool result");
+        unified_persistence::save_assistant_msg(session_id, &payload, "test-model")
+            .expect("save assistant");
+    }
+
+    fn full_load_then_truncate(
+        session_id: &str,
+        max_bytes: usize,
+    ) -> (Vec<serde_json::Value>, Vec<i64>) {
+        let (messages, start_seqs) =
+            unified_persistence::load_llm_history_text_only(session_id).expect("full load");
+        bound_memory_transcript(messages, start_seqs, max_bytes)
+    }
+
+    fn bounded_load_then_truncate(
+        session_id: &str,
+        max_bytes: usize,
+    ) -> (Vec<serde_json::Value>, Vec<i64>) {
+        let (messages, start_seqs) =
+            unified_persistence::load_llm_history_text_only_bounded(session_id, max_bytes)
+                .expect("bounded load");
+        bound_memory_transcript(messages, start_seqs, max_bytes)
+    }
+
+    fn assert_byte_identical(session_id: &str, max_bytes: usize) {
+        let expected = full_load_then_truncate(session_id, max_bytes);
+        let actual = bounded_load_then_truncate(session_id, max_bytes);
+        assert_eq!(
+            actual.1, expected.1,
+            "start sequences diverged at cap {max_bytes}"
+        );
+        assert_eq!(
+            serde_json::to_vec(&actual.0).expect("serialize actual"),
+            serde_json::to_vec(&expected.0).expect("serialize expected"),
+            "messages diverged at cap {max_bytes}"
+        );
+    }
+
+    /// Acceptance bar for the bounded loader: on a transcript larger than
+    /// the real memory budget, bounded-load-then-truncate must be
+    /// byte-identical to full-load-then-truncate.
+    #[test]
+    fn bounded_load_matches_full_load_at_memory_budget() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "memory-bounded-equivalence";
+        seed_agent_session(session_id);
+
+        save_turn(session_id, 0, 4 * 1024);
+        let anchor_id = unified_persistence::save_user_msg(session_id, "recent user", None)
+            .expect("save anchor user");
+        let anchor = unified_persistence::message_anchor(session_id, &anchor_id)
+            .expect("resolve anchor")
+            .expect("anchor row exists");
+        unified_persistence::append_compact_boundary(
+            session_id,
+            "summary of the first turn",
+            anchor.sequence,
+            None,
+            None,
+        )
+        .expect("append boundary");
+        for turn in 1..16 {
+            save_turn(session_id, turn, 16 * 1024);
         }
 
-        info!(
-            "[unified_processor] Spawning auto_dream for session {}",
-            sid
+        let (full, _) =
+            unified_persistence::load_llm_history_text_only(session_id).expect("full load");
+        let full_bytes: usize = full
+            .iter()
+            .map(|message| serde_json::to_vec(message).map_or(0, |encoded| encoded.len()))
+            .sum();
+        assert!(
+            full_bytes > MEMORY_TRANSCRIPT_MAX_BYTES,
+            "fixture must exceed the memory budget, got {full_bytes} bytes"
         );
 
-        let params = crate::memory::MemoryAgentParams {
-            messages: &messages,
-            provider: match fresh_fork_provider(&fork_provider).await {
-                Ok(provider) => provider,
-                Err(err) => {
-                    warn!("[auto_dream] Failed for session {}: {}", sid, err);
-                    return;
-                }
-            },
-            model: &fork_provider.model,
-            workspace: &ws_path,
-            parent_tools: tool_registry,
-            session_id: &sid,
-            definitions_store: None,
-        };
-        if let Err(err) = auto_dream::run_consolidation(params).await {
-            warn!("[auto_dream] Failed for session {}: {}", sid, err);
+        assert_byte_identical(session_id, MEMORY_TRANSCRIPT_MAX_BYTES);
+
+        let (bounded, _) = unified_persistence::load_llm_history_text_only_bounded(
+            session_id,
+            MEMORY_TRANSCRIPT_MAX_BYTES,
+        )
+        .expect("bounded load");
+        assert!(
+            bounded.len() < full.len(),
+            "oversized transcript must not be fully materialized"
+        );
+    }
+
+    /// Budget edges that land inside tool groups, on the anchor row itself,
+    /// below one message, and above the whole transcript must all agree
+    /// with the full-load pipeline.
+    #[test]
+    fn bounded_load_matches_full_load_across_budgets() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "memory-bounded-budget-sweep";
+        seed_agent_session(session_id);
+        for turn in 0..8 {
+            save_turn(session_id, turn, 512);
         }
-    });
+        let final_call = "call-final";
+        unified_persistence::save_tool_call_msg(session_id, final_call, "list_dir", "{}")
+            .expect("save trailing tool call");
+        unified_persistence::save_tool_result_msg(session_id, final_call, "list_dir", "entries")
+            .expect("save trailing tool result");
+
+        for max_bytes in [1, 100, 700, 1500, 4 * 1024, 16 * 1024, 1024 * 1024] {
+            assert_byte_identical(session_id, max_bytes);
+        }
+    }
+
+    #[test]
+    fn transcript_budget_keeps_recent_suffix() {
+        let messages = vec![
+            serde_json::json!({"role": "user", "content": "old".repeat(100)}),
+            serde_json::json!({"role": "assistant", "content": "middle"}),
+            serde_json::json!({"role": "user", "content": "new"}),
+        ];
+        let (bounded, seqs) = bound_memory_transcript(messages, vec![10, 20, 30], 100);
+        assert_eq!(bounded.len(), 2);
+        assert_eq!(bounded[0]["content"], "middle");
+        assert_eq!(bounded[1]["content"], "new");
+        assert_eq!(seqs, vec![20, 30], "seqs truncate in lockstep");
+    }
+
+    #[test]
+    fn transcript_budget_never_splits_tool_group() {
+        let messages = vec![
+            serde_json::json!({"role": "user", "content": "old".repeat(100)}),
+            serde_json::json!({
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{"id": "call-1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}]
+            }),
+            serde_json::json!({"role": "tool", "tool_call_id": "call-1", "content": "result"}),
+        ];
+        let (bounded, seqs) = bound_memory_transcript(messages, vec![1, 2, 2], 1);
+        assert_eq!(bounded.len(), 2, "newest oversized group stays intact");
+        assert_eq!(bounded[0]["role"], "assistant");
+        assert_eq!(bounded[1]["role"], "tool");
+        assert_eq!(seqs, vec![2, 2]);
+    }
 }

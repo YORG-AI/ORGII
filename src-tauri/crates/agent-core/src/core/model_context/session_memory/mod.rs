@@ -40,5 +40,5 @@ pub use compact::{
     last_turn_has_tool_calls, parse_compact_boundary_content, try_sm_compact, ParsedCompactBoundary,
 };
 pub use config::{SessionMemoryCompactConfig, SessionMemoryConfig};
-pub use extract::{extract_session_memory, should_extract};
+pub use extract::{extract_session_memory, resolve_summarized_boundary_idx, should_extract};
 pub use state::SessionMemoryState;
