@@ -80,7 +80,7 @@ impl AgentOrgTaskStore {
             .query_row(
                 "SELECT EXISTS(
                      SELECT 1
-                     FROM agent_inbox_delivery_resolutions
+                     FROM agent_org_runtime_inbox_delivery_resolutions
                      WHERE org_run_id=?1 AND replacement_task_id=?2
                  )",
                 params![org_run_id, task_id],
@@ -94,7 +94,7 @@ impl AgentOrgTaskStore {
         }
         let n = tx
             .execute(
-                "DELETE FROM agent_org_tasks WHERE org_run_id = ?1 AND id = ?2",
+                "DELETE FROM agent_org_runtime_tasks WHERE org_run_id = ?1 AND id = ?2",
                 params![org_run_id, task_id],
             )
             .map_err(|err| err.to_string())?;

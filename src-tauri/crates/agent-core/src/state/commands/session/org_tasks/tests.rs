@@ -61,7 +61,7 @@ fn prepare_command_run(status: &str) -> AgentOrgRunContext {
         .expect("intervention schema");
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_org_runs (
+        "INSERT INTO agent_org_runtime_runs (
              id, org_id, coordinator_agent_id, root_session_id,
              org_snapshot_json, entry_mode, status, work_item_id,
              project_slug, routine_fire_id, summary, last_error,
@@ -85,7 +85,7 @@ fn inbox_count_for_member(context: &AgentOrgRunContext, member_id: &str) -> usiz
     let conn = get_connection().expect("db connection");
     let count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_inbox
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox
              WHERE org_run_id=?1 AND recipient_member_id=?2",
             params![&context.run_id, member_id],
             |row| row.get(0),
@@ -252,7 +252,7 @@ fn run_view_is_a_pure_read_and_does_not_advance_updated_at() {
         .expect("read data version");
     let before_updated_at: String = observer
         .query_row(
-            "SELECT updated_at FROM agent_org_runs WHERE id=?1",
+            "SELECT updated_at FROM agent_org_runtime_runs WHERE id=?1",
             [&context.run_id],
             |row| row.get(0),
         )
@@ -266,7 +266,7 @@ fn run_view_is_a_pure_read_and_does_not_advance_updated_at() {
         .expect("read data version after Run View");
     let after_updated_at: String = observer
         .query_row(
-            "SELECT updated_at FROM agent_org_runs WHERE id=?1",
+            "SELECT updated_at FROM agent_org_runtime_runs WHERE id=?1",
             [&context.run_id],
             |row| row.get(0),
         )
@@ -448,7 +448,7 @@ fn group_message_and_intervention_clear_commit_atomically() {
     let conn = get_connection().expect("db connection");
     conn.execute_batch(
         "CREATE TRIGGER reject_intervention_clear
-         BEFORE UPDATE OF cleared_at ON agent_member_interventions
+         BEFORE UPDATE OF cleared_at ON agent_org_runtime_member_interventions
          BEGIN
              SELECT RAISE(ABORT, 'injected intervention clear failure');
          END;",
@@ -535,7 +535,7 @@ fn group_chat_history_pages_all_rows_and_preserves_long_display_text_after_reloa
 
     let conn = get_connection().expect("db connection");
     conn.execute(
-        "UPDATE agent_org_runs SET status='archived' WHERE id=?1",
+        "UPDATE agent_org_runtime_runs SET status='archived' WHERE id=?1",
         params![&context.run_id],
     )
     .expect("archive run");
@@ -555,7 +555,7 @@ fn paused_resume_and_coordinator_seed_commit_or_rollback_together() {
     let conn = get_connection().expect("db connection");
     conn.execute_batch(
         "CREATE TRIGGER reject_resume_seed
-         BEFORE INSERT ON agent_inbox
+         BEFORE INSERT ON agent_org_runtime_inbox
          BEGIN
              SELECT RAISE(ABORT, 'injected resume seed failure');
          END;",
@@ -569,7 +569,7 @@ fn paused_resume_and_coordinator_seed_commit_or_rollback_together() {
     let conn = get_connection().expect("db connection");
     let status: String = conn
         .query_row(
-            "SELECT status FROM agent_org_runs WHERE id=?1",
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
             params![&context.run_id],
             |row| row.get(0),
         )
@@ -591,7 +591,7 @@ fn paused_resume_and_coordinator_seed_commit_or_rollback_together() {
     let conn = get_connection().expect("db connection");
     let status: String = conn
         .query_row(
-            "SELECT status FROM agent_org_runs WHERE id=?1",
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
             params![&context.run_id],
             |row| row.get(0),
         )
@@ -702,7 +702,7 @@ fn return_to_work_rolls_back_intervention_clear_when_boundary_capture_fails() {
     })
     .expect("enter intervention");
     let conn = get_connection().expect("db connection");
-    conn.execute("DROP TABLE agent_inbox", [])
+    conn.execute("DROP TABLE agent_org_runtime_inbox", [])
         .expect("inject boundary query failure");
     drop(conn);
 
@@ -711,7 +711,7 @@ fn return_to_work_rolls_back_intervention_clear_when_boundary_capture_fails() {
         "member-planner",
     )
     .expect_err("boundary failure must abort return-to-work transaction");
-    assert!(error.contains("agent_inbox"));
+    assert!(error.contains("agent_org_runtime_inbox"));
     assert!(
         AgentMemberInterventionStore::active_for_member(&context.run_id, "member-planner")
             .expect("load intervention after rollback")

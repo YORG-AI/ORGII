@@ -17,32 +17,32 @@ fn sandbox_with_inbox_schema() -> test_helpers::test_env::SandboxGuard {
 fn seed_minimal_running_run_for_delivery_resolution(run_id: &str) {
     let conn = get_connection().expect("open sandbox database");
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_runs (
-                 id TEXT PRIMARY KEY,
-                 status TEXT NOT NULL,
-                 org_snapshot_json TEXT,
-                 root_session_id TEXT
-             );
-             CREATE TABLE IF NOT EXISTS agent_sessions (
-                 session_id TEXT PRIMARY KEY,
-                 status TEXT NOT NULL,
-                 updated_at TEXT NOT NULL,
-                 parent_session_id TEXT,
-                 agent_definition_id TEXT,
-                 org_member_id TEXT
-             );
-             CREATE TABLE IF NOT EXISTS code_sessions (
-                 session_id TEXT PRIMARY KEY,
-                 cli_agent_type TEXT NOT NULL,
-                 status TEXT NOT NULL,
-                 parent_session_id TEXT,
-                 org_member_id TEXT,
-                 updated_at TEXT NOT NULL
-             );
-             CREATE TABLE IF NOT EXISTS agent_org_tasks (
-                 id TEXT PRIMARY KEY,
-                 org_run_id TEXT NOT NULL
-             );",
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_runs (
+             id TEXT PRIMARY KEY,
+             status TEXT NOT NULL,
+             org_snapshot_json TEXT,
+             root_session_id TEXT
+         );
+         CREATE TABLE IF NOT EXISTS agent_sessions (
+             session_id TEXT PRIMARY KEY,
+             status TEXT NOT NULL,
+             updated_at TEXT NOT NULL,
+             parent_session_id TEXT,
+             agent_definition_id TEXT,
+             org_member_id TEXT
+         );
+         CREATE TABLE IF NOT EXISTS code_sessions (
+             session_id TEXT PRIMARY KEY,
+             cli_agent_type TEXT NOT NULL,
+             status TEXT NOT NULL,
+             parent_session_id TEXT,
+             org_member_id TEXT,
+             updated_at TEXT NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS agent_org_runtime_tasks (
+             id TEXT PRIMARY KEY,
+             org_run_id TEXT NOT NULL
+         );",
     )
     .expect("initialize minimal delivery-repair dependencies");
     crate::coordination::agent_member_interventions::init_schema(&conn)
@@ -55,8 +55,8 @@ fn seed_minimal_running_run_for_delivery_resolution(run_id: &str) {
     )
     .expect("seed coordinator session");
     conn.execute(
-        "INSERT INTO agent_org_runs (id, status, org_snapshot_json, root_session_id)
-             VALUES (?1, 'running', NULL, ?2)",
+        "INSERT INTO agent_org_runtime_runs (id, status, org_snapshot_json, root_session_id)
+         VALUES (?1, 'running', NULL, ?2)",
         params![run_id, &root_session_id],
     )
     .expect("seed running run");
@@ -70,12 +70,12 @@ fn seed_legacy_orphan_inbox_row(run_id: &str, summary: &str, text: &str) -> Agen
     let payload_json = serde_json::to_string(&message).expect("serialize legacy payload");
     let conn = get_connection().expect("open sandbox database");
     conn.execute(
-        "INSERT INTO agent_inbox (
-                 recipient_agent_id, recipient_member_id,
-                 sender_agent_id, sender_member_id, org_run_id,
-                 payload_kind, payload_json, request_id,
-                 created_at, read_at, causation_inbox_id
-             ) VALUES (?1, NULL, ?2, ?3, ?4, 'plain', ?5, NULL, ?6, NULL, NULL)",
+        "INSERT INTO agent_org_runtime_inbox (
+             recipient_agent_id, recipient_member_id,
+             sender_agent_id, sender_member_id, org_run_id,
+             payload_kind, payload_json, request_id,
+             created_at, read_at, causation_inbox_id
+         ) VALUES (?1, NULL, ?2, ?3, ?4, 'plain', ?5, NULL, ?6, NULL, NULL)",
         params![
             "missing-agent",
             "coordinator-agent",
@@ -712,10 +712,10 @@ fn delivery_resolution_invalidates_stale_materialization_guard() {
         seed_legacy_orphan_inbox_row(run_id, "Stale receipt", "Do not acknowledge after repair");
     let conn = get_connection().expect("open sandbox database");
     conn.execute(
-        "INSERT INTO agent_inbox_materializations (
-                 inbox_id, session_id, transcript_message_id,
-                 transcript_intent_id, materialized_at
-             ) VALUES (?1, 'old-session', 'message-1', 'intent-1', ?2)",
+        "INSERT INTO agent_org_runtime_inbox_materializations (
+             inbox_id, session_id, transcript_message_id,
+             transcript_intent_id, materialized_at
+         ) VALUES (?1, 'old-session', 'message-1', 'intent-1', ?2)",
         params![row.id, chrono::Utc::now().to_rfc3339()],
     )
     .expect("seed stale receipt");
@@ -785,7 +785,7 @@ fn superseded_delivery_requires_an_existing_same_run_replacement() {
     let source = seed_legacy_orphan_inbox_row(run_id, "Original", "Original work");
     let conn = get_connection().expect("open sandbox database");
     conn.execute(
-        "INSERT INTO agent_org_tasks (id, org_run_id) VALUES ('replacement-task', ?1)",
+        "INSERT INTO agent_org_runtime_tasks (id, org_run_id) VALUES ('replacement-task', ?1)",
         params![run_id],
     )
     .expect("seed replacement task");
@@ -860,7 +860,7 @@ fn superseded_delivery_can_follow_a_real_replacement_chain_but_not_cycle() {
     };
     let conn = get_connection().expect("open sandbox database");
     conn.execute(
-        "UPDATE agent_org_runs SET org_snapshot_json=?1 WHERE id=?2",
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?1 WHERE id=?2",
         params![
             serde_json::to_string(&crate::definitions::orgs::AgentOrgLaunchSnapshot::from(
                 &org

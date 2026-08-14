@@ -48,7 +48,7 @@ pub fn load_agent_org_inbox_transcript_materializations(
                     receipt.transcript_message_id,
                     receipt.transcript_intent_id,
                     message.content
-             FROM agent_inbox_materializations receipt
+             FROM agent_org_runtime_inbox_materializations receipt
              LEFT JOIN agent_messages message
                ON message.id=receipt.transcript_message_id
               AND message.session_id=receipt.session_id
@@ -112,7 +112,7 @@ pub fn materialize_agent_org_inbox_transcript(
             let mut stmt = tx
                 .prepare(
                     "SELECT session_id, transcript_message_id, transcript_intent_id
-                     FROM agent_inbox_materializations WHERE inbox_id=?1",
+                     FROM agent_org_runtime_inbox_materializations WHERE inbox_id=?1",
                 )
                 .map_err(|err| err.to_string())?;
             for inbox_id in inbox_ids {
@@ -140,7 +140,7 @@ pub fn materialize_agent_org_inbox_transcript(
 
         let unread_count = {
             let mut stmt = tx
-                .prepare("SELECT read_at FROM agent_inbox WHERE id=?1")
+                .prepare("SELECT read_at FROM agent_org_runtime_inbox WHERE id=?1")
                 .map_err(|err| err.to_string())?;
             let mut count = 0usize;
             for inbox_id in inbox_ids {
@@ -213,7 +213,7 @@ pub fn materialize_agent_org_inbox_transcript(
         {
             let mut stmt = tx
                 .prepare(
-                    "INSERT INTO agent_inbox_materializations
+                    "INSERT INTO agent_org_runtime_inbox_materializations
                      (inbox_id, session_id, transcript_message_id, transcript_intent_id, materialized_at)
                      VALUES (?1, ?2, ?3, ?4, ?5)",
                 )

@@ -56,7 +56,7 @@ impl AgentOrgRunStore {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let root_session_id: Option<String> = conn
             .query_row(
-                "SELECT root_session_id FROM agent_org_runs WHERE id = ?1",
+                "SELECT root_session_id FROM agent_org_runtime_runs WHERE id = ?1",
                 params![org_run_id],
                 |row| row.get::<_, Option<String>>(0),
             )
@@ -78,7 +78,7 @@ impl AgentOrgRunStore {
                 tracing::warn!(
                     session_id = %session_id,
                     cycle_at = %current_id,
-                    "[agent_org_runs] parent_session_id chain has a cycle; aborting walk"
+                    "[agent_org_runtime_runs] parent_session_id chain has a cycle; aborting walk"
                 );
                 return Ok(None);
             }
@@ -89,7 +89,7 @@ impl AgentOrgRunStore {
                 tracing::warn!(
                     session_id = %session_id,
                     last_visited = %current_id,
-                    "[agent_org_runs] parent_session_id walk exceeded max depth ({}); giving up",
+                    "[agent_org_runtime_runs] parent_session_id walk exceeded max depth ({}); giving up",
                     MAX_PARENT_WALK_DEPTH
                 );
                 return Ok(None);

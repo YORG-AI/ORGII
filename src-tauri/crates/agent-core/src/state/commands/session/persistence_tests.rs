@@ -66,11 +66,11 @@ fn seed_session(session_id: &str, parent_session_id: Option<&str>) {
 fn seed_run_with_status(run_id: &str, root_session_id: &str, status: &str) {
     let conn = get_connection().expect("sandbox DB");
     conn.execute(
-        "INSERT INTO agent_org_runs (
-                 id, org_id, coordinator_agent_id, root_session_id,
-                 entry_mode, status, created_at, updated_at
-             ) VALUES (?1, 'org-delete-test', 'coordinator-agent', ?2,
-                       'standalone_session', ?3, ?4, ?4)",
+        "INSERT INTO agent_org_runtime_runs (
+             id, org_id, coordinator_agent_id, root_session_id,
+             entry_mode, status, created_at, updated_at
+         ) VALUES (?1, 'org-delete-test', 'coordinator-agent', ?2,
+                   'standalone_session', ?3, ?4, ?4)",
         rusqlite::params![run_id, root_session_id, status, "2026-07-16T00:00:00Z"],
     )
     .expect("seed run");
@@ -115,18 +115,18 @@ fn seed_session_owned_rows(session_id: &str) {
 fn seed_run_owned_rows(run_id: &str) {
     let conn = get_connection().expect("sandbox DB");
     conn.execute(
-        "INSERT INTO agent_inbox (
-                 recipient_agent_id, recipient_member_id, sender_agent_id,
-                 org_run_id, payload_kind, payload_json, created_at
-             ) VALUES ('worker-agent', 'worker', 'system', ?1,
-                       'plain', '{\"summary\":\"run history\",\"text\":\"body\"}', ?2)",
+        "INSERT INTO agent_org_runtime_inbox (
+             recipient_agent_id, recipient_member_id, sender_agent_id,
+             org_run_id, payload_kind, payload_json, created_at
+         ) VALUES ('worker-agent', 'worker', 'system', ?1,
+                   'plain', '{\"summary\":\"run history\",\"text\":\"body\"}', ?2)",
         rusqlite::params![run_id, "2026-07-16T00:00:00Z"],
     )
     .expect("seed run inbox history");
     conn.execute(
-        "INSERT INTO agent_org_tasks (
-                 id, org_run_id, subject, status, created_at, updated_at
-             ) VALUES (?1, ?2, 'delete me', 'completed', ?3, ?3)",
+        "INSERT INTO agent_org_runtime_tasks (
+             id, org_run_id, subject, status, created_at, updated_at
+         ) VALUES (?1, ?2, 'delete me', 'completed', ?3, ?3)",
         rusqlite::params![format!("task-{run_id}"), run_id, "2026-07-16T00:00:00Z"],
     )
     .expect("seed run task history");
@@ -191,26 +191,30 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
             );
         }
     }
-    assert!(!row_exists("agent_org_runs", "id", "hierarchy-delete-run"));
     assert!(!row_exists(
-        "agent_inbox",
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-delete-run"
+    ));
+    assert!(!row_exists(
+        "agent_org_runtime_inbox",
         "org_run_id",
         "hierarchy-delete-run"
     ));
     assert!(!row_exists(
-        "agent_org_tasks",
+        "agent_org_runtime_tasks",
         "org_run_id",
         "hierarchy-delete-run"
     ));
     assert!(row_exists("agent_sessions", "session_id", unrelated));
     assert!(row_exists("agent_messages", "session_id", unrelated));
     assert!(row_exists(
-        "agent_org_runs",
+        "agent_org_runtime_runs",
         "id",
         "hierarchy-delete-other-run"
     ));
     assert!(row_exists(
-        "agent_inbox",
+        "agent_org_runtime_inbox",
         "org_run_id",
         "hierarchy-delete-other-run"
     ));
@@ -239,9 +243,13 @@ fn session_hierarchy_delete_worker_keeps_root_and_run() {
 
     assert!(!row_exists("agent_sessions", "session_id", worker));
     assert!(row_exists("agent_sessions", "session_id", root));
-    assert!(row_exists("agent_org_runs", "id", "hierarchy-worker-run"));
     assert!(row_exists(
-        "agent_inbox",
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-worker-run"
+    ));
+    assert!(row_exists(
+        "agent_org_runtime_inbox",
         "org_run_id",
         "hierarchy-worker-run"
     ));
@@ -269,7 +277,7 @@ fn session_hierarchy_delete_requires_archived_without_mutating_active_run() {
         get_connection()
             .expect("sandbox DB")
             .query_row(
-                "SELECT status FROM agent_org_runs WHERE id='hierarchy-active-run'",
+                "SELECT status FROM agent_org_runtime_runs WHERE id='hierarchy-active-run'",
                 [],
                 |row| row.get::<_, String>(0)
             )
@@ -278,7 +286,11 @@ fn session_hierarchy_delete_requires_archived_without_mutating_active_run() {
     );
     assert!(row_exists("agent_sessions", "session_id", root));
     assert!(row_exists("agent_sessions", "session_id", worker));
-    assert!(row_exists("agent_org_runs", "id", "hierarchy-active-run"));
+    assert!(row_exists(
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-active-run"
+    ));
 }
 
 #[test]
@@ -319,7 +331,11 @@ fn session_hierarchy_delete_blocks_resource_preflight_failures_before_database_c
     assert!(error.contains("shell replay calls are active"));
     assert!(row_exists("agent_sessions", "session_id", root));
     assert!(row_exists("agent_sessions", "session_id", worker));
-    assert!(row_exists("agent_org_runs", "id", "hierarchy-replay-run"));
+    assert!(row_exists(
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-replay-run"
+    ));
 
     writer
         .finalize(core_types::session_event::ShellReplayStatus::Complete, None)
@@ -347,7 +363,11 @@ fn session_hierarchy_delete_blocks_resource_preflight_failures_before_database_c
     assert!(error.contains("repository path no longer exists"));
     assert!(row_exists("agent_sessions", "session_id", root));
     assert!(row_exists("agent_sessions", "session_id", worker));
-    assert!(row_exists("agent_org_runs", "id", "hierarchy-replay-run"));
+    assert!(row_exists(
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-replay-run"
+    ));
 
     std::fs::remove_dir_all(replay_root).expect("remove replay fixture");
 }
@@ -374,12 +394,12 @@ fn session_hierarchy_delete_rejects_nested_agent_org_without_mutation() {
         assert!(row_exists("agent_sessions", "session_id", session_id));
     }
     assert!(row_exists(
-        "agent_org_runs",
+        "agent_org_runtime_runs",
         "id",
         "hierarchy-nested-outer-run"
     ));
     assert!(row_exists(
-        "agent_org_runs",
+        "agent_org_runtime_runs",
         "id",
         "hierarchy-nested-inner-run"
     ));
@@ -425,7 +445,11 @@ fn session_hierarchy_delete_rejects_cycle_and_size_limit() {
         .expect_err("oversized hierarchy must fail closed");
     assert!(error.contains("exceeds"));
     assert!(row_exists("agent_sessions", "session_id", limit_root));
-    assert!(row_exists("agent_org_runs", "id", "hierarchy-limit-run"));
+    assert!(row_exists(
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-limit-run"
+    ));
 }
 
 #[test]
@@ -451,7 +475,11 @@ fn session_hierarchy_delete_rechecks_concurrent_structure_changes() {
     for session_id in [root, worker, "hierarchy-recheck-late-worker"] {
         assert!(row_exists("agent_sessions", "session_id", session_id));
     }
-    assert!(row_exists("agent_org_runs", "id", "hierarchy-recheck-run"));
+    assert!(row_exists(
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-recheck-run"
+    ));
 }
 
 #[test]
@@ -499,14 +527,18 @@ fn session_hierarchy_delete_rolls_back_on_midway_database_failure() {
             );
         }
     }
-    assert!(row_exists("agent_org_runs", "id", "hierarchy-rollback-run"));
     assert!(row_exists(
-        "agent_inbox",
+        "agent_org_runtime_runs",
+        "id",
+        "hierarchy-rollback-run"
+    ));
+    assert!(row_exists(
+        "agent_org_runtime_inbox",
         "org_run_id",
         "hierarchy-rollback-run"
     ));
     assert!(row_exists(
-        "agent_org_tasks",
+        "agent_org_runtime_tasks",
         "org_run_id",
         "hierarchy-rollback-run"
     ));
@@ -559,7 +591,7 @@ fn session_hierarchy_delete_rolls_back_transaction_time_structure_changes() {
     assert!(row_exists("agent_sessions", "session_id", worker));
     assert!(!row_exists("agent_sessions", "session_id", injected));
     assert!(row_exists(
-        "agent_org_runs",
+        "agent_org_runtime_runs",
         "id",
         "hierarchy-trigger-change-run"
     ));

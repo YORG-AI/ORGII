@@ -9,7 +9,7 @@ pub(super) fn insert_record(
     approval: &AgentOrgPlanApproval,
 ) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO agent_org_plan_approvals (
+        "INSERT INTO agent_org_runtime_plan_approvals (
             approval_id, plan_revision_id, request_id, org_run_id,
             source_task_id, source_member_id, source_session_id, root_session_id,
             policy, status, plan_title, plan_path, plan_content, decision_by,
@@ -49,7 +49,7 @@ pub(super) fn query_record<P: rusqlite::Params>(
                 source_task_id, source_member_id, source_session_id,
                 root_session_id, policy, status, plan_title, plan_path,
                 plan_content, decision_by, feedback, created_at, resolved_at
-         FROM agent_org_plan_approvals {where_clause} LIMIT 1"
+         FROM agent_org_runtime_plan_approvals {where_clause} LIMIT 1"
     );
     conn.query_row(&sql, params, row_to_record)
         .optional()

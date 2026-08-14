@@ -259,7 +259,7 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
         ),
     ] {
         conn.execute(
-            "INSERT OR IGNORE INTO agent_org_runs
+            "INSERT OR IGNORE INTO agent_org_runtime_runs
              (id, org_id, coordinator_agent_id, root_session_id, entry_mode,
               status, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, 'standalone_session', 'running', ?5, ?5)",
@@ -2186,18 +2186,18 @@ async fn completing_legacy_blocks_only_edge_dispatches_downstream_once() {
     // downstream.blocked_by, so only a raw fixture can preserve it.
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
-        "UPDATE agent_org_tasks SET blocks_json='[\"legacy-downstream\"]'
+        "UPDATE agent_org_runtime_tasks SET blocks_json='[\"legacy-downstream\"]'
          WHERE org_run_id='run-tools-1' AND id='legacy-upstream'",
         [],
     )
     .expect("seed legacy blocks edge");
     conn.execute(
-        "UPDATE agent_org_tasks SET blocked_by_json='[]'
+        "UPDATE agent_org_runtime_tasks SET blocked_by_json='[]'
          WHERE org_run_id='run-tools-1' AND id='legacy-downstream'",
         [],
     )
     .expect("keep downstream legacy-only");
-    conn.execute("DELETE FROM agent_inbox", [])
+    conn.execute("DELETE FROM agent_org_runtime_inbox", [])
         .expect("remove create-time assignment noise");
 
     let update = TaskUpdateTool::new(Arc::clone(&coordinator));
@@ -2804,7 +2804,7 @@ fn seed_task_list_current_turn_quiescence_fixture(materialize_inbox: bool) -> i6
     let now = chrono::Utc::now().to_rfc3339();
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
-        "UPDATE agent_org_runs
+        "UPDATE agent_org_runtime_runs
          SET root_session_id='root-tools-1', status='running', updated_at=?2
          WHERE id=?1",
         rusqlite::params!["run-tools-1", &now],
@@ -3037,7 +3037,7 @@ async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_re
     database::db::get_connection()
         .expect("test sqlite connection")
         .execute(
-            "DELETE FROM agent_inbox_materializations WHERE inbox_id=?1",
+            "DELETE FROM agent_org_runtime_inbox_materializations WHERE inbox_id=?1",
             rusqlite::params![inbox_id],
         )
         .expect("remove the receipt to exercise fail-closed validation");
@@ -3075,7 +3075,7 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
     let now = chrono::Utc::now().to_rfc3339();
     let conn = database::db::get_connection().unwrap();
     conn.execute(
-        "INSERT OR REPLACE INTO agent_org_runs
+        "INSERT OR REPLACE INTO agent_org_runtime_runs
          (id, org_id, coordinator_agent_id, root_session_id, entry_mode, status, created_at, updated_at)
          VALUES ('run-tools-1', 'org-tools-1', 'coord-1', 'root-tools-1', 'standalone_session', 'running', ?1, ?1)",
         rusqlite::params![now],
@@ -3196,7 +3196,7 @@ async fn task_list_surfaces_corrupt_task_data_without_false_empty_completion() {
     let now = chrono::Utc::now().to_rfc3339();
     let conn = database::db::get_connection().unwrap();
     conn.execute(
-        "INSERT OR REPLACE INTO agent_org_runs
+        "INSERT OR REPLACE INTO agent_org_runtime_runs
          (id, org_id, coordinator_agent_id, root_session_id, entry_mode, status, created_at, updated_at)
          VALUES ('run-tools-1', 'org-tools-1', 'coord-1', 'root-tools-1', 'standalone_session', 'running', ?1, ?1)",
         rusqlite::params![&now],
@@ -3226,7 +3226,7 @@ async fn task_list_surfaces_corrupt_task_data_without_false_empty_completion() {
     })
     .unwrap();
     conn.execute(
-        "UPDATE agent_org_tasks SET blocks_json='not-json' WHERE id='corrupt-task'",
+        "UPDATE agent_org_runtime_tasks SET blocks_json='not-json' WHERE id='corrupt-task'",
         [],
     )
     .unwrap();

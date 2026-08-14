@@ -137,7 +137,7 @@ fn load_agent_org_session_delete_plan(
         let mut stmt = conn
             .prepare(
                 "SELECT id, status
-                 FROM agent_org_runs
+                 FROM agent_org_runtime_runs
                  WHERE root_session_id=?1
                  ORDER BY id",
             )
@@ -200,7 +200,7 @@ fn load_agent_org_session_delete_plan(
                     descendant.cycle,
                     (
                         SELECT nested.id
-                        FROM agent_org_runs nested
+                        FROM agent_org_runtime_runs nested
                         WHERE nested.id<>?2
                           AND nested.root_session_id=descendant.session_id
                         ORDER BY nested.id
@@ -503,7 +503,7 @@ fn ensure_agent_org_hierarchy_absent(
     }
     let run_exists = conn
         .query_row(
-            "SELECT EXISTS(SELECT 1 FROM agent_org_runs WHERE id=?1)",
+            "SELECT EXISTS(SELECT 1 FROM agent_org_runtime_runs WHERE id=?1)",
             [&plan.run_id],
             |row| row.get::<_, bool>(0),
         )

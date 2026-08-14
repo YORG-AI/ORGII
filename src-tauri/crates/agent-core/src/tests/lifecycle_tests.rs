@@ -76,14 +76,7 @@ impl MemberIdleHook for RecordingMemberIdleHook {
 fn ensure_runtime_schemas() {
     let conn = database::db::get_connection().expect("test sqlite connection");
     crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
-    crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
-    crate::coordination::agent_org_tasks::init_schema(&conn).expect("agent org tasks schema");
-    crate::coordination::agent_org_plan_approvals::init_schema(&conn)
-        .expect("agent org plan approvals schema");
-    crate::coordination::agent_member_interventions::init_schema(&conn)
-        .expect("agent member interventions schema");
-    crate::coordination::agent_org_watchdog::init_schema(&conn).expect("agent org recovery schema");
-    crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("complete Agent Org runtime schema");
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS code_sessions (
                 session_id TEXT PRIMARY KEY,

@@ -63,7 +63,7 @@ pub(super) fn coordinator_notice_budget_exists_with_connection(
 ) -> Result<bool, String> {
     conn.query_row(
         "SELECT EXISTS(
-             SELECT 1 FROM agent_org_recovery_attempts
+             SELECT 1 FROM agent_org_runtime_recovery_attempts
              WHERE org_run_id=?1 AND action_kind=?2 AND target_key='coordinator'
          )",
         params![run_id, COORDINATOR_NOTICE],

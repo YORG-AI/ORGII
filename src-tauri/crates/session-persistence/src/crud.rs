@@ -611,7 +611,7 @@ pub fn clear_old_sessions(max_age_hours: i64) -> SqliteResult<i64> {
             let _ = tx.execute("DELETE FROM agent_snapshots WHERE session_id = ?1", [sid]);
             let _ = tx.execute("DELETE FROM goal_loop_state WHERE session_id = ?1", [sid]);
             let _ = tx.execute(
-                "DELETE FROM agent_member_interventions WHERE session_id = ?1",
+                "DELETE FROM agent_org_runtime_member_interventions WHERE session_id = ?1",
                 [sid],
             );
         }

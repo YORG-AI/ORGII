@@ -51,6 +51,7 @@ pub use record::{
     InsertInboxParams, ResolveInboxDeliveryError, ResolveInboxDeliveryParams,
 };
 pub use schema::init_schema;
+pub(crate) use schema::{create_schema, repair_dangling_materializations};
 
 /// Reserved sender id for system-generated agent inbox rows.
 ///

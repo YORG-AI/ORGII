@@ -52,7 +52,7 @@ impl AgentOrgRunStore {
                 .and_then(|progress| progress.completion_summary.as_deref());
             let changed = tx
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                          SET status='idle',
                              summary=COALESCE(?1, summary),
                              last_activity_outcome='completed',
@@ -61,8 +61,8 @@ impl AgentOrgRunStore {
                          WHERE id=?3 AND status='running'
                            AND activation_generation=?4
                            AND EXISTS (
-                               SELECT 1 FROM agent_org_run_progress progress
-                               WHERE progress.org_run_id=agent_org_runs.id
+                               SELECT 1 FROM agent_org_runtime_run_progress progress
+                               WHERE progress.org_run_id=agent_org_runtime_runs.id
                                  AND progress.work_revision=?5
                            )",
                     params![

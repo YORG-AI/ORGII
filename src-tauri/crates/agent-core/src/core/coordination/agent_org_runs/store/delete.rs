@@ -40,10 +40,10 @@ impl AgentOrgRunStore {
             let mut stmt = conn
                 .prepare(
                     "SELECT DISTINCT approval.source_session_id, approval.plan_path
-                     FROM agent_org_plan_approvals approval
+                     FROM agent_org_runtime_plan_approvals approval
                      WHERE approval.org_run_id=?1
                        AND NOT EXISTS (
-                         SELECT 1 FROM agent_org_plan_approvals other
+                         SELECT 1 FROM agent_org_runtime_plan_approvals other
                          WHERE other.plan_path=approval.plan_path
                            AND other.org_run_id<>?1
                        )",
@@ -67,25 +67,25 @@ impl AgentOrgRunStore {
         )
         .map_err(|err| err.to_string())?;
         conn.execute(
-            "DELETE FROM agent_inbox_materializations
+            "DELETE FROM agent_org_runtime_inbox_materializations
              WHERE inbox_id IN (
-                 SELECT id FROM agent_inbox WHERE org_run_id=?1
+                 SELECT id FROM agent_org_runtime_inbox WHERE org_run_id=?1
              )",
             params![run_id],
         )
         .map_err(|err| {
-            format!("failed to delete agent_inbox_materializations rows for {run_id}: {err}")
+            format!("failed to delete agent_org_runtime_inbox_materializations rows for {run_id}: {err}")
         })?;
         for table in [
-            "agent_org_plan_approvals",
-            "agent_org_recovery_attempts",
-            "agent_org_task_events",
-            "agent_org_tasks",
-            "agent_inbox_delivery_resolutions",
-            "agent_inbox",
-            "agent_member_interventions",
-            "agent_org_run_progress",
-            "agent_org_task_run_schema_migrations",
+            "agent_org_runtime_plan_approvals",
+            "agent_org_runtime_recovery_attempts",
+            "agent_org_runtime_task_events",
+            "agent_org_runtime_tasks",
+            "agent_org_runtime_inbox_delivery_resolutions",
+            "agent_org_runtime_inbox",
+            "agent_org_runtime_member_interventions",
+            "agent_org_runtime_run_progress",
+            "agent_org_runtime_task_schema_migrations",
         ] {
             conn.execute(
                 &format!("DELETE FROM {table} WHERE org_run_id=?1"),
@@ -94,7 +94,10 @@ impl AgentOrgRunStore {
             .map_err(|err| format!("failed to delete {table} rows for {run_id}: {err}"))?;
         }
         let deleted = conn
-            .execute("DELETE FROM agent_org_runs WHERE id=?1", params![run_id])
+            .execute(
+                "DELETE FROM agent_org_runtime_runs WHERE id=?1",
+                params![run_id],
+            )
             .map_err(|err| err.to_string())?
             > 0;
         Ok(AgentOrgRunDeleteOutcome {

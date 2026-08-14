@@ -46,7 +46,7 @@ impl AgentOrgTaskStore {
     ) -> Result<TaskMutationOutcome, String> {
         ensure_run_allows_task_mutation(tx, org_run_id)?;
         let sql = format!(
-            "SELECT {SELECT_COLUMNS} FROM agent_org_tasks
+            "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
              WHERE org_run_id = ?1 AND id = ?2"
         );
         let previous: Option<Task> = tx
@@ -94,7 +94,7 @@ impl AgentOrgTaskStore {
         let metadata_json = encode_metadata(current.metadata.as_ref())?;
         let changed = tx
             .execute(
-                "UPDATE agent_org_tasks
+                "UPDATE agent_org_runtime_tasks
                  SET status = ?1, metadata_json = ?2, updated_at = ?3
                  WHERE org_run_id = ?4 AND id = ?5 AND status = ?6 AND owner = ?7",
                 params![
@@ -329,7 +329,7 @@ impl AgentOrgTaskStore {
         let metadata_json = encode_metadata(task.metadata.as_ref())?;
 
         tx.execute(
-            "UPDATE agent_org_tasks SET
+            "UPDATE agent_org_runtime_tasks SET
                 subject = ?1,
                 description = ?2,
                 active_form = ?3,

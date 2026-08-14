@@ -78,7 +78,7 @@ pub(super) fn corrupt_task_repair_facts(
 ) -> Result<Vec<RecoveryRepairFact>, String> {
     let task_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_tasks WHERE org_run_id=?1",
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id=?1",
             params![run_id],
             |row| row.get(0),
         )
@@ -110,7 +110,7 @@ pub(super) fn corrupt_task_repair_facts(
                     CASE WHEN metadata_json IS NULL
                               OR length(CAST(metadata_json AS BLOB))<={metadata_max}
                          THEN metadata_json ELSE '!' END AS metadata_json
-             FROM agent_org_tasks WHERE org_run_id=?1
+             FROM agent_org_runtime_tasks WHERE org_run_id=?1
          ) AS bounded_tasks
          WHERE {predicate}
          ORDER BY id ASC"

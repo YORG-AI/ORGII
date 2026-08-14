@@ -84,7 +84,7 @@ fn inbox_history_pages_are_cursor_bounded_without_gaps() {
     let now = chrono::Utc::now().to_rfc3339();
     for _ in 0..205 {
         tx.execute(
-            "INSERT INTO agent_inbox (
+            "INSERT INTO agent_org_runtime_inbox (
                  recipient_agent_id, recipient_member_id, sender_agent_id,
                  sender_member_id, org_run_id, payload_kind, payload_json,
                  request_id, created_at, read_at, causation_inbox_id
@@ -145,7 +145,7 @@ fn recent_run_snapshot_is_bounded_and_counts_do_not_load_payloads() {
     // write boundary no longer permits creating new ones.
     let conn = get_connection().expect("open inbox database for legacy fixture");
     conn.execute(
-        "INSERT INTO agent_inbox (
+        "INSERT INTO agent_org_runtime_inbox (
              recipient_agent_id, recipient_member_id, sender_agent_id,
              sender_member_id, org_run_id, payload_kind, payload_json,
              request_id, created_at, read_at, causation_inbox_id
@@ -217,7 +217,7 @@ fn recent_run_snapshot_is_bounded_and_counts_do_not_load_payloads() {
     assert!(
         details
             .iter()
-            .any(|detail| detail.contains("idx_agent_inbox_run_unread_recipient")),
+            .any(|detail| detail.contains("idx_agent_org_runtime_inbox_run_unread_recipient")),
         "watchdog/run-view unread aggregation must stay on the partial unread index: {details:?}"
     );
     assert!(
@@ -351,7 +351,7 @@ fn preview_and_assignment_scan_tolerate_corrupt_historical_payloads() {
         ("task_assigned", "also-not-json"),
     ] {
         conn.execute(
-            "INSERT INTO agent_inbox (
+            "INSERT INTO agent_org_runtime_inbox (
                  recipient_agent_id, recipient_member_id, sender_agent_id,
                  org_run_id, payload_kind, payload_json, created_at
              ) VALUES ('worker', 'member-worker', 'sender', ?1, ?2, ?3, ?4)",
@@ -359,7 +359,7 @@ fn preview_and_assignment_scan_tolerate_corrupt_historical_payloads() {
         )
         .expect("seed corrupt historical inbox row");
     }
-    conn.execute_batch("DROP INDEX idx_agent_inbox_run_task_assignment_v4")
+    conn.execute_batch("DROP INDEX idx_agent_org_runtime_inbox_run_task_assignment_v4")
         .expect("drop assignment index to simulate upgrade");
     init_schema(&conn).expect("schema upgrade tolerates corrupt historical payloads");
     AgentInboxStore::insert(InsertInboxParams {
@@ -403,7 +403,7 @@ fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
     let now = chrono::Utc::now().to_rfc3339();
     for (task_id, status) in [("open-task", "pending"), ("done-task", "completed")] {
         conn.execute(
-            "INSERT INTO agent_org_tasks
+            "INSERT INTO agent_org_runtime_tasks
              (id, org_run_id, subject, description, status, owner,
               blocks_json, blocked_by_json, created_at, updated_at)
              VALUES (?1, ?2, ?1, '', ?3, 'member-worker', '[]', '[]', ?4, ?4)",
@@ -449,7 +449,7 @@ fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
     assert!(
         details
             .iter()
-            .any(|detail| detail.contains("idx_agent_inbox_run_task_assignment_v4")),
+            .any(|detail| detail.contains("idx_agent_org_runtime_inbox_run_task_assignment_v4")),
         "assignment lookup must use the expression index: {details:?}"
     );
     assert!(
@@ -469,7 +469,7 @@ fn assignment_snapshot_requires_current_owner_and_valid_typed_payload() {
     let now = chrono::Utc::now().to_rfc3339();
     for task_id in ["reassigned-task", "{}"] {
         conn.execute(
-            "INSERT INTO agent_org_tasks
+            "INSERT INTO agent_org_runtime_tasks
              (id, org_run_id, subject, description, status, owner,
               blocks_json, blocked_by_json, created_at, updated_at)
              VALUES (?1, ?2, ?1, '', 'pending', 'member-b', '[]', '[]', ?3, ?3)",
@@ -500,7 +500,7 @@ fn assignment_snapshot_requires_current_owner_and_valid_typed_payload() {
     // Valid JSON with the right tag/id but missing required fields is not
     // a real TaskAssigned envelope and cannot suppress recovery.
     conn.execute(
-        "INSERT INTO agent_inbox (
+        "INSERT INTO agent_org_runtime_inbox (
              recipient_agent_id, recipient_member_id, sender_agent_id,
              org_run_id, payload_kind, payload_json, created_at
          ) VALUES ('worker-b', 'member-b', 'coordinator', ?1,
@@ -515,7 +515,7 @@ fn assignment_snapshot_requires_current_owner_and_valid_typed_payload() {
 
     // A non-text task_id must not collide with the literal task id "{}".
     conn.execute(
-        "INSERT INTO agent_inbox (
+        "INSERT INTO agent_org_runtime_inbox (
              recipient_agent_id, recipient_member_id, sender_agent_id,
              org_run_id, payload_kind, payload_json, created_at
          ) VALUES ('worker-b', 'member-b', 'coordinator', ?1,
@@ -830,7 +830,7 @@ fn stale_session_cannot_ack_another_sessions_materialization() {
     .expect("insert inbox row");
     let conn = get_connection().expect("db");
     conn.execute(
-        "INSERT INTO agent_inbox_materializations
+        "INSERT INTO agent_org_runtime_inbox_materializations
          (inbox_id, session_id, transcript_message_id, transcript_intent_id, materialized_at)
          VALUES (?1, 'new-session', 'message', 'intent', ?2)",
         params![row.id, chrono::Utc::now().to_rfc3339()],

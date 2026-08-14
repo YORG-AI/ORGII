@@ -199,8 +199,8 @@ impl AgentOrgRunStore {
                 .query_row(
                     "SELECT materialization.agent_id, materialization.session_id,
                             run.root_session_id, materialization.status
-                     FROM agent_org_member_materializations materialization
-                     JOIN agent_org_runs run ON run.id=materialization.org_run_id
+                     FROM agent_org_runtime_member_materializations materialization
+                     JOIN agent_org_runtime_runs run ON run.id=materialization.org_run_id
                      WHERE materialization.org_run_id=?1
                        AND materialization.member_id=?2
                        AND materialization.generation=?3
@@ -252,7 +252,7 @@ impl AgentOrgRunStore {
             }
             let changed = transaction
                 .execute(
-                    "UPDATE agent_org_member_materializations
+                    "UPDATE agent_org_runtime_member_materializations
                      SET status='succeeded', error_code=NULL, error_json=NULL,
                          updated_at=?5
                      WHERE org_run_id=?1 AND member_id=?2 AND generation=?3
@@ -285,7 +285,7 @@ impl AgentOrgRunStore {
             let run: Option<(String, String, i64, bool)> = transaction
                 .query_row(
                     "SELECT status, root_session_id, activation_generation, has_initial_work
-                     FROM agent_org_runs WHERE id=?1",
+                     FROM agent_org_runtime_runs WHERE id=?1",
                     [run_id],
                     |row| {
                         Ok((
@@ -315,7 +315,7 @@ impl AgentOrgRunStore {
             let invalid_materialized_identities: i64 = transaction
                 .query_row(
                     "SELECT COUNT(*)
-                     FROM agent_org_member_materializations materialization
+                     FROM agent_org_runtime_member_materializations materialization
                      LEFT JOIN agent_sessions session
                        ON session.session_id=materialization.session_id
                      WHERE materialization.org_run_id=?1
@@ -359,7 +359,7 @@ impl AgentOrgRunStore {
             }
             let incomplete_materializations: i64 = transaction
                 .query_row(
-                    "SELECT COUNT(*) FROM agent_org_member_materializations
+                    "SELECT COUNT(*) FROM agent_org_runtime_member_materializations
                      WHERE org_run_id=?1 AND generation=?2 AND status<>'succeeded'",
                     params![run_id, expected_generation],
                     |row| row.get(0),
@@ -407,7 +407,7 @@ impl AgentOrgRunStore {
                 )?;
                 transaction
                     .execute(
-                        "UPDATE agent_org_initial_inputs
+                        "UPDATE agent_org_runtime_initial_inputs
                          SET status='queued', updated_at=?2
                          WHERE org_run_id=?1 AND status='pending_persistence'",
                         params![run_id, chrono::Utc::now().to_rfc3339()],
@@ -427,7 +427,7 @@ impl AgentOrgRunStore {
             let now = chrono::Utc::now().to_rfc3339();
             let changed = transaction
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                      SET status=?1, updated_at=?2,
                          idled_at=CASE WHEN ?1='idle' THEN ?2 ELSE NULL END
                      WHERE id=?3 AND status='starting'
@@ -453,7 +453,7 @@ impl AgentOrgRunStore {
             let connection = get_connection().map_err(|error| error.to_string())?;
             let changed = connection
                 .execute(
-                    "UPDATE agent_org_initial_inputs
+                    "UPDATE agent_org_runtime_initial_inputs
                      SET status='dispatched', updated_at=?3
                      WHERE org_run_id=?1 AND turn_intent_id=?2
                        AND status IN ('queued', 'dispatched')",
@@ -483,7 +483,7 @@ impl AgentOrgRunStore {
                 .map_err(|err| err.to_string())?;
             let changed = tx
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                  SET status = 'failed',
                      last_error = ?2,
                      failure_json = ?3,
