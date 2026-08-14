@@ -91,6 +91,13 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
 
     let legacy_table_count = count_known_tables(&tx, &LEGACY_TABLES)?;
     let legacy_object_count = count_legacy_objects(&tx)?;
+    if legacy_table_count > 0 {
+        // Destructive by design: record what is about to be dropped so a
+        // data-loss report is diagnosable after the fact. Only paid when
+        // legacy tables actually exist — steady-state boots skip it.
+        let dropped = count_existing_table_rows(&tx, &LEGACY_TABLES)?;
+        log_destructive_table_drops("legacy_retirement", &dropped);
+    }
     tx.execute_batch(DROP_LEGACY_SCHEMA)?;
 
     if fresh {
@@ -176,6 +183,46 @@ fn read_manifest(conn: &Connection) -> SqliteResult<SchemaManifest> {
         Ok(((object_type, name), (table_name, sql.trim().to_string())))
     })?;
     rows.collect()
+}
+
+/// Row counts for the subset of `names` that exist as tables.
+///
+/// Used by every destructive path (legacy retirement, epoch recreate) right
+/// before its `DROP TABLE`s so the log records exactly what was destroyed.
+/// Never called on steady-state boots.
+fn count_existing_table_rows(
+    conn: &Connection,
+    names: &[&str],
+) -> SqliteResult<Vec<(String, i64)>> {
+    let mut counts = Vec::new();
+    for name in names {
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+            [name],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            continue;
+        }
+        let rows: i64 =
+            conn.query_row(&format!("SELECT COUNT(*) FROM \"{name}\""), [], |row| {
+                row.get(0)
+            })?;
+        counts.push(((*name).to_string(), rows));
+    }
+    Ok(counts)
+}
+
+fn log_destructive_table_drops(context: &'static str, counts: &[(String, i64)]) {
+    for (table, rows) in counts {
+        tracing::warn!(
+            event = "agent_org_destructive_table_drop",
+            context,
+            table = %table,
+            rows,
+            "dropping Agent Org table together with its rows"
+        );
+    }
 }
 
 fn count_known_tables(conn: &Connection, names: &[&str]) -> SqliteResult<usize> {
@@ -653,6 +700,38 @@ mod tests {
         verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
             .expect("canonical manifest after concurrent init");
         assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 13);
+    }
+
+    #[test]
+    fn destructive_drop_counting_reports_existing_tables_with_their_rows() {
+        let conn = connection();
+        create_legacy_fixture(&conn, 5, false);
+
+        let counts =
+            count_existing_table_rows(&conn, &LEGACY_TABLES).expect("count legacy tables");
+
+        // Only the five existing fixture tables are reported; each carries
+        // its seeded single row. Missing tables never appear.
+        assert_eq!(counts.len(), 5);
+        for (table, rows) in &counts {
+            assert!(
+                LEGACY_TABLES.contains(&table.as_str()),
+                "unexpected {table}"
+            );
+            assert_eq!(*rows, 1, "{table} row count");
+        }
+        assert!(counts
+            .iter()
+            .any(|(table, _)| table == "agent_org_runs"));
+        assert!(!counts
+            .iter()
+            .any(|(table, _)| table == "agent_org_run_progress"));
+
+        // Retirement wipes them; a rerun reports nothing to destroy.
+        initialize(&conn).expect("retire legacy fixture");
+        assert!(count_existing_table_rows(&conn, &LEGACY_TABLES)
+            .expect("count after retirement")
+            .is_empty());
     }
 
     #[test]
