@@ -30,14 +30,7 @@ use super::{
     CreateStartingAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 
-fn serialize_launch_snapshot(
-    snapshot: &crate::definitions::orgs::AgentOrgLaunchSnapshot,
-) -> Result<String, String> {
-    crate::definitions::orgs::validate_launch_snapshot(snapshot)?;
-    let encoded = serde_json::to_string(snapshot)
-        .map_err(|err| format!("failed to serialize Agent Org launch snapshot: {err}"))?;
-    Ok(encoded)
-}
+use crate::definitions::orgs::serialize_launch_snapshot;
 
 pub struct AgentOrgRunStore;
 
