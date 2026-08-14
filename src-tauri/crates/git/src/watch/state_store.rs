@@ -86,6 +86,25 @@ impl RepoStateStore {
             .collect()
     }
 
+    /// Snapshot only the fields needed to enforce the watch-set capacity.
+    ///
+    /// Like `get_unhealthy_watcher_ids`, this deliberately avoids cloning the
+    /// cached `GitStatus` each state may own.
+    pub fn get_watch_activity(&self) -> Vec<WatchActivity> {
+        self.states
+            .read()
+            .values()
+            .map(|state| WatchActivity {
+                repo_id: state.repo_id.clone(),
+                last_activity: state
+                    .last_git_status_ts
+                    .unwrap_or(state.last_fs_event_ts)
+                    .max(state.last_fs_event_ts),
+                has_in_flight_jobs: !state.in_flight_jobs.is_empty(),
+            })
+            .collect()
+    }
+
     // ============================================
     // Dirty Flag Management
     // ============================================

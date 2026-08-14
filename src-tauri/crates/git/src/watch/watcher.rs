@@ -129,6 +129,44 @@ const DEBOUNCED_GIT_PATHS: &[&str] = &[
 ];
 
 // ============================================
+// Watch Capacity
+// ============================================
+
+/// Pick the least-recently-active watched repos to evict so the watch set
+/// honors `MAX_WATCHED_REPOS`.
+///
+/// Repos listed in `protected` (the incoming repo and the repo currently
+/// driving working-directory polling) and repos with in-flight jobs are never
+/// chosen — dropping their watcher would strand work the user can still see.
+/// When everything is protected the set is allowed to exceed the cap rather
+/// than break a live surface.
+pub(crate) fn select_watch_eviction_victims(
+    activity: &[WatchActivity],
+    protected: &[&str],
+    overflow: usize,
+) -> Vec<String> {
+    if overflow == 0 {
+        return Vec::new();
+    }
+
+    let mut candidates: Vec<&WatchActivity> = activity
+        .iter()
+        .filter(|entry| !entry.has_in_flight_jobs && !protected.contains(&entry.repo_id.as_str()))
+        .collect();
+    candidates.sort_by(|left, right| {
+        left.last_activity
+            .cmp(&right.last_activity)
+            .then_with(|| left.repo_id.cmp(&right.repo_id))
+    });
+
+    candidates
+        .into_iter()
+        .take(overflow)
+        .map(|entry| entry.repo_id.clone())
+        .collect()
+}
+
+// ============================================
 // RepoWatcher
 // ============================================
 
@@ -445,6 +483,8 @@ impl RepoWatcher {
             return Err(format!("Not a git repository: {:?}", repo_path));
         }
 
+        self.enforce_watch_capacity(&repo_info.repo_id);
+
         // Add to state store and wake the poller if it was parked with no active repos.
         self.state_store.add_repo(repo_info.clone());
         {
@@ -523,6 +563,46 @@ impl RepoWatcher {
         }
 
         Ok(())
+    }
+
+    /// Drop the least-recently-active watchers so the watch set stays within
+    /// `MAX_WATCHED_REPOS`.
+    ///
+    /// Every retained repo holds a native watcher (file descriptors) plus a
+    /// cached `GitStatus` whose file list scales with the working tree, and
+    /// nothing unwatches a repo the user simply navigated away from — so an
+    /// uncapped watch set grows for the whole app session as projects are
+    /// opened. An evicted repo keeps working through the existing
+    /// polling/on-demand paths and is re-watched on its next `watch_repo`.
+    fn enforce_watch_capacity(&self, incoming_repo_id: &str) {
+        let activity = self.state_store.get_watch_activity();
+        if activity
+            .iter()
+            .any(|entry| entry.repo_id == incoming_repo_id)
+        {
+            // Re-watching an already-tracked repo does not grow the set.
+            return;
+        }
+
+        let overflow = (activity.len() + 1).saturating_sub(MAX_WATCHED_REPOS);
+        if overflow == 0 {
+            return;
+        }
+
+        let active_poll_repo_id = self.active_poll_repo_id.read().clone();
+        let mut protected: Vec<&str> = vec![incoming_repo_id];
+        if let Some(active_repo_id) = active_poll_repo_id.as_deref() {
+            protected.push(active_repo_id);
+        }
+
+        for repo_id in select_watch_eviction_victims(&activity, &protected, overflow) {
+            log::info!(
+                "[RepoWatch] Watch capacity {} reached; evicting least-recently-active repo {}",
+                MAX_WATCHED_REPOS,
+                repo_id
+            );
+            let _ = self.unwatch_repo(&repo_id);
+        }
     }
 
     /// Stop watching a repository

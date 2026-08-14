@@ -53,6 +53,7 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import type { Project } from "@src/types/core/project";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { ProjectRow, ProjectsPageHeader } from "./components";
@@ -149,54 +150,43 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   const [fileProjectsLoading, setFileProjectsLoading] = useState(false);
   const [fileProjectsLoaded, setFileProjectsLoaded] = useState(false);
   const fileProjectsLoadedRef = useRef(false);
-  const loadLifecycleRef = useRef({ mounted: true, generation: 0 });
   const [fileError, setFileError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const lifecycle = loadLifecycleRef.current;
-    lifecycle.mounted = true;
-    return () => {
-      lifecycle.mounted = false;
-      lifecycle.generation += 1;
-    };
-  }, []);
+  const projectLoadCoordinator = useMemo(() => new LatestScopedTask(), []);
 
   const loadProjectsForRepo = useCallback(async () => {
-    const generation = ++loadLifecycleRef.current.generation;
-    const isCurrent = () => {
-      const lifecycle = loadLifecycleRef.current;
-      return lifecycle.mounted && lifecycle.generation === generation;
-    };
-    setFileProjectsLoading(true);
-    setFileError(null);
-    try {
-      const [projectsData, linearProjects] = await Promise.all([
-        projectApi.readProjects({ orgId }),
-        includeExternalSources ? loadWorkspaceLinearProjects() : [],
-      ]);
-      if (!isCurrent()) return;
-      const localProjects = projectsData.map((project) =>
-        projectDataToUI(project, {
-          labelMap: EMPTY_LABEL_MAP,
-          memberMap: EMPTY_MEMBER_MAP,
-        })
-      );
-      setFileProjects([...localProjects, ...linearProjects]);
-      fileProjectsLoadedRef.current = true;
-      setFileProjectsLoaded(true);
-    } catch (err) {
-      if (!isCurrent()) return;
-      log.error("[ProjectsPage] Failed to load projects:", err);
-      if (!fileProjectsLoadedRef.current) {
-        setFileProjects([]);
+    const scopeKey = JSON.stringify([orgId ?? null, includeExternalSources]);
+    await projectLoadCoordinator.run(scopeKey, async (context) => {
+      setFileProjectsLoading(true);
+      setFileError(null);
+      try {
+        const [projectsData, linearProjects] = await Promise.all([
+          projectApi.readProjects({ orgId }),
+          includeExternalSources ? loadWorkspaceLinearProjects() : [],
+        ]);
+        if (!context.isCurrent()) return;
+        const localProjects = projectsData.map((project) =>
+          projectDataToUI(project, {
+            labelMap: EMPTY_LABEL_MAP,
+            memberMap: EMPTY_MEMBER_MAP,
+          })
+        );
+        setFileProjects([...localProjects, ...linearProjects]);
+        fileProjectsLoadedRef.current = true;
+        setFileProjectsLoaded(true);
+      } catch (err) {
+        if (!context.isCurrent()) return;
+        log.error("[ProjectsPage] Failed to load projects:", err);
+        if (!fileProjectsLoadedRef.current) {
+          setFileProjects([]);
+        }
+        setFileError(
+          err instanceof Error ? err.message : t("projects.loadProjectsFailed")
+        );
+      } finally {
+        if (context.isCurrent()) setFileProjectsLoading(false);
       }
-      setFileError(
-        err instanceof Error ? err.message : t("projects.loadProjectsFailed")
-      );
-    } finally {
-      if (isCurrent()) setFileProjectsLoading(false);
-    }
-  }, [includeExternalSources, orgId, t]);
+    });
+  }, [includeExternalSources, orgId, projectLoadCoordinator, t]);
 
   const loadFileProjects = useCallback(async () => {
     await loadProjectsForRepo();
@@ -204,7 +194,10 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
 
   useEffect(() => {
     void loadProjectsForRepo();
-  }, [loadProjectsForRepo, refreshSignal]);
+    return () => {
+      projectLoadCoordinator.supersede();
+    };
+  }, [loadProjectsForRepo, projectLoadCoordinator, refreshSignal]);
 
   useProjectDataChanged(
     useCallback(() => {

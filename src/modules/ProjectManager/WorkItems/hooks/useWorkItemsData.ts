@@ -27,6 +27,7 @@ import { useDebouncedCallback } from "@src/hooks/perf";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
 
 import {
   type OnAssignmentChanges,
@@ -124,7 +125,7 @@ export function useWorkItemsData({
   const [viewData, setViewData] = useState<WorkItemsViewData | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
-  const loadGenerationRef = useRef(0);
+  const viewLoadCoordinator = useMemo(() => new LatestScopedTask(), []);
   const purgedProjectSlugRef = useRef<string | null>(null);
 
   // Debounced search query for IPC calls (avoid IPC on every keystroke)
@@ -140,60 +141,79 @@ export function useWorkItemsData({
   }, [searchQuery, debouncedSetSearchQuery]);
 
   const fetchViewData = useCallback(async () => {
-    if (!isActive) return;
+    if (!isActive) {
+      viewLoadCoordinator.supersede();
+      setViewLoading(false);
+      return;
+    }
     if (!projectSlug) {
+      viewLoadCoordinator.supersede();
       setViewData(null);
+      setViewLoading(false);
       return;
     }
 
-    const loadGeneration = loadGenerationRef.current + 1;
-    loadGenerationRef.current = loadGeneration;
-    setViewLoading(true);
-    setViewError(null);
+    const normalizedSearch = debouncedSearchQuery.trim();
+    const scopeKey = JSON.stringify([
+      projectSlug,
+      statusFilter,
+      normalizedSearch,
+      activeView,
+    ]);
+    await viewLoadCoordinator.run(scopeKey, async (context) => {
+      setViewLoading(true);
+      setViewError(null);
 
-    try {
-      if (purgedProjectSlugRef.current !== projectSlug) {
-        await projectApi.purgeExpiredDeletedWorkItems(projectSlug);
-        if (loadGenerationRef.current !== loadGeneration) return;
-        purgedProjectSlugRef.current = projectSlug;
+      try {
+        if (purgedProjectSlugRef.current !== projectSlug) {
+          await projectApi.purgeExpiredDeletedWorkItems(projectSlug);
+          if (!context.isCurrent()) return;
+          purgedProjectSlugRef.current = projectSlug;
+        }
+        const data = await projectApi.readWorkItemsViewData(projectSlug, {
+          statusFilter: statusFilter !== "all" ? statusFilter : undefined,
+          searchQuery: normalizedSearch || undefined,
+          view:
+            activeView === "Kanban"
+              ? "kanban"
+              : activeView === "Gantt"
+                ? "gantt"
+                : activeView === "Calendar"
+                  ? "calendar"
+                  : "list",
+        });
+        if (context.isCurrent()) {
+          setViewData(data);
+        }
+      } catch (err) {
+        if (!context.isCurrent()) return;
+        const message =
+          err instanceof Error ? err.message : "Failed to load work items";
+        logger.error("View data fetch error:", err);
+        setViewError(message);
+      } finally {
+        if (context.isCurrent()) {
+          setViewLoading(false);
+        }
       }
-      const data = await projectApi.readWorkItemsViewData(projectSlug, {
-        statusFilter: statusFilter !== "all" ? statusFilter : undefined,
-        searchQuery: debouncedSearchQuery.trim() || undefined,
-        view:
-          activeView === "Kanban"
-            ? "kanban"
-            : activeView === "Gantt"
-              ? "gantt"
-              : activeView === "Calendar"
-                ? "calendar"
-                : "list",
-      });
-      if (loadGenerationRef.current !== loadGeneration) return;
-      setViewData(data);
-    } catch (err) {
-      if (loadGenerationRef.current !== loadGeneration) return;
-      const message =
-        err instanceof Error ? err.message : "Failed to load work items";
-      logger.error("View data fetch error:", err);
-      setViewError(message);
-    } finally {
-      if (loadGenerationRef.current === loadGeneration) {
-        setViewLoading(false);
-      }
-    }
-  }, [activeView, debouncedSearchQuery, isActive, projectSlug, statusFilter]);
+    });
+  }, [
+    activeView,
+    debouncedSearchQuery,
+    isActive,
+    projectSlug,
+    statusFilter,
+    viewLoadCoordinator,
+  ]);
 
   useEffect(() => {
     if (!isActive) {
-      loadGenerationRef.current += 1;
+      viewLoadCoordinator.supersede();
       return;
     }
     void fetchViewData();
-    return () => {
-      loadGenerationRef.current += 1;
-    };
-  }, [fetchViewData, isActive]);
+    return () => viewLoadCoordinator.supersede();
+  }, [fetchViewData, isActive, viewLoadCoordinator]);
 
   // Listen for orgii-data-changed events
   useProjectDataChanged(
