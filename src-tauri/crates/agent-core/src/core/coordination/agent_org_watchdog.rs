@@ -35,8 +35,10 @@ mod reservation;
 #[cfg(test)]
 mod tests;
 
-pub use budget::clear_rewake_budget;
 pub use budget::init_schema;
+pub use budget::{
+    clear_rewake_budget, startup_prune_recovery_state, AgentOrgRecoveryStartupPruneReport,
+};
 pub(crate) use budget::member_rewake_fingerprint;
 #[cfg(test)]
 pub use budget::test_only_mark_failed_rewake_attempt;

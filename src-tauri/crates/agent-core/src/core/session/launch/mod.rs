@@ -1237,6 +1237,47 @@ pub fn spawn_agent_org_startup_recovery(state: AgentAppState) {
         return;
     }
     tauri::async_runtime::spawn(async move {
+        // Durable recovery bookkeeping first: reservation tokens cannot
+        // survive their process (quiescence fails closed on them), and budget
+        // rows for non-running teams are pruned in bounded batches.
+        match tokio::task::spawn_blocking(
+            crate::coordination::agent_org_watchdog::startup_prune_recovery_state,
+        )
+        .await
+        {
+            Ok(Ok(report)) if report.changed() => tracing::info!(
+                reservations_cleared = report.reservations_cleared,
+                attempts_pruned = report.attempts_pruned,
+                "[agent-org-startup] pruned durable recovery bookkeeping"
+            ),
+            Ok(Ok(_)) => {}
+            Ok(Err(error)) => {
+                tracing::warn!(error = %error, "[agent-org-startup] recovery bookkeeping prune failed")
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "[agent-org-startup] recovery bookkeeping prune worker failed")
+            }
+        }
+        // Pending plan approvals whose team is gone or terminal are cancelled
+        // in the same one-shot; a dead approval would otherwise wedge the UI
+        // approval surfaces forever.
+        match tokio::task::spawn_blocking(
+            crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore::cancel_pending_for_terminal_or_missing_runs,
+        )
+        .await
+        {
+            Ok(Ok(cancelled)) if cancelled > 0 => tracing::info!(
+                cancelled,
+                "[agent-org-startup] cancelled pending plan approvals for terminal or missing teams"
+            ),
+            Ok(Ok(_)) => {}
+            Ok(Err(error)) => {
+                tracing::warn!(error = %error, "[agent-org-startup] orphaned plan-approval cancellation failed")
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "[agent-org-startup] orphaned plan-approval worker failed")
+            }
+        }
         if let Err(error) = recover_agent_org_starting_runs(&state).await {
             tracing::warn!(error = %error, "[agent-org-startup] Starting recovery failed");
         }

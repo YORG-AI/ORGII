@@ -197,6 +197,66 @@ fn running_query_is_limited_and_never_visits_quiet_states() {
 }
 
 #[test]
+fn startup_prune_clears_all_reservations_and_non_running_budget_rows() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let conn = get_connection().expect("db");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+    let now = Utc::now().to_rfc3339();
+    for (run_id, status) in [("prune-running", "running"), ("prune-idle", "idle")] {
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
+                 created_at, updated_at
+             ) VALUES (?1, 'prune-org', 'coordinator', ?2, 'standalone_session', ?3, ?4, ?4)",
+            params![run_id, format!("root-{run_id}"), status, &now],
+        )
+        .expect("seed run");
+    }
+    for (run_id, token) in [
+        ("prune-running", Some("leaked-token-running")),
+        ("prune-idle", Some("leaked-token-idle")),
+        ("prune-missing-run", None::<&str>),
+    ] {
+        conn.execute(
+            "INSERT INTO agent_org_recovery_attempts
+                 (org_run_id, action_kind, target_key, reason_fingerprint, attempts,
+                  next_allowed_at, updated_at, reservation_token)
+             VALUES (?1, ?2, 'member-x', 'fp', 1, ?3, ?3, ?4)",
+            params![run_id, MEMBER_REWAKE, &now, token],
+        )
+        .expect("seed recovery attempt");
+    }
+
+    let report = startup_prune_recovery_state().expect("startup prune");
+    assert_eq!(report.reservations_cleared, 2);
+    assert_eq!(report.attempts_pruned, 2);
+
+    let leaked_tokens: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_recovery_attempts
+             WHERE reservation_token IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count tokens");
+    assert_eq!(leaked_tokens, 0, "no reservation survives its process");
+    let remaining: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT org_run_id FROM agent_org_recovery_attempts ORDER BY org_run_id")
+            .expect("prepare");
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .expect("query");
+        rows.collect::<Result<Vec<_>, _>>().expect("collect")
+    };
+    assert_eq!(
+        remaining,
+        vec!["prune-running".to_string()],
+        "budget rows survive only for still-running teams"
+    );
+}
+
+#[test]
 fn rotation_cursor_visits_every_working_run_across_ticks() {
     let _sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("db");
