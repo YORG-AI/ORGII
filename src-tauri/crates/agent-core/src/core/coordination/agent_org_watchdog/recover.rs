@@ -105,21 +105,8 @@ fn execute_stall_recovery_plan(
     // left to wake or repair. When reconciliation declines (e.g. the
     // coordinator root session is still open), fall through and deliver
     // the wakes so pending inbox rows still reach their recipients.
-    if plan.terminal_candidate {
-        let assessment = AgentOrgRunStore::assess_run_quiescence(run_id)?;
-        if let (Some(generation), Some(work_revision)) = (
-            assessment.facts.activation_generation,
-            assessment
-                .facts
-                .progress
-                .as_ref()
-                .map(|progress| progress.work_revision),
-        ) {
-            if AgentOrgRunStore::try_transition_working_to_idle(run_id, generation, work_revision)?
-            {
-                return Ok(plan);
-            }
-        }
+    if plan.terminal_candidate && AgentOrgRunStore::try_reconcile_to_idle(run_id)? {
+        return Ok(plan);
     }
 
     // Analyzer output is advisory. Every derived inbox row is revalidated

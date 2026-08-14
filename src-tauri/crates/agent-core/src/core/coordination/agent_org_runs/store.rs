@@ -121,6 +121,12 @@ impl AgentOrgRunStore {
             .map_err(|err| err.to_string())
     }
 
+    /// Test-fixture constructor: seeds a run row in an arbitrary status
+    /// without the Starting construction envelope. Production launch goes
+    /// exclusively through [`Self::create_starting`]; unit tests and the
+    /// `#![cfg(debug_assertions)]` /test endpoints need arbitrary-status
+    /// seeding, so this is compiled only for those builds.
+    #[cfg(any(test, debug_assertions))]
     pub fn create(params: CreateAgentOrgRunParams) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
         let status = validate_status(params.status.as_str())?;
@@ -856,6 +862,26 @@ impl AgentOrgRunStore {
         let assessment = load_and_assess(&tx, run_id)?;
         tx.commit().map_err(|err| err.to_string())?;
         Ok(assessment)
+    }
+
+    /// Assess quiescence and, when the certificate allows, present its exact
+    /// generation and work-revision facts to the atomic Working→Idle CAS.
+    /// Shared by every post-turn / lifecycle / watchdog reconcile site so
+    /// they cannot drift on the certificate protocol.
+    pub fn try_reconcile_to_idle(run_id: &str) -> Result<bool, String> {
+        let assessment = Self::assess_run_quiescence(run_id)?;
+        let Some(generation) = assessment.facts.activation_generation else {
+            return Ok(false);
+        };
+        let Some(work_revision) = assessment
+            .facts
+            .progress
+            .as_ref()
+            .map(|progress| progress.work_revision)
+        else {
+            return Ok(false);
+        };
+        Self::try_transition_working_to_idle(run_id, generation, work_revision)
     }
 
     /// Atomically commit the only automatic lifecycle transition owned by
