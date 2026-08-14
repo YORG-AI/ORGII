@@ -49,6 +49,8 @@ import {
   ProjectOrganizationSelect,
   ProjectPropertyFields,
 } from "@src/modules/ProjectManager/shared";
+import type { MarkdownEditorMode } from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
 import { reposAtom } from "@src/store/repo";
 import {
@@ -134,6 +136,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
 }) => {
   const { t } = useTranslation("projects");
   const [saving, setSaving] = useState(false);
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
   const [availableOrgs, setAvailableOrgs] = useState<ProjectOrg[]>([]);
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const globalOrgSelectorValue = useAtomValue(sidebarSelectedOrgIdAtom);
@@ -467,8 +470,10 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       onDescriptionChange={handleDescriptionChange}
       titleVisible={false}
       separatorVisible={false}
-      descriptionClassName="no-bottom-border [&_.ProseMirror]:!pl-1.5"
+      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5"
       descriptionMaxHeight="100%"
+      descriptionMode={editorMode}
+      onDescriptionModeChange={setEditorMode}
       repoPath={repoPath}
       className="flex min-h-0 flex-1 flex-col"
       dataTestId="create-project-editor"
@@ -497,6 +502,14 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               headerContent={composerHeaderContent}
               editorContent={projectEditor}
               pinnedActionsContent={projectPinnedActions}
+              leadingActions={
+                <MarkdownEditorModeSwitch
+                  mode={editorMode}
+                  onModeChange={setEditorMode}
+                  disabled={saving}
+                  dataTestId="create-project-description-mode-switch"
+                />
+              }
               submitButton={
                 <LaunchButton
                   ariaLabel={t("projects.createProject")}

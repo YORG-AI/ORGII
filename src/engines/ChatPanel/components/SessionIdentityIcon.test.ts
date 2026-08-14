@@ -59,7 +59,13 @@ describe("resolveSessionIdentityIconSource", () => {
   it("keeps pending remote identity authoritative over a stale local row", () => {
     expect(
       resolveSessionIdentityIconSource(
-        { session_id: "pending-session", agentIconId: "orgii" },
+        {
+          session_id: "pending-session",
+          status: "running",
+          created_at: "2026-08-14T00:00:00.000Z",
+          updated_at: "2026-08-14T00:00:00.000Z",
+          agentIconId: "orgii",
+        },
         "pending-session",
         "codex",
         undefined

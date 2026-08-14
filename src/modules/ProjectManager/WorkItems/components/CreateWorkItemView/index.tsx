@@ -17,6 +17,7 @@ import {
   ManualCreateComposer,
 } from "@src/modules/ProjectManager/shared";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import {
   CreatorContentLayout,
   PANEL_HEADER_TOKENS,
@@ -374,6 +375,14 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
               headerContent={composerHeaderContent}
               editorContent={inlineFields.descriptionSection}
               pinnedActionsContent={workItemPropertyPills}
+              leadingActions={
+                <MarkdownEditorModeSwitch
+                  mode={inlineFields.editorMode}
+                  onModeChange={inlineFields.setEditorMode}
+                  disabled={saving}
+                  dataTestId="create-work-item-description-mode-switch"
+                />
+              }
               submitButton={
                 <LaunchButton
                   ariaLabel={t("common:actions.save")}

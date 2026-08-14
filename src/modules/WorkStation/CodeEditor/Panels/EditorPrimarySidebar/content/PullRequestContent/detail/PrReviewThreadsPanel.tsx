@@ -20,7 +20,10 @@ import Button from "@src/components/Button";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
-import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 
 interface ThreadGroup {
   rootId: number;
@@ -89,6 +92,7 @@ function ReviewThread({
   const { t } = useTranslation("common");
   const [reply, setReply] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
 
   const handleReply = useCallback(async () => {
     const body = reply.trim();
@@ -97,6 +101,7 @@ function ReviewThread({
     try {
       await onReply(thread.rootId, body);
       setReply("");
+      setEditorMode("write");
     } finally {
       setSubmitting(false);
     }
@@ -129,19 +134,25 @@ function ReviewThread({
       </div>
       {onReply ? (
         <div className="border-t border-border-1 px-3 py-2">
-          <RichMarkdownEditor
+          <MarkdownTextareaEditor
             value={reply}
             onChange={(markdown) => setReply(markdown)}
             placeholder={t("git.pr.replyPlaceholder", "Reply…")}
             minHeight={56}
             maxHeight={144}
             appearance="outlined"
-            toolbarSize="mini"
-            toolbarDropdownPosition="top-start"
             onSubmit={() => void handleReply()}
+            mode={editorMode}
+            onModeChange={setEditorMode}
             dataTestId={`pr-review-reply-editor-${thread.rootId}`}
           />
-          <div className="mt-1.5 flex justify-end">
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            <MarkdownEditorModeSwitch
+              mode={editorMode}
+              onModeChange={setEditorMode}
+              disabled={submitting}
+              dataTestId={`pr-review-reply-mode-switch-${thread.rootId}`}
+            />
             <Button
               htmlType="button"
               variant="secondary"

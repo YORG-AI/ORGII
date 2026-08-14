@@ -57,7 +57,7 @@ interface UseSlashCommandOptions {
    * When `true`, `/mode` always reads + writes `creatorDefaultExecModeAtom`
    * even if there is an active session in the route. Set by callers that
    * mount the input outside an in-session context (e.g. the
-   * `SessionCreator` tiptap, where the user is configuring a *new*
+   * `SessionCreator` composer, where the user is configuring a *new*
    * session and `activeSessionIdAtom` is still pointing at the previous
    * session they were on). Defaults to `false` (the InputArea case).
    */
