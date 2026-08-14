@@ -2,20 +2,36 @@
 //!
 //! Old releases may recreate the retired names after a downgrade. Every new
 //! process therefore retires the exact known legacy set again; there is no
-//! one-time marker. Redesigned data is treated more conservatively: a partial
-//! or structurally unknown runtime namespace fails closed before any legacy
-//! object is dropped.
+//! one-time marker. Redesigned data is treated more conservatively: on a
+//! manifest mismatch the namespace epoch stored in
+//! `agent_org_runtime_meta` decides the outcome — an older epoch is the
+//! sanctioned retire-and-recreate path for deliberate DDL changes, a newer
+//! epoch (user rolled the binary back) and any unexplained mismatch fail
+//! closed. Failing closed is scoped: the caller records the failure in
+//! [`super::availability`] instead of failing whole sessions.db init.
 
 use std::collections::BTreeMap;
 
-use rusqlite::{ffi, Connection, Error as SqliteError, Result as SqliteResult};
+use rusqlite::{ffi, Connection, Error as SqliteError, OptionalExtension, Result as SqliteResult};
 
 use super::{
     agent_inbox, agent_member_interventions, agent_org_plan_approvals, agent_org_runs,
     agent_org_tasks, agent_org_watchdog,
 };
 
-const RUNTIME_TABLES: [&str; 13] = [
+/// Version of the canonical runtime namespace as a whole.
+///
+/// Bump this constant together with any DDL change to a runtime table.
+/// A namespace whose stored epoch is older than the binary's is retired
+/// and recreated (destructive by design — runtime state is rebuildable);
+/// a namespace with a newer epoch fails closed so a rolled-back binary
+/// never mangles data created by a newer release.
+const SCHEMA_EPOCH: i64 = 1;
+
+const SCHEMA_EPOCH_KEY: &str = "schema_epoch";
+
+const RUNTIME_TABLES: [&str; 14] = [
+    "agent_org_runtime_meta",
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
     "agent_org_runtime_member_materializations",
@@ -68,25 +84,57 @@ const DROP_LEGACY_SCHEMA: &str = "DROP TABLE IF EXISTS agent_inbox_materializati
      DROP TABLE IF EXISTS agent_org_run_progress;
      DROP TABLE IF EXISTS agent_org_runs;";
 
+/// Epoch retire path: drop the canonical runtime namespace, children before
+/// FK parents (`agent_org_runtime_runs` last).
+const DROP_RUNTIME_SCHEMA: &str = "DROP TABLE IF EXISTS agent_org_runtime_meta;
+     DROP TABLE IF EXISTS agent_org_runtime_inbox_materializations;
+     DROP TABLE IF EXISTS agent_org_runtime_inbox_delivery_resolutions;
+     DROP TABLE IF EXISTS agent_org_runtime_inbox;
+     DROP TABLE IF EXISTS agent_org_runtime_task_events;
+     DROP TABLE IF EXISTS agent_org_runtime_task_schema_migrations;
+     DROP TABLE IF EXISTS agent_org_runtime_tasks;
+     DROP TABLE IF EXISTS agent_org_runtime_plan_approvals;
+     DROP TABLE IF EXISTS agent_org_runtime_recovery_attempts;
+     DROP TABLE IF EXISTS agent_org_runtime_member_interventions;
+     DROP TABLE IF EXISTS agent_org_runtime_initial_inputs;
+     DROP TABLE IF EXISTS agent_org_runtime_member_materializations;
+     DROP TABLE IF EXISTS agent_org_runtime_run_progress;
+     DROP TABLE IF EXISTS agent_org_runtime_runs;";
+
 type SchemaManifest = BTreeMap<(String, String), (String, String)>;
+
+/// What `agent_org_runtime_meta` says about the namespace's epoch.
+enum EpochReading {
+    /// The meta table itself does not exist: the namespace predates the
+    /// epoch mechanism. Treated as epoch 0, i.e. older than every binary
+    /// that carries this code.
+    PreEpoch,
+    /// A well-formed stored epoch.
+    Epoch(i64),
+    /// The meta table exists but the epoch row is missing or garbled.
+    Unreadable(String),
+}
+
+/// Outcome of the namespace decision for this boot.
+enum NamespaceAction {
+    /// No runtime tables at all: create the namespace from scratch.
+    Fresh,
+    /// Manifest and epoch both match this binary: nothing to do.
+    Canonical,
+    /// Stored epoch is older than [`SCHEMA_EPOCH`]: sanctioned
+    /// retire-and-recreate (destructive by design).
+    Recreate { from_epoch: i64 },
+}
 
 pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
     let expected = expected_manifest()?;
     let tx = database::db::begin_immediate(conn)?;
     let runtime_table_count = count_known_tables(&tx, &RUNTIME_TABLES)?;
 
-    let fresh = match runtime_table_count {
-        0 => true,
-        count if count == RUNTIME_TABLES.len() => {
-            verify_manifest(&tx, &expected)?;
-            false
-        }
-        count => {
-            return Err(schema_error(format!(
-                "partial Agent Org runtime schema: found {count} of {} canonical tables",
-                RUNTIME_TABLES.len()
-            )))
-        }
+    let action = if runtime_table_count == 0 {
+        NamespaceAction::Fresh
+    } else {
+        decide_existing_namespace_action(&tx, &expected)?
     };
 
     let legacy_table_count = count_known_tables(&tx, &LEGACY_TABLES)?;
@@ -100,11 +148,35 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
     }
     tx.execute_batch(DROP_LEGACY_SCHEMA)?;
 
-    if fresh {
-        create_runtime_schema(&tx)?;
-    }
+    let (fresh, recreated_from_epoch) = match action {
+        NamespaceAction::Fresh => {
+            create_runtime_schema(&tx)?;
+            (true, None)
+        }
+        NamespaceAction::Canonical => (false, None),
+        NamespaceAction::Recreate { from_epoch } => {
+            let dropped = count_existing_table_rows(&tx, &RUNTIME_TABLES)?;
+            tracing::warn!(
+                event = "agent_org_runtime_namespace_retired",
+                from_epoch,
+                to_epoch = SCHEMA_EPOCH,
+                "retiring Agent Org runtime namespace from an older schema epoch; runtime state is recreated fresh"
+            );
+            log_destructive_table_drops("epoch_recreate", &dropped);
+            tx.execute_batch(DROP_RUNTIME_SCHEMA)?;
+            create_runtime_schema(&tx)?;
+            (false, Some(from_epoch))
+        }
+    };
     verify_manifest(&tx, &expected)?;
-    agent_inbox::repair_dangling_materializations(&tx)?;
+
+    // Receipt self-heal is O(existing data); it only needs to run after a
+    // boot that changed the namespace (fresh create, epoch recreate, or a
+    // legacy retirement). Canonical no-op boots skip it entirely.
+    let destructive_boot = fresh || recreated_from_epoch.is_some() || legacy_table_count > 0;
+    if destructive_boot {
+        agent_inbox::repair_dangling_materializations(&tx)?;
+    }
     let unknown_objects = unknown_agent_org_objects(&tx)?;
     tx.commit()?;
 
@@ -125,19 +197,110 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
         legacy_table_count,
         legacy_object_count,
         fresh,
-        idempotent = !fresh,
+        recreated_from_epoch,
+        schema_epoch = SCHEMA_EPOCH,
+        idempotent = !destructive_boot,
         "initialized isolated Agent Org runtime schema"
     );
     Ok(())
 }
 
+/// Decide what to do with a non-empty runtime namespace.
+///
+/// The stored epoch is the authority whenever it is readable:
+/// - epoch < binary → sanctioned retire-and-recreate (deliberate DDL
+///   change; also covers pre-epoch namespaces without a meta table),
+/// - epoch > binary → fail closed: the namespace was created by a newer
+///   version and this rolled-back binary must not touch it,
+/// - epoch == binary → the manifest must match exactly; any mismatch is
+///   corruption and fails closed (scoped via `availability`),
+/// - unreadable epoch row → corruption, fail closed.
+fn decide_existing_namespace_action(
+    conn: &Connection,
+    expected: &SchemaManifest,
+) -> SqliteResult<NamespaceAction> {
+    let manifest_state = verify_manifest(conn, expected);
+    match read_schema_epoch(conn)? {
+        EpochReading::Epoch(epoch) if epoch > SCHEMA_EPOCH => Err(schema_error(format!(
+            "Agent Org runtime namespace was created by a newer version \
+             (schema epoch {epoch}, this binary supports {SCHEMA_EPOCH}); refusing to touch it"
+        ))),
+        EpochReading::Epoch(epoch) if epoch < SCHEMA_EPOCH => {
+            Ok(NamespaceAction::Recreate { from_epoch: epoch })
+        }
+        EpochReading::PreEpoch => Ok(NamespaceAction::Recreate { from_epoch: 0 }),
+        EpochReading::Epoch(_) => match manifest_state {
+            Ok(()) => Ok(NamespaceAction::Canonical),
+            Err(mismatch) => Err(mismatch),
+        },
+        EpochReading::Unreadable(detail) => Err(schema_error(format!(
+            "unreadable Agent Org runtime schema epoch ({detail}); manifest {}",
+            match manifest_state {
+                Ok(()) => "matches".to_string(),
+                Err(mismatch) => format!("mismatch: {mismatch}"),
+            }
+        ))),
+    }
+}
+
+fn read_schema_epoch(conn: &Connection) -> SqliteResult<EpochReading> {
+    let meta_exists: bool = conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master
+             WHERE type='table' AND name='agent_org_runtime_meta'
+         )",
+        [],
+        |row| row.get(0),
+    )?;
+    if !meta_exists {
+        return Ok(EpochReading::PreEpoch);
+    }
+    let value: Option<String> = match conn
+        .query_row(
+            "SELECT value FROM agent_org_runtime_meta WHERE key=?1",
+            [SCHEMA_EPOCH_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+    {
+        Ok(value) => value,
+        // A meta table whose shape cannot even answer the query is as
+        // unreadable as a missing row.
+        Err(error) => return Ok(EpochReading::Unreadable(error.to_string())),
+    };
+    Ok(match value {
+        None => EpochReading::Unreadable("schema_epoch row is missing".to_string()),
+        Some(raw) => match raw.trim().parse::<i64>() {
+            Ok(epoch) if epoch >= 0 => EpochReading::Epoch(epoch),
+            _ => EpochReading::Unreadable(format!(
+                "schema_epoch value {raw:?} is not a non-negative integer"
+            )),
+        },
+    })
+}
+
 fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
+    create_meta_schema(conn)?;
     agent_org_runs::create_schema(conn)?;
     agent_inbox::create_schema(conn)?;
     agent_org_tasks::create_schema(conn)?;
     agent_org_plan_approvals::create_schema(conn)?;
     agent_member_interventions::create_schema(conn)?;
     agent_org_watchdog::create_schema(conn)
+}
+
+/// Namespace metadata, currently only the schema epoch. Lives inside the
+/// canonical namespace (and therefore inside the manifest) so the epoch is
+/// dropped and recreated together with the tables it describes.
+fn create_meta_schema(conn: &Connection) -> SqliteResult<()> {
+    conn.execute_batch(&format!(
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        INSERT OR REPLACE INTO agent_org_runtime_meta(key, value)
+            VALUES ('{SCHEMA_EPOCH_KEY}', '{SCHEMA_EPOCH}');"
+    ))
 }
 
 fn expected_manifest() -> SqliteResult<SchemaManifest> {
@@ -487,7 +650,16 @@ mod tests {
             }
             for table in RUNTIME_TABLES {
                 assert!(object_exists(&conn, "table", table), "missing {table}");
-                assert_eq!(row_count(&conn, table), 0, "fresh {table} not empty");
+                let expected_rows = if table == "agent_org_runtime_meta" {
+                    1 // the schema_epoch row
+                } else {
+                    0
+                };
+                assert_eq!(
+                    row_count(&conn, table),
+                    expected_rows,
+                    "fresh {table} row count"
+                );
             }
             assert!(!object_exists(
                 &conn,
@@ -635,6 +807,113 @@ mod tests {
         }
     }
 
+    fn seed_minimal_run(conn: &Connection) {
+        conn.execute_batch(
+            "INSERT INTO agent_org_runtime_runs (
+                id, org_id, coordinator_agent_id, root_session_id,
+                org_snapshot_json, entry_mode, status, created_at, updated_at
+             ) VALUES (
+                'epoch-run', 'org-a', 'coordinator-a', 'root-a', '{}',
+                'standalone_session', 'idle', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z'
+             );",
+        )
+        .expect("seed runtime run row");
+    }
+
+    fn stored_epoch(conn: &Connection) -> String {
+        conn.query_row(
+            "SELECT value FROM agent_org_runtime_meta WHERE key='schema_epoch'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("read stored schema epoch")
+    }
+
+    #[test]
+    fn older_epoch_namespace_is_retired_and_recreated() {
+        // (a) Explicit older epoch with a manifest mismatch: the sanctioned
+        //     retire-and-recreate path for a deliberate DDL change.
+        // (b) Pre-epoch namespace (no meta table at all): treated as epoch 0.
+        for variant in ["older_epoch", "pre_epoch"] {
+            let conn = connection();
+            initialize(&conn).expect("canonical runtime");
+            seed_minimal_run(&conn);
+            seed_shared_sentinels(&conn);
+            let shared_before = shared_sentinel_fingerprint(&conn);
+            match variant {
+                "older_epoch" => conn
+                    .execute_batch(
+                        "UPDATE agent_org_runtime_meta SET value='0' WHERE key='schema_epoch';
+                         DROP TABLE agent_org_runtime_initial_inputs;",
+                    )
+                    .expect("simulate an older-epoch namespace"),
+                "pre_epoch" => conn
+                    .execute_batch("DROP TABLE agent_org_runtime_meta;")
+                    .expect("simulate a pre-epoch namespace"),
+                _ => unreachable!(),
+            }
+
+            initialize(&conn).expect("epoch upgrade must recreate the namespace");
+
+            for table in RUNTIME_TABLES {
+                assert!(
+                    object_exists(&conn, "table", table),
+                    "{variant}: missing {table}"
+                );
+            }
+            assert_eq!(
+                row_count(&conn, "agent_org_runtime_runs"),
+                0,
+                "{variant}: recreate is destructive by design"
+            );
+            assert_eq!(stored_epoch(&conn), SCHEMA_EPOCH.to_string());
+            assert_eq!(shared_sentinel_fingerprint(&conn), shared_before);
+            verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
+                .expect("canonical manifest after epoch recreate");
+        }
+    }
+
+    #[test]
+    fn newer_epoch_namespace_fails_closed_with_rollback_diagnostic() {
+        let conn = connection();
+        initialize(&conn).expect("canonical runtime");
+        seed_minimal_run(&conn);
+        conn.execute(
+            "UPDATE agent_org_runtime_meta SET value='2' WHERE key='schema_epoch'",
+            [],
+        )
+        .expect("simulate a namespace created by a newer version");
+
+        let error = initialize(&conn).expect_err("rolled-back binary must fail closed");
+        assert!(error.to_string().contains("newer version"), "{error}");
+
+        // Nothing was touched: the newer-version data survives intact.
+        assert_eq!(row_count(&conn, "agent_org_runtime_runs"), 1);
+        assert_eq!(stored_epoch(&conn), "2");
+    }
+
+    #[test]
+    fn unreadable_epoch_fails_closed_as_corruption() {
+        for mutate in [
+            // Meta table intact but the epoch row is gone.
+            "DELETE FROM agent_org_runtime_meta WHERE key='schema_epoch';",
+            // Epoch row present but garbled.
+            "UPDATE agent_org_runtime_meta SET value='not-a-number' WHERE key='schema_epoch';",
+        ] {
+            let conn = connection();
+            initialize(&conn).expect("canonical runtime");
+            seed_minimal_run(&conn);
+            conn.execute_batch(mutate).expect("corrupt the epoch row");
+
+            let error = initialize(&conn).expect_err("unreadable epoch must fail closed");
+            assert!(
+                error.to_string().contains("unreadable Agent Org runtime schema epoch"),
+                "{error}"
+            );
+            assert_eq!(row_count(&conn, "agent_org_runtime_runs"), 1);
+        }
+    }
+
     #[test]
     fn create_failure_rolls_back_every_legacy_drop() {
         let conn = connection();
@@ -699,7 +978,10 @@ mod tests {
         let conn = Connection::open(path).expect("reopen shared database");
         verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
             .expect("canonical manifest after concurrent init");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 13);
+        assert_eq!(
+            count_known_tables(&conn, &RUNTIME_TABLES).unwrap(),
+            RUNTIME_TABLES.len()
+        );
     }
 
     #[test]
