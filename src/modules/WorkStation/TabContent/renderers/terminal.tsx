@@ -30,15 +30,21 @@ const LazyFallback = () => (
   <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
 );
 
-const TerminalTabRenderer: React.FC<UnifiedTabContentProps> = memo(() => {
-  const { terminalState, repoPath } = useEditorHostContext();
+const TerminalTabRenderer: React.FC<UnifiedTabContentProps> = memo(
+  ({ isActive }) => {
+    const { terminalState, repoPath } = useEditorHostContext();
 
-  return (
-    <Suspense fallback={<LazyFallback />}>
-      <TerminalMainContent terminalState={terminalState} repoPath={repoPath} />
-    </Suspense>
-  );
-});
+    return (
+      <Suspense fallback={<LazyFallback />}>
+        <TerminalMainContent
+          terminalState={terminalState}
+          repoPath={repoPath}
+          visible={isActive}
+        />
+      </Suspense>
+    );
+  }
+);
 
 TerminalTabRenderer.displayName = "TerminalTabRenderer";
 

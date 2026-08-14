@@ -34,6 +34,7 @@ import {
 } from "@src/store/workstation/codeEditor/terminal/commandDetection";
 
 import { TerminalSearchPanel } from "./components/TerminalSearchPanel";
+import { selectMountedTerminalSession } from "./terminalMountPolicy";
 import type { UseTerminalStateReturn } from "./types";
 
 // Lazy-load the read-only terminal to keep xterm (~300KB) from doubling the chunk
@@ -80,8 +81,7 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
   onOpenFileLink,
   visible = true,
 }) => {
-  const { sessions, activeSessionId, initializedSessions, updateSessionInfo } =
-    terminalState;
+  const { sessions, activeSessionId, updateSessionInfo } = terminalState;
   const [processRefreshSignal, setProcessRefreshSignal] = useState(0);
 
   const requestProcessRefresh = useCallback(() => {
@@ -309,9 +309,10 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
 
   const bgColor = backgroundColor || "var(--cm-editor-background)";
 
-  const visibleSessions = sessions.filter(
-    (session) =>
-      initializedSessions.has(session.id) || session.id === activeSessionId
+  const mountedSession = selectMountedTerminalSession(
+    sessions,
+    activeSessionId,
+    visible
   );
 
   return (
@@ -329,55 +330,59 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
         className="terminal-content-area relative flex flex-1 flex-col overflow-hidden"
         style={{ backgroundColor: bgColor }}
       >
-        {visibleSessions.length === 0 && (
-          <Placeholder variant="empty" fillParentHeight />
-        )}
-        {visibleSessions.map((session) => (
+        {!mountedSession && <Placeholder variant="empty" fillParentHeight />}
+        {mountedSession && (
           <div
-            key={session.id}
+            key={mountedSession.id}
             className="terminal-session-wrapper absolute inset-0 flex h-full w-full flex-col rounded-[8px]"
             style={{
-              display: session.id === activeSessionId ? "flex" : "none",
               backgroundColor: bgColor,
             }}
           >
-            {session.readOnly && session.agentSessionId ? (
+            {mountedSession.readOnly && mountedSession.agentSessionId ? (
               <React.Suspense fallback={null}>
-                <TerminalReadOnly agentSessionId={session.agentSessionId} />
+                <TerminalReadOnly
+                  agentSessionId={mountedSession.agentSessionId}
+                />
               </React.Suspense>
             ) : (
               <TerminalView
                 ref={(handle) => {
                   if (handle) {
-                    terminalRefs.current.set(session.id, handle);
+                    terminalRefs.current.set(mountedSession.id, handle);
                   } else {
-                    terminalRefs.current.delete(session.id);
+                    terminalRefs.current.delete(mountedSession.id);
                   }
                 }}
-                sessionKey={session.id}
+                sessionKey={mountedSession.id}
+                isForeground
                 onSelectionChange={handleSelectionChange}
-                repoPath={session.cwd || repoPath}
-                workingDirectory={session.liveCwd || session.cwd}
+                repoPath={mountedSession.cwd || repoPath}
+                workingDirectory={mountedSession.liveCwd || mountedSession.cwd}
                 onOpenFileLink={onOpenFileLink}
                 backgroundColor={bgColor}
                 // Managed CLI terminals use the configured default shell.
                 // `session.shell` becomes runtime metadata after the PTY connects,
                 // so reusing it as a launch override would recreate xterm.
-                shellOverride={session.agentCommand ? undefined : session.shell}
+                shellOverride={
+                  mountedSession.agentCommand ? undefined : mountedSession.shell
+                }
                 // CLI-agent terminals: pin the PTY to the session's cwd
                 // (worktree) and let lifecycle hooks attribute status and
                 // transcripts to the backing managed session row.
-                forceRepoCwd={Boolean(session.agentCommand)}
-                envOverride={session.envOverride}
-                nameOverride={session.name}
+                forceRepoCwd={Boolean(mountedSession.agentCommand)}
+                envOverride={mountedSession.envOverride}
+                nameOverride={mountedSession.name}
                 onUserInput={() => {
                   requestProcessRefresh();
-                  if (!session.hasUserInput) {
-                    updateSessionInfo(session.id, { hasUserInput: true });
+                  if (!mountedSession.hasUserInput) {
+                    updateSessionInfo(mountedSession.id, {
+                      hasUserInput: true,
+                    });
                   }
                 }}
                 onTitleChange={(title) => {
-                  updateSessionInfo(session.id, {
+                  updateSessionInfo(mountedSession.id, {
                     sequenceTitle: title,
                   });
                 }}
@@ -391,33 +396,33 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                   requestProcessRefresh();
                 }}
                 shellIntegration={{
-                  onPromptStart: () => dispatchPromptStart(session.id),
+                  onPromptStart: () => dispatchPromptStart(mountedSession.id),
                   onCommandExecuted: (commandLine) => {
                     requestProcessRefresh();
                     dispatchCommandExecuted({
-                      sessionId: session.id,
+                      sessionId: mountedSession.id,
                       commandLine,
                     });
                   },
                   onCommandFinished: (exitCode) => {
                     requestProcessRefresh();
                     dispatchCommandFinished({
-                      sessionId: session.id,
+                      sessionId: mountedSession.id,
                       exitCode,
                     });
                   },
                   onCwdChanged: (cwd) => {
                     dispatchCwdChanged({
-                      sessionId: session.id,
+                      sessionId: mountedSession.id,
                       cwd,
                     });
-                    updateSessionInfo(session.id, { liveCwd: cwd });
+                    updateSessionInfo(mountedSession.id, { liveCwd: cwd });
                   },
                 }}
               />
             )}
           </div>
-        ))}
+        )}
       </div>
 
       <TextSelectionDropdown
