@@ -58,9 +58,57 @@ pub fn spawn(app_handle: AppHandle) {
     });
 }
 
+/// In-process rotation cursor over the Working scan (last visited
+/// `(updated_at, id)`). `list_runs_by_status` orders `updated_at ASC LIMIT N`,
+/// so without a cursor teams 101+ would be starved forever whenever more than
+/// [`WATCHDOG_MAX_RUNS`] teams are Working at once.
+static RUNNING_SCAN_CURSOR: std::sync::Mutex<Option<(String, String)>> =
+    std::sync::Mutex::new(None);
+
 fn recover_all_stalled_runs(app_handle: AppHandle, deadline: Instant) -> Result<(), String> {
-    let runs = AgentOrgRunStore::list_running_runs(WATCHDOG_MAX_RUNS)?;
+    let runs = {
+        let mut cursor = RUNNING_SCAN_CURSOR
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        next_running_scan_batch(&mut cursor, WATCHDOG_MAX_RUNS)?
+    };
     recover_listed_runs_until(app_handle, runs, deadline, recover_stalled_run)
+}
+
+/// Produce the next rotated batch of Working runs and advance the cursor.
+/// Successive ticks continue past the previous batch; when the tail of the
+/// keyset is reached the scan wraps around to the front (deduplicating rows
+/// already in this batch), so every Working team is visited across ticks
+/// regardless of population size.
+pub(super) fn next_running_scan_batch(
+    cursor: &mut Option<(String, String)>,
+    limit: usize,
+) -> Result<Vec<AgentOrgRunRecord>, String> {
+    let mut runs = AgentOrgRunStore::list_running_runs_after(
+        cursor
+            .as_ref()
+            .map(|(updated_at, id)| (updated_at.as_str(), id.as_str())),
+        limit,
+    )?;
+    if runs.len() < limit {
+        let seen = runs
+            .iter()
+            .map(|run| run.id.clone())
+            .collect::<HashSet<_>>();
+        for run in AgentOrgRunStore::list_running_runs_after(None, limit)? {
+            if runs.len() >= limit {
+                break;
+            }
+            if seen.contains(&run.id) {
+                continue;
+            }
+            runs.push(run);
+        }
+    }
+    *cursor = runs
+        .last()
+        .map(|run| (run.updated_at.clone(), run.id.clone()));
+    Ok(runs)
 }
 
 #[cfg(test)]

@@ -1074,6 +1074,67 @@ impl AgentOrgRunStore {
         Self::list_runs_by_status(AgentOrgRunStatus::Running, limit)
     }
 
+    /// Keyset continuation of [`Self::list_running_runs`]: rows strictly after
+    /// `(updated_at, id)` in the same `updated_at ASC, id ASC` order. `None`
+    /// starts from the front. The watchdog's rotation cursor uses this so a
+    /// population larger than one batch is still fully visited across ticks.
+    pub fn list_running_runs_after(
+        cursor: Option<(&str, &str)>,
+        limit: usize,
+    ) -> Result<Vec<AgentOrgRunRecord>, String> {
+        let Some((cursor_updated_at, cursor_id)) = cursor else {
+            return Self::list_running_runs(limit);
+        };
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let bounded_limit = i64::try_from(limit)
+            .map_err(|_| format!("Agent Org run list limit is too large: {limit}"))?;
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id,
+                        org_id,
+                        coordinator_agent_id,
+                        root_session_id,
+                        org_snapshot_json,
+                        entry_mode,
+                        status,
+                        activation_generation,
+                        has_initial_work,
+                        work_item_id,
+                        project_slug,
+                        routine_fire_id,
+                        summary,
+                        last_error,
+                        failure_json,
+                        last_activity_outcome,
+                        created_at,
+                        updated_at,
+                        idled_at
+                 FROM agent_org_runs
+                 WHERE root_session_id IS NOT NULL
+                   AND status = ?1
+                   AND (updated_at > ?2 OR (updated_at = ?2 AND id > ?3))
+                 ORDER BY updated_at ASC, id ASC
+                 LIMIT ?4",
+            )
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map(
+                params![
+                    AgentOrgRunStatus::Running.as_str(),
+                    cursor_updated_at,
+                    cursor_id,
+                    bounded_limit
+                ],
+                row_to_run,
+            )
+            .map_err(|err| err.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())
+    }
+
     fn list_runs_by_status(
         status: AgentOrgRunStatus,
         limit: usize,

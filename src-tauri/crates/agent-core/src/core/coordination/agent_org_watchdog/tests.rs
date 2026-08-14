@@ -2,7 +2,9 @@ use super::budget::{
     budget_disposition, coordinator_notice_allowed, rewake_budget_exhausted, BudgetDisposition,
 };
 use super::inspect::is_wakeable_status;
-use super::recover::{recover_listed_runs, repair_stale_in_flight_intents};
+use super::recover::{
+    next_running_scan_batch, recover_listed_runs, repair_stale_in_flight_intents,
+};
 use super::*;
 use crate::coordination::agent_org_runs::{
     AgentOrgRunEntryMode, AgentOrgRunRecord, CreateAgentOrgRunParams,
@@ -192,6 +194,58 @@ fn running_query_is_limited_and_never_visits_quiet_states() {
         .all(|run| run.status == AgentOrgRunStatus::Running));
     assert_eq!(runs.first().map(|run| run.id.as_str()), Some("running-000"));
     assert_eq!(runs.last().map(|run| run.id.as_str()), Some("running-099"));
+}
+
+#[test]
+fn rotation_cursor_visits_every_working_run_across_ticks() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let conn = get_connection().expect("db");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+    const POPULATION: usize = 5;
+    const TICK_LIMIT: usize = 2;
+    for index in 0..POPULATION {
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
+                 created_at, updated_at
+             ) VALUES (?1, 'rotation-org', 'coordinator', ?2, 'standalone_session',
+                       'running', ?3, ?3)",
+            params![
+                format!("rotation-{index:02}"),
+                format!("root-rotation-{index:02}"),
+                format!("2026-08-01T00:00:0{index}Z"),
+            ],
+        )
+        .expect("seed Working run");
+    }
+
+    let mut cursor: Option<(String, String)> = None;
+    let mut visited = HashSet::new();
+    let mut first_batch_ids = Vec::new();
+    for tick in 0..3 {
+        let batch = next_running_scan_batch(&mut cursor, TICK_LIMIT).expect("rotated batch");
+        assert!(batch.len() <= TICK_LIMIT);
+        if tick == 0 {
+            first_batch_ids = batch.iter().map(|run| run.id.clone()).collect();
+        }
+        for run in batch {
+            visited.insert(run.id);
+        }
+    }
+    assert_eq!(
+        visited.len(),
+        POPULATION,
+        "a population larger than one batch must be fully visited across ticks"
+    );
+
+    // The wrap-around continues rotating instead of resetting to the same
+    // oldest batch every tick (the starvation being fixed).
+    let batch = next_running_scan_batch(&mut cursor, TICK_LIMIT).expect("post-wrap batch");
+    assert!(
+        batch.iter().any(|run| !first_batch_ids.contains(&run.id))
+            || first_batch_ids.len() < TICK_LIMIT,
+        "successive ticks must not restart at the identical oldest batch"
+    );
 }
 
 #[test]
