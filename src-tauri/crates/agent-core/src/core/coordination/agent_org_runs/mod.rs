@@ -484,7 +484,7 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             last_error TEXT,
             failure_json TEXT,
             last_activity_outcome TEXT CHECK(last_activity_outcome IN (
-                'completed', 'failed', 'cancelled'
+                'completed', 'failed'
             )),
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
