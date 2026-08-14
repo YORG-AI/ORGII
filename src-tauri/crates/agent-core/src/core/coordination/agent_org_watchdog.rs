@@ -41,7 +41,9 @@ pub(crate) use budget::member_rewake_fingerprint;
 #[cfg(test)]
 pub use budget::test_only_mark_failed_rewake_attempt;
 pub use inspect::inspect_stalled_run;
-pub use plan::{MemberContinuationAction, MemberTaskAssignmentAction, StallRecoveryPlan};
+pub use plan::{
+    MemberContinuationAction, MemberTaskAssignmentAction, StallRecoveryPlan, StaleTurnIntentRepair,
+};
 pub use recover::{recover_stalled_run, spawn};
 pub(crate) use reservation::{
     commit_member_rewake_reservation, refund_member_rewake_reservation,
@@ -75,6 +77,12 @@ const WATCHDOG_MAX_RUNS: usize = 100;
 const WATCHDOG_SCAN_BUDGET: Duration = Duration::from_millis(250);
 const RECOVERY_DELAYS_SECS: [i64; 3] = [60, 5 * 60, 15 * 60];
 const PENDING_MATERIALIZATION_GRACE_SECS: i64 = 2 * 60;
+/// A `running` turn intent whose scheduler died (process crash mid-turn) can
+/// never terminalize itself; it blocks quiescence forever. When a Working run
+/// is blocked *only* by such intents and they are older than this grace, the
+/// watchdog marks them failed. Young intents are never touched — a live turn
+/// refreshes its row at every status transition.
+const STALE_INTENT_REPAIR_GRACE_SECS: i64 = 15 * 60;
 const MEMBER_REWAKE: &str = "member_rewake";
 const COORDINATOR_NOTICE: &str = "coordinator_notice";
 

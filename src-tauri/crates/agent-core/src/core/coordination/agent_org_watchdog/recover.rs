@@ -101,6 +101,20 @@ fn execute_stall_recovery_plan(
     plan: StallRecoveryPlan,
     wake_hook: &dyn InboxWakeHook,
 ) -> Result<StallRecoveryPlan, String> {
+    // Terminalize crash-orphaned running intents first. The next quiescence
+    // pass (usually the next tick) can then idle the team; this tick's plan
+    // deliberately does not re-assess.
+    if !plan.stale_intent_repairs.is_empty() {
+        match repair_stale_in_flight_intents(run_id, &plan.stale_intent_repairs) {
+            Ok(_) => {}
+            Err(err) => tracing::warn!(
+                run_id = %run_id,
+                error = %err,
+                "[agent_org_watchdog] stale turn-intent repair failed; will retry next tick"
+            ),
+        }
+    }
+
     // Reconcile first: when the run actually closes there is nothing
     // left to wake or repair. When reconciliation declines (e.g. the
     // coordinator root session is still open), fall through and deliver
@@ -224,6 +238,74 @@ fn execute_stall_recovery_plan(
     }
 
     Ok(plan)
+}
+
+/// Mark analyzed crash-orphaned `running` intents failed. Every row is
+/// revalidated under the writer lock: it must still be `running`, still owned
+/// by this run, and still older than the repair grace — a turn that revived
+/// (impossible today, defensive) or a fresh intent with a recycled id is left
+/// untouched. Returns the number of intents terminalized.
+pub(super) fn repair_stale_in_flight_intents(
+    run_id: &str,
+    repairs: &[StaleTurnIntentRepair],
+) -> Result<usize, String> {
+    with_sessions_writer(|| -> Result<usize, String> {
+        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|err| err.to_string())?;
+        let running: bool = tx
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_runs WHERE id=?1 AND status='running'
+                 )",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        if !running {
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(0);
+        }
+        let stale_before =
+            (Utc::now() - ChronoDuration::seconds(STALE_INTENT_REPAIR_GRACE_SECS)).to_rfc3339();
+        let now = Utc::now().to_rfc3339();
+        let mut repaired = 0usize;
+        for repair in repairs {
+            // `running → failed` is a legal state-machine transition; the
+            // status guard makes this exactly that transition and nothing else.
+            let changed = tx
+                .execute(
+                    "UPDATE session_turn_intents
+                     SET status='failed', updated_at=?5
+                     WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3
+                       AND status='running'
+                       AND (datetime(updated_at) IS NULL
+                            OR datetime(updated_at)<=datetime(?4))",
+                    params![
+                        &repair.session_id,
+                        &repair.turn_intent_id,
+                        run_id,
+                        &stale_before,
+                        &now
+                    ],
+                )
+                .map_err(|err| err.to_string())?;
+            if changed == 1 {
+                repaired += 1;
+                tracing::error!(
+                    run_id = %run_id,
+                    session_id = %repair.session_id,
+                    turn_intent_id = %repair.turn_intent_id,
+                    intent_updated_at = %repair.updated_at,
+                    grace_secs = STALE_INTENT_REPAIR_GRACE_SECS,
+                    "[agent_org_watchdog] crash-orphaned running turn intent had no live scheduler owner and exceeded the repair grace; marked failed so team quiescence can settle"
+                );
+            }
+        }
+        tx.commit().map_err(|err| err.to_string())?;
+        Ok(repaired)
+    })
 }
 
 fn clear_coordinator_notice_budget_if_recovered(run_id: &str) -> Result<(), String> {

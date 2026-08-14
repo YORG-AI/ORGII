@@ -2,9 +2,12 @@ use super::budget::{
     budget_disposition, coordinator_notice_allowed, rewake_budget_exhausted, BudgetDisposition,
 };
 use super::inspect::is_wakeable_status;
-use super::recover::recover_listed_runs;
+use super::recover::{recover_listed_runs, repair_stale_in_flight_intents};
 use super::*;
-use crate::coordination::agent_org_runs::{AgentOrgRunEntryMode, AgentOrgRunRecord};
+use crate::coordination::agent_org_runs::{
+    AgentOrgRunEntryMode, AgentOrgRunRecord, CreateAgentOrgRunParams,
+};
+use crate::definitions::orgs::OrgDefinition;
 
 fn fake_run(id: &str) -> AgentOrgRunRecord {
     let now = Utc::now().to_rfc3339();
@@ -201,6 +204,179 @@ fn coordinator_notice_budget_backs_off_and_resets_on_new_reason() {
     assert!(coordinator_notice_allowed(&run_id, "task a stuck").expect("notice"));
     assert!(!coordinator_notice_allowed(&run_id, "task a stuck").expect("backoff"));
     assert!(coordinator_notice_allowed(&run_id, "task b stuck").expect("new reason"));
+}
+
+fn ensure_watchdog_runtime_schemas() {
+    let conn = get_connection().expect("test sqlite connection");
+    crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+    crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
+        .expect("agent sessions schema");
+    crate::core::session::persistence::init(&conn).expect("unified session schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org runtime schemas");
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS code_sessions (
+            session_id TEXT PRIMARY KEY,
+            cli_agent_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            parent_session_id TEXT,
+            org_member_id TEXT,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS session_turn_intents (
+            session_id TEXT NOT NULL,
+            turn_intent_id TEXT NOT NULL,
+            client_message_id TEXT,
+            org_run_id TEXT,
+            source TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (session_id, turn_intent_id)
+        );
+        CREATE TABLE IF NOT EXISTS events (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL
+        );",
+    )
+    .expect("runtime session schemas");
+}
+
+/// A Working run that is quiescent in every dimension except one `running`
+/// turn intent whose scheduler no longer exists (crash mid-turn).
+fn seed_wedged_working_run(intent_updated_at: &str) -> String {
+    ensure_watchdog_runtime_schemas();
+    let root_session_id = format!("wedged-root-{}", uuid::Uuid::new_v4());
+    crate::core::session::persistence::upsert_session(
+        &crate::core::session::persistence::UnifiedSessionRecord {
+            session_id: root_session_id.clone(),
+            name: "wedged root".to_string(),
+            status: SessionStatus::Idle.as_str().to_string(),
+            session_type: "agent".to_string(),
+            agent_definition_id: Some("agent-coord".to_string()),
+            created_at: Utc::now().to_rfc3339(),
+            updated_at: Utc::now().to_rfc3339(),
+            ..Default::default()
+        },
+    )
+    .expect("upsert quiescent coordinator session");
+    let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
+        org_id: "wedged-org".to_string(),
+        coordinator_agent_id: "agent-coord".to_string(),
+        root_session_id: Some(root_session_id.clone()),
+        org_snapshot: OrgDefinition {
+            id: "wedged-org".to_string(),
+            name: "Wedged Org".to_string(),
+            role: "lead".to_string(),
+            agent_id: "agent-coord".to_string(),
+            description: None,
+            hierarchy_mode: Default::default(),
+            plan_approval_policy: Default::default(),
+            children: Vec::new(),
+        },
+        entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+        status: AgentOrgRunStatus::Running,
+        work_item_id: None,
+        project_slug: None,
+        routine_fire_id: None,
+    })
+    .expect("create Working run");
+    agent_org_tasks::AgentOrgTaskStore::create(agent_org_tasks::CreateTaskParams {
+        id: "wedged-task-done".to_string(),
+        org_run_id: run.id.clone(),
+        subject: "done".to_string(),
+        description: String::new(),
+        active_form: None,
+        owner: None,
+        status: TaskStatus::Completed,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: None,
+    })
+    .expect("create completed task");
+    let revision = AgentOrgRunStore::stage_coordinator_work_revision(&run.id)
+        .expect("stage coordinator work revision")
+        .expect("running run has a work revision");
+    AgentOrgRunStore::mark_coordinator_observed_work_revision(&run.id, revision)
+        .expect("mark coordinator observed revision");
+
+    let conn = get_connection().expect("test sqlite connection");
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+             session_id, turn_intent_id, org_run_id, source, status,
+             created_at, updated_at
+         ) VALUES (?1, 'wedged-turn-intent', ?2, 'agent_org', 'running', ?3, ?3)",
+        params![&root_session_id, &run.id, intent_updated_at],
+    )
+    .expect("seed crash-orphaned running intent");
+    run.id
+}
+
+#[test]
+fn wedged_running_intent_older_than_grace_is_repaired_and_run_can_idle() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let aged =
+        (Utc::now() - ChronoDuration::seconds(STALE_INTENT_REPAIR_GRACE_SECS + 300)).to_rfc3339();
+    let run_id = seed_wedged_working_run(&aged);
+
+    let assessment =
+        AgentOrgRunStore::assess_run_quiescence(&run_id).expect("assess wedged run");
+    assert_eq!(
+        assessment.decision,
+        AgentOrgQuiescenceDecision::KeepWorking,
+        "the crash-orphaned intent must block quiescence before repair"
+    );
+    assert_eq!(assessment.facts.in_flight_turn_intent_count, 1);
+
+    let plan = inspect_stalled_run(&run_id).expect("inspect wedged run");
+    assert_eq!(plan.stale_intent_repairs.len(), 1);
+    assert_eq!(plan.stale_intent_repairs[0].turn_intent_id, "wedged-turn-intent");
+    assert!(!plan.terminal_candidate);
+
+    let repaired =
+        repair_stale_in_flight_intents(&run_id, &plan.stale_intent_repairs).expect("repair");
+    assert_eq!(repaired, 1);
+    let status: String = get_connection()
+        .expect("db")
+        .query_row(
+            "SELECT status FROM session_turn_intents WHERE turn_intent_id='wedged-turn-intent'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("load repaired intent");
+    assert_eq!(status, "failed");
+
+    // The next quiescence pass can now settle the team.
+    let assessment =
+        AgentOrgRunStore::assess_run_quiescence(&run_id).expect("assess repaired run");
+    assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::Quiescent);
+    let generation = assessment
+        .facts
+        .activation_generation
+        .expect("activation generation");
+    let work_revision = assessment
+        .facts
+        .progress
+        .as_ref()
+        .map(|progress| progress.work_revision)
+        .expect("work revision");
+    assert!(
+        AgentOrgRunStore::try_transition_working_to_idle(&run_id, generation, work_revision)
+            .expect("idle transition"),
+        "the repaired team must be reconcilable to Idle"
+    );
+}
+
+#[test]
+fn young_running_intent_is_never_auto_repaired() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run_id = seed_wedged_working_run(&Utc::now().to_rfc3339());
+
+    let plan = inspect_stalled_run(&run_id).expect("inspect young-intent run");
+    assert!(
+        plan.stale_intent_repairs.is_empty(),
+        "an intent inside the grace window must never be terminalized"
+    );
+    assert!(!plan.terminal_candidate);
 }
 
 #[test]
