@@ -581,6 +581,55 @@ impl AgentOrgsStore {
     }
 }
 
+/// Async wrappers for every mutating store entry point.
+///
+/// Store mutations fsync under the store mutex; calling them directly from
+/// an async context stalls the executor. These wrappers are the single
+/// spawn_blocking owner — async callers (Tauri commands, model tools,
+/// launch) go through here instead of hand-rolling their own offloading.
+impl AgentOrgsStore {
+    async fn run_blocking<T, F>(self: &Arc<Self>, task: F) -> Result<T, String>
+    where
+        T: Send + 'static,
+        F: FnOnce(&AgentOrgsStore) -> Result<T, String> + Send + 'static,
+    {
+        let store = Arc::clone(self);
+        tokio::task::spawn_blocking(move || task(&store))
+            .await
+            .map_err(|err| format!("Agent Org store task failed: {err}"))?
+    }
+
+    pub async fn insert_async(self: &Arc<Self>, org: OrgDefinition) -> Result<String, String> {
+        self.run_blocking(move |store| store.insert(org)).await
+    }
+
+    pub async fn replace_async(self: &Arc<Self>, org: OrgDefinition) -> Result<(), String> {
+        self.run_blocking(move |store| store.replace(org)).await
+    }
+
+    pub async fn remove_async(self: &Arc<Self>, org_id: String) -> Result<bool, String> {
+        self.run_blocking(move |store| store.remove(&org_id)).await
+    }
+
+    pub async fn apply_member_launch_overrides_async(
+        self: &Arc<Self>,
+        org_id: String,
+        overrides: HashMap<String, OrgMemberLaunchOverride>,
+    ) -> Result<(), String> {
+        self.run_blocking(move |store| store.apply_member_launch_overrides(&org_id, &overrides))
+            .await
+    }
+
+    pub(in crate::core::definitions) async fn save_trusted_settings_async(
+        self: &Arc<Self>,
+        org: OrgDefinition,
+        actor: super::commands::TrustedAgentOrgSettingsActor,
+    ) -> Result<OrgDefinition, String> {
+        self.run_blocking(move |store| store.save_trusted_settings(org, actor))
+            .await
+    }
+}
+
 pub fn apply_overrides_to_members(
     members: &mut [FlatOrgMember],
     overrides: &HashMap<String, OrgMemberLaunchOverride>,
