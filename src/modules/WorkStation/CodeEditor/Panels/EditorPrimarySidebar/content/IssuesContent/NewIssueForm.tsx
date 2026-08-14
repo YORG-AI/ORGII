@@ -9,7 +9,10 @@ import Input from "@src/components/Input";
 import Tag from "@src/components/Tag";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
-import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 
 interface NewIssueFormProps {
   onSubmit: (
@@ -30,6 +33,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
 
     const [title, setTitle] = useState("");
     const [body, setBody] = useState("");
+    const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
     const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
     const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
 
@@ -82,7 +86,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
         />
 
         {/* Body */}
-        <RichMarkdownEditor
+        <MarkdownTextareaEditor
           value={body}
           onChange={(markdown) => setBody(markdown)}
           placeholder={t(
@@ -92,8 +96,8 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
           minHeight={96}
           maxHeight={240}
           appearance="outlined"
-          toolbarSize="mini"
-          toolbarDropdownPosition="top-start"
+          mode={editorMode}
+          onModeChange={setEditorMode}
           dataTestId="new-issue-body-editor"
         />
 
@@ -162,26 +166,34 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-2">
-          <Button
-            htmlType="button"
-            variant="tertiary"
-            size="mini"
-            icon={<X size={11} />}
+        <div className="flex items-center justify-between gap-2">
+          <MarkdownEditorModeSwitch
+            mode={editorMode}
+            onModeChange={setEditorMode}
             disabled={loading}
-            onClick={onCancel}
-          >
-            {t("actions.cancel", "Cancel")}
-          </Button>
-          <Button
-            htmlType="submit"
-            variant="primary"
-            size="mini"
-            loading={loading}
-            disabled={!title.trim() || loading}
-          >
-            {t("actions.create", "Create")}
-          </Button>
+            dataTestId="new-issue-body-mode-switch"
+          />
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="mini"
+              icon={<X size={11} />}
+              disabled={loading}
+              onClick={onCancel}
+            >
+              {t("actions.cancel", "Cancel")}
+            </Button>
+            <Button
+              htmlType="submit"
+              variant="primary"
+              size="mini"
+              loading={loading}
+              disabled={!title.trim() || loading}
+            >
+              {t("actions.create", "Create")}
+            </Button>
+          </div>
         </div>
       </form>
     );

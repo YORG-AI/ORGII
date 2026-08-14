@@ -5,4 +5,6 @@ export interface SessionDerivedViewProps {
   turns: TurnSummary[];
   loading: boolean;
   error: string | null;
+  /** Space reserved for host chrome that overlays the view. */
+  topInset?: number;
 }

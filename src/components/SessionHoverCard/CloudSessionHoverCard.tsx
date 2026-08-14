@@ -75,7 +75,9 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
       : row.repoPath
         ? basename(row.repoPath)
         : "";
-    const branchLabel = formatBranchLabel(row.branch);
+    const branchLabel =
+      formatBranchLabel(row.branch) || formatBranchLabel(row.baseBranch);
+    const worktreeBranchLabel = formatBranchLabel(row.worktreeBranch);
     const lastActivityLabel = row.lastActivityAt
       ? formatReplayDateLabel(row.lastActivityAt, {
           todayLabel: t("common:relativeDate.today"),
@@ -199,12 +201,51 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
         )}
         {(repoName || branchLabel) && (
           <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
-            <div className="truncate text-text-2">
-              {repoName && <span>{repoName}</span>}
-              {repoName && branchLabel && (
-                <span className="mx-1 text-text-4">·</span>
+            <div
+              className="flex min-w-0 items-center text-text-2"
+              data-testid="session-hover-repo-branch"
+              title={[repoName, branchLabel].filter(Boolean).join(" · ")}
+            >
+              {repoName && (
+                <span
+                  className={
+                    branchLabel
+                      ? "min-w-0 max-w-[calc(50%-6px)] truncate"
+                      : "min-w-0 flex-1 truncate"
+                  }
+                  data-testid="session-hover-workspace"
+                  title={row.repoScopeKey ?? row.repoPath}
+                >
+                  {repoName}
+                </span>
               )}
-              {branchLabel && <span>{branchLabel}</span>}
+              {repoName && branchLabel && (
+                <span className="mx-1 shrink-0 text-text-4">·</span>
+              )}
+              {branchLabel && (
+                <span
+                  className={
+                    repoName
+                      ? "min-w-0 max-w-[calc(50%-6px)] truncate"
+                      : "min-w-0 flex-1 truncate"
+                  }
+                  data-testid="session-hover-branch"
+                  title={branchLabel}
+                >
+                  {branchLabel}
+                </span>
+              )}
+            </div>
+          </HoverCardRow>
+        )}
+        {worktreeBranchLabel && worktreeBranchLabel !== branchLabel && (
+          <HoverCardRow icon={<GitFork size={13} strokeWidth={1.75} />}>
+            <div
+              className="truncate text-text-2"
+              data-testid="session-hover-worktree-branch"
+              title={worktreeBranchLabel}
+            >
+              {worktreeBranchLabel}
             </div>
           </HoverCardRow>
         )}

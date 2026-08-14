@@ -480,6 +480,7 @@ pub fn create_routes() -> Router {
             "/test/background-jobs/{session_id}",
             get(test::core::test_background_jobs),
         )
+        .route("/test/memory-metrics", get(test::core::test_memory_metrics))
         .route(
             "/test/last-assistant-text",
             post(test::core::test_last_assistant_text),

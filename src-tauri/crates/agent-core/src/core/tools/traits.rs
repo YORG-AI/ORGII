@@ -237,6 +237,27 @@ pub trait Tool: Send + Sync {
         false
     }
 
+    /// Cheap, side-effect-free probe of the external state this call
+    /// observes, for the turn executor's repeat guard.
+    ///
+    /// The repeat guard breaks the turn after `MAX_REPEAT_STREAK` identical
+    /// tool calls. That is correct for deterministic tools (same args → same
+    /// result → the model is looping), but wrong for observation tools whose
+    /// identical re-invocation is the intended protocol while the observed
+    /// job advances — `await_output` polling a long build, most notably.
+    /// Tools in that category override this to return a fingerprint of the
+    /// observed state (job status + a monotonic output cursor): when the
+    /// fingerprint changed between two identical calls, the model received
+    /// new information and the guard resets its streak; when it is unchanged,
+    /// the repeat counts as a genuine no-progress attempt.
+    ///
+    /// `None` (the default) keeps pure args-identity semantics. Must not
+    /// block or mutate anything — the executor calls it before dispatching
+    /// the batch.
+    fn progress_fingerprint(&self, _params: &Value) -> Option<String> {
+        None
+    }
+
     /// Whether this tool can run concurrently with other tool calls in the
     /// same LLM response, even if it mutates state.
     ///

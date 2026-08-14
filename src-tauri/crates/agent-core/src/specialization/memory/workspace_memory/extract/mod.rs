@@ -8,8 +8,7 @@
 //!   fields are `pub(super)` so only the gating helpers and the runner can
 //!   mutate them.
 //! - **`gating`** — `should_extract`, `skip_if_main_agent_wrote_memory`,
-//!   `stash_pending`, `take_pending`, `record_turn`, plus the cursor /
-//!   memory-write inspection helpers.
+//!   `record_turn`, plus the cursor / memory-write inspection helpers.
 //! - **`runner`** — `run_extraction` (the forked-agent invocation),
 //!   prompt building, and the allow-list tool policy.
 //!
@@ -21,9 +20,7 @@ mod gating;
 mod runner;
 mod state;
 
-pub use gating::{
-    record_turn, should_extract, skip_if_main_agent_wrote_memory, stash_pending, take_pending,
-};
+pub use gating::{record_turn, should_extract, skip_if_main_agent_wrote_memory};
 pub use runner::run_extraction;
 pub use state::ExtractMemoriesState;
 

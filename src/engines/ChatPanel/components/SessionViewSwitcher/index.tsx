@@ -133,6 +133,8 @@ SessionRawToolbarActions.displayName = "SessionRawToolbarActions";
 export interface SessionAlternateSurfaceProps {
   sessionId: string | null;
   view: UseSessionViewModeResult;
+  /** Space reserved for host chrome that overlays the view. */
+  topInset?: number;
 }
 
 /**
@@ -140,7 +142,7 @@ export interface SessionAlternateSurfaceProps {
  * the transcript mounted underneath without a second surface fighting it.
  */
 export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
-  memo(({ sessionId, view }) => {
+  memo(({ sessionId, view, topInset = 0 }) => {
     const { mode } = view;
     const needsTurnIndex = mode === "timeline" || mode === "changes";
     const turnIndex = useSessionTurnIndex(sessionId, needsTurnIndex);
@@ -151,6 +153,7 @@ export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
         <SessionRawTranscriptView
           sessionId={sessionId}
           transcript={view.transcript}
+          topInset={topInset}
         />
       );
     }
@@ -160,6 +163,7 @@ export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
           turns={turnIndex.turns}
           loading={turnIndex.loading}
           error={turnIndex.error}
+          topInset={topInset}
         />
       );
     }
@@ -169,6 +173,7 @@ export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
           turns={turnIndex.turns}
           loading={turnIndex.loading}
           error={turnIndex.error}
+          topInset={topInset}
         />
       );
     }

@@ -12,7 +12,10 @@ import { VirtualizedListBase } from "@src/components/TreeRow";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { formatDuration } from "@src/util/time/formatDuration";
 
-import { SessionDerivedViewShell } from "./SessionDerivedViewShell";
+import {
+  SESSION_DERIVED_SUMMARY_HEIGHT_PX,
+  SessionDerivedViewShell,
+} from "./SessionDerivedViewShell";
 import type { TimelineRow } from "./sessionViewProjections";
 import { projectSessionTimeline } from "./sessionViewProjections";
 import type { SessionDerivedViewProps } from "./types";
@@ -71,7 +74,7 @@ const TimelineRowView: React.FC<{ row: TimelineRow }> = memo(({ row }) => {
 TimelineRowView.displayName = "TimelineRowView";
 
 const SessionTimelineView: React.FC<SessionDerivedViewProps> = memo(
-  ({ turns, loading, error }) => {
+  ({ turns, loading, error, topInset }) => {
     const { t } = useTranslation("sessions");
     const timeline = useMemo(() => projectSessionTimeline(turns), [turns]);
 
@@ -84,6 +87,7 @@ const SessionTimelineView: React.FC<SessionDerivedViewProps> = memo(
         emptyLabel={t("chat.sessionViews.timelineEmpty", {
           defaultValue: "No turns to show yet.",
         })}
+        topInset={topInset}
         summary={t("chat.sessionViews.timelineSummary", {
           count: timeline.rows.length,
           duration: formatDuration(timeline.totalMs),
@@ -93,6 +97,9 @@ const SessionTimelineView: React.FC<SessionDerivedViewProps> = memo(
         <VirtualizedListBase<TimelineRow>
           items={timeline.rows}
           itemHeight={ROW_HEIGHT}
+          paddingTop={
+            topInset ? topInset + SESSION_DERIVED_SUMMARY_HEIGHT_PX : undefined
+          }
           computeItemKey={(row) => row.turnId}
           getItemPath={(row) => row.turnId}
           renderItem={(row) => <TimelineRowView row={row} />}

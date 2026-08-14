@@ -112,27 +112,24 @@ vi.mock("@src/modules/ProjectManager/shared", () => ({
   }),
 }));
 
-vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
+vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", () => ({
   default: ({
     value,
     onChange,
     editable,
     dataTestId,
-    toolbarMode,
     onSubmit,
   }: {
     value: string;
     onChange?: (markdown: string) => void;
     editable?: boolean;
     dataTestId?: string;
-    toolbarMode?: string;
     onSubmit?: () => void;
   }) =>
     createElement("textarea", {
       value,
       readOnly: !editable,
       "data-testid": dataTestId,
-      "data-toolbar-mode": toolbarMode,
       onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
         onChange?.(event.target.value),
       onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -627,7 +624,6 @@ describe("WorkItemContent description editing", () => {
       "[data-testid='github-issue-description-editor']"
     );
     expect(editor?.value).toBe(baseWorkItem.spec);
-    expect(editor?.dataset.toolbarMode).toBe("inline");
 
     changeDescription(
       "## Updated GitHub description",

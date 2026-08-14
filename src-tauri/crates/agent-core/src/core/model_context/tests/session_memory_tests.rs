@@ -2,11 +2,23 @@
 //! message preservation, and API invariant handling.
 
 use crate::model_context::session_memory::{
-    last_turn_has_tool_calls, should_extract, try_sm_compact, SessionMemoryCompactConfig,
-    SessionMemoryConfig, SessionMemoryState,
+    last_turn_has_tool_calls, resolve_summarized_boundary_idx, should_extract, try_sm_compact,
+    SessionMemoryCompactConfig, SessionMemoryConfig, SessionMemoryState,
 };
 use crate::test_support::{assistant_msg, assistant_with_tool_calls, tool_msg, user_msg};
 use serde_json::{json, Value};
+
+/// Test shim: identity start-sequences (seq == index) so the pre-seq test
+/// fixtures keep their meaning while also exercising the anchor resolver.
+fn sm_compact(
+    messages: &[Value],
+    state: &SessionMemoryState,
+    config: &SessionMemoryCompactConfig,
+) -> Option<Vec<Value>> {
+    let start_seqs: Vec<i64> = (0..messages.len() as i64).collect();
+    let anchor_idx = resolve_summarized_boundary_idx(state.last_summarized_seq, &start_seqs);
+    try_sm_compact(messages, state.content.as_deref(), anchor_idx, config)
+}
 
 fn message_text(msg: &Value) -> &str {
     let content = msg.get("content").expect("message content");
@@ -53,7 +65,7 @@ fn compact_config_defaults_match_spec() {
 fn state_default_is_empty() {
     let state = SessionMemoryState::default();
     assert!(state.content.is_none());
-    assert!(state.last_summarized_msg_idx.is_none());
+    assert!(state.last_summarized_seq.is_none());
     assert_eq!(state.tokens_at_last_extraction, 0);
     assert_eq!(state.tool_calls_since_extraction, 0);
     assert!(!state.initialized);
@@ -200,7 +212,7 @@ fn sm_compact_no_content_returns_none() {
     let state = SessionMemoryState::default();
     let config = SessionMemoryCompactConfig::default();
     let messages = vec![user_msg("hello"), assistant_msg("hi")];
-    assert!(try_sm_compact(&messages, &state, &config, 100_000).is_none());
+    assert!(sm_compact(&messages, &state, &config).is_none());
 }
 
 #[test]
@@ -211,7 +223,7 @@ fn sm_compact_empty_content_returns_none() {
     };
     let config = SessionMemoryCompactConfig::default();
     let messages = vec![user_msg("hello"), assistant_msg("hi")];
-    assert!(try_sm_compact(&messages, &state, &config, 100_000).is_none());
+    assert!(sm_compact(&messages, &state, &config).is_none());
 }
 
 #[test]
@@ -224,7 +236,7 @@ fn sm_compact_produces_summary_plus_recent() {
 
     let state = SessionMemoryState {
         content: Some("# Session Summary\n\nWorking on project X".to_string()),
-        last_summarized_msg_idx: Some(20),
+        last_summarized_seq: Some(20),
         ..Default::default()
     };
     let config = SessionMemoryCompactConfig {
@@ -233,7 +245,7 @@ fn sm_compact_produces_summary_plus_recent() {
         max_tokens_to_keep: 5_000,
     };
 
-    let result = try_sm_compact(&messages, &state, &config, 200_000);
+    let result = sm_compact(&messages, &state, &config);
     assert!(result.is_some());
 
     let compacted = result.unwrap();
@@ -271,12 +283,12 @@ fn sm_compact_preserves_tool_pairs() {
 
     let state = SessionMemoryState {
         content: Some("# Summary\n\nDoing things".to_string()),
-        last_summarized_msg_idx: Some(5),
+        last_summarized_seq: Some(5),
         ..Default::default()
     };
     let config = SessionMemoryCompactConfig::default();
 
-    let result = try_sm_compact(&messages, &state, &config, 200_000);
+    let result = sm_compact(&messages, &state, &config);
     if let Some(compacted) = result {
         for (idx, msg) in compacted.iter().enumerate() {
             let role = msg.get("role").and_then(|val| val.as_str()).unwrap_or("");
@@ -312,12 +324,12 @@ fn sm_compact_no_boundary_keeps_from_start() {
 
     let state = SessionMemoryState {
         content: Some("# Summary\n\nStarting work".to_string()),
-        last_summarized_msg_idx: None,
+        last_summarized_seq: None,
         ..Default::default()
     };
     let config = SessionMemoryCompactConfig::default();
 
-    let result = try_sm_compact(&messages, &state, &config, 200_000);
+    let result = sm_compact(&messages, &state, &config);
     if let Some(compacted) = result {
         assert!(
             compacted[0].get("role").and_then(|val| val.as_str()) == Some("user"),
@@ -334,13 +346,13 @@ fn sm_compact_no_boundary_keeps_from_start() {
 fn sm_compact_single_message_expands_to_all() {
     let state = SessionMemoryState {
         content: Some("Summary".to_string()),
-        last_summarized_msg_idx: Some(0),
+        last_summarized_seq: Some(0),
         ..Default::default()
     };
     let config = SessionMemoryCompactConfig::default();
     let messages = vec![user_msg("single")];
 
-    let result = try_sm_compact(&messages, &state, &config, 200_000);
+    let result = sm_compact(&messages, &state, &config);
     // With one tiny message and default min thresholds, backward expansion
     // goes to index 0 — nothing gets dropped, so the result is still valid
     // (summary + all messages).
@@ -357,13 +369,13 @@ fn sm_compact_single_message_expands_to_all() {
 fn sm_compact_boundary_beyond_messages_still_compacts() {
     let state = SessionMemoryState {
         content: Some("Summary of old work".to_string()),
-        last_summarized_msg_idx: Some(100),
+        last_summarized_seq: Some(100),
         ..Default::default()
     };
     let config = SessionMemoryCompactConfig::default();
     let messages = vec![user_msg("a"), assistant_msg("b")];
 
-    let result = try_sm_compact(&messages, &state, &config, 200_000);
+    let result = sm_compact(&messages, &state, &config);
     // Boundary is clamped to messages.len(), so backward expansion keeps
     // all messages. The result has summary + all original messages.
     if let Some(compacted) = &result {
@@ -386,19 +398,19 @@ fn restore_sm_state_from_persisted_data() {
     let mut state = SessionMemoryState::default();
     assert!(!state.initialized);
     assert!(state.content.is_none());
-    assert!(state.last_summarized_msg_idx.is_none());
+    assert!(state.last_summarized_seq.is_none());
 
     // Simulate restoring from PersistedSessionMemoryState
     let persisted_content = Some("## Session Title\nMigration task".to_string());
-    let persisted_idx = Some(42_usize);
+    let persisted_seq = Some(42_i64);
 
     state.content = persisted_content.clone();
-    state.last_summarized_msg_idx = persisted_idx;
+    state.last_summarized_seq = persisted_seq;
     state.initialized = true;
 
     assert!(state.initialized);
     assert_eq!(state.content, persisted_content);
-    assert_eq!(state.last_summarized_msg_idx, Some(42));
+    assert_eq!(state.last_summarized_seq, Some(42));
     // Counters remain zero — they track in-session activity only
     assert_eq!(state.tokens_at_last_extraction, 0);
     assert_eq!(state.tool_calls_since_extraction, 0);
@@ -408,7 +420,7 @@ fn restore_sm_state_from_persisted_data() {
 fn restored_sm_state_enables_sm_compact() {
     let state = SessionMemoryState {
         content: Some("## Current State\nWorking on file X".to_string()),
-        last_summarized_msg_idx: Some(5),
+        last_summarized_seq: Some(5),
         initialized: true,
         ..Default::default()
     };
@@ -423,7 +435,7 @@ fn restored_sm_state_enables_sm_compact() {
         }
     }
 
-    let result = try_sm_compact(&messages, &state, &config, 200_000);
+    let result = sm_compact(&messages, &state, &config);
     assert!(
         result.is_some(),
         "SM-compact should work with restored state"
@@ -653,7 +665,7 @@ fn sm_compact_respects_boundary_floor() {
 
     let state = SessionMemoryState {
         content: Some("Session summary".to_string()),
-        last_summarized_msg_idx: Some(8),
+        last_summarized_seq: Some(8),
         ..Default::default()
     };
 
@@ -663,7 +675,7 @@ fn sm_compact_respects_boundary_floor() {
         max_tokens_to_keep: 999_999,
     };
 
-    let result = try_sm_compact(&messages, &state, &config, 200_000);
+    let result = sm_compact(&messages, &state, &config);
     assert!(result.is_some());
     let compacted = result.unwrap();
 

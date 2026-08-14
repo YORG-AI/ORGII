@@ -65,6 +65,10 @@ import {
 } from "@src/features/Org2Cloud/org2CloudSyncAtoms";
 import { REFUSAL_MESSAGE_DURATION_MS } from "@src/features/Org2Cloud/referenceRefusalMessage";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
+import {
+  useCloudSessionDownloadProgressEntry,
+  useCloudSessionPendingPlayEntry,
+} from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
@@ -86,6 +90,7 @@ import { useCloudTeamSessionMenuItems } from "./cloudSessionsSection.menuItems";
 import { useCloudRemoteRowMaps } from "./cloudSessionsSection.remoteRowMaps";
 import { useCloudOrgRosterMembers } from "./cloudSessionsSection.rosterMembers";
 import { useCloudSessionRowItemBuilder } from "./cloudSessionsSection.rowItemBuilder";
+import { resolveCloudDownloadMenuItemId } from "./cloudSessionsSection.selection";
 import type {
   MemberFilterMenuState,
   UseCloudSessionsSectionParams,
@@ -229,8 +234,17 @@ export function useCloudSessionsSection({
     return collectCloudFlatListExcludedSessionIds(sessions, orgId);
   }, [orgId, sessions]);
 
+  const pendingPlay = useCloudSessionPendingPlayEntry(activeSessionId);
+  const downloadProgress =
+    useCloudSessionDownloadProgressEntry(activeSessionId);
+
   const selectedCloudMenuItemId = useMemo(() => {
     if (!orgId || !activeSessionId) return null;
+    const downloadMenuItemId = resolveCloudDownloadMenuItemId(
+      orgId,
+      pendingPlay ?? downloadProgress
+    );
+    if (downloadMenuItemId) return downloadMenuItemId;
     const active = sessions.find(
       (session) => session.session_id === activeSessionId
     );
@@ -244,7 +258,14 @@ export function useCloudSessionsSection({
           !row.deletedAt && row.sourceSessionId === imported.sourceSessionId
       );
     return sourceRow ? buildCloudRemoteItemId(orgId, sourceRow.id) : null;
-  }, [activeSessionId, orgId, sessions, visibleThreads]);
+  }, [
+    activeSessionId,
+    downloadProgress,
+    orgId,
+    pendingPlay,
+    sessions,
+    visibleThreads,
+  ]);
 
   const findRow = useCallback(
     (rowId: string): RemoteTeammateSessionMetadata | undefined =>

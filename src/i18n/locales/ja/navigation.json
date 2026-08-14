@@ -13,6 +13,8 @@
     "browser": "ブラウザ",
     "editor": "エディタ",
     "environment": "環境",
+    "sessionEnvironment": "セッション環境",
+    "localEnvironment": "ローカル環境",
     "workspace": "ワークスペース",
     "codeEditor": "コードエディター",
     "databaseManager": "データベースマネージャー",

@@ -122,6 +122,24 @@
   color: currentColor;
 }
 
+// Large title-row selects stay chromeless while retaining clear interactive
+// feedback through typography instead of a painted surface.
+.select-title-row.select-bare .select-selector {
+  color: var(--color-text-2);
+  transition: color 0.15s ease;
+}
+
+.select-title-row.select-bare:hover:not(.select-disabled) .select-selector,
+.select-title-row.select-bare.select-open .select-selector {
+  color: var(--color-text-1);
+}
+
+.select-title-row.select-bare:hover:not(.select-disabled) .select-value,
+.select-title-row.select-bare.select-open .select-value {
+  text-decoration-line: underline;
+  text-underline-offset: 3px;
+}
+
 .select-placeholder {
   flex: 1;
   overflow: hidden;

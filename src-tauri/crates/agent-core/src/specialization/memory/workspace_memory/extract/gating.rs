@@ -1,9 +1,8 @@
 //! Gating + cursor-advance helpers for the extraction subsystem.
 //!
-//! Pure logic over `ExtractMemoriesState` + the in-memory message slice —
-//! decides "should we even fork an extractor this turn?", advances the
-//! cursor past main-agent memory writes, and coalesces the
-//! trailing-run stash.
+//! Pure logic over `ExtractMemoriesState` + a durable message snapshot —
+//! decides whether to fork an extractor and advances the cursor past
+//! main-agent memory writes.
 
 use serde_json::Value;
 use std::path::Path;
@@ -37,6 +36,7 @@ const EXTRACTION_INTERVAL: u32 = 1;
 pub fn should_extract(
     state: &ExtractMemoriesState,
     messages: &[Value],
+    start_seqs: &[i64],
     workspace: Option<&Path>,
 ) -> bool {
     if state.in_progress {
@@ -47,16 +47,23 @@ pub fn should_extract(
         return false;
     }
 
-    let new_count = count_new_messages(messages, state.last_processed_idx);
+    let new_count = count_new_messages(start_seqs, state.last_processed_seq);
     if new_count < MIN_NEW_MESSAGES {
         return false;
     }
 
-    if has_memory_writes_since(messages, state.last_processed_idx, workspace.unwrap()) {
+    if has_memory_writes_since(
+        messages,
+        start_seqs,
+        state.last_processed_seq,
+        workspace.unwrap(),
+    ) {
         return false;
     }
 
-    state.turns_since_extraction + 1 >= EXTRACTION_INTERVAL
+    // The turn counter advances at post-turn dispatch (before this gate
+    // runs), so the current turn is already included — no `+ 1` here.
+    state.turns_since_extraction >= EXTRACTION_INTERVAL
 }
 
 /// Returns true if the current turn should be skipped *because the main
@@ -71,40 +78,16 @@ pub fn should_extract(
 pub fn skip_if_main_agent_wrote_memory(
     state: &mut ExtractMemoriesState,
     messages: &[Value],
+    start_seqs: &[i64],
     workspace: &Path,
 ) -> bool {
-    if !has_memory_writes_since(messages, state.last_processed_idx, workspace) {
+    if !has_memory_writes_since(messages, start_seqs, state.last_processed_seq, workspace) {
         return false;
     }
-    if !messages.is_empty() {
-        state.last_processed_idx = Some(messages.len() - 1);
+    if let Some(last_seq) = start_seqs.last() {
+        state.last_processed_seq = Some(*last_seq);
     }
     true
-}
-
-/// Stash the latest messages while an extraction is in flight.
-///
-/// Called by the processor when `in_progress` has blocked a would-be
-/// extraction. Overwrites any prior stash — only the *latest* transcript
-/// matters because it already contains the older ones as a prefix.
-///
-/// Returns `true` if there was no existing stash (informational only; the
-/// coalesce behavior does not depend on it).
-pub fn stash_pending(state: &mut ExtractMemoriesState, messages: &[Value]) -> bool {
-    let was_empty = state.pending_messages.is_none();
-    state.pending_messages = Some(messages.to_vec());
-    was_empty
-}
-
-/// Drain the stashed trailing-run messages, if any.
-///
-/// The processor's spawned extraction task calls this after each
-/// `run_extraction` completes. When `Some`, the task issues one more
-/// extraction round with those messages. This is the key fix for the
-/// "second turn during a long extraction silently vanishes" hole that
-/// a drop-on-conflict policy would have.
-pub fn take_pending(state: &mut ExtractMemoriesState) -> Option<Vec<Value>> {
-    state.pending_messages.take()
 }
 
 /// Record a turn (increment counter). Call this every turn regardless
@@ -113,16 +96,20 @@ pub fn record_turn(state: &mut ExtractMemoriesState) {
     state.turns_since_extraction += 1;
 }
 
-/// Count new messages since the cursor (any role).
+/// Count new messages since the sequence cursor (any role).
 ///
 /// Tool-heavy agents append many `tool_use` / `tool_result` blocks per turn;
 /// counting only user+assistant prevented `extract_memories` from ever firing.
-pub(super) fn count_new_messages(messages: &[Value], since_idx: Option<usize>) -> usize {
-    let start = match since_idx {
-        Some(idx) => idx + 1,
+pub(super) fn count_new_messages(start_seqs: &[i64], since_seq: Option<i64>) -> usize {
+    start_seqs.len() - cursor_start(start_seqs, since_seq)
+}
+
+/// First index in the frame that is *after* the sequence cursor.
+fn cursor_start(start_seqs: &[i64], since_seq: Option<i64>) -> usize {
+    match since_seq {
+        Some(seq) => start_seqs.partition_point(|s| *s <= seq),
         None => 0,
-    };
-    messages.get(start..).map(|slice| slice.len()).unwrap_or(0)
+    }
 }
 
 /// Check if any assistant message after the cursor wrote to memory files.
@@ -142,11 +129,13 @@ pub(super) fn count_new_messages(messages: &[Value], since_idx: Option<usize>) -
 /// returned `false` in production and mutual exclusion was effectively
 /// disabled — a main-agent write would still trigger the extract fork,
 /// which then raced / overwrote the main agent's file.
-fn has_memory_writes_since(messages: &[Value], since_idx: Option<usize>, workspace: &Path) -> bool {
-    let start = match since_idx {
-        Some(idx) => idx + 1,
-        None => 0,
-    };
+fn has_memory_writes_since(
+    messages: &[Value],
+    start_seqs: &[i64],
+    since_seq: Option<i64>,
+    workspace: &Path,
+) -> bool {
+    let start = cursor_start(start_seqs, since_seq);
 
     let Some(new_messages) = messages.get(start..) else {
         return false;
@@ -221,6 +210,10 @@ mod tests {
         serde_json::json!({ "role": role, "content": content })
     }
 
+    fn seqs_for(messages: &[Value]) -> Vec<i64> {
+        (0..messages.len() as i64).collect()
+    }
+
     fn openai_edit_file_message(file_path: &str) -> Value {
         serde_json::json!({
             "role": "assistant",
@@ -248,10 +241,11 @@ mod tests {
             make_message("assistant", "Good!"),
         ];
 
-        assert_eq!(count_new_messages(&messages, None), 5);
-        assert_eq!(count_new_messages(&messages, Some(0)), 4);
-        assert_eq!(count_new_messages(&messages, Some(2)), 2);
-        assert_eq!(count_new_messages(&messages, Some(4)), 0);
+        let seqs = seqs_for(&messages);
+        assert_eq!(count_new_messages(&seqs, None), 5);
+        assert_eq!(count_new_messages(&seqs, Some(0)), 4);
+        assert_eq!(count_new_messages(&seqs, Some(2)), 2);
+        assert_eq!(count_new_messages(&seqs, Some(4)), 0);
     }
 
     #[test]
@@ -264,13 +258,15 @@ mod tests {
             serde_json::json!({ "role": "tool_result", "content": "file content" }),
         ];
 
-        assert_eq!(count_new_messages(&messages, None), 5);
-        assert_eq!(count_new_messages(&messages, Some(1)), 3);
+        let seqs = seqs_for(&messages);
+        assert_eq!(count_new_messages(&seqs, None), 5);
+        assert_eq!(count_new_messages(&seqs, Some(1)), 3);
     }
 
     #[test]
     fn test_should_extract_basic() {
         let mut state = ExtractMemoriesState::default();
+        record_turn(&mut state);
         let messages = vec![
             make_message("system", "system"),
             make_message("user", "hello"),
@@ -278,10 +274,12 @@ mod tests {
             make_message("user", "question"),
             make_message("assistant", "answer"),
         ];
+        let seqs = seqs_for(&messages);
 
         assert!(should_extract(
             &state,
             &messages,
+            &seqs,
             Some(Path::new("/tmp/workspace"))
         ));
 
@@ -289,21 +287,25 @@ mod tests {
         assert!(!should_extract(
             &state,
             &messages,
+            &seqs,
             Some(Path::new("/tmp/workspace"))
         ));
         state.in_progress = false;
 
-        assert!(!should_extract(&state, &messages, None));
+        assert!(!should_extract(&state, &messages, &seqs, None));
     }
 
     #[test]
     fn test_should_extract_not_enough_messages() {
-        let state = ExtractMemoriesState::default();
+        let mut state = ExtractMemoriesState::default();
+        record_turn(&mut state);
         let messages = vec![make_message("system", "system")];
+        let seqs = seqs_for(&messages);
 
         assert!(!should_extract(
             &state,
             &messages,
+            &seqs,
             Some(Path::new("/tmp/workspace"))
         ));
     }
@@ -318,9 +320,20 @@ mod tests {
             openai_edit_file_message("/home/user/workspace/.orgii/workspace-memory/prefs.md"),
         ];
 
-        assert!(has_memory_writes_since(&messages, None, workspace));
-        assert!(has_memory_writes_since(&messages, Some(0), workspace));
-        assert!(!has_memory_writes_since(&messages, Some(2), workspace));
+        let seqs = seqs_for(&messages);
+        assert!(has_memory_writes_since(&messages, &seqs, None, workspace));
+        assert!(has_memory_writes_since(
+            &messages,
+            &seqs,
+            Some(0),
+            workspace
+        ));
+        assert!(!has_memory_writes_since(
+            &messages,
+            &seqs,
+            Some(2),
+            workspace
+        ));
     }
 
     #[test]
@@ -331,7 +344,13 @@ mod tests {
             openai_edit_file_message("/home/user/workspace/.orgii/workspace-memory/prefs.md"),
         ];
 
-        assert!(!has_memory_writes_since(&messages, Some(231), workspace));
+        let seqs = seqs_for(&messages);
+        assert!(!has_memory_writes_since(
+            &messages,
+            &seqs,
+            Some(231),
+            workspace
+        ));
     }
 
     #[test]
@@ -343,7 +362,12 @@ mod tests {
             openai_edit_file_message("/home/user/workspace/src/main.rs"),
         ];
 
-        assert!(!has_memory_writes_since(&messages, None, workspace));
+        assert!(!has_memory_writes_since(
+            &messages,
+            &seqs_for(&messages),
+            None,
+            workspace
+        ));
     }
 
     #[test]
@@ -373,7 +397,12 @@ mod tests {
             }]
         })];
 
-        assert!(!has_memory_writes_since(&messages, None, workspace));
+        assert!(!has_memory_writes_since(
+            &messages,
+            &seqs_for(&messages),
+            None,
+            workspace
+        ));
     }
 
     #[test]
@@ -384,7 +413,12 @@ mod tests {
             "/home/user/workspace/.orgii/workspace-memory/subdir/nested.md",
         )];
 
-        assert!(has_memory_writes_since(&messages, None, workspace));
+        assert!(has_memory_writes_since(
+            &messages,
+            &seqs_for(&messages),
+            None,
+            workspace
+        ));
     }
 
     #[test]
@@ -404,7 +438,12 @@ mod tests {
             }]
         })];
 
-        assert!(!has_memory_writes_since(&messages, None, workspace));
+        assert!(!has_memory_writes_since(
+            &messages,
+            &seqs_for(&messages),
+            None,
+            workspace
+        ));
     }
 
     #[test]
@@ -456,31 +495,6 @@ mod tests {
     }
 
     #[test]
-    fn test_stash_pending_overwrites_latest() {
-        let mut state = ExtractMemoriesState::default();
-
-        let first = vec![make_message("user", "one")];
-        assert!(
-            stash_pending(&mut state, &first),
-            "first stash should report empty prior state"
-        );
-
-        let second = vec![
-            make_message("user", "one"),
-            make_message("assistant", "ack"),
-            make_message("user", "two"),
-        ];
-        assert!(
-            !stash_pending(&mut state, &second),
-            "subsequent stash should report already-stashed"
-        );
-
-        let drained = take_pending(&mut state).expect("pending should be present");
-        assert_eq!(drained.len(), 3, "latest stash wins — coalesce semantics");
-        assert!(take_pending(&mut state).is_none(), "take_pending drains");
-    }
-
-    #[test]
     fn test_skip_if_main_agent_wrote_memory_advances_cursor() {
         let workspace = Path::new("/home/user/workspace");
         let mut state = ExtractMemoriesState::default();
@@ -491,18 +505,19 @@ mod tests {
             openai_edit_file_message("/home/user/workspace/.orgii/workspace-memory/prefs.md"),
         ];
 
+        let seqs = seqs_for(&messages);
         assert!(
-            skip_if_main_agent_wrote_memory(&mut state, &messages, workspace),
+            skip_if_main_agent_wrote_memory(&mut state, &messages, &seqs, workspace),
             "main-agent write should trigger skip"
         );
         assert_eq!(
-            state.last_processed_idx,
-            Some(messages.len() - 1),
+            state.last_processed_seq,
+            seqs.last().copied(),
             "cursor must advance to end of transcript"
         );
 
         assert!(
-            !skip_if_main_agent_wrote_memory(&mut state, &messages, workspace),
+            !skip_if_main_agent_wrote_memory(&mut state, &messages, &seqs, workspace),
             "cursor advance prevents re-detection next turn"
         );
     }
@@ -519,11 +534,16 @@ mod tests {
         ];
 
         assert!(
-            !skip_if_main_agent_wrote_memory(&mut state, &messages, workspace),
+            !skip_if_main_agent_wrote_memory(
+                &mut state,
+                &messages,
+                &seqs_for(&messages),
+                workspace
+            ),
             "non-memory edits must not trigger skip"
         );
         assert!(
-            state.last_processed_idx.is_none(),
+            state.last_processed_seq.is_none(),
             "cursor must NOT move when skip is not triggered"
         );
     }

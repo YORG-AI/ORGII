@@ -8,6 +8,7 @@ import {
   Fingerprint,
   GitBranch,
   GitCommitVertical,
+  GitFork,
   Grip,
   Save,
   Timer,
@@ -432,14 +433,15 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
       !!activeWorkspaceRootPath &&
       normalizedRepoPath === normalizePath(activeWorkspaceRootPath);
     const branchLabel =
-      formatBranchLabel(session.worktreeBranch) ||
-      (worktreePath ? worktreePathLabel : "") ||
       formatBranchLabel(effectiveBranch) ||
       formatBranchLabel(session.baseBranch) ||
       formatBranchLabel(workspaceGitStatus?.current_branch) ||
       (sessionRepoMatchesActive
         ? formatBranchLabel(activeWorkspaceBranch)
         : "");
+    const worktreeBranchLabel =
+      formatBranchLabel(session.worktreeBranch) ||
+      (worktreePath ? worktreePathLabel : "");
     const modelIconName =
       lastModel?.listingModel || lastModel?.model || undefined;
     const modelIconAgent =
@@ -508,14 +510,19 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
         </HoverCardRow>
         {(repoName || branchLabel) && (
           <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
-            <div className="truncate text-text-2">
+            <div
+              className="flex min-w-0 items-center text-text-2"
+              data-testid="session-hover-repo-branch"
+              title={[repoName, branchLabel].filter(Boolean).join(" · ")}
+            >
               {repoName &&
                 (repoPath ? (
-                  // The repo folder is the location row, folded in: the name
-                  // is the link, its tooltip carries the full path.
                   <button
                     type="button"
-                    className={INLINE_LINK_CLASS_NAME}
+                    className={`${INLINE_LINK_CLASS_NAME} min-w-0 truncate text-left ${
+                      branchLabel ? "max-w-[calc(50%-6px)]" : "flex-1"
+                    }`}
+                    data-testid="session-hover-workspace"
                     title={`${revealLabel} · ${repoPath}`}
                     aria-label={`${revealLabel} ${repoPath}`}
                     onClick={() => handleRevealPath(repoPath)}
@@ -523,12 +530,45 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
                     {repoName}
                   </button>
                 ) : (
-                  <span>{repoName}</span>
+                  <span
+                    className={
+                      branchLabel
+                        ? "min-w-0 max-w-[calc(50%-6px)] truncate"
+                        : "min-w-0 flex-1 truncate"
+                    }
+                    data-testid="session-hover-workspace"
+                    title={repoName}
+                  >
+                    {repoName}
+                  </span>
                 ))}
               {repoName && branchLabel && (
-                <span className="mx-1 text-text-4">·</span>
+                <span className="mx-1 shrink-0 text-text-4">·</span>
               )}
-              {branchLabel && <span>{branchLabel}</span>}
+              {branchLabel && (
+                <span
+                  className={
+                    repoName
+                      ? "min-w-0 max-w-[calc(50%-6px)] truncate"
+                      : "min-w-0 flex-1 truncate"
+                  }
+                  data-testid="session-hover-branch"
+                  title={branchLabel}
+                >
+                  {branchLabel}
+                </span>
+              )}
+            </div>
+          </HoverCardRow>
+        )}
+        {worktreeBranchLabel && worktreeBranchLabel !== branchLabel && (
+          <HoverCardRow icon={<GitFork size={13} strokeWidth={1.75} />}>
+            <div
+              className="truncate text-text-2"
+              data-testid="session-hover-worktree-branch"
+              title={worktreeBranchLabel}
+            >
+              {worktreeBranchLabel}
             </div>
           </HoverCardRow>
         )}

@@ -62,15 +62,19 @@ fn append_compacted_tail(prefix: &[Value], tail: Vec<Value>) -> Vec<Value> {
     rebuilt
 }
 
-fn adjust_sm_state_for_compactable_tail(
-    state: &SessionMemoryState,
-    prefix_len: usize,
-) -> SessionMemoryState {
-    let mut adjusted = state.clone();
-    adjusted.last_summarized_msg_idx = state
-        .last_summarized_msg_idx
-        .and_then(|idx| idx.checked_sub(prefix_len));
-    adjusted
+/// Resolve the persisted sequence anchor into an index of the current
+/// compactable tail. The tail's leading region mirrors the durable visible
+/// history (same reconstruct rules, same boundary), so an index resolved
+/// against the durable start-sequences is valid for slicing the tail. This
+/// replaced the old `prefix_len`/`checked_sub(1)` frame-shift arithmetic —
+/// sequences do not move when a frame gains a prefix or loses a suffix.
+fn resolve_sm_anchor_idx(session_id: &str, sm_state: &SessionMemoryState) -> Option<usize> {
+    sm_state.content.as_ref()?;
+    let start_seqs = tokio::task::block_in_place(|| {
+        unified_persistence::load_llm_history_start_sequences(session_id)
+    })
+    .unwrap_or_default();
+    session_memory::resolve_summarized_boundary_idx(sm_state.last_summarized_seq, &start_seqs)
 }
 
 /// Outcome of [`UnifiedMessageProcessor::run_pre_turn_compaction`].
@@ -219,12 +223,12 @@ impl UnifiedMessageProcessor {
         let sm_compacted = {
             let sm_state = self.sm_state.lock().await;
             if self.sm_config.enabled {
-                let adjusted_sm_state = adjust_sm_state_for_compactable_tail(&sm_state, prefix_len);
+                let anchor_idx = resolve_sm_anchor_idx(session_id, &sm_state);
                 session_memory::try_sm_compact(
                     &compactable_tail,
-                    &adjusted_sm_state,
+                    sm_state.content.as_deref(),
+                    anchor_idx,
                     &self.sm_compact_config,
-                    context_window,
                 )
             } else {
                 None
@@ -266,7 +270,7 @@ impl UnifiedMessageProcessor {
                 };
             }
             let mut sm_state = self.sm_state.lock().await;
-            sm_state.last_summarized_msg_idx = None;
+            sm_state.last_summarized_seq = None;
         } else {
             // No fork-form here (unlike pre-turn): reactive compaction runs
             // right after the provider REJECTED this exact prefix as too
@@ -280,7 +284,7 @@ impl UnifiedMessageProcessor {
             *messages = append_compacted_tail(&prefix, cleaned);
             outcome = llm_outcome;
             let mut sm_state = self.sm_state.lock().await;
-            sm_state.last_summarized_msg_idx = None;
+            sm_state.last_summarized_seq = None;
         }
 
         crate::model_context::file_reinjection::reinject_files_after_compaction(
@@ -420,12 +424,12 @@ impl UnifiedMessageProcessor {
         let sm_compacted = {
             let sm_state = self.sm_state.lock().await;
             if self.sm_config.enabled {
-                let adjusted_sm_state = adjust_sm_state_for_compactable_tail(&sm_state, prefix_len);
+                let anchor_idx = resolve_sm_anchor_idx(session_id, &sm_state);
                 session_memory::try_sm_compact(
                     &compactable_tail,
-                    &adjusted_sm_state,
+                    sm_state.content.as_deref(),
+                    anchor_idx,
                     &self.sm_compact_config,
-                    context_window,
                 )
             } else {
                 None
@@ -463,7 +467,7 @@ impl UnifiedMessageProcessor {
                 need_llm_compact = false;
 
                 let mut sm_state = self.sm_state.lock().await;
-                sm_state.last_summarized_msg_idx = None;
+                sm_state.last_summarized_seq = None;
             }
         }
 
@@ -528,7 +532,7 @@ impl UnifiedMessageProcessor {
             *messages = append_compacted_tail(&prefix, cleaned_tail);
 
             let mut sm_state = self.sm_state.lock().await;
-            sm_state.last_summarized_msg_idx = None;
+            sm_state.last_summarized_seq = None;
         }
 
         // Post-compact file re-injection
@@ -647,11 +651,12 @@ impl UnifiedMessageProcessor {
         match persist_result {
             Ok(Ok(())) => {
                 // Keep SM content (memory quality survives compaction; the next
-                // SM-compact can still use it) but reset the message-index
-                // pointer — indices refer to the pre-compact message list and
-                // would be dangling against the rebuilt one.
+                // SM-compact can still use it) but reset the sequence
+                // anchor — the summarized region is now folded into the
+                // compact summary, so the old anchor describes rows the
+                // visible window no longer contains.
                 let mut sm_state = self.sm_state.lock().await;
-                sm_state.last_summarized_msg_idx = None;
+                sm_state.last_summarized_seq = None;
                 let persist_outcome = match sm_state.content.as_deref() {
                     Some(content) if !content.trim().is_empty() => {
                         unified_persistence::save_session_memory_state(session_id, content, None)
@@ -732,29 +737,32 @@ mod tests {
     }
 
     #[test]
-    fn sm_boundary_is_shifted_from_provider_messages_to_tail_messages() {
-        let state = SessionMemoryState {
-            content: Some("summary".to_string()),
-            last_summarized_msg_idx: Some(7),
-            ..SessionMemoryState::default()
-        };
+    fn sm_anchor_resolution_is_frame_independent() {
+        let start_seqs = vec![3, 5, 9, 12];
 
-        let adjusted = adjust_sm_state_for_compactable_tail(&state, 2);
-
-        assert_eq!(adjusted.last_summarized_msg_idx, Some(5));
-        assert_eq!(adjusted.content.as_deref(), Some("summary"));
-    }
-
-    #[test]
-    fn sm_boundary_before_system_prefix_is_not_reused_for_tail() {
-        let state = SessionMemoryState {
-            content: Some("summary".to_string()),
-            last_summarized_msg_idx: Some(1),
-            ..SessionMemoryState::default()
-        };
-
-        let adjusted = adjust_sm_state_for_compactable_tail(&state, 2);
-
-        assert_eq!(adjusted.last_summarized_msg_idx, None);
+        assert_eq!(
+            session_memory::resolve_summarized_boundary_idx(Some(9), &start_seqs),
+            Some(2),
+            "anchor on an exact start-sequence points at that message"
+        );
+        assert_eq!(
+            session_memory::resolve_summarized_boundary_idx(Some(10), &start_seqs),
+            Some(2),
+            "anchor between messages points at the last covered one"
+        );
+        assert_eq!(
+            session_memory::resolve_summarized_boundary_idx(Some(1), &start_seqs),
+            None,
+            "anchor older than the window means nothing here is summarized"
+        );
+        assert_eq!(
+            session_memory::resolve_summarized_boundary_idx(Some(99), &start_seqs),
+            Some(3),
+            "anchor beyond the window covers everything"
+        );
+        assert_eq!(
+            session_memory::resolve_summarized_boundary_idx(None, &start_seqs),
+            None
+        );
     }
 }

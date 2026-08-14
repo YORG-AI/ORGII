@@ -91,7 +91,7 @@ pub async fn extract_memories_tool_heavy(cfg: &Config) -> bool {
     println!("  [step 1] Sending tool-heavy SDE turn (no_cleanup=true)...");
     // Keep the session alive so the debug em-state endpoint can read
     // the shared `ExtractMemoriesState` after the background fork
-    // finishes. The assertion on `last_processed_idx` is the most
+    // finishes. The assertion on `last_processed_seq` is the most
     // reliable signal that the gate actually cleared — it is only
     // written by `run_extraction` on success, so if the fork was
     // skipped (bug 1 regression: `count_new_messages` under-counting
@@ -136,7 +136,7 @@ pub async fn extract_memories_tool_heavy(cfg: &Config) -> bool {
     loop {
         match harness::fetch_em_state(cfg, &session_id).await {
             Ok(snap) => {
-                let advanced = snap.last_processed_idx.is_some();
+                let advanced = snap.last_processed_seq.is_some();
                 last_snapshot = Some(snap);
                 if advanced {
                     break;
@@ -162,14 +162,11 @@ pub async fn extract_memories_tool_heavy(cfg: &Config) -> bool {
 
     let (cursor_advanced, not_in_progress, snap_repr) = match last_snapshot.as_ref() {
         Some(snap) => {
-            let cursor_advanced = snap.last_processed_idx.is_some();
+            let cursor_advanced = snap.last_processed_seq.is_some();
             let not_in_progress = !snap.in_progress;
             let repr = format!(
-                "last_processed_idx={:?} in_progress={} turns_since_extraction={} pending_len={:?}",
-                snap.last_processed_idx,
-                snap.in_progress,
-                snap.turns_since_extraction,
-                snap.pending_messages_len,
+                "last_processed_seq={:?} in_progress={} turns_since_extraction={}",
+                snap.last_processed_seq, snap.in_progress, snap.turns_since_extraction,
             );
             (cursor_advanced, not_in_progress, repr)
         }
@@ -230,8 +227,8 @@ pub async fn extract_memories_tool_heavy(cfg: &Config) -> bool {
 // Regression pin for the em_state persistence bug: before the fix,
 // `integration::process_message` rebuilt `UnifiedMessageProcessor` on
 // every turn and constructed a fresh `ExtractMemoriesState::default()`
-// each time, so `last_processed_idx`, `in_progress`,
-// `turns_since_extraction`, and the `pending_messages` stash never
+// each time, so `last_processed_seq`, `in_progress`, and
+// `turns_since_extraction` never
 // carried over. The gating / throttle / overlap logic all appeared to
 // work in isolation (unit tests passed) but was effectively disabled
 // at runtime.
@@ -245,12 +242,12 @@ pub async fn extract_memories_tool_heavy(cfg: &Config) -> bool {
 //   1. Sends two tool-heavy SDE turns in the same session, keeping
 //      the session alive between them (`no_cleanup=true` on turn 1).
 //   2. Reads `GET /agent/test/em-state/:session_id` after turn 2 (also
-//      kept alive) and asserts that `last_processed_idx` has advanced
+//      kept alive) and asserts that `last_processed_seq` has advanced
 //      past zero.
 //   3. Asserts `in_progress == false` (no orphaned overlap guard) and
 //      sanity-checks `turns_since_extraction`.
 //
-// Before the fix: `last_processed_idx` would come back as `None` every
+// Before the fix: `last_processed_seq` would come back as `None` every
 // turn because the state object was freshly-defaulted. After the fix:
 // the cursor is whatever the last extraction landed at.
 
@@ -307,9 +304,16 @@ pub async fn extract_memories_cursor_advances(cfg: &Config) -> bool {
     }
     println!("  [info] turn1_ok={turn1_ok} turn1_tool_calls={turn1_tool_calls}");
 
-    // Give the background extract fork a moment to land and advance
-    // the cursor before we send turn 2.
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    // Let the coordinator-owned extract fork land and advance the cursor
+    // before turn 2 — a new turn cancels an in-flight extraction, so poll
+    // until the fork is done instead of sleeping a fixed interval.
+    let fork_deadline = std::time::Instant::now() + Duration::from_secs(90);
+    while std::time::Instant::now() < fork_deadline {
+        match harness::fetch_em_state(cfg, &session_id).await {
+            Ok(snap) if !snap.in_progress && snap.last_processed_seq.is_some() => break,
+            _ => tokio::time::sleep(Duration::from_secs(2)).await,
+        }
+    }
 
     // Turn 2: another tool-heavy exchange, also no_cleanup=true so the
     // em-state endpoint can still see the session afterwards.
@@ -346,7 +350,7 @@ pub async fn extract_memories_cursor_advances(cfg: &Config) -> bool {
     let em: Result<harness::EmStateSnapshot, String> = loop {
         match harness::fetch_em_state(cfg, &session_id).await {
             Ok(snap) => {
-                if snap.last_processed_idx.is_some() {
+                if snap.last_processed_seq.is_some() {
                     break Ok(snap);
                 }
                 if std::time::Instant::now() >= deadline {
@@ -366,17 +370,17 @@ pub async fn extract_memories_cursor_advances(cfg: &Config) -> bool {
         println!("  [warn] fetch_em_state final error: {err}");
     }
 
-    // Primary assertion: `last_processed_idx` must have been
+    // Primary assertion: `last_processed_seq` must have been
     // advanced past `None`. This is the most reliable
     // cross-turn persistence signal in the current code shape:
     //
     //   - Before the fix, every turn rebuilt `UnifiedMessageProcessor`
     //     with a fresh `ExtractMemoriesState::default()`, so
-    //     `last_processed_idx` was `None` every turn the debug
+    //     `last_processed_seq` was `None` every turn the debug
     //     endpoint observed it.
     //   - After the fix, `AgentSession` owns the `Arc<Mutex<…>>` and
     //     the background extract fork spawned by turn 1 writes back
-    //     `last_processed_idx = Some(messages.len()-1)` into that
+    //     the end-of-transcript sequence cursor into that
     //     shared state. Turn 2 (and the debug endpoint) then see a
     //     `Some(_)` cursor.
     //
@@ -388,14 +392,11 @@ pub async fn extract_memories_cursor_advances(cfg: &Config) -> bool {
     // reliable persistence signal in practice.
     let (cursor_advanced, not_in_progress, snap_repr) = match em.as_ref() {
         Ok(snap) => {
-            let cursor_advanced = snap.last_processed_idx.is_some();
+            let cursor_advanced = snap.last_processed_seq.is_some();
             let not_in_progress = !snap.in_progress;
             let repr = format!(
-                "last_processed_idx={:?} in_progress={} turns_since_extraction={} pending_len={:?}",
-                snap.last_processed_idx,
-                snap.in_progress,
-                snap.turns_since_extraction,
-                snap.pending_messages_len,
+                "last_processed_seq={:?} in_progress={} turns_since_extraction={}",
+                snap.last_processed_seq, snap.in_progress, snap.turns_since_extraction,
             );
             (cursor_advanced, not_in_progress, repr)
         }
@@ -419,7 +420,7 @@ pub async fn extract_memories_cursor_advances(cfg: &Config) -> bool {
             ("Turn 2 was tool-heavy", turn2_tool_calls >= 1),
             ("em_state fetch returned ok", em.is_ok()),
             (
-                "last_processed_idx advanced past None (state persists across turns)",
+                "last_processed_seq advanced past None (state persists across turns)",
                 cursor_advanced,
             ),
             (

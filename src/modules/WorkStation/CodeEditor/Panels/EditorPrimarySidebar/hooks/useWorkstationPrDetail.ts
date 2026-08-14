@@ -37,6 +37,7 @@ import {
   replyPrReviewCommentLocal,
   requestPRReviewersLocal,
   setPRAutoMergeLocal,
+  updatePRDraftStateLocal,
   updatePRStateLocal,
 } from "@src/api/tauri/github";
 import {
@@ -592,6 +593,18 @@ export function useWorkstationPrDetail({
     [repoFullName, pr, runPrMutation]
   );
 
+  const updatePullRequestDraft = useCallback(
+    async (draft: boolean): Promise<void> => {
+      if (!repoFullName || !pr) {
+        throw new Error("GitHub repository context is unavailable");
+      }
+      await runPrMutation(() =>
+        updatePRDraftStateLocal(repoFullName, pr.number, draft)
+      );
+    },
+    [repoFullName, pr, runPrMutation]
+  );
+
   const updateRequestedReviewers = useCallback(
     async (reviewers: string[]): Promise<void> => {
       if (!repoFullName || !pr) {
@@ -668,6 +681,7 @@ export function useWorkstationPrDetail({
       replyInlineComment,
       mergePullRequest,
       setPullRequestAutoMerge,
+      updatePullRequestDraft,
       updatePullRequestState,
       updateRequestedReviewers,
       refresh,
@@ -679,6 +693,7 @@ export function useWorkstationPrDetail({
     replyInlineComment,
     mergePullRequest,
     setPullRequestAutoMerge,
+    updatePullRequestDraft,
     updatePullRequestState,
     updateRequestedReviewers,
     refresh,
@@ -699,6 +714,7 @@ export function useWorkstationPrDetail({
         replyInlineComment: null,
         mergePullRequest: null,
         setPullRequestAutoMerge: null,
+        updatePullRequestDraft: null,
         updatePullRequestState: null,
         updateRequestedReviewers: null,
         refresh: null,
@@ -715,6 +731,7 @@ export function useWorkstationPrDetail({
       replyInlineComment,
       mergePullRequest,
       setPullRequestAutoMerge,
+      updatePullRequestDraft,
       updatePullRequestState,
       updateRequestedReviewers,
       loadReviewerCandidates,
@@ -733,6 +750,7 @@ export function useWorkstationPrDetail({
       replyInlineComment,
       mergePullRequest,
       setPullRequestAutoMerge,
+      updatePullRequestDraft,
       updatePullRequestState,
       updateRequestedReviewers,
       loadReviewerCandidates,

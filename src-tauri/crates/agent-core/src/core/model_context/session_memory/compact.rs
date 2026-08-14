@@ -2,7 +2,7 @@
 //! SM markdown summary.
 //!
 //! Algorithm:
-//! 1. Start at `last_summarized_msg_idx + 1`
+//! 1. Start at the resolved anchor index + 1
 //! 2. If the tail is already large enough, use it
 //! 3. Otherwise expand backwards until min thresholds are met
 //! 4. Never exceed `max_tokens_to_keep`
@@ -14,7 +14,6 @@ use tracing::info;
 
 use super::config::{SessionMemoryCompactConfig, SessionMemoryConfig};
 use super::sections::truncate_for_compact;
-use super::state::SessionMemoryState;
 use crate::core::model_context::compaction::ContextCompactor;
 
 /// Attempt to compact the conversation using session memory.
@@ -23,21 +22,25 @@ use crate::core::model_context::compaction::ContextCompactor;
 /// SM is not available and the caller should fall through to legacy LLM
 /// compaction.
 ///
-/// **Zero API calls** — the summary is taken directly from `state.content`.
+/// `last_summarized_idx` is the anchor already resolved into `messages`'
+/// own frame (see [`super::resolve_summarized_boundary_idx`]); callers on
+/// different frames (turn tail, freshly loaded history) each resolve the
+/// durable sequence anchor themselves.
+///
+/// **Zero API calls** — the summary is the pre-extracted SM markdown.
 pub fn try_sm_compact(
     messages: &[Value],
-    state: &SessionMemoryState,
+    sm_content: Option<&str>,
+    last_summarized_idx: Option<usize>,
     compact_config: &SessionMemoryCompactConfig,
-    _context_window: usize,
 ) -> Option<Vec<Value>> {
-    let sm_content = state.content.as_ref()?;
+    let sm_content = sm_content?;
 
     if sm_content.trim().is_empty() {
         return None;
     }
 
-    let keep_from =
-        calculate_messages_to_keep_index(messages, state.last_summarized_msg_idx, compact_config);
+    let keep_from = calculate_messages_to_keep_index(messages, last_summarized_idx, compact_config);
 
     if keep_from >= messages.len() {
         return None;

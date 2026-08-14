@@ -53,6 +53,41 @@ pub fn hours_since_last_consolidation(workspace: &Path) -> f64 {
     (now_ms.saturating_sub(last_at)) as f64 / 3_600_000.0
 }
 
+/// RAII lease for an acquired auto-dream lock. Unless committed after a
+/// successful consolidation, dropping the lease restores the prior lock
+/// timestamp. This also covers outer task timeout/cancellation, where the
+/// consolidation future is dropped before its explicit error arm runs.
+pub struct ConsolidationLease {
+    workspace: PathBuf,
+    prior_mtime_ms: u64,
+    committed: bool,
+}
+
+impl ConsolidationLease {
+    pub fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for ConsolidationLease {
+    fn drop(&mut self) {
+        if !self.committed {
+            rollback(&self.workspace, self.prior_mtime_ms);
+        }
+    }
+}
+
+/// Try to acquire the consolidation lock as an RAII lease.
+pub fn try_acquire_lease(workspace: &Path) -> Result<Option<ConsolidationLease>, String> {
+    try_acquire(workspace).map(|prior| {
+        prior.map(|prior_mtime_ms| ConsolidationLease {
+            workspace: workspace.to_path_buf(),
+            prior_mtime_ms,
+            committed: false,
+        })
+    })
+}
+
 /// Try to acquire the consolidation lock.
 ///
 /// Returns `Ok(prior_mtime_ms)` on success, `Ok(None)` if blocked by
@@ -322,6 +357,29 @@ mod tests {
         rollback(tmp.path(), 0);
 
         assert_eq!(read_last_consolidated_at(tmp.path()), 0);
+    }
+
+    #[test]
+    fn dropped_lease_rolls_back_fresh_lock() {
+        let tmp = TempDir::new().unwrap();
+        {
+            let lease = try_acquire_lease(tmp.path())
+                .expect("acquire lease")
+                .expect("lease available");
+            assert!(read_last_consolidated_at(tmp.path()) > 0);
+            drop(lease);
+        }
+        assert_eq!(read_last_consolidated_at(tmp.path()), 0);
+    }
+
+    #[test]
+    fn committed_lease_keeps_success_timestamp() {
+        let tmp = TempDir::new().unwrap();
+        let lease = try_acquire_lease(tmp.path())
+            .expect("acquire lease")
+            .expect("lease available");
+        lease.commit();
+        assert!(read_last_consolidated_at(tmp.path()) > 0);
     }
 
     #[test]

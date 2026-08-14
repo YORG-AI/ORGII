@@ -39,10 +39,11 @@ import {
   TimelineLoadingSkeleton,
   TimelineStack,
 } from "@src/modules/shared/components/ActivityTimeline";
-import RichMarkdownEditor, {
-  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS,
-  type RichMarkdownEditorRef,
-} from "@src/modules/shared/components/RichMarkdownEditor";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+  type MarkdownTextareaEditorRef,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import Modal from "@src/scaffold/ModalSystem";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
@@ -178,6 +179,7 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   const [reviewDecision, setReviewDecision] =
     useState<PrReviewEvent>("COMMENT");
   const [reviewBody, setReviewBody] = useState("");
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
   const draft = controlledDraft ?? internalDraft;
   const updateDraft = useCallback(
     (nextDraft: string) => {
@@ -189,7 +191,7 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
     },
     [controlledDraft, onDraftChange]
   );
-  const editorRef = useRef<RichMarkdownEditorRef>(null);
+  const editorRef = useRef<MarkdownTextareaEditorRef>(null);
   const dropTargetRef = useRef<HTMLDivElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
   const measuredComposerHeight = useElementDimensions(composerDockRef, {
@@ -254,6 +256,7 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
     if (!value || submittingComment) return;
     await onAddComment(value);
     updateDraft("");
+    setEditorMode("write");
   }, [draft, submittingComment, onAddComment, updateDraft]);
 
   const resetReviewModal = useCallback(() => {
@@ -459,33 +462,41 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
               }`.trim()}
               data-testid="pr-comment-drop-target"
               leadingActions={
-                <Button
-                  htmlType="button"
-                  variant="secondary"
-                  size="small"
-                  shape="round"
-                  disabled={submittingReview}
-                  onClick={() => setReviewModalVisible(true)}
-                  data-testid="pr-submit-review"
-                >
-                  {t("git.pr.submitReview", "Submit review")}
-                </Button>
+                <MarkdownEditorModeSwitch
+                  mode={editorMode}
+                  onModeChange={setEditorMode}
+                  disabled={submittingComment || submittingReview}
+                  dataTestId="pr-comment-mode-switch"
+                />
               }
               trailingActions={
-                <Button
-                  htmlType="button"
-                  variant="primary"
-                  size="small"
-                  shape="round"
-                  loading={submittingComment}
-                  disabled={!draft.trim() || submittingComment}
-                  onClick={() => void handleComment()}
-                >
-                  {t("git.pr.comment", "Comment")}
-                </Button>
+                <div className="flex items-center justify-end gap-1.5">
+                  <Button
+                    htmlType="button"
+                    variant="secondary"
+                    size="small"
+                    shape="round"
+                    disabled={submittingReview}
+                    onClick={() => setReviewModalVisible(true)}
+                    data-testid="pr-submit-review"
+                  >
+                    {t("git.pr.submitReview", "Submit review")}
+                  </Button>
+                  <Button
+                    htmlType="button"
+                    variant="primary"
+                    size="small"
+                    shape="round"
+                    loading={submittingComment}
+                    disabled={!draft.trim() || submittingComment}
+                    onClick={() => void handleComment()}
+                  >
+                    {t("git.pr.comment", "Comment")}
+                  </Button>
+                </div>
               }
             >
-              <RichMarkdownEditor
+              <MarkdownTextareaEditor
                 ref={editorRef}
                 value={draft}
                 onChange={updateDraft}
@@ -493,12 +504,10 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                 minHeight={100}
                 maxHeight={500}
                 appearance="plain"
-                toolbarMode="inline"
-                toolbarSize="mini"
-                toolbarClassName={RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS}
-                toolbarDropdownPosition="top-start"
                 editable={!submittingComment && !submittingReview}
                 onSubmit={() => void handleComment()}
+                mode={editorMode}
+                onModeChange={setEditorMode}
                 dataTestId="pr-comment-editor"
               />
               <CloudSessionReferencePreview text={draft} className="px-1.5" />

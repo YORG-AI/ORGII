@@ -32,6 +32,7 @@ import { useAppShellStationMode } from "./hooks/useAppShellStationMode";
 import { useAppShellStatusBar } from "./hooks/useAppShellStatusBar";
 import { useLaunchpadTab } from "./hooks/useLaunchpadTab";
 import { useTerminalTabTeardown } from "./hooks/useTerminalTabTeardown";
+import { shouldShowWorkStationStatusBar } from "./statusBarVisibility";
 
 interface AppShellProps {
   /** Whether the routed WorkStation surface is currently visible */
@@ -129,7 +130,11 @@ const AppShell = React.memo(
       !isAgentStation;
     useWorkspacePortAdvertisedUrls(portsEnabled);
 
-    const showStatusBar = !statusBarHidden && !isAgentStation;
+    const showStatusBar = shouldShowWorkStationStatusBar({
+      statusBarHidden,
+      isAgentStation,
+      activeTabType: activeWorkStationTab?.type,
+    });
     return (
       <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-workstation-bg">
         {isAgentStation && <AgentStationTopHeader />}

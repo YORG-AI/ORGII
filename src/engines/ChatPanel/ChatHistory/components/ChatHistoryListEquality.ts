@@ -191,6 +191,7 @@ export function sameChatHistoryListProps(
     ],
     ["footerSpacerHeight", sameFooterSpacer],
     ["bottomInset", previous.bottomInset === next.bottomInset],
+    ["topPaddingPx", previous.topPaddingPx === next.topPaddingPx],
     [
       "planningIndicatorCount",
       previous.planningIndicatorCount === next.planningIndicatorCount,

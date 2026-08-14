@@ -5,9 +5,10 @@
 pub struct SessionMemoryState {
     /// Current SM markdown content (`None` = never extracted).
     pub content: Option<String>,
-    /// Index of the last message that was summarized into SM.
-    /// SM-compact keeps messages after this index.
-    pub last_summarized_msg_idx: Option<usize>,
+    /// Durable start-sequence of the last message summarized into SM.
+    /// Frame-independent: extraction (bounded durable suffix) and SM-compact
+    /// (in-turn tail) each resolve it to an index in their own array.
+    pub last_summarized_seq: Option<i64>,
     /// Total context tokens at the time of the last extraction.
     pub tokens_at_last_extraction: usize,
     /// Tool calls seen since the last extraction.

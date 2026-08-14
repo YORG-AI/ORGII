@@ -82,6 +82,67 @@ pub async fn test_code_search_tool(
     }
 }
 
+/// Stamp a debug-endpoint session `running` for the duration of a directly
+/// dispatched turn, mirroring what the session scheduler does for production
+/// turns. Best-effort: a failed stamp only degrades wake-coordinator
+/// accuracy for this test session, so it is logged and swallowed.
+async fn mark_test_session_running(session_id: &str) {
+    let sid = session_id.to_string();
+    let result = tokio::task::spawn_blocking(move || {
+        agent_core::session::persistence::update_status(
+            &sid,
+            agent_core::session::SessionStatus::Running,
+        )
+    })
+    .await;
+    match result {
+        Ok(Ok(true)) => {}
+        Ok(Ok(false)) => {
+            tracing::warn!(session_id, "test::sde: running-stamp found no session row")
+        }
+        Ok(Err(err)) => tracing::warn!(
+            session_id,
+            error = %err,
+            "test::sde: failed to stamp session running before direct turn"
+        ),
+        Err(join_err) => tracing::warn!(
+            session_id,
+            error = %join_err,
+            "test::sde: running-stamp task panicked"
+        ),
+    }
+}
+
+/// Closing bracket for [`mark_test_session_running`]: directly dispatched
+/// turns bypass the scheduler's terminal write too, so without this the
+/// session stays `running` forever and every job-completion wake claim is
+/// released against the stale status (observed as a silent-wake e2e cell
+/// timing out while the log shows repeated "owner still running; releasing
+/// claim"). Best-effort for the same reason as the opening stamp.
+async fn mark_test_session_terminal(session_id: &str) {
+    let sid = session_id.to_string();
+    let result = tokio::task::spawn_blocking(move || {
+        agent_core::session::persistence::update_status(
+            &sid,
+            agent_core::session::SessionStatus::Completed,
+        )
+    })
+    .await;
+    match result {
+        Ok(Ok(_)) => {}
+        Ok(Err(err)) => tracing::warn!(
+            session_id,
+            error = %err,
+            "test::sde: failed to stamp session terminal after direct turn"
+        ),
+        Err(join_err) => tracing::warn!(
+            session_id,
+            error = %join_err,
+            "test::sde: terminal-stamp task panicked"
+        ),
+    }
+}
+
 pub async fn test_sde_message(Json(request): Json<SdeTestRequest>) -> Json<serde_json::Value> {
     use tauri::Manager;
 
@@ -388,12 +449,24 @@ pub async fn test_sde_message(Json(request): Json<SdeTestRequest>) -> Json<serde
         ..Default::default()
     };
 
+    // Production turns go through the session scheduler, which stamps the
+    // session row `running` for the duration of the turn. This endpoint
+    // calls `process_message` directly, so without the same stamp the
+    // job-completion wake coordinator reads a stale `idle` and dispatches a
+    // resume turn CONCURRENTLY with the one still executing (observed in
+    // e2e as interleaved iteration logs and a stolen mid-turn-note claim).
+    // The terminal status is written by the turn's own finalize path; only
+    // the running window needs covering here.
+    mark_test_session_running(&session_id).await;
+
     let response = agent_core::session::process_message(
         session_arc,
         input,
         crate::api::get_app_handle().cloned(),
     )
     .await;
+
+    mark_test_session_terminal(&session_id).await;
 
     // Extract tool_calls from session messages (like OS Agent endpoint).
     //
@@ -1253,12 +1326,18 @@ pub async fn test_sde_plan_approval_respond(
         ..Default::default()
     };
 
+    // Same running-window stamp as `test_sde_message` — see the comment
+    // there for why a direct `process_message` call needs it.
+    mark_test_session_running(&session_id).await;
+
     let rebuild_response = agent_core::session::process_message(
         session,
         rebuild_input,
         crate::api::get_app_handle().cloned(),
     )
     .await;
+
+    mark_test_session_terminal(&session_id).await;
 
     // Collect the full tool_call history for the session so E2E scenarios
     // can assert on what the rebuild turn did (notably `manage_todo`). We
@@ -1532,10 +1611,9 @@ pub async fn test_em_state_get(
         "ok": true,
         "session_id": session_id,
         "em_state": {
-            "last_processed_idx": em_snap.last_processed_idx,
+            "last_processed_seq": em_snap.last_processed_seq,
             "in_progress": em_snap.in_progress,
             "turns_since_extraction": em_snap.turns_since_extraction,
-            "pending_messages_len": em_snap.pending_messages_len,
         },
     }))
 }

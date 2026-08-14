@@ -6,10 +6,12 @@ import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
-import RichMarkdownEditor, {
-  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS,
-  type RichMarkdownEditorRef,
-} from "@src/modules/shared/components/RichMarkdownEditor";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+  type MarkdownTextareaEditorRef,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
+import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import Modal from "@src/scaffold/ModalSystem";
 
 import type { GitHubRepoSource } from "./githubWorkItemsTypes";
@@ -48,7 +50,8 @@ export function CreateIssueModal({
   const [repoKey, setRepoKey] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const bodyEditorRef = useRef<RichMarkdownEditorRef>(null);
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
+  const bodyEditorRef = useRef<MarkdownTextareaEditorRef>(null);
   const bodyDropTargetRef = useRef<HTMLDivElement>(null);
   const insertDroppedReference = useCallback(
     (text: string, dropPoint?: { clientX: number; clientY: number }) => {
@@ -84,6 +87,7 @@ export function CreateIssueModal({
     setRepoKey("");
     setTitle("");
     setBody("");
+    setEditorMode("write");
   };
   const handleCancel = () => {
     reset();
@@ -105,6 +109,31 @@ export function CreateIssueModal({
       okText={creating ? labels.creating : labels.create}
       cancelText={labels.cancel}
       okButtonProps={{ loading: creating, disabled: !source || !title.trim() }}
+      footer={
+        <PanelFooter
+          left={
+            <MarkdownEditorModeSwitch
+              mode={editorMode}
+              onModeChange={setEditorMode}
+              disabled={creating}
+              dataTestId="create-github-issue-mode-switch"
+            />
+          }
+          secondaryActions={[
+            {
+              label: labels.cancel,
+              onClick: handleCancel,
+              disabled: creating,
+            },
+          ]}
+          primaryAction={{
+            label: creating ? labels.creating : labels.create,
+            onClick: handleCreate,
+            loading: creating,
+            disabled: !source || !title.trim(),
+          }}
+        />
+      }
       width={640}
       bodyClassName="p-4"
     >
@@ -133,7 +162,7 @@ export function CreateIssueModal({
           }`.trim()}
           data-testid="create-github-issue-description"
         >
-          <RichMarkdownEditor
+          <MarkdownTextareaEditor
             ref={bodyEditorRef}
             value={body}
             onChange={setBody}
@@ -141,11 +170,9 @@ export function CreateIssueModal({
             minHeight={180}
             maxHeight={420}
             appearance="plain"
-            toolbarMode="inline"
-            toolbarSize="mini"
-            toolbarClassName={RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS}
-            toolbarDropdownPosition="top-start"
             editable={!creating}
+            mode={editorMode}
+            onModeChange={setEditorMode}
             dataTestId="create-github-issue-description-editor"
           />
           <CloudSessionReferencePreview text={body} className="px-1.5" />

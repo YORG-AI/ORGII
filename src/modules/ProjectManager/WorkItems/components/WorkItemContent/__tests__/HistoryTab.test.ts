@@ -43,22 +43,19 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
+vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", () => ({
   default: ({
     appearance,
     dataTestId,
-    matchMarkdownPreview,
     minHeight,
   }: {
     appearance?: string;
     dataTestId?: string;
-    matchMarkdownPreview?: boolean;
     minHeight?: number;
   }) =>
     createElement("textarea", {
       "data-testid": dataTestId,
       "data-appearance": appearance,
-      "data-match-preview": String(matchMarkdownPreview),
       "data-min-height": minHeight,
     }),
 }));
