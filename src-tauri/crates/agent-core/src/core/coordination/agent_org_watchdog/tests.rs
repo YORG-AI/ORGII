@@ -41,7 +41,7 @@ fn wakeable_status_includes_idle_and_terminal_but_not_running() {
 #[test]
 fn member_rewake_reservation_is_atomic_and_refundable() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("db");
+    let conn = runtime_connection().expect("db");
     init_schema(&conn).expect("schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let member_id = "member-reserved";
@@ -69,7 +69,7 @@ fn member_rewake_reservation_is_atomic_and_refundable() {
 #[test]
 fn stale_rewake_refund_cannot_undo_newer_input() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("db");
+    let conn = runtime_connection().expect("db");
     init_schema(&conn).expect("schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let member_id = "member-new-input";
@@ -147,7 +147,7 @@ fn shared_scan_deadline_is_checked_at_each_team_boundary() {
 #[test]
 fn running_query_is_limited_and_never_visits_quiet_states() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("db");
+    let conn = runtime_connection().expect("db");
     crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
     let now = Utc::now().to_rfc3339();
     for index in 0..105 {
@@ -194,7 +194,7 @@ fn running_query_is_limited_and_never_visits_quiet_states() {
 #[test]
 fn coordinator_notice_budget_backs_off_and_resets_on_new_reason() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("db");
+    let conn = runtime_connection().expect("db");
     init_schema(&conn).expect("schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
 
@@ -206,7 +206,7 @@ fn coordinator_notice_budget_backs_off_and_resets_on_new_reason() {
 #[test]
 fn rewake_budget_exhaustion_requires_all_attempts_and_an_expired_cooldown() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("db");
+    let conn = runtime_connection().expect("db");
     init_schema(&conn).expect("schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let member_id = "member-exhausted";
