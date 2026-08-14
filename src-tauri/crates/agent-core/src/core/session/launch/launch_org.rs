@@ -228,7 +228,14 @@ pub(super) async fn materialize_org_member_sessions(
             &persisted_session_id,
         )
         .map_err(|error| {
-            if error.contains("identity mismatch") || error.contains("Session identity") {
+            // Typed classification: the store stamps permanent identity
+            // failures with a stable machine prefix. Matching prose (the old
+            // `.contains("identity mismatch")`) missed the store's
+            // "materialization session mismatch" wording and retried a
+            // permanently wrong identity forever.
+            if crate::coordination::agent_org_runs::is_materialization_identity_mismatch_error(
+                &error,
+            ) {
                 AgentOrgMaterializationError::permanent("materialization_identity_mismatch", error)
             } else {
                 AgentOrgMaterializationError::retryable(error)

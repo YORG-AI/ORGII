@@ -45,6 +45,20 @@ pub(crate) const MAX_AUTO_NAME_LEN: usize = 80;
 
 const AGENT_ORG_INITIAL_INPUT_PAYLOAD_VERSION: u8 = 1;
 
+/// Stable machine prefixes for permanent initial-input payload decode
+/// failures. Classification sites match on these constants (shared with the
+/// construction below) instead of free-hand substrings.
+const INVALID_INITIAL_INPUT_PAYLOAD_PREFIX: &str = "invalid Starting initial input payload";
+const UNSUPPORTED_INITIAL_INPUT_PAYLOAD_PREFIX: &str =
+    "unsupported Starting initial input payload version";
+
+/// True when the decode failure is permanent: the durable payload itself is
+/// malformed or from an unknown version, so no retry can ever succeed.
+fn is_permanent_initial_input_payload_error(error: &str) -> bool {
+    error.starts_with(INVALID_INITIAL_INPUT_PAYLOAD_PREFIX)
+        || error.starts_with(UNSUPPORTED_INITIAL_INPUT_PAYLOAD_PREFIX)
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AgentOrgInitialInputPayload {
@@ -60,13 +74,13 @@ fn decode_agent_org_initial_input_payload(
     let payload: AgentOrgInitialInputPayload =
         serde_json::from_str(&input.payload_json).map_err(|error| {
             format!(
-                "invalid Starting initial input payload for {}: {error}",
+                "{INVALID_INITIAL_INPUT_PAYLOAD_PREFIX} for {}: {error}",
                 input.org_run_id
             )
         })?;
     if payload.version != AGENT_ORG_INITIAL_INPUT_PAYLOAD_VERSION {
         return Err(format!(
-            "unsupported Starting initial input payload version {} for {}",
+            "{UNSUPPORTED_INITIAL_INPUT_PAYLOAD_PREFIX} {} for {}",
             payload.version, input.org_run_id
         ));
     }
@@ -936,10 +950,7 @@ pub(crate) async fn launch_rust_agent_run(
             }
 
             if let Err(error) = AgentOrgRunStore::finish_starting(run_id, starting_generation) {
-                if error.starts_with("materialization_identity_mismatch:")
-                    || error.contains("initial input certificate missing")
-                    || error.contains("unexpected initial input certificate")
-                {
+                if crate::coordination::agent_org_runs::is_permanent_finish_starting_error(&error) {
                     handle_background_launch_failure(
                         &session_id_for_background,
                         Some(run_id),
@@ -1340,9 +1351,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
         if let Some(input) = initial_input {
             if let Err(error) = persist_starting_initial_input(state, root_session_id, &input).await
             {
-                if error.starts_with("invalid Starting initial input payload")
-                    || error.starts_with("unsupported Starting initial input payload version")
-                {
+                if is_permanent_initial_input_payload_error(&error) {
                     AgentOrgRunStore::fail_starting(
                         &run.id,
                         run.activation_generation,
@@ -1358,10 +1367,7 @@ async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), St
             }
         }
         if let Err(error) = AgentOrgRunStore::finish_starting(&run.id, run.activation_generation) {
-            if error.starts_with("materialization_identity_mismatch:")
-                || error.contains("initial input certificate missing")
-                || error.contains("unexpected initial input certificate")
-            {
+            if crate::coordination::agent_org_runs::is_permanent_finish_starting_error(&error) {
                 AgentOrgRunStore::fail_starting(
                     &run.id,
                     run.activation_generation,
