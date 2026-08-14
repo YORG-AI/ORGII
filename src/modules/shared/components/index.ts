@@ -24,11 +24,15 @@ export {
   normalizeMarkdownContent,
 } from "./MarkdownContent";
 export type { MarkdownContentProps } from "./MarkdownContent";
-export { default as RichMarkdownEditor } from "./RichMarkdownEditor";
+export { default as MarkdownTextareaEditor } from "./MarkdownTextareaEditor";
+export { MarkdownEditorModeSwitch } from "./MarkdownTextareaEditor";
 export type {
-  RichMarkdownEditorProps,
-  RichMarkdownEditorRef,
-} from "./RichMarkdownEditor";
+  MarkdownEditorMode,
+  MarkdownEditorModeSwitchProps,
+  MarkdownTextareaEditorProps,
+  MarkdownTextareaEditorRef,
+  MarkdownTextareaInsertOptions,
+} from "./MarkdownTextareaEditor";
 export { default as SaveableTextarea } from "./SaveableTextarea";
 export type { SaveableTextareaProps } from "./SaveableTextarea";
 export { GlobalSpotlightPortal } from "./GlobalSpotlightPortal";

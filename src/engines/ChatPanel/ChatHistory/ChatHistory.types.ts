@@ -68,6 +68,8 @@ export interface ChatHistoryProps {
   turnPaginationEnabled?: boolean;
   /** Optional external host for pinned/pagination chrome, outside the scroll body subtree. */
   pinnedHeaderPortalHost?: HTMLElement | null;
+  /** Floating chrome height transcript offsets must clear (0 = in-flow chrome). */
+  chromeTopInset?: number;
   /** Height in px of the overlapping input area, used to keep the last message reachable. */
   bottomInset?: number;
   /**

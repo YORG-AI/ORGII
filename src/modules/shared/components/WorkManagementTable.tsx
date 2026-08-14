@@ -370,7 +370,7 @@ export function WorkManagementTable({
     t,
   ]);
   const footer = pagination ? (
-    <div className="flex h-12 shrink-0 items-center border-t border-border-1 px-4">
+    <div className="flex h-10 shrink-0 items-center border-t border-border-1 px-4">
       <SettingsTablePagination
         {...pagination}
         onPageSizeChange={() => undefined}
@@ -389,6 +389,7 @@ export function WorkManagementTable({
         columns={columns}
         rows={rows}
         getRowKey={(row) => row.key}
+        bodySurface="pane"
         fillHeight
         hover
         loading={loading}

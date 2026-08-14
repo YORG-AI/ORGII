@@ -6,14 +6,17 @@ import type { useSessionRawTranscript } from "@src/engines/ChatPanel/components/
 export interface SessionRawTranscriptViewProps {
   sessionId: string;
   transcript: ReturnType<typeof useSessionRawTranscript>;
+  /** Space reserved for host chrome that overlays the view. */
+  topInset?: number;
 }
 
 const SessionRawTranscriptView: React.FC<SessionRawTranscriptViewProps> = memo(
-  ({ sessionId, transcript }) => {
+  ({ sessionId, transcript, topInset = 0 }) => {
     return (
       <div
         data-testid="workstation-session-raw-view"
         className="flex min-h-0 flex-1 flex-col"
+        style={topInset > 0 ? { paddingTop: topInset } : undefined}
       >
         <SessionRawTranscriptContent
           error={transcript.error}

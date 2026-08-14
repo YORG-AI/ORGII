@@ -30,6 +30,38 @@ fn push_events_adapter(handle: &AppHandle, session_id: &str, events: Vec<Session
     push_events_to_session(handle, &state, session_id, events);
 }
 
+/// Build the canonical `tool-call-<call_id>` event for a shell whose session
+/// has no frontend ingestion, from the Rust-authoritative replay manifest.
+/// Returns `Ok(None)` when the manifest row does not exist (the handle is
+/// genuinely unknown — the barrier should keep failing in that case).
+fn synthesize_shell_tool_call_event(
+    session_id: &str,
+    call_id: &str,
+) -> Result<Option<SessionEvent>, String> {
+    let Some(meta) = agent_core::tools::impls::coding::exec::shell_replay::replay_command_meta(
+        session_id, call_id,
+    )?
+    else {
+        return Ok(None);
+    };
+    let chunk = super::ingestion::types::RawActivityChunk {
+        chunk_id: Some(format!("tool-call-{call_id}")),
+        session_id: Some(session_id.to_string()),
+        action_type: Some("tool_call".to_string()),
+        function: Some("run_shell".to_string()),
+        args: Some(serde_json::json!({
+            "command": meta.command,
+            "cwd": meta.cwd,
+        })),
+        result: None,
+        created_at: Some(meta.created_at),
+        thread_id: None,
+        process_id: None,
+        call_id: Some(call_id.to_string()),
+    };
+    Ok(Some(super::ingestion::normalize_single(&chunk, session_id)))
+}
+
 fn schedule_notify_adapter(handle: &AppHandle, session_id: &str) {
     let state = handle.state::<EventStoreState>();
     schedule_notify(handle, &state, session_id);
@@ -91,8 +123,21 @@ fn update_shell_replay_by_call_id_adapter(
         let event_id = format!("tool-call-{call_id}");
         let cold =
             session_persistence::get_event(session_id, &event_id).map_err(|err| err.to_string())?;
-        if let Some(cached) = cold {
-            let event = cached_event_to_session_event(&cached);
+        let cold = match cold {
+            Some(cached) => Some(cached_event_to_session_event(&cached)),
+            // Headless fallback: the tool_call event is normally materialized
+            // by frontend ingestion, so a session no window ever attached to
+            // (debug/e2e endpoints) has neither a live-store nor a cold-store
+            // row and the exact-event barrier would exhaust its retries and
+            // refuse to start the shell. The replay manifest row (command,
+            // cwd, created_at) is written by the Rust side strictly before
+            // this publish, so synthesize the canonical event from it through
+            // the SAME normalizer frontend ingestion uses. Collision-safe:
+            // the store appends dedupe by id, so if a frontend attaches later
+            // its ingestion of `tool-call-<call_id>` is a no-op.
+            None => synthesize_shell_tool_call_event(session_id, call_id)?,
+        };
+        if let Some(event) = cold {
             if event.session_id == session_id
                 && event.call_id.as_deref() == Some(call_id)
                 && event.action_type == "tool_call"

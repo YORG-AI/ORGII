@@ -12,7 +12,6 @@ use crate::core::session::compaction::persist;
 use crate::core::session::scheduler::{ScheduledKind, ScheduledMessage};
 use crate::core::turn_executor::context_accounting::ContextUsageSnapshot;
 use crate::model_context::session_memory;
-use crate::model_context::session_memory::SessionMemoryState;
 use crate::session::persistence as unified_persistence;
 use crate::state::{AgentAppState, AgentSession};
 
@@ -267,11 +266,13 @@ async fn run_manual_compact_exclusive(
             unified_persistence::load_llm_history(&sid_for_load).map_err(|err| err.to_string())?;
         let sm_state = unified_persistence::load_session_memory_state(&sid_for_load)
             .map_err(|err| err.to_string())?;
-        Ok::<_, String>((history, sm_state))
+        let start_seqs = unified_persistence::load_llm_history_start_sequences(&sid_for_load)
+            .map_err(|err| err.to_string())?;
+        Ok::<_, String>((history, sm_state, start_seqs))
     })
     .await;
 
-    let (history, sm_persisted) = match loaded {
+    let (history, sm_persisted, sm_start_seqs) = match loaded {
         Ok(Ok(pair)) => pair,
         Ok(Err(err)) => {
             let reason = format!("load session state failed: {}", err);
@@ -325,24 +326,15 @@ async fn run_manual_compact_exclusive(
     // is pre-extracted and cannot honor them.
     let mut compacted: Option<Vec<Value>> = None;
     if custom_instructions.is_none() {
-        let sm_state = SessionMemoryState {
-            content: sm_persisted.content,
-            // `sm_last_msg_idx` was recorded against the turn frame
-            // (`[runtime system message] + durable history`, see
-            // processor/mod.rs frame assembly); `history` here is
-            // `load_llm_history` output with no such prefix, so shift by
-            // the frame's one-message runtime-system prefix — the same
-            // conversion `adjust_sm_state_for_compactable_tail` performs
-            // on the auto paths. Without it the kept tail starts past
-            // messages the SM summary never covered.
-            last_summarized_msg_idx: sm_persisted.last_msg_idx.and_then(|idx| idx.checked_sub(1)),
-            ..Default::default()
-        };
+        // `history` is `load_llm_history` output — the same visible durable
+        // frame `sm_start_seqs` describes, so the anchor resolves exactly.
+        let anchor_idx =
+            session_memory::resolve_summarized_boundary_idx(sm_persisted.last_seq, &sm_start_seqs);
         if let Some(sm_view) = session_memory::try_sm_compact(
             &history,
-            &sm_state,
+            sm_persisted.content.as_deref(),
+            anchor_idx,
             &session_memory::SessionMemoryCompactConfig::default(),
-            0, // context window is unused by try_sm_compact
         ) {
             let candidate = finalize_compacted_view(&history, sm_view);
             if ContextCompactor::estimate_messages_tokens(&candidate) < tokens_before {

@@ -44,6 +44,8 @@ export interface ComposerBarProps {
   editorSlot?: React.ReactNode;
   /** Hide the default add-content button while preserving the shared layout. */
   hideAddButton?: boolean;
+  /** Places add/tools/pills beside submit, leaving only the prefix on the left. */
+  secondaryControlsPosition?: "left" | "right";
   /**
    * When false, omits ContextInfoButton.
    * @default true
@@ -69,6 +71,7 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
     bottomPaddingClassName = "",
     editorSlot,
     hideAddButton = false,
+    secondaryControlsPosition = "left",
     showContextInfo = true,
   }) => {
     const rowClass = "flex min-w-0 items-center gap-0.5";
@@ -108,11 +111,22 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
       >
         <div className={rowClass}>
           {leftPrefix}
-          {addButton}
-          {leftTools}
-          {pills}
+          {secondaryControlsPosition === "left" ? (
+            <>
+              {addButton}
+              {leftTools}
+              {pills}
+            </>
+          ) : null}
         </div>
         <div className={rowClass}>
+          {secondaryControlsPosition === "right" ? (
+            <>
+              {addButton}
+              {leftTools}
+              {pills}
+            </>
+          ) : null}
           {showContextInfo && <ContextInfoButton repoPath={repoPath} />}
           {submitButton}
         </div>

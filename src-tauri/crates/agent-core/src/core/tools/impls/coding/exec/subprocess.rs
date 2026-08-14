@@ -36,6 +36,13 @@ pub(super) const ESTIMATED_RETAINED_OUTPUT_BYTES: usize = (2
 const BACKGROUND_SAFETY_TIMEOUT_SECS: u64 = 3600;
 const SHELL_TOOL_RESULT_MAX_BYTES: usize = 30 * 1024;
 
+/// How often the background monitor probes the replay bookmark for stall
+/// detection. Coarse — the probe is an in-memory RwLock read.
+const STALL_CHECK_INTERVAL: Duration = Duration::from_secs(5);
+/// How long output must stop growing before the tail is even considered for
+/// the interactive-prompt check.
+const STALL_THRESHOLD: Duration = Duration::from_secs(45);
+
 #[derive(Debug, Clone)]
 pub struct ExecIdentity {
     pub session_id: String,
@@ -870,10 +877,13 @@ fn handle_backgrounded(
     let log_info = if log_path.is_some() {
         format!(
             "\nComplete output: Session Replay\n\n\
-             To wait for output: await_output(command=\"wait_for\", handles=[\"{pid}\"], pattern=\"your_regex\", block_until_ms=30000)\n\
-             To check status:    await_output(command=\"monitor\", handles=[\"{pid}\"])\n\
-             To read tail:       await_output(command=\"monitor\", handles=[\"{pid}\"], tail_lines=100)\n\
-             To kill:            run_shell(kill_handle=\"{pid}\")"
+             To wait for completion: await_output(command=\"wait_for\", handles=[\"{pid}\"], block_until_ms=60000)\n\
+             To wait for a pattern:  await_output(command=\"wait_for\", handles=[\"{pid}\"], pattern=\"your_regex\", block_until_ms=60000)\n\
+             To check status:        await_output(command=\"monitor\", handles=[\"{pid}\"])\n\
+             To read tail:           await_output(command=\"monitor\", handles=[\"{pid}\"], tail_lines=100)\n\
+             To kill:                run_shell(kill_handle=\"{pid}\")\n\
+             If it is still running after a wait or two, STOP waiting: continue with other work or end your turn — \
+             the session resumes automatically when the process exits."
         )
     } else {
         format!("\nTo kill: run_shell(kill_handle=\"{pid}\")")
@@ -888,6 +898,7 @@ fn handle_backgrounded(
     tokio::spawn(async move {
         let mut runtime = Some(runtime);
         let started = Instant::now();
+        let mut stall_watchdog = StallWatchdog::new();
         let (exit_code, killed, replay_failure) = loop {
             if let Some(err) = runtime
                 .as_ref()
@@ -916,6 +927,7 @@ fn handle_backgrounded(
                     Some("background process exceeded 1h safety timeout".to_string()),
                 );
             }
+            stall_watchdog.probe(&identity, pid);
             tokio::time::sleep(Duration::from_millis(50)).await;
         };
 
@@ -935,6 +947,7 @@ fn handle_backgrounded(
                     &format!("[background shell replay writer failed: {writer_err}]"),
                 );
                 broadcast_process_exited(&identity, pid, exit_code, killed, app_handle.as_ref());
+                finish_background_job(pid, &identity.session_id).await;
                 return;
             }
         };
@@ -974,19 +987,213 @@ fn handle_backgrounded(
             );
         }
         broadcast_process_exited(&identity, pid, exit_code, killed, app_handle.as_ref());
-        if pid != 0 {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            registry::remove(&pid.to_string());
-        }
+        finish_background_job(pid, &identity.session_id).await;
     });
 
     Ok(bounded_background_result(preview, &header, &log_info))
+}
+
+/// Shared completion tail for a backgrounded shell: push a job-completion
+/// wake to the owning session (the shell counterpart of the subagent
+/// completion push — the coordinator claims exactly-once and no-ops for
+/// killed shells or a still-running owner), then retain the registry entry
+/// until the output is acknowledged so the Background Jobs reminder of the
+/// resumed turn can still see it. The old flat 60s eviction raced exactly
+/// that window: a session idle for longer than a minute lost the entry
+/// before any turn could read it.
+async fn finish_background_job(pid: u32, session_id: &str) {
+    if pid == 0 {
+        return;
+    }
+    crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()
+        .wake_owner(session_id);
+    registry::retain_until_acknowledged_then_remove(
+        &pid.to_string(),
+        Duration::from_secs(30 * 60),
+        "subprocess",
+    )
+    .await;
+}
+
+/// Stall detector for a backgrounded shell: when the replay bookmark stops
+/// advancing for [`STALL_THRESHOLD`] and the terminal preview's last line
+/// looks like an interactive prompt, latch the job as waiting-for-input.
+/// The latch feeds the Background Jobs reminder, the mid-turn note, the
+/// await_output hint, and a one-shot owner wake — everything needed for the
+/// model to kill the process and re-run it non-interactively instead of
+/// waiting out the 1h safety timeout. Output resuming clears the latch and
+/// re-arms the advisory.
+struct StallWatchdog {
+    last_probe: Instant,
+    last_bytes: u64,
+    last_growth: Instant,
+    latched: bool,
+}
+
+impl StallWatchdog {
+    fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            last_probe: now,
+            last_bytes: 0,
+            last_growth: now,
+            latched: false,
+        }
+    }
+
+    fn probe(&mut self, identity: &ExecIdentity, pid: u32) {
+        if pid == 0 || self.last_probe.elapsed() < STALL_CHECK_INTERVAL {
+            return;
+        }
+        self.last_probe = Instant::now();
+        let Some(state) = active_state(&identity.session_id, &identity.call_id) else {
+            return;
+        };
+        let bytes = state.bookmark.visible_bytes;
+        if bytes > self.last_bytes {
+            self.last_bytes = bytes;
+            self.last_growth = Instant::now();
+            if self.latched {
+                self.latched = false;
+                registry::clear_stalled_waiting_input(&pid.to_string());
+            }
+            return;
+        }
+        if self.latched || self.last_growth.elapsed() < STALL_THRESHOLD {
+            return;
+        }
+        if !looks_like_interactive_prompt(&state.terminal_preview) {
+            return;
+        }
+        self.latched = true;
+        if registry::mark_stalled_waiting_input(&pid.to_string()) {
+            broadcast_system_output(
+                identity,
+                &format!("[process {pid} appears to be waiting for interactive input]"),
+            );
+            crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()
+                .wake_owner(&identity.session_id);
+        }
+    }
+}
+
+/// Whether the last non-empty line of a terminal tail looks like an
+/// interactive prompt. Deliberately conservative — the stall threshold has
+/// already passed when this runs, so the goal is catching the classic
+/// confirmation / credential / REPL prompts without misfiring on quiet
+/// long-running servers.
+fn looks_like_interactive_prompt(tail: &str) -> bool {
+    let Some(raw_line) = tail.lines().rev().find(|line| !line.trim().is_empty()) else {
+        return false;
+    };
+    let line = raw_line
+        .trim()
+        .strip_prefix("[stderr]")
+        .map(str::trim)
+        .unwrap_or_else(|| raw_line.trim());
+    let lower = line.to_ascii_lowercase();
+
+    // Lone REPL / shell prompts ("$", ">", ">>>", "irb>", "%", "#").
+    if matches!(line, "$" | ">" | ">>>" | "#" | "%") {
+        return true;
+    }
+
+    // [y/n]-style confirmations, with optional trailing ':' / '?' / '.'.
+    let confirm_core = lower.trim_end_matches([':', '?', '.', ' ']);
+    for suffix in ["[y/n]", "(y/n)", "[yes/no]", "(yes/no)", "[y/n/a]"] {
+        if confirm_core.ends_with(suffix) {
+            return true;
+        }
+    }
+
+    // Credential prompts: "Password:", "Enter passphrase for ...:".
+    if lower.ends_with(':')
+        && [
+            "password",
+            "passphrase",
+            "username",
+            "login",
+            "pin",
+            "token",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw))
+    {
+        return true;
+    }
+
+    // "Press ENTER to continue" / "press any key".
+    if lower.contains("press enter") || lower.contains("press any key") {
+        return true;
+    }
+
+    // Question-shaped confirmations ("Do you want to ...?", "Overwrite ...?").
+    if lower.ends_with('?')
+        && [
+            "do you",
+            "would you",
+            "are you sure",
+            "continue",
+            "proceed",
+            "overwrite",
+            "replace",
+            "install",
+            "ok to",
+            "accept",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw))
+    {
+        return true;
+    }
+
+    false
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn interactive_prompt_detection_matches_common_prompts() {
+        for tail in [
+            "Cloning into 'repo'...\nUsername for 'https://github.com':",
+            "sudo: reading password\n[stderr] Password:",
+            "Overwrite existing file? [y/N]",
+            "Do you want to continue? (yes/no):",
+            "some output\nAccept the license terms? [y/n]?",
+            "Press ENTER to continue",
+            "compiling...\n>>>",
+            "$",
+            "Enter passphrase for key '/Users/x/.ssh/id_ed25519':",
+        ] {
+            assert!(
+                looks_like_interactive_prompt(tail),
+                "should match prompt tail: {tail:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn interactive_prompt_detection_ignores_ordinary_output() {
+        for tail in [
+            "",
+            "   \n  ",
+            "Compiling agent_core v0.1.0",
+            "test result: ok. 3164 passed; 0 failed",
+            "webpack compiled successfully in 4123 ms",
+            "GET /api/health 200 3ms",
+            "warning: unused variable `x`",
+            "vite v5.0.0 dev server running at:\n> Local: http://localhost:5173/",
+            "What's next?\n  cd app && npm run dev",
+        ] {
+            assert!(
+                !looks_like_interactive_prompt(tail),
+                "should NOT match ordinary tail: {tail:?}"
+            );
+        }
+    }
 
     #[test]
     fn background_tool_result_stays_inside_model_budget() {

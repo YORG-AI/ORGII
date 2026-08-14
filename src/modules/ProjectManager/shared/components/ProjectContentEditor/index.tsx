@@ -1,4 +1,3 @@
-import type { JSONContent } from "@tiptap/react";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -19,16 +18,13 @@ import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/ContextMenuPortal";
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
 import { useComposerInput } from "@src/hooks/input";
-import RichMarkdownEditor, {
-  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS,
-  type RichMarkdownEditorRef,
-} from "@src/modules/shared/components/RichMarkdownEditor";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+  type MarkdownTextareaEditorRef,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
 import type { SlashItem } from "@src/types/extensions";
 
 export interface ProjectContentEditorRef {
-  getDescriptionText: () => string;
-  getDescriptionHTML: () => string;
-  getDescriptionJSON: () => JSONContent | undefined;
   getMarkdown: () => string;
   insertImage: (src: string, alt?: string) => void;
   insertFilePill: (filePath: string, displayName?: string) => void;
@@ -67,8 +63,8 @@ export interface ProjectContentEditorProps {
   titleActions?: ReactNode;
   metaContent?: ReactNode;
   descriptionClassName?: string;
-  /** Formatting controls for the description editor. */
-  descriptionToolbarMode?: "floating" | "inline";
+  descriptionMode?: MarkdownEditorMode;
+  onDescriptionModeChange?: (mode: MarkdownEditorMode) => void;
   descriptionMinHeight?: number;
   descriptionMaxHeight?: number | string;
   repoPath?: string | null;
@@ -142,7 +138,8 @@ const ProjectContentEditor = forwardRef<
       titleActions,
       metaContent,
       descriptionClassName = "",
-      descriptionToolbarMode = "floating",
+      descriptionMode,
+      onDescriptionModeChange,
       descriptionMinHeight = 200,
       descriptionMaxHeight,
       repoPath,
@@ -160,7 +157,7 @@ const ProjectContentEditor = forwardRef<
       descriptionPlaceholderProp ?? t("projects.editor.descriptionPlaceholder");
     const titleRef = useRef<HTMLInputElement>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
-    const editorRef = useRef<RichMarkdownEditorRef>(null);
+    const editorRef = useRef<MarkdownTextareaEditorRef>(null);
     const descriptionValueRef = useRef(initialDescription);
     const [slashOpenedFromToolbar, setSlashOpenedFromToolbar] = useState(false);
     const slashOpenedFromToolbarRef = useRef(false);
@@ -203,9 +200,6 @@ const ProjectContentEditor = forwardRef<
     );
 
     useImperativeHandle(ref, () => ({
-      getDescriptionText: () => editorRef.current?.getText() ?? "",
-      getDescriptionHTML: () => editorRef.current?.getHTML() ?? "",
-      getDescriptionJSON: () => editorRef.current?.getJSON(),
       getMarkdown: getSerializedDescription,
       insertImage: (src: string, alt?: string) =>
         editorRef.current?.insertImage(src, alt),
@@ -232,7 +226,7 @@ const ProjectContentEditor = forwardRef<
       (event: ReactMouseEvent<HTMLDivElement>) => {
         const target = event.target;
         if (target instanceof HTMLElement) {
-          if (target.closest(".ProseMirror, button")) {
+          if (target.closest("textarea, button")) {
             return;
           }
         }
@@ -375,7 +369,7 @@ const ProjectContentEditor = forwardRef<
             className={`${descriptionMaxHeight ? "min-h-0 flex-1" : "min-h-[200px]"} w-full min-w-0 cursor-text`}
             onClick={handleDescriptionContainerClick}
           >
-            <RichMarkdownEditor
+            <MarkdownTextareaEditor
               ref={editorRef}
               value={initialDescription}
               onChange={handleDescriptionChange}
@@ -394,14 +388,8 @@ const ProjectContentEditor = forwardRef<
               minHeight={descriptionMinHeight}
               maxHeight={descriptionMaxHeight}
               editable={editable}
-              toolbarMode={descriptionToolbarMode}
-              toolbarClassName={
-                descriptionToolbarMode === "inline"
-                  ? RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS
-                  : "work-item-toolbar"
-              }
-              toolbarSize="mini"
-              toolbarDropdownPosition="top-start"
+              mode={descriptionMode}
+              onModeChange={onDescriptionModeChange}
               className={`noDrag flex-1 cursor-text rounded-md text-text-1 ${descriptionClassName}`.trim()}
             />
             <ContextMenuPortal

@@ -13,6 +13,8 @@
     "browser": "Tarayıcı",
     "editor": "Düzenleyici",
     "environment": "Ortam",
+    "sessionEnvironment": "Oturum ortamı",
+    "localEnvironment": "Yerel ortam",
     "workspace": "Çalışma Alanı",
     "codeEditor": "Kod Düzenleyici",
     "databaseManager": "Veritabanı Yöneticisi",

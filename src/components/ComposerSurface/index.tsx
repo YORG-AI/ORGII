@@ -29,6 +29,7 @@ export interface ComposerSurfaceProps extends Omit<
   dropdownDirection?: "up" | "down";
   showContextInfo?: boolean;
   repoPath?: string;
+  secondaryControlsPosition?: "left" | "right";
 }
 
 const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
@@ -43,6 +44,7 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
       dropdownDirection = "up",
       showContextInfo = false,
       repoPath,
+      secondaryControlsPosition = "left",
       ...shellProps
     },
     ref
@@ -68,6 +70,7 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
             submitButton={trailingActions}
             hideAddButton={!onAddContent || !onUpload}
             showContextInfo={showContextInfo}
+            secondaryControlsPosition={secondaryControlsPosition}
           />
         ) : null}
       </ComposerShell>

@@ -72,6 +72,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     codeBlockContainerWidth,
     footerSpacerHeight,
     bottomInset,
+    topPaddingPx = CHAT_PANEL_TRANSCRIPT_TOP_PADDING_PX,
     planningIndicatorCount,
     planningVariantIndex,
     planningFooterMode,
@@ -391,7 +392,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         <div
           ref={staticScrollerRef}
           className="h-full overflow-y-auto overscroll-contain scrollbar-hide"
-          style={{ paddingTop: CHAT_PANEL_TRANSCRIPT_TOP_PADDING_PX }}
+          style={{ paddingTop: topPaddingPx }}
           onScroll={(event) => {
             const element = event.currentTarget;
             onAtBottomStateChange(
@@ -472,7 +473,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         }}
         data-testid="chat-history-scroll-container"
         className="h-full w-full overflow-y-auto overscroll-contain scrollbar-hide"
-        style={{ paddingTop: CHAT_PANEL_TRANSCRIPT_TOP_PADDING_PX }}
+        style={{ paddingTop: topPaddingPx }}
         onScroll={(event) => {
           const element = event.currentTarget;
           const isAtBottom = isScrolledToContentBottom({

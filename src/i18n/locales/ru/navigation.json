@@ -13,6 +13,8 @@
     "browser": "Браузер",
     "editor": "Редактор",
     "environment": "Окружение",
+    "sessionEnvironment": "Среда сеанса",
+    "localEnvironment": "Локальная среда",
     "workspace": "Рабочее пространство",
     "codeEditor": "Редактор кода",
     "databaseManager": "Менеджер БД",

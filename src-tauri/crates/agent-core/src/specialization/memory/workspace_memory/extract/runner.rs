@@ -32,18 +32,19 @@ const MAX_EXTRACTION_TURNS: u32 = 5;
 pub async fn run_extraction(
     em_state: Arc<Mutex<ExtractMemoriesState>>,
     params: super::super::super::MemoryAgentParams<'_>,
+    start_seqs: &[i64],
 ) -> Result<(), String> {
     // ── Prepare: brief lock to flag in-progress + read the cursor. The mutex
     // is NOT held across the fork/LLM call below — otherwise the next turn's
-    // brief `em_state` reads (the gate pre-check that decides whether to
-    // stash) would block for the whole extraction. The `in_progress` flag
-    // (kept true until finalize) is what preserves the "at most one extractor"
-    // invariant during the lock-free window.
-    let last_processed_idx = {
+    // brief `em_state` reads (the gate pre-check) would block for the whole
+    // extraction. The `in_progress` flag (kept true until finalize) is what
+    // preserves the "at most one extractor" invariant during the lock-free
+    // window.
+    let last_processed_seq = {
         let mut state = em_state.lock().await;
         state.in_progress = true;
         state.turns_since_extraction = 0;
-        state.last_processed_idx
+        state.last_processed_seq
     };
 
     let workspace = params.workspace;
@@ -67,7 +68,7 @@ pub async fn run_extraction(
         };
 
     let messages = params.messages;
-    let new_count = count_new_messages(messages, last_processed_idx);
+    let new_count = count_new_messages(start_seqs, last_processed_seq);
     let existing_memories =
         super::super::format_memory_manifest(&super::super::scan_memory_files(&mem_dir));
     let user_prompt = build_extraction_prompt(new_count, &existing_memories, &mem_dir);
@@ -133,7 +134,7 @@ pub async fn run_extraction(
         &subagent_session_id,
         &handler,
         None,
-        None,
+        params.cancel_flag,
         None,
     )
     .await;
@@ -145,7 +146,9 @@ pub async fn run_extraction(
 
     match result {
         Ok(turn_result) => {
-            state.last_processed_idx = Some(messages.len().saturating_sub(1));
+            if let Some(last_seq) = start_seqs.last() {
+                state.last_processed_seq = Some(*last_seq);
+            }
 
             info!(
                 "[extract_memories] Completed: session={}, tokens={}",

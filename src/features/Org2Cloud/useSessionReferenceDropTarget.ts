@@ -105,7 +105,7 @@ interface CustomSessionReferenceDropTargetParams {
    * `dropPoint` carries the pointer's viewport coordinates at release, so
    * the caller can resolve an insertion position at the drop point instead
    * of wherever the caret/selection happened to be (see
-   * `useRichTextEditor.insertText`'s `clientX`/`clientY` options). Absent
+   * `MarkdownTextareaEditor.insertText`'s `clientX`/`clientY` options). Absent
    * only if the drag ended without a known pointer position.
    */
   onInsertText: (

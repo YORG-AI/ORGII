@@ -25,4 +25,19 @@ describe("SelectorPill", () => {
     expect(idleMarkup).toContain("enabled:hover:!bg-surface-hover");
     expect(activeMarkup).toContain("!bg-surface-hover");
   });
+
+  it("supports a neutral active text treatment", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SelectorPill, {
+        active: true,
+        activeTone: "neutral",
+        icon: null,
+        label: "SDE Agent",
+        onClick: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain("text-text-1");
+    expect(markup).not.toContain("text-primary-6");
+  });
 });

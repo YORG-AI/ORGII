@@ -134,12 +134,32 @@ async fn drive_scopes(conn: &Connection, scopes: Vec<String>, forced: bool, idle
             scope,
             trigger.as_str()
         );
-        if let Err(err) = consolidate(&scope, trigger).await {
-            warn!(
-                "[consolidation] tick scope={} consolidate failed: {}",
-                scope, err
-            );
-        }
+        let consolidation = async {
+            let _permit = match crate::memory::background::acquire_memory_permit().await {
+                Ok(permit) => permit,
+                Err(err) => {
+                    warn!(
+                        "[consolidation] tick scope={} admission failed: {}",
+                        scope, err
+                    );
+                    return;
+                }
+            };
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(300),
+                consolidate(&scope, trigger),
+            )
+            .await
+            {
+                Ok(Ok(_)) => {}
+                Ok(Err(err)) => warn!(
+                    "[consolidation] tick scope={} consolidate failed: {}",
+                    scope, err
+                ),
+                Err(_) => warn!("[consolidation] tick scope={} timed out after 300s", scope),
+            }
+        };
+        consolidation.await;
     }
 }
 

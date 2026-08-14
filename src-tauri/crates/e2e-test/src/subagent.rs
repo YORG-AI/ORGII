@@ -268,9 +268,9 @@ pub async fn dispatch_subagent_cannot_spawn_subagent(cfg: &Config) -> bool {
 ///     `background:true` and is instructed to END ITS TURN IMMEDIATELY so it
 ///     goes idle while the worker is still running.
 ///   wait: poll the parent transcript. The production
-///     `SubagentCompletionWakeHook` (installed in lib.rs) fires when the
+///     `JobCompletionWakeHook` (installed in lib.rs) fires when the
 ///     worker terminates and resumes the parent via
-///     `send_message_impl_for_subagent_wake`. The resumed turn carries the
+///     `send_message_impl_for_job_wake`. The resumed turn carries the
 ///     Background Jobs reminder with the completed worker's unread output, so
 ///     the parent's message count grows AFTER the HTTP call returned.
 ///
@@ -378,13 +378,13 @@ pub async fn subagent_completion_wakes_parent(cfg: &Config) -> bool {
 /// Wake-race close: the parent launches a background subagent, polls ONCE
 /// with `await_output` (which returns `running`), then ends its turn — and the
 /// worker finishes a moment later, while the parent is still mid-turn. The
-/// completion push is suppressed by `should_wake_parent`'s running gate, so if
+/// completion push is suppressed by `should_wake_owner`'s running gate, so if
 /// nothing re-fired the wake once the turn ended, the parent would silently
 /// never consume the result.
 ///
 /// The fix is the turn-end re-check in `finalize_session`: it re-invokes the
-/// subagent-wake coordinator, which atomically claims the unconsumed result
-/// (`claim_subagent_wake_for_session`) and resumes the now-idle parent. This
+/// job-wake coordinator, which atomically claims the unconsumed result
+/// (`claim_completion_wake_for_session`) and resumes the now-idle parent. This
 /// scenario drives the poll-then-stop path and asserts the parent still
 /// resumes.
 pub async fn subagent_wake_race_after_poll(cfg: &Config) -> bool {

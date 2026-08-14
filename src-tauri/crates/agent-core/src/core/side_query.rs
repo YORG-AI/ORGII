@@ -17,6 +17,9 @@
 //!
 //! Ref: claude_code/utils/sideQuery.ts
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use serde_json::Value;
 use tracing::{info, warn};
 
@@ -187,7 +190,18 @@ pub async fn side_query(
     config: &SideQueryConfig,
     default_model: &str,
 ) -> Result<SideQueryResult, String> {
-    side_query_typed(provider, user_messages, config, default_model)
+    side_query_with_options(provider, user_messages, config, default_model, None).await
+}
+
+/// Cancellation-aware side query used by coordinator-owned background jobs.
+pub async fn side_query_with_options(
+    provider: &dyn LLMProvider,
+    user_messages: &[Value],
+    config: &SideQueryConfig,
+    default_model: &str,
+    cancel_flag: Option<&Arc<AtomicBool>>,
+) -> Result<SideQueryResult, String> {
+    side_query_typed_with_options(provider, user_messages, config, default_model, cancel_flag)
         .await
         .map_err(|err| err.to_string())
 }
@@ -197,6 +211,16 @@ pub async fn side_query_typed(
     user_messages: &[Value],
     config: &SideQueryConfig,
     default_model: &str,
+) -> Result<SideQueryResult, SideQueryError> {
+    side_query_typed_with_options(provider, user_messages, config, default_model, None).await
+}
+
+pub async fn side_query_typed_with_options(
+    provider: &dyn LLMProvider,
+    user_messages: &[Value],
+    config: &SideQueryConfig,
+    default_model: &str,
+    cancel_flag: Option<&Arc<AtomicBool>>,
 ) -> Result<SideQueryResult, SideQueryError> {
     let model = config.model.as_deref().unwrap_or(default_model);
 
@@ -243,6 +267,12 @@ pub async fn side_query_typed(
         skip_cache_write: config.skip_cache_write,
     };
 
+    if cancel_flag.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return Err(SideQueryError::Provider(ProviderError::RequestFailed(
+            "side query cancelled".to_string(),
+        )));
+    }
+
     // First attempt
     let response = provider
         .chat_with_options(
@@ -281,6 +311,11 @@ pub async fn side_query_typed(
     }
 
     // Retry: pad max_tokens, drop tool_choice override (some proxies reject it)
+    if cancel_flag.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return Err(SideQueryError::Provider(ProviderError::RequestFailed(
+            "side query cancelled".to_string(),
+        )));
+    }
     let retry_max_tokens = config.max_tokens.saturating_add(2048);
     info!(
         "[side-query] Retry: max_tokens={} → {}, no tool_choice override",

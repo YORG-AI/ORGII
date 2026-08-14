@@ -341,7 +341,12 @@ impl AgentAppState {
     pub async fn remove_session(&self, session_id: &str) {
         let mut sessions = self.sessions.lock().await;
         sessions.remove(session_id);
-        info!("[agent-state] Removed session: {}", session_id);
+        let cancelled_memory_jobs =
+            crate::memory::background::cancel_memory_jobs_for_session(session_id);
+        info!(
+            "[agent-state] Removed session: {} (cancelled_memory_jobs={})",
+            session_id, cancelled_memory_jobs
+        );
     }
 
     /// Remove several sessions while holding the registry lock once.
@@ -353,6 +358,16 @@ impl AgentAppState {
         for session_id in session_ids {
             sessions.remove(session_id);
             info!("[agent-state] Removed session: {}", session_id);
+        }
+        let cancelled_memory_jobs = session_ids
+            .iter()
+            .map(|session_id| crate::memory::background::cancel_memory_jobs_for_session(session_id))
+            .sum::<usize>();
+        if cancelled_memory_jobs > 0 {
+            info!(
+                cancelled_memory_jobs,
+                "[agent-state] Cancelled memory jobs for removed sessions"
+            );
         }
     }
 

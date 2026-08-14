@@ -258,6 +258,28 @@ describe("toRemoteMetadata sharing fields", () => {
     expect(withKey.repoPath).toBe("/repo/shared");
   });
 
+  it("publishes distinct session, base, and worktree branch names without the worktree path", () => {
+    const metadata = toRemoteMetadata(
+      createSession({
+        branch: "develop",
+        baseBranch: "main",
+        worktreeBranch: "agent/session-1",
+        worktreePath: "/owner/private/.worktrees/session-1",
+      }),
+      ORG,
+      MEMBER,
+      createSettings(COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY),
+      SCOPE_KEY
+    );
+
+    expect(metadata).toMatchObject({
+      branch: "develop",
+      baseBranch: "main",
+      worktreeBranch: "agent/session-1",
+    });
+    expect(metadata).not.toHaveProperty("worktreePath");
+  });
+
   it("omits repoScopeKey when the repo has no remote (null) or none was passed", () => {
     const noRemote = toRemoteMetadata(
       createSession({}),

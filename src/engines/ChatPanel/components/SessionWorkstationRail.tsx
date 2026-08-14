@@ -2,7 +2,12 @@ import { useSetAtom } from "jotai";
 import React, { useCallback } from "react";
 
 import { useChannelWorkItem } from "@src/features/DiscussionChannels/ChannelPanelView/useChannelWorkItem";
+import type { CloudSessionEnvironmentIdentity } from "@src/features/Org2Cloud/cloudSessionDownloadControlAtoms";
 import { parseCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import {
+  useCloudSessionDownloadProgressEntry,
+  useCloudSessionPendingPlayEntry,
+} from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import { getWorkItemStatusConfig } from "@src/modules/ProjectManager/config/manage";
 import {
   type FocusedChatSessionContext,
@@ -18,6 +23,7 @@ interface SessionWorkstationRailProps {
   compactMenuHost: HTMLSpanElement | null;
   conversationMinimapHostRef: (node: HTMLDivElement | null) => void;
   session: Session | null | undefined;
+  sessionId: string | null | undefined;
   topInset?: number;
 }
 
@@ -26,21 +32,33 @@ export interface ResolvedSessionWorkstationContext {
   orgId?: string;
   projectSlug?: string;
   repoName?: string;
+  /** Locally resolvable session workspace used for session-scoped Git details. */
+  repoPath?: string;
+  worktreeBranchName?: string;
+  worktreePath?: string;
   workItemId?: string;
 }
 
 export function resolveSessionWorkstationContext(
-  session: Session | null | undefined
+  session: Session | null | undefined,
+  remoteEnvironment?: CloudSessionEnvironmentIdentity
 ): ResolvedSessionWorkstationContext {
-  const repoName = session?.repoPath ? basename(session.repoPath) : undefined;
-  const worktreeBranch =
-    session?.worktreePath && session.worktreeBranch
-      ? formatBranchLabel(session.worktreeBranch)
-      : undefined;
+  const repoName = session?.repoPath
+    ? basename(session.repoPath)
+    : remoteEnvironment?.repoName;
   const branchName =
-    worktreeBranch ||
     formatBranchLabel(session?.branch) ||
     formatBranchLabel(session?.baseBranch) ||
+    formatBranchLabel(remoteEnvironment?.branchName) ||
+    formatBranchLabel(remoteEnvironment?.baseBranchName) ||
+    undefined;
+  const localWorktreePath = session?.importedFrom
+    ? undefined
+    : session?.worktreePath;
+  const worktreeBranchName =
+    formatBranchLabel(session?.worktreeBranch) ||
+    (localWorktreePath ? basename(localWorktreePath) : undefined) ||
+    formatBranchLabel(remoteEnvironment?.worktreeBranchName) ||
     undefined;
   const workItemId =
     session?.productMode === "project" ? session.workItemId : undefined;
@@ -48,19 +66,29 @@ export function resolveSessionWorkstationContext(
   const orgId = sessionOrgId
     ? (parseCloudOrgSelectorValue(sessionOrgId) ?? sessionOrgId)
     : undefined;
+  // A cloud replay's repoPath belongs to its owner's machine. Only the
+  // importer-resolved repo root is safe for local Git/PR lookups.
+  const repoPath =
+    session?.repoRootPath ??
+    (session?.importedFrom
+      ? undefined
+      : (session?.worktreePath ?? session?.repoPath));
 
   return {
     branchName,
     orgId,
     projectSlug: session?.projectSlug ?? undefined,
     repoName,
+    repoPath,
+    worktreeBranchName,
+    worktreePath: localWorktreePath,
     workItemId: workItemId ?? undefined,
   };
 }
 
 interface ConnectedSessionWorkstationRailProps extends Omit<
   SessionWorkstationRailProps,
-  "session"
+  "session" | "sessionId"
 > {
   context: ResolvedSessionWorkstationContext;
   projectSlug: string;
@@ -103,6 +131,9 @@ const ConnectedSessionWorkstationRail: React.FC<
   const sessionContext: FocusedChatSessionContext = {
     branchName: context.branchName,
     repoName: context.repoName,
+    repoPath: context.repoPath,
+    worktreeBranchName: context.worktreeBranchName,
+    worktreePath: context.worktreePath,
     workItem: {
       label: workItemId,
       onClick: resolved ? handleOpen : undefined,
@@ -124,12 +155,21 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
   compactMenuHost,
   conversationMinimapHostRef,
   session,
+  sessionId,
   topInset,
 }) => {
-  const context = resolveSessionWorkstationContext(session);
+  const pending = useCloudSessionPendingPlayEntry(sessionId);
+  const progress = useCloudSessionDownloadProgressEntry(sessionId);
+  const context = resolveSessionWorkstationContext(
+    session,
+    progress?.sessionEnvironment ?? pending?.sessionEnvironment
+  );
   const baseSessionContext: FocusedChatSessionContext = {
     branchName: context.branchName,
     repoName: context.repoName,
+    repoPath: context.repoPath,
+    worktreeBranchName: context.worktreeBranchName,
+    worktreePath: context.worktreePath,
     workItem: context.workItemId ? { label: context.workItemId } : undefined,
   };
 

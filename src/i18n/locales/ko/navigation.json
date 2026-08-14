@@ -13,6 +13,8 @@
     "browser": "브라우저",
     "editor": "편집기",
     "environment": "환경",
+    "sessionEnvironment": "세션 환경",
+    "localEnvironment": "로컬 환경",
     "workspace": "작업 공간",
     "codeEditor": "코드 편집기",
     "databaseManager": "DB 관리자",

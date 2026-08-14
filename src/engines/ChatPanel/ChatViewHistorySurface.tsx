@@ -43,6 +43,7 @@ interface ChatViewHistorySurfaceProps {
   turnPaginationEnabled: boolean;
   paginationTrailingSlot: ChatHistoryProps["paginationTrailingSlot"];
   pinnedHeaderHost: HTMLDivElement | null;
+  chromeTopInset: number;
   historyBottomInset: number;
   groupChatViewAvailable: boolean;
   handleGroupChatViewToggle: NonNullable<
@@ -77,6 +78,7 @@ export function ChatViewHistorySurface({
   turnPaginationEnabled,
   paginationTrailingSlot,
   pinnedHeaderHost,
+  chromeTopInset,
   historyBottomInset,
   groupChatViewAvailable,
   handleGroupChatViewToggle,
@@ -144,6 +146,7 @@ export function ChatViewHistorySurface({
               turnPaginationEnabled={turnPaginationEnabled}
               paginationTrailingSlot={paginationTrailingSlot}
               pinnedHeaderPortalHost={pinnedHeaderHost}
+              chromeTopInset={chromeTopInset}
               bottomInset={historyBottomInset}
               groupChatViewAvailable={groupChatViewAvailable}
               groupChatViewActive={groupChatViewActive}
