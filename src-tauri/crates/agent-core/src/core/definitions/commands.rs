@@ -72,6 +72,13 @@ pub(in crate::core::definitions) struct TrustedAgentOrgSettingsActor {
     _private: (),
 }
 
+#[cfg(test)]
+impl TrustedAgentOrgSettingsActor {
+    pub(in crate::core::definitions) fn for_test() -> Self {
+        Self { _private: () }
+    }
+}
+
 #[tauri::command]
 pub async fn agent_orgs_save_trusted_settings(
     state: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
