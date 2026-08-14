@@ -52,6 +52,12 @@ pub struct StallRecoveryPlan {
     /// the analyzer sees no current repair *and* a budget row actually exists,
     /// avoiding one no-op writer transaction per healthy run per tick.
     pub clear_coordinator_notice_budget: bool,
+    /// Crash-orphaned `running` turn intents older than
+    /// [`STALE_INTENT_REPAIR_GRACE_SECS`] on a Working run whose only
+    /// quiescence blockers are those intents. The executor marks them failed
+    /// (with revalidation under the writer lock) so the next quiescence pass
+    /// can idle the team.
+    pub stale_intent_repairs: Vec<StaleTurnIntentRepair>,
     /// Every task resolved + every worker terminal: the run can be
     /// reconciled to a terminal status.
     pub terminal_candidate: bool,
@@ -67,9 +73,18 @@ impl StallRecoveryPlan {
             && self.coordinator_repair_work_revision.is_none()
             && self.coordinator_repair_task_fingerprint.is_none()
             && self.coordinator_repair_inbox_fingerprint.is_none()
+            && self.stale_intent_repairs.is_empty()
             && !self.clear_coordinator_notice_budget
             && !self.terminal_candidate
     }
+}
+
+/// One crash-orphaned `running` turn intent selected for terminalization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaleTurnIntentRepair {
+    pub session_id: String,
+    pub turn_intent_id: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

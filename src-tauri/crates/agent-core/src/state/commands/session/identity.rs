@@ -175,10 +175,34 @@ pub(super) async fn resolve_session_identity(
         })
         .transpose()?;
     let native_harness_type = native_harness_after_l2.or(native_harness_from_db);
-    let has_persisted_agent_org_identity = db_record
-        .as_ref()
-        .and_then(|record| record.org_member_id.as_deref())
-        .is_some();
+    // The Agent Org send fence keys off this probe, so its reachability must
+    // not depend on the unrelated `needs_db` condition: a fully cache-hit
+    // send would otherwise silently skip the Team lifecycle fence. When the
+    // DB row was not loaded, a runtime that already carries its org context
+    // answers directly; ordinary cache-hit sessions pay one indexed point
+    // read of `org_member_id`.
+    let has_persisted_agent_org_identity = match db_record.as_ref() {
+        Some(record) => record.org_member_id.is_some(),
+        None if agent_org_run_id_hint.is_some() => true,
+        None => {
+            let sid = session_id.to_string();
+            tokio::task::spawn_blocking(move || session_persistence::get_org_member_id(&sid))
+                .await
+                .map_err(|join_err| {
+                    format!(
+                        "Task panic probing Agent Org identity for {}: {}",
+                        session_id, join_err
+                    )
+                })?
+                .map_err(|db_err| {
+                    format!(
+                        "DB error probing Agent Org identity for {}: {}",
+                        session_id, db_err
+                    )
+                })?
+                .is_some()
+        }
+    };
 
     // ── Workspace Root ───────────────────────────────────────────────────
     //

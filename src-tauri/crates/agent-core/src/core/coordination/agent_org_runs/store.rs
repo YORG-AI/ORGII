@@ -32,6 +32,32 @@ use super::{
 
 use crate::definitions::orgs::serialize_launch_snapshot;
 
+/// Stable machine prefix for permanent Session-identity failures raised by
+/// the materialization / finish-Starting certificate checks in this store.
+/// Launch recovery classifies retryable-vs-permanent on these prefixes; never
+/// match the human-readable remainder of the message.
+pub const MATERIALIZATION_IDENTITY_MISMATCH_PREFIX: &str = "materialization_identity_mismatch:";
+
+/// Stable machine prefix for permanent initial-input certificate failures
+/// raised by [`AgentOrgRunStore::finish_starting`].
+pub const STARTING_INPUT_CERTIFICATE_ERROR_PREFIX: &str = "starting_input_certificate_invalid:";
+
+/// True for permanent Session-identity failures from
+/// [`AgentOrgRunStore::mark_materialization_succeeded`] /
+/// [`AgentOrgRunStore::finish_starting`]. Retrying these can never succeed:
+/// the durable identity certificate itself is wrong.
+pub fn is_materialization_identity_mismatch_error(error: &str) -> bool {
+    error.starts_with(MATERIALIZATION_IDENTITY_MISMATCH_PREFIX)
+}
+
+/// True for every permanent (non-retryable) failure class that
+/// [`AgentOrgRunStore::finish_starting`] can return. Everything else from
+/// that call is treated as transient and retried by the recovery owners.
+pub fn is_permanent_finish_starting_error(error: &str) -> bool {
+    is_materialization_identity_mismatch_error(error)
+        || error.starts_with(STARTING_INPUT_CERTIFICATE_ERROR_PREFIX)
+}
+
 pub struct AgentOrgRunStore;
 
 pub(crate) struct AgentOrgRunDeleteOutcome {
@@ -96,6 +122,12 @@ impl AgentOrgRunStore {
             .map_err(|err| err.to_string())
     }
 
+    /// Test-fixture constructor: seeds a run row in an arbitrary status
+    /// without the Starting construction envelope. Production launch goes
+    /// exclusively through [`Self::create_starting`]; unit tests and the
+    /// `#![cfg(debug_assertions)]` /test endpoints need arbitrary-status
+    /// seeding, so this is compiled only for those builds.
+    #[cfg(any(test, debug_assertions))]
     pub fn create(params: CreateAgentOrgRunParams) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
         let status = validate_status(params.status.as_str())?;
@@ -335,7 +367,7 @@ impl AgentOrgRunStore {
             };
             if expected_session_id != session_id {
                 return Err(format!(
-                    "materialization session mismatch for {run_id}/{member_id}: expected {expected_session_id}, got {session_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} materialization session mismatch for {run_id}/{member_id}: expected {expected_session_id}, got {session_id}"
                 ));
             }
             if status == "succeeded" {
@@ -356,7 +388,7 @@ impl AgentOrgRunStore {
                 persisted_identity
             else {
                 return Err(format!(
-                    "materialized Session {session_id} is missing for {run_id}/{member_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} materialized Session {session_id} is missing for {run_id}/{member_id}"
                 ));
             };
             let expected_parent = (member_id != COORDINATOR_MEMBER_ID).then_some(root_session_id);
@@ -365,7 +397,7 @@ impl AgentOrgRunStore {
                 || parent_session_id != expected_parent
             {
                 return Err(format!(
-                    "materialized Session identity mismatch for {run_id}/{member_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} materialized Session identity mismatch for {run_id}/{member_id}"
                 ));
             }
             let changed = transaction
@@ -472,7 +504,7 @@ impl AgentOrgRunStore {
                 .map_err(|error| error.to_string())?;
             if invalid_materialized_identities != 0 {
                 return Err(format!(
-                    "materialization_identity_mismatch: {invalid_materialized_identities} certified Session identity row(s) are invalid for {run_id}"
+                    "{MATERIALIZATION_IDENTITY_MISMATCH_PREFIX} {invalid_materialized_identities} certified Session identity row(s) are invalid for {run_id}"
                 ));
             }
             let incomplete_materializations: i64 = transaction
@@ -491,7 +523,9 @@ impl AgentOrgRunStore {
             let initial_input = load_initial_input_with_connection(&transaction, run_id)?;
             if has_initial_work {
                 let input = initial_input.as_ref().ok_or_else(|| {
-                    format!("initial input certificate missing for Starting run {run_id}")
+                    format!(
+                        "{STARTING_INPUT_CERTIFICATE_ERROR_PREFIX} initial input certificate missing for Starting run {run_id}"
+                    )
                 })?;
                 let message_exists: bool = transaction
                     .query_row(
@@ -533,7 +567,7 @@ impl AgentOrgRunStore {
                     .map_err(|error| error.to_string())?;
             } else if initial_input.is_some() {
                 return Err(format!(
-                    "unexpected initial input certificate for no-work Starting run {run_id}"
+                    "{STARTING_INPUT_CERTIFICATE_ERROR_PREFIX} unexpected initial input certificate for no-work Starting run {run_id}"
                 ));
             }
 
@@ -829,6 +863,26 @@ impl AgentOrgRunStore {
         Ok(assessment)
     }
 
+    /// Assess quiescence and, when the certificate allows, present its exact
+    /// generation and work-revision facts to the atomic Working→Idle CAS.
+    /// Shared by every post-turn / lifecycle / watchdog reconcile site so
+    /// they cannot drift on the certificate protocol.
+    pub fn try_reconcile_to_idle(run_id: &str) -> Result<bool, String> {
+        let assessment = Self::assess_run_quiescence(run_id)?;
+        let Some(generation) = assessment.facts.activation_generation else {
+            return Ok(false);
+        };
+        let Some(work_revision) = assessment
+            .facts
+            .progress
+            .as_ref()
+            .map(|progress| progress.work_revision)
+        else {
+            return Ok(false);
+        };
+        Self::try_transition_working_to_idle(run_id, generation, work_revision)
+    }
+
     /// Atomically commit the only automatic lifecycle transition owned by
     /// PR 1. Both snapshot certificates are required so a stale finalizer or
     /// watchdog pass cannot idle a newer activation or newer work graph.
@@ -1039,6 +1093,67 @@ impl AgentOrgRunStore {
     /// callers must pass their explicit bounded batch size.
     pub fn list_running_runs(limit: usize) -> Result<Vec<AgentOrgRunRecord>, String> {
         Self::list_runs_by_status(AgentOrgRunStatus::Running, limit)
+    }
+
+    /// Keyset continuation of [`Self::list_running_runs`]: rows strictly after
+    /// `(updated_at, id)` in the same `updated_at ASC, id ASC` order. `None`
+    /// starts from the front. The watchdog's rotation cursor uses this so a
+    /// population larger than one batch is still fully visited across ticks.
+    pub fn list_running_runs_after(
+        cursor: Option<(&str, &str)>,
+        limit: usize,
+    ) -> Result<Vec<AgentOrgRunRecord>, String> {
+        let Some((cursor_updated_at, cursor_id)) = cursor else {
+            return Self::list_running_runs(limit);
+        };
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let bounded_limit = i64::try_from(limit)
+            .map_err(|_| format!("Agent Org run list limit is too large: {limit}"))?;
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id,
+                        org_id,
+                        coordinator_agent_id,
+                        root_session_id,
+                        org_snapshot_json,
+                        entry_mode,
+                        status,
+                        activation_generation,
+                        has_initial_work,
+                        work_item_id,
+                        project_slug,
+                        routine_fire_id,
+                        summary,
+                        last_error,
+                        failure_json,
+                        last_activity_outcome,
+                        created_at,
+                        updated_at,
+                        idled_at
+                 FROM agent_org_runs
+                 WHERE root_session_id IS NOT NULL
+                   AND status = ?1
+                   AND (updated_at > ?2 OR (updated_at = ?2 AND id > ?3))
+                 ORDER BY updated_at ASC, id ASC
+                 LIMIT ?4",
+            )
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map(
+                params![
+                    AgentOrgRunStatus::Running.as_str(),
+                    cursor_updated_at,
+                    cursor_id,
+                    bounded_limit
+                ],
+                row_to_run,
+            )
+            .map_err(|err| err.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())
     }
 
     fn list_runs_by_status(

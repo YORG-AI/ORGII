@@ -171,23 +171,7 @@ pub async fn agent_org_plan_approval_respond(
         let reconcile_run_id = run_id.clone();
         tokio::spawn(async move {
             match tokio::task::spawn_blocking(move || {
-                let assessment = AgentOrgRunStore::assess_run_quiescence(&reconcile_run_id)?;
-                let Some(generation) = assessment.facts.activation_generation else {
-                    return Ok(false);
-                };
-                let Some(work_revision) = assessment
-                    .facts
-                    .progress
-                    .as_ref()
-                    .map(|progress| progress.work_revision)
-                else {
-                    return Ok(false);
-                };
-                AgentOrgRunStore::try_transition_working_to_idle(
-                    &reconcile_run_id,
-                    generation,
-                    work_revision,
-                )
+                AgentOrgRunStore::try_reconcile_to_idle(&reconcile_run_id)
             })
             .await
             {

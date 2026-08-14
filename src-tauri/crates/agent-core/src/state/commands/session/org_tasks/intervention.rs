@@ -43,7 +43,13 @@ pub async fn agent_org_session_enter_intervention(
     state: tauri::State<'_, AgentAppState>,
     session_id: String,
 ) -> Result<bool, String> {
-    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
+    // Gate off (production default): the CLI transport calls this for every
+    // direct user message without checking session kind first. Interventions
+    // do not exist pre-redesign, so "nothing changed" is the correct legacy
+    // answer — not an `agent_org_redesign_disabled` error logged per send.
+    if !crate::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return Ok(false);
+    }
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Ok(false);
     };
@@ -77,7 +83,11 @@ pub async fn agent_org_session_intervention_state(
     state: tauri::State<'_, AgentAppState>,
     session_id: String,
 ) -> Result<AgentOrgSessionInterventionState, String> {
-    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
+    // Gate off (production default): read surface — report "no intervention"
+    // instead of a raw `agent_org_redesign_disabled` error.
+    if !crate::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return Ok(AgentOrgSessionInterventionState { intervention: None });
+    }
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Ok(AgentOrgSessionInterventionState { intervention: None });
     };

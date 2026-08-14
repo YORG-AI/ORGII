@@ -128,7 +128,12 @@ pub struct InboxRunSummary {
 #[tauri::command]
 pub async fn agent_org_run_list(limit: Option<usize>) -> Result<Vec<InboxRunSummary>, String> {
     use crate::core::coordination::agent_org_runs::AgentOrgRunStore;
-    crate::core::coordination::agent_org_runs::require_agent_org_redesign()?;
+    // Gate off (production default): the Inbox list is a read surface; an
+    // empty list ("no org chats") degrades gracefully where a raw
+    // `agent_org_redesign_disabled` error would break the whole Inbox render.
+    if !crate::core::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return Ok(Vec::new());
+    }
     const MAX_LIMIT: usize = 200;
     let effective_limit = limit.map(|n| n.min(MAX_LIMIT)).unwrap_or(MAX_LIMIT);
     // This command backs a read-only Inbox list. Quiescence reconciliation is a
