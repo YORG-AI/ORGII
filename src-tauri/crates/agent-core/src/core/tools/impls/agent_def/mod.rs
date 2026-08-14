@@ -44,10 +44,11 @@ impl AgentDefinitionTool {
             .inner()
     }
 
-    fn org_store(&self) -> &AgentOrgsStore {
+    fn org_store(&self) -> std::sync::Arc<AgentOrgsStore> {
         self.app_handle
             .state::<std::sync::Arc<AgentOrgsStore>>()
             .inner()
+            .clone()
     }
 }
 
@@ -83,11 +84,11 @@ impl Tool for AgentDefinitionTool {
             "update" => agent_actions::update_agent(self.store(), &params),
             "remove" => agent_actions::remove_agent(self.store(), &params),
 
-            "list_orgs" => org_actions::list_orgs(self.org_store()),
-            "get_org" => org_actions::get_org(self.org_store(), &params),
-            "create_org" => org_actions::create_org(self.org_store(), &params),
-            "update_org" => org_actions::update_org(self.org_store(), &params),
-            "remove_org" => org_actions::remove_org(self.org_store(), &params),
+            "list_orgs" => org_actions::list_orgs(&self.org_store()),
+            "get_org" => org_actions::get_org(&self.org_store(), &params),
+            "create_org" => org_actions::create_org(&self.org_store(), &params).await,
+            "update_org" => org_actions::update_org(&self.org_store(), &params).await,
+            "remove_org" => org_actions::remove_org(&self.org_store(), &params).await,
 
             _ => Err(ToolError::InvalidParams(format!(
                 "Unknown action: '{}'. Valid: list, get, create, update, remove, \

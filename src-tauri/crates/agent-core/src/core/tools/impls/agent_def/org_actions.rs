@@ -1,4 +1,10 @@
 //! CRUD handlers for `OrgDefinition` entries (agent organizations).
+//!
+//! Mutating actions are async and go through the store's `*_async`
+//! wrappers (the single `spawn_blocking` owner) so fsync-under-mutex
+//! store commits never run on the async executor.
+
+use std::sync::Arc;
 
 use serde_json::Value;
 use uuid::Uuid;
@@ -33,7 +39,10 @@ pub(super) fn get_org(store: &AgentOrgsStore, params: &Value) -> Result<String, 
     Ok(format_org_detail(&org))
 }
 
-pub(super) fn create_org(store: &AgentOrgsStore, params: &Value) -> Result<String, ToolError> {
+pub(super) async fn create_org(
+    store: &Arc<AgentOrgsStore>,
+    params: &Value,
+) -> Result<String, ToolError> {
     let name = required_string(params, "name")?;
     let description = optional_string(params, "description");
     let role = optional_string(params, "role").unwrap_or_else(|| "leader".to_string());
@@ -66,12 +75,18 @@ pub(super) fn create_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
     };
     org.member_communication_links = all_member_links(&org.members);
 
-    store.insert(org).map_err(ToolError::ExecutionFailed)?;
+    store
+        .insert_async(org)
+        .await
+        .map_err(ToolError::ExecutionFailed)?;
 
     Ok(format!("Created org '{}' with id `{}`.", name, new_id))
 }
 
-pub(super) fn update_org(store: &AgentOrgsStore, params: &Value) -> Result<String, ToolError> {
+pub(super) async fn update_org(
+    store: &Arc<AgentOrgsStore>,
+    params: &Value,
+) -> Result<String, ToolError> {
     let org_id = required_string(params, "org_id")?;
 
     let mut org = store.get(&org_id).map_err(ToolError::ExecutionFailed)?;
@@ -158,16 +173,25 @@ pub(super) fn update_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
     }
 
     let name = org.name.clone();
-    store.replace(org).map_err(ToolError::ExecutionFailed)?;
+    store
+        .replace_async(org)
+        .await
+        .map_err(ToolError::ExecutionFailed)?;
 
     Ok(format!("Updated org '{}'.", name))
 }
 
-pub(super) fn remove_org(store: &AgentOrgsStore, params: &Value) -> Result<String, ToolError> {
+pub(super) async fn remove_org(
+    store: &Arc<AgentOrgsStore>,
+    params: &Value,
+) -> Result<String, ToolError> {
     let org_id = required_string(params, "org_id")?;
 
     let removed_name = store.get(&org_id).ok().map(|org| org.name);
-    let removed = store.remove(&org_id).map_err(ToolError::ExecutionFailed)?;
+    let removed = store
+        .remove_async(org_id.clone())
+        .await
+        .map_err(ToolError::ExecutionFailed)?;
 
     if removed {
         Ok(format!("Removed org '{}'.", removed_name.unwrap_or(org_id)))
@@ -186,10 +210,10 @@ mod tests {
     use crate::definitions::orgs::{OrgMemberRuntimeConfig, PlanApprovalPolicy};
     use serde_json::json;
 
-    #[test]
-    fn model_create_generates_stable_ids_and_explicit_default_links() {
+    #[tokio::test]
+    async fn model_create_generates_stable_ids_and_explicit_default_links() {
         let _sandbox = test_helpers::test_env::sandbox();
-        let store = AgentOrgsStore::new();
+        let store = Arc::new(AgentOrgsStore::new());
         create_org(
             &store,
             &json!({
@@ -202,6 +226,7 @@ mod tests {
                 ]
             }),
         )
+        .await
         .expect("create Team");
 
         let org = store
@@ -219,10 +244,10 @@ mod tests {
             .all(|member| !member.member_id.starts_with("model-controlled")));
     }
 
-    #[test]
-    fn model_update_preserves_survivor_policy_and_connects_new_members() {
+    #[tokio::test]
+    async fn model_update_preserves_survivor_policy_and_connects_new_members() {
         let _sandbox = test_helpers::test_env::sandbox();
-        let store = AgentOrgsStore::new();
+        let store = Arc::new(AgentOrgsStore::new());
         create_org(
             &store,
             &json!({
@@ -234,6 +259,7 @@ mod tests {
                 ]
             }),
         )
+        .await
         .expect("create Team");
         let mut original = store
             .list()
@@ -262,6 +288,7 @@ mod tests {
                 ]
             }),
         )
+        .await
         .expect("update Team");
 
         let updated = store.get(&original.id).expect("updated Team");
@@ -290,10 +317,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn model_update_rejects_malformed_member_entries_instead_of_dropping_them() {
+    #[tokio::test]
+    async fn model_update_rejects_malformed_member_entries_instead_of_dropping_them() {
         let _sandbox = test_helpers::test_env::sandbox();
-        let store = AgentOrgsStore::new();
+        let store = Arc::new(AgentOrgsStore::new());
         create_org(
             &store,
             &json!({
@@ -305,6 +332,7 @@ mod tests {
                 ]
             }),
         )
+        .await
         .expect("create Team");
         let original = store
             .list()
@@ -326,6 +354,7 @@ mod tests {
                 ]
             }),
         )
+        .await
         .expect_err("malformed member entry must be rejected");
         let message = err.to_string();
         assert!(
@@ -343,6 +372,7 @@ mod tests {
                 ]
             }),
         )
+        .await
         .expect_err("non-string role must be rejected");
         assert!(err.to_string().contains("members[0]"));
 
@@ -359,6 +389,7 @@ mod tests {
                 "members": [{"agent_id": SDE_AGENT_ID}]
             }),
         )
+        .await
         .expect_err("malformed member entry must be rejected on create");
         assert!(err.to_string().contains("members[0]"));
     }

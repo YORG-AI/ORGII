@@ -86,12 +86,10 @@ pub async fn agent_orgs_save_trusted_settings(
 ) -> Result<OrgDefinition, String> {
     let org: OrgDefinition =
         serde_json::from_str(&org_json).map_err(|err| format!("Invalid org JSON: {}", err))?;
-    let store = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        store.save_trusted_settings(org, TrustedAgentOrgSettingsActor { _private: () })
-    })
-    .await
-    .map_err(|err| format!("Agent Org settings save task failed: {}", err))?
+    state
+        .inner()
+        .save_trusted_settings_async(org, TrustedAgentOrgSettingsActor { _private: () })
+        .await
 }
 
 #[tauri::command]
@@ -99,10 +97,7 @@ pub async fn agent_orgs_remove(
     state: tauri::State<'_, std::sync::Arc<AgentOrgsStore>>,
     org_id: String,
 ) -> Result<bool, String> {
-    let store = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || store.remove(&org_id))
-        .await
-        .map_err(|err| format!("Agent Org remove task failed: {}", err))?
+    state.inner().remove_async(org_id).await
 }
 
 /// One row in the Inbox flat chat list — a persisted agent-org run that

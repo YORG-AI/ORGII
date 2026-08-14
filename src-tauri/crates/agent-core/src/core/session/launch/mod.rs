@@ -432,7 +432,7 @@ pub async fn launch_agent_session(
 
 pub(crate) async fn launch_rust_agent_run(
     state: &AgentAppState,
-    org_store: Option<&AgentOrgsStore>,
+    org_store: Option<&std::sync::Arc<AgentOrgsStore>>,
     request: AgentRunLaunchRequest,
 ) -> Result<AgentRunLaunchResult, String> {
     if matches!(&request.target, AgentRunTarget::AgentOrg { .. }) {
@@ -535,7 +535,11 @@ pub(crate) async fn launch_rust_agent_run(
     // that could appear to have accepted an unpersisted future policy.
     if apply_member_overrides_for_future {
         if let (Some(store), Some(org_id)) = (org_store, agent_org_id.as_ref()) {
-            store.apply_member_launch_overrides(org_id, &member_overrides)?;
+            // Store commits fsync under the store mutex; route through the
+            // store's spawn_blocking wrapper instead of the async executor.
+            store
+                .apply_member_launch_overrides_async(org_id.clone(), member_overrides.clone())
+                .await?;
         }
     }
 
