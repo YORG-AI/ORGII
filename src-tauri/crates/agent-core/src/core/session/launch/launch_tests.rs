@@ -236,7 +236,10 @@ fn launch_validation_rejects_reserved_and_empty_member_ids() {
     let _sandbox = test_helpers::test_env::sandbox();
     for (member_id, expected) in [
         (COORDINATOR_MEMBER_ID, "reserved member id"),
-        (" ", "empty or reserved member id"),
+        ("", "empty or reserved member id"),
+        // Untrimmed ids are rejected outright rather than validated
+        // against their trimmed form while the raw value is stored.
+        (" ", "leading or trailing whitespace"),
     ] {
         let org = valid_org_with_members(vec![FlatOrgMember {
             member_id: member_id.to_string(),
