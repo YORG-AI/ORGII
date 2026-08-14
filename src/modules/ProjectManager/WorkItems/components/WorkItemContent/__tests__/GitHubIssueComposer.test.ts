@@ -30,32 +30,24 @@ vi.mock("@src/components/Avatar", () => ({
     createElement("img", { src, alt: "viewer" }),
 }));
 
-vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
-  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS:
-    "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5",
+vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", () => ({
   default: ({
     value,
     onChange,
     editable,
     dataTestId,
-    toolbarMode,
-    toolbarClassName,
     minHeight,
   }: {
     value: string;
     onChange?: (markdown: string) => void;
     editable?: boolean;
     dataTestId?: string;
-    toolbarMode?: string;
-    toolbarClassName?: string;
     minHeight?: number;
   }) =>
     createElement("textarea", {
       value,
       readOnly: !editable,
       "data-testid": dataTestId,
-      "data-toolbar-mode": toolbarMode,
-      "data-toolbar-class-name": toolbarClassName,
       "data-min-height": minHeight,
       onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
         onChange?.(event.target.value),
@@ -135,10 +127,7 @@ describe("GitHubIssueComposer", () => {
     const editor = container.querySelector<HTMLTextAreaElement>(
       "[data-testid='github-issue-comment-editor']"
     );
-    expect(editor?.dataset.toolbarMode).toBe("inline");
-    expect(editor?.dataset.toolbarClassName).toBe(
-      "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5"
-    );
+    expect(editor).not.toBeNull();
     expect(editor?.dataset.minHeight).toBe("100");
     const levelActions = container.querySelector(
       "[data-testid='github-issue-level-actions']"

@@ -23,7 +23,10 @@ import {
   TimelineCardHeader,
   TimelineStack,
 } from "@src/modules/shared/components/ActivityTimeline";
-import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import {
   formatTokensShort,
   formatUsd,
@@ -400,6 +403,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   >(null);
   const [descriptionSaveErrorWorkItemId, setDescriptionSaveErrorWorkItemId] =
     useState<string | null>(null);
+  const [descriptionEditorMode, setDescriptionEditorMode] =
+    useState<MarkdownEditorMode>("write");
   const [threadViewSelection, setThreadViewSelection] = useState<{
     workItemId: string;
     view: WorkItemThreadView;
@@ -597,6 +602,16 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
             canEditDescription &&
             (isThread ? isEditingThreadDescription : descriptionHasChanges) ? (
               <PanelFooter
+                left={
+                  isGitHubWorkItem || isThread ? (
+                    <MarkdownEditorModeSwitch
+                      mode={descriptionEditorMode}
+                      onModeChange={setDescriptionEditorMode}
+                      disabled={githubIssueInteraction?.updatingBody}
+                      dataTestId="work-item-description-mode-switch"
+                    />
+                  ) : undefined
+                }
                 secondaryActions={[
                   {
                     label: t("common:actions.cancel"),
@@ -670,7 +685,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
             />
           ) : isGitHubWorkItem ? (
             <>
-              <RichMarkdownEditor
+              <MarkdownTextareaEditor
                 value={descriptionDraft}
                 onChange={handleDescriptionDraftChange}
                 onSubmit={() => void handleSaveDescription()}
@@ -678,12 +693,11 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
                 minHeight={120}
                 maxHeight={360}
                 appearance="plain"
-                toolbarMode="inline"
-                toolbarSize="mini"
-                toolbarDropdownPosition="top-start"
                 editable={
                   canEditDescription && !githubIssueInteraction?.updatingBody
                 }
+                mode={descriptionEditorMode}
+                onModeChange={setDescriptionEditorMode}
                 dataTestId="github-issue-description-editor"
               />
               {descriptionSaveErrorWorkItemId === workItem.session_id ? (
@@ -707,6 +721,10 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               editable={canEditDescription}
               descriptionMinHeight={isThread ? 120 : 200}
               descriptionMaxHeight={isThread ? 360 : 600}
+              descriptionMode={isThread ? descriptionEditorMode : undefined}
+              onDescriptionModeChange={
+                isThread ? setDescriptionEditorMode : undefined
+              }
               descriptionClassName="no-bottom-border"
               repoPath={repoPath}
               className="w-full"

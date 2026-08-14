@@ -165,12 +165,18 @@
 // ==========================================
 
 .table-settings {
-  // Only the toolbar and footer retain the raised table surface. The title row,
-  // scrolling rows, frozen columns, and their covering shades merge into the
-  // surrounding page/chat pane while remaining opaque over scrolling data.
+  // The toolbar, footer, and body all share the raised table surface by
+  // default. The opt-in `table-settings-pane-body` modifier below repaints the
+  // body (title row, scrolling rows, frozen columns, and their covering
+  // shades) with the surrounding page/chat pane instead — used by the GitHub
+  // PR/issue and work-item tables — while remaining opaque over scrolling data.
   --settings-table-surface: var(--color-primary-container);
-  --settings-table-body-surface: var(--color-chat-pane);
+  --settings-table-body-surface: var(--settings-table-surface);
   --settings-table-cover-fade-size: 56px;
+
+  &.table-settings-pane-body {
+    --settings-table-body-surface: var(--color-chat-pane);
+  }
 
   .table-container {
     position: relative;
@@ -586,7 +592,7 @@
   }
 
   .table-pagination-wrapper,
-  > div:last-child.flex.h-12,
+  > div:last-child.flex.h-10,
   + .settings-table-empty-footer {
     border-bottom-right-radius: 12px;
     border-bottom-left-radius: 12px;
@@ -673,7 +679,6 @@
 
 .settings-table-root-default .table-settings {
   --settings-table-surface: var(--color-primary-container);
-  --settings-table-body-surface: var(--color-chat-pane);
 }
 
 .settings-table-root-transparent,

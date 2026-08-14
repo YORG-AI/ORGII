@@ -27,9 +27,7 @@ vi.mock("@src/components/MarkDown", () => ({
     React.createElement("div", { "data-testid": "markdown" }, textContent),
 }));
 
-vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
-  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS:
-    "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5",
+vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", () => ({
   default: ({ dataTestId }: { dataTestId?: string }) =>
     React.createElement("div", { "data-testid": dataTestId }),
 }));

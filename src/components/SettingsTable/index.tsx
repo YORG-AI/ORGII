@@ -126,6 +126,8 @@ export interface SettingsTablePaginationContext {
 
 export type SettingsTableSurfaceVariant = "default" | "transparent";
 
+export type SettingsTableBodySurface = "raised" | "pane";
+
 export interface SettingsTableProps<RowData> {
   columns: SettingsTableColumn<RowData>[];
   rows: RowData[];
@@ -206,6 +208,11 @@ export interface SettingsTableProps<RowData> {
     index: number
   ) => Record<string, string | number | boolean | undefined> | undefined;
   surfaceVariant?: SettingsTableSurfaceVariant;
+  /** Body surface treatment. "raised" (default) keeps the title row and rows
+   *  on the raised table surface; "pane" blends them into the surrounding
+   *  page/chat pane — the exception used by the GitHub PR/issue and
+   *  work-item tables. */
+  bodySurface?: SettingsTableBodySurface;
   /** Fill the parent flex column and scroll rows inside the table body. */
   fillHeight?: boolean;
   /** Cap table height and scroll rows inside the body. */
@@ -411,6 +418,7 @@ export default function SettingsTable<RowData>({
   rowDataTestId,
   rowDataAttributes,
   surfaceVariant = "default",
+  bodySurface = "raised",
   fillHeight = false,
   maxHeight,
   className = "",
@@ -498,6 +506,7 @@ export default function SettingsTable<RowData>({
     maxHeight != null && "table-settings-fill-height",
     containedScroll && "table-settings-contained-scroll",
     stickyFirstColumn && "table-settings-sticky-first-col",
+    bodySurface === "pane" && "table-settings-pane-body",
     !hasSearchBar &&
       surfaceVariant !== "transparent" &&
       "table-settings-rounded-top",

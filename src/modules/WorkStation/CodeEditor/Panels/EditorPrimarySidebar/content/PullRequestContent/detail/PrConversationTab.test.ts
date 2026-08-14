@@ -24,20 +24,18 @@ vi.mock("@src/hooks/ui/layout/useElementDimensions", () => ({
   useElementDimensions: () => 0,
 }));
 
-vi.mock("@src/modules/shared/components/RichMarkdownEditor", async () => {
+vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", async () => {
   const { forwardRef } = await import("react");
   return {
-    RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS:
-      "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5",
     default: forwardRef<HTMLDivElement, Record<string, unknown>>(
-      function MockRichMarkdownEditor(props, ref) {
+      function MockMarkdownTextareaEditor(props, ref) {
         return createElement("div", {
           ref,
           "data-testid": props.dataTestId,
           "data-min-height": props.minHeight,
           "data-max-height": props.maxHeight,
           "data-appearance": props.appearance,
-          "data-toolbar-mode": props.toolbarMode,
+          "data-editor-kind": "write-preview",
           "data-value": props.value,
         });
       }
@@ -107,6 +105,9 @@ describe("PrConversationTab", () => {
     const submitReviewButton = input?.querySelector<HTMLButtonElement>(
       '[data-testid="pr-submit-review"]'
     );
+    const modeSwitch = input?.querySelector(
+      '[data-testid="pr-comment-mode-switch"]'
+    );
     const commentButton = Array.from(
       input?.querySelectorAll<HTMLButtonElement>("button") ?? []
     ).find((button) => button.textContent?.trim() === "Comment");
@@ -125,7 +126,7 @@ describe("PrConversationTab", () => {
     expect(editor?.getAttribute("data-min-height")).toBe("100");
     expect(editor?.getAttribute("data-max-height")).toBe("500");
     expect(editor?.getAttribute("data-appearance")).toBe("plain");
-    expect(editor?.getAttribute("data-toolbar-mode")).toBe("inline");
+    expect(editor?.getAttribute("data-editor-kind")).toBe("write-preview");
     expect(composer?.querySelector(".flex-shrink-0")).toBeNull();
     expect(levelActions?.compareDocumentPosition(input as Node)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
@@ -133,6 +134,13 @@ describe("PrConversationTab", () => {
     expect(input?.contains(levelActions as Node)).toBe(false);
     expect(input?.textContent).toContain("Submit review");
     expect(input?.textContent).toContain("Comment");
+    expect(modeSwitch).not.toBeNull();
+    expect(
+      modeSwitch?.compareDocumentPosition(submitReviewButton as Node)
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(submitReviewButton?.parentElement).toBe(
+      commentButton?.parentElement
+    );
     expect(submitReviewButton?.style.height).toBe("28px");
     expect(commentButton?.style.height).toBe("28px");
     expect(actionRow?.className).not.toContain("border-t");

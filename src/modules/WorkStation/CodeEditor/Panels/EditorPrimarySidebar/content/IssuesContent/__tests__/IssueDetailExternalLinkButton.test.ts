@@ -41,29 +41,25 @@ vi.mock("@src/components/MarkDown", () => ({
     createElement("div", { "data-testid": "markdown" }, textContent),
 }));
 
-vi.mock("@src/modules/shared/components/RichMarkdownEditor", () => ({
-  RICH_MARKDOWN_COMPOSER_TOOLBAR_CLASS:
-    "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5",
-  default: forwardRef(function MockRichMarkdownEditor(
+vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", () => ({
+  default: forwardRef(function MockMarkdownTextareaEditor(
     {
       appearance,
       dataTestId,
       placeholder,
-      toolbarMode,
     }: {
       appearance?: string;
       dataTestId?: string;
       placeholder?: string;
-      toolbarMode?: string;
     },
     _ref
   ) {
     return createElement("div", {
-      className: "rich-markdown-editor",
+      className: "markdown-textarea-editor",
       "data-testid": dataTestId,
       "data-appearance": appearance,
       "data-placeholder": placeholder,
-      "data-toolbar-mode": toolbarMode,
+      "data-editor-kind": "write-preview",
     });
   }),
 }));
@@ -142,8 +138,8 @@ describe("IssueDetailExternalLinkButton", () => {
     expect(markup).not.toContain("example issues");
     expect(markup).toContain("reviewer");
     expect(markup).toContain('data-appearance="plain"');
-    expect(markup).toContain('data-toolbar-mode="inline"');
-    expect(markup).toContain("rich-markdown-editor");
+    expect(markup).toContain('data-editor-kind="write-preview"');
+    expect(markup).toContain("markdown-textarea-editor");
     expect(markup).not.toContain('data-testid="issue-comment-editor"');
     expect(markup).not.toContain(
       'data-testid="work-item-thread-secondary-navigation"'
