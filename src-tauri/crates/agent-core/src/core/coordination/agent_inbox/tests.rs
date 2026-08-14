@@ -398,6 +398,7 @@ fn preview_and_assignment_scan_tolerate_corrupt_historical_payloads() {
 fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
     let _sandbox = sandbox_with_inbox_schema();
     let conn = get_connection().expect("test database");
+    crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
     crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let now = chrono::Utc::now().to_rfc3339();
@@ -464,6 +465,7 @@ fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
 fn assignment_snapshot_requires_current_owner_and_valid_typed_payload() {
     let _sandbox = sandbox_with_inbox_schema();
     let conn = get_connection().expect("test database");
+    crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
     crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let now = chrono::Utc::now().to_rfc3339();
