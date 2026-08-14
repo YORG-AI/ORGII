@@ -162,10 +162,10 @@ pub fn build_agent_orgs_context() -> Option<String> {
     let mut out = String::from("## Agent Organizations\n\n");
     for org in &orgs {
         let mut line = format!(
-            "- **{}** (`{}`, {} members)",
+            "- **{}** (`{}`, {} participants)",
             org.name,
             org.id,
-            org.member_count()
+            org.participant_count()
         );
         if let Some(ref desc) = org.description {
             let preview: String = crate::utils::safe_truncate_chars_to_string(&desc, 60);

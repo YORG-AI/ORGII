@@ -3,7 +3,7 @@ export type { AgentBuiltinKind } from "./AgentBuiltinConfigSection";
 export { useOSAgentTabs, useSdeAgentTabs } from "./AgentBuiltinConfigSection";
 export { default as DesktopSafetySection } from "./DesktopSafetySection";
 export { agentToolDisplayName } from "./agentToolName";
-export { INTERNAL_AGENT_IDS } from "./agentConstants";
+export { INTERNAL_AGENT_IDS, MAX_AGENT_ORG_MEMBERS } from "./agentConstants";
 export {
   AGENT_DETAIL_TAB_KEY,
   CANONICAL_TAB_ORDER,

@@ -65,7 +65,7 @@ const LEGACY_RUN_SCHEMA: [(&str, &str, i64, Option<&str>, i64); 15] = [
     ("completed_at", "TEXT", 0, None, 0),
 ];
 
-pub const COORDINATOR_MEMBER_ID: &str = "coordinator";
+pub use core_types::agent_org::COORDINATOR_MEMBER_ID;
 pub(crate) const DEFAULT_COORDINATOR_DISPLAY_NAME: &str = "Coordinator";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

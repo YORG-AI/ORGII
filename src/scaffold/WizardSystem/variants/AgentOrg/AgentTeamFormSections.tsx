@@ -8,6 +8,7 @@ import TeamMemberTable, {
   type TeamMember,
 } from "@src/components/TeamMemberTable";
 import Textarea from "@src/components/Textarea";
+import { MAX_AGENT_ORG_MEMBERS } from "@src/modules/MainApp/AgentOrgs/config/agentConstants";
 import type { PlanApprovalPolicy } from "@src/modules/MainApp/AgentOrgs/types";
 import {
   SECTION_DESCRIPTION_CLASSES,
@@ -289,7 +290,7 @@ export function isOrgDraftValid(args: {
     orgName.trim().length > 0 &&
     coordinatorAgentId.trim().length > 0 &&
     members.length > 0 &&
-    members.length <= 50 &&
+    members.length <= MAX_AGENT_ORG_MEMBERS &&
     members.every(
       (member) =>
         member.name.trim().length > 0 && member.agentId.trim().length > 0

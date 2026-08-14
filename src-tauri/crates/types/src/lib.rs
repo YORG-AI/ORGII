@@ -23,6 +23,7 @@
 //! prefer `serde`-derive-style annotations over impl blocks where possible.
 
 pub mod activity;
+pub mod agent_org;
 pub mod cli_alias;
 pub mod extracted;
 pub mod jsonrpc;

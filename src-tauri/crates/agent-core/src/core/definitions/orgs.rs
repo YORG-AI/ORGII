@@ -21,7 +21,7 @@ pub const CLI_AGENT_ORG_REFERENCE_PREFIX: &str = "cli:";
 pub const MAX_AGENT_ORG_MEMBERS: usize = 50;
 pub const MAX_AGENT_ORG_DEFINITION_BYTES: usize = 256 * 1024;
 const AGENT_ORGS_FILE_SCHEMA_VERSION: u32 = 2;
-const COORDINATOR_MEMBER_ID: &str = "coordinator";
+use core_types::agent_org::COORDINATOR_MEMBER_ID;
 
 pub fn orgs_store() -> Arc<AgentOrgsStore> {
     #[cfg(test)]
@@ -158,7 +158,10 @@ pub struct OrgDefinition {
 }
 
 impl OrgDefinition {
-    pub fn member_count(&self) -> usize {
+    /// Total number of participants in the Team: the coordinator plus
+    /// every `members` entry. Coordinator-inclusive by design — use
+    /// `members.len()` for the member roster size.
+    pub fn participant_count(&self) -> usize {
         1 + self.members.len()
     }
 
