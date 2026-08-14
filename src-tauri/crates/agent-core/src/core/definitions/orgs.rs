@@ -965,8 +965,56 @@ pub(crate) fn parse_definitions_content(
     Ok(file.definitions)
 }
 
+/// Retire — or, when possible, adopt — the pre-rename `agent-orgs.json`.
+///
+/// Both the old and the new file carry the same schema_version=2 envelope,
+/// so a valid old file is user data, not garbage. When the canonical file
+/// does not exist yet and the old file parses as a valid v2 envelope, move
+/// it to the canonical path (preserving user-defined Teams) instead of
+/// destroying it unparsed. An invalid/legacy-shaped old file, or an old
+/// file alongside an existing canonical file, is retired (deleted) as
+/// before.
 fn retire_legacy_definitions_file() {
     let legacy_path = app_paths::agent_orgs();
+    if !legacy_path.exists() {
+        return;
+    }
+
+    let canonical_path = storage_path();
+    if !canonical_path.exists() {
+        match try_adopt_legacy_definitions_file(&legacy_path, &canonical_path) {
+            Ok(()) => {
+                info!(
+                    event = "agent_org_legacy_definitions_adopted",
+                    from = %legacy_path.display(),
+                    to = %canonical_path.display(),
+                    "adopted valid v2 Agent Org definitions from the retired path"
+                );
+                return;
+            }
+            Err(AdoptError::NotAdoptable(reason)) => {
+                info!(
+                    event = "agent_org_legacy_definitions_not_adoptable",
+                    path = %legacy_path.display(),
+                    reason = %reason,
+                    "retired Agent Org definitions file is not a valid v2 envelope; retiring it"
+                );
+                // fall through to retirement below
+            }
+            Err(AdoptError::Io(reason)) => {
+                // Leave the old file in place so the next startup retries;
+                // deleting it here would destroy the user's Teams.
+                warn!(
+                    event = "agent_org_legacy_definitions_adoption_failed",
+                    path = %legacy_path.display(),
+                    error = %reason,
+                    "could not adopt retired Agent Org definitions file; leaving it for a later retry"
+                );
+                return;
+            }
+        }
+    }
+
     match std::fs::remove_file(&legacy_path) {
         Ok(()) => info!(
             event = "agent_org_legacy_definitions_retired",
@@ -981,6 +1029,45 @@ fn retire_legacy_definitions_file() {
             "could not remove retired Agent Org definitions file; canonical store remains isolated"
         ),
     }
+}
+
+enum AdoptError {
+    /// The old file is unreadable-as-data or not a valid v2 envelope —
+    /// retire it like any other stale artifact.
+    NotAdoptable(String),
+    /// The old file holds valid definitions but moving it failed — leave
+    /// it in place and retry on a later startup.
+    Io(String),
+}
+
+fn try_adopt_legacy_definitions_file(
+    legacy_path: &Path,
+    canonical_path: &Path,
+) -> Result<(), AdoptError> {
+    let bytes = std::fs::read(legacy_path)
+        .map_err(|err| AdoptError::NotAdoptable(format!("read failed: {err}")))?;
+    parse_definitions_content(&bytes, legacy_path).map_err(AdoptError::NotAdoptable)?;
+
+    if let Some(parent) = canonical_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|err| AdoptError::Io(format!("create directory failed: {err}")))?;
+    }
+    if std::fs::rename(legacy_path, canonical_path).is_ok() {
+        return Ok(());
+    }
+    // Rename can fail across filesystems or on contended Windows handles;
+    // fall back to copy + delete, keeping the old file on copy failure.
+    std::fs::copy(legacy_path, canonical_path)
+        .map_err(|err| AdoptError::Io(format!("copy failed: {err}")))?;
+    if let Err(err) = std::fs::remove_file(legacy_path) {
+        warn!(
+            event = "agent_org_legacy_definitions_cleanup_failed",
+            path = %legacy_path.display(),
+            error = %err,
+            "adopted Agent Org definitions but could not remove the old file"
+        );
+    }
+    Ok(())
 }
 
 fn save_to_disk(path: &Path, orgs: &[OrgDefinition]) -> Result<(), String> {
@@ -1190,7 +1277,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_live_file_is_deleted_without_parsing_and_new_builtins_are_created() {
+    fn invalid_legacy_file_is_still_retired_and_new_builtins_are_created() {
         let _sandbox = test_helpers::test_env::sandbox();
         let new_path = storage_path();
         let legacy_path = app_paths::agent_orgs();
@@ -1208,6 +1295,82 @@ mod tests {
             std::fs::read(unrelated_path).unwrap(),
             b"unrelated sentinel"
         );
+    }
+
+    #[test]
+    fn valid_v2_legacy_file_is_adopted_preserving_custom_teams() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let new_path = storage_path();
+        let legacy_path = app_paths::agent_orgs();
+        std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
+
+        let mut org = custom_org(&["alice", "bob"]);
+        org.id = "user-team".to_string();
+        org.name = "User Team".to_string();
+        org.additional_task_graph_writer_member_ids = vec!["alice".to_string()];
+        let file = AgentOrgDefinitionsFile {
+            schema_version: AGENT_ORGS_FILE_SCHEMA_VERSION,
+            definitions: vec![org.clone()],
+        };
+        std::fs::write(
+            &legacy_path,
+            serde_json::to_vec_pretty(&file).expect("serialize v2 envelope"),
+        )
+        .expect("write byte-compatible legacy file");
+        assert!(!new_path.exists());
+
+        let store = AgentOrgsStore::new();
+
+        // The user's Team survived the rename cutover…
+        assert_eq!(store.get("user-team").expect("adopted custom Team"), org);
+        // …alongside the reconciled built-in templates…
+        assert!(store.get(DEFAULT_SDE_TEMPLATE_TEAM_ID).is_ok());
+        // …and the old path is gone while the canonical one exists.
+        assert!(!legacy_path.exists());
+        assert!(new_path.is_file());
+
+        // A restart round-trips the adopted content from the canonical path.
+        let restarted = AgentOrgsStore::new();
+        assert_eq!(restarted.get("user-team").expect("persisted Team"), org);
+    }
+
+    #[test]
+    fn legacy_v2_file_next_to_existing_canonical_file_is_retired_not_adopted() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let store = AgentOrgsStore::new();
+        let mut kept = custom_org(&["alice"]);
+        kept.id = "kept-team".to_string();
+        kept.name = "Kept Team".to_string();
+        store.insert(kept.clone()).expect("persist canonical Team");
+        let new_path = storage_path();
+        let new_bytes = std::fs::read(&new_path).expect("canonical bytes");
+
+        // A valid v2 envelope at the old path must NOT displace the
+        // canonical file once it exists.
+        let mut stale = custom_org(&["carol"]);
+        stale.id = "stale-team".to_string();
+        stale.name = "Stale Team".to_string();
+        let file = AgentOrgDefinitionsFile {
+            schema_version: AGENT_ORGS_FILE_SCHEMA_VERSION,
+            definitions: vec![stale],
+        };
+        let legacy_path = app_paths::agent_orgs();
+        std::fs::write(
+            &legacy_path,
+            serde_json::to_vec_pretty(&file).expect("serialize stale envelope"),
+        )
+        .expect("write stale legacy file");
+
+        let restarted = AgentOrgsStore::new();
+
+        assert!(!legacy_path.exists(), "old file is deleted");
+        assert_eq!(
+            std::fs::read(&new_path).expect("canonical bytes after restart"),
+            new_bytes,
+            "canonical file is untouched"
+        );
+        assert_eq!(restarted.get("kept-team").expect("kept Team"), kept);
+        assert!(restarted.get("stale-team").is_err());
     }
 
     #[test]
