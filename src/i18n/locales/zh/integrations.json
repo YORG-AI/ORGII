@@ -1939,7 +1939,7 @@
       "orgDescriptionPlaceholder": "这个组织做什么？",
       "members": "成员",
       "addMember": "添加成员",
-      "noMembers": "添加成员来构建组织层级",
+      "noMembers": "添加成员来组建团队",
       "planApprovalPolicy": {
         "label": "计划审批",
         "description": "Planner 提交计划后，由谁确认计划可以解锁下游任务",

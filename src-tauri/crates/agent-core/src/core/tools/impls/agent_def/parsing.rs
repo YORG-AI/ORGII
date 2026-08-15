@@ -22,37 +22,75 @@ pub fn parse_sub_agents(params: &Value) -> Option<Vec<SubAgentRef>> {
     })
 }
 
-pub fn parse_org_members(params: &Value, accept_existing_ids: bool) -> Vec<FlatOrgMember> {
-    params
-        .get("members")
-        .and_then(|val| val.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|member| parse_single_member(member, accept_existing_ids))
-                .collect()
-        })
-        .unwrap_or_default()
+/// Parse the `members` array of a create/update org call.
+///
+/// Malformed entries are hard, structured errors — never silently dropped.
+/// A silently dropped member used to cascade into Writer-grant and
+/// communication-link removal on update, i.e. silent data destruction.
+pub fn parse_org_members(
+    params: &Value,
+    accept_existing_ids: bool,
+) -> Result<Vec<FlatOrgMember>, String> {
+    let Some(members_value) = params.get("members") else {
+        return Ok(Vec::new());
+    };
+    let Some(entries) = members_value.as_array() else {
+        return Err("'members' must be an array of member objects".to_string());
+    };
+    entries
+        .iter()
+        .enumerate()
+        .map(|(index, member)| parse_single_member(member, index, accept_existing_ids))
+        .collect()
 }
 
-fn parse_single_member(val: &Value, accept_existing_id: bool) -> Option<FlatOrgMember> {
-    let name = val.get("name")?.as_str()?.to_string();
-    let role = val
-        .get("role")
-        .and_then(|v| v.as_str())
-        .unwrap_or("member")
-        .to_string();
-    let agent_id = val
-        .get("agent_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+fn parse_single_member(
+    val: &Value,
+    index: usize,
+    accept_existing_id: bool,
+) -> Result<FlatOrgMember, String> {
+    let Some(entry) = val.as_object() else {
+        return Err(format!(
+            "members[{index}] must be an object with at least a 'name' field"
+        ));
+    };
+    let name = match entry.get("name").map(|value| value.as_str()) {
+        Some(Some(name)) if !name.trim().is_empty() => name.to_string(),
+        Some(Some(_)) => {
+            return Err(format!("members[{index}] has an empty 'name'"));
+        }
+        Some(None) => {
+            return Err(format!("members[{index}] field 'name' must be a string"));
+        }
+        None => {
+            return Err(format!(
+                "members[{index}] is missing the required 'name' field"
+            ));
+        }
+    };
+    let role = match entry.get("role") {
+        None => "member".to_string(),
+        Some(value) => value
+            .as_str()
+            .ok_or_else(|| format!("members[{index}] ('{name}') field 'role' must be a string"))?
+            .to_string(),
+    };
+    let agent_id = match entry.get("agent_id") {
+        None => String::new(),
+        Some(value) => value
+            .as_str()
+            .ok_or_else(|| {
+                format!("members[{index}] ('{name}') field 'agent_id' must be a string")
+            })?
+            .to_string(),
+    };
     let member_id = accept_existing_id
-        .then(|| val.get("member_id").and_then(|value| value.as_str()))
+        .then(|| entry.get("member_id").and_then(|value| value.as_str()))
         .flatten()
         .filter(|value| !value.trim().is_empty())
         .map(str::to_string)
         .unwrap_or_else(|| Uuid::new_v4().to_string());
-    Some(FlatOrgMember {
+    Ok(FlatOrgMember {
         member_id,
         name,
         role,

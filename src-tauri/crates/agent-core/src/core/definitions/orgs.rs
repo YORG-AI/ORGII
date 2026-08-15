@@ -20,7 +20,7 @@ pub const CLI_AGENT_ORG_REFERENCE_PREFIX: &str = "cli:";
 pub const MAX_AGENT_ORG_MEMBERS: usize = 50;
 pub const MAX_AGENT_ORG_DEFINITION_BYTES: usize = 256 * 1024;
 const AGENT_ORGS_FILE_SCHEMA_VERSION: u32 = 2;
-const COORDINATOR_MEMBER_ID: &str = "coordinator";
+use core_types::agent_org::COORDINATOR_MEMBER_ID;
 
 pub fn orgs_store() -> Arc<AgentOrgsStore> {
     #[cfg(test)]
@@ -157,7 +157,10 @@ pub struct OrgDefinition {
 }
 
 impl OrgDefinition {
-    pub fn member_count(&self) -> usize {
+    /// Total number of participants in the Team: the coordinator plus
+    /// every `members` entry. Coordinator-inclusive by design — use
+    /// `members.len()` for the member roster size.
+    pub fn participant_count(&self) -> usize {
         1 + self.members.len()
     }
 
@@ -202,6 +205,10 @@ impl From<&OrgDefinition> for AgentOrgLaunchSnapshot {
 /// Validate the frozen, self-contained Team contract without consulting the
 /// mutable definition store. Runtime recovery must never reinterpret a launch
 /// snapshot using a template that may have changed after the run started.
+///
+/// Structural validation only — no serialization. Read/context/task-persist
+/// paths call this on every access; the byte-size cap is enforced where
+/// snapshots are written, in [`serialize_launch_snapshot`].
 pub fn validate_launch_snapshot(snapshot: &AgentOrgLaunchSnapshot) -> Result<(), String> {
     if snapshot.schema_version != 1 {
         return Err(format!(
@@ -225,6 +232,12 @@ pub fn validate_launch_snapshot(snapshot: &AgentOrgLaunchSnapshot) -> Result<(),
     let mut member_ids = HashSet::with_capacity(snapshot.members.len());
     for member in &snapshot.members {
         let member_id = member.member_id.trim();
+        if member.member_id != member_id {
+            return Err(format!(
+                "Agent Org launch snapshot member id '{}' has leading or trailing whitespace",
+                member.member_id
+            ));
+        }
         if member_id.is_empty() || member_id.eq_ignore_ascii_case(COORDINATOR_MEMBER_ID) {
             return Err("Agent Org launch snapshot has an empty or reserved member id".into());
         }
@@ -285,7 +298,15 @@ pub fn validate_launch_snapshot(snapshot: &AgentOrgLaunchSnapshot) -> Result<(),
         }
     }
 
-    let encoded = serde_json::to_vec(snapshot)
+    Ok(())
+}
+
+/// Validate and encode a launch snapshot for persistence. The byte-size cap
+/// lives here — on the write path — so read paths can validate structure
+/// without paying for a full serialization on every access.
+pub fn serialize_launch_snapshot(snapshot: &AgentOrgLaunchSnapshot) -> Result<String, String> {
+    validate_launch_snapshot(snapshot)?;
+    let encoded = serde_json::to_string(snapshot)
         .map_err(|err| format!("failed to serialize Agent Org launch snapshot: {err}"))?;
     if encoded.len() > MAX_AGENT_ORG_DEFINITION_BYTES {
         return Err(format!(
@@ -293,7 +314,7 @@ pub fn validate_launch_snapshot(snapshot: &AgentOrgLaunchSnapshot) -> Result<(),
             MAX_AGENT_ORG_DEFINITION_BYTES
         ));
     }
-    Ok(())
+    Ok(encoded)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -347,17 +368,42 @@ pub fn all_member_links(members: &[FlatOrgMember]) -> Vec<MemberCommunicationLin
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AgentOrgDefinitionsFile {
     schema_version: u32,
-    definitions: Vec<OrgDefinition>,
+    /// Raw definition entries. Kept as JSON values so a single invalid
+    /// definition can be quarantined (and round-tripped back to disk
+    /// verbatim) without blocking the valid ones.
+    definitions: Vec<serde_json::Value>,
+}
+
+/// One on-disk definition that failed to parse or validate at load time.
+///
+/// Quarantined entries are preserved verbatim in the definitions file on
+/// every save, are excluded from reads, and block only writes that would
+/// touch their id or name. Fixing the entry on disk requires an app
+/// restart to be picked up; the diagnostics say so.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuarantinedOrgDefinition {
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub error: String,
+    #[serde(skip)]
+    raw: serde_json::Value,
 }
 
 enum LoadOutcome {
     Missing,
-    Loaded(Vec<OrgDefinition>),
+    Loaded {
+        orgs: Vec<OrgDefinition>,
+        quarantined: Vec<QuarantinedOrgDefinition>,
+    },
     Blocked(String),
 }
 
 pub struct AgentOrgsStore {
     pub(crate) orgs: Mutex<Vec<OrgDefinition>>,
+    /// Definitions held back at load time. Immutable for the lifetime of
+    /// the store: repairing one requires editing the file and restarting.
+    quarantined: Vec<QuarantinedOrgDefinition>,
     persistence_blocked: Option<String>,
 }
 
@@ -371,25 +417,37 @@ impl AgentOrgsStore {
     pub fn new() -> Self {
         retire_legacy_definitions_file();
         let path = storage_path();
-        let (mut orgs, persistence_blocked, should_persist) = match load_from_disk(&path) {
-            LoadOutcome::Missing => (Vec::new(), None, true),
-            LoadOutcome::Loaded(orgs) => (orgs, None, false),
-            LoadOutcome::Blocked(message) => {
-                error!("[agent-orgs] {}", message);
-                (Vec::new(), Some(message), false)
-            }
-        };
+        let (mut orgs, quarantined, persistence_blocked, should_persist) =
+            match load_from_disk(&path) {
+                LoadOutcome::Missing => (Vec::new(), Vec::new(), None, true),
+                LoadOutcome::Loaded { orgs, quarantined } => (orgs, quarantined, None, false),
+                LoadOutcome::Blocked(message) => {
+                    error!("[agent-orgs] {}", message);
+                    (Vec::new(), Vec::new(), Some(message), false)
+                }
+            };
+        for entry in &quarantined {
+            error!(
+                "[agent-orgs] Quarantined Agent Org definition (id: {}, name: {}): {}",
+                entry.id.as_deref().unwrap_or("<unknown>"),
+                entry.name.as_deref().unwrap_or("<unknown>"),
+                entry.error
+            );
+        }
 
-        let defaults_changed =
-            persistence_blocked.is_none() && ensure_default_template_team(&mut orgs);
+        let defaults_changed = persistence_blocked.is_none()
+            && ensure_default_template_team(&mut orgs, &quarantined);
         if persistence_blocked.is_none() && (should_persist || defaults_changed) {
-            if let Err(err) = validate_definitions(&orgs).and_then(|_| save_to_disk(&path, &orgs)) {
+            if let Err(err) =
+                validate_definitions(&orgs).and_then(|_| save_to_disk(&path, &orgs, &quarantined))
+            {
                 error!(
                     "[agent-orgs] Failed to persist canonical definitions: {}",
                     err
                 );
                 return Self {
                     orgs: Mutex::new(Vec::new()),
+                    quarantined,
                     persistence_blocked: Some(err),
                 };
             }
@@ -397,6 +455,7 @@ impl AgentOrgsStore {
 
         Self {
             orgs: Mutex::new(orgs),
+            quarantined,
             persistence_blocked,
         }
     }
@@ -418,7 +477,29 @@ impl AgentOrgsStore {
         orgs.iter()
             .find(|org| org.id == org_id)
             .cloned()
-            .ok_or_else(|| format!("Agent Org '{}' not found", org_id))
+            .ok_or_else(|| {
+                self.quarantine_error(org_id)
+                    .unwrap_or_else(|| format!("Agent Org '{}' not found", org_id))
+            })
+    }
+
+    /// Definitions that were held back at load time because they failed to
+    /// parse or validate. Surfaced for diagnostics; each entry carries the
+    /// load error and the remediation (fix the file, restart the app).
+    pub fn quarantined_definitions(&self) -> &[QuarantinedOrgDefinition] {
+        &self.quarantined
+    }
+
+    fn quarantine_error(&self, org_id: &str) -> Option<String> {
+        self.quarantined
+            .iter()
+            .find(|entry| entry.id.as_deref() == Some(org_id))
+            .map(|entry| {
+                format!(
+                    "Agent Org '{}' is quarantined and cannot be read or modified: {}",
+                    org_id, entry.error
+                )
+            })
     }
 
     pub fn coordinator_agent_id(&self, org_id: &str) -> Result<String, String> {
@@ -432,17 +513,48 @@ impl AgentOrgsStore {
         Ok(org.agent_id)
     }
 
+    /// Names of every org that references `agent_id`, used as the
+    /// agent-deletion guard. Fails safe: definitions the store could not
+    /// interpret (quarantined entries, or a fully blocked file) are scanned
+    /// best-effort as raw text so an unreadable reference still blocks
+    /// deletion instead of letting it silently invalidate the file.
     pub fn org_names_referencing_agent(&self, agent_id: &str) -> Vec<String> {
-        let Ok(orgs) = self.orgs.lock() else {
-            return Vec::new();
+        let mut names: Vec<String> = match self.orgs.lock() {
+            Ok(orgs) => orgs
+                .iter()
+                .filter(|org| {
+                    org.agent_id == agent_id
+                        || org.members.iter().any(|member| member.agent_id == agent_id)
+                })
+                .map(|org| org.name.clone())
+                .collect(),
+            Err(_) => Vec::new(),
         };
-        orgs.iter()
-            .filter(|org| {
-                org.agent_id == agent_id
-                    || org.members.iter().any(|member| member.agent_id == agent_id)
-            })
-            .map(|org| org.name.clone())
-            .collect()
+        for entry in &self.quarantined {
+            if entry.raw.to_string().contains(agent_id) {
+                names.push(
+                    entry
+                        .name
+                        .clone()
+                        .or_else(|| entry.id.clone())
+                        .unwrap_or_else(|| "<quarantined Agent Org definition>".to_string()),
+                );
+            }
+        }
+        if self.persistence_blocked.is_some() {
+            match std::fs::read_to_string(storage_path()) {
+                Ok(text) if text.contains(agent_id) => {
+                    names.push("<unreadable Agent Org definitions file>".to_string());
+                }
+                Ok(_) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => {
+                    // Cannot verify: fail safe and report a reference.
+                    names.push("<unreadable Agent Org definitions file>".to_string());
+                }
+            }
+        }
+        names
     }
 
     pub fn insert(&self, org: OrgDefinition) -> Result<String, String> {
@@ -467,6 +579,9 @@ impl AgentOrgsStore {
     }
 
     pub fn replace(&self, org: OrgDefinition) -> Result<(), String> {
+        if let Some(message) = self.quarantine_error(&org.id) {
+            return Err(message);
+        }
         self.commit_candidate(|orgs| {
             let index = orgs
                 .iter()
@@ -487,7 +602,7 @@ impl AgentOrgsStore {
         org: OrgDefinition,
         _actor: super::commands::TrustedAgentOrgSettingsActor,
     ) -> Result<OrgDefinition, String> {
-        let saved = org.clone();
+        let saved_id = org.id.clone();
         self.commit_candidate(|orgs| {
             if let Some(index) = orgs.iter().position(|existing| existing.id == org.id) {
                 if orgs.iter().enumerate().any(|(candidate_index, existing)| {
@@ -495,6 +610,8 @@ impl AgentOrgsStore {
                 }) {
                     return Err(format!("An org named '{}' already exists", org.name));
                 }
+                // Updates keep the caller's links verbatim: a deliberately
+                // deleted communication link must survive a settings save.
                 orgs[index] = org;
             } else {
                 if orgs
@@ -503,14 +620,25 @@ impl AgentOrgsStore {
                 {
                     return Err(format!("An org named '{}' already exists", org.name));
                 }
+                // Rust owns default connectivity for NEW teams: inserting a
+                // multi-member team with no links materializes the full
+                // canonical link set instead of trusting every caller to.
+                let org = if org.member_communication_links.is_empty() {
+                    org.with_all_member_links()
+                } else {
+                    org
+                };
                 orgs.push(org);
             }
             Ok(())
         })?;
-        self.get(&saved.id)
+        self.get(&saved_id)
     }
 
     pub fn remove(&self, org_id: &str) -> Result<bool, String> {
+        if let Some(message) = self.quarantine_error(org_id) {
+            return Err(message);
+        }
         let mut removed = false;
         self.commit_candidate(|orgs| {
             let before = orgs.len();
@@ -528,6 +656,9 @@ impl AgentOrgsStore {
     ) -> Result<(), String> {
         if overrides.is_empty() {
             return Ok(());
+        }
+        if let Some(message) = self.quarantine_error(org_id) {
+            return Err(message);
         }
         self.commit_candidate(|orgs| {
             let org = orgs
@@ -554,7 +685,8 @@ impl AgentOrgsStore {
     fn ensure_writable(&self) -> Result<(), String> {
         match &self.persistence_blocked {
             Some(message) => Err(format!(
-                "Agent Org definitions are unavailable until the on-disk error is resolved: {}",
+                "Agent Org definitions are unavailable until the on-disk error is resolved \
+                 (fix the file, then restart the app): {}",
                 message
             )),
             None => Ok(()),
@@ -573,9 +705,74 @@ impl AgentOrgsStore {
         let mut candidate = guard.clone();
         mutate(&mut candidate)?;
         canonicalize_and_validate_definitions(&mut candidate)?;
-        save_to_disk(&storage_path(), &candidate)?;
+        for org in &candidate {
+            let collision = self.quarantined.iter().find(|entry| {
+                entry.id.as_deref() == Some(org.id.as_str())
+                    || entry
+                        .name
+                        .as_deref()
+                        .is_some_and(|name| name.eq_ignore_ascii_case(&org.name))
+            });
+            if let Some(entry) = collision {
+                return Err(format!(
+                    "Agent Org '{}' collides with a quarantined definition \
+                     (fix the file, then restart the app): {}",
+                    org.name, entry.error
+                ));
+            }
+        }
+        save_to_disk(&storage_path(), &candidate, &self.quarantined)?;
         *guard = candidate;
         Ok(())
+    }
+}
+
+/// Async wrappers for every mutating store entry point.
+///
+/// Store mutations fsync under the store mutex; calling them directly from
+/// an async context stalls the executor. These wrappers are the single
+/// spawn_blocking owner — async callers (Tauri commands, model tools,
+/// launch) go through here instead of hand-rolling their own offloading.
+impl AgentOrgsStore {
+    async fn run_blocking<T, F>(self: &Arc<Self>, task: F) -> Result<T, String>
+    where
+        T: Send + 'static,
+        F: FnOnce(&AgentOrgsStore) -> Result<T, String> + Send + 'static,
+    {
+        let store = Arc::clone(self);
+        tokio::task::spawn_blocking(move || task(&store))
+            .await
+            .map_err(|err| format!("Agent Org store task failed: {err}"))?
+    }
+
+    pub async fn insert_async(self: &Arc<Self>, org: OrgDefinition) -> Result<String, String> {
+        self.run_blocking(move |store| store.insert(org)).await
+    }
+
+    pub async fn replace_async(self: &Arc<Self>, org: OrgDefinition) -> Result<(), String> {
+        self.run_blocking(move |store| store.replace(org)).await
+    }
+
+    pub async fn remove_async(self: &Arc<Self>, org_id: String) -> Result<bool, String> {
+        self.run_blocking(move |store| store.remove(&org_id)).await
+    }
+
+    pub async fn apply_member_launch_overrides_async(
+        self: &Arc<Self>,
+        org_id: String,
+        overrides: HashMap<String, OrgMemberLaunchOverride>,
+    ) -> Result<(), String> {
+        self.run_blocking(move |store| store.apply_member_launch_overrides(&org_id, &overrides))
+            .await
+    }
+
+    pub(in crate::core::definitions) async fn save_trusted_settings_async(
+        self: &Arc<Self>,
+        org: OrgDefinition,
+        actor: super::commands::TrustedAgentOrgSettingsActor,
+    ) -> Result<OrgDefinition, String> {
+        self.run_blocking(move |store| store.save_trusted_settings(org, actor))
+            .await
     }
 }
 
@@ -634,6 +831,12 @@ pub fn canonicalize_and_validate_definition(org: &mut OrgDefinition) -> Result<(
     let mut member_ids = HashSet::with_capacity(org.members.len());
     for member in &org.members {
         let member_id = member.member_id.trim();
+        if member.member_id != member_id {
+            return Err(format!(
+                "Agent Org '{}' member id '{}' has leading or trailing whitespace",
+                org.name, member.member_id
+            ));
+        }
         if member_id.is_empty() || member_id.eq_ignore_ascii_case(COORDINATOR_MEMBER_ID) {
             return Err(format!(
                 "Agent Org '{}' contains an empty or reserved member id",
@@ -766,61 +969,80 @@ const DEFAULT_DS_TEMPLATE_TEAM_ID: &str = "default:ds-analysis-team";
 const BUILTIN_SDE_AGENT_ID: &str = "builtin:sde";
 const BUILTIN_DS_AGENT_ID: &str = "builtin:ds";
 
-fn ensure_default_template_team(orgs: &mut Vec<OrgDefinition>) -> bool {
-    let mut changed = reconcile_default_org(orgs, default_sde_template_team());
-    changed |= reconcile_default_org(orgs, default_ds_template_team());
+fn ensure_default_template_team(
+    orgs: &mut Vec<OrgDefinition>,
+    quarantined: &[QuarantinedOrgDefinition],
+) -> bool {
+    let mut changed = false;
+    for canonical in [default_sde_template_team(), default_ds_template_team()] {
+        // Never materialize a default next to a quarantined entry that
+        // holds its id or name: the file would end up with duplicates.
+        let conflicts_with_quarantine = quarantined.iter().any(|entry| {
+            entry.id.as_deref() == Some(canonical.id.as_str())
+                || entry
+                    .name
+                    .as_deref()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(&canonical.name))
+        });
+        if conflicts_with_quarantine {
+            continue;
+        }
+        changed |= reconcile_default_org(orgs, canonical);
+    }
     changed
 }
 
-fn reconcile_default_org(orgs: &mut Vec<OrgDefinition>, mut canonical: OrgDefinition) -> bool {
+/// Boot-time reconcile of one built-in template Team against its canonical
+/// definition. Reconciles ONLY structural identity:
+///
+/// - the Team exists (a missing Team is materialized from the template),
+/// - every canonical member id exists (user-removed canonical members are
+///   re-added from the template and linked to every current member, the same
+///   way a newly added member joins fully connected),
+/// - canonical members reference the canonical agent id (template drift is
+///   restored).
+///
+/// Everything else the user can edit through trusted settings survives a
+/// boot: member name/role/runtime_config edits on surviving members,
+/// user-added members, Team description, plan approval policy, Writer
+/// grants, and deliberate communication-link deletions.
+fn reconcile_default_org(orgs: &mut Vec<OrgDefinition>, canonical: OrgDefinition) -> bool {
     let Some(index) = orgs.iter().position(|org| org.id == canonical.id) else {
         orgs.push(canonical);
         return true;
     };
-    let existing = &orgs[index];
-    let canonical_ids: HashSet<&str> = canonical
-        .members
-        .iter()
-        .map(|member| member.member_id.as_str())
-        .collect();
-    canonical.additional_task_graph_writer_member_ids = existing
-        .additional_task_graph_writer_member_ids
-        .iter()
-        .filter(|member_id| canonical_ids.contains(member_id.as_str()))
-        .cloned()
-        .collect();
-    let existing_ids: HashSet<&str> = existing
-        .members
-        .iter()
-        .map(|member| member.member_id.as_str())
-        .collect();
-    let existing_links: HashSet<(String, String)> = existing
-        .member_communication_links
-        .iter()
-        .map(|link| {
-            let canonical = MemberCommunicationLink::canonical(
-                link.member_a_id.clone(),
-                link.member_b_id.clone(),
-            );
-            (canonical.member_a_id, canonical.member_b_id)
-        })
-        .collect();
-    canonical.member_communication_links = all_member_links(&canonical.members)
-        .into_iter()
-        .filter(|link| {
-            let both_survived = existing_ids.contains(link.member_a_id.as_str())
-                && existing_ids.contains(link.member_b_id.as_str());
-            !both_survived
-                || existing_links.contains(&(link.member_a_id.clone(), link.member_b_id.clone()))
-        })
-        .collect();
-
-    if orgs[index] == canonical {
-        false
-    } else {
-        orgs[index] = canonical;
-        true
+    let mut reconciled = orgs[index].clone();
+    let mut changed = false;
+    for canonical_member in &canonical.members {
+        if let Some(existing) = reconciled
+            .members
+            .iter_mut()
+            .find(|member| member.member_id == canonical_member.member_id)
+        {
+            if existing.agent_id != canonical_member.agent_id {
+                existing.agent_id = canonical_member.agent_id.clone();
+                changed = true;
+            }
+        } else {
+            for member in &reconciled.members {
+                reconciled
+                    .member_communication_links
+                    .push(MemberCommunicationLink::canonical(
+                        member.member_id.clone(),
+                        canonical_member.member_id.clone(),
+                    ));
+            }
+            reconciled.members.push(canonical_member.clone());
+            changed = true;
+        }
     }
+    if changed {
+        reconciled
+            .member_communication_links
+            .sort_by(|left, right| left.key().cmp(&right.key()));
+        orgs[index] = reconciled;
+    }
+    changed
 }
 
 fn flat_member(member_id: &str, name: &str, role: &str, agent_id: &str) -> FlatOrgMember {
@@ -923,25 +1145,98 @@ fn load_from_disk(path: &Path) -> LoadOutcome {
             return LoadOutcome::Blocked(format!("Failed to read {}: {}", path.display(), err));
         }
     };
-    let definitions = match parse_definitions_content(&bytes, path) {
-        Ok(definitions) => definitions,
-        Err(err) => return LoadOutcome::Blocked(err),
+    let value: serde_json::Value = match serde_json::from_slice(&bytes) {
+        Ok(value) => value,
+        Err(err) => {
+            return LoadOutcome::Blocked(format!("Failed to parse {}: {}", path.display(), err));
+        }
     };
+    let file: AgentOrgDefinitionsFile = match serde_json::from_value(value) {
+        Ok(file) => file,
+        Err(err) => {
+            return LoadOutcome::Blocked(format!(
+                "Unrecognized Agent Org definitions file {}: {}",
+                path.display(),
+                err
+            ));
+        }
+    };
+    if file.schema_version != AGENT_ORGS_FILE_SCHEMA_VERSION {
+        return LoadOutcome::Blocked(format!(
+            "Unsupported Agent Org definitions schema version {} in {}",
+            file.schema_version,
+            path.display()
+        ));
+    }
+
+    // Per-definition quarantine: one invalid definition must not block
+    // reads and writes of every other org until restart. Invalid entries
+    // are preserved verbatim and block only writes touching them.
+    let mut orgs: Vec<OrgDefinition> = Vec::with_capacity(file.definitions.len());
+    let mut quarantined: Vec<QuarantinedOrgDefinition> = Vec::new();
+    let mut seen_ids: HashSet<String> = HashSet::new();
+    let mut seen_names: HashSet<String> = HashSet::new();
+    for (index, raw) in file.definitions.into_iter().enumerate() {
+        let raw_id = raw
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
+        let raw_name = raw
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
+        let attempt = serde_json::from_value::<OrgDefinition>(raw.clone())
+            .map_err(|err| format!("definitions[{index}] is not a valid Agent Org: {err}"))
+            .and_then(|mut org| {
+                canonicalize_and_validate_definition(&mut org)?;
+                if seen_ids.contains(&org.id) {
+                    return Err(format!("Duplicate Agent Org id '{}'", org.id));
+                }
+                if seen_names.contains(&org.name.to_lowercase()) {
+                    return Err(format!("Duplicate Agent Org name '{}'", org.name));
+                }
+                Ok(org)
+            });
+        match attempt {
+            Ok(org) => {
+                seen_ids.insert(org.id.clone());
+                seen_names.insert(org.name.to_lowercase());
+                orgs.push(org);
+            }
+            Err(error) => quarantined.push(QuarantinedOrgDefinition {
+                id: raw_id,
+                name: raw_name,
+                error: format!(
+                    "{error}. Fix the entry in {} and restart the app to restore it.",
+                    path.display()
+                ),
+                raw,
+            }),
+        }
+    }
     info!(
-        "[agent-orgs] Loaded {} definitions from {}",
-        definitions.len(),
-        path.display()
+        "[agent-orgs] Loaded {} definitions from {} ({} quarantined)",
+        orgs.len(),
+        path.display(),
+        quarantined.len()
     );
-    LoadOutcome::Loaded(definitions)
+    LoadOutcome::Loaded { orgs, quarantined }
 }
 
+/// Strict, all-or-nothing parse of a definitions file.
+///
+/// Used by the legacy-file adoption path: a pre-rename file is adopted only
+/// when the envelope and every definition inside it are valid; otherwise
+/// the caller retires the old file instead of adopting it. Boot-time
+/// loading of the canonical file goes through `load_from_disk`, which
+/// quarantines invalid entries individually instead of rejecting the file.
 pub(crate) fn parse_definitions_content(
     bytes: &[u8],
     path: &Path,
 ) -> Result<Vec<OrgDefinition>, String> {
     let value: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
-    let mut file: AgentOrgDefinitionsFile = serde_json::from_value(value).map_err(|err| {
+    let file: AgentOrgDefinitionsFile = serde_json::from_value(value).map_err(|err| {
         format!(
             "Unrecognized Agent Org definitions file {}: {}",
             path.display(),
@@ -955,14 +1250,24 @@ pub(crate) fn parse_definitions_content(
             path.display()
         ));
     }
-    canonicalize_and_validate_definitions(&mut file.definitions).map_err(|err| {
+    let mut definitions: Vec<OrgDefinition> = Vec::with_capacity(file.definitions.len());
+    for (index, raw) in file.definitions.into_iter().enumerate() {
+        let org = serde_json::from_value::<OrgDefinition>(raw).map_err(|err| {
+            format!(
+                "Invalid Agent Org definitions in {}: definitions[{index}] is not a valid Agent Org: {err}",
+                path.display()
+            )
+        })?;
+        definitions.push(org);
+    }
+    canonicalize_and_validate_definitions(&mut definitions).map_err(|err| {
         format!(
             "Invalid Agent Org definitions in {}: {}",
             path.display(),
             err
         )
     })?;
-    Ok(file.definitions)
+    Ok(definitions)
 }
 
 /// Retire — or, when possible, adopt — the pre-rename `agent-orgs.json`.
@@ -1070,10 +1375,26 @@ fn try_adopt_legacy_definitions_file(
     Ok(())
 }
 
-fn save_to_disk(path: &Path, orgs: &[OrgDefinition]) -> Result<(), String> {
+fn save_to_disk(
+    path: &Path,
+    orgs: &[OrgDefinition],
+    quarantined: &[QuarantinedOrgDefinition],
+) -> Result<(), String> {
+    let mut definitions = Vec::with_capacity(orgs.len() + quarantined.len());
+    for org in orgs {
+        definitions.push(
+            serde_json::to_value(org)
+                .map_err(|err| format!("Failed to encode Agent Org '{}': {}", org.name, err))?,
+        );
+    }
+    // Quarantined definitions round-trip verbatim: a save of the valid
+    // orgs must never destroy an entry the user still needs to repair.
+    for entry in quarantined {
+        definitions.push(entry.raw.clone());
+    }
     let file = AgentOrgDefinitionsFile {
         schema_version: AGENT_ORGS_FILE_SCHEMA_VERSION,
-        definitions: orgs.to_vec(),
+        definitions,
     };
     let content = serde_json::to_vec_pretty(&file)
         .map_err(|err| format!("Failed to serialize Agent Org definitions: {}", err))?;
@@ -1110,9 +1431,10 @@ fn save_to_disk(path: &Path, orgs: &[OrgDefinition]) -> Result<(), String> {
     })();
     write_result?;
     info!(
-        "[agent-orgs] Saved {} definitions to {}",
+        "[agent-orgs] Saved {} definitions to {} ({} quarantined preserved)",
         orgs.len(),
-        path.display()
+        path.display(),
+        quarantined.len()
     );
     Ok(())
 }
@@ -1212,12 +1534,44 @@ mod tests {
     }
 
     #[test]
+    fn validators_reject_untrimmed_member_ids() {
+        let mut org = custom_org(&["alice", "bob"]);
+        org.members[0].member_id = " alice ".to_string();
+        org.member_communication_links.clear();
+        assert!(canonicalize_and_validate_definition(&mut org)
+            .unwrap_err()
+            .contains("whitespace"));
+
+        let org = custom_org(&["alice", "bob"]);
+        let mut snapshot = AgentOrgLaunchSnapshot::from(&org);
+        snapshot.members[1].member_id = "bob\n".to_string();
+        snapshot.member_communication_links.clear();
+        assert!(validate_launch_snapshot(&snapshot)
+            .unwrap_err()
+            .contains("whitespace"));
+    }
+
+    #[test]
     fn validator_enforces_definition_byte_limit() {
         let mut org = custom_org(&["alice"]);
         org.description = Some("x".repeat(MAX_AGENT_ORG_DEFINITION_BYTES));
         assert!(canonicalize_and_validate_definition(&mut org)
             .unwrap_err()
             .contains("definition limit"));
+    }
+
+    #[test]
+    fn snapshot_size_cap_is_enforced_at_serialization_not_structural_validation() {
+        let org = custom_org(&["alice"]);
+        let mut snapshot = AgentOrgLaunchSnapshot::from(&org);
+        snapshot.members[0].role = "x".repeat(MAX_AGENT_ORG_DEFINITION_BYTES);
+        validate_launch_snapshot(&snapshot).expect("structural validation has no size cap");
+        assert!(serialize_launch_snapshot(&snapshot)
+            .unwrap_err()
+            .contains("exceeds"));
+
+        let snapshot = AgentOrgLaunchSnapshot::from(&custom_org(&["alice", "bob"]));
+        serialize_launch_snapshot(&snapshot).expect("valid snapshot serializes at the write path");
     }
 
     #[test]
@@ -1277,6 +1631,158 @@ mod tests {
     }
 
     #[test]
+    fn trusted_settings_insert_materializes_default_connectivity_updates_keep_links() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let actor = crate::definitions::commands::TrustedAgentOrgSettingsActor::for_test;
+        let store = AgentOrgsStore::new();
+        let mut org = custom_org(&["alice", "bob", "carol"]);
+        org.id = "trusted-org".to_string();
+        org.name = "Trusted Org".to_string();
+        org.member_communication_links.clear();
+
+        let saved = store
+            .save_trusted_settings(org, actor())
+            .expect("insert new team");
+        assert_eq!(
+            saved.member_communication_links.len(),
+            3,
+            "a new multi-member team with no links gets full connectivity"
+        );
+
+        let mut updated = saved.clone();
+        let removed_link = MemberCommunicationLink::canonical("alice", "bob");
+        updated
+            .member_communication_links
+            .retain(|link| *link != removed_link);
+        let saved = store
+            .save_trusted_settings(updated, actor())
+            .expect("update team");
+        assert_eq!(
+            saved.member_communication_links.len(),
+            2,
+            "an update keeps the caller's links verbatim"
+        );
+        assert!(!saved.member_communication_links.contains(&removed_link));
+
+        let restarted = AgentOrgsStore::new();
+        assert!(
+            !restarted
+                .get("trusted-org")
+                .expect("team after boot")
+                .member_communication_links
+                .contains(&removed_link),
+            "a deliberate link deletion survives restart"
+        );
+    }
+
+    #[test]
+    fn boot_reconcile_preserves_user_edits_on_default_teams() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let store = AgentOrgsStore::new();
+        let mut org = store
+            .get(DEFAULT_SDE_TEMPLATE_TEAM_ID)
+            .expect("default SDE team");
+        org.description = Some("My customized description".to_string());
+        org.plan_approval_policy = PlanApprovalPolicy::User;
+        org.members[0].name = "Custom Planner".to_string();
+        org.members[0].role = "My custom role".to_string();
+        org.members[0].runtime_config = Some(OrgMemberRuntimeConfig {
+            model: Some("custom-model".to_string()),
+            ..Default::default()
+        });
+        let added = flat_member("my-added", "Added", "member", BUILTIN_SDE_AGENT_ID);
+        for member in org.members.clone() {
+            org.member_communication_links
+                .push(MemberCommunicationLink::canonical(
+                    member.member_id,
+                    "my-added".to_string(),
+                ));
+        }
+        org.members.push(added);
+        org.additional_task_graph_writer_member_ids = vec!["my-added".to_string()];
+        store.replace(org).expect("persist user edits");
+
+        let restarted = AgentOrgsStore::new();
+        let reloaded = restarted
+            .get(DEFAULT_SDE_TEMPLATE_TEAM_ID)
+            .expect("default SDE team after boot");
+        assert_eq!(
+            reloaded.description.as_deref(),
+            Some("My customized description")
+        );
+        assert_eq!(reloaded.plan_approval_policy, PlanApprovalPolicy::User);
+        assert_eq!(reloaded.members[0].name, "Custom Planner");
+        assert_eq!(reloaded.members[0].role, "My custom role");
+        assert_eq!(
+            reloaded.members[0]
+                .runtime_config
+                .as_ref()
+                .and_then(|config| config.model.as_deref()),
+            Some("custom-model")
+        );
+        assert!(reloaded
+            .members
+            .iter()
+            .any(|member| member.member_id == "my-added"));
+        assert_eq!(
+            reloaded.additional_task_graph_writer_member_ids,
+            vec!["my-added".to_string()]
+        );
+    }
+
+    #[test]
+    fn boot_reconcile_restores_drifted_agent_id_and_readds_removed_canonical_member() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let store = AgentOrgsStore::new();
+        let mut org = store
+            .get(DEFAULT_SDE_TEMPLATE_TEAM_ID)
+            .expect("default SDE team");
+        let removed_id = org.members[1].member_id.clone();
+        org.members[0].agent_id = BUILTIN_DS_AGENT_ID.to_string();
+        org.members.remove(1);
+        org.member_communication_links
+            .retain(|link| link.member_a_id != removed_id && link.member_b_id != removed_id);
+        // A deliberate deletion among surviving members must not be revived.
+        let deleted_link = MemberCommunicationLink::canonical(
+            org.members[0].member_id.clone(),
+            org.members[1].member_id.clone(),
+        );
+        org.member_communication_links
+            .retain(|link| *link != deleted_link);
+        store.replace(org.clone()).expect("persist template drift");
+
+        let restarted = AgentOrgsStore::new();
+        let reloaded = restarted
+            .get(DEFAULT_SDE_TEMPLATE_TEAM_ID)
+            .expect("default SDE team after boot");
+        assert_eq!(reloaded.members[0].agent_id, BUILTIN_SDE_AGENT_ID);
+        let readded = reloaded
+            .members
+            .iter()
+            .find(|member| member.member_id == removed_id)
+            .expect("removed canonical member re-added");
+        assert_eq!(readded.agent_id, BUILTIN_SDE_AGENT_ID);
+        // The re-added member is linked to every other member.
+        for member in reloaded
+            .members
+            .iter()
+            .filter(|member| member.member_id != removed_id)
+        {
+            let link =
+                MemberCommunicationLink::canonical(member.member_id.clone(), removed_id.clone());
+            assert!(
+                reloaded.member_communication_links.contains(&link),
+                "re-added member should be linked to '{}'",
+                member.member_id
+            );
+        }
+        assert!(
+            !reloaded.member_communication_links.contains(&deleted_link),
+            "deliberate link deletion among survivors must survive reconcile"
+        );
+    }
+
+    #[test]
     fn invalid_legacy_file_is_still_retired_and_new_builtins_are_created() {
         let _sandbox = test_helpers::test_env::sandbox();
         let new_path = storage_path();
@@ -1310,7 +1816,7 @@ mod tests {
         org.additional_task_graph_writer_member_ids = vec!["alice".to_string()];
         let file = AgentOrgDefinitionsFile {
             schema_version: AGENT_ORGS_FILE_SCHEMA_VERSION,
-            definitions: vec![org.clone()],
+            definitions: vec![serde_json::to_value(&org).expect("encode custom Team")],
         };
         std::fs::write(
             &legacy_path,
@@ -1352,7 +1858,7 @@ mod tests {
         stale.name = "Stale Team".to_string();
         let file = AgentOrgDefinitionsFile {
             schema_version: AGENT_ORGS_FILE_SCHEMA_VERSION,
-            definitions: vec![stale],
+            definitions: vec![serde_json::to_value(&stale).expect("encode stale Team")],
         };
         let legacy_path = app_paths::agent_orgs();
         std::fs::write(
@@ -1413,15 +1919,147 @@ mod tests {
     }
 
     #[test]
-    fn invalid_canonical_file_fails_closed_without_overwrite() {
+    fn corrupt_file_blocks_store_without_overwrite() {
         let _sandbox = test_helpers::test_env::sandbox();
         let path = storage_path();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let invalid = br#"{"schemaVersion":2,"definitions":[{"id":"bad"}]}"#;
+        let invalid = b"{this is not json";
         std::fs::write(&path, invalid).unwrap();
         let store = AgentOrgsStore::new();
         assert!(store.list().is_err());
+        assert!(store
+            .insert(custom_org(&["alice"]))
+            .unwrap_err()
+            .contains("restart"));
         assert_eq!(std::fs::read(&path).unwrap(), invalid);
+    }
+
+    fn quarantine_fixture_file() -> String {
+        // Valid custom org next to a definition that parses as JSON but
+        // references an agent definition that does not exist.
+        format!(
+            r#"{{"schemaVersion":2,"definitions":[
+                {{"id":"good-org","name":"Good Org","role":"Coordinator","agentId":"{sde}",
+                  "planApprovalPolicy":"coordinator",
+                  "members":[{{"memberId":"alice","name":"Alice","role":"member","agentId":"{sde}"}}],
+                  "additionalTaskGraphWriterMemberIds":[],"memberCommunicationLinks":[]}},
+                {{"id":"quarantined-org","name":"Quarantined Org","role":"Coordinator",
+                  "agentId":"user:missing-agent-xyz","planApprovalPolicy":"coordinator",
+                  "members":[{{"memberId":"bob","name":"Bob","role":"member","agentId":"user:missing-agent-xyz"}}],
+                  "additionalTaskGraphWriterMemberIds":[],"memberCommunicationLinks":[]}}
+            ]}}"#,
+            sde = BUILTIN_SDE_AGENT_ID
+        )
+    }
+
+    #[test]
+    fn single_invalid_definition_is_quarantined_without_blocking_the_store() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let path = storage_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, quarantine_fixture_file()).unwrap();
+
+        let store = AgentOrgsStore::new();
+        let listed = store.list().expect("valid orgs stay readable");
+        assert!(listed.iter().any(|org| org.id == "good-org"));
+        assert!(listed.iter().all(|org| org.id != "quarantined-org"));
+        assert!(store.get("good-org").is_ok());
+        assert!(store
+            .get("quarantined-org")
+            .unwrap_err()
+            .contains("quarantined"));
+        let quarantined = store.quarantined_definitions();
+        assert_eq!(quarantined.len(), 1);
+        assert_eq!(quarantined[0].id.as_deref(), Some("quarantined-org"));
+        assert!(quarantined[0].error.contains("missing-agent-xyz"));
+
+        // Writes not touching the quarantined entry work...
+        let mut org = custom_org(&["carol"]);
+        org.id = "new-org".to_string();
+        org.name = "New Org".to_string();
+        store.insert(org).expect("unrelated insert succeeds");
+        // ...and the quarantined raw definition survives the rewrite.
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("quarantined-org"));
+        assert!(text.contains("user:missing-agent-xyz"));
+
+        // Writes touching the quarantined entry are blocked.
+        assert!(store
+            .remove("quarantined-org")
+            .unwrap_err()
+            .contains("quarantined"));
+        let mut collides = custom_org(&["dave"]);
+        collides.id = "another-id".to_string();
+        collides.name = "Quarantined Org".to_string();
+        assert!(store.insert(collides).unwrap_err().contains("quarantined"));
+
+        // A restart re-quarantines the preserved entry instead of losing it.
+        let restarted = AgentOrgsStore::new();
+        assert_eq!(restarted.quarantined_definitions().len(), 1);
+        assert!(restarted.get("good-org").is_ok());
+        assert!(restarted.get("new-org").is_ok());
+    }
+
+    #[test]
+    fn deletion_guard_fails_safe_for_quarantined_and_blocked_definitions() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let path = storage_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, quarantine_fixture_file()).unwrap();
+        let store = AgentOrgsStore::new();
+        let names = store.org_names_referencing_agent("user:missing-agent-xyz");
+        assert_eq!(names, vec!["Quarantined Org".to_string()]);
+        assert!(store
+            .org_names_referencing_agent(BUILTIN_SDE_AGENT_ID)
+            .iter()
+            .any(|name| name == "Good Org"));
+
+        // A fully unparseable file must also keep the guard fail-safe.
+        std::fs::write(&path, b"{corrupt but mentions user:blocked-agent-abc").unwrap();
+        let blocked = AgentOrgsStore::new();
+        assert!(blocked.list().is_err());
+        assert!(!blocked
+            .org_names_referencing_agent("user:blocked-agent-abc")
+            .is_empty());
+        assert!(blocked
+            .org_names_referencing_agent("user:agent-not-in-file")
+            .is_empty());
+    }
+
+    #[test]
+    fn v2_file_with_nested_children_key_is_never_legacy_reset() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let path = storage_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        // A v2 envelope whose definition carries a nested `children` key
+        // (e.g. hostile or drifted data). The file must never be backed
+        // up and reset (the legacy sniff that once did this is gone);
+        // the invalid entry is quarantined instead.
+        let file = format!(
+            r#"{{"schemaVersion":2,"definitions":[
+                {{"id":"odd-org","name":"Odd Org","role":"c","agentId":"{sde}",
+                  "planApprovalPolicy":"coordinator",
+                  "members":[{{"memberId":"m1","name":"M","role":"r","agentId":"{sde}",
+                              "children":[{{"id":"nested"}}]}}],
+                  "additionalTaskGraphWriterMemberIds":[],"memberCommunicationLinks":[]}}
+            ]}}"#,
+            sde = BUILTIN_SDE_AGENT_ID
+        );
+        std::fs::write(&path, &file).unwrap();
+        let store = AgentOrgsStore::new();
+        assert!(store.list().is_ok(), "v2 file must not be treated as legacy");
+        assert_eq!(store.quarantined_definitions().len(), 1);
+        let backups = std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().contains("legacy-"))
+            .count();
+        assert_eq!(backups, 0, "a valid v2 envelope must never be reset");
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("odd-org"),
+            "quarantined definition must survive on disk"
+        );
     }
 
     #[test]

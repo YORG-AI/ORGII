@@ -3,7 +3,7 @@ use super::launch_helpers::{
     member_runtime_key_source, member_runtime_model, member_runtime_native_harness_type,
     validate_launch_agent_definitions,
 };
-use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
+use crate::coordination::agent_org_runs::{AgentOrgRunRecord, COORDINATOR_MEMBER_ID};
 use crate::definitions::builtin::SDE_AGENT_ID;
 use crate::definitions::orgs::{
     FlatOrgMember, OrgDefinition, OrgMemberLaunchOverride, OrgMemberRuntimeConfig,
@@ -30,6 +30,84 @@ fn session_marker_writes_explicit_build_for_legacy_null_product_mode() {
     assert_eq!(marker["productMode"], "build");
     assert_eq!(marker["scope"], "scoped-project");
     assert_eq!(marker["capabilities"], serde_json::json!(["work.read"]));
+}
+
+fn starting_run_updated_at(id: &str, updated_at: &str) -> AgentOrgRunRecord {
+    AgentOrgRunRecord {
+        id: id.to_string(),
+        org_id: "starting-org".to_string(),
+        coordinator_agent_id: "agent-coord".to_string(),
+        root_session_id: Some(format!("root-{id}")),
+        org_snapshot_json: None,
+        entry_mode: crate::coordination::agent_org_runs::AgentOrgRunEntryMode::StandaloneSession,
+        status: crate::coordination::agent_org_runs::AgentOrgRunStatus::Starting,
+        activation_generation: 1,
+        has_initial_work: true,
+        work_item_id: None,
+        project_slug: None,
+        routine_fire_id: None,
+        summary: None,
+        last_error: None,
+        failure_json: None,
+        last_activity_outcome: None,
+        created_at: updated_at.to_string(),
+        updated_at: updated_at.to_string(),
+        idled_at: None,
+    }
+}
+
+#[test]
+fn watchdog_tick_selects_only_aged_starting_runs_within_the_per_tick_bound() {
+    let now = chrono::Utc::now();
+    let aged_at =
+        (now - chrono::Duration::seconds(super::STARTING_RETRY_GRACE_SECS + 60)).to_rfc3339();
+    let young_at = now.to_rfc3339();
+
+    let mut runs = vec![starting_run_updated_at("starting-young", &young_at)];
+    for index in 0..(super::STARTING_RETRY_MAX_RUNS_PER_TICK + 3) {
+        runs.push(starting_run_updated_at(
+            &format!("starting-aged-{index:02}"),
+            &aged_at,
+        ));
+    }
+    runs.push(starting_run_updated_at("starting-corrupt-clock", "not-a-timestamp"));
+
+    let selected = super::select_aged_starting_runs(
+        runs,
+        now,
+        super::STARTING_RETRY_GRACE_SECS,
+        super::STARTING_RETRY_MAX_RUNS_PER_TICK,
+    );
+
+    assert_eq!(
+        selected.len(),
+        super::STARTING_RETRY_MAX_RUNS_PER_TICK,
+        "the tick retry pass is bounded"
+    );
+    assert!(
+        selected.iter().all(|run| run.id != "starting-young"),
+        "a Starting run inside the grace window is still owned by its launch task"
+    );
+    assert!(
+        selected.iter().all(|run| run.id.starts_with("starting-aged-")),
+        "aged runs feed the tick-driven recovery"
+    );
+
+    // The recovery driver is invoked for exactly the selected set: an aged
+    // run reaches the per-run routine, a young one never does.
+    let two = super::select_aged_starting_runs(
+        vec![
+            starting_run_updated_at("starting-aged-only", &aged_at),
+            starting_run_updated_at("starting-young-only", &young_at),
+        ],
+        now,
+        super::STARTING_RETRY_GRACE_SECS,
+        super::STARTING_RETRY_MAX_RUNS_PER_TICK,
+    );
+    assert_eq!(
+        two.iter().map(|run| run.id.as_str()).collect::<Vec<_>>(),
+        vec!["starting-aged-only"]
+    );
 }
 
 #[test]
@@ -236,7 +314,10 @@ fn launch_validation_rejects_reserved_and_empty_member_ids() {
     let _sandbox = test_helpers::test_env::sandbox();
     for (member_id, expected) in [
         (COORDINATOR_MEMBER_ID, "reserved member id"),
-        (" ", "empty or reserved member id"),
+        ("", "empty or reserved member id"),
+        // Untrimmed ids are rejected outright rather than validated
+        // against their trimmed form while the raw value is stored.
+        (" ", "leading or trailing whitespace"),
     ] {
         let org = valid_org_with_members(vec![FlatOrgMember {
             member_id: member_id.to_string(),

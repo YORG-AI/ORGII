@@ -173,6 +173,71 @@ pub(super) fn record_attempt_with_connection(
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AgentOrgRecoveryStartupPruneReport {
+    pub reservations_cleared: usize,
+    pub attempts_pruned: usize,
+}
+
+impl AgentOrgRecoveryStartupPruneReport {
+    pub fn changed(&self) -> bool {
+        self.reservations_cleared > 0 || self.attempts_pruned > 0
+    }
+}
+
+/// Startup one-shot repair of durable recovery bookkeeping.
+///
+/// 1. **Reservation tokens are process-scoped claims.** No reservation can
+///    survive the process that minted it, and quiescence fails closed on
+///    `ActiveRecoveryReservations`, so a crash between reserve and
+///    commit/refund would otherwise block Idle forever. Clear every token.
+/// 2. **Budget rows for non-running runs are dead weight.** Their
+///    fingerprints reset on any new durable input anyway; prune them in
+///    LIMIT-bounded writer batches so one boot never holds the writer lock
+///    for an unbounded scan.
+pub fn startup_prune_recovery_state() -> Result<AgentOrgRecoveryStartupPruneReport, String> {
+    const PRUNE_BATCH: usize = 256;
+    const MAX_PRUNE_BATCHES: usize = 64;
+
+    let mut report = AgentOrgRecoveryStartupPruneReport::default();
+    report.reservations_cleared = with_sessions_writer(|| -> Result<usize, String> {
+        let conn = runtime_connection().map_err(|err| err.to_string())?;
+        conn.execute(
+            "UPDATE agent_org_runtime_recovery_attempts
+             SET reservation_token=NULL
+             WHERE reservation_token IS NOT NULL",
+            [],
+        )
+        .map_err(|err| err.to_string())
+    })?;
+
+    for _ in 0..MAX_PRUNE_BATCHES {
+        let deleted = with_sessions_writer(|| -> Result<usize, String> {
+            let conn = runtime_connection().map_err(|err| err.to_string())?;
+            conn.execute(
+                "DELETE FROM agent_org_runtime_recovery_attempts
+                 WHERE rowid IN (
+                     SELECT attempt.rowid
+                     FROM agent_org_runtime_recovery_attempts attempt
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM agent_org_runtime_runs run
+                         WHERE run.id=attempt.org_run_id
+                           AND run.status IN ('starting', 'running')
+                     )
+                     LIMIT ?1
+                 )",
+                params![PRUNE_BATCH as i64],
+            )
+            .map_err(|err| err.to_string())
+        })?;
+        report.attempts_pruned += deleted;
+        if deleted < PRUNE_BATCH {
+            break;
+        }
+    }
+    Ok(report)
+}
+
 pub fn clear_rewake_budget(run_id: &str, member_id: &str) -> Result<(), String> {
     with_sessions_writer(|| {
         let conn = runtime_connection().map_err(|err| err.to_string())?;

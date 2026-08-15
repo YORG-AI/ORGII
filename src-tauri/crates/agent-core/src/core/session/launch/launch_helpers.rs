@@ -7,7 +7,9 @@ use std::collections::HashMap;
 
 use core_types::key_source::KeySource;
 
-use crate::coordination::agent_org_runs::{AgentOrgRunStore, AgentOrgStartingFailure};
+use crate::coordination::agent_org_runs::{
+    AgentOrgRunStatus, AgentOrgRunStore, AgentOrgStartingFailure,
+};
 use crate::definitions::orgs::{FlatOrgMember, OrgMemberRuntimeConfig};
 use crate::session::turn::streaming::{
     broadcast_agent_error_structured, classify_streaming_error_message, StreamingError,
@@ -29,6 +31,11 @@ pub(super) async fn handle_background_launch_failure(
     session_mark_warning: &str,
 ) {
     tracing::warn!("{}", message);
+    // A failure that arrives after the run already left Starting (typically:
+    // `finish_starting` committed Running and only the initial send failed)
+    // must not fail the coordinator session out from under a live team — the
+    // watchdog/initial-dispatch recovery owns retries for a Running run.
+    let mut fail_coordinator_session = true;
     if let Some(run_id) = agent_org_run_id {
         let failure_result = AgentOrgRunStore::load(run_id).and_then(|run| {
             let run = run.ok_or_else(|| format!("Agent Org run not found: {run_id}"))?;
@@ -37,21 +44,46 @@ pub(super) async fn handle_background_launch_failure(
                 run.activation_generation,
                 &AgentOrgStartingFailure::new("starting_convergence_failed", message),
             )
-            .map(|_| ())
         });
-        if let Err(mark_err) = failure_result {
-            tracing::warn!(
-                run_id = %run_id,
-                error = %mark_err,
-                "{}",
-                run_mark_warning
-            );
+        match failure_result {
+            Ok(true) => {}
+            Ok(false) => {
+                let current_status = AgentOrgRunStore::load(run_id)
+                    .ok()
+                    .flatten()
+                    .map(|run| run.status);
+                tracing::error!(
+                    run_id = %run_id,
+                    status = ?current_status.map(AgentOrgRunStatus::as_str),
+                    failure = %message,
+                    "[session_launch] launch failure arrived after the run left Starting; run status was left unchanged"
+                );
+                if current_status == Some(AgentOrgRunStatus::Running) {
+                    fail_coordinator_session = false;
+                }
+            }
+            Err(mark_err) => {
+                tracing::warn!(
+                    run_id = %run_id,
+                    error = %mark_err,
+                    "{}",
+                    run_mark_warning
+                );
+            }
         }
     }
     release_work_item_execution_lock_if_present(project_slug, work_item_id, session_id, app_handle)
         .await;
     broadcast_launch_send_error(session_id, message);
     crate::lifecycle::persist_session_error_event(app_handle, session_id, message);
+    if !fail_coordinator_session {
+        tracing::error!(
+            session_id = %session_id,
+            failure = %message,
+            "[session_launch] leaving coordinator session status untouched: its Agent Org run is Running"
+        );
+        return;
+    }
     if let Err(mark_err) = mark_session_failed(session_id.to_string()).await {
         tracing::warn!(
             session_id = %session_id,

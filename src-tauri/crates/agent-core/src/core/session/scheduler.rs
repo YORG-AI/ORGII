@@ -500,22 +500,8 @@ impl WorkerTask {
                     if let Some(run_id) = org_run_id {
                         let reconcile_run_id = run_id.clone();
                         match tokio::task::spawn_blocking(move || {
-                            let assessment = crate::coordination::agent_org_runs::AgentOrgRunStore::assess_run_quiescence(&reconcile_run_id)?;
-                            let Some(generation) = assessment.facts.activation_generation else {
-                                return Ok(false);
-                            };
-                            let Some(work_revision) = assessment
-                                .facts
-                                .progress
-                                .as_ref()
-                                .map(|progress| progress.work_revision)
-                            else {
-                                return Ok(false);
-                            };
-                            crate::coordination::agent_org_runs::AgentOrgRunStore::try_transition_working_to_idle(
+                            crate::coordination::agent_org_runs::AgentOrgRunStore::try_reconcile_to_idle(
                                 &reconcile_run_id,
-                                generation,
-                                work_revision,
                             )
                         })
                         .await

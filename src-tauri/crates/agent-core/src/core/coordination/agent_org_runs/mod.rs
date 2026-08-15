@@ -30,7 +30,11 @@ pub use quiescence::{
 pub use rollout::{
     is_enabled as agent_org_redesign_enabled, require_enabled as require_agent_org_redesign,
 };
-pub use store::AgentOrgRunStore;
+pub use store::{
+    is_materialization_identity_mismatch_error, is_permanent_finish_starting_error,
+    AgentOrgRunStore, MATERIALIZATION_IDENTITY_MISMATCH_PREFIX,
+    STARTING_INPUT_CERTIFICATE_ERROR_PREFIX,
+};
 pub(crate) use worker::recovery_dispatch_recipient_is_available;
 pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};
 
@@ -41,7 +45,7 @@ use crate::definitions::orgs::{
     AgentOrgCapabilityIndex, AgentOrgLaunchSnapshot, PlanApprovalPolicy,
 };
 
-pub const COORDINATOR_MEMBER_ID: &str = "coordinator";
+pub use core_types::agent_org::COORDINATOR_MEMBER_ID;
 pub(crate) const DEFAULT_COORDINATOR_DISPLAY_NAME: &str = "Coordinator";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -416,7 +420,7 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
             last_error TEXT,
             failure_json TEXT,
             last_activity_outcome TEXT CHECK(last_activity_outcome IN (
-                'completed', 'failed', 'cancelled'
+                'completed', 'failed'
             )),
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,

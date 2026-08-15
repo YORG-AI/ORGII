@@ -474,20 +474,7 @@ pub fn finalize_agent_org_member_turn(
     // The store re-checks tasks, inbox, interventions and queued turn
     // intents in one IMMEDIATE transaction before committing quiescence.
     if let Some(run_id) = reconcile_run_id {
-        let transition = AgentOrgRunStore::assess_run_quiescence(&run_id).and_then(|assessment| {
-            let Some(generation) = assessment.facts.activation_generation else {
-                return Ok(false);
-            };
-            let Some(work_revision) = assessment
-                .facts
-                .progress
-                .as_ref()
-                .map(|progress| progress.work_revision)
-            else {
-                return Ok(false);
-            };
-            AgentOrgRunStore::try_transition_working_to_idle(&run_id, generation, work_revision)
-        });
+        let transition = AgentOrgRunStore::try_reconcile_to_idle(&run_id);
         match transition {
             Ok(true) => {
                 tracing::info!(run_id = %run_id, "[lifecycle] idled quiescent Agent Org run");

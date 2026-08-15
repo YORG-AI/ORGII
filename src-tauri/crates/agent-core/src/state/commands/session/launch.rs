@@ -139,7 +139,7 @@ pub struct SessionLaunchResult {
 
 pub async fn session_launch_impl(
     state: &AgentAppState,
-    org_store: Option<&AgentOrgsStore>,
+    org_store: Option<&std::sync::Arc<AgentOrgsStore>>,
     mut params: SessionLaunchParams,
 ) -> Result<SessionLaunchResult, String> {
     validate_workspace_launch_fields(
@@ -261,7 +261,7 @@ fn validate_workspace_launch_fields(
 
 async fn launch_rust_agent(
     state: &AgentAppState,
-    org_store: Option<&AgentOrgsStore>,
+    org_store: Option<&std::sync::Arc<AgentOrgsStore>>,
     params: SessionLaunchParams,
     name: String,
 ) -> Result<SessionLaunchResult, String> {

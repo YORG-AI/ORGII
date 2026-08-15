@@ -25,3 +25,13 @@ export const INTERNAL_AGENT_IDS = new Set([
   "builtin:memory-consolidator",
   "builtin:wingman",
 ]);
+
+/**
+ * Maximum number of members in an Agent Team (coordinator excluded).
+ *
+ * Mirror of `MAX_AGENT_ORG_MEMBERS` in
+ * `src-tauri/crates/agent-core/src/core/definitions/orgs.rs`.
+ * Keep the two values in sync — the Rust validator is authoritative and
+ * rejects definitions above this cap.
+ */
+export const MAX_AGENT_ORG_MEMBERS = 50;

@@ -100,10 +100,11 @@ pub async fn agent_delete_session(
         });
     };
 
-    if plan.run_status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
+    if !agent_org_run_status_allows_delete(plan.run_status) {
         return Err(format!(
-            "Refusing to delete Agent Org run {}: Archive is required before Delete",
-            plan.run_id
+            "Refusing to delete Agent Org run {}: run status is {}; only idle, failed, or archived teams can be deleted",
+            plan.run_id,
+            plan.run_status.as_str()
         ));
     }
     ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
@@ -340,11 +341,24 @@ fn load_agent_org_session_delete_plan(
     }))
 }
 
+/// Terminal/quiescent run statuses that may be deleted. `starting`, `running`
+/// and `paused` teams keep the structured refusal: they own (or can resume)
+/// in-flight work, so Delete must not race the lifecycle.
+fn agent_org_run_status_allows_delete(
+    status: crate::coordination::agent_org_runs::AgentOrgRunStatus,
+) -> bool {
+    use crate::coordination::agent_org_runs::AgentOrgRunStatus;
+    matches!(
+        status,
+        AgentOrgRunStatus::Idle | AgentOrgRunStatus::Failed | AgentOrgRunStatus::Archived
+    )
+}
+
 fn validate_agent_org_delete_ready(
     plan: &AgentOrgSessionDeletePlan,
     _quiesced_runtime_session_ids: &HashSet<String>,
 ) -> Result<(), String> {
-    if plan.run_status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
+    if !agent_org_run_status_allows_delete(plan.run_status) {
         return Err(format!(
             "Refusing to delete Agent Org run {}: run status is {}",
             plan.run_id,
@@ -444,6 +458,28 @@ fn delete_agent_org_session_hierarchy(
             ));
         }
         validate_agent_org_delete_ready(&current_plan, quiesced_runtime_session_ids)?;
+        // An idle team must actually be quiescent when the delete commits: a
+        // run being re-activated concurrently could hold in-flight durable
+        // turn intents even though the plan snapshot looked settled. Failed
+        // and archived teams stay deletable — a crash-orphaned intent must
+        // not make a dead team immortal.
+        if current_plan.run_status == crate::coordination::agent_org_runs::AgentOrgRunStatus::Idle {
+            let in_flight_intents: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM session_turn_intents
+                     WHERE org_run_id=?1
+                       AND status IN ('optimistic', 'queued', 'running')",
+                    params![&expected_plan.run_id],
+                    |row| row.get(0),
+                )
+                .map_err(|err| err.to_string())?;
+            if in_flight_intents > 0 {
+                return Err(format!(
+                    "Refusing to delete Agent Org run {}: {in_flight_intents} in-flight turn intent(s) still reference the idle team",
+                    expected_plan.run_id
+                ));
+            }
+        }
 
         for node in &expected_plan.sessions {
             session_persistence::delete_session_with_connection(&tx, &node.session_id)
@@ -1118,6 +1154,60 @@ mod tests {
             "org_run_id",
             "hierarchy-worker-run"
         ));
+    }
+
+    #[test]
+    fn session_hierarchy_delete_accepts_failed_and_idle_terminal_runs() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        ensure_test_schemas();
+        for (suffix, run_status) in [("failed", "failed"), ("idle", "idle")] {
+            let root = format!("hierarchy-terminal-{suffix}-root");
+            let worker = format!("hierarchy-terminal-{suffix}-worker");
+            let run_id = format!("hierarchy-terminal-{suffix}-run");
+            seed_session(&root, None);
+            seed_session_with_status(&worker, Some(&root), "failed");
+            seed_run_with_status(&run_id, &root, run_status);
+
+            let conn = get_connection().expect("sandbox DB");
+            let plan = load_agent_org_session_delete_plan(&conn, &root)
+                .expect("plan terminal hierarchy")
+                .expect("root owns run");
+            drop(conn);
+            delete_agent_org_session_hierarchy(&plan, &HashSet::new())
+                .unwrap_or_else(|err| panic!("{run_status} run must be deletable: {err}"));
+            assert!(!row_exists("agent_sessions", "session_id", &root));
+            assert!(!row_exists("agent_sessions", "session_id", &worker));
+            assert!(!row_exists("agent_org_runs", "id", &run_id));
+        }
+    }
+
+    #[test]
+    fn session_hierarchy_delete_refuses_idle_run_with_in_flight_turn_intent() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        ensure_test_schemas();
+        let root = "hierarchy-idle-intent-root";
+        let run_id = "hierarchy-idle-intent-run";
+        seed_session(root, None);
+        seed_run_with_status(run_id, root, "idle");
+        let conn = get_connection().expect("sandbox DB");
+        conn.execute(
+            "INSERT INTO session_turn_intents (
+                 session_id, turn_intent_id, org_run_id, source, status,
+                 created_at, updated_at
+             ) VALUES (?1, 'idle-wedged-intent', ?2, 'agent_org', 'running', ?3, ?3)",
+            rusqlite::params![root, run_id, "2026-07-16T00:00:00Z"],
+        )
+        .expect("seed in-flight intent");
+        let plan = load_agent_org_session_delete_plan(&conn, root)
+            .expect("plan idle hierarchy")
+            .expect("root owns run");
+        drop(conn);
+
+        let error = delete_agent_org_session_hierarchy(&plan, &HashSet::new())
+            .expect_err("idle run with in-flight intent must fail closed");
+        assert!(error.contains("in-flight turn intent"), "{error}");
+        assert!(row_exists("agent_sessions", "session_id", root));
+        assert!(row_exists("agent_org_runs", "id", run_id));
     }
 
     #[test]

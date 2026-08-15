@@ -760,6 +760,53 @@ fn coordinator_unread_recovery_with_connection(
     ))
 }
 
+/// Select crash-orphaned `running` turn intents for repair. The door is
+/// deliberately narrow: the run must be Working, every quiescence blocker must
+/// be `InFlightTurnIntents` (any active session, open task, unread row, etc.
+/// disqualifies the run), and only `running` rows older than
+/// [`STALE_INTENT_REPAIR_GRACE_SECS`] are selected. Queued canonical initial
+/// inputs keep their own recovery owner and are never touched here.
+pub(super) fn stale_in_flight_intent_repairs_with_connection(
+    conn: &Connection,
+    run_id: &str,
+    assessment: &crate::coordination::agent_org_runs::AgentOrgQuiescenceAssessment,
+) -> Result<Vec<StaleTurnIntentRepair>, String> {
+    let only_in_flight_blockers = !assessment.blockers.is_empty()
+        && assessment.blockers.iter().all(|blocker| {
+            matches!(
+                blocker,
+                AgentOrgQuiescenceBlocker::InFlightTurnIntents { .. }
+            )
+        });
+    if !only_in_flight_blockers {
+        return Ok(Vec::new());
+    }
+    let stale_before =
+        (Utc::now() - ChronoDuration::seconds(STALE_INTENT_REPAIR_GRACE_SECS)).to_rfc3339();
+    let mut stmt = conn
+        .prepare(
+            "SELECT session_id, turn_intent_id, updated_at
+             FROM session_turn_intents
+             WHERE org_run_id=?1
+               AND status='running'
+               AND (datetime(updated_at) IS NULL
+                    OR datetime(updated_at)<=datetime(?2))
+             ORDER BY session_id ASC, turn_intent_id ASC",
+        )
+        .map_err(|err| err.to_string())?;
+    let rows = stmt
+        .query_map(params![run_id, stale_before], |row| {
+            Ok(StaleTurnIntentRepair {
+                session_id: row.get(0)?,
+                turn_intent_id: row.get(1)?,
+                updated_at: row.get(2)?,
+            })
+        })
+        .map_err(|err| err.to_string())?;
+    rows.map(|row| row.map_err(|err| err.to_string()))
+        .collect()
+}
+
 pub fn inspect_stalled_run(run_id: &str) -> Result<StallRecoveryPlan, String> {
     let mut conn = runtime_connection().map_err(|err| err.to_string())?;
     let tx = conn
@@ -844,6 +891,7 @@ pub(super) fn inspect_stalled_run_with_connection(
                 .flatten(),
             coordinator_repair_active: true,
             clear_coordinator_notice_budget: false,
+            stale_intent_repairs: Vec::new(),
             terminal_candidate: false,
         });
     }
@@ -964,6 +1012,7 @@ pub(super) fn inspect_stalled_run_with_connection(
                 .flatten(),
             coordinator_repair_active,
             clear_coordinator_notice_budget,
+            stale_intent_repairs: Vec::new(),
             terminal_candidate: false,
         });
     }
@@ -1350,6 +1399,8 @@ pub(super) fn inspect_stalled_run_with_connection(
     let coordinator_repair_active = !needs_repair.is_empty();
     let clear_coordinator_notice_budget = !coordinator_repair_active
         && coordinator_notice_budget_exists_with_connection(conn, run_id)?;
+    let stale_intent_repairs =
+        stale_in_flight_intent_repairs_with_connection(conn, run_id, &quiescence_assessment)?;
 
     Ok(StallRecoveryPlan {
         wake_member_ids,
@@ -1367,6 +1418,7 @@ pub(super) fn inspect_stalled_run_with_connection(
             .flatten(),
         coordinator_repair_active,
         clear_coordinator_notice_budget,
+        stale_intent_repairs,
         terminal_candidate,
     })
 }

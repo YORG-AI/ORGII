@@ -1975,7 +1975,7 @@
       "orgDescriptionPlaceholder": "Czym zajmuje się ten org?",
       "members": "Członkowie",
       "addMember": "Dodaj członka",
-      "noMembers": "Dodaj członków, aby zbudować hierarchię org",
+      "noMembers": "Dodaj członków, aby zbudować swój zespół",
       "membersLabel": "Członkowie zespołu",
       "membersDesc": "Każdy wiersz to członek z niezależnym uprawnieniem Writer i ustawieniami komunikacji. Nazwy muszą być unikalne; rola opisuje jedynie specjalizację.",
       "memberName": "Nazwa",

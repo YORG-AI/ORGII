@@ -39,7 +39,7 @@ pub async fn project_fire_routine(
 /// manual path passes `None`.
 pub async fn fire_routine_internal(
     state: &AgentAppState,
-    org_store: &AgentOrgsStore,
+    org_store: &std::sync::Arc<AgentOrgsStore>,
     app: &tauri::AppHandle,
     routine: &types::RoutineDefinition,
     idempotency_key: Option<String>,
@@ -72,7 +72,7 @@ pub async fn fire_routine_internal(
 /// Also the entry point for dequeued (Queued → Pending) fires.
 pub async fn execute_pending_fire(
     state: &AgentAppState,
-    org_store: &AgentOrgsStore,
+    org_store: &std::sync::Arc<AgentOrgsStore>,
     app: &tauri::AppHandle,
     routine: &types::RoutineDefinition,
     pending_fire: &types::RoutineFire,
@@ -157,7 +157,7 @@ pub fn emit_routine_changed(
 
 async fn launch_routine_direct_session(
     state: &AgentAppState,
-    org_store: &AgentOrgsStore,
+    org_store: &std::sync::Arc<AgentOrgsStore>,
     routine: &types::RoutineDefinition,
     pending_fire: &types::RoutineFire,
 ) -> Result<types::RoutineFireResult, String> {

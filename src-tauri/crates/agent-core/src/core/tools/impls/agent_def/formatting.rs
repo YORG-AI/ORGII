@@ -60,7 +60,7 @@ pub fn format_org_summary(org: &OrgDefinition) -> String {
         "- **{}** (id: `{}`, {} members)",
         org.name,
         org.id,
-        org.member_count()
+        org.participant_count()
     );
     if let Some(ref desc) = org.description {
         let preview: String = crate::utils::safe_truncate_chars_to_string(&desc, 80);
@@ -80,7 +80,7 @@ pub fn format_org_detail(org: &OrgDefinition) -> String {
     if let Some(ref desc) = org.description {
         out.push_str(&format!("- **Description:** {}\n", desc));
     }
-    out.push_str(&format!("- **Total members:** {}\n", org.member_count()));
+    out.push_str(&format!("- **Total members:** {}\n", org.participant_count()));
     if !org.members.is_empty() {
         out.push_str("\n## Team members\n\n");
         for member in &org.members {

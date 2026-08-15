@@ -1978,7 +1978,7 @@
       "orgDescriptionPlaceholder": "この組織は何をしますか？",
       "members": "メンバー",
       "addMember": "メンバーを追加",
-      "noMembers": "メンバーを追加して Org の階層を構築してください",
+      "noMembers": "メンバーを追加してチームを作成してください",
       "membersLabel": "チームメンバー",
       "membersDesc": "各行はメンバーを表し、Writer 権限と通信設定は互いに独立しています。名前は一意である必要があり、役割は専門性の説明にのみ使われます。",
       "memberName": "名前",
