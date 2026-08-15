@@ -33,6 +33,8 @@ const TerminalReadOnly = React.lazy(
 interface TerminalMainContentProps {
   terminalState: UseTerminalStateReturn;
   repoPath?: string;
+  /** Whether the terminal tab is currently painted by its keep-alive host. */
+  visible?: boolean;
   onFileSelect?: (path: string) => void;
   onFileSelectWithLine?: (path: string, line: number) => void;
 }
@@ -40,6 +42,7 @@ interface TerminalMainContentProps {
 const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
   terminalState,
   repoPath,
+  visible = true,
   onFileSelect,
   onFileSelectWithLine,
 }) => {
@@ -171,17 +174,17 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
     ]
   );
 
-  const terminalPane =
-    terminalTarget?.kind === "agent" ? (
-      <TerminalReadOnly agentSessionId={terminalTarget.sessionId} />
-    ) : (
-      <TerminalCore
-        terminalState={terminalState}
-        repoPath={repoPath}
-        backgroundColor="var(--cm-editor-background)"
-        onOpenFileLink={handleOpenFileLink}
-      />
-    );
+  const terminalPane = !visible ? null : terminalTarget?.kind === "agent" ? (
+    <TerminalReadOnly agentSessionId={terminalTarget.sessionId} />
+  ) : (
+    <TerminalCore
+      terminalState={terminalState}
+      repoPath={repoPath}
+      backgroundColor="var(--cm-editor-background)"
+      onOpenFileLink={handleOpenFileLink}
+      visible={visible}
+    />
+  );
 
   return (
     <div

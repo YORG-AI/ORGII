@@ -235,6 +235,76 @@ describe("removeSession", () => {
 
     upsertSession(makeSession({ session_id: "sess-x" }));
 
+    const { chatPanelTabsAtom } =
+      await import("@src/store/chatPanel/chatPanelTabsState");
+    const { workstationTabsStateAtom } =
+      await import("@src/store/workstation/tabs/atoms");
+    const { emptyWorkstationTabsState } =
+      await import("@src/store/workstation/tabs/storage");
+    store.set(chatPanelTabsAtom, {
+      tabs: [
+        { id: "launch", type: "start-page", title: "Launchpad" },
+        {
+          id: "session-x",
+          type: "session",
+          title: "Deleted",
+          sessionId: "sess-x",
+        },
+        {
+          id: "session-live",
+          type: "session",
+          title: "Live",
+          sessionId: "sess-live",
+        },
+      ],
+      activeTabId: "launch",
+    });
+    const workstationState = emptyWorkstationTabsState();
+    workstationState.shared.tabs = [
+      {
+        id: "chat-session:sess-x",
+        type: "chat-session",
+        title: "Deleted",
+        data: { sessionId: "sess-x" },
+      },
+      {
+        id: "chat-session:sess-live",
+        type: "chat-session",
+        title: "Live",
+        data: { sessionId: "sess-live" },
+      },
+    ];
+    workstationState.sessionWorkspaces["sess-x"] = {
+      tabs: [
+        {
+          id: "canvas-preview:sess-x",
+          type: "canvas-preview",
+          title: "Canvas",
+          data: { sessionId: "sess-x" },
+        },
+      ],
+      activeTabRef: {
+        partition: "shared",
+        tabId: "chat-session:sess-x",
+      },
+      tabOrder: [
+        { partition: "shared", tabId: "chat-session:sess-x" },
+        { partition: "workspace", tabId: "canvas-preview:sess-x" },
+      ],
+    };
+    workstationState.sessionWorkspaces.other = {
+      tabs: [],
+      activeTabRef: {
+        partition: "shared",
+        tabId: "chat-session:sess-live",
+      },
+      tabOrder: [
+        { partition: "shared", tabId: "chat-session:sess-x" },
+        { partition: "shared", tabId: "chat-session:sess-live" },
+      ],
+    };
+    store.set(workstationTabsStateAtom, workstationState);
+
     // Seed per-turn streaming-stop state that only the deletion path can free.
     streamHelpers.noteSessionStreamingTurn("sess-x", "turn-1");
     streamHelpers.markSessionStreamingStopped("sess-x");
@@ -250,5 +320,17 @@ describe("removeSession", () => {
     expect(streamHelpers.isSessionStreamingStopped("sess-x", "turn-1")).toBe(
       false
     );
+    expect(store.get(chatPanelTabsAtom).tabs.map((tab) => tab.id)).toEqual([
+      "launch",
+      "session-live",
+    ]);
+    const nextWorkstation = store.get(workstationTabsStateAtom);
+    expect(nextWorkstation.sessionWorkspaces["sess-x"]).toBeUndefined();
+    expect(nextWorkstation.shared.tabs.map((tab) => tab.id)).toEqual([
+      "chat-session:sess-live",
+    ]);
+    expect(nextWorkstation.sessionWorkspaces.other.tabOrder).toEqual([
+      { partition: "shared", tabId: "chat-session:sess-live" },
+    ]);
   });
 });

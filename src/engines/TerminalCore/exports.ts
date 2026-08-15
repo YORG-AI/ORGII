@@ -4,7 +4,6 @@
 export { default } from "./index";
 export { TerminalCore } from "./index";
 export { useTerminalState } from "./hooks/useTerminalState";
-export { useTerminalContextAdapter } from "./hooks/useTerminalContextAdapter";
 export type {
   AddSessionOptions,
   TerminalSession,

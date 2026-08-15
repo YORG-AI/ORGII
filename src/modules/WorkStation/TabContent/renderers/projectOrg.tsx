@@ -16,7 +16,7 @@ import {
   getTabDataString,
 } from "@src/modules/ProjectManager/ProjectManagerLayout/components/projectManagerRouterUtils";
 import { useProjectHostContext } from "@src/modules/ProjectManager/ProjectManagerLayout/context/projectHostContext";
-import { closeProjectOrgWorkStationTabsAtom } from "@src/store/workstation/tabRegistry";
+import { invalidateProjectOrgPresentationAtom } from "@src/store/projectOrgPresentationLifecycleAtom";
 import {
   STORY_ORG_SCOPE,
   normalizeProjectOrgSurfaceView,
@@ -28,7 +28,9 @@ import type { UnifiedTabContentProps } from "../types";
 const ProjectOrgTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
     const { t } = useTranslation("projects");
-    const closeProjectOrgTabs = useSetAtom(closeProjectOrgWorkStationTabsAtom);
+    const closeProjectOrgTabs = useSetAtom(
+      invalidateProjectOrgPresentationAtom
+    );
     const {
       onUpdateTabData,
       onSelectProject,

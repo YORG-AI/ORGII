@@ -7,6 +7,7 @@
 
 // Browser tabs (sessions, previews, token categories)
 export * from "./tabs";
+export * from "./sessionState";
 
 // Design tokens
 export * from "./tokens";

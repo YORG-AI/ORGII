@@ -14,11 +14,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
 import { createLogger } from "@src/hooks/logger";
-import {
-  activeChatPanelTabAtom,
-  chatPanelTabsAtom,
-  closeChatPanelTabAtom,
-} from "@src/store/chatPanel/chatPanelTabsAtom";
+import { activeChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { removeSession } from "@src/store/session/sessionAtom/mutations";
 import { persistSessions } from "@src/store/session/sessionAtom/persistence";
@@ -113,14 +109,6 @@ export function useOrg2CloudGuestShareAccess(): void {
       );
 
       for (const session of revokedCopies) {
-        const tabs = store
-          .get(chatPanelTabsAtom)
-          .tabs.filter(
-            (tab) =>
-              tab.type === "session" && tab.sessionId === session.session_id
-          );
-        for (const tab of tabs) store.set(closeChatPanelTabAtom, tab.id);
-
         // Remove every readable frontend/persisted projection synchronously;
         // native deletion follows best-effort so a slow IPC cannot extend the
         // revoked capability's visible lifetime.

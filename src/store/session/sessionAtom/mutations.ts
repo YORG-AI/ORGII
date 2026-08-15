@@ -35,8 +35,11 @@
 import { disposeSessionStreamingState } from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers";
 import { disposeCanvasRevisionDraftState } from "@src/store/session/canvasRevisionDraftAtom";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
+import { invalidateSessionPresentationAtom } from "@src/store/session/sessionPresentationLifecycleAtom";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
 import { clearTodosForSessionAtom } from "@src/store/ui/todoAtom";
+import { clearPendingCodeEditorTabForSession } from "@src/store/workstation/tabs/pendingCodeEditorTab";
+import { clearPendingFileOpensForSession } from "@src/store/workstation/tabs/pendingFileOpens";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import {
@@ -176,6 +179,7 @@ export const applyImportedSessionTimestamps = (
  */
 export const removeSession = (sessionId: string) => {
   const store = getStore();
+  store.set(invalidateSessionPresentationAtom, sessionId);
   store.set(sessionsAtom, (prev) =>
     prev.filter((session) => session.session_id !== sessionId)
   );
@@ -188,6 +192,8 @@ export const removeSession = (sessionId: string) => {
     localStorage.removeItem(`orgii:tuiMode:${sessionId}`);
   }
   store.set(clearTodosForSessionAtom, sessionId);
+  clearPendingFileOpensForSession(sessionId);
+  clearPendingCodeEditorTabForSession(sessionId);
   removeGuestImportedSession(sessionId);
   // Rust-agent streaming-stop state (per-turn stop markers etc.). This single
   // chokepoint covers every removal path — sidebar delete, cloud remove, fork

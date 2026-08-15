@@ -10,8 +10,11 @@ import {
 import {
   GLOBAL_WORKSTATION_WORKSPACE_KEY,
   claimLegacyWorkstationSeedAtom,
+  closeWorkstationTabAtom,
   disposeWorkstationWorkspaceAtom,
   openWorkstationTabAtom,
+  removeProjectOrgWorkstationTabsAtom,
+  removeSessionWorkstationTabsAtom,
   removeSharedWorkstationTabAtom,
   selectWorkstationPanel,
   sessionWorkstationWorkspaceKey,
@@ -22,10 +25,13 @@ import {
   type WorkStationTab,
   type WorkStationTabType,
   type WorkstationTabOwnership,
+  type WorkstationTabRepoAffinity,
   type WorkstationTabsStateV3,
   type WorkstationWorkspaceState,
   closesSharedResourceOnDismiss,
+  getWorkstationSharedTabRetention,
   getWorkstationTabOwnership,
+  getWorkstationTabRepoAffinity,
 } from "../types";
 
 const EXPECTED_OWNERSHIP: Record<WorkStationTabType, WorkstationTabOwnership> =
@@ -70,6 +76,32 @@ const EXPECTED_OWNERSHIP: Record<WorkStationTabType, WorkstationTabOwnership> =
     "github-pr-detail": "workspace-local",
     start: "shared-resource",
   };
+
+const REPO_SCOPED_TAB_TYPES = new Set<WorkStationTabType>([
+  "file",
+  "directory",
+  "git-diff",
+  "source-control",
+  "timeline-diff",
+  "git-log",
+  "git-commit-detail",
+  "git-stash-detail",
+  "terminal-content",
+  "dom-component-preview",
+  "search",
+  "lint-scan",
+  "github-issue-detail",
+  "github-pr-detail",
+]);
+
+const EXPECTED_REPO_AFFINITY = Object.fromEntries(
+  Object.keys(EXPECTED_OWNERSHIP).map((type) => [
+    type,
+    REPO_SCOPED_TAB_TYPES.has(type as WorkStationTabType)
+      ? "repo-scoped"
+      : "repo-independent",
+  ])
+) as Record<WorkStationTabType, WorkstationTabRepoAffinity>;
 
 function tab(
   id: string,
@@ -136,6 +168,24 @@ describe("WorkStation tab ownership policy", () => {
     expect(closesSharedResourceOnDismiss("browser-session")).toBe(true);
     expect(closesSharedResourceOnDismiss("terminal")).toBe(true);
     expect(closesSharedResourceOnDismiss("settings")).toBe(false);
+  });
+
+  it("declares retention and repo-switch policy without a negative default", () => {
+    expect(getWorkstationSharedTabRetention("browser-session")).toBe(
+      "resource-owned"
+    );
+    expect(getWorkstationSharedTabRetention("terminal")).toBe("resource-owned");
+    expect(getWorkstationSharedTabRetention("settings")).toBe(
+      "while-referenced"
+    );
+    expect(getWorkstationSharedTabRetention("file")).toBeNull();
+
+    const affinityResults = Object.entries(EXPECTED_REPO_AFFINITY).map(
+      ([type, expected]) =>
+        getWorkstationTabRepoAffinity(type as WorkStationTabType) === expected
+    );
+    expect(affinityResults).toHaveLength(39);
+    expect(affinityResults.every(Boolean)).toBe(true);
   });
 });
 
@@ -264,6 +314,162 @@ describe("workspace projection and isolation", () => {
       tabId: settings.id,
     });
   });
+
+  it("collects ordinary shared presentation after its last workspace ref closes", () => {
+    const store = createStore();
+    store.set(workstationTabsStateAtom, stateWithWorkspaces());
+    const settings = tab("settings:main", "settings");
+
+    store.set(openWorkstationTabAtom, {
+      workspace: sessionWorkstationWorkspaceKey("A"),
+      tab: settings,
+    });
+    store.set(closeWorkstationTabAtom, {
+      workspace: sessionWorkstationWorkspaceKey("A"),
+      tabId: settings.id,
+    });
+
+    expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
+  });
+
+  it("stabilizes shared presentation across repeated open and close cycles", () => {
+    const store = createStore();
+    store.set(workstationTabsStateAtom, stateWithWorkspaces());
+    const settings = tab("settings:main", "settings");
+
+    for (let cycle = 0; cycle < 25; cycle += 1) {
+      store.set(openWorkstationTabAtom, {
+        workspace: sessionWorkstationWorkspaceKey("A"),
+        tab: settings,
+      });
+      store.set(closeWorkstationTabAtom, {
+        workspace: sessionWorkstationWorkspaceKey("A"),
+        tabId: settings.id,
+      });
+    }
+
+    const state = store.get(workstationTabsStateAtom);
+    expect(state.shared.tabs).toEqual([]);
+    expect(state.sessionWorkspaces.A.tabOrder).not.toContainEqual({
+      partition: "shared",
+      tabId: settings.id,
+    });
+  });
+
+  it("keeps shared presentation until every workspace ref is gone", () => {
+    const store = createStore();
+    store.set(workstationTabsStateAtom, stateWithWorkspaces());
+    const settings = tab("settings:main", "settings");
+
+    for (const sessionId of ["A", "B"]) {
+      store.set(openWorkstationTabAtom, {
+        workspace: sessionWorkstationWorkspaceKey(sessionId),
+        tab: settings,
+      });
+    }
+    store.set(closeWorkstationTabAtom, {
+      workspace: sessionWorkstationWorkspaceKey("A"),
+      tabId: settings.id,
+    });
+    expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([settings]);
+
+    store.set(closeWorkstationTabAtom, {
+      workspace: sessionWorkstationWorkspaceKey("B"),
+      tabId: settings.id,
+    });
+    expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
+  });
+
+  it("keeps a resource-owned browser tab when its workspace is disposed", () => {
+    const store = createStore();
+    store.set(workstationTabsStateAtom, stateWithWorkspaces());
+    const browser = tab("browser:one", "browser-session", {
+      sessionId: "one",
+    });
+
+    store.set(openWorkstationTabAtom, {
+      workspace: sessionWorkstationWorkspaceKey("A"),
+      tab: browser,
+    });
+    store.set(disposeWorkstationWorkspaceAtom, "A");
+
+    expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([browser]);
+  });
+
+  it("collects shared presentation when its owning workspace is disposed", () => {
+    const store = createStore();
+    store.set(workstationTabsStateAtom, stateWithWorkspaces());
+    const settings = tab("settings:main", "settings");
+    store.set(openWorkstationTabAtom, {
+      workspace: sessionWorkstationWorkspaceKey("A"),
+      tab: settings,
+    });
+
+    store.set(disposeWorkstationWorkspaceAtom, "A");
+
+    expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
+  });
+
+  it("invalidates session and org projections across every workspace", () => {
+    const store = createStore();
+    const state = emptyWorkstationTabsState();
+    const deletedSession = tab("chat-session:deleted", "chat-session", {
+      sessionId: "deleted",
+    });
+    const liveSession = tab("chat-session:live", "chat-session", {
+      sessionId: "live",
+    });
+    const deletedOrg = tab("project-org:deleted", "project-org", {
+      orgId: "org-deleted",
+    });
+    const liveOrg = tab("project-org:live", "project-org", {
+      orgId: "org-live",
+    });
+    state.shared.tabs = [deletedSession, liveSession, deletedOrg, liveOrg];
+    state.sessionWorkspaces.A = {
+      tabs: [
+        tab("canvas-preview:deleted", "canvas-preview", {
+          sessionId: "deleted",
+        }),
+      ],
+      activeTabRef: { partition: "shared", tabId: deletedSession.id },
+      tabOrder: [
+        { partition: "shared", tabId: deletedSession.id },
+        { partition: "shared", tabId: deletedOrg.id },
+        { partition: "workspace", tabId: "canvas-preview:deleted" },
+      ],
+    };
+    state.sessionWorkspaces.B = {
+      tabs: [],
+      activeTabRef: { partition: "shared", tabId: liveSession.id },
+      tabOrder: [
+        { partition: "shared", tabId: deletedSession.id },
+        { partition: "shared", tabId: liveSession.id },
+        { partition: "shared", tabId: deletedOrg.id },
+        { partition: "shared", tabId: liveOrg.id },
+      ],
+    };
+    store.set(workstationTabsStateAtom, state);
+
+    store.set(removeSessionWorkstationTabsAtom, "deleted");
+    store.set(removeProjectOrgWorkstationTabsAtom, "org-deleted");
+
+    const next = store.get(workstationTabsStateAtom);
+    expect(next.shared.tabs.map((item) => item.id)).toEqual([
+      liveSession.id,
+      liveOrg.id,
+    ]);
+    expect(next.sessionWorkspaces.A.tabs).toEqual([]);
+    for (const current of Object.values(next.sessionWorkspaces)) {
+      expect(current.tabOrder.map((ref) => ref.tabId)).not.toContain(
+        deletedSession.id
+      );
+      expect(current.tabOrder.map((ref) => ref.tabId)).not.toContain(
+        deletedOrg.id
+      );
+    }
+  });
+
   it("disposes workspace tabs and its remembered Terminal target together", () => {
     const store = createStore();
     const state = stateWithWorkspaces();

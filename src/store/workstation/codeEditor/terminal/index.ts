@@ -130,6 +130,23 @@ function getDefaultState(): {
   };
 }
 
+function isWorkstationTerminalSession(session: TerminalSession): boolean {
+  return !isAgentPtySessionId(session.id) && !isChatPanelTerminalId(session.id);
+}
+
+function createFreshWorkstationTerminal(
+  get: Getter,
+  existingNames: readonly string[] = []
+): TerminalSession {
+  const defaultBase = defaultTerminalLabelBaseFromSettings(get(settingsAtom));
+  return {
+    id: `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: generateUniqueLabelFromBase(defaultBase, [...existingNames]),
+    isActive: true,
+    isDefaultSession: true,
+  };
+}
+
 // Initialize from persisted or default
 const persisted = loadPersistedState();
 const initialState = persisted
@@ -159,6 +176,18 @@ export const initializedTerminalIdsAtom = atom<Set<string>>(
   initialState.initializedSessionIds
 );
 initializedTerminalIdsAtom.debugLabel = "initializedTerminalIdsAtom";
+
+export interface TerminalSurfaceLifecycle {
+  generation: number;
+  phase: "open" | "closing" | "closed";
+}
+
+/** Async teardown episode for the shared WorkStation Terminal surface. */
+export const terminalSurfaceLifecycleAtom = atom<TerminalSurfaceLifecycle>({
+  generation: 0,
+  phase: "open",
+});
+terminalSurfaceLifecycleAtom.debugLabel = "terminalSurfaceLifecycleAtom";
 
 // ============================================
 // Derived Atoms (computed, no extra storage)
@@ -190,9 +219,19 @@ export const isTerminalInitializedAtom = atom((get) => {
 
 /** Persist state to localStorage on changes */
 export const terminalPersistAtom = atom(null, (get) => {
-  const sessions = get(terminalSessionsAtom);
-  const activeSessionId = get(activeTerminalIdAtom);
-  const initializedSessionIds = get(initializedTerminalIdsAtom);
+  const sessions = get(terminalSessionsAtom).filter(
+    isWorkstationTerminalSession
+  );
+  const requestedActiveSessionId = get(activeTerminalIdAtom);
+  const activeSessionId = sessions.some(
+    (session) => session.id === requestedActiveSessionId
+  )
+    ? requestedActiveSessionId
+    : (sessions[0]?.id ?? "");
+  const liveIds = new Set(sessions.map((session) => session.id));
+  const initializedSessionIds = [...get(initializedTerminalIdsAtom)].filter(
+    (sessionId) => liveIds.has(sessionId)
+  );
 
   try {
     localStorage.setItem(
@@ -200,7 +239,7 @@ export const terminalPersistAtom = atom(null, (get) => {
       JSON.stringify({
         sessions,
         activeSessionId,
-        initializedSessionIds: [...initializedSessionIds],
+        initializedSessionIds,
       })
     );
   } catch {
@@ -220,38 +259,37 @@ function removeTerminalSessionLocalOnly(
 ): void {
   const sessions = get(terminalSessionsAtom);
   const activeId = get(activeTerminalIdAtom);
+  const target = sessions.find((session) => session.id === sessionId);
+  if (!target) return;
 
-  if (sessions.length === 1) {
-    const newId = Date.now().toString();
-    const defaultBase = defaultTerminalLabelBaseFromSettings(get(settingsAtom));
-    const newSession: TerminalSession = {
-      id: newId,
-      name: generateUniqueLabelFromBase(defaultBase, []),
-      isActive: true,
-      isDefaultSession: true,
-    };
-    set(terminalSessionsAtom, [newSession]);
-    set(activeTerminalIdAtom, newId);
-    set(initializedTerminalIdsAtom, new Set([newId]));
-    set(terminalPersistAtom);
-    return;
+  let filtered = sessions.filter((session) => session.id !== sessionId);
+  if (
+    isWorkstationTerminalSession(target) &&
+    !filtered.some(isWorkstationTerminalSession)
+  ) {
+    filtered = [
+      ...filtered,
+      createFreshWorkstationTerminal(
+        get,
+        filtered.map((session) => session.name)
+      ),
+    ];
   }
 
-  const filtered = sessions.filter((session) => session.id !== sessionId);
-
-  if (sessionId === activeId && filtered.length > 0) {
-    const newActiveId = filtered[0].id;
-    set(
-      terminalSessionsAtom,
-      filtered.map((session) => ({
-        ...session,
-        isActive: session.id === newActiveId,
-      }))
-    );
-    set(activeTerminalIdAtom, newActiveId);
-  } else {
-    set(terminalSessionsAtom, filtered);
-  }
+  const requestedActiveId = sessionId === activeId ? undefined : activeId;
+  const nextActiveId =
+    filtered.find((session) => session.id === requestedActiveId)?.id ??
+    filtered.find(isWorkstationTerminalSession)?.id ??
+    filtered[0]?.id ??
+    "";
+  set(
+    terminalSessionsAtom,
+    filtered.map((session) => ({
+      ...session,
+      isActive: session.id === nextActiveId,
+    }))
+  );
+  set(activeTerminalIdAtom, nextActiveId);
 
   set(initializedTerminalIdsAtom, (prev) => {
     const next = new Set(prev);
@@ -269,6 +307,7 @@ function removeTerminalSessionLocalOnly(
 export const editorAddTerminalSessionAtom = atom(
   null,
   (get, set, options?: AddSessionOptions) => {
+    set(markTerminalSurfaceOpenedAtom);
     if (!options?.bypassCreationCooldown && !tryBeginTerminalCreation()) {
       notifyTerminalCreationCooldown();
       return get(activeTerminalIdAtom);
@@ -310,22 +349,73 @@ editorAddTerminalSessionAtom.debugLabel = "editorAddTerminalSessionAtom";
 export const closeTerminalSessionAtom = atom(
   null,
   async (get, set, sessionId: string) => {
-    await killPty(sessionId);
     removeTerminalSessionLocalOnly(get, set, sessionId);
+    await killPty(sessionId);
   }
 );
 closeTerminalSessionAtom.debugLabel = "closeTerminalSessionAtom";
 
 /**
- * Kill every terminal session's PTY. Fired when the Terminal tab is closed —
- * closing the tab tears down all running shells (dev servers, agents, …). The
- * store always keeps one session, so this leaves a single fresh default that
- * only spins up a PTY when the Terminal tab is reopened.
+ * Invalidate an in-flight close when the WorkStation Terminal surface opens.
+ */
+export const markTerminalSurfaceOpenedAtom = atom(null, (get, set) => {
+  const current = get(terminalSurfaceLifecycleAtom);
+  if (current.phase === "open") return;
+  set(terminalSurfaceLifecycleAtom, {
+    generation: current.generation + 1,
+    phase: "open",
+  });
+});
+markTerminalSurfaceOpenedAtom.debugLabel = "markTerminalSurfaceOpenedAtom";
+
+/**
+ * Close WorkStation-owned terminal sessions when the shared Terminal tab is
+ * closed. ChatPanel and backend agent PTYs are separate resources and survive.
+ * Local state rotates to a fresh ID before IPC, so a rapid reopen can never
+ * attach to an old PTY that is still being torn down.
  */
 export const closeAllTerminalSessionsAtom = atom(null, async (get, set) => {
-  const ids = get(terminalSessionsAtom).map((session) => session.id);
-  for (const id of ids) {
-    await set(closeTerminalSessionAtom, id);
+  const targets = get(terminalSessionsAtom).filter(
+    isWorkstationTerminalSession
+  );
+  if (targets.length === 0) return;
+
+  const previousLifecycle = get(terminalSurfaceLifecycleAtom);
+  const generation = previousLifecycle.generation + 1;
+  set(terminalSurfaceLifecycleAtom, { generation, phase: "closing" });
+
+  const removedIds = new Set(targets.map((session) => session.id));
+  const survivors = get(terminalSessionsAtom).filter(
+    (session) => !removedIds.has(session.id)
+  );
+  const fresh = createFreshWorkstationTerminal(
+    get,
+    survivors.map((session) => session.name)
+  );
+  set(terminalSessionsAtom, [
+    ...survivors.map((session) => ({ ...session, isActive: false })),
+    fresh,
+  ]);
+  set(activeTerminalIdAtom, fresh.id);
+  set(initializedTerminalIdsAtom, (previous) => {
+    const next = new Set(previous);
+    for (const sessionId of removedIds) next.delete(sessionId);
+    return next;
+  });
+  set(terminalPersistAtom);
+
+  await Promise.all(
+    targets
+      .filter((session) => !session.readOnly)
+      .map((session) => killPty(session.id))
+  );
+
+  const currentLifecycle = get(terminalSurfaceLifecycleAtom);
+  if (
+    currentLifecycle.generation === generation &&
+    currentLifecycle.phase === "closing"
+  ) {
+    set(terminalSurfaceLifecycleAtom, { generation, phase: "closed" });
   }
 });
 closeAllTerminalSessionsAtom.debugLabel = "closeAllTerminalSessionsAtom";
@@ -421,6 +511,7 @@ export const removeAgentSessionTerminalAtom = atom(
   (get, set, agentSessionId: string) => {
     const tabId = `agent-session-${agentSessionId}`;
     const sessions = get(terminalSessionsAtom);
+    if (!sessions.some((session) => session.id === tabId)) return;
     const activeId = get(activeTerminalIdAtom);
 
     const filtered = sessions.filter((session) => session.id !== tabId);

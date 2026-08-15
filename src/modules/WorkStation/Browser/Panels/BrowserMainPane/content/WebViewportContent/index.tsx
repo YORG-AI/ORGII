@@ -91,13 +91,8 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
     respectModalBlocking = true,
     manageWebviews = true,
   }) => {
-    const {
-      sessions,
-      activeSessionId,
-      setActiveSession,
-      closeSession,
-      updateSession,
-    } = browserState;
+    const { sessions, activeSessionId, setActiveSession, updateSession } =
+      browserState;
     const { t } = useTranslation();
 
     // Also drive browserTabsAtom so My Station Browser's reverse-sync effect
@@ -160,14 +155,12 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
       [setActiveSession, switchBrowserTab]
     );
 
-    // Handle tab close - extract session ID and close
+    // The tab command closes the authoritative session and every projection.
     const handleTabClose = useCallback(
       (tabId: string) => {
-        const sessionId = extractSessionId(tabId);
         closeBrowserTab(tabId);
-        closeSession(sessionId);
       },
-      [closeBrowserTab, closeSession]
+      [closeBrowserTab]
     );
 
     // Handle tab reorder (not supported for browser sessions yet)

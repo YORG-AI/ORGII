@@ -254,9 +254,8 @@ export function useBrowserReplayTabs({
   const handleCloseMyTabsSession = useCallback(
     (sessionId: string) => {
       closeBrowserTab(createBrowserSessionTabId(sessionId));
-      myTabsBrowserState.closeSession(sessionId);
     },
-    [closeBrowserTab, myTabsBrowserState]
+    [closeBrowserTab]
   );
 
   const handleOpenMyTabsHistoryUrl = useCallback(

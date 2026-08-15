@@ -4,10 +4,11 @@
  * Bidirectional synchronisation between the live browser sessions held in
  * BrowserContext and the WorkStation tab strip stored in browserTabsAtom.
  *
- * Three effects:
- *   1. sessions → tabs  (new/removed sessions drive tab creation/removal)
- *   2. tab ↔ session    (active tab and active session stay aligned)
- *   3. tabs → sessions  (closed tabs tear down the live session)
+ * Four effects:
+ *   1. reconciliation     (stale persisted tab resources are discarded)
+ *   2. sessions → tabs  (new/removed sessions drive tab creation/removal)
+ *   3. tab ↔ session    (active tab and active session stay aligned)
+ *   4. tabs → sessions  (closed tabs tear down the live session)
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import { type MutableRefObject, useEffect, useRef } from "react";
@@ -21,6 +22,7 @@ import {
   extractSessionId,
   getBrowserSessionDisplayTitle,
   isBrowserSessionTab,
+  removeBrowserResourceTabsAtom,
   sharedBrowserTabsAtom,
   translatePlaceholderBrowserSessionTitle,
 } from "@src/store/workstation/browser/tabs";
@@ -52,6 +54,7 @@ export function useBrowserTabSync({
   const setBrowserTabs = useSetAtom(browserTabsAtom);
   const browserTabsState = useAtomValue(browserTabsAtom);
   const sharedBrowserTabs = useAtomValue(sharedBrowserTabsAtom);
+  const removeBrowserResourceTabs = useSetAtom(removeBrowserResourceTabsAtom);
 
   const prevSessionIdsRef = useRef<Set<string>>(new Set());
   const sessionSyncInitializedRef = useRef(false);
@@ -59,6 +62,20 @@ export function useBrowserTabSync({
   const prevActiveBrowserSessionIdRef = useRef<string>("");
   const prevBrowserLayoutActiveRef = useRef(false);
   const prevTabbedSessionIdsRef = useRef<Set<string>>(new Set());
+
+  // BrowserSessionState is authoritative. Clean legacy/crash residue from the
+  // persisted shared-tab projection whenever it references a missing session.
+  useEffect(() => {
+    const liveSessionIds = new Set(
+      browserState.sessions.map((session) => session.id)
+    );
+    const staleTabIds = sharedBrowserTabs
+      .filter((tab) => !liveSessionIds.has(extractSessionId(tab.id)))
+      .map((tab) => tab.id);
+    if (staleTabIds.length > 0) {
+      removeBrowserResourceTabs(staleTabIds);
+    }
+  }, [browserState.sessions, removeBrowserResourceTabs, sharedBrowserTabs]);
 
   // ----------------------------------------------------------------
   // Effect 1: sessions → tabs

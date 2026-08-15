@@ -4,8 +4,8 @@
  * Syncs local context state with global tabs state.
  * Use this hook in your context providers to automatically track tabs globally.
  *
- * These hooks sync local state (from contexts like BrowserContext, TerminalContext)
- * to the navigationSidebarTabsAtom for display in the GlobalTabsSidebar.
+ * These hooks sync context-owned browser, editor, and document state to the
+ * navigationSidebarTabsAtom for display in the GlobalTabsSidebar.
  *
  * PERFORMANCE: Each sync hook now uses focused hooks instead of the combined
  * useGlobalTabs hook, preventing unnecessary re-renders when other tab categories change.
@@ -19,7 +19,6 @@ import {
   useGlobalBrowserTabs,
   useGlobalDocumentTabs,
   useGlobalEditorTabs,
-  useGlobalTerminalTabs,
 } from "./useGlobalTabs";
 
 /**
@@ -115,59 +114,6 @@ export const useSyncBrowserTabs = (
       setActiveBrowserTab(activeSessionId);
     }
   }, [activeSessionId, activeBrowser?.id, setActiveBrowserTab]);
-};
-
-/**
- * Sync terminal sessions to global state
- *
- * Used by: TerminalContext
- *
- * ONE-WAY sync: TerminalContext sessions -> navigationSidebarTabsAtom.terminal
- */
-export const useSyncTerminalSessions = (
-  sessions: Array<{ id: string; name: string; isActive?: boolean }>,
-  activeSessionId: string
-) => {
-  const {
-    activeTerminal,
-    addTerminalSession,
-    setActiveTerminalSession,
-    removeTerminalSession,
-  } = useGlobalTerminalTabs();
-
-  // Track synced session IDs to detect additions/removals
-  const syncedSessionIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const currentSessionIds = new Set(sessions.map((session) => session.id));
-    const syncedIds = syncedSessionIdsRef.current;
-
-    // Add new sessions
-    sessions.forEach((session) => {
-      if (!syncedIds.has(session.id)) {
-        addTerminalSession({
-          id: session.id,
-          name: session.name,
-          isActive: session.id === activeSessionId,
-        });
-        syncedIds.add(session.id);
-      }
-    });
-
-    // Remove sessions that no longer exist
-    syncedIds.forEach((id) => {
-      if (!currentSessionIds.has(id)) {
-        removeTerminalSession(id);
-        syncedIds.delete(id);
-      }
-    });
-  }, [sessions, activeSessionId, addTerminalSession, removeTerminalSession]);
-
-  useEffect(() => {
-    if (activeSessionId && activeTerminal?.id !== activeSessionId) {
-      setActiveTerminalSession(activeSessionId);
-    }
-  }, [activeSessionId, activeTerminal?.id, setActiveTerminalSession]);
 };
 
 /**

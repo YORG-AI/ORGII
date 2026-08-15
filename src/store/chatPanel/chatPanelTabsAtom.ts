@@ -25,6 +25,7 @@ export {
   toggleChatPanelTabTuiModeAtom,
   type ReconcileDiscussionChannelTabsInput,
 } from "./chatPanelTabLifecycleAtoms";
+export { invalidateSessionChatPanelTabsAtom } from "./chatPanelSessionInvalidationAtom";
 export {
   addChatPanelLaunchpadTabAtom,
   addChatPanelTerminalTabAtom,

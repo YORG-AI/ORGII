@@ -2,12 +2,14 @@ import { createStore } from "jotai/vanilla";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
+import { browserSessionStateAtom } from "@src/store/workstation/browser/sessionState";
 import { workstationTabsStateAtom } from "@src/store/workstation/tabs/atoms";
 import { emptyWorkstationTabsState } from "@src/store/workstation/tabs/storage";
 import type {
   WorkStationTab,
   WorkstationWorkspaceState,
 } from "@src/store/workstation/tabs/types";
+import type { BrowserSession } from "@src/types/ui/tabs";
 
 import {
   browserTabsAtom,
@@ -18,6 +20,21 @@ import {
   removeBrowserResourceTabAtom,
   sharedBrowserTabsAtom,
 } from "../index";
+
+function browserSession(id: string): BrowserSession {
+  const url = `https://${id}.example.com`;
+  return {
+    id,
+    title: id,
+    url,
+    history: [url],
+    historyIndex: 0,
+    historyEntries: [{ url, title: id, visitedAt: 1 }],
+    isLoading: false,
+    error: null,
+    incognito: false,
+  };
+}
 
 function localWorkspace(tabId: string): WorkstationWorkspaceState {
   const tab: WorkStationTab = {
@@ -192,11 +209,66 @@ describe("browserTabsAtom shared-resource integration", () => {
     };
     store.set(workstationTabsStateAtom, state);
     store.set(workstationActiveSessionIdAtom, "A");
+    store.set(browserSessionStateAtom, {
+      sessions: [browserSession("browser-1")],
+      activeSessionId: "browser-1",
+    });
 
     store.set(closeBrowserTabAtom, browserTab.id);
 
     expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
     expect(store.get(sharedBrowserTabsAtom)).toEqual([]);
+    expect(store.get(browserSessionStateAtom)).toEqual({
+      sessions: [],
+      activeSessionId: "",
+    });
+  });
+
+  it("batch close commands remove authoritative sessions and all workspace refs", () => {
+    const store = createStore();
+    const state = emptyWorkstationTabsState();
+    const one = createBrowserSessionTab("one", "One");
+    const two = createBrowserSessionTab("two", "Two");
+    state.shared.tabs = [one, two];
+    state.sessionWorkspaces.A = {
+      tabs: [],
+      activeTabRef: { partition: "shared", tabId: two.id },
+      tabOrder: [
+        { partition: "shared", tabId: one.id },
+        { partition: "shared", tabId: two.id },
+      ],
+    };
+    state.sessionWorkspaces.B = {
+      tabs: [],
+      activeTabRef: { partition: "shared", tabId: two.id },
+      tabOrder: [
+        { partition: "shared", tabId: one.id },
+        { partition: "shared", tabId: two.id },
+      ],
+    };
+    store.set(workstationTabsStateAtom, state);
+    store.set(workstationActiveSessionIdAtom, "A");
+    store.set(browserSessionStateAtom, {
+      sessions: [browserSession("one"), browserSession("two")],
+      activeSessionId: "two",
+    });
+
+    store.set(closeOtherBrowserTabsAtom, one.id);
+
+    expect(
+      store.get(browserSessionStateAtom).sessions.map(({ id }) => id)
+    ).toEqual(["one"]);
+    expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([one]);
+    for (const current of Object.values(
+      store.get(workstationTabsStateAtom).sessionWorkspaces
+    )) {
+      expect(current.tabOrder.map((ref) => ref.tabId)).toEqual([one.id]);
+    }
+
+    // A second bulk command is idempotent and leaves the kept session alive.
+    store.set(closeSavedBrowserTabsAtom);
+    expect(store.get(browserSessionStateAtom).sessions).toEqual([]);
+    expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
   });
 
   it("removes a browser resource globally only through the explicit owner action", () => {
@@ -210,22 +282,5 @@ describe("browserTabsAtom shared-resource integration", () => {
     store.set(removeBrowserResourceTabAtom, browserTab.id);
 
     expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
-  });
-
-  it("tears down omitted resources through browser-owned bulk close actions", () => {
-    const store = createStore();
-    const browserA = createBrowserSessionTab("browser-1", "One");
-    const browserB = createBrowserSessionTab("browser-2", "Two");
-    const browserC = createBrowserSessionTab("browser-3", "Three");
-    store.set(browserTabsAtom, {
-      tabs: [browserA, browserB, browserC],
-      activeTabId: browserB.id,
-    });
-
-    store.set(closeOtherBrowserTabsAtom, browserA.id);
-    expect(store.get(sharedBrowserTabsAtom)).toEqual([browserA]);
-
-    store.set(closeSavedBrowserTabsAtom);
-    expect(store.get(sharedBrowserTabsAtom)).toEqual([]);
   });
 });

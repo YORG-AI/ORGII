@@ -13,12 +13,12 @@ import { createLogger } from "@src/hooks/logger";
 import { ProjectOrgHubContent } from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectOrgHubContent";
 import { ProjectOrgSurfacePillSwitch } from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectOrgSurfacePillSwitch";
 import {
-  closeProjectOrgChatPanelTabsAtom,
   openCreateTargetInChatPanelStartPageAtom,
   openOrganizationInChatPanelTabAtom,
   openProjectInChatPanelTabAtom,
   openWorkItemInChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { invalidateProjectOrgPresentationAtom } from "@src/store/projectOrgPresentationLifecycleAtom";
 import {
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelSelectedProjectOrg,
@@ -47,7 +47,7 @@ export const ProjectOrgPanelView: React.FC<ProjectOrgPanelViewProps> = ({
   );
   const openProjectTab = useSetAtom(openProjectInChatPanelTabAtom);
   const openWorkItemTab = useSetAtom(openWorkItemInChatPanelTabAtom);
-  const closeProjectOrgTabs = useSetAtom(closeProjectOrgChatPanelTabsAtom);
+  const closeProjectOrgTabs = useSetAtom(invalidateProjectOrgPresentationAtom);
   const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
   const [orgView, setOrgView] = useState<ProjectOrgSurfaceView>(
     selectedProjectOrg.initialView ?? PROJECT_ORG_SURFACE_VIEW.WORK_ITEMS
