@@ -3,7 +3,7 @@
 //! Utilities for detecting installed package managers and extracting
 //! package names from install hints.
 
-use super::discovery::command_exists;
+use crate::command_detection::command_exists;
 
 #[cfg(test)]
 #[path = "tests/package_manager_tests.rs"]

@@ -21,11 +21,12 @@ use super::clippy;
 use super::css;
 use super::eslint;
 use super::golangci_lint;
-use super::process::{command_exists, eslint_available};
+use super::process::eslint_available;
 use super::python;
 use super::shell;
 use super::types::{AvailableTool, SingleToolResult, WorkspaceDiagnostic};
 use super::typescript;
+use crate::command_detection::command_exists;
 use crate::workspace_config::is_lint_tool_enabled;
 
 // ============================================

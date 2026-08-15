@@ -1,26 +1,12 @@
-import {
-  AlertCircle,
-  CheckCircle,
-  ChevronRight,
-  Loader2,
-  LogIn,
-  RefreshCw,
-  X,
-} from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
-import InlineAlert from "@src/components/InlineAlert";
-import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import {
   useClaudeCodeOAuthCapture,
   useWebviewPositionSync,
 } from "@src/hooks/workStation/sessionCapture";
-import {
-  SectionContainer,
-  SectionRow,
-} from "@src/modules/shared/layouts/SectionLayout";
+
+import { OAuthSessionSetupShell } from "../OAuthSessionSetupShell";
 
 export interface ClaudeCodeSessionValues {
   accessToken: string;
@@ -58,7 +44,7 @@ function toClaudeCodeAccountMetadata(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
+export default function ClaudeCodeSessionSetup({
   onSessionCaptured,
   onBrowserStateChange,
   debug = false,
@@ -66,27 +52,10 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
   tokenError = null,
   onClearTokenError,
   closeSignal = 0,
-}) => {
+}: ClaudeCodeSessionSetupProps) {
   const { t } = useTranslation("integrations");
-  const [showBrowser, setShowBrowser] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const {
-    isSigningIn,
-    isSignedIn,
-    isWebviewOpen,
-    isWebviewLoading,
-    currentUrl,
-    authUrl,
-    error,
-    accessToken,
-    refreshToken,
-    expiresIn,
-    startLogin,
-    closeWebview,
-    reset,
-    updatePosition,
-  } = useClaudeCodeOAuthCapture({
+  const capture = useClaudeCodeOAuthCapture({
     containerRef,
     debug,
     onTokenCaptured: (response) => {
@@ -99,262 +68,71 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
     },
   });
 
-  useEffect(() => {
-    onBrowserStateChange?.(showBrowser);
-  }, [showBrowser, onBrowserStateChange]);
+  useWebviewPositionSync(
+    containerRef,
+    capture.isWebviewOpen,
+    capture.updatePosition
+  );
 
-  useEffect(() => {
-    if (!isWebviewOpen && isSignedIn) {
-      queueMicrotask(() => setShowBrowser(false));
-    }
-  }, [isSignedIn, isWebviewOpen]);
-
-  useEffect(() => {
-    if (!showBrowser || isWebviewOpen || isSigningIn) return;
-
-    const timer = setTimeout(() => {
-      void startLogin();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [isSigningIn, isWebviewOpen, showBrowser, startLogin]);
-
-  useWebviewPositionSync(containerRef, isWebviewOpen, updatePosition);
-
-  const handleCloseBrowser = useCallback(() => {
-    void closeWebview();
-    setShowBrowser(false);
-  }, [closeWebview]);
-
-  useEffect(() => {
-    if (closeSignal <= 0 || !showBrowser) return;
-    queueMicrotask(() => handleCloseBrowser());
-  }, [closeSignal, handleCloseBrowser, showBrowser]);
-
-  const handleRetry = useCallback(() => {
-    reset();
-    setShowBrowser(true);
-    void startLogin();
-  }, [reset, startLogin]);
-
-  const hasToken = tokenDetected || isSignedIn || Boolean(accessToken);
-  const displayError = error ?? tokenError;
-  const currentStep = hasToken ? 2 : 1;
+  const hasToken =
+    tokenDetected || capture.isSignedIn || Boolean(capture.accessToken);
 
   return (
-    <div
-      className="flex h-full min-h-0 w-full flex-1 flex-col gap-3"
-      data-testid="claude-code-session-setup"
-    >
-      {!showBrowser ? (
-        <SectionContainer>
-          <SectionRow
-            label={
-              hasToken
-                ? t("keyVault.claudeCodeSignedIn")
-                : t("keyVault.claudeCodeSignInTitle")
-            }
-            description={
-              hasToken
-                ? t("keyVault.signedIn")
-                : t("keyVault.claudeCodeSignInDesc")
-            }
-            required
-          >
-            <Button
-              variant={hasToken ? "success" : "primary"}
-              appearance={hasToken ? "outline" : "solid"}
-              size="default"
-              loading={isSigningIn || isWebviewLoading}
-              disabled={isSigningIn || isWebviewLoading}
-              onClick={() => setShowBrowser(true)}
-              className="h-8 min-h-8"
-              data-testid="claude-code-oauth-signin"
-            >
-              {hasToken
-                ? `✓ ${t("keyVault.signedIn")}`
-                : t("keyVault.signInWithClaudeCode")}
-            </Button>
-          </SectionRow>
-        </SectionContainer>
-      ) : (
-        <div
-          className="flex min-h-0 flex-1 flex-col overflow-hidden bg-fill-2"
-          data-testid="claude-code-oauth-browser-shell"
-        >
-          <div className="flex h-10 items-center border-b border-border-2 bg-fill-2 px-3">
-            <div
-              className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-text-1"
-              data-testid="claude-code-oauth-current-url"
-            >
-              {currentUrl || authUrl || t("keyVault.claudeCodeReadyToSignIn")}
+    <OAuthSessionSetupShell
+      providerId="claude-code"
+      containerRef={containerRef}
+      hasToken={hasToken}
+      isSigningIn={capture.isSigningIn}
+      isSignedIn={capture.isSignedIn}
+      isWebviewOpen={capture.isWebviewOpen}
+      isWebviewLoading={capture.isWebviewLoading}
+      currentUrl={capture.currentUrl}
+      authUrl={capture.authUrl}
+      captureError={capture.error}
+      tokenError={tokenError}
+      onClearTokenError={onClearTokenError}
+      onBrowserStateChange={onBrowserStateChange}
+      closeSignal={closeSignal}
+      startLogin={capture.startLogin}
+      closeWebview={capture.closeWebview}
+      reset={capture.reset}
+      copy={{
+        signInTitle: t("keyVault.claudeCodeSignInTitle"),
+        signInDescription: t("keyVault.claudeCodeSignInDesc"),
+        signInButton: t("keyVault.signInWithClaudeCode"),
+        signedInTitle: t("keyVault.claudeCodeSignedIn"),
+        signedInStatus: t("keyVault.signedIn"),
+        loginStep: t("keyVault.loginStep"),
+        browserHint: t("keyVault.claudeCodeBrowserHint"),
+        readyTitle: t("keyVault.claudeCodeReadyToSignIn"),
+        oauthHint: t("keyVault.claudeCodeOAuthHint"),
+        loading: t("keyVault.loadingText"),
+        failedToLoadBrowser: t("keyVault.failedToLoadBrowser"),
+        retry: t("common:actions.retry"),
+        close: t("common:actions.close"),
+        errorHint: t("keyVault.claudeCodeSignInErrorHint"),
+      }}
+      debugContent={
+        debug ? (
+          <>
+            <div>
+              Access Token:{" "}
+              {capture.accessToken
+                ? `${capture.accessToken.slice(0, 24)}...`
+                : "null"}
             </div>
-            <Button
-              variant="tertiary"
-              size="mini"
-              icon={<RefreshCw size={12} />}
-              iconOnly
-              onClick={handleRetry}
-            />
-            <Button
-              variant="tertiary"
-              size="mini"
-              icon={<X size={14} />}
-              iconOnly
-              onClick={handleCloseBrowser}
-              data-testid="claude-code-oauth-browser-close"
-            />
-          </div>
-
-          <div className="flex h-9 items-center justify-between gap-2 border-b border-border-2 bg-fill-2 px-4">
-            <div className="flex items-center gap-2">
-              <StepIndicator
-                step={1}
-                currentStep={currentStep}
-                label={t("keyVault.loginStep")}
-                completed={hasToken}
-              />
-              <ChevronRight size={14} className="text-text-3" />
-              <StepIndicator
-                step={2}
-                currentStep={currentStep}
-                label={t("keyVault.signedIn")}
-                completed={hasToken}
-              />
+            <div>
+              Refresh Token:{" "}
+              {capture.refreshToken
+                ? `${capture.refreshToken.slice(0, 24)}...`
+                : "null"}
             </div>
-            {!hasToken && (
-              <span className="text-[12px] text-text-2">
-                {t("keyVault.claudeCodeBrowserHint")}
-              </span>
-            )}
-          </div>
-
-          <div
-            ref={containerRef}
-            className="relative min-h-0 w-full flex-1 overflow-hidden bg-bg-1"
-            data-testid="claude-code-oauth-webview-container"
-          >
-            {(isSigningIn || isWebviewLoading) && (
-              <div className="absolute inset-0 flex items-center justify-center bg-bg-1">
-                <Loader2
-                  size={SPINNER_TOKENS.default}
-                  className="animate-spin text-primary-6"
-                />
-                <span className="ml-2 text-text-2">
-                  {t("keyVault.loadingText")}
-                </span>
-              </div>
-            )}
-            {displayError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-1 p-6 text-center">
-                <AlertCircle size={32} className="mb-3 text-danger-6" />
-                <div className="mb-2 text-[14px] text-text-2">
-                  {t("keyVault.failedToLoadBrowser")}
-                </div>
-                <div className="mb-4 text-[12px] text-text-3">
-                  {displayError}
-                </div>
-                <Button variant="primary" size="default" onClick={handleRetry}>
-                  {t("common:actions.retry")}
-                </Button>
-              </div>
-            )}
-            {!isWebviewOpen && !isSigningIn && !displayError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-1 p-6 text-center">
-                {hasToken ? (
-                  <CheckCircle size={32} className="mb-3 text-success-6" />
-                ) : (
-                  <LogIn size={32} className="mb-3 text-text-3" />
-                )}
-                <div className="mb-2 text-[14px] font-medium text-text-1">
-                  {hasToken
-                    ? t("keyVault.claudeCodeSignedIn")
-                    : t("keyVault.claudeCodeReadyToSignIn")}
-                </div>
-                <div className="max-w-sm text-[12px] text-text-3">
-                  {t("keyVault.claudeCodeOAuthHint")}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {hasToken && !showBrowser && (
-        <InlineAlert type="success">
-          {t("keyVault.claudeCodeSignedIn")}
-        </InlineAlert>
-      )}
-
-      {displayError && !showBrowser && (
-        <InlineAlert
-          type="danger"
-          title={displayError}
-          onClose={error ? reset : onClearTokenError}
-        >
-          {t("keyVault.claudeCodeSignInErrorHint")}
-        </InlineAlert>
-      )}
-
-      {debug && (
-        <div className="mt-4 rounded-lg bg-bg-3 p-3 text-[11px] text-text-3">
-          <div>
-            Access Token:{" "}
-            {accessToken ? `${accessToken.slice(0, 24)}...` : "null"}
-          </div>
-          <div>
-            Refresh Token:{" "}
-            {refreshToken ? `${refreshToken.slice(0, 24)}...` : "null"}
-          </div>
-          <div>Expires In: {expiresIn ?? "null"}</div>
-          <div>Is Webview Open: {String(isWebviewOpen)}</div>
-          <div>Current URL: {currentUrl || "null"}</div>
-        </div>
-      )}
-    </div>
+            <div>Expires In: {capture.expiresIn ?? "null"}</div>
+            <div>Is Webview Open: {String(capture.isWebviewOpen)}</div>
+            <div>Current URL: {capture.currentUrl || "null"}</div>
+          </>
+        ) : undefined
+      }
+    />
   );
-};
-
-interface StepIndicatorProps {
-  step: number;
-  currentStep: number;
-  label: string;
-  completed: boolean;
 }
-
-const StepIndicator: React.FC<StepIndicatorProps> = ({
-  step,
-  currentStep,
-  label,
-  completed,
-}) => {
-  const isActive = step === currentStep;
-  const isPast = step < currentStep || completed;
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <div
-        className={[
-          "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold",
-          isPast
-            ? "bg-success-6 text-text-white"
-            : isActive
-              ? "bg-primary-6 text-text-white"
-              : "border border-border-2 bg-bg-2 text-text-3",
-        ].join(" ")}
-      >
-        {isPast ? <span className="text-[10px]">✓</span> : step}
-      </div>
-      <span
-        className={[
-          "text-[12px]",
-          isActive ? "font-medium text-text-1" : "font-normal text-text-3",
-        ].join(" ")}
-      >
-        {label}
-      </span>
-    </div>
-  );
-};
-
-export default ClaudeCodeSessionSetup;

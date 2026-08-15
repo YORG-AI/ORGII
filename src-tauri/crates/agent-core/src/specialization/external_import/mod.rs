@@ -20,6 +20,7 @@
 
 pub mod commands;
 pub mod detect;
+mod mcp_config;
 pub mod types;
 
 // Wildcard re-export needed: `#[tauri::command]` generates hidden

@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
 
-use super::commands::discovery::command_exists;
+use super::command_detection::command_exists;
 use super::commands::package_manager::detect_package_manager;
 use app_paths::lsp_bin_dir;
 

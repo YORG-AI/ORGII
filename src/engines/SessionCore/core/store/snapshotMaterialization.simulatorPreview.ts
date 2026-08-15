@@ -7,39 +7,9 @@
  * objects are cached by event object identity so events untouched by a
  * delta reuse their preview across materializations.
  */
-import type {
-  SessionEvent,
-  SimulatorEventFilterValue,
-  SimulatorEventPreview,
-} from "../types";
+import { getFallbackSimulatorEventFilterCategory } from "../simulatorEventFilterCategory";
+import type { SessionEvent, SimulatorEventPreview } from "../types";
 import type { NormalizedSnapshotCache } from "./EventStoreProxyTypes";
-
-function getFallbackFilterCategory(
-  event: SessionEvent
-): SimulatorEventFilterValue {
-  if (event.source === "user") return "key_interactions";
-  if (
-    event.uiCanonical === "edit_file" ||
-    event.uiCanonical === "delete_file"
-  ) {
-    return "file_changes";
-  }
-  if (event.command || event.uiCanonical === "run_shell") {
-    return "terminal_events";
-  }
-  if (
-    event.uiCanonical === "read_file" ||
-    event.uiCanonical === "list_dir" ||
-    event.uiCanonical === "code_search" ||
-    event.uiCanonical === "glob" ||
-    event.uiCanonical === "find_files" ||
-    event.uiCanonical === "search"
-  ) {
-    return "explore";
-  }
-  if (event.filePath) return "file_changes";
-  return "other";
-}
 
 function buildSimulatorEventPreview(
   event: SessionEvent
@@ -56,7 +26,7 @@ function buildSimulatorEventPreview(
     displayStatus: event.displayStatus,
     displayVariant: event.displayVariant,
     activityStatus: event.activityStatus,
-    filterCategory: getFallbackFilterCategory(event),
+    filterCategory: getFallbackSimulatorEventFilterCategory(event),
     threadId: event.threadId,
     processId: event.processId,
     callId: event.callId,

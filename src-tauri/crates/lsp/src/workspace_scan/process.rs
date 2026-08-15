@@ -61,34 +61,11 @@ pub fn run_command_with_custom_timeout(
     }
 }
 
-/// Check whether a command-line tool is available on the system PATH.
-pub fn command_exists(cmd: &str) -> bool {
-    #[cfg(unix)]
-    {
-        Command::new("which")
-            .arg(cmd)
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-    #[cfg(windows)]
-    {
-        let mut command = Command::new("where");
-        command.arg(cmd);
-        // Suppress console window on Windows.
-        app_platform::hide_console(&mut command);
-        command
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-}
-
 /// Check whether ESLint is available (local node_modules or global).
 pub fn eslint_available(workspace_path: &str) -> bool {
     let local = Path::new(workspace_path)
         .join("node_modules")
         .join(".bin")
         .join("eslint");
-    local.exists() || command_exists("eslint")
+    local.exists() || crate::command_detection::command_exists("eslint")
 }

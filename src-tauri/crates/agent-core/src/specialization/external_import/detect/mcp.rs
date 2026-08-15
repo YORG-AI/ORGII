@@ -6,9 +6,10 @@
 
 use std::path::Path;
 
+use super::super::mcp_config::load_external_mcp_config;
 use super::super::types::{DetectedItem, ItemKind, ItemPreview, SourceAgent, SourceScope};
 use super::helpers::{home_dir, orgii_mcp_exists, path_has_denied_ancestor, MAX_ITEMS_PER_BATCH};
-use crate::specialization::mcp::config::{McpConfigFile, McpTransportType};
+use crate::specialization::mcp::config::McpTransportType;
 
 pub(super) fn detect_mcp_servers(repo_path: Option<&Path>) -> Vec<DetectedItem> {
     let mut out = Vec::new();
@@ -68,50 +69,6 @@ pub(super) fn detect_mcp_servers(repo_path: Option<&Path>) -> Vec<DetectedItem> 
 
     out.sort_by(|a, b| a.suggested_name.cmp(&b.suggested_name));
     out
-}
-
-fn load_external_mcp_config(path: &Path) -> Result<McpConfigFile, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|err| format!("Failed to read MCP config {}: {}", path.display(), err))?;
-    let mut value: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|err| format!("Failed to parse MCP config {}: {}", path.display(), err))?;
-    let Some(servers) = value
-        .get_mut("mcpServers")
-        .and_then(|entry| entry.as_object_mut())
-    else {
-        return Ok(McpConfigFile::default());
-    };
-
-    for server in servers.values_mut() {
-        let Some(server_obj) = server.as_object_mut() else {
-            continue;
-        };
-        if !server_obj.contains_key("type") {
-            let inferred = if server_obj.contains_key("url") {
-                "streamableHttp"
-            } else {
-                "stdio"
-            };
-            server_obj.insert(
-                "type".to_string(),
-                serde_json::Value::String(inferred.to_string()),
-            );
-        }
-        if server_obj.get("type").and_then(|entry| entry.as_str()) == Some("http") {
-            server_obj.insert(
-                "type".to_string(),
-                serde_json::Value::String("streamableHttp".to_string()),
-            );
-        }
-    }
-
-    serde_json::from_value(value).map_err(|err| {
-        format!(
-            "Failed to parse MCP server entries {}: {}",
-            path.display(),
-            err
-        )
-    })
 }
 
 fn scan_mcp_config_file(

@@ -7,6 +7,7 @@
 
 pub mod broadcast;
 pub mod codec;
+mod command_detection;
 pub mod commands;
 pub mod config;
 pub mod eslint;
