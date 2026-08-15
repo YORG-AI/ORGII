@@ -21,7 +21,6 @@ interface UseChatPanelContentStateOptions {
 }
 
 export interface ChatPanelContentState {
-  showBenchmarkSessionGroupContent: boolean;
   showCloudOrgContent: boolean;
   showExploreContent: boolean;
   showExplicitNonSessionContent: boolean;
@@ -45,38 +44,26 @@ export function useChatPanelContentState({
   selectedWorkItem,
   selectedWorkspace,
 }: UseChatPanelContentStateOptions): ChatPanelContentState {
-  const showBenchmarkSessionGroupContent =
-    active && contentMode === CHAT_PANEL_CONTENT_MODE.BENCHMARK_SESSION_GROUP;
   const showSessionContent =
     active &&
-    !showBenchmarkSessionGroupContent &&
     contentMode === CHAT_PANEL_CONTENT_MODE.SESSION &&
     Boolean(currentSessionId);
-  const showWorkItemContent =
-    Boolean(selectedWorkItem) &&
-    !showBenchmarkSessionGroupContent &&
-    !showSessionContent;
+  const showWorkItemContent = Boolean(selectedWorkItem) && !showSessionContent;
   const showProjectContent =
-    Boolean(selectedProject) &&
-    !showBenchmarkSessionGroupContent &&
-    !showSessionContent &&
-    !showWorkItemContent;
+    Boolean(selectedProject) && !showSessionContent && !showWorkItemContent;
   const showProjectOrgContent =
     Boolean(selectedProjectOrg) &&
-    !showBenchmarkSessionGroupContent &&
     !showSessionContent &&
     !showWorkItemContent &&
     !showProjectContent;
   const showExploreContent =
     exploreOpen &&
-    !showBenchmarkSessionGroupContent &&
     !showSessionContent &&
     !showWorkItemContent &&
     !showProjectContent &&
     !showProjectOrgContent;
   const showCloudOrgContent =
     Boolean(selectedCloudOrg) &&
-    !showBenchmarkSessionGroupContent &&
     !showSessionContent &&
     !showWorkItemContent &&
     !showProjectContent &&
@@ -84,7 +71,6 @@ export function useChatPanelContentState({
     !showExploreContent;
   const showWorkspaceOverviewContent =
     Boolean(selectedWorkspace) &&
-    !showBenchmarkSessionGroupContent &&
     !showSessionContent &&
     !showWorkItemContent &&
     !showProjectContent &&
@@ -95,7 +81,6 @@ export function useChatPanelContentState({
     contentMode === CHAT_PANEL_CONTENT_MODE.NON_SESSION;
   const showPanelContent =
     active ||
-    showBenchmarkSessionGroupContent ||
     showWorkItemContent ||
     showProjectContent ||
     showProjectOrgContent ||
@@ -104,7 +89,6 @@ export function useChatPanelContentState({
     showWorkspaceOverviewContent ||
     showExplicitNonSessionContent;
   const showHeader =
-    showBenchmarkSessionGroupContent ||
     showWorkItemContent ||
     showProjectContent ||
     showProjectOrgContent ||
@@ -115,7 +99,6 @@ export function useChatPanelContentState({
     active;
 
   return {
-    showBenchmarkSessionGroupContent,
     showCloudOrgContent,
     showExploreContent,
     showExplicitNonSessionContent,

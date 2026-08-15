@@ -88,7 +88,6 @@ const DEFAULT_CATEGORY_BY_TYPE: Record<
   "lint-scan": "lint",
   "ai-impact": "ai-impact",
   "search-sessions": "search-sessions",
-  benchmark: "benchmark",
   "url-preview": "preview",
   "browser-session": "browser",
   devtools: "browser",

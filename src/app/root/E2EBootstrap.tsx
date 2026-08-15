@@ -61,7 +61,6 @@ import {
   removeAccount,
 } from "./e2e/helpers/accounts";
 import { createAgentOrgHelpers } from "./e2e/helpers/agentOrgs";
-import { createBenchmarkE2EHelpers } from "./e2e/helpers/benchmark";
 import { createCloudHelpers } from "./e2e/helpers/cloud";
 import { createConfigHelpers } from "./e2e/helpers/config";
 import { createDebugEndpointHelpers } from "./e2e/helpers/debugEndpoints";
@@ -306,13 +305,6 @@ export const E2EBootstrap: FC = () => {
     } = createNavigationHelpers(store);
 
     const {
-      seedBenchmarkRun,
-      inspectBenchmarkRun,
-      startLocalDockerBenchmarkRun,
-      getBenchmarkRunStatus,
-    } = createBenchmarkE2EHelpers(store);
-
-    const {
       cloudSeedAuthState,
       cloudClearAuthState,
       cloudReadAuthState,
@@ -512,10 +504,6 @@ export const E2EBootstrap: FC = () => {
       openAgentTab,
       openOrgTab,
       inspectWorkstationSurface,
-      seedBenchmarkRun,
-      inspectBenchmarkRun,
-      startLocalDockerBenchmarkRun,
-      getBenchmarkRunStatus,
       cloudSeedAuthState,
       cloudClearAuthState,
       cloudReadAuthState,

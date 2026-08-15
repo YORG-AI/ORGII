@@ -660,9 +660,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         onSessionContinuation={handleSessionContinuation}
         paginationEnabled={paginationEnabled}
         position={position}
-        showBenchmarkSessionGroupContent={
-          contentState.showBenchmarkSessionGroupContent
-        }
         showPanelContent={contentState.showPanelContent}
         showSessionContent={contentState.showSessionContent}
         sessionViewMode={sessionView.mode}

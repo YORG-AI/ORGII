@@ -8,7 +8,6 @@ import { useSortable } from "@dnd-kit/sortable";
 import { useAtomValue } from "jotai";
 import {
   Infinity,
-  BookLock,
   Box,
   Building2,
   CircleDot,
@@ -83,7 +82,6 @@ import { WorkStationTabPillSurface } from "../WorkStationTabPillSurface";
 // ============================================
 
 const WORKSTATION_TAB_ICONS = {
-  BookLock,
   Box,
   Building2,
   CircleDot,
@@ -232,16 +230,6 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
                   : "text-text-2"
                 : undefined
             }
-          />
-        );
-      }
-
-      if (tab.type === "benchmark") {
-        return (
-          <BookLock
-            size={16}
-            strokeWidth={1.75}
-            className={isActive ? "text-primary-6" : "text-text-2"}
           />
         );
       }

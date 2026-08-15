@@ -7,7 +7,6 @@
  */
 export const CHAT_PANEL_SURFACE_KIND = {
   SESSION: "session",
-  BENCHMARK_SESSION_GROUP: "benchmarkSessionGroup",
   NEW_PROJECT: "newProject",
   NEW_GITHUB_ISSUES_PROJECT: "newGithubIssuesProject",
   NEW_WORK_ITEM: "newWorkItem",

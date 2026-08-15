@@ -40,7 +40,6 @@ const VALID_WORKSTATION_TAB_TYPES = new Set<WorkStationTabType>([
   "lint-scan",
   "ai-impact",
   "search-sessions",
-  "benchmark",
   "url-preview",
   "browser-session",
   "devtools",

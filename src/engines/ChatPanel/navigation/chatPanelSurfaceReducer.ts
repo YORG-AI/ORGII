@@ -57,11 +57,6 @@ export function reduceChatPanelSurfaceCommand(
         ...next,
         contentMode: CHAT_PANEL_CONTENT_MODE.SESSION,
       };
-    case CHAT_PANEL_SURFACE_KIND.BENCHMARK_SESSION_GROUP:
-      return {
-        ...next,
-        contentMode: CHAT_PANEL_CONTENT_MODE.BENCHMARK_SESSION_GROUP,
-      };
     case CHAT_PANEL_SURFACE_KIND.NEW_PROJECT:
       return {
         ...next,

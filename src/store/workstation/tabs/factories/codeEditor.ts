@@ -578,28 +578,6 @@ export function createSearchSessionsTab(): WorkStationTab {
   return searchSessionsTabFactory({});
 }
 
-export interface BenchmarkTabData {
-  batchId?: string;
-  selectedTaskId?: string;
-}
-
-export const benchmarkTabFactory = defineTabFactory<BenchmarkTabData>({
-  tabType: "benchmark",
-  idStrategy: {
-    type: "keyed",
-    prefix: "benchmark",
-    getKey: (data) => data.batchId ?? "main",
-  },
-  getTitle: (data) => (data.batchId ? "Benchmark Run" : "Benchmark"),
-  icon: "BookLock",
-});
-
-export function createBenchmarkTab(
-  data: BenchmarkTabData = {}
-): WorkStationTab {
-  return benchmarkTabFactory(data);
-}
-
 export const lintScanTabFactory = defineTabFactory<{ repoPath: string }>({
   tabType: "lint-scan",
   idStrategy: { type: "singleton", id: "lint-scan:main" },

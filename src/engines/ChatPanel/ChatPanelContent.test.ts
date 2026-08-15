@@ -9,10 +9,6 @@ vi.mock("./SessionContentView", () => ({
     createElement("div", { "data-gui-session": sessionId }),
 }));
 
-vi.mock("@src/features/BenchmarkPanel", () => ({
-  BenchmarkPanel: () => createElement("div", { "data-benchmark": "true" }),
-}));
-
 const { ChatPanelContent } = await import("./ChatPanelContent");
 
 function render(sessionViewMode: SessionViewMode): string {
@@ -25,7 +21,6 @@ function render(sessionViewMode: SessionViewMode): string {
       onSessionContinuation: () => undefined,
       paginationEnabled: false,
       position: "right" as const,
-      showBenchmarkSessionGroupContent: false,
       showPanelContent: true,
       showSessionContent: true,
       sessionViewMode,

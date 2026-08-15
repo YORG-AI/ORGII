@@ -7,8 +7,8 @@
  * adding a new tab type is a type error until it has an entry — the same
  * guarantee the WorkStation `REGISTRY` provides.
  *
- * Session and Launchpad share the "chat column" (transcript / creators /
- * benchmark run-list, still contentMode-driven inside that column). Kanban and
+ * Session and Launchpad share the "chat column" (transcript / creators,
+ * still contentMode-driven inside that column). Kanban and
  * terminals render in their own keep-alive layers. Every other surface renders
  * a dedicated, self-sufficient component that reads its tab payload directly.
  */
