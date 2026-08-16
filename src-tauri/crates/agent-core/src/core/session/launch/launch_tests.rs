@@ -87,12 +87,18 @@ async fn late_launch_failure_does_not_fail_a_running_team_coordinator() {
         ..Default::default()
     })
     .expect("persist coordinator Session");
-    let org = valid_org_with_children(Vec::new());
+    let org = valid_org_with_members(vec![FlatOrgMember {
+        member_id: "worker".to_string(),
+        name: "Worker".to_string(),
+        role: "Builder".to_string(),
+        agent_id: SDE_AGENT_ID.to_string(),
+        runtime_config: None,
+    }]);
     let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
         org_id: org.id.clone(),
         coordinator_agent_id: org.agent_id.clone(),
         root_session_id: Some(session_id.to_string()),
-        org_snapshot: org,
+        org_snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot::from(&org),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,

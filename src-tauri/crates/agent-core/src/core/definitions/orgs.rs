@@ -300,6 +300,13 @@ pub fn validate_launch_snapshot(snapshot: &AgentOrgLaunchSnapshot) -> Result<(),
     Ok(())
 }
 
+/// Shared write-path serializer used by every run creation entry point.
+pub fn serialize_launch_snapshot(snapshot: &AgentOrgLaunchSnapshot) -> Result<String, String> {
+    validate_launch_snapshot(snapshot)?;
+    serde_json::to_string(snapshot)
+        .map_err(|err| format!("failed to serialize Agent Org launch snapshot: {err}"))
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AgentOrgCapabilityIndex {
     writer_member_ids: HashSet<String>,

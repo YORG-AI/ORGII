@@ -104,6 +104,9 @@ pub(super) async fn update_org(
         org.agent_id = agent_id;
     }
     if params.get("members").is_some() {
+        // Parse first so malformed caller-supplied IDs fail at the input
+        // boundary instead of being misclassified as unknown persisted IDs.
+        let mut new_members = parse_org_members(params, true).map_err(ToolError::InvalidParams)?;
         let requested_member_ids = params
             .get("members")
             .and_then(Value::as_array)
@@ -125,7 +128,6 @@ pub(super) async fn update_org(
                 org_id, unknown_id
             )));
         }
-        let mut new_members = parse_org_members(params, true).map_err(ToolError::InvalidParams)?;
         // Model updates never carry runtime configuration; surviving members
         // keep whatever runtime_config the user persisted for them.
         for member in new_members.iter_mut() {
@@ -390,6 +392,7 @@ mod tests {
                     ]
                 }),
             )
+            .await
             .expect_err("malformed member_id must be rejected instead of replaced");
             let message = err.to_string();
             assert!(

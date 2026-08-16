@@ -89,9 +89,7 @@ fn parse_single_member(
             None => Uuid::new_v4().to_string(),
             Some(value) => {
                 let member_id = value.as_str().ok_or_else(|| {
-                    format!(
-                        "members[{index}] ('{name}') field 'member_id' must be a string"
-                    )
+                    format!("members[{index}] ('{name}') field 'member_id' must be a string")
                 })?;
                 if member_id.is_empty() {
                     return Err(format!(
