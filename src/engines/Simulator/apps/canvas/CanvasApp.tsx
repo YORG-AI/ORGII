@@ -17,7 +17,7 @@
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import { Layout, PenTool, RefreshCw, Share2 } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -37,7 +37,6 @@ import {
   useCanvasShareDialog,
 } from "@src/features/CanvasShare";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { SessionReplayCodeMirrorViewer } from "@src/modules/WorkStation/CodeEditor/SessionReplay/CodePanel/SessionReplayCodeMirrorViewer";
 import {
   PrimarySidebarLayoutWithSections,
   SimulatorReplayChrome,
@@ -71,6 +70,13 @@ import {
 } from "./canvasInteractionState";
 import { projectLatestCanvasEvents } from "./canvasRevisionProjection";
 import CanvasDesignSurface from "./design/CanvasDesignSurface";
+
+// Lazy: the "source" tab is the only CodeMirror user in the canvas app.
+const SessionReplayCodeMirrorViewer = lazy(() =>
+  import("@src/modules/WorkStation/CodeEditor/SessionReplay/CodePanel/SessionReplayCodeMirrorViewer").then(
+    (mod) => ({ default: mod.SessionReplayCodeMirrorViewer })
+  )
+);
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -827,15 +833,19 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
         </>
       ) : (
         /* source tab */
-        <SessionReplayCodeMirrorViewer
-          content={
-            selectedPayload.mode === "url"
-              ? (selectedPayload.url ?? "")
-              : (selectedPayload.content ?? "")
-          }
-          language={selectedPayload.mode === "url" ? "plaintext" : "html"}
-          filePath={selectedPayload.mode === "html" ? "canvas.html" : undefined}
-        />
+        <Suspense fallback={null}>
+          <SessionReplayCodeMirrorViewer
+            content={
+              selectedPayload.mode === "url"
+                ? (selectedPayload.url ?? "")
+                : (selectedPayload.content ?? "")
+            }
+            language={selectedPayload.mode === "url" ? "plaintext" : "html"}
+            filePath={
+              selectedPayload.mode === "html" ? "canvas.html" : undefined
+            }
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -8,7 +8,7 @@ import React, { memo, useCallback, useMemo, useState } from "react";
 import {
   CodeMirrorEditor,
   type TextSelectionInfo,
-} from "@src/features/CodeMirror";
+} from "@src/features/CodeMirror/Editor";
 import { TextSelectionDropdown } from "@src/scaffold/ContextMenu/exports";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import { getFileName } from "@src/util/file/pathUtils";

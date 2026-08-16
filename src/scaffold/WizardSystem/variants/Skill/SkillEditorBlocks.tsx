@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Switch from "@src/components/Switch";
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 import type { UseSkillEditorReturn } from "@src/hooks/skills/useSkillEditor";
 import type {
   BundledFileDraft,

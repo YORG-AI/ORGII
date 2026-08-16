@@ -17,7 +17,7 @@ import type { RadioValue } from "@src/components/Radio";
 import Switch from "@src/components/Switch";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 import type { UseSkillEditorReturn } from "@src/hooks/skills/useSkillEditor";
 import {
   SKILL_SCOPE,

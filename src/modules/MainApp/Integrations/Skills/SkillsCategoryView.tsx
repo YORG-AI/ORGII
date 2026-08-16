@@ -1,9 +1,8 @@
 import { useAtomValue } from "jotai";
-import React, { useMemo } from "react";
+import React, { Suspense, lazy, useMemo } from "react";
 
 import type { CursorRepo } from "@src/hooks/policies";
 import { DetailPanelContainer } from "@src/modules/shared/layouts/blocks";
-import SkillEditorPanel from "@src/scaffold/WizardSystem/variants/Skill/SkillEditorPanel";
 import { reposAtom } from "@src/store/repo";
 
 import {
@@ -11,6 +10,13 @@ import {
   type CategoryTableContentProps,
 } from "../Tables";
 import type { SkillEditorState, SkillsHubDetailState } from "./types";
+
+// Lazy: the skill editor embeds a CodeMirror editor. Settings/Integrations
+// is reachable from every settings surface, but the editor only mounts once
+// the user opens a skill for editing.
+const SkillEditorPanel = lazy(
+  () => import("@src/scaffold/WizardSystem/variants/Skill/SkillEditorPanel")
+);
 
 export const SkillsCategoryView: React.FC<{
   selectedId: string | null;
@@ -34,11 +40,13 @@ export const SkillsCategoryView: React.FC<{
 
   if (skillEditor.editorMode) {
     return (
-      <SkillEditorPanel
-        editor={skillEditor.editor}
-        onBack={skillEditor.onEditorBack}
-        onSaved={skillEditor.onEditorSaved}
-      />
+      <Suspense fallback={null}>
+        <SkillEditorPanel
+          editor={skillEditor.editor}
+          onBack={skillEditor.onEditorBack}
+          onSaved={skillEditor.onEditorSaved}
+        />
+      </Suspense>
     );
   }
   const augmentedTableProps: CategoryTableContentProps = {

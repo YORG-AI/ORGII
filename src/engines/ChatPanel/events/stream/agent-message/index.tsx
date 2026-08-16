@@ -11,7 +11,7 @@
  * is now `agent_message` to better reflect the actual purpose.
  */
 import { useAtomValue } from "jotai";
-import React, { useMemo } from "react";
+import React, { Suspense, lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
@@ -53,8 +53,15 @@ import {
   extractThinkContent,
   stripThinkTags,
 } from "@src/engines/SessionCore/sync/adapters/shared/streamingParsers";
-import { SimulatorMessages } from "@src/modules/WorkStation/Chat/Communication";
 import { parseGitArtifactsFromText } from "@src/shared/git/sessionGitArtifacts";
+
+// Lazy (same as user-message / thinking): SimulatorMessages is only used by
+// the simulator variant, but a static import here made every chat message
+// renderer pull the whole Communication app — SessionReplay CodePanel,
+// CodeMirror, react-syntax-highlighter, highlight.js, file previewers.
+const LazySimulatorMessages = lazy(
+  () => import("@src/modules/WorkStation/Chat/Communication")
+);
 
 // ============================================
 // Types
@@ -282,11 +289,13 @@ const SimulatorVariant: React.FC<SimulatorVariantProps> = ({
   const eventSessionId =
     (event as { event?: { sessionId?: string } })?.event?.sessionId ?? null;
   return (
-    <SimulatorMessages
-      currentEvent={event}
-      mode={mode}
-      sessionId={eventSessionId}
-    />
+    <Suspense fallback={null}>
+      <LazySimulatorMessages
+        currentEvent={event}
+        mode={mode}
+        sessionId={eventSessionId}
+      />
+    </Suspense>
   );
 };
 

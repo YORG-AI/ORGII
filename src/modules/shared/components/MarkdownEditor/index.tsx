@@ -1,5 +1,7 @@
 import React, {
+  Suspense,
   forwardRef,
+  lazy,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -11,9 +13,13 @@ import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
 import TabPill from "@src/components/TabPill";
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
 
 import "./index.scss";
+
+// Lazy: MarkdownEditor is mounted by the Settings/Integrations wizards and
+// the AgentOrgs configuration surfaces; loading CodeMirror only when the
+// edit tab actually renders keeps those routes light until then.
+const CodeMirrorEditor = lazy(() => import("@src/features/CodeMirror/Editor"));
 
 export interface MarkdownEditorRef {
   getText: () => string;
@@ -247,18 +253,20 @@ const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
               style={contentStyle}
               onMouseDown={handleEditorChromeClick}
             >
-              <CodeMirrorEditor
-                value={editorValue}
-                onChange={handleEditorChange}
-                language="markdown"
-                height="100%"
-                enableMinimap={false}
-                enableLinting={false}
-                enableDirtyDiff={false}
-                enableFindReplace={false}
-                enableGoToLine={false}
-                registerWithService={false}
-              />
+              <Suspense fallback={null}>
+                <CodeMirrorEditor
+                  value={editorValue}
+                  onChange={handleEditorChange}
+                  language="markdown"
+                  height="100%"
+                  enableMinimap={false}
+                  enableLinting={false}
+                  enableDirtyDiff={false}
+                  enableFindReplace={false}
+                  enableGoToLine={false}
+                  registerWithService={false}
+                />
+              </Suspense>
               {value.trim().length === 0 && placeholder && (
                 <div className="markdown-editor-placeholder">{placeholder}</div>
               )}
