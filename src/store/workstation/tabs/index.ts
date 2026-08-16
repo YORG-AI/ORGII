@@ -114,7 +114,6 @@ export {
   settingsTabFactory,
   aiImpactTabFactory,
   searchSessionsTabFactory,
-  benchmarkTabFactory,
   lintScanTabFactory,
   searchTabFactory,
   // Code Editor creator functions
@@ -138,7 +137,6 @@ export {
   createSettingsTab,
   createAIImpactTab,
   createSearchSessionsTab,
-  createBenchmarkTab,
   createLintScanTab,
   createSearchTab,
   // Browser factories

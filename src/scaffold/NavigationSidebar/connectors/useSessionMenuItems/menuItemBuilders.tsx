@@ -30,10 +30,6 @@ export {
   isSessionPendingAsking,
 } from "@src/util/session/sessionStatusDot";
 
-export function isBenchmarkSessionRow(session: Session): boolean {
-  return session.user_input?.startsWith("Benchmark run coordinator") ?? false;
-}
-
 interface BuildSessionMenuItemParams {
   session: Session;
   untitledSession: string;

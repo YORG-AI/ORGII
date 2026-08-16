@@ -76,7 +76,6 @@ interface NormalizedSessionDisplayInput {
   modelName?: string;
   externalHistorySource?: string;
   imported: boolean;
-  benchmark: boolean;
   agentOrg: boolean;
   remoteNative: boolean;
 }
@@ -98,7 +97,6 @@ function normalizeSessionDisplayInput(
           ? session.origin.source
           : undefined,
       imported: false,
-      benchmark: false,
       agentOrg: false,
       remoteNative: !session.origin || session.origin.kind === "orgii",
     };
@@ -118,8 +116,6 @@ function normalizeSessionDisplayInput(
     modelName: sourceDisplay?.model ?? session.model,
     externalHistorySource: session.importedFrom?.externalHistorySource,
     imported: Boolean(session.importedFrom),
-    benchmark:
-      session.user_input?.startsWith("Benchmark run coordinator") ?? false,
     agentOrg: Boolean(session.agentOrgId),
     remoteNative: false,
   };
@@ -158,7 +154,6 @@ function resolveAgentIconId(
   agentType: string | undefined,
   externalSource: ImportedHistorySourceDescriptor | undefined
 ): string {
-  if (input.benchmark) return "flask-conical";
   if (input.agentOrg) return "network";
   if (externalSource) return externalSource.iconId;
 

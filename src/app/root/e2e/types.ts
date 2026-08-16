@@ -820,25 +820,6 @@ export interface E2EHelpers {
       agentConfigRootCount: number;
     }>
   >;
-  seedBenchmarkRun: (opts: {
-    batchId?: string;
-    sourcePath: string;
-    taskIds: string[];
-    activeTaskId?: string;
-  }) => Promise<Result<{ batchId: string; activeTaskId: string | null }>>;
-  inspectBenchmarkRun: () => Promise<
-    Result<{
-      batchStatus: Json | null;
-      activeBatchId: string | null;
-      activeTaskId: string | null;
-    }>
-  >;
-  startLocalDockerBenchmarkRun: (opts: {
-    sourcePath: string;
-    taskId: string;
-    patch: string;
-  }) => Promise<Result<{ status: Json }>>;
-  getBenchmarkRunStatus: (runId: string) => Promise<Result<{ status: Json }>>;
   seedUserPresence: (opts: {
     roles: CustomRoleDefinition[];
     presence: UserPresenceState;

@@ -135,3 +135,49 @@ Note that the repo's own `npm run check:unused-exports` does **not** find these.
 **Verification:** `tsc --noEmit` clean, full vitest suite green (701 files / 6390 tests), production webpack build clean.
 
 **To restore:** reverse the `git mv` for the file in question. No other edits are needed.
+
+---
+
+## SWE-bench "Benchmark (Beta)" UI — archived 2026-08-16
+
+The SWE-bench Pro benchmark runner UI (task browser, run builder, per-run
+session group in the chat panel, `benchmark` WorkStation tab) is parked. On
+`develop` it was already unreachable from normal UI: no menu offered the
+`benchmark` create target, nothing created a `benchmark` tab except the E2E
+seed helpers, and `BenchmarkTabSidebar` had no consumer. The only live entry
+was clicking a legacy "Benchmark run coordinator" session in the sidebar,
+which routed to the run-list surface. **Not** the Housekeeper _token_ benchmark
+(`housekeeperTokenBenchmark`, `integrations:housekeeper.benchmark.*`) — that
+is a different feature and stays live.
+
+**What moved here (self-contained to the feature):**
+
+- `src/features/BenchmarkPanel/` — panel, task selector, `useBenchmarkTasks`, `useBenchmarkAgentBatchRun`
+- `src/modules/WorkStation/shared/SidebarModules/Benchmark/` — `BenchmarkTabSidebar`
+- `src/modules/WorkStation/TabContent/renderers/benchmark.tsx` — the `benchmark` tab renderer
+- `src/engines/ChatPanel/panels/BenchmarkRunBuilder.tsx` — the run-builder creator surface
+- `src/store/benchmark/` — batch status / active batch atoms
+- `src/api/tauri/benchmark/` — the `benchmarkApi` client over the `benchmark_*` Tauri commands
+- `src/app/root/e2e/helpers/benchmark.ts` — E2E seed/inspect helpers
+- `tests/e2e/specs/core/{benchmark-run-ui,benchmark-docker-execution}.spec.mjs` (mirrored under `.archive/tests/`)
+
+**What deliberately stayed live:**
+
+- `src-tauri/src/benchmark/` — the Rust runner/commands still compile and are registered; they are now unreferenced from the frontend and can be removed in a backend-only PR
+- `src/config/agentIcons.tsx` `flask-conical` entry and `src/assets/fileTypeIcons/folder-benchmark*.svg` — generic icon registry / file-icon theme, not feature-specific
+- Housekeeper token benchmark (`src/modules/MainApp/Integrations/Housekeeper/HousekeeperCategoryView.tsx`, `rpc.validation.housekeeperTokenBenchmark`)
+
+**Shared files edited in place** to sever the branch:
+
+- `src/store/workstation/tabs/{types.ts,tabFactory.ts,storage.ts,index.ts,factories/{index,codeEditor}.ts}` — dropped `"benchmark"` from `WorkStationTabType`, its host mapping and persisted-type allow-list, and `BenchmarkTabData` / `benchmarkTabFactory` / `createBenchmarkTab`
+- `src/modules/WorkStation/TabContent/registry.ts`, `shared/SidebarModules/index.ts`, `shared/TabBar/components/SortableTab/index.tsx` (`BookLock` icon branch), `AppShell/CodeSidebarHeaderActions.tsx`
+- `src/store/ui/chatPanelAtom.ts`, `src/types/ui/chatPanel.ts`, `src/engines/ChatPanel/navigation/chatPanelSurfaceReducer.ts` — removed `CHAT_PANEL_CREATE_TARGET.BENCHMARK`, `CHAT_PANEL_CONTENT_MODE.BENCHMARK_SESSION_GROUP`, `CHAT_PANEL_SURFACE_KIND.BENCHMARK_SESSION_GROUP` and their navigate/reducer cases
+- `src/engines/ChatPanel/{index.tsx,ChatPanelContent.tsx,ChatPanelEmptyContent.tsx,hooks/useChatPanelContentState.tsx}` — removed the run-list mount, the run-builder creator branch, and `showBenchmarkSessionGroupContent`
+- `src/scaffold/NavigationSidebar/connectors/{useWorkstationSidebarHandlers.ts,useSessionMenuItems/{index.tsx,menuItemBuilders.tsx},WorkstationSidebarConnector/sidebarConnector.pinnedAndRevealData.ts}` — removed coordinator-session routing, child-session hiding, and master-row highlighting
+- `src/util/session/sessionDisplayMetadata.ts` — removed the `benchmark` flag / `flask-conical` icon override
+- `src/app/root/{E2EBootstrap.tsx,e2e/types.ts}`, `tests/e2e/wdio.conf.mjs` — removed helper wiring and the docker fixture builder
+- `src/i18n/locales/*/sessions.json` — removed `creator.benchmark.*` and `creator.createTarget.benchmark` (13 locales)
+
+**Behavior change:** legacy "Benchmark run coordinator" sessions and their child sessions now appear in the sidebar as ordinary sessions (previously the children were hidden and the coordinator opened the run list). Any persisted `benchmark` WorkStation tab is dropped by the storage allow-list on load.
+
+**To restore:** reverse the `git mv`s above and revert the in-place edits (see the archival commit).

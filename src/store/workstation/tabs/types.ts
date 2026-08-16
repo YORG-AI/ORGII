@@ -34,7 +34,6 @@ export type WorkStationTabType =
   | "lint-scan" // Workspace lint scan configuration
   | "ai-impact" // AI session impact dashboard
   | "search-sessions" // Session search + table (reuses SessionTable; launchpad tab)
-  | "benchmark" // Benchmark task browser and runner setup
   | "url-preview" // URL preview (agent-triggered webview in editor)
   // Browser tabs
   | "browser-session"
@@ -97,7 +96,6 @@ export type WorkStationTabCategory =
   | "lint"
   | "ai-impact"
   | "search-sessions"
-  | "benchmark"
   | "preview"
   | "subagent"
   | "agent-config"
@@ -251,7 +249,6 @@ export function getWorkstationTabOwnership(
 
     case "terminal":
     case "settings":
-    case "benchmark":
     case "browser-session":
     case "devtools":
     case "project-dashboard":

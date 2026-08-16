@@ -209,15 +209,6 @@ const WorkItemDetailEntry: RendererEntry = {
 };
 
 // ============================================
-// Launchpad renderers
-// ============================================
-
-const BenchmarkEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/benchmark")),
-  debugLabel: "benchmark",
-};
-
-// ============================================
 // Canvas Preview renderer
 // ============================================
 
@@ -269,7 +260,6 @@ export const REGISTRY: TabContentRegistry = {
   "lint-scan": LintScanEntry,
   "ai-impact": AIImpactEntry,
   "search-sessions": SearchSessionsEntry,
-  benchmark: BenchmarkEntry,
   "url-preview": UrlPreviewEntry,
 
   // Browser

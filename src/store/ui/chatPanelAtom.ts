@@ -277,7 +277,6 @@ export const CHAT_PANEL_CREATE_TARGET = {
   GITHUB_ISSUES_PROJECT: "githubIssuesProject",
   WORK_ITEM: "workItem",
   COLLAB_ORG: "collabOrg",
-  BENCHMARK: "benchmark",
 } as const;
 
 export type ChatPanelCreateTarget =
@@ -339,7 +338,6 @@ chatPanelCreateProjectContextAtom.debugLabel =
 export const CHAT_PANEL_CONTENT_MODE = {
   SESSION: "session",
   NON_SESSION: "nonSession",
-  BENCHMARK_SESSION_GROUP: "benchmarkSessionGroup",
 } as const;
 
 export type ChatPanelContentMode =
@@ -482,7 +480,6 @@ chatPanelWorkspaceOverviewTabAtom.debugLabel =
 
 export type ChatPanelSurfaceState =
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.SESSION }
-  | { kind: typeof CHAT_PANEL_SURFACE_KIND.BENCHMARK_SESSION_GROUP }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_PROJECT }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_GITHUB_ISSUES_PROJECT }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM }
@@ -512,7 +509,6 @@ export type ChatPanelSurfaceState =
 
 export type ChatPanelNavigateCommand =
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.SESSION }
-  | { kind: typeof CHAT_PANEL_SURFACE_KIND.BENCHMARK_SESSION_GROUP }
   | {
       kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_PROJECT;
       createProjectContext?: ChatPanelCreateProjectContext | null;
@@ -577,12 +573,6 @@ export const chatPanelNavigateAtom = atom(
     switch (command.kind) {
       case CHAT_PANEL_SURFACE_KIND.SESSION:
         set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.SESSION);
-        return;
-      case CHAT_PANEL_SURFACE_KIND.BENCHMARK_SESSION_GROUP:
-        set(
-          chatPanelContentModeAtom,
-          CHAT_PANEL_CONTENT_MODE.BENCHMARK_SESSION_GROUP
-        );
         return;
       case CHAT_PANEL_SURFACE_KIND.NEW_PROJECT:
         set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
@@ -649,11 +639,6 @@ export const chatPanelNavigateAtom = atom(
 chatPanelNavigateAtom.debugLabel = "chatPanelNavigateAtom";
 
 export const activeChatPanelSurfaceAtom = atom<ChatPanelSurfaceState>((get) => {
-  const contentMode = get(chatPanelContentModeAtom);
-  if (contentMode === CHAT_PANEL_CONTENT_MODE.BENCHMARK_SESSION_GROUP) {
-    return { kind: CHAT_PANEL_SURFACE_KIND.BENCHMARK_SESSION_GROUP };
-  }
-
   const selectedWorkItem = get(chatPanelSelectedWorkItemAtom);
   if (selectedWorkItem) {
     return {
@@ -696,6 +681,7 @@ export const activeChatPanelSurfaceAtom = atom<ChatPanelSurfaceState>((get) => {
     };
   }
 
+  const contentMode = get(chatPanelContentModeAtom);
   const createTarget = get(chatPanelCreateTargetAtom);
   if (
     contentMode === CHAT_PANEL_CONTENT_MODE.NON_SESSION &&

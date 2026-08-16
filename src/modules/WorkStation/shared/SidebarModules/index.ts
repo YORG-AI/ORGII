@@ -20,8 +20,6 @@ export {
 
 export { TerminalTabSidebar } from "./Terminal";
 
-export { BenchmarkTabSidebar } from "./Benchmark";
-
 export {
   registerTabSidebar,
   getTabSidebarDescriptor,

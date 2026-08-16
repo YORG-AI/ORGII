@@ -41,11 +41,6 @@ const CreateWorkItemView = React.lazy(
   () =>
     import("@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView")
 );
-const BenchmarkRunBuilder = React.lazy(() =>
-  import("./panels/BenchmarkRunBuilder").then((module) => ({
-    default: module.BenchmarkRunBuilder,
-  }))
-);
 
 type SessionCreatorSlot = NonNullable<ChatPanelProps["sessionCreatorSlot"]>;
 type SessionCreatorSlotProps = React.ComponentProps<SessionCreatorSlot>;
@@ -419,14 +414,6 @@ export function ChatPanelEmptyContent({
 
   if (createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG) {
     return renderCollabOrgCreator();
-  }
-
-  if (createTarget === CHAT_PANEL_CREATE_TARGET.BENCHMARK) {
-    return (
-      <Suspense fallback={null}>
-        <BenchmarkRunBuilder className={creatorClassName} />
-      </Suspense>
-    );
   }
 
   return null;

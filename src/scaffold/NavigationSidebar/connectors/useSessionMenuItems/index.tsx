@@ -3,12 +3,9 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { benchmarkApi } from "@src/api/tauri/benchmark";
 import type { AgentLiveStatus } from "@src/api/tauri/rpc/schemas/agentOrgs";
-import { createLogger } from "@src/hooks/logger";
 import { useFilteredItems } from "@src/hooks/search";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
-import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import {
   type Session,
   type SessionListCategory,
@@ -29,11 +26,7 @@ import {
   DEFAULT_GROUP_VISIBLE_COUNT,
   type DateGroupKey,
 } from "./dateGroupingHelpers";
-import {
-  buildSessionMenuItem,
-  isBenchmarkSessionRow,
-  separator,
-} from "./menuItemBuilders";
+import { buildSessionMenuItem, separator } from "./menuItemBuilders";
 import {
   buildByAgentMenuItems,
   buildByTimeMenuItems,
@@ -70,8 +63,6 @@ function liveDetailForSession(
 }
 
 export { getLoadMoreGroupId, isLoadMoreId } from "./paginationHelpers";
-
-const logger = createLogger("SessionSidebar");
 
 interface ChildSessionRecord {
   sessionId: string;
@@ -186,9 +177,6 @@ export function useSessionMenuItems({
   const { t: tCommon } = useTranslation();
   const pagination = useAtomValue(sessionPaginationAtom);
   const agentLiveStatuses = useAtomValue(agentLiveStatusAtom);
-  const benchmarkAgentBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
-  const [benchmarkHistoryChildSessionIds, setBenchmarkHistoryChildSessionIds] =
-    useState<ReadonlySet<string>>(() => new Set());
   // parentId → the parent's updated_at at query time. Children are re-fetched
   // only when the parent session changes, instead of re-querying every
   // visible session on every list refresh (that pattern issued 100+
@@ -199,50 +187,6 @@ export function useSessionMenuItems({
   const [fetchedChildSessionsByParent, setFetchedChildSessionsByParent] =
     useState<ReadonlyMap<string, Session[]>>(() => new Map());
 
-  useEffect(() => {
-    let cancelled = false;
-    benchmarkApi
-      .listAgentBatchHistories()
-      .then((histories) => {
-        if (cancelled) return;
-        setBenchmarkHistoryChildSessionIds(
-          new Set(
-            histories.flatMap((history) =>
-              history.items
-                .map((item) => item.sessionId)
-                .filter((sessionId): sessionId is string => Boolean(sessionId))
-            )
-          )
-        );
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        logger.warn("Failed to load benchmark batch histories:", error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const benchmarkChildSessionIds = useMemo(
-    () =>
-      new Set(
-        benchmarkAgentBatchStatus?.items
-          .map((item) => item.sessionId)
-          .filter((sessionId): sessionId is string => Boolean(sessionId)) ?? []
-      ),
-    [benchmarkAgentBatchStatus?.items]
-  );
-
-  const benchmarkCoordinatorSessionIds = useMemo(
-    () =>
-      new Set(
-        sortedSessions
-          .filter(isBenchmarkSessionRow)
-          .map((session) => session.session_id)
-      ),
-    [sortedSessions]
-  );
   const isInSidebarRoster = useMemo(
     () => createSidebarRosterMatcher(pagination),
     [pagination]
@@ -273,16 +217,10 @@ export function useSessionMenuItems({
               (includeExternal ||
                 !isImportedHistorySession(session.session_id)) &&
               (sessionMatchesOrgFilter(session, selectedOrgIds) ||
-                (extraSessionIds?.has(session.session_id) ?? false)))) &&
-          !benchmarkChildSessionIds.has(session.session_id) &&
-          !benchmarkHistoryChildSessionIds.has(session.session_id) &&
-          !benchmarkCoordinatorSessionIds.has(session.parentSessionId ?? "")
+                (extraSessionIds?.has(session.session_id) ?? false))))
         );
       }),
     [
-      benchmarkChildSessionIds,
-      benchmarkCoordinatorSessionIds,
-      benchmarkHistoryChildSessionIds,
       extraSessionIds,
       includeExternal,
       isInSidebarRoster,
