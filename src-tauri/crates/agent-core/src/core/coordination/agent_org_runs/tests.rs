@@ -397,7 +397,7 @@ fn starting_store_errors_drive_stable_permanent_failure_classification() {
     database::db::get_connection()
         .expect("db")
         .execute(
-            "DELETE FROM agent_org_initial_inputs WHERE org_run_id=?1",
+            "DELETE FROM agent_org_runtime_initial_inputs WHERE org_run_id=?1",
             [&run.id],
         )
         .expect("remove the required initial-input certificate");
