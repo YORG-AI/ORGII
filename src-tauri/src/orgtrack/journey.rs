@@ -13,16 +13,15 @@ use std::collections::{HashMap, HashSet};
 
 use database::db::get_projects_connection;
 use orgtrack_core::canonical::SessionEditKind;
-use rusqlite::OptionalExtension;
 use orgtrack_core::store::sqlite::SqliteRecordStore;
 use orgtrack_core::store::RecordStore;
 use orgtrack_graph::audit::audit_canonical_journey;
 use orgtrack_graph::journey::{
-    ArtifactRelation, CanonicalArtifact, CanonicalCommit, CanonicalJourneyInput,
-    CanonicalProject, CanonicalSession, CanonicalTurn, CoverageStatus, JourneyGraph,
-    SessionParent,
+    ArtifactRelation, CanonicalArtifact, CanonicalCommit, CanonicalJourneyInput, CanonicalProject,
+    CanonicalSession, CanonicalTurn, CoverageStatus, JourneyGraph, SessionParent,
 };
 use orgtrack_graph::JourneyScope;
+use rusqlite::OptionalExtension;
 
 /// Build the canonical Journey graph for a scope.
 ///
@@ -184,8 +183,7 @@ fn select_sessions(
                     .as_deref()
                     .map(|path| {
                         workspaces.iter().any(|workspace| {
-                            path == workspace
-                                || path.starts_with(&format!("{workspace}/"))
+                            path == workspace || path.starts_with(&format!("{workspace}/"))
                         })
                     })
                     .unwrap_or(false);
@@ -225,9 +223,8 @@ fn select_sessions(
 /// or an empty linked-repos list is an error, because there is no honest
 /// workspace to scope the journey to.
 fn resolve_project_workspaces(project_id: &str) -> Result<Vec<String>, String> {
-    let conn = get_projects_connection().map_err(|err| {
-        format!("cannot open project store while resolving {project_id}: {err}")
-    })?;
+    let conn = get_projects_connection()
+        .map_err(|err| format!("cannot open project store while resolving {project_id}: {err}"))?;
     let linked_repos_json: Option<String> = conn
         .query_row(
             "SELECT linked_repos_json FROM projects WHERE id = ?1",
@@ -235,17 +232,14 @@ fn resolve_project_workspaces(project_id: &str) -> Result<Vec<String>, String> {
             |row| row.get(0),
         )
         .optional()
-        .map_err(|err| {
-            format!("cannot read linked repos for {project_id}: {err}")
-        })?;
+        .map_err(|err| format!("cannot read linked repos for {project_id}: {err}"))?;
     let Some(raw) = linked_repos_json else {
         return Err(format!(
             "canonical Journey graph store is not initialized for this project;              project {project_id} does not exist in the project store"
         ));
     };
-    let workspaces: Vec<String> = serde_json::from_str(&raw).map_err(|err| {
-        format!("project {project_id} linked_repos_json is invalid: {err}")
-    })?;
+    let workspaces: Vec<String> = serde_json::from_str(&raw)
+        .map_err(|err| format!("project {project_id} linked_repos_json is invalid: {err}"))?;
     if workspaces.is_empty() {
         return Err(format!(
             "canonical Journey graph store is not initialized for this project;              project {project_id} has no linked workspaces (linked_repos_json is empty)"

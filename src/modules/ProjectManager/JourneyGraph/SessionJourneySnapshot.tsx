@@ -75,7 +75,10 @@ export const SessionJourneySnapshot: React.FC<{
     // Invalidate previous requests before scheduling the new session fetch.
     requestGenerationRef.current += 1;
     const timer = window.setTimeout(() => void reload(), 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      requestGenerationRef.current += 1;
+    };
   }, [sessionId, reload]);
   const currentSnapshot =
     snapshot?.sessionId === sessionId ? snapshot.value : null;

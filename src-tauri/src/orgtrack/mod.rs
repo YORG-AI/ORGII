@@ -189,10 +189,11 @@ pub async fn orgtrack_get_extraction_memory_gate(
 mod tests {
     use super::{is_temporary_diff_path, project_file_session_history};
     use orgtrack_core::canonical::{
-        AgentMetadata, AttributionPrecision, CollaborationSessionOrigin, ResourceAction,
-        ResourceInteractionCaptureMethod, ResourceInteractionOutcome, ResourceInteractionRecord,
-        SessionActorRecord, SessionRecord, RESOURCE_INTERACTION_SCHEMA_VERSION,
-        SESSION_ACTOR_SCHEMA_VERSION, SESSION_PROVENANCE_HOOK_ORIGIN,
+        AgentMetadata, AttributionPrecision, CollaborationSessionOrigin, JourneyMetadata,
+        ResourceAction, ResourceInteractionCaptureMethod, ResourceInteractionOutcome,
+        ResourceInteractionRecord, SessionActorRecord, SessionRecord,
+        RESOURCE_INTERACTION_SCHEMA_VERSION, SESSION_ACTOR_SCHEMA_VERSION,
+        SESSION_PROVENANCE_HOOK_ORIGIN,
     };
     use orgtrack_core::privacy::ORGTRACK_SCHEMA_VERSION;
     use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
@@ -243,6 +244,7 @@ mod tests {
                     origin: Some(SESSION_PROVENANCE_HOOK_ORIGIN.to_string()),
                     ..AgentMetadata::default()
                 },
+                journey: JourneyMetadata::default(),
             })
             .expect("upsert session");
 
@@ -328,6 +330,7 @@ mod tests {
                 org_member_id: None,
                 collaboration_origin: None,
                 metadata: AgentMetadata::default(),
+                journey: JourneyMetadata::default(),
             })
             .expect("upsert root session");
         store
@@ -408,6 +411,7 @@ mod tests {
                     org_member_id: None,
                     collaboration_origin: None,
                     metadata: AgentMetadata::default(),
+                    journey: JourneyMetadata::default(),
                 })
                 .expect("upsert session");
         }
@@ -506,6 +510,7 @@ mod tests {
                     org_member_id: None,
                     collaboration_origin: None,
                     metadata: AgentMetadata::default(),
+                    journey: JourneyMetadata::default(),
                 })
                 .expect("upsert session");
         }

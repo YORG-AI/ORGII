@@ -202,7 +202,7 @@ fn agent_kind(session: &SessionRecord) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AgentMetadata, ArtifactQuality};
+    use crate::{AgentMetadata, ArtifactQuality, JourneyMetadata};
 
     #[test]
     fn exports_session_evidence_with_net_final_diff_totals() {
@@ -222,6 +222,7 @@ mod tests {
             org_member_id: None,
             collaboration_origin: None,
             metadata: AgentMetadata::default(),
+            journey: JourneyMetadata::default(),
         };
         let final_diffs = vec![SessionFinalDiffRecord {
             schema_version: 1,

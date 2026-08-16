@@ -7,7 +7,13 @@ import {
   Play,
   X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   type ForkCompareResponse,
@@ -85,10 +91,14 @@ export const SessionJourneyControls: React.FC<{
       (localStorage.getItem(REVIEW_PANEL_STORAGE_KEY) as ReviewPanelMode) ||
       "hidden"
   );
+  const requestGenerationRef = useRef(0);
   const reload = useCallback(async () => {
+    const generation = ++requestGenerationRef.current;
     if (!sessionId) {
-      setSnapshot(null);
-      setComparison(null);
+      if (generation === requestGenerationRef.current) {
+        setSnapshot(null);
+        setComparison(null);
+      }
       return;
     }
     try {
@@ -96,16 +106,21 @@ export const SessionJourneyControls: React.FC<{
         sessionJourneyApi.snapshot(sessionId),
         sessionJourneyApi.forkCompare(sessionId),
       ]);
+      if (generation !== requestGenerationRef.current) return;
       setSnapshot(response.snapshot);
       setComparison(forkComparison);
       setError(null);
     } catch (reason) {
+      if (generation !== requestGenerationRef.current) return;
       setError(String(reason));
     }
   }, [sessionId]);
   useEffect(() => {
     const timer = window.setTimeout(() => void reload(), 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      requestGenerationRef.current += 1;
+    };
   }, [reload]);
   useEffect(() => {
     if (
@@ -116,10 +131,40 @@ export const SessionJourneyControls: React.FC<{
       queueMicrotask(() => setShowRecovery(true));
   }, [sessionId, snapshot]);
   useEffect(() => {
-    if (panelMode !== "hidden") {
-      const timer = window.setInterval(() => void reload(), 5000);
-      return () => window.clearInterval(timer);
-    }
+    if (panelMode === "hidden") return;
+    let timer: number | null = null;
+    let disposed = false;
+    let running = false;
+    const clearTimer = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+    };
+    const schedule = () => {
+      clearTimer();
+      if (disposed || document.visibilityState === "hidden") return;
+      timer = window.setTimeout(() => void run(), 5000);
+    };
+    const run = async () => {
+      if (disposed || running || document.visibilityState === "hidden") return;
+      running = true;
+      try {
+        await reload();
+      } finally {
+        running = false;
+        schedule();
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") clearTimer();
+      else void run();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    schedule();
+    return () => {
+      disposed = true;
+      clearTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [panelMode, reload]);
   const setMode = (mode: ReviewPanelMode) => {
     localStorage.setItem(REVIEW_PANEL_STORAGE_KEY, mode);

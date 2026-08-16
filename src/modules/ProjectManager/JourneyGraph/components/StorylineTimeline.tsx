@@ -149,7 +149,7 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
             ))}
 
             {/* Connector curves (factual edges only; endpoints must be placed). */}
-            {curves.map(({ connector, path, fromX, fromY, toX, toY }) => (
+            {curves.map(({ connector, path, toX, toY }) => (
               <g
                 key={`${connector.kind}-${connector.from}-${connector.to}-${connector.sourceRef}`}
                 data-testid="storyline-curve"
@@ -229,7 +229,7 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
           </svg>
 
           {/* HTML layer: milestone label cards (kept above the SVG). */}
-          {lanes.map(({ lane, y, placed }) =>
+          {lanes.map(({ y, placed }) =>
             placed
               .filter(({ showLabel }) => showLabel)
               .map(({ milestone, x }) => {

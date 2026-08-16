@@ -442,12 +442,7 @@ impl SessionJourneyApplicationService {
                 &journey.active_branch_id,
             )?,
         };
-        Self::validate_branch_anchor(
-            &tx,
-            &request.session_id,
-            &anchor,
-            &journey.active_branch_id,
-        )?;
+        Self::validate_branch_anchor(&tx, &request.session_id, &anchor, &journey.active_branch_id)?;
         journey
             .start_fork(
                 journey.revision,
@@ -970,7 +965,9 @@ impl SessionJourneyApplicationService {
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
             )
             .optional()
-            .map_err(|_| JourneyApplicationError::存储失败("无法读取当前分叉最近用户消息。".into()))?
+            .map_err(|_| {
+                JourneyApplicationError::存储失败("无法读取当前分叉最近用户消息。".into())
+            })?
             .filter(|(_, sequence)| *sequence >= 0)
             .ok_or_else(|| {
                 JourneyApplicationError::校验失败(

@@ -96,6 +96,8 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
   const journeyStatesRef = useRef(
     new Map<string, ProjectSessionJourneyState>()
   );
+  const journeyRenderTimerRef = useRef<number | null>(null);
+  const journeyRenderGenerationRef = useRef(0);
 
   const applyJourneyState = useCallback(
     (
@@ -105,16 +107,29 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
     ) => {
       if (generation !== generationRef.current || !bundleRef.current) return;
       journeyStatesRef.current.set(sessionId, state);
-      const bundle = bundleRef.current;
-      setRoot(
-        buildWorkspaceProjectTree({
-          projects: bundle.projects,
-          workItemsByProject: bundle.workItemsByProject,
-          sessions: bundle.sessions,
-          standaloneWorkItems: bundle.standaloneWorkItems,
-          journeysBySessionId: journeyStatesRef.current,
-        })
-      );
+      if (
+        journeyRenderTimerRef.current !== null &&
+        journeyRenderGenerationRef.current !== generation
+      ) {
+        window.clearTimeout(journeyRenderTimerRef.current);
+        journeyRenderTimerRef.current = null;
+      }
+      journeyRenderGenerationRef.current = generation;
+      if (journeyRenderTimerRef.current !== null) return;
+      journeyRenderTimerRef.current = window.setTimeout(() => {
+        journeyRenderTimerRef.current = null;
+        const bundle = bundleRef.current;
+        if (generation !== generationRef.current || !bundle) return;
+        setRoot(
+          buildWorkspaceProjectTree({
+            projects: bundle.projects,
+            workItemsByProject: bundle.workItemsByProject,
+            sessions: bundle.sessions,
+            standaloneWorkItems: bundle.standaloneWorkItems,
+            journeysBySessionId: journeyStatesRef.current,
+          })
+        );
+      }, 16);
     },
     []
   );
@@ -175,6 +190,13 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
 
   useEffect(() => {
     void reload(false);
+    return () => {
+      generationRef.current += 1;
+      if (journeyRenderTimerRef.current !== null) {
+        window.clearTimeout(journeyRenderTimerRef.current);
+        journeyRenderTimerRef.current = null;
+      }
+    };
   }, [reload]);
 
   const rows = useMemo(() => {
