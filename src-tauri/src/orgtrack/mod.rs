@@ -36,6 +36,18 @@ use orgtrack_core::projectors::stats::{session_summaries, CoreSessionSummary};
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
 use types::OrgtrackTier;
 
+/// P1 read-only Journey entry point. It validates scope before touching storage.
+/// The persisted canonical graph is not optional: absent graph data is an error,
+/// never a synthesized partial response.
+#[tauri::command]
+pub async fn journey_graph_query(scope: String) -> Result<orgtrack_graph::JourneyGraph, String> {
+    let _scope = orgtrack_graph::JourneyScope::parse(&scope)?;
+    Err(
+        "canonical Journey graph store is not initialized for this project; refusing partial data"
+            .to_string(),
+    )
+}
+
 #[tauri::command]
 pub async fn orgtrack_initialize(
     repo_path: String,

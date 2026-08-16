@@ -321,6 +321,7 @@ session_persistence::cache_get_session_diff,
 project_management::lineage::get_session_impact,
 project_management::lineage::get_provenance_session_ids,
 // Orgtrack - repo-shareable lineage
+orgtrack::journey_graph_query,
 orgtrack::orgtrack_initialize,
 orgtrack::orgtrack_sync_core_repo,
 orgtrack::orgtrack_export,
