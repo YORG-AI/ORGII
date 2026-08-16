@@ -366,6 +366,54 @@ fn starting_finish_requires_exact_member_and_input_durability_then_is_idempotent
 }
 
 #[test]
+fn starting_store_errors_drive_stable_permanent_failure_classification() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run = create_starting_fixture(true);
+
+    let retryable = AgentOrgRunStore::finish_starting(&run.id, 1)
+        .expect_err("an incomplete receipt remains retryable");
+    assert!(!is_permanent_finish_starting_error(&retryable));
+
+    let identity_error = AgentOrgRunStore::mark_materialization_succeeded(
+        &run.id,
+        "member-w1",
+        1,
+        "unexpected-member-session",
+    )
+    .expect_err("a receipt cannot certify a different Session identity");
+    assert!(
+        is_materialization_identity_mismatch_error(&identity_error),
+        "{identity_error}"
+    );
+    assert!(is_permanent_finish_starting_error(&identity_error));
+
+    upsert_session_row_for_member(
+        "starting-member-w1",
+        Some("starting-root"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        SessionStatus::Idle.as_str(),
+    );
+    AgentOrgRunStore::mark_materialization_succeeded(&run.id, "member-w1", 1, "starting-member-w1")
+        .expect("certify the canonical Session identity");
+    database::db::get_connection()
+        .expect("db")
+        .execute(
+            "DELETE FROM agent_org_initial_inputs WHERE org_run_id=?1",
+            [&run.id],
+        )
+        .expect("remove the required initial-input certificate");
+
+    let certificate_error = AgentOrgRunStore::finish_starting(&run.id, 1)
+        .expect_err("a missing initial-input certificate is permanent");
+    assert!(
+        certificate_error.starts_with(STARTING_INPUT_CERTIFICATE_ERROR_PREFIX),
+        "{certificate_error}"
+    );
+    assert!(is_permanent_finish_starting_error(&certificate_error));
+}
+
+#[test]
 fn starting_without_initial_work_finishes_idle() {
     let _sandbox = test_helpers::test_env::sandbox();
     let run = create_starting_fixture(false);

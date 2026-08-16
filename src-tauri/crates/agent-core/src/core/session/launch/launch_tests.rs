@@ -1,9 +1,14 @@
 use super::launch_helpers::{
-    apply_member_launch_overrides_to_snapshot, member_runtime_account_id,
-    member_runtime_key_source, member_runtime_model, member_runtime_native_harness_type,
-    validate_launch_agent_definitions,
+    apply_member_launch_overrides_to_snapshot, handle_background_launch_failure,
+    member_runtime_account_id, member_runtime_key_source, member_runtime_model,
+    member_runtime_native_harness_type, validate_launch_agent_definitions,
 };
-use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
+use crate::coordination::agent_org_runs::{
+    AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
+    COORDINATOR_MEMBER_ID,
+};
+use crate::core::session::persistence::{self, UnifiedSessionRecord};
+use crate::core::session::SessionStatus;
 use crate::definitions::builtin::SDE_AGENT_ID;
 use crate::definitions::orgs::{
     HierarchyMode, OrgDefinition, OrgMember, OrgMemberLaunchOverride, OrgMemberRuntimeConfig,
@@ -54,6 +59,73 @@ fn valid_org_with_children(children: Vec<OrgMember>) -> OrgDefinition {
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
         children,
     }
+}
+
+fn ensure_agent_org_launch_test_schemas() {
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+    crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
+        .expect("agent sessions schema");
+    persistence::init(&conn).expect("unified session schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org runtime schemas");
+}
+
+#[tokio::test]
+async fn late_launch_failure_does_not_fail_a_running_team_coordinator() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_agent_org_launch_test_schemas();
+    let session_id = "running-team-coordinator";
+    persistence::upsert_session(&UnifiedSessionRecord {
+        session_id: session_id.to_string(),
+        name: "Running Team Coordinator".to_string(),
+        status: SessionStatus::Idle.as_str().to_string(),
+        session_type: "agent".to_string(),
+        agent_definition_id: Some(SDE_AGENT_ID.to_string()),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        ..Default::default()
+    })
+    .expect("persist coordinator Session");
+    let org = valid_org_with_children(Vec::new());
+    let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
+        org_id: org.id.clone(),
+        coordinator_agent_id: org.agent_id.clone(),
+        root_session_id: Some(session_id.to_string()),
+        org_snapshot: org,
+        entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+        status: AgentOrgRunStatus::Running,
+        work_item_id: None,
+        project_slug: None,
+        routine_fire_id: None,
+    })
+    .expect("create Running Team");
+
+    handle_background_launch_failure(
+        session_id,
+        Some(&run.id),
+        None,
+        None,
+        None,
+        "initial dispatch failed after Starting committed",
+        "failed to mark Team Starting failure",
+        "failed to mark coordinator Session failed",
+    )
+    .await;
+
+    assert_eq!(
+        AgentOrgRunStore::load(&run.id)
+            .expect("load Team")
+            .expect("Team exists")
+            .status,
+        AgentOrgRunStatus::Running
+    );
+    assert_eq!(
+        persistence::get_session(session_id)
+            .expect("load coordinator Session")
+            .expect("coordinator Session exists")
+            .status,
+        SessionStatus::Idle.as_str()
+    );
 }
 
 #[test]
