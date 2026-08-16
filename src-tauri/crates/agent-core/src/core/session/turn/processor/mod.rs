@@ -63,7 +63,6 @@ fn scoped_system_message(text: String, scope: RenderedSystemBlockScope) -> Value
         }],
     })
 }
-
 fn reconcile_inbox_transcript_replay(
     messages: &mut Vec<Value>,
     message_count_before_inbox: usize,

@@ -4,7 +4,6 @@ import type { JourneySnapshot } from "@src/api/tauri/sessionJourney";
 
 import {
   activeTask,
-  compareSameAnchorForks,
   hasRecoverableJourney,
   isRevisionConflict,
   visibleReviews,
@@ -146,12 +145,6 @@ describe("session Journey UI model", () => {
         })
       )
     ).toBe(false);
-  });
-
-  it("compares only forks with the same exact anchor", () => {
-    const groups = compareSameAnchorForks(snapshot());
-    expect(groups).toHaveLength(1);
-    expect(groups[0][1].map((fork) => fork.id)).toEqual(["forkA", "forkB"]);
   });
 
   it("refreshes a snapshot rather than treating a revision conflict as success", () => {

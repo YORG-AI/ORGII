@@ -37,15 +37,3 @@ export function hasRecoverableJourney(
     )
   );
 }
-
-export function compareSameAnchorForks(snapshot: JourneySnapshot | null) {
-  const groups = new Map<number, JourneySnapshot["branches"][string][]>();
-  for (const fork of Object.values(snapshot?.branches ?? {})) {
-    if (fork.id === fork.parent_branch_id) continue;
-    groups.set(fork.anchor_sequence, [
-      ...(groups.get(fork.anchor_sequence) ?? []),
-      fork,
-    ]);
-  }
-  return [...groups.entries()].filter(([, forks]) => forks.length > 1);
-}

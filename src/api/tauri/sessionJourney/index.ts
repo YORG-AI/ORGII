@@ -69,6 +69,24 @@ export interface JourneySnapshotResponse {
 export interface JourneyWriteResponse {
   revision: number;
 }
+export interface ForkCompareItem {
+  branch_id: string;
+  branch_name: string;
+  state: string;
+  task_outcome: TaskOutcome | null;
+  conclusion: string | null;
+  unresolved: string[];
+  evidence: string[];
+}
+export interface ForkCompareGroup {
+  parent_branch_id: string;
+  parent_anchor_message_id: string | null;
+  anchor_sequence: number;
+  forks: ForkCompareItem[];
+}
+export interface ForkCompareResponse {
+  groups: ForkCompareGroup[];
+}
 
 export interface CreateTaskRequest {
   sessionId: string;
@@ -163,6 +181,8 @@ export const sessionJourneyApi = {
     invoke<JourneyWriteResponse>("journey_review_retry", { request }),
   reviews: (sessionId: string) =>
     invoke<JourneyReview[]>("journey_review_list", { sessionId }),
+  forkCompare: (sessionId: string) =>
+    invoke<ForkCompareResponse>("journey_fork_compare", { sessionId }),
   readyDraft: (sessionId: string, reviewId: string) =>
     invoke<string | null>("journey_ready_draft", { sessionId, reviewId }),
   confirm: (request: PromoteFactRequest) =>

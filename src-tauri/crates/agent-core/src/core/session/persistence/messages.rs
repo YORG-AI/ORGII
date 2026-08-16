@@ -1,7 +1,9 @@
 //! Message persistence — insertion, loading, truncation, history building.
 
 use chrono::Utc;
-use rusqlite::{params, OptionalExtension, Result as SqliteResult};
+use rusqlite::{
+    params, OptionalExtension, Result as SqliteResult, Transaction, TransactionBehavior,
+};
 use uuid::Uuid;
 
 use crate::persistence::db_helpers as shared;
@@ -209,6 +211,18 @@ pub fn materialize_agent_org_inbox_transcript(
             true
         };
 
+        if inserted {
+            let sequence = tx
+                .query_row(
+                    "SELECT sequence FROM agent_messages WHERE id=?1 AND session_id=?2",
+                    params![message_id, session_id],
+                    |row| row.get(0),
+                )
+                .map_err(|err| err.to_string())?;
+            assign_user_message_membership(&tx, session_id, message_id, sequence)
+                .map_err(|err| err.to_string())?;
+        }
+
         let materialized_at = Utc::now().to_rfc3339();
         {
             let mut stmt = tx
@@ -250,6 +264,50 @@ pub fn save_user_msg(
     shared::save_user_msg(SESSION_TABLE_PREFIX, session_id, content, images)
 }
 
+/// Persist one user message and its Journey membership in one transaction.
+/// Sessions without a Journey deliberately receive no inferred membership.
+pub fn save_user_msg_and_assign_journey(
+    session_id: &str,
+    content: &str,
+    images: Option<&[String]>,
+) -> SqliteResult<String> {
+    with_sessions_writer(|| {
+        let mut conn = get_connection()?;
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let message_id = Uuid::new_v4().to_string();
+        let images_json = images.filter(|value| !value.is_empty()).map(|value| {
+            let paths = crate::persistence::images::persist_images(value);
+            serde_json::to_string(if paths.is_empty() { value } else { &paths })
+                .expect("image paths serialize")
+        });
+        let sequence: i64 = tx.query_row(
+            "SELECT COALESCE(MAX(sequence), -1) + 1 FROM agent_messages WHERE session_id = ?1",
+            [session_id],
+            |row| row.get(0),
+        )?;
+        tx.execute(
+            "INSERT INTO agent_messages
+             (id, session_id, role, content, sequence, created_at, images)
+             VALUES (?1, ?2, 'user', ?3, ?4, ?5, ?6)",
+            params![
+                &message_id,
+                session_id,
+                content,
+                sequence,
+                Utc::now().to_rfc3339(),
+                images_json
+            ],
+        )?;
+        assign_user_message_membership(&tx, session_id, &message_id, sequence)?;
+        tx.execute(
+            "UPDATE agent_sessions SET updated_at = ?2 WHERE session_id = ?1",
+            params![session_id, Utc::now().to_rfc3339()],
+        )?;
+        tx.commit()?;
+        Ok(message_id)
+    })
+}
+
 /// Persist an at-least-once user input under a stable id. Replays return the
 /// same id without inserting a second transcript row.
 pub fn save_user_msg_with_id(
@@ -262,7 +320,16 @@ pub fn save_user_msg_with_id(
 
 /// Save an assistant message.
 pub fn save_assistant_msg(session_id: &str, content: &str, model: &str) -> SqliteResult<String> {
-    shared::save_assistant_msg(SESSION_TABLE_PREFIX, session_id, content, model)
+    save_message_and_assign_journey(
+        session_id,
+        "assistant",
+        content,
+        None,
+        None,
+        None,
+        None,
+        Some(model),
+    )
 }
 
 /// Save a persisted compact summary boundary.
@@ -282,12 +349,15 @@ pub fn save_tool_call_msg(
     tool_name: &str,
     arguments: &str,
 ) -> SqliteResult<String> {
-    shared::save_tool_call_msg(
-        SESSION_TABLE_PREFIX,
+    save_message_and_assign_journey(
         session_id,
-        tool_call_id,
-        tool_name,
-        arguments,
+        "tool_call",
+        &format!("Tool call: {tool_name}"),
+        Some(tool_name),
+        Some(tool_call_id),
+        Some(arguments),
+        None,
+        None,
     )
 }
 
@@ -298,13 +368,231 @@ pub fn save_tool_result_msg(
     tool_name: &str,
     result: &str,
 ) -> SqliteResult<String> {
-    shared::save_tool_result_msg(
-        SESSION_TABLE_PREFIX,
+    save_message_and_assign_journey(
         session_id,
-        tool_call_id,
-        tool_name,
-        result,
+        "tool_result",
+        &crate::utils::safe_truncate_chars_to_string(result, 2000),
+        Some(tool_name),
+        Some(tool_call_id),
+        None,
+        Some(result),
+        None,
     )
+}
+
+fn save_message_and_assign_journey(
+    session_id: &str,
+    role: &str,
+    content: &str,
+    tool_name: Option<&str>,
+    tool_call_id: Option<&str>,
+    tool_input: Option<&str>,
+    tool_output: Option<&str>,
+    model: Option<&str>,
+) -> SqliteResult<String> {
+    with_sessions_writer(|| {
+        let mut conn = get_connection()?;
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let message_id = Uuid::new_v4().to_string();
+        let sequence = insert_journey_message(
+            &tx,
+            session_id,
+            &message_id,
+            role,
+            content,
+            tool_name,
+            tool_call_id,
+            tool_input,
+            tool_output,
+            model,
+        )?;
+        assign_message_membership(&tx, session_id, &message_id, sequence)?;
+        tx.execute(
+            "UPDATE agent_sessions SET updated_at = ?2 WHERE session_id = ?1",
+            params![session_id, Utc::now().to_rfc3339()],
+        )?;
+        tx.commit()?;
+        Ok(message_id)
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn insert_journey_message(
+    tx: &Transaction<'_>,
+    session_id: &str,
+    message_id: &str,
+    role: &str,
+    content: &str,
+    tool_name: Option<&str>,
+    tool_call_id: Option<&str>,
+    tool_input: Option<&str>,
+    tool_output: Option<&str>,
+    model: Option<&str>,
+) -> SqliteResult<i64> {
+    let sequence: i64 = tx.query_row(
+        "SELECT COALESCE(MAX(sequence), -1) + 1 FROM agent_messages WHERE session_id = ?1",
+        [session_id],
+        |row| row.get(0),
+    )?;
+    tx.execute(
+        "INSERT INTO agent_messages
+         (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, NULL)",
+        params![
+            message_id,
+            session_id,
+            role,
+            content,
+            tool_name,
+            tool_call_id,
+            tool_input,
+            tool_output,
+            model,
+            sequence,
+            Utc::now().to_rfc3339(),
+        ],
+    )?;
+    Ok(sequence)
+}
+
+fn assign_user_message_membership(
+    tx: &Transaction<'_>,
+    session_id: &str,
+    message_id: &str,
+    sequence: i64,
+) -> SqliteResult<()> {
+    let Some(mut journey) =
+        crate::core::journey_lifecycle::SqliteJourneyRepository::load(tx, session_id)
+            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?
+    else {
+        return Ok(());
+    };
+    let previous_revision = journey.revision;
+    journey
+        .on_user_message_persisted(previous_revision, sequence as u64)
+        .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+    if journey.revision != previous_revision {
+        crate::core::journey_lifecycle::SqliteJourneyRepository::compare_and_store_in_transaction(
+            tx,
+            &journey,
+            previous_revision,
+        )
+        .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
+    }
+    ensure_active_branch_accepts_messages(&journey)?;
+    tx.execute(
+        "INSERT INTO session_journey_memberships
+         (session_id, message_id, sequence, branch_id, task_id)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            session_id,
+            message_id,
+            sequence,
+            journey.active_branch_id,
+            journey.active_task_id,
+        ],
+    )?;
+    Ok(())
+}
+
+fn assign_message_membership(
+    tx: &Transaction<'_>,
+    session_id: &str,
+    message_id: &str,
+    sequence: i64,
+) -> SqliteResult<()> {
+    let Some(journey) =
+        crate::core::journey_lifecycle::SqliteJourneyRepository::load(tx, session_id)
+            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?
+    else {
+        return Ok(());
+    };
+    ensure_active_branch_accepts_messages(&journey)?;
+    tx.execute(
+        "INSERT INTO session_journey_memberships
+         (session_id, message_id, sequence, branch_id, task_id)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            session_id,
+            message_id,
+            sequence,
+            journey.active_branch_id,
+            journey.active_task_id,
+        ],
+    )?;
+    Ok(())
+}
+
+fn ensure_active_branch_accepts_messages(
+    journey: &crate::core::journey_lifecycle::SessionJourney,
+) -> SqliteResult<()> {
+    use crate::core::journey_lifecycle::ForkState;
+
+    let branch = journey
+        .branches
+        .get(&journey.active_branch_id)
+        .ok_or_else(|| {
+            rusqlite::Error::ToSqlConversionFailure("Journey active fork does not exist.".into())
+        })?;
+    if branch.state != ForkState::Active {
+        return Err(rusqlite::Error::ToSqlConversionFailure(
+            format!("Journey active fork is not writable: {:?}.", branch.state).into(),
+        ));
+    }
+    Ok(())
+}
+
+pub fn save_completed_turn_and_assign_journey(session_id: &str, turn_id: &str) -> SqliteResult<()> {
+    with_sessions_writer(|| {
+        let mut conn = get_connection()?;
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let Some(journey) =
+            crate::core::journey_lifecycle::SqliteJourneyRepository::load(&tx, session_id)
+                .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?
+        else {
+            tx.commit()?;
+            return Ok(());
+        };
+        ensure_active_branch_accepts_messages(&journey)?;
+        let sequence: i64 = tx.query_row(
+            "SELECT COALESCE(MAX(sequence), -1) FROM agent_messages WHERE session_id = ?1",
+            [session_id],
+            |row| row.get(0),
+        )?;
+        let member: Option<(String, Option<String>)> = tx
+            .query_row(
+                "SELECT branch_id, task_id FROM session_journey_memberships
+                 WHERE session_id = ?1 AND sequence = ?2
+                 ORDER BY message_id DESC LIMIT 1",
+                params![session_id, sequence],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        if member.as_ref()
+            != Some(&(
+                journey.active_branch_id.clone(),
+                journey.active_task_id.clone(),
+            ))
+        {
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                "Journey completed turn lacks exact active-fork message membership.".into(),
+            ));
+        }
+        tx.execute(
+            "INSERT OR IGNORE INTO session_journey_turn_memberships
+             (session_id, turn_id, completed_sequence, branch_id, task_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                session_id,
+                turn_id,
+                sequence,
+                journey.active_branch_id,
+                journey.active_task_id
+            ],
+        )?;
+        tx.commit()?;
+        Ok(())
+    })
 }
 
 /// Load messages for a session.

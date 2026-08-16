@@ -17,6 +17,7 @@ import {
   isPlanDisplayEvent,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
+import { focusJourneyMessage } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 import type { SessionReplayPlaceholderMode } from "@src/modules/WorkStation/shared";
 
 import { isEmailBubbleEvent } from "./EmailMessageBubble";
@@ -154,10 +155,22 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     messageWindow.key === replayWindowKey
       ? messageWindow.count
       : initialRenderedMessageCount;
+  const journeyTargetId = selectedMessage?.eventId ?? null;
+  const journeyTargetIndex = useMemo(
+    () =>
+      journeyTargetId
+        ? messages.findIndex((message) => message.eventId === journeyTargetId)
+        : -1,
+    [journeyTargetId, messages]
+  );
+  const effectiveRenderedMessageCount = Math.max(
+    renderedMessageCount,
+    journeyTargetIndex >= 0 ? messages.length - journeyTargetIndex : 0
+  );
   const lastMessageId = messages[messages.length - 1]?.eventId ?? null;
   const visibleMessages = useMemo(
-    () => messages.slice(-renderedMessageCount),
-    [messages, renderedMessageCount]
+    () => messages.slice(-effectiveRenderedMessageCount),
+    [effectiveRenderedMessageCount, messages]
   );
   const hiddenMessageCount = Math.max(
     0,
@@ -174,6 +187,14 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   );
   const liveContentLength =
     latestLiveDelta?.kind === "message" ? latestLiveDelta.content.length : 0;
+
+  useEffect(() => {
+    if (!journeyTargetId) return;
+    const frame = window.requestAnimationFrame(() =>
+      focusJourneyMessage(journeyTargetId)
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [journeyTargetId, journeyTargetIndex]);
 
   const handleLoadMoreMessages = useCallback(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -353,18 +374,30 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                     })}
                   />
                 )}
-                <BubbleWrapper
-                  message={message}
-                  viewMode={viewMode}
-                  index={index}
-                  total={totalVisibleMessages}
-                  onMessageClick={onMessageClick}
-                  onNavigateToTodoList={
-                    setViewMode ? handleNavigateToTodoList : undefined
+                <div
+                  data-journey-message-id={message.eventId}
+                  data-journey-highlight={
+                    message.eventId === journeyTargetId ? "true" : undefined
                   }
-                  showChrome={showChrome}
-                  orgMembers={orgMembers}
-                />
+                  className={
+                    message.eventId === journeyTargetId
+                      ? "rounded outline outline-2 outline-primary-5"
+                      : undefined
+                  }
+                >
+                  <BubbleWrapper
+                    message={message}
+                    viewMode={viewMode}
+                    index={index}
+                    total={totalVisibleMessages}
+                    onMessageClick={onMessageClick}
+                    onNavigateToTodoList={
+                      setViewMode ? handleNavigateToTodoList : undefined
+                    }
+                    showChrome={showChrome}
+                    orgMembers={orgMembers}
+                  />
+                </div>
               </React.Fragment>
             );
           })}

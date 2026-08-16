@@ -124,7 +124,6 @@ pub(super) async fn handle_command(
     push_debug_outbound(state, &reply).await;
     Ok(None)
 }
-
 async fn handle_model_command(
     state: &AgentAppState,
     _msg: &InboundMessage,
