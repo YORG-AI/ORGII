@@ -116,21 +116,31 @@ export function loadTerminalWebgl(
     return;
   }
 
+  let webglAddon: WebglAddon | null = null;
   try {
-    const webglAddon = new WebglAddon();
-    webglAddon.onContextLoss(() => {
+    webglAddon = new WebglAddon();
+    const addon = webglAddon;
+    addon.onContextLoss(() => {
       log.warn("[Terminal] WebGL context lost, falling back to canvas");
-      webglAddon.dispose();
+      addon.dispose();
       webglAddonRef.current = null;
       releaseWebglSlot();
     });
-    terminal.loadAddon(webglAddon);
-    webglAddonRef.current = webglAddon;
+    terminal.loadAddon(addon);
+    webglAddonRef.current = addon;
   } catch (error) {
     log.warn(
       "[Terminal] WebGL addon failed to load, using canvas renderer:",
       error
     );
+    // If `loadAddon`/`activate` threw after the GL context was created, the
+    // addon still owns that context (10–30 MB GPU); dispose it before
+    // handing the budget slot back so the live-context count stays honest.
+    try {
+      webglAddon?.dispose();
+    } catch {
+      // Best effort — the addon may not have activated at all.
+    }
     releaseWebglSlot();
   }
 }

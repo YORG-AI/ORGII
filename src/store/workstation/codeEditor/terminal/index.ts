@@ -18,6 +18,7 @@ import { type Getter, type Setter, atom } from "jotai";
 import { getSettingsDefaults } from "@src/config/settingsSchema";
 import { createLogger } from "@src/hooks/logger";
 import { settingsAtom } from "@src/store/settings/settingsAtom";
+import { removeCommandDetectionAtom } from "@src/store/workstation/codeEditor/terminal/commandDetection";
 import { invokeTauri, isTauriReady } from "@src/util/platform/tauri/init";
 import { isChatPanelTerminalId } from "@src/util/ui/terminal/chatPanelSessionId";
 import {
@@ -258,6 +259,9 @@ function removeTerminalSessionLocalOnly(
     next.delete(sessionId);
     return next;
   });
+  // OSC-633 command history for the closed session (up to 200 entries) —
+  // nothing else ever removed it, so the map grew with every terminal opened.
+  set(removeCommandDetectionAtom, sessionId);
   set(terminalPersistAtom);
 }
 
@@ -460,6 +464,7 @@ export const removeAgentSessionTerminalAtom = atom(
       next.delete(tabId);
       return next;
     });
+    set(removeCommandDetectionAtom, tabId);
 
     set(terminalPersistAtom);
   }

@@ -277,6 +277,33 @@ export const clearAllEditorCacheAtom = atom(null, (_get, set) => {
 });
 clearAllEditorCacheAtom.debugLabel = "clearAllEditorCacheAtom";
 
+/**
+ * Drop a session workspace's editor cache (repo tab layouts) and its
+ * active-repo pointer. Called when the session itself is deleted; without
+ * this the `session:<id>` keys — heap + one localStorage blob parsed at
+ * boot — accumulated for every session ever opened in the WorkStation.
+ */
+export const disposeEditorCacheForSessionAtom = atom(
+  null,
+  (get, set, sessionId: string) => {
+    const workspaceId = workstationWorkspaceId({ kind: "session", sessionId });
+    const caches = get(editorCacheByWorkspaceAtom);
+    if (workspaceId in caches) {
+      const next = { ...caches };
+      delete next[workspaceId];
+      set(editorCacheByWorkspaceAtom, next);
+    }
+    const activeRepos = get(activeEditorRepoByWorkspaceAtom);
+    if (workspaceId in activeRepos) {
+      const next = { ...activeRepos };
+      delete next[workspaceId];
+      set(activeEditorRepoByWorkspaceAtom, next);
+    }
+  }
+);
+disposeEditorCacheForSessionAtom.debugLabel =
+  "disposeEditorCacheForSessionAtom";
+
 export const switchActiveRepoAtom = atom(
   null,
   (_get, set, repoPath: string | null) => {

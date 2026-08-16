@@ -136,17 +136,26 @@ const XtermOutput = memo(function XtermOutput({
     };
     if (shouldLoadTerminalWebgl() && acquireWebglSlot()) {
       webglSlotHeldRef.current = true;
+      let webglAddon: WebglAddon | null = null;
       try {
-        const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => {
-          webglAddon.dispose();
+        webglAddon = new WebglAddon();
+        const addon = webglAddon;
+        addon.onContextLoss(() => {
+          addon.dispose();
           webglAddonRef.current = null;
           releaseWebglSlotIfHeld();
         });
-        terminal.loadAddon(webglAddon);
-        webglAddonRef.current = webglAddon;
+        terminal.loadAddon(addon);
+        webglAddonRef.current = addon;
       } catch (error) {
         logger.warn("WebGL unavailable for XtermOutput, using canvas:", error);
+        // Dispose a partially activated addon so its GL context is not
+        // orphaned while the budget slot is released.
+        try {
+          webglAddon?.dispose();
+        } catch {
+          // Best effort.
+        }
         webglAddonRef.current = null;
         releaseWebglSlotIfHeld();
       }
