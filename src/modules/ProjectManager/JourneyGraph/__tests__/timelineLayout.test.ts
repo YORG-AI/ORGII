@@ -30,6 +30,7 @@ function milestone(
     sourceRef: `src:${id}`,
     displayTimestamp: ts,
     sequence,
+    topicTags: [],
   };
 }
 

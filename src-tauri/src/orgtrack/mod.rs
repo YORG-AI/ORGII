@@ -7,7 +7,9 @@ pub mod history_commands;
 mod history_scan_coordinator;
 pub mod impact_indexer;
 pub mod importer;
+#[path = "journey_canonical.rs"]
 pub mod journey;
+pub mod journey_lifecycle_graph;
 pub mod paths;
 pub mod session_provenance;
 pub mod types;
@@ -47,7 +49,7 @@ pub async fn journey_graph_query(scope: String) -> Result<orgtrack_graph::Journe
     tokio::task::spawn_blocking(move || {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let store = SqliteRecordStore::new(&conn);
-        journey::build_journey_graph(&store, &parsed)
+        journey::build_journey_graph(&store, &conn, &parsed)
     })
     .await
     .map_err(|err| err.to_string())?

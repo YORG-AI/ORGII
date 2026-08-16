@@ -266,6 +266,15 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
                         ? ` · turn ${milestone.sequence}`
                         : ""}
                     </div>
+                    {milestone.evidenceClass === "canonical" &&
+                      milestone.topicTags.length > 0 && (
+                        <div
+                          className="truncate text-text-3"
+                          data-testid="storyline-topic-tags"
+                        >
+                          {milestone.topicTags.join(" · ")}
+                        </div>
+                      )}
                     <EvidenceSource
                       evidenceClass={milestone.evidenceClass}
                       sourceRef={milestone.sourceRef}

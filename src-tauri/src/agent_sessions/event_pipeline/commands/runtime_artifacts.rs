@@ -82,6 +82,7 @@ fn persist_runtime_orgtrack_records(
             source_session_id: Some(session.source_session_id.clone()),
             session_id: session.session_id.clone(),
             source_event_id: Some(event.id.clone()),
+            execution_turn_id: turn_id.clone(),
             turn_id,
             sequence_index: sequence_index as i64,
             timestamp: Some(event.created_at.clone()),
@@ -142,6 +143,7 @@ pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<Sessio
                 origin: Some(SOURCE_ORGII_RUST_AGENTS.to_string()),
                 ..AgentMetadata::default()
             },
+            journey: Default::default(),
         });
     };
 
@@ -187,5 +189,6 @@ pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<Sessio
             display_name: Some(record.name),
             ..AgentMetadata::default()
         },
+        journey: Default::default(),
     })
 }

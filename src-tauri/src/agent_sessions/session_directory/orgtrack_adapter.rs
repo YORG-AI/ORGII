@@ -169,6 +169,7 @@ fn aggregate_to_core_session(record: &SessionAggregateRecord) -> SessionRecord {
                 .or_else(|| Some(record.name.clone())),
             parsed_categories: Default::default(),
         },
+        journey: Default::default(),
     }
 }
 

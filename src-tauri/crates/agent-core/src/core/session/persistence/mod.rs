@@ -11,6 +11,7 @@
 //! - Message storage uses `agent_messages` (shared)
 
 mod crud;
+mod journey_metadata;
 pub(crate) mod linked_work_item;
 mod messages;
 mod sidebar;
@@ -36,6 +37,9 @@ pub use crud::{
 };
 pub(crate) use crud::{
     delete_session_with_connection, finish_session_delete, prepare_session_delete,
+};
+pub use journey_metadata::{
+    get_explicit_journey_metadata, upsert_explicit_journey_metadata, ExplicitJourneyMetadata,
 };
 pub use sidebar::{
     list_agent_org_root_sessions_page, list_standalone_coding_sessions_page,
@@ -64,5 +68,7 @@ use rusqlite::{Connection, Result as SqliteResult};
 /// is ready. Accepts a `&Connection` to avoid deadlock.
 pub fn init(conn: &Connection) -> SqliteResult<()> {
     crud::ensure_unified_schema(conn)?;
+    crate::core::journey_lifecycle::SqliteJourneyRepository::ensure_schema(conn)?;
+    crate::core::session::journey_embedding::ensure_schema(conn)?;
     Ok(())
 }

@@ -6,15 +6,19 @@ export type EvidenceClass =
   | "derivedRule"
   | "aiAnnotation"
   | "userOverlay";
-
+export interface JourneyNodeMetadata {
+  agentIdentity?: string | null;
+  agentBand?: string | null;
+  topicTags: string[];
+}
 export interface JourneyGraphNode {
   id: string;
   kind: string;
   evidenceClass: EvidenceClass;
   sourceRef: string;
   displayTimestamp?: string | null;
+  metadata?: JourneyNodeMetadata;
 }
-
 export interface JourneyGraphEdge {
   from: string;
   to: string;
@@ -22,18 +26,15 @@ export interface JourneyGraphEdge {
   evidenceClass: EvidenceClass;
   sourceRef: string;
 }
-
 export type JourneyCoverageStatus =
   | "represented"
   | "uncovered"
   | { mergedInto: { target: string } }
   | { excluded: { reason: string } };
-
 export interface JourneyCoverage {
   sourceRef: string;
   status: JourneyCoverageStatus;
 }
-
 export interface JourneyGraphPayload {
   nodes: JourneyGraphNode[];
   edges: JourneyGraphEdge[];

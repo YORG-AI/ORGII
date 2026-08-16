@@ -256,6 +256,7 @@ fn core_session_record_from_imported_input(input: &ImportedHistoryCacheInput) ->
             model: input.model.clone(),
             ..AgentMetadata::default()
         },
+        journey: Default::default(),
     }
 }
 

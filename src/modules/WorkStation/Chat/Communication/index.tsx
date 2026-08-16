@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import React, { memo, useCallback, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
@@ -14,6 +14,8 @@ import {
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { matchesCanvasEvent } from "@src/modules/WorkStation/Canvas/config";
+import { SessionJourneyControls } from "@src/modules/WorkStation/Chat/Journey/SessionJourneyControls";
+import { listenForJourneyMessageJump } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 import {
   TextSelectionDropdown,
   useTextSelectionDropdown,
@@ -184,6 +186,10 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
     },
     [handleViewModeChange, jumpToMessage, messageViewModel.previewMessages]
   );
+  useEffect(
+    () => listenForJourneyMessageJump(handleMessageClick),
+    [handleMessageClick]
+  );
   const handlePlanEditToggle = useCallback(() => {
     if (!isEditing) handleViewModeChange("preview");
     handleEditToggle();
@@ -277,7 +283,16 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
               ? () => handlePreviewModeChange(!effectivePreviewMode)
               : undefined
           }
-          extraActions={planHeaderActions}
+          extraActions={
+            <>
+              {planHeaderActions}
+              <SessionJourneyControls
+                sessionId={sessionId}
+                messageId={state.selectedMessage?.eventId}
+                onJumpToMessage={handleMessageClick}
+              />
+            </>
+          }
         />
         <div className="flex min-h-0 flex-1">
           <WorkStationShell

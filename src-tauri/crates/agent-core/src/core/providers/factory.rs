@@ -34,6 +34,46 @@ pub fn create_provider(
     create_provider_with_reliability(model, account_id, &ReliabilityConfig::default())
 }
 
+/// Resolve the exact account protocol without constructing a provider.
+/// Journey review enqueue persists this as strict runtime provenance.
+pub fn resolve_account_protocol(model: &str, account_id: &str) -> Result<String, ProviderError> {
+    let spec = resolve_spec_for_account(model, Some(account_id))?;
+    let resolved = resolve_credentials(spec, Some(account_id))?;
+    Ok(resolved.protocol.as_str().to_string())
+}
+
+/// Recreate exactly the provider route captured when a Journey review was queued.
+/// A protocol change is a hard error because silently selecting a new wire route
+/// would make the durable review provenance false.
+pub fn create_provider_for_protocol(
+    model: &str,
+    account_id: &str,
+    expected_protocol: &str,
+) -> Result<Box<dyn LLMProvider>, ProviderError> {
+    let spec = resolve_spec_for_account(model, Some(account_id))?;
+    let resolved = resolve_credentials(spec, Some(account_id))?;
+    if resolved.protocol.as_str() != expected_protocol {
+        return Err(ProviderError::AuthError(format!(
+            "审核任务锁定协议为 '{}'，账户当前解析为 '{}'。",
+            expected_protocol,
+            resolved.protocol.as_str()
+        )));
+    }
+    let reliability = ReliabilityConfig::default();
+    if !reliability.fallback_models.is_empty() {
+        return Err(ProviderError::Other(
+            "审核任务禁止跨模型 fallback。".to_string(),
+        ));
+    }
+    let primary = build_provider_from_resolved(&resolved, spec, model);
+    Ok(Box::new(ReliableProvider::single(
+        format!("{}/{}", spec.name, model),
+        primary,
+        reliability.max_retries,
+        reliability.base_backoff_ms,
+    )))
+}
+
 /// Create a provider wrapped in [`ReliableProvider`] for retry + fallback.
 ///
 /// The primary model is always tried first. If `reliability.fallback_models`

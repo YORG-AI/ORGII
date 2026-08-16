@@ -108,6 +108,7 @@ pub(crate) fn index_collaboration_replay(
             display_name: Some(owner_display_name.to_string()),
             ..AgentMetadata::default()
         },
+        journey: Default::default(),
     };
 
     let preflight_current = {

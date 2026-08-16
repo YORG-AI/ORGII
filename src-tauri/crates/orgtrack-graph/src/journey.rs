@@ -23,7 +23,13 @@ pub enum JourneyNodeKind {
     WorkItem,
     Session,
     Turn,
+    Branch,
+    Task,
     Checkpoint,
+    Review,
+    Annotation,
+    ConfirmedFact,
+    MessageAnchor,
     Artifact,
     File,
     Commit,
@@ -42,6 +48,10 @@ pub enum JourneyEdgeKind {
     Modified,
     ValidatedBy,
     CommittedIn,
+    AnchoredAt,
+    Reviews,
+    PromotedFrom,
+    EvidenceAt,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -261,11 +271,9 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
                 return Err(format!("session {} has unknown fork parent", s.id));
             }
         }
-        for parent in [&s.resumed_from, &s.compacted_to] {
-            if let Some(parent) = parent {
-                if !session_ids.contains(parent.as_str()) {
-                    return Err(format!("session {} has unknown lineage parent", s.id));
-                }
+        for parent in [&s.resumed_from, &s.compacted_to].into_iter().flatten() {
+            if !session_ids.contains(parent.as_str()) {
+                return Err(format!("session {} has unknown lineage parent", s.id));
             }
         }
         let sid = format!("session/{}", s.id);

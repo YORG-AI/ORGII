@@ -16,6 +16,9 @@ export interface JourneyDisplayNode extends JourneyEvidence {
   title: string;
   kind: string;
   displayTimestamp?: string | null;
+  agentIdentity?: string | null;
+  agentBand?: string | null;
+  topicTags: string[];
 }
 
 export interface JourneyViewModel {
@@ -113,6 +116,9 @@ function toDisplayNode(node: JourneyGraphNode): JourneyDisplayNode {
     evidenceClass: node.evidenceClass,
     sourceRef: node.sourceRef,
     displayTimestamp: node.displayTimestamp,
+    agentIdentity: node.metadata?.agentIdentity ?? null,
+    agentBand: node.metadata?.agentBand ?? null,
+    topicTags: node.metadata?.topicTags ?? [],
   };
 }
 
@@ -135,23 +141,29 @@ function parseTimestamp(value: string | null | undefined): number | null {
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
-function turnSequence(id: string): number | null {
-  const match = /^turn\/[^/]+\/(\d+)$/.exec(id);
-  return match ? Number(match[1]) : null;
-}
-
-function sessionIdForNode(
+function agentLaneForNode(
   node: JourneyGraphNode,
+  nodes: JourneyGraphNode[],
   edges: JourneyGraphEdge[]
 ): string | null {
-  if (node.kind === "session") return node.id;
-  const owner = edges.find(
-    (edge) =>
-      edge.to === node.id &&
-      edge.kind === "contains" &&
-      edge.from.startsWith("session/")
+  const session =
+    node.kind === "session"
+      ? node
+      : (() => {
+          const owner = edges.find(
+            (edge) =>
+              edge.to === node.id &&
+              edge.kind === "contains" &&
+              nodes.find((candidate) => candidate.id === edge.from)?.kind ===
+                "session"
+          );
+          return owner
+            ? nodes.find((candidate) => candidate.id === owner.from)
+            : undefined;
+        })();
+  return (
+    session?.metadata?.agentBand ?? session?.metadata?.agentIdentity ?? null
   );
-  return owner?.from ?? null;
 }
 
 /** Pure presentation mapping. It cannot infer or repair graph facts. */
@@ -179,13 +191,11 @@ export function graphToStorylineViewModel(
   for (const node of [...graph.nodes].sort(compareNodes)) {
     const timestamp = parseTimestamp(node.displayTimestamp);
     if (timestamp === null) {
-      unpositioned.push({
-        ...toDisplayNode(node),
-        sequence: turnSequence(node.id),
-      });
+      unpositioned.push({ ...toDisplayNode(node), sequence: null });
       continue;
     }
-    const laneId = sessionIdForNode(node, edges) ?? "unlinked-facts";
+    const laneId =
+      agentLaneForNode(node, graph.nodes, edges) ?? "unknown-agent";
     const lane = laneMembers.get(laneId) ?? [];
     lane.push(node);
     laneMembers.set(laneId, lane);
@@ -202,10 +212,7 @@ export function graphToStorylineViewModel(
             leftTimestamp - rightTimestamp || left.id.localeCompare(right.id)
           );
         })
-        .map((node) => ({
-          ...toDisplayNode(node),
-          sequence: turnSequence(node.id),
-        }));
+        .map((node) => ({ ...toDisplayNode(node), sequence: null }));
       const gaps: StorylineIdleGap[] = [];
       for (let index = 1; index < milestones.length; index += 1) {
         const previous = milestones[index - 1];
@@ -227,7 +234,7 @@ export function graphToStorylineViewModel(
       }
       return {
         id,
-        label: id === "unlinked-facts" ? "Unlinked facts" : titleFromId(id),
+        label: id === "unknown-agent" ? "Unknown agent" : id,
         milestones,
         gaps,
       };
