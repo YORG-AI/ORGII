@@ -10,7 +10,7 @@ use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 
 use crate::core::journey_lifecycle::{
-    HandoffCapsule, JourneyError, ReviewItem, RuntimeProvenance, SessionJourney,
+    FactPromotion, HandoffCapsule, JourneyError, ReviewItem, RuntimeProvenance, SessionJourney,
     SqliteJourneyRepository, TaskOutcome,
 };
 use crate::core::session::journey_review_queue::{ReviewJob, ReviewJobRepository};
@@ -716,12 +716,14 @@ impl SessionJourneyApplicationService {
             .promote_fact(
                 snapshot.revision,
                 &request.review_id,
-                request.fact_id.clone(),
-                request.text.clone(),
-                start.message_id.clone(),
-                start.sequence,
-                end.message_id.clone(),
-                end.sequence,
+                FactPromotion {
+                    fact_id: request.fact_id.clone(),
+                    text: request.text.clone(),
+                    evidence_start_message_id: start.message_id.clone(),
+                    evidence_start_sequence: start.sequence,
+                    evidence_end_message_id: end.message_id.clone(),
+                    evidence_end_sequence: end.sequence,
+                },
             )
             .map_err(Self::domain_error)?;
         let review = snapshot

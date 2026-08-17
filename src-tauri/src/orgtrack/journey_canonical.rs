@@ -191,7 +191,7 @@ pub fn build_journey_graph(
     }
 
     let mut graph = orgtrack_graph::journey::project_canonical_journey(&input)?;
-    append_session_journey_lifecycle(&conn, &mut graph, &selected)?;
+    append_session_journey_lifecycle(conn, &mut graph, &selected)?;
     let report = audit_canonical_journey(&input, &graph);
     if !report.trustworthy {
         let uncovered: Vec<_> = report
@@ -221,7 +221,7 @@ fn append_session_journey_lifecycle(
     let mut session_ids: Vec<_> = selected.iter().collect();
     session_ids.sort_unstable();
     for session_id in session_ids {
-        if let Some(journey) = SqliteJourneyRepository::load_existing(&conn, session_id)
+        if let Some(journey) = SqliteJourneyRepository::load_existing(conn, session_id)
             .map_err(|error| format!("无法读取会话旅程 {session_id}：{error}"))?
         {
             if journey.session_id != *session_id {
@@ -230,7 +230,7 @@ fn append_session_journey_lifecycle(
                     journey.session_id
                 ));
             }
-            super::journey_lifecycle_graph::append(&conn, graph, &journey)?;
+            super::journey_lifecycle_graph::append(conn, graph, &journey)?;
         }
     }
     Ok(())

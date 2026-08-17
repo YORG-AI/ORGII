@@ -881,6 +881,76 @@ fn validate_evidence_ids(conn: &Connection, job: &ReviewJob, ids: &[String]) -> 
     Ok(())
 }
 
+fn frozen_transcript(conn: &Connection, job: &ReviewJob) -> Result<String, QueueError> {
+    let mut stmt = conn.prepare("SELECT m.message_id, m.sequence, a.content FROM session_journey_memberships m JOIN agent_messages a ON a.id=m.message_id AND a.session_id=m.session_id WHERE m.session_id=?1 AND m.branch_id=?2 AND m.sequence BETWEEN ?3 AND ?4 ORDER BY m.sequence").map_err(|e| QueueError::Storage(e.to_string()))?;
+    let rows = stmt
+        .query_map(
+            params![
+                job.session_id,
+                job.fork_id,
+                job.frozen_start_sequence as i64,
+                job.frozen_end_sequence as i64
+            ],
+            |r| {
+                Ok(format!(
+                    "{}@{}: {}",
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, String>(2)?
+                ))
+            },
+        )
+        .map_err(|e| QueueError::Storage(e.to_string()))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row.map_err(|e| QueueError::Storage(e.to_string()))?);
+    }
+    Ok(out.join("\n"))
+}
+
+fn parse_draft(
+    value: Value,
+    job: &ReviewJob,
+    provenance: RuntimeProvenance,
+) -> Result<ReviewDraftAnnotation, String> {
+    let obj = value.as_object().ok_or("模型输出不是 JSON 对象。")?;
+    let text = |key: &str| {
+        obj.get(key)
+            .and_then(Value::as_str)
+            .filter(|s| !s.trim().is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| format!("缺少字段：{key}"))
+    };
+    let list = |key: &str| {
+        obj.get(key)
+            .and_then(Value::as_array)
+            .ok_or_else(|| format!("缺少数组字段：{key}"))
+            .and_then(|a| {
+                a.iter()
+                    .map(|v| {
+                        v.as_str()
+                            .map(str::to_owned)
+                            .ok_or_else(|| format!("字段 {key} 必须全为字符串"))
+                    })
+                    .collect()
+            })
+    };
+    Ok(ReviewDraftAnnotation {
+        objective: text("目标")?,
+        conclusion: text("结论")?,
+        open_questions: list("未决项")?,
+        confirmation_items: list("确认项")?,
+        evidence_message_ids: list("证据 message IDs")?,
+        possibly_no_value: obj
+            .get("是否可能无价值")
+            .and_then(Value::as_bool)
+            .ok_or("缺少字段：是否可能无价值")?,
+        source_range: (job.frozen_start_sequence, job.frozen_end_sequence),
+        provenance,
+        critic_notes: list("批判")?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1282,74 +1352,4 @@ mod tests {
         assert_eq!(claims.iter().flatten().count(), 1);
         let _ = std::fs::remove_file(path);
     }
-}
-
-fn frozen_transcript(conn: &Connection, job: &ReviewJob) -> Result<String, QueueError> {
-    let mut stmt = conn.prepare("SELECT m.message_id, m.sequence, a.content FROM session_journey_memberships m JOIN agent_messages a ON a.id=m.message_id AND a.session_id=m.session_id WHERE m.session_id=?1 AND m.branch_id=?2 AND m.sequence BETWEEN ?3 AND ?4 ORDER BY m.sequence").map_err(|e| QueueError::Storage(e.to_string()))?;
-    let rows = stmt
-        .query_map(
-            params![
-                job.session_id,
-                job.fork_id,
-                job.frozen_start_sequence as i64,
-                job.frozen_end_sequence as i64
-            ],
-            |r| {
-                Ok(format!(
-                    "{}@{}: {}",
-                    r.get::<_, String>(0)?,
-                    r.get::<_, i64>(1)?,
-                    r.get::<_, String>(2)?
-                ))
-            },
-        )
-        .map_err(|e| QueueError::Storage(e.to_string()))?;
-    let mut out = Vec::new();
-    for row in rows {
-        out.push(row.map_err(|e| QueueError::Storage(e.to_string()))?);
-    }
-    Ok(out.join("\n"))
-}
-
-fn parse_draft(
-    value: Value,
-    job: &ReviewJob,
-    provenance: RuntimeProvenance,
-) -> Result<ReviewDraftAnnotation, String> {
-    let obj = value.as_object().ok_or("模型输出不是 JSON 对象。")?;
-    let text = |key: &str| {
-        obj.get(key)
-            .and_then(Value::as_str)
-            .filter(|s| !s.trim().is_empty())
-            .map(str::to_owned)
-            .ok_or_else(|| format!("缺少字段：{key}"))
-    };
-    let list = |key: &str| {
-        obj.get(key)
-            .and_then(Value::as_array)
-            .ok_or_else(|| format!("缺少数组字段：{key}"))
-            .and_then(|a| {
-                a.iter()
-                    .map(|v| {
-                        v.as_str()
-                            .map(str::to_owned)
-                            .ok_or_else(|| format!("字段 {key} 必须全为字符串"))
-                    })
-                    .collect()
-            })
-    };
-    Ok(ReviewDraftAnnotation {
-        objective: text("目标")?,
-        conclusion: text("结论")?,
-        open_questions: list("未决项")?,
-        confirmation_items: list("确认项")?,
-        evidence_message_ids: list("证据 message IDs")?,
-        possibly_no_value: obj
-            .get("是否可能无价值")
-            .and_then(Value::as_bool)
-            .ok_or("缺少字段：是否可能无价值")?,
-        source_range: (job.frozen_start_sequence, job.frozen_end_sequence),
-        provenance,
-        critic_notes: list("批判")?,
-    })
 }

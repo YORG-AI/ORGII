@@ -322,13 +322,15 @@ pub fn save_user_msg_with_id(
 pub fn save_assistant_msg(session_id: &str, content: &str, model: &str) -> SqliteResult<String> {
     save_message_and_assign_journey(
         session_id,
-        "assistant",
-        content,
-        None,
-        None,
-        None,
-        None,
-        Some(model),
+        JourneyMessageWrite {
+            role: "assistant",
+            content,
+            tool_name: None,
+            tool_call_id: None,
+            tool_input: None,
+            tool_output: None,
+            model: Some(model),
+        },
     )
 }
 
@@ -351,13 +353,15 @@ pub fn save_tool_call_msg(
 ) -> SqliteResult<String> {
     save_message_and_assign_journey(
         session_id,
-        "tool_call",
-        &format!("Tool call: {tool_name}"),
-        Some(tool_name),
-        Some(tool_call_id),
-        Some(arguments),
-        None,
-        None,
+        JourneyMessageWrite {
+            role: "tool_call",
+            content: &format!("Tool call: {tool_name}"),
+            tool_name: Some(tool_name),
+            tool_call_id: Some(tool_call_id),
+            tool_input: Some(arguments),
+            tool_output: None,
+            model: None,
+        },
     )
 }
 
@@ -370,25 +374,31 @@ pub fn save_tool_result_msg(
 ) -> SqliteResult<String> {
     save_message_and_assign_journey(
         session_id,
-        "tool_result",
-        &crate::utils::safe_truncate_chars_to_string(result, 2000),
-        Some(tool_name),
-        Some(tool_call_id),
-        None,
-        Some(result),
-        None,
+        JourneyMessageWrite {
+            role: "tool_result",
+            content: &crate::utils::safe_truncate_chars_to_string(result, 2000),
+            tool_name: Some(tool_name),
+            tool_call_id: Some(tool_call_id),
+            tool_input: None,
+            tool_output: Some(result),
+            model: None,
+        },
     )
+}
+
+struct JourneyMessageWrite<'a> {
+    role: &'a str,
+    content: &'a str,
+    tool_name: Option<&'a str>,
+    tool_call_id: Option<&'a str>,
+    tool_input: Option<&'a str>,
+    tool_output: Option<&'a str>,
+    model: Option<&'a str>,
 }
 
 fn save_message_and_assign_journey(
     session_id: &str,
-    role: &str,
-    content: &str,
-    tool_name: Option<&str>,
-    tool_call_id: Option<&str>,
-    tool_input: Option<&str>,
-    tool_output: Option<&str>,
-    model: Option<&str>,
+    message: JourneyMessageWrite<'_>,
 ) -> SqliteResult<String> {
     with_sessions_writer(|| {
         let mut conn = get_connection()?;
@@ -398,13 +408,13 @@ fn save_message_and_assign_journey(
             &tx,
             session_id,
             &message_id,
-            role,
-            content,
-            tool_name,
-            tool_call_id,
-            tool_input,
-            tool_output,
-            model,
+            message.role,
+            message.content,
+            message.tool_name,
+            message.tool_call_id,
+            message.tool_input,
+            message.tool_output,
+            message.model,
         )?;
         assign_message_membership(&tx, session_id, &message_id, sequence)?;
         tx.execute(
@@ -1680,7 +1690,7 @@ mod tests {
             .iter()
             .any(|message| message.to_string().contains("FORK_SECRET_TRANSCRIPT")));
 
-        let before = vec![
+        let before = [
             serde_json::json!({ "role": "assistant", "content": "主干锚点" }),
             serde_json::json!({ "role": "assistant", "content": "主干后续" }),
         ];

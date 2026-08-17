@@ -73,18 +73,6 @@ pub enum ReviewState {
     Failed,
 }
 
-impl ReviewState {
-    fn chinese_label(&self) -> &'static str {
-        match self {
-            Self::Queued => "待审核",
-            Self::Ready => "可审核",
-            Self::Confirmed => "已确认",
-            Self::Discarded => "已丢弃",
-            Self::Failed => "失败",
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeProvenance {
     pub model_id: String,
@@ -229,6 +217,16 @@ pub struct ConfirmedFact {
     pub evidence_end_message_id: String,
     pub evidence_end_sequence: u64,
     pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FactPromotion {
+    pub fact_id: String,
+    pub text: String,
+    pub evidence_start_message_id: String,
+    pub evidence_start_sequence: u64,
+    pub evidence_end_message_id: String,
+    pub evidence_end_sequence: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -730,15 +728,12 @@ impl SessionJourney {
         &mut self,
         expected_revision: u64,
         review_id: &str,
-        fact_id: String,
-        text: String,
-        start_message_id: String,
-        start: u64,
-        end_message_id: String,
-        end: u64,
+        promotion: FactPromotion,
     ) -> Result<(), JourneyError> {
         self.mutate(expected_revision, |s| {
-            if start > end || text.trim().is_empty() {
+            if promotion.evidence_start_sequence > promotion.evidence_end_sequence
+                || promotion.text.trim().is_empty()
+            {
                 return Err(JourneyError::InvalidSequence);
             }
             let review = s
@@ -748,24 +743,26 @@ impl SessionJourney {
             if review.state != ReviewState::Ready {
                 return Err(JourneyError::InvalidState("审阅项不可确认"));
             }
-            if start < review.source_start_sequence || end > review.source_end_sequence {
+            if promotion.evidence_start_sequence < review.source_start_sequence
+                || promotion.evidence_end_sequence > review.source_end_sequence
+            {
                 return Err(JourneyError::AccessDenied);
             }
-            if s.facts.contains_key(&fact_id) {
-                return Err(JourneyError::DuplicateId(fact_id));
+            if s.facts.contains_key(&promotion.fact_id) {
+                return Err(JourneyError::DuplicateId(promotion.fact_id));
             }
-            review.promoted_fact_ids.push(fact_id.clone());
+            review.promoted_fact_ids.push(promotion.fact_id.clone());
             review.state = ReviewState::Confirmed;
             s.facts.insert(
-                fact_id.clone(),
+                promotion.fact_id.clone(),
                 ConfirmedFact {
-                    id: fact_id,
+                    id: promotion.fact_id,
                     review_id: review_id.into(),
-                    evidence_start_message_id: start_message_id,
-                    evidence_start_sequence: start,
-                    evidence_end_message_id: end_message_id,
-                    evidence_end_sequence: end,
-                    text,
+                    evidence_start_message_id: promotion.evidence_start_message_id,
+                    evidence_start_sequence: promotion.evidence_start_sequence,
+                    evidence_end_message_id: promotion.evidence_end_message_id,
+                    evidence_end_sequence: promotion.evidence_end_sequence,
+                    text: promotion.text,
                 },
             );
             Ok(())
@@ -949,7 +946,7 @@ impl SessionJourney {
         {
             return Ok(true);
         }
-        if target_branch_id == &viewer.parent_branch_id {
+        if target_branch_id == viewer.parent_branch_id {
             return Ok(sequence <= viewer.anchor_sequence);
         }
         Ok(false)
@@ -1024,146 +1021,6 @@ pub enum JourneyCommand {
 /// optional observed revision; commands without one read the current revision
 /// under the sessions writer and still commit through repository CAS.
 pub struct JourneyApplicationService;
-
-impl JourneyApplicationService {
-    fn execute_pre_application_service(
-        conn: &mut Connection,
-        session_id: &str,
-        expected_revision: Option<u64>,
-        command: JourneyCommand,
-    ) -> Result<String, String> {
-        SqliteJourneyRepository::ensure_schema(conn).map_err(|error| error.to_string())?;
-        let mut journey = SqliteJourneyRepository::load(conn, session_id)
-            .map_err(journey_error_text)?
-            .unwrap_or_else(|| SessionJourney::new(session_id, "main"));
-        let previous_revision = journey.revision;
-        if let Some(expected_revision) = expected_revision {
-            if expected_revision != previous_revision {
-                return Err(journey_error_text(JourneyError::RevisionConflict {
-                    expected: expected_revision,
-                    actual: previous_revision,
-                }));
-            }
-        }
-
-        let response = match command {
-            JourneyCommand::TaskStart { task_id, name, .. } => {
-                journey
-                    .start_task(previous_revision, task_id.clone(), name, true, None)
-                    .map_err(journey_error_text)?;
-                format!("任务已创建：{task_id}；将在下一条用户消息持久化后精确激活。")
-            }
-            JourneyCommand::TaskCheckpoint {
-                checkpoint_id,
-                message_id,
-                name,
-            } => {
-                let sequence = message_sequence(conn, session_id, &message_id)?;
-                journey
-                    .checkpoint(
-                        previous_revision,
-                        checkpoint_id.clone(),
-                        name,
-                        message_id,
-                        sequence,
-                    )
-                    .map_err(journey_error_text)?;
-                format!("检查点已记录：{checkpoint_id}。")
-            }
-            JourneyCommand::TaskFinish {
-                outcome,
-                message_id,
-            } => {
-                let sequence = message_sequence(conn, session_id, &message_id)?;
-                let label = outcome.chinese_label();
-                journey
-                    .finish_task(
-                        previous_revision,
-                        outcome,
-                        sequence,
-                        FinishDisposition::StayInFork,
-                        None,
-                        None,
-                    )
-                    .map_err(journey_error_text)?;
-                format!("任务已结束，结果：{label}。")
-            }
-            JourneyCommand::ForkStart {
-                fork_id,
-                task_id,
-                anchor_message_id,
-                task_name,
-            } => {
-                let anchor_sequence = message_sequence(conn, session_id, &anchor_message_id)?;
-                journey
-                    .start_fork(
-                        previous_revision,
-                        fork_id.clone(),
-                        task_id.clone(),
-                        task_name,
-                        anchor_message_id,
-                        anchor_sequence,
-                    )
-                    .map_err(journey_error_text)?;
-                format!("分叉已启动：{fork_id}；任务 {task_id} 已原子绑定到精确锚点。")
-            }
-            JourneyCommand::ForkClose {
-                fork_id,
-                review_id,
-                message_id,
-                outcome: _,
-            } => {
-                let sequence = message_sequence(conn, session_id, &message_id)?;
-                journey
-                    .request_fork_close(
-                        previous_revision,
-                        &fork_id,
-                        review_id.clone(),
-                        TaskOutcome::Completed,
-                        sequence,
-                    )
-                    .map_err(journey_error_text)?;
-                format!("分叉已进入关闭中：{fork_id}；审阅项 {review_id} 已进入待审核队列。")
-            }
-            JourneyCommand::Status => return Ok(journey_status_text(&journey)),
-            JourneyCommand::ForkCompare => return Ok(fork_compare_text(&journey)),
-            JourneyCommand::ReviewList => return Ok(review_list_text(&journey)),
-            JourneyCommand::ReviewDiscard { review_id } => {
-                let anchor = journey
-                    .discard_fork(previous_revision, &review_id)
-                    .map_err(journey_error_text)?;
-                format!("审阅项已丢弃，已回到精确锚点 sequence={anchor}。")
-            }
-            JourneyCommand::ReviewPromote {
-                review_id,
-                fact_id,
-                evidence_start_message_id,
-                evidence_end_message_id,
-                text,
-            } => {
-                let start = message_sequence(conn, session_id, &evidence_start_message_id)?;
-                let end = message_sequence(conn, session_id, &evidence_end_message_id)?;
-                journey
-                    .promote_fact(
-                        previous_revision,
-                        &review_id,
-                        fact_id.clone(),
-                        text,
-                        evidence_start_message_id,
-                        start,
-                        evidence_end_message_id,
-                        end,
-                    )
-                    .map_err(journey_error_text)?;
-                format!("已在显式审核后确认事实：{fact_id}。")
-            }
-        };
-
-        SqliteJourneyRepository::compare_and_store(conn, &journey, previous_revision)
-            .map_err(journey_error_text)?;
-        Ok(response)
-    }
-}
 
 impl JourneyApplicationService {
     /// Compatibility adapter for the existing explicit Gateway command parser.
@@ -1486,82 +1343,6 @@ fn journey_status_text(journey: &SessionJourney) -> String {
         journey.active_branch_id,
         journey.reviews.len()
     )
-}
-
-fn fork_compare_text(journey: &SessionJourney) -> String {
-    let mut groups: std::collections::BTreeMap<u64, Vec<&JourneyFork>> =
-        std::collections::BTreeMap::new();
-    for fork in journey
-        .branches
-        .values()
-        .filter(|fork| fork.id != fork.parent_branch_id)
-    {
-        groups.entry(fork.anchor_sequence).or_default().push(fork);
-    }
-    let lines: Vec<_> = groups
-        .into_iter()
-        .filter(|(_, forks)| forks.len() > 1)
-        .map(|(anchor, forks)| {
-            format!(
-                "锚点 {anchor}：{}",
-                forks
-                    .into_iter()
-                    .map(|fork| fork.id.as_str())
-                    .collect::<Vec<_>>()
-                    .join("、")
-            )
-        })
-        .collect();
-    if lines.is_empty() {
-        "当前没有同锚点分叉可对比。".into()
-    } else {
-        format!("同锚点分叉对比：\n{}", lines.join("\n"))
-    }
-}
-
-fn message_sequence(conn: &Connection, session_id: &str, message_id: &str) -> Result<u64, String> {
-    conn.query_row(
-        "SELECT sequence FROM agent_messages WHERE session_id = ?1 AND id = ?2",
-        params![session_id, message_id],
-        |row| row.get::<_, i64>(0),
-    )
-    .optional()
-    .map_err(|error| error.to_string())?
-    .filter(|sequence| *sequence >= 0)
-    .map(|sequence| sequence as u64)
-    .ok_or_else(|| "未找到该会话中的精确消息锚点。".to_string())
-}
-
-fn review_list_text(journey: &SessionJourney) -> String {
-    if journey.reviews.is_empty() {
-        return "当前没有审阅项。".to_string();
-    }
-    let items = journey
-        .reviews
-        .values()
-        .map(|review| format!("{}：{}", review.id, review.state.chinese_label()))
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!("审阅项：\n{items}")
-}
-
-fn journey_error_text(error: JourneyError) -> String {
-    match error {
-        JourneyError::RevisionConflict { expected, actual } => {
-            format!("会话旅程修订冲突：期望 {expected}，当前 {actual}。")
-        }
-        JourneyError::DuplicateId(id) => format!("会话旅程 ID 已存在：{id}。"),
-        JourneyError::UnknownBranch(id) => format!("未知分叉：{id}。"),
-        JourneyError::UnknownTask(id) => format!("未知任务：{id}。"),
-        JourneyError::UnknownReview(id) => format!("未知审阅项：{id}。"),
-        JourneyError::NoActiveTask => "当前没有活动任务。".to_string(),
-        JourneyError::ActiveTaskExists => "当前已有活动任务。".to_string(),
-        JourneyError::InvalidState(message) => message.to_string(),
-        JourneyError::InvalidSequence => "无效的精确 sequence。".to_string(),
-        JourneyError::MissingRuntimeProvenance => "缺少运行来源信息。".to_string(),
-        JourneyError::AccessDenied => "该精确锚点不在审阅范围内。".to_string(),
-        JourneyError::MissingHandoff => "缺少有效的中文交接胶囊。".to_string(),
-    }
 }
 
 /// SQLite persistence boundary for the lifecycle aggregate.  The aggregate is
@@ -1926,12 +1707,14 @@ mod tests {
         j.promote_fact(
             4,
             "r",
-            "fact".into(),
-            "确认".into(),
-            "m11".into(),
-            11,
-            "m15".into(),
-            15,
+            FactPromotion {
+                fact_id: "fact".into(),
+                text: "确认".into(),
+                evidence_start_message_id: "m11".into(),
+                evidence_start_sequence: 11,
+                evidence_end_message_id: "m15".into(),
+                evidence_end_sequence: 15,
+            },
         )
         .unwrap();
         assert_eq!(j.discard_fork(5, "r").unwrap(), 10);
