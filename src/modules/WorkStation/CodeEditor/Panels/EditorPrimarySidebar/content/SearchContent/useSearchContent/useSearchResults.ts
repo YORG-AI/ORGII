@@ -5,7 +5,7 @@
  * Handles result memoization, load more (progressive loading),
  * and result clearing.
  */
-import { listen } from "@tauri-apps/api/event";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 
@@ -114,6 +114,14 @@ export function useSearchResults(): UseSearchResultsReturn {
       if (!hasMore || loadingMore || !query.trim()) return;
 
       setLoadingMore(true);
+      // Hoisted so `finally` can always drop both Tauri listeners. They used
+      // to be unlistened only on the success path; a rejected
+      // `searchCodeStreaming` (invalid regex, repo unmounted, …) left both
+      // handlers — each closing over the whole current result set —
+      // registered for the process lifetime and running on every later
+      // `search-result` event.
+      let resultUnlisten: UnlistenFn | null = null;
+      let completeUnlisten: UnlistenFn | null = null;
       try {
         const currentMatchCount = totalMatches;
         // Request a larger batch to get more results
@@ -125,7 +133,7 @@ export function useSearchResults(): UseSearchResultsReturn {
         const loadMoreResults: StoreSearchResultFile[] = [];
         let loadMoreComplete = false;
 
-        const resultUnlisten = await listen<SearchResultEvent>(
+        resultUnlisten = await listen<SearchResultEvent>(
           "search-result",
           (event) => {
             if (event.payload.search_id !== loadMoreSearchId) return;
@@ -140,7 +148,7 @@ export function useSearchResults(): UseSearchResultsReturn {
           }
         );
 
-        const completeUnlisten = await listen<SearchCompleteEvent>(
+        completeUnlisten = await listen<SearchCompleteEvent>(
           "search-complete",
           (event) => {
             if (event.payload.search_id !== loadMoreSearchId) return;
@@ -172,10 +180,6 @@ export function useSearchResults(): UseSearchResultsReturn {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
 
-        // Cleanup listeners
-        await resultUnlisten();
-        await completeUnlisten();
-
         // Append new results
         if (loadMoreResults.length > 0) {
           appendResults(loadMoreResults);
@@ -186,6 +190,9 @@ export function useSearchResults(): UseSearchResultsReturn {
         log.error("[useSearchResults] Load more error:", errorMessage);
         setError(errorMessage);
       } finally {
+        // Always release the per-request listeners (success, error, timeout).
+        resultUnlisten?.();
+        completeUnlisten?.();
         setLoadingMore(false);
       }
     },
