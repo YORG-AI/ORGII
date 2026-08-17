@@ -85,19 +85,13 @@ export type {
   PrimarySidebarTab,
 } from "./PrimarySidebarLayout";
 
-// Reusable sidebar modules (tab-specific sidebar substrate)
-export {
-  SourceControlTabSidebar,
-  registerTabSidebar,
-  getTabSidebarDescriptor,
-  hasTabSidebar,
-  SidebarSlot,
-  useTabSidebar,
-  type TabSidebarComponent,
-  type TabSidebarDescriptor,
-  type TabSidebarProps,
-  type TabSidebarRuntimeContext,
-} from "./SidebarModules";
+// Reusable sidebar modules (tab-specific sidebar substrate) are NOT
+// re-exported here on purpose: `./SidebarModules/index.ts` evaluates the
+// Terminal/Benchmark/SourceControl tab sidebars (module-side-effect
+// registrations), which pulls xterm + engines/TerminalCore into every
+// consumer of this barrel. Hosts import from
+// `@src/modules/WorkStation/shared/SidebarModules` directly (see
+// CodeEditor/index.tsx, which also carries the side-effect import).
 
 // Property editor components
 export {
@@ -149,15 +143,6 @@ export {
   GIT_FILE_LIST_MIN_WIDTH,
 } from "./GitFileList/widthAtom";
 
-// Reusable two-column "git changes" detail layout (file list + selected diff)
-// Used by My Station's GitCommitDetailContent and Control Tower's Git tab.
-export { default as GitFileDiffSplit } from "./GitFileDiffSplit";
-export type {
-  GitFileDiffContent,
-  GitFileDiffSplitProps,
-  FileListLoadState,
-} from "./GitFileDiffSplit";
-
 // Resize handles
 export {
   HorizontalResizeHandle,
@@ -171,8 +156,9 @@ export type {
   UnsavedChangesBarProps,
 } from "./UnsavedChangesBar";
 
-// Quick actions panel
-export { QuickActionsPanel } from "./QuickActionsPanel";
+// Quick actions panel — types only. The component (framer-motion) is not
+// re-exported: nothing imports it through this barrel, and a value export
+// here would drag the animation stack into every barrel consumer.
 export type { QuickAction, QuickActionsPanelProps } from "./QuickActionsPanel";
 
 // No tabs placeholder (with quick actions)

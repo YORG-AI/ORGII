@@ -521,3 +521,46 @@ multi-repo surface), browser-tab webview
 discarding (see 2.5 note above), chat-panel CLI terminal tabs (agent-owned, turn
 lifetime), i18n namespace deferral and lazy zod schemas (2.4), the 4 MB
 `App` static graph itself.
+
+### 2026-08-17 — heavy-component boundaries (branch `perf/heavy-component-leaks`, stacked on the above)
+
+Method: `src/test/staticImportGraph.ts` (regex import walker) run per lazy
+chunk root (every dynamic-`import()` target in `src/`) reporting which heavy
+packages are statically reachable. Before → after:
+
+| Surface (chunk root)                                                 | Before                                                                                                                                         | After |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `engines/ChatPanel/events/stream/agent-message` (every chat message) | xterm, CodeMirror + langs, sql-formatter, react-syntax-highlighter, highlight.js, recharts, @a2ui, framer-motion, mammoth, jszip (1 747 files) | none  |
+| `modules/MainApp/TeamInbox`                                          | xterm, CodeMirror, sql-formatter, framer-motion                                                                                                | none  |
+| `modules/MainApp/Settings/SettingsSlot`                              | CodeMirror, sql-formatter                                                                                                                      | none  |
+| `modules/MainApp/AgentOrgs`                                          | CodeMirror, sql-formatter                                                                                                                      | none  |
+| `modules/ProjectManager/{Projects,WorkItems,LinearProjects}`         | xterm, CodeMirror, sql-formatter, framer-motion                                                                                                | none  |
+| `engines/Simulator/index`                                            | xterm, CodeMirror, sql-formatter, framer-motion                                                                                                | none  |
+| `modules/WorkStation/shared/index.ts` (barrel, ~80 importers)        | xterm, CodeMirror, framer-motion                                                                                                               | none  |
+
+Root causes and fixes:
+
+- `modules/WorkStation/shared/index.ts` re-exported `GitFileDiffSplit` (dead
+  code → all of `features/CodeMirror`), the `SidebarModules` block (module
+  evaluation registers the Terminal tab sidebar → xterm) and
+  `QuickActionsPanel` (framer-motion). Re-exports removed with explanatory
+  comments; `CodeEditor/index.tsx` imports `SidebarSlot` from
+  `../shared/SidebarModules` (the import that already carried the
+  registrations); `GitFileDiffSplit` deleted.
+- Eager imports of on-demand views made lazy (`React.lazy` + `Suspense
+fallback={null}`, matching neighbouring precedents): `SimulatorMessages` in
+  `agent-message`; transcript content in `SessionRawTranscriptDialog`;
+  `A2UIRenderer` (recharts/@a2ui) and `ReactArtifactRunner` (sucrase +
+  embedded React runtime) in `CanvasPreviewSurface`; `SkillEditorPanel` in
+  `SkillsCategoryView`; `CodeMirrorEditor` inside `MarkdownEditor`; the canvas
+  "source" tab viewer in `CanvasApp`.
+- Editor-only consumers deep-import `@src/features/CodeMirror/Editor` instead
+  of the barrel (which also carries Diff, ConflictEditor, SqlEditor +
+  sql-formatter).
+- Guard: `src/app/root/__tests__/featureBoundaries.test.ts` — nine surfaces
+  asserted free of the editor/terminal/highlighter/chart stacks; failures
+  print the import chain.
+
+Still statically reaching CodeMirror by design: `modules/WorkStation/index.tsx`
+(the code editor), `engines/Simulator/apps/canvas/CanvasApp` only via the lazy
+source viewer, and the editor-internal panes.

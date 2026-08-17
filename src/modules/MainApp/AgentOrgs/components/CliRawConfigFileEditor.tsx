@@ -6,7 +6,7 @@ import { rpc } from "@src/api/tauri/rpc";
 import type { AvailableAgent } from "@src/api/tauri/rpc/schemas/validation";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_PATH_TEXT_CLASSES,

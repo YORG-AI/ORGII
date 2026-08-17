@@ -20,7 +20,7 @@ import ModelIcon from "@src/components/ModelIcon";
 import TabPill from "@src/components/TabPill";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import BenchmarkTaskSelector from "@src/features/BenchmarkPanel/BenchmarkTaskSelector";
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   Placeholder,

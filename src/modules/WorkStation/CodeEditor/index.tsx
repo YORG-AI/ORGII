@@ -27,14 +27,14 @@ import {
 } from "@src/store/workstation/tabs";
 
 import {
-  SidebarSlot,
   WorkStationShell,
   buildPrimarySidebarConfig,
   buildSecondaryPanelConfig,
 } from "../shared";
-// Side-effect import: registers SourceControlTabSidebar into
-// TAB_SIDEBAR_REGISTRY.
-import "../shared/SidebarModules";
+// Imported from the SidebarModules entry (not the shared barrel): this
+// module evaluation is also what registers the SourceControl / Terminal /
+// Benchmark tab sidebars into TAB_SIDEBAR_REGISTRY.
+import { SidebarSlot } from "../shared/SidebarModules";
 import { EditorIntegrations } from "./EditorLayout/components/EditorIntegrations";
 // Static imports — lazy loading added ~200-500ms of blank screen on first open
 // because Suspense fallback={null} shows nothing while the chunk loads.
