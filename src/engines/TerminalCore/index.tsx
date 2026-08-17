@@ -35,6 +35,10 @@ import {
 } from "@src/store/workstation/codeEditor/terminal/commandDetection";
 
 import { TerminalSearchPanel } from "./components/TerminalSearchPanel";
+import {
+  pushRecentTerminalId,
+  selectMountedTerminalSessions,
+} from "./terminalMountWindow";
 import type { UseTerminalStateReturn } from "./types";
 
 // Lazy-load the read-only terminal to keep xterm (~300KB) from doubling the chunk
@@ -111,6 +115,19 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
   const terminalRefs = useRef<Map<string, TerminalViewHandle>>(new Map());
 
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Most-recently-active terminal ids (newest first) — see
+  // ./terminalMountWindow.ts for the mount policy this drives.
+  const [recentTerminalIds, setRecentTerminalIds] = useState<readonly string[]>(
+    []
+  );
+  // Derived-from-previous-render state (React's "storing information from
+  // previous renders" pattern): update synchronously during render instead
+  // of in an effect so the evicted pane never renders once with stale data.
+  if (activeSessionId) {
+    const nextRecent = pushRecentTerminalId(recentTerminalIds, activeSessionId);
+    if (nextRecent !== recentTerminalIds) setRecentTerminalIds(nextRecent);
+  }
 
   const [selection, setSelection] = useState<SelectionState>({
     visible: false,
@@ -310,9 +327,11 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
 
   const bgColor = backgroundColor || "var(--cm-editor-background)";
 
-  const visibleSessions = sessions.filter(
-    (session) =>
-      initializedSessions.has(session.id) || session.id === activeSessionId
+  const visibleSessions = selectMountedTerminalSessions(
+    sessions,
+    activeSessionId,
+    initializedSessions,
+    recentTerminalIds
   );
 
   return (

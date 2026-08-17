@@ -50,6 +50,7 @@ import {
   ListTodo,
   Lock,
   MessageSquarePlus,
+  PictureInPicture2,
   Plus,
   Settings2,
   TerminalSquare,
@@ -115,6 +116,7 @@ import {
   CHAT_PANEL_CREATE_TARGET,
   chatPanelCreateTargetAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 import { isMacOS } from "@src/util/platform/tauri";
 
@@ -547,6 +549,7 @@ interface PlusMenuContentProps {
   onOpenRuntime: () => void;
   onNewProject: () => void;
   onNewWorkItem: () => void;
+  onOpenSideChat: () => void;
   onClose: () => void;
 }
 
@@ -556,6 +559,7 @@ export function PlusMenuContent({
   onOpenRuntime,
   onNewProject,
   onNewWorkItem,
+  onOpenSideChat,
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
@@ -594,6 +598,12 @@ export function PlusMenuContent({
       icon: <BriefcaseBusiness size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
       label: t("chat.startPage.newWorkItem.title"),
       onClick: onNewWorkItem,
+    },
+    {
+      id: "side-chat",
+      icon: <PictureInPicture2 size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      label: t("sessions:chat.sideChat.title"),
+      onClick: onOpenSideChat,
     },
   ] as const;
 
@@ -637,6 +647,7 @@ export interface ChatPanelPlusMenuProps {
   onOpenRuntime: () => void;
   onNewProject: () => void;
   onNewWorkItem: () => void;
+  onOpenSideChat: () => void;
 }
 
 export function ChatPanelPlusMenu({
@@ -645,6 +656,7 @@ export function ChatPanelPlusMenu({
   onOpenRuntime,
   onNewProject,
   onNewWorkItem,
+  onOpenSideChat,
 }: ChatPanelPlusMenuProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -660,6 +672,7 @@ export function ChatPanelPlusMenu({
           onOpenRuntime={onOpenRuntime}
           onNewProject={onNewProject}
           onNewWorkItem={onNewWorkItem}
+          onOpenSideChat={onOpenSideChat}
           onClose={closeMenu}
         />
       }
@@ -834,6 +847,13 @@ export function ChatPanelTabBar(): React.ReactNode {
     },
     [openTeamInbox, requestSessionHandoff, t]
   );
+  const openSideChat = useSetAtom(openSideChatAtom);
+  const handleOpenInSideChat = useCallback(
+    (reference: SessionReferenceOpen) => {
+      openSideChat(reference.sessionId);
+    },
+    [openSideChat]
+  );
 
   // Inline strip — no outer wrapper, fills the flex row in the header
   return (
@@ -928,6 +948,7 @@ export function ChatPanelTabBar(): React.ReactNode {
               : undefined
           }
           onCreateWorkItem={handleCreateWorkItem}
+          onOpenInSideChat={handleOpenInSideChat}
           onCloseTab={closeTab}
           onCloseOtherTabs={closeOtherTabs}
           onDismiss={handleDismissContextMenu}

@@ -1003,6 +1003,10 @@
       "newTab": "Nueva pestaña",
       "terminals": "Terminales"
     },
+    "sideChat": {
+      "title": "Chat lateral",
+      "openInSideChat": "Abrir en el chat lateral"
+    },
     "collapseAll": "Contraer todo",
     "copyEventJson": "Copiar JSON de eventos",
     "copyEventJsonCopied": "¡Copiado!",

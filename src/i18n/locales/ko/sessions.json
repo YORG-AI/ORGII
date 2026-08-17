@@ -1002,6 +1002,10 @@
       "newTab": "새 탭",
       "terminals": "터미널"
     },
+    "sideChat": {
+      "title": "사이드 채팅",
+      "openInSideChat": "사이드 채팅에서 열기"
+    },
     "collapseAll": "모두 접기",
     "copyEventJson": "이벤트 JSON 복사",
     "copyEventJsonCopied": "복사됨!",

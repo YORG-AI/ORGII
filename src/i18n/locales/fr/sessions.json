@@ -1003,6 +1003,10 @@
       "newTab": "Nouvel onglet",
       "terminals": "Terminaux"
     },
+    "sideChat": {
+      "title": "Chat latéral",
+      "openInSideChat": "Ouvrir dans le chat latéral"
+    },
     "collapseAll": "Tout réduire",
     "copyEventJson": "Copier le JSON des événements",
     "copyEventJsonCopied": "Copié !",

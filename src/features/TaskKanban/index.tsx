@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
 import Button from "@src/components/Button";
+import FloatingWindow from "@src/components/FloatingWindow";
 import {
   WORK_MANAGEMENT_SESSION_PREVIEW_OVERLAY_CLASS,
   WORK_MANAGEMENT_SESSION_PREVIEW_SURFACE_CLASS,
@@ -424,23 +425,19 @@ const Kanban: React.FC<TaskKanbanProps> = ({
       )}
 
       {detailPanelVisible && (
-        <div
-          className={`${WORK_MANAGEMENT_SESSION_PREVIEW_OVERLAY_CLASS} kanban-session-preview-overlay`}
+        <FloatingWindow
+          overlayClassName={`${WORK_MANAGEMENT_SESSION_PREVIEW_OVERLAY_CLASS} kanban-session-preview-overlay`}
+          surfaceClassName={WORK_MANAGEMENT_SESSION_PREVIEW_SURFACE_CLASS}
         >
-          <div
-            className={WORK_MANAGEMENT_SESSION_PREVIEW_SURFACE_CLASS}
-            data-draggable-window
-          >
-            <TaskDetailPanel
-              visible={detailPanelVisible}
-              task={detailTask}
-              onClose={handleCloseDetailPanel}
-              onNavigate={handleNavigateTask}
-              hasPrev={taskNavigation.hasPrev}
-              hasNext={taskNavigation.hasNext}
-            />
-          </div>
-        </div>
+          <TaskDetailPanel
+            visible={detailPanelVisible}
+            task={detailTask}
+            onClose={handleCloseDetailPanel}
+            onNavigate={handleNavigateTask}
+            hasPrev={taskNavigation.hasPrev}
+            hasNext={taskNavigation.hasNext}
+          />
+        </FloatingWindow>
       )}
     </div>
   );

@@ -1049,6 +1049,10 @@
       "newTab": "新标签页",
       "terminals": "终端"
     },
+    "sideChat": {
+      "title": "侧边聊天",
+      "openInSideChat": "在侧边聊天中打开"
+    },
     "collapseAll": "全部折叠",
     "copyEventJson": "复制事件 JSON",
     "copyEventJsonCopied": "复制！",

@@ -1000,6 +1000,10 @@
       "newTab": "Tab mới",
       "terminals": "Terminal"
     },
+    "sideChat": {
+      "title": "Trò chuyện bên",
+      "openInSideChat": "Mở trong trò chuyện bên"
+    },
     "collapseAll": "Thu gọn tất cả",
     "copyEventJson": "Sao chép JSON sự kiện",
     "copyEventJsonCopied": "Đã sao chép!",

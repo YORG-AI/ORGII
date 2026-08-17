@@ -1003,6 +1003,10 @@
       "newTab": "Yeni sekme",
       "terminals": "Terminaller"
     },
+    "sideChat": {
+      "title": "Yan sohbet",
+      "openInSideChat": "Yan sohbette aç"
+    },
     "collapseAll": "Tümünü daralt",
     "copyEventJson": "Olay JSON'unu kopyala",
     "copyEventJsonCopied": "Kopyalandı!",

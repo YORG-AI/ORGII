@@ -7,30 +7,27 @@
  *
  * The transform is applied imperatively to that ancestor's `style`, so a drag
  * never re-renders the React tree — only one element's `transform` changes.
- * The accumulated offset lives in a ref for the hook's lifetime, so the window
- * keeps its position across re-renders (e.g. prev/next navigation) and resets
- * naturally when the panel unmounts and re-opens.
+ * The accumulated offset lives on the window element itself (see
+ * `windowGeometry.ts`), so the position survives re-renders and header
+ * remounts, and resets naturally when the panel unmounts and re-opens.
  *
  * No-op when `enabled` is false or the handle has no `[data-draggable-window]`
  * ancestor, so the same header stays inert on docked (non-floating) panels.
  */
 import { useCallback, useEffect, useRef } from "react";
 
+import {
+  applyWindowOffset,
+  clamp,
+  findFloatingWindow,
+  readWindowBounds,
+  readWindowOffset,
+} from "./windowGeometry";
+
 const INTERACTIVE_SELECTOR =
   'button, a, input, select, textarea, [role="button"], [data-no-window-drag]';
 
-interface Offset {
-  x: number;
-  y: number;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  if (max < min) return min;
-  return Math.min(Math.max(value, min), max);
-}
-
 export function useWindowDrag(enabled: boolean) {
-  const offsetRef = useRef<Offset>({ x: 0, y: 0 });
   const cleanupRef = useRef<(() => void) | null>(null);
 
   // Tear down listeners / restore the cursor if the panel unmounts mid-drag.
@@ -44,14 +41,12 @@ export function useWindowDrag(enabled: boolean) {
         return;
       }
 
-      const win = event.currentTarget.closest<HTMLElement>(
-        "[data-draggable-window]"
-      );
+      const win = findFloatingWindow(event.currentTarget);
       if (!win) return;
 
-      const bounds = win.parentElement?.getBoundingClientRect() ?? null;
+      const bounds = readWindowBounds(win);
       const rect = win.getBoundingClientRect();
-      const start = offsetRef.current;
+      const start = readWindowOffset(win);
       // Untransformed origin of the window, so clamps read in viewport space.
       const baseLeft = rect.left - start.x;
       const baseTop = rect.top - start.y;
@@ -62,8 +57,8 @@ export function useWindowDrag(enabled: boolean) {
         let nextX = start.x + (moveEvent.clientX - startX);
         let nextY = start.y + (moveEvent.clientY - startY);
         if (bounds) {
-          // Keep the whole window inside its overlay container (which clips
-          // overflow), so it can never be dragged out of sight.
+          // Keep the whole window inside its overlay's content box, so it
+          // can never be dragged out of sight or over the edge margin.
           nextX = clamp(
             nextX,
             bounds.left - baseLeft,
@@ -75,8 +70,7 @@ export function useWindowDrag(enabled: boolean) {
             bounds.bottom - rect.height - baseTop
           );
         }
-        offsetRef.current = { x: nextX, y: nextY };
-        win.style.transform = `translate3d(${nextX}px, ${nextY}px, 0)`;
+        applyWindowOffset(win, { x: nextX, y: nextY });
       };
 
       const finish = () => {

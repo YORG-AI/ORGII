@@ -18,7 +18,10 @@ import {
   initializeServices,
   registerCoreActions,
 } from "@src/modules/WorkStation/ActionSystem/registration/registerCoreActions";
-import { GUIAgentService } from "@src/services";
+// Deep import: the `@src/services` barrel re-exports EditorService, whose
+// static @codemirror/* imports would otherwise ride into the startup graph
+// through this app-lifetime provider.
+import { GUIAgentService } from "@src/services/guiAgent/GUIAgentService";
 
 import type { ActionResult } from "./schema/defineZodAction";
 import { zodActionRegistry } from "./schema/zodRegistry";

@@ -1007,6 +1007,10 @@
       "newTab": "Новая вкладка",
       "terminals": "Терминалы"
     },
+    "sideChat": {
+      "title": "Боковой чат",
+      "openInSideChat": "Открыть в боковом чате"
+    },
     "collapseAll": "Свернуть все",
     "copyEventJson": "Скопировать JSON событий",
     "copyEventJsonCopied": "Скопировано!",

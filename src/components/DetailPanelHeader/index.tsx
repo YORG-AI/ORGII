@@ -13,7 +13,7 @@ import {
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 
-import { useWindowDrag } from "./useWindowDrag";
+import { useWindowDrag } from "../FloatingWindow/useWindowDrag";
 
 export interface DetailPanelHeaderProps {
   /** Title to display */
@@ -30,8 +30,10 @@ export interface DetailPanelHeaderProps {
   actions?: React.ReactNode;
   /**
    * When true, dragging the header repositions the nearest
-   * `[data-draggable-window]` ancestor. Used by the floating Kanban detail
-   * panel; docked panels leave this off.
+   * `[data-draggable-window]` ancestor, and the header drops its bottom
+   * border so the floating window reads as one continuous surface. Used by
+   * the floating windows (Kanban session preview, side chat); docked panels
+   * leave this off.
    */
   draggable?: boolean;
 }
@@ -50,7 +52,7 @@ const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
     <div
       className={
         draggable
-          ? `${HEADER_CLASSES.pageHeader} cursor-grab select-none`
+          ? `${HEADER_CLASSES.pageHeader} cursor-grab select-none !border-b-0`
           : HEADER_CLASSES.pageHeader
       }
       onPointerDown={onPointerDown}

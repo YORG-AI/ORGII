@@ -5,7 +5,7 @@
  * Similar to VS Code's Output panel.
  */
 import { nanoid } from "nanoid";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 
 import type {
   OutputChannel,
@@ -32,6 +32,21 @@ export interface UseOutputChannelsOptions {
 
 // Persistent storage key for channel history
 const HISTORY_STORAGE_KEY = "orgii_output_channels_history";
+
+/**
+ * Upper bound on retained output channels. Each channel keeps up to
+ * `maxChars` (100k by default) of text in memory *and* in sessionStorage,
+ * so an uncapped list — one channel per build/test/git run — grew without
+ * bound. Oldest non-active channels are dropped when a new one is created.
+ */
+export const MAX_OUTPUT_CHANNELS = 16;
+
+/**
+ * Debounce for mirroring channel content to sessionStorage. Persisting on
+ * every appended line serialized every channel's full content per line;
+ * trailing-edge writes keep history warm at a fraction of the churn.
+ */
+const HISTORY_PERSIST_DEBOUNCE_MS = 500;
 
 /**
  * Hook to manage multiple output channels
@@ -67,17 +82,39 @@ export function useOutputChannels(
   );
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
 
-  // Persist channels to sessionStorage on changes
-  React.useEffect(() => {
-    if (!persistHistory || channelsMap.size === 0) return;
-
+  // Persist channels to sessionStorage (debounced; flushed on unmount)
+  const latestChannelsRef = useRef(channelsMap);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushHistory = useCallback(() => {
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    const map = latestChannelsRef.current;
+    if (!persistHistory || map.size === 0) return;
     try {
-      const channelsObj = Object.fromEntries(channelsMap);
+      const channelsObj = Object.fromEntries(map);
       sessionStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(channelsObj));
     } catch (_error) {
       // Silently ignore history save failures
     }
-  }, [channelsMap, persistHistory]);
+  }, [persistHistory]);
+  React.useEffect(() => {
+    latestChannelsRef.current = channelsMap;
+    if (!persistHistory || channelsMap.size === 0) return;
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(
+      flushHistory,
+      HISTORY_PERSIST_DEBOUNCE_MS
+    );
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+    };
+  }, [channelsMap, persistHistory, flushHistory]);
+  React.useEffect(() => flushHistory, [flushHistory]);
 
   // Convert map to array for rendering
   const channels = Array.from(channelsMap.values());
@@ -107,6 +144,14 @@ export function useOutputChannels(
       setChannelsMap((prev) => {
         const next = new Map(prev);
         next.set(channelId, newChannel);
+        // Bound the channel list: drop the oldest non-active channels first.
+        if (next.size > MAX_OUTPUT_CHANNELS) {
+          for (const [id, channel] of next) {
+            if (next.size <= MAX_OUTPUT_CHANNELS) break;
+            if (id === channelId || channel.active) continue;
+            next.delete(id);
+          }
+        }
         return next;
       });
 

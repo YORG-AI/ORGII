@@ -1002,6 +1002,10 @@
       "newTab": "新しいタブ",
       "terminals": "ターミナル"
     },
+    "sideChat": {
+      "title": "サイドチャット",
+      "openInSideChat": "サイドチャットで開く"
+    },
     "collapseAll": "すべて折りたたむ",
     "copyEventJson": "イベント JSON をコピー",
     "copyEventJsonCopied": "コピーしました！",

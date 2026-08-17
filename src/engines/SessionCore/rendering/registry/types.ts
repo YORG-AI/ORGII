@@ -5,7 +5,7 @@
  * Supports multiple contexts: chat, simulator, trajectory
  */
 import type { LucideIcon } from "lucide-react";
-import React from "react";
+import type React from "react";
 
 // ============================================
 // Component Types

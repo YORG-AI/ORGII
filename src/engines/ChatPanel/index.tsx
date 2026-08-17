@@ -62,6 +62,7 @@ import {
   chatPanelStartPageOpenAtom,
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import { isHumanSession } from "@src/util/session/sessionDispatch";
 
@@ -387,6 +388,13 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       [openLaunchedSessionTab]
     );
 
+    const openSideChat = useSetAtom(openSideChatAtom);
+    const handleOpenSideChat = useCallback(() => {
+      // Creator mode — the side chat exists to start/watch a session
+      // without leaving the active tab.
+      openSideChat(null);
+    }, [openSideChat]);
+
     const handleChatPanelCollabOrgCreated = useCallback(
       (_result: CreatedOrgResult) => {
         bumpProjectListRefresh((previous) => previous + 1);
@@ -555,6 +563,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         onOpenRuntime={handleShowRuntime}
         onNewProject={handleStartPageNewProject}
         onNewWorkItem={handleStartPageNewWorkItem}
+        onOpenSideChat={handleOpenSideChat}
       />
     );
 

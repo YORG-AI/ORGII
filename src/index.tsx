@@ -178,11 +178,18 @@ async function initializeApp() {
   // eager keeps the Promise-returning import() semantics (so the await below
   // still defers App module-tree evaluation until after the runtime-identity
   // config above has run) without emitting a loadable chunk. Production keeps
-  // the normal dynamic import — prod minifies and has no eval source maps, so
-  // the App chunk is small there.
-  const appModulePromise = isDev
-    ? import(/* webpackMode: "eager" */ "@src/App")
-    : import("@src/App");
+  // the normal dynamic import so App (and every vendor only App needs) lands
+  // in async chunks instead of the entry chunk.
+  //
+  // The condition MUST be the inline `process.env.NODE_ENV` comparison, not
+  // the `isDev` const: webpack only constant-folds a DefinePlugin expression
+  // it can evaluate at the branch itself. With a plain identifier it walks
+  // both arms, the "eager" mode wins, and production ships App inlined into
+  // main.js (~4 MB of extra synchronous startup JS).
+  const appModulePromise =
+    process.env.NODE_ENV === "development"
+      ? import(/* webpackMode: "eager" */ "@src/App")
+      : import("@src/App");
 
   // Clear stale opened repos from previous app session (main window only)
   // Secondary windows should not clear, as they'd wipe main window's registration

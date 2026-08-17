@@ -1017,6 +1017,10 @@
       "newTab": "新分頁",
       "terminals": "終端機"
     },
+    "sideChat": {
+      "title": "側邊聊天",
+      "openInSideChat": "在側邊聊天中開啟"
+    },
     "collapseAll": "全部摺疊",
     "copyEventJson": "複製事件 JSON",
     "copyEventJsonCopied": "複製！",

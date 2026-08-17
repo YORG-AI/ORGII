@@ -35,8 +35,14 @@ export interface UseFileContentReturn {
 
 export interface UnsavedContentCache {
   content: string;
-  originalContent: string;
   version: number;
   diskVersion: number;
   recentEdits: EditOperation[];
+  /**
+   * `true` when the buffer differed from its disk baseline at cache time.
+   * Dirty entries are never evicted for size (evicting them would lose the
+   * user's unsaved edits); clean entries (version bumped by an undo cycle,
+   * a reload, etc.) only preserve edit history and are eviction candidates.
+   */
+  dirty: boolean;
 }

@@ -22,6 +22,7 @@ import { WindowsTopBar } from "@src/components/WindowChrome";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { DataProvider } from "@src/contexts/workspace/DataContext";
 import ChatPanel from "@src/engines/ChatPanel";
+import ChatPanelSideChat from "@src/engines/ChatPanel/SideChat";
 import {
   CHAT_WIDTH_CSS_VAR,
   clampChatWidth,
@@ -322,6 +323,12 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
                 </WorkbenchActionSystemScope>
               </div>
               {!isChatOnLeft && chatSlot}
+              {/* Global floating side chat: hosted over the whole pane
+                  surface (chat slot + workbench), so it stays usable when
+                  the chat pane is hidden and a station fills the view. */}
+              <ChatPanelSideChat
+                SessionCreatorSlot={AdeAwareSessionCreatorSlot}
+              />
             </div>
           </div>
         </SessionSyncProvider>

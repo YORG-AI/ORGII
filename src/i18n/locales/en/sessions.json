@@ -1058,6 +1058,10 @@
       "newTab": "New tab",
       "terminals": "Terminals"
     },
+    "sideChat": {
+      "title": "Side Chat",
+      "openInSideChat": "Open in Side Chat"
+    },
     "collapseAll": "Collapse all",
     "copyEventJson": "Copy event JSON",
     "copyEventJsonCopied": "Copied!",

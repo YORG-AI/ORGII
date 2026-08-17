@@ -4,12 +4,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  _resetUnsavedContentCacheForTests,
   cacheFileMetadata,
   cacheUnsavedContent,
   clearFileCache,
   clearUnsavedContentCache,
   getCachedBinaryStatus,
   getCachedFileMetadata,
+  getUnsavedContentCacheStats,
   hasLoadedFileThisSession,
   invalidateFileCache,
   markFileLoadedThisSession,
@@ -18,11 +20,13 @@ import {
   subscribeToFileChanges,
   updateCachedFileMtime,
 } from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/cache";
+import { MAX_UNSAVED_CONTENT_CACHE_SIZE } from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/constants";
 
 describe("fileContent/cache", () => {
   beforeEach(() => {
     // Clear all caches before each test
     clearFileCache();
+    _resetUnsavedContentCacheForTests();
   });
 
   describe("cacheFileMetadata and getCachedFileMetadata", () => {
@@ -136,9 +140,58 @@ describe("fileContent/cache", () => {
       const cached = popUnsavedContent("/file.ts");
       expect(cached).not.toBeNull();
       expect(cached?.content).toBe("modified content");
-      expect(cached?.originalContent).toBe("original content");
+      expect(cached?.dirty).toBe(true);
       expect(cached?.version).toBe(2);
       expect(cached?.diskVersion).toBe(1);
+      // The disk baseline is re-read on restore, so it is not retained.
+      expect(cached).not.toHaveProperty("originalContent");
+    });
+
+    it("marks entries whose buffer equals disk as clean", () => {
+      cacheUnsavedContent("/file.ts", "same", "same", 3, 1, []);
+      expect(popUnsavedContent("/file.ts")?.dirty).toBe(false);
+    });
+
+    it("evicts only clean entries once the soft cap is exceeded", () => {
+      for (let i = 0; i < MAX_UNSAVED_CONTENT_CACHE_SIZE; i++) {
+        // Even indices dirty, odd indices clean.
+        const dirty = i % 2 === 0;
+        cacheUnsavedContent(
+          `/f${i}.ts`,
+          dirty ? `edited-${i}` : "same",
+          "same",
+          2,
+          1,
+          []
+        );
+      }
+      expect(getUnsavedContentCacheStats().entries).toBe(
+        MAX_UNSAVED_CONTENT_CACHE_SIZE
+      );
+
+      // Two more dirty entries push the cache over the cap.
+      cacheUnsavedContent("/extra-a.ts", "edited-a", "same", 2, 1, []);
+      cacheUnsavedContent("/extra-b.ts", "edited-b", "same", 2, 1, []);
+
+      const stats = getUnsavedContentCacheStats();
+      expect(stats.entries).toBe(MAX_UNSAVED_CONTENT_CACHE_SIZE);
+      // The oldest *clean* entries were evicted, dirty ones survived.
+      expect(popUnsavedContent("/f1.ts")).toBeNull();
+      expect(popUnsavedContent("/f3.ts")).toBeNull();
+      expect(popUnsavedContent("/f0.ts")).not.toBeNull();
+      expect(popUnsavedContent("/f2.ts")).not.toBeNull();
+      expect(popUnsavedContent("/extra-a.ts")).not.toBeNull();
+      expect(popUnsavedContent("/extra-b.ts")).not.toBeNull();
+    });
+
+    it("never evicts dirty entries even past the cap", () => {
+      const overCap = MAX_UNSAVED_CONTENT_CACHE_SIZE + 5;
+      for (let i = 0; i < overCap; i++) {
+        cacheUnsavedContent(`/d${i}.ts`, `edited-${i}`, "same", 2, 1, []);
+      }
+      const stats = getUnsavedContentCacheStats();
+      expect(stats.entries).toBe(overCap);
+      expect(stats.dirtyEntries).toBe(overCap);
     });
 
     it("does not cache when version equals disk version", () => {

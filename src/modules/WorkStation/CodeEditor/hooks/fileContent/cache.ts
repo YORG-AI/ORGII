@@ -1,7 +1,11 @@
 import { createLogger } from "@src/hooks/logger";
 import type { EditOperation } from "@src/types/editor/document";
 
-import { MAX_LOADED_FILES_SIZE, MAX_METADATA_CACHE_SIZE } from "./constants";
+import {
+  MAX_LOADED_FILES_SIZE,
+  MAX_METADATA_CACHE_SIZE,
+  MAX_UNSAVED_CONTENT_CACHE_SIZE,
+} from "./constants";
 import type { UnsavedContentCache } from "./types";
 
 const log = createLogger("FileContent");
@@ -36,6 +40,22 @@ function evictMetadataCache(): void {
   }
 }
 
+/**
+ * Evict clean (non-dirty) entries, oldest first, until the cache is back
+ * under `MAX_UNSAVED_CONTENT_CACHE_SIZE`. Dirty entries are never evicted:
+ * they are the only copy of the user's unsaved edits.
+ */
+function evictUnsavedContentCache(): void {
+  if (unsavedContentCache.size <= MAX_UNSAVED_CONTENT_CACHE_SIZE) return;
+  let excess = unsavedContentCache.size - MAX_UNSAVED_CONTENT_CACHE_SIZE;
+  for (const [key, entry] of unsavedContentCache) {
+    if (excess <= 0) break;
+    if (entry.dirty) continue;
+    unsavedContentCache.delete(key);
+    excess -= 1;
+  }
+}
+
 export function cacheUnsavedContent(
   filePath: string,
   content: string,
@@ -45,13 +65,19 @@ export function cacheUnsavedContent(
   recentEdits: EditOperation[]
 ): void {
   if (version !== diskVersion) {
+    // Re-insert so Map iteration order doubles as LRU order for eviction.
+    unsavedContentCache.delete(filePath);
+    // `originalContent` is intentionally not retained: `useFileContent`
+    // re-baselines against fresh disk content on restore, so keeping a
+    // second full copy of the file text per entry only doubles the cost.
     unsavedContentCache.set(filePath, {
       content,
-      originalContent,
       version,
       diskVersion,
       recentEdits,
+      dirty: content !== originalContent,
     });
+    evictUnsavedContentCache();
   }
 }
 
@@ -128,6 +154,26 @@ export function invalidateFileCache(filePath: string): void {
 export function clearFileCache(): void {
   metadataCache.clear();
   loadedFilesThisSession.clear();
+}
+
+/** Test-only: drop every cached unsaved buffer. */
+export function _resetUnsavedContentCacheForTests(): void {
+  unsavedContentCache.clear();
+}
+
+/** Diagnostics hook for the RAM monitor / tests. */
+export function getUnsavedContentCacheStats(): {
+  entries: number;
+  dirtyEntries: number;
+  contentChars: number;
+} {
+  let dirtyEntries = 0;
+  let contentChars = 0;
+  for (const entry of unsavedContentCache.values()) {
+    if (entry.dirty) dirtyEntries += 1;
+    contentChars += entry.content.length;
+  }
+  return { entries: unsavedContentCache.size, dirtyEntries, contentChars };
 }
 
 export function updateCachedFileMtime(

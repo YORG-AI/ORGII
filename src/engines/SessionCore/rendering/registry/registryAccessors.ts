@@ -15,7 +15,16 @@ import type { ComponentType, LazyExoticComponent } from "react";
 import { getToolIconComponent } from "@src/config/toolIcons";
 import { resolveToolName } from "@src/engines/SessionCore/rendering/registry/toolAliases";
 
-import { getAllEventTypes, getChatContextConfig } from "./events";
+import { getAllEventTypes } from "./events";
+
+// Chat-context accessors are pure metadata; re-exported from ./events/contextConfig
+// so `ActionRegistry` (and the chat-projection worker behind it) can import
+// them without touching the renderer loaders.
+export {
+  getActionConfig,
+  requiresItemIndex,
+  shouldShowStatusLine,
+} from "./events/contextConfig";
 
 export interface ComponentOption {
   id: string;
@@ -24,32 +33,6 @@ export interface ComponentOption {
   description: string;
   component: LazyExoticComponent<ComponentType<Record<string, unknown>>>;
 }
-/**
- * Get action configuration for chat context.
- */
-export function getActionConfig(actionType: string): {
-  requiresItemIndex?: boolean;
-  showStatusLine?: boolean;
-} | null {
-  return getChatContextConfig(actionType);
-}
-
-/**
- * Check if action_type should show status line in chat
- */
-export function shouldShowStatusLine(actionType: string): boolean {
-  const config = getActionConfig(actionType);
-  return config?.showStatusLine ?? true;
-}
-
-/**
- * Check if component requires itemIndex prop
- */
-export function requiresItemIndex(actionType: string): boolean {
-  const config = getActionConfig(actionType);
-  return config?.requiresItemIndex ?? false;
-}
-
 /**
  * Get all registered action types
  */

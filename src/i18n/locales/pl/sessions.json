@@ -1004,6 +1004,10 @@
       "newTab": "Nowa karta",
       "terminals": "Terminale"
     },
+    "sideChat": {
+      "title": "Czat boczny",
+      "openInSideChat": "Otwórz w czacie bocznym"
+    },
     "collapseAll": "Zwiń wszystko",
     "copyEventJson": "Kopiuj JSON zdarzeń",
     "copyEventJsonCopied": "Skopiowano!",

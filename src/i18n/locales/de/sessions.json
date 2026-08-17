@@ -1001,6 +1001,10 @@
       "newTab": "Neuer Tab",
       "terminals": "Terminals"
     },
+    "sideChat": {
+      "title": "Seitenchat",
+      "openInSideChat": "Im Seitenchat öffnen"
+    },
     "collapseAll": "Alle einklappen",
     "copyEventJson": "Event-JSON kopieren",
     "copyEventJsonCopied": "Kopiert!",

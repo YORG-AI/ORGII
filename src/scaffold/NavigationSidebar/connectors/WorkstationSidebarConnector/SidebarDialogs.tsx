@@ -1,4 +1,4 @@
-import { RenameModal } from "@/src/scaffold/ModalSystem/variants";
+import RenameModal from "@/src/scaffold/ModalSystem/variants/Rename";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
