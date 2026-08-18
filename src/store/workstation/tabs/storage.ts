@@ -1,5 +1,6 @@
 import { createLogger } from "@src/hooks/logger";
 
+import { parseCurrentAgentOrgSnapshot } from "./agentConfigSnapshot";
 import {
   type WorkStationTab,
   type WorkStationTabType,
@@ -98,6 +99,21 @@ function isValidTab(value: unknown): value is WorkStationTab {
   );
 }
 
+function discardStaleAgentOrgSnapshot(tab: WorkStationTab): WorkStationTab {
+  if (
+    tab.type !== "agent-config" ||
+    tab.data.variant !== "org" ||
+    !("entitySnapshot" in tab.data) ||
+    parseCurrentAgentOrgSnapshot(tab.data.entitySnapshot)
+  ) {
+    return tab;
+  }
+
+  const data = { ...tab.data };
+  delete data.entitySnapshot;
+  return { ...tab, data };
+}
+
 function sanitizeTabs(value: unknown): WorkStationTab[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -106,7 +122,10 @@ function sanitizeTabs(value: unknown): WorkStationTab[] {
     if (!isValidTab(candidate) || seen.has(candidate.id)) continue;
     seen.add(candidate.id);
     // A dirty marker without a restored buffer is misleading after restart.
-    result.push({ ...candidate, hasUnsavedChanges: false });
+    result.push({
+      ...discardStaleAgentOrgSnapshot(candidate),
+      hasUnsavedChanges: false,
+    });
     if (result.length >= MAX_TABS_PER_PARTITION) break;
   }
   return result;
