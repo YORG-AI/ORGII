@@ -66,21 +66,6 @@ export const SESSION_STATUS = {
 
 export const PENDING_SESSION_ID = "pending";
 
-export const ORCHESTRATOR_COMMAND = {
-  Start: "orchestrator_start",
-  Retry: "orchestrator_retry",
-  Cancel: "orchestrator_cancel",
-  GetStatus: "orchestrator_get_status",
-  CreateFollowUp: "orchestrator_create_follow_up",
-} as const;
-
-export type OrchestratorCommand =
-  (typeof ORCHESTRATOR_COMMAND)[keyof typeof ORCHESTRATOR_COMMAND];
-
-export function formatOrchestratorError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Default OrchestratorConfig — single source of truth.
  * Import this instead of duplicating inline defaults.

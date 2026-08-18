@@ -9,7 +9,7 @@
  * its recomputed status once expanded.
  */
 import { ChevronDown, ChevronRight, PlayCircle, RefreshCw } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -19,8 +19,11 @@ import {
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import TabPill from "@src/components/TabPill";
 import { useRoutineResultNavigation } from "@src/hooks/navigation";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+
+const RoutineWebhooksPanel = React.lazy(() => import("./RoutineWebhooksPanel"));
 
 const STATUS_TONE: Record<string, string> = {
   succeeded: "text-success-6",
@@ -163,6 +166,7 @@ const RoutineRunsSurface: React.FC = () => {
   const { t } = useTranslation("sessions");
   const [runs, setRuns] = useState<RoutineRunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<"runs" | "webhooks">("runs");
 
   const load = useCallback(() => {
     projectApi
@@ -192,37 +196,65 @@ const RoutineRunsSurface: React.FC = () => {
       data-testid="routine-runs-surface"
     >
       <div className="flex h-[40px] shrink-0 items-center justify-between border-b border-border-1 px-4">
-        <div className="flex items-center gap-1.5 text-[13px] font-medium text-text-1">
-          <PlayCircle size={14} strokeWidth={1.75} className="text-text-3" />
-          {t("kanban.sidebar.runs", { defaultValue: "Runs" })}
-        </div>
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          size="small"
-          iconOnly
-          icon={<RefreshCw size={13} strokeWidth={1.75} />}
-          onClick={load}
-          data-testid="routine-runs-refresh"
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {error ? (
-          <Placeholder variant="error" title={error} fillParentHeight />
-        ) : runs === null ? (
-          <Placeholder variant="loading" fillParentHeight />
-        ) : runs.length === 0 ? (
-          <Placeholder
-            variant="empty"
-            title={t("kanban.runsEmpty", {
-              defaultValue: "No routine runs yet",
-            })}
-            fillParentHeight
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-[13px] font-medium text-text-1">
+            <PlayCircle size={14} strokeWidth={1.75} className="text-text-3" />
+            {t("kanban.sidebar.runs", { defaultValue: "Runs" })}
+          </div>
+          <TabPill
+            tabs={[
+              {
+                key: "runs",
+                label: t("kanban.sidebar.runs", { defaultValue: "Runs" }),
+              },
+              {
+                key: "webhooks",
+                label: t("webhooks.title", { defaultValue: "Webhooks" }),
+              },
+            ]}
+            activeTab={activeView}
+            onChange={(key) => setActiveView(key as "runs" | "webhooks")}
+            variant="pill"
+            color="fill"
+            fillWidth={false}
+            size="small"
           />
-        ) : (
-          runs.map((run) => <RunRow key={run.id} run={run} />)
+        </div>
+        {activeView === "runs" && (
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            size="small"
+            iconOnly
+            icon={<RefreshCw size={13} strokeWidth={1.75} />}
+            onClick={load}
+            data-testid="routine-runs-refresh"
+          />
         )}
       </div>
+      {activeView === "webhooks" ? (
+        <Suspense fallback={<Placeholder variant="loading" fillParentHeight />}>
+          <RoutineWebhooksPanel />
+        </Suspense>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {error ? (
+            <Placeholder variant="error" title={error} fillParentHeight />
+          ) : runs === null ? (
+            <Placeholder variant="loading" fillParentHeight />
+          ) : runs.length === 0 ? (
+            <Placeholder
+              variant="empty"
+              title={t("kanban.runsEmpty", {
+                defaultValue: "No routine runs yet",
+              })}
+              fillParentHeight
+            />
+          ) : (
+            runs.map((run) => <RunRow key={run.id} run={run} />)
+          )}
+        </div>
+      )}
     </div>
   );
 };

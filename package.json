@@ -1,6 +1,6 @@
 {
   "name": "orgii",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Self-evolving agentic development framework — ORGII desktop app",
   "main": "src/index.tsx",
   "scripts": {
@@ -137,6 +137,7 @@
     "mermaid": "^10.9.5",
     "nanoid": "^5.1.11",
     "papaparse": "^5.5.3",
+    "pokersolver": "2.1.4",
     "process": "^0.11.10",
     "react": "^19.2.6",
     "react-artifact-runtime": "npm:react@18.3.1",

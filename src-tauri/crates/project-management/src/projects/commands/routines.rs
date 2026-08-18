@@ -40,6 +40,16 @@ pub async fn project_list_routine_fires(routine_id: String) -> Result<Vec<Routin
         .map_err(|err| format!("Task join error: {}", err))?
 }
 
+/// List portable routines (`pm_routines`) by name. Backs the Webhooks
+/// management surface; per-routine webhook state comes from
+/// [`project_routine_webhook_status`].
+#[tauri::command]
+pub async fn project_list_portable_routines() -> Result<Vec<serde_json::Value>, String> {
+    tokio::task::spawn_blocking(crate::routine_service::list_routines)
+        .await
+        .map_err(|err| format!("Task join error: {}", err))?
+}
+
 /// List portable routine runs (`pm_routine_runs`), newest first. Backs
 /// the Runs navigation surface; per-run detail comes from
 /// [`project_routine_run_status`].

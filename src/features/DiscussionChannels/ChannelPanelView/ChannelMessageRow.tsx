@@ -309,7 +309,7 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
 
   return (
     <div
-      className={`group/channelmsg flex gap-2 ${CHAT_ITEM_PADDING_X} ${grouped ? "py-0.5" : "pb-1 pt-2"}`}
+      className={`group/channelmsg allow-select-deep flex gap-2 ${CHAT_ITEM_PADDING_X} ${grouped ? "py-0.5" : "pb-1 pt-2"}`}
       data-testid="channel-message"
       data-message-id={message.id}
     >

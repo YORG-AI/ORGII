@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { projectApi } from "@src/api/http/project";
+import type { DiscussionTriggerPreview } from "@src/api/http/project";
 import type { TabPillItem } from "@src/components/TabPill";
 import { createLogger } from "@src/hooks/logger";
+import { useDebouncedCallback } from "@src/hooks/perf";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
 import {
   resolveImagePathsForDisplay,
@@ -18,7 +20,11 @@ import type {
 
 import { SESSION_TAB_KEYS, type SessionTab } from "../types";
 import { useWorkItemTimeline } from "../useWorkItemTimeline";
-import { normalizeWorkItemMentionIds } from "../workItemMentions";
+import {
+  type MentionCandidate,
+  mentionedMemberIds,
+  normalizeWorkItemMentions,
+} from "../workItemMentions";
 
 const logger = createLogger("useWorkItemContentState");
 
@@ -28,6 +34,8 @@ interface UseWorkItemContentStateOptions {
   onUpdateWorkItemImmediate?: (updates: Partial<WorkItemExtended>) => void;
   currentUserProp?: Person;
   teamMembers?: Person[];
+  availableAgents?: MentionCandidate[];
+  availableOrgs?: MentionCandidate[];
   projectSlug?: string | null;
   shortId?: string | null;
   orgId?: string | null;
@@ -42,6 +50,8 @@ export function useWorkItemContentState(
     onUpdateWorkItemImmediate,
     currentUserProp,
     teamMembers = [],
+    availableAgents = [],
+    availableOrgs = [],
     projectSlug,
     shortId,
     orgId,
@@ -73,13 +83,62 @@ export function useWorkItemContentState(
     useState<SessionTab>("session");
   const [commentText, setCommentText] = useState("");
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
-  const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
+  const [mentionRefs, setMentionRefs] = useState<string[]>([]);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [triggerPreview, setTriggerPreview] =
+    useState<DiscussionTriggerPreview | null>(null);
+  const previewGenerationRef = useRef(0);
 
   const currentPhase = workItem.orchestratorState?.current_phase ?? "idle";
   const isAgentRunning = currentPhase === "sde" || currentPhase === "review";
   const scopedShortId = shortId ?? workItem.shortId ?? "";
+
+  const fetchTriggerPreview = useDebouncedCallback((content: string) => {
+    const generation = previewGenerationRef.current + 1;
+    previewGenerationRef.current = generation;
+    projectApi
+      .previewDiscussionTrigger({
+        projectSlug: projectSlug ?? null,
+        orgId: orgId || "personal-org",
+        workItemId: scopedShortId,
+        content,
+        mentions: normalizeWorkItemMentions(mentionRefs, {
+          members: teamMembers,
+          agents: availableAgents,
+          agentOrgs: availableOrgs,
+          currentUserId: currentUser.id,
+        }),
+        parentId: replyToCommentId,
+      })
+      .then((preview) => {
+        if (previewGenerationRef.current === generation) {
+          setTriggerPreview(preview);
+        }
+      })
+      .catch((error) => {
+        logger.warn("Failed to preview Discussion trigger", error);
+        if (previewGenerationRef.current === generation) {
+          setTriggerPreview(null);
+        }
+      });
+  }, 350);
+
+  useEffect(() => {
+    const content = commentText.trim();
+    if (!scopedShortId || !content) {
+      previewGenerationRef.current += 1;
+      setTriggerPreview(null);
+      return;
+    }
+    fetchTriggerPreview(content);
+  }, [
+    commentText,
+    fetchTriggerPreview,
+    scopedShortId,
+    mentionRefs,
+    replyToCommentId,
+  ]);
 
   useEffect(() => {
     if (!scopedShortId || !currentUser.id) return;
@@ -229,11 +288,12 @@ export function useWorkItemContentState(
 
     setIsSubmittingComment(true);
     try {
-      const mentioned = normalizeWorkItemMentionIds(
-        mentionedUserIds,
-        teamMembers,
-        currentUser.id
-      );
+      const mentions = normalizeWorkItemMentions(mentionRefs, {
+        members: teamMembers,
+        agents: availableAgents,
+        agentOrgs: availableOrgs,
+        currentUserId: currentUser.id,
+      });
       const result = await projectApi.postDiscussionComment({
         projectSlug: projectSlug ?? null,
         orgId: orgId || "personal-org",
@@ -242,13 +302,14 @@ export function useWorkItemContentState(
         authorId: currentUser.id,
         authorName: currentUser.name ?? currentUser.id,
         content: commentText.trim(),
-        mentionedUserIds: mentioned,
+        mentionedUserIds: mentionedMemberIds(mentions),
+        mentions,
         parentId: replyToCommentId,
       });
       setIsSubscribed(true);
       setCommentText("");
       setReplyToCommentId(null);
-      setMentionedUserIds([]);
+      setMentionRefs([]);
       logger.debug(
         `Persisted Discussion comment ${result.comment.id} (${result.wakeReason})`
       );
@@ -263,8 +324,10 @@ export function useWorkItemContentState(
     scopedShortId,
     currentUser.id,
     currentUser.name,
-    mentionedUserIds,
+    mentionRefs,
     teamMembers,
+    availableAgents,
+    availableOrgs,
     orgId,
     projectSlug,
     replyToCommentId,
@@ -371,11 +434,12 @@ export function useWorkItemContentState(
     setCommentText,
     replyToCommentId,
     setReplyToCommentId,
-    mentionedUserIds,
-    setMentionedUserIds,
+    mentionRefs,
+    setMentionRefs,
     isSubscribed,
     handleToggleSubscription,
     isSubmittingComment,
+    triggerPreview,
     currentPhase,
     isAgentRunning,
     sessionTabItems,

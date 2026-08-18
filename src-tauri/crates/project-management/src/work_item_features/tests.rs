@@ -7,9 +7,9 @@ use test_helpers::test_env;
 use super::*;
 use crate::projects::io::helpers::conn;
 use crate::projects::types::{
-    AgentRole, LinkedSession, LinkedSessionStatus, LinkedSessionType, WorkItemCloseOut,
-    WorkItemCloseOutStatus, WorkItemWorkProduct, WorkItemWorkProductStatus,
-    WorkItemWorkProductType,
+    AgentRole, LinkedSession, LinkedSessionStatus, LinkedSessionType, MentionTarget,
+    OrchestratorConfig, WorkItemCloseOut, WorkItemCloseOutStatus, WorkItemWorkProduct,
+    WorkItemWorkProductStatus, WorkItemWorkProductType,
 };
 use crate::routine_service::spec::{Activation, ActivationPolicies, RoutineSpecFile};
 use crate::work_service::{self, CreateWorkItemRequest};
@@ -56,6 +56,15 @@ fn seed(linked_session: bool) {
 }
 
 fn post(comment_id: &str, content: &str, parent_id: Option<&str>) -> DiscussionPostResult {
+    post_with_mentions(comment_id, content, parent_id, Vec::new())
+}
+
+fn post_with_mentions(
+    comment_id: &str,
+    content: &str,
+    parent_id: Option<&str>,
+    mentions: Vec<MentionTarget>,
+) -> DiscussionPostResult {
     discussion::post(DiscussionPostRequest {
         scope: scope(),
         comment_id: comment_id.to_string(),
@@ -63,6 +72,7 @@ fn post(comment_id: &str, content: &str, parent_id: Option<&str>) -> DiscussionP
         author_name: "Member One".to_string(),
         content: content.to_string(),
         mentioned_user_ids: Vec::new(),
+        mentions,
         parent_id: parent_id.map(str::to_string),
         target_session_id: None,
     })
@@ -75,7 +85,7 @@ fn discussion_comment_and_run_are_atomic_and_threads_reopen_on_reply() {
     seed(true);
 
     let root = post("comment-root", "Please include the retry proof.", None);
-    assert_eq!(root.wake_reason, "discussion_reply");
+    assert_eq!(root.wake_reason, "latest_session");
     assert!(
         root.run.is_some(),
         "a linked Session must be woken through a Run"
@@ -87,6 +97,7 @@ fn discussion_comment_and_run_are_atomic_and_threads_reopen_on_reply() {
         "Agent receipt",
         Some("comment-root"),
         None,
+        Some("session-1"),
     )
     .expect("append agent receipt in the same thread");
 
@@ -100,6 +111,7 @@ fn discussion_comment_and_run_are_atomic_and_threads_reopen_on_reply() {
         Some("comment-root"),
     );
     assert_eq!(reply.comment.thread_id.as_deref(), Some("comment-root"));
+    assert_eq!(reply.wake_reason, "thread_owner");
     let resolved = discussion::resolve_thread(DiscussionThreadMutation {
         scope: scope(),
         thread_id: "comment-root".to_string(),
@@ -150,10 +162,66 @@ fn discussion_comment_and_run_are_atomic_and_threads_reopen_on_reply() {
         })
         .expect("outbox count");
     assert_eq!(
-        run_count, 3,
-        "root, reply, and reopened reply dispatch once each"
+        run_count, 1,
+        "consecutive waking comments coalesce into one open wake window"
     );
     assert_eq!(outbox_count, run_count);
+    let input_json: String = connection
+        .query_row(
+            "SELECT input_json FROM pm_work_item_runs WHERE work_item_id = 'AAA-0001'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("wake input");
+    let input: serde_json::Value = serde_json::from_str(&input_json).expect("wake input json");
+    let merged_ids = input["discussionCommentIds"]
+        .as_array()
+        .expect("merged comment ids")
+        .iter()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        merged_ids,
+        vec![
+            "comment-root".to_string(),
+            "comment-reply".to_string(),
+            "comment-after-resolution".to_string()
+        ],
+        "the window carries every merged comment in arrival order"
+    );
+}
+
+#[test]
+fn discussion_wake_window_closes_once_the_dispatcher_claims_it() {
+    let _sandbox = test_env::sandbox();
+    seed(true);
+
+    let first = post("comment-first", "Please include the retry proof.", None);
+    let first_run = first.run.expect("first wake run");
+
+    let connection = conn().expect("connection");
+    connection
+        .execute(
+            "UPDATE pm_dispatch_outbox SET status = 'leased' WHERE run_id = ?1",
+            rusqlite::params![first_run.id],
+        )
+        .expect("simulate dispatcher claim");
+
+    let second = post("comment-second", "One more detail.", None);
+    let second_run = second.run.expect("second wake run");
+    assert_ne!(
+        second_run.id, first_run.id,
+        "a claimed window must not absorb new comments"
+    );
+
+    let run_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pm_work_item_runs WHERE work_item_id = 'AAA-0001'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("run count");
+    assert_eq!(run_count, 2, "window close opens a fresh deferred wake");
 }
 
 #[test]
@@ -185,6 +253,114 @@ fn discussion_mutation_commits_a_collaboration_outbox_row() {
 }
 
 #[test]
+fn discussion_routing_rejects_mentions_outside_the_configured_agent() {
+    let _sandbox = test_env::sandbox();
+    seed(true);
+
+    let unroutable = post_with_mentions(
+        "comment-mention-unknown",
+        "Please take a look.",
+        None,
+        vec![MentionTarget::Agent {
+            id: "agent-unknown".to_string(),
+        }],
+    );
+    assert_eq!(unroutable.wake_reason, "mention_unroutable");
+    assert!(unroutable.run.is_none(), "unroutable mentions must not wake");
+}
+
+fn seed_with_config(linked_session: bool, agent_definition_id: &str) {
+    work_service::tests_support::seed_project("demo", "project-1");
+    work_service::create_project_work_item(
+        "demo",
+        "AAA-0001",
+        &CreateWorkItemRequest {
+            title: "Routing fixture".to_string(),
+            body: "Route this discussion.".to_string(),
+            created_by: Some("creator-1".to_string()),
+            orchestrator_config: Some(OrchestratorConfig {
+                agent_definition_id: Some(agent_definition_id.to_string()),
+                ..Default::default()
+            }),
+            linked_sessions: linked_session
+                .then(|| LinkedSession {
+                    session_id: "session-1".to_string(),
+                    session_type: LinkedSessionType::Native,
+                    agent_role: AgentRole::Coding,
+                    started_at: "2026-08-08T10:00:00Z".to_string(),
+                    completed_at: None,
+                    status: LinkedSessionStatus::Running,
+                    cost_usd: 0.0,
+                    total_tokens: 0,
+                    parent_session_id: None,
+                    sub_agent_name: None,
+                    sub_agent_instance: None,
+                    result_preview: None,
+                })
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        },
+        None,
+    )
+    .expect("seed Work Item");
+}
+
+#[test]
+fn discussion_routing_resumes_the_configured_agent_on_mention() {
+    let _sandbox = test_env::sandbox();
+    seed_with_config(true, "builtin:sde");
+
+    let mentioned = post_with_mentions(
+        "comment-mention-agent",
+        "Please take a look.",
+        None,
+        vec![MentionTarget::Agent {
+            id: "builtin:sde".to_string(),
+        }],
+    );
+    assert_eq!(mentioned.wake_reason, "mention");
+    assert_eq!(
+        mentioned.comment.agent_session_id.as_deref(),
+        Some("session-1")
+    );
+    assert!(mentioned.run.is_some());
+}
+
+#[test]
+fn discussion_routing_starts_the_assigned_agent_without_sessions() {
+    let _sandbox = test_env::sandbox();
+    seed_with_config(false, "builtin:sde");
+
+    let root = post("comment-root", "Kick this off please.", None);
+    assert_eq!(root.wake_reason, "assignee_start");
+    assert!(
+        root.run.is_some(),
+        "assigned agent must be started through a Run"
+    );
+    assert!(root.comment.agent_session_id.is_none());
+}
+
+#[test]
+fn discussion_preview_reports_assignee_start() {
+    let _sandbox = test_env::sandbox();
+    seed_with_config(false, "builtin:sde");
+
+    let preview = discussion::preview(DiscussionTriggerPreviewRequest {
+        scope: scope(),
+        content: "please take a look".to_string(),
+        mentions: Vec::new(),
+        parent_id: None,
+        target_session_id: None,
+    })
+    .expect("preview");
+    assert!(preview.will_wake);
+    assert_eq!(preview.reason, "assignee_start");
+    assert_eq!(preview.target_kind.as_deref(), Some("start"));
+    assert!(!preview.will_coalesce);
+}
+
+#[test]
 fn subscriptions_coalesce_updates_but_keep_mentions_separate() {
     let _sandbox = test_env::sandbox();
     seed(false);
@@ -202,6 +378,7 @@ fn subscriptions_coalesce_updates_but_keep_mentions_separate() {
             author_name: "Author".to_string(),
             content: body.to_string(),
             mentioned_user_ids: vec!["mentioned-1".to_string()],
+            mentions: Vec::new(),
             parent_id: None,
             target_session_id: None,
         })

@@ -62,7 +62,6 @@ export const CREATE_WORK_ITEM_VISIBLE_FIELDS: WorkItemPropertyFieldKey[] = [
   "status",
   "priority",
   "assignee",
-  "reviewer",
   "milestone",
   "startDate",
   "date",

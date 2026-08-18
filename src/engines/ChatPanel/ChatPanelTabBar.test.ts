@@ -296,6 +296,7 @@ describe("ChatPanelTabBar", () => {
         onNewProject: vi.fn(),
         onNewWorkItem: vi.fn(),
         onOpenSideChat: vi.fn(),
+        onOpenPokerTable: vi.fn(),
         onClose: vi.fn(),
       })
     );
@@ -305,5 +306,6 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain("sessions:creator.createTarget.project");
     expect(markup).toContain("chat.startPage.newWorkItem.title");
     expect(markup).toContain("sessions:chat.sideChat.title");
+    expect(markup).toContain("sessions:pokerTable.menuLabel");
   });
 });

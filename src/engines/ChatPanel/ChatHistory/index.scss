@@ -140,6 +140,24 @@
     -webkit-user-select: text !important;
   }
 
+  // The transcript scroller owns one selection range. Older rules above
+  // deliberately made individual text leaves selectable while their wrappers
+  // stayed inert; that turns Markdown blocks and adjacent messages into
+  // separate selection islands. The shared deep-selection contract restores
+  // a continuous range, while explicit UI chrome can still opt out with
+  // `select-none`.
+  .allow-select-deep,
+  .allow-select-deep * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  .allow-select-deep .select-none,
+  .allow-select-deep .select-none * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
   .chat-markdown-body
     :is(
       p,
@@ -219,6 +237,12 @@
       --terminal-selection,
       var(--color-primary-1)
     ) !important;
+  }
+
+  .allow-select-deep::selection,
+  .allow-select-deep *::selection {
+    background: var(--terminal-selection, var(--color-fill-2)) !important;
+    background-color: var(--terminal-selection, var(--color-fill-2)) !important;
   }
 
   .chat-markdown-body {

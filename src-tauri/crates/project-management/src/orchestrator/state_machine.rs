@@ -8,7 +8,7 @@
 use crate::projects::io;
 use crate::projects::types::{
     AgentRole, LastFailure, LinkedSession, LinkedSessionStatus, LinkedSessionType,
-    OrchestratorConfig, OrchestratorPhase, OrchestratorState, ReviewOutcome, WorkItemFrontmatter,
+    OrchestratorConfig, OrchestratorPhase, OrchestratorState, WorkItemFrontmatter,
 };
 use core_types::session::PENDING_SESSION_PLACEHOLDER;
 
@@ -58,27 +58,14 @@ pub fn effective_config(frontmatter: &WorkItemFrontmatter) -> OrchestratorConfig
 
 /// Transition after agent session completes successfully.
 pub fn on_session_complete(frontmatter: &mut WorkItemFrontmatter) -> TransitionResult {
-    let config = effective_config(frontmatter);
     let state = frontmatter
         .orchestrator_state
         .get_or_insert_with(OrchestratorState::default);
 
-    if config.effective_review_config().is_some() {
-        state.current_phase = OrchestratorPhase::Review;
-        auto_transition_status(frontmatter, &OrchestratorPhase::Review);
-        add_linked_session(
-            frontmatter,
-            "pending",
-            AgentRole::Review,
-            LinkedSessionType::Native,
-        );
-        TransitionResult::LaunchReview
-    } else {
-        state.current_phase = OrchestratorPhase::Completed;
-        state.active_config = None;
-        auto_transition_status(frontmatter, &OrchestratorPhase::Completed);
-        TransitionResult::Completed
-    }
+    state.current_phase = OrchestratorPhase::Completed;
+    state.active_config = None;
+    auto_transition_status(frontmatter, &OrchestratorPhase::Completed);
+    TransitionResult::Completed
 }
 
 /// Transition after agent session fails.
@@ -106,76 +93,6 @@ pub fn on_session_failed(
         state.current_phase = OrchestratorPhase::Failed;
         TransitionResult::Failed
     }
-}
-
-/// Transition after review completes (agent or human).
-///
-/// - `Approved` → Completed
-/// - `ChangesRequested` → back to Coding (fix round) if under max_rounds, else AwaitingUser
-/// - `Inconclusive` → AwaitingUser
-pub fn on_review_complete(
-    frontmatter: &mut WorkItemFrontmatter,
-    outcome: &ReviewOutcome,
-) -> TransitionResult {
-    let config = effective_config(frontmatter);
-    let review_config = config.effective_review_config();
-    let max_rounds = review_config.as_ref().map_or(3, |rc| rc.max_rounds);
-
-    let state = frontmatter
-        .orchestrator_state
-        .get_or_insert_with(OrchestratorState::default);
-
-    match outcome {
-        ReviewOutcome::Approved => {
-            state.current_phase = OrchestratorPhase::Completed;
-            state.active_config = None;
-            auto_transition_status(frontmatter, &OrchestratorPhase::Completed);
-            TransitionResult::Completed
-        }
-        ReviewOutcome::ChangesRequested => {
-            if state.review_round < max_rounds {
-                state.review_round += 1;
-                state.current_phase = OrchestratorPhase::Coding;
-                auto_transition_status(frontmatter, &OrchestratorPhase::Coding);
-                add_linked_session(
-                    frontmatter,
-                    "pending",
-                    AgentRole::Coding,
-                    LinkedSessionType::Native,
-                );
-                TransitionResult::LaunchFix
-            } else {
-                state.current_phase = OrchestratorPhase::AwaitingUser;
-                auto_transition_status(frontmatter, &OrchestratorPhase::AwaitingUser);
-                TransitionResult::AwaitingUser
-            }
-        }
-        ReviewOutcome::Inconclusive => {
-            state.current_phase = OrchestratorPhase::AwaitingUser;
-            auto_transition_status(frontmatter, &OrchestratorPhase::AwaitingUser);
-            TransitionResult::AwaitingUser
-        }
-    }
-}
-
-/// Transition after review agent fails (e.g. LLM error, timeout).
-pub fn on_review_failed(
-    frontmatter: &mut WorkItemFrontmatter,
-    session_id: &str,
-    reason: &str,
-) -> TransitionResult {
-    let state = frontmatter
-        .orchestrator_state
-        .get_or_insert_with(OrchestratorState::default);
-
-    state.last_failure = Some(LastFailure {
-        session_id: Some(session_id.to_string()),
-        reason: Some(reason.to_string()),
-        timestamp: Some(chrono::Utc::now().to_rfc3339()),
-    });
-    state.current_phase = OrchestratorPhase::AwaitingUser;
-
-    TransitionResult::AwaitingUser
 }
 
 /// Mark the workflow as interrupted (graceful shutdown).
@@ -324,14 +241,9 @@ pub fn mutate_work_item(
 /// What action the orchestrator should take after a transition.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransitionResult {
-    LaunchReview,
-    /// Review gave ChangesRequested — re-launch owner agent with review feedback.
-    LaunchFix,
     RetryAgent,
     Completed,
     Failed,
-    CreateFollowUp,
-    AwaitingUser,
     /// Stale terminal signal from a session that no longer owns the
     /// item's execution claim — the mutation was skipped entirely.
     Ignored,

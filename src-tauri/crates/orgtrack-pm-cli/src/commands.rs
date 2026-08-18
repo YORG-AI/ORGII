@@ -921,6 +921,20 @@ fn cmd_work_transition(
     }
 }
 
+fn agent_note_session<'a>(
+    context: &'a ExecutionContext,
+    actor: &WorkItemMutationActor,
+) -> Option<&'a str> {
+    if !actor.id.starts_with("agent:") {
+        return None;
+    }
+    context
+        .session_ref
+        .as_ref()
+        .filter(|session| session.provider == "org2")
+        .map(|session| session.external_id.as_str())
+}
+
 fn cmd_work_note(
     context: &ExecutionContext,
     short_id: Option<&String>,
@@ -970,6 +984,7 @@ fn cmd_work_note(
             body,
             parent_id,
             Some(&actor),
+            agent_note_session(context, &actor),
         ) {
             Ok(()) => emit_success(
                 serde_json::json!({ "appended": true, "kind": kind }),
@@ -1020,6 +1035,7 @@ fn cmd_work_note(
             body,
             parent_id,
             Some(&actor),
+            agent_note_session(context, &actor),
         ) {
             Ok(()) => emit_success(
                 serde_json::json!({ "appended": true, "kind": kind }),
@@ -1040,6 +1056,7 @@ fn cmd_work_note(
         body,
         parent_id,
         Some(&actor),
+        agent_note_session(context, &actor),
     ) {
         Ok(()) => emit_success(
             serde_json::json!({ "appended": true, "kind": kind }),

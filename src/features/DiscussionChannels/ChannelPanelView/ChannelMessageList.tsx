@@ -125,7 +125,7 @@ const ChannelMessageList: React.FC<ChannelMessageListProps> = ({
   return (
     <div
       ref={scrollContainerRef}
-      className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-2"
+      className="scrollbar-overlay allow-select-deep min-h-0 flex-1 overflow-y-auto px-2"
       data-testid="channel-message-list"
     >
       <div

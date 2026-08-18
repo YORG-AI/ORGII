@@ -330,6 +330,82 @@ fn ack_conflict_requeues_for_immediate_retry() {
 }
 
 #[test]
+fn stale_remote_tombstone_does_not_delete_a_reborn_work_item() {
+    let _sandbox = test_env::sandbox();
+    seed_collab_org();
+    seed_project("reborn");
+    write_work_item(
+        "reborn",
+        "RBN-0001",
+        &work_item_frontmatter("RBN-0001", "Second life"),
+        "fresh body",
+    )
+    .expect("write reborn item");
+
+    // A tombstone from the id's PRIOR life: stamped long before this row
+    // was created. Applying it would make the fresh item invisible.
+    let swallowed = apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: json!({ "id": "RBN-0001" }),
+            version: 7,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: Some("2020-01-01T00:00:00Z".to_string()),
+        }],
+    )
+    .expect("apply stale tombstone");
+    assert_eq!(swallowed, 0, "stale tombstone must not count as applied");
+    let item = read_work_item("reborn", "RBN-0001").expect("item must stay visible");
+    assert_eq!(item.frontmatter.title, "Second life");
+
+    // The swallowed version is recorded: replaying the same tombstone is a no-op.
+    let replayed = apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: json!({ "id": "RBN-0001" }),
+            version: 7,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: Some("2020-01-01T00:00:00Z".to_string()),
+        }],
+    )
+    .expect("replay stale tombstone");
+    assert_eq!(replayed, 0);
+
+    // A tombstone stamped AFTER local creation is a genuine delete and
+    // still applies.
+    let future_delete = chrono::Utc::now() + chrono::Duration::hours(1);
+    let applied = apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: json!({ "id": "RBN-0001" }),
+            version: 8,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: Some(future_delete.to_rfc3339()),
+        }],
+    )
+    .expect("apply genuine tombstone");
+    assert_eq!(applied, 1, "a post-creation tombstone must still delete");
+    let conn = io::conn().expect("conn");
+    let deleted_at: Option<i64> = conn
+        .query_row(
+            "SELECT deleted_at FROM workitems WHERE id = 'RBN-0001' AND org_id = ?1",
+            params![ORG],
+            |row| row.get(0),
+        )
+        .expect("read deleted_at");
+    assert!(
+        deleted_at.is_some(),
+        "genuine tombstone must stamp deleted_at"
+    );
+}
+
+#[test]
 fn apply_remote_creates_entities_without_echo() {
     let _sandbox = test_env::sandbox();
     seed_collab_org();

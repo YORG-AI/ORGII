@@ -63,7 +63,12 @@ const WorkItemsSettings = React.lazy(
   () => import("./components/WorkItemsSettings")
 );
 
-const WORK_ITEMS_VIEW_TABS: readonly WorkItemsViewTab[] = ["List", "Kanban"];
+const WORK_ITEMS_VIEW_TABS: readonly WorkItemsViewTab[] = [
+  "List",
+  "Kanban",
+  "Gantt",
+  "Calendar",
+];
 
 // ============================================
 // Types
@@ -528,7 +533,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     () =>
       WORK_ITEMS_VIEW_TABS.map((tab) => ({
         key: tab,
-        label: t(`workItems.tabs.${tab === "List" ? "list" : "kanban"}`),
+        label: t(`workItems.tabs.${tab.toLowerCase()}`),
       })),
     [t]
   );

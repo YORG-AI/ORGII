@@ -1064,7 +1064,7 @@ pub fn note_project_work_item(
     body: &str,
     actor: Option<&WorkItemMutationActor>,
 ) -> Result<(), String> {
-    note_project_work_item_threaded(project_slug, short_id, kind, body, None, actor)
+    note_project_work_item_threaded(project_slug, short_id, kind, body, None, actor, None)
 }
 
 /// Append a note as a reply in a persisted Discussion thread without waking
@@ -1077,6 +1077,7 @@ pub fn note_project_work_item_threaded(
     body: &str,
     parent_id: Option<&str>,
     actor: Option<&WorkItemMutationActor>,
+    agent_session_id: Option<&str>,
 ) -> Result<(), String> {
     let author = actor
         .map(|a| a.name.clone())
@@ -1092,6 +1093,7 @@ pub fn note_project_work_item_threaded(
     let reason = Some(kind.to_string());
     let body_owned = note_body;
     let parent_id = parent_id.map(str::to_string);
+    let agent_session_id = agent_session_id.map(str::to_string);
     project_io::update_work_item_atomic_serviced(
         project_slug,
         short_id,
@@ -1129,6 +1131,7 @@ pub fn note_project_work_item_threaded(
                     mentioned_user_ids: vec![],
                     parent_id,
                     thread_id,
+                    agent_session_id,
                     ..Default::default()
                 });
             Ok(())
@@ -1201,7 +1204,7 @@ pub fn note_standalone_work_item(
     body: &str,
     actor: Option<&WorkItemMutationActor>,
 ) -> Result<(), String> {
-    note_standalone_work_item_threaded(org_id, short_id, kind, body, None, actor)
+    note_standalone_work_item_threaded(org_id, short_id, kind, body, None, actor, None)
 }
 
 pub fn note_standalone_work_item_threaded(
@@ -1211,6 +1214,7 @@ pub fn note_standalone_work_item_threaded(
     body: &str,
     parent_id: Option<&str>,
     actor: Option<&WorkItemMutationActor>,
+    agent_session_id: Option<&str>,
 ) -> Result<(), String> {
     let author = actor
         .map(|a| a.name.clone())
@@ -1221,6 +1225,7 @@ pub fn note_standalone_work_item_threaded(
         format!("[{}] {}", kind, body)
     };
     let parent_id = parent_id.map(str::to_string);
+    let agent_session_id = agent_session_id.map(str::to_string);
     project_io::update_standalone_work_item_atomic_serviced(
         org_id,
         actor,
@@ -1258,6 +1263,7 @@ pub fn note_standalone_work_item_threaded(
                     mentioned_user_ids: vec![],
                     parent_id,
                     thread_id,
+                    agent_session_id,
                     ..Default::default()
                 });
             Ok(())

@@ -147,6 +147,12 @@ export interface WorkItemComment {
   content: string;
   created_at: string;
   mentioned_user_ids?: string[];
+  mentions?: Array<
+    | { kind: "member"; id: string }
+    | { kind: "agent"; id: string }
+    | { kind: "agent_org"; id: string }
+    | { kind: "all" }
+  >;
   parent_id?: string;
   thread_id?: string;
   resolved_at?: string;

@@ -3,7 +3,6 @@ import { useCallback, useMemo } from "react";
 
 import type {
   OrchestratorConfig,
-  ReviewerRefType,
   WorkItemSchedule,
 } from "@src/api/http/project";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
@@ -48,9 +47,6 @@ export function useWorkItemPropertyHandlers({
 }: UseWorkItemPropertyHandlersParams) {
   const builtInAgents = useAtomValue(builtInAgentsAtom);
 
-  // Memoized so downstream `useCallback` deps (notably the reviewer-display
-  // callback) stay stable across renders — eslint react-hooks/exhaustive-deps
-  // flagged the inline array literal as a re-rendering trigger.
   const allAgentList = useMemo(
     () => [
       ...builtInAgents.map((agent) => ({ id: agent.id, name: agent.name })),
@@ -120,68 +116,6 @@ export function useWorkItemPropertyHandlers({
     },
     [workItem.orchestratorConfig, availableOrgs, onUpdate, closePicker]
   );
-
-  const reviewConfig = workItem.orchestratorConfig?.review_config;
-  const currentReviewer = reviewConfig?.reviewer;
-
-  const handleReviewerChange = useCallback(
-    (reviewerType: ReviewerRefType | null, reviewerId?: string) => {
-      const existingConfig: OrchestratorConfig = {
-        ...DEFAULT_ORCHESTRATOR_CONFIG,
-        ...workItem.orchestratorConfig,
-      };
-      if (reviewerType === null) {
-        onUpdate({
-          orchestratorConfig: {
-            ...existingConfig,
-            review_enabled: false,
-            review_config: undefined,
-          },
-        });
-      } else {
-        onUpdate({
-          orchestratorConfig: {
-            ...existingConfig,
-            review_enabled: true,
-            review_config: {
-              reviewer: { type: reviewerType, id: reviewerId },
-              max_rounds: reviewConfig?.max_rounds ?? 3,
-            },
-          },
-        });
-      }
-      closePicker();
-    },
-    [workItem.orchestratorConfig, reviewConfig, onUpdate, closePicker]
-  );
-
-  const getReviewerDisplay = useCallback((): string => {
-    if (!currentReviewer) return t("workItems.properties.noReviewer");
-    switch (currentReviewer.type) {
-      case "self_review":
-        return t("workItems.agentSettings.reviewerSelfReview");
-      case "agent": {
-        if (currentReviewer.id) {
-          const found = allAgentList.find(
-            (agent) => agent.id === currentReviewer.id
-          );
-          return found?.name ?? currentReviewer.id;
-        }
-        return t("workItems.agentSettings.reviewerAgent");
-      }
-      case "human": {
-        if (currentReviewer.id) {
-          const found = availableMembers.find(
-            (person) => person.id === currentReviewer.id
-          );
-          return found?.name ?? currentReviewer.id;
-        }
-        return t("workItems.agentSettings.reviewerHuman");
-      }
-      default:
-        return t("workItems.properties.noReviewer");
-    }
-  }, [currentReviewer, allAgentList, availableMembers, t]);
 
   const handleScheduleChange = useCallback(
     (schedule: WorkItemSchedule | null) => {
@@ -307,12 +241,9 @@ export function useWorkItemPropertyHandlers({
   return {
     builtInAgents,
     allAgentList,
-    currentReviewer,
     handleStatusChange,
     handlePriorityChange,
     handleAssigneeChange,
-    handleReviewerChange,
-    getReviewerDisplay,
     handleScheduleChange,
     handleLabelToggle,
     handleLabelsClear,

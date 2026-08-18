@@ -3009,5 +3009,79 @@
     "elementsCount_one": "{{count}} element",
     "elementsCount_other": "{{count}} elements",
     "regionLabel": "Region · {{label}}"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "empty": "No routines yet — apply one from the CLI first",
+    "notInstalled": "Not installed",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "paused": "Paused after {{count}} failures",
+    "install": "Install webhook",
+    "rotate": "Rotate secret",
+    "enable": "Enable",
+    "disable": "Disable",
+    "secretHint": "Secret",
+    "secretShownOnce": "The secret is shown once — store it in your provider now.",
+    "noDeliveries": "No deliveries yet",
+    "replay": "Replay",
+    "replayQueued": "Delivery replayed",
+    "copied": "Copied",
+    "copyFailed": "Copy failed"
   }
 }

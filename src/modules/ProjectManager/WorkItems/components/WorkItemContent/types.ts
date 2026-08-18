@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type {
+  DiscussionTriggerPreview,
   OrchestratorPhase,
   PrStatus,
   WorkItemData as WorkItemDataPayload,
@@ -17,6 +18,7 @@ import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 import type { WorkItemComment } from "@src/types/core/workItem";
 
 import type { WorkItemContentPresentation } from "./presentation";
+import type { MentionCandidate } from "./workItemMentions";
 
 export const SESSION_TAB_KEYS = ["session", "output", "history"] as const;
 export type SessionTab = (typeof SESSION_TAB_KEYS)[number];
@@ -33,6 +35,8 @@ export interface WorkItemContentProps {
   onUpdateWorkItemImmediate?: (updates: Partial<WorkItemExtended>) => void;
   currentUser?: Person;
   teamMembers?: Person[];
+  availableAgents?: MentionCandidate[];
+  availableOrgs?: MentionCandidate[];
   headerPath?: ReactNode;
   headerProperties?: ReactNode;
   /** Render the editable title inside the content surface. */
@@ -54,10 +58,6 @@ export interface WorkItemContentProps {
   };
   /** Inline GitHub-native body, comment, and status actions for thread surfaces. */
   githubIssueInteraction?: GitHubIssueInteractionConfig;
-  onCancelAgent?: () => void;
-  onRetry?: () => void;
-  onAcceptAsIs?: () => void;
-  onCreateFollowUp?: () => void;
   onOpenSession?: (sessionId: string, title?: string) => void;
   onOpenFileDiff?: (filePath: string) => void;
   onOpenFileAtLine?: (filePath: string, line?: number) => void;
@@ -115,10 +115,6 @@ export interface OutputTabContentProps {
   onOpenFileAtLine?: (filePath: string, line?: number) => void;
   onReviewAllFiles?: (filePaths: string[]) => void;
   onOpenSession?: (sessionId: string, title?: string) => void;
-  onRetry?: () => void;
-  onAcceptAsIs?: () => void;
-  onCreateFollowUp?: () => void;
-  onCancel?: () => void;
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
 }
 
@@ -143,9 +139,11 @@ export interface HistoryTabProps {
   onToggleSubscribe: () => void;
   commentText: string;
   onCommentTextChange: (text: string) => void;
-  mentionedUserIds?: string[];
-  onMentionedUserIdsChange?: (memberIds: string[]) => void;
+  mentionRefs?: string[];
+  onMentionRefsChange?: (mentionRefs: string[]) => void;
   teamMembers?: Person[];
+  agents?: MentionCandidate[];
+  agentOrgs?: MentionCandidate[];
   onCommentSubmit: () => void;
   isSubmittingComment: boolean;
   comments?: WorkItemComment[];
@@ -156,6 +154,7 @@ export interface HistoryTabProps {
   presentation?: WorkItemContentPresentation;
   canComment?: boolean;
   threadNavigation?: ReactNode;
+  triggerPreview?: DiscussionTriggerPreview | null;
 }
 
 export interface TimelineEntry {
