@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
-import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import Textarea from "@src/components/Textarea";
 import TeamMemberTable, {
