@@ -5,6 +5,7 @@
  */
 import { captureApiCallStack } from "@src/util/monitoring/apiTracker";
 
+import type { ApiAuthFailure } from "./authFailure";
 import { makeDeleteRequest, makeRequest } from "./requestHandler";
 import type { DataField } from "./types";
 
@@ -14,7 +15,7 @@ export async function getApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): Promise<DataField<T> | undefined> {
   const captureId = captureApiCallStack();
   return makeRequest<T>("GET", url, "main", params, {
@@ -31,7 +32,7 @@ export async function postApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): Promise<DataField<T> | undefined> {
   const captureId = captureApiCallStack();
   return makeRequest<T>("POST", url, "main", params, {
@@ -48,7 +49,7 @@ export async function putApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): Promise<DataField<T> | undefined> {
   const captureId = captureApiCallStack();
   return makeRequest<T>("PUT", url, "main", params, {
@@ -65,7 +66,7 @@ export async function patchApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): Promise<DataField<T> | undefined> {
   const captureId = captureApiCallStack();
   return makeRequest<T>("PATCH", url, "main", params, {

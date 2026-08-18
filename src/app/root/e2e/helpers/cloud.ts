@@ -24,14 +24,20 @@
  *   `withTag` helper) so share/sync-level eligibility flows are exercised
  *   with production state shapes.
  */
+import { stageLegacyOrg2CloudAuthEnvelope } from "@src/api/http/auth/sharedAuthStorage";
 import { invalidateProjectCache, projectApi } from "@src/api/http/project";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import {
+  signOutIdentity,
+  synchronizeLegacyIdentity,
+} from "@src/features/Identity/identityLifecycle";
 import { cloudSyncLevelSessionAtom } from "@src/features/Org2Cloud/CloudSyncLevelDialog/useCloudSyncLevelDialog";
 import { collectAddressableThreads } from "@src/features/Org2Cloud/addressComments";
 import { org2CloudSharingFloorAtom } from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
-import type { Org2CloudAuthState } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import type { LegacyOrg2CloudAuthState } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
+  ensureFreshSession,
   listMyOrgs,
   listOrgMembers,
 } from "@src/features/Org2Cloud/org2CloudClient";
@@ -101,7 +107,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
     displayName?: string;
   }): Promise<Result<{ userId: string }>> => {
     try {
-      const state: Org2CloudAuthState = {
+      const state: LegacyOrg2CloudAuthState = {
         kind: "org2_cloud",
         supabaseUrl: opts.supabaseUrl,
         supabaseAnonKey: opts.anonKey,
@@ -113,7 +119,8 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
           ? { displayName: opts.displayName }
           : undefined,
       };
-      store.set(org2CloudAuthAtom, state);
+      stageLegacyOrg2CloudAuthEnvelope(JSON.stringify(state));
+      await synchronizeLegacyIdentity();
       return { ok: true, userId: opts.userId };
     } catch (err) {
       return asError(err);
@@ -123,6 +130,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
   /** Sign-out reset (also clears `org2CloudOrgsAtom` via its auth effect). */
   const cloudClearAuthState = async (): Promise<{ ok: true } | Err> => {
     try {
+      await signOutIdentity("org2_cloud");
       store.set(org2CloudAuthAtom, null);
       return { ok: true };
     } catch (err) {
@@ -235,8 +243,9 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
   > => {
     try {
       const auth = store.get(org2CloudAuthAtom);
-      const members = auth
-        ? await listOrgMembers(auth.accessToken, opts.orgId)
+      const fresh = auth ? await ensureFreshSession(auth) : null;
+      const members = fresh
+        ? await listOrgMembers(fresh.accessToken, opts.orgId)
         : null;
       return {
         ok: true,
@@ -270,7 +279,8 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
   > => {
     try {
       const auth = store.get(org2CloudAuthAtom);
-      const directOrgs = auth ? await listMyOrgs(auth.accessToken) : null;
+      const fresh = auth ? await ensureFreshSession(auth) : null;
+      const directOrgs = fresh ? await listMyOrgs(fresh.accessToken) : null;
       return {
         ok: true,
         orgs: store.get(org2CloudOrgsAtom).map((org) => ({
@@ -611,9 +621,16 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
           error: "cloudPublishSeededSessionEvents: cloud auth is required",
         };
       }
+      const fresh = await ensureFreshSession(auth);
+      if (!fresh) {
+        return {
+          ok: false,
+          error: "cloudPublishSeededSessionEvents: access lease unavailable",
+        };
+      }
       const snapshot = await eventStoreProxy.getSnapshot(opts.sessionId);
       const epoch = opts.newEpoch ?? 1;
-      await rewriteSessionEvents(auth.accessToken, {
+      await rewriteSessionEvents(fresh.accessToken, {
         orgId: opts.orgId,
         sessionId: opts.sessionId,
         newEpoch: epoch,

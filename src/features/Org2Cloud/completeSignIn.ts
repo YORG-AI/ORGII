@@ -6,15 +6,21 @@
  * jotai setter. Profile enrichment is fire-and-forget: sign-in succeeds even
  * when the profile RPC is unreachable.
  */
+import { getDefaultStore } from "jotai";
+
+import { stageLegacyOrg2CloudAuthEnvelope } from "@src/api/http/auth/sharedAuthStorage";
 import Message from "@src/components/Message";
+import { synchronizeLegacyIdentity } from "@src/features/Identity/identityLifecycle";
 import { createLogger } from "@src/hooks/logger";
 import i18n from "@src/i18n";
 
 import { type Org2CloudAuthCallback, decodeJwtSub } from "./authCallback";
 import { getCloudEndpoint } from "./config";
 import {
+  type LegacyOrg2CloudAuthState,
   type Org2CloudAuthState,
   commitRefreshedAuth,
+  org2CloudAuthAtom,
 } from "./org2CloudAuthAtom";
 import { ensureFreshSession, getCloudProfile } from "./org2CloudClient";
 
@@ -45,7 +51,7 @@ export function completeOrg2CloudSignIn(
   // Snapshot the ACTIVE endpoint (official or custom) into the auth state —
   // the tokens are only valid against the GoTrue that issued them.
   const endpoint = getCloudEndpoint();
-  const state: Org2CloudAuthState = {
+  const legacy: LegacyOrg2CloudAuthState = {
     kind: "org2_cloud",
     supabaseUrl: endpoint.supabaseUrl,
     supabaseAnonKey: endpoint.anonKey,
@@ -54,10 +60,16 @@ export function completeOrg2CloudSignIn(
     refreshToken: callback.refreshToken,
     expiresAt: callback.expiresAt,
   };
-  setAuth(state);
+  stageLegacyOrg2CloudAuthEnvelope(JSON.stringify(legacy));
+  void synchronizeLegacyIdentity()
+    .then(() => {
+      const projection = getDefaultStore().get(org2CloudAuthAtom);
+      if (projection) return enrichOrg2CloudProfile(projection, setAuth);
+    })
+    .catch((error: unknown) => {
+      log.warn("could not project Cloud login into the identity Broker", error);
+    });
   Message.success(i18n.t("navigation:cloud.signedInToast"));
-
-  void enrichOrg2CloudProfile(state, setAuth);
   return true;
 }
 
@@ -80,16 +92,15 @@ export async function enrichOrg2CloudProfile(
     log.warn("session refresh failed during profile enrichment");
     return;
   }
-  if (fresh !== state) {
-    // Persist rotated tokens (refresh tokens are single-use).
-    if (!commitRefreshedAuth(setAuth, state, fresh)) return;
-  }
+  if (!commitRefreshedAuth(setAuth, state, fresh)) return;
 
   // Verify the same object is still current even when no refresh was needed.
   // Endpoint switches and sign-out replace the object synchronously.
   let isCurrent = false;
   setAuth((prev) => {
-    isCurrent = prev === fresh;
+    isCurrent =
+      prev?.sessionId === state.sessionId &&
+      prev.generation === state.generation;
     return prev;
   });
   if (!isCurrent) return;
@@ -102,7 +113,12 @@ export async function enrichOrg2CloudProfile(
   setAuth((prev) => {
     // Only enrich the session we just created — the user may have signed
     // out (or re-signed-in as someone else) while the RPC was in flight.
-    if (prev !== fresh) return prev;
+    if (
+      prev?.sessionId !== state.sessionId ||
+      prev.generation !== state.generation
+    ) {
+      return prev;
+    }
     return {
       ...prev,
       profile: {

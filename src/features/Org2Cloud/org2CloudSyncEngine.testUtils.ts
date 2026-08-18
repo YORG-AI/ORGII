@@ -36,7 +36,7 @@ import {
   org2CloudAccessSettingsAtom,
   org2CloudSharingFloorAtom,
 } from "./org2CloudAccessSettings";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import {
   org2CloudOrgsAtom,
@@ -180,13 +180,14 @@ export const REPO_PATH = "/repo/alpha";
 export const SCOPE_KEY = "github.com/acme/alpha";
 export const CUSTOM_SUPABASE_URL = "https://supabase.acme.dev";
 
-export const AUTH: Org2CloudAuthState = {
+export const AUTH: Org2CloudRequestAuth = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
   supabaseAnonKey: "anon",
   userId: "user-1",
   accessToken: "jwt-1",
-  refreshToken: "rt-1",
   expiresAt: Math.floor(Date.now() / 1000) + 3600,
   profile: { displayName: "Me" },
 };

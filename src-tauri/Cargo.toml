@@ -24,6 +24,7 @@ members = [
     "crates/git-api",
     "crates/inbox",
     "crates/integrations",
+    "crates/identity-broker",
     "crates/key-vault",
     "crates/lsp",
     "crates/orgtrack-cli",
@@ -346,6 +347,11 @@ advanced_search = { path = "crates/advanced-search" }
 # `register_integrations_hooks`, called once at startup so this crate never
 # depends on `agent_core`.
 integrations = { path = "crates/integrations" }
+
+# Desktop identity/session owner. The crate is Tauri-independent: it owns the
+# public snapshot, generation guards, metadata registry, and secure credential
+# store contract. `src/identity/` is the thin Tauri adapter.
+identity_broker = { package = "identity-broker", path = "crates/identity-broker" }
 
 # Cross-cutting runtime handles (browser sidecar, screenshot store) that
 # `agent_core` and `browser` both touch. Lives in its own crate so neither

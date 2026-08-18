@@ -108,6 +108,7 @@ pub mod api;
 pub mod app_update; // Channel-aware (stable/beta) app update checks
 pub mod benchmark;
 pub mod cli_managed_proxy;
+pub mod identity; // Desktop identity Broker Tauri adapter and public snapshot commands
 pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, platform, archive, index_manager, jsonrpc, housekeeping). Leaf pieces live in their own workspace crates.
 pub mod orgtrack;
 mod runtime_instance;
@@ -467,6 +468,11 @@ pub fn run() {
                 cli_proxy_port = runtime_profile.cli_proxy_port,
                 "[Runtime Instance] resolved isolated service defaults"
             );
+
+            app.manage(identity::runtime::IdentityRuntime::new(
+                &app.config().identifier,
+            ));
+            tracing::info!("[Identity] Broker runtime initialized");
 
             #[cfg(all(debug_assertions, feature = "webdriver"))]
             {

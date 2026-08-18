@@ -12,7 +12,7 @@ import {
   getFreshCloudAccessToken,
   tryAllocateCloudWorkItemShortId,
 } from "./cloudShortId";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import { ensureFreshSession } from "./org2CloudClient";
 import { resolveCloudOrgForProjectOrg } from "./org2CloudProjectOrgAlias";
@@ -42,13 +42,14 @@ const ensureFreshSessionMock = vi.mocked(ensureFreshSession);
 const resolveCloudOrgMock = vi.mocked(resolveCloudOrgForProjectOrg);
 const allocateMock = vi.mocked(allocateWorkItemShortId);
 
-const AUTH: Org2CloudAuthState = {
+const AUTH: Org2CloudRequestAuth = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.co",
   supabaseAnonKey: "anon",
   userId: "user-1",
   accessToken: "jwt-1",
-  refreshToken: "rt-1",
   expiresAt: Math.floor(Date.now() / 1000) + 3600,
 };
 
@@ -66,12 +67,12 @@ afterEach(() => {
 });
 
 describe("getFreshCloudAccessToken", () => {
-  it("returns the fresh JWT and writes a refreshed session back to the atom", async () => {
+  it("returns the Broker lease JWT without persisting it in the atom", async () => {
     const refreshed = { ...AUTH, accessToken: "jwt-2" };
     ensureFreshSessionMock.mockResolvedValueOnce(refreshed);
 
     await expect(getFreshCloudAccessToken()).resolves.toBe("jwt-2");
-    expect(getInstrumentedStore().get(org2CloudAuthAtom)).toBe(refreshed);
+    expect(getInstrumentedStore().get(org2CloudAuthAtom)).toBe(AUTH);
   });
 
   it("returns null when signed out or the refresh fails", async () => {

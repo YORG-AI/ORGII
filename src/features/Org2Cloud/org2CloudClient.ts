@@ -12,25 +12,26 @@
  */
 import { z } from "zod/v4";
 
+import { deleteLegacyOrg2CloudAuthEnvelope } from "@src/api/http/auth/sharedAuthStorage";
+import {
+  getIdentityErrorCode,
+  identityClient,
+} from "@src/features/Identity/identityClient";
 import { createLogger } from "@src/hooks/logger";
 import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 import type { CollabSessionAccessMode } from "@src/store/collaboration/types";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import type { OrgRuntimeTelemetry } from "./memberRuntime/types";
-import type { Org2CloudAuthState, Org2CloudProfile } from "./org2CloudAuthAtom";
-import {
-  fetchWithTransportRetry,
-  runCloudRequestWithTimeout,
-} from "./org2CloudFetchRetry";
+import type {
+  Org2CloudAuthState,
+  Org2CloudProfile,
+  Org2CloudRequestAuth,
+} from "./org2CloudAuthAtom";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 import { CLOUD_ORG_ROLES, type CloudOrgRole } from "./org2CloudOrgManagement";
 
 const log = createLogger("Org2CloudClient");
-
-/** Refresh when the access token expires within this many seconds. */
-const REFRESH_SKEW_SECONDS = 60;
-/** A dead WKWebView fetch must not hold every auth-gated single-flight forever. */
-const AUTH_REFRESH_TIMEOUT_MS = 15_000;
 
 const CloudProfileWireSchema = z.object({
   userId: z.string().optional(),
@@ -46,29 +47,6 @@ export interface CloudProfile {
   primaryEmail?: string;
   avatarUrl?: string;
 }
-
-const RefreshResponseSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string(),
-  expires_at: z.number(),
-});
-
-export interface RefreshedTokens {
-  accessToken: string;
-  refreshToken: string;
-  /** Unix epoch seconds (Supabase wire format). */
-  expiresAt: number;
-}
-
-interface RefreshAttemptResult {
-  tokens: RefreshedTokens | null;
-  /** GoTrue explicitly rejected the refresh credential (400/401). */
-  permanentlyRejected: boolean;
-}
-
-let inFlightRefresh:
-  | { key: string; promise: Promise<RefreshAttemptResult> }
-  | undefined;
 
 export type CloudRpcEndpoint = Pick<
   ReturnType<typeof getCloudEndpoint>,
@@ -399,119 +377,55 @@ export async function getEntitlementState(
   return normalizeEntitlementWire(parsed.data);
 }
 
-/**
- * Standard Supabase (GoTrue) refresh-token exchange. Plain apikey header —
- * no PostgREST profile headers. `null` on any failure.
- */
-async function refreshSessionAttempt(
-  refreshToken: string,
-  endpoint: { supabaseUrl: string; anonKey: string } = getCloudEndpoint()
-): Promise<RefreshAttemptResult> {
-  const key = `${endpoint.supabaseUrl}\0${endpoint.anonKey}\0${refreshToken}`;
-  if (inFlightRefresh?.key === key) return inFlightRefresh.promise;
-
-  const promise = (async (): Promise<RefreshAttemptResult> => {
-    try {
-      // Transport retry is safe here too: a lost-response race re-sends the
-      // previous refresh token, which GoTrue's reuse interval tolerates
-      // (same rotated session), and the in-flight dedupe above already
-      // serializes concurrent refreshes.
-      const { response, payload } = await runCloudRequestWithTimeout(
-        async (signal) => {
-          const response = await fetchWithTransportRetry(
-            `${endpoint.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
-            {
-              method: "POST",
-              headers: {
-                apikey: endpoint.anonKey,
-                "content-type": "application/json",
-              },
-              body: JSON.stringify({ refresh_token: refreshToken }),
-              signal,
-            }
-          );
-          return {
-            response,
-            payload: response.ok ? await response.json() : null,
-          };
-        },
-        AUTH_REFRESH_TIMEOUT_MS
-      );
-      if (!response.ok) {
-        log.warn(`token refresh failed with status ${response.status}`);
-        return {
-          tokens: null,
-          permanentlyRejected:
-            response.status === 400 || response.status === 401,
-        };
-      }
-      const parsed = RefreshResponseSchema.safeParse(payload);
-      if (!parsed.success) {
-        log.warn("token refresh returned unexpected shape");
-        return { tokens: null, permanentlyRejected: false };
-      }
-      return {
-        tokens: {
-          accessToken: parsed.data.access_token,
-          refreshToken: parsed.data.refresh_token,
-          expiresAt: parsed.data.expires_at,
-        },
-        permanentlyRejected: false,
-      };
-    } catch (error) {
-      log.warn("token refresh request error:", error);
-      return { tokens: null, permanentlyRejected: false };
-    }
-  })();
-  inFlightRefresh = { key, promise };
-  try {
-    return await promise;
-  } finally {
-    if (inFlightRefresh?.promise === promise) inFlightRefresh = undefined;
-  }
-}
-
-export async function refreshSession(
-  refreshToken: string,
-  endpoint: { supabaseUrl: string; anonKey: string } = getCloudEndpoint()
-): Promise<RefreshedTokens | null> {
-  return (await refreshSessionAttempt(refreshToken, endpoint)).tokens;
-}
-
 export interface EnsureFreshSessionOptions {
-  /** Called only when GoTrue explicitly rejects the refresh credential. */
+  /** Called only when the native Broker classifies the credential as rejected. */
   onRefreshRejected?: () => void;
 }
 
 /**
- * Return `state` unchanged while the access token is comfortably valid;
- * otherwise refresh and return the updated state. The CALLER persists the
- * returned state (this module never touches the atom). `null` means the
- * refresh failed — the caller decides whether to sign the user out.
+ * Obtain one short-lived access lease from the native identity Broker.
+ * Refresh credentials and token rotation never enter the renderer.
  */
 export async function ensureFreshSession(
   state: Org2CloudAuthState,
   options?: EnsureFreshSessionOptions
-): Promise<Org2CloudAuthState | null> {
-  const nowSeconds = Date.now() / 1000;
-  if (state.expiresAt - nowSeconds > REFRESH_SKEW_SECONDS) {
-    return state;
+): Promise<Org2CloudRequestAuth | null> {
+  try {
+    const lease = await identityClient.getOrg2CloudAccessLease({
+      sessionId: state.sessionId,
+      generation: state.generation,
+    });
+    if (
+      lease.sessionId !== state.sessionId ||
+      lease.generation !== state.generation ||
+      lease.subject !== state.userId ||
+      lease.issuer.replace(/\/+$/, "") !== state.supabaseUrl.replace(/\/+$/, "")
+    ) {
+      log.warn("identity Broker returned a mismatched access lease");
+      return null;
+    }
+    try {
+      await deleteLegacyOrg2CloudAuthEnvelope();
+    } catch (error) {
+      log.warn("could not remove the migrated legacy Cloud credential", error);
+    }
+    return {
+      ...state,
+      supabaseAnonKey: lease.publicClientKey,
+      accessToken: lease.accessToken,
+      expiresAt: lease.expiresAtUnix,
+    };
+  } catch (error) {
+    const code = getIdentityErrorCode(error);
+    if (
+      code === "identity_access_refresh_rejected" ||
+      code === "identity_reauth_required"
+    ) {
+      options?.onRefreshRejected?.();
+    }
+    log.warn("identity Broker access lease unavailable", code ?? error);
+    return null;
   }
-  const attempt = await refreshSessionAttempt(state.refreshToken, {
-    supabaseUrl: state.supabaseUrl,
-    anonKey: state.supabaseAnonKey,
-  });
-  const refreshed = attempt.tokens;
-  if (!refreshed && attempt.permanentlyRejected) {
-    options?.onRefreshRejected?.();
-  }
-  if (!refreshed) return null;
-  return {
-    ...state,
-    accessToken: refreshed.accessToken,
-    refreshToken: refreshed.refreshToken,
-    expiresAt: refreshed.expiresAt,
-  };
 }
 
 /** Re-exported so UI code has one import site. */

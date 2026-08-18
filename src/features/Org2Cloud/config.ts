@@ -183,15 +183,36 @@ export function buildOrg2CloudLoginUrl(
 export const CLOUD_BILLING_PATH = "/billing";
 
 /**
+ * Non-secret context used to keep the browser on the same identity and org
+ * that initiated Billing in the desktop app.
+ */
+export function buildCloudBillingPath(
+  desktopUserId?: string,
+  orgId?: string | null
+): string {
+  const params = new URLSearchParams();
+  if (desktopUserId) params.set("desktopUserId", desktopUserId);
+  if (orgId) params.set("orgId", orgId);
+  const query = params.toString();
+  return query ? `${CLOUD_BILLING_PATH}?${query}` : CLOUD_BILLING_PATH;
+}
+
+/**
  * Billing uses an independent web session (the system browser's). Sharing
  * the desktop refresh token with another long-lived consumer creates two
  * rotating consumers and eventually invalidates one of them. The web login
  * owns its cookie/refresh lifecycle and returns to billing without ever
  * receiving desktop credentials.
  */
-export function buildCloudBillingLoginUrl(): string {
+export function buildCloudBillingLoginUrl(
+  desktopUserId?: string,
+  orgId?: string | null
+): string {
   const url = new URL("/login", getCloudEndpoint().webOrigin);
-  url.searchParams.set("return_to", CLOUD_BILLING_PATH);
+  url.searchParams.set(
+    "return_to",
+    buildCloudBillingPath(desktopUserId, orgId)
+  );
   return url.toString();
 }
 

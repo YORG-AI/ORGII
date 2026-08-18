@@ -23,6 +23,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
+import { signOutIdentity } from "@src/features/Identity/identityLifecycle";
 
 import {
   ORG2_CLOUD_OFFICIAL_ANON_KEY,
@@ -50,8 +51,9 @@ const CloudEndpointCard: React.FC = () => {
   const [supabaseUrl, setSupabaseUrl] = useState(override?.supabaseUrl ?? "");
   const [anonKey, setAnonKey] = useState(override?.anonKey ?? "");
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [isSwitchingEndpoint, setIsSwitchingEndpoint] = useState(false);
 
-  const handleApply = useCallback(() => {
+  const handleApply = useCallback(async () => {
     const candidate = {
       webOrigin: webOrigin.trim(),
       supabaseUrl: supabaseUrl.trim(),
@@ -77,10 +79,18 @@ const CloudEndpointCard: React.FC = () => {
       candidate.supabaseUrl === ORG2_CLOUD_OFFICIAL_SUPABASE_URL &&
       candidate.anonKey === ORG2_CLOUD_OFFICIAL_ANON_KEY;
     const useOfficialEndpoint = isOfficialTarget;
-    setOverride(useOfficialEndpoint ? null : candidate);
-    setCustomEnabled(!useOfficialEndpoint);
-    resetCloudStateForEndpointSwitch(store);
-    Message.success(t("cloud.customEndpoint.appliedToast"));
+    setIsSwitchingEndpoint(true);
+    try {
+      await signOutIdentity("org2_cloud");
+      setOverride(useOfficialEndpoint ? null : candidate);
+      setCustomEnabled(!useOfficialEndpoint);
+      resetCloudStateForEndpointSwitch(store);
+      Message.success(t("cloud.customEndpoint.appliedToast"));
+    } catch {
+      Message.error(t("common:errors.unknownError"));
+    } finally {
+      setIsSwitchingEndpoint(false);
+    }
   }, [anonKey, setOverride, store, supabaseUrl, t, webOrigin]);
 
   const handleCustomEnabledChange = useCallback(
@@ -89,12 +99,21 @@ const CloudEndpointCard: React.FC = () => {
       setErrors({});
       if (enabled || override === null) return;
 
-      setOverride(null);
-      setWebOrigin("");
-      setSupabaseUrl("");
-      setAnonKey("");
-      resetCloudStateForEndpointSwitch(store);
-      Message.success(t("cloud.customEndpoint.resetToast"));
+      setIsSwitchingEndpoint(true);
+      void signOutIdentity("org2_cloud")
+        .then(() => {
+          setOverride(null);
+          setWebOrigin("");
+          setSupabaseUrl("");
+          setAnonKey("");
+          resetCloudStateForEndpointSwitch(store);
+          Message.success(t("cloud.customEndpoint.resetToast"));
+        })
+        .catch(() => {
+          setCustomEnabled(true);
+          Message.error(t("common:errors.unknownError"));
+        })
+        .finally(() => setIsSwitchingEndpoint(false));
     },
     [override, setOverride, store, t]
   );
@@ -107,6 +126,7 @@ const CloudEndpointCard: React.FC = () => {
       >
         <Switch
           checked={customEnabled}
+          disabled={isSwitchingEndpoint}
           onChange={handleCustomEnabledChange}
           ariaLabel={t("cloud.customEndpoint.title")}
           dataTestId="org2-cloud-endpoint-toggle"
@@ -150,7 +170,9 @@ const CloudEndpointCard: React.FC = () => {
           <SectionRow label={t("cloud.customEndpoint.apply")} indent>
             <Button
               size="default"
-              onClick={handleApply}
+              loading={isSwitchingEndpoint}
+              disabled={isSwitchingEndpoint}
+              onClick={() => void handleApply()}
               data-testid="org2-cloud-endpoint-apply"
             >
               {t("cloud.customEndpoint.apply")}

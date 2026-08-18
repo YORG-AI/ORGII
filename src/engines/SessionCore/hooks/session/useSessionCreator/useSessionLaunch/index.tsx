@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { sessionLaunch } from "@src/api/tauri/agent/session";
 import { DISPATCH_CATEGORY, KEY_SOURCE } from "@src/api/tauri/session";
+import { AUTH_ROUTES } from "@src/config/routes";
 import { beginOptimisticTurn } from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { markTurnRunning } from "@src/engines/SessionCore/control/turnLifecycle";
 import {
@@ -40,7 +41,6 @@ import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefault
 import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
 import { worktreeLaunchSelectionAtom } from "@src/store/session/worktreeLaunchSourceAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { triggerSessionExpired } from "@src/store/ui/uiAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { emitOpenWorkspace } from "@src/util/ui/window/windowManager";
 
@@ -117,8 +117,10 @@ export function useSessionLaunch(
   const setLastUserMessage = useSetAtom(lastUserMessageAtom);
   const setSessionSource = useSetAtom(sessionSourceAtom);
   const showAuthError = useCallback(() => {
-    triggerSessionExpired();
-  }, []);
+    navigate(AUTH_ROUTES.login.path, {
+      state: { from: location, sessionExpired: true },
+    });
+  }, [location, navigate]);
 
   const navigateToLaunchedSession = useCallback(
     (sessionId: string, forceNavigate: boolean) => {

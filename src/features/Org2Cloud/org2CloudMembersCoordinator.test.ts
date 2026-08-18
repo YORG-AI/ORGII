@@ -1,7 +1,7 @@
 import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import { ensureFreshSession, listOrgMembers } from "./org2CloudClient";
 import {
   MAX_ROSTER_CACHE_ENTRIES,
@@ -18,14 +18,18 @@ const ensureFreshSessionMock = vi.mocked(ensureFreshSession);
 const listOrgMembersMock = vi.mocked(listOrgMembers);
 let store = createStore();
 
-function auth(userId = "user-1"): Org2CloudAuthState {
+function auth(userId = "user-1"): Org2CloudRequestAuth {
   return {
     kind: "org2_cloud",
+    sessionId:
+      userId === "user-1"
+        ? "00000000-0000-4000-8000-000000000001"
+        : "00000000-0000-4000-8000-000000000002",
+    generation: 1,
     supabaseUrl: "https://cloud.example.com",
     supabaseAnonKey: "anon",
     userId,
     accessToken: `token-${userId}`,
-    refreshToken: `refresh-${userId}`,
     expiresAt: 9999999999,
   };
 }
@@ -34,7 +38,12 @@ beforeEach(() => {
   clearCloudOrgMembersCache();
   store = createStore();
   vi.clearAllMocks();
-  ensureFreshSessionMock.mockImplementation(async (current) => current);
+  ensureFreshSessionMock.mockImplementation(async (current) => ({
+    ...current,
+    supabaseAnonKey: "anon",
+    accessToken: `token-${current.userId}`,
+    expiresAt: 9_999_999_999,
+  }));
   listOrgMembersMock.mockResolvedValue([
     {
       userId: "member-1",

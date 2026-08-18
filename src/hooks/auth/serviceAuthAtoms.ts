@@ -1,47 +1,50 @@
-/**
- * Service Auth Atoms
- *
- * Jotai atoms for global service auth state sharing.
- * All atoms are initialized from localStorage on first load.
- * Use `useServiceAuthState` for read-only access; use `useServiceAuth` for actions.
- */
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 
-import { secureClearTokens } from "@src/api/http/auth/secure";
-import {
-  clearHostedToken,
-  getHostedToken,
-  getTimeUntilExpiry,
-  isServiceAuthenticated,
-} from "@src/config/serviceAuth";
+import { subscribeIdentitySnapshotChanges } from "@src/features/Identity/identitySnapshotAtom";
+import { getActiveIdentitySession } from "@src/features/Identity/identityTypes";
 
-const initialAuth = isServiceAuthenticated();
-const initialToken = getHostedToken();
-const initialExpiry = getTimeUntilExpiry();
-
-export const serviceAuthAtom = atom(initialAuth);
-export const serviceLoadingAtom = atom(false);
-export const hostedTokenAtom = atom<string | null>(initialToken);
-export const serviceExpiryAtom = atom<number | null>(initialExpiry);
+export const serviceAuthAtom = atom(false);
+export const serviceLoadingAtom = atom(true);
+/** @deprecated Access credentials are native leases, never persisted atoms. */
+export const hostedTokenAtom = atom<string | null>(null);
+export const serviceExpiryAtom = atom<number | null>(null);
 export const serviceErrorAtom = atom<string | null>(null);
 export const serviceValidatedAtom = atom(false);
 export const serviceRefreshingAtom = atom(false);
 
-/**
- * Clear both localStorage AND Jotai atoms atomically.
- * Use when signing out before navigating to login.
- */
-export function clearAuthStateCompletely(): void {
-  clearHostedToken();
-  secureClearTokens().catch(() => {});
-
+subscribeIdentitySnapshotChanges((snapshot) => {
   const store = getDefaultStore();
-  store.set(serviceAuthAtom, false);
+  const session = getActiveIdentitySession(snapshot, "hosted_service_legacy");
+  const flow = snapshot.flows.find(
+    (candidate) => candidate.realm === "hosted_service_legacy"
+  );
+  const authenticated =
+    session?.status === "ready" || session?.status === "offline_degraded";
+  const loading =
+    snapshot.revision === 0 ||
+    session?.status === "restoring" ||
+    (flow !== undefined && flow.phase !== "failed");
+  const expiresIn = session?.expiresAtUnix
+    ? Math.max(0, session.expiresAtUnix - Math.floor(Date.now() / 1_000))
+    : null;
+  const error =
+    session?.status === "reauth_required"
+      ? "Session expired. Please log in again."
+      : snapshot.secureStoreStatus === "locked"
+        ? "The system credential store is locked."
+        : null;
+
+  store.set(serviceAuthAtom, authenticated);
+  store.set(serviceLoadingAtom, loading);
   store.set(hostedTokenAtom, null);
-  store.set(serviceExpiryAtom, null);
-  store.set(serviceErrorAtom, null);
-  store.set(serviceValidatedAtom, false);
-}
+  store.set(serviceExpiryAtom, expiresIn);
+  store.set(serviceErrorAtom, error);
+  store.set(serviceValidatedAtom, snapshot.revision > 0);
+  store.set(
+    serviceRefreshingAtom,
+    flow?.phase === "exchanging_code" || flow?.phase === "verifying_session"
+  );
+});
 
 export interface UseServiceAuthStateReturn {
   isAuthenticated: boolean;
@@ -52,10 +55,7 @@ export interface UseServiceAuthStateReturn {
   isRefreshing: boolean;
 }
 
-/**
- * Read-only hook — no side effects, no network calls.
- * Use for components that only need to observe auth state.
- */
+/** Read-only non-secret projection of the native Hosted identity realm. */
 export function useServiceAuthState(): UseServiceAuthStateReturn {
   const isAuthenticated = useAtomValue(serviceAuthAtom);
   const isLoading = useAtomValue(serviceLoadingAtom);

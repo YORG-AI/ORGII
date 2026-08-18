@@ -301,12 +301,10 @@ describe("RuntimeDataSourcePanel", () => {
     await act(async () => {
       store.set(org2CloudAuthAtom, {
         kind: "org2_cloud",
+        sessionId: "00000000-0000-4000-8000-000000000001",
+        generation: 1,
         supabaseUrl: "https://cloud.example",
-        supabaseAnonKey: "anon",
         userId: "me",
-        accessToken: "token",
-        refreshToken: "refresh",
-        expiresAt: Math.floor(Date.now() / 1000) + 3600,
       });
       store.set(org2CloudOrgsAtom, [
         { orgId: "org-1", name: "Example Team", role: "member" },
@@ -365,12 +363,10 @@ describe("RuntimeDataSourcePanel", () => {
     await act(async () => {
       store.set(org2CloudAuthAtom, {
         kind: "org2_cloud",
+        sessionId: "00000000-0000-4000-8000-000000000001",
+        generation: 1,
         supabaseUrl: "https://cloud.example",
-        supabaseAnonKey: "anon",
         userId: "me",
-        accessToken: "token",
-        refreshToken: "refresh",
-        expiresAt: Math.floor(Date.now() / 1000) + 3600,
       });
       store.set(org2CloudOrgsAtom, [
         { orgId: "org-1", name: "Example Team", role: "member" },

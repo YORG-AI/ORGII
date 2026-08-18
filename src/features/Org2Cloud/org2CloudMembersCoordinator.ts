@@ -2,6 +2,7 @@ import type { createStore } from "jotai";
 
 import {
   type Org2CloudAuthState,
+  type Org2CloudRequestAuth,
   org2CloudAuthIdentityKey,
 } from "./org2CloudAuthAtom";
 import {
@@ -22,7 +23,7 @@ interface RosterCacheEntry {
 }
 
 export interface CloudOrgMembersResult {
-  auth: Org2CloudAuthState;
+  auth: Org2CloudRequestAuth;
   members: CloudOrgMember[];
 }
 
@@ -96,7 +97,8 @@ export async function loadCloudOrgMembers(
   ) {
     state.cache.delete(key);
     state.cache.set(key, cached);
-    return { auth, members: cached.members };
+    const fresh = await ensureFreshSession(auth);
+    return fresh ? { auth: fresh, members: cached.members } : null;
   }
 
   const pending = state.inFlight.get(key);

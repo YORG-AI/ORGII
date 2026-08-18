@@ -10,9 +10,6 @@
 // Frontend log persistence (IPC → ~/.orgii/logs/frontend.log)
 pub mod frontend_log;
 
-// Dev-only bridge from the bundled macOS WebKit origin to tauri dev auth.
-pub mod dev_bundled_auth;
-
 // Per-install cloud device identity for member-runtime sharing
 // (~/.orgii/cloud_device_id — deliberately separate from the diagnostics
 // install_id so shared runtime rows stay unlinkable from telemetry).

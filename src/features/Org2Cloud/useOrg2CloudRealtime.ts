@@ -59,6 +59,7 @@ import {
 } from "./channels/channelsAtom";
 import { org2CloudSharingFloorAtom } from "./org2CloudAccessSettings";
 import {
+  type Org2CloudRequestAuth,
   commitRefreshedAuth,
   org2CloudAuthAtom,
   org2CloudAuthIdentityKey,
@@ -349,6 +350,40 @@ export function useOrg2CloudRealtime(): void {
     authRef.current = auth;
   }, [auth]);
 
+  const connectionRef = useRef<Org2CloudRealtimeConnection | null>(null);
+  const accessLeaseEpochRef = useRef(0);
+  const [requestAuth, setRequestAuth] = useState<Org2CloudRequestAuth | null>(
+    null
+  );
+  const refreshRealtimeAccessLease = useCallback(async () => {
+    const epoch = ++accessLeaseEpochRef.current;
+    const current = authRef.current;
+    if (!current) {
+      setRequestAuth(null);
+      return;
+    }
+    const fresh = await ensureFreshSession(current);
+    if (epoch !== accessLeaseEpochRef.current || !fresh) return;
+    if (!commitRefreshedAuth(setAuth, current, fresh)) return;
+    setRequestAuth(fresh);
+    connectionRef.current?.setAuth(fresh.accessToken);
+  }, [setAuth]);
+
+  useEffect(() => {
+    setRequestAuth(null);
+    void refreshRealtimeAccessLease();
+    const refreshWhenActive = () => {
+      if (!isDocumentHidden()) void refreshRealtimeAccessLease();
+    };
+    window.addEventListener("focus", refreshWhenActive);
+    window.addEventListener("online", refreshWhenActive);
+    return () => {
+      accessLeaseEpochRef.current += 1;
+      window.removeEventListener("focus", refreshWhenActive);
+      window.removeEventListener("online", refreshWhenActive);
+    };
+  }, [authIdentityKey, refreshRealtimeAccessLease]);
+
   // 0005 capability: change signals arrive as server broadcasts on the org
   // channel instead of postgres_changes. `false` covers legacy backends AND
   // the unresolved-probe window — the legacy channels stay up until the probe
@@ -358,7 +393,7 @@ export function useOrg2CloudRealtime(): void {
   useEffect(() => {
     let cancelled = false;
     setBroadcastSignals(false);
-    const current = authRef.current;
+    const current = requestAuth;
     if (!userId || !current) return undefined;
     void getCloudCapabilities(
       current.accessToken,
@@ -371,7 +406,7 @@ export function useOrg2CloudRealtime(): void {
     return () => {
       cancelled = true;
     };
-  }, [userId, endpointUrl]);
+  }, [endpointUrl, requestAuth, userId]);
 
   // `org_change_signals` also carries rare sharing-floor changes. Refresh only
   // the affected org's entitlement through the shared coordinator
@@ -393,13 +428,11 @@ export function useOrg2CloudRealtime(): void {
     [setAuth, store]
   );
 
-  const connectionRef = useRef<Org2CloudRealtimeConnection | null>(null);
-
   // --- Connection + Slice A (roster). Rebuilds on user / endpoint / active
   // org. A fresh connection on scope switch avoids supabase-js reusing a
   // presence topic whose asynchronous leave has not finished yet.
   useEffect(() => {
-    const current = authRef.current;
+    const current = requestAuth;
     if (!userId || !current || !activeRealtimeOrgId) {
       return undefined;
     }
@@ -444,14 +477,14 @@ export function useOrg2CloudRealtime(): void {
     };
     // authRef (not auth) on purpose — see the ref comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, endpointUrl, activeRealtimeOrgId]);
+  }, [userId, endpointUrl, activeRealtimeOrgId, requestAuth?.sessionId]);
 
   // --- Keep the socket's auth token fresh without rebuilding the connection.
   useEffect(() => {
-    if (auth?.accessToken) {
-      connectionRef.current?.setAuth(auth.accessToken);
+    if (requestAuth?.accessToken) {
+      connectionRef.current?.setAuth(requestAuth.accessToken);
     }
-  }, [auth?.accessToken]);
+  }, [requestAuth?.accessToken]);
 
   // Low-frequency control-plane guard shared by every signal path: any
   // signal arms the 5-min refetchOrgs + entitlement TTL check.

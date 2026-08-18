@@ -24,7 +24,7 @@ import {
 } from "../TeamCollaboration/engine/collabSyncEngineHelpers";
 import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
 import type { CloudPushAccess } from "./org2CloudAccessSettings";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import { broadcastOrgControlChangedToPeers } from "./org2CloudControlBus";
 import {
   EVENT_HASH_CONCURRENCY,
@@ -246,7 +246,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
 
   /** Seed volatile cold-start caches from a server-authoritative listing. */
   async seedFromRemoteSummary(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     session: Session,
     scopeKey: string | null,
@@ -343,7 +343,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   /** Live server rows this ACCOUNT owns in the org, regardless of which
    * device pushed them or whether local push markers survived. */
   async listSelfOwnedLiveRemoteSessionIds(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string
   ): Promise<string[]> {
     const result = await this.client.listOrgSessions(auth.accessToken, orgId);
@@ -353,7 +353,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   }
 
   async retractSession(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     sessionId: string
   ): Promise<void> {
@@ -370,7 +370,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   }
 
   private async upsertMetadataIfChanged(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     session: Session,
     scopeKey: string | null,
@@ -872,7 +872,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   }
 
   async pushSession(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     session: Session,
     scopeKey: string | null,
@@ -906,7 +906,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   }
 
   private async pushSessionOnce(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     session: Session,
     scopeKey: string | null,
@@ -1260,7 +1260,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
    * and swallowed — a push must never fail or retry-storm on this.
    */
   private async publishTurnIndexBestEffort(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     session: Session,
     stampAtRead: number
@@ -1319,7 +1319,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
    * planner before any network mutation.
    */
   private async appendIncrementalSession(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     sessionId: string,
     cursor: CollabSessionPushCursor,
@@ -1363,7 +1363,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
    * re-encoding, and re-uploading the complete transcript.
    */
   private async appendSessionBatches(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     sessionId: string,
     initialCursor: CollabSessionPushCursor,
@@ -1434,7 +1434,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
 
   /** Full epoch rewrite; conflicts re-anchor on the current server epoch once. */
   private async rewriteSession(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     session: Session,
     scopeKey: string | null,
@@ -1524,7 +1524,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   }
 
   private async readServerEpoch(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     sessionId: string
   ): Promise<number> {

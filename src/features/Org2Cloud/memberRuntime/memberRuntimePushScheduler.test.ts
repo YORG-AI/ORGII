@@ -19,7 +19,10 @@ import {
   settingsLoadedAtom,
 } from "@src/store/settings/settingsAtom";
 
-import type { Org2CloudAuthState } from "../org2CloudAuthAtom";
+import type {
+  Org2CloudAuthState,
+  Org2CloudRequestAuth,
+} from "../org2CloudAuthAtom";
 import { org2CloudAuthAtom } from "../org2CloudAuthAtom";
 import type { CloudCapabilitiesProbeResult } from "../org2CloudCapabilities";
 import { type Org2CloudOrg, org2CloudOrgsAtom } from "../org2CloudOrgsAtom";
@@ -60,13 +63,14 @@ vi.mock("@src/hooks/logger", () => ({
 
 const NOW = Date.UTC(2026, 6, 29, 12, 0, 0);
 
-const AUTH: Org2CloudAuthState = {
+const AUTH: Org2CloudRequestAuth = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example",
   supabaseAnonKey: "anon",
   userId: "user-1",
   accessToken: "token-1",
-  refreshToken: "refresh-1",
   expiresAt: Math.floor(NOW / 1000) + 3600,
 };
 

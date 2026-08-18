@@ -5,18 +5,19 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
-import { ROUTES } from "@src/config/routes";
 import { HOSTED_LOGIN_ENABLED, setAuthSkipped } from "@src/config/serviceAuth";
-import {
-  clearAuthStateCompletely,
-  useServiceAuth,
-} from "@src/hooks/auth/useServiceAuth";
+import { useServiceAuth } from "@src/hooks/auth/useServiceAuth";
 import { createLogger } from "@src/hooks/logger";
 import {
   ONBOARDING_LOADING_VIDEO_WIDTH_CLASS,
   OnboardingLayout,
   OnboardingLoadingVideo,
 } from "@src/modules/shared/layouts";
+import {
+  readLoginRedirect,
+  resolvePostAuthRedirect,
+  storeLoginRedirect,
+} from "@src/router/entryFlow";
 
 const LOGIN_COLUMN_WIDTH_CLASS = ONBOARDING_LOADING_VIDEO_WIDTH_CLASS;
 const log = createLogger("LoginPage");
@@ -237,11 +238,12 @@ const LoginPage: React.FC = () => {
 
   // Get the redirect location (where user was trying to go before login)
   const locationState = location.state as {
-    from?: { pathname: string };
+    from?: { pathname: string; search?: string; hash?: string };
     sessionExpired?: boolean;
   } | null;
-  const from = locationState?.from?.pathname;
-  const redirectPath = from || ROUTES.workStation.base.path;
+  const redirectPath = resolvePostAuthRedirect(
+    locationState?.from ?? readLoginRedirect()
+  );
 
   // Check if user was redirected due to session expiration
   const sessionExpired = locationState?.sessionExpired === true;
@@ -277,7 +279,7 @@ const LoginPage: React.FC = () => {
     // Clear any previous error
     setCallbackError(null);
     // Store intended redirect URL
-    sessionStorage.setItem("login_redirect", redirectPath);
+    storeLoginRedirect(redirectPath);
     try {
       await login();
     } catch (err) {
@@ -288,9 +290,8 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  // Continue without signing in (BYOK-only mode). The flag persists in
-  // localStorage and is honored by AuthGuard / AuthRedirect; it is cleared
-  // on successful sign-in or sign-out so the user can change their mind.
+  // Continue without signing in (BYOK-only mode). The flag remains a hosted
+  // feature preference; entry to the local desktop shell never depends on it.
   const handleSkip = () => {
     setAuthSkipped(true);
     navigate(redirectPath, { replace: true });
@@ -303,14 +304,8 @@ const LoginPage: React.FC = () => {
 
   // Switch to a different account
   const handleSwitchAccount = async () => {
-    // Set switching flag to hide account options
     setIsSwitchingAccount(true);
-    // Clear existing tokens completely before initiating new login
-    clearAuthStateCompletely();
-    // Small delay to ensure state is cleared before login redirect
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    // Initiate fresh login flow
-    handleLogin();
+    await handleLogin();
   };
 
   if (!HOSTED_LOGIN_ENABLED) {

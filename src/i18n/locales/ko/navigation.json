@@ -447,6 +447,33 @@
   },
   "cloud": {
     "title": "ORG2 클라우드",
+    "onboarding": {
+      "title": "ORG2 Cloud 연결",
+      "description": "Cloud는 선택 사항입니다. 세션 동기화, 팀 협업 또는 관리형 액세스가 필요할 때 연결하세요.",
+      "values": {
+        "sync": {
+          "title": "세션 동기화",
+          "description": "여러 기기에서 작업을 이어가세요."
+        },
+        "collaboration": {
+          "title": "팀 협업",
+          "description": "세션을 공유하고 Cloud 조직을 관리하세요."
+        },
+        "security": {
+          "title": "안전한 로그인",
+          "description": "브라우저에서 인증하며 자격 증명은 시스템 보안 저장소에 보관됩니다."
+        }
+      },
+      "continueLocally": "나중에, 로컬에서 계속",
+      "connect": "ORG2 Cloud 연결",
+      "blockedTitle": "ORG2 Cloud 로그인이 필요합니다",
+      "blockedDescription": "이 Cloud 기능에는 계정이 필요합니다. 로그인하지 않아도 로컬 작업은 계속 사용할 수 있습니다.",
+      "learnMore": "자세히 알아보기",
+      "backToLocal": "로컬로 돌아가기",
+      "waitingTitle": "브라우저에서 로그인을 완료하세요",
+      "waitingDescription": "인증이 끝나면 ORGII가 자동으로 연결됩니다.",
+      "openFailed": "로그인 페이지를 열 수 없습니다. 다시 시도하세요."
+    },
     "signIn": "로그인",
     "signOut": "로그아웃",
     "signedInAs": "로그인 계정: {{name}}",
@@ -959,6 +986,20 @@
       "on": "켬",
       "off": "끔",
       "memberNote": "관리자가 활성화함 — 이 조직을 열지 않아도 해당 세션이 백그라운드에서 업로드됩니다."
+    },
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
     }
   }
 }

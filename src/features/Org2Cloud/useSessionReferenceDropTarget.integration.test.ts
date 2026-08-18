@@ -79,12 +79,10 @@ describe("useSessionReferenceDropTarget custom editor target", () => {
     const store = createStore();
     store.set(org2CloudAuthAtom, {
       kind: "org2_cloud",
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      generation: 1,
       supabaseUrl: "https://cloud.example.test",
-      supabaseAnonKey: "anon",
       userId: "viewer",
-      accessToken: "access",
-      refreshToken: "refresh",
-      expiresAt: 4_000_000_000,
     });
 
     act(() => {
@@ -163,12 +161,10 @@ describe("useSessionReferenceDropTarget custom editor target", () => {
     const store = createStore();
     store.set(org2CloudAuthAtom, {
       kind: "org2_cloud",
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      generation: 1,
       supabaseUrl: "https://cloud.example.test",
-      supabaseAnonKey: "anon",
       userId: "viewer",
-      accessToken: "access",
-      refreshToken: "refresh",
-      expiresAt: 4_000_000_000,
     });
 
     act(() => {
@@ -234,12 +230,10 @@ describe("useSessionReferenceDropTarget custom editor target", () => {
     const store = createStore();
     store.set(org2CloudAuthAtom, {
       kind: "org2_cloud",
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      generation: 1,
       supabaseUrl: "https://cloud.example.test",
-      supabaseAnonKey: "anon",
       userId: "viewer",
-      accessToken: "access",
-      refreshToken: "refresh",
-      expiresAt: 4_000_000_000,
     });
 
     act(() => {

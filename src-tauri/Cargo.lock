@@ -3568,6 +3568,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
+name = "identity-broker"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "fs2",
+ "rand 0.9.4",
+ "security-framework",
+ "security-framework-sys",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.18",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "idna"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5283,6 +5302,7 @@ dependencies = [
  "futures-util",
  "git",
  "git_api",
+ "identity-broker",
  "inbox",
  "insta",
  "integrations",

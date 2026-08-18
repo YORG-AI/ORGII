@@ -9,8 +9,16 @@ usage_diagnostics::commands::diagnostics_initialize,
 usage_diagnostics::commands::diagnostics_submit_usage_snapshot,
 // Cloud device identity for member-runtime sharing (separate id from the diagnostics install_id)
 infrastructure::cloud_identity::cloud_device_identity,
-// Dev-only ORG2 Cloud auth import from the installed app's WebKit origin
-infrastructure::dev_bundled_auth::debug_import_bundled_org2_cloud_auth,
+// Desktop identity Broker snapshot, restore, migration, and sign-out
+identity::commands::identity_get_snapshot,
+identity::commands::identity_begin_org2_cloud_sign_in,
+identity::commands::identity_begin_hosted_service_sign_in,
+identity::commands::identity_complete_hosted_service_sign_in,
+identity::commands::identity_get_org2_cloud_access_lease,
+identity::commands::identity_get_hosted_service_access_lease,
+identity::commands::identity_retry_restore,
+identity::commands::identity_migrate_legacy_org2_cloud,
+identity::commands::identity_sign_out,
 // Main-window appearance commands
 app_window::commands::set_window_vibrancy,
 app_window::commands::set_main_webview_zoom,

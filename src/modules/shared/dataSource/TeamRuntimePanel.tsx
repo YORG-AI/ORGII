@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { externalCliSourcesDetect } from "@src/api/tauri/externalHistory/detection";
 import Button from "@src/components/Button";
+import CloudOnboardingGate from "@src/features/Org2Cloud/CloudOnboardingGate";
 import type {
   MemberRuntimeListEntry,
   OrgRuntimeTelemetry,
@@ -193,7 +194,10 @@ export default function TeamRuntimePanel({
   const agentCatalog = useAgentCatalog(
     roster.phase === "ready" && view === "members" && roster.members.length > 0
   );
-  const signIn = useOrg2CloudSignIn();
+  const signIn = useOrg2CloudSignIn({
+    kind: "resume_route",
+    path: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+  });
 
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
@@ -257,18 +261,9 @@ export default function TeamRuntimePanel({
   switch (roster.phase) {
     case "signedOut":
       content = (
-        <Placeholder
-          variant="empty"
-          placement="detail-panel"
-          title={t("signedOut.title")}
-          subtitle={t("signedOut.subtitle")}
-          action={{
-            label: t("signedOut.action"),
-            onClick: signIn,
-            variant: "primary",
-            dataTestId: "team-runtime-sign-in",
-          }}
-        />
+        <div className="mx-auto w-full max-w-xl py-6">
+          <CloudOnboardingGate onConnect={signIn} />
+        </div>
       );
       break;
     case "noOrgs":

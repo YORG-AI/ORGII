@@ -36,6 +36,7 @@ import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/cha
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 
+import CloudOnboardingGate from "./CloudOnboardingGate";
 import {
   type CloudShareResolveErrorKind,
   classifyCloudShareResolveError,
@@ -76,7 +77,11 @@ interface ImportState {
 
 const CloudShareImportDialog: React.FC = () => {
   const { t } = useTranslation("navigation");
-  const openCloudSignIn = useOrg2CloudSignIn();
+  const openCloudSignIn = useOrg2CloudSignIn({
+    kind: "import_share",
+    // The share credential stays only in the one-shot pending atom.
+    shareId: "pending-share",
+  });
   const location = useLocation();
   const { openSession } = useSessionView();
   const openOrReplaceSessionTab = useSetAtom(
@@ -352,12 +357,11 @@ const CloudShareImportDialog: React.FC = () => {
         data-testid="cloud-share-import-dialog"
       >
         {!auth ? (
-          <div
-            className="rounded-lg bg-fill-1 px-3 py-2 text-[12px] text-text-3"
-            data-testid="cloud-share-import-sign-in-required"
-          >
-            {t("cloud.orgManagement.join.signInFirst")}
-          </div>
+          <CloudOnboardingGate
+            onConnect={openCloudSignIn}
+            onContinueLocally={handleClose}
+            contextual
+          />
         ) : null}
 
         {auth && !resolved && !resolveFailed ? (
@@ -422,54 +426,47 @@ const CloudShareImportDialog: React.FC = () => {
           </div>
         ) : null}
 
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            htmlType="button"
-            variant={
-              resolveFailed && !canRetryResolve ? "primary" : "secondary"
-            }
-            onClick={handleClose}
-          >
-            {t("cloud.share.incomingDismiss")}
-          </Button>
-          {canRetryResolve ? (
+        {auth ? (
+          <div className="flex items-center justify-end gap-2">
             <Button
               htmlType="button"
-              variant="primary"
-              onClick={handleRetryResolve}
-              data-testid="cloud-share-import-retry-resolve"
-            >
-              {t("cloud.share.incomingRetry")}
-            </Button>
-          ) : null}
-          {!auth ? (
-            <Button
-              htmlType="button"
-              variant="primary"
-              onClick={openCloudSignIn}
-              data-testid="cloud-share-import-sign-in"
-            >
-              {t("cloud.signIn")}
-            </Button>
-          ) : !resolveFailed ? (
-            <Button
-              htmlType="button"
-              variant="primary"
-              loading={isImporting}
-              disabled={!canImport}
-              onClick={
-                localSource ? handleOpenExisting : () => void handleImport()
+              variant={
+                resolveFailed && !canRetryResolve ? "primary" : "secondary"
               }
-              data-testid="cloud-share-import-confirm"
+              onClick={handleClose}
             >
-              {t(
-                localSource
-                  ? "cloud.share.incomingOpenExisting"
-                  : "cloud.share.incomingImport"
-              )}
+              {t("cloud.share.incomingDismiss")}
             </Button>
-          ) : null}
-        </div>
+            {canRetryResolve ? (
+              <Button
+                htmlType="button"
+                variant="primary"
+                onClick={handleRetryResolve}
+                data-testid="cloud-share-import-retry-resolve"
+              >
+                {t("cloud.share.incomingRetry")}
+              </Button>
+            ) : null}
+            {!resolveFailed ? (
+              <Button
+                htmlType="button"
+                variant="primary"
+                loading={isImporting}
+                disabled={!canImport}
+                onClick={
+                  localSource ? handleOpenExisting : () => void handleImport()
+                }
+                data-testid="cloud-share-import-confirm"
+              >
+                {t(
+                  localSource
+                    ? "cloud.share.incomingOpenExisting"
+                    : "cloud.share.incomingImport"
+                )}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </Modal>
   );

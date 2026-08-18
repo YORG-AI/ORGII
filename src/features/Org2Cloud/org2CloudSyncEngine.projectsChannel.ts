@@ -14,7 +14,7 @@ import { createLogger } from "@src/hooks/logger";
 
 import { ProjectSyncChannel } from "../TeamCollaboration/engine/ProjectSyncChannel";
 import type { ProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncBridge";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import type { Org2CloudOrg } from "./org2CloudOrgsAtom";
 import { ensureProjectOrgForCloudOrg } from "./org2CloudProjectOrgAlias";
 import type {
@@ -116,7 +116,7 @@ export class Org2CloudProjectsChannel {
    * (same revocation-absence rationale as the session listing).
    */
   async syncOrgProjects(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     org: Org2CloudOrg,
     generation: number,
     options: { pushOutbox: boolean },

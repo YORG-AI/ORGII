@@ -40,6 +40,8 @@ vi.mock("./channelsClient", async (importOriginal) => {
 
 const AUTH_A = {
   kind: "org2_cloud" as const,
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.test",
   supabaseAnonKey: "anon",
   userId: "user-a",

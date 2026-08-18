@@ -7,7 +7,6 @@
 export {
   useServiceAuth,
   useServiceAuthState,
-  clearAuthStateCompletely,
   serviceAuthAtom,
   serviceLoadingAtom,
   hostedTokenAtom,

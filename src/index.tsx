@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { initializeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
 import { configureIdeServerForIdentifier } from "@src/config/ideServer";
 import { applyHostDesktopWindowChromeRadius } from "@src/config/windowChromeRadius";
+import { initializeIdentityLifecycle } from "@src/features/Identity/identityLifecycle";
 import { configureCloudAuthCallbackForIdentifier } from "@src/features/Org2Cloud/config";
 import { installGlobalTauriSelectAllShortcut } from "@src/hooks/keyboard/useTauriSelectAllShortcut";
 import { createLogger, initializeLogging } from "@src/hooks/logger/useLogger";
@@ -170,6 +171,13 @@ async function initializeApp() {
     // Fall back to this origin's local session if the store is unavailable.
     // A focus event retries synchronization after React mounts.
     log.warn("[Init] Shared auth storage unavailable:", error);
+  }
+  try {
+    await initializeIdentityLifecycle();
+  } catch (error) {
+    // Local-first App startup remains available. Identity surfaces render the
+    // unavailable snapshot and focus will retry the native lifecycle.
+    log.warn("[Init] Identity Broker unavailable:", error);
   }
   // In dev, bundle App into main.js (webpackMode: "eager") instead of emitting
   // it as a separate runtime chunk. App is the aggregate entry and pulls in

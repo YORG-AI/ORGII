@@ -306,12 +306,10 @@ describe("ChannelMessageRow references", () => {
     store = createStore();
     store.set(org2CloudAuthAtom, {
       kind: "org2_cloud",
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      generation: 1,
       supabaseUrl: CLOUD_ENDPOINT,
-      supabaseAnonKey: "anon",
       userId: "viewer-1",
-      accessToken: "access",
-      refreshToken: "refresh",
-      expiresAt: 4_102_444_800,
     });
     store.set(sessionsAtom, [SESSION]);
     container = document.createElement("div");
@@ -560,12 +558,10 @@ describe("ChannelMessageRow references", () => {
     act(() => {
       store.set(org2CloudAuthAtom, {
         kind: "org2_cloud",
+        sessionId: "00000000-0000-4000-8000-000000000001",
+        generation: 1,
         supabaseUrl: CLOUD_ENDPOINT,
-        supabaseAnonKey: "anon",
         userId: "viewer-2",
-        accessToken: "access-2",
-        refreshToken: "refresh-2",
-        expiresAt: 4_102_444_800,
       });
     });
 

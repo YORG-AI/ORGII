@@ -7,7 +7,7 @@ import {
 } from "@src/util/core/state/instrumentedStore";
 
 import {
-  type Org2CloudAuthState,
+  type Org2CloudRequestAuth,
   org2CloudAuthAtom,
 } from "./org2CloudAuthAtom";
 import {
@@ -25,13 +25,14 @@ vi.mock("./org2CloudMembersCoordinator", () => ({
 
 const loadCloudOrgMembersMock = vi.mocked(loadCloudOrgMembers);
 
-const AUTH: Org2CloudAuthState = {
+const AUTH: Org2CloudRequestAuth = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.com",
   supabaseAnonKey: "anon",
   userId: "viewer-1",
   accessToken: "jwt-1",
-  refreshToken: "refresh-1",
   expiresAt: 9999999999,
 };
 

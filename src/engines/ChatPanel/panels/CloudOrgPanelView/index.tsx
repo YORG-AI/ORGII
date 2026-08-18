@@ -58,12 +58,12 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
 }) => {
   const { t } = useTranslation("navigation");
   const { t: tSessions } = useTranslation("sessions");
-  const openCloudBillingPage = useOpenCloudBilling();
   const setSidebarSelectedOrgId = useSetAtom(sidebarSelectedOrgIdAtom);
   const openWorkManagementTab = useSetAtom(openWorkManagementChatPanelTabAtom);
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const setupGuideDevScenario = useAtomValue(setupGuideDevScenarioAtom);
   const orgId = selectedCloudOrg.orgId;
+  const openCloudBillingPage = useOpenCloudBilling(orgId);
   const requestedView =
     selectedCloudOrg.initialView ?? CLOUD_ORG_MANAGEMENT_TAB.GENERAL;
   const [tabState, setTabState] = useState<{

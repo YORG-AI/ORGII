@@ -447,6 +447,33 @@
   },
   "cloud": {
     "title": "ORG2 クラウド",
+    "onboarding": {
+      "title": "ORG2 Cloud に接続",
+      "description": "Cloud は任意です。セッション同期、チーム共同作業、管理アクセスが必要なときに接続できます。",
+      "values": {
+        "sync": {
+          "title": "セッション同期",
+          "description": "複数のデバイスで作業を続けられます。"
+        },
+        "collaboration": {
+          "title": "チーム共同作業",
+          "description": "セッションを共有し、Cloud 組織を管理します。"
+        },
+        "security": {
+          "title": "安全なログイン",
+          "description": "認証はブラウザで行い、認証情報はシステムの資格情報ストアに保存されます。"
+        }
+      },
+      "continueLocally": "今は接続せず、ローカルで続ける",
+      "connect": "ORG2 Cloud に接続",
+      "blockedTitle": "ORG2 Cloud へのログインが必要です",
+      "blockedDescription": "この Cloud 機能にはアカウントが必要です。ログインしなくてもローカル作業は利用できます。",
+      "learnMore": "詳しく見る",
+      "backToLocal": "ローカルに戻る",
+      "waitingTitle": "ブラウザでログインを完了してください",
+      "waitingDescription": "認証後、ORGII は自動的に再接続します。",
+      "openFailed": "ログインページを開けませんでした。もう一度お試しください。"
+    },
     "signIn": "ログイン",
     "signOut": "ログアウト",
     "signedInAs": "{{name}} としてログイン中",
@@ -959,6 +986,20 @@
       "on": "オン",
       "off": "オフ",
       "memberNote": "管理者が有効化 — この組織を開かなくても、対象セッションがバックグラウンドでアップロードされます。"
+    },
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
     }
   }
 }

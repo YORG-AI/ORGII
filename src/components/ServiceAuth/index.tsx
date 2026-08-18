@@ -1,9 +1,8 @@
 /**
  * Service Auth Components
  *
- * UI components for hosted-service authentication.
- * Note: ServiceAuthGuard was removed -- the global AuthGuard in
- * RootLayout already blocks unauthenticated users at the router level.
+ * Feature-scoped UI for hosted-service authentication. The desktop shell is
+ * local-first, so these controls request identity only where it is needed.
  */
 import Button, { type ButtonVariant } from "@/src/components/Button";
 import { LogIn, LogOut } from "lucide-react";

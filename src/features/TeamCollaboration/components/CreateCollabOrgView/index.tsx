@@ -15,6 +15,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import CloudOnboardingGate from "@src/features/Org2Cloud/CloudOnboardingGate";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { cloudManagementErrorMessage } from "@src/features/Org2Cloud/org2CloudOrgManagement";
 import {
@@ -87,7 +88,7 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
   const [inviteInput, setInviteInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const openCloudSignIn = useOrg2CloudSignIn();
+  const openCloudSignIn = useOrg2CloudSignIn({ kind: "create_org" });
   const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
   const orgNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -312,18 +313,12 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
             )}
 
             {source === CLOUD_SOURCE && !cloudAuth && (
-              <SectionRow showHeader={false}>
-                <div
-                  className="flex flex-wrap items-center gap-2 rounded-md border border-border-1 bg-fill-2 px-3 py-2"
-                  data-testid="create-cloud-org-sign-in-hint"
-                >
-                  <span className="min-w-0 flex-1 text-xs leading-[18px] text-text-2">
-                    {t("navigation:cloud.orgManagement.create.signInFirst")}
-                  </span>
-                  <Button size="small" onClick={openCloudSignIn}>
-                    {t("navigation:cloud.signIn")}
-                  </Button>
-                </div>
+              <SectionRow showHeader={false} layout="vertical">
+                <CloudOnboardingGate
+                  onConnect={openCloudSignIn}
+                  onContinueLocally={() => setSource(LOCAL_SOURCE)}
+                  contextual
+                />
               </SectionRow>
             )}
 

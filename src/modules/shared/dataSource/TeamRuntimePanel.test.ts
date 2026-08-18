@@ -9,7 +9,10 @@ import type {
   MemberUsageDay,
 } from "@src/features/Org2Cloud/memberRuntime/types";
 import { utcDayFromMs } from "@src/features/Org2Cloud/memberRuntime/types";
-import type { Org2CloudAuthState } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import type {
+  Org2CloudAuthState,
+  Org2CloudRequestAuth,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import type { Org2CloudOrg } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
@@ -323,13 +326,14 @@ async function seedAtoms(
   store.set(org2CloudOrgsLoadedAtom, orgsLoaded);
 }
 
-const AUTH: Org2CloudAuthState = {
+const AUTH: Org2CloudRequestAuth = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example",
   supabaseAnonKey: "anon",
   userId: "me",
   accessToken: "token-1",
-  refreshToken: "refresh-1",
   expiresAt: Math.floor(Date.now() / 1000) + 3600,
 };
 
@@ -528,7 +532,7 @@ describe("TeamRuntimePanel states", () => {
     await mount();
 
     expect(
-      container.querySelector('[data-testid="team-runtime-sign-in"]')
+      container.querySelector('[data-testid="org2-cloud-onboarding"]')
     ).not.toBeNull();
     expect(mocks.listMemberRuntime).not.toHaveBeenCalled();
     expect(mocks.getCloudCapabilities).not.toHaveBeenCalled();

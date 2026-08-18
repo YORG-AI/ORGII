@@ -10,7 +10,7 @@
 import { createLogger } from "@src/hooks/logger";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import type { Org2CloudSyncClientDeps } from "./org2CloudSessionSync";
 
 const log = createLogger("Org2CloudSyncEngine");
@@ -32,7 +32,7 @@ export class Org2CloudSessionColdStart {
   }
 
   async loadSessionSummariesForColdStart(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgId: string,
     generation: number,
     isCurrentGeneration: (generation: number) => boolean

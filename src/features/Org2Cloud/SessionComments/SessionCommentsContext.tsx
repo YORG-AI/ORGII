@@ -207,11 +207,17 @@ export function useSessionCommentMentionableMembers(
     let cancelled = false;
     if (!auth || !identityKey || !orgId || !requestKey) return;
     const requestAuth = auth;
-    void Promise.all([
-      loadCloudOrgMembers(store, requestAuth, orgId, rosterVersion),
-      getCloudCapabilities(requestAuth.accessToken),
-    ])
-      .then(([loaded, capabilities]) => {
+    void loadCloudOrgMembers(store, requestAuth, orgId, rosterVersion)
+      .then(async (loaded) => {
+        if (!loaded) return null;
+        const capabilities = await getCloudCapabilities(
+          loaded.auth.accessToken
+        );
+        return { loaded, capabilities };
+      })
+      .then((result) => {
+        if (!result) return;
+        const { loaded, capabilities } = result;
         if (!loaded || cancelled) return;
         commitRefreshedAuth(setAuth, requestAuth, loaded.auth);
         const latestAuth = store.get(org2CloudAuthAtom);

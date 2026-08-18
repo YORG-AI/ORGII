@@ -58,12 +58,30 @@ vi.mock("@src/features/Org2Cloud/org2CloudCapabilities", () => ({
   getCloudCapabilities: mocks.getCloudCapabilities,
 }));
 
+vi.mock("@src/features/Identity/identityClient", () => ({
+  getIdentityErrorCode: () => null,
+  identityClient: {
+    getOrg2CloudAccessLease: vi.fn(async () => ({
+      sessionId: AUTH.sessionId,
+      generation: AUTH.generation,
+      issuer: AUTH.supabaseUrl,
+      publicClientKey: AUTH.supabaseAnonKey,
+      subject: AUTH.userId,
+      expiresAtUnix: AUTH.expiresAt,
+      audience: "org2_cloud_api",
+      accessToken: AUTH.accessToken,
+    })),
+  },
+}));
+
 vi.mock("@src/features/Org2Cloud/org2CloudMembersCoordinator", () => ({
   loadCloudOrgMembers: mocks.loadCloudOrgMembers,
 }));
 
 const AUTH = {
   kind: "org2_cloud" as const,
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.test",
   supabaseAnonKey: "anon",
   userId: "user-self",

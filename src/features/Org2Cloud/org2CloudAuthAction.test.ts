@@ -1,27 +1,33 @@
 import { createStore } from "jotai";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { refreshOrg2CloudAuthForAction } from "./org2CloudAuthAction";
 import {
   type Org2CloudAuthState,
+  type Org2CloudRequestAuth,
   org2CloudAuthAtom,
 } from "./org2CloudAuthAtom";
 
-const fetchMock = vi.fn();
+const mocks = vi.hoisted(() => ({ ensureFreshSession: vi.fn() }));
+
+vi.mock("./org2CloudClient", () => ({
+  ensureFreshSession: mocks.ensureFreshSession,
+}));
 
 const CURRENT: Org2CloudAuthState = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.test",
-  supabaseAnonKey: "anon-key",
   userId: "user-1",
-  accessToken: "access-1",
-  refreshToken: "refresh-1",
-  expiresAt: 0,
 };
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status });
-}
+const LEASE: Org2CloudRequestAuth = {
+  ...CURRENT,
+  supabaseAnonKey: "anon-key",
+  accessToken: "access-2",
+  expiresAt: 2_000_000_000,
+};
 
 function boundSetter(store: ReturnType<typeof createStore>) {
   return (
@@ -32,37 +38,28 @@ function boundSetter(store: ReturnType<typeof createStore>) {
 }
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", fetchMock);
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  fetchMock.mockReset();
+  vi.clearAllMocks();
 });
 
 describe("refreshOrg2CloudAuthForAction", () => {
-  it("rotates and persists a refresh-token family before the action continues", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        access_token: "access-2",
-        refresh_token: "refresh-2",
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-      })
-    );
+  it("returns a lease without persisting access credentials", async () => {
+    mocks.ensureFreshSession.mockResolvedValueOnce(LEASE);
     const store = createStore();
     store.set(org2CloudAuthAtom, CURRENT);
 
-    const result = await refreshOrg2CloudAuthForAction(
-      CURRENT,
-      boundSetter(store)
-    );
-
-    expect(result.status).toBe("ready");
-    expect(store.get(org2CloudAuthAtom)?.refreshToken).toBe("refresh-2");
+    await expect(
+      refreshOrg2CloudAuthForAction(CURRENT, boundSetter(store))
+    ).resolves.toEqual({ status: "ready", auth: LEASE });
+    expect(store.get(org2CloudAuthAtom)).toBe(CURRENT);
   });
 
-  it("clears the rejected persisted session and reports it as expired", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, 401));
+  it("clears the exact projection after native credential rejection", async () => {
+    mocks.ensureFreshSession.mockImplementationOnce(
+      async (_current, options) => {
+        options?.onRefreshRejected?.();
+        return null;
+      }
+    );
     const store = createStore();
     store.set(org2CloudAuthAtom, CURRENT);
 
@@ -72,8 +69,8 @@ describe("refreshOrg2CloudAuthForAction", () => {
     expect(store.get(org2CloudAuthAtom)).toBeNull();
   });
 
-  it("keeps the session on a retryable network failure", async () => {
-    fetchMock.mockRejectedValueOnce(new Error("offline"));
+  it("keeps the projection on a retryable transport failure", async () => {
+    mocks.ensureFreshSession.mockResolvedValueOnce(null);
     const store = createStore();
     store.set(org2CloudAuthAtom, CURRENT);
 
@@ -83,12 +80,15 @@ describe("refreshOrg2CloudAuthForAction", () => {
     expect(store.get(org2CloudAuthAtom)).toBe(CURRENT);
   });
 
-  it("does not clear a newer login when an older refresh is rejected late", async () => {
-    let resolveRefresh: ((response: Response) => void) | undefined;
-    fetchMock.mockImplementationOnce(
-      () =>
-        new Promise<Response>((resolve) => {
-          resolveRefresh = resolve;
+  it("does not clear a newer generation after a late rejection", async () => {
+    let rejectLate: (() => void) | undefined;
+    mocks.ensureFreshSession.mockImplementationOnce(
+      (_current, options) =>
+        new Promise<null>((resolve) => {
+          rejectLate = () => {
+            options?.onRefreshRejected?.();
+            resolve(null);
+          };
         })
     );
     const store = createStore();
@@ -96,12 +96,12 @@ describe("refreshOrg2CloudAuthForAction", () => {
     const request = refreshOrg2CloudAuthForAction(CURRENT, boundSetter(store));
     const newer: Org2CloudAuthState = {
       ...CURRENT,
+      sessionId: "00000000-0000-4000-8000-000000000002",
+      generation: 2,
       userId: "user-2",
-      refreshToken: "refresh-newer",
     };
     store.set(org2CloudAuthAtom, newer);
-
-    resolveRefresh?.(jsonResponse({}, 401));
+    rejectLate?.();
 
     await expect(request).resolves.toEqual({ status: "superseded" });
     expect(store.get(org2CloudAuthAtom)).toBe(newer);

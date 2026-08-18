@@ -539,6 +539,33 @@
   },
   "cloud": {
     "title": "ORG2 雲端",
+    "onboarding": {
+      "title": "連接 ORG2 Cloud",
+      "description": "Cloud 是選用功能。需要跨裝置同步、團隊協作或託管存取時再連接即可。",
+      "values": {
+        "sync": {
+          "title": "Session 同步",
+          "description": "在不同裝置間繼續目前工作。"
+        },
+        "collaboration": {
+          "title": "團隊協作",
+          "description": "分享 Session，並管理雲端組織。"
+        },
+        "security": {
+          "title": "安全登入",
+          "description": "在瀏覽器中完成驗證，憑證保存在系統鑰匙圈。"
+        }
+      },
+      "continueLocally": "暫不，繼續本機使用",
+      "connect": "連接 ORG2 Cloud",
+      "blockedTitle": "此功能需要登入 ORG2 Cloud",
+      "blockedDescription": "登入後才能使用目前的 Cloud 功能；不登入仍可繼續使用所有本機功能。",
+      "learnMore": "瞭解 ORG2 Cloud",
+      "backToLocal": "返回本機",
+      "waitingTitle": "請在瀏覽器中完成登入",
+      "waitingDescription": "授權完成後，ORGII 會自動連接。",
+      "openFailed": "無法開啟登入頁面，請再試一次。"
+    },
     "signIn": "登入",
     "signOut": "登出",
     "signedInToast": "已登入 ORG2 雲端",
@@ -1051,6 +1078,20 @@
       "on": "開啟",
       "off": "關閉",
       "memberNote": "由管理員開啟——無需開啟該組織，符合條件的會話也會在背景上傳。"
+    },
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
     }
   }
 }

@@ -1,25 +1,16 @@
-import { getDefaultStore } from "jotai";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { exchangeSupabaseCodeForSession } from "@src/api/http/auth/supabase";
 import { ROUTES } from "@src/config/routes";
 import {
   HOSTED_LOGIN_ENABLED,
-  SERVICE_AUTH_STORAGE_KEYS,
-  clearProcessedCode,
-  isCodeAlreadyProcessed,
-  markCodeAsProcessed,
   parseAuthCallback,
 } from "@src/config/serviceAuth";
-import {
-  hostedTokenAtom,
-  serviceAuthAtom,
-  serviceExpiryAtom,
-  serviceValidatedAtom,
-} from "@src/hooks/auth";
+import { identityClient } from "@src/features/Identity/identityClient";
+import { replaceIdentitySnapshot } from "@src/features/Identity/identitySnapshotAtom";
 import { createLogger } from "@src/hooks/logger";
+import { consumeLoginRedirect } from "@src/router/entryFlow";
 
 import { LoginLoadingState } from "./index";
 
@@ -71,8 +62,8 @@ const AuthCallback: React.FC = () => {
       const result = parseAuthCallback(search);
 
       if (result.error) {
-        log.error("Supabase auth error:", result.error);
-        setError(result.error);
+        log.error("Hosted authorization was rejected");
+        setError(t("market.auth.tokenExchangeFailed"));
         redirectFromFailedCallback();
         return;
       }
@@ -84,49 +75,19 @@ const AuthCallback: React.FC = () => {
         return;
       }
 
-      const alreadyProcessed = await isCodeAlreadyProcessed(result.code);
-      if (cancelled) return;
-      if (alreadyProcessed) {
-        const existingToken = localStorage.getItem(
-          SERVICE_AUTH_STORAGE_KEYS.accessToken
-        );
-        if (existingToken) {
-          const storedRedirect = sessionStorage.getItem("login_redirect");
-          sessionStorage.removeItem("login_redirect");
-          const redirectPath = storedRedirect || ROUTES.workStation.base.path;
-          navigate(redirectPath, { replace: true });
-        }
-        return;
-      }
-
       isProcessingRef.current = true;
 
       try {
-        await markCodeAsProcessed(result.code);
+        const snapshot = await identityClient.completeHostedServiceSignIn(
+          result.code
+        );
+        if (cancelled) return;
+        replaceIdentitySnapshot(snapshot);
 
-        const tokenResponse = await exchangeSupabaseCodeForSession(result.code);
-
-        const store = getDefaultStore();
-        store.set(serviceAuthAtom, true);
-        store.set(hostedTokenAtom, tokenResponse.access_token);
-        store.set(serviceExpiryAtom, tokenResponse.expires_in);
-        store.set(serviceValidatedAtom, true);
-
-        window.dispatchEvent(new Event("localStorageChange"));
-
-        await clearProcessedCode();
-
-        const storedRedirect = sessionStorage.getItem("login_redirect");
-        sessionStorage.removeItem("login_redirect");
-        const redirectPath = storedRedirect || ROUTES.workStation.base.path;
-        navigate(redirectPath, { replace: true });
-      } catch (exchangeError) {
-        log.error("Token exchange failed:", exchangeError);
-        const errorMessage =
-          exchangeError instanceof Error
-            ? exchangeError.message
-            : t("market.auth.tokenExchangeFailed");
-        setError(errorMessage);
+        navigate(consumeLoginRedirect(), { replace: true });
+      } catch {
+        log.error("Hosted token exchange failed");
+        setError(t("market.auth.tokenExchangeFailed"));
         redirectFromFailedCallback();
       }
     };

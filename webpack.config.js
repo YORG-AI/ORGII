@@ -573,6 +573,16 @@ module.exports = (env, argv) => {
         "process.env.ORGII_DEEP_LINK_SCHEME": JSON.stringify(
           process.env.ORGII_DEEP_LINK_SCHEME ?? "orgii"
         ),
+        // Emergency rollback for the internal Broker shadow rollout. The
+        // legacy reader remains untouched while this flag is disabled.
+        "process.env.ORGII_IDENTITY_BROKER": JSON.stringify(
+          process.env.ORGII_IDENTITY_BROKER ?? "enabled"
+        ),
+        // Phase-2 opt-in. Default remains the legacy Cloud login until the
+        // OAuth client and Broker-owned access leases are deployed together.
+        "process.env.ORGII_IDENTITY_OAUTH": JSON.stringify(
+          process.env.ORGII_IDENTITY_OAUTH ?? "disabled"
+        ),
         "process.env.E2E_BASE_URL": JSON.stringify(
           process.env.E2E_BASE_URL ??
             `http://127.0.0.1:${process.env.ORGII_IDE_SERVER_PORT ?? "13847"}`

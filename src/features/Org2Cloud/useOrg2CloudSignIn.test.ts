@@ -4,13 +4,34 @@ import { ORG2_CLOUD_OFFICIAL_WEB_ORIGIN } from "./config";
 import { openOrg2CloudSignIn } from "./useOrg2CloudSignIn";
 
 describe("openOrg2CloudSignIn", () => {
+  it("delegates browser ownership to the native Broker in the PKCE rollout", async () => {
+    const beginBrokerSignIn = vi.fn(async () => undefined);
+    const beginAuthLoopback = vi.fn(async () => "unused");
+    const openExternalUrl = vi.fn(async () => undefined);
+
+    await openOrg2CloudSignIn({
+      useBrokerOAuth: true,
+      beginBrokerSignIn,
+      beginAuthLoopback,
+      openExternalUrl,
+    });
+
+    expect(beginBrokerSignIn).toHaveBeenCalledTimes(1);
+    expect(beginAuthLoopback).not.toHaveBeenCalled();
+    expect(openExternalUrl).not.toHaveBeenCalled();
+  });
+
   it("opens login with the app-owned loopback callback", async () => {
     const callbackUrl =
       "http://localhost:49152/org2-cloud/auth/callback?state=06a011d0-3c35-4f81-90cf-468eddd89631";
     const beginAuthLoopback = vi.fn(async () => callbackUrl);
     const openExternalUrl = vi.fn(async (_url: string) => undefined);
 
-    await openOrg2CloudSignIn({ beginAuthLoopback, openExternalUrl });
+    await openOrg2CloudSignIn({
+      useBrokerOAuth: false,
+      beginAuthLoopback,
+      openExternalUrl,
+    });
 
     expect(beginAuthLoopback).toHaveBeenCalledTimes(1);
     expect(openExternalUrl).toHaveBeenCalledTimes(1);
@@ -26,6 +47,7 @@ describe("openOrg2CloudSignIn", () => {
 
     await expect(
       openOrg2CloudSignIn({
+        useBrokerOAuth: false,
         beginAuthLoopback: async () =>
           "http://localhost:49152/org2-cloud/auth/callback?state=06a011d0-3c35-4f81-90cf-468eddd89631",
         cancelAuthLoopback,

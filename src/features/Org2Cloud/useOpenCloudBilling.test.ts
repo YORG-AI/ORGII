@@ -5,7 +5,10 @@ import {
   ORG2_CLOUD_OFFICIAL_WEB_ORIGIN,
   buildCloudBillingLoginUrl,
 } from "./config";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type {
+  Org2CloudAuthState,
+  Org2CloudRequestAuth,
+} from "./org2CloudAuthAtom";
 import { openCloudBilling } from "./useOpenCloudBilling";
 
 const { ensureFreshSessionMock, messageErrorMock, openUrlMock } = vi.hoisted(
@@ -34,11 +37,16 @@ vi.mock("./org2CloudClient", () => ({
 
 const AUTH: Org2CloudAuthState = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://project.supabase.test",
-  supabaseAnonKey: "anon-key",
   userId: "user-1",
+};
+
+const LEASE: Org2CloudRequestAuth = {
+  ...AUTH,
+  supabaseAnonKey: "anon-key",
   accessToken: "access-1",
-  refreshToken: "refresh-1",
   expiresAt: 9_999_999_999,
 };
 
@@ -84,7 +92,7 @@ afterEach(() => {
 describe("openCloudBilling", () => {
   it("opens the bridge verifyUrl when the bridge succeeds", async () => {
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     fetchMock.mockResolvedValueOnce(jsonResponse({ verifyUrl: VERIFY_URL }));
 
     await openCloudBilling(AUTH, state.setAuth);
@@ -95,24 +103,25 @@ describe("openCloudBilling", () => {
     const headers = init.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer access-1");
     expect(headers["content-type"]).toBe("application/json");
-    expect(JSON.parse(String(init.body))).toEqual({ return_to: "/billing" });
+    expect(JSON.parse(String(init.body))).toEqual({
+      return_to: "/billing?desktopUserId=user-1",
+    });
     expect(openUrlMock).toHaveBeenCalledWith(VERIFY_URL);
     expect(messageErrorMock).not.toHaveBeenCalled();
   });
 
-  it("commits a rotated session and uses its access token", async () => {
+  it("uses a new lease without persisting it", async () => {
     const state = stateHarness(AUTH);
-    const fresh: Org2CloudAuthState = {
-      ...AUTH,
+    const fresh: Org2CloudRequestAuth = {
+      ...LEASE,
       accessToken: "access-2",
-      refreshToken: "refresh-2",
     };
     ensureFreshSessionMock.mockResolvedValueOnce(fresh);
     fetchMock.mockResolvedValueOnce(jsonResponse({ verifyUrl: VERIFY_URL }));
 
     await openCloudBilling(AUTH, state.setAuth);
 
-    expect(state.current).toBe(fresh);
+    expect(state.current).toBe(AUTH);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer access-2");
@@ -136,37 +145,43 @@ describe("openCloudBilling", () => {
     await openCloudBilling(AUTH, state.setAuth);
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(openUrlMock).toHaveBeenCalledWith(buildCloudBillingLoginUrl());
+    expect(openUrlMock).toHaveBeenCalledWith(
+      buildCloudBillingLoginUrl(AUTH.userId)
+    );
     expect(messageErrorMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the web login on a non-200 bridge response", async () => {
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ error: "unauthorized" }, 401)
     );
 
     await openCloudBilling(AUTH, state.setAuth);
 
-    expect(openUrlMock).toHaveBeenCalledWith(buildCloudBillingLoginUrl());
+    expect(openUrlMock).toHaveBeenCalledWith(
+      buildCloudBillingLoginUrl(AUTH.userId)
+    );
     expect(messageErrorMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the web login on a network error", async () => {
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     fetchMock.mockRejectedValueOnce(new Error("offline"));
 
     await openCloudBilling(AUTH, state.setAuth);
 
-    expect(openUrlMock).toHaveBeenCalledWith(buildCloudBillingLoginUrl());
+    expect(openUrlMock).toHaveBeenCalledWith(
+      buildCloudBillingLoginUrl(AUTH.userId)
+    );
     expect(messageErrorMock).not.toHaveBeenCalled();
   });
 
   it("refuses a foreign-origin verifyUrl and falls back to the web login", async () => {
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         verifyUrl: "https://evil.example.com/auth/callback?token_hash=abc",
@@ -175,28 +190,34 @@ describe("openCloudBilling", () => {
 
     await openCloudBilling(AUTH, state.setAuth);
 
-    expect(openUrlMock).toHaveBeenCalledWith(buildCloudBillingLoginUrl());
+    expect(openUrlMock).toHaveBeenCalledWith(
+      buildCloudBillingLoginUrl(AUTH.userId)
+    );
     expect(messageErrorMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the web login on an unexpected response shape", async () => {
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     fetchMock.mockResolvedValueOnce(jsonResponse({ url: VERIFY_URL }));
 
     await openCloudBilling(AUTH, state.setAuth);
 
-    expect(openUrlMock).toHaveBeenCalledWith(buildCloudBillingLoginUrl());
+    expect(openUrlMock).toHaveBeenCalledWith(
+      buildCloudBillingLoginUrl(AUTH.userId)
+    );
   });
 
   it("falls back to the web login when verifyUrl is not a URL", async () => {
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     fetchMock.mockResolvedValueOnce(jsonResponse({ verifyUrl: "not a url" }));
 
     await openCloudBilling(AUTH, state.setAuth);
 
-    expect(openUrlMock).toHaveBeenCalledWith(buildCloudBillingLoginUrl());
+    expect(openUrlMock).toHaveBeenCalledWith(
+      buildCloudBillingLoginUrl(AUTH.userId)
+    );
   });
 
   it("targets a custom endpoint's web origin for bridge and origin check", async () => {
@@ -209,7 +230,7 @@ describe("openCloudBilling", () => {
       })
     );
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     const customVerifyUrl =
       "https://cloud.acme.dev/auth/callback?token_hash=abc&type=magiclink";
     fetchMock.mockResolvedValueOnce(
@@ -223,9 +244,22 @@ describe("openCloudBilling", () => {
     expect(openUrlMock).toHaveBeenCalledWith(customVerifyUrl);
   });
 
+  it("pins the desktop account and selected organization in the billing handoff", async () => {
+    const state = stateHarness(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ verifyUrl: VERIFY_URL }));
+
+    await openCloudBilling(AUTH, state.setAuth, "org-42");
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      return_to: "/billing?desktopUserId=user-1&orgId=org-42",
+    });
+  });
+
   it("toasts only when the browser open itself fails", async () => {
     const state = stateHarness(AUTH);
-    ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
+    ensureFreshSessionMock.mockResolvedValueOnce(LEASE);
     fetchMock.mockResolvedValueOnce(jsonResponse({ verifyUrl: VERIFY_URL }));
     openUrlMock.mockRejectedValueOnce(new Error("no browser"));
 

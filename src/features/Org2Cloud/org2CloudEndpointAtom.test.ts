@@ -25,12 +25,10 @@ import {
 
 const AUTH: Org2CloudAuthState = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://old.supabase.co",
-  supabaseAnonKey: "anon-old",
   userId: "user-1",
-  accessToken: "at",
-  refreshToken: "rt",
-  expiresAt: 1751500000,
 };
 
 const OVERRIDE = {

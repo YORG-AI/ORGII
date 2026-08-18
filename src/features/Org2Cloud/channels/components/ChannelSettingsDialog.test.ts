@@ -13,7 +13,10 @@ import {
   vi,
 } from "vitest";
 
-import { org2CloudAuthAtom } from "../../org2CloudAuthAtom";
+import {
+  type Org2CloudRequestAuth,
+  org2CloudAuthAtom,
+} from "../../org2CloudAuthAtom";
 import { org2CloudChannelsVersionAtom } from "../channelsAtom";
 import { Org2CloudChannelsError } from "../channelsClient";
 import type { CloudChannel } from "../types";
@@ -21,6 +24,7 @@ import ChannelSettingsDialog from "./ChannelSettingsDialog";
 
 const mocks = vi.hoisted(() => ({
   updateCloudChannel: vi.fn(),
+  ensureFreshSession: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -32,14 +36,24 @@ vi.mock("../channelsClient", async (importOriginal) => {
   return { ...actual, updateCloudChannel: mocks.updateCloudChannel };
 });
 
+vi.mock("../../org2CloudClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../org2CloudClient")>();
+  return { ...actual, ensureFreshSession: mocks.ensureFreshSession };
+});
+
 const AUTH = {
   kind: "org2_cloud" as const,
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.test",
   supabaseAnonKey: "anon",
   userId: "user-self",
+};
+
+const ACCESS_AUTH: Org2CloudRequestAuth = {
+  ...AUTH,
   accessToken: "access",
-  refreshToken: "refresh",
-  // Far future: ensureFreshSession returns this state without a network hop.
+  supabaseAnonKey: "anon",
   expiresAt: 4_102_444_800,
 };
 
@@ -80,6 +94,7 @@ describe("ChannelSettingsDialog", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.ensureFreshSession.mockResolvedValue(ACCESS_AUTH);
     store = createStore();
     store.set(org2CloudAuthAtom, AUTH);
     container = document.createElement("div");

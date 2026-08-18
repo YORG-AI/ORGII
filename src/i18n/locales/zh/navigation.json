@@ -539,10 +539,51 @@
   },
   "cloud": {
     "title": "ORG2 云",
+    "onboarding": {
+      "title": "连接 ORG2 Cloud",
+      "description": "Cloud 是可选功能。需要跨设备同步、团队协作或托管访问时再连接即可。",
+      "values": {
+        "sync": {
+          "title": "Session 同步",
+          "description": "在不同设备间继续当前工作。"
+        },
+        "collaboration": {
+          "title": "团队协作",
+          "description": "分享 Session，并管理云端组织。"
+        },
+        "security": {
+          "title": "安全登录",
+          "description": "在浏览器中完成验证，凭证保存在系统钥匙串。"
+        }
+      },
+      "continueLocally": "暂不，继续本地使用",
+      "connect": "连接 ORG2 Cloud",
+      "blockedTitle": "此功能需要登录 ORG2 Cloud",
+      "blockedDescription": "登录后才能使用当前 Cloud 功能；不登录也可继续使用所有本地功能。",
+      "learnMore": "了解 ORG2 Cloud",
+      "backToLocal": "返回本地",
+      "waitingTitle": "请在浏览器中完成登录",
+      "waitingDescription": "授权完成后，ORGII 会自动连接。",
+      "openFailed": "无法打开登录页面，请重试。"
+    },
     "signIn": "登录",
     "signOut": "退出登录",
     "signedInToast": "已登录 ORG2 云",
     "sessionExpired": "ORG2 云登录已过期，请重新登录后继续。",
+    "accountCenter": {
+      "reconnect": "重新连接",
+      "switchAccount": "切换账号",
+      "endpoint": "服务端点：{{endpoint}}",
+      "status": {
+        "restoring": "正在恢复",
+        "ready": "已连接",
+        "offline_degraded": "离线可用",
+        "reauth_required": "需要重新连接",
+        "signing_out": "正在退出",
+        "secureStoreLocked": "凭证存储已锁定",
+        "secureStoreUnavailable": "仅本次会话保存"
+      }
+    },
     "recommendedBadge": "推荐",
     "recommendedDesc": "托管式会话共享、回放存储、团队权限和安全分享链接，无需自行搭建 Supabase。ORG2 为你管理 Auth 认证、数据库迁移、RLS 策略、计费、数据保留、配额以及后端升级",
     "customEndpoint": {

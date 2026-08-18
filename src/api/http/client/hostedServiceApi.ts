@@ -8,10 +8,13 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
+import { readIdentitySnapshot } from "@src/features/Identity/identitySnapshotAtom";
+import { getActiveIdentitySession } from "@src/features/Identity/identityTypes";
 import { createLogger } from "@src/hooks/logger";
 import { getGlobalCommonHeaders } from "@src/util/config/headers";
 import { captureApiCallStack } from "@src/util/monitoring/apiTracker";
 
+import { type ApiAuthFailure, createApiAuthFailure } from "./authFailure";
 import { NOTIFICATION_DURATION } from "./config";
 import { showResponseErrorNotification } from "./errorHandling";
 import { getOrRefreshHostedToken } from "./tokenRefresh";
@@ -38,7 +41,7 @@ interface HostedServiceProxyResponse {
 
 interface HostedServiceRequestOptions {
   onError?: () => void;
-  onNoAuth?: () => void;
+  onNoAuth?: (failure: ApiAuthFailure) => void;
   signal?: AbortSignal;
   silent?: boolean;
 }
@@ -63,13 +66,14 @@ async function buildHostedServiceHeaders(): Promise<Record<string, string>> {
 function handleServiceAuthError(
   statusCode: number,
   detail: string | undefined,
-  onNoAuth?: () => void
+  sessionId: string | null,
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): DataField<never> | undefined {
   if (statusCode === 401) {
     log.warn(
       "[API] 401 Hosted-service token invalid - main session unaffected"
     );
-    onNoAuth?.();
+    onNoAuth?.(createApiAuthFailure("hostedService", 401, detail, sessionId));
     return {
       status: 1,
       data: {
@@ -82,7 +86,7 @@ function handleServiceAuthError(
   if (statusCode === 403) {
     if (detail === "Not authenticated" || detail === "Expired token") {
       log.warn("[API] 403 Hosted-service auth error:", detail);
-      onNoAuth?.();
+      onNoAuth?.(createApiAuthFailure("hostedService", 403, detail, sessionId));
     }
     return {
       status: 1,
@@ -104,6 +108,9 @@ async function hostedServiceRequest<T>(
 ): Promise<DataField<T> | undefined> {
   const { onError, onNoAuth, signal } = options;
   captureApiCallStack();
+  const requestSessionId =
+    getActiveIdentitySession(readIdentitySnapshot(), "hosted_service_legacy")
+      ?.sessionId ?? null;
 
   const headers = await buildHostedServiceHeaders();
 
@@ -162,7 +169,12 @@ async function hostedServiceRequest<T>(
     } | null;
     const detail = errorBody?.detail || errorBody?.message;
 
-    const authResult = handleServiceAuthError(statusCode, detail, onNoAuth);
+    const authResult = handleServiceAuthError(
+      statusCode,
+      detail,
+      requestSessionId,
+      onNoAuth
+    );
     if (authResult) {
       onError?.();
       return authResult as DataField<T>;
@@ -229,7 +241,7 @@ export async function getHostedServiceApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void,
+  onNoAuth?: (failure: ApiAuthFailure) => void,
   silent?: boolean
 ): Promise<DataField<T> | undefined> {
   return hostedServiceRequest<T>("GET", url, params, {
@@ -246,7 +258,7 @@ export async function postHostedServiceApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): Promise<DataField<T> | undefined> {
   return hostedServiceRequest<T>("POST", url, params, {
     onError,
@@ -261,7 +273,7 @@ export async function putHostedServiceApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void,
+  onNoAuth?: (failure: ApiAuthFailure) => void,
   silent?: boolean
 ): Promise<DataField<T> | undefined> {
   return hostedServiceRequest<T>("PUT", url, params, {
@@ -287,7 +299,7 @@ export async function patchHostedServiceApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): Promise<DataField<T> | undefined> {
   return hostedServiceRequest<T>("PATCH", url, params, {
     onError,

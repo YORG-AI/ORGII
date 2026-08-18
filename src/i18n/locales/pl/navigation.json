@@ -447,6 +447,33 @@
   },
   "cloud": {
     "title": "ORG2 Cloud",
+    "onboarding": {
+      "title": "Połącz z ORG2 Cloud",
+      "description": "Cloud jest opcjonalny. Połącz się, gdy potrzebujesz synchronizacji sesji, współpracy zespołowej lub zarządzanego dostępu.",
+      "values": {
+        "sync": {
+          "title": "Synchronizacja sesji",
+          "description": "Kontynuuj pracę na różnych urządzeniach."
+        },
+        "collaboration": {
+          "title": "Współpraca zespołowa",
+          "description": "Udostępniaj sesje i zarządzaj organizacjami Cloud."
+        },
+        "security": {
+          "title": "Bezpieczne logowanie",
+          "description": "Uwierzytelnianie odbywa się w przeglądarce, a dane logowania pozostają w magazynie systemowym."
+        }
+      },
+      "continueLocally": "Nie teraz, kontynuuj lokalnie",
+      "connect": "Połącz z ORG2 Cloud",
+      "blockedTitle": "Wymagane logowanie do ORG2 Cloud",
+      "blockedDescription": "Ta funkcja Cloud wymaga konta. Praca lokalna pozostaje dostępna bez logowania.",
+      "learnMore": "Dowiedz się więcej",
+      "backToLocal": "Wróć do lokalnego trybu",
+      "waitingTitle": "Dokończ logowanie w przeglądarce",
+      "waitingDescription": "ORGII połączy się automatycznie po autoryzacji.",
+      "openFailed": "Nie udało się otworzyć strony logowania. Spróbuj ponownie."
+    },
     "signIn": "Zaloguj się",
     "signOut": "Wyloguj się",
     "signedInAs": "Zalogowano jako {{name}}",
@@ -959,6 +986,20 @@
       "on": "Włączone",
       "off": "Wyłączone",
       "memberNote": "Włączone przez administratora — kwalifikujące się sesje są przesyłane w tle bez otwierania tej organizacji."
+    },
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
     }
   }
 }

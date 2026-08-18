@@ -3,6 +3,9 @@
  *
  * Type definitions for the HTTP client layer.
  */
+import type { ApiAuthFailure } from "./authFailure";
+
+export type { ApiTarget } from "./authFailure";
 
 // ============================================
 // Response Types
@@ -34,7 +37,7 @@ export interface ApiErrorResponse {
 
 export interface RequestOptions {
   onError?: () => void;
-  onNoAuth?: () => void;
+  onNoAuth?: (failure: ApiAuthFailure) => void;
   signal?: AbortSignal;
   captureId?: string;
   /** Request timeout in milliseconds (default: 30000 for most, extended for hosted-service target) */
@@ -44,5 +47,3 @@ export interface RequestOptions {
 }
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-
-export type ApiTarget = "main" | "agent" | "hostedService";

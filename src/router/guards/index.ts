@@ -1,11 +1,10 @@
 /**
  * Route Guards
  *
- * Authentication and authorization guards for routes.
- * Note: RequireAuth was removed -- the global AuthGuard in RootLayout
- * already blocks all unauthenticated users at the router level.
+ * Application entry and route guards.
+ * Product identity is feature-scoped; the desktop shell remains local-first.
  */
 
-export { AuthGuard } from "./AuthGuard";
-export { AuthRedirect } from "./AuthRedirect";
+export { AppEntryRedirect } from "./AppEntryRedirect";
+export { AppShellGate } from "./AppShellGate";
 export { RepoGuard } from "./RepoGuard";

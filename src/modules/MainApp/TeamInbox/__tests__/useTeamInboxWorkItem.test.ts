@@ -352,12 +352,10 @@ describe("useTeamInboxWorkItem", () => {
     const store = createStore();
     store.set(org2CloudAuthAtom, {
       kind: "org2_cloud",
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      generation: 1,
       supabaseUrl: "https://cloud.example.test",
-      supabaseAnonKey: "anon",
       userId: creatorId,
-      accessToken: "access",
-      refreshToken: "refresh",
-      expiresAt: 4_102_444_800,
     });
 
     await act(async () => {

@@ -10,11 +10,28 @@ import {
   getCloudProfile,
   listMyOrgs,
   listOrgMembers,
-  refreshSession,
   schemaVersion,
 } from "./org2CloudClient";
 
 const fetchMock = vi.fn();
+const identityMocks = vi.hoisted(() => ({
+  getAccessLease: vi.fn(),
+  deleteLegacyEnvelope: vi.fn(),
+}));
+
+vi.mock("@src/features/Identity/identityClient", () => ({
+  identityClient: {
+    getOrg2CloudAccessLease: identityMocks.getAccessLease,
+  },
+  getIdentityErrorCode: (error: unknown) =>
+    typeof error === "object" && error !== null && "code" in error
+      ? ((error as { code?: string }).code ?? null)
+      : null,
+}));
+
+vi.mock("@src/api/http/auth/sharedAuthStorage", () => ({
+  deleteLegacyOrg2CloudAuthEnvelope: identityMocks.deleteLegacyEnvelope,
+}));
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -24,7 +41,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.stubGlobal("fetch", fetchMock);
+  identityMocks.deleteLegacyEnvelope.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -32,161 +51,67 @@ afterEach(() => {
   fetchMock.mockReset();
 });
 
-describe("refreshSession", () => {
-  it("exchanges the refresh token via the GoTrue endpoint", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        access_token: "at-2",
-        refresh_token: "rt-2",
-        expires_at: 1751503600,
-        token_type: "bearer",
-      })
-    );
-
-    const result = await refreshSession("rt-1");
-    expect(result).toEqual({
-      accessToken: "at-2",
-      refreshToken: "rt-2",
-      expiresAt: 1751503600,
-    });
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`
-    );
-    expect(init.method).toBe("POST");
-    const headers = init.headers as Record<string, string>;
-    expect(headers.apikey).toBe(ORG2_CLOUD_OFFICIAL_ANON_KEY);
-    // Plain GoTrue call — no PostgREST schema profile header.
-    expect(headers["content-profile"]).toBeUndefined();
-    expect(JSON.parse(String(init.body))).toEqual({ refresh_token: "rt-1" });
-    expect(init.signal).toBeInstanceOf(AbortSignal);
-  });
-
-  it("returns null on non-200", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "invalid_grant" }, 400)
-    );
-    expect(await refreshSession("rt-bad")).toBeNull();
-  });
-
-  it("returns null on network error", async () => {
-    fetchMock.mockRejectedValueOnce(new Error("offline"));
-    expect(await refreshSession("rt-1")).toBeNull();
-  });
-
-  it("coalesces concurrent exchanges for the same endpoint and refresh token", async () => {
-    let resolveResponse: ((response: Response) => void) | undefined;
-    fetchMock.mockImplementationOnce(
-      () =>
-        new Promise<Response>((resolve) => {
-          resolveResponse = resolve;
-        })
-    );
-
-    const first = refreshSession("rt-shared");
-    const second = refreshSession("rt-shared");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    resolveResponse?.(
-      jsonResponse({
-        access_token: "at-2",
-        refresh_token: "rt-2",
-        expires_at: 1751503600,
-      })
-    );
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      {
-        accessToken: "at-2",
-        refreshToken: "rt-2",
-        expiresAt: 1751503600,
-      },
-      {
-        accessToken: "at-2",
-        refreshToken: "rt-2",
-        expiresAt: 1751503600,
-      },
-    ]);
-  });
-});
-
 describe("ensureFreshSession", () => {
   const baseState: Org2CloudAuthState = {
     kind: "org2_cloud",
+    sessionId: "00000000-0000-4000-8000-000000000001",
+    generation: 4,
     supabaseUrl: ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
-    supabaseAnonKey: ORG2_CLOUD_OFFICIAL_ANON_KEY,
     userId: "user-1",
-    accessToken: "at-1",
-    refreshToken: "rt-1",
-    expiresAt: 0,
   };
 
-  it("returns the state untouched while the token is fresh", async () => {
-    const state = {
-      ...baseState,
-      expiresAt: Math.floor(Date.now() / 1000) + 3600,
-    };
-    expect(await ensureFreshSession(state)).toBe(state);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("refreshes when the token expires within the skew window", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        access_token: "at-2",
-        refresh_token: "rt-2",
-        expires_at: 1751503600,
-      })
-    );
-    const state = { ...baseState, expiresAt: Math.floor(Date.now() / 1000) };
-    expect(await ensureFreshSession(state)).toEqual({
-      ...state,
+  it("maps the native allow-listed lease into a transient request context", async () => {
+    identityMocks.getAccessLease.mockResolvedValueOnce({
+      sessionId: baseState.sessionId,
+      generation: baseState.generation,
+      issuer: baseState.supabaseUrl,
+      publicClientKey: ORG2_CLOUD_OFFICIAL_ANON_KEY,
+      subject: baseState.userId,
+      expiresAtUnix: 1_751_503_600,
+      audience: "org2_cloud_api",
       accessToken: "at-2",
-      refreshToken: "rt-2",
-      expiresAt: 1751503600,
     });
-  });
-
-  it("refreshes against the endpoint captured by the session", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        access_token: "at-custom-2",
-        refresh_token: "rt-custom-2",
-        expires_at: 1751503600,
-      })
-    );
-    const state: Org2CloudAuthState = {
+    await expect(ensureFreshSession(baseState)).resolves.toEqual({
       ...baseState,
-      supabaseUrl: "https://custom.example.test",
-      supabaseAnonKey: "custom-anon-key",
-    };
-
-    await ensureFreshSession(state);
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      "https://custom.example.test/auth/v1/token?grant_type=refresh_token"
-    );
-    expect((init.headers as Record<string, string>).apikey).toBe(
-      "custom-anon-key"
-    );
+      supabaseAnonKey: ORG2_CLOUD_OFFICIAL_ANON_KEY,
+      accessToken: "at-2",
+      expiresAt: 1_751_503_600,
+    });
+    expect(identityMocks.getAccessLease).toHaveBeenCalledWith({
+      sessionId: baseState.sessionId,
+      generation: baseState.generation,
+    });
+    expect(identityMocks.deleteLegacyEnvelope).toHaveBeenCalledTimes(1);
   });
 
-  it("returns null when the refresh fails", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, 401));
-    expect(await ensureFreshSession(baseState)).toBeNull();
+  it("rejects a lease for a different Broker generation", async () => {
+    identityMocks.getAccessLease.mockResolvedValueOnce({
+      sessionId: baseState.sessionId,
+      generation: baseState.generation + 1,
+      issuer: baseState.supabaseUrl,
+      publicClientKey: ORG2_CLOUD_OFFICIAL_ANON_KEY,
+      subject: baseState.userId,
+      expiresAtUnix: 1_751_503_600,
+      audience: "org2_cloud_api",
+      accessToken: "at-other",
+    });
+    await expect(ensureFreshSession(baseState)).resolves.toBeNull();
   });
 
-  it("reports only a credential rejection as a permanent auth failure", async () => {
+  it("reports only a Broker credential rejection as permanent", async () => {
     const rejected = vi.fn();
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, 400));
+    identityMocks.getAccessLease.mockRejectedValueOnce({
+      code: "identity_access_refresh_rejected",
+    });
     await expect(
       ensureFreshSession(baseState, { onRefreshRejected: rejected })
     ).resolves.toBeNull();
     expect(rejected).toHaveBeenCalledTimes(1);
 
     rejected.mockClear();
-    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    identityMocks.getAccessLease.mockRejectedValueOnce({
+      code: "identity_access_refresh_unavailable",
+    });
     await expect(
       ensureFreshSession(baseState, { onRefreshRejected: rejected })
     ).resolves.toBeNull();

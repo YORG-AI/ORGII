@@ -31,7 +31,10 @@ import {
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import type { CloudCapabilities } from "@src/features/Org2Cloud/org2CloudCapabilities";
 import { getCloudCapabilities } from "@src/features/Org2Cloud/org2CloudCapabilities";
-import { schemaVersion } from "@src/features/Org2Cloud/org2CloudClient";
+import {
+  ensureFreshSession,
+  schemaVersion,
+} from "@src/features/Org2Cloud/org2CloudClient";
 import { endpointForOrg } from "@src/features/Org2Cloud/org2CloudOrgEndpointRouter";
 import {
   org2CloudPushCursorsAtom,
@@ -155,7 +158,6 @@ export function useCloudOrgSyncStatus(orgId: string): CloudOrgSyncStatus {
   const entries = useSyncJournal();
   const lastSync = useLastSyncState();
 
-  const accessToken = auth?.accessToken ?? null;
   const endpoint = useMemo(() => endpointForOrg(orgId), [orgId]);
 
   const dataSourceConfig = useAtomValue(dataSourceConfigAtom);
@@ -280,6 +282,9 @@ export function useCloudOrgSyncStatus(orgId: string): CloudOrgSyncStatus {
     null
   );
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
+  const [accessLeaseExpiresAt, setAccessLeaseExpiresAt] = useState<
+    number | null
+  >(null);
   const [running, setRunning] = useState(false);
   const [runSucceeded, setRunSucceeded] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
@@ -314,17 +319,24 @@ export function useCloudOrgSyncStatus(orgId: string): CloudOrgSyncStatus {
 
   // Capabilities need a token; the probe itself is cached per endpoint.
   useEffect(() => {
-    if (!accessToken) {
+    if (!auth) {
       setCapabilities(null);
       setCapabilitiesLoading(false);
+      setAccessLeaseExpiresAt(null);
       return;
     }
     let cancelled = false;
     setCapabilitiesLoading(true);
-    void getCloudCapabilities(accessToken)
-      .then((probed) => {
+    void ensureFreshSession(auth)
+      .then(async (fresh) => {
+        if (!fresh) return null;
+        const probed = await getCloudCapabilities(fresh.accessToken);
+        return { fresh, probed };
+      })
+      .then((result) => {
         if (cancelled) return;
-        setCapabilities(probed);
+        setCapabilities(result?.probed ?? null);
+        setAccessLeaseExpiresAt(result?.fresh.expiresAt ?? null);
       })
       .catch(() => {
         if (cancelled) return;
@@ -337,7 +349,7 @@ export function useCloudOrgSyncStatus(orgId: string): CloudOrgSyncStatus {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [auth]);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -377,7 +389,7 @@ export function useCloudOrgSyncStatus(orgId: string): CloudOrgSyncStatus {
     signedIn: Boolean(auth),
     userId: auth?.userId ?? null,
     tokenExpiresAtMs:
-      typeof auth?.expiresAt === "number" ? auth.expiresAt * 1000 : null,
+      accessLeaseExpiresAt === null ? null : accessLeaseExpiresAt * 1000,
     expectedSchemaVersion: ORG2_CLOUD_EXPECTED_SCHEMA_VERSION,
     backendSchemaVersion,
     schemaStatus,

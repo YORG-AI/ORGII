@@ -447,6 +447,33 @@
   },
   "cloud": {
     "title": "ORG2 Cloud",
+    "onboarding": {
+      "title": "Подключить ORG2 Cloud",
+      "description": "Cloud — необязательная функция. Подключайтесь для синхронизации сессий, командной работы или управляемого доступа.",
+      "values": {
+        "sync": {
+          "title": "Синхронизация сессий",
+          "description": "Продолжайте работу на разных устройствах."
+        },
+        "collaboration": {
+          "title": "Командная работа",
+          "description": "Делитесь сессиями и управляйте организациями Cloud."
+        },
+        "security": {
+          "title": "Безопасный вход",
+          "description": "Аутентификация проходит в браузере, а учетные данные хранятся в системном хранилище."
+        }
+      },
+      "continueLocally": "Не сейчас, продолжить локально",
+      "connect": "Подключить ORG2 Cloud",
+      "blockedTitle": "Требуется вход в ORG2 Cloud",
+      "blockedDescription": "Для этой функции Cloud нужна учетная запись. Локальная работа доступна без входа.",
+      "learnMore": "Подробнее",
+      "backToLocal": "Вернуться к локальной работе",
+      "waitingTitle": "Завершите вход в браузере",
+      "waitingDescription": "ORGII подключится автоматически после авторизации.",
+      "openFailed": "Не удалось открыть страницу входа. Повторите попытку."
+    },
     "signIn": "Войти",
     "signOut": "Выйти",
     "signedInAs": "Выполнен вход как {{name}}",
@@ -959,6 +986,20 @@
       "on": "Вкл",
       "off": "Выкл",
       "memberNote": "Включено администратором — подходящие сессии отправляются в фоне без необходимости открывать эту организацию."
+    },
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
     }
   }
 }

@@ -50,6 +50,7 @@
     "check:unused-exports": "ts-unused-exports tsconfig.json --excludePathsFromReport='src/index.tsx;src/app/;src/i18n/;.test.ts;.test.tsx;/types.ts;/index.ts;src/scaffold/;src/types/ambient/'",
     "check:unused-exports:all": "ts-unused-exports tsconfig.json",
     "check:e2e-oauth-guards": "node scripts/quality/check-e2e-oauth-guards.mjs",
+    "check:identity-secret-boundaries": "node scripts/quality/check-identity-secret-boundaries.mjs",
     "check:i18n:cloud": "node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix cloud && node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix collaboration.forkImported"
   },
   "keywords": [

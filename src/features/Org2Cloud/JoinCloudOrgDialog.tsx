@@ -22,6 +22,7 @@ import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
 
+import CloudOnboardingGate from "./CloudOnboardingGate";
 import { refreshOrg2CloudAuthForAction } from "./org2CloudAuthAction";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import { acceptCloudInvite } from "./org2CloudManagementClient";
@@ -33,7 +34,11 @@ import { useOrg2CloudSignIn } from "./useOrg2CloudSignIn";
 
 const JoinCloudOrgDialog: React.FC = () => {
   const { t } = useTranslation("navigation");
-  const openCloudSignIn = useOrg2CloudSignIn();
+  const openCloudSignIn = useOrg2CloudSignIn({
+    kind: "accept_invite",
+    // The actual invite code stays only in the one-shot pending atom.
+    inviteId: "pending-invite",
+  });
   const location = useLocation();
   const [pending, setPending] = useAtom(org2CloudPendingInviteAtom);
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
@@ -124,25 +129,28 @@ const JoinCloudOrgDialog: React.FC = () => {
         </div>
 
         {!signedIn ? (
-          <div className="rounded-lg bg-fill-1 px-3 py-2 text-[12px] text-text-3">
-            {t("cloud.orgManagement.join.signInFirst")}
-          </div>
+          <CloudOnboardingGate
+            onConnect={openCloudSignIn}
+            onContinueLocally={handleClose}
+            contextual
+          />
         ) : null}
 
         {error ? (
           <div
             className="rounded-lg bg-danger-1 px-3 py-2 text-[12px] text-danger-6"
             data-testid="cloud-join-org-error"
+            role="alert"
           >
             {error}
           </div>
         ) : null}
 
-        <div className="flex items-center justify-end gap-2">
-          <Button htmlType="button" variant="secondary" onClick={handleClose}>
-            {t("cloud.orgManagement.join.cancel")}
-          </Button>
-          {signedIn ? (
+        {signedIn ? (
+          <div className="flex items-center justify-end gap-2">
+            <Button htmlType="button" variant="secondary" onClick={handleClose}>
+              {t("cloud.orgManagement.join.cancel")}
+            </Button>
             <Button
               htmlType="button"
               variant="primary"
@@ -153,17 +161,8 @@ const JoinCloudOrgDialog: React.FC = () => {
             >
               {t("cloud.orgManagement.join.confirm")}
             </Button>
-          ) : (
-            <Button
-              htmlType="button"
-              variant="primary"
-              onClick={openCloudSignIn}
-              data-testid="cloud-join-org-sign-in"
-            >
-              {t("cloud.signIn")}
-            </Button>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </Modal>
   );

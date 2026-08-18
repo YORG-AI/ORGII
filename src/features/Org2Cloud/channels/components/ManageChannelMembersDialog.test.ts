@@ -13,7 +13,10 @@ import {
   vi,
 } from "vitest";
 
-import { org2CloudAuthAtom } from "../../org2CloudAuthAtom";
+import {
+  type Org2CloudRequestAuth,
+  org2CloudAuthAtom,
+} from "../../org2CloudAuthAtom";
 import { org2CloudChannelsVersionAtom } from "../channelsAtom";
 import { Org2CloudChannelsError } from "../channelsClient";
 import type { CloudChannel, CloudChannelMember } from "../types";
@@ -25,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   removeCloudChannelMember: vi.fn(),
   setCloudChannelMemberRole: vi.fn(),
   loadCloudOrgMembers: vi.fn(),
+  ensureFreshSession: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -46,13 +50,24 @@ vi.mock("../../org2CloudMembersCoordinator", () => ({
   loadCloudOrgMembers: mocks.loadCloudOrgMembers,
 }));
 
+vi.mock("../../org2CloudClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../org2CloudClient")>();
+  return { ...actual, ensureFreshSession: mocks.ensureFreshSession };
+});
+
 const AUTH = {
   kind: "org2_cloud" as const,
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.test",
   supabaseAnonKey: "anon",
   userId: "user-self",
+};
+
+const ACCESS_AUTH: Org2CloudRequestAuth = {
+  ...AUTH,
   accessToken: "access",
-  refreshToken: "refresh",
+  supabaseAnonKey: "anon",
   expiresAt: 4_102_444_800,
 };
 
@@ -101,7 +116,11 @@ describe("ManageChannelMembersDialog", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.loadCloudOrgMembers.mockResolvedValue({ auth: AUTH, members: [] });
+    mocks.ensureFreshSession.mockResolvedValue(ACCESS_AUTH);
+    mocks.loadCloudOrgMembers.mockResolvedValue({
+      auth: ACCESS_AUTH,
+      members: [],
+    });
     store = createStore();
     store.set(org2CloudAuthAtom, AUTH);
     container = document.createElement("div");
@@ -203,7 +222,7 @@ describe("ManageChannelMembersDialog", () => {
     mocks.listCloudChannelMembers.mockResolvedValue([SELF_MANAGER]);
     mocks.addCloudChannelMembers.mockResolvedValue(undefined);
     mocks.loadCloudOrgMembers.mockResolvedValue({
-      auth: AUTH,
+      auth: ACCESS_AUTH,
       members: [
         { userId: "user-self", role: "owner", status: "active" },
         {

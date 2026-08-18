@@ -11,33 +11,26 @@ import { LazyStore } from "@tauri-apps/plugin-store";
  */
 const SHARED_AUTH_STORE_PATH = "shared-service-auth.json";
 const SHARED_AUTH_SCHEMA_KEY = "__orgii_shared_auth_schema";
-const SHARED_AUTH_SCHEMA_VERSION = 2;
+const SHARED_AUTH_SCHEMA_VERSION = 3;
 
 export const SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY = "orgii:org2-cloud-v1:auth";
-export const SHARED_AUTH_SYNCHRONIZED_EVENT =
-  "orgii:shared-service-auth-synchronized";
+export const SHARED_AUTH_PERSISTED_EVENT =
+  "orgii:shared-service-auth-persisted";
 
-export const SUPABASE_AUTH_STORAGE_KEY = "orgii.supabase.auth";
-export const SUPABASE_PKCE_STORAGE_KEY = `${SUPABASE_AUTH_STORAGE_KEY}-code-verifier`;
-
-export const SHARED_SERVICE_AUTH_STORAGE_KEYS = {
-  accessToken: "hosted_access_token",
-  refreshToken: "hosted_refresh_token",
-  tokenExpiry: "hosted_token_expiry",
-  userId: "hosted_user_id",
-  authSkipped: "orgii:auth_skipped",
-  processedCode: "hosted_processed_code",
-} as const;
-
-const MIRRORED_AUTH_KEYS = [
-  SUPABASE_AUTH_STORAGE_KEY,
-  SUPABASE_PKCE_STORAGE_KEY,
-  ...Object.values(SHARED_SERVICE_AUTH_STORAGE_KEYS),
+const RETIRED_HOSTED_AUTH_KEYS = [
+  "orgii.supabase.auth",
+  "orgii.supabase.auth-code-verifier",
+  "hosted_access_token",
+  "hosted_refresh_token",
+  "hosted_token_expiry",
+  "hosted_user_id",
+  "hosted_processed_code",
   "id_token",
   "user_id",
   "orgii-user-info",
-  SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY,
 ] as const;
+
+const MIRRORED_AUTH_KEYS = [SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY] as const;
 
 type SharedAuthKey = (typeof MIRRORED_AUTH_KEYS)[number];
 
@@ -50,7 +43,7 @@ interface StringStorage {
 let store: LazyStore | null = null;
 let operationQueue: Promise<void> = Promise.resolve();
 let initializePromise: Promise<void> | null = null;
-let synchronizePromise: Promise<void> | null = null;
+let legacyCloudCleanupPromise: Promise<void> | null = null;
 
 function localValue(key: string): string | null {
   if (typeof localStorage === "undefined") return null;
@@ -98,8 +91,21 @@ async function migrateLocalAuthOnce(
   sharedStore: LazyStore,
   snapshot: Map<string, unknown>
 ): Promise<void> {
+  let retiredHostedAuthDeleted = false;
+  for (const key of RETIRED_HOSTED_AUTH_KEYS) {
+    setLocalValue(key, undefined);
+    if (snapshot.has(key)) {
+      await sharedStore.delete(key);
+      snapshot.delete(key);
+      retiredHostedAuthDeleted = true;
+    }
+  }
+
   const schemaVersion = snapshot.get(SHARED_AUTH_SCHEMA_KEY);
-  if (schemaVersion === SHARED_AUTH_SCHEMA_VERSION) return;
+  if (schemaVersion === SHARED_AUTH_SCHEMA_VERSION) {
+    if (retiredHostedAuthDeleted) await sharedStore.save();
+    return;
+  }
 
   const localEntries: Array<[SharedAuthKey, string]> = [];
   let sharedAuthAlreadyExists = false;
@@ -120,7 +126,10 @@ async function migrateLocalAuthOnce(
   // The very first origin seeds its existing hosted-auth values. Do not let
   // an empty dev origin establish an authoritative store: the bundled origin
   // may still own the pre-upgrade login.
-  if (!storeWasPreviouslyEstablished && localEntries.length === 0) return;
+  if (!storeWasPreviouslyEstablished && localEntries.length === 0) {
+    if (retiredHostedAuthDeleted) await sharedStore.save();
+    return;
+  }
 
   if (!storeWasPreviouslyEstablished) {
     for (const [key, value] of localEntries) {
@@ -141,8 +150,14 @@ async function migrateLocalAuthOnce(
 
   const cloudMigrationEstablished =
     typeof snapshot.get(SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY) === "string";
-  const nextSchemaVersion = cloudMigrationEstablished ? 2 : 1;
-  if (schemaVersion === nextSchemaVersion) return;
+  const cloudMigrationPreviouslyCompleted =
+    typeof schemaVersion === "number" && schemaVersion >= 2;
+  const nextSchemaVersion =
+    cloudMigrationEstablished || cloudMigrationPreviouslyCompleted ? 3 : 1;
+  if (schemaVersion === nextSchemaVersion) {
+    if (retiredHostedAuthDeleted) await sharedStore.save();
+    return;
+  }
 
   await sharedStore.set(SHARED_AUTH_SCHEMA_KEY, nextSchemaVersion);
   snapshot.set(SHARED_AUTH_SCHEMA_KEY, nextSchemaVersion);
@@ -156,9 +171,11 @@ function copySharedAuthToLocal(snapshot: ReadonlyMap<string, unknown>): void {
   }
 }
 
-function notifySharedAuthSynchronized(): void {
+function notifySharedAuthPersisted(key: SharedAuthKey): void {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(SHARED_AUTH_SYNCHRONIZED_EVENT));
+  window.dispatchEvent(
+    new CustomEvent(SHARED_AUTH_PERSISTED_EVENT, { detail: { key } })
+  );
 }
 
 async function initializeOrSynchronize(): Promise<void> {
@@ -170,7 +187,6 @@ async function initializeOrSynchronize(): Promise<void> {
     const snapshot = await readStoreSnapshot(sharedStore);
     await migrateLocalAuthOnce(sharedStore, snapshot);
     copySharedAuthToLocal(snapshot);
-    notifySharedAuthSynchronized();
   });
 }
 
@@ -185,20 +201,8 @@ export function initializeSharedServiceAuthStorage(): Promise<void> {
   return initializePromise;
 }
 
-/**
- * Re-read the on-disk auth state after focus returns. Calls are single-flight
- * so multiple mounted auth consumers cause only one disk read per focus event.
- */
-export function synchronizeSharedServiceAuthStorage(): Promise<void> {
-  if (synchronizePromise) return synchronizePromise;
-  synchronizePromise = initializeOrSynchronize().finally(() => {
-    synchronizePromise = null;
-  });
-  return synchronizePromise;
-}
-
-/** Supabase-compatible async string storage. */
-export const sharedServiceAuthStorage: StringStorage = {
+/** Migration-only storage for the pre-PKCE Cloud envelope. */
+const legacyCloudAuthStorage: StringStorage = {
   async getItem(key) {
     if (!isTauri()) return localValue(key);
 
@@ -247,16 +251,57 @@ export const sharedServiceAuthStorage: StringStorage = {
  * Synchronous auth helpers keep their current localStorage API and mirror
  * mutations to the shared Tauri store in invocation order.
  */
-export function mirrorSharedServiceAuthValue(
+function mirrorLegacyCloudAuthValue(
   key: SharedAuthKey,
   value: string | null
 ): void {
   if (!isTauri()) return;
   const operation =
     value === null
-      ? sharedServiceAuthStorage.removeItem(key)
-      : sharedServiceAuthStorage.setItem(key, value);
-  void Promise.resolve(operation).catch(() => {});
+      ? legacyCloudAuthStorage.removeItem(key)
+      : legacyCloudAuthStorage.setItem(key, value);
+  void Promise.resolve(operation)
+    .then(() => notifySharedAuthPersisted(key))
+    .catch(() => {});
+}
+
+/**
+ * Wait until every shared-store mutation queued before this call has reached
+ * disk. Identity migration uses this handoff after the legacy atom changes so
+ * the native Broker never races an older store snapshot.
+ */
+export function flushSharedServiceAuthStorage(): Promise<void> {
+  return operationQueue;
+}
+
+/**
+ * Delete the pre-Broker Cloud credential envelope after the Broker has
+ * successfully refreshed and verified it. This is the migration commit
+ * point: failures before this call leave the legacy owner available for a
+ * safe retry, while success prevents it from taking ownership back.
+ */
+export async function deleteLegacyOrg2CloudAuthEnvelope(): Promise<void> {
+  if (legacyCloudCleanupPromise) return legacyCloudCleanupPromise;
+  legacyCloudCleanupPromise = (async () => {
+    setLocalValue(SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY, undefined);
+    if (isTauri()) {
+      await legacyCloudAuthStorage.removeItem(
+        SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY
+      );
+    }
+    notifySharedAuthPersisted(SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY);
+  })().catch((error) => {
+    legacyCloudCleanupPromise = null;
+    throw error;
+  });
+  return legacyCloudCleanupPromise;
+}
+
+/** Write the old callback envelope only long enough for native migration. */
+export function stageLegacyOrg2CloudAuthEnvelope(serialized: string): void {
+  legacyCloudCleanupPromise = null;
+  setLocalValue(SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY, serialized);
+  mirrorLegacyCloudAuthValue(SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY, serialized);
 }
 
 export const __SHARED_AUTH_STORAGE_INTERNALS = {
@@ -264,4 +309,5 @@ export const __SHARED_AUTH_STORAGE_INTERNALS = {
   SHARED_AUTH_SCHEMA_KEY,
   SHARED_AUTH_SCHEMA_VERSION,
   SHARED_AUTH_STORE_PATH,
+  RETIRED_HOSTED_AUTH_KEYS,
 };

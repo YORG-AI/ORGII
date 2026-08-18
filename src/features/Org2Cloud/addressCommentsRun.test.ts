@@ -25,7 +25,7 @@ import {
   runAddressCommentsRound,
   seedActiveAddressRunForTest,
 } from "./addressCommentsRun";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import {
   addSessionComment,
@@ -72,13 +72,14 @@ function comment(
   } as CloudSessionComment;
 }
 
-const AUTH: Org2CloudAuthState = {
+const AUTH: Org2CloudRequestAuth = {
   kind: "org2_cloud",
+  sessionId: "00000000-0000-4000-8000-000000000001",
+  generation: 1,
   supabaseUrl: "https://cloud.example.co",
   supabaseAnonKey: "anon",
   userId: "u",
   accessToken: "jwt-1",
-  refreshToken: "rt-1",
   expiresAt: Math.floor(Date.now() / 1000) + 3600,
 };
 

@@ -2,6 +2,10 @@ import { registerAppActions } from "@/src/ActionSystem/registerAppActions";
 import { useEffect } from "react";
 import { Outlet, createBrowserRouter, useNavigate } from "react-router-dom";
 
+import {
+  SIGN_IN_INTENT_RESOLVED_EVENT,
+  type SignInIntent,
+} from "@src/features/Identity/signInIntent";
 import { useOrg2CloudOrgs } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { useOrg2CloudRosterReconcile } from "@src/features/Org2Cloud/org2CloudRosterReconcile";
 import { useOrg2CloudGuestShareAccess } from "@src/features/Org2Cloud/useOrg2CloudGuestShareAccess";
@@ -19,7 +23,7 @@ import {
 } from "@src/router/routes/routeGroups";
 import { RouteDebugModal } from "@src/scaffold/ModalSystem/variants/RouteDebug";
 
-import { AuthGuard, AuthRedirect } from "./guards";
+import { AppEntryRedirect, AppShellGate } from "./guards";
 
 // Root layout for global services and modals.
 const RootLayout = () => {
@@ -37,6 +41,25 @@ const RootLayout = () => {
     window.addEventListener("action-system-navigate", handleNavigate);
     return () => {
       window.removeEventListener("action-system-navigate", handleNavigate);
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    const handleResolvedSignInIntent = (event: Event) => {
+      const intent = (event as CustomEvent<SignInIntent>).detail;
+      if (intent.kind === "resume_route") {
+        navigate(intent.path);
+      }
+    };
+    window.addEventListener(
+      SIGN_IN_INTENT_RESOLVED_EVENT,
+      handleResolvedSignInIntent
+    );
+    return () => {
+      window.removeEventListener(
+        SIGN_IN_INTENT_RESOLVED_EVENT,
+        handleResolvedSignInIntent
+      );
     };
   }, [navigate]);
 
@@ -60,10 +83,9 @@ const RootLayout = () => {
   return (
     <>
       <RouteDebugModal />
-      {/* AuthGuard wraps Outlet - if not authenticated, redirects to login */}
-      <AuthGuard>
+      <AppShellGate>
         <Outlet />
-      </AuthGuard>
+      </AppShellGate>
     </>
   );
 };
@@ -77,7 +99,7 @@ const router = createBrowserRouter(
       children: [
         {
           index: true,
-          element: <AuthRedirect />,
+          element: <AppEntryRedirect />,
         },
         {
           path: "orgii",

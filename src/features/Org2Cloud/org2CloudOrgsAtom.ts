@@ -299,14 +299,10 @@ export function useOrg2CloudOrgs(): void {
       const fresh = await ensureFreshSession(current, {
         onRefreshRejected: () => {
           refreshRejected = true;
-          // Stable-identity compare-and-set: never sign out a newer OAuth
-          // callback or a concurrently refreshed token chain because an
-          // older request finished late. This must NOT compare by object
-          // reference — `org2CloudAuthAtom`'s `atomWithStorage` re-hydrates
-          // a freshly parsed (but content-identical) object from
-          // localStorage on every mount, so a reference captured here can
-          // legitimately diverge from the atom's live value for the exact
-          // same session. See `clearRejectedAuth` for the full explanation.
+          // Stable session-generation compare-and-set: never clear a newer
+          // Broker projection because an older request finished late. Object
+          // identity is not authoritative because snapshot invalidations may
+          // rebuild an equivalent projection. See `clearRejectedAuth`.
           if (clearRejectedAuth(setAuth, current)) {
             log.rateLimited(
               "cloud-session-expired",

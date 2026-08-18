@@ -7,10 +7,12 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 
 import { recordDiagnosticsHttp } from "@src/diagnostics/runtimeCounters";
+import { readIdentitySnapshot } from "@src/features/Identity/identitySnapshotAtom";
+import { getActiveIdentitySession } from "@src/features/Identity/identityTypes";
 import { createLogger } from "@src/hooks/logger";
-import { triggerSessionExpired } from "@src/store/ui/uiAtom";
 import { getGlobalCommonHeaders } from "@src/util/config/headers";
 
+import { createApiAuthFailure } from "./authFailure";
 import {
   API_BASE_URLS,
   DEFAULT_TIMEOUT,
@@ -37,6 +39,14 @@ import type {
 
 const log = createLogger("API");
 
+function captureRequestSessionId(target: ApiTarget): string | null {
+  if (target !== "hostedService") return null;
+  return (
+    getActiveIdentitySession(readIdentitySnapshot(), "hosted_service_legacy")
+      ?.sessionId ?? null
+  );
+}
+
 /**
  * Unified API request handler that processes all HTTP methods
  */
@@ -49,6 +59,7 @@ export async function makeRequest<T>(
 ): Promise<DataField<T> | undefined> {
   const { onError, onNoAuth, signal, captureId, timeout, silent } = options;
   const headers = getGlobalCommonHeaders();
+  const requestSessionId = captureRequestSessionId(target);
 
   const defaultTimeout =
     target === "hostedService" ? HOSTED_SERVICE_TIMEOUT : DEFAULT_TIMEOUT;
@@ -153,15 +164,16 @@ export async function makeRequest<T>(
         | undefined;
       const detail = errorData?.detail || errorData?.message;
 
-      if (target !== "hostedService") {
-        log.error("[API] 401 Unauthorized - Session expired or invalid token");
-        triggerSessionExpired();
-      } else {
-        log.warn(
-          "[API] 401 Hosted-service token invalid - main session unaffected"
-        );
-      }
-      onNoAuth?.();
+      const authFailure = createApiAuthFailure(
+        target,
+        401,
+        detail,
+        requestSessionId
+      );
+      log.warn(
+        `[API] 401 authentication failure for ${authFailure.realm}; other realms unchanged`
+      );
+      onNoAuth?.(authFailure);
 
       return {
         status: 1,
@@ -171,7 +183,7 @@ export async function makeRequest<T>(
             detail ||
             (target === "hostedService"
               ? "Please sign in to the hosted service first"
-              : "Please log in first"),
+              : "Authentication is required for this service"),
         },
       } as DataField<T>;
     }
@@ -196,13 +208,16 @@ export async function makeRequest<T>(
         | undefined;
       const detail = errorData?.detail || errorData?.message;
       if (detail === "Not authenticated" || detail === "Expired token") {
-        if (target !== "hostedService") {
-          log.error("[API] 403 Forbidden - Session expired:", detail);
-          triggerSessionExpired();
-        } else {
-          log.warn("[API] 403 Hosted-service auth error:", detail);
-        }
-        onNoAuth?.();
+        const authFailure = createApiAuthFailure(
+          target,
+          403,
+          detail,
+          requestSessionId
+        );
+        log.warn(
+          `[API] 403 authentication failure for ${authFailure.realm}; other realms unchanged`
+        );
+        onNoAuth?.(authFailure);
       }
       return {
         status: 1,
@@ -254,6 +269,7 @@ export async function makeDeleteRequest<T>(
 ): Promise<DataField<T> | undefined> {
   const { onError, onNoAuth, captureId } = options;
   const headers = getGlobalCommonHeaders();
+  const requestSessionId = captureRequestSessionId(target);
 
   if (target === "hostedService") {
     const hostedToken = await getOrRefreshHostedToken();
@@ -295,10 +311,16 @@ export async function makeDeleteRequest<T>(
 
     if (status === 401) {
       const detail = typedError.response?.data?.detail;
-      log.error("[API DELETE] 401 Unauthorized - Session expired");
-      if (target !== "hostedService") {
-        triggerSessionExpired();
-      }
+      const authFailure = createApiAuthFailure(
+        target,
+        401,
+        detail,
+        requestSessionId
+      );
+      log.warn(
+        `[API DELETE] 401 authentication failure for ${authFailure.realm}; other realms unchanged`
+      );
+      onNoAuth?.(authFailure);
       return {
         status: 1,
         data: { message: detail || "Authentication required" },
@@ -308,11 +330,16 @@ export async function makeDeleteRequest<T>(
     if (status === 403) {
       const detail = typedError.response?.data?.detail;
       if (detail === "Not authenticated" || detail === "Expired token") {
-        log.error("[API DELETE] 403 Forbidden - Session expired:", detail);
-        if (target !== "hostedService") {
-          triggerSessionExpired();
-        }
-        onNoAuth?.();
+        const authFailure = createApiAuthFailure(
+          target,
+          403,
+          detail,
+          requestSessionId
+        );
+        log.warn(
+          `[API DELETE] 403 authentication failure for ${authFailure.realm}; other realms unchanged`
+        );
+        onNoAuth?.(authFailure);
       }
       return {
         status: 1,

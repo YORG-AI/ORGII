@@ -5,6 +5,7 @@
  */
 import { captureApiCallStack } from "@src/util/monitoring/apiTracker";
 
+import type { ApiAuthFailure } from "./authFailure";
 import { makeDeleteRequest, makeRequest } from "./requestHandler";
 import type { DataField } from "./types";
 
@@ -14,7 +15,7 @@ export async function getAgentApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void
+  onNoAuth?: (failure: ApiAuthFailure) => void
 ): Promise<DataField<T> | undefined> {
   const captureId = captureApiCallStack();
   return makeRequest<T>("GET", url, "agent", params, {
@@ -31,7 +32,7 @@ export async function postAgentApi<T>(
   _auth?: boolean,
   onError?: () => void,
   signal?: AbortSignal,
-  onNoAuth?: () => void,
+  onNoAuth?: (failure: ApiAuthFailure) => void,
   timeout?: number
 ): Promise<DataField<T> | undefined> {
   const captureId = captureApiCallStack();

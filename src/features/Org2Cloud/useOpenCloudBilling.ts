@@ -25,9 +25,9 @@ import i18n from "@src/i18n";
 
 import type { SetOrg2CloudAuth } from "./completeSignIn";
 import {
-  CLOUD_BILLING_PATH,
   buildCloudAuthBridgeUrl,
   buildCloudBillingLoginUrl,
+  buildCloudBillingPath,
   getCloudEndpoint,
 } from "./config";
 import {
@@ -44,7 +44,8 @@ const BRIDGE_TIMEOUT_MS = 10_000;
 const BridgeResponseSchema = z.object({ verifyUrl: z.string() });
 
 async function requestBridgeVerifyUrl(
-  accessToken: string
+  accessToken: string,
+  returnTo: string
 ): Promise<string | null> {
   const { webOrigin } = getCloudEndpoint();
   const response = await fetch(buildCloudAuthBridgeUrl(webOrigin), {
@@ -53,7 +54,7 @@ async function requestBridgeVerifyUrl(
       authorization: `Bearer ${accessToken}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ return_to: CLOUD_BILLING_PATH }),
+    body: JSON.stringify({ return_to: returnTo }),
     signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS),
   });
   if (!response.ok) {
@@ -75,26 +76,29 @@ async function requestBridgeVerifyUrl(
 
 async function resolveCloudBillingUrl(
   auth: Org2CloudAuthState | null,
-  setAuth: SetOrg2CloudAuth
+  setAuth: SetOrg2CloudAuth,
+  orgId?: string | null
 ): Promise<string> {
-  if (!auth) return buildCloudBillingLoginUrl();
+  if (!auth) return buildCloudBillingLoginUrl(undefined, orgId);
+  const returnTo = buildCloudBillingPath(auth.userId, orgId);
   try {
     const fresh = await ensureFreshSession(auth);
-    if (!fresh) return buildCloudBillingLoginUrl();
+    if (!fresh) return buildCloudBillingLoginUrl(auth.userId, orgId);
     commitRefreshedAuth(setAuth, auth, fresh);
-    const verifyUrl = await requestBridgeVerifyUrl(fresh.accessToken);
-    return verifyUrl ?? buildCloudBillingLoginUrl();
+    const verifyUrl = await requestBridgeVerifyUrl(fresh.accessToken, returnTo);
+    return verifyUrl ?? buildCloudBillingLoginUrl(auth.userId, orgId);
   } catch (error) {
     log.warn("billing bridge failed; falling back to web login", error);
-    return buildCloudBillingLoginUrl();
+    return buildCloudBillingLoginUrl(auth.userId, orgId);
   }
 }
 
 export async function openCloudBilling(
   auth: Org2CloudAuthState | null,
-  setAuth: SetOrg2CloudAuth
+  setAuth: SetOrg2CloudAuth,
+  orgId?: string | null
 ): Promise<void> {
-  const url = await resolveCloudBillingUrl(auth, setAuth);
+  const url = await resolveCloudBillingUrl(auth, setAuth, orgId);
   try {
     await openUrl(url);
   } catch (error) {
@@ -107,7 +111,7 @@ export async function openCloudBilling(
  * Stable callback that opens the ORG2 Cloud billing page in the system
  * browser.
  */
-export function useOpenCloudBilling(): () => void {
+export function useOpenCloudBilling(orgId?: string | null): () => void {
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const authRef = useRef(auth);
   useEffect(() => {
@@ -115,6 +119,6 @@ export function useOpenCloudBilling(): () => void {
   }, [auth]);
 
   return useCallback(() => {
-    void openCloudBilling(authRef.current, setAuth);
-  }, [setAuth]);
+    void openCloudBilling(authRef.current, setAuth, orgId);
+  }, [orgId, setAuth]);
 }

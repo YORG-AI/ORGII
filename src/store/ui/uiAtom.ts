@@ -186,46 +186,9 @@ userDisplayNameAtom.debugLabel = "userDisplayNameAtom";
 // Modal & Dialog State
 // ============================================
 
-/** Login modal visibility */
-export const loginModalVisibleAtom = atom<boolean>(false);
-loginModalVisibleAtom.debugLabel = "loginModalVisibleAtom";
-
 /** Route debug trigger — set to true by Cmd+0; resets to false after toast fires */
 export const routeDebugModalOpenAtom = atom<boolean>(false);
 routeDebugModalOpenAtom.debugLabel = "routeDebugModalOpenAtom";
-
-/** Login modal fixed position */
-export const loginModalFixAtom = atom<boolean>(false);
-loginModalFixAtom.debugLabel = "loginModalFixAtom";
-
-/**
- * Session expired state
- * When true, user will be blocked and redirected to login page
- */
-export const sessionExpiredAtom = atom<boolean>(false);
-sessionExpiredAtom.debugLabel = "sessionExpiredAtom";
-
-// ============================================
-// Session Expiration Event System
-// ============================================
-
-/** Custom event name for session expiration */
-export const SESSION_EXPIRED_EVENT = "orgii:session-expired";
-
-/**
- * Trigger session expiration from anywhere (including non-React code like API handlers)
- * This dispatches a custom event that the AuthGuard listens to
- */
-export function triggerSessionExpired(): void {
-  // Clear auth tokens
-  localStorage.removeItem("id_token");
-  localStorage.removeItem("user_id");
-  localStorage.removeItem("hosted_user_id");
-  // Clear user info atom storage
-  localStorage.removeItem("orgii-user-info");
-  // Dispatch custom event for React components to listen
-  window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
-}
 
 // ============================================
 // Window State

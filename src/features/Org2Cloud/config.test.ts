@@ -177,6 +177,15 @@ describe("buildCloudBillingLoginUrl", () => {
     expect(url.toString()).not.toContain("refresh_token");
   });
 
+  it("carries only non-secret desktop identity and target-org context", () => {
+    const url = new URL(buildCloudBillingLoginUrl("user-1", "org-42"));
+    expect(url.searchParams.get("return_to")).toBe(
+      "/billing?desktopUserId=user-1&orgId=org-42"
+    );
+    expect(url.toString()).not.toContain("access_token");
+    expect(url.toString()).not.toContain("refresh_token");
+  });
+
   it("follows a custom endpoint's web origin", () => {
     storeOverride(OVERRIDE);
     const url = new URL(buildCloudBillingLoginUrl());

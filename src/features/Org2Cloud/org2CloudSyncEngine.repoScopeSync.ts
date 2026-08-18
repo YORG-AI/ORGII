@@ -15,7 +15,7 @@ import {
   peekShareableScopeKeys,
   primeShareableScopeKey,
 } from "../TeamCollaboration/repoScopeResolver";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import type { Org2CloudRequestAuth } from "./org2CloudAuthAtom";
 import type { Org2CloudSyncClientDeps } from "./org2CloudSessionSync";
 import { org2CloudRepoScopesAtom } from "./org2CloudSyncAtoms";
 import { SCOPE_HYDRATE_THROTTLE_MS } from "./org2CloudSyncEngine.constants";
@@ -94,7 +94,7 @@ export class Org2CloudRepoScopeSync {
    * here.
    */
   async hydrateRepoScopes(
-    auth: Org2CloudAuthState,
+    auth: Org2CloudRequestAuth,
     orgs: Array<{ orgId: string }>,
     generation: number,
     isCurrentGeneration: (generation: number) => boolean

@@ -78,6 +78,8 @@ interface CloudMemberSnapshot {
   key: string;
   rosterVersion: number | null;
   members: CloudOrgMember[];
+  accessToken: string | null;
+  accessLeaseExpiresAt: number | null;
 }
 
 const EMPTY_MEMBER_SNAPSHOT: MemberSnapshot = {
@@ -101,6 +103,8 @@ const teamInboxCloudMemberSnapshotAtom = atom<CloudMemberSnapshot>({
   key: "",
   rosterVersion: null,
   members: [],
+  accessToken: null,
+  accessLeaseExpiresAt: null,
 });
 
 function retainMemberSnapshot(
@@ -129,7 +133,9 @@ function retainCloudMemberSnapshot(
 ): CloudMemberSnapshot {
   if (
     current.key === incoming.key &&
-    isEqual(current.members, incoming.members)
+    isEqual(current.members, incoming.members) &&
+    current.accessToken === incoming.accessToken &&
+    current.accessLeaseExpiresAt === incoming.accessLeaseExpiresAt
   ) {
     return current.rosterVersion === incoming.rosterVersion
       ? current
@@ -280,14 +286,14 @@ export function useTeamInboxDataSource(): {
     () => ({
       key: viewerKey,
       viewerMemberIds,
-      accessToken: auth?.accessToken ?? null,
+      accessToken: cloudMemberSnapshot.accessToken,
       activeCloudOrgId,
       members: scopeMembers,
       prerequisiteIssue: memberSnapshot.issue,
     }),
     [
       activeCloudOrgId,
-      auth?.accessToken,
+      cloudMemberSnapshot.accessToken,
       memberSnapshot.issue,
       scopeMembers,
       viewerKey,
@@ -356,6 +362,8 @@ export function useTeamInboxDataSource(): {
             key: cloudRosterKey,
             rosterVersion: activeCloudRosterVersion,
             members: loaded?.members ?? [],
+            accessToken: loaded?.auth.accessToken ?? null,
+            accessLeaseExpiresAt: loaded?.auth.expiresAt ?? null,
           });
         });
       }

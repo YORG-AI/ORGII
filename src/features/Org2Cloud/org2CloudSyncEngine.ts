@@ -81,7 +81,7 @@ import {
   resolveCloudPushAccess,
 } from "./org2CloudAccessSettings";
 import {
-  type Org2CloudAuthState,
+  type Org2CloudRequestAuth,
   commitRefreshedAuth,
   org2CloudAuthAtom,
 } from "./org2CloudAuthAtom";
@@ -928,7 +928,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
    * successful retraction, so a healthy steady state has no suspects.
    */
   private async retractVanishedSessions(
-    fresh: Org2CloudAuthState,
+    fresh: Org2CloudRequestAuth,
     orgId: string,
     generation: number
   ): Promise<void> {

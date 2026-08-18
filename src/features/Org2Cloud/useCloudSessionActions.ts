@@ -152,7 +152,7 @@ export function useCloudSessionActions(
   const beginSessionHydration = useSetAtom(beginSessionHydrationAtom);
   const endSessionHydration = useSetAtom(endSessionHydrationAtom);
   const triggerSessionReload = useSetAtom(triggerSessionReloadAtom);
-  const openCloudBillingPage = useOpenCloudBilling();
+  const openCloudBillingPage = useOpenCloudBilling(orgId);
   const busySessionRows = useAtomValue(cloudSessionBusyRowsAtom);
   const beginSessionBusy = useSetAtom(beginCloudSessionBusyAtom);
   const updateSessionBusy = useSetAtom(updateCloudSessionBusyAtom);

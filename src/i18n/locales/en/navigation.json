@@ -476,10 +476,51 @@
   },
   "cloud": {
     "title": "ORG2 Cloud",
+    "onboarding": {
+      "title": "Connect ORG2 Cloud",
+      "description": "Cloud is optional. Connect when you need synced sessions, team collaboration, or managed access.",
+      "values": {
+        "sync": {
+          "title": "Session sync",
+          "description": "Continue your work across devices."
+        },
+        "collaboration": {
+          "title": "Team collaboration",
+          "description": "Share sessions and manage cloud organizations."
+        },
+        "security": {
+          "title": "Secure sign-in",
+          "description": "Authentication happens in your browser; credentials stay in the system credential store."
+        }
+      },
+      "continueLocally": "Not now, continue locally",
+      "connect": "Connect ORG2 Cloud",
+      "blockedTitle": "ORG2 Cloud sign-in required",
+      "blockedDescription": "This Cloud feature needs an account. Local work remains available without signing in.",
+      "learnMore": "Learn more",
+      "backToLocal": "Back to local",
+      "waitingTitle": "Finish sign-in in your browser",
+      "waitingDescription": "ORGII will reconnect automatically after authorization.",
+      "openFailed": "The sign-in page could not be opened. Please try again."
+    },
     "signIn": "Login",
     "signOut": "Logout",
     "signedInToast": "Signed in to ORG2 Cloud",
     "sessionExpired": "Your ORG2 Cloud session expired. Sign in again to continue.",
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
+    },
     "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {

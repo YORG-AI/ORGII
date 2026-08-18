@@ -447,6 +447,33 @@
   },
   "cloud": {
     "title": "ORG2 Cloud",
+    "onboarding": {
+      "title": "Kết nối ORG2 Cloud",
+      "description": "Cloud là tùy chọn. Hãy kết nối khi bạn cần đồng bộ phiên, cộng tác nhóm hoặc quyền truy cập được quản lý.",
+      "values": {
+        "sync": {
+          "title": "Đồng bộ phiên",
+          "description": "Tiếp tục công việc trên nhiều thiết bị."
+        },
+        "collaboration": {
+          "title": "Cộng tác nhóm",
+          "description": "Chia sẻ phiên và quản lý tổ chức Cloud."
+        },
+        "security": {
+          "title": "Đăng nhập an toàn",
+          "description": "Xác thực diễn ra trong trình duyệt; thông tin đăng nhập nằm trong kho bảo mật hệ thống."
+        }
+      },
+      "continueLocally": "Chưa phải lúc này, tiếp tục cục bộ",
+      "connect": "Kết nối ORG2 Cloud",
+      "blockedTitle": "Cần đăng nhập ORG2 Cloud",
+      "blockedDescription": "Tính năng Cloud này cần tài khoản. Công việc cục bộ vẫn dùng được mà không cần đăng nhập.",
+      "learnMore": "Tìm hiểu thêm",
+      "backToLocal": "Quay lại cục bộ",
+      "waitingTitle": "Hoàn tất đăng nhập trong trình duyệt",
+      "waitingDescription": "ORGII sẽ tự động kết nối sau khi cấp quyền.",
+      "openFailed": "Không thể mở trang đăng nhập. Vui lòng thử lại."
+    },
     "signIn": "Đăng nhập",
     "signOut": "Đăng xuất",
     "signedInAs": "Đã đăng nhập: {{name}}",
@@ -959,6 +986,20 @@
       "on": "Bật",
       "off": "Tắt",
       "memberNote": "Do quản trị viên bật — các phiên đủ điều kiện được tải lên trong nền mà không cần mở tổ chức này."
+    },
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
     }
   }
 }

@@ -447,6 +447,33 @@
   },
   "cloud": {
     "title": "ORG2 Cloud",
+    "onboarding": {
+      "title": "ORG2 Cloud'a bağlan",
+      "description": "Cloud isteğe bağlıdır. Oturum eşitleme, ekip çalışması veya yönetilen erişim gerektiğinde bağlanın.",
+      "values": {
+        "sync": {
+          "title": "Oturum eşitleme",
+          "description": "Çalışmanıza farklı cihazlarda devam edin."
+        },
+        "collaboration": {
+          "title": "Ekip çalışması",
+          "description": "Oturumları paylaşın ve Cloud organizasyonlarını yönetin."
+        },
+        "security": {
+          "title": "Güvenli giriş",
+          "description": "Kimlik doğrulama tarayıcıda yapılır; kimlik bilgileri sistem kasasında kalır."
+        }
+      },
+      "continueLocally": "Şimdi değil, yerel devam et",
+      "connect": "ORG2 Cloud'a bağlan",
+      "blockedTitle": "ORG2 Cloud girişi gerekli",
+      "blockedDescription": "Bu Cloud özelliği bir hesap gerektirir. Yerel çalışma giriş yapmadan kullanılabilir.",
+      "learnMore": "Daha fazla bilgi",
+      "backToLocal": "Yerele dön",
+      "waitingTitle": "Girişi tarayıcıda tamamlayın",
+      "waitingDescription": "Yetkilendirmeden sonra ORGII otomatik olarak bağlanır.",
+      "openFailed": "Giriş sayfası açılamadı. Lütfen tekrar deneyin."
+    },
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
     "signedInAs": "{{name}} olarak giriş yapıldı",
@@ -959,6 +986,20 @@
       "on": "Açık",
       "off": "Kapalı",
       "memberNote": "Bir yönetici etkinleştirdi — bu organizasyonu açmanız gerekmeden uygun oturumlar arka planda yüklenir."
+    },
+    "accountCenter": {
+      "reconnect": "Reconnect",
+      "switchAccount": "Switch account",
+      "endpoint": "Endpoint: {{endpoint}}",
+      "status": {
+        "restoring": "Restoring",
+        "ready": "Connected",
+        "offline_degraded": "Offline",
+        "reauth_required": "Reconnect required",
+        "signing_out": "Signing out",
+        "secureStoreLocked": "Credential store locked",
+        "secureStoreUnavailable": "Session-only credentials"
+      }
     }
   }
 }

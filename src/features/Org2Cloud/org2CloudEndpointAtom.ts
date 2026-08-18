@@ -65,6 +65,15 @@ type JotaiStore = ReturnType<typeof createStore>;
  * different server would silently skip or double-apply deltas).
  */
 export function resetCloudStateForEndpointSwitch(store: JotaiStore): void {
+  resetCloudIdentityBoundState(store);
+}
+
+/**
+ * Drop all state authorized by the previous Cloud identity. This is shared by
+ * endpoint switches, sign-out, reauthentication and account switches so a
+ * newly visible account can never inherit the previous account's cache.
+ */
+export function resetCloudIdentityBoundState(store: JotaiStore): void {
   resetOrgEntitlementCoordinator(store);
   store.set(org2CloudAuthAtom, null);
   store.set(org2CloudOrgsAtom, []);

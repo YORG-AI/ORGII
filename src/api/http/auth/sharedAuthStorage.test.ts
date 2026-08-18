@@ -9,9 +9,7 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(async () => {}),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
-  isTauri: mocks.isTauri,
-}));
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: mocks.isTauri }));
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   LazyStore: class {
@@ -41,7 +39,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   },
 }));
 
-describe("shared service auth storage", () => {
+describe("legacy Cloud auth migration storage", () => {
   beforeEach(() => {
     vi.resetModules();
     localStorage.clear();
@@ -54,9 +52,9 @@ describe("shared service auth storage", () => {
     mocks.save.mockClear();
   });
 
-  it("migrates the first Tauri origin's existing login state", async () => {
-    localStorage.setItem("orgii.supabase.auth", "shared-session");
-    localStorage.setItem("hosted_access_token", "access-token");
+  it("migrates only the Cloud rollback envelope and retires Hosted secrets", async () => {
+    localStorage.setItem("orgii.supabase.auth", "retired-session");
+    localStorage.setItem("hosted_access_token", "retired-access");
     localStorage.setItem("orgii:auth_skipped", "1");
     localStorage.setItem("orgii:org2-cloud-v1:auth", '{"kind":"org2_cloud"}');
 
@@ -64,31 +62,31 @@ describe("shared service auth storage", () => {
       __SHARED_AUTH_STORAGE_INTERNALS,
       initializeSharedServiceAuthStorage,
     } = await import("./sharedAuthStorage");
-
     await initializeSharedServiceAuthStorage();
 
     expect(mocks.construct).toHaveBeenCalledWith(
       __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_STORE_PATH,
       { defaults: {}, autoSave: false }
     );
-    expect(mocks.disk.get("orgii.supabase.auth")).toBe("shared-session");
-    expect(mocks.disk.get("hosted_access_token")).toBe("access-token");
-    expect(mocks.disk.get("orgii:auth_skipped")).toBe("1");
     expect(mocks.disk.get("orgii:org2-cloud-v1:auth")).toBe(
       '{"kind":"org2_cloud"}'
     );
+    expect(mocks.disk.has("orgii.supabase.auth")).toBe(false);
+    expect(mocks.disk.has("hosted_access_token")).toBe(false);
+    expect(mocks.disk.has("orgii:auth_skipped")).toBe(false);
+    expect(localStorage.getItem("orgii.supabase.auth")).toBeNull();
+    expect(localStorage.getItem("hosted_access_token")).toBeNull();
+    expect(localStorage.getItem("orgii:auth_skipped")).toBe("1");
     expect(
       mocks.disk.get(__SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_KEY)
     ).toBe(__SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_VERSION);
-    expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves an empty first origin unclaimed for later migration", async () => {
+  it("leaves an empty first origin unclaimed for later Cloud migration", async () => {
     const {
       __SHARED_AUTH_STORAGE_INTERNALS,
       initializeSharedServiceAuthStorage,
     } = await import("./sharedAuthStorage");
-
     await initializeSharedServiceAuthStorage();
 
     expect(
@@ -97,14 +95,12 @@ describe("shared service auth storage", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it("keeps the v1 cloud migration open until the bundled origin contributes it", async () => {
+  it("keeps a v1 Cloud migration open until a bundled origin contributes it", async () => {
     mocks.disk.set("__orgii_shared_auth_schema", 1);
 
     let authStorage = await import("./sharedAuthStorage");
     await authStorage.initializeSharedServiceAuthStorage();
-
     expect(mocks.disk.get("__orgii_shared_auth_schema")).toBe(1);
-    expect(mocks.disk.has("orgii:org2-cloud-v1:auth")).toBe(false);
 
     vi.resetModules();
     localStorage.setItem("orgii:org2-cloud-v1:auth", '{"kind":"org2_cloud"}');
@@ -114,64 +110,64 @@ describe("shared service auth storage", () => {
     expect(mocks.disk.get("orgii:org2-cloud-v1:auth")).toBe(
       '{"kind":"org2_cloud"}'
     );
-    expect(mocks.disk.get("__orgii_shared_auth_schema")).toBe(2);
+    expect(mocks.disk.get("__orgii_shared_auth_schema")).toBe(3);
   });
 
-  it("treats an established shared sign-out as authoritative", async () => {
+  it("treats an established shared Cloud sign-out as authoritative", async () => {
     const { __SHARED_AUTH_STORAGE_INTERNALS } =
       await import("./sharedAuthStorage");
     mocks.disk.set(
       __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_KEY,
       __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_VERSION
     );
-    localStorage.setItem("orgii.supabase.auth", "stale-session");
-    localStorage.setItem("hosted_access_token", "stale-token");
-    localStorage.setItem("hosted_refresh_token", "stale-refresh-token");
+    localStorage.setItem("orgii:org2-cloud-v1:auth", "stale-cloud-session");
 
     const { initializeSharedServiceAuthStorage } =
       await import("./sharedAuthStorage");
     await initializeSharedServiceAuthStorage();
 
-    expect(localStorage.getItem("orgii.supabase.auth")).toBeNull();
-    expect(localStorage.getItem("hosted_access_token")).toBeNull();
-    expect(localStorage.getItem("hosted_refresh_token")).toBeNull();
+    expect(localStorage.getItem("orgii:org2-cloud-v1:auth")).toBeNull();
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it("persists Supabase writes and removals to the shared file", async () => {
-    const { __SHARED_AUTH_STORAGE_INTERNALS, sharedServiceAuthStorage } =
-      await import("./sharedAuthStorage");
-    mocks.disk.set(
-      __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_KEY,
-      __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_VERSION
-    );
-
-    await sharedServiceAuthStorage.setItem(
-      "orgii.supabase.auth",
-      "new-session"
-    );
-    expect(mocks.disk.get("orgii.supabase.auth")).toBe("new-session");
-
-    await sharedServiceAuthStorage.removeItem("orgii.supabase.auth");
-    expect(mocks.disk.has("orgii.supabase.auth")).toBe(false);
-    expect(mocks.save).toHaveBeenCalledTimes(2);
-  });
-
-  it("coalesces simultaneous focus-return synchronizations", async () => {
+  it("stages and deletes only the migration-only Cloud envelope", async () => {
     const {
       __SHARED_AUTH_STORAGE_INTERNALS,
-      synchronizeSharedServiceAuthStorage,
+      deleteLegacyOrg2CloudAuthEnvelope,
+      flushSharedServiceAuthStorage,
+      stageLegacyOrg2CloudAuthEnvelope,
     } = await import("./sharedAuthStorage");
     mocks.disk.set(
       __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_KEY,
       __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_VERSION
     );
 
-    const first = synchronizeSharedServiceAuthStorage();
-    const second = synchronizeSharedServiceAuthStorage();
+    stageLegacyOrg2CloudAuthEnvelope('{"kind":"org2_cloud"}');
+    await flushSharedServiceAuthStorage();
+    expect(mocks.disk.get("orgii:org2-cloud-v1:auth")).toBe(
+      '{"kind":"org2_cloud"}'
+    );
 
-    expect(second).toBe(first);
-    await first;
-    expect(mocks.reload).toHaveBeenCalledTimes(1);
+    await deleteLegacyOrg2CloudAuthEnvelope();
+    expect(mocks.disk.has("orgii:org2-cloud-v1:auth")).toBe(false);
+    expect(localStorage.getItem("orgii:org2-cloud-v1:auth")).toBeNull();
+  });
+
+  it("deletes retired Hosted keys from disk during schema upgrade", async () => {
+    mocks.disk.set("__orgii_shared_auth_schema", 2);
+    mocks.disk.set("hosted_refresh_token", "retired-refresh");
+    mocks.disk.set("orgii.supabase.auth-code-verifier", "retired-verifier");
+    localStorage.setItem("hosted_refresh_token", "retired-refresh");
+    localStorage.setItem("orgii:auth_skipped", "1");
+
+    const { initializeSharedServiceAuthStorage } =
+      await import("./sharedAuthStorage");
+    await initializeSharedServiceAuthStorage();
+
+    expect(mocks.disk.has("hosted_refresh_token")).toBe(false);
+    expect(mocks.disk.has("orgii.supabase.auth-code-verifier")).toBe(false);
+    expect(localStorage.getItem("hosted_refresh_token")).toBeNull();
+    expect(localStorage.getItem("orgii:auth_skipped")).toBe("1");
+    expect(mocks.disk.get("__orgii_shared_auth_schema")).toBe(3);
   });
 });

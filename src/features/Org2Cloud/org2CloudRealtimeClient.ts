@@ -132,8 +132,9 @@ export interface Org2CloudRealtimeConnection {
 /**
  * Build a Realtime connection for the CURRENT endpoint, authenticated as the
  * given user. The client is realtime-only: auth auto-refresh and session
- * persistence are disabled (the app owns tokens via `org2CloudAuthAtom`), so
- * this never competes with the existing auth machinery.
+ * persistence are disabled (the native Broker owns refresh credentials), so
+ * this client receives only the caller's short-lived access lease and never
+ * competes with the refresh coordinator.
  */
 export function createOrg2CloudRealtimeConnection(
   accessToken: string
