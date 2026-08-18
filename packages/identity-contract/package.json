@@ -1,0 +1,57 @@
+{
+  "name": "@orgii/identity-contract",
+  "version": "0.1.0",
+  "description": "Versioned, non-secret identity snapshot contract shared by ORGII Desktop, Web, and Cloud BFFs.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "verify": "npm run typecheck && npm test && npm pack --dry-run",
+    "prepublishOnly": "npm run verify"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yorgai/ORG2.git",
+    "directory": "packages/identity-contract"
+  },
+  "keywords": [
+    "orgii",
+    "identity",
+    "authentication",
+    "contract",
+    "zod"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.7.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
+}
