@@ -65,7 +65,7 @@ pub(crate) fn register_database_schemas() {
         }
 
         agent_core::coordination::init_agent_org_schemas(conn)?;
-        match session_persistence::turn_intents::reconcile_agent_org_in_flight_after_restart(conn) {
+        match agent_core::coordination::reconcile_agent_org_turns_after_restart(conn) {
             Ok(0) => {}
             Ok(count) => tracing::info!(
                 "[startup] Reconciled {} Agent Org turn intent(s) from the previous process",

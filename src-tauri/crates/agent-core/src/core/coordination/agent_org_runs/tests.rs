@@ -361,6 +361,16 @@ fn starting_finish_requires_exact_member_and_input_durability_then_is_idempotent
         )
         .expect("load durable initial Turn Intent");
     assert_eq!(turn_status, "queued");
+    let context: (i64, String, String, Option<i64>) = conn
+        .query_row(
+            "SELECT COUNT(*), turn_kind, source_kind, member_dispatch_sequence
+             FROM agent_org_runtime_turn_contexts
+             WHERE session_id='starting-root' AND turn_intent_id='starting-turn'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .expect("load initial Coordinator context");
+    assert_eq!(context, (1, "coordinator".into(), "root_turn".into(), None));
 }
 
 #[test]
@@ -386,6 +396,15 @@ fn starting_without_initial_work_finishes_idle() {
         .expect("run exists")
         .idled_at
         .is_some());
+    let conn = database::db::get_connection().expect("db");
+    let context_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_turn_contexts WHERE org_run_id=?1",
+            [&run.id],
+            |row| row.get(0),
+        )
+        .expect("count no-work contexts");
+    assert_eq!(context_count, 0);
 }
 
 #[test]

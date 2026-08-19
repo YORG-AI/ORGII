@@ -396,14 +396,16 @@ impl AgentOrgRunStore {
                         "initial input is not durably materialized for Starting run {run_id}"
                     ));
                 }
-                crate::foundation::session_bridge::upsert_turn_intent_with_connection(
-                    &transaction,
+                let admission = crate::coordination::agent_org_turn_contexts::AgentOrgTurnAdmission::starting_coordinator(
+                    run_id,
                     &root_session_id,
                     &input.turn_intent_id,
-                    Some(&input.message_id),
-                    Some(run_id),
-                    crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
-                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
+                    Some(input.message_id.clone()),
+                    expected_generation,
+                );
+                crate::coordination::agent_org_turn_contexts::accept_with_connection(
+                    &transaction,
+                    &admission,
                 )?;
                 transaction
                     .execute(

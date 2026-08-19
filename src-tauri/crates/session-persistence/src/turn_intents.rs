@@ -444,35 +444,6 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Int
     Ok(affected)
 }
 
-/// Reconcile Agent Org intents after Agent Org-owned Starting tables exist.
-/// A queued canonical initial input is safe to re-enqueue with the same ids.
-/// Running Agent Org work is retained as an in-flight/unknown durable fact:
-/// it is never auto-replayed, and it cannot disappear in a way that would let
-/// Quiescence lose an uncommitted final answer. Other pre-durable intents are
-/// stale.
-pub fn reconcile_agent_org_in_flight_after_restart(
-    conn: &Connection,
-) -> Result<usize, IntentError> {
-    let now = Utc::now().to_rfc3339();
-    let affected = conn.execute(
-        "UPDATE session_turn_intents
-            SET status = 'stale', updated_at = ?1
-          WHERE org_run_id IS NOT NULL
-            AND status IN ('optimistic', 'queued')
-            AND NOT (
-                status = 'queued'
-                AND EXISTS (
-                    SELECT 1 FROM agent_org_runtime_initial_inputs initial
-                    WHERE initial.org_run_id=session_turn_intents.org_run_id
-                      AND initial.turn_intent_id=session_turn_intents.turn_intent_id
-                      AND initial.status IN ('queued', 'dispatched')
-                )
-            )",
-        [now],
-    )?;
-    Ok(affected)
-}
-
 /// Lookup a single intent row.
 pub fn get_intent(
     conn: &Connection,
@@ -905,82 +876,48 @@ mod tests {
     }
 
     #[test]
-    fn agent_org_restart_preserves_running_and_replayable_initial_input_only() {
-        with_temp_orgii_home(|| {
-            let session = "test-agent-org-restart";
-            let run_id = "agent-org-restart-run";
-            let conn = get_connection().expect("open sessions DB");
-            agent_core::coordination::init_agent_org_schemas(&conn)
-                .expect("init Agent Org schemas");
-            let now = Utc::now().to_rfc3339();
-            conn.execute(
-                "INSERT INTO agent_org_runtime_runs (
-                     id, org_id, coordinator_agent_id, root_session_id,
-                     entry_mode, status, has_initial_work, created_at, updated_at
-                 ) VALUES (?1, 'restart-org', 'coordinator', ?2,
-                           'standalone_session', 'running', 1, ?3, ?3)",
-                params![run_id, session, &now],
-            )
-            .expect("seed run");
+    fn ordinary_restart_reconciliation_has_no_agent_org_schema_dependency() {
+        let conn = Connection::open_in_memory().expect("open SDE-only fixture");
+        conn.execute_batch(
+            "CREATE TABLE session_turn_intents (
+                session_id TEXT NOT NULL, turn_intent_id TEXT NOT NULL,
+                client_message_id TEXT, org_run_id TEXT, source TEXT NOT NULL,
+                status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                PRIMARY KEY(session_id, turn_intent_id)
+             );
+             INSERT INTO session_turn_intents VALUES
+                ('sde', 'queued', NULL, NULL, 'user_submit', 'queued', 'now', 'now'),
+                ('sde', 'running', NULL, NULL, 'user_submit', 'running', 'now', 'now'),
+                ('org', 'owned', NULL, 'run-a', 'agent_org', 'queued', 'now', 'now');",
+        )
+        .expect("seed fixture without Agent Org context tables");
 
-            for (intent, status) in [
-                ("optimistic-noninitial", TurnIntentStatus::Optimistic),
-                ("queued-noninitial", TurnIntentStatus::Queued),
-                ("running-final-not-committed", TurnIntentStatus::Running),
-                ("queued-canonical-initial", TurnIntentStatus::Queued),
-            ] {
-                upsert_initial(
-                    session,
-                    intent,
-                    Some(&format!("message-{intent}")),
-                    Some(run_id),
-                    TurnIntentSource::AgentOrg,
-                    status,
-                )
-                .expect("seed Agent Org intent");
-            }
-            conn.execute(
-                "INSERT INTO agent_org_runtime_initial_inputs (
-                     org_run_id, turn_intent_id, message_id, content,
-                     payload_json, status, created_at, updated_at
-                 ) VALUES (?1, 'queued-canonical-initial', 'initial-message',
-                           'initial input', ?2, 'queued', ?3, ?3)",
-                params![
-                    run_id,
-                    serde_json::json!({
-                        "version": 1,
-                        "images": null,
-                        "ideContext": null,
-                        "subAgentIds": [],
-                    })
-                    .to_string(),
-                    &now,
-                ],
+        assert_eq!(reconcile_in_flight_after_restart(&conn).unwrap(), 2);
+        let sde_states = conn
+            .prepare(
+                "SELECT turn_intent_id, status FROM session_turn_intents
+                 WHERE session_id='sde' ORDER BY turn_intent_id",
             )
-            .expect("seed canonical initial input receipt");
-
-            assert_eq!(reconcile_in_flight_after_restart(&conn).unwrap(), 0);
-            assert_eq!(
-                reconcile_agent_org_in_flight_after_restart(&conn).unwrap(),
-                2
-            );
-            let rows = list_for_session(session).expect("load reconciled intents");
-            let by_id = rows
-                .into_iter()
-                .map(|row| (row.turn_intent_id, row.status))
-                .collect::<std::collections::HashMap<_, _>>();
-            assert_eq!(by_id["optimistic-noninitial"], TurnIntentStatus::Stale);
-            assert_eq!(by_id["queued-noninitial"], TurnIntentStatus::Stale);
-            assert_eq!(
-                by_id["running-final-not-committed"],
-                TurnIntentStatus::Running,
-                "unknown post-crash side effects and an uncommitted final answer must block Idle"
-            );
-            assert_eq!(
-                by_id["queued-canonical-initial"],
-                TurnIntentStatus::Queued,
-                "only the stable initial input receipt is safe to replay with the same ids"
-            );
-        });
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap();
+        assert_eq!(
+            sde_states,
+            vec![
+                ("queued".into(), "stale".into()),
+                ("running".into(), "failed".into())
+            ]
+        );
+        assert_eq!(
+            get_intent(&conn, "org", "owned")
+                .unwrap()
+                .expect("Agent Org row is preserved")
+                .status,
+            TurnIntentStatus::Queued
+        );
     }
 }

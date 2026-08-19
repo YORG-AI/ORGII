@@ -248,6 +248,26 @@ pub(crate) async fn send_message_impl(
         (None, None) => preflight_org_run_id,
     };
 
+    // PR3 admits only canonical Coordinator/Root turns. Member Task/direct/
+    // group/inbox producers must use their typed authority constructors in
+    // their owning PR; a legacy Member call fails here before base intent or
+    // scheduler state can be written.
+    if let Some(run_id) = effective_intent_org_run_id.as_deref() {
+        let admission =
+            crate::coordination::agent_org_turn_contexts::AgentOrgTurnAdmission::coordinator(
+                run_id,
+                &session_id,
+                &effective_turn_intent_id,
+                client_message_id.clone(),
+                source,
+            );
+        tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_org_turn_contexts::accept(&admission)
+        })
+        .await
+        .map_err(|error| format!("Agent Org Turn admission worker failed: {error}"))??;
+    }
+
     // Wingman resume: reopen the bottom bar. On fresh start the frontend
     // sends `wingman_start` which opens the bar, but after app restart
     // the frontend doesn't re-send that command. Best-effort — a missing
@@ -349,14 +369,16 @@ pub(crate) async fn send_message_impl(
         // part of accepting the control action. If the durable takeover row
         // cannot be written, do not inject a message that Wake may race.
         persist_direct_user_intervention(direct_user_intervention.clone()).await?;
-        crate::foundation::session_bridge::upsert_turn_intent(
-            &session_id,
-            &effective_turn_intent_id,
-            client_message_id.as_deref(),
-            effective_intent_org_run_id.as_deref(),
-            source,
-            crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
-        );
+        if effective_intent_org_run_id.is_none() {
+            crate::foundation::session_bridge::upsert_turn_intent(
+                &session_id,
+                &effective_turn_intent_id,
+                client_message_id.as_deref(),
+                None,
+                source,
+                crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
+            );
+        }
         session_handle
             .steering_queue
             .lock()
@@ -571,12 +593,20 @@ pub(crate) async fn send_message_impl(
             let status_sid = sid.clone();
             let status_wake_run_id = org_wake_run_id.clone();
             let status_intent_run_id = intent_org_run_id.clone();
+            let status_turn_intent_id = turn_intent_id.clone();
             match tokio::task::spawn_blocking(move || {
                 database::db::with_sessions_writer(|| -> Result<bool, String> {
                     let mut conn = database::db::get_connection().map_err(|err| err.to_string())?;
                     let tx = conn
                         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                         .map_err(|err| err.to_string())?;
+                    if status_wake_run_id.is_some() || status_intent_run_id.is_some() {
+                        crate::coordination::agent_org_turn_contexts::require_context_with_connection(
+                            &tx,
+                            &status_sid,
+                            &status_turn_intent_id,
+                        )?;
+                    }
                     let updated = if let Some(run_id) = status_wake_run_id.as_deref() {
                         promote_agent_org_wake_session_to_running(&tx, run_id, &status_sid)?
                     } else if let Some(run_id) = status_intent_run_id.as_deref() {
@@ -781,14 +811,16 @@ pub(crate) async fn send_message_impl(
     // `running` / terminal as the turn executes; `invalidate_pending`
     // marks it `stale` if rewound before it ran. See `session_turn_intents`
     // for the state machine.
-    crate::foundation::session_bridge::upsert_turn_intent(
-        &session_id,
-        &effective_turn_intent_id,
-        msg.client_message_id.as_deref(),
-        effective_intent_org_run_id.as_deref(),
-        source,
-        crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
-    );
+    if effective_intent_org_run_id.is_none() {
+        crate::foundation::session_bridge::upsert_turn_intent(
+            &session_id,
+            &effective_turn_intent_id,
+            msg.client_message_id.as_deref(),
+            None,
+            source,
+            crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
+        );
+    }
 
     let enqueue_result = session_handle
         .scheduler
