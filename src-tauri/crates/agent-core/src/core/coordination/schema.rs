@@ -15,22 +15,6 @@ use super::{
     agent_org_tasks, agent_org_turn_contexts, agent_org_watchdog,
 };
 
-const RUNTIME_TABLES_V1: [&str; 13] = [
-    "agent_org_runtime_runs",
-    "agent_org_runtime_run_progress",
-    "agent_org_runtime_member_materializations",
-    "agent_org_runtime_initial_inputs",
-    "agent_org_runtime_plan_approvals",
-    "agent_org_runtime_recovery_attempts",
-    "agent_org_runtime_tasks",
-    "agent_org_runtime_task_events",
-    "agent_org_runtime_task_schema_migrations",
-    "agent_org_runtime_inbox",
-    "agent_org_runtime_inbox_materializations",
-    "agent_org_runtime_inbox_delivery_resolutions",
-    "agent_org_runtime_member_interventions",
-];
-
 const RUNTIME_TABLES: [&str; 15] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
@@ -89,25 +73,19 @@ const DROP_LEGACY_SCHEMA: &str = "DROP TABLE IF EXISTS agent_inbox_materializati
 type SchemaManifest = BTreeMap<(String, String), (String, String)>;
 
 pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
-    let expected_v1 = expected_manifest_v1()?;
     let expected = expected_manifest()?;
     let tx = database::db::begin_immediate(conn)?;
     let runtime_table_count = count_known_tables(&tx, &RUNTIME_TABLES)?;
 
-    let (fresh, upgraded_from_v1) = match runtime_table_count {
-        0 => (true, false),
-        count if count == RUNTIME_TABLES_V1.len() => {
-            verify_manifest(&tx, &expected_v1)?;
-            (false, true)
-        }
+    let fresh = match runtime_table_count {
+        0 => true,
         count if count == RUNTIME_TABLES.len() => {
             verify_manifest(&tx, &expected)?;
-            (false, false)
+            false
         }
         count => {
             return Err(schema_error(format!(
-                "partial Agent Org runtime schema: found {count}; expected 0, {} (PR828), or {} (PR3) canonical tables",
-                RUNTIME_TABLES_V1.len(),
+                "partial Agent Org runtime schema: found {count} of {} canonical tables; only an empty namespace or the complete current manifest is accepted",
                 RUNTIME_TABLES.len(),
             )))
         }
@@ -119,8 +97,6 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
 
     if fresh {
         create_runtime_schema(&tx)?;
-    } else if upgraded_from_v1 {
-        agent_org_turn_contexts::create_schema(&tx)?;
     }
     verify_manifest(&tx, &expected)?;
     agent_inbox::repair_dangling_materializations(&tx)?;
@@ -144,38 +120,26 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
         legacy_table_count,
         legacy_object_count,
         fresh,
-        upgraded_from_v1,
-        idempotent = !fresh && !upgraded_from_v1,
+        idempotent = !fresh,
         "initialized isolated Agent Org runtime schema"
     );
     Ok(())
 }
 
 fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
-    create_runtime_schema_v1(conn)?;
-    agent_org_turn_contexts::create_schema(conn)
-}
-
-fn create_runtime_schema_v1(conn: &Connection) -> SqliteResult<()> {
     agent_org_runs::create_schema(conn)?;
     agent_inbox::create_schema(conn)?;
     agent_org_tasks::create_schema(conn)?;
     agent_org_plan_approvals::create_schema(conn)?;
     agent_member_interventions::create_schema(conn)?;
-    agent_org_watchdog::create_schema(conn)
+    agent_org_watchdog::create_schema(conn)?;
+    agent_org_turn_contexts::create_schema(conn)
 }
 
 fn expected_manifest() -> SqliteResult<SchemaManifest> {
     let expected = Connection::open_in_memory()?;
     expected.execute_batch("PRAGMA foreign_keys=ON;")?;
     create_runtime_schema(&expected)?;
-    read_manifest(&expected)
-}
-
-fn expected_manifest_v1() -> SqliteResult<SchemaManifest> {
-    let expected = Connection::open_in_memory()?;
-    expected.execute_batch("PRAGMA foreign_keys=ON;")?;
-    create_runtime_schema_v1(&expected)?;
     read_manifest(&expected)
 }
 
@@ -633,33 +597,6 @@ mod tests {
     }
 
     #[test]
-    fn exact_pr828_manifest_is_extended_atomically_to_pr3() {
-        let conn = connection();
-        create_runtime_schema_v1(&conn).expect("PR828 runtime fixture");
-        conn.execute(
-            "INSERT INTO agent_org_runtime_runs (
-                id, org_id, coordinator_agent_id, org_snapshot_json, entry_mode,
-                status, created_at, updated_at
-             ) VALUES ('run-v1', 'org-v1', 'agent-v1', '{}',
-                       'standalone_session', 'idle', 'now', 'now')",
-            [],
-        )
-        .expect("seed PR828 runtime row");
-
-        initialize(&conn).expect("upgrade exact PR828 manifest");
-
-        verify_manifest(&conn, &expected_manifest().expect("PR3 manifest"))
-            .expect("canonical PR3 manifest");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 15);
-        assert_eq!(row_count(&conn, "agent_org_runtime_runs"), 1);
-        assert_eq!(
-            row_count(&conn, "agent_org_runtime_member_dispatch_allocators"),
-            0
-        );
-        assert_eq!(row_count(&conn, "agent_org_runtime_turn_contexts"), 0);
-    }
-
-    #[test]
     fn partial_or_unknown_runtime_schema_fails_closed_before_legacy_cleanup() {
         for mutate in ["partial", "changed", "extra_index"] {
             let conn = connection();
@@ -667,9 +604,14 @@ mod tests {
             conn.execute_batch("CREATE TABLE agent_org_runs (sentinel TEXT); INSERT INTO agent_org_runs VALUES ('legacy');")
                 .expect("legacy sentinel");
             match mutate {
-                "partial" => conn
-                    .execute_batch("DROP TABLE agent_org_runtime_initial_inputs;")
-                    .expect("make partial schema"),
+                "partial" => {
+                    conn.execute_batch(
+                        "DROP TABLE agent_org_runtime_turn_contexts;
+                         DROP TABLE agent_org_runtime_member_dispatch_allocators;",
+                    )
+                    .expect("make partial schema");
+                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 13);
+                }
                 "changed" => {
                     conn.execute_batch(
                         "DROP TABLE agent_org_runtime_member_interventions;
