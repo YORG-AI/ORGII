@@ -169,7 +169,7 @@ fn byte_index_discovers_rounds_without_parsing_tool_result_bodies() {
         .collect::<Vec<_>>();
     let mut projected = project_activity_chunks(&user_chunks);
     assert!(projected.iter().all(|turn| turn.body_event_count == 0));
-    overlay_indexed_body_counts(&mut projected, &indexed);
+    overlay_indexed_body_counts(&mut projected, &indexed, indexed.len());
     assert_eq!(
         projected
             .iter()
@@ -365,33 +365,9 @@ fn claude_initial_window_placeholders_advertise_fetchable_bodies() {
     }
     std::fs::write(&path, content).expect("write fixture");
 
-    let indexed = index_claude_user_turns("claudecodeapp-counts", &path).expect("index user turns");
-    let file_len = std::fs::metadata(&path).expect("stat fixture").len();
-    let mut file = std::fs::File::open(&path).expect("open fixture");
-    let mut chunks = Vec::new();
-    for (index, turn) in indexed.iter().enumerate() {
-        if index + 1 < indexed.len() {
-            chunks.push(turn.user_chunk.clone());
-            continue;
-        }
-        let mut body = load_claude_turn_range(
-            &mut file,
-            "claudecodeapp-counts",
-            turn.start_offset,
-            file_len,
-            &turn.user_chunk.chunk_id,
-        )
-        .expect("load newest body");
-        chunks.append(&mut body);
-    }
-    let mut projected = project_activity_chunks(&chunks);
-    overlay_indexed_body_counts(&mut projected, &indexed);
-    let window = imported_history::window::build_initial_window_from_turns(
-        "claudecodeapp-counts",
-        chunks,
-        1,
-        projected,
-    );
+    let window =
+        load_claude_code_initial_window_from_path("claudecodeapp-counts", &path, 1)
+            .expect("load initial window");
 
     assert_eq!(window.total_turn_count, 3);
     assert_eq!(window.loaded_turn_count, 1);
@@ -401,14 +377,92 @@ fn claude_initial_window_placeholders_advertise_fetchable_bodies() {
         .filter(|chunk| chunk.chunk_id.starts_with("imported-unloaded-turn-"))
         .collect::<Vec<_>>();
     assert_eq!(placeholders.len(), 2);
-    for placeholder in placeholders {
+    for (round, placeholder) in placeholders.iter().enumerate() {
+        let round = round + 1;
         let body_event_count = placeholder.result["unloadedTurn"]["bodyEventCount"]
             .as_i64()
             .expect("bodyEventCount");
         assert_eq!(body_event_count, 3);
+        // The unloaded round's placeholder carries the final-reply preview so
+        // the collapsed turn still shows its closing agent message…
+        assert_eq!(
+            placeholder.args.get("turnPreviewOnly"),
+            Some(&Value::Bool(true))
+        );
+        assert_eq!(
+            placeholder.result.get("observation").and_then(Value::as_str),
+            Some(format!("round {round} done").as_str())
+        );
+        // …and a real end timestamp so the collapse bar shows the round's
+        // duration and time range instead of "<1min".
+        let started_at = placeholder.result["unloadedTurn"]["startedAt"]
+            .as_str()
+            .expect("startedAt");
+        let ended_at = placeholder.result["unloadedTurn"]["endedAt"]
+            .as_str()
+            .expect("endedAt");
+        assert!(ended_at > started_at, "{ended_at} must be after {started_at}");
     }
     // The loaded newest round keeps its exact projected counts (no overlay).
     assert_eq!(window.turns[2].body_event_count, 2);
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn claude_initial_window_previews_skip_tool_use_only_assistant_lines() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-window-preview-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-window-preview.jsonl");
+    // Round 1's real reply is followed by a tool_use-only assistant line and
+    // its tool_result: the preview must come from the newest TEXT line, and
+    // the trailing unmatched tool_use must not leak a tool-call chunk into
+    // the placeholder preview.
+    let content = "\
+{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:00:00Z\",\"message\":{\"role\":\"user\",\"content\":\"first\"}}\n\
+{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:00:01Z\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"hmm\"},{\"type\":\"text\",\"text\":\"first reply\"}]}}\n\
+{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:00:02Z\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"go\"}}]}}\n\
+{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:00:03Z\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}\n\
+{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:01:00Z\",\"message\":{\"role\":\"user\",\"content\":\"second\"}}\n\
+{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:01:01Z\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"second reply\"}]}}\n";
+    std::fs::write(&path, content).expect("write fixture");
+
+    let indexed =
+        index_claude_user_turns("claudecodeapp-preview", &path).expect("index user turns");
+    assert_eq!(indexed.len(), 2);
+    // The tool_use-only line and the tool_result line after the text reply
+    // must not displace the text line as the round's preview candidate.
+    let (offset, _) = indexed[0]
+        .last_assistant_text_line
+        .expect("round 1 preview candidate");
+    assert!(offset > indexed[0].start_offset);
+
+    let window = load_claude_code_initial_window_from_path("claudecodeapp-preview", &path, 1)
+        .expect("load initial window");
+    let placeholder = window
+        .chunks
+        .iter()
+        .find(|chunk| chunk.chunk_id.starts_with("imported-unloaded-turn-"))
+        .expect("round 1 placeholder");
+    assert_eq!(
+        placeholder.result.get("observation").and_then(Value::as_str),
+        Some("first reply")
+    );
+    // No stray body chunks may survive next to an unloaded round: its user
+    // header and placeholder are the only wire representation.
+    assert_eq!(
+        window
+            .chunks
+            .iter()
+            .filter(|chunk| chunk.function != imported_history::FUNCTION_USER_MESSAGE
+                && !chunk.chunk_id.starts_with("imported-unloaded-turn-"))
+            .count(),
+        1 // the loaded newest round's single assistant reply
+    );
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");

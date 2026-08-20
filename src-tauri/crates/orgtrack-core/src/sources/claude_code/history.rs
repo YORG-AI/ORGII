@@ -241,6 +241,13 @@ struct ClaudeIndexedTurn {
     /// collapse bar (the only expand affordance when turn pagination is off)
     /// never renders and unloaded bodies become unreachable.
     following_line_count: usize,
+    /// Byte range `(offset, length)` of the newest following line that
+    /// raw-scans as an assistant message carrying a text item. Unloaded
+    /// rounds parse only this one line so their placeholder can carry the
+    /// final-reply preview and a real end timestamp — the metadata every
+    /// full-stream provider derives in `build_initial_window_from_turns` —
+    /// without materializing the whole round body.
+    last_assistant_text_line: Option<(u64, usize)>,
 }
 
 fn claude_window_turn_id(start_offset: u64) -> String {
@@ -298,6 +305,17 @@ fn line_is_obvious_tool_result(line: &[u8]) -> bool {
             .any(|window| window == b"\"tool_use_id\"")
 }
 
+/// Raw prefilter for assistant lines that carry at least one text item
+/// (`content: [{"type":"text", ...}]`). Thinking-only and tool_use-only lines
+/// fail the second check, matching the preview policy of the full-stream
+/// window builder (only `FUNCTION_ASSISTANT` chunks become round previews).
+/// False positives (e.g. `"type":"text"` inside a tool input) are filtered by
+/// the canonical parser when the line is actually loaded.
+fn line_might_be_claude_assistant_text(line: &[u8]) -> bool {
+    line_might_contain_json_string_field(line, b"type", b"assistant")
+        && line_might_contain_json_string_field(line, b"type", b"text")
+}
+
 /// Build a byte-offset index by deserializing only likely human-user lines.
 ///
 /// Claude transcripts are dominated by assistant/tool-result payloads. A
@@ -334,6 +352,9 @@ fn index_claude_user_turns(
             if line.iter().any(|byte| !byte.is_ascii_whitespace()) {
                 if let Some(previous) = turns.last_mut() {
                     previous.following_line_count += 1;
+                    if line_might_be_claude_assistant_text(&line) {
+                        previous.last_assistant_text_line = Some((current_offset, bytes_read));
+                    }
                 }
             }
         };
@@ -384,6 +405,7 @@ fn index_claude_user_turns(
             start_offset: current_offset,
             user_chunk,
             following_line_count: 0,
+            last_assistant_text_line: None,
         });
     }
     Ok(turns)
@@ -391,16 +413,19 @@ fn index_claude_user_turns(
 
 /// Overlay the index's cheap body-size surrogate onto reduced-stream
 /// projections. `projected[i]` must correspond to `indexed[i]` (both are
-/// emitted in transcript order); only rounds the reduced stream reports as
-/// bodyless are overwritten, so ranges projected from real bodies keep their
-/// exact counts. `.max(1)` mirrors Codex: a placeholder must always advertise
+/// emitted in transcript order). Rounds before `first_loaded_turn` only
+/// contributed their header (plus at most the single parsed preview line), so
+/// the index surrogate is always the honest count there; rounds at or past it
+/// projected real bodies and keep their exact counts unless the parse came
+/// back empty. `.max(1)` mirrors Codex: a placeholder must always advertise
 /// a fetchable body, or the flat view renders no expand affordance for it.
 fn overlay_indexed_body_counts(
     projected: &mut [ProjectedTurnMetadata],
     indexed: &[ClaudeIndexedTurn],
+    first_loaded_turn: usize,
 ) {
-    for (turn, index_entry) in projected.iter_mut().zip(indexed) {
-        if turn.body_event_count > 0 {
+    for (turn_index, (turn, index_entry)) in projected.iter_mut().zip(indexed).enumerate() {
+        if turn_index >= first_loaded_turn && turn.body_event_count > 0 {
             continue;
         }
         let body_event_count =
@@ -446,6 +471,32 @@ fn load_claude_turn_range_with_sequence(
     )
 }
 
+/// Parse only the indexed final assistant-text line of an unloaded round.
+/// The returned chunk is fed to `build_initial_window_from_turns`, which
+/// consumes it into the round placeholder's last-reply preview and (via
+/// projection) its real end timestamp — the same metadata providers that
+/// stream full bodies get for free. Best-effort: any read/parse miss leaves
+/// the round preview-less rather than failing the whole window.
+fn load_claude_turn_preview_chunk(
+    file: &mut fs::File,
+    session_id: &str,
+    turn: &ClaudeIndexedTurn,
+) -> Option<ActivityChunk> {
+    let (offset, length) = turn.last_assistant_text_line?;
+    let end_offset = offset.checked_add(length as u64)?;
+    load_claude_turn_range_with_sequence(
+        file,
+        session_id,
+        offset,
+        end_offset,
+        usize::try_from(offset).unwrap_or(usize::MAX),
+        None,
+    )
+    .ok()?
+    .into_iter()
+    .rfind(|chunk| chunk.function == imported_history::FUNCTION_ASSISTANT)
+}
+
 pub fn load_claude_code_initial_window_for_session(
     conn: &Connection,
     session_id: &str,
@@ -453,25 +504,36 @@ pub fn load_claude_code_initial_window_for_session(
 ) -> Result<imported_history::window::ImportedHistoryInitialWindow, String> {
     let file_stem = claude_file_stem_from_session_id(session_id)?;
     let path = resolve_claude_session_path(conn, file_stem)?;
-    let indexed = index_claude_user_turns(session_id, &path)?;
+    load_claude_code_initial_window_from_path(session_id, &path, recent_turn_count)
+}
+
+fn load_claude_code_initial_window_from_path(
+    session_id: &str,
+    path: &Path,
+    recent_turn_count: usize,
+) -> Result<imported_history::window::ImportedHistoryInitialWindow, String> {
+    let indexed = index_claude_user_turns(session_id, path)?;
     if indexed.is_empty() {
-        return load_claude_code_history_from_path(session_id, &path).map(|chunks| {
+        return load_claude_code_history_from_path(session_id, path).map(|chunks| {
             imported_history::window::build_initial_window(session_id, chunks, recent_turn_count)
         });
     }
 
-    let file_len = fs::metadata(path.as_path())
+    let file_len = fs::metadata(path)
         .map_err(|err| format!("Failed to stat Claude history {}: {err}", path.display()))?
         .len();
     let first_loaded_turn = indexed
         .len()
         .saturating_sub(recent_turn_count.max(1).min(indexed.len()));
-    let mut file = fs::File::open(path.as_path())
+    let mut file = fs::File::open(path)
         .map_err(|err| format!("Failed to open Claude history {}: {err}", path.display()))?;
     let mut chunks = Vec::with_capacity(indexed.len().saturating_mul(2));
     for (index, turn) in indexed.iter().enumerate() {
         if index < first_loaded_turn {
             chunks.push(turn.user_chunk.clone());
+            if let Some(preview) = load_claude_turn_preview_chunk(&mut file, session_id, turn) {
+                chunks.push(preview);
+            }
             continue;
         }
         let end_offset = indexed
@@ -491,7 +553,7 @@ pub fn load_claude_code_initial_window_for_session(
         chunks.append(&mut body);
     }
     let mut projected = project_activity_chunks(&chunks);
-    overlay_indexed_body_counts(&mut projected, &indexed);
+    overlay_indexed_body_counts(&mut projected, &indexed, first_loaded_turn);
     Ok(imported_history::window::build_initial_window_from_turns(
         session_id,
         chunks,
@@ -625,7 +687,8 @@ pub fn load_claude_code_turn_index_for_session(
         .map(|turn| turn.user_chunk.clone())
         .collect::<Vec<_>>();
     let mut projected = project_activity_chunks(&chunks);
-    overlay_indexed_body_counts(&mut projected, &indexed);
+    // Every round here is reduced (header-only), so the surrogate always wins.
+    overlay_indexed_body_counts(&mut projected, &indexed, indexed.len());
     Ok(projected)
 }
 
