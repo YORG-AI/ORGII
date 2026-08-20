@@ -125,17 +125,14 @@ export const EditImagePreviews: React.FC<EditImagePreviewsProps> = ({
 };
 
 export const getComposerShellVariant = ({
-  compactShell,
   isEditMode,
   quietEditSurface,
   surfaceBg,
 }: {
-  compactShell: boolean;
   isEditMode: boolean;
   quietEditSurface: boolean;
   surfaceBg: boolean;
 }) => {
-  if (compactShell) return "pill";
   if (isEditMode) return quietEditSurface ? "historyEdit" : "embedded";
   return surfaceBg ? "default" : "embedded";
 };

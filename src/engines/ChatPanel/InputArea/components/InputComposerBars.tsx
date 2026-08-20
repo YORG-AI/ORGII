@@ -265,8 +265,6 @@ interface NormalComposerContentProps extends SharedComposerBarProps {
   showVoiceUi: boolean;
   voice: UseVoiceInputResult;
   currentRepoPath?: string;
-  isCompactRow: boolean;
-  contextualCompact?: boolean;
   contextualPanel?: boolean;
   inlineLeadingContent?: React.ReactNode;
   onContentChange: (text: string) => void;
@@ -331,8 +329,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   showVoiceUi,
   voice,
   currentRepoPath,
-  isCompactRow,
-  contextualCompact = false,
   contextualPanel = false,
   inlineLeadingContent,
   placeholder,
@@ -352,7 +348,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   autoFocus = false,
 }) => {
   const { t } = useTranslation("sessions");
-  const isContextual = contextualCompact || contextualPanel;
 
   return (
     <div className="flex min-h-0 w-full flex-col">
@@ -373,10 +368,9 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           onOpenSkillsTools={onOpenSkillsTools}
           dropdownDirection="up"
           repoPath={currentRepoPath}
-          inlineLayout={isCompactRow}
-          adaptiveEditorLayout={isContextual}
-          hideAddButton={contextualCompact}
-          showContextInfo={showAgentControls && !isCursorIde && !isContextual}
+          showContextInfo={
+            showAgentControls && !isCursorIde && !contextualPanel
+          }
           editorSlot={
             <InputEditor
               key="chat-panel-input-editor"
@@ -404,7 +398,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
               placeholder={placeholder || t("input.defaultPlaceholder")}
               trailingHint={trailingHint}
               onImagePaste={onImagePaste}
-              compact={isCompactRow}
               autoFocus={autoFocus}
               leadingContent={
                 contextualPanel ? inlineLeadingContent : undefined
@@ -432,52 +425,38 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           }
           submitButton={
             <div className="flex h-7 items-center gap-0.5">
-              {showAgentControls && !isContextual && (
+              {showAgentControls && !contextualPanel && (
                 <PromptPolishButton
                   control={promptPolish}
                   disabled={promptPolishDisabled}
                 />
               )}
-              {showAgentControls &&
-                voiceFeatureEnabled &&
-                (!contextualCompact ||
-                  (currentInputEmpty &&
-                    !isWpGeneWorking &&
-                    !isPendingCancel &&
-                    !isSessionTerminal)) && (
-                  <VoiceInputButton
-                    onPressStart={voice.start}
-                    onPressEnd={voice.stop}
-                    disabled={!voice.isSupported}
-                    appearance={contextualCompact ? "solid" : "default"}
-                  />
-                )}
-              {(!contextualCompact ||
-                !currentInputEmpty ||
-                isWpGeneWorking ||
-                isPendingCancel ||
-                isSessionTerminal ||
-                !voiceFeatureEnabled) && (
-                <InputActions
-                  isInputEmpty={currentInputEmpty}
-                  isWpGeneWorking={
-                    stopSuppressedForEmptyInput ? false : isWpGeneWorking
-                  }
-                  isPendingCancel={
-                    stopSuppressedForEmptyInput ? false : isPendingCancel
-                  }
-                  isHosted={isHosted}
-                  canStopAgent={
-                    stopSuppressedForEmptyInput ? false : canStopAgent
-                  }
-                  canResume={canResume}
-                  isSessionTerminal={isSessionTerminal}
-                  onSubmit={onSubmit}
-                  onInterrupt={onInterrupt}
-                  onResume={onResume}
-                  submitDisabled={submitDisabled}
+              {showAgentControls && voiceFeatureEnabled && (
+                <VoiceInputButton
+                  onPressStart={voice.start}
+                  onPressEnd={voice.stop}
+                  disabled={!voice.isSupported}
                 />
               )}
+              <InputActions
+                isInputEmpty={currentInputEmpty}
+                isWpGeneWorking={
+                  stopSuppressedForEmptyInput ? false : isWpGeneWorking
+                }
+                isPendingCancel={
+                  stopSuppressedForEmptyInput ? false : isPendingCancel
+                }
+                isHosted={isHosted}
+                canStopAgent={
+                  stopSuppressedForEmptyInput ? false : canStopAgent
+                }
+                canResume={canResume}
+                isSessionTerminal={isSessionTerminal}
+                onSubmit={onSubmit}
+                onInterrupt={onInterrupt}
+                onResume={onResume}
+                submitDisabled={submitDisabled}
+              />
             </div>
           }
         />

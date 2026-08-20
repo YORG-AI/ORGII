@@ -127,16 +127,9 @@
   color: var(--color-text-3);
   font-size: 14px;
 }
-// ===== Chat composer (compact / expanded) =====
-//
-// `chat-input-editor` is the marker the InputEditor adds when the composer
-// is rendered inside the compact chat capsule. `chat-input-compact`
-// signals the single-line row.
+// ===== Chat composer =====
 .composer-input.chat-input-editor {
   min-width: 0;
-}
-
-.composer-input.chat-input-editor:not(.chat-input-compact) {
   height: auto !important;
 
   .composer-input-wrapper {
@@ -155,56 +148,12 @@
 // editable document, but visually shares the first line with the editor. Drop
 // the ordinary leading inset so the placeholder/caret follows the shared
 // editor pill at the same spacing as a real inline ComposerPill.
-.composer-input.chat-input-editor-leading:not(.chat-input-compact) {
+.composer-input.chat-input-editor-leading {
   .composer-input-content {
     padding-left: 0;
 
     &.is-empty::before {
       left: 0;
-    }
-  }
-}
-
-.composer-input.chat-input-editor.chat-input-compact {
-  box-sizing: border-box;
-  min-height: 0 !important;
-  height: 100%;
-  border-radius: 0;
-
-  .composer-input-wrapper {
-    box-sizing: border-box;
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-  }
-
-  .composer-input-content {
-    box-sizing: border-box;
-    width: 100%;
-    height: auto;
-    padding: 0 8px !important;
-    min-height: 0 !important;
-    line-height: 1.43 !important;
-    font-size: 14px;
-    display: block;
-    // Keep visible so just-inserted second-line caret paints before the
-    // host swaps to expanded layout.
-    overflow: visible !important;
-    // In compact mode we collapse to a single line. The expansion observer
-    // in the host swaps the class once it detects the row needs more space.
-    white-space: nowrap;
-
-    &.is-empty {
-      width: 100%;
-      min-height: 24px;
-
-      // Compact row uses 8px horizontal padding; mirror it on the placeholder
-      // so the ellipsis lines up with the actual caret position.
-      &::before {
-        left: 8px;
-        right: 8px;
-      }
     }
   }
 }
