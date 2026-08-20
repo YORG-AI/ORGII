@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+
+import { aggregateWebSessionRoster } from "../useWebSessionRoster";
+
+describe("aggregateWebSessionRoster", () => {
+  it("merges ready org rows and marks the roster loaded", () => {
+    const result = aggregateWebSessionRoster({
+      orgs: [{ orgId: "org-1", name: "Org One" }],
+      entries: {
+        "org-1": {
+          identityKey: "identity-1",
+          rows: [
+            {
+              id: "row-1",
+              orgId: "org-1",
+              sourceSessionId: "session-1",
+              ownerUserId: "user-1",
+              ownerDisplayName: "Me",
+              title: "Mine",
+              lastActivityAt: "2026-08-20T08:00:00.000Z",
+              eventsEpoch: 1,
+            },
+          ],
+          state: "ready",
+          fetchedAt: 1,
+        },
+      },
+      identityKey: "identity-1",
+      userId: "user-1",
+    });
+
+    expect(result.status).toBe("loaded");
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.orgName).toBe("Org One");
+    expect(result.sessions[0]?.writable).toBe(true);
+  });
+
+  it("reports loading while every org entry is still idle", () => {
+    const result = aggregateWebSessionRoster({
+      orgs: [{ orgId: "org-1", name: "Org One" }],
+      entries: {
+        "org-1": {
+          identityKey: "identity-1",
+          rows: [],
+          state: "idle",
+          fetchedAt: 0,
+        },
+      },
+      identityKey: "identity-1",
+      userId: "user-1",
+    });
+
+    expect(result.status).toBe("loading");
+    expect(result.sessions).toEqual([]);
+  });
+});
