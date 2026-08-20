@@ -732,7 +732,8 @@
       "sent": "Đã gửi thông báo thử nghiệm",
       "permissionWarning": "Không gửi được thông báo thử nghiệm. Kiểm tra quyền truy cập.",
       "sendFailed": "Không thể gửi thông báo thử nghiệm. Vui lòng kiểm tra quyền thông báo và thử lại.",
-      "soundFailed": "Không thể phát âm thanh thông báo. Hãy kiểm tra âm lượng hệ thống."
+      "soundFailed": "Không thể phát âm thanh thông báo. Hãy kiểm tra âm lượng hệ thống.",
+      "body": "Đây là thông báo thử nghiệm từ ORGII"
     }
   },
   "editor": {

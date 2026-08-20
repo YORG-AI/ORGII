@@ -732,7 +732,8 @@
       "sent": "Notificación de prueba enviada",
       "permissionWarning": "No se pudo enviar la notificación de prueba. Comprueba los permisos.",
       "sendFailed": "No se puede enviar la notificación de prueba. Comprueba los permisos de notificación e inténtalo de nuevo.",
-      "soundFailed": "No se puede reproducir el sonido de notificación. Comprueba el volumen del sistema."
+      "soundFailed": "No se puede reproducir el sonido de notificación. Comprueba el volumen del sistema.",
+      "body": "Esta es una notificación de prueba de ORGII"
     }
   },
   "editor": {

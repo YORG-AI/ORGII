@@ -732,7 +732,8 @@
       "sent": "Test bildirimi gönderildi",
       "permissionWarning": "Test bildirimi gönderilemedi. İzinleri kontrol edin.",
       "sendFailed": "Test bildirimi gönderilemiyor. Bildirim izinlerinizi kontrol edip yeniden deneyin.",
-      "soundFailed": "Bildirim sesi çalınamıyor. Sistem ses düzeyini kontrol edin."
+      "soundFailed": "Bildirim sesi çalınamıyor. Sistem ses düzeyini kontrol edin.",
+      "body": "Bu, ORGII tarafından gönderilen bir test bildirimidir"
     }
   },
   "editor": {

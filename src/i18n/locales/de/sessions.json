@@ -2419,7 +2419,10 @@
       "memberSessions": "Mitgliedersitzungen",
       "pauseRun": "Ausführung pausieren",
       "resumeRun": "Ausführung fortsetzen",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "Plan zur Genehmigung bereit"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent-Nachrichten",

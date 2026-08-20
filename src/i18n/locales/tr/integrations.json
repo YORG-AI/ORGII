@@ -32,7 +32,7 @@
       "refreshed": "{{name}} başarıyla yenilendi",
       "refreshFailed": "{{name}} doğrulama başarısız - kimlik bilgilerini kontrol edin",
       "allRefreshed": "Tüm hesaplar yenilendi",
-      "refreshError": "{{name}} yenilenemedi",
+      "refreshError": "{{name}} yenilenemedi: {{error}}",
       "localRemoved": "{{name}} kaldırıldı",
       "unlistPending": "{{name}} listeden çıkarma istendi. Aktif Session sona erdiğinde kaldırılacak.",
       "listingRemoved": "{{name}} pazar yerinden kaldırıldı",

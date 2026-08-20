@@ -32,7 +32,7 @@
       "refreshed": "{{name}} の更新が完了しました",
       "refreshFailed": "{{name}} の検証に失敗しました - 認証情報を確認してください",
       "allRefreshed": "すべてのアカウントを更新しました",
-      "refreshError": "{{name}} の更新に失敗しました",
+      "refreshError": "{{name}} の更新に失敗しました：{{error}}",
       "localRemoved": "{{name}} を削除しました",
       "unlistPending": "{{name}} のリスト解除をリクエストしました。アクティブなSession終了後に削除されます。",
       "listingRemoved": "{{name}} をマーケットプレイスから削除しました",

@@ -32,7 +32,7 @@
       "refreshed": "{{name}} actualisé avec succès",
       "refreshFailed": "{{name}} validation échouée - vérifiez les identifiants",
       "allRefreshed": "Tous les comptes actualisés",
-      "refreshError": "Échec de l'actualisation de {{name}}",
+      "refreshError": "Échec de l'actualisation de {{name}} : {{error}}",
       "localRemoved": "{{name}} supprimé",
       "unlistPending": "{{name}} retrait demandé. Sera supprimé à la fin des Session actives.",
       "listingRemoved": "{{name}} retiré du marketplace",

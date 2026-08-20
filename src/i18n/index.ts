@@ -136,11 +136,23 @@ export function resolveSystemLanguage(): SupportedLanguage {
   );
 
   for (const browserLanguage of browserLanguages) {
-    if (isSupportedLanguage(browserLanguage)) {
-      return browserLanguage;
+    const normalizedLanguage = browserLanguage.trim().replace(/_/g, "-");
+    const subtags = normalizedLanguage.toLowerCase().split("-");
+    const baseLanguage = subtags[0];
+
+    if (baseLanguage === "zh") {
+      const script = subtags.find(
+        (subtag: string) => subtag === "hans" || subtag === "hant"
+      );
+      if (script === "hant") return "zh-Hant";
+      if (script === "hans") return "zh";
+
+      const region = subtags.find((subtag: string) =>
+        ["tw", "hk", "mo"].includes(subtag)
+      );
+      return region ? "zh-Hant" : "zh";
     }
 
-    const baseLanguage = browserLanguage.split("-")[0];
     if (isSupportedLanguage(baseLanguage)) {
       return baseLanguage;
     }

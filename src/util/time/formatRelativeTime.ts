@@ -1,4 +1,5 @@
 import { resolveTimeZoneForIntl } from "@src/config/timezone";
+import { resolveDateLocale } from "@src/util/data/formatters/date";
 
 export type RelativeTimeStyle = "short" | "compact" | "long" | "nano" | "issue";
 
@@ -29,16 +30,30 @@ function toMs(timestamp: number | string | null | undefined): number | null {
  *   - "long":    "just now", "2 minutes ago", "3 hours ago", "1 month ago", "2 years ago"
  *   - "nano":    "Now", "5m", "3h", "2d", "1w", "3mo", "1y"
  *   - "issue":   "today", "yesterday", "5d ago", "2mo ago", "1y ago"
+ * @param locale - Optional BCP-47 locale. Defaults to i18n.resolvedLanguage.
  */
 export function formatRelativeTime(
   timestamp: number | string | null | undefined,
-  style: RelativeTimeStyle = "short"
+  style: RelativeTimeStyle = "short",
+  locale?: string
 ): string {
   const ms = toMs(timestamp);
   if (ms === null) return "";
 
   const diffMs = Date.now() - ms;
-  if (diffMs < 0) return style === "short" ? "Now" : "just now";
+  const resolvedLocale = resolveDateLocale(locale);
+  const useEnglishCompatibilityCopy = resolvedLocale
+    .toLowerCase()
+    .startsWith("en");
+  if (diffMs < 0) {
+    if (useEnglishCompatibilityCopy) {
+      return style === "short" ? "Now" : "just now";
+    }
+    return new Intl.RelativeTimeFormat(resolvedLocale, {
+      numeric: "auto",
+      style: style === "long" ? "long" : "narrow",
+    }).format(0, "second");
+  }
 
   const diffSec = Math.floor(diffMs / SEC);
   const diffMin = Math.floor(diffMs / MIN);
@@ -47,6 +62,37 @@ export function formatRelativeTime(
   const diffWeek = Math.floor(diffMs / WEEK);
   const diffMonth = Math.floor(diffMs / MONTH);
   const diffYear = Math.floor(diffMs / YEAR);
+
+  if (!useEnglishCompatibilityCopy) {
+    const formatter = new Intl.RelativeTimeFormat(resolvedLocale, {
+      numeric: "auto",
+      style: style === "long" ? "long" : style === "short" ? "short" : "narrow",
+    });
+
+    if (style === "short") {
+      if (diffSec < 60) return formatter.format(0, "second");
+      if (diffMin < 60) return formatter.format(-diffMin, "minute");
+      if (diffHr < 24) return formatter.format(-diffHr, "hour");
+      if (diffDay < 7) return formatter.format(-diffDay, "day");
+      return new Date(ms).toLocaleDateString(resolvedLocale, {
+        timeZone: resolveTimeZoneForIntl(),
+      });
+    }
+
+    if (style === "issue") {
+      if (diffDay < 30) return formatter.format(-diffDay, "day");
+      if (diffMonth < 12) return formatter.format(-diffMonth, "month");
+      return formatter.format(-diffYear, "year");
+    }
+
+    if (diffSec < 60) return formatter.format(0, "second");
+    if (diffMin < 60) return formatter.format(-diffMin, "minute");
+    if (diffHr < 24) return formatter.format(-diffHr, "hour");
+    if (diffDay < 7) return formatter.format(-diffDay, "day");
+    if (diffWeek < 4) return formatter.format(-diffWeek, "week");
+    if (diffMonth < 12) return formatter.format(-diffMonth, "month");
+    return formatter.format(-diffYear, "year");
+  }
 
   if (style === "short") {
     if (diffSec < 60) return "Now";
@@ -57,7 +103,7 @@ export function formatRelativeTime(
     // Honor the explicit timezone preference like every other formatter
     // (`resolveTimeZoneForIntl` answers undefined for "auto", which Intl
     // treats as the system zone).
-    return new Date(ms).toLocaleDateString(undefined, {
+    return new Date(ms).toLocaleDateString(resolvedLocale, {
       timeZone: resolveTimeZoneForIntl(),
     });
   }

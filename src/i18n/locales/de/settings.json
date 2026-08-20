@@ -732,7 +732,8 @@
       "sent": "Testbenachrichtigung gesendet",
       "permissionWarning": "Testbenachrichtigung konnte nicht gesendet werden. Berechtigungen prüfen.",
       "sendFailed": "Testbenachrichtigung konnte nicht gesendet werden. Bitte Berechtigungen prüfen und erneut versuchen.",
-      "soundFailed": "Der Benachrichtigungston konnte nicht wiedergegeben werden. Prüfen Sie die Systemlautstärke."
+      "soundFailed": "Der Benachrichtigungston konnte nicht wiedergegeben werden. Prüfen Sie die Systemlautstärke.",
+      "body": "Dies ist eine Testbenachrichtigung von ORGII"
     }
   },
   "editor": {

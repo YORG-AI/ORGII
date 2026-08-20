@@ -2436,7 +2436,10 @@
       "memberSessions": "成員會話",
       "pauseRun": "暫停執行",
       "resumeRun": "恢復執行",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "計畫等待核准"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent 訊息",

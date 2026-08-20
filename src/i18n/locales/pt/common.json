@@ -2674,6 +2674,16 @@
       "noRepo": "Sem repo"
     }
   },
+  "notifications": {
+    "backgroundSession": "Sessão em segundo plano",
+    "taskCompletedTitle": "Tarefa concluída",
+    "taskCompletedBody": "“{{name}}” foi concluída — pronta para revisão",
+    "taskCompletedToast": "“{{name}}” foi concluída. Abra a sessão para revisar o resultado.",
+    "openSessionAction": "Abrir sessão",
+    "taskFailedTitle": "Falha na tarefa",
+    "taskFailedBody": "“{{name}}” falhou{{detail}}",
+    "taskCancelledToast": "“{{name}}” foi cancelada"
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Selecione um Workspace para começar",
     "selectRepoToStart": "Selecione um Repo para começar"

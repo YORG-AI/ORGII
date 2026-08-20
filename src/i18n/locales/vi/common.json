@@ -2672,6 +2672,16 @@
       "noRepo": "Không có repo"
     }
   },
+  "notifications": {
+    "backgroundSession": "Phiên chạy nền",
+    "taskCompletedTitle": "Tác vụ đã hoàn tất",
+    "taskCompletedBody": "“{{name}}” đã hoàn tất — sẵn sàng để xem xét",
+    "taskCompletedToast": "“{{name}}” đã hoàn tất. Mở phiên để xem xét kết quả.",
+    "openSessionAction": "Mở phiên",
+    "taskFailedTitle": "Tác vụ thất bại",
+    "taskFailedBody": "“{{name}}” đã thất bại{{detail}}",
+    "taskCancelledToast": "“{{name}}” đã bị hủy"
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Chọn một Workspace để bắt đầu",
     "selectRepoToStart": "Chọn một Repo để bắt đầu"

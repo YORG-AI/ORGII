@@ -2675,6 +2675,16 @@
       "noRepo": "Repo 없음"
     }
   },
+  "notifications": {
+    "backgroundSession": "백그라운드 세션",
+    "taskCompletedTitle": "작업 완료",
+    "taskCompletedBody": "“{{name}}” 작업이 완료되어 검토할 수 있습니다",
+    "taskCompletedToast": "“{{name}}” 작업이 완료되었습니다. 세션을 열어 결과를 검토하세요.",
+    "openSessionAction": "세션 열기",
+    "taskFailedTitle": "작업 실패",
+    "taskFailedBody": "“{{name}}” 작업에 실패했습니다{{detail}}",
+    "taskCancelledToast": "“{{name}}” 작업이 취소되었습니다"
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Workspace를 선택하여 시작",
     "selectRepoToStart": "Repo를 선택하여 시작"

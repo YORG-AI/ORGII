@@ -732,7 +732,8 @@
       "sent": "Wysłano testowe powiadomienie",
       "permissionWarning": "Nie udało się wysłać testowego powiadomienia. Sprawdź uprawnienia.",
       "sendFailed": "Nie można wysłać testowego powiadomienia. Sprawdź uprawnienia do powiadomień i spróbuj ponownie.",
-      "soundFailed": "Nie można odtworzyć dźwięku powiadomienia. Sprawdź głośność systemu."
+      "soundFailed": "Nie można odtworzyć dźwięku powiadomienia. Sprawdź głośność systemu.",
+      "body": "To jest powiadomienie testowe od ORGII"
     }
   },
   "editor": {

@@ -2139,7 +2139,7 @@
     "searchModels": "Model ara...",
     "newItem": "Yeni öğe",
     "solveWorkItem": "İş öğesini çöz",
-    "launchpadQuestion": "",
+    "launchpadQuestion": "Seçtiğiniz",
     "launchpadQuestionSuffix": "ile ne oluşturmak istersiniz?",
     "manualLaunchpadQuestion": "Ne oluşturmak istersiniz?",
     "start": "Başlat",
@@ -2422,7 +2422,10 @@
       "memberSessions": "Üye oturumları",
       "pauseRun": "Çalıştırmayı duraklat",
       "resumeRun": "Çalıştırmayı devam ettir",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "Plan onaya hazır"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent mesajları",

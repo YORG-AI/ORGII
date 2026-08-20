@@ -358,7 +358,20 @@
       "inHours": "in {{count}} hours",
       "membersGroup": "Members",
       "agentsGroup": "Agents",
-      "orgsGroup": "Organizations"
+      "orgsGroup": "Organizations",
+      "yes": "Yes",
+      "no": "No",
+      "datePlaceholder": "YYYY-MM-DD",
+      "optionsRequired": "Select properties require comma-separated options.",
+      "add": "Add property",
+      "updateFailed": "Property update failed",
+      "namePlaceholder": "Property name",
+      "type": "Property type",
+      "optionsPlaceholder": "Options, comma separated",
+      "loading": "Loading properties…",
+      "empty": "No custom properties yet.",
+      "archive": "Archive property",
+      "archiveNamed": "Archive {{name}}"
     },
     "history": {
       "noHistory": "No history yet"
@@ -440,7 +453,18 @@
         "schedule": "schedule",
         "orchestratorConfig": "orchestrator config",
         "handoff": "handoff"
-      }
+      },
+      "resolved": "Resolved",
+      "reopen": "Reopen",
+      "resolve": "Resolve",
+      "conclusion": "Conclusion",
+      "reply": "Reply",
+      "submitComment": "Submit comment",
+      "replyingInThread": "Replying in thread",
+      "cancelReply": "Cancel reply",
+      "openedWorkItem": "opened this work item",
+      "messageCount_one": "{{count}} message",
+      "messageCount_other": "{{count}} messages"
     },
     "contextMenu": {
       "status": "Status",
@@ -544,7 +568,9 @@
       "emptyOverview": "No sessions yet",
       "emptyOverviewHint": "Start an Agent session to track execution here.",
       "originTitle": "Creation session",
-      "originStatus": "Created this item"
+      "originStatus": "Created this item",
+      "retry": "Retry",
+      "runsCount": "{{count}} runs"
     },
     "outputTab": {
       "prSection": "Pull Request",
@@ -565,7 +591,9 @@
       "costSummary": "Cost Summary",
       "totalCost": "Total",
       "tokens": "tokens",
-      "cycles": "cycles"
+      "cycles": "cycles",
+      "prReady": "Ready to complete",
+      "prBlocked": "Completion is blocked"
     },
     "viewWorkItems": "View work items",
     "fromRoutine": "From routine: {{name}}",
@@ -588,7 +616,11 @@
       "notOnDeviceTitle": "Session not on this device",
       "notOnDeviceHint": "This session ran on another device. Its transcript is not synced here.",
       "finalOutput": "Final output"
-    }
+    },
+    "linkedSessions": {
+      "title": "Sessions"
+    },
+    "navigationTrail": "Work item navigation"
   },
   "settings": {
     "sidebarGeneral": "General",

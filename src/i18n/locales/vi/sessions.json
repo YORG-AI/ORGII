@@ -2418,7 +2418,10 @@
       "memberSessions": "Phiên thành viên",
       "pauseRun": "Tạm dừng thực thi",
       "resumeRun": "Tiếp tục thực thi",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "Kế hoạch đã sẵn sàng để phê duyệt"
+      }
     },
     "agentOrgInbox": {
       "title": "Tin nhắn Agent",

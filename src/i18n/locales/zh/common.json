@@ -2817,5 +2817,137 @@
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "正在准备下载…",
     "downloadingAndInstalling": "正在下载并安装更新 (v{{version}})…"
+  },
+  "gitDialogs": {
+    "common": {
+      "cancel": "取消",
+      "ok": "确定",
+      "currentBranch": "当前分支",
+      "gitSaid": "Git 提示：{{message}}"
+    },
+    "operations": {
+      "push": "推送",
+      "pull": "拉取",
+      "fetch": "获取远程更新",
+      "checkout": "切换分支",
+      "sync": "同步",
+      "merge": "合并",
+      "rebase": "变基",
+      "commit": "提交",
+      "clone": "克隆",
+      "other": "{{operation}}"
+    },
+    "checkoutBlocked": {
+      "worktreeTitle": "该分支已在另一个工作树中打开",
+      "mergeTitle": "请先完成合并",
+      "rebaseTitle": "请先完成变基",
+      "cherryPickTitle": "请先完成拣选提交",
+      "branchNotFoundTitle": "未找到分支",
+      "cannotSwitchTitle": "无法切换分支",
+      "worktreeMessage": "无法切换到“{{branchName}}”，因为 Git 显示该分支已在另一个工作树中检出。\n\n请从源代码管理中打开那个工作树，或为此工作区选择其他分支。",
+      "mergeMessage": "合并正在进行，无法切换到“{{branchName}}”。\n\n请先解决冲突，然后继续或中止合并，再切换分支。",
+      "rebaseMessage": "变基正在进行，无法切换到“{{branchName}}”。\n\n请先继续或中止变基，再切换分支。",
+      "cherryPickMessage": "拣选提交正在进行，无法切换到“{{branchName}}”。\n\n请先继续或中止拣选提交，再切换分支。",
+      "branchNotFoundMessage": "未找到分支“{{branchName}}”。请获取远程分支后重试。",
+      "cannotSwitchMessage": "无法切换到“{{branchName}}”。"
+    },
+    "checkoutConflict": {
+      "title": "切换分支冲突",
+      "message": "切换到“{{branchName}}”会覆盖本地更改。",
+      "stashAndCheckout": "暂存更改并切换",
+      "discardAndCheckout": "丢弃更改并切换"
+    },
+    "detachedHead": {
+      "title": "分离 HEAD 状态",
+      "message": "当前处于提交 {{shortHash}} 的分离 HEAD 状态。\n\n你目前不在任何分支上。如果未先创建新分支就切换到其他分支，在此所做的提交可能会丢失。\n\n⚠️ 分离 HEAD 状态下的提交可能会被 Git 垃圾回收。",
+      "createBranch": "创建分支",
+      "continueWithoutBranch": "不创建分支并继续"
+    },
+    "largePush": {
+      "title": "检测到大量推送",
+      "message_one": "即将向 {{remoteName}}/{{branchName}} 推送 {{count}} 个提交。\n\n此次推送数量较多，确定要继续吗？\n\n💡 建议将大型更改拆分为更小、更聚焦的提交。",
+      "message_other": "即将向 {{remoteName}}/{{branchName}} 推送 {{count}} 个提交。\n\n此次推送数量较多，确定要继续吗？\n\n💡 建议将大型更改拆分为更小、更聚焦的提交。",
+      "pushAllCommits": "推送所有提交"
+    },
+    "protectedBranch": {
+      "title": "受保护分支",
+      "message": "{{remoteName}} 上的分支“{{branchName}}”受保护，无法直接推送。\n\n对受保护分支的更改必须通过 Pull Request 提交。",
+      "createPullRequest": "创建 Pull Request"
+    },
+    "pullConflict": {
+      "title": "存在本地更改，无法拉取",
+      "message": "来自“{{branchName}}”的新更改会覆盖本地更改。{{fileInfo}}\n\n请选择处理方式：",
+      "affectedFiles_one": "（影响 {{count}} 个文件）",
+      "affectedFiles_other": "（影响 {{count}} 个文件）",
+      "stashAndPull": "暂存更改并拉取",
+      "discardAndPull": "丢弃更改并拉取"
+    },
+    "pushRejected": {
+      "title": "推送被拒绝",
+      "message": "无法推送到 {{remoteName}}/{{branchName}}。\n\n远程分支包含本地尚未拥有的提交。{{behindInfo}}\n\n⚠️ 强制推送会永久覆盖远程更改。",
+      "behindInfo_one": "（落后 {{count}} 个提交）",
+      "behindInfo_other": "（落后 {{count}} 个提交）",
+      "pullAndPush": "拉取后推送",
+      "forcePush": "强制推送"
+    },
+    "rebaseConflict": {
+      "mergeTitle": "合并冲突",
+      "rebaseTitle": "变基冲突",
+      "progress": "（第 {{currentStep}} / {{totalSteps}} 步）",
+      "conflictingFiles_one": "\n\n{{count}} 个文件存在冲突。",
+      "conflictingFiles_other": "\n\n{{count}} 个文件存在冲突。",
+      "mergeMessage": "合并“{{targetBranch}}”时发生冲突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作将取消合并并恢复当前分支。",
+      "rebaseMessage": "变基到“{{targetBranch}}”时发生冲突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作会将当前分支恢复到变基前的状态。",
+      "resolveConflicts": "解决冲突",
+      "abortMerge": "中止合并",
+      "abortRebase": "中止变基"
+    },
+    "remoteBranchDeleted": {
+      "title": "远程分支已删除",
+      "message": "远程跟踪分支“{{remoteName}}/{{branchName}}”已被删除，但本地分支仍然存在。\n\n⚠️ 删除本地分支会丢弃所有尚未推送的提交。",
+      "switchTo": "切换到 {{branchName}}",
+      "deleteLocalBranch": "删除本地分支",
+      "keepLocalBranch": "保留本地分支"
+    },
+    "gitError": {
+      "titles": {
+        "none": "Git：操作已完成",
+        "nonFastForward": "Git：推送被拒绝",
+        "protectedBranch": "Git：受保护分支",
+        "authenticationFailed": "Git：身份验证失败",
+        "remoteBranchDeleted": "Git：远程分支已删除",
+        "uncommittedChanges": "Git：存在未提交的更改",
+        "networkError": "Git：网络错误",
+        "mergeConflicts": "Git：合并冲突",
+        "permissionDenied": "Git：权限不足",
+        "unknown": "Git：操作失败"
+      },
+      "messages": {
+        "none": "Git 操作已成功完成。",
+        "nonFastForward": "远程分支包含更新的提交，因此推送被拒绝。",
+        "protectedBranch": "目标分支受保护，无法通过此操作更新。",
+        "authenticationFailed": "无法通过远程仓库的身份验证。请检查凭据后重试。",
+        "remoteBranchDeleted": "远程分支似乎已被删除或不再可用。",
+        "uncommittedChanges": "本地更改将被覆盖。请先提交或暂存这些更改再重试。",
+        "networkError": "无法连接到远程仓库。请检查网络连接。",
+        "mergeConflicts": "此操作产生了需要解决的合并冲突。",
+        "permissionDenied": "此仓库操作被拒绝。请检查你的仓库访问权限。",
+        "unknown": "Git 操作意外失败。请查看日志了解详情。"
+      },
+      "operationFailed": "{{operation}}操作失败",
+      "dialogMessage": "{{operation}}失败：{{baseMessage}}\n\n{{detailMessage}}",
+      "stashHint": "\n\n提示：“暂存更改并继续”会暂存本地更改（包括未跟踪文件），重试该操作，然后询问是否恢复这些更改。",
+      "stashAndContinue": "暂存更改并继续",
+      "openGitLog": "打开 Git 日志",
+      "showCommandOutput": "显示命令输出"
+    },
+    "gitAction": {
+      "title": "Git",
+      "transportError": "无法连接到本地 Git 服务。请等待应用启动完成后重试；如果问题持续存在，请重启 ORGII。"
+    }
+  },
+  "destructiveDialog": {
+    "discard": "丢弃",
+    "cancel": "取消"
   }
 }

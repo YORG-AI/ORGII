@@ -32,7 +32,7 @@
       "refreshed": "{{name}} успешно обновлён",
       "refreshFailed": "{{name}} проверка не пройдена - проверьте учётные данные",
       "allRefreshed": "Все аккаунты обновлены",
-      "refreshError": "Не удалось обновить {{name}}",
+      "refreshError": "Не удалось обновить {{name}}: {{error}}",
       "localRemoved": "{{name}} удалён",
       "unlistPending": "{{name}} запрос на удаление отправлен. Будет удалено после завершения активных Session.",
       "listingRemoved": "{{name}} удалён из маркетплейса",

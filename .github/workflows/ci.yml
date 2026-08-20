@@ -84,6 +84,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: i18n contracts
+        run: pnpm check:i18n:contracts
+
       - name: Unit tests
         run: pnpm run test
 

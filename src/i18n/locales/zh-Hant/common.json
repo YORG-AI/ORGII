@@ -2755,5 +2755,147 @@
       "updated": "更新時間"
     },
     "selectRow": "選擇 {{id}}"
+  },
+  "notifications": {
+    "backgroundSession": "背景工作階段",
+    "taskCompletedTitle": "任務已完成",
+    "taskCompletedBody": "「{{name}}」已完成，可以檢視結果",
+    "taskCompletedToast": "「{{name}}」已完成。請開啟工作階段以檢視結果。",
+    "openSessionAction": "開啟工作階段",
+    "taskFailedTitle": "任務失敗",
+    "taskFailedBody": "「{{name}}」失敗{{detail}}",
+    "taskCancelledToast": "「{{name}}」已取消"
+  },
+  "gitDialogs": {
+    "common": {
+      "cancel": "取消",
+      "ok": "確定",
+      "currentBranch": "目前分支",
+      "gitSaid": "Git 提示：{{message}}"
+    },
+    "operations": {
+      "push": "推送",
+      "pull": "拉取",
+      "fetch": "取得遠端更新",
+      "checkout": "切換分支",
+      "sync": "同步",
+      "merge": "合併",
+      "rebase": "變基",
+      "commit": "提交",
+      "clone": "複製儲存庫",
+      "other": "{{operation}}"
+    },
+    "checkoutBlocked": {
+      "worktreeTitle": "該分支已在另一個工作樹中開啟",
+      "mergeTitle": "請先完成合併",
+      "rebaseTitle": "請先完成變基",
+      "cherryPickTitle": "請先完成揀選提交",
+      "branchNotFoundTitle": "找不到分支",
+      "cannotSwitchTitle": "無法切換分支",
+      "worktreeMessage": "無法切換到「{{branchName}}」，因為 Git 顯示該分支已在另一個工作樹中簽出。\n\n請從原始碼控制開啟該工作樹，或為此工作區選擇其他分支。",
+      "mergeMessage": "合併正在進行，無法切換到「{{branchName}}」。\n\n請先解決衝突，然後繼續或中止合併，再切換分支。",
+      "rebaseMessage": "變基正在進行，無法切換到「{{branchName}}」。\n\n請先繼續或中止變基，再切換分支。",
+      "cherryPickMessage": "揀選提交正在進行，無法切換到「{{branchName}}」。\n\n請先繼續或中止揀選提交，再切換分支。",
+      "branchNotFoundMessage": "找不到分支「{{branchName}}」。請取得遠端分支後再試一次。",
+      "cannotSwitchMessage": "無法切換到「{{branchName}}」。"
+    },
+    "checkoutConflict": {
+      "title": "切換分支衝突",
+      "message": "切換到「{{branchName}}」會覆寫本機變更。",
+      "stashAndCheckout": "暫存變更並切換",
+      "discardAndCheckout": "捨棄變更並切換"
+    },
+    "detachedHead": {
+      "title": "分離 HEAD 狀態",
+      "message": "目前處於提交 {{shortHash}} 的分離 HEAD 狀態。\n\n你目前不在任何分支上。若未先建立新分支就切換到其他分支，在此所做的提交可能會遺失。\n\n⚠️ 分離 HEAD 狀態下的提交可能會被 Git 垃圾回收。",
+      "createBranch": "建立分支",
+      "continueWithoutBranch": "不建立分支並繼續"
+    },
+    "largePush": {
+      "title": "偵測到大量推送",
+      "message_one": "即將向 {{remoteName}}/{{branchName}} 推送 {{count}} 個提交。\n\n此次推送數量較多，確定要繼續嗎？\n\n💡 建議將大型變更拆分成較小且更聚焦的提交。",
+      "message_other": "即將向 {{remoteName}}/{{branchName}} 推送 {{count}} 個提交。\n\n此次推送數量較多，確定要繼續嗎？\n\n💡 建議將大型變更拆分成較小且更聚焦的提交。",
+      "pushAllCommits": "推送所有提交"
+    },
+    "protectedBranch": {
+      "title": "受保護分支",
+      "message": "{{remoteName}} 上的分支「{{branchName}}」受到保護，無法直接推送。\n\n對受保護分支的變更必須透過 Pull Request 提交。",
+      "createPullRequest": "建立 Pull Request"
+    },
+    "pullConflict": {
+      "title": "存在本機變更，無法拉取",
+      "message": "來自「{{branchName}}」的新變更會覆寫本機變更。{{fileInfo}}\n\n請選擇處理方式：",
+      "affectedFiles_one": "（影響 {{count}} 個檔案）",
+      "affectedFiles_other": "（影響 {{count}} 個檔案）",
+      "stashAndPull": "暫存變更並拉取",
+      "discardAndPull": "捨棄變更並拉取"
+    },
+    "pushRejected": {
+      "title": "推送遭拒",
+      "message": "無法推送到 {{remoteName}}/{{branchName}}。\n\n遠端分支包含本機尚未擁有的提交。{{behindInfo}}\n\n⚠️ 強制推送會永久覆寫遠端變更。",
+      "behindInfo_one": "（落後 {{count}} 個提交）",
+      "behindInfo_other": "（落後 {{count}} 個提交）",
+      "pullAndPush": "拉取後推送",
+      "forcePush": "強制推送"
+    },
+    "rebaseConflict": {
+      "mergeTitle": "合併衝突",
+      "rebaseTitle": "變基衝突",
+      "progress": "（第 {{currentStep}} / {{totalSteps}} 步）",
+      "conflictingFiles_one": "\n\n{{count}} 個檔案有衝突。",
+      "conflictingFiles_other": "\n\n{{count}} 個檔案有衝突。",
+      "mergeMessage": "合併「{{targetBranch}}」時發生衝突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作將取消合併並還原目前分支。",
+      "rebaseMessage": "變基到「{{targetBranch}}」時發生衝突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作會將目前分支還原到變基前的狀態。",
+      "resolveConflicts": "解決衝突",
+      "abortMerge": "中止合併",
+      "abortRebase": "中止變基"
+    },
+    "remoteBranchDeleted": {
+      "title": "遠端分支已刪除",
+      "message": "遠端追蹤分支「{{remoteName}}/{{branchName}}」已刪除，但本機分支仍然存在。\n\n⚠️ 刪除本機分支會捨棄所有尚未推送的提交。",
+      "switchTo": "切換到 {{branchName}}",
+      "deleteLocalBranch": "刪除本機分支",
+      "keepLocalBranch": "保留本機分支"
+    },
+    "gitError": {
+      "titles": {
+        "none": "Git：操作已完成",
+        "nonFastForward": "Git：推送遭拒",
+        "protectedBranch": "Git：受保護分支",
+        "authenticationFailed": "Git：驗證失敗",
+        "remoteBranchDeleted": "Git：遠端分支已刪除",
+        "uncommittedChanges": "Git：存在未提交的變更",
+        "networkError": "Git：網路錯誤",
+        "mergeConflicts": "Git：合併衝突",
+        "permissionDenied": "Git：權限不足",
+        "unknown": "Git：操作失敗"
+      },
+      "messages": {
+        "none": "Git 操作已成功完成。",
+        "nonFastForward": "遠端分支包含較新的提交，因此推送遭拒。",
+        "protectedBranch": "目標分支受到保護，無法透過此操作更新。",
+        "authenticationFailed": "無法通過遠端儲存庫的驗證。請檢查憑證後再試一次。",
+        "remoteBranchDeleted": "遠端分支似乎已刪除或不再可用。",
+        "uncommittedChanges": "本機變更將被覆寫。請先提交或暫存這些變更再試一次。",
+        "networkError": "無法連線到遠端儲存庫。請檢查網路連線。",
+        "mergeConflicts": "此操作產生了需要解決的合併衝突。",
+        "permissionDenied": "此儲存庫操作遭拒。請檢查你的儲存庫存取權限。",
+        "unknown": "Git 操作意外失敗。請查看記錄以瞭解詳情。"
+      },
+      "operationFailed": "{{operation}}操作失敗",
+      "dialogMessage": "{{operation}}失敗：{{baseMessage}}\n\n{{detailMessage}}",
+      "stashHint": "\n\n提示：「暫存變更並繼續」會暫存本機變更（包括未追蹤檔案），重試該操作，然後詢問是否還原這些變更。",
+      "stashAndContinue": "暫存變更並繼續",
+      "openGitLog": "開啟 Git 記錄",
+      "showCommandOutput": "顯示命令輸出"
+    },
+    "gitAction": {
+      "title": "Git",
+      "transportError": "無法連線到本機 Git 服務。請等待應用程式啟動完成後再試一次；若問題持續發生，請重新啟動 ORGII。"
+    }
+  },
+  "destructiveDialog": {
+    "discard": "捨棄",
+    "cancel": "取消"
   }
 }

@@ -2686,6 +2686,16 @@
       "noRepo": "Нет repo"
     }
   },
+  "notifications": {
+    "backgroundSession": "Фоновая сессия",
+    "taskCompletedTitle": "Задача завершена",
+    "taskCompletedBody": "«{{name}}» завершена — можно проверить",
+    "taskCompletedToast": "«{{name}}» завершена. Откройте сессию, чтобы проверить результат.",
+    "openSessionAction": "Открыть сессию",
+    "taskFailedTitle": "Ошибка задачи",
+    "taskFailedBody": "«{{name}}» завершилась с ошибкой{{detail}}",
+    "taskCancelledToast": "«{{name}}» отменена"
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Выберите Workspace, чтобы начать",
     "selectRepoToStart": "Выберите Repo, чтобы начать"

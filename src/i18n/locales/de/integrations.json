@@ -32,7 +32,7 @@
       "refreshed": "{{name}} erfolgreich aktualisiert",
       "refreshFailed": "{{name}} Validierung fehlgeschlagen - Anmeldedaten prüfen",
       "allRefreshed": "Alle Konten aktualisiert",
-      "refreshError": "{{name}} konnte nicht aktualisiert werden",
+      "refreshError": "{{name}} konnte nicht aktualisiert werden: {{error}}",
       "localRemoved": "{{name}} entfernt",
       "unlistPending": "{{name}} Entfernung angefordert. Wird nach Ende aktiver Session entfernt.",
       "listingRemoved": "{{name}} vom Marktplatz entfernt",

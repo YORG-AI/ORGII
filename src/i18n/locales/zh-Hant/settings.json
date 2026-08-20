@@ -732,7 +732,8 @@
       "sent": "測試通知已發送",
       "permissionWarning": "測試通知發送失敗，請檢查權限。",
       "sendFailed": "無法發送測試通知。請檢查通知權限後重試。",
-      "soundFailed": "無法播放通知音效，請檢查系統音量。"
+      "soundFailed": "無法播放通知音效，請檢查系統音量。",
+      "body": "這是一則來自 ORGII 的測試通知"
     }
   },
   "editor": {

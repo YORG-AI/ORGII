@@ -2138,7 +2138,7 @@
     "searchModels": "모델 검색...",
     "newItem": "새 항목",
     "solveWorkItem": "작업 항목 해결",
-    "launchpadQuestion": "",
+    "launchpadQuestion": "선택한",
     "launchpadQuestionSuffix": "와 함께 무엇을 만들고 싶으신가요?",
     "manualLaunchpadQuestion": "무엇을 만들고 싶으신가요?",
     "start": "시작",
@@ -2421,7 +2421,10 @@
       "memberSessions": "Member 세션",
       "pauseRun": "실행 일시 중지",
       "resumeRun": "실행 재개",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "계획 승인 대기 중"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent 메시지",

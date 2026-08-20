@@ -128,9 +128,9 @@
     },
     "folderCounts": {
       "repo": "{{count}} Repo",
-      "repo_plural": "{{count}} Repos",
       "multiRepoWorkspace": "{{count}} Workspace multi-Repo",
-      "multiRepoWorkspace_plural": "{{count}} Workspaces multi-Repo"
+      "repo_other": "{{count}} Repos",
+      "multiRepoWorkspace_other": "{{count}} Workspaces multi-Repo"
     },
     "bottomBar": {
       "settings": "Configuración",

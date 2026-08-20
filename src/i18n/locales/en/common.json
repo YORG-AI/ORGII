@@ -263,7 +263,9 @@
     "skipThisVersion": "Skip this version",
     "later": "Later",
     "link": "Link",
-    "copyName": "Copy Name"
+    "copyName": "Copy Name",
+    "hide": "Hide file content",
+    "show": "Show file content"
   },
   "refreshToast": {
     "successName": "{{name}} refreshed",
@@ -554,7 +556,10 @@
     "typeFilePath": "Type a file path",
     "appliedCommits": "Applied commits",
     "noAppliedCommit": "No linked commit yet",
-    "noSessionsForFile": "No sessions found for this file"
+    "noSessionsForFile": "No sessions found for this file",
+    "actions": "Actions",
+    "all": "All",
+    "email": "Email"
   },
   "searchModes": {
     "keywordLabel": "Keyword",
@@ -665,7 +670,8 @@
     },
     "imageUploadFailed": "Failed to upload image",
     "imageTooLarge": "Image is too large",
-    "unknownError": "Unknown error occurred"
+    "unknownError": "Unknown error occurred",
+    "openInFinderFailed": "Failed to open in Finder"
   },
   "confirmation": {
     "delete": "Are you sure you want to delete this?",
@@ -1081,7 +1087,9 @@
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Preview unavailable",
     "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "selectRepositoryFromWorkspace": "Choose a workspace repository"
+    "selectRepositoryFromWorkspace": "Choose a workspace repository",
+    "noSessionHistory": "No session history",
+    "noSessionHistoryForFile": "No session activity found for {{file}}"
   },
   "inbox": {
     "searchPlaceholder": "Search messages...",
@@ -1459,7 +1467,14 @@
       },
       "commits": {
         "backToList": "All commits",
-        "none": "No commits"
+        "none": "No commits",
+        "committed": "committed",
+        "copySha": "Copy commit SHA",
+        "onDate": "Commits on {{date}}",
+        "unknownDate": "Unknown date",
+        "verified": "Verified",
+        "viewCommit": "View commit {{sha}}: {{summary}}",
+        "viewDetails": "View commit details"
       },
       "changes": {
         "title": "Files changed",
@@ -1486,7 +1501,9 @@
       "authRequired": {
         "title": "Connect GitHub",
         "description": "Go to Settings → Connections to connect your GitHub account."
-      }
+      },
+      "failedToLoad": "Failed to load pull requests",
+      "navigationTrail": "Pull request navigation"
     },
     "issues": {
       "title": "Issues",
@@ -1600,7 +1617,8 @@
       },
       "reAuthRequired": "GitHub Authorization Required",
       "reAuthDescription": "Your GitHub token has expired. Go to Settings → Connections to reconnect.",
-      "goToSettings": "Go to Settings"
+      "goToSettings": "Go to Settings",
+      "loadingTimeline": "Loading activity…"
     },
     "commit": {
       "copySha": "Copy SHA",
@@ -2374,7 +2392,8 @@
       "skills": "Skills",
       "mcp": "MCP",
       "subagents": "Subagents",
-      "summarized": "Summarized conversation"
+      "summarized": "Summarized conversation",
+      "unattributed": "Unattributed"
     },
     "warningHint": "Context is filling up. Start a new session soon for best results.",
     "dangerHint": "Context is nearly full. Start a new session to avoid losing detail.",
@@ -2419,7 +2438,9 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "tomorrow": "Tomorrow",
-    "daysAgo": "{{count}} days ago"
+    "daysAgo": "{{count}} days ago",
+    "last7Days": "Last 7 days",
+    "last30Days": "Last 30 days"
   },
   "cloneForm": {
     "titleCloneFromGitHub": "Clone from GitHub",
@@ -2897,5 +2918,142 @@
     "downloadedOfTotal": "{{downloaded}} of {{total}}",
     "preparingDownload": "Preparing download…",
     "downloadingAndInstalling": "Downloading and installing update (v{{version}})…"
+  },
+  "navigation": {
+    "section": "Section {{current}}",
+    "goToSection": "Go to {{label}}, section {{current}} of {{total}}",
+    "sectionPosition": "Section {{current}} of {{total}}"
+  },
+  "gitDialogs": {
+    "common": {
+      "cancel": "Cancel",
+      "ok": "OK",
+      "currentBranch": "current branch",
+      "gitSaid": "Git said: {{message}}"
+    },
+    "operations": {
+      "push": "Push",
+      "pull": "Pull",
+      "fetch": "Fetch",
+      "checkout": "Checkout",
+      "sync": "Sync",
+      "merge": "Merge",
+      "rebase": "Rebase",
+      "commit": "Commit",
+      "clone": "Clone",
+      "other": "{{operation}}"
+    },
+    "checkoutBlocked": {
+      "worktreeTitle": "Branch Already Open in Another Worktree",
+      "mergeTitle": "Finish the Merge First",
+      "rebaseTitle": "Finish the Rebase First",
+      "cherryPickTitle": "Finish the Cherry-pick First",
+      "branchNotFoundTitle": "Branch Not Found",
+      "cannotSwitchTitle": "Cannot Switch Branch",
+      "worktreeMessage": "Cannot switch to \"{{branchName}}\" because Git says that branch is already checked out in another worktree.\n\nOpen that worktree from Source Control, or choose a different branch for this workspace.",
+      "mergeMessage": "Cannot switch to \"{{branchName}}\" while a merge is in progress.\n\nResolve the merge, then continue or abort it before switching branches.",
+      "rebaseMessage": "Cannot switch to \"{{branchName}}\" while a rebase is in progress.\n\nContinue or abort the rebase before switching branches.",
+      "cherryPickMessage": "Cannot switch to \"{{branchName}}\" while a cherry-pick is in progress.\n\nContinue or abort the cherry-pick before switching branches.",
+      "branchNotFoundMessage": "Branch \"{{branchName}}\" was not found. Fetch remote branches, then try again.",
+      "cannotSwitchMessage": "Cannot switch to \"{{branchName}}\"."
+    },
+    "checkoutConflict": {
+      "title": "Checkout Conflict",
+      "message": "Local changes would be overwritten when checking out \"{{branchName}}\".",
+      "stashAndCheckout": "Stash & Checkout",
+      "discardAndCheckout": "Discard & Checkout"
+    },
+    "detachedHead": {
+      "title": "Detached HEAD State",
+      "message": "You are in detached HEAD state at commit {{shortHash}}.\n\nYou are not on any branch. Any commits you make may be lost if you check out another branch without creating a new branch first.\n\n⚠️ Commits in detached HEAD state may be garbage collected.",
+      "createBranch": "Create Branch",
+      "continueWithoutBranch": "Continue Without Branch"
+    },
+    "largePush": {
+      "title": "Large Push Detected",
+      "message_one": "You are about to push {{count}} commit to {{remoteName}}/{{branchName}}.\n\nThis is more than usual. Are you sure you want to continue?\n\n💡 Consider breaking large changes into smaller, more focused commits.",
+      "message_other": "You are about to push {{count}} commits to {{remoteName}}/{{branchName}}.\n\nThis is more than usual. Are you sure you want to continue?\n\n💡 Consider breaking large changes into smaller, more focused commits.",
+      "pushAllCommits": "Push All Commits"
+    },
+    "protectedBranch": {
+      "title": "Protected Branch",
+      "message": "The branch \"{{branchName}}\" on {{remoteName}} is protected and cannot be pushed to directly.\n\nProtected branches require changes to go through pull requests.",
+      "createPullRequest": "Create Pull Request"
+    },
+    "pullConflict": {
+      "title": "Can't Pull with Local Changes",
+      "message": "Your local changes would be overwritten by the incoming changes from \"{{branchName}}\".{{fileInfo}}\n\nChoose how to proceed:",
+      "affectedFiles_one": " ({{count}} file affected)",
+      "affectedFiles_other": " ({{count}} files affected)",
+      "stashAndPull": "Stash & Pull",
+      "discardAndPull": "Discard & Pull"
+    },
+    "pushRejected": {
+      "title": "Push Rejected",
+      "message": "Can't push to {{remoteName}}/{{branchName}}.\n\nThe remote branch contains commits that you don't have locally.{{behindInfo}}\n\n⚠️ Force push will overwrite remote changes permanently.",
+      "behindInfo_one": " ({{count}} commit behind)",
+      "behindInfo_other": " ({{count}} commits behind)",
+      "pullAndPush": "Pull & Push",
+      "forcePush": "Force Push"
+    },
+    "rebaseConflict": {
+      "mergeTitle": "Merge Conflict",
+      "rebaseTitle": "Rebase Conflict",
+      "progress": " (Step {{currentStep}} of {{totalSteps}})",
+      "conflictingFiles_one": "\n\n{{count}} file has conflicts.",
+      "conflictingFiles_other": "\n\n{{count}} files have conflicts.",
+      "mergeMessage": "Conflicts occurred while merging \"{{targetBranch}}\".{{progressInfo}}{{fileInfo}}\n\n⚠️ Aborting will cancel the merge and restore your branch.",
+      "rebaseMessage": "Conflicts occurred while rebasing onto \"{{targetBranch}}\".{{progressInfo}}{{fileInfo}}\n\n⚠️ Aborting will restore your branch to its state before rebasing.",
+      "resolveConflicts": "Resolve Conflicts",
+      "abortMerge": "Abort Merge",
+      "abortRebase": "Abort Rebase"
+    },
+    "remoteBranchDeleted": {
+      "title": "Remote Branch Deleted",
+      "message": "The remote tracking branch \"{{remoteName}}/{{branchName}}\" has been deleted, but your local branch still exists.\n\n⚠️ Deleting the local branch will discard any unpushed commits.",
+      "switchTo": "Switch to {{branchName}}",
+      "deleteLocalBranch": "Delete Local Branch",
+      "keepLocalBranch": "Keep Local Branch"
+    },
+    "gitError": {
+      "titles": {
+        "none": "Git: Operation Completed",
+        "nonFastForward": "Git: Push Rejected",
+        "protectedBranch": "Git: Protected Branch",
+        "authenticationFailed": "Git: Authentication Failed",
+        "remoteBranchDeleted": "Git: Remote Branch Deleted",
+        "uncommittedChanges": "Git: Uncommitted Changes",
+        "networkError": "Git: Network Error",
+        "mergeConflicts": "Git: Merge Conflicts",
+        "permissionDenied": "Git: Permission Denied",
+        "unknown": "Git: Operation Failed"
+      },
+      "messages": {
+        "none": "The Git operation completed successfully.",
+        "nonFastForward": "Your push was rejected because the remote branch contains newer commits.",
+        "protectedBranch": "The target branch is protected and cannot be updated by this operation.",
+        "authenticationFailed": "Failed to authenticate with the remote repository. Check your credentials and try again.",
+        "remoteBranchDeleted": "The remote branch appears to have been deleted or is no longer available.",
+        "uncommittedChanges": "Your local changes would be overwritten. Commit or stash them before retrying.",
+        "networkError": "Could not connect to the remote repository. Check your internet connection.",
+        "mergeConflicts": "The operation resulted in merge conflicts that need to be resolved.",
+        "permissionDenied": "Permission was denied for this repository operation. Check your repository access.",
+        "unknown": "The Git operation failed unexpectedly. See the log for details."
+      },
+      "operationFailed": "{{operation}} operation failed",
+      "dialogMessage": "{{operation}} failed: {{baseMessage}}\n\n{{detailMessage}}",
+      "stashHint": "\n\nHint: \"Stash and Continue\" will stash your local changes (including untracked files), retry the operation, then ask whether you want to restore those stashed changes.",
+      "stashAndContinue": "Stash and Continue",
+      "openGitLog": "Open Git Log",
+      "showCommandOutput": "Show Command Output"
+    },
+    "gitAction": {
+      "title": "Git",
+      "transportError": "Unable to reach the local Git service. Please try again after the app finishes starting, or restart ORGII if this keeps happening."
+    }
+  },
+  "destructiveDialog": {
+    "discard": "Discard",
+    "cancel": "Cancel"
   }
 }

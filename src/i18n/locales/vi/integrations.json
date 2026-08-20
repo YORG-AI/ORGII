@@ -32,7 +32,7 @@
       "refreshed": "{{name}} đã làm mới thành công",
       "refreshFailed": "{{name}} xác thực thất bại - kiểm tra thông tin đăng nhập",
       "allRefreshed": "Tất cả tài khoản đã được làm mới",
-      "refreshError": "Không thể làm mới {{name}}",
+      "refreshError": "Không thể làm mới {{name}}: {{error}}",
       "localRemoved": "{{name}} đã xóa",
       "unlistPending": "{{name}} yêu cầu hủy niêm yết. Sẽ được xóa khi các Session hoạt động kết thúc.",
       "listingRemoved": "{{name}} đã xóa khỏi marketplace",

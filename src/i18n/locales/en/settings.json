@@ -109,7 +109,13 @@
       "removeJobRole": "Remove {{role}}",
       "description": "About you",
       "descriptionHelp": "A short description of your background, interests, and how you like to work",
-      "descriptionPlaceholder": "Tell the agent about yourself…"
+      "descriptionPlaceholder": "Tell the agent about yourself…",
+      "defaultProfile": "Default profile",
+      "newProfileName": "New profile",
+      "activeProfile": "Active profile",
+      "activeProfileDescription": "Choose which profile is sent to agents. Switching is manual and under your control.",
+      "addProfile": "Add profile",
+      "profileName": "Profile name"
     }
   },
   "general": {
@@ -731,7 +737,8 @@
       "sent": "Test notification sent",
       "permissionWarning": "Failed to send test notification. Check permissions.",
       "sendFailed": "Unable to send test notification. Please check your notification permissions and try again.",
-      "soundFailed": "Unable to play the notification sound. Check your system volume."
+      "soundFailed": "Unable to play the notification sound. Check your system volume.",
+      "body": "This is a test notification from ORGII"
     },
     "teamInbox": "Team Inbox",
     "teamInboxDesc": "Assignments, mentions, and handoffs from teammates"

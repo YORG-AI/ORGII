@@ -49,7 +49,8 @@
     "projects": "Projects",
     "projectManager": "Project Manager",
     "diff": "Diff",
-    "terminals": "Terminals"
+    "terminals": "Terminals",
+    "teamInbox": "Team Inbox"
   },
   "workstation": {
     "agentComputer": {
@@ -157,9 +158,9 @@
     },
     "folderCounts": {
       "repo": "{{count}} repo",
-      "repo_plural": "{{count}} repos",
       "multiRepoWorkspace": "{{count}} Multi-Repo Workspace",
-      "multiRepoWorkspace_plural": "{{count}} Multi-Repo Workspaces"
+      "repo_other": "{{count}} repos",
+      "multiRepoWorkspace_other": "{{count}} Multi-Repo Workspaces"
     },
     "bottomBar": {
       "settings": "Settings",
@@ -195,7 +196,8 @@
       "duration30m": "30 minutes",
       "duration1h": "1 hour",
       "duration2h": "2 hours",
-      "durationTomorrow": "Tomorrow"
+      "durationTomorrow": "Tomorrow",
+      "unknownRole": "Unknown role"
     },
     "guide": {
       "trigger": "Open guide",
@@ -307,7 +309,36 @@
     "tabs": {
       "status": "My status",
       "about": "About me"
-    }
+    },
+    "guidancePlaceholder": "How should the agent adapt its behavior when this role is active?",
+    "newRoleDefaultLabel": "Custom role",
+    "deleteRoleTitle": "Delete role?",
+    "deleteRoleMessage": "“{{name}}” will be removed. This cannot be undone.",
+    "deleteRoleOk": "Delete",
+    "deleteRoleCancel": "Cancel",
+    "stanceInteractive": "Interactive — ask me freely",
+    "stanceDeferAndBatch": "Defer & batch — work first, ask later",
+    "stanceAutonomous": "Autonomous — never wait for me",
+    "stanceLabel": "Behavior stance",
+    "stanceDesc": "How the agent treats blocking decisions while this role is active.",
+    "questionAutoSkipLabel": "Question auto-skip",
+    "questionAutoSkipDesc": "Auto-skip pending agent questions after N seconds (0 = wait for me).",
+    "planAutoApproveLabel": "Plan auto-approve",
+    "planAutoApproveDesc": "Auto-approve pending plans after N seconds (0 = wait for me).",
+    "modeSwitchAutoPlanLabel": "Mode switch auto-plan",
+    "modeSwitchAutoPlanDesc": "Auto-switch pending Plan mode suggestions when their confirmation timer expires.",
+    "goalMaxTurnsLabel": "Goal continuation budget",
+    "goalMaxTurnsDesc": "Keep working toward my last request for up to N extra turns after the agent would normally stop (0 = off).",
+    "pageTitle": "My Roles",
+    "pageDescription": "Define the role you're playing right now. The agent reads the active role's guidance and adapts its behavior accordingly — for example, asking fewer clarifying questions when you're heads-down, or batching summaries when you're away.",
+    "builtInTitle": "Built-in roles",
+    "activeBadge": "Active",
+    "customTitle": "Custom roles",
+    "customEmpty": "No custom roles yet. Add one to capture a stance the built-in three don't cover — e.g. \"Deep work\", \"Pairing\", or \"On call\".",
+    "roleNameLabel": "Name",
+    "roleNamePlaceholder": "Role name",
+    "guidanceLabel": "Agent guidance",
+    "addRole": "Add custom role"
   },
   "launchpad": {
     "sections": {
@@ -991,6 +1022,57 @@
       "on": "On",
       "off": "Off",
       "memberNote": "Enabled by an admin — eligible sessions upload in the background without requiring you to open this organization."
+    }
+  },
+  "web": {
+    "title": "ORG2 Web",
+    "sessionsNav": "Sessions",
+    "loadingSession": "Loading session…",
+    "readOnly": {
+      "headerTrailing": "Cloud · Read only",
+      "barLabel": "Read only",
+      "barPlaceholder": "Cloud session is read-only"
+    },
+    "sessionsPage": {
+      "loadError": "Sessions could not be loaded",
+      "empty": "No synced sessions",
+      "select": "Select a session",
+      "emptyHint": "Open ORG2 Desktop and enable Cloud sync for a session.",
+      "selectHint": "Choose a Cloud session from the sidebar.",
+      "retry": "Retry"
+    },
+    "sessionPage": {
+      "notFound": "Session not found",
+      "notFoundHint": "It may no longer be shared with this account.",
+      "loading": "Loading session…",
+      "workstationLoading": "Loading session workspace…",
+      "workstationEmptyTitle": "No session files were uploaded",
+      "workstationEmptySubtitle": "This session has no readable file or edit payloads yet.",
+      "workstationLoadErrorFallback": "Session files could not be loaded",
+      "workstationLoadErrorSubtitle": "Agent Station replay remains available.",
+      "workstationRefreshFailedBanner": "Refresh failed. Showing files already available from session events.",
+      "chatTab": "Chat",
+      "workstationTab": "WorkStation",
+      "forkContext": "Fork of {{owner}}'s session",
+      "notesButton": "Session notes",
+      "notesTitle": "Session notes",
+      "notesEmpty": "No session notes yet."
+    },
+    "login": {
+      "title": "Sign in to ORG2 Web",
+      "subtitle": "Review shared sessions, chat history, and replay from any browser.",
+      "continue": "Continue with ORG2 Cloud",
+      "hint": "Use the same ORG2 Cloud account as the desktop app."
+    },
+    "authCallback": {
+      "failed": "Sign-in failed",
+      "tryAgain": "Try again",
+      "completing": "Completing sign-in",
+      "missingCredentials": "The sign-in callback is missing valid credentials.",
+      "missingIdentity": "The sign-in token does not contain a user identity."
+    },
+    "sidebar": {
+      "signOut": "Sign out {{name}}"
     }
   }
 }

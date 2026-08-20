@@ -2682,6 +2682,16 @@
       "noRepo": "Kein repo"
     }
   },
+  "notifications": {
+    "backgroundSession": "Hintergrund-Session",
+    "taskCompletedTitle": "Aufgabe abgeschlossen",
+    "taskCompletedBody": "„{{name}}“ wurde abgeschlossen – bereit zur Überprüfung",
+    "taskCompletedToast": "„{{name}}“ wurde abgeschlossen. Öffnen Sie die Session, um das Ergebnis zu überprüfen.",
+    "openSessionAction": "Session öffnen",
+    "taskFailedTitle": "Aufgabe fehlgeschlagen",
+    "taskFailedBody": "„{{name}}“ ist fehlgeschlagen{{detail}}",
+    "taskCancelledToast": "„{{name}}“ wurde abgebrochen"
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Workspace auswählen, um zu starten",
     "selectRepoToStart": "Repo auswählen, um zu starten"

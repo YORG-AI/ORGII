@@ -2677,6 +2677,16 @@
       "noRepo": "Repo なし"
     }
   },
+  "notifications": {
+    "backgroundSession": "バックグラウンドセッション",
+    "taskCompletedTitle": "タスク完了",
+    "taskCompletedBody": "「{{name}}」が完了しました。レビューできます",
+    "taskCompletedToast": "「{{name}}」が完了しました。セッションを開いて結果を確認してください。",
+    "openSessionAction": "セッションを開く",
+    "taskFailedTitle": "タスク失敗",
+    "taskFailedBody": "「{{name}}」は失敗しました{{detail}}",
+    "taskCancelledToast": "「{{name}}」はキャンセルされました"
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Workspace を選択して開始",
     "selectRepoToStart": "Repo を選択して開始"

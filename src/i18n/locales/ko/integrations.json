@@ -32,7 +32,7 @@
       "refreshed": "{{name}} 새로고침 완료",
       "refreshFailed": "{{name}} 검증 실패 - 자격 증명을 확인하세요",
       "allRefreshed": "모든 계정 새로고침 완료",
-      "refreshError": "{{name}} 새로고침 실패",
+      "refreshError": "{{name}} 새로고침 실패: {{error}}",
       "localRemoved": "{{name}} 제거됨",
       "unlistPending": "{{name}} 목록 해제 요청됨. 활성 Session 종료 후 제거됩니다.",
       "listingRemoved": "{{name}} 마켓플레이스에서 제거됨",

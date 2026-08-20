@@ -33,7 +33,7 @@
       "refreshed": "{{name}} atualizado com sucesso",
       "refreshFailed": "Falha na validação de {{name}} — verifique suas chaves",
       "allRefreshed": "Todas as contas atualizadas",
-      "refreshError": "Falha ao atualizar {{name}}",
+      "refreshError": "Falha ao atualizar {{name}}: {{error}}",
       "localRemoved": "{{name}} removido",
       "unlistPending": "Remoção do anúncio {{name}} solicitada. Será removido quando as sessões ativas terminarem.",
       "listingRemoved": "{{name}} removido do marketplace",

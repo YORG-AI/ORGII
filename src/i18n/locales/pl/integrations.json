@@ -33,7 +33,7 @@
       "refreshed": "{{name}} odświeżono pomyślnie",
       "refreshFailed": "Walidacja {{name}} nie powiodła się — sprawdź swoje klucze",
       "allRefreshed": "Wszystkie konta odświeżone",
-      "refreshError": "Nie udało się odświeżyć {{name}}",
+      "refreshError": "Nie udało się odświeżyć {{name}}: {{error}}",
       "localRemoved": "{{name}} usunięto",
       "unlistPending": "Zgłoszono wycofanie {{name}} z listy. Zostanie usunięte po zakończeniu aktywnych sesji.",
       "listingRemoved": "{{name}} usunięto z marketplace",

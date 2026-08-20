@@ -2679,6 +2679,16 @@
       "noRepo": "Repo yok"
     }
   },
+  "notifications": {
+    "backgroundSession": "Arka plan oturumu",
+    "taskCompletedTitle": "Görev tamamlandı",
+    "taskCompletedBody": "“{{name}}” tamamlandı — incelemeye hazır",
+    "taskCompletedToast": "“{{name}}” tamamlandı. Sonucu incelemek için oturumu açın.",
+    "openSessionAction": "Oturumu aç",
+    "taskFailedTitle": "Görev başarısız oldu",
+    "taskFailedBody": "“{{name}}” başarısız oldu{{detail}}",
+    "taskCancelledToast": "“{{name}}” iptal edildi"
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Başlamak için bir Workspace seçin",
     "selectRepoToStart": "Başlamak için bir Repo seçin"

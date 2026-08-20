@@ -32,7 +32,7 @@
       "refreshed": "{{name}} actualizado correctamente",
       "refreshFailed": "{{name}} validación fallida - verifique las credenciales",
       "allRefreshed": "Todas las cuentas actualizadas",
-      "refreshError": "Error al actualizar {{name}}",
+      "refreshError": "Error al actualizar {{name}}: {{error}}",
       "localRemoved": "{{name}} eliminado",
       "unlistPending": "{{name}} solicitud de eliminación enviada. Se eliminará cuando finalicen las Session activas.",
       "listingRemoved": "{{name}} eliminado del marketplace",
