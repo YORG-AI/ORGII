@@ -91,9 +91,9 @@ export function useCopySessionReference(): CopySessionReferenceResult {
           sourceSessionId: session.session_id,
         })
       )
-        .then(() => Message.success(i18n.t("common:actions.copied")))
+        .then(() => Message.success(i18n.t("common:status.copied")))
         .catch(() =>
-          Message.error(i18n.t("common:actions.copyFailed"), {
+          Message.error(i18n.t("common:status.copyFailed"), {
             duration: REFUSAL_MESSAGE_DURATION_MS,
             closable: true,
           })
