@@ -1,4 +1,3 @@
-import { useAtomValue } from "jotai";
 import {
   type MutableRefObject,
   useEffect,
@@ -7,19 +6,15 @@ import {
   useState,
 } from "react";
 
-import { sessionHydrationByIdAtom } from "@src/engines/SessionCore";
-import {
-  isPendingCancelAtom,
-  isSessionActiveAtom,
-  sessionRolledBackAtom,
-} from "@src/store/session/cliSessionStatusAtom";
-
 export interface UseChatEmptyStateOptions {
-  activeSessionId: string | null;
   sessionLoadStatus: string;
   optimizedLen: number;
   /** Grace period in ms before confirming the "load failed" empty state. */
   gracePeriodMs?: number;
+  isAgentWorking: boolean;
+  isPendingCancel: boolean;
+  isRolledBack: boolean;
+  isHydrating: boolean;
 }
 
 export interface UseChatEmptyStateReturn {
@@ -38,19 +33,14 @@ export interface UseChatEmptyStateReturn {
  * failed" placeholder by `gracePeriodMs` so real data has time to arrive.
  */
 export function useChatEmptyState({
-  activeSessionId,
   sessionLoadStatus,
   optimizedLen,
   gracePeriodMs = 5_000,
+  isAgentWorking,
+  isPendingCancel,
+  isRolledBack,
+  isHydrating,
 }: UseChatEmptyStateOptions): UseChatEmptyStateReturn {
-  const isAgentWorking = useAtomValue(isSessionActiveAtom);
-  const isPendingCancel = useAtomValue(isPendingCancelAtom);
-  const isRolledBack = useAtomValue(sessionRolledBackAtom);
-  const sessionHydration = useAtomValue(
-    sessionHydrationByIdAtom(activeSessionId ?? "")
-  );
-  const isHydrating = (sessionHydration?.count ?? 0) > 0;
-
   const isPendingCancelRef = useRef(false);
   useLayoutEffect(() => {
     isPendingCancelRef.current = isPendingCancel;

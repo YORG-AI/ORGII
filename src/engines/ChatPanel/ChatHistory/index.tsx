@@ -6,15 +6,12 @@
 import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useSessionTranscriptPlatform } from "@src/engines/ChatPanel/runtime/sessionTranscriptPlatform";
 import { loadEventComponent } from "@src/engines/SessionCore/rendering/registry/events";
-import { usePinnedSession } from "@src/features/Org2Cloud/SessionConversation/usePinnedSession";
 import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
-import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
-import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
-import { type Session } from "@src/store/session/sessionAtom";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+import type { Session } from "@src/store/session/sessionAtom";
 
 import { SharedConversationSenderProvider } from "../ChatItems/SharedConversationSenderContext";
 import { useChatSessionId } from "../ChatSessionContext";
@@ -33,7 +30,6 @@ import {
   useChatNavigationController,
   useChatSearchIntegration,
   useChatViewportController,
-  useReloadSession,
 } from "./hooks";
 import "./index.scss";
 
@@ -115,15 +111,12 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   planningIndicatorScope = null,
 }) => {
   const activeId = useChatSessionId() ?? null;
-  const rawCursorIdeTurnSummaries = useAtomValue(
-    cursorIdeTurnSummariesAtomFamily(activeId ?? "")
-  );
-  const activeSession = usePinnedSession(activeId ?? "");
-  const isCursorIde = activeId ? isCursorIdeSession(activeId) : false;
-  const cursorIdeTurnSummaries = isCursorIde ? rawCursorIdeTurnSummaries : [];
-  const handleReloadSession = useReloadSession(activeId);
-  const historyState = useChatHistoryState();
-  const isAgentWorking = useAtomValue(isSessionActiveAtom);
+  const platform = useSessionTranscriptPlatform(activeId);
+  const activeSession = platform.session;
+  const cursorIdeTurnSummaries = platform.cursorIdeTurnSummaries;
+  const isCursorIde = platform.isCursorIde;
+  const handleReloadSession = platform.onReload;
+  const historyState = useChatHistoryState({ platform });
   const groupChat = useGroupChatContext();
   const remoteEntries = useAtomValue(org2CloudRemoteSessionsAtom);
   const sharedConversationSender = useMemo(
@@ -132,12 +125,13 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   );
 
   useEffect(() => {
+    if (!platform.capabilities.canvasInline) return;
     // Canvas payloads can reach the WorkStation as soon as the tool call is
     // stored. Warm the chat renderer while the user is still waiting for the
     // agent so the persisted canvas event can take over without a Suspense
     // placeholder between the live and historical render paths.
     void loadEventComponent("canvas_inline");
-  }, []);
+  }, [platform.capabilities.canvasInline]);
 
   const [planningIndicatorCount, setPlanningIndicatorCount] = useState<0 | 1>(
     0
@@ -159,7 +153,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     forceCollapseAllTurns,
     groupChat,
     hideGroupUserMessage,
-    isAgentWorking,
+    isAgentWorking: platform.isAgentWorking,
     isCursorIde,
     planningIndicatorCount,
     sessionStatus: activeSession?.status,
@@ -183,9 +177,12 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     virtualListRef: historyState.virtualListRef,
   });
   const emptyState = useChatEmptyState({
-    activeSessionId: activeId,
     sessionLoadStatus: historyState.sessionLoadStatus,
     optimizedLen: historyState.chatHistory.length,
+    isAgentWorking: platform.isAgentWorking,
+    isPendingCancel: platform.isPendingCancel,
+    isRolledBack: platform.isRolledBack,
+    isHydrating: platform.isHydrating,
   });
   const search = useChatSearchIntegration({
     chatHistory: historyState.chatHistory,
@@ -264,6 +261,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
         search={search}
         surfaceBgClass={surfaceBgClass}
         turnPaginationEnabled={turnPaginationEnabled}
+        turnMetadataEnabled={platform.capabilities.turnMetadata}
         viewport={viewport}
       />
     </SharedConversationSenderProvider>

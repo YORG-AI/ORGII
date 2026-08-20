@@ -25,15 +25,9 @@ import {
   useChatHistory,
   useChatHistoryActions,
 } from "@src/contexts/workspace/ChatContext";
-import useReplyQuestion from "@src/engines/ChatPanel/hooks/useReplyQuestion";
-import {
-  isExploringAtom,
-  loadErrorAtom,
-  loadStatusAtom,
-} from "@src/engines/SessionCore";
+import type { SessionTranscriptPlatformState } from "@src/engines/ChatPanel/runtime/sessionTranscriptPlatform.types";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { useAgentWorkingRef } from "@src/hooks/streaming";
 import {
   chatCodeFontSizeAtom,
   chatFontSizeAtom,
@@ -59,7 +53,9 @@ function useSyncRef<T>(value: T): MutableRefObject<T> {
 // Props Interface
 // ============================================
 
-export type UseChatHistoryStateProps = Record<string, never>;
+export interface UseChatHistoryStateProps {
+  platform: SessionTranscriptPlatformState;
+}
 
 // ============================================
 // Return Type
@@ -108,9 +104,9 @@ export interface UseChatHistoryStateReturn {
 // Hook
 // ============================================
 
-export function useChatHistoryState(
-  _props: UseChatHistoryStateProps = {}
-): UseChatHistoryStateReturn {
+export function useChatHistoryState({
+  platform,
+}: UseChatHistoryStateProps): UseChatHistoryStateReturn {
   // ============================================
   // Context & Atoms
   // ============================================
@@ -124,16 +120,9 @@ export function useChatHistoryState(
   const { setIsChatScrolledToBottom, chatContainerRef } =
     useChatHistoryActions();
 
-  const isExploring = useAtomValue(isExploringAtom);
-  const sessionLoadStatus = useAtomValue(loadStatusAtom);
-  const sessionLoadError = useAtomValue(loadErrorAtom);
-  // Colocated subscription: read agent working state via EventStore selector
-  // instead of isSessionActiveAtom to avoid unnecessary re-renders.
-  const isWpGeneWorkingRef = useAgentWorkingRef();
   const chatFontSize = useAtomValue(chatFontSizeAtom);
   const chatCodeFontSize = useAtomValue(chatCodeFontSizeAtom);
   const chatLineHeight = useAtomValue(chatLineHeightAtom);
-  const { handleReplyQuestion, handleIgnoreQuestion } = useReplyQuestion();
 
   // ============================================
   // Local State
@@ -168,9 +157,9 @@ export function useChatHistoryState(
   // PERFORMANCE OPTIMIZATION: Store handler references in refs for stable callback identity
   // This prevents renderChatItem from being recreated when these handlers change
 
-  const handleIgnoreQuestionRef = useSyncRef(handleIgnoreQuestion);
-  const isExploringRef = useSyncRef(isExploring);
-  const handleReplyQuestionRef = useSyncRef(handleReplyQuestion);
+  const handleIgnoreQuestionRef = useSyncRef(platform.onIgnoreQuestion);
+  const isExploringRef = useSyncRef(platform.isExploring);
+  const handleReplyQuestionRef = useSyncRef(platform.onReplyQuestion);
 
   // ============================================
   // Return
@@ -185,7 +174,7 @@ export function useChatHistoryState(
     // Refs
     chatContainerRef,
     virtualListRef,
-    isWpGeneWorkingRef,
+    isWpGeneWorkingRef: platform.isAgentWorkingRef,
     isExploringRef,
     handleReplyQuestionRef,
     handleIgnoreQuestionRef,
@@ -203,8 +192,8 @@ export function useChatHistoryState(
     codeBlockContainerWidth,
 
     // Session loading
-    sessionLoadStatus,
-    sessionLoadError,
+    sessionLoadStatus: platform.loadStatus,
+    sessionLoadError: platform.loadError,
 
     // Callbacks from context
     setIsChatScrolledToBottom,

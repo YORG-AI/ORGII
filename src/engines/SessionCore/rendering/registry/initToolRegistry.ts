@@ -258,17 +258,17 @@ export async function initToolRegistry(): Promise<void> {
     publishToolClassifierRegistry();
   } catch (err) {
     log.error("[initToolRegistry] Failed to fetch from Rust:", err);
-    builtinSimulatorAppMap = new Map();
     builtinIconIdMap = new Map();
     builtinActionIconsMap = new Map();
     builtinStatusIconsMap = new Map();
-    builtinAppSubtoolMap = new Map();
     builtinChatBlockMap = new Map(BASELINE_CHAT_BLOCKS);
     builtinDisplayBehaviorMap = new Map();
     builtinActionsMap = new Map();
     builtinLabelsMap = new Map();
     builtinStatusLabelsMap = new Map();
-    cliAliasMap = new Map();
+    const { applyBundledToolRegistryFallback } =
+      await import("./bundledToolRegistryFallback");
+    applyBundledToolRegistryFallback();
     publishToolClassifierRegistry();
   }
 }

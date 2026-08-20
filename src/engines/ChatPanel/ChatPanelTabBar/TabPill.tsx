@@ -128,7 +128,7 @@ export const TabPill = memo(function TabPill({
       kanban: t("sessions:simulator.tabs.kanban"),
       work: t("navigation:labels.workItems"),
     },
-    sessionFallback: t("chat.defaultTitle"),
+    sessionFallback: t("sessions:chat.defaultTitle"),
   });
   const displayTitle =
     tab.type !== "start-page"

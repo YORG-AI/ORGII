@@ -82,9 +82,9 @@ const SessionReferenceCard: React.FC<{ item: MessageReferenceItem }> = ({
   const handleCopy = useCallback(async () => {
     try {
       await copyText(referencedSessionId);
-      Message.success(tCommon("copied"));
+      Message.success(tCommon("status.copied"));
     } catch {
-      Message.error(t("failedToCopyContent"));
+      Message.error(t("chat.failedToCopyContent"));
     }
   }, [referencedSessionId, t, tCommon]);
 
@@ -155,7 +155,7 @@ const MessageReferenceCard: React.FC<MessageReferenceCardProps> = ({
     ? t("cards.path.copied")
     : isCommit
       ? tCommon("git.commit.shaCopied")
-      : tCommon("copied");
+      : tCommon("status.copied");
   const openLabel = isLocalPath ? t("cards.path.open") : t("cards.url.open");
   const openInAppLabel = t("cards.actions.openInApp");
   const externalOpenLabel = isCommit
@@ -202,7 +202,7 @@ const MessageReferenceCard: React.FC<MessageReferenceCardProps> = ({
       await copyText(item.sha ?? item.value);
       Message.success(copiedLabel);
     } catch {
-      Message.error(t("failedToCopyContent"));
+      Message.error(t("chat.failedToCopyContent"));
     }
   }, [copiedLabel, item.sha, item.value, t]);
 

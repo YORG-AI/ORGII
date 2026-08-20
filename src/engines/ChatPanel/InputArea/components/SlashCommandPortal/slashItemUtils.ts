@@ -2,7 +2,7 @@
  * Shared utilities for slash-menu item construction.
  * Used by useSlashItemsCache, useSlashCommand, PinnedActionsBar, and FlyoutSubmenu.
  */
-import type { ComposerInputRef } from "@src/components/ComposerInput";
+import type { ComposerInputRef } from "@src/components/ComposerInput/types";
 import { type InstalledSkill, SLASH_ACTIONS } from "@src/types/extensions";
 
 /**
@@ -88,11 +88,6 @@ export function buildMcpToolCommand(
 ): string {
   const serverSlug = serverName.replace(/-/g, "_");
   return `/mcp__${serverSlug}__${toolName} `;
-}
-
-/** Build the canonical editable text inserted for a built-in slash action. */
-export function buildSlashActionCommand(actionName: string): string {
-  return `/${actionName} `;
 }
 
 const ATOMIC_SLASH_ACTIONS = new Set<string>([

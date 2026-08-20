@@ -24,7 +24,7 @@ export function useBrowserAddToConversationAction(): UseBrowserAddToConversation
   const browserCallbacks = useAtomValue(browserStatusBarCallbacksAtom);
 
   const addToConversationLabel = t("browser.selectedElement.addElement");
-  const cancelAddToConversationLabel = t("actions.clearSelection");
+  const cancelAddToConversationLabel = t("tooltips.clearSelection");
   const selectedElementLabel = browserStatus.browserSelectedElementLabel;
   const onSendSelectedElementToChat =
     browserCallbacks.onSendSelectedElementToChat;

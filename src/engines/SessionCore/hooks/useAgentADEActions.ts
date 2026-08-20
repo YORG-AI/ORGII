@@ -17,7 +17,6 @@
  * Also ensures that ActionSystem actions are registered (via registerCoreActions)
  * so they're available even if the Workstation editor isn't mounted.
  */
-import { Channel, invoke } from "@tauri-apps/api/core";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 
@@ -29,6 +28,7 @@ import {
 } from "@src/ActionSystem";
 import { sendAdeActionResult } from "@src/api/tauri/agent";
 import { clearSessionAtom } from "@src/engines/SessionCore/core/atoms/actions";
+import { subscribeToSessionEvents } from "@src/engines/SessionCore/sync/useSessionChannel";
 import { reposAtom } from "@src/store/repo/atoms";
 import {
   SESSION_TARGET_KIND,
@@ -193,12 +193,7 @@ export function useAgentADEActions(): void {
 
   useEffect(() => {
     const sessionId = "";
-    const channel = new Channel<string>();
-    let cancelled = false;
-    let channelId: number | null = null;
-
-    channel.onmessage = (rawMessage: string) => {
-      if (cancelled) return;
+    return subscribeToSessionEvents(sessionId, (rawMessage) => {
       recordPushEvent("channel", "ade-actions");
       try {
         const detail = parseAdeActionEnvelope(rawMessage);
@@ -206,31 +201,7 @@ export function useAgentADEActions(): void {
       } catch {
         return;
       }
-    };
-
-    invoke<number>("subscribe_session_events", {
-      sessionId,
-      onEvent: channel,
-    })
-      .then((id) => {
-        if (cancelled) {
-          void invoke("unsubscribe_session_events", {
-            sessionId,
-            channelId: id,
-          });
-          return;
-        }
-        channelId = id;
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-      channel.onmessage = () => undefined;
-      if (channelId !== null) {
-        void invoke("unsubscribe_session_events", { sessionId, channelId });
-      }
-    };
+    });
   }, []);
 
   // Register actions and listen for ADE action events
