@@ -14,6 +14,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useClaudeCodeOAuthCapture } from "@src/features/SessionSetup/hooks/useClaudeCodeOAuthCapture";
+import { useOAuthBrowserAutoStart } from "@src/features/SessionSetup/hooks/useOAuthBrowserAutoStart";
 import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SectionContainer,
@@ -107,15 +108,7 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
     }
   }, [isSignedIn, isWebviewOpen]);
 
-  useEffect(() => {
-    if (!showBrowser || isWebviewOpen || isSigningIn) return;
-
-    const timer = setTimeout(() => {
-      void startLogin();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [isSigningIn, isWebviewOpen, showBrowser, startLogin]);
+  useOAuthBrowserAutoStart(showBrowser, startLogin);
 
   useWebviewPositionSync(containerRef, isWebviewOpen, updatePosition);
 

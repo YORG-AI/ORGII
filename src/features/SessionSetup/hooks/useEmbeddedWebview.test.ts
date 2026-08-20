@@ -48,6 +48,8 @@ describe("useEmbeddedWebview visibility observation", () => {
   let container: HTMLDivElement;
   let host: HTMLDivElement;
   let hostVisible: boolean;
+  let pageVisibility: DocumentVisibilityState;
+  let originalVisibilityState: PropertyDescriptor | undefined;
   let notifyIntersection: (() => void) | null;
   let notifyResize: (() => void) | null;
   let root: Root;
@@ -63,6 +65,7 @@ describe("useEmbeddedWebview visibility observation", () => {
     notifyIntersection = null;
     notifyResize = null;
     hostVisible = true;
+    pageVisibility = "visible";
     container = document.createElement("div");
     host = document.createElement("div");
     document.body.append(container, host);
@@ -105,6 +108,14 @@ describe("useEmbeddedWebview visibility observation", () => {
       configurable: true,
       get: () => (hostVisible ? document.body : null),
     });
+    originalVisibilityState = Object.getOwnPropertyDescriptor(
+      document,
+      "visibilityState"
+    );
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => pageVisibility,
+    });
     host.getBoundingClientRect = () =>
       ({
         x: 0,
@@ -123,6 +134,15 @@ describe("useEmbeddedWebview visibility observation", () => {
     act(() => root.unmount());
     container.remove();
     host.remove();
+    if (originalVisibilityState) {
+      Object.defineProperty(
+        document,
+        "visibilityState",
+        originalVisibilityState
+      );
+    } else {
+      Reflect.deleteProperty(document, "visibilityState");
+    }
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
@@ -158,6 +178,17 @@ describe("useEmbeddedWebview visibility observation", () => {
     });
     expect(latest!.isOpen).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
+
+    pageVisibility = "hidden";
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      notifyIntersection!();
+      await Promise.resolve();
+    });
+    expect(latest!.isOpen).toBe(true);
+    expect(mocks.invoke).not.toHaveBeenCalledWith("close_test_webview", {
+      label: "test-webview-id",
+    });
 
     hostVisible = false;
     await act(async () => {

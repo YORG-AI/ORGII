@@ -14,6 +14,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useCodexOAuthCapture } from "@src/features/SessionSetup/hooks/useCodexOAuthCapture";
+import { useOAuthBrowserAutoStart } from "@src/features/SessionSetup/hooks/useOAuthBrowserAutoStart";
 import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SectionContainer,
@@ -91,15 +92,7 @@ const CodexSessionSetup: React.FC<CodexSessionSetupProps> = ({
     }
   }, [isSignedIn, isWebviewOpen]);
 
-  useEffect(() => {
-    if (!showBrowser || isWebviewOpen || isSigningIn) return;
-
-    const timer = setTimeout(() => {
-      void startLogin();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [isSigningIn, isWebviewOpen, showBrowser, startLogin]);
+  useOAuthBrowserAutoStart(showBrowser, startLogin);
 
   useWebviewPositionSync(containerRef, isWebviewOpen, updatePosition);
 

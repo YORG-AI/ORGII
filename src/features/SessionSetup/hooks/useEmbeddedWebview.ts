@@ -205,7 +205,10 @@ export function useEmbeddedWebview({
     };
   }, [commands.urlChangedEvent, ignoreAboutBlank, log]);
 
-  // KeepAlive visibility observation — auto-close when host container is hidden
+  // KeepAlive visibility observation — auto-close when the host container is
+  // removed from layout. Do not use document.visibilityState here: macOS can
+  // report the parent document as hidden while a native child webview owns the
+  // active OAuth surface. Treating that as a hidden host closes the login view.
   const wasHiddenWhileOpen = useRef(false);
 
   useEffect(() => {
@@ -215,9 +218,7 @@ export function useEmbeddedWebview({
 
     const checkVisibility = () => {
       if (transitioning) return;
-      const isHidden =
-        document.visibilityState !== "visible" ||
-        container.offsetParent === null;
+      const isHidden = container.offsetParent === null;
 
       if (isHidden && isOpen) {
         transitioning = true;
@@ -243,13 +244,11 @@ export function useEmbeddedWebview({
     intersectionObserver.observe(container);
     const resizeObserver = new ResizeObserver(checkVisibility);
     resizeObserver.observe(container);
-    document.addEventListener("visibilitychange", checkVisibility);
     checkVisibility();
 
     return () => {
       intersectionObserver.disconnect();
       resizeObserver.disconnect();
-      document.removeEventListener("visibilitychange", checkVisibility);
     };
   }, [isOpen, containerRef, commands.close, currentUrl, openWebview]);
 

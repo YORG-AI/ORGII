@@ -3,7 +3,9 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::webview::WebviewBuilder;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+#[cfg(not(target_os = "macos"))]
+use tauri::WebviewWindowBuilder;
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl};
 
 use crate::agent_sessions::cli::platform_adapters::webview_session::{
     clear_oauth_browser_session_native, COMMON_OAUTH_SESSION_DOMAINS,
@@ -152,54 +154,68 @@ pub async fn create_codex_oauth_webview(
         tracing::info!(url = %url_value, "[codex-oauth] new window requested");
 
         if should_open_oauth_popup(&url_value) {
-            let popup_label = format!("{}-popup-{}", label_for_new_window, random_base64url(6));
-            let app_for_popup_navigation = app_for_new_window.clone();
-            let app_for_popup_close = app_for_new_window.clone();
-            let label_for_popup_navigation = label_for_new_window.clone();
-            let popup_label_for_navigation = popup_label.clone();
-            let ownership_observation =
-                perf_utils::begin_webview_ownership_observation(popup_label.clone());
-            let builder = WebviewWindowBuilder::new(
-                &app_for_new_window,
-                popup_label,
-                WebviewUrl::External("about:blank".parse().expect("valid about:blank URL")),
-            )
-            .window_features(features)
-            .title("OpenAI Sign in")
-            .inner_size(560.0, 700.0)
-            .on_navigation(move |popup_navigation_url| {
-                let popup_url_value = popup_navigation_url.to_string();
-                let _ = app_for_popup_navigation.emit(
-                    "codex-oauth-url-changed",
-                    serde_json::json!({
-                        "url": popup_url_value,
-                        "webviewLabel": label_for_popup_navigation,
-                    }),
-                );
-                if is_codex_callback_url(&popup_url_value) {
-                    let app_for_async_close = app_for_popup_close.clone();
-                    let popup_label_for_async_close = popup_label_for_navigation.clone();
-                    tauri::async_runtime::spawn(async move {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                        if let Some(popup) =
-                            app_for_async_close.get_webview_window(&popup_label_for_async_close)
-                        {
-                            let _ = popup.close();
-                        }
-                    });
-                }
-                true
-            });
+            // wry's native macOS popup reuses the caller WKWebView configuration
+            // and preserves window.opener. Building a second Tauri window inside
+            // WebKit's synchronous createNewPage callback can abort the process.
+            #[cfg(target_os = "macos")]
+            {
+                let _ = &features;
+                tracing::info!(url = %url_value, "[codex-oauth] allowing native OAuth popup");
+                return tauri::webview::NewWindowResponse::Allow;
+            }
 
-            match builder.build() {
-                Ok(window) => {
-                    ownership_observation.commit();
-                    tracing::info!(url = %url_value, "[codex-oauth] created OAuth popup");
-                    return tauri::webview::NewWindowResponse::Create { window };
-                }
-                Err(err) => {
-                    tracing::warn!(url = %url_value, error = %err, "[codex-oauth] failed to create OAuth popup");
-                    return tauri::webview::NewWindowResponse::Deny;
+            #[cfg(not(target_os = "macos"))]
+            {
+                let popup_label =
+                    format!("{}-popup-{}", label_for_new_window, random_base64url(6));
+                let app_for_popup_navigation = app_for_new_window.clone();
+                let app_for_popup_close = app_for_new_window.clone();
+                let label_for_popup_navigation = label_for_new_window.clone();
+                let popup_label_for_navigation = popup_label.clone();
+                let ownership_observation =
+                    perf_utils::begin_webview_ownership_observation(popup_label.clone());
+                let builder = WebviewWindowBuilder::new(
+                    &app_for_new_window,
+                    popup_label,
+                    WebviewUrl::External("about:blank".parse().expect("valid about:blank URL")),
+                )
+                .window_features(features)
+                .title("OpenAI Sign in")
+                .inner_size(560.0, 700.0)
+                .on_navigation(move |popup_navigation_url| {
+                    let popup_url_value = popup_navigation_url.to_string();
+                    let _ = app_for_popup_navigation.emit(
+                        "codex-oauth-url-changed",
+                        serde_json::json!({
+                            "url": popup_url_value,
+                            "webviewLabel": label_for_popup_navigation,
+                        }),
+                    );
+                    if is_codex_callback_url(&popup_url_value) {
+                        let app_for_async_close = app_for_popup_close.clone();
+                        let popup_label_for_async_close = popup_label_for_navigation.clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                            if let Some(popup) =
+                                app_for_async_close.get_webview_window(&popup_label_for_async_close)
+                            {
+                                let _ = popup.close();
+                            }
+                        });
+                    }
+                    true
+                });
+
+                match builder.build() {
+                    Ok(window) => {
+                        ownership_observation.commit();
+                        tracing::info!(url = %url_value, "[codex-oauth] created OAuth popup");
+                        return tauri::webview::NewWindowResponse::Create { window };
+                    }
+                    Err(err) => {
+                        tracing::warn!(url = %url_value, error = %err, "[codex-oauth] failed to create OAuth popup");
+                        return tauri::webview::NewWindowResponse::Deny;
+                    }
                 }
             }
         }
@@ -270,6 +286,7 @@ fn should_open_oauth_popup(value: &str) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(not(target_os = "macos"))]
 fn is_codex_callback_url(value: &str) -> bool {
     url::Url::parse(value)
         .map(|url| {

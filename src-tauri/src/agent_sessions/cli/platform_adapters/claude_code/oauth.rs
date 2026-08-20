@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::webview::WebviewBuilder;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl};
-// Host-managed popup window is only built on macOS/Linux; Windows uses the
-// native WebView2 popup (NewWindowResponse::Allow) instead.
-#[cfg(not(target_os = "windows"))]
+// Host-managed popup windows are only built where wry has no native popup path
+// selected below. Windows and macOS preserve window.opener via `Allow`.
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 use tauri::WebviewWindowBuilder;
 
 use crate::agent_sessions::cli::platform_adapters::webview_session::{
@@ -183,24 +183,21 @@ pub async fn create_claude_code_oauth_webview(
         let url_value = new_window_url.to_string();
         tracing::info!(url = %url_value, "[claude-code-oauth] new window requested");
         if is_google_accounts_url(&url_value) {
-            // Windows: hand the popup to WebView2 natively. wry maps `Allow` to
-            // `SetHandled(false)`, so WebView2 opens the popup as a real child of
-            // the caller webview — preserving `window.opener` and the shared
-            // session. Google's GIS popup needs that opener to postMessage the
-            // credential back to claude.ai. The host-managed `Create` path below
-            // uses a fresh environment with no opener, so on Windows the popup
-            // renders but sign-in fails with "There was an error logging you in".
-            #[cfg(target_os = "windows")]
+            // Hand the popup to wry's platform-native implementation. It creates
+            // the child from the caller's WebView2 environment / WKWebView
+            // configuration, preserving window.opener for Google's postMessage.
+            // It also avoids re-entering Tauri window construction from WebKit's
+            // synchronous createNewPage callback on macOS.
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             {
                 let _ = &features; // unused on this platform
-                tracing::info!(url = %url_value, "[claude-code-oauth] allowing native Google OAuth popup (Windows)");
+                tracing::info!(url = %url_value, "[claude-code-oauth] allowing native Google OAuth popup");
                 return tauri::webview::NewWindowResponse::Allow;
             }
 
-            // macOS/Linux: WKWebView / WebKitGTK drive a host-created popup to the
-            // requested URL and keep it related to the caller, so we manage it
-            // ourselves and watch its navigation to auto-close on completion.
-            #[cfg(not(target_os = "windows"))]
+            // Other desktop WebKit ports keep the host-managed popup path and
+            // navigation watcher used to close it after the callback.
+            #[cfg(not(any(target_os = "windows", target_os = "macos")))]
             {
                 let popup_label =
                     format!("{}-popup-{}", label_for_new_window, random_base64url(6));
@@ -324,16 +321,16 @@ fn is_google_accounts_url(value: &str) -> bool {
         .unwrap_or(false)
 }
 
-// Only used by the host-managed popup's navigation handler (macOS/Linux). On
-// Windows the native WebView2 popup is unmanaged, so these are not referenced.
-#[cfg(not(target_os = "windows"))]
+// Only used by the host-managed popup navigation handler. Native Windows/macOS
+// popups are owned by wry, so these helpers are not referenced there.
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn is_claude_code_callback_url(value: &str) -> bool {
     url::Url::parse(value)
         .map(|url| url.as_str().starts_with(REDIRECT_URI))
         .unwrap_or(false)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn is_google_gsi_transform_url(value: &str) -> bool {
     url::Url::parse(value)
         .map(|url| url.domain() == Some("accounts.google.com") && url.path() == "/gsi/transform")
