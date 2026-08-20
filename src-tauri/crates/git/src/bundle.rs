@@ -10,7 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
 
-use crate::util::{close_inherited_fds, git_command};
+use crate::util::{close_inherited_fds, git_command, is_transient_error};
 use tauri::Emitter;
 
 // ============================================
@@ -51,15 +51,6 @@ const MAX_BUNDLE_SIZE: u64 = 200 * 1024 * 1024;
 // ============================================
 // Helper Functions
 // ============================================
-
-/// Check if an error is a transient system error that can be retried
-fn is_transient_error(error_msg: &str) -> bool {
-    error_msg.contains("Bad file descriptor")
-        || error_msg.contains("Resource temporarily unavailable")
-        || error_msg.contains("os error 9")
-        || error_msg.contains("Too many open files")
-        || error_msg.contains("os error 24")
-}
 
 /// Helper to run git commands directly, closing inherited file descriptors
 /// Uses pre_exec on Unix to close FDs 3-1024 before exec to avoid WebView FD inheritance issues
