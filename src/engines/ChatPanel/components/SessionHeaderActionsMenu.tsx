@@ -5,6 +5,7 @@ import {
   Clipboard,
   FolderKanban,
   FolderOutput,
+  Link,
   Link2,
   MoreHorizontal,
   PanelLeft,
@@ -26,6 +27,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
+import { useCopySessionReference } from "@src/features/Org2Cloud/useCopySessionReference";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { useSessionNotificationMute } from "@src/hooks/notifications/useSessionNotificationMute";
 import { sessionByIdAtom, upsertSession } from "@src/store/session";
@@ -109,34 +111,47 @@ export const SessionHeaderActionsMenu: React.FC<
   const { isMuted: sessionNotificationsMuted, setMuted } =
     useSessionNotificationMute(currentSessionId);
 
+  const currentSession = useAtomValue(sessionByIdAtom(currentSessionId ?? ""));
+
   // Track this / Convert to Project (orgtrack/v1 §7.2). Self-contained:
   // the backend command persists the switch + root WorkItem; only the
   // local store row needs a merge afterwards.
-  const trackableSession = useAtomValue(
-    sessionByIdAtom(currentSessionId ?? "")
-  );
   const canTrackAsProject =
     !!currentSessionId &&
     isAgentSession(currentSessionId) &&
-    trackableSession?.productMode !== "project";
+    currentSession?.productMode !== "project";
   const handleTrackAsProject = React.useCallback(async () => {
     if (!currentSessionId) return;
     toggleHeaderActionsMenu();
     try {
       const result = await trackSessionAsProject(currentSessionId);
-      if (trackableSession) {
+      if (currentSession) {
         upsertSession({
-          ...trackableSession,
+          ...currentSession,
           productMode: result.productMode,
           agentExecMode: result.agentExecMode,
-          workItemId: result.workItemId ?? trackableSession.workItemId,
+          workItemId: result.workItemId ?? currentSession.workItemId,
         });
       }
       Message.success(t("sessions:chat.trackAsProject.success"));
     } catch (err) {
       Message.error(err instanceof Error ? err.message : String(err));
     }
-  }, [currentSessionId, toggleHeaderActionsMenu, trackableSession, t]);
+  }, [currentSessionId, toggleHeaderActionsMenu, currentSession, t]);
+
+  // Copy URL — the non-secret `orgii://cloud/session/ref` reference, same
+  // action as the sidebar row menus. Hidden until the session has been
+  // published to a cloud org, because a reference to an unpublished session
+  // resolves for nobody (see useCopySessionReference).
+  const { isCopyReferenceEligible, handleCopyReference, copyReferenceLabel } =
+    useCopySessionReference();
+  const canCopyReference =
+    !!currentSession && isCopyReferenceEligible(currentSession);
+  const handleCopySessionUrl = React.useCallback(() => {
+    if (!currentSession) return;
+    toggleHeaderActionsMenu();
+    handleCopyReference(currentSession);
+  }, [currentSession, handleCopyReference, toggleHeaderActionsMenu]);
 
   return (
     <>
@@ -318,6 +333,17 @@ export const SessionHeaderActionsMenu: React.FC<
                 <span className="flex-1 truncate">
                   {t("navigation:cloud.share.menuItem")}
                 </span>
+              </button>
+            )}
+            {canCopyReference && (
+              <button
+                type="button"
+                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
+                onClick={handleCopySessionUrl}
+                data-testid="session-copy-url-button"
+              >
+                <Link size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                <span className="flex-1 truncate">{copyReferenceLabel}</span>
               </button>
             )}
             {showTranscriptActions && (

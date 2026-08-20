@@ -161,7 +161,8 @@ fn parses_codex_jsonl_into_replay_chunks() {
         std::env::temp_dir().join(format!("orgii-codex-history-test-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).expect("create temp dir");
     let path = temp_dir.join("rollout-test.jsonl");
-    let content = r#"{"timestamp":"2026-02-11T06:16:06.458Z","type":"event_msg","payload":{"type":"user_message","message":"hello codex","images":[],"local_images":[],"text_elements":[]}}
+    let content = r#"{"timestamp":"2026-02-11T06:16:06.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"model-only context"}]}}
+{"timestamp":"2026-02-11T06:16:06.458Z","type":"event_msg","payload":{"type":"user_message","message":"hello codex","images":[],"local_images":[],"text_elements":[]}}
 {"timestamp":"2026-02-11T06:16:07.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":\"pwd\"}","call_id":"call_1"}}
 {"timestamp":"2026-02-11T06:16:08.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_1","output":"/tmp/project"}}
 {"timestamp":"2026-02-11T06:16:09.000Z","type":"event_msg","payload":{"type":"agent_message","message":"done"}}
@@ -194,6 +195,135 @@ fn parses_codex_jsonl_into_replay_chunks() {
         imported_history::ACTION_TYPE_ASSISTANT
     );
     assert_eq!(chunks[2].function, imported_history::FUNCTION_ASSISTANT);
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn parses_paginated_codex_user_items_without_model_context_duplicates() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-paginated-history-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-paginated.jsonl");
+    let content = r##"{"timestamp":"2026-08-18T01:00:00.000Z","type":"session_meta","payload":{"cwd":"/tmp/project","id":"thread-1","history_mode":"paginated"},"ordinal":0}
+{"timestamp":"2026-08-18T01:00:01.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"},"ordinal":1}
+{"timestamp":"2026-08-18T01:00:01.010Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"# AGENTS.md instructions"},{"type":"input_text","text":"<environment_context>internal</environment_context>"}],"internal_chat_message_metadata_passthrough":{"turn_id":"turn-1"}},"ordinal":2}
+{"timestamp":"2026-08-18T01:00:01.020Z","type":"turn_context","payload":{"turn_id":"turn-1","cwd":"/tmp/project","model":"gpt-5.3-codex"},"ordinal":3}
+{"timestamp":"2026-08-18T01:00:01.030Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"inspect the parser"}],"internal_chat_message_metadata_passthrough":{"turn_id":"turn-1"}},"ordinal":4}
+{"timestamp":"2026-08-18T01:00:01.040Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn-1","item":{"type":"UserMessage","id":"user-1","content":[{"type":"text","text":"inspect the parser","text_elements":[]},{"type":"image","image_url":"https://example.com/input.png"},{"type":"local_image","path":"/tmp/input.png"}]}},"ordinal":5}
+{"timestamp":"2026-08-18T01:00:02.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"first reply"}]},"ordinal":6}
+{"timestamp":"2026-08-18T01:00:03.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1"},"ordinal":7}
+{"timestamp":"2026-08-18T01:01:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2"},"ordinal":8}
+{"timestamp":"2026-08-18T01:01:00.010Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>refreshed</environment_context>"}],"internal_chat_message_metadata_passthrough":{"turn_id":"turn-2"}},"ordinal":9}
+{"timestamp":"2026-08-18T01:01:00.020Z","type":"turn_context","payload":{"turn_id":"turn-2","cwd":"/tmp/project","model":"gpt-5.3-codex"},"ordinal":10}
+{"timestamp":"2026-08-18T01:01:00.030Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"report the result"}],"internal_chat_message_metadata_passthrough":{"turn_id":"turn-2"}},"ordinal":11}
+{"timestamp":"2026-08-18T01:01:00.040Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn-2","item":{"type":"UserMessage","id":"user-2","content":[{"type":"text","text":"report the result","text_elements":[]}]}},"ordinal":12}
+{"timestamp":"2026-08-18T01:01:01.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"second reply"}]},"ordinal":13}
+{"timestamp":"2026-08-18T01:01:02.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-2"},"ordinal":14}
+"##;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-rollout-paginated", &path).expect("parse");
+    let user_chunks = chunks
+        .iter()
+        .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        user_chunks
+            .iter()
+            .filter_map(|chunk| chunk.result.pointer("/message/content"))
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["inspect the parser", "report the result"]
+    );
+    assert_eq!(
+        user_chunks[0].result["images"],
+        json!(["https://example.com/input.png", "/tmp/input.png"])
+    );
+
+    let window = load_codex_app_initial_window_from_path("codexapp-rollout-paginated", &path, 1)
+        .expect("window");
+    assert_eq!(window.turns.len(), 2);
+    assert_eq!(
+        window
+            .chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+            .filter_map(|chunk| chunk.result.pointer("/message/content"))
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["inspect the parser", "report the result"]
+    );
+
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Codex").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "rollout-paginated".to_string(),
+        source_path: path.clone(),
+        source_record_key: "rollout-paginated".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_codex_session_meta(&record)
+        .expect("parse metadata")
+        .expect("session metadata");
+    assert_eq!(meta.name, "inspect the parser");
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn ignores_incomplete_paginated_model_input_until_user_item_is_committed() {
+    use std::io::Write;
+
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-paginated-append-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-paginated-append.jsonl");
+    let prefix = r#"{"timestamp":"2026-08-18T01:00:00.000Z","type":"session_meta","payload":{"cwd":"/tmp/project","id":"thread-1","history_mode":"paginated"},"ordinal":0}
+{"timestamp":"2026-08-18T01:00:01.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"},"ordinal":1}
+{"timestamp":"2026-08-18T01:00:01.010Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>internal</environment_context>"}],"internal_chat_message_metadata_passthrough":{"turn_id":"turn-1"}},"ordinal":2}
+{"timestamp":"2026-08-18T01:00:01.020Z","type":"turn_context","payload":{"turn_id":"turn-1","cwd":"/tmp/project","model":"gpt-5.3-codex"},"ordinal":3}
+{"timestamp":"2026-08-18T01:00:01.030Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"real prompt"}],"internal_chat_message_metadata_passthrough":{"turn_id":"turn-1"}},"ordinal":4}
+"#;
+    std::fs::write(&path, prefix).expect("write fixture");
+
+    let incomplete = load_codex_app_initial_window_from_path("codexapp-paginated-append", &path, 1)
+        .expect("incomplete window");
+    assert!(incomplete.turns.is_empty());
+    assert!(incomplete
+        .chunks
+        .iter()
+        .all(|chunk| chunk.function != imported_history::FUNCTION_USER_MESSAGE));
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("open fixture for append");
+    file.write_all(
+        b"{\"timestamp\":\"2026-08-18T01:00:01.040Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"item_completed\",\"turn_id\":\"turn-1\",\"item\":{\"type\":\"UserMessage\",\"id\":\"user-1\",\"content\":[{\"type\":\"text\",\"text\":\"real prompt\",\"text_elements\":[]}]}},\"ordinal\":5}\n",
+    )
+    .expect("append user item");
+    file.flush().expect("flush fixture");
+
+    let committed = load_codex_app_initial_window_from_path("codexapp-paginated-append", &path, 1)
+        .expect("committed window");
+    assert_eq!(committed.turns.len(), 1);
+    assert_eq!(
+        committed.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("real prompt")
+    );
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
@@ -2290,14 +2420,17 @@ fn strips_orgii_exec_mode_bridge_from_codex_user_text() {
         "type": "user_message",
         "message": bridge_only,
     });
-    assert_eq!(user_message_from_payload(&bridge_only_payload), None);
+    assert_eq!(
+        legacy_user_message_text_from_payload(&bridge_only_payload),
+        None
+    );
 
     let prefixed_payload = serde_json::json!({
         "type": "user_message",
         "message": with_bridge,
     });
     assert_eq!(
-        user_message_from_payload(&prefixed_payload).as_deref(),
+        legacy_user_message_text_from_payload(&prefixed_payload).as_deref(),
         Some("fix the login bug")
     );
 }
@@ -2323,14 +2456,17 @@ fn strips_ide_context_from_codex_user_text() {
         "type": "user_message",
         "message": ide_only,
     });
-    assert_eq!(user_message_from_payload(&ide_only_payload), None);
+    assert_eq!(
+        legacy_user_message_text_from_payload(&ide_only_payload),
+        None
+    );
 
     let both_payload = serde_json::json!({
         "type": "user_message",
         "message": with_both,
     });
     assert_eq!(
-        user_message_from_payload(&both_payload).as_deref(),
+        legacy_user_message_text_from_payload(&both_payload).as_deref(),
         Some("fix the login bug")
     );
 }

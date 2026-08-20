@@ -21,7 +21,7 @@ use super::index::{
     codex_sessions_dir_for_session_path, codex_thread_id_from_file_stem,
     collect_codex_session_files,
 };
-use super::transcript::user_message_from_payload;
+use super::transcript::user_message_text_from_line;
 use super::{
     CodexAppSessionMeta, CodexAppSourceMetadata, CodexJsonlLine, CODEX_APP_METADATA_PARSER_VERSION,
 };
@@ -100,7 +100,7 @@ impl CodexSessionMetaState {
             }
         }
         if self.first_prompt.is_empty() {
-            if let Some(message) = user_message_from_payload(&parsed.payload) {
+            if let Some(message) = user_message_text_from_line(&parsed) {
                 self.first_prompt = message;
             }
         }

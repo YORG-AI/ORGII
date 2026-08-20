@@ -643,7 +643,7 @@
       "mySessions": "我的会话",
       "memberFilter": "按成员筛选",
       "sessionFilter": "筛选会话",
-      "copyId": "复制 ID",
+      "copyUrl": "复制 URL",
       "directlySharedWithMe": "指定分享给我的",
       "everyone": "全部成员",
       "forkedFrom": "接力自 @{{name}}",

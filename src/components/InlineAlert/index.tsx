@@ -231,17 +231,20 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
         ) : (
           titleNode
         )}
-        {action && <div className="shrink-0">{actionNode}</div>}
-        {onClose && (
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={closeAriaLabel}
-              className="shrink-0 rounded p-1 opacity-70 transition-opacity hover:opacity-100"
-            >
-              {resolvedCloseIcon}
-            </button>
+        {(action || onClose) && (
+          <div className="flex shrink-0 items-center gap-px">
+            {action && <div className="shrink-0">{actionNode}</div>}
+            {onClose && (
+              <Button
+                variant="tertiary"
+                size="small"
+                icon={resolvedCloseIcon}
+                iconOnly
+                title={closeAriaLabel}
+                aria-label={closeAriaLabel}
+                onClick={onClose}
+              />
+            )}
           </div>
         )}
       </div>

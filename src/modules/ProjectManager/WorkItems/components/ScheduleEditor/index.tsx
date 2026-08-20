@@ -12,6 +12,7 @@ import type { WorkItemSchedule } from "@src/api/http/project";
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import Select, { type SelectOption } from "@src/components/Select";
 import TimePicker from "@src/components/TimePicker";
+import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
 
 import { DateQuickAssignDropdown } from "../WorkItemProperties/DateQuickAssignDropdown";
 import {
@@ -293,13 +294,25 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
     dropdownWidthMode: "match" as const,
     appearance: "ghost" as const,
     className: "w-full",
+    selectorClassName: compact ? "!px-2 !text-[12px]" : undefined,
     getPopupContainer: getSelectPopupContainer,
   };
 
   return (
-    <div ref={containerRef} className={`space-y-3 ${compact ? "p-2" : "p-3"}`}>
-      <div>
-        <div className="mb-1 text-[11px] font-medium text-text-3">
+    <div
+      ref={containerRef}
+      className={
+        compact ? WORKSTATION_TRAIL_CONTENT.sectionList : "space-y-3 p-3"
+      }
+    >
+      <div className={compact ? WORKSTATION_TRAIL_CONTENT.section : ""}>
+        <div
+          className={
+            compact
+              ? WORKSTATION_TRAIL_CONTENT.sectionLabel
+              : "mb-1 text-[11px] font-medium text-text-3"
+          }
+        >
           {t("common:schedule.scheduleType")}
         </div>
         <div className="flex items-center gap-1">

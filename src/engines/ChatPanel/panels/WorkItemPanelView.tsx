@@ -509,12 +509,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   usePublishChatPanelHeader({ content: publishedHeader });
 
   const propertiesPanel = (
-    <PropertiesRailFrame
-      width={300}
-      minWidth={280}
-      maxWidth={320}
-      floatingContent
-    >
+    <PropertiesRailFrame floatingContent>
       <WorkstationTrailSurface className="flex self-start">
         <PropertiesPanel
           title={t("projects:workItems.properties.title")}

@@ -93,12 +93,12 @@ describe("WorkItemSubItems stage model", () => {
         child("WI-0003", undefined, "completed"),
         child("WI-0004", undefined, "cancelled"),
       ])
-    ).toEqual({ completed: 2, total: 3, percent: 67 });
+    ).toEqual({ completed: 2, total: 3 });
   });
 });
 
 describe("WorkItemSubItems hierarchy UI", () => {
-  it("renders progress, semantic state rows, and the parent issue title", () => {
+  it("renders the completion summary, semantic rows, and the parent title without a progress bar", () => {
     const markup = renderToStaticMarkup(
       React.createElement(WorkItemSubItems, {
         family: {
@@ -119,8 +119,9 @@ describe("WorkItemSubItems hierarchy UI", () => {
       })
     );
 
-    expect(markup).toContain('role="progressbar"');
-    expect(markup).toContain('aria-valuenow="2"');
+    expect(markup).toContain("2 of 3 completed");
+    expect(markup).not.toContain('role="progressbar"');
+    expect(markup).not.toContain("work-item-sub-items-progress");
     expect(markup).toContain('data-sub-item-state="open"');
     expect(markup).toContain('data-sub-item-state="completed"');
     expect(markup).toContain('data-sub-item-state="cancelled"');
@@ -128,7 +129,23 @@ describe("WorkItemSubItems hierarchy UI", () => {
     expect(markup).toContain("Finished child");
   });
 
-  it("keeps sub-item rows on a flat surface without nested panel styling", () => {
+  it("does not show a gray progress track for zero completed sub-items", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(WorkItemSubItems, {
+        family: {
+          parent: null,
+          children: [child("WI-0002", undefined, "planned", "Open child")],
+        },
+        parentShortId: "WI-0001",
+      })
+    );
+
+    expect(markup).toContain("0 of 1 completed");
+    expect(markup).not.toContain('role="progressbar"');
+    expect(markup).not.toContain("work-item-sub-items-progress");
+  });
+
+  it("uses the shared card padding and todo row rhythm", () => {
     const markup = renderToStaticMarkup(
       React.createElement(WorkItemSubItems, {
         family: {
@@ -140,8 +157,13 @@ describe("WorkItemSubItems hierarchy UI", () => {
       })
     );
 
-    expect(markup).not.toContain("max-h-64 overflow-y-auto rounded-lg border");
-    expect(markup).not.toContain("border-b border-border-1 bg-fill-1");
+    expect(markup).toContain("bg-chat-pane px-3 py-2");
+    expect(markup).toContain("flex flex-col gap-0.5");
+    expect(markup).toContain("min-h-8 w-full");
+    expect(markup).toContain("rounded-lg px-2 py-1");
     expect(markup).toContain("max-h-64 overflow-y-auto");
+    expect(markup).not.toContain("!p-0");
+    expect(markup).not.toContain("min-h-9");
+    expect(markup).not.toContain("px-3 pb-3");
   });
 });

@@ -552,7 +552,7 @@
       "mySessions": "Oturumlarım",
       "memberFilter": "Üyeye göre filtrele",
       "sessionFilter": "Oturumları filtrele",
-      "copyId": "ID'yi kopyala",
+      "copyUrl": "URL'yi kopyala",
       "directlySharedWithMe": "Doğrudan benimle paylaşılanlar",
       "everyone": "Herkes",
       "forkedFrom": "@{{name}} oturumundan çatallandı",

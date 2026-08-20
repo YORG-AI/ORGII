@@ -12,6 +12,8 @@ import Button from "@src/components/Button";
 import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import { usePropertyDropdownDirection } from "@src/components/PropertyField/PropertyDropdownDirection";
+import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
+import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
 import { DEFAULT_LABELS } from "@src/modules/ProjectManager/config/manage";
 import type { ContextMenuItem } from "@src/types/core/shared";
 import type {
@@ -50,13 +52,15 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
 }) => {
   if (variant === "workstation-trail") {
     return (
-      <section className="contents">
+      <section className={WORKSTATION_TRAIL_CONTENT.section}>
         {!hideTitle ? (
-          <div className="mt-1 px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-text-3">
-            {title}
-          </div>
+          <div className={WORKSTATION_TRAIL_CONTENT.sectionLabel}>{title}</div>
         ) : null}
-        <div className="flex w-full flex-col [&>*]:w-full">{children}</div>
+        <div
+          className={`${WORKSTATION_TRAIL_CONTENT.rows} flex w-full flex-col [&>*]:w-full`}
+        >
+          {children}
+        </div>
       </section>
     );
   }
@@ -393,6 +397,9 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
     );
   }
 
+  const propertyFieldVariant: FieldRowVariant =
+    panelVariant === "workstation-trail" ? "workstation-trail" : "row";
+
   const propertyGroups = (
     <>
       <PropertyCard
@@ -410,6 +417,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           t={t}
           projectIconType={projectIconType}
           projectReadonly={projectReadonly}
+          fieldVariant={propertyFieldVariant}
           visibleFields={visibleFieldSet}
         />
         <StatusPrioritySection
@@ -419,6 +427,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           handlers={handlers}
           externalStatusConfig={externalStatusConfig}
           t={t}
+          fieldVariant={propertyFieldVariant}
         />
         <DatesScheduleSection
           workItem={workItem}
@@ -427,6 +436,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           handlers={handlers}
           showTime={showTime}
           t={t}
+          fieldVariant={propertyFieldVariant}
         />
         <LabelsSection
           workItem={workItem}
@@ -435,8 +445,13 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           availableLabels={availableLabels}
           handlers={handlers}
           t={t}
+          fieldVariant={propertyFieldVariant}
         />
-        <DelegationsSection workItem={workItem} t={t} />
+        <DelegationsSection
+          workItem={workItem}
+          t={t}
+          fieldVariant={propertyFieldVariant}
+        />
       </PropertyCard>
       <PropertyCard
         title={t("workItems.properties.assignment")}
@@ -451,26 +466,38 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           availableOrgs={availableOrgs}
           handlers={handlers}
           t={t}
+          fieldVariant={propertyFieldVariant}
           assigneeReadonly={assigneeReadonly}
           externalAssigneeConfig={externalAssigneeConfig}
         />
         {panelVariant === "cards" ? (
-          <div className="mx-4 my-2 h-px bg-border-1" />
+          <>
+            <div className="mx-4 my-2 h-px bg-border-1" />
+            <ScheduleEditor
+              schedule={workItem.schedule}
+              onChange={handlers.handleScheduleChange}
+              t={t}
+            />
+          </>
         ) : null}
+      </PropertyCard>
+      {panelVariant === "workstation-trail" ? (
         <ScheduleEditor
           schedule={workItem.schedule}
           onChange={handlers.handleScheduleChange}
           t={t}
-          compact={panelVariant === "workstation-trail"}
+          compact
         />
-      </PropertyCard>
+      ) : null}
     </>
   );
 
   if (panelVariant === "workstation-trail") {
     return (
       <section ref={containerRef} className="min-w-0 overflow-visible">
-        <div className="flex flex-col">{propertyGroups}</div>
+        <div className={WORKSTATION_TRAIL_CONTENT.sectionList}>
+          {propertyGroups}
+        </div>
       </section>
     );
   }

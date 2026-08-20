@@ -554,7 +554,7 @@
       "mySessions": "Minhas sessões",
       "memberFilter": "Filtrar por membro",
       "sessionFilter": "Filtrar sessões",
-      "copyId": "Copiar ID",
+      "copyUrl": "Copiar URL",
       "directlySharedWithMe": "Compartilhadas diretamente comigo",
       "everyone": "Todos",
       "forkedFrom": "bifurcada de @{{name}}",

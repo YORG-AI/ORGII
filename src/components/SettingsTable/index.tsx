@@ -635,7 +635,11 @@ export default function SettingsTable<RowData>({
         }
       />
       {resolvedFooter}
-      {showEmptyFooter && <div className="settings-table-empty-footer" />}
+      {showEmptyFooter && (
+        <div
+          className={`settings-table-empty-footer ${bodySurface === "pane" ? "settings-table-empty-footer-pane" : ""}`.trim()}
+        />
+      )}
     </div>
   );
 }

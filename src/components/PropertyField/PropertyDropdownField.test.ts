@@ -2,10 +2,30 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { DROPDOWN_WIDTHS } from "@src/components/Dropdown/tokens";
+
 import { PropertyDropdownDirectionProvider } from "./PropertyDropdownDirection";
 import { PropertyDropdownField } from "./PropertyDropdownField";
 
 describe("PropertyDropdownField", () => {
+  it("uses the shared Workstation trail row geometry", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "open",
+        label: "Open",
+        icon: null,
+        active: false,
+        fieldVariant: "workstation-trail",
+      })
+    );
+
+    expect(markup).toContain("h-7");
+    expect(markup).toContain("rounded-lg");
+    expect(markup).toContain("gap-1.5 px-2");
+    expect(markup).not.toContain("min-h-8");
+    expect(markup).not.toContain("py-1.5");
+  });
+
   it("does not build custom options while the dropdown is closed", () => {
     const renderOptions = vi.fn(() =>
       React.createElement("span", null, "Option")
@@ -186,5 +206,23 @@ describe("PropertyDropdownField", () => {
 
     expect(markup).toContain("bottom-full mb-1");
     expect(markup).not.toContain("top-full mt-1");
+  });
+
+  it("can match an inline dropdown panel to the full trigger width", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "unassigned",
+        label: "Unassigned",
+        icon: null,
+        active: true,
+        searchable: false,
+        placement: "inline",
+        matchTriggerWidth: true,
+        options: [{ value: "unassigned", label: "Unassigned" }],
+      })
+    );
+
+    expect(markup).toContain("left-0 right-0");
+    expect(markup).not.toContain(DROPDOWN_WIDTHS.wideMenuClass);
   });
 });

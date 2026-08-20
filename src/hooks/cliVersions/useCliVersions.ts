@@ -53,7 +53,7 @@ export function useCliVersions() {
       if (!force && cached && isFresh(cached)) return cached;
 
       const existingPromise = scanPromises.get(agentType);
-      if (!force && existingPromise) return existingPromise;
+      if (existingPromise) return existingPromise;
 
       const promise = scanCliVersionRpc(agentType, force)
         .then((snapshot) => {

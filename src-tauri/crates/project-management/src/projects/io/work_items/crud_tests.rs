@@ -463,6 +463,33 @@ fn allocate_short_id_skips_same_prefix_across_projects() {
 }
 
 #[test]
+fn allocate_short_id_skips_same_prefix_across_orgs() {
+    let _sandbox = test_env::sandbox();
+    seed_project("alpha", "pa");
+    let alpha_id = allocate_short_id("alpha").expect("alloc alpha");
+    assert_eq!(alpha_id, "AAA-0001");
+    let alpha_fm = work_item_fixture(&alpha_id, &alpha_id, "Alpha task");
+    write_work_item("alpha", &alpha_id, &alpha_fm, "").expect("write alpha");
+
+    crate::projects::io::create_project_org(&crate::projects::types::CreateProjectOrgRequest {
+        name: "Other Org".to_string(),
+        id: Some("other-org".to_string()),
+    })
+    .expect("create org");
+    let mut beta = project_fixture("pb", "beta", "Beta");
+    beta.org_id = "other-org".to_string();
+    write_project("beta", &beta, "", true).expect("seed beta");
+
+    let beta_id = allocate_short_id("beta").expect("alloc beta");
+    assert_eq!(
+        beta_id, "AAA-0002",
+        "workitems.id is global, so shared prefixes must not collide across orgs"
+    );
+    let beta_fm = work_item_fixture(&beta_id, &beta_id, "Beta task");
+    write_work_item("beta", &beta_id, &beta_fm, "").expect("write beta");
+}
+
+#[test]
 fn allocate_short_id_unknown_project_errors() {
     let _sandbox = test_env::sandbox();
     let err = allocate_short_id("ghost").unwrap_err();

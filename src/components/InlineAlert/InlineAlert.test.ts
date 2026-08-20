@@ -2,6 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import Button from "@src/components/Button";
+
 import InlineAlert from ".";
 
 describe("InlineAlert", () => {
@@ -42,5 +44,31 @@ describe("InlineAlert", () => {
 
     const selectableCount = markup.split("allow-select-deep").length - 1;
     expect(selectableCount).toBe(3);
+  });
+
+  it("groups the action and tertiary close button with a one-pixel gap", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        InlineAlert,
+        {
+          title: "Upgrade required",
+          action: createElement(Button, {
+            variant: "tertiary",
+            iconOnly: true,
+            icon: "Refresh",
+            "aria-label": "Refresh",
+          }),
+          onClose: () => undefined,
+          closeAriaLabel: "Close",
+        },
+        "Upgrade the CLI"
+      )
+    );
+
+    expect(markup).toContain("gap-px");
+    expect(markup.indexOf('aria-label="Refresh"')).toBeLessThan(
+      markup.indexOf('aria-label="Close"')
+    );
+    expect(markup.split("enabled:hover:bg-surface-hover").length - 1).toBe(2);
   });
 });

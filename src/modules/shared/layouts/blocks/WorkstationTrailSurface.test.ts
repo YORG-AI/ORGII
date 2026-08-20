@@ -3,12 +3,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import WorkstationTrailSurface, {
+  WORKSTATION_TRAIL_WIDTH,
   WorkstationTrailBody,
   WorkstationTrailHeader,
   WorkstationTrailIconButton,
 } from "./WorkstationTrailSurface";
 
 describe("WorkstationTrailSurface", () => {
+  it("owns the expanded Workstation trail width", () => {
+    expect(WORKSTATION_TRAIL_WIDTH.expandedPx).toBe(256);
+    expect(WORKSTATION_TRAIL_WIDTH.expandedResponsiveClass).toContain("w-64");
+  });
+
   it("owns the exact focused-chat environment trail surface", () => {
     const markup = renderToStaticMarkup(
       createElement(

@@ -18,6 +18,7 @@
  * NOT cached, so a repo is never permanently marked unshareable by a hiccup
  * (e.g. the git server still booting).
  */
+import { exists } from "@tauri-apps/plugin-fs";
 import { useSyncExternalStore } from "react";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
@@ -209,6 +210,28 @@ export function shareableScopeKeysFromRemoteUrls(
   return keys.length > 0 ? keys : null;
 }
 
+type GitMarkerVerdict = "present" | "absent" | "unknown";
+
+async function probeGitMarker(path: string): Promise<GitMarkerVerdict> {
+  try {
+    if (!(await exists(path))) return "absent";
+  } catch {
+    return "unknown";
+  }
+  let dir = path;
+  for (let depth = 0; depth < 32; depth += 1) {
+    try {
+      if (await exists(`${dir}/.git`)) return "present";
+    } catch {
+      return "unknown";
+    }
+    const cut = Math.max(dir.lastIndexOf("/"), dir.lastIndexOf("\\"));
+    if (cut <= 0) return "absent";
+    dir = dir.slice(0, cut);
+  }
+  return "unknown";
+}
+
 /**
  * The git-remote-only resolver (design §8.3): returns the normalized keys of
  * ALL remotes (origin first) when the repo has any, and `null` when it does
@@ -238,6 +261,24 @@ export async function resolveShareableScopeKeys(
   // against `task` itself without tripping TS2454 (used before assigned).
   const task: Promise<string[] | null> = Promise.resolve().then(
     async (): Promise<string[] | null> => {
+      // A deleted path — or a folder with no checkout anywhere above it —
+      // can never yield remotes: cache the definitive null instead of
+      // probing, so boot does not spray the git server (and the console's
+      // network log) with 404s for every stale path a historical session
+      // still references. The server resolves repos with
+      // `Repository::discover` (a workspace may be a package/subfolder of
+      // the checkout), so the `.git` marker is searched UPWARD the same
+      // way; the marker is a file for worktrees. `exists()` throws for
+      // paths outside the fs plugin's scope — treated as unknowable, the
+      // probe decides.
+      const marker = await probeGitMarker(normalizedInput);
+      if (marker === "absent") {
+        if (shareableScopeKeyInFlight.get(normalizedInput) === task) {
+          writeLruEntry(shareableScopeKeyCache, normalizedInput, null);
+          notifyShareableScopeKeys(normalizedInput, null);
+        }
+        return null;
+      }
       const data = await getGitRemotes({
         repo_id: normalizedInput,
         repo_path: normalizedInput,

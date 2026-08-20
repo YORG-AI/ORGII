@@ -177,6 +177,9 @@ const WorkItemRunUsageSummary: React.FC<WorkItemRunUsageSummaryProps> = ({
             if (sessionId) onOpenSession?.(sessionId);
           }}
           showSearch={false}
+          surfaceVariant="default"
+          bodySurface="pane"
+          headerBorder={false}
           maxHeight={320}
           columnVisibility={{
             agent: false,

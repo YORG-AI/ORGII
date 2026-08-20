@@ -35,7 +35,7 @@ export const EVENT_BLOCK_CONTAINER_CLASSES = `w-full max-w-full overflow-hidden 
  */
 /** Header row for the EventBlock shell (distinct from primitives/config `getEventBlockHeaderClasses`). */
 export const getEventBlockShellHeaderClasses = (_isCollapsed: boolean) =>
-  `flex cursor-pointer select-none items-center justify-between ${EVENT_BLOCK_CONTENT_BG} p-2 transition-all duration-150`;
+  `flex cursor-pointer items-center justify-between ${EVENT_BLOCK_CONTENT_BG} p-2 transition-all duration-150`;
 
 /**
  * Standard button classes for header action buttons (copy, expand, etc.)
@@ -165,23 +165,29 @@ export const EventBlock: React.FC<EventBlockProps> = ({
   children,
   onHeaderHoverChange,
 }) => {
+  const handleHeaderClick = () => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return;
+    onToggleCollapse?.();
+  };
+
   return (
     <div className={`${EVENT_BLOCK_CONTAINER_CLASSES} ${containerClassName}`}>
       {/* Header */}
       <div
         className={`${getEventBlockShellHeaderClasses(isCollapsed)} ${headerClassName}`}
-        onClick={onToggleCollapse}
+        onClick={onToggleCollapse ? handleHeaderClick : undefined}
         onMouseEnter={() => onHeaderHoverChange?.(true)}
         onMouseLeave={() => onHeaderHoverChange?.(false)}
       >
         {/* Left content */}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 select-text items-center gap-2">
           {headerLeft}
         </div>
 
         {/* Right content */}
         {headerRight && (
-          <div className="flex flex-shrink-0 items-center gap-0.5">
+          <div className="flex flex-shrink-0 select-none items-center gap-0.5">
             {headerRight}
           </div>
         )}

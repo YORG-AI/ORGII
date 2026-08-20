@@ -2,7 +2,7 @@
  * Builds one `NavigationMenuItem` row for a Team Sessions fork thread
  * (`cloudSessionsSection.tsx`): icon/title/relative-time, the unresolved
  * comments badge, live-viewer chips, and the row's hover actions (Fork,
- * overflow menu with copy-id/remove). Split out because it is the single
+ * overflow menu with copy-url/remove). Split out because it is the single
  * largest piece of that section's row-construction logic.
  */
 import type { TFunction } from "i18next";
@@ -277,7 +277,7 @@ export function useCloudSessionRowItemBuilder({
                 source: "cloud-session-row",
                 buildItems: () => [
                   {
-                    text: t("cloud.sidebar.copyId"),
+                    text: t("cloud.sidebar.copyUrl"),
                     action: () => {
                       void copyText(buildCloudSessionReference(row))
                         .then(() => {

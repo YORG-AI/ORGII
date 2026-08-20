@@ -27,6 +27,8 @@ use super::CodexJsonlLine;
 const CODEX_PROVIDER_SLUG: &str = "codex";
 const CODEX_EMBEDDED_IMAGE_MARKER: &str = "\"image_url\":\"data:image/";
 const CODEX_OMITTED_IMAGE_VALUE: &str = "[embedded image omitted]";
+const CODEX_LEGACY_USER_MESSAGE_NEEDLE: &[u8] = b"\"user_message\"";
+const CODEX_PAGINATED_USER_MESSAGE_NEEDLE: &[u8] = b"\"UserMessage\"";
 const CODEX_TURN_OFFSET_CACHE_CAPACITY: usize = 8;
 const CODEX_TURN_OFFSET_LIMIT_PER_SESSION: usize = 4_096;
 const CODEX_INITIAL_TURN_LIMIT: usize = 4_096;
@@ -823,9 +825,6 @@ fn load_codex_turn_header(
             Ok(parsed) => parsed,
             Err(_) => continue,
         };
-        if parsed.payload.get("type").and_then(Value::as_str) != Some("user_message") {
-            continue;
-        }
         let created_at = parsed
             .timestamp
             .as_deref()
@@ -833,7 +832,7 @@ fn load_codex_turn_header(
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         let sequence = codex_lazy_turn_sequence(byte_offset);
         let Some(user_chunk) =
-            user_message_chunk_from_payload(session_id, sequence, &created_at, &parsed.payload)
+            user_message_chunk_from_line(session_id, sequence, &created_at, &parsed)
         else {
             continue;
         };
@@ -1042,7 +1041,6 @@ fn observe_codex_catalog_line(
     lines_since_boundary: &mut usize,
     last_agent_preview: &mut Option<String>,
 ) {
-    const USER_MESSAGE_NEEDLE: &[u8] = b"\"user_message\"";
     const AGENT_MESSAGE_NEEDLE: &[u8] = b"\"agent_message\"";
     const ASSISTANT_ROLE_NEEDLE: &[u8] = b"\"assistant\"";
     if line.is_empty() {
@@ -1051,32 +1049,12 @@ fn observe_codex_catalog_line(
     if entries.len() >= limit {
         return;
     }
-    if memmem::find(line, USER_MESSAGE_NEEDLE).is_none() {
-        if last_agent_preview.is_none()
-            && (memmem::find(line, AGENT_MESSAGE_NEEDLE).is_some()
-                || memmem::find(line, ASSISTANT_ROLE_NEEDLE).is_some())
-        {
-            if let Ok(parsed) = serde_json::from_slice::<CodexJsonlLine>(line) {
-                let payload_type = parsed.payload.get("type").and_then(Value::as_str);
-                let message = match payload_type {
-                    Some("agent_message") => parsed
-                        .payload
-                        .get("message")
-                        .and_then(Value::as_str)
-                        .map(ToString::to_string),
-                    Some("message")
-                        if parsed.payload.get("role").and_then(Value::as_str)
-                            == Some("assistant") =>
-                    {
-                        content_text_from_payload(&parsed.payload)
-                    }
-                    _ => None,
-                };
-                *last_agent_preview = message
-                    .filter(|message| !message.trim().is_empty())
-                    .map(|message| bounded_codex_turn_preview(&message));
-            }
-        }
+    let may_contain_user = memmem::find(line, CODEX_LEGACY_USER_MESSAGE_NEEDLE).is_some()
+        || memmem::find(line, CODEX_PAGINATED_USER_MESSAGE_NEEDLE).is_some();
+    let may_contain_assistant = last_agent_preview.is_none()
+        && (memmem::find(line, AGENT_MESSAGE_NEEDLE).is_some()
+            || memmem::find(line, ASSISTANT_ROLE_NEEDLE).is_some());
+    if !may_contain_user && !may_contain_assistant {
         *lines_since_boundary = lines_since_boundary.saturating_add(1);
         return;
     }
@@ -1084,27 +1062,44 @@ fn observe_codex_catalog_line(
         *lines_since_boundary = lines_since_boundary.saturating_add(1);
         return;
     };
-    if parsed.payload.get("type").and_then(Value::as_str) != Some("user_message") {
-        *lines_since_boundary = lines_since_boundary.saturating_add(1);
-        return;
+    if may_contain_user {
+        if let Some(message) = user_message_from_line(&parsed) {
+            let started_at = parsed
+                .timestamp
+                .as_deref()
+                .map(imported_history::normalize_created_at)
+                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+            entries.push(CodexTurnCatalogEntry {
+                byte_offset,
+                started_at,
+                user_preview: bounded_codex_turn_preview(&message.text),
+                last_agent_preview: last_agent_preview.take(),
+                following_line_count: *lines_since_boundary,
+            });
+            *lines_since_boundary = 0;
+            return;
+        }
     }
-    let Some(message) = user_message_from_payload(&parsed.payload) else {
-        *lines_since_boundary = lines_since_boundary.saturating_add(1);
-        return;
-    };
-    let started_at = parsed
-        .timestamp
-        .as_deref()
-        .map(imported_history::normalize_created_at)
-        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-    entries.push(CodexTurnCatalogEntry {
-        byte_offset,
-        started_at,
-        user_preview: bounded_codex_turn_preview(&message),
-        last_agent_preview: last_agent_preview.take(),
-        following_line_count: *lines_since_boundary,
-    });
-    *lines_since_boundary = 0;
+    if may_contain_assistant {
+        let payload_type = parsed.payload.get("type").and_then(Value::as_str);
+        let message = match payload_type {
+            Some("agent_message") => parsed
+                .payload
+                .get("message")
+                .and_then(Value::as_str)
+                .map(ToString::to_string),
+            Some("message")
+                if parsed.payload.get("role").and_then(Value::as_str) == Some("assistant") =>
+            {
+                content_text_from_payload(&parsed.payload)
+            }
+            _ => None,
+        };
+        *last_agent_preview = message
+            .filter(|message| !message.trim().is_empty())
+            .map(|message| bounded_codex_turn_preview(&message));
+    }
+    *lines_since_boundary = lines_since_boundary.saturating_add(1);
 }
 
 type CodexTranscriptLoad = (
@@ -1184,13 +1179,10 @@ fn load_codex_app_from_path_with_mode<'a>(
                     .map(str::to_string);
                 pending_task_turn_offset = Some(line_start_offset);
             }
-            "user_message" => {
-                if let Some(user_chunk) = user_message_chunk_from_payload(
-                    session_id,
-                    sequence,
-                    &created_at,
-                    &parsed.payload,
-                ) {
+            "user_message" | "item_completed" => {
+                if let Some(user_chunk) =
+                    user_message_chunk_from_line(session_id, sequence, &created_at, &parsed)
+                {
                     let user_sequence = sequence;
                     sequence += 1;
                     if collector.start_turn(user_chunk) {
@@ -2049,7 +2041,7 @@ fn parse_rg_output_matches(output: &str) -> Vec<(String, i64, String)> {
         .collect()
 }
 
-pub(crate) fn user_message_from_payload(payload: &Value) -> Option<String> {
+pub(crate) fn legacy_user_message_text_from_payload(payload: &Value) -> Option<String> {
     let raw = payload.get("message").and_then(Value::as_str)?;
     let stripped = strip_orgii_exec_mode_bridge(raw);
     // Bridge-only messages carry no user-authored text: skip them entirely
@@ -2058,6 +2050,74 @@ pub(crate) fn user_message_from_payload(payload: &Value) -> Option<String> {
         return None;
     }
     Some(stripped.to_string())
+}
+
+#[derive(Debug)]
+struct CodexUserMessage {
+    text: String,
+    image_refs: Vec<String>,
+}
+
+fn user_message_from_line(parsed: &CodexJsonlLine) -> Option<CodexUserMessage> {
+    match parsed.payload.get("type").and_then(Value::as_str) {
+        Some("user_message") => {
+            let text = legacy_user_message_text_from_payload(&parsed.payload).unwrap_or_default();
+            let image_refs = user_image_refs_from_payload(&parsed.payload);
+            if text.is_empty() && image_refs.is_empty() {
+                return None;
+            }
+            Some(CodexUserMessage { text, image_refs })
+        }
+        Some("item_completed") => paginated_user_message_from_payload(&parsed.payload),
+        _ => None,
+    }
+}
+
+pub(super) fn user_message_text_from_line(parsed: &CodexJsonlLine) -> Option<String> {
+    user_message_from_line(parsed)
+        .map(|message| message.text)
+        .filter(|text| !text.trim().is_empty())
+}
+
+fn paginated_user_message_from_payload(payload: &Value) -> Option<CodexUserMessage> {
+    let item = payload.get("item")?;
+    if item.get("type").and_then(Value::as_str) != Some("UserMessage") {
+        return None;
+    }
+    let mut text_parts = Vec::new();
+    let mut image_refs = Vec::new();
+    for part in item.get("content").and_then(Value::as_array)? {
+        match part.get("type").and_then(Value::as_str) {
+            Some("text") => {
+                if let Some(text) = part.get("text").and_then(Value::as_str) {
+                    text_parts.push(text);
+                }
+            }
+            Some("image") => push_unique_string_field(&mut image_refs, part, "image_url"),
+            Some("local_image") => push_unique_string_field(&mut image_refs, part, "path"),
+            _ => {}
+        }
+    }
+    let raw_text = text_parts.join("\n");
+    let text = strip_orgii_exec_mode_bridge(&raw_text).to_string();
+    if text.trim().is_empty() && image_refs.is_empty() {
+        return None;
+    }
+    Some(CodexUserMessage { text, image_refs })
+}
+
+fn push_unique_string_field(values: &mut Vec<String>, object: &Value, field: &str) {
+    let Some(value) = object
+        .get(field)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    if !values.iter().any(|existing| existing == value) {
+        values.push(value.to_string());
+    }
 }
 
 fn user_image_refs_from_payload(payload: &Value) -> Vec<String> {
@@ -2078,23 +2138,22 @@ fn user_image_refs_from_payload(payload: &Value) -> Vec<String> {
     refs
 }
 
-fn user_message_chunk_from_payload(
+fn user_message_chunk_from_line(
     session_id: &str,
     sequence: usize,
     created_at: &str,
-    payload: &Value,
+    parsed: &CodexJsonlLine,
 ) -> Option<ActivityChunk> {
-    let message = user_message_from_payload(payload)?;
+    let message = user_message_from_line(parsed)?;
     let mut chunk = imported_history::user_message_chunk(
         session_id,
         CODEX_PROVIDER_SLUG,
         sequence,
         created_at,
-        &message,
+        &message.text,
     );
-    let images = user_image_refs_from_payload(payload);
-    if !images.is_empty() {
-        chunk.result["images"] = json!(images);
+    if !message.image_refs.is_empty() {
+        chunk.result["images"] = json!(message.image_refs);
     }
     Some(chunk)
 }

@@ -67,10 +67,26 @@ export function useCliAgentConfiguration({
       : null;
   const [dismissedCliVersionAlertKey, setDismissedCliVersionAlertKey] =
     useState<string | null>(null);
+  const [refreshingCliAgentType, setRefreshingCliAgentType] =
+    useState<CliAgentType | null>(null);
   const showCliVersionOutdatedAlert = Boolean(
     cliVersionOutdatedAlertKey &&
     cliVersionOutdatedAlertKey !== dismissedCliVersionAlertKey
   );
+  const refreshSelectedCliVersion = useCallback(async () => {
+    if (!isCliMode || !cliAgentType) return;
+    const requestedAgentType = cliAgentType;
+    setRefreshingCliAgentType(requestedAgentType);
+    try {
+      await scanVersion(requestedAgentType, true);
+    } catch (error) {
+      log.warn("CLI version refresh failed", error);
+    } finally {
+      setRefreshingCliAgentType((currentAgentType) =>
+        currentAgentType === requestedAgentType ? null : currentAgentType
+      );
+    }
+  }, [cliAgentType, isCliMode, scanVersion]);
 
   const setAgentSelectionLaunchMode = useCallback(
     (mode: typeof cliLaunchMode) => {
@@ -98,6 +114,8 @@ export function useCliAgentConfiguration({
     selectedCliAgentGuiSupportKnown,
     selectedCliAgentSupportsGui,
     selectedCliVersion,
+    isSelectedCliVersionRefreshing: refreshingCliAgentType === cliAgentType,
+    refreshSelectedCliVersion,
     setAgentSelectionLaunchMode,
     setDismissedCliVersionAlertKey,
     showCliVersionOutdatedAlert,

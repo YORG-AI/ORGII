@@ -2185,6 +2185,7 @@
     "cliVersionOutdated": {
       "title": "{{cli}} CLI needs an upgrade",
       "body": "Installed version: {{installed}}. Latest version: {{latest}}. Upgrade the CLI, then scan it again before using newer models",
+      "refresh": "Recheck {{cli}} CLI version",
       "unknownVersion": "unknown"
     },
     "noProvidersAvailable": "No providers available",

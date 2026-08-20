@@ -17,6 +17,10 @@ import {
   subscribeShareableScopeKeys,
 } from "./repoScopeResolver";
 
+vi.mock("@tauri-apps/plugin-fs", () => ({
+  exists: async (path: string) => existsBehavior(path),
+}));
+let existsBehavior: (path: string) => boolean = () => true;
 vi.mock("@src/api/http/git/remotes", () => ({
   getGitRemotes: vi.fn(),
 }));
@@ -28,8 +32,41 @@ const remotesMock = vi.mocked(getGitRemotes);
 const networkIdentityMock = vi.mocked(resolveGitHubRepoNetworkIdentityLocal);
 
 beforeEach(() => {
+  existsBehavior = () => true;
   networkIdentityMock.mockRejectedValue(new Error("not configured"));
   clearShareableScopeKeyCache();
+});
+
+describe("git marker pre-check", () => {
+  beforeEach(() => {
+    remotesMock.mockReset();
+  });
+
+  it("still probes when the .git marker sits above a package subfolder", async () => {
+    existsBehavior = (path) =>
+      path === "/repo/packages/app" || path === "/repo/.git";
+    remotesMock.mockResolvedValue({
+      remotes: [remoteEntry("origin", "git@github.com:acme/mono.git")],
+    });
+    await expect(resolveShareableScopeKey("/repo/packages/app")).resolves.toBe(
+      "github.com/acme/mono"
+    );
+    expect(remotesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves not-shareable without probing when no checkout exists above", async () => {
+    existsBehavior = (path) => path === "/plain/folder";
+    await expect(resolveShareableScopeKey("/plain/folder")).resolves.toBeNull();
+    expect(remotesMock).not.toHaveBeenCalled();
+  });
+
+  it("resolves not-shareable without probing for a deleted path", async () => {
+    existsBehavior = () => false;
+    await expect(
+      resolveShareableScopeKey("/gone/worktree")
+    ).resolves.toBeNull();
+    expect(remotesMock).not.toHaveBeenCalled();
+  });
 });
 
 function remoteEntry(name: string, url: string) {
@@ -131,8 +168,10 @@ describe("resolveShareableScopeKey (git-remote-only sharing, design §8.3)", () 
     const first = resolveShareableScopeKey("/repo/alpha");
     const second = resolveShareableScopeKey("/repo/alpha");
     expect(peekShareableScopeKey("/repo/alpha")).toBeUndefined();
-    // Flush the deferred lookup body — exactly ONE IPC call fires for the
-    // two concurrent callers.
+    // Flush the deferred lookup body (including the existence pre-check) —
+    // exactly ONE IPC call fires for the two concurrent callers.
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
     expect(remotesMock).toHaveBeenCalledTimes(1);

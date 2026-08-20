@@ -94,7 +94,6 @@ export function getSubItemVisualState(status: string): SubItemVisualState {
 export function getSubItemProgress(children: WorkItemData[]): {
   completed: number;
   total: number;
-  percent: number;
 } {
   const completed = children.filter(
     (child) => getSubItemVisualState(child.frontmatter.status) !== "open"
@@ -103,7 +102,6 @@ export function getSubItemProgress(children: WorkItemData[]): {
   return {
     completed,
     total,
-    percent: total === 0 ? 0 : Math.round((completed / total) * 100),
   };
 }
 
@@ -195,7 +193,7 @@ const SubItemStateIcon: React.FC<SubItemStateIconProps> = ({
 
   return (
     <span
-      className="flex size-5 shrink-0 items-center justify-center"
+      className="flex h-6 w-5 shrink-0 items-center justify-center"
       title={label}
     >
       {state === "completed" ? (
@@ -313,10 +311,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
   };
 
   const composer = adding ? (
-    <div
-      className={children.length > 0 ? "pb-1 pt-3" : "py-4"}
-      data-testid="work-item-sub-item-composer"
-    >
+    <div className="py-2" data-testid="work-item-sub-item-composer">
       <div className="flex items-center gap-2">
         <div className="w-28 shrink-0">
           <Select
@@ -440,130 +435,106 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
           {t("workItems.subItems.add", { defaultValue: "Add sub-item" })}
         </Button>
       }
-      bodyClassName="!p-0"
     >
       {parent ? (
         <button
           type="button"
-          className="group mx-3 mt-1 flex w-[calc(100%-1.5rem)] cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-fill-1 disabled:cursor-default"
+          className="group flex min-h-8 w-full cursor-pointer items-start gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-fill-1 disabled:cursor-default"
           onClick={() => onOpenWorkItem?.(parent)}
           disabled={!onOpenWorkItem}
           data-testid="work-item-parent-link"
         >
-          <span className="shrink-0 text-[11px] font-normal text-text-4">
+          <span className="shrink-0 text-[11px] font-normal leading-6 text-text-4">
             {t("workItems.subItems.parent")}
           </span>
-          <span className="min-w-0 flex-1 truncate text-[12px] font-normal text-text-2">
+          <span className="min-w-0 flex-1 truncate text-[12px] font-normal leading-6 text-text-2">
             {parent.frontmatter.title}
           </span>
-          <span className="shrink-0 font-mono text-[11px] text-text-4">
+          <span className="flex h-6 shrink-0 items-center font-mono text-[11px] text-text-4">
             {parent.frontmatter.short_id}
           </span>
           {onOpenWorkItem ? (
-            <ChevronRight
-              size={14}
-              className="shrink-0 text-text-4 transition-colors group-hover:text-text-2"
-              aria-hidden
-            />
+            <span className="flex h-6 shrink-0 items-center">
+              <ChevronRight
+                size={14}
+                className="text-text-4 transition-colors group-hover:text-text-2"
+                aria-hidden
+              />
+            </span>
           ) : null}
         </button>
       ) : null}
 
-      {progress.total > 0 ? (
-        <div className="px-3 pb-2 pt-2.5">
-          <div
-            className="h-1 overflow-hidden rounded-full bg-fill-2"
-            role="progressbar"
-            aria-label={t("workItems.subItems.progress", {
-              defaultValue: "{{completed}} of {{total}} completed",
-              completed: progress.completed,
-              total: progress.total,
-            })}
-            aria-valuemin={0}
-            aria-valuemax={progress.total}
-            aria-valuenow={progress.completed}
-            data-testid="work-item-sub-items-progress"
-          >
-            <div
-              className="h-full rounded-full bg-success-6 transition-[width]"
-              style={{ width: `${progress.percent}%` }}
-            />
-          </div>
-        </div>
-      ) : null}
-
       {children.length > 0 || adding ? (
-        <div className={children.length > 0 ? "px-3 pb-3" : "px-3"}>
-          <div className="max-h-64 overflow-y-auto">
-            {groupSubItemsByStage(children).map((group) => (
-              <div key={group.key}>
-                {group.label ? (
-                  <div className="px-2 pb-1 pt-2 text-[10px] font-normal uppercase tracking-wide text-text-4">
-                    {group.stage !== undefined
-                      ? t("workItems.subItems.stage", {
-                          defaultValue: "Stage {{stage}}",
-                          stage: group.stage,
-                        })
-                      : t("workItems.subItems.noStage", {
-                          defaultValue: "No stage",
-                        })}
-                  </div>
-                ) : null}
-                {group.items.map((child) => {
-                  const state = getSubItemVisualState(child.frontmatter.status);
-                  return (
-                    <button
-                      type="button"
-                      key={child.frontmatter.short_id}
-                      className="group flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-fill-1 disabled:cursor-default"
-                      onClick={() => onOpenWorkItem?.(child)}
-                      disabled={!onOpenWorkItem}
-                      data-sub-item-state={state}
-                      data-testid={`work-item-sub-item-${child.frontmatter.short_id}`}
-                    >
-                      <SubItemStateIcon
-                        state={state}
-                        label={statusLabel(state)}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-normal text-text-1">
-                        {child.frontmatter.title}
-                      </span>
-                      <span className="shrink-0 font-mono text-[11px] text-text-4">
-                        {child.frontmatter.short_id}
-                      </span>
-                      {onOpenWorkItem ? (
+        <div className="max-h-64 overflow-y-auto">
+          {groupSubItemsByStage(children).map((group) => (
+            <div key={group.key} className="flex flex-col gap-0.5">
+              {group.label ? (
+                <div className="px-2 pb-1 pt-2 text-[10px] font-normal uppercase tracking-wide text-text-4">
+                  {group.stage !== undefined
+                    ? t("workItems.subItems.stage", {
+                        defaultValue: "Stage {{stage}}",
+                        stage: group.stage,
+                      })
+                    : t("workItems.subItems.noStage", {
+                        defaultValue: "No stage",
+                      })}
+                </div>
+              ) : null}
+              {group.items.map((child) => {
+                const state = getSubItemVisualState(child.frontmatter.status);
+                return (
+                  <button
+                    type="button"
+                    key={child.frontmatter.short_id}
+                    className="group flex min-h-8 w-full cursor-pointer items-start gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-fill-1 disabled:cursor-default"
+                    onClick={() => onOpenWorkItem?.(child)}
+                    disabled={!onOpenWorkItem}
+                    data-sub-item-state={state}
+                    data-testid={`work-item-sub-item-${child.frontmatter.short_id}`}
+                  >
+                    <SubItemStateIcon
+                      state={state}
+                      label={statusLabel(state)}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-normal leading-6 text-text-1">
+                      {child.frontmatter.title}
+                    </span>
+                    <span className="flex h-6 shrink-0 items-center font-mono text-[11px] text-text-4">
+                      {child.frontmatter.short_id}
+                    </span>
+                    {onOpenWorkItem ? (
+                      <span className="flex h-6 shrink-0 items-center">
                         <ChevronRight
                           size={14}
-                          className="shrink-0 text-text-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                          className="text-text-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                           aria-hidden
                         />
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-            {composer}
-          </div>
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          {composer}
         </div>
       ) : (
-        <div className="px-3 py-2">
-          <Button
-            variant="tertiary"
-            appearance="ghost"
-            size="small"
-            long
-            icon={<Plus size={13} aria-hidden />}
-            iconPosition="right"
-            className="!h-auto !justify-between !rounded-lg !px-2 !py-2 !text-left !text-[12px] !font-normal !text-text-3 hover:!bg-fill-1 hover:!text-text-2"
-            onClick={() => setAdding(true)}
-            data-testid="work-item-sub-items-empty-add"
-          >
-            {t("workItems.subItems.addFirst", {
-              defaultValue: "Add the first sub-item",
-            })}
-          </Button>
-        </div>
+        <Button
+          variant="tertiary"
+          appearance="ghost"
+          size="small"
+          long
+          icon={<Plus size={13} aria-hidden />}
+          iconPosition="right"
+          className="!h-auto !justify-between !rounded-lg !px-2 !py-2 !text-left !text-[12px] !font-normal !text-text-3 hover:!bg-fill-1 hover:!text-text-2"
+          onClick={() => setAdding(true)}
+          data-testid="work-item-sub-items-empty-add"
+        >
+          {t("workItems.subItems.addFirst", {
+            defaultValue: "Add the first sub-item",
+          })}
+        </Button>
       )}
     </WorkItemThreadSection>
   );

@@ -122,6 +122,29 @@
       td,
       th
     ),
+  .allow-select-deep
+    :is(
+      p,
+      span,
+      strong,
+      em,
+      b,
+      i,
+      a,
+      li,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6,
+      blockquote,
+      td,
+      th,
+      pre,
+      code,
+      time
+    ),
   .question-text,
   .question-text :is(span, strong, em, b, i, a),
   .terminal-output__pre,
@@ -140,16 +163,17 @@
     -webkit-user-select: text !important;
   }
 
-  // The transcript scroller owns one selection range. Older rules above
-  // deliberately made individual text leaves selectable while their wrappers
-  // stayed inert; that turns Markdown blocks and adjacent messages into
-  // separate selection islands. The shared deep-selection contract restores
-  // a continuous range, while explicit UI chrome can still opt out with
-  // `select-none`.
-  .allow-select-deep,
+  // Keep flex/grid/layout wrappers out of the selection range so WebKit does
+  // not paint empty message boxes as full-width lines or U-shaped outlines.
+  // Real text elements opt back in through the semantic allowlist above.
+  .allow-select-deep {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
   .allow-select-deep * {
-    user-select: text !important;
-    -webkit-user-select: text !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
   }
 
   .allow-select-deep .select-none,
@@ -232,17 +256,35 @@
   pre span::selection,
   code::selection,
   code span::selection {
-    background: var(--terminal-selection, var(--color-primary-1)) !important;
-    background-color: var(
-      --terminal-selection,
-      var(--color-primary-1)
-    ) !important;
+    background: var(--text-selection, var(--color-primary-2)) !important;
+    background-color: var(--text-selection, var(--color-primary-2)) !important;
   }
 
-  .allow-select-deep::selection,
-  .allow-select-deep *::selection {
-    background: var(--terminal-selection, var(--color-fill-2)) !important;
-    background-color: var(--terminal-selection, var(--color-fill-2)) !important;
+  .allow-select-deep
+    :is(
+      p,
+      span,
+      strong,
+      em,
+      b,
+      i,
+      a,
+      li,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6,
+      blockquote,
+      td,
+      th,
+      pre,
+      code,
+      time
+    )::selection {
+    background: var(--text-selection, var(--color-primary-2)) !important;
+    background-color: var(--text-selection, var(--color-primary-2)) !important;
   }
 
   .chat-markdown-body {

@@ -117,6 +117,8 @@ const SessionCreatorChatPanelContent: React.FC<
     selectedCliAgentGuiSupportKnown,
     selectedCliAgentSupportsGui,
     selectedCliVersion,
+    isSelectedCliVersionRefreshing,
+    refreshSelectedCliVersion,
     setAgentSelectionLaunchMode,
     setDismissedCliVersionAlertKey,
     showCliVersionOutdatedAlert,
@@ -414,6 +416,8 @@ const SessionCreatorChatPanelContent: React.FC<
               installedVersion:
                 selectedCliVersion?.installed_version ?? undefined,
               latestVersion: selectedCliVersion?.latest_version ?? undefined,
+              refreshing: isSelectedCliVersionRefreshing,
+              onRefresh: refreshSelectedCliVersion,
               onClose: () =>
                 setDismissedCliVersionAlertKey(cliVersionOutdatedAlertKey),
             }

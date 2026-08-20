@@ -36,6 +36,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ROUTES } from "@src/config/routes";
+import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
 import {
   FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS,
   isSameFocusedChatGitEnvironment,
@@ -218,7 +219,7 @@ function WorkspaceContextRow({
 }) {
   const className = compact
     ? "flex h-8 min-w-0 items-center gap-2 overflow-hidden rounded-md px-2 text-text-1"
-    : "flex h-7 min-w-0 items-center gap-1.5 overflow-hidden rounded-lg px-2 text-text-1";
+    : `${WORKSTATION_TRAIL_CONTENT.row} gap-1.5 overflow-hidden px-2 text-text-1`;
   const content = (
     <>
       <Icon className="shrink-0" size={14} strokeWidth={1.75} />
@@ -282,7 +283,7 @@ function WorkstationItemRow({
                 ? DROPDOWN_CLASSES.itemHover
                 : `${DROPDOWN_CLASSES.itemDisabled} text-text-3`
             }`
-          : `flex h-full min-w-0 flex-1 items-center gap-1.5 px-2 text-left text-[12px] ${
+          : `${WORKSTATION_TRAIL_CONTENT.rowContent} ${
               item.onClick ? "text-text-1" : "cursor-default text-text-3"
             }`
       }
@@ -326,7 +327,7 @@ function WorkstationItemRow({
       className={
         compact
           ? "group flex min-w-0 items-center"
-          : `group flex h-7 min-w-0 items-center rounded-lg transition-colors duration-150 ${
+          : `group ${WORKSTATION_TRAIL_CONTENT.row} transition-colors duration-150 ${
               item.onClick ? "focus-within:bg-fill-2 hover:bg-fill-2" : ""
             }`
       }
@@ -433,16 +434,18 @@ function WorkstationSections({
 }: WorkstationSectionsProps) {
   return (
     <div
-      className={compact ? "space-y-2" : "space-y-3"}
+      className={compact ? "space-y-2" : WORKSTATION_TRAIL_CONTENT.sectionList}
       role={compact ? "menu" : undefined}
     >
       {sections.map((section) => (
         <section
           key={section.key}
-          className={compact ? "space-y-0.5" : "space-y-1"}
+          className={
+            compact ? "space-y-0.5" : WORKSTATION_TRAIL_CONTENT.section
+          }
         >
           {section.label && (
-            <div className="px-2 text-left text-[11px] font-medium uppercase tracking-wide text-text-3">
+            <div className={WORKSTATION_TRAIL_CONTENT.sectionLabel}>
               {section.label}
             </div>
           )}

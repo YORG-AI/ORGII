@@ -125,14 +125,32 @@ describe("uploadReplayObject", () => {
     expect((error as Org2CloudStorageError).status).toBe(400);
   });
 
-  it("accepts a plain 409 duplicate when the object is readable", async () => {
-    fetchMock
-      .mockResolvedValueOnce(new Response(null, { status: 409 }))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+  it("accepts a plain 409 duplicate without a read-back probe", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 409 }));
 
     await expect(
       uploadReplayObject("jwt-1", "org-1/s-1/1/1-h.gz", new Uint8Array([1]))
     ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts a 400-wrapped KeyAlreadyExists even when the object is unreadable", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          statusCode: "409",
+          error: "Duplicate",
+          message: "The resource already exists",
+          code: "KeyAlreadyExists",
+        }),
+        { status: 400 }
+      )
+    );
+
+    await expect(
+      uploadReplayObject("jwt-1", "org-1/s-1/1/1-h.gz", new Uint8Array([1]))
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

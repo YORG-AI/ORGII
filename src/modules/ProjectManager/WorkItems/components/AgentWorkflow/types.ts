@@ -99,13 +99,6 @@ export const STATUS_I18N_KEYS: Record<string, string> = {
   cancelled: "workItems.agentWorkflow.statusCancelled",
 };
 
-export const ROLE_I18N_KEYS: Record<string, string> = {
-  coding: "workItems.agentWorkflow.roleCoding",
-  sde: "workItems.agentWorkflow.roleCoding",
-  review: "workItems.agentWorkflow.roleReview",
-  follow_up: "workItems.agentWorkflow.roleFollowUp",
-};
-
 export const TOOL_LABEL_I18N_KEYS: Record<string, string> = {
   edit_file: "workItems.toolLabels.edit",
   apply_patch: "workItems.toolLabels.patch",

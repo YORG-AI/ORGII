@@ -40,11 +40,11 @@ export const SimSection = memo<SimSectionProps>(
       switch (variant) {
         case "card":
         case "terminal":
-          return "flex select-none items-center gap-2.5 px-4 py-2.5 border-b border-border-1 bg-event-block/80";
+          return "flex items-center gap-2.5 px-4 py-2.5 border-b border-border-1 bg-event-block/80";
         case "thinking":
-          return "flex select-none items-center gap-2.5 px-4 py-2.5 border-b border-success-6/20 bg-success-6/5";
+          return "flex items-center gap-2.5 px-4 py-2.5 border-b border-success-6/20 bg-success-6/5";
         default:
-          return "flex select-none items-center gap-2 mb-3";
+          return "flex items-center gap-2 mb-3";
       }
     }, [variant]);
 
@@ -87,7 +87,10 @@ export const SimSection = memo<SimSectionProps>(
             </span>
           )}
           {icon && <i className={`${icon} text-[13px] ${iconColor}`} />}
-          <span className={labelClass} style={{ fontFamily: FONT_SANS }}>
+          <span
+            className={`select-text ${labelClass}`}
+            style={{ fontFamily: FONT_SANS }}
+          >
             {label}
           </span>
           {variant === "default" && (

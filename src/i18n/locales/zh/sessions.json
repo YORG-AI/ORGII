@@ -2158,6 +2158,7 @@
     "cliVersionOutdated": {
       "title": "{{cli}} CLI 需要升级",
       "body": "当前安装版本：{{installed}}；最新版本：{{latest}}。请自行升级 CLI，再重新扫描后使用较新的模型",
+      "refresh": "重新检查 {{cli}} CLI 版本",
       "unknownVersion": "未知"
     },
     "noProvidersAvailable": "没有可用的提供者",

@@ -54,6 +54,7 @@
   --cm-editor-foreground: #24292e;
   --cm-editor-selection: #efefef;
   --cm-editor-caret: #4f6dff;
+  --text-selection: #bfe8ff;
   --terminal-selection: #efefef;
   --terminal-caret: #4f6dff;
   --cm-editor-gutter-bg: var(--cm-editor-background);

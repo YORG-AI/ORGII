@@ -15,6 +15,11 @@ export interface WorkstationTrailSurfaceProps extends HTMLAttributes<HTMLElement
 }
 
 export const WORKSTATION_TRAIL_SURFACE_CLASS = `max-h-full w-full flex-col overflow-hidden rounded-xl border border-border-1 p-1 ${DROPDOWN_PANEL.shadowClass} ${EDITOR_TAB_CANVAS_BG_CLASS}`;
+export const WORKSTATION_TRAIL_WIDTH = {
+  expandedPx: 256,
+  expandedResponsiveClass: "@[1100px]/focusedchat:w-64",
+  collapsedResponsiveClass: "@[1100px]/focusedchat:w-11",
+} as const;
 export const WORKSTATION_TRAIL_RAIL_PADDING_CLASS = "px-1 pb-1 pt-2";
 export const FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS =
   "@[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2";

@@ -54,6 +54,11 @@ vi.mock("@src/components/Avatar", () => ({
     createElement("span", null, children),
 }));
 
+vi.mock("@src/assets/modelIcons/org2-session.svg", () => ({
+  default: (props: React.SVGProps<SVGSVGElement>) =>
+    createElement("svg", props),
+}));
+
 vi.mock("@src/components/TabPill", () => ({
   default: ({
     tabs,
@@ -216,19 +221,32 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
   SessionTable: ({
     items,
     onSelect,
+    surfaceVariant,
+    bodySurface,
+    headerBorder,
   }: {
     items: Array<{
       id: string;
       title: string;
       description?: string;
+      agentIcon?: React.ReactNode;
+      agentLabel?: React.ReactNode;
       disabled?: boolean;
       testId?: string;
     }>;
     onSelect?: (item: { id: string }) => void;
+    surfaceVariant?: string;
+    bodySurface?: string;
+    headerBorder?: boolean;
   }) =>
     createElement(
       "div",
-      { "data-testid": "mock-session-table" },
+      {
+        "data-testid": "mock-session-table",
+        "data-surface-variant": surfaceVariant,
+        "data-body-surface": bodySurface,
+        "data-header-border": String(headerBorder),
+      },
       ...items.map((item) =>
         createElement(
           "button",
@@ -240,7 +258,9 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
             onClick: () => onSelect?.(item),
           },
           item.title,
-          item.description
+          item.description,
+          item.agentIcon,
+          item.agentLabel
         )
       )
     ),
@@ -476,6 +496,42 @@ describe("WorkItemContent description editing", () => {
 
     act(() => originRow?.click());
     expect(onOpenSession).toHaveBeenCalledWith("sdeagent-origin-1");
+  });
+
+  it("uses the bordered session surface and stable English ORG2 agent presentation", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            linkedSessions: [
+              {
+                session_id: "native-session-1",
+                session_type: "native",
+                agent_role: "coding",
+                started_at: "2026-08-20T12:00:00.000Z",
+                completed_at: "2026-08-20T12:01:00.000Z",
+                status: "completed",
+                cost_usd: 0,
+                total_tokens: 0,
+              },
+            ],
+          },
+        })
+      );
+    });
+
+    const table = container.querySelector("[data-testid='mock-session-table']");
+    const row = container.querySelector(
+      "[data-testid='work-item-linked-session-native-session-1']"
+    );
+
+    expect(table?.getAttribute("data-surface-variant")).toBe("default");
+    expect(table?.getAttribute("data-body-surface")).toBe("pane");
+    expect(table?.getAttribute("data-header-border")).toBe("false");
+    expect(row?.textContent).toContain("Coding");
+    expect(row?.textContent).not.toContain("workItems.agentWorkflow");
+    expect(row?.querySelector("[data-agent-provider='org2']")).not.toBeNull();
   });
 
   it("is editable by default and only shows Cancel/Save after a change", () => {

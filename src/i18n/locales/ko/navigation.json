@@ -552,7 +552,7 @@
       "mySessions": "내 세션",
       "memberFilter": "멤버별 필터",
       "sessionFilter": "세션 필터",
-      "copyId": "ID 복사",
+      "copyUrl": "URL 복사",
       "directlySharedWithMe": "나에게 직접 공유됨",
       "everyone": "전체",
       "forkedFrom": "@{{name}}에서 포크됨",

@@ -22,6 +22,7 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { usePropertyDropdownDirection } from "./PropertyDropdownDirection";
@@ -30,7 +31,7 @@ import { usePropertyDropdownDirection } from "./PropertyDropdownDirection";
 // FieldRow - Interactive row that opens dropdowns
 // ============================================
 
-export type FieldRowVariant = "row" | "pill";
+export type FieldRowVariant = "row" | "pill" | "workstation-trail";
 export type FieldRowIdleSurface = "background" | "fill";
 
 export interface FieldRowProps {
@@ -114,18 +115,30 @@ export const FieldRow: React.FC<FieldRowProps> = ({
     );
   }
 
+  const isWorkstationTrail = variant === "workstation-trail";
+
   return (
-    <div className="flex min-h-8 w-full min-w-0 items-center gap-1 px-2 py-0.5">
+    <div
+      className={
+        isWorkstationTrail
+          ? `${WORKSTATION_TRAIL_CONTENT.row} w-full`
+          : "flex min-h-8 w-full min-w-0 items-center gap-1 px-2 py-0.5"
+      }
+    >
       {label && (
         <span className="w-[72px] shrink-0 text-xs text-text-2">{label}</span>
       )}
       <div
         data-field-row
-        className={`group/field flex min-w-0 flex-1 items-center rounded-md transition-colors hover:bg-surface-hover ${isActive ? "bg-surface-hover" : "bg-transparent"}`}
+        className={`group/field flex min-w-0 flex-1 items-center ${isWorkstationTrail ? "h-full rounded-lg" : "rounded-md"} transition-colors hover:bg-surface-hover ${isActive ? "bg-surface-hover" : "bg-transparent"}`}
       >
         <button
           type="button"
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1.5 py-1.5 text-left outline-none"
+          className={
+            isWorkstationTrail
+              ? `${WORKSTATION_TRAIL_CONTENT.rowContent} cursor-pointer border-none bg-transparent outline-none`
+              : "flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1.5 py-1.5 text-left outline-none"
+          }
           onClick={onClick}
           disabled={disabled}
         >

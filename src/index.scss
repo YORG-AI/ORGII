@@ -193,10 +193,10 @@ strong {
   font-weight: bold;
 }
 
-// Global text selection color — use the same neutral fill tone across
-// code, terminal, chat, markdown, and form surfaces.
+// Global text selection color. Text surfaces share one semantic, theme-aware
+// blue highlight; code editors and terminals keep their dedicated tokens.
 ::selection {
-  background: var(--terminal-selection, var(--color-fill-2));
+  background: var(--text-selection, var(--color-primary-2));
 }
 
 .cm-editor .cm-content {
@@ -630,12 +630,18 @@ html[data-host-desktop="windows"] [data-windows-top-bar="true"] {
 // Deep text-selection override: applies to the element AND all descendants.
 // Use this on content areas (e.g. chat messages) instead of scattering
 // `user-select: text !important` + `* { … }` hacks in every component.
-.allow-select-deep,
-.allow-select-deep * {
+.allow-select-deep {
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
+}
+
+.allow-select-deep * {
+  -webkit-user-select: auto !important;
+  -moz-user-select: auto !important;
+  -ms-user-select: auto !important;
+  user-select: auto !important;
 }
 
 // Opt-out: event titles/headers (collapsible block headers, etc.) should not be selectable

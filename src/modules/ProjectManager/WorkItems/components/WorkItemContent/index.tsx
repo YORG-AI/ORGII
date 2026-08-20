@@ -8,6 +8,7 @@ import {
   type WorkItemOriginSession,
   projectApi,
 } from "@src/api/http/project";
+import Org2SessionIcon from "@src/assets/modelIcons/org2-session.svg";
 import Avatar from "@src/components/Avatar";
 import TabPill from "@src/components/TabPill";
 import { useWorkItemImageInsert } from "@src/hooks/project";
@@ -46,7 +47,7 @@ import {
   toIntlLocaleTag,
 } from "@src/util/data/formatters/date";
 
-import { ROLE_I18N_KEYS, STATUS_I18N_KEYS } from "../AgentWorkflow/types";
+import { STATUS_I18N_KEYS } from "../AgentWorkflow/types";
 import TodoChecklist from "../TodoChecklist";
 import WorkItemContentStack from "../WorkItemContentStack";
 import WorkItemSubItems, { useWorkItemFamily } from "../WorkItemSubItems";
@@ -86,6 +87,55 @@ const LINKED_SESSION_STATUS_COLOR: Record<LinkedSession["status"], string> = {
   cancelled: "var(--color-warning-6)",
 };
 
+const LINKED_SESSION_AGENT_LABEL: Record<LinkedSession["agent_role"], string> =
+  {
+    coding: "Coding",
+    sde: "SDE",
+    review: "Review",
+    orchestrator: "Orchestrator",
+    custom: "Custom",
+    sub_agent: "Sub-agent",
+  };
+
+function formatLinkedSessionAgentLabel(session: LinkedSession): string {
+  return (
+    session.sub_agent_name ?? LINKED_SESSION_AGENT_LABEL[session.agent_role]
+  );
+}
+
+function formatOriginSessionAgentLabel(actorId: string): string {
+  const agentId = actorId.replace(/^agent:/, "");
+  return (
+    LINKED_SESSION_AGENT_LABEL[agentId as LinkedSession["agent_role"]] ??
+    agentId
+  );
+}
+
+function renderSessionAgentIcon(
+  sessionType: "native" | "cli",
+  provider?: string
+) {
+  if (provider === "org2" || (!provider && sessionType === "native")) {
+    return (
+      <Org2SessionIcon
+        className="size-3.5 shrink-0"
+        data-agent-provider="org2"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  const AgentIcon = sessionType === "cli" ? Terminal : Bot;
+  return (
+    <AgentIcon
+      size={14}
+      strokeWidth={1.75}
+      className="shrink-0 text-text-3"
+      aria-hidden="true"
+    />
+  );
+}
+
 function getLinkedSessionTitle(session: LinkedSession): string {
   if (session.result_preview) return session.result_preview;
   if (session.sub_agent_name) return session.sub_agent_name;
@@ -124,18 +174,8 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
     }
 
     const executionItems = sessions.map((session) => {
-      const roleLabelKey = ROLE_I18N_KEYS[session.agent_role];
       const statusLabelKey = STATUS_I18N_KEYS[session.status];
-      const roleLabel = roleLabelKey
-        ? t(roleLabelKey)
-        : session.sub_agent_name || session.agent_role;
       const statusLabel = statusLabelKey ? t(statusLabelKey) : session.status;
-      const agentIcon =
-        session.session_type === "cli" ? (
-          <Terminal size={14} strokeWidth={1.75} className="text-text-3" />
-        ) : (
-          <Bot size={14} strokeWidth={1.75} className="text-text-3" />
-        );
 
       return {
         id: session.session_id,
@@ -147,8 +187,8 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
             : undefined,
         statusLabel,
         statusColor: LINKED_SESSION_STATUS_COLOR[session.status],
-        agentIcon,
-        agentLabel: roleLabel,
+        agentIcon: renderSessionAgentIcon(session.session_type),
+        agentLabel: formatLinkedSessionAgentLabel(session),
         modelLabel: session.session_type,
         workspaceLabel: session.parent_session_id,
         workspaceTitle: session.parent_session_id,
@@ -217,13 +257,11 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
           defaultValue: "Created this item",
         }),
         statusColor: "var(--color-primary-6)",
-        agentIcon:
-          originSession.session_type === "cli" ? (
-            <Terminal size={14} strokeWidth={1.75} className="text-text-3" />
-          ) : (
-            <Bot size={14} strokeWidth={1.75} className="text-text-3" />
-          ),
-        agentLabel: originSession.actor_id.replace(/^agent:/, ""),
+        agentIcon: renderSessionAgentIcon(
+          originSession.session_type,
+          originSession.provider
+        ),
+        agentLabel: formatOriginSessionAgentLabel(originSession.actor_id),
         modelLabel: originSession.session_type,
         startedLabel: formatReplayDateLabel(originSession.captured_at, {
           ...dateTimeLabelOptions,
@@ -284,6 +322,9 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
       <SessionTable
         items={tableItems}
         onSelect={(item) => onOpenSession?.(item.id)}
+        surfaceVariant="default"
+        bodySurface="pane"
+        headerBorder={false}
         maxHeight={360}
       />
     </div>

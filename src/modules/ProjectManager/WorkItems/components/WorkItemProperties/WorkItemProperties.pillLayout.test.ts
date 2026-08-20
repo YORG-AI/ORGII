@@ -23,7 +23,12 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("./PlanningSection", () => ({
-  PlanningSection: () => createElement("span", null, "Planning"),
+  PlanningSection: ({ fieldVariant }: { fieldVariant?: string }) =>
+    createElement(
+      "span",
+      { "data-planning-field-variant": fieldVariant },
+      "Planning"
+    ),
 }));
 vi.mock("./StatusPrioritySection", () => ({
   StatusPrioritySection: () => createElement("span", null, "Status"),
@@ -41,7 +46,7 @@ vi.mock("./DelegationsSection", () => ({
   DelegationsSection: () => createElement("span", null, "Delegations"),
 }));
 vi.mock("../ScheduleEditor", () => ({
-  default: ({ compact }: { compact?: boolean }) =>
+  default: ({ compact = false }: { compact?: boolean }) =>
     createElement("span", { "data-compact": String(compact) }, "Schedule"),
 }));
 vi.mock("./useWorkItemPropertyHandlers", () => ({
@@ -160,6 +165,32 @@ describe("WorkItemProperties pill layout", () => {
     expect(panel?.className).not.toContain("p-2");
     expect(container.textContent).toContain("workItems.properties.assignment");
     expect(container.querySelector('[data-compact="true"]')).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-planning-field-variant="workstation-trail"]'
+      )
+    ).not.toBeNull();
+    expect(container.querySelector(".space-y-3")).not.toBeNull();
+    expect(container.innerHTML).not.toContain("mt-1 px-2 py-1");
     expect(container.querySelector(".rounded-lg.border-border-2")).toBeNull();
+  });
+
+  it("keeps the standard row density in full property cards", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemProperties, {
+          workItem,
+          onUpdate: vi.fn(),
+        })
+      );
+    });
+
+    expect(
+      container.querySelector('[data-planning-field-variant="row"]')
+    ).not.toBeNull();
+    expect(container.querySelector('[data-compact="false"]')).not.toBeNull();
+    expect(
+      container.querySelector(".rounded-lg.border-border-2")
+    ).not.toBeNull();
   });
 });

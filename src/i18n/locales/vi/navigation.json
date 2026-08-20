@@ -552,7 +552,7 @@
       "mySessions": "Phiên của tôi",
       "memberFilter": "Lọc theo thành viên",
       "sessionFilter": "Lọc phiên",
-      "copyId": "Sao chép ID",
+      "copyUrl": "Sao chép URL",
       "directlySharedWithMe": "Được chia sẻ trực tiếp với tôi",
       "everyone": "Tất cả",
       "forkedFrom": "được fork từ @{{name}}",

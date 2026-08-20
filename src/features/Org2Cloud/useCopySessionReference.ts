@@ -1,5 +1,5 @@
 /**
- * "Copy ID" for a LOCAL session row.
+ * "Copy URL" for a LOCAL session row.
  *
  * The teammate rows in Team Sessions have always offered this, because
  * their row data already carries the `(org, owner, session)` tuple a
@@ -105,6 +105,6 @@ export function useCopySessionReference(): CopySessionReferenceResult {
   return {
     isCopyReferenceEligible,
     handleCopyReference,
-    copyReferenceLabel: i18n.t("navigation:cloud.sidebar.copyId"),
+    copyReferenceLabel: i18n.t("navigation:cloud.sidebar.copyUrl"),
   };
 }

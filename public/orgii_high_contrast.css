@@ -51,6 +51,7 @@
   --cm-editor-foreground: #ffffff;
   --cm-editor-selection: #1c1c1c;
   --cm-editor-caret: #38bdf8;
+  --text-selection: #075985;
   --terminal-selection: #1c1c1c;
   --terminal-caret: #38bdf8;
   --cm-editor-gutter-bg: #050505;
@@ -222,6 +223,7 @@ body {
   --cm-editor-foreground: #ffffff;
   --cm-editor-selection: #1c1c1c;
   --cm-editor-caret: #38bdf8;
+  --text-selection: #075985;
   --terminal-selection: #1c1c1c;
   --terminal-caret: #38bdf8;
   --cm-editor-gutter-bg: #050505;

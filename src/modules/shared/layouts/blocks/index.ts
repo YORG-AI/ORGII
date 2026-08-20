@@ -51,6 +51,7 @@ export {
   WORKSTATION_TRAIL_ICON_BUTTON_CLASS,
   WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
   WORKSTATION_TRAIL_SURFACE_CLASS,
+  WORKSTATION_TRAIL_WIDTH,
 } from "./WorkstationTrailSurface";
 export type {
   WorkstationTrailHeaderProps,

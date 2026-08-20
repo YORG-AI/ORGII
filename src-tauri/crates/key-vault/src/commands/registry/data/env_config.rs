@@ -159,7 +159,8 @@ pub(crate) fn cli_env_config(name: &str) -> Option<AgentEnvConfig> {
         // Agents without a single universal API-key env var for ORGII to inject.
         // Some are subscription-token based, while others require provider-specific
         // config files or auth stores instead of one standard env-config path.
-        "aug" | "droid" | "autohand" | "omp" | "pi" | "open_claw" | "openclaw" | "antigravity" => {
+        "aug" | "droid" | "autohand" | "omp" | "pi" | "open_claw" | "openclaw" | "antigravity"
+        | "opencode" | "qoder_cli" | "trae_cli" => {
             None
         }
         // The caller iterates `cli_agent_registry()` entries, so a CLI

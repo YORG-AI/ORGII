@@ -149,6 +149,8 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
         className="group/turn-collapse chat-block-header mt-1 flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-left transition-colors hover:bg-fill-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
         onClick={(event) => {
           event.stopPropagation();
+          const selection = window.getSelection();
+          if (selection && !selection.isCollapsed) return;
           void handleToggle();
         }}
       >
@@ -158,11 +160,13 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
           className="shrink-0 text-text-2 transition-colors group-hover/turn-collapse:text-text-1"
         />
         <span className="inline-flex min-w-0 flex-1 items-center gap-2 leading-tight">
-          <span className="shrink-0 whitespace-nowrap font-medium text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
+          <span className="shrink-0 select-text whitespace-nowrap font-medium text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
             {label}
           </span>
           {showRange && (
-            <span className="min-w-0 truncate text-text-3">{rangeLabel}</span>
+            <span className="min-w-0 select-text truncate text-text-3">
+              {rangeLabel}
+            </span>
           )}
         </span>
       </button>
