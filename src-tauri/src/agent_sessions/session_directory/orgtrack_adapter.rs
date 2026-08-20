@@ -1,6 +1,7 @@
 use database::db::get_connection;
 use orgtrack_core::canonical::{
-    AgentMetadata, SessionRecord, SOURCE_ORGII_CLI_SESSIONS, SOURCE_ORGII_RUST_AGENTS,
+    AgentMetadata, JourneyMetadata, SessionRecord, SOURCE_ORGII_CLI_SESSIONS,
+    SOURCE_ORGII_RUST_AGENTS,
 };
 use orgtrack_core::privacy::ORGTRACK_SCHEMA_VERSION;
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
@@ -169,7 +170,11 @@ fn aggregate_to_core_session(record: &SessionAggregateRecord) -> SessionRecord {
                 .or_else(|| Some(record.name.clone())),
             parsed_categories: Default::default(),
         },
-        journey: Default::default(),
+        journey: JourneyMetadata {
+            project_id: record.project_id.clone(),
+            work_item_id: record.work_item_id.clone(),
+            ..JourneyMetadata::default()
+        },
     }
 }
 
@@ -194,5 +199,48 @@ fn rust_agent_type_for(record: &SessionAggregateRecord) -> Option<String> {
             }
         }
         SessionCategory::Cli | SessionCategory::Human => None,
+    }
+}
+
+#[cfg(test)]
+mod aggregate_journey_tests {
+    use super::*;
+
+    fn aggregate_fixture(
+        project_id: Option<&str>,
+        work_item_id: Option<&str>,
+    ) -> SessionAggregateRecord {
+        let mut value = serde_json::json!({
+            "sessionId": "cli-journey",
+            "name": "Linked",
+            "status": "completed",
+            "createdAt": "2026-08-20T00:00:00Z",
+            "updatedAt": "2026-08-20T00:00:00Z",
+            "category": "cli",
+            "keySource": "own_key",
+            "isActive": false,
+        });
+        if let Some(id) = project_id {
+            value["projectId"] = serde_json::json!(id);
+        }
+        if let Some(id) = work_item_id {
+            value["workItemId"] = serde_json::json!(id);
+        }
+        serde_json::from_value(value).expect("aggregate fixture deserializes")
+    }
+
+    #[test]
+    fn linked_aggregate_session_mirrors_project_and_work_item_into_journey() {
+        let canonical =
+            aggregate_to_core_session(&aggregate_fixture(Some("project-1"), Some("WI-7")));
+        assert_eq!(canonical.journey.project_id.as_deref(), Some("project-1"));
+        assert_eq!(canonical.journey.work_item_id.as_deref(), Some("WI-7"));
+    }
+
+    #[test]
+    fn unlinked_aggregate_session_keeps_journey_associations_empty() {
+        let canonical = aggregate_to_core_session(&aggregate_fixture(None, None));
+        assert_eq!(canonical.journey.project_id, None);
+        assert_eq!(canonical.journey.work_item_id, None);
     }
 }

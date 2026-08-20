@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use core_types::extracted::ExtractedData;
 use database::db::get_connection;
 use orgtrack_core::canonical::{
-    AgentMetadata, SessionDiffChunkRecord, SessionRecord, SOURCE_ORGII_RUST_AGENTS,
+    AgentMetadata, JourneyMetadata, SessionDiffChunkRecord, SessionRecord, SOURCE_ORGII_RUST_AGENTS,
 };
 use orgtrack_core::edit_extraction::{
     artifacts_from_extracted_edit, final_diff_from_chunks, EditArtifactContext,
@@ -147,6 +147,12 @@ pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<Sessio
         });
     };
 
+    Ok(native_session_to_canonical(record))
+}
+
+fn native_session_to_canonical(
+    record: agent_core::session::persistence::UnifiedSessionRecord,
+) -> SessionRecord {
     let rust_agent_type = match record.session_type.as_str() {
         agent_core::session::persistence::session_type::HUMAN => None,
         agent_core::session::persistence::session_type::DESKTOP => Some("os".to_string()),
@@ -161,7 +167,7 @@ pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<Sessio
         } else {
             "rust_agent"
         };
-    Ok(SessionRecord {
+    SessionRecord {
         schema_version: ORGTRACK_SCHEMA_VERSION,
         source: SOURCE_ORGII_RUST_AGENTS.to_string(),
         source_session_id: record.session_id.clone(),
@@ -189,6 +195,47 @@ pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<Sessio
             display_name: Some(record.name),
             ..AgentMetadata::default()
         },
-        journey: Default::default(),
-    })
+        journey: JourneyMetadata {
+            project_id: record.project_id,
+            work_item_id: record.work_item_id,
+            ..JourneyMetadata::default()
+        },
+    }
+}
+
+#[cfg(test)]
+mod session_record_tests {
+    use super::*;
+    use agent_core::session::persistence::{session_type, UnifiedSessionRecord};
+
+    fn linked_record() -> UnifiedSessionRecord {
+        UnifiedSessionRecord {
+            session_id: "sdeagent-journey".to_string(),
+            name: "Linked".to_string(),
+            status: "completed".to_string(),
+            session_type: session_type::CODING.to_string(),
+            project_id: Some("project-1".to_string()),
+            work_item_id: Some("WI-7".to_string()),
+            ..UnifiedSessionRecord::default()
+        }
+    }
+
+    #[test]
+    fn linked_native_session_mirrors_project_and_work_item_into_journey() {
+        let canonical = native_session_to_canonical(linked_record());
+        assert_eq!(canonical.journey.project_id.as_deref(), Some("project-1"));
+        assert_eq!(canonical.journey.work_item_id.as_deref(), Some("WI-7"));
+    }
+
+    #[test]
+    fn unlinked_native_session_keeps_journey_associations_empty() {
+        let record = UnifiedSessionRecord {
+            project_id: None,
+            work_item_id: None,
+            ..linked_record()
+        };
+        let canonical = native_session_to_canonical(record);
+        assert_eq!(canonical.journey.project_id, None);
+        assert_eq!(canonical.journey.work_item_id, None);
+    }
 }

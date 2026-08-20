@@ -454,7 +454,7 @@ pub fn update_work_item_link(
     work_item_id: &str,
     agent_role: Option<&str>,
 ) -> SqliteResult<bool> {
-    with_sessions_writer(|| {
+    let changed = with_sessions_writer(|| -> SqliteResult<bool> {
         let conn = get_connection()?;
         let updated = conn.execute(
             // Linking to a Work Item makes this a Project session — the same
@@ -482,7 +482,11 @@ pub fn update_work_item_link(
             ],
         )?;
         Ok(updated > 0)
-    })
+    })?;
+    if changed {
+        notify_session_mirror(session_id);
+    }
+    Ok(changed)
 }
 
 /// Link the bootstrap-created root WorkItem to a Project session
@@ -492,7 +496,7 @@ pub fn update_work_item_link(
 /// only if still unset — a concurrent link wins and this becomes a
 /// no-op.
 pub fn link_bootstrap_work_item(session_id: &str, work_item_id: &str) -> SqliteResult<bool> {
-    with_sessions_writer(|| {
+    let changed = with_sessions_writer(|| -> SqliteResult<bool> {
         let conn = get_connection()?;
         let updated = conn.execute(
             "UPDATE agent_sessions
@@ -501,7 +505,11 @@ pub fn link_bootstrap_work_item(session_id: &str, work_item_id: &str) -> SqliteR
             params![session_id, work_item_id],
         )?;
         Ok(updated > 0)
-    })
+    })?;
+    if changed {
+        notify_session_mirror(session_id);
+    }
+    Ok(changed)
 }
 
 /// Associate a session with a Project without manufacturing a Work Item link.
