@@ -21,6 +21,7 @@ import { getImageMimeType } from "@src/util/file/previewTypes";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
+import { parseMarkdownFileRef } from "./markdownFileRef";
 import { classifyMarkdownImageSrc } from "./markdownImageSrc";
 
 export async function resolveLocalMarkdownPath(
@@ -39,7 +40,11 @@ export async function openLocalMarkdownRef(
   path: string,
   homeRelative: boolean
 ): Promise<void> {
-  const absolutePath = await resolveLocalMarkdownPath(path, homeRelative);
+  const fileRef = parseMarkdownFileRef(path);
+  const absolutePath = await resolveLocalMarkdownPath(
+    fileRef.path,
+    homeRelative
+  );
   let isDirectory = false;
   try {
     isDirectory = (await stat(absolutePath)).isDirectory;
@@ -48,6 +53,8 @@ export async function openLocalMarkdownRef(
   }
   if (isDirectory) {
     openFileInEditor(absolutePath, { isDirectory: true });
+  } else if (fileRef.line !== undefined) {
+    openFileInWorkStation(absolutePath, { line: fileRef.line });
   } else {
     openFileInWorkStation(absolutePath);
   }
