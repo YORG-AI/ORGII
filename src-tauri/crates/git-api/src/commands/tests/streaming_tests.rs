@@ -1,4 +1,5 @@
-use crate::commands::streaming::{detect_error_type_from_output, is_transient_error};
+use crate::commands::streaming::detect_error_type_from_output;
+use git::util::is_transient_error;
 
 // ============================================
 // detect_error_type_from_output — push
