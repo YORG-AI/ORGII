@@ -94,7 +94,8 @@ interface GitHubWorkItemsViewProps {
   onRepoSelect: (repo: IssueRepoFilter) => void;
   onIssuePersonalFiltersSelect: (values: (string | number)[]) => void;
   onRefresh: () => void;
-  onPreviousPage: () => void;
+  /** Jump directly to an already-loaded page (1-based). */
+  onGoToPage: (page: number) => void;
   onNextPage: () => Promise<void>;
   onSortChange: (sort: GitHubWorkItemsSort) => void;
   onOpenIssue: (issue: ManagedIssueItem) => void;
@@ -175,7 +176,7 @@ export function GitHubWorkItemsView({
   onRepoSelect,
   onIssuePersonalFiltersSelect,
   onRefresh,
-  onPreviousPage,
+  onGoToPage,
   onNextPage,
   onSortChange,
   onOpenIssue,
@@ -662,18 +663,16 @@ export function GitHubWorkItemsView({
                           hasMoreRemoteItems: hasMoreFilteredIssues,
                         }),
                       onPageChange: (pageIndex) => {
-                        if (pageIndex < currentPage - 1) {
-                          onPreviousPage();
-                        } else if (pageIndex > currentPage - 1) {
+                        const targetPage = pageIndex + 1;
+                        if (targetPage <= totalLoadedPages) {
+                          onGoToPage(targetPage);
+                        } else if (targetPage > currentPage) {
+                          // Beyond the loaded range: fetch one more remote
+                          // page and advance a single step.
                           void onNextPage();
                         }
                       },
-                      pageLabel: t("common:pagination.pageOf", {
-                        current: currentPage,
-                        total: hasMoreFilteredIssues
-                          ? `${totalLoadedPages}+`
-                          : totalLoadedPages,
-                      }),
+                      openEndedPageCount: hasMoreFilteredIssues,
                     }
                   : undefined
               }

@@ -176,6 +176,36 @@ describe("forkExternalHistoryIntoOrgiiSession", () => {
     ).not.toHaveProperty("parentSessionId");
   });
 
+  it("dispatches the agent projection while userMessage stays the display copy", async () => {
+    const contract =
+      "[Canvas Creation Request]\nCreate a new interactive inline Canvas for the user request below. Call render_inline_canvas exactly once for the finished Canvas.\n\n[User Request]\nbuild a coffee order UI";
+
+    await forkExternalHistoryIntoOrgiiSession({
+      sourceSessionId: "codexapp-source-1",
+      userMessage: "canvas [skill:/canvas] build a coffee order UI",
+      agentMessage: contract,
+    });
+
+    const task = vi.mocked(SessionService.create).mock.calls[0]?.[0]?.task;
+    // The handoff prompt embeds the AGENT copy as the continuation request —
+    // never the raw pill serialization the display copy carries.
+    expect(task).toContain("render_inline_canvas exactly once");
+    expect(task).not.toContain("[skill:/canvas]");
+  });
+
+  it("falls back to the display copy when no agent projection exists", async () => {
+    await forkExternalHistoryIntoOrgiiSession({
+      sourceSessionId: "codexapp-source-1",
+      userMessage: "continue and run tests",
+    });
+
+    expect(SessionService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task: expect.stringContaining("continue and run tests"),
+      })
+    );
+  });
+
   it("does not load or create anything when the shared setup is cancelled", async () => {
     vi.mocked(requestForkSessionSetup).mockRejectedValueOnce(
       new Error("cancelled")

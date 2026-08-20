@@ -9,7 +9,8 @@ import { FileText } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChatCodeBlock, StackedBlock } from "@src/engines/ChatPanel/blocks";
+import ChatCodeBlock from "@src/engines/ChatPanel/blocks/CodeBlock";
+import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { stripLineNumberPrefixes } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
 import { getFileName } from "@src/util/file/pathUtils";

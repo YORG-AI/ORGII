@@ -41,7 +41,8 @@ pub use turn_index::{
     CachedTurnSummary,
 };
 pub use turn_window::{
-    load_initial_turn_window, load_turn_body_window, CachedInitialTurnWindow, CachedTurnBodyWindow,
+    load_initial_turn_window, load_session_pinned_artifact_events, load_turn_body_window,
+    CachedInitialTurnWindow, CachedTurnBodyWindow,
 };
 pub use types::{
     CacheStats, CachedEvent, CachedSession, CrossSessionSearchHit, SearchResult, SessionMetadata,

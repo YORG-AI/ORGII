@@ -95,6 +95,11 @@ module.exports = {
         // root class.
         dropdown:
           "0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)",
+        // Half-strength `dropdown` (same geometry, half the opacity) for
+        // in-flow cards that should sit slightly above the page without
+        // reading as a floating panel. Dark override also in `index.scss`.
+        "dropdown-soft":
+          "0 4px 16px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04)",
         // Sticky header shadow - used in Git changes view file headers
         "sticky-header": "0 4px 8px -2px rgba(0, 0, 0, 0.3)",
         // Liquid Glass Pattern - Light Theme Shadows

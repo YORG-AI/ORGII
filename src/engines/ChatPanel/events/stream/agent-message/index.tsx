@@ -17,8 +17,10 @@ import { useTranslation } from "react-i18next";
 import Markdown from "@src/components/MarkDown";
 import { getEventIcon } from "@src/config/toolIcons";
 import AgentChatItemDefault from "@src/engines/ChatPanel/ChatItems/AgentChatItemDefault";
-import { AgentMessageBlock } from "@src/engines/ChatPanel/blocks";
+import AgentMessageBlock from "@src/engines/ChatPanel/blocks/AgentMessageBlock";
 import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
+import CanvasRevisionProgress from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasRevisionProgress";
+import { isCanvasRevisionPayload } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasRevision";
 import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
 import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
@@ -34,7 +36,10 @@ import {
   getEventBlockContentClasses,
   useEventBlockHeader,
 } from "@src/engines/ChatPanel/blocks/primitives";
-import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
+import {
+  useCanvasRevisionDraftForSession,
+  useStreamingDeltaForSession,
+} from "@src/engines/SessionCore";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
 import {
   type RawEventInput,
@@ -182,6 +187,10 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
   );
   const streamingCanvasPayload = streamingCanvas.payload;
   const canvasPayload = isStreaming ? streamingCanvasPayload : null;
+  const revisionDraft = useCanvasRevisionDraftForSession(
+    isStreaming ? sessionId : null
+  );
+  const showRevisionReceiving = revisionDraft?.phase === "receiving";
 
   if (!content && !thinkingContent && !isStreaming && !canvasPayload)
     return null;
@@ -191,7 +200,8 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
   // is populated. In that case we render only the inline thinking block
   // and skip the empty assistant bubble — otherwise the user sees a blank
   // chat row with no testid content.
-  const hasVisibleContent = Boolean(content) || isStreaming;
+  const hasVisibleContent =
+    Boolean(content) || (isStreaming && revisionDraft === null);
 
   return (
     <>
@@ -233,7 +243,12 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
           </AgentChatItemDefault>
         </AgentMessageBlock>
       )}
-      {canvasPayload && (
+      {showRevisionReceiving && (
+        <div className="px-2">
+          <CanvasRevisionProgress draft={revisionDraft} />
+        </div>
+      )}
+      {canvasPayload && !isCanvasRevisionPayload(canvasPayload) && (
         <div className="px-2">
           <CanvasInlineCard
             mode={canvasPayload.mode}

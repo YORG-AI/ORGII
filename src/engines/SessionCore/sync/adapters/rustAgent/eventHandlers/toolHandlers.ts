@@ -5,6 +5,13 @@
  * Shell process / exec-output handlers live in shellHandlers.ts.
  */
 import { switchModeForSession } from "@src/engines/ChatPanel/InputArea/ModeSwitchCard/useModeSwitchActions";
+import {
+  getCanvasRevisionTargetId,
+  isCanvasRevisionToolName,
+  isCanvasToolName,
+  isSameLogicalCanvas,
+  materializeCanvasRevisionArgs,
+} from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasRevision";
 import { openInSimulatorCanvas } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/openInSimulatorCanvas";
 import type {
   CanvasInlineMode,
@@ -12,6 +19,14 @@ import type {
 } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/types";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { createLogger } from "@src/hooks/logger";
+import {
+  type CanvasPreviewEntry,
+  canvasPreviewAtom,
+} from "@src/store/session/canvasPreviewAtom";
+import {
+  clearCanvasRevisionDraft,
+  markCanvasRevisionDraftApplying,
+} from "@src/store/session/canvasRevisionDraftAtom";
 import { clearMcpProgressForCallAtom } from "@src/store/session/mcpProgressAtom";
 
 import { makeToolResultEvent } from "../../shared/eventBuilders";
@@ -83,6 +98,18 @@ export function handleToolCall(
     }
   }
 
+  if (isCanvasRevisionToolName(event.tool)) {
+    const store = ctx.getDefaultStore();
+    if (store) {
+      markCanvasRevisionDraftApplying(
+        store,
+        sessionId,
+        toolCallId,
+        estimateCanvasRevisionReceivedCharacters(event.args)
+      );
+    }
+  }
+
   // Rust pushes the authoritative `tool-call-${toolCallId}` event into the
   // EventStore before broadcasting `agent:tool_call`. Do not synthesize or
   // upsert a duplicate frontend event here: a delayed broadcast handler can
@@ -104,8 +131,8 @@ export function handleToolCall(
   // Dispatch canvas-inline-event from tool_call (not tool_result) so the
   // full args payload is available — tool_result only carries a 4000-char
   // preview of the result string, not the original args.
-  if (event.tool === "render_inline_canvas" && event.args) {
-    dispatchCanvasInlineEventFromArgs(sessionId, event.args, toolCallId);
+  if (isCanvasToolName(event.tool) && event.args) {
+    dispatchCanvasInlineEventFromArgs(sessionId, event.args, toolCallId, ctx);
   }
 }
 
@@ -121,6 +148,7 @@ export async function handleToolResult(
   if (toolCallId) {
     const store = ctx.getDefaultStore();
     if (store) {
+      clearCanvasRevisionDraft(store, sessionId, toolCallId);
       store.set(clearMcpProgressForCallAtom, {
         sessionId,
         toolCallId,
@@ -199,16 +227,43 @@ function isCanvasInlineMode(value: unknown): value is CanvasInlineMode {
 }
 
 /**
- * Dispatch a canvas-inline-event from a `render_inline_canvas` tool_call's
- * args object. Reading from args (not the tool_result string) guarantees the
- * full content is available — the Rust broadcast truncates tool_result to
- * 4 000 chars, which would corrupt large HTML payloads.
+ * Progress size for the revision draft without serializing the full args
+ * object — `content` can reach ~1MB and `JSON.stringify` for a `.length`
+ * read was pure per-call overhead.
  */
-function dispatchCanvasInlineEventFromArgs(
+export function estimateCanvasRevisionReceivedCharacters(
+  args: Record<string, unknown> | undefined
+): number {
+  if (!args) return 0;
+  let characters = 0;
+  if (typeof args.content === "string") characters += args.content.length;
+  if (Array.isArray(args.edits)) {
+    for (const edit of args.edits) {
+      if (!edit || typeof edit !== "object") continue;
+      const { find, replace } = edit as Record<string, unknown>;
+      if (typeof find === "string") characters += find.length;
+      if (typeof replace === "string") characters += replace.length;
+    }
+  }
+  return characters;
+}
+
+/**
+ * Build the preview payload for a Canvas create/revise tool_call.
+ *
+ * An edits-only `revise_inline_canvas` carries no `content`; storing the raw
+ * args would poison `canvasPreviewAtom` with `{content: undefined}` and both
+ * the WorkStation Canvas tab and the Build-panel inline card would render
+ * "No content". Materialize such revisions against the previous preview
+ * payload at this producing boundary. Returns `null` when no valid base is
+ * available — callers must then leave the existing preview untouched.
+ */
+export function buildCanvasInlinePayloadFromToolArgs(
   sessionId: string,
   args: Record<string, unknown>,
-  toolCallId: string
-): void {
+  toolCallId: string,
+  previousEntry: Pick<CanvasPreviewEntry, "sessionId" | "payload"> | null
+): CanvasInlinePayload | null {
   const mode = isCanvasInlineMode(args.mode) ? args.mode : "html";
   const payload: CanvasInlinePayload = {
     mode,
@@ -217,7 +272,68 @@ function dispatchCanvasInlineEventFromArgs(
     title: typeof args.title === "string" ? args.title : undefined,
     streaming: typeof args.streaming === "boolean" ? args.streaming : undefined,
     eventId: `tool-call-${toolCallId}`,
+    revisesEventId: getCanvasRevisionTargetId(args) ?? undefined,
   };
+
+  // Creates, full-content revisions, and URL canvases pass through unchanged.
+  if (payload.content !== undefined || !payload.revisesEventId) return payload;
+  if (mode === "url") return payload;
+
+  const previousPayload =
+    previousEntry?.sessionId === sessionId &&
+    isSameLogicalCanvas(previousEntry.payload, payload)
+      ? previousEntry.payload
+      : null;
+  if (!previousPayload) return null;
+
+  const materialized = materializeCanvasRevisionArgs(
+    {
+      mode: previousPayload.mode,
+      content: previousPayload.content,
+      title: previousPayload.title,
+      url: previousPayload.url,
+    },
+    args
+  );
+  if (!materialized || typeof materialized.content !== "string") return null;
+
+  return {
+    ...payload,
+    mode: previousPayload.mode,
+    content: materialized.content,
+    title:
+      typeof materialized.title === "string" ? materialized.title : undefined,
+    url: typeof materialized.url === "string" ? materialized.url : payload.url,
+  };
+}
+
+/**
+ * Dispatch a canvas-inline-event from a Canvas create/revise tool_call's
+ * args object. Reading from args (not the tool_result string) guarantees the
+ * full content is available — the Rust broadcast truncates tool_result to
+ * 4 000 chars, which would corrupt large HTML payloads.
+ */
+function dispatchCanvasInlineEventFromArgs(
+  sessionId: string,
+  args: Record<string, unknown>,
+  toolCallId: string,
+  ctx: EventHandlerContext
+): void {
+  const payload = buildCanvasInlinePayloadFromToolArgs(
+    sessionId,
+    args,
+    toolCallId,
+    ctx.getDefaultStore()?.get(canvasPreviewAtom) ?? null
+  );
+  if (!payload) {
+    // No materializable base: keep the last valid preview visible instead of
+    // overwriting it with a contentless payload.
+    log.warn(
+      "[toolHandlers] canvas revision without content could not be materialized — preserving existing preview",
+      { sessionId, toolCallId }
+    );
+    return;
+  }
 
   openInSimulatorCanvas(sessionId, payload);
 

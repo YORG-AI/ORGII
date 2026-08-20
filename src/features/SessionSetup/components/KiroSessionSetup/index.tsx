@@ -33,8 +33,8 @@ import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
-import { useKiroSessionCapture } from "@src/hooks/workStation/sessionCapture/useKiroSessionCapture";
-import { useWebviewPositionSync } from "@src/hooks/workStation/sessionCapture/useWebviewPositionSync";
+import { useKiroSessionCapture } from "@src/features/SessionSetup/hooks/useKiroSessionCapture";
+import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SECTION_CONTROL_STYLE,
   SECTION_GAP_CLASSES,

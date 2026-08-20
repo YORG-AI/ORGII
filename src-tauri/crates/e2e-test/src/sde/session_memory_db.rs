@@ -14,7 +14,7 @@ use rusqlite::{Connection, OpenFlags};
 use std::time::Duration;
 
 const SM_MIN_CONTENT_LEN: usize = 50;
-const SM_WAIT_AFTER_LAST_TURN_SECS: u64 = 8;
+const SM_WAIT_AFTER_LAST_TURN_SECS: u64 = 120;
 
 /// Build a ~12KB filler payload that dominates the turn's token footprint
 /// so `current_tokens` reliably crosses `min_tokens_to_init = 10_000`.
@@ -37,7 +37,7 @@ fn sessions_db_path() -> std::path::PathBuf {
         .join("sessions.db")
 }
 
-/// Returns `(sm_content, sm_last_msg_idx)`; both `None` if row missing or columns null.
+/// Returns `(sm_content, sm_last_seq)`; both `None` if row missing or columns null.
 fn read_sm_state(session_id: &str) -> Result<(Option<String>, Option<i64>), String> {
     let path = sessions_db_path();
     let conn = Connection::open_with_flags(
@@ -47,7 +47,7 @@ fn read_sm_state(session_id: &str) -> Result<(Option<String>, Option<i64>), Stri
     .map_err(|err| format!("open {}: {}", path.display(), err))?;
 
     let row = conn.query_row(
-        "SELECT sm_content, sm_last_msg_idx FROM agent_sessions WHERE session_id = ?1",
+        "SELECT sm_content, sm_last_seq FROM agent_sessions WHERE session_id = ?1",
         [session_id],
         |row| {
             let content: Option<String> = row.get(0)?;
@@ -120,10 +120,19 @@ pub async fn session_memory_persisted(cfg: &Config) -> bool {
     .await;
     let turn3_ok = turn3.is_ok();
 
-    // SM extraction is spawned async after each turn. Give it time to land.
-    tokio::time::sleep(Duration::from_secs(SM_WAIT_AFTER_LAST_TURN_SECS)).await;
-
-    let db_read = read_sm_state(&session_id);
+    // SM extraction is coordinator-owned and can queue behind other
+    // sessions' memory jobs on the global permit, so poll the durable row
+    // instead of sleeping a fixed interval.
+    let poll_deadline =
+        std::time::Instant::now() + Duration::from_secs(SM_WAIT_AFTER_LAST_TURN_SECS);
+    let mut db_read = read_sm_state(&session_id);
+    while std::time::Instant::now() < poll_deadline {
+        if matches!(&db_read, Ok((Some(_), _))) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        db_read = read_sm_state(&session_id);
+    }
 
     // Clean up the session so we don't leak runtime state.
     let _ = harness::cleanup_sde_session(cfg, &session_id).await;
@@ -155,7 +164,7 @@ pub async fn session_memory_persisted(cfg: &Config) -> bool {
                 &format!("sm_content length >= {SM_MIN_CONTENT_LEN} (got {content_len})"),
                 content_non_trivial,
             ),
-            ("sm_last_msg_idx persisted (non-null)", idx_set),
+            ("sm_last_seq persisted (non-null)", idx_set),
         ],
     )
 }

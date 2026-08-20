@@ -310,6 +310,15 @@ module.exports = (env, argv) => {
           test: /\.md$/,
           type: "asset/source",
         },
+        {
+          // `?raw` JS imports - return the file's text without parsing it as
+          // a module. Used to inline the React 18 UMD runtimes into generated
+          // canvas-artifact documents (reactArtifactDocument.ts). Vitest
+          // resolves the same imports through vite's built-in `?raw` support.
+          test: /\.js$/,
+          resourceQuery: /raw/,
+          type: "asset/source",
+        },
       ],
     },
     resolve: {

@@ -22,7 +22,7 @@ import { useSessionActionModals } from "@src/engines/ChatPanel/hooks/useSessionA
 import { useSessionHeaderActions } from "@src/engines/ChatPanel/hooks/useSessionHeaderActions";
 import { useSessionViewMode } from "@src/engines/ChatPanel/hooks/useSessionViewMode";
 import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { sessionByIdAtom } from "@src/store/session";
 import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";

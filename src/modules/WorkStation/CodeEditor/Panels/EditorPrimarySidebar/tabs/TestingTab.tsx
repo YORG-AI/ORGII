@@ -13,8 +13,8 @@ import {
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useTestRunner } from "@src/hooks/testRunner";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { useTestRunner } from "@src/modules/WorkStation/CodeEditor/hooks/useTestRunner";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared";
 import { getFrameworkLabel } from "@src/types/testing";
 

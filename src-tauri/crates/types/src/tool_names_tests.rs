@@ -28,6 +28,8 @@ fn tool_name_constants_are_stable_wire_strings() {
     assert_eq!(ASK_USER_PERMISSIONS, "ask_user_permissions");
     assert_eq!(MANAGE_SECRETS, "manage_secrets");
     assert_eq!(WRITE_ENV_FILE, "write_env_file");
+    assert_eq!(RENDER_INLINE_CANVAS, "render_inline_canvas");
+    assert_eq!(REVISE_INLINE_CANVAS, "revise_inline_canvas");
 
     // ── Project ──
     assert_eq!(MANAGE_PROJECT, "manage_project");
@@ -92,6 +94,15 @@ fn tool_name_constants_are_stable_wire_strings() {
     // ── Plan Mode ──
     assert_eq!(CREATE_PLAN, "create_plan");
     assert_eq!(PLAN_APPROVAL, "plan_approval");
+}
+
+#[test]
+fn tool_call_event_id_uses_the_stable_wire_scheme() {
+    // The `tool-call-<call_id>` id is persisted in the events table and
+    // referenced back by the LLM as `target_event_id`; the scheme must
+    // never drift.
+    assert_eq!(tool_call_event_id("call-1"), "tool-call-call-1");
+    assert_eq!(tool_call_event_id(""), "tool-call-");
 }
 
 #[test]

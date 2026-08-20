@@ -34,10 +34,8 @@ import { useTranslation } from "react-i18next";
 import { useActionSystem } from "@src/ActionSystem";
 import { useGitStatus } from "@src/contexts/git";
 import { useSourceControlAttention } from "@src/hooks/git/useSourceControlAttention";
-import {
-  usePublishWorkstationTabHeader,
-  useWorkStationTabShortcutBridge,
-} from "@src/hooks/workStation";
+import { useWorkStationTabShortcutBridge } from "@src/hooks/tabHost/useWorkStationTabShortcutBridge";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import UnifiedTabContent from "@src/modules/WorkStation/TabContent/UnifiedTabContent";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";

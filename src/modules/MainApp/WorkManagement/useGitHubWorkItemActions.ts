@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
 import Message from "@src/components/Message";
-import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import {
   githubIssueResourceKey,
   loadGitHubIssueTimeline,
@@ -153,6 +153,9 @@ export function useGitHubWorkItemActions({
         prStatus: pr.rawPr.draft ? "draft" : pr.state,
         headBranch: pr.sourceBranch,
         baseBranch: pr.targetBranch,
+        updatedAt: pr.updatedAt,
+        additions: pr.rawPr.additions,
+        deletions: pr.rawPr.deletions,
         repoPath: pr.repoPath,
         repoId: pr.repoId,
       };

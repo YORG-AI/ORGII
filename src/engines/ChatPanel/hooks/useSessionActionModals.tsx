@@ -1,6 +1,12 @@
 import { emit } from "@tauri-apps/api/event";
 import type { TFunction } from "i18next";
-import { type ComponentProps, useCallback, useState } from "react";
+import {
+  type ComponentProps,
+  Suspense,
+  lazy,
+  useCallback,
+  useState,
+} from "react";
 
 import Message from "@src/components/Message";
 import CloudSessionShareDialog from "@src/features/Org2Cloud/CloudSessionShareDialog";
@@ -8,8 +14,13 @@ import { useCloudSessionShareDialog } from "@src/features/Org2Cloud/CloudSession
 import { SessionImportExportModal } from "@src/scaffold/NavigationSidebar/connectors/SessionImportExportModal";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
-import SessionRawTranscriptDialog from "../components/SessionRawTranscriptDialog";
 import LinkSessionToWorkItemModal from "../panels/LinkSessionToWorkItemModal";
+
+// Lazy: the raw-transcript dialog pulls CodeMirror, and it only ever mounts
+// after the user picks it from the header actions menu.
+const SessionRawTranscriptDialog = lazy(
+  () => import("../components/SessionRawTranscriptDialog")
+);
 
 type ExportActiveSession = ComponentProps<
   typeof SessionImportExportModal
@@ -93,11 +104,13 @@ export function useSessionActionModals({
         onClose={cloudShare.closeCloudShare}
       />
       {rawTranscriptSessionId ? (
-        <SessionRawTranscriptDialog
-          visible
-          sessionId={rawTranscriptSessionId}
-          onClose={() => setRawTranscriptSessionId(null)}
-        />
+        <Suspense fallback={null}>
+          <SessionRawTranscriptDialog
+            visible
+            sessionId={rawTranscriptSessionId}
+            onClose={() => setRawTranscriptSessionId(null)}
+          />
+        </Suspense>
       ) : null}
     </>
   );

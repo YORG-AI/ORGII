@@ -902,7 +902,10 @@
       "insert": "Insert"
     },
     "compactArgHint": "<optional focus for the summary>",
-    "compactCommandDescription": "Summarize older context to free space. Optional: /compact <focus for the summary>"
+    "compactCommandDescription": "Summarize older context to free space. Optional: /compact <focus for the summary>",
+    "canvasCommandDescription": "Create a new interactive Canvas. Optional: /canvas <what to build>",
+    "canvasArgHint": "what to build",
+    "newCanvasAction": "New Canvas"
   },
   "listPanel": {
     "showingOf": "Showing {{filtered}} of {{total}}",
@@ -1054,6 +1057,10 @@
       "newTerminal": "New Terminal",
       "newTab": "New tab",
       "terminals": "Terminals"
+    },
+    "sideChat": {
+      "title": "Side Chat",
+      "openInSideChat": "Open in Side Chat"
     },
     "collapseAll": "Collapse all",
     "copyEventJson": "Copy event JSON",
@@ -2088,6 +2095,18 @@
     "renderInlineCanvasUrlDone": "Rendered URL canvas",
     "renderInlineCanvasUrlFailed": "Failed to render URL canvas",
     "renderInlineCanvasUrlRunning": "Rendering URL canvas",
+    "reviseInlineCanvasRunning": "Revising canvas",
+    "reviseInlineCanvasDone": "Canvas revised",
+    "reviseInlineCanvasFailed": "Canvas revision failed",
+    "reviseInlineCanvasHtmlRunning": "Revising HTML canvas",
+    "reviseInlineCanvasHtmlDone": "Revised HTML canvas",
+    "reviseInlineCanvasHtmlFailed": "Failed to revise HTML canvas",
+    "reviseInlineCanvasUrlRunning": "Revising URL canvas",
+    "reviseInlineCanvasUrlDone": "Revised URL canvas",
+    "reviseInlineCanvasUrlFailed": "Failed to revise URL canvas",
+    "reviseInlineCanvasA2uiRunning": "Revising A2UI canvas",
+    "reviseInlineCanvasA2uiDone": "Revised A2UI canvas",
+    "reviseInlineCanvasA2uiFailed": "Failed to revise A2UI canvas",
     "runShellRunDone": "Ran command",
     "runShellRunFailed": "Failed to run command",
     "runShellRunRunning": "Running command",
@@ -2932,6 +2951,137 @@
   "canvasApp": {
     "empty": "No canvas rendered yet",
     "sidebarTitle": "Canvases",
-    "noCanvases": "No canvases yet"
+    "noCanvases": "No canvases yet",
+    "revisionCanvas": "Canvas",
+    "revisionTitle": "Updating {{title}}",
+    "revisionReceiving": "Generating the change · {{amount}} characters",
+    "revisionApplying": "Applying the validated change…",
+    "revisionDoneTitle": "Updated {{title}}",
+    "revisionFailedTitle": "Couldn’t update {{title}}",
+    "revisionTargetedSummary": "Targeted changes: {{amount}} · same Canvas",
+    "revisionTargetedSummary_one": "{{count}} targeted change · same Canvas",
+    "revisionTargetedSummary_other": "{{count}} targeted changes · same Canvas",
+    "revisionReplacementSummary": "Full replacement · {{amount}} characters · same Canvas",
+    "revisionUrlSummary": "URL updated · same Canvas",
+    "revisionGenericSummary": "Existing Canvas updated in place",
+    "revisionStepsLabel": "Canvas update progress",
+    "compareToggle": "Compare",
+    "compareMark": "vs",
+    "compareHint": "2 selected — showing diff",
+    "design": "Design",
+    "designHint": "Select an element to change",
+    "designUnavailable": "Design is unavailable",
+    "reactCspUnavailable": "React preview can't run in this build — open source view",
+    "designPromptLabel": "Describe a Canvas change",
+    "designPromptPlaceholder": "Describe what to change…",
+    "clearDesignSelection": "Clear Canvas selection",
+    "compareTooLarge": "These versions are too large to compare",
+    "revisionReceivingLabel": "Generating the change…",
+    "designHoverHint": "Click to select, drag to draw",
+    "share": "Share",
+    "shareHint": "Share this Canvas snapshot",
+    "shareWaitForRevision": "Wait for the Canvas update to finish",
+    "shareLocalUrlUnavailable": "Local URLs cannot be opened by other people",
+    "shareTooLarge": "This Canvas is too large for a share link",
+    "shareEmpty": "This Canvas has no shareable content",
+    "shareDialogTitle": "Share Canvas",
+    "shareDialogScope": "Only this Canvas snapshot is included. The conversation, repository, session, and later revisions are not shared.",
+    "shareDialogPreparing": "Creating link…",
+    "shareDialogLink": "Canvas share link",
+    "shareDialogCopyFailed": "Copy failed. Select the link and copy it manually.",
+    "shareDialogPublic": "Anyone with this link can view the snapshot.",
+    "shareDialogShortExpiry": "Short link · valid until {{date}}",
+    "shareDialogFallback": "The short-link service is unavailable, so a full link was created instead.",
+    "shareDialogOpen": "Open",
+    "shareDialogCopied": "Copied",
+    "shareDialogCopy": "Copy link",
+    "shareDialogTooLarge": "This Canvas is too large for a reliable self-contained link.",
+    "shareDialogShortUnavailable": "The share service is temporarily unreachable and this Canvas is too large for a self-contained link. Try again in a moment.",
+    "shareDialogUnsupported": "This app version cannot create compressed Canvas links.",
+    "shareDialogInvalid": "This Canvas does not contain a publishable snapshot.",
+    "shareDialogError": "The Canvas link could not be created.",
+    "shareDialogRetryShort": "Retry short link",
+    "shareDialogRetryingShort": "Retrying…",
+    "retry": "Retry"
+  },
+  "domSelection": {
+    "previewTitle": "Canvas selection preview",
+    "elementsCount_one": "{{count}} element",
+    "elementsCount_other": "{{count}} elements",
+    "regionLabel": "Region · {{label}}"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "empty": "No routines yet — apply one from the CLI first",
+    "notInstalled": "Not installed",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "paused": "Paused after {{count}} failures",
+    "install": "Install webhook",
+    "rotate": "Rotate secret",
+    "enable": "Enable",
+    "disable": "Disable",
+    "secretHint": "Secret",
+    "secretShownOnce": "The secret is shown once — store it in your provider now.",
+    "noDeliveries": "No deliveries yet",
+    "replay": "Replay",
+    "replayQueued": "Delivery replayed",
+    "copied": "Copied",
+    "copyFailed": "Copy failed"
   }
 }

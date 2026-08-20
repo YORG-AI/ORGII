@@ -3,6 +3,7 @@ import type { SetStateAction } from "react";
 import { wasRecentlyOptimisticallyStarted } from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { getTurnIntentDispatch } from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
 import {
+  isTurnActive,
   markTurnRunning,
   markTurnTerminal,
   toTurnTerminalStatus,
@@ -158,6 +159,17 @@ export function applyPostLoadResult(
     actions.setSessionContextUsage(postResult.contextUsage);
   }
   if (postResult.runStatus !== undefined) {
+    if (
+      TERMINAL_HANDLER_STATUSES.has(postResult.runStatus) &&
+      isTurnActive(sessionId)
+    ) {
+      // postLoad reads a point-in-time DB status. Right after an abort the
+      // row is still terminal ("cancelled") while a follow-up turn is
+      // already dispatching/working — applying that stale terminal would
+      // close the live turn's FSM and flip the composer mid-run. The live
+      // status broadcast owns the transition; skip the stale snapshot.
+      return;
+    }
     actions.setSessionRuntimeStatus(toCliSessionStatus(postResult.runStatus));
     if (TERMINAL_HANDLER_STATUSES.has(postResult.runStatus)) {
       markTurnTerminal(sessionId, toTurnTerminalStatus(postResult.runStatus));

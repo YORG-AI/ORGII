@@ -6,7 +6,7 @@
  */
 import { atom } from "jotai";
 
-import type { UseTaskOutputIntegrationReturn } from "@src/hooks/workStation/output/useTaskOutputIntegration";
+import type { UseTaskOutputIntegrationReturn } from "@src/types/workstation/output";
 
 /**
  * Global atom holding the task output integration instance

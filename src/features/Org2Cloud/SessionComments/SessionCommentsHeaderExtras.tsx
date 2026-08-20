@@ -145,7 +145,7 @@ const SessionCommentsHeaderExtras: React.FC<
         title={t("cloud.comments.notesTitle")}
         onCancel={() => setOpen(false)}
         footer={null}
-        width={480}
+        width={640}
       >
         <div
           className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto"

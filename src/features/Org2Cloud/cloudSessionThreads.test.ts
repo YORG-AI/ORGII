@@ -451,6 +451,11 @@ describe("cloud teammate hover card", () => {
     expect(markup).toContain("forked from @");
     expect(markup).toContain("org2");
     expect(markup).toContain("feat/org2-cloud-auth");
+    expect(markup).toContain('data-testid="session-hover-workspace"');
+    expect(markup).toContain('data-testid="session-hover-branch"');
+    expect(
+      markup.indexOf('data-testid="session-hover-workspace"')
+    ).toBeLessThan(markup.indexOf('data-testid="session-hover-branch"'));
     expect(markup).toContain("sessions:history.detail.internal");
     // Owner agent/model row (pushed with the metadata since 2026-07-11).
     expect(markup).toContain(

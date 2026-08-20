@@ -7,7 +7,7 @@
  */
 import React, { memo, useMemo } from "react";
 
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   IssueDetailExternalLinkButton,
   IssueDetailPanel,

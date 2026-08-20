@@ -15,7 +15,8 @@ export function isCanvasEvent(event: SessionEvent | undefined): boolean {
   return Boolean(
     event &&
     (event.uiCanonical === "canvas_inline" ||
-      event.functionName === "render_inline_canvas")
+      event.functionName === "render_inline_canvas" ||
+      event.functionName === "revise_inline_canvas")
   );
 }
 

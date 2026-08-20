@@ -19,11 +19,11 @@ import {
   HEADER_CLASSES,
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
-import { useRefreshSpin } from "@src/hooks/ui";
 import {
   type WorkstationTabHeaderHost,
   usePublishWorkstationTabHeader,
-} from "@src/hooks/workStation";
+} from "@src/hooks/tabHost/useWorkstationTabHeader";
+import { useRefreshSpin } from "@src/hooks/ui";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";

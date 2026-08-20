@@ -13,12 +13,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DetachedHeadDialog } from "@src/components/GitDialogs";
 import { useGitStatus } from "@src/contexts/git";
-import {
-  useCommitForm,
-  useFileSelection,
-  useGitFiles,
-} from "@src/hooks/git/sourceControl";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
+import { useCommitForm } from "@src/modules/WorkStation/CodeEditor/hooks/sourceControl/useCommitForm";
+import { useFileSelection } from "@src/modules/WorkStation/CodeEditor/hooks/sourceControl/useFileSelection";
+import { useGitFiles } from "@src/modules/WorkStation/CodeEditor/hooks/sourceControl/useGitFiles";
 import { gitAutoCreatePrAtom } from "@src/store/ui/editorSettingsAtom";
 import { gitReviewNavigationAtom } from "@src/store/workstation/codeEditor/gitReviewNavigationAtom";
 import { gitOutputIntegrationAtom } from "@src/store/workstation/codeEditor/outputIntegration";

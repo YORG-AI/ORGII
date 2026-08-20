@@ -9,6 +9,7 @@
 import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
+import { isSameLogicalCanvas } from "./canvasRevision";
 import type { CanvasInlinePayload } from "./types";
 
 export function openInSimulatorCanvas(
@@ -20,8 +21,7 @@ export function openInSimulatorCanvas(
   const previous = store.get(canvasPreviewAtom);
   const sameCanvas =
     previous?.sessionId === sessionId &&
-    previous.payload.eventId &&
-    previous.payload.eventId === payload.eventId;
+    isSameLogicalCanvas(previous.payload, payload);
   store.set(canvasPreviewAtom, {
     sessionId,
     payload,

@@ -21,9 +21,7 @@ import TabPill from "@src/components/TabPill";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import BenchmarkTaskSelector from "@src/features/BenchmarkPanel/BenchmarkTaskSelector";
 import { CodeMirrorEditor } from "@src/features/CodeMirror";
-import { useBenchmarkAgentBatchRun } from "@src/hooks/benchmark/useBenchmarkAgentBatchRun";
-import { useBenchmarkTasks } from "@src/hooks/benchmark/useBenchmarkTasks";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   Placeholder,
   SessionGroupPage,
@@ -49,6 +47,9 @@ import {
   toIntlLocaleTag,
 } from "@src/util/data/formatters/date";
 import { formatModelNameFull } from "@src/util/formatModelName";
+
+import { useBenchmarkAgentBatchRun } from "./hooks/useBenchmarkAgentBatchRun";
+import { useBenchmarkTasks } from "./hooks/useBenchmarkTasks";
 
 type BenchmarkPanelSurface = "taskInfo" | "runList";
 

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import Select, { type SelectOption } from "@src/components/Select";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 
 interface SidebarOrgSelectorProps {
   value: string;

@@ -316,7 +316,7 @@ fn infer_display_status(
     EventDisplayStatus::Completed
 }
 
-fn is_ask_question_action(
+pub(crate) fn is_ask_question_action(
     action_type: &str,
     raw_function: &str,
     function_name: &str,

@@ -847,7 +847,10 @@
       "insert": "삽입"
     },
     "compactArgHint": "<선택: 요약의 초점>",
-    "compactCommandDescription": "이전 컨텍스트를 요약해 공간을 확보합니다. 선택: /compact <요약의 초점>"
+    "compactCommandDescription": "이전 컨텍스트를 요약해 공간을 확보합니다. 선택: /compact <요약의 초점>",
+    "canvasCommandDescription": "새로운 대화형 Canvas를 만듭니다. 선택: /canvas <만들 내용>",
+    "canvasArgHint": "만들 내용",
+    "newCanvasAction": "새 Canvas"
   },
   "listPanel": {
     "showingOf": "{{total}}개 중 {{filtered}}개 표시",
@@ -998,6 +1001,10 @@
       "newTerminal": "새 터미널",
       "newTab": "새 탭",
       "terminals": "터미널"
+    },
+    "sideChat": {
+      "title": "사이드 채팅",
+      "openInSideChat": "사이드 채팅에서 열기"
     },
     "collapseAll": "모두 접기",
     "copyEventJson": "이벤트 JSON 복사",
@@ -2010,6 +2017,18 @@
     "renderInlineCanvasUrlDone": "render URL canvas 완료",
     "renderInlineCanvasUrlFailed": "render URL canvas 실패",
     "renderInlineCanvasUrlRunning": "render URL canvas 중",
+    "reviseInlineCanvasRunning": "Canvas 수정 중",
+    "reviseInlineCanvasDone": "Canvas 수정 완료",
+    "reviseInlineCanvasFailed": "Canvas 수정 실패",
+    "reviseInlineCanvasHtmlRunning": "HTML Canvas 수정 중",
+    "reviseInlineCanvasHtmlDone": "HTML Canvas 수정 완료",
+    "reviseInlineCanvasHtmlFailed": "HTML Canvas 수정 실패",
+    "reviseInlineCanvasUrlRunning": "URL Canvas 수정 중",
+    "reviseInlineCanvasUrlDone": "URL Canvas 수정 완료",
+    "reviseInlineCanvasUrlFailed": "URL Canvas 수정 실패",
+    "reviseInlineCanvasA2uiRunning": "A2UI Canvas 수정 중",
+    "reviseInlineCanvasA2uiDone": "A2UI Canvas 수정 완료",
+    "reviseInlineCanvasA2uiFailed": "A2UI Canvas 수정 실패",
     "runShellRunDone": "명령 실행 완료",
     "runShellRunFailed": "명령 실행 실패",
     "runShellRunRunning": "명령 실행 중",
@@ -2805,5 +2824,60 @@
     "summarize": "Agent로 요약",
     "waiting": "콘텐츠 대기 중…",
     "empty": "콘텐츠 없음"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
   }
 }

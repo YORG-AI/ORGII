@@ -10,8 +10,8 @@
 import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useMemo } from "react";
 
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
-import { useWorkStationTabs } from "@src/hooks/workStation/tabs/useWorkStationTabs";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   PrDetailExternalLinkButton,
   PrDetailHeaderContent,

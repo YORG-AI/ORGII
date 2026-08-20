@@ -11,7 +11,7 @@ import PrerequisiteAlert from "@src/components/PrerequisiteAlert";
 import TabPill from "@src/components/TabPill";
 import type { InstallMethod } from "@src/config/cliAgents";
 import { INSTALL_METHOD_PREREQUISITES } from "@src/config/prerequisites";
-import { usePrerequisiteCheck } from "@src/hooks/dependencies/usePrerequisiteCheck";
+import { usePrerequisiteCheck } from "@src/modules/MainApp/Integrations/hooks/usePrerequisiteCheck";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {

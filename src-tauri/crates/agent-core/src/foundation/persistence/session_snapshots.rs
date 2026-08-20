@@ -210,10 +210,17 @@ pub fn ensure_tables_with(conn: &Connection) -> SqliteResult<()> {
         conn,
         "ALTER TABLE agent_sessions ADD COLUMN sm_content TEXT",
     );
+    // The SM boundary anchor is a durable message start-sequence. The legacy
+    // `sm_last_msg_idx` column stored an array index recorded against a
+    // specific in-memory frame; readers on other frames (truncated durable
+    // suffix, prefix-stripped compaction tail) misresolved it, so it is
+    // dropped rather than reinterpreted — existing sessions re-anchor on
+    // their next extraction.
     try_migrate(
         conn,
-        "ALTER TABLE agent_sessions ADD COLUMN sm_last_msg_idx INTEGER",
+        "ALTER TABLE agent_sessions ADD COLUMN sm_last_seq INTEGER",
     );
+    try_drop_column(conn, "agent_sessions", "sm_last_msg_idx");
 
     // L3 rebuild: the per-session learning toggle was replaced by a per-agent
     // `learnings.enabled` flag on `AgentDefinition`

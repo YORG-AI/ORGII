@@ -2,7 +2,7 @@
  * PinnedActionsBarPreview
  *
  * Standalone playground preview for PinnedActionsBar. Renders the bar inside
- * a ChatProvider with a mock tiptap ref so all interactions (open picker,
+ * a ChatProvider with a mock composer ref so all interactions (open picker,
  * manage panel) work without a real chat session.
  */
 import { useRef } from "react";

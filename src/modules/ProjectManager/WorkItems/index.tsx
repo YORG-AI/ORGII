@@ -17,7 +17,7 @@ import type { TabPillItem } from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useProjectOrgCloudPermissions } from "@src/features/Org2Cloud/useProjectOrgCloudPermissions";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
-import type { WorkstationTabHeaderHost } from "@src/hooks/workStation";
+import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import type { LinkedRepoOption } from "@src/modules/ProjectManager/shared";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
@@ -63,7 +63,12 @@ const WorkItemsSettings = React.lazy(
   () => import("./components/WorkItemsSettings")
 );
 
-const WORK_ITEMS_VIEW_TABS: readonly WorkItemsViewTab[] = ["List", "Kanban"];
+const WORK_ITEMS_VIEW_TABS: readonly WorkItemsViewTab[] = [
+  "List",
+  "Kanban",
+  "Gantt",
+  "Calendar",
+];
 
 // ============================================
 // Types
@@ -528,7 +533,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     () =>
       WORK_ITEMS_VIEW_TABS.map((tab) => ({
         key: tab,
-        label: t(`workItems.tabs.${tab === "List" ? "list" : "kanban"}`),
+        label: t(`workItems.tabs.${tab.toLowerCase()}`),
       })),
     [t]
   );

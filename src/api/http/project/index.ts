@@ -17,6 +17,7 @@ import * as client from "./client";
 
 export * from "./types";
 export type {
+  PortableRoutineSummary,
   ProjectScopeOptions,
   RoutineRunStatus,
   RoutineRunSummary,
@@ -127,6 +128,7 @@ export const projectApi = {
   deleteRoutine: client.deleteRoutine,
   listRoutineFires: client.listRoutineFires,
   fireRoutine: client.fireRoutine,
+  listPortableRoutines: client.listPortableRoutines,
   listRoutineRuns: client.listRoutineRuns,
   routineRunStatus: client.routineRunStatus,
   installRoutineWebhook: client.installRoutineWebhook,

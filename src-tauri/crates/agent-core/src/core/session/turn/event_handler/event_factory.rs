@@ -72,7 +72,7 @@ pub(super) fn build_tool_call_event(
         EventDisplayStatus::Running
     };
     let mut event = SessionEvent {
-        id: format!("tool-call-{}", tool_call_id),
+        id: core_types::tool_names::tool_call_event_id(tool_call_id),
         chunk_id: None,
         session_id: session_id.to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),

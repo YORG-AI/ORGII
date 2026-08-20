@@ -135,6 +135,19 @@ function readRequestedReviewers(
   });
 }
 
+function readAuthor(
+  detail: Record<string, unknown> | null
+): PrSummaryReviewer | null {
+  const value = detail?.user;
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.login !== "string" || !record.login) return null;
+  return {
+    login: record.login,
+    avatarUrl: typeof record.avatar_url === "string" ? record.avatar_url : "",
+  };
+}
+
 function collectReviewers(
   detail: Record<string, unknown> | null,
   reviews: GitHubPrReview[]
@@ -189,6 +202,7 @@ export function PrDetailSummary({
   checks,
 }: PrDetailSummaryProps): React.ReactNode {
   const { t } = useTranslation("common");
+  const author = readAuthor(detail);
   const reviewers = collectReviewers(detail, reviews);
   const additions =
     readNumber(detail, "additions") ??
@@ -227,6 +241,29 @@ export function PrDetailSummary({
           <span className="shrink-0 tabular-nums text-danger-6">
             -{deletions.toLocaleString("en-US")}
           </span>
+        </div>
+
+        <div className="flex items-center gap-2 text-text-3">
+          <CircleUserRound size={14} strokeWidth={1.75} />
+          <span>{t("git.pr.summary.createdBy", "Created by")}</span>
+        </div>
+        <div
+          className="flex min-h-5 min-w-0 items-center text-text-1"
+          data-testid="pr-summary-author"
+        >
+          {author ? (
+            <span
+              className="inline-flex min-w-0 items-center gap-1.5"
+              title={author.login}
+            >
+              <Avatar size={20} src={author.avatarUrl}>
+                {author.login.charAt(0).toUpperCase()}
+              </Avatar>
+              <span className="truncate">{author.login}</span>
+            </span>
+          ) : (
+            <span>{t("status.unknown", "Unknown")}</span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-text-3">
@@ -385,6 +422,7 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
     replyInlineComment,
     mergePullRequest,
     setPullRequestAutoMerge,
+    updatePullRequestDraft,
     updatePullRequestState,
     updateRequestedReviewers,
     loadReviewerCandidates,
@@ -533,6 +571,7 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
                   onLoadReviewerCandidates={loadReviewerCandidates}
                   onMerge={mergePullRequest}
                   onSetAutoMerge={setPullRequestAutoMerge}
+                  onDraftChange={updatePullRequestDraft}
                   onStateChange={updatePullRequestState}
                   onRequestedReviewersChange={updateRequestedReviewers}
                 />

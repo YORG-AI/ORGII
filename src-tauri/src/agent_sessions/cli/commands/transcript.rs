@@ -20,33 +20,43 @@ fn load_native_transcript_chunks(session: &CodeSession) -> Option<Vec<ActivityCh
         .as_deref()
         .and_then(key_vault::key_store::ModelType::from_str)?;
     let binding = native_transcript::native_transcript_binding(&agent)?;
-    let cli_session_id =
-        persistence::latest_native_transcript_id(&session.session_id, binding.source)
-            .ok()
-            .flatten()
-            .or_else(|| session.cli_session_id.clone())?;
-    let imported_id = binding.imported_session_id(&cli_session_id);
-    let conn = database::db::get_connection().ok()?;
-    match orgtrack_core::sources::imported_history::load_activity_chunks_for_session(
-        &conn,
-        &imported_id,
-    ) {
-        Ok(Some(mut chunks)) if !chunks.is_empty() => {
-            // Loaders stamp the imported id; the frontend event store,
-            // WS merge, and snapshot keys all key on the managed id.
-            for chunk in &mut chunks {
-                chunk.session_id = session.session_id.clone();
-            }
-            Some(chunks)
-        }
-        Ok(_) => None,
-        Err(err) => {
-            tracing::warn!(
-                "[cli_agent_chunks] Native transcript load failed for {imported_id}: {err}"
-            );
-            None
+    // Walk the binding ledger newest→oldest instead of trusting only the
+    // newest id: an aborted follow-up can bind a fork whose file the killed
+    // CLI never flushed, and replaying "nothing" would blank turns that a
+    // superseded fork still holds.
+    let mut candidate_ids =
+        persistence::native_transcript_ids_newest_first(&session.session_id, binding.source)
+            .unwrap_or_default();
+    if let Some(cli_session_id) = session.cli_session_id.clone() {
+        if !candidate_ids.contains(&cli_session_id) {
+            candidate_ids.push(cli_session_id);
         }
     }
+    let conn = database::db::get_connection().ok()?;
+    for cli_session_id in candidate_ids {
+        let imported_id = binding.imported_session_id(&cli_session_id);
+        match orgtrack_core::sources::imported_history::load_activity_chunks_for_session(
+            &conn,
+            &imported_id,
+        ) {
+            Ok(Some(mut chunks)) if !chunks.is_empty() => {
+                // Loaders stamp the imported id; the frontend event store,
+                // WS merge, and snapshot keys all key on the managed id.
+                for chunk in &mut chunks {
+                    chunk.session_id = session.session_id.clone();
+                }
+                return Some(chunks);
+            }
+            Ok(_) => continue,
+            Err(err) => {
+                tracing::warn!(
+                    "[cli_agent_chunks] Native transcript load failed for {imported_id}: {err}"
+                );
+                continue;
+            }
+        }
+    }
+    None
 }
 
 /// Where a managed session's transcript of record lives, for display

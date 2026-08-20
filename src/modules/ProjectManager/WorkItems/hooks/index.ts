@@ -10,7 +10,7 @@
 export { useWorkItems } from "./useWorkItems";
 
 // Agent session orchestration (SDE/Review agent lifecycle)
-export { useWorkItemOrchestrator } from "./useWorkItemOrchestrator";
+export { useWorkItemActiveSession } from "./useWorkItemActiveSession";
 
 // Work item CRUD actions
 export { default as useWorkItemActions } from "./useWorkItemActions";

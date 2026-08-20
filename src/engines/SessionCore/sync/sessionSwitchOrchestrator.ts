@@ -9,6 +9,7 @@ import {
   isImportedHistorySession,
 } from "@src/util/session/sessionDispatch";
 
+import { isTurnActive } from "../control/turnLifecycle";
 import { getCursorIdeSnapshotLastUpdatedAt } from "./adapters/cursorIdeAdapter";
 import { isCursorIdeSessionId } from "./sessionSyncDerivedState";
 import { rehydratePendingPlanApproval } from "./sessionSyncPlanApproval";
@@ -127,7 +128,12 @@ async function handleCacheHit(
     : null;
   if (abortController.signal.aborted) return;
 
-  const cacheHitInFlight = isInFlightRunStatus(postResult?.runStatus);
+  // The DB status alone is not enough: right after an abort the row is
+  // terminal ("cancelled") while the frontend FSM is already dispatching the
+  // follow-up turn — treating that window as not-in-flight lets a stale
+  // history replace wipe the just-sent message.
+  const cacheHitInFlight =
+    isInFlightRunStatus(postResult?.runStatus) || isTurnActive(sessionId);
   let displayEvents = await eventStoreProxy.getEvents(sessionId);
   if (abortController.signal.aborted) return;
 
@@ -252,7 +258,8 @@ async function handleCacheMiss(
     : null;
   if (abortController.signal.aborted) return;
 
-  const missInFlight = isInFlightRunStatus(missPostResult?.runStatus);
+  const missInFlight =
+    isInFlightRunStatus(missPostResult?.runStatus) || isTurnActive(sessionId);
   const events = !missInFlight
     ? await loadPersistedHistory(adapter, sessionId, abortController.signal)
     : await adapter.loadHistory(sessionId, abortController.signal);

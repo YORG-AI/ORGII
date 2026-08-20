@@ -8,11 +8,11 @@
  */
 import React, { useEffect } from "react";
 
-import type { DependencyStatus } from "@src/hooks/dependencies";
+import type { DependencyStatus } from "@src/modules/MainApp/Integrations/hooks/useSystemDependencies";
 import {
   NON_DB_CATEGORIES,
   useSystemDependencies,
-} from "@src/hooks/dependencies";
+} from "@src/modules/MainApp/Integrations/hooks/useSystemDependencies";
 
 import DependenciesTable from "./Table/DependenciesTable";
 

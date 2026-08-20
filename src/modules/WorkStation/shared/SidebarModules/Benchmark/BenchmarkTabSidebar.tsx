@@ -7,7 +7,7 @@ import type { BenchmarkTaskIndexRow } from "@src/api/tauri/benchmark";
 import Input from "@src/components/Input";
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
-import { useBenchmarkTasks } from "@src/hooks/benchmark/useBenchmarkTasks";
+import { useBenchmarkTasks } from "@src/features/BenchmarkPanel/hooks/useBenchmarkTasks";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
   ICON_CONFIG,

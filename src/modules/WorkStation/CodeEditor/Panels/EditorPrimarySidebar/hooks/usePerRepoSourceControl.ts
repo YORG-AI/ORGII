@@ -25,15 +25,15 @@ import {
   type ScopedGitApi,
   createScopedGitApi,
 } from "@src/api/http/git/scopedGitApi";
+import { generateCommitMessage } from "@src/api/tauri/git/commitMessage";
 import { normalizeGitStatus } from "@src/config/gitStatus";
-import { useFileSelection } from "@src/hooks/git/sourceControl";
-import { generateCommitMessage } from "@src/hooks/git/sourceControl/commitMessageGeneration";
 import {
   refreshSharedGitStatus,
   useSharedGitStatus,
 } from "@src/hooks/git/useSharedGitStatus";
 import { useWorkingTreeNumstat } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { createLogger } from "@src/hooks/logger";
+import { useFileSelection } from "@src/modules/WorkStation/CodeEditor/hooks/sourceControl/useFileSelection";
 import { gitCommitInstructionsAtom } from "@src/store/ui/editorSettingsAtom";
 import type { GitFile } from "@src/types/git/types";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";

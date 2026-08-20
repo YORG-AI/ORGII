@@ -13,7 +13,7 @@ import SettingsTable, {
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
-import type { DependencyStatus } from "@src/hooks/dependencies";
+import type { DependencyStatus } from "@src/modules/MainApp/Integrations/hooks/useSystemDependencies";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { StatusDot, selectedRowClassName } from "../../../Tables/shared";

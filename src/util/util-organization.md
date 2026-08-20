@@ -668,7 +668,21 @@ formatDate.ts; // Related to formatSteps?
 
 ## Related documentation
 
-- **Hooks:** `src/hooks/hooks-organization.md`
+- **Hooks:** `src/hooks/` has no organization doc. Placement rules (2026-08-15,
+  after `hooks/workStation` was dissolved):
+  1. A hook with one consuming area lives next to that consumer — in the module's
+     own `hooks/` dir (`modules/WorkStation/CodeEditor/hooks/`,
+     `modules/WorkStation/Browser/hooks/`, `features/SessionSetup/hooks/`, …),
+     or beside the single file that uses it.
+  2. `src/hooks/<group>/` is only for hooks consumed from several areas
+     (e.g. `hooks/tabHost/` — the workstation tab-host contract used by
+     WorkStation, ProjectManager, MainApp, features and engines). Never name a
+     global group after a module.
+  3. No barrels: import the file, not an `index.ts` (barrels hide who really
+     depends on what — that is how `hooks/workStation` drifted).
+  4. Shared _contracts_ a hook implements go in `src/types/`, so `store/` and
+     `services/` never import from `src/hooks/`.
+     `.eslintrc.js` `no-restricted-imports` blocks the dissolved paths.
 - **Store:** `src/store/store-organization.md`
 - **API:** `src/api/api_organization.md`
 
@@ -701,3 +715,4 @@ formatDate.ts; // Related to formatSteps?
 | 2026-01-17 | —      | Original V1 document                                            |
 | 2026-03-12 | script | Migrated to Documentation V2 format                             |
 | 2026-03-25 | —      | Moved to `src/util/util-organization.md`; related links updated |
+| 2026-08-15 | —      | Hooks placement rules added; `hooks/workStation` dissolved      |

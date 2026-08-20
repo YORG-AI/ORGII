@@ -10,13 +10,8 @@
   height: 100%;
   background: var(--color-bg-2);
   /* border-left removed - ResizableSplitPanel's resize handle provides the border */
-
-  /* Both headers (DetailPanelHeader + meta-strip) sit flush against the
-     chat body — drop their bottom borders so the kanban detail panel
-     reads as one continuous surface. */
-  > :first-child {
-    border-bottom: none;
-  }
+  /* The header's bottom border is dropped by DetailPanelHeader's `draggable`
+     mode (shared with the side chat), so the panel reads as one surface. */
 }
 
 .task-detail-panel__content {

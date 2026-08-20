@@ -10,11 +10,11 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { useRefreshSpin } from "@src/hooks/ui";
 import {
   type DependencyStatus,
   useSystemDependencies,
-} from "@src/hooks/dependencies";
-import { useRefreshSpin } from "@src/hooks/ui";
+} from "@src/modules/MainApp/Integrations/hooks/useSystemDependencies";
 import {
   PANEL_HEADER_TOKENS,
   PanelHeader,

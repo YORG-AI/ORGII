@@ -30,6 +30,11 @@ import SessionTimelineView from "./SessionTimelineView";
 
 const RAW_ACTION_ICON_SIZE = 14;
 
+export const SESSION_VIEW_SELECTOR_CLASS =
+  "!gap-1 !px-1 [&_.select-suffix]:!ml-0 [&_.select-value>span:last-child]:hidden " +
+  "@[600px]/sessionview:!gap-2 @[600px]/sessionview:[&_.select-suffix]:!ml-1 " +
+  "@[600px]/sessionview:[&_.select-value>span:last-child]:inline";
+
 export interface SessionHeaderViewControlsProps {
   session: Session | null | undefined;
   sessionId: string;
@@ -49,38 +54,51 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
       onParentSessionClick,
       view,
       testIdPrefix,
-    }) => (
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <SessionHeaderBreadcrumb
-          session={session}
-          sessionId={sessionId}
-          fallbackName={fallbackName}
-          onParentSessionClick={onParentSessionClick}
-        />
-        {view.switchable && (
-          <>
-            <Select
-              value={view.mode}
-              options={view.options}
-              onChange={view.onChange}
-              size="small"
-              appearance="ghost"
-              radius="lg"
-              dropdownAlign="right"
-              dropdownMinWidth={160}
-              dropdownWidthMode="auto"
-              className="w-auto shrink-0"
-              selectorClassName="!gap-2 !px-1 [&_.select-suffix]:!ml-1"
-              dataTestId={`${testIdPrefix}-view-select`}
-            />
-            <span
-              className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
-              aria-hidden
-            />
-          </>
-        )}
-      </div>
-    )
+    }) => {
+      const selectedOption = view.options.find(
+        (option) => "value" in option && option.value === view.mode
+      );
+      const selectedLabel =
+        selectedOption && "label" in selectedOption
+          ? (selectedOption.triggerLabel ?? selectedOption.label)
+          : undefined;
+      const ariaLabel =
+        typeof selectedLabel === "string" ? selectedLabel : undefined;
+
+      return (
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 @container/sessionview">
+          <SessionHeaderBreadcrumb
+            session={session}
+            sessionId={sessionId}
+            fallbackName={fallbackName}
+            onParentSessionClick={onParentSessionClick}
+          />
+          {view.switchable && (
+            <>
+              <Select
+                value={view.mode}
+                options={view.options}
+                onChange={view.onChange}
+                size="small"
+                appearance="ghost"
+                radius="lg"
+                dropdownAlign="right"
+                dropdownMinWidth={160}
+                dropdownWidthMode="auto"
+                className="w-auto shrink-0"
+                selectorClassName={SESSION_VIEW_SELECTOR_CLASS}
+                dataTestId={`${testIdPrefix}-view-select`}
+                ariaLabel={ariaLabel}
+              />
+              <span
+                className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
+                aria-hidden
+              />
+            </>
+          )}
+        </div>
+      );
+    }
   );
 
 SessionHeaderViewControls.displayName = "SessionHeaderViewControls";
@@ -133,6 +151,8 @@ SessionRawToolbarActions.displayName = "SessionRawToolbarActions";
 export interface SessionAlternateSurfaceProps {
   sessionId: string | null;
   view: UseSessionViewModeResult;
+  /** Space reserved for host chrome that overlays the view. */
+  topInset?: number;
 }
 
 /**
@@ -140,7 +160,7 @@ export interface SessionAlternateSurfaceProps {
  * the transcript mounted underneath without a second surface fighting it.
  */
 export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
-  memo(({ sessionId, view }) => {
+  memo(({ sessionId, view, topInset = 0 }) => {
     const { mode } = view;
     const needsTurnIndex = mode === "timeline" || mode === "changes";
     const turnIndex = useSessionTurnIndex(sessionId, needsTurnIndex);
@@ -151,6 +171,7 @@ export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
         <SessionRawTranscriptView
           sessionId={sessionId}
           transcript={view.transcript}
+          topInset={topInset}
         />
       );
     }
@@ -160,6 +181,7 @@ export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
           turns={turnIndex.turns}
           loading={turnIndex.loading}
           error={turnIndex.error}
+          topInset={topInset}
         />
       );
     }
@@ -169,6 +191,7 @@ export const SessionAlternateSurface: React.FC<SessionAlternateSurfaceProps> =
           turns={turnIndex.turns}
           loading={turnIndex.loading}
           error={turnIndex.error}
+          topInset={topInset}
         />
       );
     }

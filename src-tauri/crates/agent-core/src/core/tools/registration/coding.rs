@@ -16,7 +16,7 @@ use crate::tools::impls::coding::{
     manage_todo::{TodoSessionContext, TodoTool},
     manage_workspace::ManageWorkspaceTool,
     query_lsp::LspTool,
-    render_inline_canvas::RenderInlineCanvasTool,
+    render_inline_canvas::{RenderInlineCanvasTool, ReviseInlineCanvasTool},
     setup_repo::RepoSetupTool,
     skill::SkillTool,
     worktree::WorktreeTool,
@@ -221,4 +221,5 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
 
     // ── Inline canvas (SDE + OS) ──
     register_if_enabled(registry, Box::new(RenderInlineCanvasTool::new()), disabled);
+    register_if_enabled(registry, Box::new(ReviseInlineCanvasTool::new()), disabled);
 }

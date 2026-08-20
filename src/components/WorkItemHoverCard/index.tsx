@@ -22,10 +22,6 @@ import {
   getWorkItemStatusConfig,
 } from "@src/modules/ProjectManager/config/manage";
 import type {
-  SidebarLinearWorkItem,
-  SidebarWorkItem,
-} from "@src/scaffold/NavigationSidebar/connectors/useProjectsWorkItemMenuItems";
-import type {
   WorkItemPriority,
   WorkItemStatus,
 } from "@src/types/core/workItem";
@@ -34,8 +30,22 @@ import {
   toIntlLocaleTag,
 } from "@src/util/data/formatters/date";
 
+export interface WorkItemHoverCardData {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  projectName?: string;
+  orgName?: string;
+  source: "local" | "linear";
+  assignee?: { name: string } | null;
+  labels?: readonly { name: string }[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface WorkItemHoverCardProps {
-  workItem?: SidebarWorkItem | SidebarLinearWorkItem | null;
+  workItem?: WorkItemHoverCardData | null;
   children: React.ReactElement;
   position?: HoverCardPosition;
   mouseEnterDelay?: number;
@@ -43,7 +53,7 @@ interface WorkItemHoverCardProps {
 }
 
 interface WorkItemHoverCardContentProps {
-  workItem: SidebarWorkItem | SidebarLinearWorkItem;
+  workItem: WorkItemHoverCardData;
 }
 
 function isWorkItemStatus(value: string): value is WorkItemStatus {
@@ -105,19 +115,23 @@ const WorkItemHoverCardContent: React.FC<WorkItemHoverCardContentProps> = memo(
       workItem.source === "local"
         ? formatReplayDateLabel(workItem.updatedAt, dateTimeLabelOptions)
         : "";
-    const labels = workItem.source === "local" ? workItem.labels : [];
+    const labels = workItem.source === "local" ? (workItem.labels ?? []) : [];
     const labelsTitle = labels.map((label) => label.name).join(", ");
 
     return (
       <HoverCardPanel title={title}>
         <WorkItemStatusRow status={workItem.status} />
         <WorkItemPriorityRow priority={workItem.priority} />
-        <HoverCardRow icon={<FolderKanban size={13} strokeWidth={1.75} />}>
-          <div className="truncate text-text-2">{workItem.projectName}</div>
-        </HoverCardRow>
-        <HoverCardRow icon={<Building2 size={13} strokeWidth={1.75} />}>
-          <div className="truncate text-text-2">{workItem.orgName}</div>
-        </HoverCardRow>
+        {workItem.projectName && (
+          <HoverCardRow icon={<FolderKanban size={13} strokeWidth={1.75} />}>
+            <div className="truncate text-text-2">{workItem.projectName}</div>
+          </HoverCardRow>
+        )}
+        {workItem.orgName && (
+          <HoverCardRow icon={<Building2 size={13} strokeWidth={1.75} />}>
+            <div className="truncate text-text-2">{workItem.orgName}</div>
+          </HoverCardRow>
+        )}
         {workItem.source === "local" && workItem.assignee && (
           <HoverCardRow icon={<User size={13} strokeWidth={1.75} />}>
             <div className="truncate text-text-2">{workItem.assignee.name}</div>

@@ -6,7 +6,7 @@
  */
 import { atom } from "jotai";
 
-import type { UseGitOutputIntegrationReturn } from "@src/hooks/workStation/useGitOutputIntegration/types";
+import type { UseGitOutputIntegrationReturn } from "@src/types/workstation/gitOutputIntegration";
 
 /**
  * Global git output integration reference

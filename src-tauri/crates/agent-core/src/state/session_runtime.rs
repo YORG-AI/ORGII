@@ -15,6 +15,7 @@ use crate::memory::workspace_memory::auto_dream::AutoDreamState;
 use crate::memory::workspace_memory::extract::ExtractMemoriesState;
 use crate::memory::workspace_memory::surface_state::WorkspaceMemorySurfaceState;
 use crate::model_context::compaction::CompactionState;
+use crate::model_context::session_memory::SessionMemoryState;
 use crate::providers::traits::LLMProvider;
 use crate::session::plan_mode::{
     LastNonPlanModeCache, PlanSlotCache, PrePlanModeCache, RequestedExecModeCache,
@@ -202,6 +203,10 @@ pub struct AgentSession {
     /// Wingman mode state — holds the active background observation loop.
     /// `None` handle inside means Wingman is not currently running.
     pub wingman: WingmanSessionState,
+    /// L1 session-memory state. This must share the AgentSession lifetime:
+    /// the processor is reconstructed per turn, while extraction is
+    /// coordinator-owned and may finish after that processor is dropped.
+    pub sm_state: Arc<tokio::sync::Mutex<SessionMemoryState>>,
     /// Per-session state for the background auto-dream (consolidation) hook.
     ///
     /// Carries the `last_scan_at` scan-throttle timestamp across turns.
@@ -211,10 +216,10 @@ pub struct AgentSession {
     pub ad_state: Arc<tokio::sync::Mutex<AutoDreamState>>,
     /// Per-session state for the background extract-memories hook.
     ///
-    /// Carries the message cursor (`last_processed_idx`), the in-progress
-    /// overlap guard, the turns-since-last-extraction throttle counter,
-    /// and the `pending_messages` stash across turns. Held on the session
-    /// for the same reason as `ad_state`.
+    /// Carries the message cursor (`last_processed_seq`), the in-progress
+    /// overlap guard, and the turns-since-last-extraction throttle counter.
+    /// Pending work is lightweight and coordinator-owned; this state never
+    /// retains transcript copies across turns.
     pub em_state: Arc<tokio::sync::Mutex<ExtractMemoriesState>>,
     /// Rendered stable system-prompt sections for this live session.
     ///
@@ -312,6 +317,7 @@ impl AgentSession {
             active_turn_generation: Arc::new(parking_lot::RwLock::new(None)),
             scheduler: DialogScheduler::new(session_id_for_scheduler, 32),
             steering_queue: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            sm_state: Arc::new(tokio::sync::Mutex::new(SessionMemoryState::default())),
             em_state: Arc::new(tokio::sync::Mutex::new(ExtractMemoriesState::default())),
             ad_state: Arc::new(tokio::sync::Mutex::new(AutoDreamState::default())),
             prompt_cache: Arc::new(tokio::sync::Mutex::new(SessionPromptCache::default())),

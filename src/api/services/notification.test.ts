@@ -154,11 +154,7 @@ describe("notification service", () => {
     });
   });
 
-  it("preserves navigation metadata and disposes native action listeners", async () => {
-    const unregister = vi.fn();
-    const handler = vi.fn();
-    mocks.onAction.mockResolvedValueOnce({ unregister });
-
+  it("preserves navigation metadata on the sent notification", async () => {
     await sendSystemNotification("Assigned", "Review it", {
       orgiiTarget: "team-inbox",
       teamInboxItemKey: "assigned_work_item:WI-1",
@@ -174,45 +170,18 @@ describe("notification service", () => {
       actionTypeId: undefined,
       autoCancel: true,
     });
-
-    const dispose = await listenForSystemNotificationActions(handler);
-    const nativeHandler = mocks.onAction.mock.calls[0]?.[0] as
-      | ((notification: { extra?: Record<string, unknown> }) => void)
-      | undefined;
-    nativeHandler?.({
-      extra: {
-        orgiiTarget: "team-inbox",
-        teamInboxItemKey: "assigned_work_item:WI-1",
-      },
-    });
-    expect(handler).toHaveBeenCalledWith({
-      extra: {
-        orgiiTarget: "team-inbox",
-        teamInboxItemKey: "assigned_work_item:WI-1",
-      },
-    });
-
-    dispose();
-    expect(unregister).toHaveBeenCalledOnce();
   });
 
-  it("registers a foreground View action for Team Inbox notifications", async () => {
-    mocks.registerActionTypes.mockResolvedValueOnce(undefined);
+  it("keeps the mobile-only action entry points inert on desktop", async () => {
+    const handler = vi.fn();
 
     await registerTeamInboxNotificationActionType("View");
+    expect(mocks.registerActionTypes).not.toHaveBeenCalled();
 
-    expect(mocks.registerActionTypes).toHaveBeenCalledWith([
-      {
-        id: "orgii-team-inbox",
-        actions: [
-          {
-            id: "view-team-inbox",
-            title: "View",
-            foreground: true,
-          },
-        ],
-      },
-    ]);
+    const dispose = await listenForSystemNotificationActions(handler);
+    expect(mocks.onAction).not.toHaveBeenCalled();
+    expect(handler).not.toHaveBeenCalled();
+    expect(() => dispose()).not.toThrow();
   });
 
   it("projects positive and cleared dock badge values", async () => {

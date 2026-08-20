@@ -848,7 +848,10 @@
       "insert": "Ekle"
     },
     "compactArgHint": "<özet için isteğe bağlı odak>",
-    "compactCommandDescription": "Eski bağlamı özetleyerek yer açar. İsteğe bağlı: /compact <özet odağı>"
+    "compactCommandDescription": "Eski bağlamı özetleyerek yer açar. İsteğe bağlı: /compact <özet odağı>",
+    "canvasCommandDescription": "Yeni bir etkileşimli Canvas oluşturur. İsteğe bağlı: /canvas <oluşturulacak içerik>",
+    "canvasArgHint": "oluşturulacak içerik",
+    "newCanvasAction": "Yeni Canvas"
   },
   "listPanel": {
     "showingOf": "{{total}} içinden {{filtered}} gösteriliyor",
@@ -999,6 +1002,10 @@
       "newTerminal": "Yeni Terminal",
       "newTab": "Yeni sekme",
       "terminals": "Terminaller"
+    },
+    "sideChat": {
+      "title": "Yan sohbet",
+      "openInSideChat": "Yan sohbette aç"
     },
     "collapseAll": "Tümünü daralt",
     "copyEventJson": "Olay JSON'unu kopyala",
@@ -2011,6 +2018,18 @@
     "renderInlineCanvasUrlDone": "render URL canvas",
     "renderInlineCanvasUrlFailed": "render URL canvas başarısız",
     "renderInlineCanvasUrlRunning": "render URL canvas…",
+    "reviseInlineCanvasRunning": "Canvas düzenleniyor",
+    "reviseInlineCanvasDone": "Canvas düzenlendi",
+    "reviseInlineCanvasFailed": "Canvas düzenleme başarısız",
+    "reviseInlineCanvasHtmlRunning": "HTML Canvas düzenleniyor",
+    "reviseInlineCanvasHtmlDone": "HTML Canvas düzenlendi",
+    "reviseInlineCanvasHtmlFailed": "HTML Canvas düzenleme başarısız",
+    "reviseInlineCanvasUrlRunning": "URL Canvas düzenleniyor",
+    "reviseInlineCanvasUrlDone": "URL Canvas düzenlendi",
+    "reviseInlineCanvasUrlFailed": "URL Canvas düzenleme başarısız",
+    "reviseInlineCanvasA2uiRunning": "A2UI Canvas düzenleniyor",
+    "reviseInlineCanvasA2uiDone": "A2UI Canvas düzenlendi",
+    "reviseInlineCanvasA2uiFailed": "A2UI Canvas düzenleme başarısız",
     "runShellRunDone": "run command",
     "runShellRunFailed": "run command başarısız",
     "runShellRunRunning": "run command…",
@@ -2806,5 +2825,60 @@
     "summarize": "Agent ile özetle",
     "waiting": "İçerik bekleniyor…",
     "empty": "İçerik yok"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
   }
 }

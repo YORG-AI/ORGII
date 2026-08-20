@@ -8,7 +8,7 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Avatar from "@src/components/Avatar";
@@ -17,7 +17,10 @@ import ComposerShell from "@src/components/ComposerShell";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { MarkdownContent } from "@src/modules/shared/components/ActivityTimeline";
-import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import MarkdownTextareaEditor, {
+  type MarkdownEditorMode,
+} from "@src/modules/shared/components/MarkdownTextareaEditor";
+import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import { ScrollTrailTarget } from "@src/modules/shared/layouts/blocks";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItemComment } from "@src/types/core/workItem";
@@ -195,9 +198,11 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   onToggleSubscribe,
   commentText,
   onCommentTextChange,
-  mentionedUserIds = [],
-  onMentionedUserIdsChange = () => undefined,
+  mentionRefs = [],
+  onMentionRefsChange = () => undefined,
   teamMembers = [],
+  agents = [],
+  agentOrgs = [],
   onCommentSubmit,
   isSubmittingComment,
   comments = [],
@@ -208,8 +213,10 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   presentation = "default",
   canComment = true,
   threadNavigation,
+  triggerPreview,
 }) => {
   const { t } = useTranslation("projects");
+  const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
   const isThread = presentation === "thread";
   const { discussionEntries, activityEntries } = useMemo(
     () => partitionDiscussionTimeline(timelineEntries),
@@ -273,6 +280,43 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   );
 
   const hasComment = commentText.trim().length > 0;
+  const PREVIEW_REASON_KEYS: Record<string, string> = {
+    mention: "previewMentionResume",
+    mention_start: "previewMentionStart",
+    mention_unroutable: "previewMentionUnroutable",
+    thread_owner: "previewThread",
+    thread_continuation: "previewThread",
+    assignee: "previewAssignee",
+    assignee_start: "previewAssigneeStart",
+    note_only: "previewNoteOnly",
+    no_linked_session: "previewNoSession",
+  };
+  const triggerPreviewChip =
+    hasComment && triggerPreview ? (
+      <div
+        className="flex items-center gap-1.5 self-start rounded-full bg-fill-2 px-2 py-0.5 text-[11px] text-text-3"
+        title={triggerPreview.targetSessionId ?? undefined}
+        data-testid="work-item-discussion-trigger-preview"
+      >
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${
+            triggerPreview.willWake ? "bg-primary-6" : "bg-fill-4"
+          }`}
+          aria-hidden
+        />
+        {t(
+          `workItems.discussion.${
+            PREVIEW_REASON_KEYS[triggerPreview.reason] ??
+            (triggerPreview.willWake ? "previewWillWake" : "previewNoSession")
+          }`
+        )}
+        {triggerPreview.willCoalesce ? (
+          <span className="text-text-4">
+            · {t("workItems.discussion.previewCoalesce")}
+          </span>
+        ) : null}
+      </div>
+    ) : null;
   const submitButton = (
     <Button
       variant={hasComment ? "primary" : isThread ? "tertiary" : "secondary"}
@@ -329,11 +373,13 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
             />
           </div>
         ) : null}
+        {triggerPreviewChip}
         <ComposerShell
           variant="comment"
+          className="!flex-col !items-stretch"
           data-testid="work-item-comment-composer"
         >
-          <RichMarkdownEditor
+          <MarkdownTextareaEditor
             className="min-w-0 flex-1"
             placeholder={t("workItems.activity.commentPlaceholder")}
             value={commentText}
@@ -342,20 +388,31 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
             minHeight={28}
             maxHeight={120}
             appearance="plain"
-            matchMarkdownPreview={false}
-            toolbarSize="mini"
-            toolbarDropdownPosition="top-start"
+            mode={editorMode}
+            onModeChange={setEditorMode}
             dataTestId="work-item-comment-editor"
           />
-          {submitButton}
+          <div className="flex items-center justify-between gap-2">
+            <MarkdownEditorModeSwitch
+              mode={editorMode}
+              onModeChange={setEditorMode}
+              disabled={isSubmittingComment}
+              dataTestId="work-item-comment-mode-switch"
+            />
+            <div className="flex min-w-0 items-center justify-end gap-1.5">
+              <WorkItemMentionPicker
+                members={teamMembers}
+                agents={agents}
+                agentOrgs={agentOrgs}
+                currentUserId={currentUser.id}
+                value={mentionRefs}
+                disabled={isSubmittingComment}
+                onChange={onMentionRefsChange}
+              />
+              {submitButton}
+            </div>
+          </div>
         </ComposerShell>
-        <WorkItemMentionPicker
-          members={teamMembers}
-          currentUserId={currentUser.id}
-          value={mentionedUserIds}
-          disabled={isSubmittingComment}
-          onChange={onMentionedUserIdsChange}
-        />
       </div>
     </div>
   ) : (
@@ -364,7 +421,10 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       data-testid="work-item-default-comment-dock"
     >
       <div className="min-w-0 flex-1">
-        <RichMarkdownEditor
+        {triggerPreviewChip ? (
+          <div className="mb-2">{triggerPreviewChip}</div>
+        ) : null}
+        <MarkdownTextareaEditor
           placeholder={t("workItems.activity.commentPlaceholder")}
           value={commentText}
           onChange={(markdown) => onCommentTextChange(markdown)}
@@ -372,19 +432,29 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           minHeight={60}
           maxHeight={120}
           appearance="outlined"
-          toolbarSize="mini"
-          toolbarDropdownPosition="top-start"
+          mode={editorMode}
+          onModeChange={setEditorMode}
           dataTestId="work-item-comment-editor"
         />
-        <div className="mt-2 flex items-center justify-end">{submitButton}</div>
-        <div className="mt-2">
-          <WorkItemMentionPicker
-            members={teamMembers}
-            currentUserId={currentUser.id}
-            value={mentionedUserIds}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <MarkdownEditorModeSwitch
+            mode={editorMode}
+            onModeChange={setEditorMode}
             disabled={isSubmittingComment}
-            onChange={onMentionedUserIdsChange}
+            dataTestId="work-item-comment-mode-switch"
           />
+          <div className="flex min-w-0 items-center justify-end gap-1.5">
+            <WorkItemMentionPicker
+              members={teamMembers}
+              agents={agents}
+              agentOrgs={agentOrgs}
+              currentUserId={currentUser.id}
+              value={mentionRefs}
+              disabled={isSubmittingComment}
+              onChange={onMentionRefsChange}
+            />
+            {submitButton}
+          </div>
         </div>
       </div>
     </div>

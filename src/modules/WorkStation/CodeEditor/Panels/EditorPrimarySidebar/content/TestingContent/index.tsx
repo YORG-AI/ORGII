@@ -31,7 +31,7 @@ import {
   VirtualizedStickyTree,
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
-import { useTestRunner } from "@src/hooks/testRunner";
+import { useTestRunner } from "@src/modules/WorkStation/CodeEditor/hooks/useTestRunner";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";

@@ -44,10 +44,6 @@ interface WorkItemDetailBodyProps {
   onOpenSubItem?: (item: WorkItemDataPayload) => void;
   onUpdateWorkItem: (updates: Partial<WorkItemExtended>) => void;
   onUpdateWorkItemImmediate: (updates: Partial<WorkItemExtended>) => void;
-  onCancelAgent: () => void;
-  onRetry: (instructions?: string) => void;
-  onAcceptAsIs: () => void;
-  onCreateFollowUp: () => void;
   onOpenSession: (sessionId: string, title?: string) => void;
   onOpenFileDiff: (filePath: string) => void;
   onOpenFileAtLine: (filePath: string, line?: number) => void;
@@ -77,10 +73,6 @@ export function WorkItemDetailBody({
   onOpenSubItem,
   onUpdateWorkItem,
   onUpdateWorkItemImmediate,
-  onCancelAgent,
-  onRetry,
-  onAcceptAsIs,
-  onCreateFollowUp,
   onOpenSession,
   onOpenFileDiff,
   onOpenFileAtLine,
@@ -122,14 +114,12 @@ export function WorkItemDetailBody({
               onUpdateWorkItem={onUpdateWorkItem}
               onUpdateWorkItemImmediate={onUpdateWorkItemImmediate}
               teamMembers={availableMembers}
+              availableAgents={availableAgents}
+              availableOrgs={availableOrgs}
               repoPath={repoPath}
               projectSlug={projectSlug}
               orgId={orgId}
               shortId={shortId}
-              onCancelAgent={onCancelAgent}
-              onRetry={onRetry}
-              onAcceptAsIs={onAcceptAsIs}
-              onCreateFollowUp={onCreateFollowUp}
               onOpenSession={onOpenSession}
               onOpenFileDiff={onOpenFileDiff}
               onOpenFileAtLine={onOpenFileAtLine}

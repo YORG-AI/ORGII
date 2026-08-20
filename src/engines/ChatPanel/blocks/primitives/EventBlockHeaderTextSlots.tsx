@@ -39,6 +39,8 @@ export interface EventBlockHeaderTitleProps {
    * agent-provided description promoted into the title slot).
    */
   truncate?: boolean;
+  /** Native hover text for truncated variable titles. */
+  title?: string;
   className?: string;
 }
 
@@ -60,10 +62,12 @@ export const EventBlockHeaderTitle: React.FC<EventBlockHeaderTitleProps> = ({
   children,
   isLoading = false,
   truncate = false,
+  title,
   className = "",
 }) => (
   <span
-    className={`inline-flex items-center leading-tight ${truncate ? "min-w-0 flex-initial truncate" : "shrink-0 whitespace-nowrap"} ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "font-medium text-text-2"} ${className}`.trim()}
+    className={`inline-flex select-text items-center leading-tight ${truncate ? "min-w-0 flex-initial truncate" : "shrink-0 whitespace-nowrap"} ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "font-medium text-text-2"} ${className}`.trim()}
+    title={title}
   >
     {children}
   </span>
@@ -75,7 +79,7 @@ export const EventBlockHeaderSubtitle: React.FC<
   EventBlockHeaderSubtitleProps
 > = ({ children, isLoading = false, title: titleAttr, className = "" }) => (
   <span
-    className={`inline-flex min-w-0 flex-initial items-center truncate leading-tight ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "text-text-2"} ${className}`.trim()}
+    className={`inline-flex min-w-0 flex-initial select-text items-center truncate leading-tight ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "text-text-2"} ${className}`.trim()}
     title={titleAttr}
   >
     {children}
@@ -90,7 +94,7 @@ export const EventBlockHeaderInfo: React.FC<EventBlockHeaderInfoProps> = ({
   className = "",
 }) => (
   <span
-    className={`shrink-0 ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "text-text-3"} ${className}`.trim()}
+    className={`shrink-0 select-text ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "text-text-3"} ${className}`.trim()}
   >
     {children}
   </span>

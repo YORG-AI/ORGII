@@ -42,7 +42,10 @@ pub(crate) fn prune_stale_agent_worktrees() -> Result<(), String> {
     let mut total_pruned = 0u32;
     for repo_path in &repos_seen {
         let repo = std::path::Path::new(repo_path);
-        if !repo.is_dir() {
+        // Recorded paths can point at directories that were never
+        // repositories (e2e temp dirs); the marker check keeps prune from
+        // spawning a doomed git process and warning on every launch.
+        if !repo.is_dir() || !repo.join(".git").exists() {
             continue;
         }
         match git::worktree::prune_stale_worktrees(repo, &active_ids) {

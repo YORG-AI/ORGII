@@ -30,6 +30,7 @@ import {
 import { FileTreeHoverPreview } from "@src/components/FileTreePreview/exports";
 import UserActionButton from "@src/engines/ChatPanel/InputArea/components/UserActionButton";
 import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
+import { buildBuiltinSlashItems } from "@src/engines/ChatPanel/hooks/useInputArea/builtinSlashItems";
 import { useSlashItemsCache } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashItemsCache";
 import { EditorTabService } from "@src/services/workStation/EditorTabService";
 import {
@@ -44,42 +45,51 @@ import {
 } from "@src/store/workstation/tabs/factories/canvasPreview";
 import type { SlashItem } from "@src/types/extensions";
 import { SLASH_ACTIONS } from "@src/types/extensions";
+import { isCliSession } from "@src/util/session/sessionDispatch";
 
-import { buildMcpToolCommand } from "../SlashCommandPortal/slashItemUtils";
+import {
+  buildMcpToolCommand,
+  insertAtomicSlashActionPill,
+} from "../SlashCommandPortal/slashItemUtils";
 import PinActionsPanel, { actionKey } from "./PinActionsPanel";
 
-const BUILTIN_SLASH_ITEMS: SlashItem[] = [
-  {
-    name: SLASH_ACTIONS.SETUP_REPO,
-    description: "Auto-detect the repo and launch a one-click setup session",
-    category: "action",
-    source: "builtin",
-    acceptsArgs: false,
-  },
-];
+const SETUP_REPO_SLASH_ITEM: SlashItem = {
+  name: SLASH_ACTIONS.SETUP_REPO,
+  description: "Auto-detect the repo and launch a one-click setup session",
+  category: "action",
+  source: "builtin",
+  acceptsArgs: false,
+};
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
 interface ActionPillProps {
   action: PinnedAction;
   onClick: (action: PinnedAction, e?: React.MouseEvent) => void;
+  /**
+   * Display label override. Built-ins whose raw name would read ambiguously
+   * next to sibling controls pass a localized label ("canvas" pinned next to
+   * the "Canvas" preview-reopen button → "New Canvas").
+   */
+  label?: string;
   /** Forward a ref onto the underlying button. */
   buttonRef?: React.Ref<HTMLButtonElement>;
 }
 
 const ActionPill: React.FC<ActionPillProps> = memo(
-  ({ action, onClick, buttonRef }) => {
+  ({ action, onClick, label, buttonRef }) => {
+    const displayLabel = label ?? action.name;
     const button = (
       <Button
         ref={buttonRef}
         variant="secondary"
         size="small"
         shape="round"
-        title={action.name}
+        title={displayLabel}
         onClick={(event) => onClick(action, event)}
         className={`max-w-180 shrink-0 select-none ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
       >
-        {action.name}
+        {displayLabel}
       </Button>
     );
 
@@ -104,7 +114,7 @@ ActionPill.displayName = "ActionPill";
 // ── main component ────────────────────────────────────────────────────────────
 
 export interface PinnedActionsBarProps {
-  /** Ref to the tiptap editor, used to insert content when a pill is clicked. */
+  /** Ref to the composer, used to insert content when a pill is clicked. */
   composerInputRef: React.RefObject<ComposerInputRef | null>;
   /**
    * Active session ID — when provided, a Canvas pill appears whenever the
@@ -137,6 +147,19 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
         .map((folder) => folder.path.replace(/\/+$/, ""))
         .filter(Boolean);
     }, [workspaceFolders, workspacePaths]);
+    const builtinSlashItems = useMemo(
+      () => [
+        ...buildBuiltinSlashItems({
+          canvasDescription: t("input.canvasCommandDescription"),
+          compactDescription: t("input.compactCommandDescription"),
+          // CLI agents have no render_inline_canvas tool — don't offer
+          // pinning an action whose projection would have to no-op there.
+          includeCanvas: !(sessionId && isCliSession(sessionId)),
+        }),
+        SETUP_REPO_SLASH_ITEM,
+      ],
+      [t, sessionId]
+    );
 
     // ── Canvas pill ───────────────────────────────────────────────────────────
 
@@ -181,7 +204,7 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
       loading: loadingItems,
       fetchFresh,
     } = useSlashItemsCache({
-      builtinItems: BUILTIN_SLASH_ITEMS,
+      builtinItems: builtinSlashItems,
       workspacePaths: effectiveWorkspacePaths,
     });
 
@@ -276,6 +299,10 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
             handleSetupRepo();
             return;
           }
+          if (!composerInputRef.current) return;
+          // Every remaining built-in action (canvas, compact) is an atomic
+          // composer token; a stale pin with an unknown name is a no-op.
+          insertAtomicSlashActionPill(composerInputRef.current, action.name);
           return;
         }
 
@@ -346,6 +373,14 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
           <ActionPill
             key={actionKey(action)}
             action={action}
+            // The canvas CREATION action would otherwise render "canvas"
+            // right next to the pre-existing "Canvas" preview-reopen button.
+            label={
+              action.category === "action" &&
+              action.name === SLASH_ACTIONS.CANVAS
+                ? t("input.newCanvasAction", "New Canvas")
+                : undefined
+            }
             onClick={handlePillClick}
           />
         ))}

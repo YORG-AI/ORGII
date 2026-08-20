@@ -35,6 +35,7 @@ export interface BasePillProps {
   className?: string;
   style?: React.CSSProperties;
   title?: string;
+  "aria-label"?: string;
   role?: string;
   tabIndex?: number;
   /** Forwarded ref for position calculations (e.g. preview portal in ComposerPill) */
@@ -74,6 +75,7 @@ const BasePill = React.forwardRef<HTMLSpanElement, BasePillProps>(
       className,
       style,
       title,
+      "aria-label": ariaLabel,
       role,
       tabIndex,
       pillRef,
@@ -97,6 +99,7 @@ const BasePill = React.forwardRef<HTMLSpanElement, BasePillProps>(
         className={className}
         style={{ ...baseStyle, ...style }}
         title={title}
+        aria-label={ariaLabel}
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}

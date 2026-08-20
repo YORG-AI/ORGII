@@ -30,10 +30,8 @@ import { BrowserProvider, TerminalProvider } from "@src/contexts/workstation";
 import { useViewportWidth } from "@src/engines/ChatPanel/hooks/useViewportWidth";
 import { useAgentADEActions } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import { useProjectDataChangedListener } from "@src/hooks/project";
+import { useUrlPreviewEvents } from "@src/hooks/tabHost/useUrlPreviewEvents";
 import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
-import { useOpenUrlInBrowser } from "@src/hooks/workStation/browser/useOpenUrlInBrowser";
-import { useUrlPreviewEvents } from "@src/hooks/workStation/tabs";
-import { useNarrowChatFocus } from "@src/hooks/workStation/useNarrowChatFocus";
 import { useGlobalBrowserWebviewLayering } from "@src/modules/WorkStation/Browser/hooks";
 import { CODE_EDITOR_TOUR_EVENT } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
@@ -73,6 +71,8 @@ import { FloatingSidebar } from "./shared/components/FloatingSidebar";
 import { SidebarSelector } from "./shared/components/SidebarSelector";
 import { useRouteLayoutType, useWorkspaceEvents } from "./shared/hooks";
 import { AppLayout } from "./shared/layouts";
+import { useNarrowChatFocus } from "./useNarrowChatFocus";
+import { useOpenUrlInBrowser } from "./useOpenUrlInBrowser";
 import { useWorkStationPipelineBridge } from "./useWorkStationPipelineBridge";
 
 const WorkStationPage = React.lazy(

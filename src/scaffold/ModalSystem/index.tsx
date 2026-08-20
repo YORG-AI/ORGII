@@ -18,11 +18,13 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@src/components/Button";
-import {
+// Deep imports on purpose: the `layouts/blocks` barrel re-exports
+// SessionTable → SettingsTable → @tanstack/react-table, and Modal sits in the
+// startup graph (QuitConfirmationModal is mounted at boot).
+import PanelFooter from "@src/modules/shared/layouts/blocks/PanelFooter";
+import PanelHeader, {
   PANEL_HEADER_TOKENS,
-  PanelFooter,
-  PanelHeader,
-} from "@src/modules/shared/layouts/blocks";
+} from "@src/modules/shared/layouts/blocks/PanelHeader";
 import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 import "./index.scss";

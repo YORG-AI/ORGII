@@ -14,8 +14,8 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 
-import { useCloseTabWithGuard } from "@src/hooks/workStation/tabs/useCloseTabWithGuard";
-import { useFocusTab } from "@src/hooks/workStation/tabs/useFocusTab";
+import { useCloseTabWithGuard } from "@src/hooks/tabHost/useCloseTabWithGuard";
+import { useFocusTab } from "@src/hooks/tabHost/useFocusTab";
 import {
   closeOtherTabsAtom,
   closeSavedTabsAtom,

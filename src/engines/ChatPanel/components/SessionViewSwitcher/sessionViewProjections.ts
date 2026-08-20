@@ -21,7 +21,10 @@ export interface TimelineRow {
   ordinal: number;
   preview: string;
   startedAtMs: number;
+  endedAtMs: number | null;
   durationMs: number | null;
+  /** True when a missing end was bounded by the following turn's start. */
+  endInferred: boolean;
   /** Bar offset from the session start, 0..1 of the total span. */
   offsetRatio: number;
   /** Bar width, 0..1 of the total span, floored so every turn is visible. */
@@ -45,15 +48,15 @@ function parseTime(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/** End of a turn: its own end stamp, or start + duration when still open. */
-function turnEndMs(turn: TurnSummary, startMs: number): number {
+/** Explicit end of a turn: its end stamp, or start + a stored duration. */
+function explicitTurnEndMs(turn: TurnSummary, startMs: number): number | null {
   const ended = parseTime(turn.endedAt);
-  if (ended !== null) return ended;
+  if (ended !== null) return Math.max(startMs, ended);
   const duration =
     typeof turn.durationMs === "number" && Number.isFinite(turn.durationMs)
       ? Math.max(0, turn.durationMs)
-      : 0;
-  return startMs + duration;
+      : null;
+  return duration === null ? null : startMs + duration;
 }
 
 export function projectSessionTimeline(turns: TurnSummary[]): SessionTimeline {
@@ -66,18 +69,34 @@ export function projectSessionTimeline(turns: TurnSummary[]): SessionTimeline {
 
   if (timed.length === 0) return { rows: [], totalMs: 0 };
 
-  const sessionStart = Math.min(...timed.map((entry) => entry.startMs));
+  const resolved = timed.map((entry, index) => {
+    const explicitEndMs = explicitTurnEndMs(entry.turn, entry.startMs);
+    const nextStartMs = timed[index + 1]?.startMs ?? null;
+    const inferredEndMs =
+      explicitEndMs === null &&
+      nextStartMs !== null &&
+      nextStartMs >= entry.startMs
+        ? nextStartMs
+        : null;
+    return {
+      ...entry,
+      endMs: explicitEndMs ?? inferredEndMs,
+      endInferred: explicitEndMs === null && inferredEndMs !== null,
+    };
+  });
+
+  const sessionStart = Math.min(...resolved.map((entry) => entry.startMs));
   const sessionEnd = Math.max(
-    ...timed.map((entry) => turnEndMs(entry.turn, entry.startMs))
+    ...resolved.map((entry) => entry.endMs ?? entry.startMs)
   );
   // A session whose turns all share one instant has no span to divide by;
   // fall back to 1 so every ratio resolves to the minimum bar instead of NaN.
   const totalMs = Math.max(1, sessionEnd - sessionStart);
 
-  const rows = timed.map(({ turn, startMs }, index) => {
-    const endMs = turnEndMs(turn, startMs);
+  const rows = resolved.map(({ turn, startMs, endMs, endInferred }, index) => {
+    const barEndMs = endMs ?? startMs;
     const offsetRatio = (startMs - sessionStart) / totalMs;
-    const rawWidth = (endMs - startMs) / totalMs;
+    const rawWidth = (barEndMs - startMs) / totalMs;
     const widthRatio = Math.min(
       1 - offsetRatio,
       Math.max(MIN_TIMELINE_BAR_RATIO, rawWidth)
@@ -87,12 +106,14 @@ export function projectSessionTimeline(turns: TurnSummary[]): SessionTimeline {
       ordinal: index + 1,
       preview: turn.userPreview,
       startedAtMs: startMs,
+      endedAtMs: endMs,
       durationMs:
         typeof turn.durationMs === "number" && Number.isFinite(turn.durationMs)
           ? Math.max(0, turn.durationMs)
-          : endMs > startMs
+          : endMs !== null
             ? endMs - startMs
             : null,
+      endInferred,
       offsetRatio,
       widthRatio,
       status: turn.status,

@@ -111,6 +111,52 @@ fn load_events_by_ids(session_id: &str, ids: &[String]) -> SqliteResult<Vec<Cach
     Ok(rows)
 }
 
+/// Load the most recent `limit` events whose `function_name` is one of
+/// `function_names`, returned in ascending timeline order.
+///
+/// Used to pin artifact-producing events (inline-Canvas renders/revisions)
+/// into the initial turn window: older turns collapse into placeholders,
+/// but the canvas projection and `revise_inline_canvas` target validation
+/// address those events by id regardless of which turn produced them.
+pub fn load_session_pinned_artifact_events(
+    session_id: &str,
+    function_names: &[&str],
+    limit: usize,
+) -> SqliteResult<Vec<CachedEvent>> {
+    let conn = get_connection()?;
+    load_pinned_artifact_events(&conn, session_id, function_names, limit)
+}
+
+fn load_pinned_artifact_events(
+    conn: &Connection,
+    session_id: &str,
+    function_names: &[&str],
+    limit: usize,
+) -> SqliteResult<Vec<CachedEvent>> {
+    if function_names.is_empty() || limit == 0 {
+        return Ok(Vec::new());
+    }
+
+    let placeholders = std::iter::repeat_n("?", function_names.len())
+        .collect::<Vec<_>>()
+        .join(",");
+    let query = format!(
+        "SELECT id, session_id, event_type, function_name, thread_id,
+                args_json, result_json, content, created_at, meta_json, history_sequence
+         FROM events
+         WHERE session_id = ? AND function_name IN ({placeholders})
+         ORDER BY created_at DESC, COALESCE(history_sequence, rowid) DESC, id DESC
+         LIMIT {limit}"
+    );
+    let params = std::iter::once(session_id).chain(function_names.iter().copied());
+    let mut stmt = conn.prepare(&query)?;
+    let mut events = stmt
+        .query_map(params_from_iter(params), cached_event_from_row)?
+        .collect::<SqliteResult<Vec<_>>>()?;
+    events.reverse();
+    Ok(events)
+}
+
 const TURN_PREVIEW_ARG_KEY: &str = "turnPreviewOnly";
 
 fn mark_turn_preview(mut event: CachedEvent) -> CachedEvent {
@@ -258,4 +304,120 @@ pub fn load_initial_turn_window(
     });
 
     Ok(CachedInitialTurnWindow { turns, events })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::params;
+
+    fn events_test_conn() -> Connection {
+        let conn = Connection::open_in_memory().expect("in-memory database");
+        crate::schema::init_session_tables(&conn).expect("init session schema");
+        conn
+    }
+
+    fn insert_event(
+        conn: &Connection,
+        session_id: &str,
+        id: &str,
+        function_name: &str,
+        created_at: &str,
+    ) {
+        conn.execute(
+            "INSERT INTO events (id, session_id, event_type, function_name,
+                                 args_json, result_json, content, created_at)
+             VALUES (?1, ?2, 'tool_call', ?3, '{}', '{}', '', ?4)",
+            params![id, session_id, function_name, created_at],
+        )
+        .expect("insert event");
+    }
+
+    #[test]
+    fn pinned_artifact_events_survive_outside_the_recent_turn_window() {
+        // A canvas rendered in turn 1 must be loadable even though the
+        // initial turn window only materializes the most recent turn's body.
+        let conn = events_test_conn();
+        insert_event(
+            &conn,
+            "session-a",
+            "tool-call-canvas-1",
+            "render_inline_canvas",
+            "2026-08-01T00:00:01.000Z",
+        );
+        insert_event(
+            &conn,
+            "session-a",
+            "tool-call-canvas-2",
+            "revise_inline_canvas",
+            "2026-08-01T00:10:00.000Z",
+        );
+        insert_event(
+            &conn,
+            "session-a",
+            "tool-call-read-1",
+            "read_file",
+            "2026-08-01T00:20:00.000Z",
+        );
+        insert_event(
+            &conn,
+            "session-b",
+            "tool-call-canvas-other",
+            "render_inline_canvas",
+            "2026-08-01T00:00:02.000Z",
+        );
+
+        let events = load_pinned_artifact_events(
+            &conn,
+            "session-a",
+            &["render_inline_canvas", "revise_inline_canvas"],
+            64,
+        )
+        .expect("load pinned artifact events");
+
+        let ids: Vec<&str> = events.iter().map(|event| event.id.as_str()).collect();
+        assert_eq!(ids, vec!["tool-call-canvas-1", "tool-call-canvas-2"]);
+    }
+
+    #[test]
+    fn pinned_artifact_events_cap_keeps_the_most_recent() {
+        let conn = events_test_conn();
+        for index in 0..5 {
+            insert_event(
+                &conn,
+                "session-a",
+                &format!("tool-call-canvas-{index}"),
+                "render_inline_canvas",
+                &format!("2026-08-01T00:00:0{index}.000Z"),
+            );
+        }
+
+        let events =
+            load_pinned_artifact_events(&conn, "session-a", &["render_inline_canvas"], 2)
+                .expect("load pinned artifact events");
+
+        let ids: Vec<&str> = events.iter().map(|event| event.id.as_str()).collect();
+        assert_eq!(ids, vec!["tool-call-canvas-3", "tool-call-canvas-4"]);
+    }
+
+    #[test]
+    fn pinned_artifact_events_with_no_names_or_zero_cap_are_empty() {
+        let conn = events_test_conn();
+        insert_event(
+            &conn,
+            "session-a",
+            "tool-call-canvas-1",
+            "render_inline_canvas",
+            "2026-08-01T00:00:01.000Z",
+        );
+
+        assert!(load_pinned_artifact_events(&conn, "session-a", &[], 64)
+            .expect("empty name list")
+            .is_empty());
+        assert!(
+            load_pinned_artifact_events(&conn, "session-a", &["render_inline_canvas"], 0)
+                .expect("zero cap")
+                .is_empty()
+        );
+    }
 }

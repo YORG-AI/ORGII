@@ -240,19 +240,27 @@ async fn push_swe_bench_local_docker_checks(
     checks.push(BenchmarkPreflightCheck {
         id: "evaluator_script".to_string(),
         label: "SWE-bench Pro evaluator script".to_string(),
-        ok: evaluator_script.is_file(),
-        detail: Some(evaluator_script.display().to_string()),
+        ok: evaluator_script
+            .as_ref()
+            .is_ok_and(|script| script.is_file()),
+        detail: Some(match &evaluator_script {
+            Ok(script) => script.display().to_string(),
+            Err(error) => error.message(),
+        }),
     });
 
     let scripts_dir = swe_bench_run_scripts_dir();
     checks.push(BenchmarkPreflightCheck {
         id: "run_scripts_dir".to_string(),
         label: "SWE-bench Pro run scripts".to_string(),
-        ok: scripts_dir.is_dir(),
-        detail: Some(scripts_dir.display().to_string()),
+        ok: scripts_dir.as_ref().is_ok_and(|dir| dir.is_dir()),
+        detail: Some(match &scripts_dir {
+            Ok(dir) => dir.display().to_string(),
+            Err(error) => error.message(),
+        }),
     });
 
-    if let Some(selected_task_id) = task_id {
+    if let (Some(selected_task_id), Ok(scripts_dir)) = (task_id, scripts_dir) {
         let run_script = scripts_dir.join(selected_task_id).join("run_script.sh");
         checks.push(BenchmarkPreflightCheck {
             id: "task_run_script".to_string(),

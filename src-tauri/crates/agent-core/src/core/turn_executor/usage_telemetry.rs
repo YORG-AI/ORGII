@@ -144,7 +144,7 @@ impl UsageTelemetryCollector {
                 })
                 .unwrap_or((0, AttributionMethod::BytesOnly));
             self.tool_attributions.push(ToolUsageAttribution {
-                event_id: format!("tool-call-{}", tool_result.tool_call_id),
+                event_id: core_types::tool_names::tool_call_event_id(&tool_result.tool_call_id),
                 tool_call_id: tool_result.tool_call_id,
                 tool_name: tool_result.tool_name,
                 iteration_index,

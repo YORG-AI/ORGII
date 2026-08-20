@@ -57,6 +57,12 @@ pub(super) fn transcript_message_key(event: &SessionEvent) -> Option<(EventSourc
     }
 }
 
+/// Mirror of the frontend's `normalizeUserText` (collapse whitespace, trim)
+/// so content matching agrees across the IPC boundary.
+pub(super) fn normalize_user_text(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 pub(super) fn normalized_event_text(event: &SessionEvent) -> String {
     event
         .display_text

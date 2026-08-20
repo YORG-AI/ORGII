@@ -17,7 +17,7 @@ import { type MutableRefObject, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createLogger } from "@src/hooks/logger";
-import { invalidateFileCache } from "@src/hooks/workStation/editor/useFileContent";
+import { invalidateFileCache } from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/useFileContent";
 import { tabToHost } from "@src/store/workstation/tabHost";
 import {
   type PanelState,

@@ -5,9 +5,40 @@ export const FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS =
   "pointer-events-none absolute right-0 top-0 h-full w-9 @[1100px]/focusedchat:relative @[1100px]/focusedchat:ml-auto @[1100px]/focusedchat:h-auto @[1100px]/focusedchat:min-h-0 @[1100px]/focusedchat:flex-1";
 
 export function resolveFocusedChatWorkstationSectionOrder(
-  hasOpenTabs: boolean
-): Array<"workspace" | "tabs"> {
-  return hasOpenTabs ? ["workspace", "tabs"] : ["workspace"];
+  hasOpenTabs: boolean,
+  hasSessionEnvironment: boolean
+): Array<"session" | "workspace" | "tabs"> {
+  return [
+    ...(hasSessionEnvironment ? (["session"] as const) : []),
+    "workspace",
+    ...(hasOpenTabs ? (["tabs"] as const) : []),
+  ];
+}
+
+export function isSameFocusedChatGitEnvironment({
+  localBranchName,
+  localRepoPath,
+  sessionBranchName,
+  sessionRepoPath,
+}: {
+  localBranchName?: string;
+  localRepoPath?: string;
+  sessionBranchName?: string;
+  sessionRepoPath?: string;
+}): boolean {
+  if (
+    !localBranchName ||
+    !localRepoPath ||
+    !sessionBranchName ||
+    !sessionRepoPath
+  ) {
+    return false;
+  }
+  const normalize = (value: string) => value.replace(/[\\/]+$/u, "");
+  return (
+    localBranchName === sessionBranchName &&
+    normalize(localRepoPath) === normalize(sessionRepoPath)
+  );
 }
 
 interface FocusedChatWorkstationMountInput {

@@ -1,7 +1,5 @@
 import { type Dispatch, type SetStateAction, useMemo } from "react";
 
-import type { DependencyStatus } from "@src/hooks/dependencies";
-
 import type { useCliAgents } from "./KeyVault/CliClients/hooks/useCliAgents";
 import type { useKeyVaultPage } from "./KeyVault/hooks/useKeyVaultPage";
 import type { CategoryTableContentProps } from "./Tables";
@@ -11,6 +9,7 @@ import type { useDatabasesState } from "./hooks/useDatabasesState";
 import type { useExtensionsState } from "./hooks/useExtensionsState";
 import type { useRoutinesState } from "./hooks/useRoutinesState";
 import type { useRulesMemoryEvolutionState } from "./hooks/useRulesMemoryEvolutionState";
+import type { DependencyStatus } from "./hooks/useSystemDependencies";
 import type { AddAction, DetailMode, IntegrationCategory } from "./types";
 
 export interface UseIntegrationsCategoryTablePropsParams {

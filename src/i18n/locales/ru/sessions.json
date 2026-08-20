@@ -852,7 +852,10 @@
       "insert": "Вставить"
     },
     "compactArgHint": "<необязательный фокус резюме>",
-    "compactCommandDescription": "Обобщить старый контекст, чтобы освободить место. Необязательно: /compact <фокус резюме>"
+    "compactCommandDescription": "Обобщить старый контекст, чтобы освободить место. Необязательно: /compact <фокус резюме>",
+    "canvasCommandDescription": "Создать новый интерактивный Canvas. Необязательно: /canvas <что создать>",
+    "canvasArgHint": "что создать",
+    "newCanvasAction": "Новый Canvas"
   },
   "listPanel": {
     "showingOf": "Показано {{filtered}} из {{total}}",
@@ -1003,6 +1006,10 @@
       "newTerminal": "Новый Терминал",
       "newTab": "Новая вкладка",
       "terminals": "Терминалы"
+    },
+    "sideChat": {
+      "title": "Боковой чат",
+      "openInSideChat": "Открыть в боковом чате"
     },
     "collapseAll": "Свернуть все",
     "copyEventJson": "Скопировать JSON событий",
@@ -2053,6 +2060,18 @@
     "renderInlineCanvasUrlDone": "render URL canvas",
     "renderInlineCanvasUrlFailed": "Не удалось: render URL canvas",
     "renderInlineCanvasUrlRunning": "render URL canvas…",
+    "reviseInlineCanvasRunning": "Правка Canvas",
+    "reviseInlineCanvasDone": "Canvas исправлен",
+    "reviseInlineCanvasFailed": "Ошибка правки Canvas",
+    "reviseInlineCanvasHtmlRunning": "Правка HTML Canvas",
+    "reviseInlineCanvasHtmlDone": "HTML Canvas исправлен",
+    "reviseInlineCanvasHtmlFailed": "Ошибка правки HTML Canvas",
+    "reviseInlineCanvasUrlRunning": "Правка URL Canvas",
+    "reviseInlineCanvasUrlDone": "URL Canvas исправлен",
+    "reviseInlineCanvasUrlFailed": "Ошибка правки URL Canvas",
+    "reviseInlineCanvasA2uiRunning": "Правка A2UI Canvas",
+    "reviseInlineCanvasA2uiDone": "A2UI Canvas исправлен",
+    "reviseInlineCanvasA2uiFailed": "Ошибка правки A2UI Canvas",
     "runShellRunDone": "run command",
     "runShellRunFailed": "Не удалось: run command",
     "runShellRunRunning": "run command…",
@@ -2849,5 +2868,60 @@
     "summarize": "Обобщить с Agent",
     "waiting": "Ожидание контента…",
     "empty": "Нет содержимого"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
   }
 }

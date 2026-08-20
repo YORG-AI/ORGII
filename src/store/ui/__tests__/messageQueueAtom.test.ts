@@ -388,6 +388,63 @@ describe("messageQueueAtom", () => {
       store.set(editMessageAtom, { messageId: "unknown", content: "x" });
       expect(store.get(messageQueueAtom)[0].content).toBe("content-m1");
     });
+
+    it("re-projects the agent copy from the edited display text (canvas pill)", () => {
+      store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
+      store.set(editMessageAtom, {
+        messageId: "m1",
+        content: "canvas [skill:/canvas] build a timer",
+      });
+
+      const msg = store.get(messageQueueAtom)[0];
+      // The visible copy keeps the pill serialization…
+      expect(msg.displayContent).toBe("canvas [skill:/canvas] build a timer");
+      // …while the dispatched copy carries the projected contract, never the
+      // raw serialization (and vice versa: the contract never leaks into
+      // displayContent).
+      expect(msg.content).toContain("render_inline_canvas exactly once");
+      expect(msg.content).toContain("build a timer");
+      expect(msg.content).not.toContain("[skill:/canvas]");
+    });
+
+    it("expands skill pills into the agent copy on edit save", () => {
+      store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
+      store.set(editMessageAtom, {
+        messageId: "m1",
+        content: "statusline [skill:/statusline] please",
+      });
+
+      const msg = store.get(messageQueueAtom)[0];
+      expect(msg.displayContent).toBe("statusline [skill:/statusline] please");
+      expect(msg.content).toBe("/statusline please");
+    });
+
+    it("does not project the canvas contract for CLI sessions", () => {
+      store.set(
+        enqueueMessageAtom,
+        makeMessage({ id: "m1", sessionId: "cliagent-1" })
+      );
+      store.set(editMessageAtom, {
+        messageId: "m1",
+        content: "/canvas build a timer",
+      });
+
+      const msg = store.get(messageQueueAtom)[0];
+      expect(msg.content).toBe("/canvas build a timer");
+      expect(msg.displayContent).toBe("/canvas build a timer");
+    });
+
+    it("does not project the canvas contract when images ride along", () => {
+      store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
+      store.set(editMessageAtom, {
+        messageId: "m1",
+        content: "/canvas build a timer",
+        imageDataUrls: ["data:image/png;base64,AAA"],
+      });
+
+      const msg = store.get(messageQueueAtom)[0];
+      expect(msg.content).toBe("/canvas build a timer");
+    });
   });
 
   // =============================================

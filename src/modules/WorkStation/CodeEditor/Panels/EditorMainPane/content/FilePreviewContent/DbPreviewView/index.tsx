@@ -6,16 +6,14 @@ import Button from "@src/components/Button";
 import Select, { type SelectOption } from "@src/components/Select";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
-  DB_PREVIEW_PAGE_SIZE,
-  getDbPreviewPageRange,
-} from "@src/hooks/workStation/database/dbPreviewUtils";
-import { useDbPreview } from "@src/hooks/workStation/database/useDbPreview";
-import {
   TableSurface,
   type TableSurfaceColumn,
   type TableSurfaceRow,
 } from "@src/modules/WorkStation/shared/TableSurface";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+
+import { DB_PREVIEW_PAGE_SIZE, getDbPreviewPageRange } from "./dbPreviewUtils";
+import { useDbPreview } from "./useDbPreview";
 
 export interface DbPreviewViewProps {
   filePath: string;

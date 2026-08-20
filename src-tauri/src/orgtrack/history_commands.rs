@@ -309,30 +309,45 @@ fn projected_rounds_to_cached_turns(
     projected
         .into_iter()
         .enumerate()
-        .map(|(index, round)| CachedTurnSummary {
-            session_id: session_id.to_string(),
-            turn_id: round.turn_id.clone(),
-            start_sequence: round.start_sequence,
-            end_sequence: turn_boundaries
-                .get(index + 1)
-                .map(|(_, sequence)| *sequence),
-            next_turn_id: turn_boundaries
-                .get(index + 1)
-                .map(|(turn_id, _)| turn_id.clone()),
-            started_at: round.started_at,
-            ended_at: round.ended_at,
-            duration_ms: None,
-            user_event_ids: vec![round.turn_id],
-            user_preview: round.user_preview,
-            event_count: round.event_count,
-            body_event_count: round.body_event_count,
-            interrupted: round.status == "interrupted",
-            status: round.status,
-            modified_files: round.modified_files,
-            resource_interactions: round.resource_interactions,
-            git_artifacts: round.git_artifacts,
+        .map(|(index, round)| {
+            let duration_ms =
+                projected_round_duration_ms(&round.started_at, round.ended_at.as_deref());
+            CachedTurnSummary {
+                session_id: session_id.to_string(),
+                turn_id: round.turn_id.clone(),
+                start_sequence: round.start_sequence,
+                end_sequence: turn_boundaries
+                    .get(index + 1)
+                    .map(|(_, sequence)| *sequence),
+                next_turn_id: turn_boundaries
+                    .get(index + 1)
+                    .map(|(turn_id, _)| turn_id.clone()),
+                started_at: round.started_at,
+                ended_at: round.ended_at,
+                duration_ms,
+                user_event_ids: vec![round.turn_id],
+                user_preview: round.user_preview,
+                event_count: round.event_count,
+                body_event_count: round.body_event_count,
+                interrupted: round.status == "interrupted",
+                status: round.status,
+                modified_files: round.modified_files,
+                resource_interactions: round.resource_interactions,
+                git_artifacts: round.git_artifacts,
+            }
         })
         .collect()
+}
+
+fn projected_round_duration_ms(started_at: &str, ended_at: Option<&str>) -> Option<i64> {
+    let started_at = chrono::DateTime::parse_from_rfc3339(started_at).ok()?;
+    let ended_at = chrono::DateTime::parse_from_rfc3339(ended_at?).ok()?;
+    Some(
+        ended_at
+            .signed_duration_since(started_at)
+            .num_milliseconds()
+            .max(0),
+    )
 }
 
 fn cursor_turns_to_projected(
@@ -1724,6 +1739,17 @@ mod tests {
         assert_eq!(turns[1].turn_id, "user-2");
         assert_eq!(turns[1].end_sequence, None);
         assert_eq!(turns[1].next_turn_id, None);
+    }
+
+    #[test]
+    fn projected_round_mapping_materializes_duration_from_its_timestamps() {
+        let mut completed = projected("user-1", 0);
+        completed.started_at = "2026-07-15T00:00:00Z".to_string();
+        completed.ended_at = Some("2026-07-15T00:00:35Z".to_string());
+
+        let turns = projected_rounds_to_cached_turns("codexapp-session", vec![completed]);
+
+        assert_eq!(turns[0].duration_ms, Some(35_000));
     }
 
     #[test]

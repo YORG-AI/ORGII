@@ -32,7 +32,7 @@ import Tooltip from "@src/components/Tooltip";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
+import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared/WorkstationHeaderSectionSeparator";
 import { isAgentOrgMemberEmpty } from "@src/util/agentOrg/memberActivity";
 
 interface TurnPaginationControlsProps {

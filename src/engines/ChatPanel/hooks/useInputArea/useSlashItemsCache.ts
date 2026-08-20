@@ -79,6 +79,48 @@ function getSlashItemIdentity(item: SlashItem): string {
   ].join("\0");
 }
 
+/**
+ * Built-in action names are reserved: a user/workspace skill named after a
+ * built-in (e.g. a skill called "canvas") would insert the SAME pill
+ * serialization the submit-time interceptor claims, so the skill could never
+ * run — and the menu would show two identical rows. Prefer the built-in and
+ * drop the colliding skill rows (comparison is case-insensitive and covers
+ * both the display name and the slash token, since either produces the
+ * hijackable serialization).
+ */
+export function dedupeSkillItemsAgainstBuiltins(
+  builtinItems: ReadonlyArray<SlashItem>,
+  skillItems: ReadonlyArray<SlashItem>
+): SlashItem[] {
+  const reservedNames = new Set(
+    builtinItems
+      .filter((item) => item.category === "action")
+      .map((item) => item.name.toLowerCase())
+  );
+  if (reservedNames.size === 0) return [...skillItems];
+  return skillItems.filter(
+    (item) =>
+      !reservedNames.has(item.name.toLowerCase()) &&
+      !reservedNames.has((item.skillName ?? item.name).toLowerCase())
+  );
+}
+
+/**
+ * Cache key for one assembled item list. The module-global cache is shared by
+ * every consumer, but different consumers embed different built-in sets
+ * (ChatPanel vs PinnedActionsBar vs CLI sessions without canvas) — a key of
+ * only the workspace paths would leak one consumer's built-ins into another.
+ */
+export function buildSlashItemsScopeKey(
+  workspacePathsKey: string,
+  builtinItems: ReadonlyArray<SlashItem>
+): string {
+  return [
+    workspacePathsKey,
+    builtinItems.map(getSlashItemIdentity).join("\u0001"),
+  ].join("\u0002");
+}
+
 function slashItemsEqual(left: SlashItem[], right: SlashItem[]): boolean {
   if (left.length !== right.length) return false;
   return left.every(
@@ -132,12 +174,15 @@ export function useSlashItemsCache(
   const { builtinItems, workspacePaths } = options;
   const setInstalledSkills = useSetAtom(installedSkillsAtom);
   const workspacePathsKey = getUniqueWorkspacePaths(workspacePaths).join("\0");
+  // Consumers embed different built-in sets — discriminate the shared cache
+  // by both axes so one consumer's assembled list never leaks into another's.
+  const scopeKey = buildSlashItemsScopeKey(workspacePathsKey, builtinItems);
 
   const [filteredItems, setFilteredItems] = useState<SlashItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   const itemsCacheRef = useRef<SlashItem[]>(
-    slashItemsCacheByScope.get(workspacePathsKey) ?? []
+    slashItemsCacheByScope.get(scopeKey) ?? []
   );
   const fetchSeqRef = useRef(0);
   const cancelledRef = useRef(false);
@@ -179,20 +224,23 @@ export function useSlashItemsCache(
           );
         }
 
-        const skillItems: SlashItem[] = rawSkills
-          .filter((s) => s.enabled)
-          .map((s) => ({
-            name: s.name,
-            skillName: s.name,
-            skillPath: s.path,
-            description: normalizeSkillDescription(s),
-            category: "skill" as const,
-            source: resolveSkillGroup(s),
-            acceptsArgs: false,
-            skillScope: isWorkspaceSkill(s, workspaceSkillRoots)
-              ? "workspace"
-              : "user",
-          }));
+        const skillItems: SlashItem[] = dedupeSkillItemsAgainstBuiltins(
+          builtinItemsRef.current,
+          rawSkills
+            .filter((s) => s.enabled)
+            .map((s) => ({
+              name: s.name,
+              skillName: s.name,
+              skillPath: s.path,
+              description: normalizeSkillDescription(s),
+              category: "skill" as const,
+              source: resolveSkillGroup(s),
+              acceptsArgs: false,
+              skillScope: isWorkspaceSkill(s, workspaceSkillRoots)
+                ? "workspace"
+                : "user",
+            }))
+        );
 
         const connectedServers = mcpServers.filter(
           (srv) => srv.status === "connected" && !srv.disabled
@@ -229,7 +277,7 @@ export function useSlashItemsCache(
           ...toolItems,
         ];
 
-        setScopedSlashItemsCache(workspacePathsKey, assembled);
+        setScopedSlashItemsCache(scopeKey, assembled);
         if (!cancelledRef.current) {
           itemsCacheRef.current = assembled;
         }
@@ -240,14 +288,14 @@ export function useSlashItemsCache(
         }
       }
     },
-    [setInstalledSkills, workspacePathsKey]
+    [setInstalledSkills, workspacePathsKey, scopeKey]
   );
 
   const prefetch = useCallback(
     (_query: string) => {
       const currentFetchSeq = fetchSeqRef.current + 1;
       fetchSeqRef.current = currentFetchSeq;
-      const cachedItems = slashItemsCacheByScope.get(workspacePathsKey) ?? [];
+      const cachedItems = slashItemsCacheByScope.get(scopeKey) ?? [];
       if (cachedItems.length > 0) {
         itemsCacheRef.current = cachedItems;
         setFilteredItems(cachedItems);
@@ -261,7 +309,7 @@ export function useSlashItemsCache(
         }
       });
     },
-    [doFetch, workspacePathsKey]
+    [doFetch, scopeKey]
   );
 
   const fetchFresh = useCallback(
@@ -283,7 +331,7 @@ export function useSlashItemsCache(
   // chat input no longer triggers a `skills_list` scan.
   useEffect(() => {
     cancelledRef.current = false;
-    const cachedItems = slashItemsCacheByScope.get(workspacePathsKey) ?? [];
+    const cachedItems = slashItemsCacheByScope.get(scopeKey) ?? [];
     if (cachedItems.length > 0) {
       itemsCacheRef.current = cachedItems;
       setFilteredItems(cachedItems);
@@ -291,7 +339,7 @@ export function useSlashItemsCache(
     return () => {
       cancelledRef.current = true;
     };
-  }, [workspacePathsKey]);
+  }, [scopeKey]);
 
   return { filteredItems, loading, prefetch, fetchFresh };
 }

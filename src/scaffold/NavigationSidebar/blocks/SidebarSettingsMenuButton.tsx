@@ -41,7 +41,7 @@ import {
 } from "@src/hooks/dropdown";
 import { useAppNavigation } from "@src/hooks/navigation";
 import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 import {
   DeveloperTestPanel,
   isDeveloperTestPanelEnabled,

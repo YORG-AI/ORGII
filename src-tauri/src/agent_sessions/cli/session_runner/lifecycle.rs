@@ -29,15 +29,25 @@ pub async fn terminate_process_tree(pid: i64, label: &str) {
         return;
     }
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-    if process_tree_exists(pid) {
-        tracing::info!(
-            "[CodeSession] {} PID/group {} still alive after SIGTERM grace period, sending SIGKILL",
-            label,
-            pid
-        );
-        signal_process_tree(pid, libc::SIGKILL);
+    // Poll instead of one flat 3s sleep: the CLI usually dies within a few
+    // hundred ms, and every extra ms here delays the `cancelled` terminal
+    // the frontend is blocked on.
+    const SIGTERM_GRACE_MS: u64 = 3_000;
+    const POLL_INTERVAL_MS: u64 = 100;
+    let mut waited = 0;
+    while waited < SIGTERM_GRACE_MS {
+        tokio::time::sleep(tokio::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
+        waited += POLL_INTERVAL_MS;
+        if !process_tree_exists(pid) {
+            return;
+        }
     }
+    tracing::info!(
+        "[CodeSession] {} PID/group {} still alive after SIGTERM grace period, sending SIGKILL",
+        label,
+        pid
+    );
+    signal_process_tree(pid, libc::SIGKILL);
 }
 
 #[cfg(windows)]
@@ -89,6 +99,13 @@ pub async fn kill_running_agent(session_id: &str) -> bool {
 /// The old token expires via the agent-proxy inactivity timeout or
 /// is released on session deletion.
 pub async fn cancel_session(session_id: &str, reason: CancelReason) -> Result<bool, String> {
+    // Serialize against `cli_agent_message` / `cli_agent_run` for this
+    // session: a cancel whose DB lookup lands after a follow-up turn was
+    // accepted would otherwise cancel the NEW intent and kill the new
+    // process ("stop then send loses both messages").
+    let control_lock = super::helpers::session_control_lock(session_id).await;
+    let _control_guard = control_lock.lock().await;
+
     // The previous `.ok().flatten()` collapsed a DB error and a
     // legitimate "session not found" into the same `None`. The
     // status_changed broadcast below would then ship without

@@ -6,7 +6,7 @@
 import { useCallback } from "react";
 
 import { useActionSystem } from "@src/ActionSystem";
-import { useBottomPanelState } from "@src/hooks/workStation";
+import { useBottomPanelState } from "@src/hooks/tabHost/useWorkStationPanels";
 import type { BottomPanelTab } from "@src/store/ui/workStationAtom";
 
 interface UseBottomPanelTabsOptions {

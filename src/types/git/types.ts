@@ -4,8 +4,7 @@
  * This file contains types used by multiple modules:
  * - EditorPrimarySidebar (hooks, content)
  * - EditorContent (GitDiffContent, SourceControlMainContent)
- * - @src/hooks/git/sourceControl/
- * - @src/hooks/workStation/
+ * - @src/modules/WorkStation/CodeEditor/hooks/ (sourceControl, gitOutputIntegration)
  * - @src/store/git/gitStatusAtom.ts
  * - @src/engines/Simulator/
  */

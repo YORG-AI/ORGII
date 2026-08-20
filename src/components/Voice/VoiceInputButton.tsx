@@ -25,10 +25,12 @@ interface VoiceInputButtonProps {
    * tooltip explains the unavailable recognizer state.
    */
   disabled?: boolean;
+  /** Filled treatment for compact contextual composers. */
+  appearance?: "default" | "solid";
 }
 
 const VoiceInputButton: React.FC<VoiceInputButtonProps> = memo(
-  ({ onPressStart, onPressEnd, disabled = false }) => {
+  ({ onPressStart, onPressEnd, disabled = false, appearance = "default" }) => {
     const { t } = useTranslation();
     const activePointerIdRef = useRef<number | null>(null);
     const isPressingRef = useRef(false);
@@ -97,11 +99,16 @@ const VoiceInputButton: React.FC<VoiceInputButtonProps> = memo(
           }
         }}
         className={[
-          "flex items-center justify-center rounded-full bg-transparent text-text-1 transition-colors duration-200 focus:outline-none",
+          "flex items-center justify-center rounded-full transition-colors duration-200 focus:outline-none",
           INPUT_AREA_BUTTONS.iconButtonSizeClass,
-          disabled
-            ? "cursor-not-allowed opacity-50"
-            : `cursor-pointer ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
+          appearance === "solid"
+            ? "bg-text-1 text-bg-1 hover:bg-text-2"
+            : disabled
+              ? // Disabled buttons must not paint the interactive idle/hover
+                // surface — restore the plain transparent treatment.
+                "text-text-1"
+              : `text-text-1 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           "leading-none",
         ].join(" ")}
         style={{ lineHeight: 0 }}

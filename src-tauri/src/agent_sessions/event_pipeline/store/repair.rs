@@ -89,15 +89,28 @@ impl EventStore {
     /// the user can see the card but clicking it will fail because the backend
     /// has no corresponding pending entry to answer.
     ///
+    /// Managed-CLI question events are stamped `Pending` (not `AwaitingUser`)
+    /// by `infer_display_status`, so ask-question tool calls stuck in
+    /// `Pending` are swept too.
+    ///
     /// This method transitions those events directly to `Completed` and stamps
     /// a minimal `result` so `extractQuestionBatch` (FE) sees `displayStatus ==
     /// "completed"` and never renders a card for them.
     ///
     /// Returns the IDs of the cancelled events so callers can log / assert.
     pub fn cancel_orphan_interactive_events(&mut self) -> Vec<String> {
+        use crate::agent_sessions::event_pipeline::ingestion::normalizer::is_ask_question_action;
         let mut cancelled = Vec::new();
         for event in self.events.iter_mut() {
-            if event.display_status == EventDisplayStatus::AwaitingUser {
+            let is_orphan_question = event.display_status == EventDisplayStatus::AwaitingUser
+                || (event.display_status == EventDisplayStatus::Pending
+                    && is_ask_question_action(
+                        &event.action_type,
+                        &event.function_name,
+                        &event.ui_canonical,
+                        &event.args,
+                    ));
+            if is_orphan_question {
                 event.display_status = EventDisplayStatus::Completed;
                 // Stamp a minimal result so extractQuestionBatch treats it as
                 // answered (it checks result.success and result.error; a plain

@@ -25,6 +25,7 @@ fn invokable_canonical_tool_names() -> BTreeSet<&'static str> {
         names::SETUP_REPO,
         names::WORKTREE,
         names::RENDER_INLINE_CANVAS,
+        names::REVISE_INLINE_CANVAS,
         names::INSPECT_TERMINALS,
         names::WEB_SEARCH,
         names::WEB_FETCH,
@@ -153,6 +154,39 @@ fn every_visible_or_invokable_builtin_tool_has_status_labels() {
 }
 
 #[test]
+fn revise_canvas_has_its_own_chat_row_labels() {
+    // revise_inline_canvas historically reused render_inline_canvas's label
+    // keys, so a running revision showed "Rendering canvas" in the chat row.
+    let render = BUILTIN_TOOLS
+        .iter()
+        .find(|entry| entry.name == names::RENDER_INLINE_CANVAS)
+        .expect("render_inline_canvas entry");
+    let revise = BUILTIN_TOOLS
+        .iter()
+        .find(|entry| entry.name == names::REVISE_INLINE_CANVAS)
+        .expect("revise_inline_canvas entry");
+
+    assert_eq!(revise.label_running, "tools.reviseInlineCanvasRunning");
+    assert_eq!(revise.label_done, "tools.reviseInlineCanvasDone");
+    assert_eq!(revise.label_failed, "tools.reviseInlineCanvasFailed");
+    assert_ne!(revise.label_running, render.label_running);
+
+    for action in revise.actions {
+        for label in [
+            action.label_running,
+            action.label_done,
+            action.label_failed,
+        ] {
+            let label = label.expect("revise action label");
+            assert!(
+                label.starts_with("tools.reviseInlineCanvas"),
+                "revise action label points at a foreign key: {label}"
+            );
+        }
+    }
+}
+
+#[test]
 fn every_renderable_tool_has_non_default_chat_block() {
     let exempt_fallback_tools = HashSet::from([
         names::MANAGE_WORKSPACE,
@@ -161,6 +195,7 @@ fn every_renderable_tool_has_non_default_chat_block() {
         names::SETUP_REPO,
         names::WORKTREE,
         names::RENDER_INLINE_CANVAS,
+        names::REVISE_INLINE_CANVAS,
         names::INSPECT_TERMINALS,
         names::CONTROL_DESKTOP_WITH_PEEKABOO,
         names::CONTROL_BROWSER_WITH_AGENT_BROWSER,

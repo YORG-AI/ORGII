@@ -7,8 +7,8 @@ use std::collections::HashSet;
 
 use super::helpers::{
     is_authoritative_transcript_message, is_completed_authoritative_stream_transcript,
-    is_synthetic_transcript_placeholder, normalized_event_text,
-    stream_placeholder_prefix_for_authoritative, transcript_message_key,
+    is_synthetic_transcript_placeholder, normalize_user_text, normalized_event_text,
+    stream_placeholder_prefix_for_authoritative, transcript_message_key, transcript_text,
 };
 use super::{
     active_shell_replays_for_session, bound_shell_replay_state, capture_shell_replay_bookmarks,
@@ -219,20 +219,48 @@ impl EventStore {
         self.remove_events_by_ids(existing_ids)
     }
 
-    pub fn remove_synthetic_user_inputs(&mut self) -> usize {
+    /// With no scope, removes every synthetic placeholder (legacy behavior).
+    /// A scope removes only placeholders that are echoed by one of the given
+    /// user-message contents, or that predate `older_than` (a placeholder
+    /// older than the newest real user turn can no longer receive an echo,
+    /// e.g. skill-pill messages whose wire content differs from the pill) —
+    /// a NEWER unmatched placeholder is a message whose echo has not arrived
+    /// yet and must survive history merges carrying older real user turns.
+    pub fn remove_synthetic_user_inputs(
+        &mut self,
+        scope: Option<(&[String], Option<&str>)>,
+    ) -> usize {
+        let scope = scope.map(|(contents, older_than)| {
+            let targets: std::collections::HashSet<String> = contents
+                .iter()
+                .map(|content| normalize_user_text(content))
+                .collect();
+            (targets, older_than.map(str::to_string))
+        });
+        let should_remove = |event: &SessionEvent| -> bool {
+            if event.source != EventSource::User || !is_synthetic_transcript_placeholder(event) {
+                return false;
+            }
+            let Some((targets, older_than)) = &scope else {
+                return true;
+            };
+            let content_matched = transcript_text(event)
+                .map(|text| targets.contains(&normalize_user_text(&text)))
+                .unwrap_or(false);
+            let predates_newest_real = older_than.as_deref().is_some_and(|bound| {
+                !event.created_at.is_empty() && event.created_at.as_str() < bound
+            });
+            content_matched || predates_newest_real
+        };
         let removed_ids: Vec<String> = self
             .events
             .iter()
-            .filter(|event| {
-                event.source == EventSource::User && is_synthetic_transcript_placeholder(event)
-            })
+            .filter(|event| should_remove(event))
             .map(|event| event.id.clone())
             .collect();
         let removed = removed_ids.len();
         if removed > 0 {
-            self.events.retain(|event| {
-                !(event.source == EventSource::User && is_synthetic_transcript_placeholder(event))
-            });
+            self.events.retain(|event| !should_remove(event));
             for event_id in removed_ids {
                 self.mark_removed(event_id);
             }

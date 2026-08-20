@@ -9,7 +9,6 @@
  * - FileSearchPanel (sidebar variant)
  * - SingleFileSearchPanel (with spinner and close button)
  */
-import type { FileSearchResult } from "@/src/hooks/workStation/useCodeEditor";
 import { Loader2, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -19,6 +18,7 @@ import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useListNavigation } from "@src/hooks/keyboard/useListNavigation";
+import type { FileSearchResult } from "@src/modules/WorkStation/CodeEditor/hooks/useCodeEditor";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { SearchInput } from "../../../Panels/shared";

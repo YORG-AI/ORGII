@@ -162,12 +162,27 @@ pub const TOOL_SEARCH: &str = "tool_search";
 /// inside the chat panel as a sandboxed inline canvas card. Supported by
 /// both OS Agent and SDE Agent. Mode values: "html" | "url" | "a2ui" | "react".
 pub const RENDER_INLINE_CANVAS: &str = "render_inline_canvas";
+/// Replaces an existing logical inline Canvas while preserving its identity.
+/// The target event id is required and validated against the dispatching
+/// session before the revision is accepted.
+pub const REVISE_INLINE_CANVAS: &str = "revise_inline_canvas";
 
 // ── Plan Mode ───────────────────────────────────────────────────────
 /// Writes markdown plan content to the session's plan file AND submits it
 /// for the user's review in a single step (Plan mode only, top-level agent).
 pub const CREATE_PLAN: &str = "create_plan";
 pub const PLAN_APPROVAL: &str = "plan_approval";
+
+// ── Event-id scheme ─────────────────────────────────────────────────
+/// Canonical event id for a tool-call event: `tool-call-<call_id>`.
+///
+/// This scheme is stamped by the Rust event factory and the event-pipeline
+/// bridge, and is referenced by tools that address prior tool-call events
+/// by id (e.g. inline-Canvas revisions). Use this helper instead of
+/// hand-formatting the string so every producer stays in lockstep.
+pub fn tool_call_event_id(call_id: &str) -> String {
+    format!("tool-call-{call_id}")
+}
 
 #[cfg(test)]
 #[path = "tool_names_tests.rs"]

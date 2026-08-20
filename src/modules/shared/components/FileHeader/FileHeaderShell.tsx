@@ -14,7 +14,7 @@ import { HEADER_CLASSES } from "@src/config/workstation/tokens";
 import {
   type WorkstationTabHeaderHost,
   usePublishWorkstationTabHeader,
-} from "@src/hooks/workStation";
+} from "@src/hooks/tabHost/useWorkstationTabHeader";
 
 export interface FileHeaderShellProps {
   className?: string;

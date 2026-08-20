@@ -45,6 +45,29 @@ export function withUserMessageImages(
   };
 }
 
+/**
+ * Whether a synthetic user placeholder is settled by a batch of real backend
+ * user messages (summarized as a SyntheticEvictionScope): its echo is present
+ * (content match on either its display text or wire content), or it predates
+ * the newest real user turn so its echo can no longer arrive. Unsettled
+ * placeholders are messages still awaiting their echo and must be preserved.
+ */
+export function syntheticSettledByScope(
+  event: SessionEvent,
+  scope: { matchingContents: string[]; olderThan?: string } | null
+): boolean {
+  if (!scope) return false;
+  const targets = new Set(scope.matchingContents.map(normalizeUserText));
+  const eventTexts = [
+    normalizeUserText(event.displayText),
+    normalizeUserText(getUserMessageContent(event)),
+  ].filter((text) => text.length > 0);
+  if (eventTexts.some((text) => targets.has(text))) return true;
+  return Boolean(
+    scope.olderThan && event.createdAt && event.createdAt < scope.olderThan
+  );
+}
+
 export function syntheticMatchesQueuedMessage(
   event: SessionEvent,
   queued: { sessionId: string; content: string; displayContent: string }

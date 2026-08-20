@@ -43,6 +43,7 @@ import type {
   WorkItemData,
   WorkItemFrontmatter,
   WorkItemHandoffTransition,
+  WorkItemMentionTarget,
   WorkItemPartialUpdate,
   WorkItemPropertyValue,
   WorkItemRun,
@@ -385,13 +386,48 @@ export async function readWorkItemsEnriched(
   );
 }
 
+type WorkspaceWorkItemsWireData = Omit<
+  WorkspaceWorkItemsData,
+  "standaloneWorkItems"
+> & {
+  standaloneWorkItems: Array<
+    Omit<WorkspaceWorkItemsData["standaloneWorkItems"][number], "workItem"> & {
+      workItem: Omit<WorkItemData, "frontmatter"> & {
+        frontmatter: Omit<WorkItemFrontmatter, "todos"> & {
+          todos?: WorkItemFrontmatter["todos"];
+        };
+      };
+    }
+  >;
+};
+
 export async function readWorkspaceWorkItemsData(
   options?: WorkItemsReadOptions
 ): Promise<WorkspaceWorkItemsData> {
-  return invoke("project_read_workspace_work_items_data", {
-    ...scopeInvokePayload(options),
-    readBucket: options?.readBucket ?? null,
-  });
+  const data = await invoke<WorkspaceWorkItemsWireData>(
+    "project_read_workspace_work_items_data",
+    {
+      ...scopeInvokePayload(options),
+      readBucket: options?.readBucket ?? null,
+    }
+  );
+
+  // Empty Vec fields are omitted from standalone WorkItem frontmatter by
+  // Rust's persisted-file serializer. Restore the required frontend shape at
+  // the IPC boundary so consumers can safely treat todos as an array.
+  return {
+    ...data,
+    standaloneWorkItems: data.standaloneWorkItems.map((entry) => ({
+      ...entry,
+      workItem: {
+        ...entry.workItem,
+        frontmatter: {
+          ...entry.workItem.frontmatter,
+          todos: entry.workItem.frontmatter.todos ?? [],
+        },
+      },
+    })),
+  };
 }
 
 /**
@@ -703,6 +739,8 @@ export async function retryLatestWorkItemRun({
 export async function previewDiscussionTrigger(
   request: WorkItemScope & {
     content: string;
+    mentions?: WorkItemMentionTarget[];
+    parentId?: string | null;
     targetSessionId?: string | null;
   }
 ): Promise<DiscussionTriggerPreview> {
@@ -1029,6 +1067,23 @@ export interface RoutineRunStatus {
     status: string;
     portableState?: string | null;
   }>;
+}
+
+/** A row from `pm_routines` (portable Routine domain, orgtrack/v1). */
+export interface PortableRoutineSummary {
+  name: string;
+  routineId: string;
+  revision: number;
+  enabled: boolean;
+  specHash: string;
+  updatedAt: number;
+}
+
+/** List portable routines by name. Backs the Webhooks management surface. */
+export async function listPortableRoutines(): Promise<
+  PortableRoutineSummary[]
+> {
+  return invoke("project_list_portable_routines", {});
 }
 
 /** List portable routine runs, newest first. Uncached: run status moves

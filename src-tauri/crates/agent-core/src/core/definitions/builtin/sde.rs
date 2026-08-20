@@ -151,6 +151,12 @@ mod tests {
                 .any(|tool| tool == tool_names::RENDER_INLINE_CANVAS),
             "SDE Agent must keep render_inline_canvas available for interactive sketches"
         );
+        assert!(
+            !excluded
+                .iter()
+                .any(|tool| tool == tool_names::REVISE_INLINE_CANVAS),
+            "SDE Agent must keep revise_inline_canvas available for Canvas revisions"
+        );
     }
 
     #[test]
@@ -199,6 +205,14 @@ mod tests {
         assert!(prompt.contains("## Interactive sketches"));
         assert!(prompt.contains("not authorization to implement"));
         assert!(prompt.contains("render_inline_canvas"));
+        assert!(prompt.contains("revise_inline_canvas"));
+        assert!(prompt.contains("target_event_id"));
+        assert!(prompt.contains("`agent_steps`"));
+        assert!(prompt.contains("never a fixed template"));
+        assert!(prompt.contains("user's language"));
+        assert!(prompt.contains("compact exact `edits`"));
+        assert!(prompt.contains("user-visible update"));
+        assert!(prompt.contains("Do not expose private chain-of-thought"));
         assert!(prompt.contains("mode: \"react\""));
         assert!(prompt.contains("React.useState"));
         assert!(prompt.contains("Do not add imports"));

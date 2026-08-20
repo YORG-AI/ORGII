@@ -1,4 +1,4 @@
-import type { ReviewerRefType, WorkItemSchedule } from "@src/api/http/project";
+import type { WorkItemSchedule } from "@src/api/http/project";
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
 import type {
   AgentDefinition,
@@ -18,7 +18,6 @@ export type WorkItemPropertyPicker =
   | "status"
   | "priority"
   | "assignee"
-  | "reviewer"
   | "project"
   | "milestone"
   | "startDate"
@@ -96,15 +95,9 @@ export interface WorkItemPropertiesProps {
 
 export interface WorkItemPropertyHandlers {
   allAgentList: { id: string; name: string }[];
-  currentReviewer: unknown;
   handleStatusChange: (value: WorkItemStatus) => void;
   handlePriorityChange: (value: WorkItemPriority) => void;
   handleAssigneeChange: (person: Person | null, assigneeType?: string) => void;
-  handleReviewerChange: (
-    reviewerType: ReviewerRefType | null,
-    reviewerId?: string
-  ) => void;
-  getReviewerDisplay: () => string;
   handleScheduleChange: (schedule: WorkItemSchedule | null) => void;
   handleLabelToggle: (label: WorkItemLabel) => void;
   handleLabelsClear: () => void;

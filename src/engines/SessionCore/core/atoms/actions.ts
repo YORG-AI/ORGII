@@ -26,6 +26,7 @@ import {
 } from "../../sync/utils/activityIds";
 import { isLiveRuntimeResourceEvent } from "../runningEventGate";
 import { eventStoreProxy } from "../store/EventStoreProxy";
+import { syntheticEvictionScopeForRealUserEvents } from "../store/eventStoreEvents";
 import type { SessionEvent, SessionSpec } from "../types";
 import {
   buildSimulatorPreviewFields,
@@ -37,6 +38,7 @@ import {
   getUserMessageImages,
   hasUserMessageImages,
   syntheticMatchesQueuedMessage,
+  syntheticSettledByScope,
   withUserMessageImages,
 } from "./actions.userMessageSync";
 import {
@@ -159,41 +161,58 @@ export const loadSessionAtom = atom(
       replace = false,
     } = payload;
 
-    // Preserve synthetic user events (injected by session launch) when the
-    // sync hooks reload from SQLite/API before the backend has persisted the
-    // user message. Without this, the first message disappears on navigation.
+    // Preserve synthetic user events (injected by session launch or a queue
+    // dispatch) when the sync hooks reload from SQLite/API/native transcript
+    // before the backend has persisted the user message. Without this, the
+    // just-sent message disappears on navigation or on a stale history
+    // replay right after an abort.
     //
     // Key distinction: synthetic events are frontend user_message rows with an
     // empty uiCanonical, while backend-echoed user turns normalize to
     // functionName/uiCanonical "user". IDs are not reliable because CLI backend
     // user events can also use the user-input-* prefix.
+    //
+    // A synthetic survives unless the incoming events prove it is settled:
+    // its echo is present (content match), or it predates the newest real
+    // user turn (its echo can no longer arrive; covers skill-pill messages
+    // whose wire content differs from the pill display).
     const currentSessionId = get(sessionIdAtom);
     const existingSameSessionEvents =
       currentSessionId === sessionId ? get(eventsAtom) : [];
-    const hasRealBackendUserMessages = events.some(isBackendUserMessageEvent);
+    const incomingEvictionScope =
+      syntheticEvictionScopeForRealUserEvents(events);
+    const isSettledByIncoming = (event: SessionEvent): boolean =>
+      syntheticSettledByScope(event, incomingEvictionScope);
     let syntheticUserEvents: SessionEvent[] = [];
 
     // Source 1: existing events in the store (same session, not yet cleared)
-    if (existingSameSessionEvents.length > 0 && !hasRealBackendUserMessages) {
-      syntheticUserEvents = existingSameSessionEvents.filter(
-        isSyntheticUserInputEvent
-      );
+    if (existingSameSessionEvents.length > 0) {
+      syntheticUserEvents = existingSameSessionEvents
+        .filter(isSyntheticUserInputEvent)
+        .filter((event) => !isSettledByIncoming(event));
     }
 
     // Source 2: pendingSyntheticEventAtom — survives clearSessionAtom so the
     // user message is recovered even after a session-switch clear.
-    if (syntheticUserEvents.length === 0 && !hasRealBackendUserMessages) {
-      const pending = get(pendingSyntheticEventAtom);
-      if (pending && pending.sessionId === sessionId) {
-        syntheticUserEvents = [pending];
-      }
+    const pending = get(pendingSyntheticEventAtom);
+    if (
+      syntheticUserEvents.length === 0 &&
+      pending &&
+      pending.sessionId === sessionId &&
+      !isSettledByIncoming(pending)
+    ) {
+      syntheticUserEvents = [pending];
     }
 
     // Only consume the pending event when the backend has echoed the real
     // user message. Until then, keep it around so subsequent loadSessionAtom
     // calls (from sync hooks) can recover it even if the async Rust store
     // write hasn't completed yet.
-    if (hasRealBackendUserMessages) {
+    if (
+      pending &&
+      pending.sessionId === sessionId &&
+      isSettledByIncoming(pending)
+    ) {
       set(pendingSyntheticEventAtom, null);
     }
 
@@ -307,10 +326,26 @@ export const loadSessionAtom = atom(
             syntheticMatchesQueuedMessage(evt, message)
           )
       );
-      mergedEvents =
-        uniqueSynthetic.length > 0
-          ? [...uniqueSynthetic, ...transcriptEvents]
-          : transcriptEvents;
+      if (uniqueSynthetic.length > 0) {
+        // A rescued synthetic newer than the replayed transcript is a
+        // just-sent follow-up — it belongs after the history, not before it
+        // (the prepend position is only right for the first-message case,
+        // where the transcript is empty).
+        const lastTranscriptAt =
+          transcriptEvents.length > 0
+            ? transcriptEvents[transcriptEvents.length - 1].createdAt
+            : undefined;
+        const trailing = uniqueSynthetic.filter(
+          (evt) =>
+            lastTranscriptAt !== undefined && evt.createdAt >= lastTranscriptAt
+        );
+        const leading = uniqueSynthetic.filter(
+          (evt) => !trailing.includes(evt)
+        );
+        mergedEvents = [...leading, ...transcriptEvents, ...trailing];
+      } else {
+        mergedEvents = transcriptEvents;
+      }
     } else {
       mergedEvents = transcriptEvents;
     }
@@ -330,8 +365,19 @@ export const loadSessionAtom = atom(
         }
       }
 
+      // Drop only synthetics the merged list proves are settled (echo
+      // present, or older than the newest real user turn). An unsettled
+      // synthetic is a just-sent message a stale replay does not know about
+      // yet — dropping it wholesale is exactly the "message disappears
+      // after abort" bug.
+      const mergedEvictionScope =
+        syntheticEvictionScopeForRealUserEvents(mergedEvents);
       mergedEvents = mergedEvents
-        .filter((event) => !isSyntheticUserInputEvent(event))
+        .filter(
+          (event) =>
+            !isSyntheticUserInputEvent(event) ||
+            !syntheticSettledByScope(event, mergedEvictionScope)
+        )
         .map((event) => {
           if (!isBackendUserMessageEvent(event)) return event;
           const content = getUserMessageContent(event);

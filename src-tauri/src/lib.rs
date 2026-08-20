@@ -401,6 +401,23 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_plugin_liquid_glass::init());
 
+    // Agent-generated React canvas artifacts: the frontend publishes compiled
+    // artifact documents into this bounded in-memory store
+    // (`canvas_artifact_publish`) and loads them back through the dedicated
+    // `canvas-artifact` scheme. Serving over a real scheme gives the artifact
+    // iframe its own origin and its own response CSP — the main webview policy
+    // has no `unsafe-eval`/`unsafe-inline`, and srcdoc frames inherit it, so
+    // generated code can only execute on a separate origin. The main CSP
+    // allows the frame via `frame-src` in `tauri.conf.json`.
+    let builder = builder
+        .manage(infrastructure::canvas_artifacts::CanvasArtifactStore::default())
+        .register_uri_scheme_protocol("canvas-artifact", |context, request| {
+            let store = context
+                .app_handle()
+                .state::<infrastructure::canvas_artifacts::CanvasArtifactStore>();
+            infrastructure::canvas_artifacts::protocol_response(&store, request.uri().path())
+        });
+
     let initial_webview_observation = perf_utils::begin_webview_ownership_observation("main");
     let application = builder
         .on_window_event(|_window, _event| {
@@ -743,18 +760,19 @@ pub fn run() {
             agent_core::coordination::agent_org_watchdog::spawn(app.handle().clone());
             tracing::info!("[AgentOrgWatchdog] Agent Org watchdog started");
 
-            // Install the production `SubagentCompletionWakeHook` so a
-            // background subagent that finishes while its parent is idle
-            // resumes the parent's turn loop (which then consumes the result
-            // via the Background Jobs reminder). Without this, an idle parent
-            // never learns the worker completed. Mirrors Claude Code's
-            // task-notification → idle-queue-processor wake.
-            agent_core::tools::impls::orchestration::subagent_wake::install_subagent_completion_wake_hook(
-                agent_core::tools::impls::orchestration::subagent_wake::AppHandleSubagentCompletionWakeHook::new(
+            // Install the production `JobCompletionWakeHook` so a background
+            // job — subagent worker or backgrounded shell — that finishes
+            // while its owning session is idle resumes that session's turn
+            // loop (which then consumes the result via the Background Jobs
+            // reminder). Without this, an idle owner never learns the job
+            // completed. Mirrors Claude Code's task-notification →
+            // idle-queue-processor wake.
+            agent_core::tools::impls::orchestration::job_wake::install_job_completion_wake_hook(
+                agent_core::tools::impls::orchestration::job_wake::AppHandleJobCompletionWakeHook::new(
                     app.handle().clone(),
                 ),
             );
-            tracing::info!("[SubagentWake] Subagent completion wake hook installed");
+            tracing::info!("[JobWake] Job completion wake hook installed");
 
             let housekeeper_compaction_state = unified_state.clone();
             app.manage(unified_state);

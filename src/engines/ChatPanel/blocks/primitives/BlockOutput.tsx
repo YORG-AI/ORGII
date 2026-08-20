@@ -16,6 +16,8 @@
  */
 import Ansi from "ansi-to-react";
 import React, {
+  Suspense,
+  lazy,
   memo,
   useCallback,
   useEffect,
@@ -32,7 +34,6 @@ import {
   processAnsiContent,
   stripAnsiCodes,
 } from "@src/components/TerminalDisplay/utils/ansiProcessor";
-import XtermOutput from "@src/components/XtermOutput";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { PayloadRef } from "@src/engines/SessionCore/core/types";
 import {
@@ -51,6 +52,11 @@ import {
   EVENT_BLOCK_FADE_FROM,
   EVENT_SNIPPET_INNER_PADDING_CLASS,
 } from "./config";
+
+// Lazy: pulls @xterm/xterm plus its addons, and only the rare TUI-sequence
+// branch below renders it. Xterm paints asynchronously after mount anyway,
+// so the empty Suspense fallback is not a visible behavior change.
+const XtermOutput = lazy(() => import("@src/components/XtermOutput"));
 
 /**
  * Height policy — measured in pixels, not lines.
@@ -323,10 +329,12 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
         {useTopCollapsedOverlay ? expandOverlay : null}
         <div ref={contentRef}>
           {useTuiRenderer ? (
-            <XtermOutput
-              content={processedOutput}
-              className={EVENT_SNIPPET_INNER_PADDING_CLASS}
-            />
+            <Suspense fallback={null}>
+              <XtermOutput
+                content={processedOutput}
+                className={EVENT_SNIPPET_INNER_PADDING_CLASS}
+              />
+            </Suspense>
           ) : highlightLang && highlightedHtml ? (
             <div
               className={`${preClassesShared} [&_pre.shiki]:!m-0 [&_pre.shiki]:!bg-transparent [&_pre.shiki]:!p-0 [&_pre.shiki]:!shadow-none`}

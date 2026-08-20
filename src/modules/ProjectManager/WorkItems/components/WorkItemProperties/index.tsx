@@ -95,7 +95,6 @@ export const WORK_ITEM_THREAD_PROPERTY_FIELDS: WorkItemPropertyFieldKey[] = [
   "status",
   "priority",
   "assignee",
-  "reviewer",
   "date",
 ];
 
@@ -104,7 +103,6 @@ const DEFAULT_VISIBLE_FIELDS: WorkItemPropertyFieldKey[] = [
   "status",
   "priority",
   "assignee",
-  "reviewer",
   "milestone",
   "startDate",
   "date",

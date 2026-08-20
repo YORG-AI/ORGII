@@ -9,7 +9,7 @@ import type {
   WorkItemReadBucket,
   WorkspaceWorkItemsData,
 } from "@src/api/http/project";
-import type { WorkstationTabHeaderHost } from "@src/hooks/workStation";
+import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { WorkspaceWorkItem } from "@src/modules/ProjectManager/workspaceAggregate";

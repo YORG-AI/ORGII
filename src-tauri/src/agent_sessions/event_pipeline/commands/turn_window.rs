@@ -21,6 +21,21 @@ use super::{
 
 const DEFAULT_RECENT_TURN_BODY_COUNT: usize = 1;
 
+/// Tool events that must stay resident in the initial turn window even when
+/// the turn that produced them collapsed into a `turn_placeholder`: the
+/// Simulator canvas projection renders from the latest canvas event in the
+/// store, and `revise_inline_canvas` resolves `target_event_id` against
+/// loaded events — both dangle after a restart without this pin.
+const PINNED_ARTIFACT_FUNCTION_NAMES: &[&str] = &[
+    core_types::tool_names::RENDER_INLINE_CANVAS,
+    core_types::tool_names::REVISE_INLINE_CANVAS,
+];
+
+/// Bound on pinned canvas events merged into the initial window (most
+/// recent by `created_at`); keeps pathological canvas-heavy sessions from
+/// defeating turn-window pagination.
+const MAX_PINNED_ARTIFACT_EVENTS: usize = 64;
+
 // ============================================================================
 // Turn Window Types
 // ============================================================================
@@ -205,8 +220,14 @@ pub(super) async fn load_initial_turn_window_events(
 ) -> Result<SessionInitialTurnWindow, String> {
     let sid = session_id.to_string();
     let recent_count = recent_turn_count.unwrap_or(DEFAULT_RECENT_TURN_BODY_COUNT);
-    let window = tokio::task::spawn_blocking(move || {
-        sqlite_cache::load_initial_turn_window(&sid, recent_count)
+    let (window, pinned_artifact_events) = tokio::task::spawn_blocking(move || {
+        let window = sqlite_cache::load_initial_turn_window(&sid, recent_count)?;
+        let pinned = sqlite_cache::load_session_pinned_artifact_events(
+            &sid,
+            PINNED_ARTIFACT_FUNCTION_NAMES,
+            MAX_PINNED_ARTIFACT_EVENTS,
+        )?;
+        Ok::<_, rusqlite::Error>((window, pinned))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -224,6 +245,14 @@ pub(super) async fn load_initial_turn_window_events(
         .map(cached_event_to_session_event)
         .collect();
     let present_event_ids: HashSet<String> = events.iter().map(|event| event.id.clone()).collect();
+    // Merge pinned canvas events from collapsed turns before the sort +
+    // prepare pass; ids already present in the window are skipped.
+    events.extend(
+        pinned_artifact_events
+            .iter()
+            .filter(|event| !present_event_ids.contains(&event.id))
+            .map(cached_event_to_session_event),
+    );
     events.extend(
         window
             .turns

@@ -1,9 +1,12 @@
 /**
  * InlineAlert — Shared inline alert/result card component.
  *
- * Outline-only treatment: a 1px border in the type's accent color with no
- * background fill, so alerts don't compete visually with surrounding
- * sections that already have their own surface color.
+ * Single neutral treatment for every type: a 1px `border-border-1` outline, the
+ * Workstation-trail radius and a half-strength dropdown shadow, with no
+ * background fill so alerts don't compete with sections that already have their
+ * own surface color.
+ * There is deliberately no danger / warning / success color variant — `type`
+ * only selects the leading icon.
  *
  * Padding (p-3), icon size 14. Header row: icon + title + optional action + close;
  * body (children) and subtitle render below the header.
@@ -20,25 +23,16 @@ import {
 import React from "react";
 
 import Button from "@src/components/Button";
+import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
 
-const STYLE_MAP = {
-  danger: {
-    border: "border-danger-3",
-    text: "text-danger-6",
-  },
-  success: {
-    border: "border-success-3",
-    text: "text-success-6",
-  },
-  warning: {
-    border: "border-warning-3",
-    text: "text-warning-6",
-  },
-  info: {
-    border: "border-primary-3",
-    text: "text-primary-6",
-  },
-} as const;
+/**
+ * Shared neutral surface — flat outline, no tone accent, and a half-strength
+ * Workstation-trail shadow for a little lift.
+ */
+const ALERT_SURFACE_CLASS = `border border-solid border-border-1 text-text-1 ${DROPDOWN_PANEL.shadowSoftClass}`;
+
+/** Matches the Workstation trail surface radius. Collapsed pills stay round. */
+const ALERT_RADIUS_CLASS = "rounded-xl";
 
 const DEFAULT_ICONS: Record<string, React.ReactNode> = {
   success: <Check size={14} className="flex-shrink-0" />,
@@ -47,10 +41,23 @@ const DEFAULT_ICONS: Record<string, React.ReactNode> = {
   info: <Info size={14} className="flex-shrink-0" />,
 };
 
+/**
+ * Alert copy is content, not chrome — opt back in to text selection over the
+ * global `* { user-select: none }` so users can select/copy titles, bodies and
+ * technical details. Interactive children opt out again with `select-none`.
+ */
+const SELECTABLE_TEXT_CLASS = "allow-select-deep";
+
+const INLINE_ALERT_BASE_TEXT = {
+  title: "block text-[13px] font-medium leading-[14px]",
+  body: "text-[12px] font-normal leading-snug",
+  subtitle: "mt-1 block text-[11px] opacity-70",
+} as const;
+
 const INLINE_ALERT_TOKENS = {
-  titleText: "block text-[13px] font-medium leading-[14px]",
-  bodyText: "text-[12px] font-normal leading-snug",
-  subtitleText: "mt-1 block text-[11px] opacity-70",
+  titleText: `${INLINE_ALERT_BASE_TEXT.title} ${SELECTABLE_TEXT_CLASS}`,
+  bodyText: `${INLINE_ALERT_BASE_TEXT.body} ${SELECTABLE_TEXT_CLASS}`,
+  subtitleText: `${INLINE_ALERT_BASE_TEXT.subtitle} ${SELECTABLE_TEXT_CLASS}`,
 } as const;
 
 export interface InlineAlertActionConfig {
@@ -74,8 +81,11 @@ function isActionConfig(
 }
 
 export interface InlineAlertProps {
-  /** "success" | "danger" | "warning" | "info" */
-  type: "success" | "danger" | "warning" | "info";
+  /**
+   * Selects the default leading icon only — all types share one neutral style.
+   * Defaults to "info".
+   */
+  type?: "success" | "danger" | "warning" | "info";
   /** Body text (below the header row) */
   children?: React.ReactNode;
   /** Title in the header row (same row as icon, action, close) */
@@ -107,7 +117,7 @@ export interface InlineAlertProps {
 }
 
 const InlineAlert: React.FC<InlineAlertProps> = ({
-  type,
+  type = "info",
   children,
   title,
   icon,
@@ -123,7 +133,6 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   role,
   dataTestId,
 }) => {
-  const styles = STYLE_MAP[type];
   const [expanded, setExpanded] = React.useState(presentation !== "pill");
   const isPill = presentation === "pill";
   const showContent = !isPill || expanded;
@@ -172,17 +181,29 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   const titleNode = (
     <div className="flex min-w-0 flex-1 items-center gap-1.5">
       {!hideIcon && (
-        <span className="flex h-[14px] shrink-0 items-center">
+        <span className="flex h-[14px] shrink-0 items-center text-text-3">
           {resolvedIcon}
         </span>
       )}
       <div className="min-w-0 flex-1">
         {hasTitle ? (
-          <span className={INLINE_ALERT_TOKENS.titleText}>{title}</span>
+          // Pill headers double as the expand/collapse hit area — keep their
+          // text non-selectable so a drag doesn't fight the toggle.
+          <span
+            className={
+              isPill
+                ? INLINE_ALERT_BASE_TEXT.title
+                : INLINE_ALERT_TOKENS.titleText
+            }
+          >
+            {title}
+          </span>
         ) : (
           showContent &&
           children && (
-            <span className={`block ${INLINE_ALERT_TOKENS.bodyText}`}>
+            <span
+              className={`block ${isPill ? INLINE_ALERT_BASE_TEXT.body : INLINE_ALERT_TOKENS.bodyText}`}
+            >
               {children}
             </span>
           )
@@ -195,7 +216,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
     <div
       role={role}
       data-testid={dataTestId}
-      className={`border border-solid ${styles.border} ${isPill ? `inline-block w-fit max-w-full ${expanded ? "rounded-lg" : "rounded-full"} px-3 py-2` : "rounded-lg p-3"} ${styles.text} ${className ?? ""}`}
+      className={`${ALERT_SURFACE_CLASS} ${isPill ? `inline-block w-fit max-w-full ${expanded ? ALERT_RADIUS_CLASS : "rounded-full"} px-3 py-2` : `${ALERT_RADIUS_CLASS} p-3`} ${className ?? ""}`}
     >
       <div className={`flex items-center ${isPill ? "gap-1" : "gap-3"}`}>
         {isPill ? (

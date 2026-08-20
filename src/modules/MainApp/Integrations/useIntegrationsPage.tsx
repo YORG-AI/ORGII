@@ -12,7 +12,6 @@ import {
   parseExternalSkillsetsTab,
   parseIntegrationsPath,
 } from "@src/config/mainAppPaths";
-import type { DependencyStatus } from "@src/hooks/dependencies";
 import {
   integrationsAddSignalAtom,
   integrationsToolbarAtom,
@@ -28,6 +27,7 @@ import { useDatabasesState } from "./hooks/useDatabasesState";
 import { useExtensionsState } from "./hooks/useExtensionsState";
 import { useRoutinesState } from "./hooks/useRoutinesState";
 import { useRulesMemoryEvolutionState } from "./hooks/useRulesMemoryEvolutionState";
+import type { DependencyStatus } from "./hooks/useSystemDependencies";
 import { getHasIntegrationsFullPageDetail } from "./integrationsFullPageDetail";
 import { VALID_MODELS_TABS } from "./integrationsPageConstants";
 import type { AddAction, DetailMode, IntegrationCategory } from "./types";

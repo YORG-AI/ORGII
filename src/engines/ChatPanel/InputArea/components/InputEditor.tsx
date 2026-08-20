@@ -4,6 +4,7 @@
  * ComposerInput-based input area with drag-drop support and keyboard handling.
  * Uses ComposerInput for proper cursor/selection handling around file pills.
  */
+import { clsx } from "clsx";
 import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useRef } from "react";
 
@@ -71,6 +72,17 @@ export interface InputEditorProps {
   onInputMouseDown?: () => void;
   /** Slash trigger behavior for this editor surface. */
   slashTriggerMode?: "command" | "context";
+  /** Single-line height for compact composer row */
+  compact?: boolean;
+  /** Focus the contenteditable host after mount. */
+  autoFocus?: boolean;
+  /**
+   * Non-document context rendered on the editor's first line before the
+   * contenteditable surface. This intentionally stays outside the serialized
+   * composer value (for example, a Canvas element selection that is submitted
+   * through a dedicated override payload).
+   */
+  leadingContent?: React.ReactNode;
 }
 
 // ============================================
@@ -102,6 +114,9 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     onSlashCommandClose,
     onInputMouseDown,
     slashTriggerMode = "command",
+    compact = false,
+    autoFocus = false,
+    leadingContent,
   }) => {
     const wrapperRef = useRef<HTMLDivElement>(null);
     const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
@@ -161,13 +176,25 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     return (
       <div
         ref={wrapperRef}
-        className="relative w-full min-w-0"
+        className={
+          compact
+            ? "relative flex h-full min-h-0 w-full min-w-0 items-center"
+            : "relative flex w-full min-w-0 items-start"
+        }
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         onFocus={onFocus}
         onBlur={onBlur}
       >
+        {leadingContent && (
+          <div
+            data-composer-leading-content
+            className={`flex shrink-0 items-center pl-3 text-sm leading-5 ${compact ? "h-full" : "pt-0.5"}`}
+          >
+            {leadingContent}
+          </div>
+        )}
         <ComposerInput
           ref={composerInputRef}
           placeholder={placeholder}
@@ -177,10 +204,19 @@ const InputEditor: React.FC<InputEditorProps> = memo(
           onAtMentionClose={onAtMentionClose}
           onSubmit={onSubmit}
           requireCmdEnter={!sendOnEnter}
-          autoFocus={false}
-          className={INPUT_AREA_EDITOR_CLASS}
-          minHeight={INPUT_AREA_EDITOR_HEIGHT.min}
-          maxHeight={INPUT_AREA_EDITOR_HEIGHT.max}
+          autoFocus={autoFocus}
+          className={
+            compact
+              ? "chat-input-editor chat-input-compact h-full max-h-9 min-h-0 min-w-0 flex-1"
+              : clsx(
+                  INPUT_AREA_EDITOR_CLASS,
+                  leadingContent &&
+                    "chat-input-editor chat-input-editor-leading"
+                )
+          }
+          minHeight={compact ? 0 : INPUT_AREA_EDITOR_HEIGHT.min}
+          maxHeight={compact ? 36 : INPUT_AREA_EDITOR_HEIGHT.max}
+          overflowY={compact ? "visible" : undefined}
           onKeyDownForDropdown={handleKeyDownForDropdown}
           onSlashCommand={onSlashCommand}
           onSlashCommandClose={onSlashCommandClose}

@@ -25,6 +25,9 @@ import React, { memo, useCallback, useMemo } from "react";
 import GitHubPillIcon from "@src/assets/modelIcons/github-pill.svg";
 import { ChatImageThumbnailRow } from "@src/components/ChatImageThumbnail";
 import BasePill from "@src/components/ComposerInput/BasePill";
+import CanvasCommandPillIcon, {
+  isCanvasCommandPillPath,
+} from "@src/components/ComposerInput/CanvasCommandPillIcon";
 import {
   isGitHubPillUrl,
   parseGitHubPillUrl,
@@ -43,6 +46,8 @@ import {
 } from "@src/config/pillTokens";
 import type { PillType } from "@src/config/pillTokens";
 import { normalizeUserMessageText } from "@src/engines/ChatPanel/ChatItems/normalizeUserMessageText";
+import CanvasDomComponentPreview from "@src/features/DomSelection/CanvasDomComponentPreview";
+import { parseCanvasDomComponent } from "@src/features/DomSelection/domComponentPayload";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
@@ -386,6 +391,9 @@ const PillIcon: React.FC<{
     case "issue":
       return <ListChecks {...ICON_PROPS} />;
     case "skill":
+      if (isCanvasCommandPillPath(path)) {
+        return <CanvasCommandPillIcon />;
+      }
       return <Toolbox {...ICON_PROPS} />;
     case "pr":
       return <GitPullRequest {...ICON_PROPS} />;
@@ -613,6 +621,12 @@ const UserMessageContent: React.FC<UserMessageContentProps> = memo(
       [normalizedText]
     );
     const hasImages = images && images.length > 0;
+    const canvasSelectionJson = segments.find(
+      (segment): segment is PillSegment =>
+        segment.kind === "pill" &&
+        segment.pillType === "dom-component" &&
+        parseCanvasDomComponent(segment.terminalText) !== null
+    )?.terminalText;
 
     // Fast path: no pills and no images, render plain text
     const hasPills = segments.some((s) => s.kind === "pill");
@@ -623,6 +637,9 @@ const UserMessageContent: React.FC<UserMessageContentProps> = memo(
     return (
       <div className="flex flex-col gap-2">
         {hasImages && <ChatImageThumbnailRow images={images} />}
+        {canvasSelectionJson && (
+          <CanvasDomComponentPreview jsonText={canvasSelectionJson} />
+        )}
         {normalizedText && normalizedText !== "(image)" && (
           <span
             className="whitespace-pre-wrap break-words text-[14px] text-text-1"

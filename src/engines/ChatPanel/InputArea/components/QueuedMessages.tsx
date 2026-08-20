@@ -109,9 +109,13 @@ const QueuedMessages: React.FC<QueuedMessagesProps> = memo(
 
     const startEdit = useCallback(
       (msg: QueuedMessage) => {
+        // Seed the editor from the DISPLAY copy: `msg.content` is the agent
+        // projection (skill tokens expanded, canvas contract) and must never
+        // become visible/editable text. `editMessageAtom` re-runs the
+        // projection on save, so editing from the display form is lossless.
         setEditTarget({
           messageId: msg.id,
-          content: msg.content,
+          content: msg.displayContent,
           imageDataUrls: msg.imageDataUrls,
         });
       },

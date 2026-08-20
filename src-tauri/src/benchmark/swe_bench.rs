@@ -76,25 +76,28 @@ pub(super) async fn build_swe_bench_run_plan(
         patch_path
     };
 
-    let evaluator_script = if evaluation_mode == EVALUATION_MODE_LOCAL_DOCKER {
-        Some(swe_bench_evaluator_script_path())
+    let (evaluator_script, scripts_dir) = if evaluation_mode == EVALUATION_MODE_LOCAL_DOCKER {
+        let evaluator_script =
+            swe_bench_evaluator_script_path().map_err(|error| error.message())?;
+        let scripts_dir = swe_bench_run_scripts_dir().map_err(|error| error.message())?;
+        (Some(evaluator_script), Some(scripts_dir))
     } else {
-        None
-    };
-    let scripts_dir = if evaluation_mode == EVALUATION_MODE_LOCAL_DOCKER {
-        Some(swe_bench_run_scripts_dir())
-    } else {
-        None
+        (None, None)
     };
     let repo_path_string = repo_path
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned);
     let worktree_path = None;
-    let command_preview = if evaluation_mode == EVALUATION_MODE_PATCH_ONLY {
-        swe_bench_patch_only_command_preview(&task, &patch_path)
-    } else {
-        swe_bench_command_preview(&resolved_source_path_string, &patch_path, &output_dir)
+    let command_preview = match (&evaluator_script, &scripts_dir) {
+        (Some(evaluator_script), Some(scripts_dir)) => swe_bench_command_preview(
+            evaluator_script,
+            scripts_dir,
+            &resolved_source_path_string,
+            &patch_path,
+            &output_dir,
+        ),
+        _ => swe_bench_patch_only_command_preview(&task, &patch_path),
     };
 
     Ok(BenchmarkRunPlan {
@@ -351,13 +354,15 @@ pub(super) async fn run_swe_bench_process(plan: BenchmarkRunPlan) {
 }
 
 fn swe_bench_command_preview(
+    evaluator_script: &Path,
+    scripts_dir: &Path,
     source_path: &str,
     patch_path: &Path,
     output_dir: &Path,
 ) -> Vec<String> {
     vec![
         benchmark_python_path().display().to_string(),
-        swe_bench_evaluator_script_path().display().to_string(),
+        evaluator_script.display().to_string(),
         "--raw_sample_path".to_string(),
         source_path.to_string(),
         "--patch_path".to_string(),
@@ -365,7 +370,7 @@ fn swe_bench_command_preview(
         "--output_dir".to_string(),
         output_dir.display().to_string(),
         "--scripts_dir".to_string(),
-        swe_bench_run_scripts_dir().display().to_string(),
+        scripts_dir.display().to_string(),
         "--dockerhub_username".to_string(),
         SWE_BENCH_PRO_DOCKERHUB_USERNAME.to_string(),
         "--use_local_docker".to_string(),

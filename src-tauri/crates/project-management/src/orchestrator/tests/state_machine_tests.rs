@@ -118,7 +118,7 @@ fn on_session_complete_without_review_does_not_complete_work_item() {
 }
 
 #[test]
-fn on_session_complete_with_review_launches_review() {
+fn on_session_complete_ignores_review_config() {
     let mut fm = make_frontmatter();
     fm.orchestrator_config = Some(OrchestratorConfig {
         review_enabled: true,
@@ -126,11 +126,9 @@ fn on_session_complete_with_review_launches_review() {
     });
     snapshot_config(&mut fm);
     let result = on_session_complete(&mut fm);
-    assert_eq!(result, TransitionResult::LaunchReview);
+    assert_eq!(result, TransitionResult::Completed);
     let state = fm.orchestrator_state.as_ref().unwrap();
-    assert_eq!(state.current_phase, OrchestratorPhase::Review);
-    assert_eq!(fm.status, "in_review");
-    assert!(!fm.linked_sessions.is_empty());
+    assert_eq!(state.current_phase, OrchestratorPhase::Completed);
 }
 
 // ========== on_session_failed ==========
@@ -175,98 +173,6 @@ fn on_session_failed_fails_immediately_without_retry() {
     snapshot_config(&mut fm);
     let result = on_session_failed(&mut fm, "sess-1", "crash");
     assert_eq!(result, TransitionResult::Failed);
-}
-
-// ========== on_review_complete ==========
-
-#[test]
-fn on_review_complete_approved_does_not_complete_work_item() {
-    let mut fm = make_frontmatter();
-    fm.orchestrator_config = Some(OrchestratorConfig {
-        review_enabled: true,
-        ..OrchestratorConfig::default()
-    });
-    snapshot_config(&mut fm);
-    on_session_complete(&mut fm);
-    let result = on_review_complete(&mut fm, &ReviewOutcome::Approved);
-    assert_eq!(result, TransitionResult::Completed);
-    let state = fm.orchestrator_state.as_ref().unwrap();
-    assert_eq!(state.current_phase, OrchestratorPhase::Completed);
-    assert_eq!(fm.status, "in_review");
-}
-
-#[test]
-fn on_review_complete_changes_requested_launches_fix() {
-    let mut fm = make_frontmatter();
-    fm.orchestrator_config = Some(OrchestratorConfig {
-        review_enabled: true,
-        ..OrchestratorConfig::default()
-    });
-    snapshot_config(&mut fm);
-    on_session_complete(&mut fm);
-    let result = on_review_complete(&mut fm, &ReviewOutcome::ChangesRequested);
-    assert_eq!(result, TransitionResult::LaunchFix);
-    let state = fm.orchestrator_state.as_ref().unwrap();
-    assert_eq!(state.current_phase, OrchestratorPhase::Coding);
-    assert_eq!(state.review_round, 1);
-    assert_eq!(fm.status, "in_progress");
-}
-
-#[test]
-fn on_review_complete_changes_requested_awaits_user_at_max_rounds() {
-    let mut fm = make_frontmatter();
-    fm.orchestrator_config = Some(OrchestratorConfig {
-        review_enabled: true,
-        review_config: Some(ReviewConfig {
-            max_rounds: 1,
-            ..ReviewConfig::default()
-        }),
-        ..OrchestratorConfig::default()
-    });
-    snapshot_config(&mut fm);
-    on_session_complete(&mut fm);
-    // Round 0 < max_rounds(1): increments to 1, returns LaunchFix
-    let result1 = on_review_complete(&mut fm, &ReviewOutcome::ChangesRequested);
-    assert_eq!(result1, TransitionResult::LaunchFix);
-    // Fix completes, back to review
-    on_session_complete(&mut fm);
-    // Round 1 >= max_rounds(1): returns AwaitingUser
-    let result2 = on_review_complete(&mut fm, &ReviewOutcome::ChangesRequested);
-    assert_eq!(result2, TransitionResult::AwaitingUser);
-}
-
-#[test]
-fn on_review_complete_inconclusive_awaits_user() {
-    let mut fm = make_frontmatter();
-    fm.orchestrator_config = Some(OrchestratorConfig {
-        review_enabled: true,
-        ..OrchestratorConfig::default()
-    });
-    snapshot_config(&mut fm);
-    on_session_complete(&mut fm);
-    let result = on_review_complete(&mut fm, &ReviewOutcome::Inconclusive);
-    assert_eq!(result, TransitionResult::AwaitingUser);
-    let state = fm.orchestrator_state.as_ref().unwrap();
-    assert_eq!(state.current_phase, OrchestratorPhase::AwaitingUser);
-    assert_eq!(fm.status, "in_review");
-}
-
-// ========== on_review_failed ==========
-
-#[test]
-fn on_review_failed_goes_to_awaiting_user() {
-    let mut fm = make_frontmatter();
-    fm.orchestrator_config = Some(OrchestratorConfig {
-        review_enabled: true,
-        ..OrchestratorConfig::default()
-    });
-    snapshot_config(&mut fm);
-    on_session_complete(&mut fm);
-    let result = on_review_failed(&mut fm, "rev-1", "LLM timeout");
-    assert_eq!(result, TransitionResult::AwaitingUser);
-    let state = fm.orchestrator_state.as_ref().unwrap();
-    assert_eq!(state.current_phase, OrchestratorPhase::AwaitingUser);
-    assert!(state.last_failure.is_some());
 }
 
 // ========== mark_interrupted ==========

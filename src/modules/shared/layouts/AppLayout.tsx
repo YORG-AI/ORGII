@@ -22,6 +22,7 @@ import { WindowsTopBar } from "@src/components/WindowChrome";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { DataProvider } from "@src/contexts/workspace/DataContext";
 import ChatPanel from "@src/engines/ChatPanel";
+import ChatPanelSideChat from "@src/engines/ChatPanel/SideChat";
 import {
   CHAT_WIDTH_CSS_VAR,
   clampChatWidth,
@@ -29,6 +30,7 @@ import {
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { pendingSessionProposal } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvider";
+import PokerTablePanel from "@src/features/PokerTable";
 import { SessionCreatorChatPanel } from "@src/features/SessionCreator/variants";
 import type { SessionCreatorChatPanelProps } from "@src/features/SessionCreator/variants/ChatPanel";
 import { dispatchWebviewLayoutChanged } from "@src/hooks/platform/useInlineWebview/webviewLayoutEvents";
@@ -322,6 +324,14 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
                 </WorkbenchActionSystemScope>
               </div>
               {!isChatOnLeft && chatSlot}
+              {/* Global floating side chat: hosted over the whole pane
+                  surface (chat slot + workbench), so it stays usable when
+                  the chat pane is hidden and a station fills the view. */}
+              <ChatPanelSideChat
+                SessionCreatorSlot={AdeAwareSessionCreatorSlot}
+              />
+              {/* Floating poker table (play chips), same host as the side chat. */}
+              <PokerTablePanel />
             </div>
           </div>
         </SessionSyncProvider>

@@ -892,8 +892,11 @@
       "unpinAll": "全部取消固定",
       "insert": "插入"
     },
-    "compactArgHint": "<可选:本次总结的重点>",
-    "compactCommandDescription": "总结较早的上下文以释放空间。可选:/compact <本次总结的重点>"
+    "compactArgHint": "<可选：本次总结的重点>",
+    "compactCommandDescription": "总结较早的上下文以释放空间。可选：/compact <本次总结的重点>",
+    "canvasCommandDescription": "创建一个新的交互式 Canvas。可选：/canvas <要创建的内容>",
+    "canvasArgHint": "要创建的内容",
+    "newCanvasAction": "新建 Canvas"
   },
   "listPanel": {
     "showingOf": "显示 {{filtered}} / {{total}}",
@@ -1045,6 +1048,10 @@
       "newTerminal": "新终端",
       "newTab": "新标签页",
       "terminals": "终端"
+    },
+    "sideChat": {
+      "title": "侧边聊天",
+      "openInSideChat": "在侧边聊天中打开"
     },
     "collapseAll": "全部折叠",
     "copyEventJson": "复制事件 JSON",
@@ -2061,6 +2068,18 @@
     "renderInlineCanvasUrlDone": "render URL canvas",
     "renderInlineCanvasUrlFailed": "render URL canvas失败",
     "renderInlineCanvasUrlRunning": "正在render URL canvas",
+    "reviseInlineCanvasRunning": "正在修订 Canvas",
+    "reviseInlineCanvasDone": "Canvas 已修订",
+    "reviseInlineCanvasFailed": "Canvas 修订失败",
+    "reviseInlineCanvasHtmlRunning": "正在修订 HTML Canvas",
+    "reviseInlineCanvasHtmlDone": "HTML Canvas 已修订",
+    "reviseInlineCanvasHtmlFailed": "HTML Canvas 修订失败",
+    "reviseInlineCanvasUrlRunning": "正在修订 URL Canvas",
+    "reviseInlineCanvasUrlDone": "URL Canvas 已修订",
+    "reviseInlineCanvasUrlFailed": "URL Canvas 修订失败",
+    "reviseInlineCanvasA2uiRunning": "正在修订 A2UI Canvas",
+    "reviseInlineCanvasA2uiDone": "A2UI Canvas 已修订",
+    "reviseInlineCanvasA2uiFailed": "A2UI Canvas 修订失败",
     "runShellRunDone": "运行命令",
     "runShellRunFailed": "运行命令失败",
     "runShellRunRunning": "正在运行命令",
@@ -2919,5 +2938,139 @@
     "waiting": "等待内容中…",
     "empty": "无内容",
     "viewInSimulator": "在 Simulator 中查看"
+  },
+  "canvasApp": {
+    "empty": "尚未渲染任何 Canvas",
+    "sidebarTitle": "Canvas 列表",
+    "noCanvases": "还没有 Canvas",
+    "revisionCanvas": "Canvas",
+    "revisionTitle": "正在修改 {{title}}",
+    "revisionReceiving": "正在生成变更 · {{amount}} 个字符",
+    "revisionApplying": "正在应用已校验的变更…",
+    "revisionDoneTitle": "已更新 {{title}}",
+    "revisionFailedTitle": "未能更新 {{title}}",
+    "revisionTargetedSummary": "{{amount}} 处精确修改 · 保留原 Canvas",
+    "revisionTargetedSummary_other": "{{count}} 处精确修改 · 保留原 Canvas",
+    "revisionReplacementSummary": "完整替换 · {{amount}} 个字符 · 保留原 Canvas",
+    "revisionUrlSummary": "已更新 URL · 保留原 Canvas",
+    "revisionGenericSummary": "已在原 Canvas 上完成更新",
+    "revisionStepsLabel": "Canvas 更新进度",
+    "compareToggle": "对比",
+    "compareMark": "vs",
+    "compareHint": "已选择 2 个 · 显示差异",
+    "design": "设计",
+    "designHint": "选择要修改的元素",
+    "designUnavailable": "设计功能不可用",
+    "reactCspUnavailable": "当前版本无法运行 React 预览，请打开源码视图",
+    "designPromptLabel": "描述 Canvas 变更",
+    "designPromptPlaceholder": "描述要修改的内容…",
+    "clearDesignSelection": "清除 Canvas 选择",
+    "compareTooLarge": "版本过大，无法对比",
+    "revisionReceivingLabel": "正在生成变更…",
+    "designHoverHint": "点击选择，拖拽框选",
+    "share": "分享",
+    "shareHint": "分享这个 Canvas 快照",
+    "shareWaitForRevision": "请等待 Canvas 更新完成",
+    "shareLocalUrlUnavailable": "其他人无法打开本地 URL",
+    "shareTooLarge": "这个 Canvas 太大，无法生成分享链接",
+    "shareEmpty": "这个 Canvas 没有可分享的内容",
+    "shareDialogTitle": "分享 Canvas",
+    "shareDialogScope": "只包含这个 Canvas 快照。对话、仓库、会话以及后续修订都不会被分享。",
+    "shareDialogPreparing": "正在创建链接…",
+    "shareDialogLink": "Canvas 分享链接",
+    "shareDialogCopyFailed": "复制失败。请选中链接后手动复制。",
+    "shareDialogPublic": "任何拥有此链接的人都可以查看该快照。",
+    "shareDialogShortExpiry": "短链接 · 有效期至 {{date}}",
+    "shareDialogFallback": "短链接服务不可用，已改为创建完整链接。",
+    "shareDialogOpen": "打开",
+    "shareDialogCopied": "已复制",
+    "shareDialogCopy": "复制链接",
+    "shareDialogTooLarge": "这个 Canvas 太大，无法生成可靠的自包含链接。",
+    "shareDialogShortUnavailable": "分享服务暂时无法访问，而这个 Canvas 太大，无法生成自包含链接。请稍后重试。",
+    "shareDialogUnsupported": "当前应用版本无法创建压缩的 Canvas 链接。",
+    "shareDialogInvalid": "这个 Canvas 不包含可发布的快照。",
+    "shareDialogError": "无法创建 Canvas 链接。",
+    "shareDialogRetryShort": "重试短链接",
+    "shareDialogRetryingShort": "正在重试…",
+    "retry": "重试"
+  },
+  "domSelection": {
+    "previewTitle": "Canvas 选区预览",
+    "elementsCount_other": "{{count}} 个元素",
+    "regionLabel": "区域 · {{label}}"
+  },
+  "pokerTable": {
+    "menuLabel": "扑克桌",
+    "header": {
+      "title": "无限注推理 – {{stakes}} Mtok – 6人桌",
+      "hand": "第 {{number}} 手",
+      "history": "牌局记录",
+      "settings": "牌桌设置",
+      "leave": "离开牌桌",
+      "close": "关闭"
+    },
+    "potLabel": "底池",
+    "tokens": "{{amount}} tokens",
+    "thinking": "思考中 · {{seconds}}s",
+    "waitingFor": "等待 {{name}}…",
+    "dealing": "发牌中…",
+    "nextHand": "开始下一手",
+    "seat": {
+      "you": "你",
+      "bot": "机器人",
+      "allIn": "全下"
+    },
+    "actions": {
+      "fold": "弃牌",
+      "check": "过牌",
+      "call": "跟注 {{amount}}",
+      "bet": "下注 {{amount}}",
+      "raise": "加注到 {{amount}}",
+      "allIn": "全下 {{amount}}",
+      "betLabel": "下注",
+      "raiseLabel": "加注",
+      "callLabel": "跟注",
+      "checkLabel": "过牌"
+    },
+    "result": {
+      "wins": "{{name}} 赢得 {{amount}}",
+      "winsWith": "{{name}} 以 {{hand}} 赢得 {{amount}}"
+    },
+    "rebuy": {
+      "title": "你的筹码输光了",
+      "bankroll": "资金 {{amount}}",
+      "buyIn": "买入 {{amount}}",
+      "reset": "重置资金"
+    },
+    "history": {
+      "title": "牌局记录",
+      "empty": "还没有打过牌",
+      "foldedOut": "其他人都弃牌"
+    },
+    "settings": {
+      "stakes": "盲注",
+      "speed": "牌桌速度",
+      "speed_normal": "正常",
+      "speed_fast": "快速"
+    }
+  },
+  "webhooks": {
+    "title": "Webhooks",
+    "empty": "还没有 routine — 请先用 CLI apply 一个",
+    "notInstalled": "未安装",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "paused": "连续失败 {{count}} 次后已暂停",
+    "install": "安装 webhook",
+    "rotate": "轮换 secret",
+    "enable": "启用",
+    "disable": "停用",
+    "secretHint": "Secret",
+    "secretShownOnce": "Secret 只显示一次 — 请立刻保存到你的提供方。",
+    "noDeliveries": "暂无投递记录",
+    "replay": "重放",
+    "replayQueued": "已重放该投递",
+    "copied": "已复制",
+    "copyFailed": "复制失败"
   }
 }

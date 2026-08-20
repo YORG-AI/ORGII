@@ -133,7 +133,8 @@ pub enum ChatBlock {
     /// entirely (used by signal-only tools whose payload is already surfaced
     /// elsewhere in the UI).
     Hidden,
-    /// CanvasInlineBlock — render_inline_canvas (html / url / a2ui / react modes)
+    /// CanvasInlineBlock — render_inline_canvas and revise_inline_canvas
+    /// (html / url / a2ui / react modes)
     CanvasInline,
     /// SetupRepoBlock — setup_repo (report_status, update_env, add_env_vars, launch_app)
     SetupRepo,

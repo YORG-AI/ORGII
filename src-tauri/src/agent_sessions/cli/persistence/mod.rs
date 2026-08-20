@@ -427,6 +427,26 @@ mod resume_state_tests {
     }
 
     #[test]
+    fn native_transcript_ledger_walks_forks_newest_first() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "cli-native-ledger-order";
+        create_test_session(session_id, "account-a");
+        update_cli_session_id(session_id, "fork-1").expect("bind first fork");
+        update_cli_session_id(session_id, "fork-2").expect("bind second fork");
+        update_cli_session_id(session_id, "fork-3").expect("bind third fork");
+
+        let ids =
+            native_transcript_ids_newest_first(session_id, "claude_code").expect("load ledger");
+        assert_eq!(ids, vec!["fork-3", "fork-2", "fork-1"]);
+        assert_eq!(
+            latest_native_transcript_id(session_id, "claude_code")
+                .expect("load latest")
+                .as_deref(),
+            ids.first().map(String::as_str)
+        );
+    }
+
+    #[test]
     fn late_resume_id_write_after_delete_does_not_create_orphan_state() {
         let _sandbox = test_env::sandbox();
         let session_id = "cli-resume-delete-race";

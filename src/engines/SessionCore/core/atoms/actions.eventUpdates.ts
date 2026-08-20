@@ -12,6 +12,7 @@ import {
   isSyntheticUserInputEvent,
 } from "../../sync/utils/activityIds";
 import { eventStoreProxy } from "../store/EventStoreProxy";
+import { syntheticEvictionScopeForRealUserEvents } from "../store/eventStoreEvents";
 import type { SessionEvent } from "../types";
 import { isSimulatorVisibleApprox } from "./actions.simulatorPreview";
 import {
@@ -71,12 +72,12 @@ export const appendEventsAtom = atom(
       // placeholder so the user doesn't see a duplicate first message.
       // Use a semantic Rust-side removal instead of the getEvents→filter→set
       // pattern; events arriving between a TS-side read and write would be
-      // silently dropped.
-      const hasRealUserMessage = uniqueNewWithImages.some(
-        isBackendUserMessageEvent
-      );
-      if (hasRealUserMessage) {
-        eventStoreProxy.removeSyntheticUserInputEvents();
+      // silently dropped. Scoped to the echoed contents so a newer
+      // placeholder still awaiting its echo survives.
+      const evictionScope =
+        syntheticEvictionScopeForRealUserEvents(uniqueNewWithImages);
+      if (evictionScope) {
+        eventStoreProxy.removeSyntheticUserInputEvents(null, evictionScope);
       }
 
       // Incrementally extend the cached running-args map with new events

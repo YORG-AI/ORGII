@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildCloudPendingPlayEntry,
   resolveCloudSessionReplayIconId,
   runImmediateCloudSessionReplay,
 } from "./cloudSessionReplayLifecycle";
@@ -73,5 +74,39 @@ describe("resolveCloudSessionReplayIconId", () => {
       "opencode"
     );
     expect(resolveCloudSessionReplayIconId({})).toBe("orgii");
+  });
+});
+
+describe("buildCloudPendingPlayEntry", () => {
+  it("preserves the remote row and source brand before local import", () => {
+    expect(
+      buildCloudPendingPlayEntry({
+        remoteSession: {
+          id: "remote-row-1",
+          origin: { kind: "external_history", source: "codex_app" },
+          repoScopeKey: "github.com/acme/ORGII.git",
+          branch: "develop",
+          baseBranch: "main",
+          worktreeBranch: "agent/session-1",
+        },
+        orgId: "org-1",
+        pendingEvents: 953,
+        etaMs: 20_000,
+        kind: "replay",
+      })
+    ).toEqual({
+      rowId: "remote-row-1",
+      orgId: "org-1",
+      iconId: "codex",
+      sessionEnvironment: {
+        repoName: "ORGII",
+        branchName: "develop",
+        baseBranchName: "main",
+        worktreeBranchName: "agent/session-1",
+      },
+      pendingEvents: 953,
+      etaMs: 20_000,
+      kind: "replay",
+    });
   });
 });

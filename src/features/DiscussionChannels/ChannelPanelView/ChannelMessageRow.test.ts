@@ -384,6 +384,14 @@ describe("ChannelMessageRow references", () => {
     expect(card()).toBeNull();
   });
 
+  it("makes channel message text selectable like session transcript items", () => {
+    render("copy this channel message");
+
+    expect(
+      container.querySelector("[data-testid='channel-message']")?.className
+    ).toContain("allow-select-deep");
+  });
+
   it("keeps edit and delete actions available on a grouped message", () => {
     const onEdit = vi.fn(() => true);
     const onDelete = vi.fn();

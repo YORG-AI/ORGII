@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { requiredBinaryFromHint } from "@src/config/prerequisites";
-import { usePrerequisiteCheck } from "@src/hooks/dependencies/usePrerequisiteCheck";
+import { usePrerequisiteCheck } from "@src/modules/MainApp/Integrations/hooks/usePrerequisiteCheck";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";

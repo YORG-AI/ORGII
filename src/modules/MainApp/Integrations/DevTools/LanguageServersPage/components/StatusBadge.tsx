@@ -5,8 +5,7 @@
  * Shows loading state on buttons while action is in progress;
  * detailed output is in the Settings bottom panel terminal.
  *
- * Renamed from `StatusBadge` to avoid collision with `@src/components/StatusBadge`
- * (the animated-pulse status-pill component).
+ * Language-server-specific status badge.
  */
 import Button from "@/src/components/Button";
 import Switch from "@/src/components/Switch";

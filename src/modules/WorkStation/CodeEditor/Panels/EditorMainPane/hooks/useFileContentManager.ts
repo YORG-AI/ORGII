@@ -18,7 +18,7 @@ import {
   type UseFileContentReturn,
   invalidateFileCache,
   useFileContent,
-} from "@src/hooks/workStation/editor/useFileContent";
+} from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/useFileContent";
 
 import type { UseFileContentManagerOptions } from "../types";
 

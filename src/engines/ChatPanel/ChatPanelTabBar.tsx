@@ -50,8 +50,10 @@ import {
   ListTodo,
   Lock,
   MessageSquarePlus,
+  PictureInPicture2,
   Plus,
   Settings2,
+  Spade,
   TerminalSquare,
 } from "lucide-react";
 import React, {
@@ -72,7 +74,11 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import PrHoverCard, { type PrHoverCardData } from "@src/components/PrHoverCard";
 import SessionHoverCard from "@src/components/SessionHoverCard";
+import WorkItemHoverCard, {
+  type WorkItemHoverCardData,
+} from "@src/components/WorkItemHoverCard";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { TERMINAL_AGENT_STATUS } from "@src/engines/TerminalCore/types";
@@ -111,6 +117,7 @@ import {
   CHAT_PANEL_CREATE_TARGET,
   chatPanelCreateTargetAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 import { isMacOS } from "@src/util/platform/tauri";
 
@@ -142,6 +149,83 @@ interface TabPillProps {
   onClose: (id: string) => void;
   onContextMenu: (event: React.MouseEvent, id: string) => void;
 }
+
+interface TabPillHoverCardProps {
+  tab: ChatPanelTab;
+  children: React.ReactElement;
+}
+
+function getWorkItemHoverCardData(
+  selection: NonNullable<ChatPanelTab["workItem"]>
+): WorkItemHoverCardData {
+  const { workItem } = selection;
+  return {
+    id: workItem.session_id,
+    title: workItem.name,
+    status: workItem.workItemStatus ?? workItem.status,
+    priority: workItem.priority ?? "none",
+    projectName: selection.projectName,
+    orgName: selection.orgName ?? selection.sourceProject?.orgName,
+    source: "local",
+    assignee: workItem.assignee,
+    labels: workItem.labels,
+    createdAt: workItem.created_time,
+    updatedAt: workItem.updated_time,
+  };
+}
+
+function getPrHoverCardData(
+  detail: NonNullable<ChatPanelTab["githubPr"]>
+): PrHoverCardData {
+  const isDraft = detail.prStatus === "draft";
+  return {
+    number: detail.prNumber,
+    url: detail.prUrl,
+    title: detail.prTitle,
+    state: isDraft ? "open" : detail.prStatus,
+    head_branch: detail.headBranch,
+    base_branch: detail.baseBranch,
+    draft: isDraft,
+    additions: detail.additions,
+    deletions: detail.deletions,
+    updated_at: detail.updatedAt,
+  };
+}
+
+/** Keep entity-preview selection in one place as new tab types are added. */
+const TabPillHoverCard: React.FC<TabPillHoverCardProps> = ({
+  tab,
+  children,
+}) => {
+  if (tab.type === "session" && tab.sessionId) {
+    return (
+      <SessionHoverCard sessionId={tab.sessionId} position="bottom-start">
+        {children}
+      </SessionHoverCard>
+    );
+  }
+  if (tab.type === "work-item" && tab.workItem) {
+    return (
+      <WorkItemHoverCard
+        workItem={getWorkItemHoverCardData(tab.workItem)}
+        position="bottom-start"
+      >
+        {children}
+      </WorkItemHoverCard>
+    );
+  }
+  if (tab.type === "github-pr" && tab.githubPr) {
+    return (
+      <PrHoverCard
+        pr={getPrHoverCardData(tab.githubPr)}
+        position="bottom-start"
+      >
+        {children}
+      </PrHoverCard>
+    );
+  }
+  return children;
+};
 
 const TabPill = memo(function TabPill({
   tab,
@@ -455,16 +539,7 @@ const TabPill = memo(function TabPill({
     </WorkStationTabPillSurface>
   );
 
-  // Session tabs with an active session get the hover card
-  if (tab.type === "session" && tab.sessionId) {
-    return (
-      <SessionHoverCard sessionId={tab.sessionId} position="bottom-start">
-        {pill}
-      </SessionHoverCard>
-    );
-  }
-
-  return pill;
+  return <TabPillHoverCard tab={tab}>{pill}</TabPillHoverCard>;
 });
 
 // ─── Plus-menu dropdown ───────────────────────────────────────────────────────
@@ -475,6 +550,8 @@ interface PlusMenuContentProps {
   onOpenRuntime: () => void;
   onNewProject: () => void;
   onNewWorkItem: () => void;
+  onOpenSideChat: () => void;
+  onOpenPokerTable: () => void;
   onClose: () => void;
 }
 
@@ -484,6 +561,8 @@ export function PlusMenuContent({
   onOpenRuntime,
   onNewProject,
   onNewWorkItem,
+  onOpenSideChat,
+  onOpenPokerTable,
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
@@ -522,6 +601,18 @@ export function PlusMenuContent({
       icon: <BriefcaseBusiness size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
       label: t("chat.startPage.newWorkItem.title"),
       onClick: onNewWorkItem,
+    },
+    {
+      id: "side-chat",
+      icon: <PictureInPicture2 size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      label: t("sessions:chat.sideChat.title"),
+      onClick: onOpenSideChat,
+    },
+    {
+      id: "poker-table",
+      icon: <Spade size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      label: t("sessions:pokerTable.menuLabel"),
+      onClick: onOpenPokerTable,
     },
   ] as const;
 
@@ -565,6 +656,8 @@ export interface ChatPanelPlusMenuProps {
   onOpenRuntime: () => void;
   onNewProject: () => void;
   onNewWorkItem: () => void;
+  onOpenSideChat: () => void;
+  onOpenPokerTable: () => void;
 }
 
 export function ChatPanelPlusMenu({
@@ -573,6 +666,8 @@ export function ChatPanelPlusMenu({
   onOpenRuntime,
   onNewProject,
   onNewWorkItem,
+  onOpenSideChat,
+  onOpenPokerTable,
 }: ChatPanelPlusMenuProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -588,6 +683,8 @@ export function ChatPanelPlusMenu({
           onOpenRuntime={onOpenRuntime}
           onNewProject={onNewProject}
           onNewWorkItem={onNewWorkItem}
+          onOpenSideChat={onOpenSideChat}
+          onOpenPokerTable={onOpenPokerTable}
           onClose={closeMenu}
         />
       }
@@ -762,6 +859,13 @@ export function ChatPanelTabBar(): React.ReactNode {
     },
     [openTeamInbox, requestSessionHandoff, t]
   );
+  const openSideChat = useSetAtom(openSideChatAtom);
+  const handleOpenInSideChat = useCallback(
+    (reference: SessionReferenceOpen) => {
+      openSideChat(reference.sessionId);
+    },
+    [openSideChat]
+  );
 
   // Inline strip — no outer wrapper, fills the flex row in the header
   return (
@@ -856,6 +960,7 @@ export function ChatPanelTabBar(): React.ReactNode {
               : undefined
           }
           onCreateWorkItem={handleCreateWorkItem}
+          onOpenInSideChat={handleOpenInSideChat}
           onCloseTab={closeTab}
           onCloseOtherTabs={closeOtherTabs}
           onDismiss={handleDismissContextMenu}

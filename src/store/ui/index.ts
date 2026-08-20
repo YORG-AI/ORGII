@@ -51,6 +51,8 @@ export * from "./integrationsToolbarAtom";
 export * from "./kanbanViewStateAtom";
 export * from "./kanbanReplayAtom";
 export * from "./workManagementCreatorAtom";
+export * from "./sideChatAtom";
+export * from "./pokerTableAtom";
 export * from "./modelSelectorAtom";
 export * from "./settingsToolbarAtom";
 export * from "./globalTabsTypes";

@@ -29,7 +29,7 @@ import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import {
   type WorkstationTabHeaderHost,
   usePublishWorkstationTabHeader,
-} from "@src/hooks/workStation";
+} from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import {
   FILE_BAR_ROW_CLASSES,

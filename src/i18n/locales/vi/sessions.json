@@ -845,7 +845,10 @@
       "insert": "Chèn"
     },
     "compactArgHint": "<trọng tâm tóm tắt (tùy chọn)>",
-    "compactCommandDescription": "Tóm tắt ngữ cảnh cũ để giải phóng dung lượng. Tùy chọn: /compact <trọng tâm tóm tắt>"
+    "compactCommandDescription": "Tóm tắt ngữ cảnh cũ để giải phóng dung lượng. Tùy chọn: /compact <trọng tâm tóm tắt>",
+    "canvasCommandDescription": "Tạo một Canvas tương tác mới. Tùy chọn: /canvas <nội dung cần tạo>",
+    "canvasArgHint": "nội dung cần tạo",
+    "newCanvasAction": "Canvas mới"
   },
   "listPanel": {
     "showingOf": "Hiển thị {{filtered}} / {{total}}",
@@ -996,6 +999,10 @@
       "newTerminal": "Terminal Mới",
       "newTab": "Tab mới",
       "terminals": "Terminal"
+    },
+    "sideChat": {
+      "title": "Trò chuyện bên",
+      "openInSideChat": "Mở trong trò chuyện bên"
     },
     "collapseAll": "Thu gọn tất cả",
     "copyEventJson": "Sao chép JSON sự kiện",
@@ -2008,6 +2015,18 @@
     "renderInlineCanvasUrlDone": "Đã render URL canvas",
     "renderInlineCanvasUrlFailed": "Không thể render URL canvas",
     "renderInlineCanvasUrlRunning": "Đang render URL canvas",
+    "reviseInlineCanvasRunning": "Đang chỉnh sửa Canvas",
+    "reviseInlineCanvasDone": "Canvas đã chỉnh sửa",
+    "reviseInlineCanvasFailed": "Chỉnh sửa Canvas thất bại",
+    "reviseInlineCanvasHtmlRunning": "Đang chỉnh sửa Canvas HTML",
+    "reviseInlineCanvasHtmlDone": "Canvas HTML đã chỉnh sửa",
+    "reviseInlineCanvasHtmlFailed": "Chỉnh sửa Canvas HTML thất bại",
+    "reviseInlineCanvasUrlRunning": "Đang chỉnh sửa Canvas URL",
+    "reviseInlineCanvasUrlDone": "Canvas URL đã chỉnh sửa",
+    "reviseInlineCanvasUrlFailed": "Chỉnh sửa Canvas URL thất bại",
+    "reviseInlineCanvasA2uiRunning": "Đang chỉnh sửa Canvas A2UI",
+    "reviseInlineCanvasA2uiDone": "Canvas A2UI đã chỉnh sửa",
+    "reviseInlineCanvasA2uiFailed": "Chỉnh sửa Canvas A2UI thất bại",
     "runShellRunDone": "Đã run command",
     "runShellRunFailed": "Không thể run command",
     "runShellRunRunning": "Đang run command",
@@ -2802,5 +2821,60 @@
     "summarize": "Tóm tắt với Agent",
     "waiting": "Đang chờ nội dung…",
     "empty": "Không có nội dung"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
   }
 }

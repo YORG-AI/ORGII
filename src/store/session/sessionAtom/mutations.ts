@@ -33,6 +33,7 @@
  * the row".
  */
 import { disposeSessionStreamingState } from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers";
+import { disposeCanvasRevisionDraftState } from "@src/store/session/canvasRevisionDraftAtom";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
 import { clearTodosForSessionAtom } from "@src/store/ui/todoAtom";
@@ -192,6 +193,7 @@ export const removeSession = (sessionId: string) => {
   // chokepoint covers every removal path — sidebar delete, cloud remove, fork
   // rollback, guest-share remove — so callers need not dispose it themselves.
   disposeSessionStreamingState(sessionId);
+  disposeCanvasRevisionDraftState(store, sessionId);
 };
 
 /**

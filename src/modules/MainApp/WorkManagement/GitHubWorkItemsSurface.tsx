@@ -232,9 +232,12 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     [updateIssueAssignees]
   );
 
-  const handlePreviousPage = useCallback(() => {
-    setCurrentPage((page) => Math.max(1, page - 1));
-  }, [setCurrentPage]);
+  const handleGoToPage = useCallback(
+    (page: number) => {
+      setCurrentPage(Math.min(Math.max(1, page), totalLoadedPages));
+    },
+    [setCurrentPage, totalLoadedPages]
+  );
 
   const handleSortChange = useCallback(
     (nextSort: GitHubWorkItemsSort) => {
@@ -292,7 +295,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       onRepoSelect={handleRepoSelect}
       onIssuePersonalFiltersSelect={handleIssuePersonalFiltersSelect}
       onRefresh={handleRefresh}
-      onPreviousPage={handlePreviousPage}
+      onGoToPage={handleGoToPage}
       onNextPage={handleNextPage}
       onSortChange={handleSortChange}
       onOpenIssue={openIssueInTab}

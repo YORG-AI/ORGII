@@ -25,7 +25,7 @@ vi.mock("@src/ActionSystem", () => ({
   useActionSystem: () => ({ dispatch: vi.fn() }),
 }));
 
-vi.mock("@src/hooks/workStation/tabs/useWorkStationTabs", () => ({
+vi.mock("@src/hooks/tabHost/useWorkStationTabs", () => ({
   useWorkStationTabs: () => ({
     activeTab: { data: {}, type: "source-control" },
     openTab: vi.fn(),

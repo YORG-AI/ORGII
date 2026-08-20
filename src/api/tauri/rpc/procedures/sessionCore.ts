@@ -217,7 +217,7 @@ const eventStore = {
     .output(z.number())
     .build(),
   removeSyntheticUserInputs: defineProcedure("es_remove_synthetic_user_inputs")
-    .input(schemas.sessionCore.NullableSessionIdInput)
+    .input(schemas.sessionCore.RemoveSyntheticUserInputsInput)
     .output(z.number())
     .build(),
   replaceAndRemove: defineProcedure("es_replace_and_remove")

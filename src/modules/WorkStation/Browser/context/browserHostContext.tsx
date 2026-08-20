@@ -27,7 +27,7 @@
 import { type ReactNode, createContext, useContext } from "react";
 
 import type { UseBrowserStateReturn } from "@src/engines/BrowserCore/hooks/useBrowserState";
-import type { UseBrowserSessionsReturn } from "@src/hooks/workStation/browser/useBrowserSessions";
+import type { UseBrowserSessionsReturn } from "@src/modules/WorkStation/Browser/hooks/useBrowserSessions";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
 export interface BrowserHostContextValue {

@@ -60,6 +60,7 @@ vi.mock("../../../hooks/useWorkstationPrDetail", () => ({
     replyInlineComment: vi.fn(),
     mergePullRequest: vi.fn(),
     setPullRequestAutoMerge: vi.fn(),
+    updatePullRequestDraft: vi.fn(),
     updatePullRequestState: vi.fn(),
     updateRequestedReviewers: vi.fn(),
     loadReviewerCandidates: vi.fn().mockResolvedValue(undefined),
@@ -290,7 +291,7 @@ describe("PrDetailPanel tabs", () => {
     ).toBe("none");
   });
 
-  it("renders GraphQL merge conflicts as a disabled danger action", () => {
+  it("keeps conflict styling while exposing the open-PR action dropdown", () => {
     const store = createStore();
     const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
     store.set(workstationSelectedPrAtomFamily(scopeKey), {
@@ -329,13 +330,129 @@ describe("PrDetailPanel tabs", () => {
       '[data-testid="pr-merge-action"]'
     );
     expect(conflictAction?.textContent).toBe("Merge conflicts");
-    expect(conflictAction?.disabled).toBe(true);
-    expect(conflictAction?.className).toContain("!opacity-100");
+    expect(conflictAction?.disabled).toBe(false);
     expect(conflictAction?.className).toContain("text-danger-6");
     expect(conflictAction?.querySelector(".lucide-circle-x")).not.toBeNull();
     expect(
       conflictAction?.parentElement?.querySelector(".lucide-chevron-down")
+    ).not.toBeNull();
+  });
+
+  it("uses a neutral fill for drafts and omits unavailable reviewer controls", async () => {
+    const store = createStore();
+    const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
+    store.set(workstationSelectedPrAtomFamily(scopeKey), {
+      ...initialSelectedPrState,
+      loading: false,
+      detail: {
+        state: "open",
+        draft: true,
+        requested_reviewers: [
+          {
+            login: "reviewer",
+            avatar_url: "https://example.com/reviewer.png",
+          },
+        ],
+      },
+    });
+
+    act(() => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(PrDetailPanel, {
+            identity: {
+              number: 42,
+              title: "Keep draft actions neutral",
+              url: "https://github.com/org/repo/pull/42",
+              status: "draft",
+              headBranch: "feature/draft",
+              baseBranch: "main",
+            },
+            repoPath: "/repo",
+            showHeader: false,
+          })
+        )
+      );
+    });
+
+    const draftAction = container.querySelector<HTMLButtonElement>(
+      '[data-testid="pr-merge-action"]'
+    );
+    expect(draftAction?.textContent).toBe("Draft");
+    expect(draftAction?.disabled).toBe(false);
+    expect(draftAction?.className).toContain("!bg-fill-3");
+    expect(draftAction?.className).toContain("!text-text-1");
+    expect(draftAction?.className).not.toContain("bg-success-6");
+    expect(
+      draftAction?.querySelector(".lucide-git-pull-request-draft")
+    ).not.toBeNull();
+    await act(async () => {
+      draftAction?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(
+      document.body.querySelector('[data-testid="pr-mark-ready-action"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="pr-reviewer-action"]')
     ).toBeNull();
+  });
+
+  it("offers converting an open pull request to draft from the action dropdown", async () => {
+    const store = createStore();
+    const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
+    store.set(workstationSelectedPrAtomFamily(scopeKey), {
+      ...initialSelectedPrState,
+      loading: false,
+      detail: {
+        state: "open",
+        draft: false,
+        mergeable: true,
+        mergeable_state: "clean",
+      },
+    });
+
+    act(() => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(PrDetailPanel, {
+            identity: {
+              number: 42,
+              title: "Allow converting to draft",
+              url: "https://github.com/org/repo/pull/42",
+              status: "open",
+              headBranch: "feature/ready",
+              baseBranch: "main",
+            },
+            repoPath: "/repo",
+            showHeader: false,
+          })
+        )
+      );
+    });
+
+    const mergeAction = container.querySelector<HTMLButtonElement>(
+      '[data-testid="pr-merge-action"]'
+    );
+    const dropdownButton = mergeAction?.parentElement?.querySelectorAll(
+      "button"
+    )[1] as HTMLButtonElement | undefined;
+    await act(async () => {
+      dropdownButton?.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    const convertAction = document.body.querySelector(
+      '[data-testid="pr-convert-to-draft-action"]'
+    );
+    expect(convertAction?.textContent).toContain("Convert to draft");
+    expect(
+      convertAction?.querySelector(".lucide-git-pull-request-draft")
+    ).not.toBeNull();
   });
 
   it("restores the per-PR sub-tab and nested selection after remount", () => {
@@ -409,6 +526,10 @@ describe("PrDetailPanel tabs", () => {
         additions: 2313,
         deletions: 217,
         comments: 1,
+        user: {
+          login: "creator",
+          avatar_url: "https://example.com/creator.png",
+        },
         requested_reviewers: [
           {
             login: "reviewer",
@@ -480,6 +601,12 @@ describe("PrDetailPanel tabs", () => {
     expect(summary?.textContent).toContain("develop");
     expect(summary?.textContent).toContain("+2,313");
     expect(summary?.textContent).toContain("-217");
+    expect(summary?.textContent).toContain("Created by");
+    const author = summary?.querySelector("[data-testid='pr-summary-author']");
+    expect(author?.textContent).toContain("creator");
+    expect(author?.querySelector("img")?.getAttribute("src")).toBe(
+      "https://example.com/creator.png"
+    );
     expect(summary?.textContent).toContain("Reviewers");
     const reviewers = summary?.querySelector(
       "[data-testid='pr-summary-reviewers']"

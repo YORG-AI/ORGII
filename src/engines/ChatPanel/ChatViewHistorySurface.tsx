@@ -4,7 +4,7 @@ import type {
   AgentOrgRunMemberView,
   AgentOrgRunView,
 } from "@src/api/tauri/agent";
-import { AgentMessageClampProvider } from "@src/engines/ChatPanel/blocks";
+import { AgentMessageClampProvider } from "@src/engines/ChatPanel/blocks/AgentMessageBlock";
 import { AgentOrgGroupChatLiveSessions } from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatLiveSessions";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { SessionCommentsProvider } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
@@ -43,6 +43,7 @@ interface ChatViewHistorySurfaceProps {
   turnPaginationEnabled: boolean;
   paginationTrailingSlot: ChatHistoryProps["paginationTrailingSlot"];
   pinnedHeaderHost: HTMLDivElement | null;
+  chromeTopInset: number;
   historyBottomInset: number;
   groupChatViewAvailable: boolean;
   handleGroupChatViewToggle: NonNullable<
@@ -77,6 +78,7 @@ export function ChatViewHistorySurface({
   turnPaginationEnabled,
   paginationTrailingSlot,
   pinnedHeaderHost,
+  chromeTopInset,
   historyBottomInset,
   groupChatViewAvailable,
   handleGroupChatViewToggle,
@@ -144,6 +146,7 @@ export function ChatViewHistorySurface({
               turnPaginationEnabled={turnPaginationEnabled}
               paginationTrailingSlot={paginationTrailingSlot}
               pinnedHeaderPortalHost={pinnedHeaderHost}
+              chromeTopInset={chromeTopInset}
               bottomInset={historyBottomInset}
               groupChatViewAvailable={groupChatViewAvailable}
               groupChatViewActive={groupChatViewActive}

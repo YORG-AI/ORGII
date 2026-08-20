@@ -7,7 +7,7 @@ import {
   PROJECT_GIT_FOLDER_SYNC_STATUS,
   projectApi,
 } from "@src/api/http/project";
-import { useWorkStationTabs } from "@src/hooks/workStation";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import {
   projectGitFolderSyncResultByOrgAtom,
   projectListRefreshAtom,

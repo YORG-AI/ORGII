@@ -61,14 +61,25 @@ pub async fn es_remove_by_id_prefix(
 }
 
 /// Remove frontend-injected user placeholders after the backend user turn arrives.
+/// `matching_contents` + `older_than` scope removal to placeholders that are
+/// echoed by one of those messages or predate the newest real user turn;
+/// omitted, every placeholder in the session is removed.
 #[tauri::command]
 pub async fn es_remove_synthetic_user_inputs(
     app: AppHandle,
     state: State<'_, EventStoreState>,
     session_id: Option<String>,
+    matching_contents: Option<Vec<String>>,
+    older_than: Option<String>,
 ) -> Result<usize, String> {
     let sid = state.resolve_session_id(session_id)?;
-    let removed = state.with_store_mut(&sid, |store| store.remove_synthetic_user_inputs());
+    let removed = state.with_store_mut(&sid, |store| {
+        store.remove_synthetic_user_inputs(
+            matching_contents
+                .as_deref()
+                .map(|contents| (contents, older_than.as_deref())),
+        )
+    });
     if removed > 0 {
         schedule_notify(&app, &state, &sid);
     }

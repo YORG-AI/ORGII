@@ -36,7 +36,9 @@ fn warn_once_for_definition(def_id: &str, err: &str) {
     let warned = WARNED_DEFINITION_IDS.get_or_init(|| std::sync::Mutex::new(HashSet::new()));
     let mut warned = warned.lock().expect("definition warn set poisoned");
     if warned.insert(def_id.to_string()) {
-        tracing::warn!(
+        // Stale ids are routine (deleted custom agents, e2e fixtures);
+        // thousands of distinct ones would drown the log at warn level.
+        tracing::debug!(
             "[session_directory] Failed to resolve agent definition '{def_id}' for aggregate metadata: {err}"
         );
     }

@@ -13,8 +13,8 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { useInlineWebview } from "@src/hooks/platform/useInlineWebview";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useRefreshSpin } from "@src/hooks/ui";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { isTauriDesktop } from "@src/util/platform/tauri";
 

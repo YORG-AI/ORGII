@@ -4,8 +4,7 @@
  * Displays status counts with icons (errors, warnings, passed, etc.)
  * Used in Problems panel, Test Results, and other summary displays.
  *
- * Renamed from `StatusBadge` to avoid collision with `@src/components/StatusBadge`
- * (the animated-pulse status-pill component).
+ * Workstation-specific service status badge.
  */
 import {
   AlertCircle,

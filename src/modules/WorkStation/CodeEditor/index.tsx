@@ -5,22 +5,16 @@
  * diagnostics, and more. Extracted from AppContainer for clean separation.
  */
 import { useTerminalState } from "@/src/engines/TerminalCore/hooks/useTerminalState";
-import { useCodeEditorHandlers } from "@/src/hooks/workStation/editor/useCodeEditorHandlers";
-import { useGitDiffState } from "@/src/hooks/workStation/git/useGitDiffState";
-import { useCodeEditor } from "@/src/hooks/workStation/useCodeEditor";
 import { invoke } from "@tauri-apps/api/core";
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ActionSystemProvider } from "@src/ActionSystem";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
+import { usePinnedTabs } from "@src/hooks/tabHost/usePinnedTabs";
+import { useWorkStationPanels } from "@src/hooks/tabHost/useWorkStationPanels";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { useEditorRepoCacheSync } from "@src/hooks/ui/tabs";
-import { useWorkStationPanels } from "@src/hooks/workStation";
-import { useDiagnostics } from "@src/hooks/workStation/diagnostics/useDiagnostics";
-import { useCodeEditorEvents } from "@src/hooks/workStation/editor/useCodeEditorEvents";
-import { useOutputChannels } from "@src/hooks/workStation/output/useOutputChannels";
-import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
-import { usePinnedTabs } from "@src/hooks/workStation/tabs/usePinnedTabs";
 import { CODE_EDITOR_CONFIG } from "@src/modules/WorkStation/CodeEditor/config";
 import { type PrimarySidebarTabKey } from "@src/store/ui/workStationAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
@@ -48,6 +42,12 @@ import FileSearchPanel from "./EditorLayout/overlays/FileSearchPanel";
 import EditorBottomPanel from "./Panels/EditorBottomPanel";
 import EditorContent from "./Panels/EditorMainPane";
 import { EditorPrimarySidebar } from "./Panels/EditorPrimarySidebar";
+import { useDiagnostics } from "./hooks/diagnostics/useDiagnostics";
+import { useOutputChannels } from "./hooks/output/useOutputChannels";
+import { useCodeEditor } from "./hooks/useCodeEditor";
+import { useCodeEditorEvents } from "./hooks/useCodeEditorEvents";
+import { useCodeEditorHandlers } from "./hooks/useCodeEditorHandlers";
+import { useGitDiffState } from "./hooks/useGitDiffState";
 import { useCodeEditorLocalState } from "./useCodeEditorLocalState";
 import { useSourceControlSetup } from "./useSourceControlSetup";
 

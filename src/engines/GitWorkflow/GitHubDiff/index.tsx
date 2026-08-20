@@ -22,12 +22,12 @@ import React, {
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import { getLanguageFromPath } from "@src/config/languageMap";
-import { useDiff } from "@src/hooks/workStation/git/useDiff";
 
 import { SplitDiffRowComponent, UnifiedDiffRow } from "./DiffRow";
 import { DEFAULT_PROPS } from "./config";
 import "./index.scss";
 import type { DiffHunk, DiffLine, GitHubDiffProps } from "./types";
+import { useDiff } from "./useDiff";
 
 // ============================================
 // Main Component

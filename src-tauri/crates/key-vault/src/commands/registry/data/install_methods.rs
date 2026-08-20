@@ -223,6 +223,9 @@ pub(crate) fn cli_install_methods(name: &str) -> Vec<CliInstallMethod> {
         // Trae Agent currently documents a repository checkout plus `uv sync`,
         // not a safe global install command for the registry to execute.
         "trae_cli" => Vec::new(),
+        // opencode's docs steer through per-platform package managers; no
+        // single command is safe for the registry to run everywhere yet.
+        "opencode" => Vec::new(),
         // The caller iterates `cli_agent_registry()` entries, so any
         // CLI agent that ships in the registry but has no install_methods
         // entry here would silently render the "Install" UI as a no-op.
@@ -315,7 +318,7 @@ pub(crate) fn cli_uninstall_methods(name: &str) -> Vec<CliInstallMethod> {
         )],
         // Neither project currently documents a non-destructive uninstall
         // command that the registry can safely run on every supported OS.
-        "qoder_cli" | "trae_cli" => Vec::new(),
+        "opencode" | "qoder_cli" | "trae_cli" => Vec::new(),
         // Same fail-loud principle as `cli_install_methods` above.
         other => {
             tracing::warn!(

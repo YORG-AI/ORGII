@@ -195,8 +195,13 @@ fn display_variant_wire(variant: &EventDisplayVariant) -> &'static str {
 }
 
 pub fn latest_canvas_preview(events: &[SessionEvent]) -> Option<LatestCanvasPreview> {
+    use core_types::tool_names::{RENDER_INLINE_CANVAS, REVISE_INLINE_CANVAS};
+
     events.iter().rev().find_map(|event| {
-        if event.ui_canonical != "canvas_inline" && event.function_name != "render_inline_canvas" {
+        let is_canvas_event = event.ui_canonical == "canvas_inline"
+            || event.function_name == RENDER_INLINE_CANVAS
+            || event.function_name == REVISE_INLINE_CANVAS;
+        if !is_canvas_event {
             return None;
         }
         let args = event.args.as_object()?;

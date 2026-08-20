@@ -127,6 +127,7 @@ describe("ChannelMessageList", () => {
     const inner = column();
     expect(inner).not.toBeNull();
     expect(inner?.parentElement).toBe(scroller);
+    expect(scroller?.className).toContain("allow-select-deep");
     expect(inner?.className).toContain("mx-auto");
     // Bottom inset clears the absolutely positioned composer footer.
     expect(inner?.className).toContain("pb-36");

@@ -6,8 +6,9 @@
  *
  * Extracted from EditorPrimarySidebar.
  */
-import type { FileNode } from "@/src/hooks/workStation/useCodeEditor";
 import { useCallback } from "react";
+
+import type { FileNode } from "@src/modules/WorkStation/CodeEditor/hooks/useCodeEditor";
 
 export interface UseTargetDirectoryOptions {
   repoPath: string;

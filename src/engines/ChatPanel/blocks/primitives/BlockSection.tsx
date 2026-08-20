@@ -9,7 +9,7 @@ import React, { memo } from "react";
 
 // h-9 = 36px — matches EVENT_BLOCK_HEADER_HEIGHT / chat-block-header
 const SECTION_HEADER_CLASSES =
-  "flex h-9 select-none items-center gap-1.5 px-3 text-[11px] text-text-2";
+  "flex h-9 items-center gap-1.5 px-3 text-[11px] text-text-2";
 
 export interface BlockSectionProps {
   label: string;
@@ -31,9 +31,9 @@ const BlockSection: React.FC<BlockSectionProps> = memo(
       }
     >
       <div className={SECTION_HEADER_CLASSES}>
-        <span className="font-bold uppercase">{label}</span>
+        <span className="select-text font-bold uppercase">{label}</span>
         {headerAction && (
-          <div className="ml-auto flex items-center gap-0.5">
+          <div className="ml-auto flex select-none items-center gap-0.5">
             {headerAction}
           </div>
         )}

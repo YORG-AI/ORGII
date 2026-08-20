@@ -9,11 +9,9 @@ import {
   buildIntegrationsPath,
   buildWizardPath,
 } from "@src/config/mainAppPaths";
-import {
-  usePrimarySidebarState,
-  useWorkStationTabShortcutBridge,
-  useWorkStationTabs,
-} from "@src/hooks/workStation";
+import { usePrimarySidebarState } from "@src/hooks/tabHost/useWorkStationPanels";
+import { useWorkStationTabShortcutBridge } from "@src/hooks/tabHost/useWorkStationTabShortcutBridge";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { WorkStationShell } from "@src/modules/WorkStation/shared";
 import { openCreateTargetInChatPanelStartPageAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";

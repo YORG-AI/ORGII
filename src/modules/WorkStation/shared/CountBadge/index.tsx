@@ -4,8 +4,7 @@
  * Displays diagnostic counts with icons (errors, warnings, passed, etc.)
  * Used in Problems panel, Test Results, and other summary displays.
  *
- * Note: Different from src/components/StatusBadge which shows activity
- * status with pulsing dots (running, completed, failed).
+ * Compact numeric count badge for workstation surfaces.
  */
 import {
   AlertCircle,

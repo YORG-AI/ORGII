@@ -1,5 +1,11 @@
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
+import { basename } from "@src/util/path";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
+
+import type {
+  CloudPendingPlay,
+  CloudSessionEnvironmentIdentity,
+} from "./cloudSessionDownloadControlAtoms";
 
 type CloudSessionReplayIconInput = Partial<
   Pick<
@@ -10,8 +16,26 @@ type CloudSessionReplayIconInput = Partial<
     | "agentDefinitionId"
     | "model"
     | "origin"
+    | "repoPath"
+    | "repoScopeKey"
+    | "branch"
+    | "baseBranch"
+    | "worktreeBranch"
   >
 >;
+
+export function resolveCloudSessionEnvironmentIdentity(
+  session: CloudSessionReplayIconInput
+): CloudSessionEnvironmentIdentity {
+  const repoIdentity = session.repoScopeKey || session.repoPath;
+  const rawRepoName = repoIdentity ? basename(repoIdentity) : undefined;
+  return {
+    repoName: rawRepoName?.replace(/\.git$/, "") || undefined,
+    branchName: session.branch || session.baseBranch || undefined,
+    baseBranchName: session.baseBranch || undefined,
+    worktreeBranchName: session.worktreeBranch || undefined,
+  };
+}
 
 /**
  * Icon identity already visible on the source row before local hydration.
@@ -27,6 +51,35 @@ export function resolveCloudSessionReplayIconId(
     kind: "remote",
     session: { ...session, sourceSessionId: session.sourceSessionId ?? "" },
   }).agentIconId;
+}
+
+/**
+ * Preserve the remote row's display identity while a large transcript is
+ * parked before download. No local Session exists yet, so every pre-download
+ * surface must project from this entry instead of falling back to ORGII.
+ */
+export function buildCloudPendingPlayEntry({
+  remoteSession,
+  orgId,
+  pendingEvents,
+  etaMs,
+  kind,
+}: {
+  remoteSession: CloudSessionReplayIconInput & { id: string };
+  orgId: string;
+  pendingEvents: number;
+  etaMs: number;
+  kind: CloudPendingPlay["kind"];
+}): CloudPendingPlay {
+  return {
+    rowId: remoteSession.id,
+    orgId,
+    iconId: resolveCloudSessionReplayIconId(remoteSession),
+    sessionEnvironment: resolveCloudSessionEnvironmentIdentity(remoteSession),
+    pendingEvents,
+    etaMs,
+    kind,
+  };
 }
 
 /**

@@ -16,7 +16,7 @@
 //! Helpers:
 //! - [`context_builders`]     — shared context-builder helpers used by orchestration tools
 //! - [`subagent_handler`]     — shared Agent-worker event handler for Delegate/Shadow runs (used by `agent`)
-//! - [`subagent_wake`]        — process-wide hook to wake an idle parent when a background subagent completes
+//! - [`job_wake`]             — process-wide hook to wake an idle session when a background job (subagent or shell) completes
 
 pub mod agent;
 pub mod agent_org;
@@ -24,12 +24,12 @@ pub mod ask_user_questions;
 pub mod channel;
 pub mod context_builders;
 pub mod inbox_wake;
+pub mod job_wake;
 pub mod manage_secrets;
 pub mod manage_session;
 pub mod member_idle;
 pub mod member_shutdown;
 pub mod subagent_handler;
-pub mod subagent_wake;
 pub mod suggest_mode_switch;
 
 pub mod org_send_message {

@@ -12,7 +12,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
-import { useSelectedFile } from "@src/hooks/workStation/tabs/useSelectedFile";
+import { useSelectedFile } from "@src/hooks/tabHost/useSelectedFile";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared";
 
 import { ICON_CONFIG, PANEL_CONSTANTS } from "../config";

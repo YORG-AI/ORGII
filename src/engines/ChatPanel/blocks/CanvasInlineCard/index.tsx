@@ -5,7 +5,8 @@
  *   html  — sanitized HTML rendered in Shadow DOM
  *   url   — external URL shown as an open action, not embedded
  *   a2ui  — incremental JSONL stream rendered as native React components
- *   react — generated React App source rendered through react-live
+ *   react — generated React App source compiled and executed in a sandboxed
+ *           canvas-artifact iframe (ReactArtifactRunner)
  *
  * For a2ui mode the previous iframe + postMessage approach has been replaced
  * with A2UIRenderer, which receives the parsed lines directly as props and

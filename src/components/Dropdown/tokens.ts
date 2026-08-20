@@ -27,6 +27,12 @@ export const DROPDOWN_PANEL = {
   /** Box shadow - dark mode */
   shadowDark: "0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3)",
 
+  /**
+   * Half-strength shadow for in-flow cards (e.g. InlineAlert) that want the
+   * same lift as a floating panel at half the intensity.
+   */
+  shadowSoftClass: "shadow-dropdown-soft",
+
   /** z-index for dropdown panels — must exceed Spotlight's containerZIndex (9999) */
   zIndex: 10000,
   zIndexClass: "z-[10000]",

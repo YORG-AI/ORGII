@@ -209,6 +209,17 @@ fn default_todo_status() -> String {
     "pending".to_string()
 }
 
+/// Typed explicit recipient of a Discussion comment. `mentioned_user_ids`
+/// stays the member-only compatibility field; routing reads this.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MentionTarget {
+    Member { id: String },
+    Agent { id: String },
+    AgentOrg { id: String },
+    All,
+}
+
 /// A comment on a work item
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CommentEntry {
@@ -218,6 +229,8 @@ pub struct CommentEntry {
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mentioned_user_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mentions: Vec<MentionTarget>,
     /// Replies form a stable thread tree. `thread_id` always names the root;
     /// top-level comments use their own id.
     #[serde(default, skip_serializing_if = "Option::is_none")]

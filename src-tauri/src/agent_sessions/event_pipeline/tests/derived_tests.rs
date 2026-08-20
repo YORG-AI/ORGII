@@ -1,5 +1,6 @@
 use crate::agent_sessions::event_pipeline::derived::{
     compute_derived, is_visible_in_chat, is_visible_in_messages, is_visible_in_simulator,
+    latest_canvas_preview,
 };
 use crate::agent_sessions::event_pipeline::types::*;
 
@@ -456,6 +457,38 @@ fn test_compute_derived_anchors_late_turn_summary_before_next_user_turn() {
         ids,
         vec!["user-1", "assistant-1", "summary-turn-1", "user-2"]
     );
+}
+
+// =========================================================================
+// latest_canvas_preview
+// =========================================================================
+
+#[test]
+fn test_latest_canvas_preview_tracks_revise_events() {
+    let mut render = make_event("tool-call-render-1", EventDisplayVariant::ToolCall);
+    render.function_name = core_types::tool_names::RENDER_INLINE_CANVAS.to_string();
+    render.args = serde_json::json!({ "mode": "react", "title": "Sketch" });
+    render.created_at = "2026-01-01T00:00:01Z".to_string();
+
+    let mut revise = make_event("tool-call-revise-1", EventDisplayVariant::ToolCall);
+    revise.function_name = core_types::tool_names::REVISE_INLINE_CANVAS.to_string();
+    revise.args = serde_json::json!({
+        "mode": "react",
+        "title": "Sketch v2",
+        "target_event_id": "tool-call-render-1"
+    });
+    revise.created_at = "2026-01-01T00:00:02Z".to_string();
+
+    let preview = latest_canvas_preview(&[render, revise]).expect("canvas preview");
+    assert_eq!(preview.event_id, "tool-call-revise-1");
+    assert_eq!(preview.mode, "react");
+    assert_eq!(preview.title.as_deref(), Some("Sketch v2"));
+}
+
+#[test]
+fn test_latest_canvas_preview_ignores_non_canvas_events() {
+    let event = make_event("tc1", EventDisplayVariant::ToolCall);
+    assert!(latest_canvas_preview(&[event]).is_none());
 }
 
 // =========================================================================

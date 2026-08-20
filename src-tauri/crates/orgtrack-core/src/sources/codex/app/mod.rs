@@ -49,8 +49,8 @@ pub(crate) use meta::{parse_codex_session_meta, parse_codex_session_meta_increme
 pub(crate) use serde_json::json;
 #[cfg(test)]
 pub(crate) use transcript::{
-    output_parts_for_tool_calls, pending_custom_tool_calls_from_payload,
-    strip_ignored_embedded_images, user_message_from_payload,
+    legacy_user_message_text_from_payload, output_parts_for_tool_calls,
+    pending_custom_tool_calls_from_payload, strip_ignored_embedded_images,
 };
 
 // v9: derive impact from authoritative `patch_apply_end` events (structured
@@ -60,7 +60,9 @@ pub(crate) use transcript::{
 // per-round deltas.
 // v11: retain Codex subagent spawn metadata and the child rollout's plaintext
 // first prompt so encrypted collaboration arguments can be reconstructed.
-const CODEX_APP_METADATA_PARSER_VERSION: i64 = 11;
+// v12: recognize paginated item_completed/UserMessage records as the canonical
+// user-turn boundary while retaining legacy event_msg/user_message support.
+const CODEX_APP_METADATA_PARSER_VERSION: i64 = 12;
 
 pub type CodexAppSessionRow = ImportedHistorySessionRow;
 pub type CodexAppSessionPage = ImportedHistorySessionPage;

@@ -49,7 +49,7 @@ export function ActivityHeaderActionButton({
       icon={icon}
       title={label}
       aria-label={label}
-      className={`shrink-0 text-text-3 hover:bg-fill-2 hover:text-text-1 ${className}`.trim()}
+      className={`shrink-0 select-none text-text-3 hover:bg-fill-2 hover:text-text-1 ${className}`.trim()}
       {...buttonProps}
     />
   );
@@ -235,7 +235,7 @@ export function TimelineCard({
     <div
       className={`flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-1 bg-chat-pane ${className}`.trim()}
     >
-      <div className="flex min-w-0 select-text items-center justify-between gap-3 border-b border-border-1 bg-primary-container px-3 py-2">
+      <div className="allow-select-deep flex min-w-0 items-center justify-between gap-3 border-b border-border-1 bg-primary-container px-3 py-2">
         {header}
         {copyBody || actions ? (
           <div className="flex shrink-0 items-center gap-1">
@@ -244,7 +244,9 @@ export function TimelineCard({
           </div>
         ) : null}
       </div>
-      <div className={`min-w-0 select-text px-3 py-3 ${bodyClassName}`.trim()}>
+      <div
+        className={`allow-select-deep min-w-0 px-3 py-3 ${bodyClassName}`.trim()}
+      >
         {children}
       </div>
       {footer}

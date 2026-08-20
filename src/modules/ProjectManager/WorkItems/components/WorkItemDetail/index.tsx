@@ -9,10 +9,8 @@ import { useTranslation } from "react-i18next";
 
 import type { WorkItemData as WorkItemDataPayload } from "@src/api/http/project";
 import { HEADER_CLASSES } from "@src/config/workstation/tokens";
-import {
-  usePublishWorkstationTabHeader,
-  useWorkStationTabs,
-} from "@src/hooks/workStation";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
 import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
 import { createWorkItemDetailTab } from "@src/store/workstation/tabs";
@@ -23,7 +21,7 @@ import {
 } from "@src/types/core/workItem";
 
 import { getContextMenuItems } from "../../config";
-import { useWorkItemOrchestrator } from "../../hooks/useWorkItemOrchestrator";
+import { useWorkItemActiveSession } from "../../hooks/useWorkItemActiveSession";
 import { formatWorkItemShortId } from "../../workItemIdentity";
 import WorkItemContextMenu from "../WorkItemContextMenu";
 import { WorkItemDetailBody } from "./WorkItemDetailBody";
@@ -130,23 +128,9 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   const {
     activeAgentSessionId,
     activeAgentRole,
-    handleRetry,
-    handleCancelAgent,
-    handleAcceptAsIs,
-    handleCreateFollowUp,
     worktreePath,
     projectRepoPath,
-  } = useWorkItemOrchestrator({
-    workItem,
-    displayWorkItem,
-    repoPath,
-    projectSlug,
-    shortId,
-    onRefreshWorkItem,
-    onUpdateWorkItem,
-    hasPendingChanges,
-    handleSave,
-  });
+  } = useWorkItemActiveSession(workItem, repoPath);
 
   const { handleOpenFileDiff, handleOpenFileAtLine, handleReviewAllFiles } =
     useWorkItemFileActions(repoPath);
@@ -418,10 +402,6 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
         onOpenSubItem={handleOpenSubItem}
         onUpdateWorkItem={handleLocalUpdate}
         onUpdateWorkItemImmediate={handleImmediateUpdate}
-        onCancelAgent={handleCancelAgent}
-        onRetry={handleRetry}
-        onAcceptAsIs={handleAcceptAsIs}
-        onCreateFollowUp={handleCreateFollowUp}
         onOpenSession={handleOpenSessionWithContext}
         onOpenFileDiff={handleOpenFileDiff}
         onOpenFileAtLine={handleOpenFileAtLine}

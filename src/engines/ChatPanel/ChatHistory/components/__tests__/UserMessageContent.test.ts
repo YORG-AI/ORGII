@@ -113,3 +113,29 @@ describe("message reference interactions", () => {
     expect(markup).not.toContain("focus-visible:underline");
   });
 });
+
+describe("Canvas Design component pills", () => {
+  it("decodes the versioned preview context for sent-message rendering", () => {
+    const jsonText = JSON.stringify({
+      schemaVersion: 1,
+      origin: "canvas-design",
+      previewHtml: "<div>Stat</div>",
+    });
+    const encoded = btoa(encodeURIComponent(jsonText));
+
+    expect(
+      parseUserMessage(
+        `Stat [dom-component:paste://canvas-design/event-a/1::${encoded}]\n字体变大一些`
+      )
+    ).toEqual([
+      {
+        kind: "pill",
+        displayName: "Stat",
+        pillType: "dom-component",
+        path: "paste://canvas-design/event-a/1",
+        terminalText: jsonText,
+      },
+      { kind: "text", text: "\n字体变大一些" },
+    ]);
+  });
+});

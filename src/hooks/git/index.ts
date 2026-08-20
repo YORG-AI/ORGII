@@ -49,4 +49,3 @@ export { useGitBlame } from "./useGitBlame";
 export type { UseGitBlameOptions, UseGitBlameReturn } from "./useGitBlame";
 
 // Source control hooks (for git file list, diff caching, commit form)
-export { useCommitForm, useFileSelection, useGitFiles } from "./sourceControl";

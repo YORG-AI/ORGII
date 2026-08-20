@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 
 import type { SessionEvent } from "@src/engines/SessionCore";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { ProjectRow } from "@src/modules/ProjectManager/Projects/components";
 import {
   WorkItemContent,

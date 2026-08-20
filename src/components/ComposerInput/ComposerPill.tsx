@@ -45,6 +45,9 @@ import { openExternalLink } from "@src/util/platform/ipcRenderer";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 import BasePill from "./BasePill";
+import CanvasCommandPillIcon, {
+  isCanvasCommandPillPath,
+} from "./CanvasCommandPillIcon";
 import { isGitHubPillUrl } from "./githubUrl";
 import type { ComposerPillAttrs, PillIconType } from "./types";
 import { truncateVisiblePillLabel } from "./utils";
@@ -345,6 +348,9 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
       case "dom-component":
         return <MousePointer2 {...ICON_PROPS} />;
       case "skill":
+        if (isCanvasCommandPillPath(filePath)) {
+          return <CanvasCommandPillIcon />;
+        }
         return <Toolbox {...ICON_PROPS} />;
       case "member":
         return <AtSign {...ICON_PROPS} />;

@@ -31,8 +31,8 @@ describe("SessionCreatorAgentHero", () => {
     expect(markup).toContain("!font-normal");
     expect(markup).toContain("!font-bold");
     expect(markup).toContain("!text-text-1");
-    expect(markup).toContain("group-hover/pill:!text-primary-6");
-    expect(markup).toContain("group-hover/pill:underline");
+    expect(markup).toContain("underline underline-offset-4");
+    expect(markup).not.toContain("group-hover/pill:!text-primary-6");
     expect(markup).toContain("lucide-chevron-up");
     expect(markup).toContain("whitespace-normal");
     expect(markup).not.toContain("truncate");

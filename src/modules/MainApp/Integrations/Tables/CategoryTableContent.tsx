@@ -4,7 +4,6 @@ import type { SyncConnection } from "@src/api/http/integrations";
 import type { RoutineDefinition } from "@src/api/http/project";
 import type { McpConfigScope } from "@src/api/tauri/rpc/schemas/mcp";
 import type { AvailableAgent } from "@src/config/cliAgents";
-import type { DependencyStatus } from "@src/hooks/dependencies";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import type { CursorRepo, PolicyInfo } from "@src/hooks/policies";
 import type {
@@ -12,6 +11,7 @@ import type {
   McpServerStatus,
   McpToolDef,
 } from "@src/modules/MainApp/AgentOrgs/config/mcp/useMcpServers";
+import type { DependencyStatus } from "@src/modules/MainApp/Integrations/hooks/useSystemDependencies";
 import type { HubSkillDetail, InstalledSkill } from "@src/types/extensions";
 
 import type { ChannelInstance } from "../Connections/Channels";

@@ -33,7 +33,11 @@ import type {
   SessionListener,
   Snapshot,
 } from "./EventStoreProxyTypes";
-import { inferSessionId, isRealUserEvent } from "./eventStoreEvents";
+import {
+  type SyntheticEvictionScope,
+  inferSessionId,
+  syntheticEvictionScopeForRealUserEvents,
+} from "./eventStoreEvents";
 import { SnapshotCacheManager } from "./snapshotCacheManager";
 
 export type {
@@ -173,9 +177,11 @@ class EventStoreProxyImpl {
     events: SessionEvent[],
     sessionId?: string | null
   ): Promise<void> {
-    if (!events.some(isRealUserEvent)) return;
+    const scope = syntheticEvictionScopeForRealUserEvents(events);
+    if (!scope) return;
     await this.removeSyntheticUserInputEvents(
-      sessionId ?? inferSessionId(events)
+      sessionId ?? inferSessionId(events),
+      scope
     );
   }
 
@@ -501,12 +507,20 @@ class EventStoreProxyImpl {
     });
   }
 
-  /** Remove frontend-injected user placeholders after backend echo arrives. */
+  /**
+   * Remove frontend-injected user placeholders after backend echo arrives.
+   * Without a scope every placeholder is removed; with one, only
+   * placeholders the scope proves are echoed/stale (see
+   * syntheticEvictionScopeForRealUserEvents).
+   */
   async removeSyntheticUserInputEvents(
-    sessionId?: string | null
+    sessionId?: string | null,
+    scope?: SyntheticEvictionScope
   ): Promise<number> {
     return rpc.sessionCore.eventStore.removeSyntheticUserInputs({
       sessionId: sessionId ?? null,
+      matchingContents: scope?.matchingContents,
+      olderThan: scope?.olderThan,
     });
   }
 

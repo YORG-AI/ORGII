@@ -464,75 +464,23 @@ pub async fn notify_orchestrator_session_terminal(
                         total_tokens,
                     );
 
-                    use core_types::workflow::{AgentRole, OrchestratorPhase};
-                    let effective_role = agent_role.or_else(|| {
-                        let phase = frontmatter
-                            .orchestrator_state
-                            .as_ref()
-                            .map(|s| &s.current_phase);
-                        match phase {
-                            Some(OrchestratorPhase::Review) => {
-                                tracing::debug!(
-                                    "[orchestrator] Session {} not in linked_sessions, inferring Review from phase",
-                                    session_id_owned
-                                );
-                                Some(AgentRole::Review)
+                    let _ = agent_role;
+                    match status {
+                        AgentSessionStatus::Completed => {
+                            if let Some(ref collected) = collected_proof {
+                                apply_proof_of_work(frontmatter, collected);
                             }
-                            _ => None,
+                            state_machine::on_session_complete(frontmatter)
                         }
-                    });
-
-                    match effective_role {
-                        Some(AgentRole::Review) => match status {
-                            AgentSessionStatus::Completed => {
-                                let review_result = extract_review_feedback(
-                                    &session_id_owned,
-                                );
-                                let outcome = review_result
-                                    .as_ref()
-                                    .map(|rf| rf.outcome.clone())
-                                    .unwrap_or(project_management::projects::types::ReviewOutcome::Approved);
-
-                                if let Some(feedback) = review_result {
-                                    project_management::orchestrator::proof_of_work::set_review_feedback(
-                                        frontmatter,
-                                        feedback,
-                                    );
-                                }
-
-                                state_machine::on_review_complete(frontmatter, &outcome)
-                            }
-                            AgentSessionStatus::Failed => {
-                                state_machine::on_review_failed(
-                                    frontmatter,
-                                    &session_id_owned,
-                                    "Review session failed",
-                                )
-                            }
-                            _ => {
-                                state_machine::cancel(frontmatter);
-                                state_machine::TransitionResult::Completed
-                            }
-                        },
-                        _ => match status {
-                            AgentSessionStatus::Completed => {
-                                if let Some(ref collected) = collected_proof {
-                                    apply_proof_of_work(frontmatter, collected);
-                                }
-                                state_machine::on_session_complete(frontmatter)
-                            }
-                            AgentSessionStatus::Failed => {
-                                state_machine::on_session_failed(
-                                    frontmatter,
-                                    &session_id_owned,
-                                    "Session failed",
-                                )
-                            }
-                            _ => {
-                                state_machine::cancel(frontmatter);
-                                state_machine::TransitionResult::Completed
-                            }
-                        },
+                        AgentSessionStatus::Failed => state_machine::on_session_failed(
+                            frontmatter,
+                            &session_id_owned,
+                            "Session failed",
+                        ),
+                        _ => {
+                            state_machine::cancel(frontmatter);
+                            state_machine::TransitionResult::Completed
+                        }
                     }
                 },
             )
@@ -614,22 +562,6 @@ pub async fn notify_orchestrator_session_terminal(
                     )
                     .await;
                 }
-                TransitionResult::LaunchReview => {
-                    spawn_phase_launch(
-                        handle,
-                        transition_slug,
-                        &work_item_id_for_launch,
-                        crate::tool_infra::PhaseLaunch::Review,
-                    );
-                }
-                TransitionResult::LaunchFix => {
-                    spawn_phase_launch(
-                        handle,
-                        transition_slug,
-                        &work_item_id_for_launch,
-                        crate::tool_infra::PhaseLaunch::Fix,
-                    );
-                }
                 TransitionResult::RetryAgent => {
                     spawn_phase_launch(
                         handle,
@@ -637,19 +569,6 @@ pub async fn notify_orchestrator_session_terminal(
                         &work_item_id_for_launch,
                         crate::tool_infra::PhaseLaunch::Retry,
                     );
-                }
-                TransitionResult::CreateFollowUp => {
-                    // Dead enum value today — the state machine never returns
-                    // it. Kept as an explicit no-op so a future producer
-                    // fails loudly in review rather than silently here.
-                    tracing::warn!(
-                        "[orchestrator] CreateFollowUp transition for session {} has no producer",
-                        session_id
-                    );
-                }
-                TransitionResult::AwaitingUser => {
-                    tracing::debug!("[orchestrator] Session {} awaiting user action", session_id);
-                    notify_inbox_awaiting_user(&work_item_id_for_launch);
                 }
                 TransitionResult::Ignored => {
                     // Stale terminal from a session that lost the claim —
@@ -798,55 +717,6 @@ async fn notify_routine_fire_work_item_terminal(
     }
 }
 
-/// Write an inbox notification when a work item needs the user's decision
-/// (AwaitingUser) so unattended runs surface instead of silently stalling.
-fn notify_inbox_awaiting_user(work_item_id: &str) {
-    let now = chrono::Utc::now().to_rfc3339();
-    let msg = inbox::persistence::InboxMessage {
-        id: format!(
-            "orchestrator-awaiting-{}-{}",
-            work_item_id,
-            chrono::Utc::now().timestamp()
-        ),
-        title: format!(
-            "[Action Needed] Work item {} awaits your review",
-            work_item_id
-        ),
-        preview: "Orchestration paused: review outcome needs a human decision".to_string(),
-        content: format!(
-            "Work item {} reached the **awaiting user** state.\n\n\
-             The automated review loop could not resolve on its own \
-             (changes requested beyond max rounds, or an inconclusive review).\n\n\
-             **Action needed:** open the work item and approve, retry, or close it.",
-            work_item_id
-        ),
-        category: "workitems".to_string(),
-        priority: "high".to_string(),
-        status: "unread".to_string(),
-        sender_name: Some("Orchestrator".to_string()),
-        metadata: "{}".to_string(),
-        labels: serde_json::to_string(&["awaiting-user"])
-            .expect("serializing a static [&str] is infallible"),
-        created_at: now.clone(),
-        updated_at: now,
-    };
-    if let Err(err) = inbox::persistence::upsert_message(&msg) {
-        tracing::warn!(
-            "[orchestrator] Failed to write awaiting-user inbox notification for {}: {}",
-            work_item_id,
-            err
-        );
-    }
-}
-
 mod handlers;
-use handlers::{apply_proof_of_work, collect_proof_of_work_data_bounded, extract_review_feedback};
+use handlers::{apply_proof_of_work, collect_proof_of_work_data_bounded};
 
-#[cfg(test)]
-pub(crate) use handlers::{
-    extract_first_sentence, parse_file_location, parse_issue_line, parse_structured_review_block,
-};
-
-#[cfg(test)]
-#[path = "../tests/orchestrator_notify_tests.rs"]
-mod tests;

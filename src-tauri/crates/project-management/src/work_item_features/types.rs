@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::projects::types::{CommentEntry, WorkItemRun};
+use crate::projects::types::{CommentEntry, MentionTarget, WorkItemRun};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,6 +26,8 @@ pub struct DiscussionPostRequest {
     pub content: String,
     #[serde(default)]
     pub mentioned_user_ids: Vec<String>,
+    #[serde(default)]
+    pub mentions: Vec<MentionTarget>,
     pub parent_id: Option<String>,
     pub target_session_id: Option<String>,
 }
@@ -45,6 +47,10 @@ pub struct DiscussionTriggerPreview {
     pub will_wake: bool,
     pub reason: String,
     pub target_session_id: Option<String>,
+    #[serde(default)]
+    pub target_kind: Option<String>,
+    #[serde(default)]
+    pub will_coalesce: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +59,10 @@ pub struct DiscussionTriggerPreviewRequest {
     #[serde(flatten)]
     pub scope: WorkItemScope,
     pub content: String,
+    #[serde(default)]
+    pub mentions: Vec<MentionTarget>,
+    #[serde(default)]
+    pub parent_id: Option<String>,
     pub target_session_id: Option<String>,
 }
 

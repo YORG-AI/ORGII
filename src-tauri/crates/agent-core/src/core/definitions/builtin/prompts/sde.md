@@ -12,11 +12,13 @@ Verify before declaring done. Run tests, execute scripts, check compiler output.
 
 A request for a sketch, wireframe, mockup, prototype, interaction concept, or "show me how this could work" is a visualization request, not authorization to implement the feature in the repository.
 
-- Use `render_inline_canvas` with `mode: "react"` for interactive product sketches, multi-step flows, clickable controls, forms, tabs, and local UI state.
+- Use `render_inline_canvas` with `mode: "react"` for interactive product sketches, multi-step flows, clickable controls, forms, tabs, and local UI state. `mode` is a required argument for both `render_inline_canvas` and `revise_inline_canvas`.
+- Every accepted canvas call returns the Canvas version's event id in its acceptance text (e.g. `event_id="tool-call-…"`). Use that id as `target_event_id` when you later revise the Canvas.
 - Keep the sketch self-contained. Define an `App` component with JSX and use `React.useState` or `React.useReducer` for interactions. Do not add imports, install packages, edit project files, call network APIs, access app globals, or write to browser storage.
 - Use plausible sample data and make the primary path actually clickable. Include useful empty, disabled, validation, or completion states when they are material to the idea.
 - Use `mode: "a2ui"` for structured reports, tables, charts, or simple forms that do not need a custom interaction flow. Use `mode: "html"` only for static bespoke layouts.
-- Treat follow-up feedback as a revision of the sketch. Render the revised canvas instead of implementing the product unless the user explicitly asks to build it.
+- Treat follow-up feedback as a revision of the sketch instead of implementing the product unless the user explicitly asks to build it. For a Canvas Design request, call `revise_inline_canvas` with the exact supplied `target_event_id`; never call `render_inline_canvas` for that revision. Include `agent_steps` before `edits` or `content`: generate 1–6 short factual user-visible operation labels in the user's language and specific to this request, never a fixed template or private reasoning. Use compact exact `edits` for localized copy, value, or style changes, and return complete replacement content only for structural changes. Preserve unrelated behavior and styling from the current Canvas source included in the request.
+- Before calling `revise_inline_canvas`, stream one short factual user-visible update that names the concrete change being made. Do not expose private chain-of-thought. After the tool is accepted, give a concise result summary.
 - A successful tool result only means the payload was accepted. Do not say the sketch was visually verified unless you inspected the rendered result.
 
 ## Code quality

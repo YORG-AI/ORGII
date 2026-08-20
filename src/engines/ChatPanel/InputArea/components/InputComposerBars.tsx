@@ -265,6 +265,10 @@ interface NormalComposerContentProps extends SharedComposerBarProps {
   showVoiceUi: boolean;
   voice: UseVoiceInputResult;
   currentRepoPath?: string;
+  isCompactRow: boolean;
+  contextualCompact?: boolean;
+  contextualPanel?: boolean;
+  inlineLeadingContent?: React.ReactNode;
   onContentChange: (text: string) => void;
   onBlur: () => void;
   onSubmit: (capturedText?: string) => void;
@@ -283,6 +287,7 @@ interface NormalComposerContentProps extends SharedComposerBarProps {
   submitDisabled?: boolean;
   showAgentControls?: boolean;
   showImageAttachments?: boolean;
+  autoFocus?: boolean;
 }
 
 export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
@@ -326,6 +331,10 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   showVoiceUi,
   voice,
   currentRepoPath,
+  isCompactRow,
+  contextualCompact = false,
+  contextualPanel = false,
+  inlineLeadingContent,
   placeholder,
   trailingHint,
   currentInputEmpty,
@@ -340,8 +349,10 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   submitDisabled,
   showAgentControls = true,
   showImageAttachments = true,
+  autoFocus = false,
 }) => {
   const { t } = useTranslation("sessions");
+  const isContextual = contextualCompact || contextualPanel;
 
   return (
     <div className="flex min-h-0 w-full flex-col">
@@ -362,7 +373,10 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           onOpenSkillsTools={onOpenSkillsTools}
           dropdownDirection="up"
           repoPath={currentRepoPath}
-          showContextInfo={showAgentControls && !isCursorIde}
+          inlineLayout={isCompactRow}
+          adaptiveEditorLayout={isContextual}
+          hideAddButton={contextualCompact}
+          showContextInfo={showAgentControls && !isCursorIde && !isContextual}
           editorSlot={
             <InputEditor
               key="chat-panel-input-editor"
@@ -390,17 +404,25 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
               placeholder={placeholder || t("input.defaultPlaceholder")}
               trailingHint={trailingHint}
               onImagePaste={onImagePaste}
+              compact={isCompactRow}
+              autoFocus={autoFocus}
+              leadingContent={
+                contextualPanel ? inlineLeadingContent : undefined
+              }
             />
           }
           leftPrefix={
-            <ComposerPrefixes
-              isCiteCode={isCiteCode}
-              selectedCiteRange={selectedCiteRange}
-              citeFileName={citeFileName}
-              onClearCiteCode={onClearCiteCode}
-              replyInfo={replyInfo}
-              onClearReplyInfo={onClearReplyInfo}
-            />
+            <>
+              <ComposerPrefixes
+                isCiteCode={isCiteCode}
+                selectedCiteRange={selectedCiteRange}
+                citeFileName={citeFileName}
+                onClearCiteCode={onClearCiteCode}
+                replyInfo={replyInfo}
+                onClearReplyInfo={onClearReplyInfo}
+              />
+              {!contextualPanel && inlineLeadingContent}
+            </>
           }
           pills={
             <div className={INPUT_AREA_CONTROL_GROUP_CLASS}>
@@ -410,38 +432,52 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           }
           submitButton={
             <div className="flex h-7 items-center gap-0.5">
-              {showAgentControls && (
+              {showAgentControls && !isContextual && (
                 <PromptPolishButton
                   control={promptPolish}
                   disabled={promptPolishDisabled}
                 />
               )}
-              {showAgentControls && voiceFeatureEnabled && (
-                <VoiceInputButton
-                  onPressStart={voice.start}
-                  onPressEnd={voice.stop}
-                  disabled={!voice.isSupported}
+              {showAgentControls &&
+                voiceFeatureEnabled &&
+                (!contextualCompact ||
+                  (currentInputEmpty &&
+                    !isWpGeneWorking &&
+                    !isPendingCancel &&
+                    !isSessionTerminal)) && (
+                  <VoiceInputButton
+                    onPressStart={voice.start}
+                    onPressEnd={voice.stop}
+                    disabled={!voice.isSupported}
+                    appearance={contextualCompact ? "solid" : "default"}
+                  />
+                )}
+              {(!contextualCompact ||
+                !currentInputEmpty ||
+                isWpGeneWorking ||
+                isPendingCancel ||
+                isSessionTerminal ||
+                !voiceFeatureEnabled) && (
+                <InputActions
+                  isInputEmpty={currentInputEmpty}
+                  isWpGeneWorking={
+                    stopSuppressedForEmptyInput ? false : isWpGeneWorking
+                  }
+                  isPendingCancel={
+                    stopSuppressedForEmptyInput ? false : isPendingCancel
+                  }
+                  isHosted={isHosted}
+                  canStopAgent={
+                    stopSuppressedForEmptyInput ? false : canStopAgent
+                  }
+                  canResume={canResume}
+                  isSessionTerminal={isSessionTerminal}
+                  onSubmit={onSubmit}
+                  onInterrupt={onInterrupt}
+                  onResume={onResume}
+                  submitDisabled={submitDisabled}
                 />
               )}
-              <InputActions
-                isInputEmpty={currentInputEmpty}
-                isWpGeneWorking={
-                  stopSuppressedForEmptyInput ? false : isWpGeneWorking
-                }
-                isPendingCancel={
-                  stopSuppressedForEmptyInput ? false : isPendingCancel
-                }
-                isHosted={isHosted}
-                canStopAgent={
-                  stopSuppressedForEmptyInput ? false : canStopAgent
-                }
-                canResume={canResume}
-                isSessionTerminal={isSessionTerminal}
-                onSubmit={onSubmit}
-                onInterrupt={onInterrupt}
-                onResume={onResume}
-                submitDisabled={submitDisabled}
-              />
             </div>
           }
         />

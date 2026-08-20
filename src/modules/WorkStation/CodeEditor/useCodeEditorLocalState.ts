@@ -6,11 +6,9 @@
  * diagnostics callbacks, terminal helpers, and both status-bar effects.
  */
 import { useTerminalState } from "@/src/engines/TerminalCore/hooks/useTerminalState";
-import { useCodeEditor } from "@/src/hooks/workStation/useCodeEditor";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useDiagnostics } from "@src/hooks/workStation/diagnostics/useDiagnostics";
 import {
   createBranchSpotlightRequest,
   createWorkspaceSpotlightRequest,
@@ -38,6 +36,8 @@ import { isPreviewOnlyFile } from "@src/util/file/previewTypes";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import type { CommitInfo, CursorPosition, LspStatus } from "../shared";
+import { useDiagnostics } from "./hooks/diagnostics/useDiagnostics";
+import { useCodeEditor } from "./hooks/useCodeEditor";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

@@ -123,26 +123,35 @@ export interface Org2CloudRealtimeConnection {
   subscribe(options: Org2CloudSubscribeOptions): () => void;
   /** Join a Presence channel (ephemeral who-is-here state; never touches Postgres). */
   joinPresence(options: Org2CloudPresenceOptions): Org2CloudPresenceHandle;
-  /** Push a refreshed access token to the live socket (RLS re-auth). */
-  setAuth(accessToken: string): void;
+  /** Re-run the token callback and push the result to the live socket. */
+  setAuth(): void;
   /** Tear down all channels and the socket. */
   dispose(): void;
 }
 
 /**
- * Build a Realtime connection for the CURRENT endpoint, authenticated as the
- * given user. The client is realtime-only: auth auto-refresh and session
- * persistence are disabled (the app owns tokens via `org2CloudAuthAtom`), so
- * this never competes with the existing auth machinery.
+ * Build a Realtime connection for the CURRENT endpoint, authenticated
+ * through `getAccessToken`. The token is a CALLBACK, not a snapshot: the
+ * socket re-runs it on every heartbeat (~25s) and channel (re)join, so a
+ * JWT expiry can never strand the connection. A manually pushed token
+ * would disable exactly that heartbeat refresh path
+ * (`_manuallySetToken` in realtime-js), which silently killed
+ * postgres_changes delivery — and with it every steady-state inbound
+ * pull — one hour into any session that had no other reason to rotate
+ * the auth atom. The client is realtime-only: auth auto-refresh and
+ * session persistence are disabled (the app owns tokens via
+ * `org2CloudAuthAtom`), so this never competes with the existing auth
+ * machinery.
  */
 export function createOrg2CloudRealtimeConnection(
-  accessToken: string
+  getAccessToken: () => Promise<string | null>
 ): Org2CloudRealtimeConnection {
   const endpoint = getCloudEndpoint();
   const client: SupabaseClient = createClient(
     endpoint.supabaseUrl,
     endpoint.anonKey,
     {
+      accessToken: getAccessToken,
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -160,7 +169,14 @@ export function createOrg2CloudRealtimeConnection(
       },
     }
   );
-  client.realtime.setAuth(accessToken);
+  // Argument-less: resolves through the callback and clears any manual-token
+  // flag a constructor-time seed may have set, keeping the heartbeat refresh
+  // path armed. Channel joins gate on this settling: the callback is async,
+  // and a join that races ahead of it goes out without a JWT — private
+  // channels (presence) then fail authorization outright instead of joining.
+  const authReady = Promise.resolve(client.realtime.setAuth()).catch(
+    () => undefined
+  );
 
   const channels = new Set<RealtimeChannel>();
   let disposed = false;
@@ -237,21 +253,36 @@ export function createOrg2CloudRealtimeConnection(
       }
     );
     let wasEverTimedOut = false;
-    channel.subscribe((status) => {
-      const subscribed = status === "SUBSCRIBED";
-      if (!subscribed && status !== "CLOSED") {
-        wasEverTimedOut = true;
-        log.warn(`realtime channel ${channelName} status: ${status}`);
-      } else if (subscribed && wasEverTimedOut) {
-        // Supabase rejoins with exponential backoff after TIMED_OUT /
-        // CHANNEL_ERROR; log the recovery so a transient blip is
-        // distinguishable from a persistent failure in the console.
-        log.info(`realtime channel ${channelName} recovered (SUBSCRIBED)`);
-      }
-      onStatus?.(subscribed);
+    let intentionallyRemoved = false;
+    const joinChannel = () =>
+      channel.subscribe((status) => {
+        const subscribed = status === "SUBSCRIBED";
+        if (!subscribed && status === "CLOSED") {
+          // A closed channel never rejoins on its own (phoenix `joinedOnce`),
+          // so an UNEXPECTED server-side close is exactly the silent-death
+          // shape worth finding in the console later — but our own
+          // unsubscribe/teardown also lands here and is routine.
+          if (!intentionallyRemoved && !disposed) {
+            log.warn(`realtime channel ${channelName} closed`);
+          }
+        } else if (!subscribed) {
+          wasEverTimedOut = true;
+          log.warn(`realtime channel ${channelName} status: ${status}`);
+        } else if (subscribed && wasEverTimedOut) {
+          // Supabase rejoins with exponential backoff after TIMED_OUT /
+          // CHANNEL_ERROR; log the recovery so a transient blip is
+          // distinguishable from a persistent failure in the console.
+          log.info(`realtime channel ${channelName} recovered (SUBSCRIBED)`);
+        }
+        onStatus?.(subscribed);
+      });
+    void authReady.then(() => {
+      if (disposed || intentionallyRemoved) return;
+      joinChannel();
     });
     channels.add(channel);
     return () => {
+      intentionallyRemoved = true;
       channels.delete(channel);
       void client.removeChannel(channel);
     };
@@ -469,32 +500,38 @@ export function createOrg2CloudRealtimeConnection(
       });
     }
     let wasEverTimedOut = false;
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        subscribed = true;
-        published = false;
-        // A fresh SUBSCRIBED edge means the transport recovered; retry fast
-        // again instead of inheriting the previous failure streak's ceiling.
-        trackFailureStreak = 0;
-        broadcastFailureStreak = 0;
-        if (wasEverTimedOut) {
-          log.info(`presence channel ${scope} recovered (SUBSCRIBED)`);
+    let intentionallyLeft = false;
+    const joinChannel = () =>
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          subscribed = true;
+          published = false;
+          // A fresh SUBSCRIBED edge means the transport recovered; retry fast
+          // again instead of inheriting the previous failure streak's ceiling.
+          trackFailureStreak = 0;
+          broadcastFailureStreak = 0;
+          if (wasEverTimedOut) {
+            log.info(`presence channel ${scope} recovered (SUBSCRIBED)`);
+          }
+          // A reconnect has no server-side meta even if the local version was
+          // previously applied, so force the latest payload onto the channel.
+          desiredTrackVersion += 1;
+          void flushLatestPayload();
+          void flushPendingBroadcasts();
+        } else if (status !== "CLOSED") {
+          subscribed = false;
+          published = false;
+          wasEverTimedOut = true;
+          log.warn(`presence channel ${scope} status: ${status}`);
+        } else {
+          subscribed = false;
+          published = false;
         }
-        // A reconnect has no server-side meta even if the local version was
-        // previously applied, so force the latest payload onto the channel.
-        desiredTrackVersion += 1;
-        void flushLatestPayload();
-        void flushPendingBroadcasts();
-      } else if (status !== "CLOSED") {
-        subscribed = false;
-        published = false;
-        wasEverTimedOut = true;
-        log.warn(`presence channel ${scope} status: ${status}`);
-      } else {
-        subscribed = false;
-        published = false;
-      }
-      onStatus?.(status === "SUBSCRIBED");
+        onStatus?.(status === "SUBSCRIBED");
+      });
+    void authReady.then(() => {
+      if (disposed || intentionallyLeft) return;
+      joinChannel();
     });
     channels.add(channel);
     return {
@@ -520,6 +557,7 @@ export function createOrg2CloudRealtimeConnection(
         void flushPendingBroadcasts();
       },
       leave: () => {
+        intentionallyLeft = true;
         subscribed = false;
         published = false;
         if (retryTimer !== null) {
@@ -539,9 +577,9 @@ export function createOrg2CloudRealtimeConnection(
     };
   };
 
-  const setAuth = (token: string): void => {
+  const setAuth = (): void => {
     if (disposed) return;
-    client.realtime.setAuth(token);
+    void client.realtime.setAuth();
   };
 
   const dispose = (): void => {

@@ -23,6 +23,11 @@ import InputArea from "@src/engines/ChatPanel/InputArea";
 
 import type { ChannelPostHandler } from "./channelPostHandler";
 
+// Channels opt out of agent interceptors, so agent-only built-ins (canvas,
+// compact) must not appear in the "/" menu either — same skill-only filter
+// the Work Log composer uses (see HumanSessionView).
+const CHANNEL_SLASH_ITEM_CATEGORIES = ["skill"] as const;
+
 export interface ChannelComposerProps {
   /**
    * Namespaces the composer per channel — passed to `InputArea` as both its
@@ -97,6 +102,7 @@ const ChannelComposer: React.FC<ChannelComposerProps> = ({
         showAgentControls={false}
         allowFileAttachments={false}
         enableAgentInterceptors={false}
+        slashItemCategories={CHANNEL_SLASH_ITEM_CATEGORIES}
       />
     </div>
   </footer>

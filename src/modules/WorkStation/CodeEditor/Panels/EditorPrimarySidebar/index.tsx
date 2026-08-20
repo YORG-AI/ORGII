@@ -27,7 +27,7 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useSelectedFile } from "@src/hooks/workStation/tabs/useSelectedFile";
+import { useSelectedFile } from "@src/hooks/tabHost/useSelectedFile";
 import {
   HUMANTOOLS_TEXT_KEYS,
   PrimarySidebarLayoutWithSections,

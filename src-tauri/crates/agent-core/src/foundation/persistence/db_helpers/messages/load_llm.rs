@@ -14,7 +14,10 @@
 
 use crate::persistence::images;
 
-use super::super::{load_messages, message_role, AgentMessageRow};
+use super::super::{
+    load_messages, message_role, query_optional, read_agent_message_row, AgentMessageRow,
+    AGENT_MESSAGE_ROW_COLUMNS,
+};
 
 /// Resolve an image reference to a base64 data URL for LLM consumption.
 ///
@@ -171,6 +174,185 @@ pub fn load_llm_history(
     );
 
     Ok(result)
+}
+
+/// Rebuild the durable conversation without hydrating image files into base64.
+/// Background memory agents consume text/tool evidence only; loading image
+/// payloads there creates a large, short-lived duplicate with no extraction
+/// value.
+///
+/// Returns the reconstructed messages together with each message's first-row
+/// durable sequence (same order/length), so callers can anchor cursors by
+/// sequence instead of array index.
+pub fn load_llm_history_text_only(
+    prefix: &str,
+    session_id: &str,
+) -> rusqlite::Result<(Vec<serde_json::Value>, Vec<i64>)> {
+    let mut messages = load_messages(prefix, session_id)?;
+    for message in &mut messages {
+        message.images = None;
+    }
+    let visible = visible_rows(&messages);
+    let refs: Vec<&AgentMessageRow> = visible.iter().collect();
+    Ok((reconstruct(&visible), llm_message_start_sequences(&refs)))
+}
+
+/// Rows fetched per reverse page by the bounded text-only loader.
+const BOUNDED_TAIL_PAGE_ROWS: usize = 256;
+
+/// Guaranteed minimum JSON syntax bytes each recognized row adds to its
+/// reconstructed message beyond the raw payload counted in
+/// [`row_reconstructed_floor_bytes`]. Must stay below the true wrapper cost
+/// of every message form (>= 26 bytes for the smallest, a bare user row) or
+/// the floor stops being a lower bound and the bounded loader may return a
+/// suffix smaller than the byte budget it promises to exceed.
+const ROW_ENCODED_FLOOR_BYTES: usize = 16;
+
+/// Lower bound on the serialized bytes this row contributes to the
+/// reconstructed history. JSON escaping never shrinks a string, so raw
+/// payload length plus the syntax floor never overestimates.
+fn row_reconstructed_floor_bytes(row: &AgentMessageRow) -> usize {
+    let payload = match row.role.as_str() {
+        message_role::SYSTEM | message_role::USER | message_role::ASSISTANT => row.content.len(),
+        message_role::TOOL_CALL => row.tool_input.as_deref().unwrap_or("{}").len(),
+        message_role::TOOL_RESULT => row.tool_output.as_deref().unwrap_or(&row.content).len(),
+        _ => return 0,
+    };
+    ROW_ENCODED_FLOOR_BYTES + payload
+}
+
+/// Latest compact-boundary row for the session, if any. Mirrors the
+/// max-sequence-wins rule of [`visible_rows`] without loading the table.
+fn latest_compact_boundary(
+    conn: &rusqlite::Connection,
+    prefix: &str,
+    session_id: &str,
+) -> rusqlite::Result<Option<AgentMessageRow>> {
+    let sql = format!(
+        "SELECT {AGENT_MESSAGE_ROW_COLUMNS}
+         FROM {prefix}_messages
+         WHERE session_id = ?1 AND compact_from_sequence IS NOT NULL
+         ORDER BY sequence DESC
+         LIMIT 1"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    query_optional(stmt.query_row([session_id], read_agent_message_row))
+}
+
+/// Bounded variant of [`load_llm_history_text_only`]: reads visible rows
+/// newest-first in pages and stops once the loaded suffix is guaranteed to
+/// serialize past `max_bytes`, so peak allocation tracks the byte budget
+/// instead of the full transcript.
+///
+/// Output contract: the result is either the complete visible history
+/// (identical to the unbounded loader) or a suffix of it that starts on a
+/// system/user/assistant message and serializes to more than `max_bytes`.
+/// Both shapes make a downstream tail-biased byte budget of at most
+/// `max_bytes` produce output byte-identical to bounding the full load:
+/// an over-budget suffix covers every message such a budget can keep, so
+/// the budget's rejection cut lands identically, and the anchor row keeps
+/// reconstruction grouping and start sequences aligned with the full view.
+///
+/// `max_bytes == 0` loads everything, matching the budget pass's
+/// passthrough semantics. Whole rows are kept or dropped — no string is
+/// ever cut, so UTF-8 boundaries are never at risk.
+pub fn load_llm_history_text_only_bounded(
+    prefix: &str,
+    session_id: &str,
+    max_bytes: usize,
+) -> rusqlite::Result<(Vec<serde_json::Value>, Vec<i64>)> {
+    if max_bytes == 0 {
+        return load_llm_history_text_only(prefix, session_id);
+    }
+
+    let conn = database::db::get_connection()?;
+    let boundary = latest_compact_boundary(&conn, prefix, session_id)?;
+    let window_start = boundary
+        .as_ref()
+        .and_then(|row| row.compact_from_sequence)
+        .unwrap_or(i64::MIN);
+
+    let sql = format!(
+        "SELECT {AGENT_MESSAGE_ROW_COLUMNS}
+         FROM {prefix}_messages
+         WHERE session_id = ?1
+           AND compact_from_sequence IS NULL
+           AND sequence >= ?2
+           AND sequence < ?3
+         ORDER BY sequence DESC
+         LIMIT ?4"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+
+    let mut newest_first: Vec<AgentMessageRow> = Vec::new();
+    let mut floor_bytes = 0usize;
+    let mut cursor = i64::MAX;
+    let mut stopped_early = false;
+    'pages: loop {
+        let page = stmt
+            .query_map(
+                rusqlite::params![
+                    session_id,
+                    window_start,
+                    cursor,
+                    BOUNDED_TAIL_PAGE_ROWS as i64
+                ],
+                read_agent_message_row,
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let page_len = page.len();
+        for mut row in page {
+            row.images = None;
+            floor_bytes = floor_bytes.saturating_add(row_reconstructed_floor_bytes(&row));
+            // A suffix may only start on a system/user/assistant row: those
+            // clear the reconstruction's pending tool state, so grouping and
+            // start sequences match the same tail of the full history.
+            let anchors_suffix = matches!(
+                row.role.as_str(),
+                message_role::SYSTEM | message_role::USER | message_role::ASSISTANT
+            );
+            newest_first.push(row);
+            if floor_bytes > max_bytes && anchors_suffix {
+                stopped_early = true;
+                break 'pages;
+            }
+        }
+        if page_len < BOUNDED_TAIL_PAGE_ROWS {
+            break;
+        }
+        cursor = newest_first
+            .last()
+            .map(|row| row.sequence)
+            .unwrap_or(cursor);
+    }
+
+    let mut visible = newest_first;
+    visible.reverse();
+    // The summary heads the visible view only when the whole window was
+    // loaded: an over-budget suffix already forces the downstream budget
+    // pass to drop the oldest messages, summary included.
+    if !stopped_early {
+        if let Some(mut summary) = boundary {
+            summary.role = message_role::USER.to_string();
+            summary.images = None;
+            visible.insert(0, summary);
+        }
+    }
+    let refs: Vec<&AgentMessageRow> = visible.iter().collect();
+    Ok((reconstruct(&visible), llm_message_start_sequences(&refs)))
+}
+
+/// First-row durable sequence for each message of the current visible LLM
+/// history, in [`load_llm_history`] output order. Lets compaction resolve a
+/// sequence anchor to an index in whatever frame it holds.
+pub fn load_llm_history_start_sequences(
+    prefix: &str,
+    session_id: &str,
+) -> rusqlite::Result<Vec<i64>> {
+    let messages = load_messages(prefix, session_id)?;
+    let visible = visible_rows(&messages);
+    let refs: Vec<&AgentMessageRow> = visible.iter().collect();
+    Ok(llm_message_start_sequences(&refs))
 }
 
 /// Sequence of the first row contributing to each reconstructed LLM
@@ -550,6 +732,118 @@ mod tests {
         );
         assert_eq!(history[1]["content"], "recent follow-up");
         assert_eq!(history[2]["content"], "recent answer");
+    }
+
+    #[test]
+    fn text_only_history_does_not_hydrate_images() {
+        let _sandbox = test_env::sandbox();
+        create_message_table(DB_PREFIX);
+        let conn = get_connection().expect("get connection");
+        conn.execute(
+            &format!(
+                "INSERT INTO {DB_PREFIX}_messages
+                 (id, session_id, role, content, sequence, created_at, images)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+            ),
+            rusqlite::params![
+                "image-msg",
+                DB_SESSION,
+                message_role::USER,
+                "inspect this",
+                1,
+                "2024-01-01T00:00:00Z",
+                serde_json::to_string(&vec!["data:image/png;base64,AAAA"]).unwrap(),
+            ],
+        )
+        .expect("insert image row");
+
+        let (history, start_seqs) =
+            load_llm_history_text_only(DB_PREFIX, DB_SESSION).expect("text history");
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0]["content"], "inspect this");
+        assert!(history[0]["content"].is_string());
+        assert_eq!(start_seqs, vec![1], "start sequences mirror the messages");
+    }
+
+    #[test]
+    fn bounded_text_only_load_returns_full_history_under_budget() {
+        let _sandbox = test_env::sandbox();
+        create_message_table(DB_PREFIX);
+        let sid = "bounded-under-budget";
+        insert_text_message(DB_PREFIX, sid, message_role::USER, "hello", 0);
+        insert_text_message(DB_PREFIX, sid, message_role::ASSISTANT, "hi", 1);
+        insert_text_message(DB_PREFIX, sid, message_role::USER, "more", 2);
+
+        let full = load_llm_history_text_only(DB_PREFIX, sid).expect("full load");
+        let bounded =
+            load_llm_history_text_only_bounded(DB_PREFIX, sid, 1024 * 1024).expect("bounded load");
+        assert_eq!(bounded, full);
+    }
+
+    #[test]
+    fn bounded_text_only_load_stops_before_full_history() {
+        let _sandbox = test_env::sandbox();
+        create_message_table(DB_PREFIX);
+        let sid = "bounded-oversized";
+        for seq in 0..40_i64 {
+            let role = if seq % 2 == 0 {
+                message_role::USER
+            } else {
+                message_role::ASSISTANT
+            };
+            insert_text_message(DB_PREFIX, sid, role, &"x".repeat(1024), seq);
+        }
+
+        let max_bytes = 4 * 1024;
+        let (full, full_seqs) = load_llm_history_text_only(DB_PREFIX, sid).expect("full load");
+        let (bounded, bounded_seqs) =
+            load_llm_history_text_only_bounded(DB_PREFIX, sid, max_bytes).expect("bounded load");
+
+        assert!(
+            bounded.len() < full.len(),
+            "oversized transcript must not be fully materialized"
+        );
+        assert_eq!(bounded[..], full[full.len() - bounded.len()..]);
+        assert_eq!(
+            bounded_seqs[..],
+            full_seqs[full_seqs.len() - bounded_seqs.len()..]
+        );
+
+        let serialized: usize = bounded
+            .iter()
+            .map(|message| serde_json::to_vec(message).map_or(0, |encoded| encoded.len()))
+            .sum();
+        assert!(
+            serialized > max_bytes,
+            "suffix must cover the budget plus the first rejected message"
+        );
+    }
+
+    #[test]
+    fn bounded_text_only_load_keeps_summary_when_window_fits() {
+        let _sandbox = test_env::sandbox();
+        create_message_table(DB_PREFIX);
+        let sid = "bounded-boundary";
+        insert_text_message(DB_PREFIX, sid, message_role::USER, "old", 0);
+        insert_text_message(DB_PREFIX, sid, message_role::USER, "recent", 1);
+        let conn = get_connection().expect("conn");
+        conn.execute(
+            &format!(
+                "INSERT INTO {DB_PREFIX}_messages
+                 (id, session_id, role, content, sequence, created_at, compact_from_sequence)
+                 VALUES ('b-1', ?1, 'system', 'summary', 2, '2024-01-02T00:00:00Z', 1)"
+            ),
+            [sid],
+        )
+        .expect("insert boundary row");
+
+        let full = load_llm_history_text_only(DB_PREFIX, sid).expect("full load");
+        let bounded =
+            load_llm_history_text_only_bounded(DB_PREFIX, sid, 1024 * 1024).expect("bounded load");
+        assert_eq!(bounded, full);
+        assert_eq!(bounded.0.len(), 2);
+        assert_eq!(bounded.0[0]["role"], "user");
+        assert_eq!(bounded.0[0]["content"], "summary");
     }
 
     #[test]

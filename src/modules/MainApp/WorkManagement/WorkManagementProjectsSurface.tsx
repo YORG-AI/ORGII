@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
 import type { ProjectWorkItemSelection } from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectWorkItemsTabContent";
 import type { ActiveRepoView } from "@src/modules/ProjectManager/ProjectManagerLayout/types";

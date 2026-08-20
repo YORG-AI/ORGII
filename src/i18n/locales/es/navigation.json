@@ -13,6 +13,8 @@
     "browser": "Navegador",
     "editor": "Editor",
     "environment": "Entorno",
+    "sessionEnvironment": "Entorno de sesión",
+    "localEnvironment": "Entorno local",
     "workspace": "Espacio de trabajo",
     "codeEditor": "Editor de código",
     "databaseManager": "Gestor de BD",

@@ -164,8 +164,11 @@ describe("TaskKanban ListView", () => {
       container.querySelectorAll('[data-testid="kanban-list-session-row"]')
     ).toHaveLength(25);
 
-    const pageSizeSelect =
-      container.querySelector<HTMLElement>(".select-wrapper");
+    const selectWrappers =
+      container.querySelectorAll<HTMLElement>(".select-wrapper");
+    // First select is the page picker, last is the page-size select.
+    expect(selectWrappers[0]?.textContent).toContain("pagination.pageOf");
+    const pageSizeSelect = selectWrappers[selectWrappers.length - 1];
     expect(pageSizeSelect?.textContent).toContain("25 pagination.perPage");
     await act(async () => pageSizeSelect?.click());
 

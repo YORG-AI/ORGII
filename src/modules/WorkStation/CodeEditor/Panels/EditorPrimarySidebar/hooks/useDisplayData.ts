@@ -11,13 +11,13 @@
  *
  * Extracted from EditorPrimarySidebar.
  */
-import type {
-  FileNode,
-  FileSearchResult,
-} from "@/src/hooks/workStation/useCodeEditor";
 import { useMemo } from "react";
 
 import type { TreePanelNode } from "@src/components/TreePanelSidebar/types";
+import type {
+  FileNode,
+  FileSearchResult,
+} from "@src/modules/WorkStation/CodeEditor/hooks/useCodeEditor";
 
 import type { EditorPrimarySidebarViewMode } from "../types";
 import { buildTreeFromSearchResults, filterTree } from "../utils/filterTree";

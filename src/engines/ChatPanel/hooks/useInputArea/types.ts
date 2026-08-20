@@ -183,6 +183,13 @@ export interface UseInputAreaReturn {
   handleContentChange: (text: string) => void;
   /** True while the draft is a `/compact` command with no focus text yet. */
   compactHintVisible: boolean;
+  /**
+   * True while the draft is a `/canvas` command with no request text yet
+   * (interceptor-enabled non-CLI composers only). Render side: the InputArea
+   * `trailingHint` should show `t("input.canvasArgHint", "what to build")`
+   * when this is set (and no compact hint is active).
+   */
+  canvasHintVisible: boolean;
   handleAtMention: (query: string, position: { x: number; y: number }) => void;
   handleAtMentionClose: () => void;
   isInputEmpty: () => boolean;

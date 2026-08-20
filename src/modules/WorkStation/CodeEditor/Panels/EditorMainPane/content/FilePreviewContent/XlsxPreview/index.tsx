@@ -16,7 +16,7 @@ import {
   saveSpreadsheetXlsxPatches,
 } from "@src/api/tauri/spreadsheetXlsx";
 import Message from "@src/components/Message";
-import { invalidateFileCache } from "@src/hooks/workStation/editor/useFileContent";
+import { invalidateFileCache } from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/useFileContent";
 import { UnsavedChangesBar } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getFileName } from "@src/util/file/pathUtils";

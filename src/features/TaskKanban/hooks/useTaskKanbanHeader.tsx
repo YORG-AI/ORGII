@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 
 import type { KanbanTask } from "@src/features/KanbanBoard";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 
 import DiaryDateControls from "../components/DiaryDateControls";
 import type { FactoryViewMode } from "../components/FactoryViewPill";

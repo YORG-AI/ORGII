@@ -32,7 +32,7 @@ import { rpc } from "@src/api/tauri/rpc";
 import { Message } from "@src/components/Message";
 import { useKeyVault } from "@src/hooks/keyVault";
 import { createLogger } from "@src/hooks/logger";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { BuiltInAgentDetailView } from "@src/modules/MainApp/AgentOrgs/components/BuiltInAgentDetailViews";
 import CliAgentDetailView from "@src/modules/MainApp/AgentOrgs/components/CliAgentDetailView";
 import CustomAgentDetailView from "@src/modules/MainApp/AgentOrgs/components/CustomAgentDetailView";

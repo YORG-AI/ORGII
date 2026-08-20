@@ -10,7 +10,7 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
-import type { DependencyStatus } from "@src/hooks/dependencies";
+import type { DependencyStatus } from "@src/modules/MainApp/Integrations/hooks/useSystemDependencies";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,

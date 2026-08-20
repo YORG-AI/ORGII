@@ -260,6 +260,12 @@ export const NullableSessionIdInput = z.object({
   sessionId: z.string().nullable(),
 });
 
+export const RemoveSyntheticUserInputsInput = z.object({
+  sessionId: z.string().nullable(),
+  matchingContents: z.array(z.string()).optional(),
+  olderThan: z.string().optional(),
+});
+
 export const SessionIdInput = z.object({
   sessionId: z.string(),
 });

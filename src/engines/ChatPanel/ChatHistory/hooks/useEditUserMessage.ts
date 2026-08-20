@@ -20,6 +20,7 @@ import {
   truncateAfterMessage,
 } from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
+import { projectOutgoingUserMessage } from "@src/engines/ChatPanel/hooks/useInputArea/projectOutgoingUserMessage";
 import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
 import { editTruncationTimestampAtom } from "@src/engines/SessionCore";
 import {
@@ -210,9 +211,19 @@ export function useEditUserMessage(): (
 
         const resendImages =
           imageDataUrls && imageDataUrls.length > 0 ? imageDataUrls : undefined;
+        // The edited text is the serialized DISPLAY form (pills intact). Run
+        // the shared outgoing projection so the resent turn carries both
+        // copies — without it the model receives raw pill serialization
+        // (skill pills unexpanded, canvas contract dropped).
+        const projection = projectOutgoingUserMessage({
+          displayText: newText,
+          allowCanvasInterception:
+            !resendImages && !isCliSession(initiatedSessionId),
+        });
         await submitUserIntent({
           sessionId: initiatedSessionId,
-          displayContent: newText,
+          displayContent: projection.displayContent,
+          agentContent: projection.agentContent,
           imageDataUrls: resendImages,
           source: "dispatch",
         });

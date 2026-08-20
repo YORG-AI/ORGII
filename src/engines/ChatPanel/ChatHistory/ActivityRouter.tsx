@@ -7,7 +7,7 @@
  */
 import React, { Suspense, memo, useMemo } from "react";
 
-import { AgentMessageBlock } from "@src/engines/ChatPanel/blocks";
+import AgentMessageBlock from "@src/engines/ChatPanel/blocks/AgentMessageBlock";
 import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";

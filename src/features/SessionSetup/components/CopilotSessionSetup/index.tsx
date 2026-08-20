@@ -19,7 +19,7 @@ import { v4 as uuidv4 } from "uuid";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
-import { useWebviewPositionSync } from "@src/hooks/workStation/sessionCapture/useWebviewPositionSync";
+import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SectionContainer,
   SectionRow,

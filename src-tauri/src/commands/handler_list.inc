@@ -174,6 +174,7 @@ integrations::github::commands::github_create_pr,
 integrations::github::commands::github_find_pull_request,
 integrations::github::commands::github_list_prs,
 integrations::github::commands::github_update_pr_state,
+integrations::github::commands::github_update_pr_draft_state,
 integrations::github::commands::github_merge_pr,
 integrations::github::commands::github_set_pr_auto_merge,
 integrations::github::commands::github_request_pr_reviewers,
@@ -646,6 +647,7 @@ project_management::projects::commands::project_read_routine,
 project_management::projects::commands::project_upsert_routine,
 project_management::projects::commands::project_delete_routine,
 project_management::projects::commands::project_list_routine_fires,
+project_management::projects::commands::project_list_portable_routines,
 project_management::projects::commands::project_list_routine_runs,
 project_management::projects::commands::project_routine_run_status,
 agent_core::state::commands::project_fire_routine,
@@ -766,6 +768,8 @@ infrastructure::storage_commands::get_temp_dir,
 // Frontend log persistence
 infrastructure::frontend_log::write_frontend_log,
 infrastructure::frontend_log::get_logs_directory,
+// Canvas react-artifact publishing (served back via the canvas-artifact custom scheme)
+infrastructure::canvas_artifacts::canvas_artifact_publish,
 // Shared tool commands (agent-type-agnostic).
 // `init_tool_registry` is the unified bootstrap call — it returns the
 // full tool list (with `simulator_app` already on each row) plus the
@@ -987,13 +991,6 @@ agent_core::specialization::policies::policies_set_scope,
 agent_core::specialization::external_import::external_import_detect,
 agent_core::specialization::external_import::external_import_apply,
 // Orchestrator commands (work item multi-agent lifecycle)
-project_management::orchestrator::commands::orchestrator_start,
-project_management::orchestrator::commands::orchestrator_cancel,
-project_management::orchestrator::commands::orchestrator_retry,
-project_management::orchestrator::commands::orchestrator_get_status,
-project_management::orchestrator::commands::orchestrator_list_sessions,
-project_management::orchestrator::commands::orchestrator_create_follow_up,
-project_management::orchestrator::commands::orchestrator_get_interrupted_items,
 project_management::orchestrator::commands::orchestrator_get_diff_stats,
 project_management::orchestrator::commands::orchestrator_set_pr,
 // MCP commands

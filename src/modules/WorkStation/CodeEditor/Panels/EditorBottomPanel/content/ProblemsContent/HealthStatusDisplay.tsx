@@ -13,7 +13,7 @@ import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import {
   type SourceStatusMessage,
   useDiagnosticHealth,
-} from "@src/hooks/workStation/diagnostics/useDiagnosticHealth";
+} from "@src/modules/WorkStation/CodeEditor/hooks/diagnostics/useDiagnosticHealth";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { triggerLspRetry } from "@src/store/workstation/codeEditor/diagnostics";
 

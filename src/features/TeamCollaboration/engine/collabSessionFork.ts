@@ -350,6 +350,8 @@ export async function forkSession(
     name,
     repoPath,
     branch: remoteSession.branch,
+    baseBranch: remoteSession.baseBranch,
+    worktreeBranch: remoteSession.worktreeBranch,
     // Runnable category (NOT "external_history"): the fork must be
     // dispatchable and eligible for collab push as this member's own session.
     category: DISPATCH_CATEGORY.RUST_AGENT,

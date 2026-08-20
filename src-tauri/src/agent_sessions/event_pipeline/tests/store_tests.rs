@@ -536,11 +536,73 @@ fn test_remove_synthetic_user_inputs_keeps_backend_user_input_ids() {
     backend.display_text = "authoritative different text".to_string();
 
     store.set(vec![synthetic, backend]);
-    let removed = store.remove_synthetic_user_inputs();
+    let removed = store.remove_synthetic_user_inputs(None);
 
     assert_eq!(removed, 1);
     assert!(store.get_by_id("user-input-synthetic").is_none());
     assert!(store.get_by_id("user-input-cliagent-real").is_some());
+}
+
+fn make_synthetic_user_event(id: &str, text: &str, created_at: &str) -> SessionEvent {
+    let mut event = make_event(id, "raw");
+    event.source = EventSource::User;
+    event.function_name = "user_message".to_string();
+    event.ui_canonical = "user_message".to_string();
+    event.result = serde_json::json!({
+        "type": "user",
+        "message": { "content": text, "role": "user" },
+        "syntheticUserInput": true,
+    });
+    event.chunk_id = None;
+    event.display_text = text.to_string();
+    event.created_at = created_at.to_string();
+    event
+}
+
+#[test]
+fn test_scoped_synthetic_removal_keeps_unechoed_newer_placeholder() {
+    let mut store = EventStore::new();
+    store.set(vec![
+        make_synthetic_user_event("user-input-echoed", "first message", "2026-08-14T10:00:00Z"),
+        make_synthetic_user_event(
+            "user-input-fresh",
+            "follow-up after abort",
+            "2026-08-14T10:05:00Z",
+        ),
+    ]);
+
+    // A history merge carrying only the FIRST turn's real user row (stale
+    // JSONL right after an abort) must evict the echoed placeholder but keep
+    // the fresh follow-up whose echo has not arrived yet.
+    let removed = store.remove_synthetic_user_inputs(Some((
+        &["first message".to_string()],
+        Some("2026-08-14T10:00:00Z"),
+    )));
+
+    assert_eq!(removed, 1);
+    assert!(store.get_by_id("user-input-echoed").is_none());
+    assert!(store.get_by_id("user-input-fresh").is_some());
+}
+
+#[test]
+fn test_scoped_synthetic_removal_drops_placeholder_predating_newest_real_turn() {
+    let mut store = EventStore::new();
+    store.set(vec![make_synthetic_user_event(
+        "user-input-stale-pill",
+        "/skill pill form",
+        "2026-08-14T09:00:00Z",
+    )]);
+
+    // A pill placeholder's wire content differs from its display text, so it
+    // can never content-match its echo — it is reaped by predating the
+    // newest real user turn instead.
+    let removed = store.remove_synthetic_user_inputs(Some((
+        &["expanded yaml payload".to_string()],
+        Some("2026-08-14T09:30:00Z"),
+    )));
+
+    assert_eq!(removed, 1);
+    assert!(store.get_by_id("user-input-stale-pill").is_none());
 }
 
 #[test]
@@ -1320,6 +1382,33 @@ fn test_cancel_orphan_interactive_events_cancels_awaiting_user() {
     let event = store.get_by_id("ask-1").unwrap();
     assert_eq!(event.display_status, EventDisplayStatus::Completed);
     assert_eq!(event.result["status"], "cancelled");
+}
+
+#[test]
+fn test_cancel_orphan_interactive_events_sweeps_pending_cli_question() {
+    let mut store = EventStore::new();
+    // Managed-CLI question events are stamped Pending (not AwaitingUser) by
+    // infer_display_status; the restart sweep must catch them too.
+    let mut cli_question = make_tool_call("cli-ask-1", "call-cli-ask-1");
+    cli_question.function_name = "AskUserQuestion".to_string();
+    cli_question.ui_canonical = "ask_user_questions".to_string();
+    cli_question.display_status = EventDisplayStatus::Pending;
+    // A pending NON-question tool call must be left alone.
+    let mut pending_other = make_tool_call("other-1", "call-other-1");
+    pending_other.display_status = EventDisplayStatus::Pending;
+    store.set(vec![cli_question, pending_other]);
+
+    let cancelled = store.cancel_orphan_interactive_events();
+
+    assert_eq!(cancelled, vec!["cli-ask-1".to_string()]);
+    assert_eq!(
+        store.get_by_id("cli-ask-1").unwrap().display_status,
+        EventDisplayStatus::Completed
+    );
+    assert_eq!(
+        store.get_by_id("other-1").unwrap().display_status,
+        EventDisplayStatus::Pending
+    );
 }
 
 #[test]

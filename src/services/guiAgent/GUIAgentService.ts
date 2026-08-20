@@ -13,7 +13,7 @@
  *   GUIAgentService.connect(outputState);
  */
 import type { ActionResult } from "@src/ActionSystem/schema/defineZodAction";
-import type { UseOutputChannelsReturn } from "@src/hooks/workStation/output/useOutputChannels";
+import type { UseOutputChannelsReturn } from "@src/types/workstation/output";
 
 // ============================================
 // ANSI Color Codes

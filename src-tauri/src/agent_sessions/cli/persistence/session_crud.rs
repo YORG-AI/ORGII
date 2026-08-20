@@ -594,6 +594,25 @@ pub fn latest_native_transcript_id(session_id: &str, source: &str) -> SqliteResu
     .optional()
 }
 
+/// Every native transcript id ever bound to this managed session, newest
+/// first. Replay walks this list until it finds a fork whose store is
+/// actually readable — the newest binding can point at a file the CLI never
+/// flushed (killed right after the resume rotation).
+pub fn native_transcript_ids_newest_first(
+    session_id: &str,
+    source: &str,
+) -> SqliteResult<Vec<String>> {
+    let conn = get_connection()?;
+    let mut stmt = conn.prepare(
+        "SELECT source_session_id
+         FROM code_session_native_transcript_ids
+         WHERE session_id = ?1 AND source = ?2
+         ORDER BY bound_at DESC",
+    )?;
+    let rows = stmt.query_map(params![session_id, source], |row| row.get(0))?;
+    rows.collect()
+}
+
 pub fn get_cli_session_id_for_account(
     session_id: &str,
     account_id: Option<&str>,

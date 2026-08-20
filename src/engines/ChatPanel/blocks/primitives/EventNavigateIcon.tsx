@@ -12,9 +12,9 @@ import { ArrowUpRight, CircleArrowOutUpRight } from "lucide-react";
 import React, { memo } from "react";
 
 const BASE_CLASSES =
-  "flex h-5 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1";
+  "flex h-5 cursor-pointer select-none items-center justify-center rounded-md border-none bg-transparent text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1";
 const CIRCLE_CLASSES =
-  "flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-none bg-fill-2/90 text-text-3 shadow-sm backdrop-blur-sm transition-colors hover:bg-fill-3 hover:text-text-1";
+  "flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-full border-none bg-fill-2/90 text-text-3 shadow-sm backdrop-blur-sm transition-colors hover:bg-fill-3 hover:text-text-1";
 
 const HEADER_VISIBILITY =
   "w-0 overflow-hidden opacity-0 transition-[width,opacity,background-color,color] group-hover/chat-block-header:w-5 group-hover/chat-block-header:opacity-100";

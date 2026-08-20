@@ -119,5 +119,43 @@ module.exports = {
           "Do not namespace-import lucide-react; use named imports or a finite typed icon registry so icons remain tree-shakeable.",
       },
     ],
+
+    // Tripwire for dissolved global hook groups. src/hooks/ is for genuinely
+    // cross-cutting hooks; module-owned hooks live next to their consumers.
+    // Kept so in-flight branches get a pointer to the new homes on rebase.
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            group: ["@src/hooks/workStation", "@src/hooks/workStation/*"],
+            message:
+              "hooks/workStation was dissolved. Tab-host hooks: @src/hooks/tabHost/*; editor hooks: @src/modules/WorkStation/CodeEditor/hooks/*; browser hooks: @src/modules/WorkStation/Browser/hooks/*; session capture: @src/features/SessionSetup/hooks/*; context menu: @src/scaffold/ContextMenu/*.",
+          },
+          {
+            group: ["@src/hooks/dependencies", "@src/hooks/dependencies/*"],
+            message:
+              "Moved to @src/modules/MainApp/Integrations/hooks/* (usePostPaintGitProbe -> @src/app/root/usePostPaintGitProbe).",
+          },
+          {
+            group: [
+              "@src/hooks/git/sourceControl",
+              "@src/hooks/git/sourceControl/*",
+            ],
+            message:
+              "Moved to @src/modules/WorkStation/CodeEditor/hooks/sourceControl/* (generateCommitMessage -> @src/api/tauri/git/commitMessage).",
+          },
+          {
+            group: ["@src/hooks/testRunner", "@src/hooks/testRunner/*"],
+            message:
+              "Moved to @src/modules/WorkStation/CodeEditor/hooks/useTestRunner.",
+          },
+          {
+            group: ["@src/hooks/benchmark", "@src/hooks/benchmark/*"],
+            message: "Moved to @src/features/BenchmarkPanel/hooks/*.",
+          },
+        ],
+      },
+    ],
   },
 };

@@ -13,10 +13,8 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
-import {
-  useCodexOAuthCapture,
-  useWebviewPositionSync,
-} from "@src/hooks/workStation/sessionCapture";
+import { useCodexOAuthCapture } from "@src/features/SessionSetup/hooks/useCodexOAuthCapture";
+import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SectionContainer,
   SectionRow,

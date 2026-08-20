@@ -9,7 +9,7 @@ import {
 import { ROUTES } from "@src/config/routes";
 import { HOSTED_LOGIN_ENABLED } from "@src/config/serviceAuth";
 import MainAppShell from "@src/modules/shared/layouts/MainAppShell";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/modules/shared/layouts/blocks/Placeholder";
 import {
   AgentStudioPage,
   AuthCallback,

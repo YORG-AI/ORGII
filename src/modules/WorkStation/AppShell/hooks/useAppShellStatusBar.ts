@@ -1,7 +1,7 @@
 import { useSetAtom } from "jotai";
 import { useEffect } from "react";
 
-import { useWorkStationPanels } from "@src/hooks/workStation";
+import { useWorkStationPanels } from "@src/hooks/tabHost/useWorkStationPanels";
 import { perAppStatusBarCallbacksAtom } from "@src/store/ui/workStationAtom";
 
 interface UseAppShellStatusBarOptions {

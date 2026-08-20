@@ -381,6 +381,30 @@ pub fn load_llm_history(session_id: &str) -> SqliteResult<Vec<serde_json::Value>
     shared::load_llm_history(SESSION_TABLE_PREFIX, session_id)
 }
 
+/// Load text/tool-only LLM history without hydrating image payloads, plus
+/// each message's first-row durable sequence for cursor anchoring.
+pub fn load_llm_history_text_only(
+    session_id: &str,
+) -> SqliteResult<(Vec<serde_json::Value>, Vec<i64>)> {
+    shared::load_llm_history_text_only(SESSION_TABLE_PREFIX, session_id)
+}
+
+/// Bounded variant of [`load_llm_history_text_only`]: loads newest-first and
+/// stops once the visible suffix is guaranteed to serialize past `max_bytes`,
+/// keeping peak allocation proportional to the budget. See
+/// `db_helpers::load_llm_history_text_only_bounded` for the suffix contract.
+pub fn load_llm_history_text_only_bounded(
+    session_id: &str,
+    max_bytes: usize,
+) -> SqliteResult<(Vec<serde_json::Value>, Vec<i64>)> {
+    shared::load_llm_history_text_only_bounded(SESSION_TABLE_PREFIX, session_id, max_bytes)
+}
+
+/// First-row durable sequence per visible LLM message, in history order.
+pub fn load_llm_history_start_sequences(session_id: &str) -> SqliteResult<Vec<i64>> {
+    shared::load_llm_history_start_sequences(SESSION_TABLE_PREFIX, session_id)
+}
+
 /// Map "keep the last `tail_len` LLM messages visible" onto a durable
 /// sequence cutoff for [`append_compact_boundary`].
 pub fn compact_cutoff_sequence(session_id: &str, tail_len: usize) -> SqliteResult<i64> {
@@ -798,7 +822,7 @@ pub fn save_subagent_transcript(
 /// Persisted session memory state (content + boundary index).
 pub struct PersistedSessionMemoryState {
     pub content: Option<String>,
-    pub last_msg_idx: Option<usize>,
+    pub last_seq: Option<i64>,
 }
 
 // ============================================
@@ -861,31 +885,31 @@ pub fn take_turn_cancelled(session_id: &str) -> bool {
 }
 
 /// Persist session memory state to the `agent_sessions` table.
+///
+/// `last_seq` is the durable start-sequence of the last summarized message —
+/// frame-independent, unlike the array index it replaced, so truncated or
+/// compacted views resolve it to their own coordinates at read time.
 pub fn save_session_memory_state(
     session_id: &str,
     content: &str,
-    last_msg_idx: Option<usize>,
+    last_seq: Option<i64>,
 ) -> SqliteResult<()> {
     with_sessions_writer(|| -> SqliteResult<()> {
         let conn = get_connection()?;
         conn.execute(
-            "UPDATE agent_sessions SET sm_content = ?2, sm_last_msg_idx = ?3 WHERE session_id = ?1",
-            rusqlite::params![session_id, content, last_msg_idx.map(|idx| idx as i64),],
+            "UPDATE agent_sessions SET sm_content = ?2, sm_last_seq = ?3 WHERE session_id = ?1",
+            rusqlite::params![session_id, content, last_seq],
         )?;
         Ok(())
     })
 }
 
 /// Clear persisted session memory state after the durable transcript has been compacted.
-///
-/// A compacted transcript already contains the durable boundary/summary. Keeping an
-/// old bare message index would make the next process start apply that index to a
-/// shorter, rewritten transcript.
 pub fn clear_session_memory_state(session_id: &str) -> SqliteResult<()> {
     with_sessions_writer(|| -> SqliteResult<()> {
         let conn = get_connection()?;
         conn.execute(
-            "UPDATE agent_sessions SET sm_content = NULL, sm_last_msg_idx = NULL WHERE session_id = ?1",
+            "UPDATE agent_sessions SET sm_content = NULL, sm_last_seq = NULL WHERE session_id = ?1",
             [session_id],
         )?;
         Ok(())
@@ -896,22 +920,19 @@ pub fn clear_session_memory_state(session_id: &str) -> SqliteResult<()> {
 pub fn load_session_memory_state(session_id: &str) -> SqliteResult<PersistedSessionMemoryState> {
     let conn = get_connection()?;
     let result = conn.query_row(
-        "SELECT sm_content, sm_last_msg_idx FROM agent_sessions WHERE session_id = ?1",
+        "SELECT sm_content, sm_last_seq FROM agent_sessions WHERE session_id = ?1",
         [session_id],
         |row| {
             let content: Option<String> = row.get(0)?;
-            let last_msg_idx: Option<i64> = row.get(1)?;
-            Ok(PersistedSessionMemoryState {
-                content,
-                last_msg_idx: last_msg_idx.map(|idx| idx as usize),
-            })
+            let last_seq: Option<i64> = row.get(1)?;
+            Ok(PersistedSessionMemoryState { content, last_seq })
         },
     );
     match result {
         Ok(state) => Ok(state),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(PersistedSessionMemoryState {
             content: None,
-            last_msg_idx: None,
+            last_seq: None,
         }),
         Err(err) => Err(err),
     }
@@ -948,7 +969,7 @@ mod tests {
         .expect("create session/message tables");
         conn.execute(
             "INSERT OR IGNORE INTO agent_sessions
-             (session_id, session_type, status, created_at, updated_at, sm_content, sm_last_msg_idx)
+             (session_id, session_type, status, created_at, updated_at, sm_content, sm_last_seq)
              VALUES (?1, 'agent', 'running', datetime('now'), datetime('now'), NULL, NULL)",
             [session_id],
         )
@@ -1019,7 +1040,7 @@ mod tests {
 
         let sm_state = load_session_memory_state(session_id).expect("load cleared sm");
         assert!(sm_state.content.is_none());
-        assert!(sm_state.last_msg_idx.is_none());
+        assert!(sm_state.last_seq.is_none());
     }
 
     /// Incident reproduction (2026-06-11 transcript wipe): compaction

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateCommitMessage } from "@src/hooks/git/sourceControl/commitMessageGeneration";
+import { generateCommitMessage } from "@src/api/tauri/git/commitMessage";
 
 import {
   GIT_DIFF_COMMIT_PROMPT,

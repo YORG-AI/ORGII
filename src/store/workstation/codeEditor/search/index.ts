@@ -117,12 +117,36 @@ export const searchClearAtom = atom(null, (_get, set) => {
   set(searchActualTotalFilesAtom, 0);
 });
 
-/** Append more results */
+/**
+ * Hard ceiling on matches retained in `searchResultsAtom` across "load more"
+ * rounds. Mirrors `SEARCH_CONSTANTS.MAX_TOTAL_RESULTS` in the search sidebar
+ * (which already renders "20,000+" past this point) — without it, repeated
+ * load-more on a broad regex accumulated result rows without bound.
+ */
+export const SEARCH_MAX_RETAINED_MATCHES = 20_000;
+
+/** Append more results (bounded by `SEARCH_MAX_RETAINED_MATCHES`). */
 export const searchAppendResultsAtom = atom(
   null,
   (get, set, newResults: SearchResultFile[]) => {
     const current = get(searchResultsAtom);
-    set(searchResultsAtom, [...current, ...newResults]);
+    let retained = current.reduce((sum, file) => sum + file.matches.length, 0);
+    const accepted: SearchResultFile[] = [];
+    let truncated = false;
+    for (const file of newResults) {
+      if (retained >= SEARCH_MAX_RETAINED_MATCHES) {
+        truncated = true;
+        break;
+      }
+      accepted.push(file);
+      retained += file.matches.length;
+    }
+    if (accepted.length > 0) {
+      set(searchResultsAtom, [...current, ...accepted]);
+    }
+    if (truncated || retained >= SEARCH_MAX_RETAINED_MATCHES) {
+      set(searchHasMoreAtom, false);
+    }
   }
 );
 

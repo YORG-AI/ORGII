@@ -1,7 +1,7 @@
 import { useSetAtom } from "jotai";
 import { useEffect } from "react";
 
-import { useWorkStationPanels } from "@src/hooks/workStation";
+import { useWorkStationPanels } from "@src/hooks/tabHost/useWorkStationPanels";
 import { simulatorPrimarySidebarPositionAtom } from "@src/store/ui/simulatorAtom";
 
 export function useAppShellSimulatorPanelSync({

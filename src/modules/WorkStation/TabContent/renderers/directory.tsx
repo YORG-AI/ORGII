@@ -7,7 +7,7 @@
  * from `tab.data`.
  *
  * `directory` is editor-only — tabs are created only from
- * `hooks/workStation/editor/useCodeEditorEvents.ts` and recursively from
+ * `CodeEditor/hooks/useCodeEditorEvents.ts` and recursively from
  * `DirectoryExplorerContent` itself — so coupling this renderer to the editor
  * host is safe: it throws if mounted outside an `EditorHostProvider`.
  */

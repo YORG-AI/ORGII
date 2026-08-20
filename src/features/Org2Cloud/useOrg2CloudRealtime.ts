@@ -57,6 +57,7 @@ import {
   org2CloudChannelMessagesVersionAtom,
   org2CloudChannelsVersionAtom,
 } from "./channels/channelsAtom";
+import { getFreshCloudAccessToken } from "./cloudShortId";
 import { org2CloudSharingFloorAtom } from "./org2CloudAccessSettings";
 import {
   commitRefreshedAuth,
@@ -360,18 +361,22 @@ export function useOrg2CloudRealtime(): void {
     setBroadcastSignals(false);
     const current = authRef.current;
     if (!userId || !current) return undefined;
-    void getCloudCapabilities(
-      current.accessToken,
-      endpointForOrigin(current.supabaseUrl)
-    ).then((capabilities) => {
+    void (async () => {
+      const fresh = await ensureFreshSession(current);
+      if (!fresh || cancelled) return;
+      commitRefreshedAuth(setAuth, current, fresh);
+      const capabilities = await getCloudCapabilities(
+        fresh.accessToken,
+        endpointForOrigin(fresh.supabaseUrl)
+      );
       if (!cancelled && capabilities.broadcastSignals) {
         setBroadcastSignals(true);
       }
-    });
+    })();
     return () => {
       cancelled = true;
     };
-  }, [userId, endpointUrl]);
+  }, [userId, endpointUrl, setAuth]);
 
   // `org_change_signals` also carries rare sharing-floor changes. Refresh only
   // the affected org's entitlement through the shared coordinator
@@ -403,7 +408,9 @@ export function useOrg2CloudRealtime(): void {
     if (!userId || !current || !activeRealtimeOrgId) {
       return undefined;
     }
-    const connection = createOrg2CloudRealtimeConnection(current.accessToken);
+    const connection = createOrg2CloudRealtimeConnection(
+      getFreshCloudAccessToken
+    );
     connectionRef.current = connection;
 
     // Slice A: the signed-in user's OWN membership rows. Filtering by user_id
@@ -446,10 +453,11 @@ export function useOrg2CloudRealtime(): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, endpointUrl, activeRealtimeOrgId]);
 
-  // --- Keep the socket's auth token fresh without rebuilding the connection.
+  // --- Nudge the socket to re-resolve its token as soon as the atom
+  // rotates; the heartbeat-driven callback refresh covers the steady state.
   useEffect(() => {
     if (auth?.accessToken) {
-      connectionRef.current?.setAuth(auth.accessToken);
+      connectionRef.current?.setAuth();
     }
   }, [auth?.accessToken]);
 

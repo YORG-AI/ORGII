@@ -60,6 +60,7 @@ const apiMocks = vi.hoisted(() => ({
   requestPRReviewersLocal: vi.fn(),
   replyPrReviewCommentLocal: vi.fn(),
   setPRAutoMergeLocal: vi.fn(),
+  updatePRDraftStateLocal: vi.fn(),
   updatePRStateLocal: vi.fn(),
 }));
 
@@ -84,6 +85,7 @@ vi.mock("@src/api/tauri/github", () => ({
   requestPRReviewersLocal: apiMocks.requestPRReviewersLocal,
   replyPrReviewCommentLocal: apiMocks.replyPrReviewCommentLocal,
   setPRAutoMergeLocal: apiMocks.setPRAutoMergeLocal,
+  updatePRDraftStateLocal: apiMocks.updatePRDraftStateLocal,
   updatePRStateLocal: apiMocks.updatePRStateLocal,
 }));
 
@@ -181,6 +183,7 @@ describe("useWorkstationPrDetail cache mutations", () => {
       message: "merged",
     });
     apiMocks.setPRAutoMergeLocal.mockResolvedValue({ enabled: true });
+    apiMocks.updatePRDraftStateLocal.mockResolvedValue(undefined);
     apiMocks.updatePRStateLocal.mockResolvedValue({});
     apiMocks.requestPRReviewersLocal.mockResolvedValue([]);
     apiMocks.removePRReviewersLocal.mockResolvedValue([]);
@@ -595,7 +598,7 @@ describe("useWorkstationPrDetail cache mutations", () => {
     );
   });
 
-  it("publishes one shared dispatcher for PR-level merge, auto-merge, state, and reviewer mutations", async () => {
+  it("publishes one shared dispatcher for PR-level merge, draft, state, and reviewer mutations", async () => {
     const ACTION_PR: PrIdentity = { ...PR, number: 111_105 };
     const scopeKey = workstationPrScopeKey(
       REPO_ID,
@@ -632,6 +635,7 @@ describe("useWorkstationPrDetail cache mutations", () => {
     await act(async () => {
       await callbacks.mergePullRequest?.("squash");
       await callbacks.setPullRequestAutoMerge?.(true, "rebase");
+      await callbacks.updatePullRequestDraft?.(true);
       await callbacks.updatePullRequestState?.("closed");
       await callbacks.updateRequestedReviewers?.(["new-reviewer"]);
     });
@@ -648,6 +652,11 @@ describe("useWorkstationPrDetail cache mutations", () => {
       true,
       "rebase",
       "expected-head"
+    );
+    expect(apiMocks.updatePRDraftStateLocal).toHaveBeenCalledWith(
+      REPO_FULL_NAME,
+      ACTION_PR.number,
+      true
     );
     expect(apiMocks.updatePRStateLocal).toHaveBeenCalledWith(
       REPO_FULL_NAME,

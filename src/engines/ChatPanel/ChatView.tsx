@@ -41,6 +41,7 @@ import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events"
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { derivePlanApprovalViewState } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useTodoSync } from "@src/engines/SessionCore/hooks/session/useTodoSync";
+import { useCloudSessionHasDownloadSurface } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import { ForkCancelledError } from "@src/features/TeamCollaboration/forkSession";
 import { useFileReviewSync } from "@src/hooks/fileReview";
 import { createLogger } from "@src/hooks/logger";
@@ -72,6 +73,10 @@ import {
   countChatRounds,
 } from "./InputArea/components/compactFileChangesHelpers";
 import { useComposerSections } from "./InputArea/hooks/useComposerSections";
+import {
+  shouldShowExternalHistoryForkComposer,
+  shouldShowMainChatComposer,
+} from "./chatViewComposerVisibility";
 import { resolveInitialFileChanges } from "./chatViewFileChanges";
 import { useBrowserAddToConversationAction } from "./hooks/useBrowserAddToConversationAction";
 import { useChatViewAgentOrgSurface } from "./hooks/useChatViewAgentOrgSurface";
@@ -102,6 +107,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
     surfaceBgClass = "bg-chat-pane",
     readOnly = false,
     secondary = false,
+    chromeTopInset = 0,
     onSessionContinuation,
   }) => {
     const { t: tNavigation } = useTranslation("navigation");
@@ -185,20 +191,33 @@ const ChatView: React.FC<ChatViewProps> = memo(
     // picker — it never writes back into Codex/Claude/Cursor/etc.
 
     const showInteractArea = useShowInteractArea();
+    const hasCloudDownloadSurface =
+      useCloudSessionHasDownloadSurface(sessionId);
     // Sources whose CLI cannot reopen a session (Cursor IDE, Windsurf,
     // Trae, …) are pure read-only replays: no composer, no continuation
     // affordance. Only CLI-continuable histories offer the fork composer.
     const importedCliResume = getImportedHistoryCliResume(sessionId);
     const showExternalHistoryForkComposer =
-      isImportedHistory && !readOnly && Boolean(importedCliResume);
+      shouldShowExternalHistoryForkComposer({
+        hasCloudDownloadSurface,
+        isImportedHistory,
+        readOnly,
+        canResume: Boolean(importedCliResume),
+      });
     const handleExternalHistoryForkSubmit = useCallback(
       async (input: SubmitOverrideInput) => {
         if (!isImportedHistory) return false;
         try {
+          // Carry BOTH projection fields (mirrors
+          // useImportedSessionSubmitOverride): displayText stays the user's
+          // visible words, agentContent is the dispatched agent input. The
+          // old `agentContent ?? displayText` collapse persisted the internal
+          // contract as the user's message.
           const newSessionId = await forkExternalHistoryIntoOrgiiSession({
             sourceSessionId: sessionId,
             sourceSession: currentSession,
-            userMessage: input.agentContent ?? input.displayText,
+            userMessage: input.displayText,
+            agentMessage: input.agentContent,
             imageDataUrls: input.imageDataUrls,
           });
           await loadSessions({ forceRefresh: true });
@@ -242,9 +261,13 @@ const ChatView: React.FC<ChatViewProps> = memo(
         tNavigation,
       ]
     );
+    const showMainComposer = shouldShowMainChatComposer({
+      showInteractArea,
+      isReadOnlySurface,
+      hasCloudDownloadSurface,
+    });
     const showFloatingComposer =
-      (showInteractArea && !isReadOnlySurface) ||
-      showExternalHistoryForkComposer;
+      showMainComposer || showExternalHistoryForkComposer;
     const { setMeasuredFloatingComposerRef, historyBottomInset } =
       useChatViewFloatingComposerInset(showFloatingComposer);
     const {
@@ -438,6 +461,13 @@ const ChatView: React.FC<ChatViewProps> = memo(
                 ? "flex flex-shrink-0 flex-col"
                 : "absolute inset-x-0 top-0 z-40 flex flex-col"
             }
+            style={
+              chromeTopInset > 0
+                ? turnPaginationEnabled || groupChatViewActive
+                  ? { paddingTop: chromeTopInset }
+                  : { top: chromeTopInset }
+                : undefined
+            }
             data-chat-pinned-header-portal-host
           />
           <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
@@ -467,6 +497,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
               turnPaginationEnabled={turnPaginationEnabled}
               paginationTrailingSlot={groupChatHistoryAction}
               pinnedHeaderHost={pinnedHeaderHost}
+              chromeTopInset={chromeTopInset}
               historyBottomInset={historyBottomInset}
               groupChatViewAvailable={groupChatViewAvailable}
               handleGroupChatViewToggle={handleGroupChatViewToggle}
@@ -482,7 +513,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
             isImportedHistory={isImportedHistory}
             sessionId={sessionId}
           />
-          {showInteractArea && !isReadOnlySurface && (
+          {showMainComposer && (
             <ChatFloatingComposer
               composerRef={setMeasuredFloatingComposerRef}
               inputBoxRef={inputBoxRef}

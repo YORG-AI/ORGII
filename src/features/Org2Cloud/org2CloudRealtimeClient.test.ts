@@ -51,6 +51,12 @@ vi.mock("@supabase/supabase-js", () => ({
   })),
 }));
 
+const flushJoins = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 describe("createOrg2CloudRealtimeConnection presence privacy", () => {
   beforeEach(() => {
     channelCalls.length = 0;
@@ -64,8 +70,8 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     vi.clearAllMocks();
   });
 
-  it("opens the presence/broadcast channel as private with the presence key", () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+  it("opens the presence/broadcast channel as private with the presence key", async () => {
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -81,8 +87,8 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
   });
 
-  it("surfaces presence-channel subscription edges through onStatus", () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+  it("surfaces presence-channel subscription edges through onStatus", async () => {
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const edges: boolean[] = [];
     conn.joinPresence({
       scope: "org:org-123",
@@ -92,27 +98,36 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
       onStatus: (subscribed) => edges.push(subscribed),
     });
     const channel = createdChannels.at(-1);
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
+    await flushJoins();
     channel?.emitStatus("CHANNEL_ERROR");
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
+    await flushJoins();
     channel?.emitStatus("CLOSED");
     expect(edges).toEqual([true, false, true, false]);
   });
 
-  it("authorizes the socket with the access token before joining (RLS private-channel requirement)", () => {
-    createOrg2CloudRealtimeConnection("token-abc");
-    expect(setAuthMock).toHaveBeenCalledWith("token-abc");
+  it("wires the token callback into the client and arms callback-based auth", async () => {
+    const getToken = async () => "token-abc";
+    createOrg2CloudRealtimeConnection(getToken);
+    const options = vi.mocked(createClient).mock.calls.at(-1)?.[2] as {
+      accessToken?: () => Promise<string | null>;
+    };
+    expect(options.accessToken).toBe(getToken);
+    expect(setAuthMock).toHaveBeenCalledWith();
   });
 
-  it("re-authorizes the live socket when the token is refreshed", () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+  it("re-resolves the callback token when nudged after a rotation", async () => {
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     setAuthMock.mockClear();
-    conn.setAuth("token-def");
-    expect(setAuthMock).toHaveBeenCalledWith("token-def");
+    conn.setAuth();
+    expect(setAuthMock).toHaveBeenCalledWith();
   });
 
-  it("leaves table-change channels public (postgres_changes are gated by table RLS, not realtime.messages)", () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+  it("leaves table-change channels public (postgres_changes are gated by table RLS, not realtime.messages)", async () => {
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     conn.subscribe({
       table: "org_memberships",
       filter: "org_id=eq.org-123",
@@ -126,8 +141,8 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     expect(call?.opts).toBeUndefined();
   });
 
-  it("uses a fresh topic for a fast same-filter resubscribe", () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+  it("uses a fresh topic for a fast same-filter resubscribe", async () => {
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const options = {
       table: "org_memberships",
       filter: "org_id=eq.org-123",
@@ -150,7 +165,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     const initialTrack = new Promise<string>((resolve) => {
       releaseInitialTrack = () => resolve("ok");
     });
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -161,6 +176,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     expect(channel).toBeDefined();
     channel?.track.mockImplementationOnce(() => initialTrack);
 
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
     await Promise.resolve();
     handle.update({ viewingSessionId: null, updatedAt: 2 });
@@ -177,7 +193,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
   });
 
   it("does not track before a view and publishes an explicit idle view on close", async () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -186,6 +202,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
     const channel = createdChannels.at(-1);
 
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
     await Promise.resolve();
     expect(channel?.track).not.toHaveBeenCalled();
@@ -203,7 +220,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
   });
 
   it("queues broadcasts sent while the private channel is reconnecting", async () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -215,6 +232,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     handle.send("comments-changed", { sessionId: "session-1" });
     expect(channel?.send).not.toHaveBeenCalled();
 
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
     await vi.waitFor(() => expect(channel?.send).toHaveBeenCalledTimes(1));
     expect(channel?.send).toHaveBeenCalledWith({
@@ -226,7 +244,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
 
   it("retries a broadcast transport failure without losing its nudge", async () => {
     vi.useFakeTimers();
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -235,6 +253,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
     const channel = createdChannels.at(-1);
     channel?.send.mockResolvedValueOnce("timed out");
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
 
     handle.send("comments-changed", { sessionId: "session-1" });
@@ -248,7 +267,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
 
   it("backs off persistently failing broadcasts instead of retrying at 1 Hz", async () => {
     vi.useFakeTimers();
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -257,6 +276,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
     const channel = createdChannels.at(-1);
     channel?.send.mockResolvedValue("timed out");
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
 
     handle.send("comments-changed", { sessionId: "session-1" });
@@ -289,7 +309,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
 
   it("resets the broadcast backoff once a send succeeds", async () => {
     vi.useFakeTimers();
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -301,6 +321,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
       .mockResolvedValueOnce("timed out")
       .mockResolvedValueOnce("timed out")
       .mockResolvedValueOnce("ok");
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
 
     handle.send("comments-changed", { sessionId: "session-1" });
@@ -321,7 +342,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
 
   it("backs off persistently failing presence tracks instead of retrying at 1 Hz", async () => {
     vi.useFakeTimers();
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -330,6 +351,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
     const channel = createdChannels.at(-1);
     channel?.track.mockResolvedValue("timed out");
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
 
     await vi.advanceTimersByTimeAsync(0);
@@ -345,7 +367,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
   });
 
   it("does not let a timed-out track block a newer presence payload", async () => {
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
       key: "user-9",
@@ -355,6 +377,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     const channel = createdChannels.at(-1);
     channel?.track.mockResolvedValueOnce("timed out");
 
+    await flushJoins();
     channel?.emitStatus("SUBSCRIBED");
     handle.update({ viewingSessionId: "session-1", updatedAt: 2 });
 
@@ -367,7 +390,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
 
   it("shares the five-call rolling Presence budget across org channels", async () => {
     vi.useFakeTimers();
-    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const conn = createOrg2CloudRealtimeConnection(async () => "token-abc");
     for (let index = 0; index < 6; index += 1) {
       conn.joinPresence({
         scope: `org:org-${index}`,
@@ -377,6 +400,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
       });
     }
     const sixChannels = createdChannels.slice(-6);
+    await flushJoins();
     for (const channel of sixChannels) channel.emitStatus("SUBSCRIBED");
 
     await vi.advanceTimersByTimeAsync(0);

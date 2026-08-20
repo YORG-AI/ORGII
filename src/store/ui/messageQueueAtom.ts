@@ -1,7 +1,9 @@
 import { atom } from "jotai";
 
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
+import { projectOutgoingUserMessage } from "@src/engines/ChatPanel/hooks/useInputArea/projectOutgoingUserMessage";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
+import { isCliSession } from "@src/util/session/sessionDispatch";
 
 // ============================================
 // Types
@@ -196,6 +198,7 @@ export const editMessageAtom = atom(
     set,
     update: {
       messageId: string;
+      /** The edited DISPLAY text (serialized editor form, pills intact). */
       content: string;
       imageDataUrls?: string[];
       modelSelection?: LastModelSelection;
@@ -203,24 +206,39 @@ export const editMessageAtom = atom(
     }
   ) => {
     set(messageQueueAtom, (prev) =>
-      prev.map((msg) =>
-        msg.id === update.messageId
-          ? {
-              ...msg,
-              content: update.content,
-              displayContent: update.content,
-              ...(update.imageDataUrls !== undefined && {
-                imageDataUrls: update.imageDataUrls,
-              }),
-              ...(update.modelSelection !== undefined && {
-                modelSelection: update.modelSelection,
-              }),
-              ...(update.agentExecMode !== undefined && {
-                agentExecMode: update.agentExecMode,
-              }),
-            }
-          : msg
-      )
+      prev.map((msg) => {
+        if (msg.id !== update.messageId) return msg;
+        const nextImageDataUrls =
+          update.imageDataUrls !== undefined
+            ? update.imageDataUrls
+            : msg.imageDataUrls;
+        // The edit surface returns the display form, but `content` is what
+        // the queue dispatcher sends to the model. Re-run the shared
+        // projection so a saved edit can neither regress the agent copy to
+        // raw pill serialization nor surface the agent contract as visible
+        // text. Canvas interception mirrors the live submit gates: no
+        // contract for CLI sessions or image-carrying messages.
+        const projection = projectOutgoingUserMessage({
+          displayText: update.content,
+          allowCanvasInterception:
+            !(nextImageDataUrls && nextImageDataUrls.length > 0) &&
+            !isCliSession(msg.sessionId),
+        });
+        return {
+          ...msg,
+          content: projection.agentContent ?? projection.displayContent,
+          displayContent: projection.displayContent,
+          ...(update.imageDataUrls !== undefined && {
+            imageDataUrls: update.imageDataUrls,
+          }),
+          ...(update.modelSelection !== undefined && {
+            modelSelection: update.modelSelection,
+          }),
+          ...(update.agentExecMode !== undefined && {
+            agentExecMode: update.agentExecMode,
+          }),
+        };
+      })
     );
   }
 );

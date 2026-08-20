@@ -5,7 +5,7 @@ import type {
   ConflictResolutionChoice,
   CursorPosition,
 } from "@src/features/CodeMirror";
-import type { FileError } from "@src/hooks/workStation/editor/useFileContent";
+import type { FileError } from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/useFileContent";
 
 import type { Diagnostic } from "../../../EditorBottomPanel/content/ProblemsContent/types";
 

@@ -1,10 +1,17 @@
 import { bucketDurationMs } from "./buckets";
 import type { DiagnosticsRuntimeSummary } from "./types";
 
+/**
+ * Per-operation counter. Durations are folded into a running sum + sample
+ * count rather than an array: the summary only ever needs the average, and
+ * an array here grew unbounded (one entry per RPC/HTTP call) until a
+ * consumer drained it — which offline mode never does.
+ */
 interface RuntimeCounter {
   total: number;
   failure: number;
-  durations: number[];
+  durationSumMs: number;
+  durationSamples: number;
 }
 
 const rpcCounters = new Map<string, RuntimeCounter>();
@@ -16,7 +23,12 @@ function getCounter(
 ): RuntimeCounter {
   const existing = counters.get(operation);
   if (existing) return existing;
-  const created: RuntimeCounter = { total: 0, failure: 0, durations: [] };
+  const created: RuntimeCounter = {
+    total: 0,
+    failure: 0,
+    durationSumMs: 0,
+    durationSamples: 0,
+  };
   counters.set(operation, created);
   return created;
 }
@@ -29,7 +41,7 @@ export function recordDiagnosticsRpc(
   const counter = getCounter(rpcCounters, command);
   counter.total += 1;
   if (!ok) counter.failure += 1;
-  counter.durations.push(durationMs);
+  addDurationSample(counter, durationMs);
 }
 
 export function recordDiagnosticsHttp(
@@ -40,12 +52,18 @@ export function recordDiagnosticsHttp(
   const counter = getCounter(httpCounters, target);
   counter.total += 1;
   if (!ok) counter.failure += 1;
-  counter.durations.push(durationMs);
+  addDurationSample(counter, durationMs);
 }
 
-function average(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+function addDurationSample(counter: RuntimeCounter, durationMs: number): void {
+  if (!Number.isFinite(durationMs)) return;
+  counter.durationSumMs += durationMs;
+  counter.durationSamples += 1;
+}
+
+function averageDurationMs(counter: RuntimeCounter): number {
+  if (counter.durationSamples === 0) return 0;
+  return counter.durationSumMs / counter.durationSamples;
 }
 
 function consumeDiagnosticsSummary(
@@ -62,7 +80,7 @@ function consumeDiagnosticsSummary(
       total: counter.total,
       success: counter.total - counter.failure,
       failure: counter.failure,
-      durationBucket: bucketDurationMs(average(counter.durations)),
+      durationBucket: bucketDurationMs(averageDurationMs(counter)),
     };
   }
 

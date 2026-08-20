@@ -169,4 +169,6 @@ export const SLASH_ACTIONS = {
    * (`parseCompactSlashCommand`) matches the `/compact` token.
    */
   COMPACT: "compact",
+  /** Creates a new interactive inline Canvas from the following request. */
+  CANVAS: "canvas",
 } as const;

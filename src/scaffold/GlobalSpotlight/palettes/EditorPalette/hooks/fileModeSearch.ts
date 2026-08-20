@@ -1,5 +1,5 @@
-import type { ContextMenuSearchRoot } from "@src/hooks/workStation/panels/contextMenuSearchRoots";
-import { normalizeRootPath } from "@src/hooks/workStation/panels/contextMenuSearchRoots";
+import type { ContextMenuSearchRoot } from "@src/scaffold/ContextMenu/contextMenuSearchRoots";
+import { normalizeRootPath } from "@src/scaffold/ContextMenu/contextMenuSearchRoots";
 import type { FileSearchResult as NativeFileSearchResult } from "@src/util/platform/tauri/fileSearch";
 
 import type { FileSearchResult } from "../types";

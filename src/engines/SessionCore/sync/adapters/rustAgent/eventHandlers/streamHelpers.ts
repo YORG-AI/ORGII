@@ -3,8 +3,9 @@
  *
  * Helper functions for finalizing streaming content and common event accessors.
  */
-import type { StreamRefs } from "../../shared/types";
-import type { AgentWSEvent } from "../../shared/types";
+import { clearCanvasRevisionDraft } from "@src/store/session/canvasRevisionDraftAtom";
+
+import type { AgentWSEvent, StreamRefs } from "../../shared/types";
 import type { EventHandlerContext } from "./types";
 
 const STOPPED_TURNS_PER_SESSION_LIMIT = 20;
@@ -116,8 +117,17 @@ export function isSessionStreamingStopped(
 /**
  * Reset all streaming state in context.
  * Used by handleComplete and handleError to avoid code duplication.
+ *
+ * `sessionId` is the event's session; callers should pass it explicitly —
+ * `ctx.filterSessionIdRef.current` can point at a different session than the
+ * terminal event being handled, which used to clear the wrong session's
+ * canvas revision draft. The ref remains only as a fallback for legacy
+ * callers without an event session in scope.
  */
-export function resetAllStreamingState(ctx: EventHandlerContext): void {
+export function resetAllStreamingState(
+  ctx: EventHandlerContext,
+  sessionId?: string
+): void {
   if (ctx.assistantStreamRef) resetStreamRefs(ctx.assistantStreamRef.current);
   if (ctx.thinkingStreamRef) resetStreamRefs(ctx.thinkingStreamRef.current);
   if (ctx.toolCallDeltaBuffersRef) ctx.toolCallDeltaBuffersRef.current.clear();
@@ -125,6 +135,9 @@ export function resetAllStreamingState(ctx: EventHandlerContext): void {
   if (ctx.streamingCompleteHandledRef) {
     ctx.streamingCompleteHandledRef.current = false;
   }
+  const draftSessionId = sessionId ?? ctx.filterSessionIdRef.current;
+  const store = ctx.getDefaultStore();
+  if (draftSessionId && store) clearCanvasRevisionDraft(store, draftSessionId);
 }
 
 export function getToolCallId(event: AgentWSEvent): string | undefined {

@@ -16,6 +16,7 @@ export interface ChatPanelTabContextMenuProps {
   onCloseOtherTabs: (tabId: string) => void | Promise<void>;
   sessionReference?: SessionReferenceOpen;
   onCreateWorkItem?: (reference: SessionReferenceOpen) => void;
+  onOpenInSideChat?: (reference: SessionReferenceOpen) => void;
   onDismiss: () => void;
 }
 
@@ -44,6 +45,18 @@ export function ChatPanelTabContextMenu(
             const items: NativeMenuItemOptions[] = [];
             const sessionReference = propsRef.current.sessionReference;
             if (sessionReference) {
+              items.push({
+                text: translate("sessions:chat.sideChat.openInSideChat", {
+                  defaultValue: "Open in Side Chat",
+                }),
+                action: () => {
+                  const current = propsRef.current;
+                  if (current.sessionReference) {
+                    current.onOpenInSideChat?.(current.sessionReference);
+                  }
+                  current.onDismiss();
+                },
+              });
               items.push({
                 text: translate("teamInbox.handoff.createFromSession", {
                   defaultValue: "Create team Work Item…",

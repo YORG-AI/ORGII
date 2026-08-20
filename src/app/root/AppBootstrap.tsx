@@ -22,7 +22,6 @@ import {
   MultiRepoGitStatusProvider,
 } from "@src/contexts/git";
 import { useDiagnosticsBootstrap } from "@src/diagnostics";
-import { usePostPaintGitProbe } from "@src/hooks/dependencies/usePostPaintGitProbe";
 import { useGlobalFlowTracker } from "@src/hooks/flowAwareness";
 import { useModelAliasRegistry } from "@src/hooks/models";
 import {
@@ -46,6 +45,7 @@ import { E2EBootstrap } from "./E2EBootstrap";
 import { useAppDeferredInitialization } from "./useAppDeferredInitialization";
 import { useAppShellEffects } from "./useAppShellEffects";
 import { useFirstPaintSignal } from "./useFirstPaintSignal";
+import { usePostPaintGitProbe } from "./usePostPaintGitProbe";
 
 export const AppBootstrap: FC = () => {
   const deferredComponentsReady = useAppDeferredInitialization();

@@ -13,6 +13,10 @@ import {
 } from "@src/api/tauri/agent";
 import { useGroupChatMergedEvents } from "@src/engines/ChatPanel/ChatHistory/GroupChatView/useGroupChatMergedEvents";
 import {
+  type GroupChatOutgoing,
+  resolveGroupChatOutgoing,
+} from "@src/engines/ChatPanel/hooks/groupChatRouting";
+import {
   isGroupChatPendingDeliverySettled,
   useAgentOrgGroupChatHistory,
 } from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatHistory";
@@ -25,12 +29,6 @@ import { activeSessionIdAtom } from "@src/store/session";
 import { groupChatViewSessionIdAtom } from "@src/store/ui/chatPanelAtom";
 
 const logger = createLogger("ChatView");
-
-interface GroupChatRoute {
-  targetMemberId: string | null;
-  body: string;
-  displayText: string;
-}
 
 interface GroupChatPendingMessage {
   rowId: number;
@@ -47,13 +45,6 @@ interface UseAgentOrgGroupChatControllerOptions {
   agentOrgRunView: AgentOrgRunView | null;
   currentAgentOrgMember: AgentOrgRunMemberView | null;
   refreshAgentOrgRunView: () => Promise<void>;
-}
-
-function normalizeMentionToken(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "");
 }
 
 function timestampMs(value: string | null | undefined): number | null {
@@ -96,67 +87,6 @@ function makeOptimisticInboxRow({
     requestId: null,
     createdAt,
     readAt: null,
-  };
-}
-
-function parseGroupChatRoute(
-  rawText: string,
-  members: ReadonlyArray<{
-    memberId: string;
-    name: string;
-    isCoordinator: boolean;
-  }>
-): GroupChatRoute {
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith("@")) {
-    return { targetMemberId: null, body: trimmed, displayText: trimmed };
-  }
-
-  const mentionText = trimmed.slice(1).trimStart();
-  const mentionLower = mentionText.toLowerCase();
-  const routeCandidates = members
-    .flatMap((member) => {
-      const labels = [member.name, member.memberId];
-      if (member.isCoordinator) {
-        labels.push("Coordinator");
-      }
-      return labels.map((label) => ({ label: label.trim(), member }));
-    })
-    .filter((candidate) => candidate.label.length > 0)
-    .sort((left, right) => right.label.length - left.label.length);
-
-  for (const candidate of routeCandidates) {
-    const labelLower = candidate.label.toLowerCase();
-    if (
-      mentionLower === labelLower ||
-      mentionLower.startsWith(`${labelLower} `) ||
-      mentionLower.startsWith(`${labelLower}\n`)
-    ) {
-      return {
-        targetMemberId: candidate.member.isCoordinator
-          ? null
-          : candidate.member.memberId,
-        body: mentionText.slice(candidate.label.length).trim(),
-        displayText: trimmed,
-      };
-    }
-  }
-
-  const tokenMatch = mentionText.match(/^(\S+)\s*(.*)$/s);
-  const token = normalizeMentionToken(tokenMatch?.[1] ?? "");
-  const member = members.find((candidate) => {
-    const candidateNames = [candidate.memberId, candidate.name].map(
-      normalizeMentionToken
-    );
-    return candidateNames.includes(token);
-  });
-  if (!member) {
-    throw new Error(`Unknown Agent Team mention: @${tokenMatch?.[1] ?? ""}`);
-  }
-  return {
-    targetMemberId: member.isCoordinator ? null : member.memberId,
-    body: tokenMatch?.[2].trim() ?? "",
-    displayText: trimmed,
   };
 }
 
@@ -351,13 +281,16 @@ export function useAgentOrgGroupChatController({
   const handleGroupChatSubmitOverride = useCallback(
     async (input: SubmitOverrideInput): Promise<boolean> => {
       if (!agentOrgRunView) return false;
-      const content = input.agentContent ?? input.displayText;
-      if (!groupChatViewActive && !content.trim().startsWith("@")) {
+      // Route on the DISPLAY copy: the `@member` header is what the user
+      // typed and what the transcript renders. The agent copy may have been
+      // rewritten by an interceptor (canvas contract) and must only feed the
+      // member-inbox body — resolveGroupChatOutgoing owns that split.
+      if (!groupChatViewActive && !input.displayText.trim().startsWith("@")) {
         return false;
       }
-      let route: GroupChatRoute;
+      let route: GroupChatOutgoing;
       try {
-        route = parseGroupChatRoute(content, agentOrgRunView.members);
+        route = resolveGroupChatOutgoing(input, agentOrgRunView.members);
       } catch (err) {
         if (!groupChatViewActive) return false;
         throw err;
@@ -365,7 +298,7 @@ export function useAgentOrgGroupChatController({
       if (input.imageDataUrls && input.imageDataUrls.length > 0) {
         throw new Error("Group chat does not support image attachments yet");
       }
-      if (!route.body.trim()) {
+      if (!route.agentBody.trim()) {
         throw new Error("Agent Team group chat message content is required");
       }
       const targetMember = route.targetMemberId
@@ -382,7 +315,7 @@ export function useAgentOrgGroupChatController({
         targetMemberId: targetMember.memberId,
         targetMemberName: targetMember.name,
         targetAgentId: targetMember.agentId,
-        body: route.body,
+        body: route.agentBody,
         displayText: route.displayText,
       });
       setGroupChatPendingMessage({
@@ -391,14 +324,14 @@ export function useAgentOrgGroupChatController({
         targetMemberName: targetMember.name,
         createdAt: optimisticRow.createdAt,
         displayText: route.displayText,
-        text: route.body,
+        text: route.agentBody,
         inboxRow: optimisticRow,
       });
       try {
         const response = await sendAgentOrgGroupChatMessage(
           sessionId,
           route.targetMemberId,
-          route.body,
+          route.agentBody,
           route.displayText
         );
         setGroupChatPendingMessage({
@@ -407,7 +340,7 @@ export function useAgentOrgGroupChatController({
           targetMemberName: response.targetMemberName,
           createdAt: response.inboxRow.createdAt,
           displayText: route.displayText,
-          text: route.body,
+          text: route.agentBody,
           inboxRow: response.inboxRow,
         });
         void refreshAgentOrgRunView().catch((err: unknown) => {

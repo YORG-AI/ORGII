@@ -861,8 +861,11 @@
       "unpinAll": "全部取消固定",
       "insert": "插入"
     },
-    "compactArgHint": "<可選:本次總結的重點>",
-    "compactCommandDescription": "總結較早的上下文以釋放空間。可選:/compact <本次總結的重點>"
+    "compactArgHint": "<可選：本次總結的重點>",
+    "compactCommandDescription": "總結較早的上下文以釋放空間。可選：/compact <本次總結的重點>",
+    "canvasCommandDescription": "建立一個新的互動式 Canvas。可選：/canvas <要建立的內容>",
+    "canvasArgHint": "要建立的內容",
+    "newCanvasAction": "新增 Canvas"
   },
   "listPanel": {
     "showingOf": "顯示 {{filtered}} / {{total}}",
@@ -1013,6 +1016,10 @@
       "newTerminal": "新終端",
       "newTab": "新分頁",
       "terminals": "終端機"
+    },
+    "sideChat": {
+      "title": "側邊聊天",
+      "openInSideChat": "在側邊聊天中開啟"
     },
     "collapseAll": "全部摺疊",
     "copyEventJson": "複製事件 JSON",
@@ -2025,6 +2032,18 @@
     "renderInlineCanvasUrlDone": "render URL canvas",
     "renderInlineCanvasUrlFailed": "render URL canvas失敗",
     "renderInlineCanvasUrlRunning": "正在render URL canvas",
+    "reviseInlineCanvasRunning": "正在修訂 Canvas",
+    "reviseInlineCanvasDone": "Canvas 已修訂",
+    "reviseInlineCanvasFailed": "Canvas 修訂失敗",
+    "reviseInlineCanvasHtmlRunning": "正在修訂 HTML Canvas",
+    "reviseInlineCanvasHtmlDone": "HTML Canvas 已修訂",
+    "reviseInlineCanvasHtmlFailed": "HTML Canvas 修訂失敗",
+    "reviseInlineCanvasUrlRunning": "正在修訂 URL Canvas",
+    "reviseInlineCanvasUrlDone": "URL Canvas 已修訂",
+    "reviseInlineCanvasUrlFailed": "URL Canvas 修訂失敗",
+    "reviseInlineCanvasA2uiRunning": "正在修訂 A2UI Canvas",
+    "reviseInlineCanvasA2uiDone": "A2UI Canvas 已修訂",
+    "reviseInlineCanvasA2uiFailed": "A2UI Canvas 修訂失敗",
     "runShellRunDone": "執行命令",
     "runShellRunFailed": "執行命令失敗",
     "runShellRunRunning": "正在執行命令",
@@ -2820,5 +2839,120 @@
     "summarize": "讓 Agent 總結",
     "waiting": "等待內容中…",
     "empty": "無內容"
+  },
+  "canvasApp": {
+    "empty": "尚未渲染任何 Canvas",
+    "sidebarTitle": "Canvas 清單",
+    "noCanvases": "還沒有 Canvas",
+    "revisionCanvas": "Canvas",
+    "revisionTitle": "正在修改 {{title}}",
+    "revisionReceiving": "正在產生變更 · {{amount}} 個字元",
+    "revisionApplying": "正在套用已驗證的變更…",
+    "revisionDoneTitle": "已更新 {{title}}",
+    "revisionFailedTitle": "未能更新 {{title}}",
+    "revisionTargetedSummary": "{{amount}} 處精確修改 · 保留原 Canvas",
+    "revisionTargetedSummary_other": "{{count}} 處精確修改 · 保留原 Canvas",
+    "revisionReplacementSummary": "完整替換 · {{amount}} 個字元 · 保留原 Canvas",
+    "revisionUrlSummary": "已更新 URL · 保留原 Canvas",
+    "revisionGenericSummary": "已在原 Canvas 上完成更新",
+    "revisionStepsLabel": "Canvas 更新進度",
+    "compareToggle": "對比",
+    "compareMark": "vs",
+    "compareHint": "已選擇 2 個 · 顯示差異",
+    "design": "設計",
+    "designHint": "選擇要修改的元素",
+    "designUnavailable": "設計功能不可用",
+    "reactCspUnavailable": "目前版本無法執行 React 預覽，請開啟原始碼檢視",
+    "designPromptLabel": "描述 Canvas 變更",
+    "designPromptPlaceholder": "描述要修改的內容…",
+    "clearDesignSelection": "清除 Canvas 選擇",
+    "compareTooLarge": "版本過大，無法對比",
+    "revisionReceivingLabel": "正在產生變更…",
+    "designHoverHint": "點擊選擇，拖曳框選",
+    "share": "分享",
+    "shareHint": "分享這個 Canvas 快照",
+    "shareWaitForRevision": "請等待 Canvas 更新完成",
+    "shareLocalUrlUnavailable": "其他人無法開啟本機 URL",
+    "shareTooLarge": "這個 Canvas 太大，無法產生分享連結",
+    "shareEmpty": "這個 Canvas 沒有可分享的內容",
+    "shareDialogTitle": "分享 Canvas",
+    "shareDialogScope": "只包含這個 Canvas 快照。對話、儲存庫、會話以及後續修訂都不會被分享。",
+    "shareDialogPreparing": "正在建立連結…",
+    "shareDialogLink": "Canvas 分享連結",
+    "shareDialogCopyFailed": "複製失敗。請選取連結後手動複製。",
+    "shareDialogPublic": "任何擁有此連結的人都可以檢視該快照。",
+    "shareDialogShortExpiry": "短連結 · 有效期至 {{date}}",
+    "shareDialogFallback": "短連結服務不可用，已改為建立完整連結。",
+    "shareDialogOpen": "開啟",
+    "shareDialogCopied": "已複製",
+    "shareDialogCopy": "複製連結",
+    "shareDialogTooLarge": "這個 Canvas 太大，無法產生可靠的自包含連結。",
+    "shareDialogShortUnavailable": "分享服務暫時無法連線，而這個 Canvas 太大，無法產生自包含連結。請稍後再試。",
+    "shareDialogUnsupported": "目前應用版本無法建立壓縮的 Canvas 連結。",
+    "shareDialogInvalid": "這個 Canvas 不包含可發佈的快照。",
+    "shareDialogError": "無法建立 Canvas 連結。",
+    "shareDialogRetryShort": "重試短連結",
+    "shareDialogRetryingShort": "正在重試…",
+    "retry": "重試"
+  },
+  "domSelection": {
+    "previewTitle": "Canvas 選區預覽",
+    "elementsCount_other": "{{count}} 個元素",
+    "regionLabel": "區域 · {{label}}"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
   }
 }

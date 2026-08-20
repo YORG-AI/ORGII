@@ -457,7 +457,7 @@ function TableComponent<T = unknown>(
         <div
           className={
             renderPagination
-              ? "flex h-12 w-full items-center border-t border-border-1 px-4"
+              ? "flex h-10 w-full items-center border-t border-border-1 px-4"
               : "table-pagination-wrapper"
           }
         >

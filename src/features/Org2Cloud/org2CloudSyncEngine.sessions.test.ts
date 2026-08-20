@@ -1888,7 +1888,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     });
   });
 
-  it("publishes a multi-tagged session only to the active org", async () => {
+  it("publishes a multi-tagged session to every tagged org", async () => {
     store.set(org2CloudOrgsAtom, [
       { orgId: "corg-1", name: "Cloud Team", role: "member" },
       { orgId: "corg-2", name: "Other Team", role: "member" },
@@ -1917,9 +1917,13 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
-    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
-    expect(client.rewriteSessionEvents.mock.calls[0][1].orgId).toBe("corg-1");
-    expect(eventStoreMock.getPersistedEvents).toHaveBeenCalledTimes(1);
+    // A tag is an explicit publish request: an inactive tagged org must not
+    // wait for the owner to activate it (Move to Org would otherwise report
+    // success while the target org was never visited).
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(2);
+    expect(
+      client.rewriteSessionEvents.mock.calls.map((call) => call[1].orgId).sort()
+    ).toEqual(["corg-1", "corg-2"]);
   });
 
   // --- deleteSession resurrection-hash fix ----------------------------------

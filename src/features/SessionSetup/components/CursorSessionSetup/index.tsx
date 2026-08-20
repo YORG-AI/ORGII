@@ -19,8 +19,8 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
-import { useCursorSessionCapture } from "@src/hooks/workStation/sessionCapture/useCursorSessionCapture";
-import { useWebviewPositionSync } from "@src/hooks/workStation/sessionCapture/useWebviewPositionSync";
+import { useCursorSessionCapture } from "@src/features/SessionSetup/hooks/useCursorSessionCapture";
+import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SECTION_GAP_CLASSES,
   SectionContainer,

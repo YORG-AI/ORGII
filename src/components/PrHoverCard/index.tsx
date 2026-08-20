@@ -1,8 +1,8 @@
-import { Clock, GitBranch, GitPullRequest } from "lucide-react";
+import { Clock, FileDiff, GitBranch, GitPullRequest } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OpenPRItem } from "@src/api/tauri/github";
+import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import HoverCardBase, {
   HoverCardPanel,
   type HoverCardPosition,
@@ -15,8 +15,21 @@ import {
   getPrStatusVariant,
 } from "@src/shared/pr/prStatus";
 
+export interface PrHoverCardData {
+  number: number;
+  url?: string;
+  title: string;
+  state: string;
+  head_branch?: string;
+  base_branch?: string;
+  draft?: boolean;
+  additions?: number | null;
+  deletions?: number | null;
+  updated_at?: string;
+}
+
 interface PrHoverCardProps {
-  pr?: OpenPRItem | null;
+  pr?: PrHoverCardData | null;
   children: React.ReactElement;
   position?: HoverCardPosition;
   mouseEnterDelay?: number;
@@ -24,7 +37,7 @@ interface PrHoverCardProps {
 }
 
 interface PrHoverCardContentProps {
-  pr: OpenPRItem;
+  pr: PrHoverCardData;
 }
 
 function truncateBranchLabel(branch: string, max = 80): string {
@@ -42,6 +55,9 @@ const PrHoverCardContent: React.FC<PrHoverCardContentProps> = memo(({ pr }) => {
   const branchLabel = pr.head_branch
     ? truncateBranchLabel(pr.head_branch)
     : null;
+  const additions = pr.additions ?? 0;
+  const deletions = pr.deletions ?? 0;
+  const hasDiffStats = additions > 0 || deletions > 0;
 
   return (
     <HoverCardPanel title={pr.title}>
@@ -72,21 +88,39 @@ const PrHoverCardContent: React.FC<PrHoverCardContentProps> = memo(({ pr }) => {
         </HoverCardRow>
       )}
 
-      <HoverCardRow icon={<Clock size={13} strokeWidth={1.75} />}>
-        <div className="truncate text-text-2">
-          <span className="text-text-3">
-            {t("git.issues.updated", { defaultValue: "Last updated" })}
-          </span>
-          {pr.updated_at && (
-            <>
-              <span className="mx-1 text-text-4">·</span>
-              <span>
-                {formatHoverCardTimeAgo(pr.updated_at, i18n.language)}
-              </span>
-            </>
-          )}
-        </div>
-      </HoverCardRow>
+      {hasDiffStats && (
+        <HoverCardRow icon={<FileDiff size={13} strokeWidth={1.75} />}>
+          <div
+            className="flex min-w-0 items-center"
+            data-testid="pr-hover-card-diff-stats"
+          >
+            <span className="text-text-3">
+              {t("git.pr.tabs.changes", { defaultValue: "Changes" })}
+            </span>
+            <span className="mx-1 text-text-4">·</span>
+            <DiffStatsBadge
+              additions={additions}
+              deletions={deletions}
+              variant="plain"
+              size="md"
+              weight="normal"
+              reserveValueWidth={false}
+            />
+          </div>
+        </HoverCardRow>
+      )}
+
+      {pr.updated_at && (
+        <HoverCardRow icon={<Clock size={13} strokeWidth={1.75} />}>
+          <div className="truncate text-text-2">
+            <span className="text-text-3">
+              {t("git.issues.updated", { defaultValue: "Last updated" })}
+            </span>
+            <span className="mx-1 text-text-4">·</span>
+            <span>{formatHoverCardTimeAgo(pr.updated_at, i18n.language)}</span>
+          </div>
+        </HoverCardRow>
+      )}
     </HoverCardPanel>
   );
 });

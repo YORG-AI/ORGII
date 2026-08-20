@@ -109,7 +109,17 @@ export function buildExternalHistoryHandoffPrompt(
 export async function forkExternalHistoryIntoOrgiiSession(params: {
   sourceSessionId: string;
   sourceSession?: Session;
+  /** The user's visible words (display projection of the composer text). */
   userMessage: string;
+  /**
+   * Agent-facing projection of `userMessage` (skill pills expanded, canvas
+   * contract, base64-free). When present it is what the model must receive
+   * as the continuation request; `userMessage` remains the display copy.
+   * `session_launch` only carries a single content field, so the handoff
+   * prompt embeds the agent projection — a fully split visible message would
+   * need backend support.
+   */
+  agentMessage?: string;
   imageDataUrls?: string[];
 }): Promise<string> {
   const source = getImportedHistorySourceBySessionId(params.sourceSessionId);
@@ -134,7 +144,7 @@ export async function forkExternalHistoryIntoOrgiiSession(params: {
   const chunks = await source.loadFullTranscriptChunks(params.sourceSessionId);
   const content = buildExternalHistoryHandoffPrompt(
     chunks,
-    params.userMessage,
+    params.agentMessage ?? params.userMessage,
     source.displayName
   );
   // This continuation is a normal top-level ORGII session. `parentSessionId`

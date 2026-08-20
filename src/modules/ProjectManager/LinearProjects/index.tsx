@@ -8,7 +8,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
-import type { WorkstationTabHeaderHost } from "@src/hooks/workStation";
+import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import WorkItemDetail, {
   WORK_ITEM_DETAIL_SURFACE,
 } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail";

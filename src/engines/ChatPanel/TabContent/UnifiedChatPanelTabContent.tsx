@@ -2,12 +2,19 @@ import React from "react";
 
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 
-import { ChatPanelTerminalContent } from "../ChatPanelTerminalContent";
 import { UnknownChatPanelTabPlaceholder } from "./UnknownChatPanelTabPlaceholder";
 import { resolveChatPanelTabSurfaceEntry } from "./registry";
 
 const WorkManagement = React.lazy(
   () => import("@src/modules/MainApp/WorkManagement")
+);
+
+// Lazy: pulls TerminalCore (xterm + addons), which only renders once the
+// user opens a terminal tab in the chat pane.
+const ChatPanelTerminalContent = React.lazy(() =>
+  import("../ChatPanelTerminalContent").then((module) => ({
+    default: module.ChatPanelTerminalContent,
+  }))
 );
 
 interface UnifiedChatPanelTabContentProps {
@@ -81,12 +88,14 @@ export function UnifiedChatPanelTabContent({
             style={{ display: isActive ? "flex" : "none" }}
             className="min-h-0 w-full flex-1 flex-col overflow-hidden"
           >
-            <ChatPanelTerminalContent
-              tabId={tab.id}
-              terminalSessionId={terminalSessionId}
-              cliCommand={tab.cliCommand}
-              visible={isActive}
-            />
+            <React.Suspense fallback={null}>
+              <ChatPanelTerminalContent
+                tabId={tab.id}
+                terminalSessionId={terminalSessionId}
+                cliCommand={tab.cliCommand}
+                visible={isActive}
+              />
+            </React.Suspense>
           </div>
         );
       })}

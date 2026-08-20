@@ -849,7 +849,10 @@
       "insert": "Wstaw"
     },
     "compactArgHint": "<opcjonalny nacisk podsumowania>",
-    "compactCommandDescription": "Podsumuj starszy kontekst, aby zwolnić miejsce. Opcjonalnie: /compact <nacisk podsumowania>"
+    "compactCommandDescription": "Podsumuj starszy kontekst, aby zwolnić miejsce. Opcjonalnie: /compact <nacisk podsumowania>",
+    "canvasCommandDescription": "Utwórz nowy interaktywny Canvas. Opcjonalnie: /canvas <co utworzyć>",
+    "canvasArgHint": "co utworzyć",
+    "newCanvasAction": "Nowy Canvas"
   },
   "listPanel": {
     "showingOf": "Wyświetlono {{filtered}} z {{total}}",
@@ -1000,6 +1003,10 @@
       "newTerminal": "Nowy Terminal",
       "newTab": "Nowa karta",
       "terminals": "Terminale"
+    },
+    "sideChat": {
+      "title": "Czat boczny",
+      "openInSideChat": "Otwórz w czacie bocznym"
     },
     "collapseAll": "Zwiń wszystko",
     "copyEventJson": "Kopiuj JSON zdarzeń",
@@ -2062,6 +2069,18 @@
     "renderInlineCanvasUrlDone": "render URL canvas",
     "renderInlineCanvasUrlFailed": "Niepowodzenie: render URL canvas",
     "renderInlineCanvasUrlRunning": "render URL canvas…",
+    "reviseInlineCanvasRunning": "Poprawianie Canvas",
+    "reviseInlineCanvasDone": "Canvas poprawiony",
+    "reviseInlineCanvasFailed": "Poprawianie Canvas nie powiodło się",
+    "reviseInlineCanvasHtmlRunning": "Poprawianie Canvas HTML",
+    "reviseInlineCanvasHtmlDone": "Canvas HTML poprawiony",
+    "reviseInlineCanvasHtmlFailed": "Poprawianie Canvas HTML nie powiodło się",
+    "reviseInlineCanvasUrlRunning": "Poprawianie Canvas URL",
+    "reviseInlineCanvasUrlDone": "Canvas URL poprawiony",
+    "reviseInlineCanvasUrlFailed": "Poprawianie Canvas URL nie powiodło się",
+    "reviseInlineCanvasA2uiRunning": "Poprawianie Canvas A2UI",
+    "reviseInlineCanvasA2uiDone": "Canvas A2UI poprawiony",
+    "reviseInlineCanvasA2uiFailed": "Poprawianie Canvas A2UI nie powiodło się",
     "runShellRunDone": "run command",
     "runShellRunFailed": "Niepowodzenie: run command",
     "runShellRunRunning": "run command…",
@@ -2842,5 +2861,60 @@
     "summarize": "Podsumuj z Agent",
     "waiting": "Oczekiwanie na treść…",
     "empty": "Brak treści"
+  },
+  "pokerTable": {
+    "menuLabel": "Poker table",
+    "header": {
+      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
+      "hand": "Hand #{{number}}",
+      "history": "Hand history",
+      "settings": "Table settings",
+      "leave": "Leave table",
+      "close": "Close"
+    },
+    "potLabel": "Pot",
+    "tokens": "{{amount}} tokens",
+    "thinking": "Thinking · {{seconds}}s",
+    "waitingFor": "Waiting for {{name}}…",
+    "dealing": "Dealing…",
+    "nextHand": "Deal next hand",
+    "seat": {
+      "you": "You",
+      "bot": "bot",
+      "allIn": "All in"
+    },
+    "actions": {
+      "fold": "Fold",
+      "check": "Check",
+      "call": "Call {{amount}}",
+      "bet": "Bet {{amount}}",
+      "raise": "Raise {{amount}}",
+      "allIn": "All in {{amount}}",
+      "betLabel": "Bet",
+      "raiseLabel": "Raise",
+      "callLabel": "Call",
+      "checkLabel": "Check"
+    },
+    "result": {
+      "wins": "{{name}} wins {{amount}}",
+      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
+    },
+    "rebuy": {
+      "title": "You're out of chips",
+      "bankroll": "Bankroll {{amount}}",
+      "buyIn": "Buy in {{amount}}",
+      "reset": "Reset bankroll"
+    },
+    "history": {
+      "title": "Hand history",
+      "empty": "No hands played yet",
+      "foldedOut": "everyone folded"
+    },
+    "settings": {
+      "stakes": "Stakes",
+      "speed": "Table speed",
+      "speed_normal": "Normal",
+      "speed_fast": "Fast"
+    }
   }
 }

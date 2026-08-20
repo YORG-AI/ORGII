@@ -17,12 +17,12 @@ import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { useMouseMoved } from "@src/hooks/ui/useMouseMoved";
-import { useContextMenu } from "@src/hooks/workStation/panels/useContextMenu";
 
 import { SearchResultsPanel, SecondLayerPanel } from "./MenuSections";
 import { MenuItemRow } from "./ResultItems";
 import { MENU_ITEMS, STYLE_CONFIG } from "./config";
 import type { ContextMenuCustomMentionOption, ContextMenuProps } from "./types";
+import { useContextMenu } from "./useContextMenu";
 import { useMenuEffects } from "./useMenuEffects";
 
 interface CustomMentionGroup {

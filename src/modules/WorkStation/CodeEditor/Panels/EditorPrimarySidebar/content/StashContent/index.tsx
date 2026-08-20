@@ -29,7 +29,7 @@ import {
   type TreeRowNode,
 } from "@src/components/TreeRow";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
-import { useWorkStationTabs } from "@src/hooks/workStation/tabs/useWorkStationTabs";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import {
   COUNT_BADGE,
   HEADER_BUTTON,

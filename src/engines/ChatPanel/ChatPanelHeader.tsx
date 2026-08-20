@@ -14,7 +14,7 @@ import RegionNoticeButton from "@src/components/RegionNoticeButton";
 import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared";
+import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
@@ -28,6 +28,7 @@ import {
   chatPanelHeaderSlotsAtom,
 } from "./header";
 import {
+  CHAT_PANEL_GLASS_SURFACE_CLASS,
   CHAT_PANEL_HEADER_STACK_HEIGHT_PX,
   CHAT_PANEL_TAB_HEADER_HEIGHT_PX,
 } from "./header/chatPanelHeaderLayout";
@@ -283,7 +284,7 @@ export function ChatPanelHeader({
   return (
     <>
       <div
-        className="pointer-events-none absolute left-0 right-0 top-0 z-30 bg-chat-pane/55 backdrop-blur-xl backdrop-saturate-150"
+        className={`pointer-events-none absolute left-0 right-0 top-0 z-30 ${CHAT_PANEL_GLASS_SURFACE_CLASS}`}
         data-testid="chat-panel-header-glass"
         aria-hidden
         style={{

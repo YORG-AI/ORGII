@@ -57,7 +57,6 @@ const BENCHMARK_BATCH_TASK_ACTION_CANCEL: &str = "cancel";
 const BENCHMARK_BATCH_TASK_ACTION_RESTART: &str = "restart";
 const DEFAULT_AGENT_BATCH_CONCURRENCY: usize = 2;
 const MAX_AGENT_BATCH_CONCURRENCY: usize = 8;
-const SWE_BENCH_PRO_REPO_PATH: &str = "/Users/laptop-h/Documents/GitHub/SWE-bench_Pro-os";
 const SWE_BENCH_PRO_EVALUATOR_SCRIPT: &str = "swe_bench_pro_eval.py";
 const SWE_BENCH_PRO_RUN_SCRIPTS_DIR: &str = "run_scripts";
 const SWE_BENCH_PRO_DOCKERHUB_USERNAME: &str = "jefzda";

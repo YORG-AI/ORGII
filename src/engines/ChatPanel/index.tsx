@@ -62,6 +62,8 @@ import {
   chatPanelStartPageOpenAtom,
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { openPokerTableAtom } from "@src/store/ui/pokerTableAtom";
+import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import { isHumanSession } from "@src/util/session/sessionDispatch";
 
@@ -88,7 +90,10 @@ import {
   shouldReserveFocusedChatWorkstationPlaceholder,
 } from "./focusedChatWorkstationLayout";
 import { FocusedChatWorkstationMinimapPortalContext } from "./focusedChatWorkstationMinimapPortal";
-import { CHAT_PANEL_HEADER_STACK_HEIGHT_PX } from "./header/chatPanelHeaderLayout";
+import {
+  CHAT_PANEL_HEADER_STACK_HEIGHT_PX,
+  shouldOverlayChatSessionHeaders,
+} from "./header/chatPanelHeaderLayout";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
 import { useChatPanelContentState } from "./hooks/useChatPanelContentState";
 import { useChatPanelCreateTarget } from "./hooks/useChatPanelCreateTarget";
@@ -384,6 +389,17 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       [openLaunchedSessionTab]
     );
 
+    const openSideChat = useSetAtom(openSideChatAtom);
+    const handleOpenSideChat = useCallback(() => {
+      // Creator mode — the side chat exists to start/watch a session
+      // without leaving the active tab.
+      openSideChat(null);
+    }, [openSideChat]);
+    const openPokerTable = useSetAtom(openPokerTableAtom);
+    const handleOpenPokerTable = useCallback(() => {
+      openPokerTable();
+    }, [openPokerTable]);
+
     const handleChatPanelCollabOrgCreated = useCallback(
       (_result: CreatedOrgResult) => {
         bumpProjectListRefresh((previous) => previous + 1);
@@ -551,14 +567,16 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         onOpenRuntime={handleShowRuntime}
         onNewProject={handleStartPageNewProject}
         onNewWorkItem={handleStartPageNewWorkItem}
+        onOpenSideChat={handleOpenSideChat}
+        onOpenPokerTable={handleOpenPokerTable}
       />
     );
 
-    const overlayChatHeaders =
-      contentState.showSessionContent &&
-      !isStandaloneToolTabActive &&
-      sessionView.mode === "gui" &&
-      !humanSessionActive;
+    const overlayChatHeaders = shouldOverlayChatSessionHeaders({
+      showSessionContent: contentState.showSessionContent,
+      standaloneToolTabActive: isStandaloneToolTabActive,
+      humanSessionActive,
+    });
 
     const headerSection = (
       <ChatPanelHeader
@@ -663,10 +681,16 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         showPanelContent={contentState.showPanelContent}
         showSessionContent={contentState.showSessionContent}
         sessionViewMode={sessionView.mode}
+        chromeTopInset={
+          overlayChatHeaders ? CHAT_PANEL_HEADER_STACK_HEIGHT_PX : 0
+        }
         alternateSessionView={
           <SessionAlternateSurface
             sessionId={currentSessionId ?? null}
             view={sessionView}
+            topInset={
+              overlayChatHeaders ? CHAT_PANEL_HEADER_STACK_HEIGHT_PX : 0
+            }
           />
         }
       />
@@ -692,6 +716,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
                 compactMenuHost={focusedWorkstationMenuHost}
                 conversationMinimapHostRef={focusedWorkstationMinimapHostRef}
                 session={currentSession}
+                sessionId={currentSessionId}
                 topInset={
                   overlayChatHeaders ? CHAT_PANEL_HEADER_STACK_HEIGHT_PX : 0
                 }

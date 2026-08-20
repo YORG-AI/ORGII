@@ -12,15 +12,13 @@
  * - Virtual scrolling for large code blocks (>100 lines)
  */
 import { Check, Copy, Eye, EyeOff, SquareArrowOutUpRight } from "lucide-react";
-import React, { memo, useCallback } from "react";
+import React, { Suspense, lazy, memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import ExpandOverlay from "@src/components/ExpandOverlay";
 import { FileTreeHoverPreview } from "@src/components/FileTreePreview/exports";
 import FileTypeIcon from "@src/components/FileTypeIcon";
-import ModernCodeViewer from "@src/features/CodeViewer/ModernCodeViewer";
-import { VirtualizedModernDiff } from "@src/features/CodeViewer/VirtualizedModernDiff";
 import { useCopyCheck } from "@src/hooks/ui";
 import { copyText } from "@src/util/data/clipboard";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
@@ -41,6 +39,17 @@ import { STYLE_CONFIG } from "./config";
 import type { ParsedDiff } from "./diffParser";
 import "./index.scss";
 import { useCodeBlockState } from "./useCodeBlockState";
+
+// Lazy so the highlight engines (react-syntax-highlighter / highlight.js) load
+// with the first rendered code block, not with the ChatPanel startup graph.
+const ModernCodeViewer = lazy(
+  () => import("@src/features/CodeViewer/ModernCodeViewer")
+);
+const VirtualizedModernDiff = lazy(() =>
+  import("@src/features/CodeViewer/VirtualizedModernDiff").then((module) => ({
+    default: module.VirtualizedModernDiff,
+  }))
+);
 
 // ============================================
 // Constants
@@ -514,39 +523,53 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
                 className="chat-code-block__code-container chat-code-block__scroll-hover w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden"
                 data-scrolling={isScrolling || undefined}
               >
-                {isDiff && displayedDiff ? (
-                  <VirtualizedModernDiff
-                    oldValue={displayedDiff.oldValue}
-                    newValue={displayedDiff.newValue}
-                    filePath={filePath}
-                    height={contentHeight}
-                    width={containerWidth}
-                    collapseUnchanged={true}
-                    contextLines={2}
-                    showFilePath={false}
-                    showStatsBar={false}
-                    showLineNumbers={false}
-                    internalScroll={false}
-                    noWrapper={true}
-                    allowExpand={false}
-                    indicatorStyle="border"
-                    className="chat-event-diff"
-                    oldStartLine={displayedDiff.oldStartLine}
-                    newStartLine={displayedDiff.newStartLine}
-                  />
-                ) : (
-                  <ModernCodeViewer
-                    content={useVirtualScroll ? code : displayedCode}
-                    language={detectedLanguage}
-                    showLineNumbers={false}
-                    internalScroll={useVirtualScroll}
-                    height={
-                      useVirtualScroll ? virtualListHeight : contentHeight
-                    }
-                    width={containerWidth}
-                    noWrapper={true}
-                  />
-                )}
+                <Suspense
+                  fallback={
+                    <div
+                      aria-hidden
+                      style={{
+                        height:
+                          isDiff || !useVirtualScroll
+                            ? contentHeight
+                            : virtualListHeight,
+                      }}
+                    />
+                  }
+                >
+                  {isDiff && displayedDiff ? (
+                    <VirtualizedModernDiff
+                      oldValue={displayedDiff.oldValue}
+                      newValue={displayedDiff.newValue}
+                      filePath={filePath}
+                      height={contentHeight}
+                      width={containerWidth}
+                      collapseUnchanged={true}
+                      contextLines={2}
+                      showFilePath={false}
+                      showStatsBar={false}
+                      showLineNumbers={false}
+                      internalScroll={false}
+                      noWrapper={true}
+                      allowExpand={false}
+                      indicatorStyle="border"
+                      className="chat-event-diff"
+                      oldStartLine={displayedDiff.oldStartLine}
+                      newStartLine={displayedDiff.newStartLine}
+                    />
+                  ) : (
+                    <ModernCodeViewer
+                      content={useVirtualScroll ? code : displayedCode}
+                      language={detectedLanguage}
+                      showLineNumbers={false}
+                      internalScroll={useVirtualScroll}
+                      height={
+                        useVirtualScroll ? virtualListHeight : contentHeight
+                      }
+                      width={containerWidth}
+                      noWrapper={true}
+                    />
+                  )}
+                </Suspense>
               </div>
 
               {needsExpand && !isLoading && (

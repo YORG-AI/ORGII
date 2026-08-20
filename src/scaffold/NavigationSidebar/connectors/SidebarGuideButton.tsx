@@ -28,7 +28,7 @@ import {
   OrganizationStepIcon,
   ReadyStepIcon,
 } from "@src/modules/SetupWalkthrough/components/SetupStepIcons";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 import type { WizardStepIcon } from "@src/scaffold/WizardSystem/primitives/WizardStepNavigation";
 
 import {

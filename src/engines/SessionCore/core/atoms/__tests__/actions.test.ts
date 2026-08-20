@@ -446,6 +446,82 @@ describe("loadSessionAtom", () => {
     expect(store.get(transcriptReplaceEpochAtom)).toBe(epochBefore + 1);
   });
 
+  it("replace: keeps the just-sent synthetic when a stale replay carries only older turns (abort → send)", () => {
+    const store = createStore();
+    const replayUser = makeReplayEvent(
+      "claudecodeapp-user-0",
+      "first message",
+      "user",
+      "2026-05-16T00:00:01.000Z"
+    );
+    const replayAssistant = makeReplayEvent(
+      "claudecodeapp-asst-1",
+      "aborted partial answer",
+      "assistant",
+      "2026-05-16T00:00:02.000Z"
+    );
+    const freshSynthetic = {
+      ...makeUserMessageEvent("user-input-2", "follow-up after abort", {
+        synthetic: true,
+      }),
+      createdAt: "2026-05-16T00:00:05.000Z",
+    };
+
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [replayUser, replayAssistant, freshSynthetic],
+    });
+    // Post-abort reconcile replays a JSONL that does not know about the
+    // follow-up yet — the fresh bubble must survive, after the history.
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [replayUser, replayAssistant],
+      replace: true,
+    });
+
+    expect(store.get(eventsAtom).map((event) => event.id)).toEqual([
+      "claudecodeapp-user-0",
+      "claudecodeapp-asst-1",
+      "user-input-2",
+    ]);
+  });
+
+  it("merge: drops the echoed synthetic but keeps the fresh one still awaiting its echo", () => {
+    const store = createStore();
+    const echoedSynthetic = {
+      ...makeUserMessageEvent("user-input-1", "first message", {
+        synthetic: true,
+      }),
+      createdAt: "2026-05-16T00:00:00.500Z",
+    };
+    const freshSynthetic = {
+      ...makeUserMessageEvent("user-input-2", "follow-up after abort", {
+        synthetic: true,
+      }),
+      createdAt: "2026-05-16T00:00:05.000Z",
+    };
+    const replayUser = makeReplayEvent(
+      "claudecodeapp-user-0",
+      "first message",
+      "user",
+      "2026-05-16T00:00:01.000Z"
+    );
+
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [echoedSynthetic, freshSynthetic],
+    });
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [replayUser],
+    });
+
+    const ids = store.get(eventsAtom).map((event) => event.id);
+    expect(ids).toContain("user-input-2");
+    expect(ids).toContain("claudecodeapp-user-0");
+    expect(ids).not.toContain("user-input-1");
+  });
+
   it("replace: still recovers the synthetic user event when the replay has no backend user message yet", () => {
     const store = createStore();
     const synthetic = makeUserMessageEvent("user-input-1", "fix the bug", {

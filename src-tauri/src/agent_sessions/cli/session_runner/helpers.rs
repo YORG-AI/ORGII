@@ -20,6 +20,23 @@ type RunningSessionsMap = HashMap<String, tokio::task::JoinHandle<()>>;
 pub static RUNNING_SESSIONS: std::sync::LazyLock<Arc<Mutex<RunningSessionsMap>>> =
     std::sync::LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
 
+type SessionControlLocksMap = HashMap<String, Arc<Mutex<()>>>;
+
+/// Per-session serialization of lifecycle control (cancel vs. new-turn
+/// dispatch). Without it, a slow `cancel_session` can interleave with a
+/// follow-up `cli_agent_message` and cancel the NEW turn's intent / kill the
+/// new process. Lock order: control lock → RUNNING_SESSIONS.
+static SESSION_CONTROL_LOCKS: std::sync::LazyLock<Mutex<SessionControlLocksMap>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+pub async fn session_control_lock(session_id: &str) -> Arc<Mutex<()>> {
+    let mut locks = SESSION_CONTROL_LOCKS.lock().await;
+    locks
+        .entry(session_id.to_string())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
+}
+
 /// Strip the `<ide_context>...</ide_context>` block from user input.
 /// IDE context is prepended by `inject_ide_context_into_prompt` for the CLI agent,
 /// but should not be stored in the DB or shown to the user in chat history.

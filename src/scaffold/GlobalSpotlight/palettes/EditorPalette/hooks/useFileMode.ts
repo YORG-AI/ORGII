@@ -12,7 +12,7 @@ import { createLogger } from "@src/hooks/logger";
 import {
   type ContextMenuSearchRoot,
   buildContextMenuSearchRoots,
-} from "@src/hooks/workStation/panels/contextMenuSearchRoots";
+} from "@src/scaffold/ContextMenu/contextMenuSearchRoots";
 import type { Repo } from "@src/store/repo/types";
 import type { WorkspaceFolder } from "@src/types/workspace";
 import {

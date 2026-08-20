@@ -16,9 +16,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
 import { useBrowserAutomation } from "@src/engines/BrowserCore/hooks/useBrowserAutomation";
-import { useWorkStationTabShortcutBridge } from "@src/hooks/workStation";
-import { useBrowserPaneState } from "@src/hooks/workStation/browser/useBrowserPaneState";
-import { useBrowserSessions } from "@src/hooks/workStation/browser/useBrowserSessions";
+import { useWorkStationTabShortcutBridge } from "@src/hooks/tabHost/useWorkStationTabShortcutBridge";
+import { useBrowserPaneState } from "@src/modules/WorkStation/Browser/hooks/useBrowserPaneState";
+import { useBrowserSessions } from "@src/modules/WorkStation/Browser/hooks/useBrowserSessions";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import { workStationDevToolsCollapsedPersistAtom } from "@src/store/ui/workStationAtom";
 import {

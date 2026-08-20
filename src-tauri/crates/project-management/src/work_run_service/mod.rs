@@ -622,6 +622,13 @@ pub fn read(run_id: &str) -> Result<WorkItemRun, String> {
     require_run(&connection, run_id)
 }
 
+pub(crate) fn read_in_transaction(
+    tx: &Transaction<'_>,
+    run_id: &str,
+) -> Result<WorkItemRun, String> {
+    require_run(tx, run_id)
+}
+
 /// List execution episodes whose dispatch already owns a Session but whose
 /// Run has not reached a durable terminal state yet.
 ///

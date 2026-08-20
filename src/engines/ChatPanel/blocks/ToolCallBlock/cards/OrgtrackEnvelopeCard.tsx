@@ -4,7 +4,7 @@ import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { parseCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
-import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { createWorkItemDetailTab } from "@src/store/workstation";

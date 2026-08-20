@@ -481,6 +481,26 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         ..DEFAULT_TOOL_ENTRY
     },
     ToolEntry {
+        name: tool_names::REVISE_INLINE_CANVAS,
+        description: "Revise an existing inline Canvas without creating a new one.",
+        description_detail: "Replaces the content of a previously rendered inline Canvas while preserving its logical identity and sidebar position. Requires the exact target Canvas event id and validates that the target belongs to the same session. Supports the same html, url, react, and a2ui payload modes as render_inline_canvas.",
+        category: tool_categories::CODING,
+        icon_id: "layout",
+        simulator_app: AppCanvas,
+        app_subtool: OtherTool,
+        chat_block: CbCanvasInline,
+        label_running: "tools.reviseInlineCanvasRunning",
+        label_done: "tools.reviseInlineCanvasDone",
+        label_failed: "tools.reviseInlineCanvasFailed",
+        actions: &[
+            action_sub!("html", "Revise with a self-contained HTML/SVG/CSS snippet", OtherTool, chat: CbCanvasInline, labels: "tools.reviseInlineCanvasHtmlRunning", "tools.reviseInlineCanvasHtmlDone", "tools.reviseInlineCanvasHtmlFailed"),
+            action_sub!("url", "Revise with an HTTPS URL external-open action", OtherTool, chat: CbCanvasInline, labels: "tools.reviseInlineCanvasUrlRunning", "tools.reviseInlineCanvasUrlDone", "tools.reviseInlineCanvasUrlFailed"),
+            action_sub!("react", "Revise with a stateful JSX App component", OtherTool, chat: CbCanvasInline, labels: "tools.reviseInlineCanvasHtmlRunning", "tools.reviseInlineCanvasHtmlDone", "tools.reviseInlineCanvasHtmlFailed"),
+            action_sub!("a2ui", "Revise with typed UI elements", OtherTool, chat: CbCanvasInline, labels: "tools.reviseInlineCanvasA2uiRunning", "tools.reviseInlineCanvasA2uiDone", "tools.reviseInlineCanvasA2uiFailed"),
+        ],
+        ..DEFAULT_TOOL_ENTRY
+    },
+    ToolEntry {
         name: tool_names::MANAGE_FILE_HISTORY,
         description: "Inspect and rewind file-history snapshots for this session.",
         description_detail: "Lists captured snapshots and their files. \

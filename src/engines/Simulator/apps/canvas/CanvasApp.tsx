@@ -16,30 +16,34 @@
  * - Source tab shows raw JSONL/HTML in a <pre> block
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Layout, RefreshCw } from "lucide-react";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Layout, PenTool, RefreshCw, Share2 } from "lucide-react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import IconButton from "@src/components/IconButton";
 import TabPill from "@src/components/TabPill";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
-import CanvasPreviewSurface from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasPreviewSurface";
+import CanvasRevisionProgress from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasRevisionProgress";
+import { isCanvasRevisionDraftRelevant } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasRevisionProgressState";
 import type { CanvasInlineMode } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/types";
+import { useCanvasRevisionDraftForSession } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import {
+  CanvasShareDialog,
+  getCanvasShareAvailability,
+  useCanvasShareDialog,
+} from "@src/features/CanvasShare";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { SessionReplayCodeMirrorViewer } from "@src/modules/WorkStation/CodeEditor/SessionReplay/CodePanel/SessionReplayCodeMirrorViewer";
 import {
   PrimarySidebarLayoutWithSections,
   SimulatorReplayChrome,
   WorkStationShell,
+  WorkstationHeaderSectionSeparator,
+  WorkstationToolbarTooltip,
   buildPrimarySidebarConfig,
 } from "@src/modules/WorkStation/shared";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared/PrimarySidebarLayout/PrimarySidebarLayoutWithSections";
@@ -55,10 +59,20 @@ import {
 import type { SimulatorAppProps } from "../core/types";
 import { useSimulatorAppState } from "../core/useSimulatorAppState";
 import { CANVAS_APP_CONFIG } from "./canvasConfig";
+import { diffLines, isCanvasDiffInputTooLarge } from "./canvasDiff";
+import {
+  type CanvasViewTab,
+  createCanvasInteractionState,
+  reconcileCanvasInteractionState,
+  reloadCanvas,
+  selectCanvasEvent,
+  setCanvasViewTab,
+  toggleCanvasComparison,
+} from "./canvasInteractionState";
+import { projectLatestCanvasEvents } from "./canvasRevisionProjection";
+import CanvasDesignSurface from "./design/CanvasDesignSurface";
 
 // ─── types ────────────────────────────────────────────────────────────────────
-
-type ViewTab = "canvas" | "source" | "compare";
 
 interface CanvasPayload {
   mode: CanvasInlineMode;
@@ -77,7 +91,7 @@ function extractPayload(event: SessionEvent): CanvasPayload | null {
     content: args.content as string | undefined,
     url: args.url as string | undefined,
     title: args.title as string | undefined,
-    streaming: false,
+    streaming: args.streaming === true,
   };
 }
 
@@ -106,61 +120,6 @@ function formatEventTime(event: SessionEvent): string {
   } catch {
     return "";
   }
-}
-
-// ─── diff utility ─────────────────────────────────────────────────────────────
-
-type DiffLine =
-  | { kind: "equal"; text: string }
-  | { kind: "added"; text: string }
-  | { kind: "removed"; text: string };
-
-/** Simple LCS-based line-level diff — no external library. */
-function diffLines(oldText: string, newText: string): DiffLine[] {
-  const a = oldText.split("\n");
-  const b = newText.split("\n");
-
-  // Build LCS table
-  const m = a.length;
-  const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () =>
-    new Array(n + 1).fill(0)
-  );
-  for (let i = m - 1; i >= 0; i--) {
-    for (let j = n - 1; j >= 0; j--) {
-      if (a[i] === b[j]) {
-        dp[i][j] = 1 + dp[i + 1][j + 1];
-      } else {
-        dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
-      }
-    }
-  }
-
-  // Backtrack
-  const result: DiffLine[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < m && j < n) {
-    if (a[i] === b[j]) {
-      result.push({ kind: "equal", text: a[i] });
-      i++;
-      j++;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      result.push({ kind: "removed", text: a[i] });
-      i++;
-    } else {
-      result.push({ kind: "added", text: b[j] });
-      j++;
-    }
-  }
-  while (i < m) {
-    result.push({ kind: "removed", text: a[i++] });
-  }
-  while (j < n) {
-    result.push({ kind: "added", text: b[j++] });
-  }
-
-  return result;
 }
 
 // ─── sidebar item ──────────────────────────────────────────────────────────────
@@ -223,7 +182,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
           "shrink-0 rounded px-1 py-0.5 text-[10px] font-medium transition-colors",
           isCompareSelected
             ? "bg-primary-6/20 text-primary-6"
-            : "text-text-4 opacity-0 hover:text-text-2 group-hover:opacity-100",
+            : "text-text-4 opacity-0 hover:text-text-2 focus-visible:opacity-100 group-hover:opacity-100",
         ].join(" ")}
       >
         {t("canvasApp.compareMark", "vs")}
@@ -326,6 +285,7 @@ const DiffView: React.FC<DiffViewProps> = ({
   olderTitle,
   newerTitle,
 }) => {
+  const { t } = useTranslation("sessions");
   const oldText =
     olderPayload.mode === "url"
       ? (olderPayload.url ?? "")
@@ -334,10 +294,27 @@ const DiffView: React.FC<DiffViewProps> = ({
     newerPayload.mode === "url"
       ? (newerPayload.url ?? "")
       : (newerPayload.content ?? "");
-  const diff = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
+  const tooLarge = isCanvasDiffInputTooLarge(oldText, newText);
+  const diff = useMemo(
+    () => (tooLarge ? [] : diffLines(oldText, newText)),
+    [tooLarge, oldText, newText]
+  );
 
   const addedCount = diff.filter((l) => l.kind === "added").length;
   const removedCount = diff.filter((l) => l.kind === "removed").length;
+
+  if (tooLarge) {
+    return (
+      <div className="flex h-full items-center justify-center p-4">
+        <span className="text-xs text-text-4">
+          {t(
+            "canvasApp.compareTooLarge",
+            "These versions are too large to compare"
+          )}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -363,9 +340,9 @@ const DiffView: React.FC<DiffViewProps> = ({
               className={[
                 "whitespace-pre-wrap break-all px-2",
                 line.kind === "added"
-                  ? "bg-green-500/10 text-green-400"
+                  ? "bg-success-6/10 text-success-6"
                   : line.kind === "removed"
-                    ? "bg-red-500/10 text-red-400"
+                    ? "bg-danger-6/10 text-danger-6"
                     : "text-text-3",
               ].join(" ")}
             >
@@ -391,30 +368,31 @@ interface CanvasIframeProps {
   payload: CanvasPayload;
   reloadKey: number;
   title: string;
+  eventId: string;
+  sessionId: string;
+  designEnabled: boolean;
 }
 
 const CanvasIframe: React.FC<CanvasIframeProps> = ({
   payload,
   reloadKey,
   title,
+  eventId,
+  sessionId,
+  designEnabled,
 }) => {
-  const { t } = useTranslation("sessions");
-
   return (
-    <CanvasPreviewSurface
+    <CanvasDesignSurface
+      // `designEnabled` is deliberately not part of the key: the inspector
+      // effect handles enable/disable without remounting, and a remount would
+      // reset the rendered artifact's state on every design toggle.
+      key={`${eventId}:${reloadKey}`}
       payload={payload}
-      variant="simulator"
-      title={title}
       reloadKey={reloadKey}
-      emptyFallback={
-        <div className="flex h-full items-center justify-center">
-          <span className="text-xs text-text-4">
-            {payload.streaming
-              ? t("canvasCard.waiting", "Waiting for content…")
-              : t("canvasCard.empty", "No content")}
-          </span>
-        </div>
-      }
+      title={title}
+      eventId={eventId}
+      sessionId={sessionId}
+      designEnabled={designEnabled}
     />
   );
 };
@@ -422,12 +400,18 @@ const CanvasIframe: React.FC<CanvasIframeProps> = ({
 // ─── tab header content ───────────────────────────────────────────────────────
 
 interface CanvasTabHeaderProps {
-  tab: ViewTab;
-  onSetTab: (tab: ViewTab) => void;
+  tab: CanvasViewTab;
+  onSetTab: (tab: CanvasViewTab) => void;
   title: string;
   isStreaming: boolean;
   onReload: () => void;
   showCompare: boolean;
+  designAvailable: boolean;
+  designEnabled: boolean;
+  onToggleDesign: () => void;
+  shareEnabled: boolean;
+  shareHint: string;
+  onShare: () => void;
 }
 
 const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
@@ -437,10 +421,16 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
   isStreaming,
   onReload,
   showCompare,
+  designAvailable,
+  designEnabled,
+  onToggleDesign,
+  shareEnabled,
+  shareHint,
+  onShare,
 }) => {
   const { t } = useTranslation("sessions");
 
-  const tabs: ViewTab[] = showCompare
+  const tabs: CanvasViewTab[] = showCompare
     ? ["canvas", "source", "compare"]
     : ["canvas", "source"];
 
@@ -458,14 +448,37 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
       )}
 
       <div className="ml-auto flex items-center gap-1">
+        {tab === "canvas" && (
+          <WorkstationToolbarTooltip
+            label={
+              designAvailable
+                ? t("canvasApp.designHint", "Select an element to change")
+                : t("canvasApp.designUnavailable", "Design is unavailable")
+            }
+          >
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="mini"
+              icon={<PenTool size={12} />}
+              onClick={onToggleDesign}
+              disabled={!designAvailable}
+              aria-pressed={designEnabled}
+              className={designEnabled ? "!bg-primary-2 !text-primary-6" : ""}
+            >
+              {t("canvasApp.design", "Design")}
+            </Button>
+          </WorkstationToolbarTooltip>
+        )}
         <TabPill
           variant="pill"
           size="mini"
           fillWidth={false}
           tabs={tabs}
           activeTab={tab}
-          onChange={(key) => onSetTab(key as ViewTab)}
+          onChange={(key) => onSetTab(key as CanvasViewTab)}
         />
+        <WorkstationHeaderSectionSeparator className="mx-0.5" />
         {tab === "canvas" && !isStreaming && (
           <IconButton
             onClick={onReload}
@@ -475,6 +488,18 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
             <RefreshCw size={12} />
           </IconButton>
         )}
+        <WorkstationToolbarTooltip label={shareHint}>
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            size="mini"
+            icon={<Share2 size={12} />}
+            onClick={onShare}
+            disabled={!shareEnabled}
+          >
+            {t("canvasApp.share", "Share")}
+          </Button>
+        </WorkstationToolbarTooltip>
       </div>
     </NoDragRegion>
   );
@@ -484,10 +509,22 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
 
 const CanvasApp: React.FC<SimulatorAppProps> = () => {
   const { t } = useTranslation("sessions");
+  const {
+    state: canvasShareState,
+    open: openCanvasShare,
+    close: closeCanvasShare,
+    retry: retryCanvasShare,
+    retryShortLink: retryCanvasShareShortLink,
+    copy: copyCanvasShare,
+  } = useCanvasShareDialog();
 
-  const { appEvents } = useSimulatorAppState({
+  const { appEvents: canvasRenderEvents } = useSimulatorAppState({
     config: CANVAS_APP_CONFIG as never,
   });
+  const appEvents = useMemo(
+    () => projectLatestCanvasEvents(canvasRenderEvents),
+    [canvasRenderEvents]
+  );
 
   const canvasPreviewEntry = useAtomValue(canvasPreviewAtom);
 
@@ -512,41 +549,38 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
 
   // ── selection state ──────────────────────────────────────────────────────
 
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [compareEventIds, setCompareEventIds] = useState<string[]>([]);
-  const prevEventCountRef = useRef(0);
+  const appEventIds = useMemo(
+    () => appEvents.map((event) => event.id),
+    [appEvents]
+  );
+  const previewEventId = canvasPreviewEntry?.payload.eventId ?? null;
+  const [interactionState, setInteractionState] = useState(() =>
+    createCanvasInteractionState(appEventIds, previewEventId)
+  );
+  const [designEventId, setDesignEventId] = useState<string | null>(null);
 
-  // Auto-advance to the latest event when a new one arrives
-  useEffect(() => {
-    if (appEvents.length === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelectedEventId(null);
-      prevEventCountRef.current = 0;
-      return;
-    }
-    if (appEvents.length > prevEventCountRef.current) {
-      prevEventCountRef.current = appEvents.length;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelectedEventId(appEvents[appEvents.length - 1].id);
-    }
-  }, [appEvents]);
+  // React's render-time adjustment pattern keeps external event/preview facts
+  // and the committed UI in the same render, without a cascading Effect pass.
+  const reconciledInteractionState = reconcileCanvasInteractionState(
+    interactionState,
+    appEventIds,
+    previewEventId,
+    designEventId
+  );
+  if (reconciledInteractionState !== interactionState) {
+    setInteractionState(reconciledInteractionState);
+  }
 
-  // Jump to matching event when canvasPreviewAtom changes (chat card click)
-  useEffect(() => {
-    const eventId = canvasPreviewEntry?.payload.eventId;
-    if (!eventId) return;
-    if (appEvents.some((event) => event.id === eventId)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelectedEventId(eventId);
-    }
-  }, [canvasPreviewEntry?.payload.eventId, appEvents]);
+  const { selectedEventId, compareEventIds, activeTab, reloadKey } =
+    reconciledInteractionState;
+
+  const handleSelect = useCallback((id: string) => {
+    setInteractionState((state) => selectCanvasEvent(state, id));
+  }, []);
 
   const handleCompareToggle = useCallback((id: string) => {
-    setCompareEventIds((prev) => {
-      if ((prev as string[]).includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 2) return [prev[1], id];
-      return [...prev, id];
-    });
+    setDesignEventId(null);
+    setInteractionState((state) => toggleCanvasComparison(state, id));
   }, []);
 
   const selectedEvent = useMemo(
@@ -558,6 +592,17 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
     () => (selectedEvent ? extractPayload(selectedEvent) : null),
     [selectedEvent]
   );
+  const activeSessionId =
+    selectedEvent?.sessionId ?? canvasPreviewEntry?.sessionId ?? null;
+  const revisionDraftCandidate =
+    useCanvasRevisionDraftForSession(activeSessionId);
+  const revisionDraft = isCanvasRevisionDraftRelevant(
+    revisionDraftCandidate,
+    activeSessionId,
+    selectedEventId
+  )
+    ? revisionDraftCandidate
+    : null;
 
   // Compare payloads (only valid when exactly 2 are selected)
   const comparePayloads = useMemo(() => {
@@ -587,39 +632,72 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
         };
   }, [compareEventIds, appEvents, t]);
 
-  // ── tab + reload state ───────────────────────────────────────────────────
-
-  const [activeTab, setActiveTab] = useState<ViewTab>("canvas");
-  const [reloadKey, setReloadKey] = useState(0);
-
-  // Reset reload key and tab when selection changes
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setReloadKey((k) => k + 1);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveTab("canvas");
-  }, [selectedEventId]);
-
-  // Auto-switch to compare tab when 2 items are selected
-  useEffect(() => {
-    if (compareEventIds.length === 2) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveTab("compare");
-    } else if (activeTab === "compare") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setActiveTab("canvas");
-    }
-    // activeTab intentionally omitted — only react to compareEventIds changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compareEventIds]);
+  const handleSetTab = useCallback((tab: CanvasViewTab) => {
+    if (tab !== "canvas") setDesignEventId(null);
+    setInteractionState((state) => setCanvasViewTab(state, tab));
+  }, []);
 
   const handleReload = useCallback(() => {
-    setReloadKey((k) => k + 1);
+    setInteractionState(reloadCanvas);
   }, []);
 
   const cardTitle = selectedPayload
     ? getDefaultTitle(selectedPayload, t)
     : t("canvasCard.titleHtml", "Agent Preview");
+  const designAvailable =
+    activeTab === "canvas" &&
+    selectedPayload !== null &&
+    selectedPayload.mode !== "url" &&
+    !selectedPayload.streaming &&
+    revisionDraft === null;
+  const designEnabled =
+    designAvailable &&
+    selectedEventId !== null &&
+    designEventId === selectedEventId;
+  const handleToggleDesign = useCallback(() => {
+    if (!selectedEventId) return;
+    setDesignEventId((current) =>
+      current === selectedEventId ? null : selectedEventId
+    );
+  }, [selectedEventId]);
+  // Boolean projection: `revisionDraft.receivedCharacters` changes at 20Hz —
+  // memos keyed on the draft object would recompute on every tick.
+  const revisionActive = revisionDraft !== null;
+  const shareAvailability = useMemo(
+    () =>
+      getCanvasShareAvailability(
+        selectedPayload,
+        Boolean(selectedPayload?.streaming) || revisionActive
+      ),
+    [selectedPayload, revisionActive]
+  );
+  const shareHint = shareAvailability.available
+    ? t("canvasApp.shareHint", "Share this Canvas snapshot")
+    : shareAvailability.reason === "streaming"
+      ? t(
+          "canvasApp.shareWaitForRevision",
+          "Wait for the Canvas update to finish"
+        )
+      : shareAvailability.reason === "local-url"
+        ? t(
+            "canvasApp.shareLocalUrlUnavailable",
+            "Local URLs cannot be opened by other people"
+          )
+        : shareAvailability.reason === "source-too-large"
+          ? t(
+              "canvasApp.shareTooLarge",
+              "This Canvas is too large for a share link"
+            )
+          : t("canvasApp.shareEmpty", "This Canvas has no shareable content");
+  const handleShare = useCallback(() => {
+    if (!selectedPayload || !shareAvailability.available) return;
+    openCanvasShare(selectedPayload, cardTitle);
+  }, [
+    cardTitle,
+    openCanvasShare,
+    selectedPayload,
+    shareAvailability.available,
+  ]);
 
   // ── publish to SimulatorWorkstationTabHeader ─────────────────────────────
 
@@ -628,21 +706,34 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
       appEvents.length > 0 && selectedPayload ? (
         <CanvasTabHeader
           tab={activeTab}
-          onSetTab={setActiveTab}
+          onSetTab={handleSetTab}
           title={cardTitle}
-          isStreaming={selectedPayload.streaming ?? false}
+          isStreaming={Boolean(selectedPayload.streaming) || revisionActive}
           onReload={handleReload}
           showCompare={compareEventIds.length === 2}
+          designAvailable={designAvailable}
+          designEnabled={designEnabled}
+          onToggleDesign={handleToggleDesign}
+          shareEnabled={shareAvailability.available}
+          shareHint={shareHint}
+          onShare={handleShare}
         />
       ) : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       appEvents.length,
       selectedPayload,
       activeTab,
       cardTitle,
+      handleSetTab,
       handleReload,
       compareEventIds.length,
+      designAvailable,
+      designEnabled,
+      handleToggleDesign,
+      revisionActive,
+      shareAvailability.available,
+      shareHint,
+      handleShare,
     ]
   );
 
@@ -662,7 +753,7 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
             appEvents={appEvents}
             selectedEventId={selectedEventId}
             compareEventIds={compareEventIds}
-            onSelect={setSelectedEventId}
+            onSelect={handleSelect}
             onCompareToggle={handleCompareToggle}
             t={t}
           />
@@ -681,6 +772,7 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
       primarySidebarCollapsed,
       primarySidebarWidth,
       handlePrimarySidebarWidthChange,
+      handleSelect,
       handleCompareToggle,
       t,
     ]
@@ -711,18 +803,26 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
           olderTitle={comparePayloads.olderTitle}
           newerTitle={comparePayloads.newerTitle}
         />
-      ) : activeTab === "canvas" ? (
+      ) : activeTab === "canvas" && selectedEvent ? (
         <>
           <CanvasIframe
             payload={selectedPayload}
             reloadKey={reloadKey}
             title={cardTitle}
+            eventId={selectedEvent.id}
+            sessionId={selectedEvent.sessionId}
+            designEnabled={designEnabled}
           />
-          {selectedPayload.streaming && (
+          {(selectedPayload.streaming || revisionDraft) && (
             <div
               className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 animate-pulse bg-primary-6/40"
               aria-hidden
             />
+          )}
+          {revisionDraft && (
+            <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
+              <CanvasRevisionProgress draft={revisionDraft} variant="overlay" />
+            </div>
           )}
         </>
       ) : (
@@ -741,21 +841,30 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
   );
 
   return (
-    <SimulatorReplayChrome
-      tabs={[]}
-      activeEventId={selectedEventId ?? ""}
-      onTabClick={() => {}}
-    >
-      <div className="flex min-h-0 flex-1">
-        <WorkStationShell
-          primarySidebarConfig={primarySidebarConfig}
-          content={mainContent}
-          statusBar={null}
-          layoutMode={primarySidebarPosition === "right" ? "right" : "left"}
-          appClassName="canvas-app"
-        />
-      </div>
-    </SimulatorReplayChrome>
+    <>
+      <SimulatorReplayChrome
+        tabs={[]}
+        activeEventId={selectedEventId ?? ""}
+        onTabClick={() => {}}
+      >
+        <div className="flex min-h-0 flex-1">
+          <WorkStationShell
+            primarySidebarConfig={primarySidebarConfig}
+            content={mainContent}
+            statusBar={null}
+            layoutMode={primarySidebarPosition === "right" ? "right" : "left"}
+            appClassName="canvas-app"
+          />
+        </div>
+      </SimulatorReplayChrome>
+      <CanvasShareDialog
+        state={canvasShareState}
+        onClose={closeCanvasShare}
+        onRetry={retryCanvasShare}
+        onRetryShortLink={retryCanvasShareShortLink}
+        onCopy={copyCanvasShare}
+      />
+    </>
   );
 };
 

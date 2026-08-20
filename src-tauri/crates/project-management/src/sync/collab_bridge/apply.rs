@@ -698,7 +698,7 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
 
     let existing = conn
         .query_row(
-            "SELECT project_id, short_id, deleted_at, collab_remote_version
+            "SELECT project_id, short_id, deleted_at, collab_remote_version, created_at
                FROM workitems WHERE id = ?1 AND org_id = ?2",
             params![&work_item_id, org_id],
             |row| {
@@ -707,23 +707,47 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
                     row.get::<_, String>(1)?,
                     row.get::<_, Option<i64>>(2)?,
                     row.get::<_, Option<i64>>(3)?,
+                    row.get::<_, i64>(4)?,
                 ))
             },
         )
         .optional()
         .map_err(|err| format!("DB error (apply work item probe): {}", err))?;
 
-    if let Some((_, _, _, Some(known_version))) = &existing {
+    if let Some((_, _, _, Some(known_version), _)) = &existing {
         if *known_version >= entity.version {
             return Ok(false);
         }
     }
 
     if let Some(deleted_at) = entity_deleted_at(entity) {
-        let Some(_) = existing else {
+        let Some((_, _, _, synced_version, local_created_at)) = existing else {
             return Ok(false); // Created and deleted before we ever saw it.
         };
         let deleted_ms = iso_to_ms(Some(deleted_at)).unwrap_or_else(now_ms);
+        // Entity ids are short-id derived, so a reused short id resurrects
+        // an old entity identity. A never-synced local row whose creation
+        // postdates the tombstone is such a rebirth — the delete belongs
+        // to the id's prior life, and applying it would make the fresh
+        // item invisible everywhere. Swallow it and record the version so
+        // the next pull does not replay it. Rows that have synced before
+        // share identity with the remote entity and delete normally.
+        if synced_version.is_none() && local_created_at > deleted_ms {
+            tracing::warn!(
+                "[collab_bridge] ignoring stale delete for reborn work item {} \
+                 (tombstone {} predates local creation {})",
+                work_item_id,
+                deleted_ms,
+                local_created_at
+            );
+            conn.execute(
+                "UPDATE workitems SET collab_remote_version = ?1
+                  WHERE id = ?2 AND org_id = ?3",
+                params![entity.version, &work_item_id, org_id],
+            )
+            .map_err(|err| format!("DB error (apply work item stale delete): {}", err))?;
+            return Ok(false);
+        }
         conn.execute(
             "UPDATE workitems
                 SET deleted_at = ?1, updated_at = ?2,
@@ -766,7 +790,7 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
     };
 
     match existing {
-        Some((local_project_id, short_id, local_deleted_at, _)) => {
+        Some((local_project_id, short_id, local_deleted_at, _, _)) => {
             // Remote revival of a locally soft-deleted row: the server
             // upsert cleared deleted_at, mirror that first so the partial
             // update below operates on a live row.

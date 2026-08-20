@@ -17,7 +17,11 @@ import {
   execModeForComposerSelection,
   resolveSessionAgentExecMode,
 } from "@src/config/sessionCreatorConfig";
-import { buildMcpToolCommand } from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal/slashItemUtils";
+import {
+  buildMcpToolCommand,
+  buildSlashActionCommand,
+  insertAtomicSlashActionPill,
+} from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal/slashItemUtils";
 import { buildAddressCommentsPillPath } from "@src/features/Org2Cloud/addressCommentsSlashToken";
 import {
   ADDRESS_COMMENTS_SLASH_SOURCE,
@@ -30,12 +34,13 @@ import {
 } from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefaultProductModeAtom";
-import { SLASH_ACTIONS, type SlashItem } from "@src/types/extensions";
+import type { SlashItem } from "@src/types/extensions";
 import {
   isAgentSession,
   isCliSession,
 } from "@src/util/session/sessionDispatch";
 
+import { buildBuiltinSlashItems } from "./builtinSlashItems";
 import { useSlashItemsCache } from "./useSlashItemsCache";
 
 interface UseSlashCommandOptions {
@@ -57,7 +62,7 @@ interface UseSlashCommandOptions {
    * When `true`, `/mode` always reads + writes `creatorDefaultExecModeAtom`
    * even if there is an active session in the route. Set by callers that
    * mount the input outside an in-session context (e.g. the
-   * `SessionCreator` tiptap, where the user is configuring a *new*
+   * `SessionCreator` composer, where the user is configuring a *new*
    * session and `activeSessionIdAtom` is still pointing at the previous
    * session they were on). Defaults to `false` (the InputArea case).
    */
@@ -175,17 +180,16 @@ export function useSlashCommand(
   );
   const addressCommentsItem = addressComments.item;
   const builtinSlashItems = useMemo<SlashItem[]>(
-    () => [
-      {
-        name: SLASH_ACTIONS.COMPACT,
-        description: t("input.compactCommandDescription"),
-        category: "action",
-        source: "builtin",
-        acceptsArgs: true,
-      },
-      ...(addressCommentsItem ? [addressCommentsItem] : []),
-    ],
-    [t, addressCommentsItem]
+    () =>
+      buildBuiltinSlashItems({
+        canvasDescription: t("input.canvasCommandDescription"),
+        compactDescription: t("input.compactCommandDescription"),
+        addressCommentsItem,
+        // CLI agents have no render_inline_canvas tool — hide the builtin
+        // (the submit projection is a matching no-op for CLI sessions).
+        includeCanvas: !(sessionId && isCliSession(sessionId)),
+      }),
+    [t, addressCommentsItem, sessionId]
   );
 
   const {
@@ -286,25 +290,17 @@ export function useSlashCommand(
         return;
       }
 
-      // The compact command renders as a pill (like skills) so the token
-      // reads as one unit with the focus text typed after it. The submit
-      // interceptor recognizes both the pill serialization and plain
-      // "/compact" text (parseCompactSlashCommand).
-      if (item.category === "action" && item.name === SLASH_ACTIONS.COMPACT) {
-        composerInputRef.current.insertFilePill(
-          `/${SLASH_ACTIONS.COMPACT}`,
-          false,
-          "skill",
-          SLASH_ACTIONS.COMPACT
-        );
-        composerInputRef.current.focus();
+      if (
+        item.category === "action" &&
+        insertAtomicSlashActionPill(composerInputRef.current, item.name)
+      ) {
         setShowSlashMenu(false);
         setSlashQuery("");
         queryRef.current = "";
         return;
       }
 
-      composerInputRef.current.setContent(`/${item.name} `);
+      composerInputRef.current.setContent(buildSlashActionCommand(item.name));
       composerInputRef.current.focus();
 
       setShowSlashMenu(false);

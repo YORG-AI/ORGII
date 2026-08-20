@@ -19,7 +19,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
-import { useOpenEditorFiles } from "@src/hooks/workStation/editor/useOpenEditorFiles";
+import { useOpenEditorFiles } from "@src/modules/WorkStation/CodeEditor/hooks/useOpenEditorFiles";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared";
 
 import { ICON_CONFIG, PANEL_CONSTANTS } from "../config";

@@ -28,52 +28,86 @@ function barToneFor(row: TimelineRow): string {
   return "bg-primary-6";
 }
 
-const TimelineRowView: React.FC<{ row: TimelineRow }> = memo(({ row }) => {
-  const { t } = useTranslation("sessions");
-  return (
-    <div
-      // Same 900px cap the transcript rows use, so switching views does not
-      // change how wide the session reads.
-      className={`flex h-[34px] items-center gap-2 px-3 text-xs ${DETAIL_PANEL_TOKENS.contentWidth}`}
-      data-testid="session-timeline-row"
-      data-turn-id={row.turnId}
-    >
-      <span className="w-8 shrink-0 tabular-nums text-text-3">
-        #{row.ordinal}
-      </span>
-      <span className="w-40 shrink-0 truncate text-text-2" title={row.preview}>
-        {row.preview}
-      </span>
-      <span className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-fill-2">
+interface TimelineRowViewProps {
+  row: TimelineRow;
+  timeFormatter: Intl.DateTimeFormat;
+}
+
+const TimelineRowView: React.FC<TimelineRowViewProps> = memo(
+  ({ row, timeFormatter }) => {
+    const { t } = useTranslation("sessions");
+    const startLabel = timeFormatter.format(new Date(row.startedAtMs));
+    const endLabel =
+      row.endedAtMs === null
+        ? "—"
+        : timeFormatter.format(new Date(row.endedAtMs));
+    const rangeLabel = `${startLabel} ~ ${endLabel}`;
+    const durationLabel =
+      row.durationMs === null ? "—" : formatDuration(row.durationMs);
+    const inferredTimingLabel = row.endInferred
+      ? t("chat.sessionViews.inferredTiming", {
+          defaultValue: "End inferred from the next turn",
+        })
+      : undefined;
+
+    return (
+      <div
+        // Same 900px cap the transcript rows use, so switching views does not
+        // change how wide the session reads.
+        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${DETAIL_PANEL_TOKENS.contentWidth}`}
+        data-testid="session-timeline-row"
+        data-turn-id={row.turnId}
+      >
+        <span className="w-8 shrink-0 tabular-nums text-text-3">
+          #{row.ordinal}
+        </span>
         <span
-          className={`absolute inset-y-0 rounded-full ${barToneFor(row)}`}
-          style={{
-            left: `${row.offsetRatio * 100}%`,
-            width: `${row.widthRatio * 100}%`,
-          }}
-        />
-      </span>
-      <span className="w-14 shrink-0 text-right tabular-nums text-text-3">
-        {row.durationMs === null ? "—" : formatDuration(row.durationMs)}
-      </span>
-      <span className="w-16 shrink-0 text-right tabular-nums text-text-3">
-        {row.fileCount > 0
-          ? t("chat.sessionViews.fileCount", {
-              count: row.fileCount,
-              defaultValue: "{{count}} files",
-            })
-          : ""}
-      </span>
-    </div>
-  );
-});
+          className="w-40 shrink-0 truncate text-text-2"
+          title={row.preview}
+        >
+          {row.preview}
+        </span>
+        <span className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-fill-2">
+          <span
+            className={`absolute inset-y-0 rounded-full ${barToneFor(row)}`}
+            style={{
+              left: `${row.offsetRatio * 100}%`,
+              width: `${row.widthRatio * 100}%`,
+            }}
+          />
+        </span>
+        <span className="w-14 shrink-0 text-right tabular-nums text-text-3">
+          {durationLabel}
+        </span>
+        <span
+          className="w-48 shrink-0 text-right tabular-nums text-text-3"
+          data-testid="session-timeline-range"
+          data-start-ms={row.startedAtMs}
+          data-end-ms={row.endedAtMs ?? undefined}
+          title={inferredTimingLabel}
+        >
+          {rangeLabel}
+        </span>
+      </div>
+    );
+  }
+);
 
 TimelineRowView.displayName = "TimelineRowView";
 
 const SessionTimelineView: React.FC<SessionDerivedViewProps> = memo(
-  ({ turns, loading, error }) => {
-    const { t } = useTranslation("sessions");
+  ({ turns, loading, error, topInset }) => {
+    const { t, i18n } = useTranslation("sessions");
     const timeline = useMemo(() => projectSessionTimeline(turns), [turns]);
+    const timeFormatter = useMemo(
+      () =>
+        new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+      [i18n.resolvedLanguage]
+    );
 
     return (
       <SessionDerivedViewShell
@@ -84,6 +118,7 @@ const SessionTimelineView: React.FC<SessionDerivedViewProps> = memo(
         emptyLabel={t("chat.sessionViews.timelineEmpty", {
           defaultValue: "No turns to show yet.",
         })}
+        topInset={topInset}
         summary={t("chat.sessionViews.timelineSummary", {
           count: timeline.rows.length,
           duration: formatDuration(timeline.totalMs),
@@ -95,7 +130,9 @@ const SessionTimelineView: React.FC<SessionDerivedViewProps> = memo(
           itemHeight={ROW_HEIGHT}
           computeItemKey={(row) => row.turnId}
           getItemPath={(row) => row.turnId}
-          renderItem={(row) => <TimelineRowView row={row} />}
+          renderItem={(row) => (
+            <TimelineRowView row={row} timeFormatter={timeFormatter} />
+          )}
         />
       </SessionDerivedViewShell>
     );

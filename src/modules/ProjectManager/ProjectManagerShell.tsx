@@ -8,7 +8,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import SimulatorFrame from "@src/engines/Simulator/components/SimulatorFrame";
-import { useWorkStationTabs } from "@src/hooks/workStation";
+import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import {
   perAppStatusBarCallbacksAtom,
   workStationTitleBarHiddenAtom,

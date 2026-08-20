@@ -109,9 +109,10 @@ pub async fn run_consolidation(params: super::super::MemoryAgentParams<'_>) -> R
         return Ok(());
     }
 
-    // Lock gate: try to acquire
-    let prior_mtime = match consolidation_lock::try_acquire(workspace) {
-        Ok(Some(prior)) => prior,
+    // Lock gate: the RAII lease rolls back on provider failure, timeout or
+    // coordinator cancellation. Only the success arm commits it.
+    let lease = match consolidation_lock::try_acquire_lease(workspace) {
+        Ok(Some(lease)) => lease,
         Ok(None) => {
             info!("[auto_dream] skip — lock held by another process");
             return Ok(());
@@ -130,7 +131,6 @@ pub async fn run_consolidation(params: super::super::MemoryAgentParams<'_>) -> R
 
     // Ensure memory dir exists
     if let Err(err) = std::fs::create_dir_all(&mem_dir) {
-        consolidation_lock::rollback(workspace, prior_mtime);
         return Err(format!("Failed to create memory dir: {}", err));
     }
 
@@ -140,7 +140,6 @@ pub async fn run_consolidation(params: super::super::MemoryAgentParams<'_>) -> R
         {
             Ok(def) => def,
             Err(err) => {
-                consolidation_lock::rollback(workspace, prior_mtime);
                 return Err(format!("Agent def not found: {}", err));
             }
         };
@@ -214,14 +213,14 @@ pub async fn run_consolidation(params: super::super::MemoryAgentParams<'_>) -> R
         &subagent_session_id,
         &handler,
         None,
-        None,
+        params.cancel_flag,
         None,
     )
     .await;
 
     match result {
         Ok(turn_result) => {
-            // Lock mtime already advanced by write — consolidation recorded.
+            lease.commit();
             info!(
                 "[auto_dream] Completed: session={}, tokens={}",
                 session_id, turn_result.total_tokens
@@ -229,8 +228,7 @@ pub async fn run_consolidation(params: super::super::MemoryAgentParams<'_>) -> R
             Ok(())
         }
         Err(err) => {
-            warn!("[auto_dream] Error: {}, rolling back lock", err);
-            consolidation_lock::rollback(workspace, prior_mtime);
+            warn!("[auto_dream] Error: {}", err);
             Err(format!("Consolidation failed: {}", err))
         }
     }

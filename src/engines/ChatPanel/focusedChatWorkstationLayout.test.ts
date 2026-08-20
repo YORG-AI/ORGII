@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS,
+  isSameFocusedChatGitEnvironment,
   resolveFocusedChatWorkstationRailInsetStyle,
   resolveFocusedChatWorkstationRailTrackClass,
   resolveFocusedChatWorkstationSectionOrder,
@@ -115,13 +116,46 @@ describe("FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS", () => {
 });
 
 describe("resolveFocusedChatWorkstationSectionOrder", () => {
-  it("places open tabs below the environment section", () => {
-    expect(resolveFocusedChatWorkstationSectionOrder(true)).toEqual([
+  it("places session and local environments before open tabs", () => {
+    expect(resolveFocusedChatWorkstationSectionOrder(true, true)).toEqual([
+      "session",
       "workspace",
       "tabs",
     ]);
-    expect(resolveFocusedChatWorkstationSectionOrder(false)).toEqual([
+    expect(resolveFocusedChatWorkstationSectionOrder(false, true)).toEqual([
+      "session",
       "workspace",
     ]);
+  });
+
+  it("omits an empty session environment without hiding local actions", () => {
+    expect(resolveFocusedChatWorkstationSectionOrder(true, false)).toEqual([
+      "workspace",
+      "tabs",
+    ]);
+  });
+});
+
+describe("isSameFocusedChatGitEnvironment", () => {
+  it("recognizes the same session and local Git identity", () => {
+    expect(
+      isSameFocusedChatGitEnvironment({
+        localBranchName: "develop",
+        localRepoPath: "/workspace/ORGII/",
+        sessionBranchName: "develop",
+        sessionRepoPath: "/workspace/ORGII",
+      })
+    ).toBe(true);
+  });
+
+  it("keeps different session branches on an independent PR lookup", () => {
+    expect(
+      isSameFocusedChatGitEnvironment({
+        localBranchName: "develop",
+        localRepoPath: "/workspace/ORGII",
+        sessionBranchName: "feat/session",
+        sessionRepoPath: "/workspace/ORGII",
+      })
+    ).toBe(false);
   });
 });

@@ -1,10 +1,4 @@
-import { ScanEye } from "lucide-react";
-
-import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
-import {
-  FieldRow,
-  type FieldRowVariant,
-} from "@src/components/PropertyField/PropertyFieldEditable";
+import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
 import type {
   AgentDefinition,
   OrgMember,
@@ -13,7 +7,6 @@ import type { Person } from "@src/types/core/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import { AssigneePropertyField } from "./AssigneePropertyField";
-import { ReviewerDropdown } from "./ReviewerDropdown";
 import type {
   WorkItemExternalAssigneeConfig,
   WorkItemPropertyFieldKey,
@@ -52,8 +45,7 @@ export function PeopleSection({
   externalAssigneeConfig,
 }: PeopleSectionProps) {
   const showAssignee = !visibleFields || visibleFields.has("assignee");
-  const showReviewer = !visibleFields || visibleFields.has("reviewer");
-  if (!showAssignee && !showReviewer) return null;
+  if (!showAssignee) return null;
 
   return (
     <>
@@ -73,40 +65,6 @@ export function PeopleSection({
           readonly={assigneeReadonly}
           externalConfig={externalAssigneeConfig}
         />
-      )}
-
-      {showReviewer && (
-        <div
-          className={
-            fieldVariant === "pill"
-              ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
-              : "relative flex min-h-8 w-full items-center"
-          }
-        >
-          <FieldRow
-            icon={<ScanEye size={DROPDOWN_ITEM.iconSize} />}
-            value={handlers.getReviewerDisplay()}
-            isSelected={!!handlers.currentReviewer}
-            isActive={openPicker === "reviewer"}
-            variant={fieldVariant}
-            onClear={() => handlers.handleReviewerChange(null)}
-            onClick={() => togglePicker("reviewer")}
-          />
-          {openPicker === "reviewer" && (
-            <ReviewerDropdown
-              allAgentList={handlers.allAgentList}
-              availableMembers={availableMembers}
-              currentReviewer={
-                handlers.currentReviewer as
-                  | { type?: string; id?: string }
-                  | undefined
-              }
-              onReviewerChange={handlers.handleReviewerChange}
-              t={t}
-              fieldVariant={fieldVariant}
-            />
-          )}
-        </div>
       )}
     </>
   );

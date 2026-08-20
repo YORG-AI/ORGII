@@ -57,6 +57,7 @@ import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import { getCompactPathLabel } from "@src/util/file/pathUtils";
 import { formatRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
+import { isCliSession } from "@src/util/session/sessionDispatch";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import {
@@ -69,6 +70,7 @@ import {
   writeImageDraft,
 } from "../../InputArea/utils/imageDraftCache";
 import { applyParsedContent } from "../../InputArea/utils/pillContentParser";
+import { canvasSlashCommandNeedsInstruction } from "./canvasSlashCommand";
 import { resolveDraftRestoreAction } from "./draftRestore";
 import type {
   CustomMentionOption,
@@ -492,6 +494,7 @@ export function useInputArea(
   }, [state]);
 
   const [compactHintVisible, setCompactHintVisible] = useState(false);
+  const [canvasHintVisible, setCanvasHintVisible] = useState(false);
 
   const handleContentChange = useCallback(
     (text: string) => {
@@ -508,6 +511,16 @@ export function useInputArea(
           compactDraft !== null && !compactDraft.instructions
         );
       }
+
+      // Argument ghost hint for `/canvas` (same shape as compact). Gated the
+      // way the submit projection is: composers that opt out of interceptors
+      // and CLI sessions send the command through as ordinary text, so no
+      // hint there.
+      setCanvasHintVisible(
+        enableAgentInterceptors &&
+          !isCliSession(activeSessionId ?? null) &&
+          canvasSlashCommandNeedsInstruction(cleanedText)
+      );
 
       // Pass to workspace chat handler
       handleSessInputChange(draftText);
@@ -528,7 +541,9 @@ export function useInputArea(
       }
     },
     [
+      activeSessionId,
       draftSessionId,
+      enableAgentInterceptors,
       handlePromptPolishContentChange,
       handleSessInputChange,
       refs,
@@ -675,6 +690,7 @@ export function useInputArea(
     handleInputBlur,
     handleContentChange,
     compactHintVisible,
+    canvasHintVisible,
     handleAtMention: atMention.handleAtMention,
     handleAtMentionClose: atMention.handleAtMentionClose,
     isInputEmpty,

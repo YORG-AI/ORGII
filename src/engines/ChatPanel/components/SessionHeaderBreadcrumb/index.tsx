@@ -1,7 +1,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo, useMemo } from "react";
 
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
+import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared/WorkstationHeaderSectionSeparator";
 import BreadcrumbFileHeader, {
   type BreadcrumbFileHeaderDisplaySegment,
 } from "@src/modules/shared/components/FileHeader/BreadcrumbFileHeader";

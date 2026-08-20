@@ -121,6 +121,42 @@ describe("projectSessionTimeline", () => {
     ]);
 
     expect(rows[0].durationMs).toBe(5_000);
+    expect(rows[0].endedAtMs).toBe(Date.parse("2026-07-28T10:00:05.000Z"));
+    expect(rows[0].endInferred).toBe(false);
+  });
+
+  it("keeps a known zero-length turn instead of presenting its duration as missing", () => {
+    const { rows } = projectSessionTimeline([
+      turn({
+        endedAt: "2026-07-28T10:00:00.000Z",
+        durationMs: null,
+      }),
+    ]);
+
+    expect(rows[0].durationMs).toBe(0);
+    expect(rows[0].endedAtMs).toBe(rows[0].startedAtMs);
+  });
+
+  it("bounds a closed historical turn by the next turn when its end metadata is absent", () => {
+    const { rows } = projectSessionTimeline([
+      turn({
+        turnId: "missing-end",
+        endedAt: null,
+        durationMs: null,
+      }),
+      turn({
+        turnId: "next",
+        startedAt: "2026-07-28T10:00:35.000Z",
+        endedAt: null,
+        durationMs: null,
+      }),
+    ]);
+
+    expect(rows[0].durationMs).toBe(35_000);
+    expect(rows[0].endedAtMs).toBe(Date.parse("2026-07-28T10:00:35.000Z"));
+    expect(rows[0].endInferred).toBe(true);
+    expect(rows[1].durationMs).toBeNull();
+    expect(rows[1].endedAtMs).toBeNull();
   });
 
   it("skips turns with an unparseable start rather than collapsing the span", () => {

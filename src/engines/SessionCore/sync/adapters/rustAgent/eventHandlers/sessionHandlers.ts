@@ -26,7 +26,7 @@ function settleTerminalRuntime(
   errorMessage?: string,
   meta?: { turnId?: string; turnIntentId?: string; turnStatus?: string }
 ): void {
-  resetAllStreamingState(ctx);
+  resetAllStreamingState(ctx, sessionId);
   ctx.setStreaming(false);
   clearStreamRetryStatus(ctx, sessionId);
   ctx.onStatusChangeRef.current?.(status, errorMessage, meta);
@@ -55,7 +55,7 @@ export function handleComplete(
     `[agent:complete] handling for ${sessionId} ` +
       `(statusHandler=${ctx.onStatusChangeRef.current ? "wired" : "MISSING"})`
   );
-  resetAllStreamingState(ctx);
+  resetAllStreamingState(ctx, sessionId);
   ctx.setStreaming(false);
   clearStreamRetryStatus(ctx, sessionId);
 
@@ -158,7 +158,7 @@ export function handleError(
   void eventStoreProxy.saveToCache(sessionId);
 
   // Reset all streaming state
-  resetAllStreamingState(ctx);
+  resetAllStreamingState(ctx, sessionId);
   ctx.setStreaming(false);
   clearStreamRetryStatus(ctx, sessionId);
   // Status change fires before onAgentComplete so session activity is already
@@ -316,7 +316,7 @@ export function handleSessionEvicted(
   ctx: EventHandlerContext,
   sessionId?: string
 ): void {
-  resetAllStreamingState(ctx);
+  resetAllStreamingState(ctx, sessionId);
   ctx.setStreaming(false);
   clearStreamRetryStatus(ctx, sessionId);
   // Mirror the Rust eviction in the JS snapshot cache — otherwise the JS

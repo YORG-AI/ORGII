@@ -68,109 +68,6 @@ pub(crate) fn build_agent_prompt(
     parts.join("\n")
 }
 
-/// Build a review task prompt (Rust port of the frontend's
-/// `buildReviewTaskPrompt` — the backend launches review sessions now).
-pub(crate) fn build_review_prompt(
-    short_id: &str,
-    frontmatter: &WorkItemFrontmatter,
-    body: &str,
-) -> String {
-    let mut parts = Vec::new();
-    parts.push(format!(
-        "Review the code changes for work item: {}",
-        short_id
-    ));
-    parts.push(format!("\n## Work Item Title\n{}", frontmatter.title));
-    if !body.is_empty() {
-        parts.push(format!("\n## Work Item Description\n{}", body));
-    }
-    if !frontmatter.todos.is_empty() {
-        parts.push("\n## Acceptance Criteria / Todos".to_string());
-        for todo in &frontmatter.todos {
-            let check = if todo.status == super::helpers::TODO_STATUS_COMPLETED {
-                "[x]"
-            } else {
-                "[ ]"
-            };
-            parts.push(format!("  {} {}", check, todo.content));
-        }
-    }
-
-    let branch = frontmatter
-        .proof_of_work
-        .as_ref()
-        .and_then(|pow| pow.branch.clone());
-    parts.push("\n## Branch Information".to_string());
-    if let Some(ref branch_name) = branch {
-        parts.push(format!("- Work item branch: `{}`", branch_name));
-    }
-    parts.push("- Base branch: `main`".to_string());
-    parts.push(format!(
-        "- Run: `git diff main..{}` to see all changes",
-        branch.as_deref().unwrap_or("HEAD")
-    ));
-
-    if let Some(feedback) = frontmatter
-        .proof_of_work
-        .as_ref()
-        .and_then(|pow| pow.review_feedback.as_ref())
-        .filter(|fb| !matches!(fb.outcome, ReviewOutcome::Approved))
-    {
-        parts.push("\n## Previous Review Feedback (from the last review round)".to_string());
-        parts.push(format!("Outcome: {:?}", feedback.outcome));
-        parts.push(format!("Summary: {}", feedback.summary));
-        let round = frontmatter
-            .proof_of_work
-            .as_ref()
-            .map(|pow| pow.review_history.len())
-            .unwrap_or(0)
-            + 1;
-        parts.push(format!(
-            "\nThis is review round {}. Check if the above issues from the previous round \
-             have been addressed in the current diff.",
-            round
-        ));
-    }
-
-    parts.join("\n")
-}
-
-/// Append review feedback the coding agent must address (fix rounds).
-pub(crate) fn append_fix_feedback(prompt: &mut String, frontmatter: &WorkItemFrontmatter) {
-    let Some(feedback) = frontmatter
-        .proof_of_work
-        .as_ref()
-        .and_then(|pow| pow.review_feedback.as_ref())
-        .filter(|fb| !matches!(fb.outcome, ReviewOutcome::Approved))
-    else {
-        return;
-    };
-
-    prompt.push_str("\n\n## Review Feedback To Address\n");
-    prompt.push_str(&format!("Outcome: {:?}\n", feedback.outcome));
-    prompt.push_str(&format!("Summary: {}\n", feedback.summary));
-    if !feedback.comments.is_empty() {
-        prompt.push_str("Address all of the following items before finishing:\n");
-        for (idx, comment) in feedback.comments.iter().enumerate() {
-            let loc = match (&comment.file_path, comment.line) {
-                (Some(path), Some(line)) => format!("{}:{} — ", path, line),
-                (Some(path), None) => format!("{} — ", path),
-                _ => String::new(),
-            };
-            prompt.push_str(&format!(
-                "  {}. [{:?}] {}{}\n",
-                idx + 1,
-                comment.severity,
-                loc,
-                comment.message
-            ));
-        }
-    }
-    prompt.push_str(
-        "\nFix the issues above explicitly and verify they are resolved before you finish.\n",
-    );
-}
-
 fn parse_agent_defs_for_execution(
     content: &str,
     path: &std::path::Path,
@@ -756,90 +653,38 @@ pub async fn start_work_item_session_with_reason(
 /// Which post-transition session the orchestrator needs launched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhaseLaunch {
-    /// State machine moved to Review and already queued a pending review
-    /// linked session — launch the reviewer.
-    Review,
-    /// Review requested changes; state machine moved back to Coding and
-    /// queued a pending coding linked session — launch the fix round.
-    Fix,
     /// Coding failed and auto-retry is on; phase is already back at Coding —
     /// relaunch the owner agent.
     Retry,
 }
 
-/// Launch the session demanded by an orchestrator transition
-/// (LaunchReview / LaunchFix / RetryAgent). Unlike [`start_work_item`] this
-/// does NOT run `snapshot_config` or phase validation: the state machine has
-/// already performed the transition; we only materialize the session.
-///
-/// Review reuses the work item's account; the review config may override
-/// account/model.
+/// Launch the session demanded by an orchestrator transition (RetryAgent).
+/// Unlike [`start_work_item`] this does NOT run `snapshot_config` or phase
+/// validation: the state machine has already performed the transition; we
+/// only materialize the session.
 pub async fn launch_phase_session(
     project_slug: &str,
     short_id: &str,
     app: &tauri::AppHandle,
     phase: PhaseLaunch,
 ) -> Result<String, String> {
-    let (review_account, review_model) = if phase == PhaseLaunch::Review {
-        let ctx_data = run_blocking("read_review_config", {
-            let slug = project_slug.to_string();
-            let sid = short_id.to_string();
-            move || io::read_work_item(&slug, &sid)
-        })
-        .await?;
-        let review_config = ctx_data
-            .frontmatter
-            .orchestrator_config
-            .as_ref()
-            .and_then(|c| c.effective_review_config());
-        (
-            review_config.as_ref().and_then(|rc| rc.account_id.clone()),
-            review_config.as_ref().and_then(|rc| rc.model_id.clone()),
-        )
+    let PhaseLaunch::Retry = phase;
+    let ctx = resolve_launch_context(project_slug, short_id, None, None, None).await?;
+
+    let mut prompt = if ctx.agent_def.is_some() {
+        build_agent_prompt(short_id, &ctx.data.frontmatter, &ctx.data.body)
     } else {
-        (None, None)
+        build_project_prompt(short_id, &ctx.data.frontmatter, &ctx.data.body)
     };
-
-    let ctx = resolve_launch_context(
-        project_slug,
-        short_id,
-        review_account.as_deref(),
-        review_model.as_deref(),
-        None,
-    )
-    .await?;
-
-    let (agent_role, mut prompt) = match phase {
-        PhaseLaunch::Review => (
-            "review".to_string(),
-            build_review_prompt(short_id, &ctx.data.frontmatter, &ctx.data.body),
-        ),
-        PhaseLaunch::Fix | PhaseLaunch::Retry => {
-            let mut prompt = if ctx.agent_def.is_some() {
-                build_agent_prompt(short_id, &ctx.data.frontmatter, &ctx.data.body)
-            } else {
-                build_project_prompt(short_id, &ctx.data.frontmatter, &ctx.data.body)
-            };
-            if phase == PhaseLaunch::Fix {
-                append_fix_feedback(&mut prompt, &ctx.data.frontmatter);
-            }
-            let role = ctx
-                .agent_def
-                .as_ref()
-                .map(|d| d.name.clone())
-                .unwrap_or_else(|| "sde".to_string());
-            (role, prompt)
-        }
-    };
+    let agent_role = ctx
+        .agent_def
+        .as_ref()
+        .map(|d| d.name.clone())
+        .unwrap_or_else(|| "sde".to_string());
 
     append_workspace_section(&mut prompt, &ctx);
 
-    // Review sessions run the plain SDE harness (no custom agent definition)
-    // so the reviewer judges with fresh eyes.
-    let agent_definition_id = match phase {
-        PhaseLaunch::Review => None,
-        _ => ctx.agent_def_id.clone(),
-    };
+    let agent_definition_id = ctx.agent_def_id.clone();
 
     let session_id = crate::session::launch::launch_agent_session(
         app,

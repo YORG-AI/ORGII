@@ -4,13 +4,21 @@
  * Handlers for message, thinking, and tool call delta events.
  * Also handles agent:streaming_complete from Rust StreamingBuffer.
  */
+import {
+  CANVAS_REVISION_AGENT_STEPS_ARG,
+  CANVAS_REVISION_TOOL_NAME,
+  getCanvasRevisionAgentSteps,
+} from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasRevision";
 import { createLogger } from "@src/hooks/logger";
+import { bufferCanvasRevisionDraft } from "@src/store/session/canvasRevisionDraftAtom";
+import { validSessionIdsAtom } from "@src/store/session/sessionAtom/atoms";
 
 import {
   appendBoundedToolCallArgs,
   makeRoomForToolCallDelta,
   mergeStreamingText,
 } from "../../shared/streamTextAccumulator";
+import { parseCanvasRevisionDeltaMetadata } from "../../shared/streamingParsers";
 import { capStreamContent } from "../../shared/subagentTracking";
 import type { AgentWSEvent, StreamRefs } from "../../shared/types";
 import {
@@ -169,6 +177,39 @@ export function handleToolCallDelta(
 
   if (!buffer.toolCallId || !buffer.messageId) {
     return;
+  }
+
+  if (buffer.toolName === CANVAS_REVISION_TOOL_NAME) {
+    const store = ctx.getDefaultStore();
+    if (store) {
+      // A delta straggling in after session removal must not recreate a
+      // draft for the deleted session — `removeSession` already disposed it.
+      if (!store.get(validSessionIdsAtom).has(sessionId)) {
+        return;
+      }
+      // Metadata parsing scans bounded windows of a potentially megabyte
+      // argument stream with several regexes; defer it to the coalescer
+      // flush (at most once per 50ms window) instead of paying per delta.
+      const argsJson = buffer.argsJson;
+      bufferCanvasRevisionDraft(store, {
+        sessionId,
+        toolCallId: buffer.toolCallId,
+        receivedCharacters: argsJson.length,
+        phase: "receiving",
+        resolveMetadata: () => {
+          const metadata = parseCanvasRevisionDeltaMetadata(argsJson);
+          return {
+            targetEventId: metadata.targetEventId,
+            mode: metadata.mode,
+            title: metadata.title,
+            agentSteps:
+              getCanvasRevisionAgentSteps({
+                [CANVAS_REVISION_AGENT_STEPS_ARG]: metadata.agentSteps,
+              }) ?? undefined,
+          };
+        },
+      });
+    }
   }
 
   // Tool-call deltas stay ephemeral; the authoritative tool_call event is written by Rust.

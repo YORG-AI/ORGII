@@ -18,7 +18,7 @@ import React from "react";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import FactoryViewPill from "@src/features/TaskKanban/components/FactoryViewPill";
 import KanbanOrgScopeSelect from "@src/features/TaskKanban/components/KanbanOrgScopeSelect";
-import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
