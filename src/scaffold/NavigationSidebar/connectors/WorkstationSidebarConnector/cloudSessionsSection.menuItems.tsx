@@ -38,6 +38,8 @@ interface UseCloudTeamSessionMenuItemsParams {
   buildRowItem: BuildCloudSessionRowItem;
   t: TFunction;
   tCommon: TFunction;
+  /** Hide the member-filter row action (read-only Web has no filter dropdown). */
+  showSessionFilter?: boolean;
 }
 
 export function useCloudTeamSessionMenuItems({
@@ -53,6 +55,7 @@ export function useCloudTeamSessionMenuItems({
   buildRowItem,
   t,
   tCommon,
+  showSessionFilter = true,
 }: UseCloudTeamSessionMenuItemsParams): NavigationMenuItem[] {
   const cloudMenuItems = useMemo<NavigationMenuItem[]>(() => {
     if (!orgId) return [];
@@ -68,18 +71,22 @@ export function useCloudTeamSessionMenuItems({
         dataTestId: "cloud-team-sessions-refresh",
         onClick: handleRefreshClick,
       },
-      {
-        icon: ListFilter,
-        label: t("cloud.sidebar.sessionFilter"),
-        active: memberMenu !== null || filter.kind !== "all",
-        dataTestId: "cloud-team-sessions-filter",
-        onClick: (event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          setMemberMenu((current) =>
-            current ? null : { top: rect.bottom + 4, left: rect.left }
-          );
-        },
-      },
+      ...(showSessionFilter
+        ? [
+            {
+              icon: ListFilter,
+              label: t("cloud.sidebar.sessionFilter"),
+              active: memberMenu !== null || filter.kind !== "all",
+              dataTestId: "cloud-team-sessions-filter",
+              onClick: (event: React.MouseEvent<HTMLElement>) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setMemberMenu((current) =>
+                  current ? null : { top: rect.bottom + 4, left: rect.left }
+                );
+              },
+            },
+          ]
+        : []),
     ];
     const items: NavigationMenuItem[] = [header];
     for (const thread of visibleThreads) {
@@ -131,6 +138,7 @@ export function useCloudTeamSessionMenuItems({
     buildRowItem,
     t,
     tCommon,
+    showSessionFilter,
   ]);
 
   return cloudMenuItems;

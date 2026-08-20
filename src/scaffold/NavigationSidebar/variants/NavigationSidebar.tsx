@@ -91,6 +91,10 @@ export interface NavigationSidebarProps {
   loadingContent?: React.ReactNode;
   /** Paint an opaque sidebar surface instead of honoring sidebar transparency. */
   solidSurface?: boolean;
+  /** Reserve native window-chrome space above the sidebar content. */
+  includeTrafficLightSpace?: boolean;
+  /** Whether the desktop collapse affordance is available. */
+  showCollapseButton?: boolean;
   /** Enable collapse/expand on section headers (separator-based groups) */
   collapsibleSections?: boolean;
   /**
@@ -256,6 +260,8 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
     isLoading = false,
     loadingContent,
     solidSurface = false,
+    includeTrafficLightSpace = true,
+    showCollapseButton = true,
     collapsibleSections = false,
     collapsedSectionIds,
     onCollapsedSectionsChange,
@@ -404,6 +410,8 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
         hostTopBarLeadingContent={hostTopBarLeadingContent}
         macTopBarFollowingContent={macTopBarFollowingContent}
         solidSurface={solidSurface}
+        includeTrafficLightSpace={includeTrafficLightSpace}
+        showCollapseButton={showCollapseButton}
       >
         {preListContent}
 

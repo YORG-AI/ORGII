@@ -18,7 +18,10 @@ import {
   isChatPanelTuiSessionId,
 } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
-import { loadUnifiedReadyCategories } from "../useSessionMenuItems/paginationHelpers";
+import {
+  executeSessionPaginationPlan,
+  hasSessionPaginationPlan,
+} from "../useSessionMenuItems/paginationHelpers";
 import { useWorkstationSidebarHandlers } from "../useWorkstationSidebarHandlers";
 import {
   CLOUD_MY_SESSIONS_LOAD_MORE_ID,
@@ -38,13 +41,8 @@ interface UseWorkstationSidebarSessionInteractionHandlersParams {
     visibleCount: number;
   }) => void;
   loadedCloudMySessionRowCount: number;
-  sessionPagination: Parameters<
-    typeof loadUnifiedReadyCategories
-  >[0]["pagination"];
   activeSessionId: string;
   sessionMap: SidebarHandlersParams["sessionMap"];
-  isLoadMoreId: SidebarHandlersParams["isLoadMoreId"];
-  getLoadMoreGroupId: SidebarHandlersParams["getLoadMoreGroupId"];
   sessionRouteLabel: string;
   handleGoToNewSession: SidebarHandlersParams["goToNewSession"];
   navigateTo: SidebarHandlersParams["navigateTo"];
@@ -78,11 +76,8 @@ export function useWorkstationSidebarSessionInteractionHandlers({
   cloudMyPaginationScopeKey,
   setCloudMyPagination,
   loadedCloudMySessionRowCount,
-  sessionPagination,
   activeSessionId,
   sessionMap,
-  isLoadMoreId,
-  getLoadMoreGroupId,
   sessionRouteLabel,
   handleGoToNewSession,
   navigateTo,
@@ -111,9 +106,12 @@ export function useWorkstationSidebarSessionInteractionHandlers({
         scopeKey: cloudMyPaginationScopeKey,
         visibleCount: nextVisibleCount,
       });
-      if (nextVisibleCount >= loadedCloudMySessionRowCount) {
-        void loadUnifiedReadyCategories({
-          pagination: sessionPagination,
+      if (
+        nextVisibleCount >= loadedCloudMySessionRowCount &&
+        hasSessionPaginationPlan(item)
+      ) {
+        void executeSessionPaginationPlan({
+          plan: item.sessionPaginationPlan,
           loadCategory: loadMoreCategory,
         });
       }
@@ -124,7 +122,6 @@ export function useWorkstationSidebarSessionInteractionHandlers({
       cloudMySessionsVisibleCount,
       handleCloudSessionItemClick,
       loadedCloudMySessionRowCount,
-      sessionPagination,
       setCloudMyPagination,
     ]
   );
@@ -137,8 +134,6 @@ export function useWorkstationSidebarSessionInteractionHandlers({
   } = useWorkstationSidebarHandlers({
     activeSessionId,
     sessionMap,
-    isLoadMoreId,
-    getLoadMoreGroupId,
     sessionRouteLabel,
     goToNewSession: handleGoToNewSession,
     navigateTo,

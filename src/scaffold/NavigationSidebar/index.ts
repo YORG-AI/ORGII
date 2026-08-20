@@ -39,6 +39,8 @@ export {
   SidebarEmptyState,
   SidebarList,
   SidebarSection,
+  SidebarBottomBar,
+  SidebarMenuSearchInput,
 } from "./blocks";
 
 // ============================================
@@ -105,4 +107,5 @@ export type { NavigationSidebarProps } from "./variants";
 // ============================================
 // Connectors (sidebar data providers)
 // ============================================
-export { WorkstationSidebarConnector } from "./connectors";
+export { SidebarOrgSelector, WorkstationSidebarConnector } from "./connectors";
+export type { SidebarOrgSelectorProps } from "./connectors";

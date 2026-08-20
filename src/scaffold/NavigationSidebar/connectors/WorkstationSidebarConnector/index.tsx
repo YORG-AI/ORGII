@@ -20,7 +20,6 @@ import {
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
   sessionLoadingAtom,
-  sessionPaginationAtom,
   sessionsAtom,
   visitedSessionsAtom,
   workstationActiveSessionIdAtom,
@@ -126,7 +125,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
   useTeamInboxDataSource();
   const teamInboxUnreadCount = useAtomValue(teamInboxUnreadCountAtom);
   const sessionsLoading = useAtomValue(sessionLoadingAtom);
-  const sessionPagination = useAtomValue(sessionPaginationAtom);
   const sessionSidebarRevealRequest = useAtomValue(
     sessionSidebarRevealRequestAtom
   );
@@ -339,8 +337,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     menuItems,
     sessionMap,
     subagentParentIds,
-    isLoadMoreId,
-    getLoadMoreGroupId,
     projectsWorkItemMenuItems,
     projectsProjectMap,
     projectsWorkItemMap,
@@ -475,11 +471,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
     cloudMyPaginationScopeKey,
     setCloudMyPagination,
     loadedCloudMySessionRowCount,
-    sessionPagination,
     activeSessionId,
     sessionMap,
-    isLoadMoreId,
-    getLoadMoreGroupId,
     sessionRouteLabel: t("routes.session"),
     handleGoToNewSession,
     navigateTo,

@@ -57,13 +57,7 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
   projectsSearchQuery,
   activeProjectOrgId,
 }: UseWorkstationSidebarSessionAndProjectMenuItemsParams) {
-  const {
-    menuItems,
-    sessionMap,
-    subagentParentIds,
-    isLoadMoreId,
-    getLoadMoreGroupId,
-  } = useSessionMenuItems({
+  const { menuItems, sessionMap, subagentParentIds } = useSessionMenuItems({
     sortedSessions,
     visitedSessions,
     repoPathToName,
@@ -105,8 +99,6 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
     menuItems,
     sessionMap,
     subagentParentIds,
-    isLoadMoreId,
-    getLoadMoreGroupId,
     projectsWorkItemMenuItems,
     projectsProjectMap,
     projectsWorkItemMap,

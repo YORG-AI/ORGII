@@ -90,6 +90,8 @@ interface UseCloudSessionRowItemBuilderParams {
   /** Viewer-local pin keys (`<orgId>|<rowId>`); never a property of the shared row. */
   pinnedRemoteSessionIds: ReadonlySet<string>;
   toggleRemoteSessionPin: (orgId: string, rowId: string) => void;
+  /** Read-only surfaces (ORG2 Web) reuse row chrome without desktop-only actions. */
+  readOnlySurface?: boolean;
 }
 
 export type BuildCloudSessionRowItem = (
@@ -108,6 +110,7 @@ export function useCloudSessionRowItemBuilder({
   busySessionRows,
   pinnedRemoteSessionIds,
   toggleRemoteSessionPin,
+  readOnlySurface = false,
 }: UseCloudSessionRowItemBuilderParams): BuildCloudSessionRowItem {
   const seenCounts = useAtomValue(discussionSeenCountsAtom);
   const buildRowItem = useCallback(
@@ -209,19 +212,18 @@ export function useCloudSessionRowItemBuilder({
       // Without this the shared busy registry would manifest as nothing but
       // an unresponsive row. The indicator subscribes to its own session's
       // progress slice so ticks re-render one row, not the whole menu.
-      const busy = busySessionRows.get(row.id);
-      const busyIndicator = busy ? (
-        <RowBusyIndicator
-          t={t}
-          bareSessionId={bareSessionId}
-          localSessionId={busy.localSessionId}
-        />
-      ) : undefined;
-      const isPinned = isRemoteSessionPinned(
-        pinnedRemoteSessionIds,
-        row.orgId,
-        row.id
-      );
+      const busy = readOnlySurface ? undefined : busySessionRows.get(row.id);
+      const busyIndicator =
+        busy && !readOnlySurface ? (
+          <RowBusyIndicator
+            t={t}
+            bareSessionId={bareSessionId}
+            localSessionId={busy.localSessionId}
+          />
+        ) : undefined;
+      const isPinned = readOnlySurface
+        ? false
+        : isRemoteSessionPinned(pinnedRemoteSessionIds, row.orgId, row.id);
       const pinIndicator = isPinned ? (
         <Pin
           size={11}
@@ -255,7 +257,7 @@ export function useCloudSessionRowItemBuilder({
         trailingElement,
         disabled,
       };
-      if (!disabled) {
+      if (!disabled && !readOnlySurface) {
         item.showMoreActions = true;
         // Teammate rows carry the whole (org, owner, session) tuple, so a
         // drag onto a text surface can insert the reference verbatim — no
@@ -268,7 +270,7 @@ export function useCloudSessionRowItemBuilder({
           dragSubtitle: row.ownerDisplayName,
         };
       }
-      if (!disabled) {
+      if (!disabled && !readOnlySurface) {
         // Remote rows open/replay on plain click. Hover adds Fork plus the
         // standard overflow menu, whether this row is a leaf or thread root.
         item.rowActions = [
@@ -332,6 +334,7 @@ export function useCloudSessionRowItemBuilder({
       pinnedRemoteSessionIds,
       toggleRemoteSessionPin,
       presenceMap,
+      readOnlySurface,
       runFork,
       seenCounts,
       selfUserId,

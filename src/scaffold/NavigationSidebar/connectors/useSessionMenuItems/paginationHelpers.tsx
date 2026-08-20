@@ -3,6 +3,7 @@ import { MoreHorizontal } from "lucide-react";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { SESSION_LIST_CATEGORIES } from "@src/store/session";
 import type {
+  CategoryPaginationState,
   Session,
   SessionListCategory,
   SessionPaginationMap,
@@ -17,35 +18,51 @@ export const LOAD_MORE_CATEGORIES: readonly SessionListCategory[] =
   SESSION_LIST_CATEGORIES;
 export const UNIFIED_LOAD_MORE_ID = "load-more-unified";
 
-interface UnifiedLoadMoreState {
-  visible: boolean;
-  loading: boolean;
-  error: boolean;
-  disabled: boolean;
-  readyCategories: SessionListCategory[];
+export type SessionPaginationPhase = "ready" | "loading" | "error";
+
+export interface SessionPaginationTarget {
+  category: SessionListCategory;
+  phase: SessionPaginationPhase;
 }
 
-interface LoadUnifiedReadyCategoriesParams {
-  disabled?: boolean;
-  pagination: SessionPaginationMap;
+/**
+ * The complete backend action represented by a session pagination row.
+ * Rendering and click execution both consume this same value so a row can
+ * never advertise one filtered scope and fetch a different set of streams.
+ */
+export interface SessionPaginationPlan {
+  targets: readonly [SessionPaginationTarget, ...SessionPaginationTarget[]];
+}
+
+export interface SessionPaginationMenuItem extends NavigationMenuItem {
+  sessionPaginationPlan: SessionPaginationPlan;
+}
+
+interface ExecuteSessionPaginationPlanParams {
+  plan: SessionPaginationPlan;
   loadCategory: (category: SessionListCategory) => Promise<unknown>;
 }
 
 export function loadMoreRow(
   category: SessionListCategory,
-  loading: boolean,
+  plan: SessionPaginationPlan,
   label: string
-): NavigationMenuItem {
-  return {
-    id: `${LOAD_MORE_PREFIX}${category}`,
-    key: `${LOAD_MORE_PREFIX}${category}`,
-    label,
-    icon: MoreHorizontal,
-    iconName: "more-horizontal",
-    trailingElement: loading ? renderBreathingStatusDot() : undefined,
-    visualTone: "secondary",
-    disabled: loading,
-  };
+): SessionPaginationMenuItem {
+  const phase = getSessionPaginationPhase(plan);
+  return attachSessionPaginationPlan(
+    {
+      id: `${LOAD_MORE_PREFIX}${category}`,
+      key: `${LOAD_MORE_PREFIX}${category}`,
+      label,
+      icon: MoreHorizontal,
+      iconName: "more-horizontal",
+      trailingElement:
+        phase === "loading" ? renderBreathingStatusDot() : undefined,
+      visualTone: "secondary",
+      disabled: phase === "loading",
+    },
+    plan
+  );
 }
 
 export function groupLoadMoreRow(
@@ -66,19 +83,24 @@ export function groupLoadMoreRow(
 }
 
 export function unifiedLoadMoreRow(
-  state: UnifiedLoadMoreState,
+  plan: SessionPaginationPlan,
   label: string
-): NavigationMenuItem {
-  return {
-    id: UNIFIED_LOAD_MORE_ID,
-    key: UNIFIED_LOAD_MORE_ID,
-    label,
-    icon: MoreHorizontal,
-    iconName: "more-horizontal",
-    trailingElement: state.loading ? renderBreathingStatusDot() : undefined,
-    visualTone: "secondary",
-    disabled: state.disabled,
-  };
+): SessionPaginationMenuItem {
+  const phase = getSessionPaginationPhase(plan);
+  return attachSessionPaginationPlan(
+    {
+      id: UNIFIED_LOAD_MORE_ID,
+      key: UNIFIED_LOAD_MORE_ID,
+      label,
+      icon: MoreHorizontal,
+      iconName: "more-horizontal",
+      trailingElement:
+        phase === "loading" ? renderBreathingStatusDot() : undefined,
+      visualTone: "secondary",
+      disabled: phase === "loading",
+    },
+    plan
+  );
 }
 
 export function isLoadMoreId(id: string): SessionListCategory | null {
@@ -96,62 +118,155 @@ export function getLoadMoreGroupId(id: string): string | null {
   return id.slice(LOAD_MORE_GROUP_PREFIX.length) || null;
 }
 
-export function getUnifiedLoadMoreState(
-  pagination: SessionPaginationMap
-): UnifiedLoadMoreState {
-  let visible = false;
-  let loading = false;
-  let error = false;
-  const readyCategories: SessionListCategory[] = [];
+export function isBackendSessionPaginationId(id: string): boolean {
+  return isUnifiedLoadMoreId(id) || isLoadMoreId(id) !== null;
+}
+
+export function isSessionPaginationId(id: string): boolean {
+  return isBackendSessionPaginationId(id) || getLoadMoreGroupId(id) !== null;
+}
+
+export function attachSessionPaginationPlan(
+  item: NavigationMenuItem,
+  plan: SessionPaginationPlan
+): SessionPaginationMenuItem {
+  return { ...item, sessionPaginationPlan: plan };
+}
+
+export function hasSessionPaginationPlan(
+  item: NavigationMenuItem
+): item is SessionPaginationMenuItem {
+  const plan = (item as Partial<SessionPaginationMenuItem>)
+    .sessionPaginationPlan;
+  return (
+    plan !== undefined &&
+    Array.isArray(plan.targets) &&
+    plan.targets.length > 0 &&
+    plan.targets.every(
+      (target) =>
+        SESSION_LIST_CATEGORIES.includes(target.category) &&
+        (target.phase === "ready" ||
+          target.phase === "loading" ||
+          target.phase === "error")
+    )
+  );
+}
+
+export function getSessionPaginationPhase(
+  plan: SessionPaginationPlan
+): SessionPaginationPhase {
+  return plan.targets.some((target) => target.phase === "loading")
+    ? "loading"
+    : plan.targets.some((target) => target.phase === "error")
+      ? "error"
+      : "ready";
+}
+
+export function getCategoryPaginationPlan(
+  category: SessionListCategory,
+  state: CategoryPaginationState,
+  hasVisibleSessionRows: boolean
+): SessionPaginationPlan | null {
+  if (!shouldRenderBackendPagination(state, hasVisibleSessionRows)) return null;
+  if (
+    state.phase === "loading" ||
+    state.phase === "ready" ||
+    state.phase === "error"
+  ) {
+    return { targets: [{ category, phase: state.phase }] };
+  }
+  return null;
+}
+
+export function getUnifiedPaginationPlan(
+  pagination: SessionPaginationMap,
+  hasVisibleSessionRows: boolean
+): SessionPaginationPlan | null {
+  const plans: SessionPaginationPlan[] = [];
 
   for (const category of LOAD_MORE_CATEGORIES) {
-    const state = pagination[category];
-    if (state.generation === 0) continue;
-    if (state.phase === "loading") {
-      visible = true;
-      loading = true;
-      continue;
-    }
-    if (state.phase === "error") {
-      visible = true;
-      error = true;
-      readyCategories.push(category);
-      continue;
-    }
-    if (state.phase === "ready") {
-      visible = true;
-      readyCategories.push(category);
-    }
+    const plan = getCategoryPaginationPlan(
+      category,
+      pagination[category],
+      hasVisibleSessionRows
+    );
+    if (plan) plans.push(plan);
   }
 
-  return {
-    visible,
-    loading,
-    error,
-    disabled: loading || readyCategories.length === 0,
-    readyCategories,
-  };
+  return combineSessionPaginationPlans(plans);
+}
+
+export function combineSessionPaginationPlans(
+  plans: readonly SessionPaginationPlan[]
+): SessionPaginationPlan | null {
+  if (plans.length === 0) return null;
+
+  const targetsByCategory = new Map<
+    SessionListCategory,
+    SessionPaginationTarget
+  >();
+  for (const plan of plans) {
+    for (const target of plan.targets) {
+      const existing = targetsByCategory.get(target.category);
+      if (
+        !existing ||
+        paginationPhaseRank(target.phase) > paginationPhaseRank(existing.phase)
+      ) {
+        targetsByCategory.set(target.category, target);
+      }
+    }
+  }
+  const [firstTarget, ...remainingTargets] = targetsByCategory.values();
+  return firstTarget ? { targets: [firstTarget, ...remainingTargets] } : null;
+}
+
+export function filterSessionPaginationPlan(
+  plan: SessionPaginationPlan,
+  predicate: (target: SessionPaginationTarget) => boolean
+): SessionPaginationPlan | null {
+  const [firstTarget, ...remainingTargets] = plan.targets.filter(predicate);
+  return firstTarget ? { targets: [firstTarget, ...remainingTargets] } : null;
+}
+
+function paginationPhaseRank(phase: SessionPaginationPhase): number {
+  return phase === "loading" ? 3 : phase === "error" ? 2 : 1;
+}
+
+/**
+ * A ready/loading stream only offers useful pagination when the current
+ * sidebar scope already contains a session row. The backend roster is global,
+ * while org and visibility filters are applied afterwards; without this
+ * guard, a scope whose rows were all filtered out rendered an orphaned
+ * "Load more" control. Errors remain actionable even for an empty scope.
+ */
+export function shouldRenderBackendPagination(
+  state: CategoryPaginationState,
+  hasVisibleSessionRows: boolean
+): boolean {
+  if (state.generation === 0 || state.phase === "exhausted") return false;
+  return state.phase === "error" || hasVisibleSessionRows;
 }
 
 const UNIFIED_LOAD_MORE_CONCURRENCY = 4;
 
-export function loadUnifiedReadyCategories({
-  disabled,
-  pagination,
+export function executeSessionPaginationPlan({
+  plan,
   loadCategory,
-}: LoadUnifiedReadyCategoriesParams): Promise<void> | null {
-  const state = getUnifiedLoadMoreState(pagination);
-  if (disabled || state.disabled) return null;
-  const { readyCategories } = state;
+}: ExecuteSessionPaginationPlanParams): Promise<void> | null {
+  if (getSessionPaginationPhase(plan) === "loading") return null;
+  const targetCategories = plan.targets.map((target) => target.category);
   return (async () => {
     let nextIndex = 0;
     const workers = Array.from(
       {
-        length: Math.min(UNIFIED_LOAD_MORE_CONCURRENCY, readyCategories.length),
+        length: Math.min(
+          UNIFIED_LOAD_MORE_CONCURRENCY,
+          targetCategories.length
+        ),
       },
       async () => {
-        while (nextIndex < readyCategories.length) {
-          const category = readyCategories[nextIndex];
+        while (nextIndex < targetCategories.length) {
+          const category = targetCategories[nextIndex];
           nextIndex += 1;
           await loadCategory(category);
         }

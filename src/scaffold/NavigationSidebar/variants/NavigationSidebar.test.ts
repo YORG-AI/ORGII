@@ -7,8 +7,20 @@ import { WorkItemsSidebarSkeleton } from "../connectors/WorkstationSidebarConnec
 import NavigationSidebar from "./NavigationSidebar";
 
 vi.mock("../SidebarBase", () => ({
-  default: ({ children }: { children?: ReactNode }) =>
-    createElement("aside", null, children),
+  default: ({
+    children,
+    includeTrafficLightSpace,
+  }: {
+    children?: ReactNode;
+    includeTrafficLightSpace?: boolean;
+  }) =>
+    createElement(
+      "aside",
+      {
+        "data-include-traffic-light-space": String(includeTrafficLightSpace),
+      },
+      children
+    ),
 }));
 
 vi.mock("../components/NavigationMenu", () => ({
@@ -101,5 +113,19 @@ describe("NavigationSidebar", () => {
     expect(markup).toContain('data-testid="work-items-sidebar-skeleton"');
     expect(markup).toContain('aria-label="Loading work items"');
     expect(markup).toContain("animate-pulse");
+  });
+
+  it("lets browser-hosted sidebars remove native window chrome spacing", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationSidebar, {
+        items: [],
+        activeKey: "",
+        onChange: vi.fn(),
+        menuItems: [],
+        includeTrafficLightSpace: false,
+      })
+    );
+
+    expect(markup).toContain('data-include-traffic-light-space="false"');
   });
 });

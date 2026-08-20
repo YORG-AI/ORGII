@@ -123,11 +123,15 @@ export function buildByAgentMenuItems({
     }
   }
   if (!agentOrgHasHiddenRows) {
-    const row = loadMoreRowFor("agent_org_root");
+    const row = loadMoreRowFor(
+      "agent_org_root",
+      sortedAgentOrgGroups.length > 0
+    );
     if (row) items.push(row);
   }
 
   const hiddenByCategory = new Set<SessionListCategory>();
+  const visibleByCategory = new Set<SessionListCategory>();
   const lastGroupIndexByCategory = new Map<SessionListCategory, number>();
   SESSION_GROUP_ORDER.forEach((key, index) => {
     lastGroupIndexByCategory.set(groupKeyToWireCategory(key), index);
@@ -136,6 +140,7 @@ export function buildByAgentMenuItems({
     const groupSessions = groups.get(key);
     const wireCategory = groupKeyToWireCategory(key);
     if (groupSessions && groupSessions.length > 0) {
+      visibleByCategory.add(wireCategory);
       items.push(separator(key, SESSION_GROUP_LABELS[key]));
       const groupHasHiddenLocalSessions = appendGroupSessions(
         items,
@@ -150,7 +155,10 @@ export function buildByAgentMenuItems({
       lastGroupIndexByCategory.get(wireCategory) === groupIndex &&
       !hiddenByCategory.has(wireCategory)
     ) {
-      const row = loadMoreRowFor(wireCategory);
+      const row = loadMoreRowFor(
+        wireCategory,
+        visibleByCategory.has(wireCategory)
+      );
       if (row) items.push(row);
     }
   }
