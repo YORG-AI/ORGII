@@ -35,6 +35,7 @@ interface UseSimulatorSubagentsOptions {
   eventStoreVersion: number;
   currentEvent: SessionEvent | null;
   allEvents: SessionEvent[];
+  enabled?: boolean;
 }
 
 function nonEmptyString(value: unknown): string | null {
@@ -107,6 +108,7 @@ export function useSimulatorSubagents({
   eventStoreVersion,
   currentEvent,
   allEvents,
+  enabled = true,
 }: UseSimulatorSubagentsOptions): UseSimulatorSubagentsReturn {
   const panelRevealRequest = useAtomValue(subagentPanelRevealRequestAtom);
   const focusedCellId = useAtomValue(focusedSubagentCellAtom);
@@ -133,12 +135,12 @@ export function useSimulatorSubagents({
   // DB query — re-triggered by eventStoreVersion (bumped on every EventStore
   // mutation, including args patches like stamp_subagent_session_id_on_parent).
   const dbSubagentSessions = useSubagentSessions(
-    sessionId || null,
+    enabled ? sessionId || null : null,
     eventStoreVersion
   );
   const eventSubagentSessions = useMemo(
-    () => fallbackSubagentSessionsFromEvents(allEvents),
-    [allEvents]
+    () => (enabled ? fallbackSubagentSessionsFromEvents(allEvents) : []),
+    [allEvents, enabled]
   );
   const allSubagentSessions = useMemo(() => {
     if (eventSubagentSessions.length === 0) return dbSubagentSessions;
