@@ -1,11 +1,11 @@
 /**
  * URL sanitizer for the markdown renderer.
  *
- * ORG2 session references ride the app's own `orgii:` scheme, which
+ * ORG2 session references and local filesystem references can use schemes
+ * (`orgii:`, `file:`, Windows drive letters, Tauri assets) that
  * react-markdown's default sanitizer rewrites to an empty href. Exactly the
- * references that validate pass through; every other URL keeps the default
- * protocol allowlist, so this widens the accepted surface by nothing else —
- * not even the capability-bearing `orgii://cloud/session?share=…` form.
+ * references handled by our link renderer pass through; every other URL keeps
+ * the default protocol allowlist.
  *
  * Scoped to `href` because react-markdown runs this over EVERY url-bearing
  * attribute (`src`, `poster`, `cite`, …). Only the link path has a chip
@@ -16,8 +16,13 @@ import { defaultUrlTransform } from "react-markdown";
 
 import { parseCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
 
+import { classifyMarkdownImageSrc } from "./markdownImageSrc";
+
 export function markdownUrlTransform(value: string, key?: string): string {
-  return key === "href" && parseCloudSessionReference(value)
-    ? value
-    : defaultUrlTransform(value);
+  if (key === "href") {
+    if (parseCloudSessionReference(value)) return value;
+    if (classifyMarkdownImageSrc(value).kind === "local") return value;
+  }
+
+  return defaultUrlTransform(value);
 }

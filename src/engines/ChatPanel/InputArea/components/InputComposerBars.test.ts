@@ -171,8 +171,7 @@ describe("NormalComposerContent contextual presentations", () => {
         toggle: vi.fn(),
         isSupported: true,
       },
-      isCompactRow: true,
-      contextualCompact: true,
+      contextualPanel: true,
       inlineLeadingContent: createElement("span", null, "Stat"),
       suppressToolbarHover: false,
       currentInputEmpty,
@@ -199,14 +198,17 @@ describe("NormalComposerContent contextual presentations", () => {
     act(() => root.render(createElement(NormalComposerContent, props)));
   };
 
-  it("renders context, editor, and one solid voice action in the compact row", () => {
+  it("renders contextual input with the full-size editor and standard actions", () => {
     renderComposer(true);
 
     expect(testState.composerBarProps).toMatchObject({
-      inlineLayout: true,
-      hideAddButton: true,
       showContextInfo: false,
     });
+    expect(testState.composerBarProps).not.toHaveProperty("inlineLayout");
+    expect(testState.inputEditorProps).toMatchObject({
+      leadingContent: expect.anything(),
+    });
+    expect(testState.inputEditorProps).not.toHaveProperty("compact");
     expect(container.textContent).toContain("Stat");
     expect(
       container.querySelector("[data-testid='input-editor']")
@@ -215,24 +217,26 @@ describe("NormalComposerContent contextual presentations", () => {
       container
         .querySelector("[data-testid='voice-button']")
         ?.getAttribute("data-appearance")
-    ).toBe("solid");
-    expect(container.querySelector("[data-testid='input-actions']")).toBeNull();
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='input-actions']")
+    ).not.toBeNull();
     expect(container.querySelector("[data-testid='prompt-polish']")).toBeNull();
   });
 
-  it("replaces the idle microphone with the shared send action after typing", () => {
+  it("keeps the standard microphone and send actions after typing", () => {
     renderComposer(false);
 
-    expect(container.querySelector("[data-testid='voice-button']")).toBeNull();
+    expect(
+      container.querySelector("[data-testid='voice-button']")
+    ).not.toBeNull();
     expect(
       container.querySelector("[data-testid='input-actions']")
     ).not.toBeNull();
   });
 
-  it("uses the compact shared toolbar without hiding contextual controls", () => {
+  it("keeps contextual controls in the full-size shared toolbar", () => {
     renderComposer(true, {
-      isCompactRow: true,
-      contextualCompact: false,
       contextualPanel: true,
       inlineLeadingContent: createElement("span", null, "H1"),
       modePill: createElement("span", null, "Auto"),
@@ -240,14 +244,13 @@ describe("NormalComposerContent contextual presentations", () => {
     });
 
     expect(testState.composerBarProps).toMatchObject({
-      inlineLayout: true,
-      hideAddButton: false,
       showContextInfo: false,
     });
+    expect(testState.composerBarProps).not.toHaveProperty("inlineLayout");
     expect(testState.inputEditorProps).toMatchObject({
-      compact: true,
       leadingContent: expect.anything(),
     });
+    expect(testState.inputEditorProps).not.toHaveProperty("compact");
     expect(container.textContent).toContain("H1");
     expect(
       container.querySelector("[data-testid='input-editor']")?.textContent

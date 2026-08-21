@@ -1,6 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { normalizeCopyableMarkdownDocumentFence } from "./markdownUtils";
+import {
+  detectCodeType,
+  normalizeCopyableMarkdownDocumentFence,
+  openFileInEditor,
+} from "./markdownUtils";
+
+const mocks = vi.hoisted(() => ({
+  openFileInEditor: vi.fn(),
+}));
+
+vi.mock("@src/util/ui/openFileInEditor", () => ({
+  openFileInEditor: mocks.openFileInEditor,
+}));
 
 describe("normalizeCopyableMarkdownDocumentFence", () => {
   it("uses a longer outer fence for markdown documents with nested fences", () => {
@@ -66,5 +78,23 @@ describe("normalizeCopyableMarkdownDocumentFence", () => {
     const input = ["```md", "## Summary", "Plain text", "```"].join("\n");
 
     expect(normalizeCopyableMarkdownDocumentFence(input)).toBe(input);
+  });
+});
+
+describe("detectCodeType", () => {
+  it("recognizes inline file paths with source location suffixes", () => {
+    expect(detectCodeType("src/components/View.tsx:220")).toBe("file");
+    expect(detectCodeType("src/components/View.tsx:220:14")).toBe("file");
+  });
+});
+
+describe("openFileInEditor", () => {
+  it("passes markdown source locations as a clean path and target line", () => {
+    openFileInEditor("src/components/View.tsx:220:14");
+
+    expect(mocks.openFileInEditor).toHaveBeenCalledWith(
+      "src/components/View.tsx",
+      { isDirectory: false, line: 220 }
+    );
   });
 });

@@ -24,7 +24,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use git::tokio_git_command;
+use git::{tokio_git_command, util::is_transient_error};
 
 use super::commit::append_orgii_coauthor_trailer;
 
@@ -165,15 +165,6 @@ pub struct CommitStreamQuery {
 pub struct StageStreamQuery {
     pub path: String,
     pub files: String, // JSON array of files
-}
-
-/// Check if an error is a transient system error that can be retried
-pub(crate) fn is_transient_error(error_msg: &str) -> bool {
-    error_msg.contains("Bad file descriptor")
-        || error_msg.contains("Resource temporarily unavailable")
-        || error_msg.contains("os error 9")
-        || error_msg.contains("Too many open files")
-        || error_msg.contains("os error 24")
 }
 
 /// Configure command with pre_exec to close inherited file descriptors on Unix

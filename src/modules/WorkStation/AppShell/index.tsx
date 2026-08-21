@@ -165,6 +165,7 @@ const AppShell = React.memo(
                 chatPanelFocused={chatPanelFocused}
                 isAgentStation={isAgentStation}
                 hasVisitedAgentStation={hasVisitedAgentStation}
+                hasAgentStationSession={!!workstationActiveSessionId}
                 hasVisitedCode={hasVisitedCode}
                 hasVisitedBrowser={hasVisitedBrowser}
                 hasVisitedProject={hasVisitedProject}

@@ -14,6 +14,8 @@ import React from "react";
 
 import { openFileInEditor as openFileInEditorShared } from "@src/util/ui/openFileInEditor";
 
+import { parseMarkdownFileRef } from "./markdownFileRef";
+
 type InlineCodeType = "file" | "directory" | null;
 
 const FILE_CONTENT_PATTERN =
@@ -373,26 +375,28 @@ export function detectCodeType(text: string): InlineCodeType {
   }
 
   let result: InlineCodeType = null;
+  const fileRefPath = parseMarkdownFileRef(trimmed).path;
 
   if (
-    !trimmed.includes("\n") &&
-    !trimmed.includes("  ") &&
-    !/[=<>!&|]/.test(trimmed)
+    !fileRefPath.includes("\n") &&
+    !fileRefPath.includes("  ") &&
+    !/[=<>!&|]/.test(fileRefPath)
   ) {
-    const hasPathSignal = trimmed.includes("/") || trimmed.endsWith("/");
+    const hasPathSignal =
+      fileRefPath.includes("/") || fileRefPath.endsWith("/");
 
-    if (hasPathSignal && /^[\w./-]+\/$/.test(trimmed)) {
+    if (hasPathSignal && /^[\w./-]+\/$/.test(fileRefPath)) {
       result = "directory";
     } else if (
       hasPathSignal &&
-      (/^\.{0,2}\//.test(trimmed) ||
-        (/\//.test(trimmed) && /\.\w+$/.test(trimmed)))
+      (/^\.{0,2}\//.test(fileRefPath) ||
+        (/\//.test(fileRefPath) && /\.\w+$/.test(fileRefPath)))
     ) {
       result = "file";
     } else if (
       hasPathSignal &&
-      /^[\w.-]+\/[\w./-]+$/.test(trimmed) &&
-      !/\.\w+$/.test(trimmed)
+      /^[\w.-]+\/[\w./-]+$/.test(fileRefPath) &&
+      !/\.\w+$/.test(fileRefPath)
     ) {
       result = "directory";
     }
@@ -405,7 +409,13 @@ export function detectCodeType(text: string): InlineCodeType {
 // ── openFileInEditor ──────────────────────────────────────────────────────────
 
 export function openFileInEditor(path: string, isDirectory: boolean = false) {
-  openFileInEditorShared(path, { isDirectory });
+  const fileRef = isDirectory
+    ? { path: path.trim() }
+    : parseMarkdownFileRef(path);
+  openFileInEditorShared(fileRef.path, {
+    isDirectory,
+    line: fileRef.line,
+  });
 }
 
 // ── Citation rendering ────────────────────────────────────────────────────────

@@ -175,6 +175,21 @@ describe("MarkdownLocalImage", () => {
     expect(mocks.openFileInWorkStation).not.toHaveBeenCalled();
   });
 
+  it("opens markdown file references at their line without including the suffix in the path", async () => {
+    await openLocalMarkdownRef(
+      "/Users/me/project/SessionCreatorChatPanelView.tsx:220",
+      false
+    );
+
+    expect(mocks.stat).toHaveBeenCalledWith(
+      "/Users/me/project/SessionCreatorChatPanelView.tsx"
+    );
+    expect(mocks.openFileInWorkStation).toHaveBeenCalledWith(
+      "/Users/me/project/SessionCreatorChatPanelView.tsx",
+      { line: 220 }
+    );
+  });
+
   it("falls back to the file tab when the path cannot be stat'ed", async () => {
     mocks.stat.mockRejectedValueOnce(new Error("gone"));
     await openLocalMarkdownRef("/Users/me/missing.png", false);
