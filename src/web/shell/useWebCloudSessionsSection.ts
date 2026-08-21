@@ -98,12 +98,7 @@ function buildCloudThreadRowMenuItems({
     if (thread.descendants.length === 0) {
       items.push(buildRowItem(thread.root));
     } else {
-      items.push(
-        buildRowItem(
-          thread.root,
-          thread.descendants.map((descendant) => buildRowItem(descendant))
-        )
-      );
+      items.push(buildRowItem(thread.root, thread.descendants));
     }
   }
   if (visibleThreads.length < threads.length) {

@@ -65,21 +65,22 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
   );
 };
 
-const StationModePill: React.FC = () => {
-  const [stationMode, setStationMode] = useAtom(stationModeAtom);
+export interface StationModePillViewProps {
+  stationMode: StationMode;
+  onStationModeChange: (mode: StationMode) => void;
+}
 
+/** Controlled presentation shared by desktop and read-only remote hosts. */
+export const StationModePillView: React.FC<StationModePillViewProps> = ({
+  stationMode,
+  onStationModeChange,
+}) => {
   const { t } = useTranslation("common");
   const mySegment = t("terminology.myStation");
   const agentSegment = t("terminology.agentStation");
 
   const myStationShortcut = getShortcutKeys(MY_STATION_SHORTCUT_ID);
   const agentStationShortcut = getShortcutKeys(AGENT_STATION_SHORTCUT_ID);
-  const handleChange = useCallback(
-    (mode: StationMode) => {
-      setStationMode(mode);
-    },
-    [setStationMode]
-  );
 
   return (
     <div
@@ -91,7 +92,7 @@ const StationModePill: React.FC = () => {
         tooltipLabel={t("actions.switchToStation", { station: mySegment })}
         icon={Laptop}
         selected={stationMode === "my-station"}
-        onClick={() => handleChange("my-station")}
+        onClick={() => onStationModeChange("my-station")}
         testId="station-mode-my-station"
         shortcut={myStationShortcut}
       />
@@ -100,11 +101,26 @@ const StationModePill: React.FC = () => {
         tooltipLabel={t("actions.switchToStation", { station: agentSegment })}
         icon={Infinity}
         selected={stationMode === "agent-station"}
-        onClick={() => handleChange("agent-station")}
+        onClick={() => onStationModeChange("agent-station")}
         testId="station-mode-agent-station"
         shortcut={agentStationShortcut}
       />
     </div>
+  );
+};
+
+const StationModePill: React.FC = () => {
+  const [stationMode, setStationMode] = useAtom(stationModeAtom);
+  const handleChange = useCallback(
+    (mode: StationMode) => setStationMode(mode),
+    [setStationMode]
+  );
+
+  return (
+    <StationModePillView
+      stationMode={stationMode}
+      onStationModeChange={handleChange}
+    />
   );
 };
 

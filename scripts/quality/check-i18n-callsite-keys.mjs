@@ -129,7 +129,68 @@ function hasPluralVariant(keys, key) {
 }
 
 const englishKeys = loadEnglishKeys();
+// The checker was introduced on this feature branch. While it was in review,
+// develop accumulated call sites that still rely on defaultValue/fallback
+// text. Keep that pre-existing debt scoped to the exact owning files so a new
+// missing key anywhere else still fails CI. Entries can be deleted as the
+// corresponding English resources are repaired.
+const DEVELOP_BASELINE_MISSING_CALLS = new Set([
+  "common:actions.clearSearch:src/scaffold/GlobalSpotlight/components/SpotlightSearchBar.tsx",
+  "common:actions.clearSearch:src/scaffold/GlobalSpotlight/shared/SpotlightInput.tsx",
+  "common:actions.clearSelection:src/modules/WorkStation/shared/StatusBar/BrowserStatusBar.tsx",
+  "common:actions.comingSoon:src/router/routes/ComingSoonRoutePage.tsx",
+  "common:actions.dismiss:src/engines/BrowserCore/index.tsx",
+  "common:actions.moreActions:src/modules/MainApp/WorkManagement/GitHubWorkItemsView.tsx",
+  "common:actions.noResults:src/scaffold/WizardSystem/shared/externalImport/InlineExternalImport.tsx",
+  "common:actions.saved:src/modules/MainApp/Integrations/RulesMemoryEvolution/Memory/MemoryContentViewer.tsx",
+  "common:cancel:src/features/SessionCreator/components/WorktreeSourceModal.tsx",
+  "common:close:src/scaffold/GlobalSpotlight/forms/shared/SpotlightModalHeader.tsx",
+  "common:common.copied:src/modules/MainApp/AgentOrgs/components/CliRawConfigFileEditor.tsx",
+  "common:common.copied:src/modules/MainApp/AgentOrgs/config/shared/PersonalitySection.tsx",
+  "common:common.noResultsWithFilters:src/modules/MainApp/Integrations/DevTools/LanguageServersPage/Table/LanguageServersTable.tsx",
+  "common:common.noResultsWithFilters:src/modules/MainApp/Integrations/DevTools/LintToolsPage/Table/LintToolsTable.tsx",
+  "common:errors.error:src/scaffold/WizardSystem/variants/Mcp/McpAddWizard.tsx",
+  "common:errors.messages.forbidden:src/modules/MainApp/WorkManagement/GitHubWorkItemsSurface.tsx",
+  "common:errors.messages.forbidden:src/modules/MainApp/WorkManagement/GitHubWorkItemsView.tsx",
+  "common:errors.messages.forbidden:src/modules/ProjectManager/ProjectManagerLayout/components/ProjectWorkItemsTabContent.tsx",
+  "common:errors.noLocalPath:src/modules/shared/launchpad/components/RepoActionButtons.tsx",
+  "common:labels.filter:src/components/SettingsTable/index.tsx",
+  "common:labels.filter:src/modules/shared/layouts/blocks/SearchSortBar.tsx",
+  "common:labels.selectDate:src/components/DatePicker/index.tsx",
+  "common:placeholders.noData:src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/FilePreviewContent/DbPreviewView/index.tsx",
+  "common:pullRequests.status.draft:src/modules/MainApp/WorkManagement/GitHubWorkItemsView.tsx",
+  "common:pullRequests.status.merged:src/modules/MainApp/WorkManagement/GitHubWorkItemsView.tsx",
+  "common:selectors.branch.labels.mainWorktree:src/modules/WorkStation/shared/StatusBar/EditorStatusBar.tsx",
+  "common:selectors.branch.labels.mainWorktree:src/scaffold/GlobalSpotlight/palettes/BranchPalette/index.tsx",
+  "common:tabs.files:src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/tabs/SearchTab.tsx",
+  "common:tabs.files:src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/tabs/TestingTab.tsx",
+  "common:tabs.history:src/modules/WorkStation/Browser/Panels/BrowserPrimarySidebar/index.tsx",
+  "common:teamInbox.actions.openPullRequest:src/modules/MainApp/TeamInbox/TeamInboxView.tsx",
+  "integrations:channels.quickActions.testConnection:src/modules/MainApp/Integrations/Connections/Channels/ChannelPreviewPanel.tsx",
+  "integrations:common.cancel:src/modules/WorkStation/TabContent/renderers/agentConfig.tsx",
+  "integrations:common.delete:src/modules/WorkStation/TabContent/renderers/agentConfig.tsx",
+  "integrations:keyVault.revalidate:src/scaffold/WizardSystem/variants/KeyVault/components/DeploymentModelInput.tsx",
+  "projects:linearProjects.loading:src/modules/ProjectManager/LinearProjects/index.tsx",
+  "projects:workItems.untitled:src/modules/MainApp/WorkManagement/WorkManagementProjectsSurface.tsx",
+  "projects:workItems.untitled:src/modules/ProjectManager/WorkItems/index.tsx",
+  "sessions:failedToCopyContent:src/components/MarkDown/LinkHoverCard.tsx",
+  "sessions:titleBar.hideDevTools:src/modules/WorkStation/Browser/Panels/BrowserMainPane/components/WebUrlBar/index.tsx",
+  "sessions:titleBar.showBottomPanel:src/modules/WorkStation/shared/TabBarTrailingControls.tsx",
+  "sessions:titleBar.showDevTools:src/modules/WorkStation/Browser/Panels/BrowserMainPane/components/WebUrlBar/index.tsx",
+  "sessions:titleBar.showDevTools:src/modules/WorkStation/Browser/Panels/BrowserSecondaryPanel/components/WebInspector/index.tsx",
+  "sessions:titleBar.showDevTools:src/modules/WorkStation/shared/TabBarTrailingControls.tsx",
+  "sessions:tooltips.hidePanel:src/features/SessionCreator/variants/Kanban/index.tsx",
+  "sessions:workStation.chat.messages.bubble.senderTitle.thought:src/modules/WorkStation/AppShell/AgentStationTopHeader.tsx",
+  "translation:creator.worktreeSource.baseBranch:src/features/SessionCreator/components/WorktreeBranchTab.tsx",
+  "translation:creator.worktreeSource.branchEmpty:src/features/SessionCreator/components/WorktreeBranchTab.tsx",
+  "translation:creator.worktreeSource.branchError:src/features/SessionCreator/components/WorktreeBranchTab.tsx",
+  "translation:creator.worktreeSource.branchNoMatches:src/features/SessionCreator/components/WorktreeBranchTab.tsx",
+  "translation:creator.worktreeSource.branchSearch:src/features/SessionCreator/components/WorktreeBranchTab.tsx",
+  "translation:creator.worktreeSource.branchSearchAria:src/features/SessionCreator/components/WorktreeBranchTab.tsx",
+  "translation:creator.worktreeSource.refreshBranches:src/features/SessionCreator/components/WorktreeBranchTab.tsx",
+]);
 const missing = [];
+const baselineMissing = [];
 const dynamic = [];
 let staticCallCount = 0;
 
@@ -232,13 +293,22 @@ for (const filePath of collectSourceFiles(SOURCE_ROOT)) {
           const exists =
             keys?.has(key) || (hasCount && keys && hasPluralVariant(keys, key));
           if (!exists) {
-            missing.push({
+            const entry = {
               filePath,
               line,
               namespace,
               key,
               call: node.getText(sourceFile).replace(/\s+/g, " "),
-            });
+            };
+            const signature = `${namespace}:${key}:${relative(
+              REPO_ROOT,
+              filePath
+            )}`;
+            if (DEVELOP_BASELINE_MISSING_CALLS.has(signature)) {
+              baselineMissing.push(entry);
+            } else {
+              missing.push(entry);
+            }
           }
         }
       }
@@ -272,6 +342,11 @@ console.log(
   `Checked ${staticCallCount} static i18n calls; ` +
     `${dynamic.length} dynamic calls require focused contracts.`
 );
+if (baselineMissing.length > 0) {
+  console.log(
+    `Allowed ${baselineMissing.length} missing call(s) recorded from the develop baseline.`
+  );
+}
 
 if (uniqueMissing.size > 0) {
   console.error(
@@ -281,6 +356,7 @@ if (uniqueMissing.size > 0) {
     left.localeCompare(right)
   )) {
     console.error(`- ${id} (${entry.occurrences})`);
+    console.error(`    call: ${entry.call}`);
     for (const location of entry.locations) console.error(`    ${location}`);
   }
   process.exit(1);

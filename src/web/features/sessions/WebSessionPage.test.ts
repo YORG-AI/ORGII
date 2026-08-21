@@ -2,6 +2,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ReplayPhase } from "@src/engines/SessionCore/replay/replayController";
 import { createSmokeRoot, dispatch } from "@src/test/reactSmokeHarness";
 
 import { WebSessionPage } from "./WebSessionPage";
@@ -9,7 +10,7 @@ import { WebSessionPage } from "./WebSessionPage";
 const testState = vi.hoisted(() => ({
   viewportWidth: 1440,
   replayState: {
-    phase: "follow" as const,
+    phase: "follow" as ReplayPhase,
     index: 0,
     speed: 1,
     isPlaying: false,
@@ -255,7 +256,7 @@ describe("WebSessionPage pane composition", () => {
       { id: "event-3" },
     ];
     testState.replayState = {
-      phase: "browse",
+      phase: "paused",
       index: 1,
       speed: 1,
       isPlaying: false,

@@ -56,6 +56,7 @@ export function useCloudSessionEvents(session: WebSessionListItem | null) {
         const cachedSnapshot = cachedRecord?.snapshot ?? null;
 
         if (
+          cachedSnapshot &&
           !shouldFetchWebCloudSessionEvents(forceFull, cachedSnapshot, session)
         ) {
           snapshotRef.current = cachedSnapshot;

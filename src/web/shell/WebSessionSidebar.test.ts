@@ -2,6 +2,7 @@
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { discussionSeenCountsAtom } from "@src/features/Org2Cloud/SessionConversation/discussionSeenAtom";
 import { buildCloudRemoteItemId } from "@src/features/Org2Cloud/cloudRemoteItemId";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
@@ -53,6 +54,9 @@ vi.mock("jotai", async (importOriginal) => {
         };
       }
       if (atom === org2CloudPresenceAtom) {
+        return {};
+      }
+      if (atom === discussionSeenCountsAtom) {
         return {};
       }
       return undefined;

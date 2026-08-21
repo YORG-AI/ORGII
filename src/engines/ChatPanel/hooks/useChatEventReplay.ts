@@ -91,15 +91,18 @@ export function useChatEventReplay(): UseChatEventReplayReturn {
         const secondaryEventId =
           eventSecondaryLookup.chunkIdToEventId.get(lookupId) ??
           eventSecondaryLookup.callIdToEventId.get(lookupId);
-        event = secondaryEventId ? eventIndex.get(secondaryEventId) : undefined;
+        event = secondaryEventId
+          ? (eventIndex.get(secondaryEventId) ?? null)
+          : null;
       }
-      event ??= sortedEvents.find((candidate) => {
-        if (!isPlanDisplayEvent(candidate)) return false;
-        const lookupId = eventId.startsWith("group:stageoutput:")
-          ? eventId.split(":").slice(3).join(":")
-          : eventId;
-        return planAliasesContain(getPlanEventAliases(candidate), lookupId);
-      });
+      event ??=
+        sortedEvents.find((candidate) => {
+          if (!isPlanDisplayEvent(candidate)) return false;
+          const lookupId = eventId.startsWith("group:stageoutput:")
+            ? eventId.split(":").slice(3).join(":")
+            : eventId;
+          return planAliasesContain(getPlanEventAliases(candidate), lookupId);
+        }) ?? null;
 
       if (!event) {
         log.warn(

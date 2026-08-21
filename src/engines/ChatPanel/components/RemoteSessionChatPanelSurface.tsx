@@ -152,6 +152,7 @@ export function RemoteSessionChatPanelSurface({
               showContextInfo={false}
               pills={
                 <SelectorPill
+                  icon={sessionIconElement}
                   label={agentLabel}
                   disabled
                   ariaLabel={readOnlyBarPlaceholder}

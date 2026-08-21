@@ -21,6 +21,9 @@ function createSession(
     sourceSessionId: "source-1",
     title: "Session",
     eventsEpoch: 1,
+    eventsFrozenSeq: 0,
+    eventsCount: 0,
+    eventsTailHash: "",
     ...overrides,
   };
 }

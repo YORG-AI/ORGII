@@ -917,6 +917,7 @@
     "selectedOf": "{{selected}} of {{total}} selected"
   },
   "chat": {
+    "agentFallback": "Agent",
     "planApprovedLabel": "Implementing approved plan",
     "planApprovedEditedLabel": "Implementing approved plan (edited)",
     "restoreCheckpoint": "Restore checkpoint",

@@ -5,7 +5,7 @@ import { aggregateWebSessionRoster } from "../useWebSessionRoster";
 describe("aggregateWebSessionRoster", () => {
   it("merges ready org rows and marks the roster loaded", () => {
     const result = aggregateWebSessionRoster({
-      orgs: [{ orgId: "org-1", name: "Org One" }],
+      orgs: [{ orgId: "org-1", name: "Org One", role: "owner" }],
       entries: {
         "org-1": {
           identityKey: "identity-1",
@@ -13,12 +13,17 @@ describe("aggregateWebSessionRoster", () => {
             {
               id: "row-1",
               orgId: "org-1",
+              ownerMemberId: "member-1",
               sourceSessionId: "session-1",
               ownerUserId: "user-1",
               ownerDisplayName: "Me",
+              ownerIdentityKind: "human",
               title: "Mine",
               lastActivityAt: "2026-08-20T08:00:00.000Z",
               eventsEpoch: 1,
+              eventsFrozenSeq: 0,
+              eventsCount: 0,
+              eventsTailHash: "",
             },
           ],
           state: "ready",
@@ -37,7 +42,7 @@ describe("aggregateWebSessionRoster", () => {
 
   it("reports loading while every org entry is still idle", () => {
     const result = aggregateWebSessionRoster({
-      orgs: [{ orgId: "org-1", name: "Org One" }],
+      orgs: [{ orgId: "org-1", name: "Org One", role: "owner" }],
       entries: {
         "org-1": {
           identityKey: "identity-1",

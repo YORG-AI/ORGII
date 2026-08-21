@@ -24,20 +24,22 @@ export function WebAuthCallbackPage() {
     const callback = parseAuthCallbackFragment(window.location.href, expected);
     if (!callback) {
       return {
+        ok: false,
         error: t("web.authCallback.missingCredentials"),
       } as const;
     }
     const userId = decodeJwtSub(callback.accessToken);
     if (!userId) {
       return {
+        ok: false,
         error: t("web.authCallback.missingIdentity"),
       } as const;
     }
-    return { callback, userId, error: null } as const;
+    return { ok: true, callback, userId } as const;
   }, [t]);
 
   useEffect(() => {
-    if (result.error) return;
+    if (!result.ok) return;
     const endpoint = getCloudEndpoint();
     window.history.replaceState(null, "", "/auth/callback");
     setAuth({
@@ -52,7 +54,7 @@ export function WebAuthCallbackPage() {
     navigate("/sessions", { replace: true });
   }, [navigate, result, setAuth]);
 
-  if (result.error) {
+  if (!result.ok) {
     return (
       <main className="flex h-full items-center justify-center bg-bg-2 p-6">
         <div className="w-full max-w-md">

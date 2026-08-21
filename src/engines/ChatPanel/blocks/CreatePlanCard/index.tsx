@@ -12,11 +12,15 @@ import { X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { respondPlanApproval } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import Markdown from "@src/components/MarkDown";
 import Message from "@src/components/Message";
 import { getToolIcon } from "@src/config/toolIcons";
-import { submitPlanDecision } from "@src/engines/SessionCore/control/submitPlanDecision";
+import {
+  beginOptimisticTurn,
+  failOptimisticTurn,
+} from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
 import {
@@ -35,10 +39,14 @@ import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApprova
 import { FileService } from "@src/services/file";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
-import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
+import {
+  clearPendingPlanApproval,
+  pendingPlanApprovalsAtom,
+} from "@src/store/session/planApprovalAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
+import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -51,6 +59,9 @@ import {
 import { useBlockHeader } from "../useBlockLocate";
 
 const PLAN_ICON_SIZE = 14;
+// Generous bound: approval does plan-file IO + may register a session before
+// returning; normal completion is <1s, the timeout only guards a wedged IPC.
+const PLAN_APPROVAL_RPC_TIMEOUT_MS = 30_000;
 function deriveDisplayTitle(title: string, content: string): string {
   const trimmedTitle = title.trim();
   if (trimmedTitle) return trimmedTitle;
@@ -231,16 +242,57 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
         submittingRef.current = true;
         setSubmitting(true);
         try {
-          await submitPlanDecision({
-            sessionId,
-            choice,
-            editedContent: edited,
-            session: planSession,
-            fallbackSelection: creatorDefaultSelection,
-            fallbackWorkspacePath: activeWorkspaceRootPath,
-            pendingPlanId: cardRevisionId,
-            timeoutMessage: t("planDoc.buildFailed"),
-          });
+          const sessionSelection = planSession
+            ? {
+                ...creatorDefaultSelection,
+                keySource:
+                  planSession.keySource ?? creatorDefaultSelection?.keySource,
+                model: planSession.model ?? creatorDefaultSelection?.model,
+                selectedAccountId:
+                  planSession.accountId ??
+                  creatorDefaultSelection?.selectedAccountId,
+                cliAgentType:
+                  planSession.cliAgentType ??
+                  creatorDefaultSelection?.cliAgentType,
+                tier: planSession.tier ?? creatorDefaultSelection?.tier,
+              }
+            : creatorDefaultSelection;
+          const { model, accountId } = resolveModelForMessage(sessionSelection);
+          const workspacePath =
+            planSession?.repoPath ?? activeWorkspaceRootPath;
+          // Build kicks off a synthetic turn on the backend without going
+          // through useMessageDispatch — optimistically flip to running
+          // BEFORE the RPC await so the planning indicator appears
+          // immediately (P3), not one round-trip later. Skip stays idle.
+          // The setter's session gate drops the write for background plans.
+          if (choice !== "reject") {
+            beginOptimisticTurn(sessionId);
+          }
+          try {
+            // Timeout fallback: if the approval RPC hangs (backend wedged,
+            // IPC drop), roll back the optimistic running state instead of
+            // leaving the session stuck in a running state with no terminal
+            // event ever arriving.
+            await Promise.race([
+              respondPlanApproval(sessionId, choice, edited, {
+                model,
+                accountId,
+                workspacePath,
+              }),
+              new Promise<never>((_, reject) => {
+                window.setTimeout(
+                  () => reject(new Error(t("planDoc.buildFailed"))),
+                  PLAN_APPROVAL_RPC_TIMEOUT_MS
+                );
+              }),
+            ]);
+          } catch (rpcError) {
+            if (choice !== "reject") failOptimisticTurn(sessionId);
+            throw rpcError;
+          }
+          setPendingPlanApprovals((prev) =>
+            clearPendingPlanApproval(prev, sessionId, cardRevisionId)
+          );
           if (mountedRef.current) setIsEditing(false);
         } catch (err) {
           Message.error(
@@ -257,6 +309,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
         planSession,
         creatorDefaultSelection,
         activeWorkspaceRootPath,
+        setPendingPlanApprovals,
         cardRevisionId,
         t,
         mountedRef,

@@ -72,7 +72,7 @@ export function WebSessionSidebar({ onNavigate }: { onNavigate?: () => void }) {
     resetTeamPagination();
   }, [resetTeamPagination, selectedOrgId]);
 
-  const selectedKey = resolveWebCloudSessionMenuItemId(selectedSession);
+  const selectedKey = resolveWebCloudSessionMenuItemId(selectedSession ?? null);
 
   const handleSidebarMenuItemClick = useCallback(
     (_key: string, item: NavigationMenuItem) => {

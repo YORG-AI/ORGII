@@ -90,6 +90,11 @@ export function buildMcpToolCommand(
   return `/mcp__${serverSlug}__${toolName} `;
 }
 
+/** Build the canonical editable text inserted for a built-in slash action. */
+export function buildSlashActionCommand(actionName: string): string {
+  return `/${actionName} `;
+}
+
 const ATOMIC_SLASH_ACTIONS = new Set<string>([
   SLASH_ACTIONS.CANVAS,
   SLASH_ACTIONS.COMPACT,

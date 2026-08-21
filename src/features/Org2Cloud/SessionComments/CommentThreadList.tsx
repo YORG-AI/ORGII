@@ -36,7 +36,6 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import Message from "@src/components/Message";
-import TextButton from "@src/components/TextButton";
 import Tooltip from "@src/components/Tooltip";
 import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
 import MarkdownTextareaEditor, {
@@ -738,13 +737,14 @@ const ThreadBlock: React.FC<ThreadBlockProps> = ({
             />
           </div>
         ) : (
-          <TextButton
+          <button
+            type="button"
             className="self-start text-[11px] text-text-3 hover:text-text-1"
             data-testid="session-comment-reply"
             onClick={() => setReplying(true)}
           >
             {t("cloud.comments.reply")}
-          </TextButton>
+          </button>
         ))}
     </div>
   );
@@ -838,7 +838,8 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
         />
       ))}
       {resolvedThreads.length > 0 && (
-        <TextButton
+        <button
+          type="button"
           className="self-start text-[11px] text-text-3 hover:text-text-1"
           data-testid="session-comment-resolved-toggle"
           onClick={() => setShowResolved((current) => !current)}
@@ -846,7 +847,7 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
           {t("cloud.comments.resolvedToggle", {
             count: resolvedThreads.length,
           })}
-        </TextButton>
+        </button>
       )}
       {showResolved &&
         resolvedThreads.map((thread) => (
