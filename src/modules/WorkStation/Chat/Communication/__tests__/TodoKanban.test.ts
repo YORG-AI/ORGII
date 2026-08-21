@@ -248,6 +248,25 @@ describe("buildAgentOrgTaskTimeline", () => {
     });
   });
 
+  it("preserves failed and cancelled instead of folding them into pending", () => {
+    const tasks = ["failed", "cancelled"].map((status, index) => ({
+      id: `terminal-${index}`,
+      orgRunId: "run-1",
+      subject: `Terminal ${index}`,
+      description: "",
+      status: status as AgentOrgTask["status"],
+      blocks: [],
+      blockedBy: [],
+      executionMode: "build" as const,
+      createdAt: "2026-07-10T10:00:00Z",
+      updatedAt: "2026-07-10T10:05:00Z",
+    }));
+
+    expect(
+      buildAgentOrgTaskTimeline(tasks).todos.map((todo) => todo.status)
+    ).toEqual(["failed", "cancelled"]);
+  });
+
   it("prefers an available durable snapshot over event-projected tasks", () => {
     const ghostMessage: MessageEntry = {
       eventId: "legacy-ghost",

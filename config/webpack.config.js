@@ -72,7 +72,7 @@ module.exports = (env, argv) => {
     },
   };
 
-  const isE2E = process.env.ORGII_E2E === "1";
+  const isE2E = process.env.ORGII_E2E === "1" || process.env.WEBDRIVER === "1";
   const devServerPort = Number.parseInt(
     process.env.WEBPACK_DEV_SERVER_PORT ?? process.env.PORT ?? "1998",
     10
@@ -647,6 +647,10 @@ module.exports = (env, argv) => {
         // Inline-compared in src/index.tsx so webpack constant-folds the
         // `webpackMode: "eager"` App import away on platforms that don't need it.
         "process.env.ORGII_DEV_EAGER_APP": JSON.stringify(String(eagerDevApp)),
+        // WebDriver builds are explicit test artifacts, even when their
+        // embedded frontend uses production optimization. Ordinary release
+        // builds receive "0", so E2E helpers remain tree-shaken away.
+        "process.env.ORGII_E2E": JSON.stringify(isE2E ? "1" : "0"),
         // Local Rust IDE-server port, baked into the bundle so a second app
         // instance (dual-instance collab testing) talks to its own backend.
         // Must match the ORGII_IDE_SERVER_PORT the Rust side is launched with.
@@ -657,7 +661,7 @@ module.exports = (env, argv) => {
           process.env.ORGII_DEEP_LINK_SCHEME ?? "orgii"
         ),
         "process.env.ORGII_AGENT_ORG_REDESIGN": JSON.stringify(
-          process.env.ORGII_AGENT_ORG_REDESIGN ?? "0"
+          isE2E ? "1" : (process.env.ORGII_AGENT_ORG_REDESIGN ?? "0")
         ),
         "process.env.E2E_BASE_URL": JSON.stringify(
           process.env.E2E_BASE_URL ??

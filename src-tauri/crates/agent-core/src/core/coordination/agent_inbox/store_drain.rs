@@ -16,6 +16,90 @@ use super::record::{row_to_record, AgentInboxBatch};
 use super::{AgentInboxStore, MAX_INBOX_DRAIN_PAYLOAD_BYTES, MAX_INBOX_DRAIN_ROWS};
 
 impl AgentInboxStore {
+    /// Load the single formal Inbox input bound to one persisted
+    /// `TaskExecution` context.
+    ///
+    /// A generic member drain is intentionally too broad for PR4: it could
+    /// acknowledge another Task's assignment or a user-directed message in
+    /// the same provider Turn. Pending Tasks consume their oldest matching
+    /// `TaskAssigned`; an in-progress Plan Task consumes its oldest matching
+    /// changes-requested approval response. The Task row and approval mapping
+    /// remain authoritative, while the returned source row stays unread until
+    /// the normal deferred guard commits after a successful Turn.
+    pub fn list_unread_task_input_for_member(
+        recipient_member_id: &str,
+        org_run_id: &str,
+        task_id: &str,
+    ) -> Result<AgentInboxBatch, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT inbox.id,
+                        inbox.recipient_agent_id,
+                        inbox.recipient_member_id,
+                        inbox.sender_agent_id,
+                        inbox.sender_member_id,
+                        inbox.org_run_id,
+                        inbox.payload_kind,
+                        inbox.payload_json,
+                        inbox.request_id,
+                        inbox.created_at,
+                        inbox.read_at
+                 FROM agent_org_runtime_inbox inbox
+                 JOIN agent_org_runtime_tasks task
+                   ON task.org_run_id=inbox.org_run_id
+                  AND task.id=?3
+                  AND task.owner=?1
+                 WHERE inbox.recipient_member_id=?1
+                   AND inbox.org_run_id=?2
+                   AND inbox.read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=inbox.id
+                   )
+                   AND (
+                       (task.status='pending'
+                        AND inbox.payload_kind='task_assigned'
+                        AND json_valid(inbox.payload_json)
+                        AND json_type(inbox.payload_json,'$.task_id')='text'
+                        AND json_extract(inbox.payload_json,'$.task_id')=?3)
+                       OR
+                       (task.status='in_progress'
+                        AND task.execution_mode='plan'
+                        AND inbox.payload_kind='plan_approval_response'
+                        AND json_valid(inbox.payload_json)
+                        AND json_type(inbox.payload_json,'$.request_id')='text'
+                        AND EXISTS (
+                            SELECT 1
+                            FROM agent_org_runtime_plan_approvals approval
+                            WHERE approval.org_run_id=?2
+                              AND approval.source_task_id=?3
+                              AND approval.source_member_id=?1
+                              AND approval.status='changes_requested'
+                              AND approval.request_id=json_extract(
+                                  inbox.payload_json,'$.request_id'
+                              )
+                        ))
+                   )
+                 ORDER BY inbox.id ASC
+                 LIMIT 2",
+            )
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map(
+                params![recipient_member_id, org_run_id, task_id],
+                row_to_record,
+            )
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        let has_more = rows.len() > 1;
+        Ok(AgentInboxBatch {
+            rows: rows.into_iter().take(1).collect(),
+            has_more,
+        })
+    }
+
     /// `EXISTS`-style unread probe. Periodic scanners (watchdog) only
     /// need the boolean; loading and decoding full rows for it is
     /// wasted work.

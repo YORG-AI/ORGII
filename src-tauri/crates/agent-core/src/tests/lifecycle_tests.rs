@@ -420,7 +420,7 @@ async fn failed_member_finalize_releases_task_for_coordinator_assignment() {
     assert!(failure_reason.contains("awaiting_coordinator_assignment"));
     assert!(failure_reason.contains("eligible_member_ids: [member-worker, member-peer]"));
     assert!(failure_reason.contains("required_role: implement"));
-    assert!(failure_reason.contains("task_update owner_member_id"));
+    assert!(failure_reason.contains("task_update operation=patch_pending owner_member_id"));
     assert_eq!(call.unfinished_task_ids, vec!["failed-task"]);
 }
 

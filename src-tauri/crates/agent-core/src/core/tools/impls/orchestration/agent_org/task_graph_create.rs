@@ -10,8 +10,8 @@ use crate::coordination::agent_org_payload_limits::{
     validate_task_identifier_list, TASK_GRAPH_CREATE_MAX_TASKS,
 };
 use crate::coordination::agent_org_tasks::{
-    self, task_dependency_closure, AgentOrgTaskStore, CreateTaskParams, TaskExecutionMode,
-    TaskStatus, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
+    self, task_dependency_closure, AgentOrgTaskStore, CreatePendingTaskParams, TaskExecutionMode,
+    TaskGraphWriterAdmin, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
 };
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
@@ -108,7 +108,7 @@ impl Tool for TaskGraphCreateTool {
     async fn execute_text(
         &self,
         params_value: Value,
-        _ctx: &CallContext,
+        call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
         let params: TaskGraphCreateParams = parse_params(params_value)?;
         if !self.ctx.is_coordinator() {
@@ -118,6 +118,9 @@ impl Tool for TaskGraphCreateTool {
                 "Only the coordinator may create a cross-member task graph. Send the proposed graph to the coordinator.",
             );
         }
+        let actor =
+            TaskGraphWriterAdmin::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
+                .map_err(ToolError::InvalidParams)?;
         if params.tasks.is_empty() || params.tasks.len() > TASK_GRAPH_CREATE_MAX_TASKS {
             return Err(ToolError::InvalidParams(format!(
                 "task_graph_create requires 1..={TASK_GRAPH_CREATE_MAX_TASKS} tasks per request"
@@ -147,7 +150,7 @@ impl Tool for TaskGraphCreateTool {
             .collect::<HashSet<_>>();
         let open_existing = existing_tasks
             .iter()
-            .filter(|task| !task.status.is_resolved())
+            .filter(|task| task.status.is_open())
             .map(|task| task.id.clone())
             .collect::<Vec<_>>();
         let directly_referenced_existing = params
@@ -266,31 +269,28 @@ impl Tool for TaskGraphCreateTool {
                     node.key
                 ))
             })?;
-            let metadata = merge_task_metadata(
-                node.metadata,
-                eligible_member_ids,
-                node.required_role,
-                Some(execution_mode),
-                None,
-            );
-            create_params.push(CreateTaskParams {
+            let metadata =
+                merge_task_metadata(node.metadata, eligible_member_ids, node.required_role);
+            create_params.push(CreatePendingTaskParams {
                 id,
                 org_run_id: self.ctx.org_context.run_id.clone(),
                 subject: node.subject,
                 description: node.description.unwrap_or_default(),
                 active_form: node.active_form,
                 owner,
-                status: TaskStatus::Pending,
-                blocks: Vec::new(),
+                execution_mode,
                 blocked_by,
                 metadata,
+                originating_message_id: None,
+                replaces_task_id: None,
             });
         }
 
         let create_context = Arc::clone(&self.ctx);
         let allow_parallel = params.allow_parallel_with_existing_open_tasks;
         let create_result = tokio::task::spawn_blocking(move || {
-            AgentOrgTaskStore::create_batch_with_transactional_effects(
+            AgentOrgTaskStore::create_pending_batch_with_transactional_effects(
+                actor,
                 create_params,
                 allow_parallel,
                 |tx, created, all_tasks| {

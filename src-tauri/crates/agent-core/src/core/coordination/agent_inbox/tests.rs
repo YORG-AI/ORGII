@@ -402,12 +402,24 @@ fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let now = chrono::Utc::now().to_rfc3339();
     for (task_id, status) in [("open-task", "pending"), ("done-task", "completed")] {
+        let output_json = (status == "completed").then(|| {
+            serde_json::json!({
+                "summary": "done",
+                "content": null,
+                "artifactIds": [],
+                "producedByMemberId": "member-worker",
+                "producedAt": &now,
+            })
+            .to_string()
+        });
         conn.execute(
             "INSERT INTO agent_org_runtime_tasks
              (id, org_run_id, subject, description, status, owner,
-              blocks_json, blocked_by_json, created_at, updated_at)
-             VALUES (?1, ?2, ?1, '', ?3, 'member-worker', '[]', '[]', ?4, ?4)",
-            params![task_id, &run_id, status, &now],
+              execution_mode, blocked_by_json, output_json,
+              created_by_participant_id, source_turn_intent_id, created_at, updated_at)
+             VALUES (?1, ?2, ?1, '', ?3, 'member-worker', 'build', '[]', ?4,
+                     'coordinator', 'test-turn', ?5, ?5)",
+            params![task_id, &run_id, status, output_json, &now],
         )
         .expect("seed task");
         AgentInboxStore::insert(InsertInboxParams {
@@ -461,6 +473,83 @@ fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
 }
 
 #[test]
+fn task_execution_drain_claims_exactly_one_bound_assignment() {
+    let _sandbox = sandbox_with_inbox_schema();
+    let conn = get_connection().expect("test database");
+    crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+    crate::coordination::agent_org_plan_approvals::init_schema(&conn)
+        .expect("plan approval schema");
+    let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    let now = chrono::Utc::now().to_rfc3339();
+    for task_id in ["task-one", "task-two"] {
+        conn.execute(
+            "INSERT INTO agent_org_runtime_tasks
+             (id, org_run_id, subject, description, status, owner,
+              execution_mode, blocked_by_json, created_by_participant_id,
+              source_turn_intent_id, created_at, updated_at)
+             VALUES (?1,?2,?1,'','pending','member-worker','build','[]',
+                     'coordinator','turn-create',?3,?3)",
+            params![task_id, &run_id, &now],
+        )
+        .expect("seed pending task");
+    }
+    let first = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "worker".into(),
+        recipient_member_id: Some("member-worker".into()),
+        sender_agent_id: "coordinator".into(),
+        sender_member_id: Some("coordinator".into()),
+        org_run_id: Some(run_id.clone()),
+        message: AgentMessage::TaskAssigned {
+            task_id: "task-one".into(),
+            subject: "Task one".into(),
+            description: String::new(),
+            assigned_by: "Coordinator".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+        },
+    })
+    .expect("first assignment");
+    let second = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "worker".into(),
+        recipient_member_id: Some("member-worker".into()),
+        sender_agent_id: "coordinator".into(),
+        sender_member_id: Some("coordinator".into()),
+        org_run_id: Some(run_id.clone()),
+        message: AgentMessage::TaskAssigned {
+            task_id: "task-two".into(),
+            subject: "Task two".into(),
+            description: String::new(),
+            assigned_by: "Coordinator".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+        },
+    })
+    .expect("second assignment");
+
+    let task_one =
+        AgentInboxStore::list_unread_task_input_for_member("member-worker", &run_id, "task-one")
+            .expect("bound task-one input");
+    assert_eq!(task_one.rows.len(), 1);
+    assert_eq!(task_one.rows[0].id, first.id);
+    assert!(!task_one.has_more);
+
+    let task_two =
+        AgentInboxStore::list_unread_task_input_for_member("member-worker", &run_id, "task-two")
+            .expect("bound task-two input");
+    assert_eq!(task_two.rows.len(), 1);
+    assert_eq!(task_two.rows[0].id, second.id);
+    assert!(!task_two.has_more);
+
+    assert_eq!(
+        AgentInboxStore::list_unread_for_member("member-worker", &run_id)
+            .expect("unread rows remain deferred")
+            .len(),
+        2,
+        "reading one TaskExecution input must not acknowledge either assignment"
+    );
+}
+
+#[test]
 fn assignment_snapshot_requires_current_owner_and_valid_typed_payload() {
     let _sandbox = sandbox_with_inbox_schema();
     let conn = get_connection().expect("test database");
@@ -471,8 +560,10 @@ fn assignment_snapshot_requires_current_owner_and_valid_typed_payload() {
         conn.execute(
             "INSERT INTO agent_org_runtime_tasks
              (id, org_run_id, subject, description, status, owner,
-              blocks_json, blocked_by_json, created_at, updated_at)
-             VALUES (?1, ?2, ?1, '', 'pending', 'member-b', '[]', '[]', ?3, ?3)",
+              execution_mode, blocked_by_json,
+              created_by_participant_id, source_turn_intent_id, created_at, updated_at)
+             VALUES (?1, ?2, ?1, '', 'pending', 'member-b', 'build', '[]',
+                     'coordinator', 'test-turn', ?3, ?3)",
             params![task_id, &run_id, &now],
         )
         .expect("seed reassigned task");

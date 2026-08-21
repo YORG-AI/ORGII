@@ -10,7 +10,7 @@ use crate::coordination::agent_org_payload_limits::{
 };
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::coordination::agent_org_tasks::{
-    AgentOrgTaskStore, TaskExecutionMode, TaskOutput, TaskStatus, TASK_METADATA_EXECUTION_MODE,
+    AgentOrgTaskStore, TaskExecutionMode, TaskOutputInput, TaskOwnerExecution, TaskStatus,
 };
 use crate::definitions::orgs::AgentOrgLaunchSnapshot;
 
@@ -43,17 +43,25 @@ pub(super) fn create_pending_in_tx(
             run_status.as_deref().unwrap_or("missing")
         ));
     }
+    let owner_actor = TaskOwnerExecution::new(
+        params.source_session_id.clone(),
+        params.source_turn_intent_id.clone(),
+    )?;
+    let owner_audit = owner_actor.validate(tx, &params.org_run_id, &params.source_task_id)?;
+    if owner_audit.participant_id != params.source_member_id {
+        return Err("plan_task_owner_context_mismatch".to_string());
+    }
 
-    let task: Option<(Option<String>, String, Option<String>)> = tx
+    let task: Option<(Option<String>, String, String)> = tx
         .query_row(
-            "SELECT owner, status, metadata_json FROM agent_org_runtime_tasks
+            "SELECT owner, status, execution_mode FROM agent_org_runtime_tasks
              WHERE org_run_id=?1 AND id=?2",
             params![&params.org_run_id, &params.source_task_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()
         .map_err(|err| err.to_string())?;
-    let Some((owner, status, metadata_json)) = task else {
+    let Some((owner, status, execution_mode_raw)) = task else {
         return Err(format!("plan_task_not_found: {}", params.source_task_id));
     };
     if owner.as_deref() != Some(params.source_member_id.as_str()) {
@@ -68,17 +76,7 @@ pub(super) fn create_pending_in_tx(
             params.source_task_id
         ));
     }
-    let execution_mode = metadata_json
-        .as_deref()
-        .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
-        .and_then(|metadata| {
-            metadata
-                .get(TASK_METADATA_EXECUTION_MODE)
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string)
-        })
-        .and_then(|value| TaskExecutionMode::from_wire(&value).ok())
-        .unwrap_or(TaskExecutionMode::Build);
+    let execution_mode = TaskExecutionMode::from_wire(&execution_mode_raw)?;
     if execution_mode != TaskExecutionMode::Plan {
         return Err(format!(
             "plan_task_execution_mode_mismatch: task {} is not a plan task",
@@ -109,6 +107,7 @@ pub(super) fn create_pending_in_tx(
         source_task_id: params.source_task_id,
         source_member_id: params.source_member_id,
         source_session_id: params.source_session_id,
+        source_turn_intent_id: params.source_turn_intent_id,
         root_session_id: params.root_session_id,
         policy: params.policy,
         status: AgentOrgPlanApprovalStatus::Pending,
@@ -146,21 +145,23 @@ pub(super) fn approve_pending_in_tx(
             plan_char_count, approval.plan_path
         ));
     }
-    let output = TaskOutput {
+    let output = TaskOutputInput {
         summary: crate::utils::safe_truncate_chars_to_string(
             &format!("Approved plan: {}", approval.plan_title),
             500,
         ),
         content: Some(inline_plan_content),
         artifact_ids: vec![approval.plan_path.clone()],
-        produced_by_member_id: approval.source_member_id.clone(),
-        produced_at: chrono::Utc::now().to_rfc3339(),
     };
+    let owner_actor = TaskOwnerExecution::new(
+        approval.source_session_id.clone(),
+        approval.source_turn_intent_id.clone(),
+    )?;
     let task_outcome = AgentOrgTaskStore::complete_planning_task_in_tx(
         tx,
+        owner_actor,
         &approval.org_run_id,
         &approval.source_task_id,
-        &approval.source_member_id,
         output,
     )?;
     let resolved_at = chrono::Utc::now().to_rfc3339();
@@ -252,10 +253,7 @@ fn enqueue_post_approval_messages_in_tx(
         }
     }
 
-    let remaining_open_task_count = tasks
-        .iter()
-        .filter(|task| !task.status.is_resolved())
-        .count();
+    let remaining_open_task_count = tasks.iter().filter(|task| task.status.is_open()).count();
     AgentInboxStore::insert_in_tx(
         tx,
         InsertInboxParams {

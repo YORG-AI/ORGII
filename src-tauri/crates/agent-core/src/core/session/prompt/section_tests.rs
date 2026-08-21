@@ -179,12 +179,12 @@ fn agent_org_prompt_uses_task_board_for_roster_delegation() {
     assert!(
         section.contains("Your task authority:** coordinator")
             && section.contains("being allowed to message a peer never grants permission")
-            && section.contains("may NOT impersonate another member's work"),
+            && section.contains("may NOT reassign or rewrite the core goal")
+            && section.contains("impersonate its Owner"),
         "prompt must separate communication reachability from task authority: {section}"
     );
     assert!(
-        section
-            .contains("first call `task_update` for that exact task id with `status=in_progress`")
+        section.contains("first call `task_update` for that exact task id with `operation=start`")
             && section.contains("`output={summary, content?, artifact_ids?}`")
             && section.contains("`summary` is required"),
         "prompt must state the owner-authored task lifecycle contract: {section}"
@@ -208,9 +208,10 @@ fn agent_org_prompt_worker_cannot_confuse_peer_chat_with_delegation() {
     let section = build_agent_org_context_section(&context, "agent-worker", Some("member-worker"));
     assert!(
         section.contains("Your task authority:** worker")
-            && section.contains("may create and modify only tasks for `member-worker`")
-            && section.contains("Configured Writer grants are not active in this phase")
-            && section.contains("Only you may record `in_progress`, `completed`, and `output`"),
+            && section.contains("configured Writer grants are not active in this phase")
+            && section.contains("cannot create, assign, or rewrite the Task graph")
+            && section.contains("exact Task bound to your persisted TaskExecution turn")
+            && section.contains("only you may start it"),
         "worker prompt must explain self-only task authority: {section}"
     );
     assert!(
@@ -248,7 +249,15 @@ fn agent_org_prompt_includes_bounded_task_snapshot() {
         status: TaskStatus::Completed,
         blocks: vec![],
         blocked_by: vec![],
-        metadata: None,
+        metadata: Some(serde_json::json!({
+            "output": {
+                "summary": "Done prompt result",
+                "content": null,
+                "artifactIds": [],
+                "producedByMemberId": "member-worker",
+                "producedAt": "2026-08-20T00:00:00Z"
+            }
+        })),
     })
     .unwrap();
 
@@ -256,7 +265,7 @@ fn agent_org_prompt_includes_bounded_task_snapshot() {
     assert!(section.contains("### Current task board snapshot"));
     assert!(section.contains("`prompt-open` [in_progress] owner=member-worker blocked_by=[prompt-blocker] — Open prompt task"));
     assert!(!section.contains("Done prompt task"));
-    assert!(section.contains("Use `task_list` for the full board"));
+    assert!(section.contains("Terminal history is not loaded into this prompt"));
 }
 
 #[test]
@@ -265,7 +274,7 @@ fn agent_org_prompt_snapshot_warns_before_duplicate_task_creation() {
     let _sandbox = prompt_task_sandbox();
     let context = prompt_test_agent_org_context();
     let section = build_agent_org_context_section(&context, "agent-coord", None);
-    assert!(section.contains("No tasks currently exist on this run."));
+    assert!(section.contains("No open tasks currently exist on this run"));
     assert!(section.contains("update it instead of creating a duplicate"));
     assert!(section.contains(
         "Ownerless means waiting for explicit coordinator assignment, never an automatic claim pool"

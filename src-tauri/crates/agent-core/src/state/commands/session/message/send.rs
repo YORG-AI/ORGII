@@ -152,6 +152,7 @@ pub(crate) async fn send_message_impl(
     client_message_id: Option<String>,
     turn_intent_id: Option<String>,
     org_wake_run_id: Option<String>,
+    org_wake_member_id: Option<String>,
     intent_org_run_id: Option<String>,
     source: TurnIntentBridgeSource,
 ) -> Result<AgentResponse, String> {
@@ -248,21 +249,34 @@ pub(crate) async fn send_message_impl(
         (None, None) => preflight_org_run_id,
     };
 
-    // PR3 admits only canonical Coordinator/Root turns. Member Task/direct/
-    // group/inbox producers must use their typed authority constructors in
-    // their owning PR; a legacy Member call fails here before base intent or
-    // scheduler state can be written.
+    // Every Agent Org turn receives its persisted typed authority before a
+    // base intent or scheduler item can exist. Background Member wakes derive
+    // one TaskExecution binding from canonical unread formal work; ordinary
+    // direct submissions in this PR remain Coordinator-only.
     if let Some(run_id) = effective_intent_org_run_id.as_deref() {
-        let admission =
-            crate::coordination::agent_org_turn_contexts::AgentOrgTurnAdmission::coordinator(
-                run_id,
-                &session_id,
-                &effective_turn_intent_id,
-                client_message_id.clone(),
-                source,
-            );
-        tokio::task::spawn_blocking(move || {
-            crate::coordination::agent_org_turn_contexts::accept(&admission)
+        let admission_run_id = run_id.to_string();
+        let admission_session_id = session_id.clone();
+        let admission_turn_intent_id = effective_turn_intent_id.clone();
+        let admission_client_message_id = client_message_id.clone();
+        let admission_wake_member_id = org_wake_member_id.clone();
+        tokio::task::spawn_blocking(move || match admission_wake_member_id {
+            Some(member_id) => crate::coordination::agent_org_turn_contexts::accept_wake(
+                &admission_run_id,
+                &admission_session_id,
+                &admission_turn_intent_id,
+                admission_client_message_id,
+                &member_id,
+            ),
+            None => {
+                let admission = crate::coordination::agent_org_turn_contexts::AgentOrgTurnAdmission::coordinator(
+                    admission_run_id,
+                    admission_session_id,
+                    admission_turn_intent_id,
+                    admission_client_message_id,
+                    source,
+                );
+                crate::coordination::agent_org_turn_contexts::accept(&admission)
+            }
         })
         .await
         .map_err(|error| format!("Agent Org Turn admission worker failed: {error}"))??;
@@ -520,8 +534,9 @@ pub(crate) async fn send_message_impl(
     let inbox_control_mode = if let Some(run_id) = org_wake_run_id.as_deref() {
         let mode_session_id = session_id.clone();
         let mode_run_id = run_id.to_string();
+        let mode_turn_intent_id = effective_turn_intent_id.clone();
         tokio::task::spawn_blocking(move || {
-            resolve_agent_org_wake_mode(&mode_session_id, &mode_run_id)
+            resolve_agent_org_wake_mode(&mode_session_id, &mode_run_id, &mode_turn_intent_id)
         })
         .await
         .map_err(|error| format!("Agent Org pre-turn mode resolver failed: {error}"))??
@@ -601,7 +616,7 @@ pub(crate) async fn send_message_impl(
                         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                         .map_err(|err| err.to_string())?;
                     if status_wake_run_id.is_some() || status_intent_run_id.is_some() {
-                        crate::coordination::agent_org_turn_contexts::require_context_with_connection(
+                        crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
                             &tx,
                             &status_sid,
                             &status_turn_intent_id,

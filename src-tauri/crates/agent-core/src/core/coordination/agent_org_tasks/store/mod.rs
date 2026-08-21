@@ -5,40 +5,42 @@
 //!
 //! - [`validation`] — pre-write guards (run mutability, text limits, persistence
 //!   invariants).
-//! - [`dependencies`] — dependency-graph canonicalization and the persisted
-//!   `blocks`/`blocked_by` projection.
-//! - [`create`] — single and batched task creation.
+//! - [`dependencies`] — canonical `blocked_by` graph validation and derived
+//!   reverse-edge projection.
+//! - [`fsm`] — production actor-gated creation and lifecycle transitions.
+//! - [`create`] — test-only compatibility fixtures for older Store tests.
 //! - [`read`] — full-row reads, the operational projection, summary pages, and
 //!   previews.
-//! - [`update`] — partial updates and plan-completion.
-//! - [`delete`] — deletion with dependent-guard.
+//! - [`update`] — production plan-completion plus test-only compatibility
+//!   updates.
+//! - [`delete`] — test-only physical deletion fixtures.
 //! - [`requeue`] — owner-scoped shutdown disposal and failure requeue.
 //!
 //! Every method hangs off [`AgentOrgTaskStore`] via inherent `impl` blocks split
 //! across those submodules, so the public API
 //! (`agent_org_tasks::AgentOrgTaskStore`) is unchanged.
 
+mod annotations;
+#[cfg(test)]
 mod create;
+#[cfg(test)]
 mod delete;
 mod dependencies;
+mod fsm;
 mod read;
 mod requeue;
 mod update;
 mod validation;
 
-pub(super) fn normalize_legacy_dependency_rows(
-    conn: &rusqlite::Connection,
-) -> rusqlite::Result<()> {
-    dependencies::normalize_legacy_dependency_rows(conn)
-}
-
 // Names referenced with an explicit `super::` prefix inside the submodule
 // bodies below. Re-binding them here keeps those references verbatim: from a
 // submodule, `super::` resolves to this module.
 use super::{
-    eligible_member_ids, TaskExecutionMode, TaskOutput, TASK_COMPLETED_IMMUTABLE_ERROR,
     TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
     TASK_METADATA_REQUIRED_ROLE, TASK_MUTATION_CONFLICT_ERROR,
 };
+
+#[cfg(test)]
+use super::{TaskExecutionMode, TaskOutput, TASK_COMPLETED_IMMUTABLE_ERROR};
 
 pub struct AgentOrgTaskStore;

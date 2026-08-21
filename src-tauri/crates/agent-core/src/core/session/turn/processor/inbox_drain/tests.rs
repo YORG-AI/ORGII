@@ -30,6 +30,7 @@ fn ensure_inbox_schema() {
     // gains a new source table.
     crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
     crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
+    crate::coordination::agent_org_watchdog::init_schema(&conn).expect("agent org recovery schema");
     crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
     crate::coordination::agent_member_interventions::init_schema(&conn)
         .expect("member intervention schema");
@@ -657,10 +658,10 @@ fn render_payload_task_assigned_basic() {
         render_payload(&msg),
         "<task_assigned task_id=\"task-7\" subject=\"Wire memory pruning\" \
          assigned_by=\"Coordinator\" execution_mode=\"build\"><description>Use the rolling-budget helper</description>\
-         <instructions>Before doing this task, call task_update for this exact task_id with status=&quot;in_progress&quot;. \
-         Only you, the owning member, may record this task&apos;s in_progress/completed lifecycle or output. \
-         When finished, call task_update with status=&quot;completed&quot; and output={summary, content?, artifact_ids?}; \
-         summary is required.</instructions></task_assigned>"
+         <instructions>Before doing this task, call task_update for this exact task_id with operation=&quot;start&quot;. \
+         Only you, the owning member, may record this task&apos;s lifecycle or output. \
+         When finished, call task_update with operation=&quot;complete&quot; and output={summary, content?, artifact_ids?}; \
+         summary is required. If execution fails, use operation=&quot;fail&quot; with a bounded reason.</instructions></task_assigned>"
     );
 }
 
@@ -1369,7 +1370,15 @@ fn drain_releases_member_tasks_on_accepted_shutdown() {
         status: TaskStatus::Completed,
         blocks: vec![],
         blocked_by: vec![],
-        metadata: None,
+        metadata: Some(serde_json::json!({
+            "output": {
+                "summary": "Already done",
+                "content": null,
+                "artifactIds": [],
+                "producedByMemberId": "member-alice-agent",
+                "producedAt": chrono::Utc::now().to_rfc3339(),
+            },
+        })),
     })
     .unwrap();
     AgentInboxStore::insert(InsertInboxParams {

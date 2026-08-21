@@ -179,7 +179,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
                 }
                 continue;
             };
-            if unsupported_transport_members.contains(owner) && !task.status.is_resolved() {
+            if unsupported_transport_members.contains(owner) && task.status.is_open() {
                 repair_facts.push(RecoveryRepairFact::new(
                     "unsupported_transport",
                     [Some(task.id.clone()), Some(owner.to_string())],
@@ -246,7 +246,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
     let mut owned_open_tasks_by_member: HashMap<&str, Vec<String>> = HashMap::new();
     let mut ready_pending_tasks_by_member: HashMap<&str, Vec<String>> = HashMap::new();
     for task in &tasks {
-        if task.status.is_resolved() || pending_plan_task_ids.contains(&task.id) {
+        if task.status.is_terminal() || pending_plan_task_ids.contains(&task.id) {
             continue;
         }
         if let Some(owner) = task.owner.as_deref() {
@@ -362,7 +362,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
     );
     append_dependency_integrity_repairs(&tasks, &mut needs_repair, &mut repair_facts);
     for task in &tasks {
-        if task.status.is_resolved() {
+        if task.status.is_terminal() {
             continue;
         }
         if let Some(owner) = task.owner.as_deref() {
@@ -475,7 +475,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
                     bounded_id_list_preview(&eligible, 8, 160)
                 };
                 needs_repair.push(format!(
-                    "task {} is still in_progress under member {} but appears stale; task_updated_at={}, owner_updated_at={}, eligible_member_ids=[{}]. The watchdog does not steal work from a Running member based on age alone. Ask the owner to continue/retry, reassign owner_member_id, or repair eligible_member_ids.",
+                    "task {} is still in_progress under member {} but appears stale; task_updated_at={}, owner_updated_at={}, eligible_member_ids=[{}]. The watchdog does not steal work from a Running member based on age alone. Ask the owner to continue/retry, or use task_update operation=cancel_and_replace when the target or Owner must change.",
                     task.id,
                     owner,
                     task.updated_at,
@@ -550,7 +550,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
             AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork {
                 observed_work_revision,
                 current_work_revision,
-            } if tasks.iter().all(|task| task.status.is_resolved()) => {
+            } if tasks.iter().all(|task| task.status.is_terminal()) => {
                 repair_facts.push(RecoveryRepairFact::new(
                     "coordinator_observation",
                     [

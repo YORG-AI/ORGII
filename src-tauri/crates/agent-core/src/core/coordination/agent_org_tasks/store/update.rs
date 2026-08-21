@@ -1,36 +1,52 @@
-//! Task mutation: the plan-completion CAS used by Agent Org plan approval, the
-//! public partial-update surface (including the optimistic
-//! `if_unchanged` variants), and the shared `update_inner` that recanonicalizes
-//! dependencies and reports a `TaskMutationOutcome`.
+//! Task mutation: the production plan-completion CAS used by Agent Org plan
+//! approval, plus a `cfg(test)` legacy fixture surface retained only while
+//! older owning-boundary tests are migrated to the typed actor API.
 
-use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, OptionalExtension};
 
-use crate::coordination::agent_org_payload_limits::validate_task_dependency_ids;
+#[cfg(test)]
+use database::db::{get_connection, with_sessions_writer};
 
 use super::super::helpers::{
-    encode_json_array, encode_metadata, insert_task_history_event, list_tasks_with_conn,
-    now_rfc3339, row_to_task, SELECT_COLUMNS,
+    encode_optional_json, insert_task_history_event_as, now_rfc3339, row_to_task, SELECT_COLUMNS,
 };
 use super::super::{
-    task_execution_mode, Task, TaskExecutionMode, TaskGraphIndex, TaskMutationOutcome, TaskOutput,
-    TaskStatus, UpdateTaskPatch, TASK_EVENT_UPDATED, TASK_METADATA_OUTPUT,
+    task_execution_mode, Task, TaskExecutionMode, TaskMutationOutcome, TaskOutput, TaskOutputInput,
+    TaskOwnerExecution, TaskStatus, TASK_EVENT_UPDATED,
 };
-use super::dependencies::{canonicalize_dependencies, persist_dependency_projection};
-use super::validation::{
-    ensure_run_allows_task_mutation, validate_task_persistence_invariants,
-    validate_task_text_fields,
-};
+use super::validation::ensure_run_allows_task_mutation;
 use super::AgentOrgTaskStore;
 
+#[cfg(test)]
+use super::super::helpers::{
+    encode_json_array, encode_metadata, insert_task_history_event, list_tasks_with_conn,
+};
+#[cfg(test)]
+use super::super::{
+    TaskGraphIndex, UpdateTaskPatch, TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
+};
+#[cfg(test)]
+use super::dependencies::{
+    canonicalize_dependencies, persist_canonical_blocked_by_for_test_fixture,
+};
+#[cfg(test)]
+use super::validation::{validate_task_persistence_invariants, validate_task_text_fields};
+#[cfg(test)]
+use crate::coordination::agent_org_payload_limits::validate_task_dependency_ids;
+
+#[cfg(test)]
 fn task_persisted_state_equal(left: &Task, right: &Task) -> bool {
     left.subject == right.subject
         && left.description == right.description
         && left.active_form == right.active_form
         && left.owner == right.owner
         && left.status == right.status
+        && left.execution_mode == right.execution_mode
         && left.blocked_by == right.blocked_by
         && left.metadata == right.metadata
+        && left.output == right.output
+        && left.failure_reason == right.failure_reason
+        && left.cancel_reason == right.cancel_reason
 }
 
 impl AgentOrgTaskStore {
@@ -39,12 +55,14 @@ impl AgentOrgTaskStore {
     /// approval-row CAS so neither side can commit without the other.
     pub(crate) fn complete_planning_task_in_tx(
         tx: &rusqlite::Transaction<'_>,
+        actor: TaskOwnerExecution,
         org_run_id: &str,
         task_id: &str,
-        source_member_id: &str,
-        output: TaskOutput,
+        output: TaskOutputInput,
     ) -> Result<TaskMutationOutcome, String> {
         ensure_run_allows_task_mutation(tx, org_run_id)?;
+        let audit = actor.validate(tx, org_run_id, task_id)?;
+        let source_member_id = audit.participant_id.clone();
         let sql = format!(
             "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
              WHERE org_run_id = ?1 AND id = ?2"
@@ -56,7 +74,7 @@ impl AgentOrgTaskStore {
         let Some(previous) = previous else {
             return Err(format!("task_not_found: {task_id} in run {org_run_id}"));
         };
-        if previous.owner.as_deref() != Some(source_member_id) {
+        if previous.owner.as_deref() != Some(source_member_id.as_str()) {
             return Err(format!(
                 "plan_task_owner_mismatch: task {task_id} is owned by {:?}, not {source_member_id}",
                 previous.owner
@@ -75,36 +93,30 @@ impl AgentOrgTaskStore {
         }
 
         let mut current = previous.clone();
-        let mut metadata = match current.metadata.take() {
-            Some(serde_json::Value::Object(object)) => object,
-            Some(_) => return Err("task metadata must be a JSON object".to_string()),
-            None => serde_json::Map::new(),
-        };
-        metadata.insert(TASK_METADATA_OUTPUT.to_string(), serde_json::json!(output));
-        current.metadata = Some(serde_json::Value::Object(metadata));
+        current.output = Some(TaskOutput {
+            summary: output.summary,
+            content: output.content,
+            artifact_ids: output.artifact_ids,
+            produced_by_member_id: source_member_id.clone(),
+            produced_at: now_rfc3339(),
+        });
         current.status = TaskStatus::Completed;
         current.updated_at = now_rfc3339();
-        validate_task_persistence_invariants(
-            tx,
-            org_run_id,
-            current.owner.as_deref(),
-            current.status,
-            current.metadata.as_ref(),
-        )?;
-        let metadata_json = encode_metadata(current.metadata.as_ref())?;
+        super::validation::validate_task_model_invariants(tx, &current)?;
+        let output_json = encode_optional_json("task output", current.output.as_ref())?;
         let changed = tx
             .execute(
                 "UPDATE agent_org_runtime_tasks
-                 SET status = ?1, metadata_json = ?2, updated_at = ?3
+                 SET status = ?1, output_json = ?2, updated_at = ?3
                  WHERE org_run_id = ?4 AND id = ?5 AND status = ?6 AND owner = ?7",
                 params![
                     current.status.as_wire(),
-                    metadata_json.as_deref(),
+                    output_json.as_deref(),
                     &current.updated_at,
                     org_run_id,
                     task_id,
                     TaskStatus::InProgress.as_wire(),
-                    source_member_id,
+                    &source_member_id,
                 ],
             )
             .map_err(|err| err.to_string())?;
@@ -114,14 +126,14 @@ impl AgentOrgTaskStore {
                 super::TASK_MUTATION_CONFLICT_ERROR
             ));
         }
-        insert_task_history_event(
+        insert_task_history_event_as(
             tx,
             org_run_id,
             task_id,
             TASK_EVENT_UPDATED,
             Some(&previous),
             &current,
-            Some(source_member_id),
+            &audit,
         )?;
         crate::coordination::agent_org_runs::bump_work_revision_in_tx(tx, org_run_id)?;
         Ok(TaskMutationOutcome {
@@ -137,10 +149,12 @@ impl AgentOrgTaskStore {
     /// Apply a partial update. The full updated row is returned. `Err` on
     /// missing row so callers can surface a clear "task_not_found" without
     /// a separate get round-trip.
+    #[cfg(test)]
     pub fn update(org_run_id: &str, task_id: &str, patch: UpdateTaskPatch) -> Result<Task, String> {
         Self::update_with_outcome(org_run_id, task_id, patch).map(|outcome| outcome.current)
     }
 
+    #[cfg(test)]
     pub fn update_with_outcome(
         org_run_id: &str,
         task_id: &str,
@@ -155,6 +169,7 @@ impl AgentOrgTaskStore {
         .map(|(outcome, ())| outcome)
     }
 
+    #[cfg(test)]
     pub fn update_with_outcome_and_transactional_effects<T>(
         org_run_id: &str,
         task_id: &str,
@@ -171,6 +186,7 @@ impl AgentOrgTaskStore {
     /// version that was inspected before authorization. This closes the
     /// check-then-write race where another turn could reassign a task after a
     /// member was authorized but before its update transaction began.
+    #[cfg(test)]
     pub fn update_with_outcome_if_unchanged(
         org_run_id: &str,
         task_id: &str,
@@ -187,6 +203,7 @@ impl AgentOrgTaskStore {
         .map(|(outcome, ())| outcome)
     }
 
+    #[cfg(test)]
     pub fn update_with_outcome_if_unchanged_and_transactional_effects<T>(
         org_run_id: &str,
         task_id: &str,
@@ -207,6 +224,7 @@ impl AgentOrgTaskStore {
         Ok((outcome, effect))
     }
 
+    #[cfg(test)]
     fn update_inner<T>(
         org_run_id: &str,
         task_id: &str,
@@ -284,6 +302,24 @@ impl AgentOrgTaskStore {
         }
         if let Some(metadata) = patch.metadata {
             task.metadata = metadata;
+            if let Some(metadata) = task
+                .metadata
+                .as_mut()
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                if let Some(execution_mode) = metadata
+                    .remove(TASK_METADATA_EXECUTION_MODE)
+                    .and_then(|value| value.as_str().map(str::to_string))
+                {
+                    task.execution_mode = TaskExecutionMode::from_wire(&execution_mode)?;
+                }
+                if let Some(output) = metadata.remove(TASK_METADATA_OUTPUT) {
+                    task.output = Some(
+                        serde_json::from_value(output)
+                            .map_err(|error| format!("task output has invalid shape: {error}"))?,
+                    );
+                }
+            }
         }
         validate_task_text_fields(
             &task.subject,
@@ -324,9 +360,13 @@ impl AgentOrgTaskStore {
             .find(|candidate| candidate.id == task_id)
             .cloned()
             .expect("updated task remains present in candidate graph");
-        let blocks_json = encode_json_array(&task.blocks)?;
         let blocked_by_json = encode_json_array(&task.blocked_by)?;
         let metadata_json = encode_metadata(task.metadata.as_ref())?;
+        let output_json = encode_optional_json("task output", task.output.as_ref())?;
+        let failure_reason_json =
+            encode_optional_json("task failure reason", task.failure_reason.as_ref())?;
+        let cancel_reason_json =
+            encode_optional_json("task cancel reason", task.cancel_reason.as_ref())?;
 
         tx.execute(
             "UPDATE agent_org_runtime_tasks SET
@@ -335,20 +375,26 @@ impl AgentOrgTaskStore {
                 active_form = ?3,
                 owner = ?4,
                 status = ?5,
-                blocks_json = ?6,
+                execution_mode = ?6,
                 blocked_by_json = ?7,
                 metadata_json = ?8,
-                updated_at = ?9
-             WHERE org_run_id = ?10 AND id = ?11",
+                output_json = ?9,
+                failure_reason_json = ?10,
+                cancel_reason_json = ?11,
+                updated_at = ?12
+             WHERE org_run_id = ?13 AND id = ?14",
             params![
                 &task.subject,
                 &task.description,
                 task.active_form.as_deref(),
                 task.owner.as_deref(),
                 task.status.as_wire(),
-                &blocks_json,
+                task.execution_mode.as_wire(),
                 &blocked_by_json,
                 metadata_json.as_deref(),
+                output_json.as_deref(),
+                failure_reason_json.as_deref(),
+                cancel_reason_json.as_deref(),
                 &task.updated_at,
                 org_run_id,
                 task_id,
@@ -364,7 +410,7 @@ impl AgentOrgTaskStore {
             &task,
             task.owner.as_deref(),
         )?;
-        persist_dependency_projection(&tx, &candidate_tasks)?;
+        persist_canonical_blocked_by_for_test_fixture(&tx, &candidate_tasks)?;
         crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, org_run_id)?;
 
         let current_graph = TaskGraphIndex::new(&candidate_tasks);

@@ -1,6 +1,6 @@
 use rusqlite::{params, OptionalExtension};
 
-use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task, TaskStatus};
+use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task};
 use database::db::{get_connection, with_sessions_writer};
 
 use super::super::progress::{
@@ -101,14 +101,12 @@ impl AgentOrgRunStore {
                 let mut stmt = tx
                     .prepare(
                         "SELECT id FROM agent_org_runtime_tasks
-                         WHERE org_run_id=?1 AND status<>?2
+                         WHERE org_run_id=?1 AND status IN ('pending','in_progress')
                          ORDER BY created_at ASC, id ASC",
                     )
                     .map_err(|err| err.to_string())?;
                 let rows = stmt
-                    .query_map(params![run_id, TaskStatus::Completed.as_wire()], |row| {
-                        row.get::<_, String>(0)
-                    })
+                    .query_map(params![run_id], |row| row.get::<_, String>(0))
                     .map_err(|err| err.to_string())?;
                 rows.collect::<Result<Vec<_>, _>>()
                     .map_err(|err| err.to_string())?

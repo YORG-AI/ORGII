@@ -4,13 +4,14 @@ use database::db::get_connection;
 use rusqlite::params;
 
 use super::*;
-use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage};
+use crate::coordination::agent_inbox::AgentInboxStore;
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunEntryMode, AgentOrgRunStatus,
     AgentOrgRunStore, CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{
-    AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_EXECUTION_MODE,
+    AgentOrgTaskStore, CreateTaskParams, TaskGraphWriterAdmin, TaskStatus, TaskTerminalReason,
+    TASK_METADATA_EXECUTION_MODE,
 };
 use crate::definitions::orgs::{FlatOrgMember, OrgDefinition};
 
@@ -18,7 +19,23 @@ fn setup(policy: PlanApprovalPolicy) -> (test_helpers::test_env::SandboxGuard, A
     let sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("test db");
     crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+    conn.execute_batch(
+        "CREATE TABLE session_turn_intents (
+            session_id TEXT NOT NULL,
+            turn_intent_id TEXT NOT NULL,
+            client_message_id TEXT,
+            org_run_id TEXT,
+            source TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(session_id,turn_intent_id)
+        );",
+    )
+    .expect("base Turn schema");
     crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
+    crate::coordination::agent_org_turn_contexts::create_schema(&conn)
+        .expect("Agent Org Turn context schema");
     crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
     crate::coordination::agent_inbox::init_schema(&conn).expect("inbox schema");
     init_schema(&conn).expect("approval schema");
@@ -106,6 +123,24 @@ fn setup(policy: PlanApprovalPolicy) -> (test_helpers::test_env::SandboxGuard, A
         capability_index: Default::default(),
         root_session_id: Some("root-plan-approval".into()),
     };
+    let conn = get_connection().expect("Coordinator context database");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents(
+            session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES ('root-plan-approval','coordinator-turn',?1,'agent_org','running',?2,?2)",
+        params![&context.run_id, &now],
+    )
+    .expect("persist Coordinator Turn intent");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES ('root-plan-approval','coordinator-turn',?1,'coordinator','coordinator',
+                   'root_turn','coordinator-turn',1,?2)",
+        params![&context.run_id, &now],
+    )
+    .expect("persist Coordinator Turn context");
     (sandbox, context)
 }
 
@@ -123,6 +158,27 @@ fn create_plan_task(context: &AgentOrgRunContext) {
         metadata: Some(serde_json::json!({ TASK_METADATA_EXECUTION_MODE: "plan" })),
     })
     .expect("create plan task");
+    let conn = get_connection().expect("plan Task context database");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents(
+            session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES ('planner-session','planner-turn',?1,'agent_org','running',?2,?2)",
+        params![&context.run_id, &now],
+    )
+    .expect("persist planning Turn intent");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            task_id,owner_member_id,dispatch_member_id,member_dispatch_sequence,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES (
+            'planner-session','planner-turn',?1,'planner','task_execution',
+            'plan-task','planner','planner',1,'task','plan-task',1,?2
+         )",
+        params![&context.run_id, &now],
+    )
+    .expect("persist planning TaskExecution context");
 }
 
 fn approval_params(context: &AgentOrgRunContext) -> CreateAgentOrgPlanApprovalParams {
@@ -132,6 +188,7 @@ fn approval_params(context: &AgentOrgRunContext) -> CreateAgentOrgPlanApprovalPa
         source_task_id: "plan-task".into(),
         source_member_id: "planner".into(),
         source_session_id: "planner-session".into(),
+        source_turn_intent_id: "planner-turn".into(),
         root_session_id: "root-plan-approval".into(),
         policy: context.plan_approval_policy,
         plan_title: "Implementation plan".into(),
@@ -209,65 +266,6 @@ fn approval_completes_source_task_and_dispatches_unblocked_work() {
         .iter()
         .any(|row| row.payload_kind == "task_assigned"));
 }
-
-#[test]
-fn approval_dispatches_task_from_legacy_blocks_only_edge() {
-    let (_sandbox, context) = setup(PlanApprovalPolicy::Coordinator);
-    create_plan_task(&context);
-    AgentOrgTaskStore::create(CreateTaskParams {
-        id: "legacy-build-task".into(),
-        org_run_id: context.run_id.clone(),
-        subject: "Build the approved legacy plan".into(),
-        description: String::new(),
-        active_form: None,
-        owner: Some("builder".into()),
-        status: TaskStatus::Pending,
-        blocks: Vec::new(),
-        blocked_by: Vec::new(),
-        metadata: Some(serde_json::json!({ TASK_METADATA_EXECUTION_MODE: "build" })),
-    })
-    .expect("create legacy dependent task");
-
-    let conn = get_connection().expect("test sqlite connection");
-    conn.execute(
-        "UPDATE agent_org_runtime_tasks SET blocks_json='[\"legacy-build-task\"]'
-             WHERE org_run_id=?1 AND id='plan-task'",
-        params![&context.run_id],
-    )
-    .expect("seed legacy upstream blocks edge");
-    conn.execute(
-        "UPDATE agent_org_runtime_tasks SET blocked_by_json='[]'
-             WHERE org_run_id=?1 AND id='legacy-build-task'",
-        params![&context.run_id],
-    )
-    .expect("preserve legacy blocks-only representation");
-    conn.execute("DELETE FROM agent_org_runtime_inbox", [])
-        .expect("remove create-time assignment noise");
-
-    let pending = create_pending_approval(&context);
-    let approved = AgentOrgPlanApprovalStore::approve(
-        &pending.approval_id,
-        &pending.plan_revision_id,
-        AgentOrgPlanDecisionBy::Coordinator,
-        None,
-    )
-    .expect("approve legacy graph");
-
-    assert!(approved.wake_member_ids.contains(&"builder".to_string()));
-    let assignments = AgentInboxStore::list_unread_for_member("builder", &context.run_id)
-        .expect("list builder inbox")
-        .into_iter()
-        .filter(|row| {
-            matches!(
-                row.decode_payload(),
-                Ok(AgentMessage::TaskAssigned { ref task_id, .. })
-                    if task_id == "legacy-build-task"
-            )
-        })
-        .count();
-    assert_eq!(assignments, 1);
-}
-
 #[test]
 fn approval_policy_rejects_the_wrong_decision_actor() {
     let (_sandbox, context) = setup(PlanApprovalPolicy::User);
@@ -607,6 +605,51 @@ fn stale_revision_cannot_complete_a_plan_twice() {
     )
     .expect_err("same revision must be one-shot");
     assert!(error.contains("stale_revision"));
+}
+
+#[test]
+fn approval_rejects_atomically_when_source_task_was_cancelled() {
+    let (_sandbox, context) = setup(PlanApprovalPolicy::Coordinator);
+    create_plan_task(&context);
+    let pending = create_pending_approval(&context);
+    let task = AgentOrgTaskStore::get(&context.run_id, "plan-task")
+        .unwrap()
+        .unwrap();
+    AgentOrgTaskStore::cancel_with_transactional_effects(
+        TaskGraphWriterAdmin::new("root-plan-approval", "coordinator-turn").unwrap(),
+        &context.run_id,
+        "plan-task",
+        &task.updated_at,
+        TaskTerminalReason {
+            code: "scope.changed".to_string(),
+            message: "replace the planning goal".to_string(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("cancel source Task");
+
+    let error = AgentOrgPlanApprovalStore::approve(
+        &pending.approval_id,
+        &pending.plan_revision_id,
+        AgentOrgPlanDecisionBy::Coordinator,
+        None,
+    )
+    .expect_err("approval cannot complete a cancelled Task");
+    assert!(error.contains("plan_task_not_in_progress"), "{error}");
+    assert_eq!(
+        AgentOrgPlanApprovalStore::get(&pending.approval_id)
+            .unwrap()
+            .unwrap()
+            .status,
+        AgentOrgPlanApprovalStatus::Pending
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(&context.run_id, "plan-task")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Cancelled
+    );
 }
 
 #[test]

@@ -84,10 +84,15 @@ export const E2EBootstrap: FC = () => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Defense-in-depth: callers should already gate this component behind
-    // `process.env.NODE_ENV !== "production"` in AppBootstrap, but refuse to
-    // install `window.__e2e` here too so a missed gate cannot leak the helper.
-    if (process.env.NODE_ENV === "production") return;
+    // Defense-in-depth: optimized WebDriver builds explicitly opt in through
+    // a compile-time constant. Ordinary production bundles still refuse to
+    // install the helper and tree-shake this component away.
+    if (
+      process.env.NODE_ENV === "production" &&
+      process.env.ORGII_E2E !== "1"
+    ) {
+      return;
+    }
 
     const {
       pinSession,

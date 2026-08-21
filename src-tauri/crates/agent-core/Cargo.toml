@@ -18,6 +18,9 @@ path = "src/lib.rs"
 [features]
 default = []
 wingman-bar-native = []
+# Explicit test artifact capability forwarded by the desktop `webdriver`
+# feature. Ordinary release builds do not enable this.
+webdriver = []
 # ---------------------------------------------------------------------------
 # Workspace dependencies
 # ---------------------------------------------------------------------------

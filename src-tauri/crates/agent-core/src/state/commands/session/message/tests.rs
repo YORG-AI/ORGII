@@ -14,22 +14,15 @@ use super::send::{
     ensure_agent_org_turn_is_runnable, should_divert_to_mid_turn_steering,
     terminal_intent_status_override,
 };
-use crate::coordination::agent_inbox::{
-    AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
-};
 use crate::coordination::agent_member_interventions::{
     can_enter_member_intervention, AgentMemberInterventionStore, EnterMemberInterventionParams,
-};
-use crate::coordination::agent_org_plan_approvals::{
-    AgentOrgPlanApprovalStore, CreateAgentOrgPlanApprovalParams,
 };
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::coordination::agent_org_runs::{
     AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
 };
 use crate::coordination::agent_org_tasks::{
-    enqueue_task_assigned_to_with_tasks, AgentOrgTaskStore, CreateTaskParams, TaskStatus,
-    TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_EXECUTION_MODE,
+    AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_EXECUTION_MODE,
 };
 use crate::definitions::orgs::{FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
 use crate::session::{AgentExecMode, SessionStatus};
@@ -139,21 +132,55 @@ fn setup_wake_mode_fixture(execution_mode: &str, task_status: TaskStatus) -> Wak
     }
 }
 
-fn insert_control(fixture: &WakeModeFixture, sender_member_id: &str, message: AgentMessage) -> i64 {
-    AgentInboxStore::insert(InsertInboxParams {
-        recipient_agent_id: "planner-agent".into(),
-        recipient_member_id: Some(fixture.member_id.clone()),
-        sender_agent_id: if sender_member_id == COORDINATOR_MEMBER_ID {
-            "coordinator-agent".into()
-        } else {
-            "peer-agent".into()
-        },
-        sender_member_id: Some(sender_member_id.into()),
-        org_run_id: Some(fixture.run_id.clone()),
-        message,
-    })
-    .expect("insert control row")
-    .id
+fn seed_task_execution_context(fixture: &WakeModeFixture, turn_intent_id: &str) {
+    let conn = database::db::get_connection().expect("test db");
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS session_turn_intents (
+            session_id TEXT NOT NULL,
+            turn_intent_id TEXT NOT NULL,
+            client_message_id TEXT,
+            org_run_id TEXT,
+            source TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(session_id, turn_intent_id)
+         );",
+    )
+    .expect("canonical Turn Intent test schema");
+    let generation: i64 = conn
+        .query_row(
+            "SELECT activation_generation FROM agent_org_runtime_runs WHERE id=?1",
+            [&fixture.run_id],
+            |row| row.get(0),
+        )
+        .expect("run generation");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+            session_id, turn_intent_id, client_message_id, org_run_id,
+            source, status, created_at, updated_at
+         ) VALUES (?1,?2,NULL,?3,'agent_org','queued',?4,?4)",
+        rusqlite::params![&fixture.session_id, turn_intent_id, &fixture.run_id, &now],
+    )
+    .expect("seed base Turn");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts (
+            session_id, turn_intent_id, org_run_id, participant_id, turn_kind,
+            task_id, owner_member_id, dispatch_member_id, member_dispatch_sequence,
+            source_kind, source_id, activation_generation, created_at
+         ) VALUES (?1,?2,?3,?4,'task_execution',?5,?4,?4,1,'task',?5,?6,?7)",
+        rusqlite::params![
+            &fixture.session_id,
+            turn_intent_id,
+            &fixture.run_id,
+            &fixture.member_id,
+            &fixture.task_id,
+            generation,
+            &now,
+        ],
+    )
+    .expect("seed typed TaskExecution context");
 }
 
 #[test]
@@ -390,225 +417,35 @@ fn direct_worker_message_is_a_member_takeover() {
 }
 
 #[test]
-fn plan_changes_request_controls_the_first_revision_wake() {
-    let fixture = setup_wake_mode_fixture("plan", TaskStatus::InProgress);
-    let approval = AgentOrgPlanApprovalStore::create_pending(CreateAgentOrgPlanApprovalParams {
-        request_id: "revision-request".into(),
-        org_run_id: fixture.run_id.clone(),
-        source_task_id: fixture.task_id.clone(),
-        source_member_id: fixture.member_id.clone(),
-        source_session_id: fixture.session_id.clone(),
-        root_session_id: "root-session".into(),
-        policy: PlanApprovalPolicy::Coordinator,
-        plan_title: "Initial plan".into(),
-        plan_path: AgentOrgPlanApprovalStore::managed_plan_path_for_session(
-            &fixture.session_id,
-            "initial.plan.md",
-        )
-        .expect("managed initial plan path")
-        .to_string_lossy()
-        .into_owned(),
-        plan_content: "# Initial".into(),
-    })
-    .expect("create plan approval");
-    insert_control(
-        &fixture,
-        COORDINATOR_MEMBER_ID,
-        AgentMessage::PlanApprovalResponse {
-            request_id: RequestId(approval.request_id),
-            accepted: false,
-            feedback: Some("revise scope".into()),
-            next_mode: Some(AgentExecMode::Plan),
-        },
-    );
+fn task_wake_mode_comes_from_the_bound_tasks_first_class_column() {
+    let fixture = setup_wake_mode_fixture("plan", TaskStatus::Pending);
+    seed_task_execution_context(&fixture, "task-wake-plan");
 
     assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
-            .expect("resolve revision mode"),
+        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id, "task-wake-plan",)
+            .expect("resolve typed Task wake mode"),
         Some(AgentExecMode::Plan)
     );
 }
 
 #[test]
-fn coordinator_exec_override_controls_the_first_wake() {
+fn task_wake_mode_fails_closed_for_corrupt_first_class_value() {
     let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
-    insert_control(
-        &fixture,
-        COORDINATOR_MEMBER_ID,
-        AgentMessage::ExecModeSetRequest {
-            request_id: RequestId("override-plan".into()),
-            mode: AgentExecMode::Plan,
-            reason: Some("plan before implementation".into()),
-        },
-    );
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
-            .expect("resolve override"),
-        Some(AgentExecMode::Plan)
-    );
-}
-
-#[test]
-fn latest_applicable_control_wins_and_task_mode_comes_from_durable_state() {
-    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
-    insert_control(
-        &fixture,
-        COORDINATOR_MEMBER_ID,
-        AgentMessage::ExecModeSetRequest {
-            request_id: RequestId("first-plan".into()),
-            mode: AgentExecMode::Plan,
-            reason: None,
-        },
-    );
-    let tasks = AgentOrgTaskStore::list(&fixture.run_id).expect("list task board");
-    let task = tasks
-        .iter()
-        .find(|task| task.id == fixture.task_id)
-        .expect("controlled task");
-    enqueue_task_assigned_to_with_tasks(
-        task,
-        &tasks,
-        "planner-agent",
-        &fixture.member_id,
-        "coordinator-agent",
-        Some(COORDINATOR_MEMBER_ID),
-        "Coordinator",
+    seed_task_execution_context(&fixture, "task-wake-corrupt");
+    let conn = database::db::get_connection().expect("test db");
+    conn.execute_batch("PRAGMA ignore_check_constraints=ON;")
+        .expect("simulate corrupt canonical row");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks SET execution_mode='future_mode'
+         WHERE org_run_id=?1 AND id=?2",
+        rusqlite::params![&fixture.run_id, &fixture.task_id],
     )
-    .expect("insert later TaskAssigned");
+    .expect("corrupt execution mode");
+    conn.execute_batch("PRAGMA ignore_check_constraints=OFF;")
+        .expect("restore checks");
 
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
-            .expect("resolve latest signal"),
-        Some(AgentExecMode::Build),
-        "later TaskAssigned wins, and its mode is re-read from the durable Build task"
-    );
-}
-
-#[test]
-fn forged_peer_exec_override_is_ignored() {
-    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
-    insert_control(
-        &fixture,
-        "peer",
-        AgentMessage::ExecModeSetRequest {
-            request_id: RequestId("forged-plan".into()),
-            mode: AgentExecMode::Plan,
-            reason: None,
-        },
-    );
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
-            .expect("ignore forged override"),
-        None
-    );
-}
-
-#[test]
-fn control_beyond_current_drain_row_batch_does_not_change_this_turn_mode() {
-    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
-    for index in 0..crate::coordination::agent_inbox::MAX_INBOX_DRAIN_ROWS {
-        insert_control(
-            &fixture,
-            COORDINATOR_MEMBER_ID,
-            AgentMessage::Plain {
-                summary: format!("older-{index}"),
-                text: "ordinary work context".into(),
-            },
-        );
-    }
-    insert_control(
-        &fixture,
-        COORDINATOR_MEMBER_ID,
-        AgentMessage::ExecModeSetRequest {
-            request_id: RequestId("future-plan".into()),
-            mode: AgentExecMode::Plan,
-            reason: None,
-        },
-    );
-
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
-            .expect("future batch control must not affect this turn"),
-        None
-    );
-}
-
-#[test]
-fn control_beyond_current_drain_byte_budget_does_not_change_this_turn_mode() {
-    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
-    let large_text = "🧭".repeat(19_000);
-    for index in 0..20 {
-        insert_control(
-            &fixture,
-            COORDINATOR_MEMBER_ID,
-            AgentMessage::Plain {
-                summary: format!("large-{index}"),
-                text: large_text.clone(),
-            },
-        );
-    }
-    insert_control(
-        &fixture,
-        COORDINATOR_MEMBER_ID,
-        AgentMessage::ExecModeSetRequest {
-            request_id: RequestId("later-byte-plan".into()),
-            mode: AgentExecMode::Plan,
-            reason: None,
-        },
-    );
-
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
-            .expect("byte-deferred control must not affect this turn"),
-        None
-    );
-}
-
-#[test]
-fn consumed_plan_control_does_not_repeat_on_next_turn() {
-    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
-    let row_id = insert_control(
-        &fixture,
-        COORDINATOR_MEMBER_ID,
-        AgentMessage::ExecModeSetRequest {
-            request_id: RequestId("one-shot-plan".into()),
-            mode: AgentExecMode::Plan,
-            reason: None,
-        },
-    );
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id).unwrap(),
-        Some(AgentExecMode::Plan)
-    );
-    AgentInboxStore::mark_many_read(&[row_id]).expect("commit successful wake");
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id).unwrap(),
-        None
-    );
-}
-
-#[test]
-fn ownerless_plan_task_does_not_select_member_mode() {
-    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
-    AgentOrgTaskStore::create(CreateTaskParams {
-        id: "plan-from-pool".to_string(),
-        org_run_id: fixture.run_id.clone(),
-        subject: "Plan the work".to_string(),
-        description: String::new(),
-        active_form: None,
-        owner: None,
-        status: TaskStatus::Pending,
-        blocks: Vec::new(),
-        blocked_by: Vec::new(),
-        metadata: Some(serde_json::json!({
-            TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["planner"],
-            TASK_METADATA_EXECUTION_MODE: "plan",
-        })),
-    })
-    .expect("seed ownerless task");
-
-    assert_eq!(
-        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id).expect("resolve mode"),
-        None
-    );
+    let error =
+        resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id, "task-wake-corrupt")
+            .expect_err("unknown execution mode must not default to Build");
+    assert!(error.contains("invalid task execution_mode"), "{error}");
 }

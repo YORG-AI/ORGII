@@ -1,9 +1,10 @@
-//! Durable Agent Org wake claiming and control-row mode resolution.
+//! Durable Agent Org wake claiming and task-bound mode resolution.
 //!
 //! A background wake is enqueued from a snapshot, so both halves here re-read
 //! durable state at the moment it matters: the session row is claimed
-//! atomically when the scheduler actually starts the turn, and the turn's exec
-//! mode is re-resolved from the bounded inbox batch that same turn will drain.
+//! atomically when the scheduler actually starts the turn, and a
+//! TaskExecution turn's exec mode is read from the first-class column on the
+//! exact Task bound by its persisted Turn context.
 
 /// Atomically claim a queued Agent Org Wake at the moment the scheduler
 /// actually starts it. A pre-enqueue status check is only a snapshot: the Run
@@ -131,205 +132,76 @@ pub(super) fn promote_agent_org_direct_session_to_running(
     .map_err(|error| error.to_string())
 }
 
-/// Resolve the execution mode for one background Agent Org wake from unread
-/// control envelopes in durable inbox order.
-///
-/// Every applicable row updates the candidate, so the latest valid control
-/// signal wins. TaskAssigned is only a doorbell: its mode is re-read from the
-/// current durable task rather than trusted from a possibly stale payload.
-/// Direct human turns never call this resolver.
+/// Resolve the execution mode for one admitted background Agent Org wake.
+/// `TaskAssigned` is only a doorbell: the persisted Task context identifies
+/// the one authoritative row, and unknown/corrupt mode values fail closed
+/// instead of falling back to Build. Coordinator wakes have no Task mode.
 pub(super) fn resolve_agent_org_wake_mode(
     session_id: &str,
     run_id: &str,
+    turn_intent_id: &str,
 ) -> Result<Option<crate::session::AgentExecMode>, String> {
-    use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
     use crate::coordination::agent_org_tasks::TaskExecutionMode;
+    use crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind;
     use rusqlite::{params, OptionalExtension, TransactionBehavior};
 
     let mut conn = database::db::get_connection().map_err(|error| error.to_string())?;
     let tx = conn
         .transaction_with_behavior(TransactionBehavior::Deferred)
         .map_err(|error| error.to_string())?;
-    let member_id: String = tx
-        .query_row(
-            "SELECT org_member_id FROM agent_sessions
-             WHERE session_id=?1 AND org_member_id IS NOT NULL",
-            params![session_id],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?
-        .ok_or_else(|| format!("Agent Org wake session {session_id} has no canonical member_id"))?;
-
-    let mut stmt = tx
-        .prepare(
-            "WITH delivery_candidates AS (
-                 SELECT id, payload_kind, payload_json, sender_member_id
-                 FROM agent_org_runtime_inbox
-                 WHERE org_run_id=?1
-                   AND recipient_member_id=?2
-                   AND read_at IS NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
-                   )
-                 ORDER BY id ASC
-                 LIMIT ?3
-             ), delivery_window AS (
-                 SELECT id, payload_kind, payload_json, sender_member_id,
-                        ROW_NUMBER() OVER (ORDER BY id ASC) AS ordinal,
-                        SUM(length(CAST(payload_json AS BLOB))) OVER (
-                            ORDER BY id ASC ROWS UNBOUNDED PRECEDING
-                        ) AS cumulative_payload_bytes
-                 FROM delivery_candidates
-             ), control AS (
-                 SELECT id, payload_kind, payload_json, sender_member_id
-                 FROM delivery_window
-                 WHERE (ordinal=1 OR cumulative_payload_bytes<=?4)
-                   AND payload_kind IN (
-                       'task_assigned',
-                       'plan_approval_response',
-                       'exec_mode_set_request'
-                   )
-                   AND json_valid(payload_json)
-             )
-             SELECT control.payload_kind,
-                    control.sender_member_id,
-                    assigned.owner,
-                    assigned.status,
-                    CASE WHEN json_valid(assigned.metadata_json) THEN
-                        CASE WHEN json_type(assigned.metadata_json, '$.execution_mode')='text'
-                             THEN json_extract(assigned.metadata_json, '$.execution_mode')
-                             ELSE 'build' END
-                    ELSE 'build' END AS durable_task_mode,
-                    approval.source_member_id,
-                    approval_task.owner,
-                    approval_task.status,
-                    CASE WHEN json_type(control.payload_json, '$.accepted') IN ('true','false')
-                         THEN json_extract(control.payload_json, '$.accepted')
-                         ELSE NULL END,
-                    CASE WHEN json_type(control.payload_json, '$.next_mode')='text'
-                         THEN json_extract(control.payload_json, '$.next_mode')
-                         ELSE NULL END,
-                    CASE WHEN json_type(control.payload_json, '$.mode')='text'
-                         THEN json_extract(control.payload_json, '$.mode')
-                         ELSE NULL END,
-                    EXISTS(
-                        SELECT 1 FROM agent_org_runtime_tasks owned
-                        WHERE owned.org_run_id=?1
-                          AND owned.owner=?2
-                          AND owned.status IN ('pending','in_progress')
-                    ) AS has_open_owned_task
-             FROM control
-             LEFT JOIN agent_org_runtime_tasks assigned
-               ON control.payload_kind='task_assigned'
-              AND json_type(control.payload_json, '$.task_id')='text'
-              AND assigned.org_run_id=?1
-              AND assigned.id=json_extract(control.payload_json, '$.task_id')
-             LEFT JOIN agent_org_runtime_plan_approvals approval
-               ON control.payload_kind='plan_approval_response'
-              AND json_type(control.payload_json, '$.request_id')='text'
-              AND approval.org_run_id=?1
-              AND approval.request_id=json_extract(control.payload_json, '$.request_id')
-             LEFT JOIN agent_org_runtime_tasks approval_task
-               ON approval_task.org_run_id=?1
-              AND approval_task.id=approval.source_task_id
-             ORDER BY control.id DESC",
-        )
-        .map_err(|error| error.to_string())?;
-    let rows = stmt
-        .query_map(
-            params![
-                run_id,
-                &member_id,
-                crate::coordination::agent_inbox::MAX_INBOX_DRAIN_ROWS as i64,
-                crate::coordination::agent_inbox::MAX_INBOX_DRAIN_PAYLOAD_BYTES as i64,
-            ],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, Option<String>>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                    row.get::<_, Option<String>>(7)?,
-                    row.get::<_, Option<bool>>(8)?,
-                    row.get::<_, Option<String>>(9)?,
-                    row.get::<_, Option<String>>(10)?,
-                    row.get::<_, bool>(11)?,
-                ))
-            },
-        )
-        .map_err(|error| error.to_string())?;
-    let mut resolved = None;
-    for row in rows {
-        let (
-            kind,
-            sender_member_id,
-            assigned_owner,
-            assigned_status,
-            durable_task_mode,
-            approval_source_member,
-            approval_task_owner,
-            approval_task_status,
-            accepted,
-            next_mode,
-            requested_mode,
-            has_open_owned_task,
-        ) = row.map_err(|error| error.to_string())?;
-        let mode = match kind.as_str() {
-            "task_assigned"
-                if assigned_owner.as_deref() == Some(member_id.as_str())
-                    && matches!(assigned_status.as_deref(), Some("pending" | "in_progress")) =>
-            {
-                durable_task_mode
-                    .as_deref()
-                    .and_then(|mode| TaskExecutionMode::from_wire(mode).ok())
-                    .map(|mode| match mode {
-                        TaskExecutionMode::Build => crate::session::AgentExecMode::Build,
-                        TaskExecutionMode::Plan => crate::session::AgentExecMode::Plan,
-                    })
-            }
-            "plan_approval_response"
-                if sender_member_id.as_deref() == Some(COORDINATOR_MEMBER_ID)
-                    && approval_source_member.as_deref() == Some(member_id.as_str())
-                    && approval_task_owner.as_deref() == Some(member_id.as_str())
-                    && matches!(
-                        approval_task_status.as_deref(),
-                        Some("pending" | "in_progress")
-                    ) =>
-            {
-                next_mode
-                    .as_deref()
-                    .and_then(crate::session::AgentExecMode::parse)
-                    .or_else(|| {
-                        accepted.map(|accepted| {
-                            if accepted {
-                                crate::session::AgentExecMode::Build
-                            } else {
-                                crate::session::AgentExecMode::Plan
-                            }
-                        })
-                    })
-            }
-            "exec_mode_set_request"
-                if sender_member_id.as_deref() == Some(COORDINATOR_MEMBER_ID)
-                    && has_open_owned_task =>
-            {
-                requested_mode
-                    .as_deref()
-                    .and_then(crate::session::AgentExecMode::parse)
-            }
-            _ => None,
-        };
-        if mode.is_some() {
-            resolved = mode;
-            break;
-        }
+    let context = crate::coordination::agent_org_turn_contexts::require_context_with_connection(
+        &tx,
+        session_id,
+        turn_intent_id,
+    )?;
+    if context.org_run_id != run_id {
+        return Err(format!(
+            "Agent Org wake context run mismatch: expected {run_id}, found {}",
+            context.org_run_id
+        ));
     }
-    drop(stmt);
+
+    let resolved = match context.turn_kind {
+        AgentOrgTurnKind::Coordinator => None,
+        AgentOrgTurnKind::TaskExecution => {
+            let task_id = context
+                .task_id
+                .as_deref()
+                .ok_or_else(|| "TaskExecution wake context has no canonical task_id".to_string())?;
+            let owner_member_id = context.owner_member_id.as_deref().ok_or_else(|| {
+                "TaskExecution wake context has no canonical owner_member_id".to_string()
+            })?;
+            let row: Option<(String, String)> = tx
+                .query_row(
+                    "SELECT execution_mode, status
+                     FROM agent_org_runtime_tasks
+                     WHERE org_run_id=?1 AND id=?2 AND owner=?3",
+                    params![run_id, task_id, owner_member_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()
+                .map_err(|error| error.to_string())?;
+            let Some((execution_mode, status)) = row else {
+                return Err(format!(
+                    "TaskExecution wake target {task_id} is missing or no longer owned by {owner_member_id}"
+                ));
+            };
+            if !matches!(status.as_str(), "pending" | "in_progress") {
+                return Err(format!(
+                    "TaskExecution wake target {task_id} is no longer open ({status})"
+                ));
+            }
+            Some(match TaskExecutionMode::from_wire(&execution_mode)? {
+                TaskExecutionMode::Build => crate::session::AgentExecMode::Build,
+                TaskExecutionMode::Plan => crate::session::AgentExecMode::Plan,
+            })
+        }
+        AgentOrgTurnKind::UserDirectedWork => {
+            return Err(
+                "UserDirectedWork is not enabled in the PR4 formal wake mode resolver".to_string(),
+            );
+        }
+    };
     tx.commit().map_err(|error| error.to_string())?;
     Ok(resolved)
 }

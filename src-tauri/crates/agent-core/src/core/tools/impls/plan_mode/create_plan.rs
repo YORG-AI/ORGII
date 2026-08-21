@@ -511,6 +511,7 @@ impl Tool for CreatePlanTool {
                     source_task_id: source_task.id.clone(),
                     source_member_id: sender_member_id.to_string(),
                     source_session_id: session_id.clone(),
+                    source_turn_intent_id: ctx.turn_intent_id.clone(),
                     root_session_id,
                     policy: org_ctx.plan_approval_policy,
                     plan_title: slot.title.clone(),

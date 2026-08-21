@@ -9,15 +9,16 @@ use crate::coordination::agent_org_payload_limits::{
     validate_task_identifier, validate_task_identifier_list,
 };
 use crate::coordination::agent_org_tasks::{
-    self, task_dependency_closure, AgentOrgTaskStore, CreateTaskParams, TaskCreateSchedulingPolicy,
-    TaskExecutionMode, TaskStatus, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
+    self, task_dependency_closure, AgentOrgTaskStore, CreatePendingTaskParams,
+    TaskCreateSchedulingPolicy, TaskExecutionMode, TaskGraphWriterAdmin,
+    TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
 };
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    map_task_write_error, merge_task_metadata, parse_status, task_to_json,
-    validate_freeform_task_metadata, TaskToolsContext,
+    map_task_write_error, merge_task_metadata, task_to_json, validate_freeform_task_metadata,
+    TaskToolsContext,
 };
 
 /// Explicit decision about when a newly-created task may be dispatched.
@@ -97,15 +98,11 @@ pub struct TaskCreateParams {
     /// shown by the UI while the task is in_progress.
     #[serde(default)]
     pub active_form: Option<String>,
-    /// Optional initial owner member_id. Use `coordinator` for the coordinator
-    /// or an exact roster member_id. When set, `task_create` posts a
+    /// Optional initial owner member_id. It must be an exact non-Coordinator
+    /// roster member_id. When set, `task_create` posts a
     /// `TaskAssigned` row to the new owner's inbox if the task is pending.
     #[serde(default)]
     pub owner_member_id: Option<String>,
-    /// Optional initial status. Defaults to `pending`. Setting `in_progress`
-    /// requires `owner_member_id`; task ownership is never inferred.
-    #[serde(default)]
-    pub status: Option<String>,
     /// Required dispatch decision. Use `immediate` only for independent work;
     /// use `after_dependencies` for review, test, aggregation, or any task
     /// that consumes another task's output.
@@ -140,53 +137,11 @@ pub struct TaskCreateParams {
 
 pub struct TaskCreateTool {
     ctx: Arc<TaskToolsContext>,
-    #[cfg(test)]
-    pre_persist_hook: Option<Arc<TaskCreatePrePersistHook>>,
-}
-
-/// Deterministic test seam for reproducing a task-board change after the
-/// tool's advisory read but before the store starts its commit transaction.
-#[cfg(test)]
-#[derive(Default)]
-pub(super) struct TaskCreatePrePersistHook {
-    reached: tokio::sync::Notify,
-    resume: tokio::sync::Notify,
-}
-
-#[cfg(test)]
-impl TaskCreatePrePersistHook {
-    pub(super) async fn wait_until_reached(&self) {
-        self.reached.notified().await;
-    }
-
-    pub(super) fn resume(&self) {
-        self.resume.notify_one();
-    }
-
-    async fn pause(&self) {
-        self.reached.notify_one();
-        self.resume.notified().await;
-    }
 }
 
 impl TaskCreateTool {
     pub fn new(ctx: Arc<TaskToolsContext>) -> Self {
-        Self {
-            ctx,
-            #[cfg(test)]
-            pre_persist_hook: None,
-        }
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_pre_persist_hook(
-        ctx: Arc<TaskToolsContext>,
-        hook: Arc<TaskCreatePrePersistHook>,
-    ) -> Self {
-        Self {
-            ctx,
-            pre_persist_hook: Some(hook),
-        }
+        Self { ctx }
     }
 }
 
@@ -199,11 +154,9 @@ impl Tool for TaskCreateTool {
     fn description(&self) -> &str {
         concat!(
             "Create a task on the org run's task board. The board is shared by every ",
-            "agent in this Agent Org run, but write authority remains deliberately narrow: ",
-            "the coordinator may assign any participant, while a member may assign only ",
-            "itself until additional Writer activation lands. Peer communication does not ",
-            "grant peer task-assignment authority. ",
-            "Set `owner_member_id` to `coordinator` or an exact roster member_id for ",
+            "agent in this Agent Org run. Only the current Coordinator turn may create ",
+            "or assign graph work; Task Owners use task_update lifecycle operations. ",
+            "Set `owner_member_id` to an exact worker member_id for ",
             "direct assignment — a pending assignee will receive a `task_assigned` inbox ",
             "row on their next turn. If you leave `owner_member_id` unset, the task is ",
             "parked as awaiting explicit coordinator assignment and MUST provide ",
@@ -225,8 +178,7 @@ impl Tool for TaskCreateTool {
             "deliverable is an explicit plan submitted through `create_plan`; use `build` ",
             "for implementation, writing, review, testing, research, and all other work. ",
             "`required_role` is a human-readable hint only; it does not authorize claim ",
-            "by itself. `status` defaults to `pending`; `in_progress` requires ",
-            "`owner_member_id` to equal the calling session's member_id."
+            "by itself. Every new task is persisted as pending."
         )
     }
 
@@ -250,9 +202,19 @@ impl Tool for TaskCreateTool {
     async fn execute_text(
         &self,
         params_value: Value,
-        _ctx: &CallContext,
+        call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
         let params: TaskCreateParams = parse_params(params_value)?;
+        if !self.ctx.is_coordinator() {
+            return self.ctx.authorization_denied_response(
+                "task_create",
+                vec![self.ctx.caller_owner_member_id()],
+                "Only the Coordinator may create Task graph work. Send the proposal to the Coordinator.",
+            );
+        }
+        let actor =
+            TaskGraphWriterAdmin::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
+                .map_err(ToolError::InvalidParams)?;
         validate_freeform_task_metadata(params.metadata.as_ref())
             .map_err(ToolError::InvalidParams)?;
         if params.subject.trim().is_empty() {
@@ -320,26 +282,6 @@ impl Tool for TaskCreateTool {
                     denied,
                     "An ownerless task may list only candidates you are authorized to manage. Ask the coordinator to create cross-peer or cross-branch unassigned work.",
                 );
-            }
-        }
-        let status = match params.status.as_deref() {
-            None => TaskStatus::Pending,
-            Some(value) => parse_status(value).map_err(ToolError::InvalidParams)?,
-        };
-        if status == TaskStatus::InProgress {
-            let caller_member_id = self.ctx.caller_owner_member_id();
-            match resolved_owner.as_deref() {
-                Some(owner_member_id) if owner_member_id == caller_member_id => {}
-                Some(owner_member_id) => {
-                    return Err(ToolError::InvalidParams(format!(
-                        "task_create status=in_progress can only be set by the owning member; caller_member_id={caller_member_id}, owner_member_id={owner_member_id}"
-                    )));
-                }
-                None => {
-                    return Err(ToolError::InvalidParams(
-                        "task_create status=in_progress requires owner_member_id to equal the calling session's member_id".to_string(),
-                    ));
-                }
             }
         }
         let explicit_id = params
@@ -422,13 +364,10 @@ impl Tool for TaskCreateTool {
         let covered_dependency_ids = task_dependency_closure(&blocked_by, &existing_tasks);
         let unlisted_open_tasks = existing_tasks
             .iter()
-            .filter(|task| !task.status.is_resolved())
+            .filter(|task| task.status.is_open())
             .filter(|task| !covered_dependency_ids.contains(&task.id))
             .collect::<Vec<_>>();
-        if !status.is_resolved()
-            && !unlisted_open_tasks.is_empty()
-            && !params.allow_parallel_with_unlisted_open_tasks
-        {
+        if !unlisted_open_tasks.is_empty() && !params.allow_parallel_with_unlisted_open_tasks {
             let requires_dependency_confirmation = !blocked_by.is_empty()
                 || unlisted_open_tasks.iter().any(|task| {
                     agent_org_tasks::task_execution_mode(task) == TaskExecutionMode::Plan
@@ -467,45 +406,34 @@ impl Tool for TaskCreateTool {
             });
         }
 
-        if resolved_owner.is_none()
-            && status == TaskStatus::Pending
-            && eligible_member_ids.as_ref().is_none_or(Vec::is_empty)
-        {
+        if resolved_owner.is_none() && eligible_member_ids.as_ref().is_none_or(Vec::is_empty) {
             return Err(ToolError::InvalidParams(
                 "ownerless pending tasks require a non-empty eligible_member_ids list".to_string(),
             ));
         }
-        let metadata = merge_task_metadata(
-            params.metadata,
-            eligible_member_ids,
-            params.required_role,
-            Some(execution_mode),
-            None,
-        );
-
-        #[cfg(test)]
-        if let Some(hook) = self.pre_persist_hook.as_ref() {
-            hook.pause().await;
-        }
+        let metadata =
+            merge_task_metadata(params.metadata, eligible_member_ids, params.required_role);
 
         let create_context = Arc::clone(&self.ctx);
         let allow_parallel_with_unlisted_open_tasks =
             params.allow_parallel_with_unlisted_open_tasks;
         let requested_dependency_task_ids = blocked_by.clone();
-        let create_params = CreateTaskParams {
+        let create_params = CreatePendingTaskParams {
             id,
             org_run_id: self.ctx.org_context.run_id.clone(),
             subject: params.subject,
             description: params.description.unwrap_or_default(),
             active_form: params.active_form,
             owner: resolved_owner,
-            status,
-            blocks: Vec::new(),
+            execution_mode,
             blocked_by,
             metadata,
+            originating_message_id: None,
+            replaces_task_id: None,
         };
         let create_result = tokio::task::spawn_blocking(move || {
-            AgentOrgTaskStore::create_with_transactional_effects(
+            AgentOrgTaskStore::create_pending_with_transactional_effects(
+                actor,
                 create_params,
                 TaskCreateSchedulingPolicy {
                     allow_parallel_with_unlisted_open_tasks,

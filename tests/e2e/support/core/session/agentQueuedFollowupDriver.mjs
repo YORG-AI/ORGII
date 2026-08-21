@@ -221,7 +221,7 @@ const js = {
     element.click();
     return "clicked";
   `,
-  clickWhenState: (selector, expectedState) => `
+  clickWhenState: (selector, expectedState, expectedEditorText = null) => `
     const isVisible = (element) => {
       const style = window.getComputedStyle(element);
       const rect = element.getBoundingClientRect();
@@ -238,6 +238,11 @@ const js = {
     if (element.disabled) return "disabled";
     const state = element.getAttribute("data-state");
     if (state !== ${JSON.stringify(expectedState)}) return "state:" + String(state);
+    const expectedEditorText = ${JSON.stringify(expectedEditorText)};
+    const editor = activeInputShell?.querySelector('[contenteditable="true"]') ?? null;
+    if (expectedEditorText && !(editor?.textContent || "").includes(expectedEditorText)) {
+      return "draft-lost:" + (editor?.textContent || "").slice(0, 120);
+    }
     element.scrollIntoView({ block: "center", inline: "center" });
     element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window, button: 0 }));
     element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window, button: 0 }));
@@ -1552,29 +1557,72 @@ async function waitForChatInput() {
 }
 
 async function typeAndClickSend(inputSelector, prompt) {
-  const typed = await execJS(js.clearAndType(inputSelector, prompt));
-  if (!typed.includes(prompt))
-    throw new Error(`Failed to type prompt: ${typed}`);
-  await browser.pause(500);
-  await browser.waitUntil(
-    async () => {
-      const state = await execJS(js.sendState);
-      return state && state.state === "submit" && !state.disabled;
-    },
-    {
-      timeout: 15_000,
-      timeoutMsg: `send button never became submit after typing ${JSON.stringify(prompt.slice(0, 80))}; sendState=${JSON.stringify(await execJS(js.sendState))}; active=${JSON.stringify(await invokeE2E("getActiveSessionId"))}; chat=${JSON.stringify(summarizeChatState(await invokeE2E("inspectChatState")))}; dump=${JSON.stringify(summarizePageDump(await execJS(js.pageDump)))}`,
-    }
-  );
-  const clicked = await execJS(
-    js.clickWhenState('[data-testid="chat-send-button"]', "submit")
-  );
-  if (clicked !== "clicked") {
-    const state = await execJS(js.sendState);
-    throw new Error(
-      `send click failed: ${clicked}; state=${JSON.stringify(state)}`
+  const marker = prompt.match(/([A-Z0-9_]+_[a-zA-Z0-9_]+_\d+)/)?.[1] ?? prompt;
+  let typed = null;
+  let clicked = null;
+  let acceptedState = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    acceptedState = await inspectChatState(
+      `direct-send-${attempt}-before-acceptance-check`
     );
+    if (JSON.stringify(acceptedState).includes(marker)) return;
+
+    await browser.waitUntil(
+      async () => {
+        const editorText = await execJS(js.editorText);
+        if (!String(editorText ?? "").includes(prompt)) {
+          typed = await execJS(js.clearAndType(inputSelector, prompt));
+          if (!typed.includes(prompt)) {
+            throw new Error(`Failed to type prompt: ${typed}`);
+          }
+          return false;
+        }
+        const state = await execJS(js.sendState);
+        if (!state || state.state !== "submit" || state.disabled) return false;
+        clicked = await execJS(
+          js.clickWhenState(
+            '[data-testid="chat-send-button"]',
+            "submit",
+            prompt
+          )
+        );
+        if (clicked?.startsWith("draft-lost:")) return false;
+        if (clicked !== "clicked") {
+          throw new Error(
+            `send click failed: ${clicked}; state=${JSON.stringify(state)}`
+          );
+        }
+        return true;
+      },
+      {
+        timeout: 15_000,
+        interval: 100,
+        timeoutMsg: `send button never accepted ${JSON.stringify(prompt.slice(0, 80))}; sendState=${JSON.stringify(await execJS(js.sendState))}; active=${JSON.stringify(await invokeE2E("getActiveSessionId"))}; chat=${JSON.stringify(summarizeChatState(await invokeE2E("inspectChatState")))}; dump=${JSON.stringify(summarizePageDump(await execJS(js.pageDump)))}`,
+      }
+    );
+
+    try {
+      await browser.waitUntil(
+        async () => {
+          acceptedState = await inspectChatState(
+            `direct-send-${attempt}-acceptance`
+          );
+          return JSON.stringify(acceptedState).includes(marker);
+        },
+        {
+          timeout: 5_000,
+          interval: 250,
+          timeoutMsg: `clicked send did not create authoritative message ${marker}`,
+        }
+      );
+      return;
+    } catch (_error) {
+      if (attempt === 2) break;
+    }
   }
+  throw new Error(
+    `send click never created authoritative message ${marker}; typed=${JSON.stringify(String(typed ?? "").slice(0, 120))} clicked=${clicked} state=${JSON.stringify(summarizeChatState(acceptedState))}`
+  );
 }
 
 async function selectConfiguredWorkspaceIfNeeded(repoPath) {

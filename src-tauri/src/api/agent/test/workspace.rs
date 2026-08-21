@@ -697,6 +697,20 @@ pub async fn test_session_seed_compacted_history(
 /// hit the real LLM).
 /// `POST /agent/test/session/llm-history` — debug-only projection of the
 /// exact durable history returned by Rust agent `load_llm_history`.
+fn projected_compact_boundary_count(messages: &[serde_json::Value]) -> usize {
+    messages
+        .iter()
+        .filter(|message| {
+            let content = message
+                .get("content")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
+            content.starts_with("[Conversation summary —")
+                || content.starts_with("[Session Memory —")
+        })
+        .count()
+}
+
 pub async fn test_session_llm_history(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
@@ -729,18 +743,7 @@ pub async fn test_session_llm_history(
                         .unwrap_or("")
                 })
                 .collect();
-            let compact_boundary_count = messages
-                .iter()
-                .filter(|message| {
-                    let content = message
-                        .get("content")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or("");
-                    message.get("role").and_then(|value| value.as_str()) == Some("system")
-                        && (content.starts_with("[Conversation summary —")
-                            || content.starts_with("[Session Memory —"))
-                })
-                .count();
+            let compact_boundary_count = projected_compact_boundary_count(&messages);
             Json(serde_json::json!({
                 "ok": true,
                 "sessionId": session_id,
@@ -760,6 +763,28 @@ pub async fn test_session_llm_history(
             "sessionId": session_id,
             "reason": format!("spawn_blocking join error: {err}"),
         })),
+    }
+}
+
+#[cfg(test)]
+mod llm_history_projection_tests {
+    use super::projected_compact_boundary_count;
+
+    #[test]
+    fn compact_boundary_count_survives_role_normalization() {
+        let messages = vec![
+            serde_json::json!({
+                "role": "user",
+                "content": "[Conversation summary — 2 earlier messages compacted]\n\nsummary"
+            }),
+            serde_json::json!({ "role": "user", "content": "recent user" }),
+            serde_json::json!({
+                "role": "system",
+                "content": "[Session Memory — 4 earlier messages compacted]\n\nsummary"
+            }),
+        ];
+
+        assert_eq!(projected_compact_boundary_count(&messages), 2);
     }
 }
 

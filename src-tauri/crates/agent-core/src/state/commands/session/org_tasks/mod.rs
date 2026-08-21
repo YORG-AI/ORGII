@@ -24,6 +24,7 @@ mod intervention;
 mod lifecycle;
 mod plan_approval;
 mod run_view;
+mod task_pages;
 
 #[cfg(test)]
 mod tests;
@@ -33,3 +34,4 @@ pub use intervention::*;
 pub use lifecycle::*;
 pub use plan_approval::*;
 pub use run_view::*;
+pub use task_pages::*;

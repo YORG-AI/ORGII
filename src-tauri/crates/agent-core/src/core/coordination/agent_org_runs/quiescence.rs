@@ -395,19 +395,19 @@ pub(super) fn load_and_assess(
 
     let corrupt_task_predicate =
         crate::coordination::agent_org_tasks::corrupt_task_row_predicate_sql();
-    let persisted_task_count: i64 = conn
+    let persisted_open_task_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id=?1",
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks
+             WHERE org_run_id=?1 AND status IN ('pending','in_progress')",
             params![run_id],
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
-    let corruption_projection = if persisted_task_count
-        > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS as i64
+    let corruption_projection = if persisted_open_task_count
+        > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS as i64
     {
-        // A historical board above the supported cap is one run-level
-        // corruption. Do not parse every legacy JSON row merely to enumerate
-        // extra violations.
+        // An over-cap open board is one run-level corruption. Terminal
+        // history remains valid and is intentionally excluded from the cap.
         "1".to_string()
     } else {
         format!("COALESCE(SUM(CASE WHEN {corrupt_task_predicate} THEN 1 ELSE 0 END), 0)")
@@ -417,16 +417,16 @@ pub(super) fn load_and_assess(
     let metadata_max = crate::coordination::agent_org_payload_limits::TASK_METADATA_MAX_BYTES;
     let task_counts_sql = format!(
         "SELECT COUNT(*),
-                COALESCE(SUM(CASE WHEN status <> 'completed' THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN status IN ('pending','in_progress') THEN 1 ELSE 0 END), 0),
                 {corruption_projection},
                 COALESCE(SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN status='in_progress' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END), 0)
          FROM (
              SELECT id, subject, description, active_form, owner, status,
-                    created_at, updated_at,
-                    CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_max}
-                         THEN blocks_json ELSE '!' END AS blocks_json,
+                    execution_mode, output_json, failure_reason_json, cancel_reason_json,
+                    created_by_participant_id, source_turn_intent_id,
+                    originating_message_id, replaces_task_id, created_at, updated_at,
                     CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_max}
                          THEN blocked_by_json ELSE '!' END AS blocked_by_json,
                     CASE WHEN metadata_json IS NULL

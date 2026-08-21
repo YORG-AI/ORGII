@@ -172,11 +172,7 @@ fn revise_canvas_has_its_own_chat_row_labels() {
     assert_ne!(revise.label_running, render.label_running);
 
     for action in revise.actions {
-        for label in [
-            action.label_running,
-            action.label_done,
-            action.label_failed,
-        ] {
+        for label in [action.label_running, action.label_done, action.label_failed] {
             let label = label.expect("revise action label");
             assert!(
                 label.starts_with("tools.reviseInlineCanvas"),

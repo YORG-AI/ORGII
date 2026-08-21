@@ -192,6 +192,105 @@ pub(super) struct RecoveryAttemptSnapshot {
     pub(super) reservation_token: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct TaskRecoveryReservation {
+    pub(crate) token: String,
+    pub(crate) generation: i64,
+    pub(crate) exhausted: bool,
+}
+
+pub(crate) fn task_failure_recovery_attempts_exhausted(attempts: i64) -> bool {
+    attempts > RECOVERY_DELAYS_SECS.len() as i64
+}
+
+/// Reserve the receipt consumed by the Task Store's system actor.  Task state
+/// recovery shares the durable recovery-attempt table but uses its own action
+/// kind, so it cannot impersonate a member-rewake or coordinator notice.
+pub(crate) fn reserve_task_failure_recovery(
+    run_id: &str,
+    owner_member_id: &str,
+) -> Result<TaskRecoveryReservation, String> {
+    reserve_task_system_operation(run_id, "task_failure_recovery", owner_member_id, true)
+}
+
+pub(crate) fn reserve_task_shutdown_release(
+    run_id: &str,
+    owner_member_id: &str,
+) -> Result<TaskRecoveryReservation, String> {
+    reserve_task_system_operation(run_id, "task_shutdown_release", owner_member_id, false)
+}
+
+fn reserve_task_system_operation(
+    run_id: &str,
+    action_kind: &str,
+    target_key: &str,
+    budgeted: bool,
+) -> Result<TaskRecoveryReservation, String> {
+    with_sessions_writer(|| -> Result<TaskRecoveryReservation, String> {
+        let mut conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let generation: i64 = tx
+            .query_row(
+                "SELECT activation_generation FROM agent_org_runtime_runs
+                 WHERE id=?1 AND status='running'",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| format!("agent_org_run_not_mutable: {run_id}"))?;
+        let previous_attempts: i64 = tx
+            .query_row(
+                "SELECT attempts FROM agent_org_runtime_recovery_attempts
+                 WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3",
+                params![run_id, action_kind, target_key],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .unwrap_or(0)
+            .max(0);
+        let attempts = if budgeted {
+            previous_attempts.saturating_add(1)
+        } else {
+            1
+        };
+        let exhausted = budgeted && task_failure_recovery_attempts_exhausted(attempts);
+        let token = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        tx.execute(
+            "INSERT INTO agent_org_runtime_recovery_attempts(
+                org_run_id,action_kind,target_key,reason_fingerprint,attempts,
+                next_allowed_at,updated_at,reservation_token
+             ) VALUES (?1,?2,?3,?4,?5,?6,?6,?7)
+             ON CONFLICT(org_run_id,action_kind,target_key) DO UPDATE SET
+                reason_fingerprint=excluded.reason_fingerprint,
+                attempts=excluded.attempts,
+                next_allowed_at=excluded.next_allowed_at,
+                updated_at=excluded.updated_at,
+                reservation_token=excluded.reservation_token",
+            params![
+                run_id,
+                action_kind,
+                target_key,
+                format!("generation:{generation}"),
+                attempts,
+                &now,
+                &token,
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(TaskRecoveryReservation {
+            token,
+            generation,
+            exhausted,
+        })
+    })
+}
+
 #[cfg(test)]
 pub fn test_only_mark_failed_rewake_attempt(run_id: &str, member_id: &str) -> Result<bool, String> {
     let fingerprint = member_rewake_fingerprint(run_id, member_id, SessionStatus::Failed)?;

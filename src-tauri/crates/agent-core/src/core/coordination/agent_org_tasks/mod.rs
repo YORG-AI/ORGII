@@ -16,13 +16,18 @@ use crate::coordination::agent_org_runs::{
     recovery_dispatch_recipient_is_available, AgentOrgRunStore,
 };
 
+mod actor;
 pub(super) mod graph;
 pub(super) mod helpers;
 mod store;
+pub(crate) use actor::{SystemArchiveOrRecovery, SystemTaskOperation};
+pub use actor::{TaskGraphWriterAdmin, TaskOwnerExecution};
 pub(crate) use graph::validate_dependency_graph;
 pub use graph::TaskGraphIndex;
 pub use store::AgentOrgTaskStore;
 
+#[cfg(test)]
+mod pr4_tests;
 #[cfg(test)]
 mod tests;
 
@@ -30,14 +35,15 @@ pub const TASK_DEPENDENCY_CYCLE_ERROR: &str = "task_dependency_cycle";
 pub const TASK_DEPENDENCY_LIMIT_ERROR: &str = "task_dependency_limit";
 pub const TASK_RUN_TASK_LIMIT_ERROR: &str = "task_run_task_limit";
 pub const TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR: &str = "task_graph_unlisted_open_tasks";
-pub const TASK_COMPLETED_IMMUTABLE_ERROR: &str = "task_completed_immutable";
+pub const TASK_TERMINAL_IMMUTABLE_ERROR: &str = "task_terminal_immutable";
+pub const TASK_COMPLETED_IMMUTABLE_ERROR: &str = TASK_TERMINAL_IMMUTABLE_ERROR;
 pub const TASK_MUTATION_CONFLICT_ERROR: &str = "task_mutation_conflict";
 pub const TASK_DELETE_HAS_DEPENDENTS_ERROR: &str = "task_delete_has_dependents";
 pub const TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR: &str = "task_delete_is_delivery_replacement";
 pub const TASK_METADATA_ELIGIBLE_MEMBER_IDS: &str = "eligible_member_ids";
 pub const TASK_METADATA_REQUIRED_ROLE: &str = "required_role";
-pub const TASK_METADATA_OUTPUT: &str = "output";
-pub const TASK_METADATA_EXECUTION_MODE: &str = "execution_mode";
+pub(crate) const TASK_METADATA_OUTPUT: &str = "output";
+pub(crate) const TASK_METADATA_EXECUTION_MODE: &str = "execution_mode";
 
 /// SQL predicate shared by Quiescence and watchdog repair discovery.
 ///
@@ -51,275 +57,96 @@ pub(crate) fn corrupt_task_row_predicate_sql() -> String {
 
     format!(
         r#"(
-            status NOT IN ('pending','in_progress','completed')
-            OR (status='in_progress' AND owner IS NULL)
-            OR trim(id)=''
-            OR id<>trim(id)
-            OR length(id)>{id_chars}
-            OR length(CAST(id AS BLOB))>{id_bytes}
+            status NOT IN ('pending','in_progress','completed','failed','cancelled')
+            OR execution_mode NOT IN ('build','plan')
+            OR (owner IS NOT NULL AND (trim(owner)='' OR owner<>trim(owner) OR owner='coordinator'))
+            OR (status IN ('in_progress','completed','failed') AND owner IS NULL)
+            OR trim(id)='' OR id<>trim(id)
+            OR length(id)>{id_chars} OR length(CAST(id AS BLOB))>{id_bytes}
             OR trim(subject)=''
-            OR length(subject)>{subject_chars}
-            OR length(CAST(subject AS BLOB))>{subject_bytes}
-            OR length(description)>{description_chars}
-            OR length(CAST(description AS BLOB))>{description_bytes}
+            OR length(subject)>{subject_chars} OR length(CAST(subject AS BLOB))>{subject_bytes}
+            OR length(description)>{description_chars} OR length(CAST(description AS BLOB))>{description_bytes}
             OR (active_form IS NOT NULL AND (
-                length(active_form)>{active_chars}
-                OR length(CAST(active_form AS BLOB))>{active_bytes}
+                length(active_form)>{active_chars} OR length(CAST(active_form AS BLOB))>{active_bytes}
             ))
-            OR (owner IS NOT NULL AND (
-                trim(owner)='' OR owner<>trim(owner) OR length(owner)>{id_chars}
-                OR length(CAST(owner AS BLOB))>{id_bytes}
+            OR trim(created_by_participant_id)=''
+            OR trim(source_turn_intent_id)=''
+            OR datetime(created_at) IS NULL OR datetime(updated_at) IS NULL
+            OR length(CAST(blocked_by_json AS BLOB))>{dependency_json_bytes}
+            OR json_valid(blocked_by_json)=0 OR json_type(blocked_by_json)<>'array'
+            OR EXISTS (SELECT 1 FROM json_each(blocked_by_json)
+                       WHERE type<>'text' OR trim(value)='' OR value<>trim(value))
+            OR (metadata_json IS NOT NULL AND (
+                length(CAST(metadata_json AS BLOB))>{metadata_bytes}
+                OR json_valid(metadata_json)=0 OR json_type(metadata_json)<>'object'
+                OR json_type(metadata_json,'$.output') IS NOT NULL
+                OR json_type(metadata_json,'$.execution_mode') IS NOT NULL
+                OR (json_type(metadata_json,'$.eligible_member_ids') IS NOT NULL
+                    AND json_type(metadata_json,'$.eligible_member_ids')<>'array')
+                OR EXISTS (
+                    SELECT 1 FROM json_each(metadata_json,'$.eligible_member_ids')
+                    WHERE type<>'text' OR trim(value)='' OR value<>trim(value)
+                       OR length(value)>{id_chars} OR length(CAST(value AS BLOB))>{id_bytes}
+                )
+                OR (json_type(metadata_json,'$.required_role') IS NOT NULL
+                    AND (json_type(metadata_json,'$.required_role')<>'text'
+                         OR trim(json_extract(metadata_json,'$.required_role'))=''))
             ))
-            OR length(created_at)>{timestamp_chars}
-            OR length(CAST(created_at AS BLOB))>{timestamp_bytes}
-            OR datetime(created_at) IS NULL
-            OR length(updated_at)>{timestamp_chars}
-            OR length(CAST(updated_at AS BLOB))>{timestamp_bytes}
-            OR datetime(updated_at) IS NULL
-            OR CASE WHEN length(CAST(blocks_json AS BLOB))>{dependency_json_bytes}
-                    THEN 1 ELSE json_valid(blocks_json)=0 END
-            OR CASE WHEN length(CAST(blocked_by_json AS BLOB))>{dependency_json_bytes}
-                    THEN 1 ELSE json_valid(blocked_by_json)=0 END
-            OR (metadata_json IS NOT NULL AND CASE
-                WHEN length(CAST(metadata_json AS BLOB))>{metadata_bytes}
-                THEN 1 ELSE json_valid(metadata_json)=0 END)
-            OR json_type(CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocks_json)=1 THEN blocks_json ELSE '[]' END)<>'array'
-            OR json_type(CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocked_by_json)=1 THEN blocked_by_json ELSE '[]' END)<>'array'
-            OR (metadata_json IS NOT NULL AND json_type(
-                CASE WHEN length(CAST(metadata_json AS BLOB))<={metadata_bytes} AND json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END
-            )<>'object')
-            OR EXISTS (
-                SELECT 1 FROM json_each(
-                    CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocks_json)=1 THEN blocks_json ELSE '[]' END
-                ) WHERE type<>'text' OR trim(value)=''
-                    OR value<>trim(value)
-                    OR length(value)>{id_chars}
-                    OR length(CAST(value AS BLOB))>{id_bytes}
+            OR (output_json IS NOT NULL AND json_valid(output_json)=0)
+            OR (failure_reason_json IS NOT NULL AND json_valid(failure_reason_json)=0)
+            OR (cancel_reason_json IS NOT NULL AND json_valid(cancel_reason_json)=0)
+            OR (output_json IS NOT NULL AND (
+                json_type(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.summary') IS NOT 'text'
+                OR trim(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.summary'))=''
+                OR length(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.summary'))>{output_summary_chars}
+                OR length(CAST(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.summary') AS BLOB))>{output_summary_bytes}
+                OR (json_type(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.content') IS NOT NULL
+                    AND json_type(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.content') NOT IN ('text','null'))
+                OR (json_type(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.content')='text'
+                    AND (length(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.content'))>{output_content_chars}
+                         OR length(CAST(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.content') AS BLOB))>{output_content_bytes}))
+                OR json_type(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.artifactIds') IS NOT 'array'
+                OR json_array_length(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.artifactIds')>{artifact_count}
+                OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.artifactIds')
+                           WHERE type<>'text' OR trim(value)='' OR value<>trim(value)
+                              OR length(value)>{artifact_chars} OR length(CAST(value AS BLOB))>{artifact_bytes})
+                OR (SELECT COALESCE(SUM(length(value)),0) FROM json_each(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.artifactIds'))>{artifact_total_chars}
+                OR (SELECT COALESCE(SUM(length(CAST(value AS BLOB))),0) FROM json_each(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.artifactIds'))>{artifact_total_bytes}
+                OR json_type(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedByMemberId') IS NOT 'text'
+                OR trim(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedByMemberId'))=''
+                OR json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedByMemberId')<>owner
+                OR length(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedByMemberId'))>{id_chars}
+                OR length(CAST(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedByMemberId') AS BLOB))>{id_bytes}
+                OR json_type(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedAt') IS NOT 'text'
+                OR instr(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedAt'),'T')=0
+                OR datetime(json_extract(CASE WHEN json_valid(output_json)=1 THEN output_json ELSE '{{}}' END,'$.producedAt')) IS NULL
+            ))
+            OR (failure_reason_json IS NOT NULL AND (
+                json_type(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.code') IS NOT 'text'
+                OR json_type(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.message') IS NOT 'text'
+                OR trim(json_extract(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.code'))=''
+                OR trim(json_extract(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.message'))=''
+                OR length(json_extract(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.code'))>128
+                OR length(CAST(json_extract(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.code') AS BLOB))>512
+                OR length(json_extract(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.message'))>2000
+                OR length(CAST(json_extract(CASE WHEN json_valid(failure_reason_json)=1 THEN failure_reason_json ELSE '{{}}' END,'$.message') AS BLOB))>8000
+            ))
+            OR (cancel_reason_json IS NOT NULL AND (
+                json_type(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.code') IS NOT 'text'
+                OR json_type(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.message') IS NOT 'text'
+                OR trim(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.code'))=''
+                OR trim(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.message'))=''
+                OR length(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.code'))>128
+                OR length(CAST(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.code') AS BLOB))>512
+                OR length(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.message'))>2000
+                OR length(CAST(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.message') AS BLOB))>8000
+            ))
+            OR NOT (
+                (status IN ('pending','in_progress') AND output_json IS NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NULL)
+                OR (status='completed' AND output_json IS NOT NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NULL)
+                OR (status='failed' AND output_json IS NULL AND failure_reason_json IS NOT NULL AND cancel_reason_json IS NULL)
+                OR (status='cancelled' AND output_json IS NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NOT NULL)
             )
-            OR EXISTS (
-                SELECT 1 FROM json_each(
-                    CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocked_by_json)=1 THEN blocked_by_json ELSE '[]' END
-                ) WHERE type<>'text' OR trim(value)=''
-                    OR value<>trim(value)
-                    OR length(value)>{id_chars}
-                    OR length(CAST(value AS BLOB))>{id_bytes}
-            )
-            OR (SELECT COUNT(*) FROM json_each(
-                CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocks_json)=1 THEN blocks_json ELSE '[]' END
-            ))>{dependency_count}
-            OR (SELECT COUNT(*) FROM json_each(
-                CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocked_by_json)=1 THEN blocked_by_json ELSE '[]' END
-            ))>{dependency_count}
-            OR (SELECT COALESCE(SUM(length(value)),0) FROM json_each(
-                CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocks_json)=1 THEN blocks_json ELSE '[]' END
-            ) WHERE type='text')>{dependency_chars}
-            OR (SELECT COALESCE(SUM(length(value)),0) FROM json_each(
-                CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocked_by_json)=1 THEN blocked_by_json ELSE '[]' END
-            ) WHERE type='text')>{dependency_chars}
-            OR (SELECT COALESCE(SUM(length(CAST(value AS BLOB))),0) FROM json_each(
-                CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocks_json)=1 THEN blocks_json ELSE '[]' END
-            ) WHERE type='text')>{dependency_bytes}
-            OR (SELECT COALESCE(SUM(length(CAST(value AS BLOB))),0) FROM json_each(
-                CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_bytes} AND json_valid(blocked_by_json)=1 THEN blocked_by_json ELSE '[]' END
-            ) WHERE type='text')>{dependency_bytes}
-            OR (json_type(
-                    CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                    '$.eligible_member_ids'
-                ) IS NOT NULL
-                AND json_type(
-                    CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                    '$.eligible_member_ids'
-                )<>'array')
-            OR EXISTS (
-                SELECT 1 FROM json_each(
-                    CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                    '$.eligible_member_ids'
-                ) WHERE type<>'text' OR trim(value)=''
-                    OR value<>trim(value)
-                    OR length(value)>{id_chars}
-                    OR length(CAST(value AS BLOB))>{id_bytes}
-            )
-            OR (SELECT COUNT(*) FROM json_each(
-                CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                '$.eligible_member_ids'
-            ))>{eligibility_count}
-            OR (SELECT COALESCE(SUM(length(value)),0) FROM json_each(
-                CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                '$.eligible_member_ids'
-            ) WHERE type='text')>{eligibility_chars}
-            OR (SELECT COALESCE(SUM(length(CAST(value AS BLOB))),0) FROM json_each(
-                CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                '$.eligible_member_ids'
-            ) WHERE type='text')>{eligibility_bytes}
-            OR (json_type(
-                    CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                    '$.required_role'
-                ) IS NOT NULL
-                AND (json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.required_role'
-                     )<>'text'
-                     OR trim(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.required_role'
-                     ))=''
-                     OR length(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.required_role'
-                     ))>{role_chars}
-                     OR length(CAST(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.required_role'
-                     ) AS BLOB))>{role_bytes}))
-            OR (json_type(
-                    CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                    '$.execution_mode'
-                ) IS NOT NULL
-                AND (json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.execution_mode'
-                     )<>'text'
-                     OR json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.execution_mode'
-                     ) NOT IN ('build','plan')))
-            OR (json_type(
-                    CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                    '$.output'
-                ) IS NOT NULL
-                AND (
-                    json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output'
-                    )<>'object'
-                    OR status<>'completed'
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.summary'
-                    ) IS NULL
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.summary'
-                    )<>'text'
-                    OR trim(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.summary'
-                    ))=''
-                    OR length(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.summary'
-                    ))>{output_summary_chars}
-                    OR length(CAST(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.summary'
-                    ) AS BLOB))>{output_summary_bytes}
-                    OR (json_type(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.content'
-                        ) IS NOT NULL
-                        AND json_type(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.content'
-                        ) NOT IN ('null','text'))
-                    OR length(COALESCE(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.content'
-                    ),''))>{output_content_chars}
-                    OR length(CAST(COALESCE(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.content'
-                    ),'') AS BLOB))>{output_content_bytes}
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.artifactIds'
-                    ) IS NULL
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.artifactIds'
-                    )<>'array'
-                    OR (SELECT COUNT(*) FROM json_each(
-                        CASE WHEN json_type(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        )='array' THEN json_extract(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        ) ELSE '[]' END
-                    ))>{artifact_count}
-                    OR EXISTS (SELECT 1 FROM json_each(
-                        CASE WHEN json_type(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        )='array' THEN json_extract(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        ) ELSE '[]' END
-                    ) WHERE type<>'text' OR trim(value)=''
-                        OR length(value)>{artifact_chars}
-                        OR length(CAST(value AS BLOB))>{artifact_bytes})
-                    OR (SELECT COALESCE(SUM(length(value)),0) FROM json_each(
-                        CASE WHEN json_type(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        )='array' THEN json_extract(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        ) ELSE '[]' END
-                    ) WHERE type='text')>{artifact_total_chars}
-                    OR (SELECT COALESCE(SUM(length(CAST(value AS BLOB))),0) FROM json_each(
-                        CASE WHEN json_type(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        )='array' THEN json_extract(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.artifactIds'
-                        ) ELSE '[]' END
-                    ) WHERE type='text')>{artifact_total_bytes}
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedByMemberId'
-                    ) IS NULL
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedByMemberId'
-                    )<>'text'
-                    OR trim(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedByMemberId'
-                    ))=''
-                    OR length(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedByMemberId'
-                    ))>{id_chars}
-                    OR length(CAST(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedByMemberId'
-                    ) AS BLOB))>{id_bytes}
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedAt'
-                    ) IS NULL
-                    OR json_type(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedAt'
-                    )<>'text'
-                    OR datetime(json_extract(
-                        CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                        '$.output.producedAt'
-                    )) IS NULL
-                    OR (json_extract(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.producedAt'
-                        ) NOT GLOB '*T*Z'
-                        AND json_extract(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.producedAt'
-                        ) NOT GLOB '*T*+??:??'
-                        AND json_extract(
-                            CASE WHEN json_valid(metadata_json)=1 THEN metadata_json ELSE '{{}}' END,
-                            '$.output.producedAt'
-                        ) NOT GLOB '*T*-??:??')
-                ))
         )"#,
         id_chars = limits::TASK_IDENTIFIER_MAX_CHARS,
         id_bytes = limits::TASK_IDENTIFIER_MAX_BYTES,
@@ -331,14 +158,6 @@ pub(crate) fn corrupt_task_row_predicate_sql() -> String {
         active_bytes = limits::TASK_ACTIVE_FORM_MAX_BYTES,
         metadata_bytes = limits::TASK_METADATA_MAX_BYTES,
         dependency_json_bytes = limits::TASK_DEPENDENCY_JSON_MAX_BYTES,
-        dependency_count = limits::TASK_DEPENDENCY_MAX_COUNT,
-        dependency_chars = limits::TASK_DEPENDENCY_TOTAL_MAX_CHARS,
-        dependency_bytes = limits::TASK_DEPENDENCY_TOTAL_MAX_BYTES,
-        eligibility_count = limits::TASK_ELIGIBILITY_MAX_COUNT,
-        eligibility_chars = limits::TASK_ELIGIBILITY_TOTAL_MAX_CHARS,
-        eligibility_bytes = limits::TASK_ELIGIBILITY_TOTAL_MAX_BYTES,
-        role_chars = limits::TASK_REQUIRED_ROLE_MAX_CHARS,
-        role_bytes = limits::TASK_REQUIRED_ROLE_MAX_BYTES,
         output_summary_chars = limits::TASK_OUTPUT_SUMMARY_MAX_CHARS,
         output_summary_bytes = limits::TASK_OUTPUT_SUMMARY_MAX_BYTES,
         output_content_chars = limits::TASK_OUTPUT_CONTENT_MAX_CHARS,
@@ -348,38 +167,21 @@ pub(crate) fn corrupt_task_row_predicate_sql() -> String {
         artifact_bytes = limits::TASK_ARTIFACT_ID_MAX_BYTES,
         artifact_total_chars = limits::TASK_ARTIFACT_IDS_TOTAL_MAX_CHARS,
         artifact_total_bytes = limits::TASK_ARTIFACT_IDS_TOTAL_MAX_BYTES,
-        timestamp_chars = limits::RFC3339_TIMESTAMP_MAX_CHARS,
-        timestamp_bytes = limits::RFC3339_TIMESTAMP_MAX_BYTES,
     )
 }
 
-/// Transaction-time scheduling decision for a single task created through
-/// the Agent Org tool boundary.
-///
-/// The tool may perform an earlier read to return richer guidance, but that
-/// snapshot is advisory only. The store must apply this policy again while it
-/// holds the shared writer lock and an IMMEDIATE SQLite transaction, using
-/// the task graph that is current at the moment of commit.
+/// Transaction-time scheduling decision for a single Task created through
+/// the graph-writer boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TaskCreateSchedulingPolicy {
-    /// The coordinator explicitly confirmed that this task is independent of
-    /// every currently-open task omitted from its dependency closure.
     pub allow_parallel_with_unlisted_open_tasks: bool,
 }
 
-/// Return every task reached by following `blocked_by` links upstream from
-/// `task_ids`, including the starting ids. Scheduling guards share this
-/// helper so single-task creation, atomic graph creation, and the store's
-/// transaction-time recheck agree on what an existing dependency covers.
+/// Return every Task reached by following canonical `blocked_by` edges.
 pub fn task_dependency_closure(task_ids: &[String], tasks: &[Task]) -> HashSet<String> {
     TaskGraphIndex::new(tasks).dependency_closure(task_ids)
 }
 
-/// Execution mode requested by the task assignment itself.
-///
-/// This is deliberately task-scoped: a planning task must start its very
-/// first provider turn in Plan mode, rather than relying on a separate inbox
-/// control message that may only be drained after the mode was selected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskExecutionMode {
@@ -388,7 +190,7 @@ pub enum TaskExecutionMode {
 }
 
 impl TaskExecutionMode {
-    pub fn as_wire(self) -> &'static str {
+    pub const fn as_wire(self) -> &'static str {
         match self {
             Self::Build => "build",
             Self::Plan => "plan",
@@ -396,7 +198,7 @@ impl TaskExecutionMode {
     }
 
     pub fn from_wire(value: &str) -> Result<Self, String> {
-        match value.trim() {
+        match value {
             "build" => Ok(Self::Build),
             "plan" => Ok(Self::Plan),
             other => Err(format!(
@@ -406,14 +208,8 @@ impl TaskExecutionMode {
     }
 }
 
-/// Historical tasks predate the typed field and retain Build semantics.
 pub fn task_execution_mode(task: &Task) -> TaskExecutionMode {
-    task.metadata
-        .as_ref()
-        .and_then(|metadata| metadata.get(TASK_METADATA_EXECUTION_MODE))
-        .and_then(serde_json::Value::as_str)
-        .and_then(|value| TaskExecutionMode::from_wire(value).ok())
-        .unwrap_or(TaskExecutionMode::Build)
+    task.execution_mode
 }
 
 /// Durable, task-scoped result used for cross-session handoff.
@@ -431,11 +227,26 @@ pub struct TaskOutput {
 }
 
 pub fn task_output(task: &Task) -> Option<TaskOutput> {
-    task.metadata
-        .as_ref()
-        .and_then(|metadata| metadata.get(TASK_METADATA_OUTPUT))
-        .cloned()
-        .and_then(|value| serde_json::from_value(value).ok())
+    task.output.clone()
+}
+
+/// Owner-supplied completion payload.  The Store, not the caller, records
+/// who produced it and when.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskOutputInput {
+    pub summary: String,
+    pub content: Option<String>,
+    #[serde(default)]
+    pub artifact_ids: Vec<String>,
+}
+
+/// Bounded machine-readable reason for a failed or cancelled task.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskTerminalReason {
+    pub code: String,
+    pub message: String,
 }
 
 /// A quiet Running owner keeps its task; this age only controls when the
@@ -483,9 +294,9 @@ pub fn ready_unassigned_tasks(tasks: &[Task]) -> Vec<&Task> {
 
 pub(super) const TASK_EVENT_CREATED: &str = "created";
 pub(super) const TASK_EVENT_UPDATED: &str = "updated";
+#[cfg(test)]
 pub(super) const TASK_EVENT_DELETED: &str = "deleted";
 pub(super) const TASK_EVENT_RELEASED: &str = "released";
-pub(super) const TASK_EVENT_ESCALATED_TO_COORDINATOR: &str = "escalated_to_coordinator";
 
 /// Task status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -494,6 +305,8 @@ pub enum TaskStatus {
     Pending,
     InProgress,
     Completed,
+    Failed,
+    Cancelled,
 }
 
 impl TaskStatus {
@@ -502,6 +315,8 @@ impl TaskStatus {
             TaskStatus::Pending => "pending",
             TaskStatus::InProgress => "in_progress",
             TaskStatus::Completed => "completed",
+            TaskStatus::Failed => "failed",
+            TaskStatus::Cancelled => "cancelled",
         }
     }
 
@@ -510,13 +325,22 @@ impl TaskStatus {
             "pending" => Ok(TaskStatus::Pending),
             "in_progress" => Ok(TaskStatus::InProgress),
             "completed" => Ok(TaskStatus::Completed),
+            "failed" => Ok(TaskStatus::Failed),
+            "cancelled" => Ok(TaskStatus::Cancelled),
             other => Err(format!("invalid TaskStatus wire value: {other}")),
         }
     }
 
-    /// `completed` is treated as resolved for dependency and Quiescence checks.
-    pub fn is_resolved(&self) -> bool {
-        matches!(self, TaskStatus::Completed)
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+
+    pub fn is_open(&self) -> bool {
+        matches!(self, Self::Pending | Self::InProgress)
+    }
+
+    pub fn satisfies_dependency(&self) -> bool {
+        matches!(self, Self::Completed)
     }
 }
 
@@ -531,9 +355,17 @@ pub struct Task {
     pub active_form: Option<String>,
     pub owner: Option<String>,
     pub status: TaskStatus,
+    pub execution_mode: TaskExecutionMode,
     pub blocks: Vec<String>,
     pub blocked_by: Vec<String>,
     pub metadata: Option<serde_json::Value>,
+    pub output: Option<TaskOutput>,
+    pub failure_reason: Option<TaskTerminalReason>,
+    pub cancel_reason: Option<TaskTerminalReason>,
+    pub created_by_participant_id: String,
+    pub source_turn_intent_id: String,
+    pub originating_message_id: Option<String>,
+    pub replaces_task_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -556,11 +388,15 @@ pub struct TaskSummary {
     pub blocks_truncated: bool,
     pub blocked_by: Vec<String>,
     pub blocked_by_truncated: bool,
+    pub dependencies_satisfied: bool,
     pub eligible_member_ids: Vec<String>,
     pub eligible_member_ids_truncated: bool,
     pub required_role: Option<String>,
     pub execution_mode: TaskExecutionMode,
     pub output: Option<TaskOutputSummary>,
+    pub failure_reason: Option<TaskTerminalReason>,
+    pub cancel_reason: Option<TaskTerminalReason>,
+    pub replaces_task_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -576,12 +412,44 @@ pub struct TaskOutputSummary {
     pub has_content: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TaskSummaryPage {
     pub tasks: Vec<TaskSummary>,
     pub filtered_total: usize,
     pub has_more: bool,
     pub next_cursor: Option<String>,
+    pub previous_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskPageBucket {
+    Current,
+    History,
+}
+
+impl TaskPageBucket {
+    pub fn accepts(self, status: TaskStatus) -> bool {
+        match self {
+            Self::Current => status.is_open(),
+            Self::History => status.is_terminal(),
+        }
+    }
+
+    pub const fn as_wire(self) -> &'static str {
+        match self {
+            Self::Current => "current",
+            Self::History => "history",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskPageDirection {
+    Forward,
+    Backward,
 }
 
 #[derive(Debug, Clone)]
@@ -606,13 +474,65 @@ pub struct TaskHistoryEvent {
     pub previous_status: Option<TaskStatus>,
     pub next_status: Option<TaskStatus>,
     pub actor_member_id: Option<String>,
+    pub actor_kind: String,
+    pub source_turn_intent_id: Option<String>,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskAnnotationKind {
+    Progress,
+    Evidence,
+    AuditNote,
+}
+
+impl TaskAnnotationKind {
+    pub fn as_wire(self) -> &'static str {
+        match self {
+            Self::Progress => "progress",
+            Self::Evidence => "evidence",
+            Self::AuditNote => "audit_note",
+        }
+    }
+
+    pub fn from_wire(value: &str) -> Result<Self, String> {
+        match value {
+            "progress" => Ok(Self::Progress),
+            "evidence" => Ok(Self::Evidence),
+            "audit_note" => Ok(Self::AuditNote),
+            other => Err(format!("invalid TaskAnnotationKind wire value: {other}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskAnnotation {
+    pub id: String,
+    pub org_run_id: String,
+    pub task_id: String,
+    pub kind: TaskAnnotationKind,
+    pub body: String,
+    pub actor_kind: String,
+    pub actor_participant_id: String,
+    pub source_turn_intent_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskAnnotationPage {
+    pub annotations: Vec<TaskAnnotation>,
+    pub has_more: bool,
+    pub next_cursor: Option<String>,
 }
 
 /// Inputs for creating a task. `id` is caller-supplied so the LLM tool
 /// layer can deterministically generate UUIDs. If you want the store to
 /// mint one, call `new_task_id()` first.
 #[derive(Debug, Clone)]
+#[cfg(test)]
 pub struct CreateTaskParams {
     pub id: String,
     pub org_run_id: String,
@@ -626,11 +546,40 @@ pub struct CreateTaskParams {
     pub metadata: Option<serde_json::Value>,
 }
 
-/// Patch applied by `update`. Every field is `Option`; only `Some(_)`
-/// fields are written. `None` keeps the existing value. To clear a
-/// nullable column (e.g. unassign owner), use the explicit clear-flag
-/// pattern via `UpdateTaskPatch::clear_owner` etc.
+/// Canonical graph-writer request.  Creation is always `pending`; provenance
+/// is injected from the persisted Coordinator turn context inside the Store.
+#[derive(Debug, Clone)]
+pub struct CreatePendingTaskParams {
+    pub id: String,
+    pub org_run_id: String,
+    pub subject: String,
+    pub description: String,
+    pub active_form: Option<String>,
+    pub owner: Option<String>,
+    pub execution_mode: TaskExecutionMode,
+    pub blocked_by: Vec<String>,
+    pub metadata: Option<serde_json::Value>,
+    pub originating_message_id: Option<String>,
+    pub replaces_task_id: Option<String>,
+}
+
+/// Sparse graph-admin patch.  It intentionally contains no lifecycle result
+/// fields, so a graph writer cannot accidentally impersonate an Owner.
 #[derive(Debug, Clone, Default)]
+pub struct PendingTaskGraphPatch {
+    pub subject: Option<String>,
+    pub description: Option<String>,
+    pub active_form: Option<Option<String>>,
+    pub owner: Option<Option<String>>,
+    pub execution_mode: Option<TaskExecutionMode>,
+    pub blocked_by: Option<Vec<String>>,
+    pub metadata: Option<Option<serde_json::Value>>,
+}
+
+/// Test-only compatibility patch for pre-PR4 Store fixtures. Production
+/// code cannot compile this type and must use the typed actor requests.
+#[derive(Debug, Clone, Default)]
+#[cfg(test)]
 pub struct UpdateTaskPatch {
     pub subject: Option<String>,
     pub description: Option<String>,
@@ -653,8 +602,7 @@ pub fn new_task_id() -> String {
 ///   recovery diagnostics.
 /// - `(org_run_id, owner)` -- per-member listings and failure requeue.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
-    create_schema(conn)?;
-    store::normalize_legacy_dependency_rows(conn)
+    create_schema(conn)
 }
 
 pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
@@ -666,18 +614,47 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
             description TEXT NOT NULL DEFAULT '',
             active_form TEXT,
             owner TEXT,
-            status TEXT NOT NULL,
-            blocks_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL CHECK(status IN ('pending','in_progress','completed','failed','cancelled')),
+            execution_mode TEXT NOT NULL CHECK(execution_mode IN ('build','plan')),
             blocked_by_json TEXT NOT NULL DEFAULT '[]',
             metadata_json TEXT,
+            output_json TEXT,
+            failure_reason_json TEXT,
+            cancel_reason_json TEXT,
+            created_by_participant_id TEXT NOT NULL CHECK(trim(created_by_participant_id) <> ''),
+            source_turn_intent_id TEXT NOT NULL CHECK(trim(source_turn_intent_id) <> ''),
+            originating_message_id TEXT,
+            replaces_task_id TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            PRIMARY KEY (org_run_id, id)
+            PRIMARY KEY (org_run_id, id),
+            FOREIGN KEY (org_run_id, replaces_task_id)
+                REFERENCES agent_org_runtime_tasks(org_run_id, id),
+            CHECK(owner IS NULL OR (trim(owner) <> '' AND owner <> 'coordinator')),
+            CHECK(replaces_task_id IS NULL OR replaces_task_id <> id),
+            CHECK(json_valid(blocked_by_json)=1 AND json_type(blocked_by_json)='array'),
+            CHECK(metadata_json IS NULL OR (
+                json_valid(metadata_json)=1 AND json_type(metadata_json)='object'
+                AND json_type(metadata_json,'$.output') IS NULL
+                AND json_type(metadata_json,'$.execution_mode') IS NULL
+            )),
+            CHECK(output_json IS NULL OR (json_valid(output_json)=1 AND json_type(output_json)='object')),
+            CHECK(failure_reason_json IS NULL OR (json_valid(failure_reason_json)=1 AND json_type(failure_reason_json)='object')),
+            CHECK(cancel_reason_json IS NULL OR (json_valid(cancel_reason_json)=1 AND json_type(cancel_reason_json)='object')),
+            CHECK(status NOT IN ('in_progress','completed','failed') OR owner IS NOT NULL),
+            CHECK(
+                (status IN ('pending','in_progress') AND output_json IS NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NULL)
+                OR (status='completed' AND output_json IS NOT NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NULL)
+                OR (status='failed' AND output_json IS NULL AND failure_reason_json IS NOT NULL AND cancel_reason_json IS NULL)
+                OR (status='cancelled' AND output_json IS NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NOT NULL)
+            )
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_status
-            ON agent_org_runtime_tasks(org_run_id, status, owner);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_page
+            ON agent_org_runtime_tasks(org_run_id, status, created_at, id);
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_owner
-            ON agent_org_runtime_tasks(org_run_id, owner);
+            ON agent_org_runtime_tasks(org_run_id, owner, status);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_replacement
+            ON agent_org_runtime_tasks(org_run_id, replaces_task_id);
         CREATE TABLE IF NOT EXISTS agent_org_runtime_task_events (
             id TEXT PRIMARY KEY,
             org_run_id TEXT NOT NULL,
@@ -688,23 +665,30 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
             previous_status TEXT,
             next_status TEXT,
             actor_member_id TEXT,
+            actor_kind TEXT NOT NULL CHECK(actor_kind IN ('graph_writer','owner_execution','system')),
+            source_turn_intent_id TEXT,
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_events_run
             ON agent_org_runtime_task_events(org_run_id, created_at, id);
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_events_task
             ON agent_org_runtime_task_events(org_run_id, task_id, created_at, id);
-        CREATE TABLE IF NOT EXISTS agent_org_runtime_task_schema_migrations (
-            name TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS agent_org_runtime_task_annotations (
+            id TEXT PRIMARY KEY,
             org_run_id TEXT NOT NULL,
-            applied_at TEXT NOT NULL,
-            PRIMARY KEY (name, org_run_id)
-        );",
+            task_id TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK(kind IN ('progress','evidence','audit_note')),
+            body TEXT NOT NULL CHECK(trim(body) <> ''),
+            actor_kind TEXT NOT NULL CHECK(actor_kind IN ('graph_writer','owner_execution','system')),
+            actor_participant_id TEXT NOT NULL CHECK(trim(actor_participant_id) <> ''),
+            source_turn_intent_id TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (org_run_id, task_id)
+                REFERENCES agent_org_runtime_tasks(org_run_id, id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_annotations_page
+            ON agent_org_runtime_task_annotations(org_run_id, task_id, created_at, id);",
     )
-}
-
-pub(crate) fn normalize_runtime_data(conn: &Connection) -> SqliteResult<()> {
-    store::normalize_legacy_dependency_rows(conn)
 }
 
 /// Inbox helper: enqueue a `TaskAssigned` payload into the task owner's

@@ -11,6 +11,9 @@ use crate::foundation::session_bridge::{TurnIntentBridgeSource, TurnIntentBridge
 
 use super::agent_org_runs::{AgentOrgRunStatus, COORDINATOR_MEMBER_ID};
 
+const TASK_WAKE_CANDIDATE_LIMIT: i64 =
+    crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS as i64 + 1;
+
 pub(crate) const TURN_CONTEXT_INVARIANT_PREFIX: &str = "agent_org_turn_context_invalid:";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -354,6 +357,379 @@ pub(crate) fn accept(request: &AgentOrgTurnAdmission) -> Result<AgentOrgTurnCont
     })
 }
 
+/// Admit one background Agent Org wake from canonical durable work.
+///
+/// Coordinator wakes stay Root-scoped. A Member wake is narrower: it may
+/// create a `TaskExecution` Turn only when the oldest supported unread formal
+/// row still points at a dependency-ready pending Task owned by that Member,
+/// or at revision feedback for that Member's still-running planning Task.
+/// The inbox row, Task, session materialization, generation, base Turn and
+/// companion context are inspected and committed under one IMMEDIATE writer
+/// transaction, so a caller cannot turn an arbitrary Member resume into Task
+/// authority.
+pub(crate) fn accept_wake(
+    org_run_id: &str,
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<String>,
+    member_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    database::db::with_sessions_writer(|| {
+        let mut connection = database::db::get_connection().map_err(|error| error.to_string())?;
+        let transaction = connection
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let context = accept_wake_with_connection(
+            &transaction,
+            org_run_id,
+            session_id,
+            turn_intent_id,
+            client_message_id,
+            member_id,
+        )?;
+        transaction.commit().map_err(|error| error.to_string())?;
+        Ok(context)
+    })
+}
+
+fn accept_wake_with_connection(
+    conn: &Connection,
+    org_run_id: &str,
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<String>,
+    member_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    if member_id == COORDINATOR_MEMBER_ID {
+        return accept_with_connection(
+            conn,
+            &AgentOrgTurnAdmission::coordinator(
+                org_run_id,
+                session_id,
+                turn_intent_id,
+                client_message_id,
+                TurnIntentBridgeSource::Resume,
+            ),
+        );
+    }
+
+    let (task_id, activation_generation) =
+        resolve_next_task_wake_binding(conn, org_run_id, session_id, member_id)?;
+    accept_with_connection(
+        conn,
+        &AgentOrgTurnAdmission::task_execution(
+            org_run_id,
+            session_id,
+            turn_intent_id,
+            client_message_id,
+            task_id,
+            member_id,
+            activation_generation,
+        ),
+    )
+}
+
+/// Re-check the persisted authority immediately before a queued Agent Org
+/// Turn is promoted to Running. Admission is intentionally not a lease: Task
+/// cancellation/reassignment, dependency changes, member replacement, or an
+/// activation-generation fence may happen while the scheduler queue waits.
+pub(crate) fn revalidate_context_with_connection(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    let context = require_context_with_connection(conn, session_id, turn_intent_id)?;
+    let run: Option<(Option<String>, Option<String>, i64, String)> = conn
+        .query_row(
+            "SELECT root_session_id, org_snapshot_json, activation_generation, status
+             FROM agent_org_runtime_runs WHERE id=?1",
+            [&context.org_run_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((root_session_id, snapshot_json, generation, status_raw)) = run else {
+        return Err(invariant_error(format!(
+            "run {} disappeared before Turn execution",
+            context.org_run_id
+        )));
+    };
+    let status = AgentOrgRunStatus::parse(&status_raw)
+        .ok_or_else(|| invariant_error(format!("unknown run status {status_raw:?}")))?;
+    if status != AgentOrgRunStatus::Running {
+        return Err(invariant_error(format!(
+            "Turn execution requires a running Team, found {status}"
+        )));
+    }
+    let snapshot_json = snapshot_json.ok_or_else(|| {
+        invariant_error(format!(
+            "run {} has no immutable launch snapshot",
+            context.org_run_id
+        ))
+    })?;
+    let snapshot: AgentOrgLaunchSnapshot = serde_json::from_str(&snapshot_json)
+        .map_err(|error| invariant_error(format!("invalid launch snapshot JSON: {error}")))?;
+    validate_launch_snapshot(&snapshot)
+        .map_err(|error| invariant_error(format!("invalid launch snapshot: {error}")))?;
+
+    match context.turn_kind {
+        AgentOrgTurnKind::Coordinator => {
+            if root_session_id.as_deref() != Some(session_id)
+                || context.participant_id != COORDINATOR_MEMBER_ID
+                || context.activation_generation != Some(generation)
+            {
+                return Err(invariant_error(
+                    "Coordinator Turn no longer matches canonical Root/generation".to_string(),
+                ));
+            }
+            resolve_materialization_version_for_context(
+                conn,
+                &context,
+                COORDINATOR_MEMBER_ID,
+                &snapshot.coordinator_agent_id,
+            )?;
+        }
+        AgentOrgTurnKind::TaskExecution => {
+            let task_id = context.task_id.as_deref().ok_or_else(|| {
+                invariant_error("TaskExecution context has no task_id".to_string())
+            })?;
+            let owner_member_id = context.owner_member_id.as_deref().ok_or_else(|| {
+                invariant_error("TaskExecution context has no owner_member_id".to_string())
+            })?;
+            if context.participant_id != owner_member_id
+                || context.dispatch_member_id.as_deref() != Some(owner_member_id)
+                || context.activation_generation != Some(generation)
+            {
+                return Err(invariant_error(
+                    "TaskExecution context no longer matches participant/generation".to_string(),
+                ));
+            }
+            let agent_id = snapshot_member_agent_id(&snapshot, owner_member_id)?;
+            resolve_materialization_version_for_context(conn, &context, owner_member_id, agent_id)?;
+            validate_task_execution_target(conn, &context.org_run_id, task_id, owner_member_id)?;
+        }
+        AgentOrgTurnKind::UserDirectedWork => {
+            return Err(invariant_error(
+                "UserDirectedWork execution is not enabled in the PR4 formal wake path".to_string(),
+            ));
+        }
+    }
+    Ok(context)
+}
+
+fn resolve_next_task_wake_binding(
+    conn: &Connection,
+    org_run_id: &str,
+    session_id: &str,
+    member_id: &str,
+) -> Result<(String, i64), String> {
+    let generation: Option<i64> = conn
+        .query_row(
+            "SELECT activation_generation FROM agent_org_runtime_runs
+             WHERE id=?1 AND status='running'",
+            [org_run_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let generation = generation.ok_or_else(|| {
+        invariant_error(format!("Member wake requires running Team {org_run_id}"))
+    })?;
+
+    let mut statement = conn
+        .prepare(
+            "SELECT id, payload_kind, payload_json
+             FROM agent_org_runtime_inbox
+             WHERE org_run_id=?1
+               AND recipient_member_id=?2
+               AND read_at IS NULL
+               AND payload_kind IN ('task_assigned','plan_approval_response')
+               AND NOT EXISTS (
+                   SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=agent_org_runtime_inbox.id
+               )
+             ORDER BY id ASC
+             LIMIT ?3",
+        )
+        .map_err(|error| error.to_string())?;
+    let candidates = statement
+        .query_map(
+            params![org_run_id, member_id, TASK_WAKE_CANDIDATE_LIMIT],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    drop(statement);
+
+    if candidates.len() >= TASK_WAKE_CANDIDATE_LIMIT as usize {
+        return Err(invariant_error(format!(
+            "Member {member_id} has too many pending formal wake candidates"
+        )));
+    }
+
+    for (inbox_id, payload_kind, payload_json) in candidates {
+        let message: crate::coordination::agent_inbox::AgentMessage =
+            match serde_json::from_str(&payload_json) {
+                Ok(message) => message,
+                Err(error) => {
+                    tracing::warn!(
+                        run_id = %org_run_id,
+                        member_id,
+                        inbox_id,
+                        error = %error,
+                        "ignoring malformed formal wake candidate"
+                    );
+                    continue;
+                }
+            };
+        if let Err(error) = message.validate() {
+            tracing::warn!(
+                run_id = %org_run_id,
+                member_id,
+                inbox_id,
+                error = %error,
+                "ignoring invalid formal wake candidate"
+            );
+            continue;
+        }
+
+        let task_id = match (payload_kind.as_str(), message) {
+            (
+                "task_assigned",
+                crate::coordination::agent_inbox::AgentMessage::TaskAssigned { task_id, .. },
+            ) if task_is_pending_and_ready(conn, org_run_id, &task_id, member_id)? => task_id,
+            (
+                "plan_approval_response",
+                crate::coordination::agent_inbox::AgentMessage::PlanApprovalResponse {
+                    request_id,
+                    accepted: false,
+                    ..
+                },
+            ) => {
+                let task_id = planning_revision_task(
+                    conn,
+                    org_run_id,
+                    session_id,
+                    member_id,
+                    request_id.as_str(),
+                )?;
+                let Some(task_id) = task_id else {
+                    continue;
+                };
+                task_id
+            }
+            _ => continue,
+        };
+        return Ok((task_id, generation));
+    }
+
+    Err(invariant_error(format!(
+        "Member {member_id} has no canonical ready TaskExecution input"
+    )))
+}
+
+fn task_is_pending_and_ready(
+    conn: &Connection,
+    org_run_id: &str,
+    task_id: &str,
+    member_id: &str,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM agent_org_runtime_tasks task
+             WHERE task.org_run_id=?1 AND task.id=?2
+               AND task.owner=?3 AND task.status='pending'
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM json_each(task.blocked_by_json) edge
+                   LEFT JOIN agent_org_runtime_tasks blocker
+                     ON blocker.org_run_id=task.org_run_id
+                    AND blocker.id=CAST(edge.value AS TEXT)
+                   WHERE edge.type<>'text'
+                      OR blocker.id IS NULL
+                      OR blocker.status<>'completed'
+               )
+         )",
+        params![org_run_id, task_id, member_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn planning_revision_task(
+    conn: &Connection,
+    org_run_id: &str,
+    session_id: &str,
+    member_id: &str,
+    request_id: &str,
+) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT approval.source_task_id
+         FROM agent_org_runtime_plan_approvals approval
+         JOIN agent_org_runtime_tasks task
+           ON task.org_run_id=approval.org_run_id
+          AND task.id=approval.source_task_id
+         JOIN agent_org_runtime_turn_contexts source_context
+           ON source_context.session_id=approval.source_session_id
+          AND source_context.turn_intent_id=approval.source_turn_intent_id
+          AND source_context.org_run_id=approval.org_run_id
+          AND source_context.turn_kind='task_execution'
+          AND source_context.task_id=approval.source_task_id
+          AND source_context.owner_member_id=approval.source_member_id
+         WHERE approval.org_run_id=?1
+           AND approval.request_id=?2
+           AND approval.status='changes_requested'
+           AND approval.source_member_id=?3
+           AND approval.source_session_id=?4
+           AND task.owner=?3
+           AND task.status='in_progress'
+           AND task.execution_mode='plan'
+         LIMIT 1",
+        params![org_run_id, request_id, member_id, session_id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|error| error.to_string())
+}
+
+fn validate_task_execution_target(
+    conn: &Connection,
+    org_run_id: &str,
+    task_id: &str,
+    owner_member_id: &str,
+) -> Result<(), String> {
+    let target: Option<String> = conn
+        .query_row(
+            "SELECT status FROM agent_org_runtime_tasks
+             WHERE org_run_id=?1 AND id=?2 AND owner=?3",
+            params![org_run_id, task_id, owner_member_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    match target.as_deref() {
+        Some("pending")
+            if task_is_pending_and_ready(conn, org_run_id, task_id, owner_member_id)? =>
+        {
+            Ok(())
+        }
+        Some("in_progress") => Ok(()),
+        Some(status) => Err(invariant_error(format!(
+            "TaskExecution target {task_id} is not runnable (status {status})"
+        ))),
+        None => Err(invariant_error(format!(
+            "TaskExecution target {task_id} is missing or no longer owned by {owner_member_id}"
+        ))),
+    }
+}
+
 /// Connection-scoped admission for lifecycle owners that already hold an
 /// IMMEDIATE transaction (notably Starting completion).
 pub(crate) fn accept_with_connection(
@@ -689,6 +1065,51 @@ fn resolve_materialization_version(
         invariant_error(format!(
             "session {} is not the latest canonical materialization for {}/{}",
             request.session_id, request.org_run_id, member_id
+        ))
+    })
+}
+
+fn resolve_materialization_version_for_context(
+    conn: &Connection,
+    context: &AgentOrgTurnContext,
+    member_id: &str,
+    agent_id: &str,
+) -> Result<i64, String> {
+    let version: Option<i64> = conn
+        .query_row(
+            "SELECT materialization.generation
+             FROM agent_org_runtime_member_materializations materialization
+             JOIN agent_sessions session
+               ON session.session_id=materialization.session_id
+             WHERE materialization.org_run_id=?1
+               AND materialization.member_id=?2
+               AND materialization.agent_id=?3
+               AND materialization.session_id=?4
+               AND materialization.status='succeeded'
+               AND session.agent_definition_id=?3
+               AND session.org_member_id=?2
+               AND materialization.generation=(
+                   SELECT MAX(latest.generation)
+                   FROM agent_org_runtime_member_materializations latest
+                   WHERE latest.org_run_id=?1
+                     AND latest.member_id=?2
+                     AND latest.status='succeeded'
+               )
+             LIMIT 1",
+            params![
+                &context.org_run_id,
+                member_id,
+                agent_id,
+                &context.session_id,
+            ],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    version.ok_or_else(|| {
+        invariant_error(format!(
+            "session {} is not the latest canonical materialization for {}/{}",
+            context.session_id, context.org_run_id, member_id
         ))
     })
 }

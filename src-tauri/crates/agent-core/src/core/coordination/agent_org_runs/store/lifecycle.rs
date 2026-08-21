@@ -77,10 +77,10 @@ impl AgentOrgRunStore {
     }
 
     /// Apply the normal failed-member task disposition after crash recovery
-    /// has converted stranded Running sessions to Abandoned. Tasks with an
-    /// eligible peer return to the pool; sole-member work stays owned and
-    /// pending for an explicit retry. The Team remains Running and is then
-    /// reconciled from its Quiescence facts.
+    /// has converted stranded Running sessions to Abandoned. Every still
+    /// in-progress Task returns to ownerless pending with its candidate roster
+    /// preserved. No peer or Coordinator is auto-promoted. The Team remains
+    /// Running and is then reconciled from Quiescence facts.
     pub fn requeue_abandoned_member_tasks_on_startup() -> Result<usize, String> {
         let mut changed = 0usize;
         for run in Self::list_running_runs(100)? {
@@ -91,8 +91,22 @@ impl AgentOrgRunStore {
                 let Some(member_id) = worker.member_id.as_deref() else {
                     continue;
                 };
+                let reservation =
+                    crate::coordination::agent_org_watchdog::reserve_task_failure_recovery(
+                        &run.id, member_id,
+                    )?;
+                let operation = if reservation.exhausted {
+                    crate::coordination::agent_org_tasks::SystemTaskOperation::RecoveryFail
+                } else {
+                    crate::coordination::agent_org_tasks::SystemTaskOperation::RecoveryRequeue
+                };
+                let actor = crate::coordination::agent_org_tasks::SystemArchiveOrRecovery::new(
+                    reservation.token,
+                    reservation.generation,
+                    operation,
+                )?;
                 changed +=
-                    AgentOrgTaskStore::requeue_in_progress_for_owner(&run.id, member_id)?.len();
+                    AgentOrgTaskStore::recover_owner_failure(actor, &run.id, member_id)?.len();
             }
         }
         Ok(changed)

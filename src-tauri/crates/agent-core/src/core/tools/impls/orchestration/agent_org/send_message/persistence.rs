@@ -74,7 +74,7 @@ fn plain_work_context_guidance(
     let task = all_tasks.iter().find(|task| task.id == related_task_id);
     let invalid_reason = match task {
         None => Some("related_task_not_found"),
-        Some(task) if task.status.is_resolved() => Some("related_task_already_completed"),
+        Some(task) if task.status.is_terminal() => Some("related_task_already_terminal"),
         Some(task) if !task_dependencies_resolved(all_tasks, task) => {
             Some("related_task_dependencies_unresolved")
         }

@@ -124,9 +124,17 @@ fn seed_run_owned_rows(run_id: &str) {
     )
     .expect("seed run inbox history");
     conn.execute(
-        "INSERT INTO agent_org_runtime_tasks (
-             id, org_run_id, subject, status, created_at, updated_at
-         ) VALUES (?1, ?2, 'delete me', 'completed', ?3, ?3)",
+        r#"INSERT INTO agent_org_runtime_tasks (
+             id, org_run_id, subject, description, owner, status,
+             execution_mode, blocked_by_json, output_json,
+             created_by_participant_id, source_turn_intent_id,
+             created_at, updated_at
+         ) VALUES (
+             ?1, ?2, 'delete me', '', 'worker', 'completed',
+             'build', '[]',
+             '{"summary":"delete me","content":null,"artifactIds":[],"producedByMemberId":"worker","producedAt":"2026-07-16T00:00:00Z"}',
+             'coordinator', 'delete-test-fixture', ?3, ?3
+         )"#,
         rusqlite::params![format!("task-{run_id}"), run_id, "2026-07-16T00:00:00Z"],
     )
     .expect("seed run task history");

@@ -1,12 +1,19 @@
-import React, { memo, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   AGENT_ORG_TASK_STATUS,
   type AgentOrgTask,
+  type AgentOrgTaskAnnotationPage,
   type AgentOrgTaskStatus,
+  agentOrgTaskStatusSatisfiesDependency,
+  getAgentOrgTaskAnnotationPage,
+  getAgentOrgTaskDetail,
+  isAgentOrgTaskTerminalStatus,
 } from "@src/api/tauri/agent";
 import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
   BubbleChatIcon,
   ChevronsDownUpIcon,
   HugeiconsIcon,
@@ -43,7 +50,11 @@ function TaskStatusChip({
   blocked: boolean;
   label: string;
 }) {
-  if (blocked && status !== AGENT_ORG_TASK_STATUS.COMPLETED) {
+  if (
+    blocked &&
+    (status === AGENT_ORG_TASK_STATUS.PENDING ||
+      status === AGENT_ORG_TASK_STATUS.IN_PROGRESS)
+  ) {
     return (
       <span
         className={`${TASK_STATUS_CHIP_BASE} bg-warning-6/10 text-warning-6`}
@@ -76,6 +87,28 @@ function TaskStatusChip({
     );
   }
 
+  if (status === AGENT_ORG_TASK_STATUS.FAILED) {
+    return (
+      <span
+        className={`${TASK_STATUS_CHIP_BASE} bg-error-6/10 text-error-6`}
+        data-testid="agent-org-task-status-chip"
+      >
+        {label}
+      </span>
+    );
+  }
+
+  if (status === AGENT_ORG_TASK_STATUS.CANCELLED) {
+    return (
+      <span
+        className={`${TASK_STATUS_CHIP_BASE} bg-text-3/10 text-text-3`}
+        data-testid="agent-org-task-status-chip"
+      >
+        {label}
+      </span>
+    );
+  }
+
   return (
     <span
       className={`${TASK_STATUS_CHIP_BASE} bg-fill-3 text-text-3`}
@@ -90,7 +123,11 @@ function getTaskStatusLabelKey(
   status: AgentOrgTaskStatus,
   blocked: boolean
 ): string {
-  if (blocked && status !== AGENT_ORG_TASK_STATUS.COMPLETED) {
+  if (
+    blocked &&
+    (status === AGENT_ORG_TASK_STATUS.PENDING ||
+      status === AGENT_ORG_TASK_STATUS.IN_PROGRESS)
+  ) {
     return "planner.agentOrgTasks.statusBlocked";
   }
   if (status === AGENT_ORG_TASK_STATUS.COMPLETED) {
@@ -98,6 +135,12 @@ function getTaskStatusLabelKey(
   }
   if (status === AGENT_ORG_TASK_STATUS.IN_PROGRESS) {
     return "planner.agentOrgTasks.statusInProgress";
+  }
+  if (status === AGENT_ORG_TASK_STATUS.FAILED) {
+    return "planner.agentOrgTasks.statusFailed";
+  }
+  if (status === AGENT_ORG_TASK_STATUS.CANCELLED) {
+    return "planner.agentOrgTasks.statusCancelled";
   }
   return "planner.agentOrgTasks.statusPending";
 }
@@ -120,7 +163,7 @@ function ownerRuntimeClass(status: string): string {
     return "bg-warning-6";
   }
   if (FAILURE_SESSION_STATUSES.has(status)) return "bg-error-6";
-  if (status === AGENT_SESSION_STATUS.COMPLETED) return "bg-green-600";
+  if (status === AGENT_SESSION_STATUS.COMPLETED) return "bg-success-6";
   return "bg-text-3/50";
 }
 
@@ -128,10 +171,28 @@ function isTaskBlocked(
   task: AgentOrgTask,
   tasksById: Map<string, AgentOrgTask>
 ) {
+  if (task.dependenciesSatisfied !== undefined) {
+    return !task.dependenciesSatisfied;
+  }
   return task.blockedBy.some((taskId) => {
     const blocker = tasksById.get(taskId);
-    return blocker?.status !== AGENT_ORG_TASK_STATUS.COMPLETED;
+    return (
+      blocker === undefined ||
+      !agentOrgTaskStatusSatisfiesDependency(blocker.status)
+    );
   });
+}
+
+function retainVisibleRecords<T>(
+  records: Record<string, T>,
+  visibleTaskIds: Set<string>
+): Record<string, T> {
+  const entries = Object.entries(records).filter(([taskId]) =>
+    visibleTaskIds.has(taskId)
+  );
+  return entries.length === Object.keys(records).length
+    ? records
+    : Object.fromEntries(entries);
 }
 
 function AgentOrgTaskSubject({
@@ -159,7 +220,7 @@ function AgentOrgTaskSubject({
   return (
     <button
       type="button"
-      className={`chat-block-title flex min-w-0 flex-1 items-start gap-1 text-left text-sm leading-5 text-text-1 ${done ? "text-text-3! line-through" : ""}`}
+      className={`chat-block-title flex min-w-0 flex-1 items-start gap-1 text-left text-sm leading-5 text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none ${done ? "text-text-3! line-through" : ""}`}
       title={task.description || task.subject}
       aria-expanded={expanded}
       onClick={() => setExpanded((value) => !value)}
@@ -200,11 +261,196 @@ interface AgentOrgTaskListProps {
   rowTestId: string;
   className?: string;
   currentSessionId?: string;
+  currentRunId?: string;
 }
 
 export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
-  ({ tasks, listTestId, rowTestId, className = "px-1 pb-1" }) => {
+  ({
+    tasks,
+    listTestId,
+    rowTestId,
+    className = "px-1 pb-1",
+    currentSessionId,
+    currentRunId,
+  }) => {
     const { t } = useTranslation("sessions");
+    const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+    const [details, setDetails] = useState<Record<string, AgentOrgTask>>({});
+    const [annotationPages, setAnnotationPages] = useState<
+      Record<string, AgentOrgTaskAnnotationPage>
+    >({});
+    const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
+    const [annotationLoadingTaskId, setAnnotationLoadingTaskId] = useState<
+      string | null
+    >(null);
+    const [detailErrorTaskId, setDetailErrorTaskId] = useState<string | null>(
+      null
+    );
+    const detailRequestIdRef = useRef(0);
+    const currentSessionIdRef = useRef(currentSessionId);
+    const currentRunIdRef = useRef(currentRunId);
+    const visibleTaskIdsRef = useRef(new Set(tasks.map((task) => task.id)));
+    currentSessionIdRef.current = currentSessionId;
+    currentRunIdRef.current = currentRunId;
+    visibleTaskIdsRef.current = new Set(tasks.map((task) => task.id));
+
+    useEffect(() => {
+      detailRequestIdRef.current += 1;
+      setExpandedTaskId(null);
+      setDetails({});
+      setAnnotationPages({});
+      setLoadingTaskId(null);
+      setAnnotationLoadingTaskId(null);
+      setDetailErrorTaskId(null);
+    }, [currentRunId, currentSessionId]);
+
+    useEffect(() => {
+      const visibleTaskIds = new Set(tasks.map((task) => task.id));
+      setDetails((previous) => retainVisibleRecords(previous, visibleTaskIds));
+      setAnnotationPages((previous) =>
+        retainVisibleRecords(previous, visibleTaskIds)
+      );
+      if (expandedTaskId && !visibleTaskIds.has(expandedTaskId)) {
+        detailRequestIdRef.current += 1;
+        setExpandedTaskId(null);
+        setLoadingTaskId(null);
+        setAnnotationLoadingTaskId(null);
+        setDetailErrorTaskId(null);
+      }
+    }, [expandedTaskId, tasks]);
+
+    const toggleDetail = useCallback(
+      async (task: AgentOrgTask) => {
+        if (expandedTaskId === task.id) {
+          detailRequestIdRef.current += 1;
+          setExpandedTaskId(null);
+          setLoadingTaskId(null);
+          setAnnotationLoadingTaskId(null);
+          return;
+        }
+        setExpandedTaskId(task.id);
+        if (!currentSessionId || details[task.id]) return;
+        const sessionId = currentSessionId;
+        const runId = currentRunId;
+        const requestId = ++detailRequestIdRef.current;
+        setLoadingTaskId(task.id);
+        setDetailErrorTaskId(null);
+        try {
+          const [detail, annotationPage] = await Promise.all([
+            getAgentOrgTaskDetail({
+              sessionId,
+              taskId: task.id,
+            }),
+            getAgentOrgTaskAnnotationPage({
+              sessionId,
+              taskId: task.id,
+            }),
+          ]);
+          if (
+            detailRequestIdRef.current !== requestId ||
+            currentSessionIdRef.current !== sessionId ||
+            currentRunIdRef.current !== runId ||
+            !visibleTaskIdsRef.current.has(task.id)
+          ) {
+            return;
+          }
+          setDetails((previous) => ({ ...previous, [task.id]: detail }));
+          setAnnotationPages((previous) => ({
+            ...previous,
+            [task.id]: annotationPage,
+          }));
+        } catch {
+          if (
+            detailRequestIdRef.current === requestId &&
+            currentSessionIdRef.current === sessionId &&
+            currentRunIdRef.current === runId &&
+            visibleTaskIdsRef.current.has(task.id)
+          ) {
+            setDetailErrorTaskId(task.id);
+          }
+        } finally {
+          if (
+            detailRequestIdRef.current === requestId &&
+            currentSessionIdRef.current === sessionId &&
+            currentRunIdRef.current === runId &&
+            visibleTaskIdsRef.current.has(task.id)
+          ) {
+            setLoadingTaskId(null);
+          }
+        }
+      },
+      [currentRunId, currentSessionId, details, expandedTaskId]
+    );
+
+    const loadMoreAnnotations = useCallback(
+      async (taskId: string) => {
+        const annotationPage = annotationPages[taskId];
+        if (
+          !currentSessionId ||
+          !annotationPage?.hasMore ||
+          !annotationPage.nextCursor
+        ) {
+          return;
+        }
+        const sessionId = currentSessionId;
+        const runId = currentRunId;
+        const requestId = ++detailRequestIdRef.current;
+        setAnnotationLoadingTaskId(taskId);
+        try {
+          const nextPage = await getAgentOrgTaskAnnotationPage({
+            sessionId,
+            taskId,
+            cursor: annotationPage.nextCursor,
+          });
+          if (
+            detailRequestIdRef.current !== requestId ||
+            currentSessionIdRef.current !== sessionId ||
+            currentRunIdRef.current !== runId ||
+            !visibleTaskIdsRef.current.has(taskId)
+          ) {
+            return;
+          }
+          setAnnotationPages((previous) => {
+            const currentPage = previous[taskId];
+            if (!currentPage) return previous;
+            const seen = new Set(
+              currentPage.annotations.map((annotation) => annotation.id)
+            );
+            return {
+              ...previous,
+              [taskId]: {
+                ...nextPage,
+                annotations: [
+                  ...currentPage.annotations,
+                  ...nextPage.annotations.filter(
+                    (annotation) => !seen.has(annotation.id)
+                  ),
+                ],
+              },
+            };
+          });
+        } catch {
+          if (
+            detailRequestIdRef.current === requestId &&
+            currentSessionIdRef.current === sessionId &&
+            currentRunIdRef.current === runId &&
+            visibleTaskIdsRef.current.has(taskId)
+          ) {
+            setDetailErrorTaskId(taskId);
+          }
+        } finally {
+          if (
+            detailRequestIdRef.current === requestId &&
+            currentSessionIdRef.current === sessionId &&
+            currentRunIdRef.current === runId &&
+            visibleTaskIdsRef.current.has(taskId)
+          ) {
+            setAnnotationLoadingTaskId(null);
+          }
+        }
+      },
+      [annotationPages, currentRunId, currentSessionId]
+    );
 
     const tasksById = new Map(tasks.map((task) => [task.id, task]));
 
@@ -213,6 +459,7 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
         {tasks.map((task) => {
           const blocked = isTaskBlocked(task, tasksById);
           const done = task.status === AGENT_ORG_TASK_STATUS.COMPLETED;
+          const terminal = isAgentOrgTaskTerminalStatus(task.status);
           const statusLabel = t(getTaskStatusLabelKey(task.status, blocked));
           const owner = formatOwner(task);
           const ownerRuntime = task.ownerRuntime;
@@ -302,6 +549,108 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                   )}
                 </div>
               </div>
+              {terminal && currentSessionId && (
+                <button
+                  type="button"
+                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-text-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+                  aria-expanded={expandedTaskId === task.id}
+                  onClick={() => void toggleDetail(task)}
+                  data-testid="agent-org-task-detail-toggle"
+                >
+                  <HugeiconsIcon
+                    icon={
+                      expandedTaskId === task.id
+                        ? ArrowDown01Icon
+                        : ArrowRight01Icon
+                    }
+                    data-icon={
+                      expandedTaskId === task.id
+                        ? "chevron-down"
+                        : "chevron-right"
+                    }
+                    size={11}
+                    strokeWidth={2}
+                  />
+                  {t("planner.agentOrgTasks.details")}
+                </button>
+              )}
+              {expandedTaskId === task.id && terminal && (
+                <div
+                  className="mt-2 space-y-2 rounded-md bg-bg-2 p-2 text-[11px] text-text-2"
+                  data-testid="agent-org-task-detail"
+                  role="region"
+                  aria-label={`${task.subject} · ${t("planner.agentOrgTasks.details")}`}
+                >
+                  {loadingTaskId === task.id && (
+                    <div role="status">
+                      {t("planner.agentOrgTasks.loadingDetails")}
+                    </div>
+                  )}
+                  {detailErrorTaskId === task.id && (
+                    <div className="text-error-6" role="alert">
+                      {t("planner.agentOrgTasks.detailLoadFailed")}
+                    </div>
+                  )}
+                  {(details[task.id]?.output ?? task.outputSummary) && (
+                    <div className="whitespace-pre-wrap break-words">
+                      <div className="font-medium text-text-1">
+                        {t("planner.agentOrgTasks.output")}
+                      </div>
+                      {details[task.id]?.output?.summary ??
+                        task.outputSummary?.summary}
+                      {details[task.id]?.output?.content && (
+                        <div className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
+                          {details[task.id].output?.content}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(details[task.id]?.failureReason ?? task.failureReason) && (
+                    <div className="text-error-6 whitespace-pre-wrap break-words">
+                      {
+                        (details[task.id]?.failureReason ?? task.failureReason)
+                          ?.message
+                      }
+                    </div>
+                  )}
+                  {(details[task.id]?.cancelReason ?? task.cancelReason) && (
+                    <div className="whitespace-pre-wrap break-words">
+                      {
+                        (details[task.id]?.cancelReason ?? task.cancelReason)
+                          ?.message
+                      }
+                    </div>
+                  )}
+                  {(annotationPages[task.id]?.annotations.length ?? 0) > 0 && (
+                    <div className="space-y-1">
+                      <div className="font-medium text-text-1">
+                        {t("planner.agentOrgTasks.annotations")}
+                      </div>
+                      {annotationPages[task.id].annotations.map(
+                        (annotation) => (
+                          <div key={annotation.id} className="break-words">
+                            <span className="mr-1 text-text-3">
+                              {annotation.kind.replace("_", " ")}
+                            </span>
+                            {annotation.body}
+                          </div>
+                        )
+                      )}
+                      {annotationPages[task.id].hasMore && (
+                        <button
+                          type="button"
+                          className="text-primary-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 disabled:opacity-40"
+                          disabled={annotationLoadingTaskId === task.id}
+                          onClick={() => void loadMoreAnnotations(task.id)}
+                          data-testid="agent-org-task-annotations-load-more"
+                        >
+                          {t("planner.agentOrgTasks.loadMoreAnnotations")}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

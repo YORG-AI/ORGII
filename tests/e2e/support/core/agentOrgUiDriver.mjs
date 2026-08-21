@@ -62,6 +62,8 @@ export const AGENT_ORG_TASK_STATUS = {
   PENDING: "pending",
   IN_PROGRESS: "in_progress",
   COMPLETED: "completed",
+  FAILED: "failed",
+  CANCELLED: "cancelled",
 };
 const AGENT_SESSION_ACTIVE_STATUSES = new Set([
   "running",
@@ -306,7 +308,9 @@ export const js = {
 };
 
 export async function waitForApp() {
-  await waitForFrontendReady();
+  if (!process.env.E2E_APP_BINARY) {
+    await waitForFrontendReady();
+  }
   await browser.setTimeout({ script: 10_000 });
   await browser.waitUntil(
     async () => {
@@ -345,6 +349,7 @@ export async function waitForApp() {
             && window.__e2e.getActiveSessionId
             && window.__e2e.getSessionAggregateRow
             && window.__e2e.promptDump
+            && window.__e2e.debugAgentOrgEnableRedesign
             && window.__e2e.agentOrgSessionRunView
             && window.__e2e.agentOrgSessionInterventionState
             && window.__e2e.agentOrgSendGroupChatMessage
@@ -359,6 +364,10 @@ export async function waitForApp() {
       timeout: 30_000,
       timeoutMsg: "required __e2e helpers never exposed",
     }
+  );
+  unwrap(
+    await invokeE2E("debugAgentOrgEnableRedesign"),
+    "enable Agent Org redesign in WebDriver artifact"
   );
   let shellState = null;
   await browser.waitUntil(
@@ -525,6 +534,10 @@ export async function configureCreatorForAgentOrg({
 }) {
   await navigateToWorkstationCode("before configure creator");
   unwrap(await invokeE2E("resetToNewSession"), "resetToNewSession");
+  unwrap(
+    await invokeE2E("debugAgentOrgEnableRedesign"),
+    "re-enable Agent Org redesign after creator reset"
+  );
   unwrap(
     await invokeE2E("setAgentOrgMemberDraftConfig", {}, agentOrgId),
     "clear agent org member draft config"
@@ -1097,54 +1110,102 @@ export async function selectRenderedOrgMemberAgentDefinition({
 
 export async function sendRenderedChatPrompt(prompt) {
   const inputSelector = '[data-testid="chat-input"] [contenteditable="true"]';
+  const marker = prompt.match(/([A-Z0-9_]+_[a-zA-Z0-9_]+_\d+)/)?.[1] ?? prompt;
   console.log("[agent-org-send] waiting for chat input");
   await browser.waitUntil(async () => execJS(js.exists(inputSelector)), {
     timeout: MOUNT_TIMEOUT_MS,
     timeoutMsg: `chat input (${inputSelector}) never mounted`,
   });
-  console.log("[agent-org-send] chat input mounted, typing");
-  const typeResult = await execJS(js.type(inputSelector, prompt));
-  if (typeResult !== "typed") {
-    throw new Error(`chat input did not accept typed prompt: ${typeResult}`);
-  }
-  await browser.pause(300);
-  const editorText = await execJS(js.editorText(inputSelector));
-  if (!String(editorText ?? "").includes(prompt)) {
-    throw new Error(`chat input text mismatch: ${editorText}`);
-  }
-  console.log("[agent-org-send] typed, waiting for send button");
-  await browser.waitUntil(
-    async () => {
-      const sendState = await execJS(js.sendState);
-      return sendState?.state === "submit" && !sendState.disabled;
-    },
-    {
-      timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: `chat-send-button never became ready: ${JSON.stringify(await execJS(js.sendState))}`,
-    }
-  );
-  console.log("[agent-org-send] send button ready, clicking");
-  const clickResult = await execJS(`
-    const visibleInputShells = Array.from(document.querySelectorAll('[data-testid="chat-input"]')).filter((inputShell) => {
-      const rect = inputShell.getBoundingClientRect();
-      const style = window.getComputedStyle(inputShell);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-    });
-    const activeInputShell = visibleInputShells[visibleInputShells.length - 1] ?? null;
-    const button = activeInputShell?.querySelector('[data-testid="chat-send-button"]') ?? null;
-    if (!button) return "missing";
-    if (button.disabled) return "disabled";
-    button.scrollIntoView({ block: "center", inline: "center" });
-    button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
-    button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0 }));
-    button.click();
-    return "clicked";
-  `);
-  if (clickResult !== "clicked") {
-    throw new Error(
-      `chat-send-button did not click: ${clickResult} ${JSON.stringify(await execJS(js.sendState))}`
+  console.log("[agent-org-send] chat input mounted, stabilizing draft");
+  let typeResult = null;
+  let editorText = null;
+  let sendState = null;
+  let clickResult = null;
+  let acceptedState = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    acceptedState = unwrap(
+      await invokeE2E("inspectChatState"),
+      `inspectChatState(rendered-send-${attempt}-before)`
     );
+    if (JSON.stringify(acceptedState).includes(marker)) return;
+
+    try {
+      await browser.waitUntil(
+        async () => {
+          editorText = await execJS(js.editorText(inputSelector));
+          if (!String(editorText ?? "").includes(prompt)) {
+            typeResult = await execJS(js.type(inputSelector, prompt));
+            if (typeResult !== "typed") {
+              throw new Error(
+                `chat input did not accept prompt: ${typeResult}`
+              );
+            }
+            return false;
+          }
+
+          sendState = await execJS(js.sendState);
+          if (sendState?.state !== "submit" || sendState.disabled) return false;
+
+          clickResult = await execJS(`
+            const isVisible = (node) => {
+              const rect = node.getBoundingClientRect();
+              const style = window.getComputedStyle(node);
+              return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+            };
+            const visibleInputShells = Array.from(document.querySelectorAll('[data-testid="chat-input"]')).filter(isVisible);
+            const activeInputShell = visibleInputShells[visibleInputShells.length - 1] ?? null;
+            const editor = activeInputShell?.querySelector('[contenteditable="true"]') ?? null;
+            const button = activeInputShell?.querySelector('[data-testid="chat-send-button"]') ?? null;
+            if (!editor || !(editor.textContent || "").includes(${JSON.stringify(prompt)})) {
+              return "draft-lost:" + (editor?.textContent || "").slice(0, 120);
+            }
+            if (!button) return "missing";
+            if (button.disabled) return "disabled";
+            button.scrollIntoView({ block: "center", inline: "center" });
+            button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+            button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0 }));
+            button.click();
+            return "clicked";
+          `);
+          return clickResult === "clicked";
+        },
+        {
+          timeout: RENDER_TIMEOUT_MS,
+          interval: 100,
+          timeoutMsg:
+            "active chat editor never retained the prompt through submit",
+        }
+      );
+    } catch (error) {
+      throw new Error(
+        `chat prompt submit failed: editor=${JSON.stringify(String(editorText ?? "").slice(0, 120))} type=${typeResult} send=${JSON.stringify(sendState)} click=${clickResult} cause=${String(error?.message ?? error)}`
+      );
+    }
+
+    try {
+      await browser.waitUntil(
+        async () => {
+          acceptedState = unwrap(
+            await invokeE2E("inspectChatState"),
+            `inspectChatState(rendered-send-${attempt}-acceptance)`
+          );
+          return JSON.stringify(acceptedState).includes(marker);
+        },
+        {
+          timeout: 5_000,
+          interval: 250,
+          timeoutMsg: `rendered send did not create authoritative message ${marker}`,
+        }
+      );
+      console.log("[agent-org-send] authoritative message accepted");
+      return;
+    } catch (_error) {
+      if (attempt === 2) break;
+    }
   }
+  throw new Error(
+    `rendered send never created authoritative message ${marker}; editor=${JSON.stringify(String(editorText ?? "").slice(0, 120))} type=${typeResult} send=${JSON.stringify(sendState)} click=${clickResult} state=${JSON.stringify(acceptedState).slice(0, 1200)}`
+  );
 }
 
 export async function waitForRenderedGroupChatActive(label) {

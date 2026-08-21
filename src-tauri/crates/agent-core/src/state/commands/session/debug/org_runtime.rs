@@ -94,6 +94,14 @@ pub struct SessionOrgRuntimeSnapshot {
     pub has_pre_plan_mode: bool,
 }
 
+/// Test configuration only: mutation tools still pass through their real
+/// provider -> dispatcher -> CallContext -> Store path after this rollout
+/// gate is opened. The callee rejects ordinary non-WebDriver binaries.
+#[tauri::command]
+pub async fn debug_agent_org_enable_redesign() -> Result<(), String> {
+    crate::coordination::agent_org_runs::enable_agent_org_for_webdriver_test()
+}
+
 #[tauri::command]
 pub async fn debug_session_org_runtime_snapshot(
     state: tauri::State<'_, AgentAppState>,

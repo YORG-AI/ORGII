@@ -353,10 +353,13 @@ fn legacy_task_rejection_guidance(
 ) -> Option<String> {
     let message = recoverable_task_validation_message(result_object)?;
     let guidance = if message.contains("missing field `summary`")
+        || message.contains("Task output requires a non-empty summary")
         || message.contains("output.summary must not be empty")
     {
-        "Task output needs a non-empty summary. Retry with status=completed and output={summary, content?, artifact_ids?}."
-    } else if message.contains("status=in_progress can only be set by the owning member") {
+        "Task output needs a non-empty summary. Retry with operation=complete and output={summary, content?, artifact_ids?}."
+    } else if message.contains("status=in_progress can only be set by the owning member")
+        || message.contains("operation requires an Owner TaskExecution")
+    {
         "Only the task owner may mark its work in progress. Assignment already wakes the owner; wait for that member to record its own start."
     } else if message.contains("status=completed can only be set by the owning member")
         || message.contains("output can only be written by the owning member")

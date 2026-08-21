@@ -118,6 +118,107 @@ async function pauseDefaultAgentOrgRuns(label) {
   }
 }
 
+async function waitForPr4ProductionScenario(sessionId, scenarioId) {
+  let latestTasks = [];
+  let latestRunId = null;
+  let latestReadError = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        try {
+          const view = unwrap(
+            await invokeE2E("agentOrgSessionRunView", sessionId),
+            `agentOrgSessionRunView(PR4 ${scenarioId})`
+          ).view;
+          latestRunId = view?.context?.runId ?? latestRunId;
+          if (!latestRunId) return false;
+          latestTasks = unwrap(
+            await invokeE2E("debugAgentOrgTasksList", latestRunId),
+            `debugAgentOrgTasksList(PR4 ${scenarioId})`
+          ).tasks;
+          latestReadError = null;
+          const subject = (prefix) =>
+            latestTasks.find(
+              (task) => task?.subject === `${prefix}:${scenarioId}`
+            );
+          const pagedHistory = latestTasks.filter((task) =>
+            String(task?.subject ?? "").startsWith(
+              `E2E_PR4_HISTORY:${scenarioId}:`
+            )
+          );
+          return Boolean(
+            subject("E2E_PR4_PENDING")?.status ===
+              AGENT_ORG_TASK_STATUS.PENDING &&
+            subject("E2E_PR4_REPLACEMENT")?.status ===
+              AGENT_ORG_TASK_STATUS.PENDING &&
+            subject("E2E_PR4_COMPLETE")?.status ===
+              AGENT_ORG_TASK_STATUS.COMPLETED &&
+            subject("E2E_PR4_FAIL")?.status === AGENT_ORG_TASK_STATUS.FAILED &&
+            subject("E2E_PR4_LATE")?.status ===
+              AGENT_ORG_TASK_STATUS.CANCELLED &&
+            pagedHistory.length === 20 &&
+            pagedHistory.every(
+              (task) => task.status === AGENT_ORG_TASK_STATUS.COMPLETED
+            )
+          );
+        } catch (error) {
+          latestReadError = String(error);
+          return false;
+        }
+      },
+      {
+        timeout: REPLY_TIMEOUT_MS,
+        interval: 500,
+        timeoutMsg: `PR4 production scenario ${scenarioId} did not settle`,
+      }
+    );
+  } catch (error) {
+    throw new Error(
+      `PR4 production scenario ${scenarioId} did not settle: ${JSON.stringify({ latestRunId, latestReadError, latestTasks })}`,
+      { cause: error }
+    );
+  }
+  return latestTasks;
+}
+
+async function waitForRenderedTaskHistory(status, expectedCount, label) {
+  let state = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        state = await execJS(`
+          const rows = Array.from(document.querySelectorAll('[data-testid="agent-org-task-history-row"]'));
+          return {
+            rows: rows.map((row) => ({
+              id: row.getAttribute('data-task-id') || '',
+              status: row.getAttribute('data-task-status') || '',
+              text: row.textContent || '',
+            })),
+            nextDisabled: document.querySelector('[data-testid="agent-org-task-history-next-page"]')?.disabled ?? null,
+            previousDisabled: document.querySelector('[data-testid="agent-org-task-history-previous-page"]')?.disabled ?? null,
+            error: document.querySelector('[role="alert"]')?.textContent || '',
+          };
+        `);
+        return (
+          state.rows.length === expectedCount &&
+          state.rows.every((row) => row.status === status)
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `Task History did not render ${label}`,
+      }
+    );
+  } catch (error) {
+    throw new Error(
+      `Task History did not render ${label}: ${JSON.stringify(state)}`,
+      { cause: error }
+    );
+  }
+  return state;
+}
+
 describe("Agent Org group chat and plan rendered UI", () => {
   before(async () => {
     assertE2ERepoFixture();
@@ -200,6 +301,263 @@ describe("Agent Org group chat and plan rendered UI", () => {
       },
       "default Agent Org plan members materialized"
     );
+  });
+
+  it("enforces the PR4 Task FSM through the packaged production Tool path", async () => {
+    const account = await getApiAccount();
+    const model = selectPreferredModel(account);
+    await configureCreatorForDefaultAgentOrg({ account, model });
+    await selectRenderedExecMode("build");
+    await selectRenderedDefaultAgentOrg();
+
+    const scenarioIds = [1, 2, 3].map((index) => `page${index}_${RUN_ID}`);
+    const sessionId = await sendFromRenderedCreator(
+      `Run ${`E2E_PR4_TASK_FSM:${scenarioIds[0]}`}`
+    );
+    if (!sessionId) {
+      throw new Error("PR4 production-path launch did not create a session");
+    }
+
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) =>
+        (view?.tasks ?? []).some(
+          (task) => task.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS
+        ) &&
+        (view?.tasks ?? []).some(
+          (task) => task.status === AGENT_ORG_TASK_STATUS.PENDING
+        ),
+      "PR4 Current Work exposes pending and in-progress"
+    );
+
+    const scenarioTasks = [];
+    scenarioTasks.push(
+      await waitForPr4ProductionScenario(sessionId, scenarioIds[0])
+    );
+    for (const scenarioId of scenarioIds.slice(1)) {
+      await sendRenderedChatPrompt(`Run E2E_PR4_TASK_FSM:${scenarioId}`);
+      scenarioTasks.push(
+        await waitForPr4ProductionScenario(sessionId, scenarioId)
+      );
+    }
+
+    const settledTasks = scenarioTasks.at(-1) ?? [];
+    const statusCounts = settledTasks.reduce((counts, task) => {
+      counts[task.status] = (counts[task.status] ?? 0) + 1;
+      return counts;
+    }, {});
+    const duplicateSubjects = Object.entries(
+      settledTasks.reduce((counts, task) => {
+        counts[task.subject] = (counts[task.subject] ?? 0) + 1;
+        return counts;
+      }, {})
+    ).filter(([, count]) => count > 1);
+    if (
+      settledTasks.length !== 75 ||
+      statusCounts[AGENT_ORG_TASK_STATUS.PENDING] !== 6 ||
+      statusCounts[AGENT_ORG_TASK_STATUS.COMPLETED] !== 63 ||
+      statusCounts[AGENT_ORG_TASK_STATUS.FAILED] !== 3 ||
+      statusCounts[AGENT_ORG_TASK_STATUS.CANCELLED] !== 3
+    ) {
+      throw new Error(
+        `PR4 production scenarios created an unexpected Task set: ${JSON.stringify({ taskCount: settledTasks.length, statusCounts, duplicateSubjects })}`
+      );
+    }
+
+    for (let index = 0; index < scenarioIds.length; index += 1) {
+      const scenarioId = scenarioIds[index];
+      const tasks = scenarioTasks[index];
+      const find = (prefix) =>
+        tasks.find((task) => task.subject === `${prefix}:${scenarioId}`);
+      const completed = find("E2E_PR4_COMPLETE");
+      const failed = find("E2E_PR4_FAIL");
+      const cancelled = find("E2E_PR4_LATE");
+      const replacement = find("E2E_PR4_REPLACEMENT");
+      if (
+        completed?.output?.producedByMemberId !==
+          DEFAULT_AGENT_ORG_MEMBER_IDS.REVIEWER ||
+        !completed?.output?.producedAt ||
+        failed?.failureReason?.code !== "e2e.expected_failure" ||
+        cancelled?.cancelReason?.code !== "e2e.replaced" ||
+        cancelled?.output != null ||
+        replacement?.replacesTaskId !== cancelled?.id ||
+        replacement?.owner != null ||
+        !replacement?.sourceTurnIntentId ||
+        replacement?.createdByParticipantId !== AGENT_ORG_COORDINATOR_MEMBER_ID
+      ) {
+        throw new Error(
+          `PR4 provenance/result invariant failed for ${scenarioId}: ${JSON.stringify({ completed, failed, cancelled, replacement })}`
+        );
+      }
+    }
+
+    await openAgentOrgOverviewPanel("PR4 Current/History");
+    const collapsed = await execJS(`
+      return {
+        expanded: document.querySelector('[data-testid="agent-org-task-history-toggle"]')?.getAttribute('aria-expanded'),
+        hasHistoryList: Boolean(document.querySelector('[data-testid="agent-org-task-history-list"]')),
+        currentStatuses: Array.from(document.querySelectorAll('[data-testid="agent-org-overview-task-row"]')).map((row) => row.getAttribute('data-task-status')),
+      };
+    `);
+    if (
+      collapsed?.expanded !== "false" ||
+      collapsed?.hasHistoryList !== false ||
+      !collapsed?.currentStatuses.every(
+        (status) => status === AGENT_ORG_TASK_STATUS.PENDING
+      )
+    ) {
+      throw new Error(
+        `PR4 collapsed History/Current Work invariant failed: ${JSON.stringify(collapsed)}`
+      );
+    }
+
+    const historyToggle = await execJS(
+      js.click('[data-testid="agent-org-task-history-toggle"]')
+    );
+    if (historyToggle !== "clicked") {
+      throw new Error(`PR4 History toggle failed: ${historyToggle}`);
+    }
+    const completedFirstPage = await waitForRenderedTaskHistory(
+      AGENT_ORG_TASK_STATUS.COMPLETED,
+      50,
+      "completed first page"
+    );
+    if (completedFirstPage.nextDisabled !== false) {
+      throw new Error(
+        `PR4 completed first page did not expose a next cursor: ${JSON.stringify(completedFirstPage)}`
+      );
+    }
+    const firstPageFirstId = completedFirstPage.rows[0]?.id;
+    const nextPage = await execJS(
+      js.click('[data-testid="agent-org-task-history-next-page"]')
+    );
+    if (nextPage !== "clicked") {
+      throw new Error(`PR4 History next page failed: ${nextPage}`);
+    }
+    const completedSecondPage = await waitForRenderedTaskHistory(
+      AGENT_ORG_TASK_STATUS.COMPLETED,
+      13,
+      "completed second page"
+    );
+    if (
+      completedSecondPage.previousDisabled !== false ||
+      completedSecondPage.rows[0]?.id === firstPageFirstId
+    ) {
+      throw new Error(
+        `PR4 completed second page cursor invariant failed: ${JSON.stringify(completedSecondPage)}`
+      );
+    }
+    await execJS(
+      js.click('[data-testid="agent-org-task-history-previous-page"]')
+    );
+    await waitForRenderedTaskHistory(
+      AGENT_ORG_TASK_STATUS.COMPLETED,
+      50,
+      "completed previous page"
+    );
+
+    const completedTaskId = scenarioTasks[0].find(
+      (task) => task.subject === `E2E_PR4_COMPLETE:${scenarioIds[0]}`
+    )?.id;
+    if (!completedTaskId) {
+      throw new Error(
+        "PR4 completed Task id was missing from the durable snapshot"
+      );
+    }
+    let completedDetail = await execJS(`
+      const row = Array.from(document.querySelectorAll('[data-testid="agent-org-task-history-row"]'))
+        .find((candidate) => candidate.getAttribute('data-task-id') === ${JSON.stringify(completedTaskId)});
+      const toggle = row?.querySelector('[data-testid="agent-org-task-detail-toggle"]');
+      if (!toggle) return 'missing';
+      toggle.click();
+      return 'clicked';
+    `);
+    if (completedDetail === "missing") {
+      await execJS(
+        js.click('[data-testid="agent-org-task-history-next-page"]')
+      );
+      await waitForRenderedTaskHistory(
+        AGENT_ORG_TASK_STATUS.COMPLETED,
+        13,
+        "completed detail page"
+      );
+      completedDetail = await execJS(`
+        const row = Array.from(document.querySelectorAll('[data-testid="agent-org-task-history-row"]'))
+          .find((candidate) => candidate.getAttribute('data-task-id') === ${JSON.stringify(completedTaskId)});
+        const toggle = row?.querySelector('[data-testid="agent-org-task-detail-toggle"]');
+        if (!toggle) return 'missing';
+        toggle.click();
+        return 'clicked';
+      `);
+    }
+    if (completedDetail !== "clicked") {
+      throw new Error(`PR4 completed detail toggle failed: ${completedDetail}`);
+    }
+    await browser.waitUntil(
+      async () => {
+        const detail = await execJS(`
+          const row = Array.from(document.querySelectorAll('[data-testid="agent-org-task-history-row"]'))
+            .find((candidate) => candidate.getAttribute('data-task-id') === ${JSON.stringify(completedTaskId)});
+          return row?.querySelector('[data-testid="agent-org-task-detail"]')?.textContent || '';
+        `);
+        return (
+          detail.includes(`E2E completed ${scenarioIds[0]}`) &&
+          detail.includes(`E2E production-path evidence for ${scenarioIds[0]}`)
+        );
+      },
+      { timeout: RENDER_TIMEOUT_MS, interval: 250 }
+    );
+
+    await execJS(
+      js.click('[data-testid="agent-org-task-history-filter-failed"]')
+    );
+    await waitForRenderedTaskHistory(
+      AGENT_ORG_TASK_STATUS.FAILED,
+      3,
+      "failed filter"
+    );
+    const failedDetail = await execJS(`
+      const row = document.querySelector('[data-testid="agent-org-task-history-row"]');
+      row?.querySelector('[data-testid="agent-org-task-detail-toggle"]')?.click();
+      return Boolean(row);
+    `);
+    if (!failedDetail) throw new Error("PR4 failed detail row was missing");
+    await browser.waitUntil(
+      async () =>
+        String(
+          await execJS(
+            `return document.querySelector('[data-testid="agent-org-task-detail"]')?.textContent || '';`
+          )
+        ).includes("Deterministic E2E failure"),
+      { timeout: RENDER_TIMEOUT_MS, interval: 250 }
+    );
+
+    await execJS(
+      js.click('[data-testid="agent-org-task-history-filter-cancelled"]')
+    );
+    await waitForRenderedTaskHistory(
+      AGENT_ORG_TASK_STATUS.CANCELLED,
+      3,
+      "cancelled filter"
+    );
+    const cancelledState = await execJS(`
+      const rows = Array.from(document.querySelectorAll('[data-testid="agent-org-task-history-row"]'));
+      return rows.map((row) => ({
+        status: row.getAttribute('data-task-status'),
+        text: row.textContent || '',
+      }));
+    `);
+    if (
+      !cancelledState.every(
+        (row) =>
+          row.status === AGENT_ORG_TASK_STATUS.CANCELLED &&
+          !row.text.includes("Late output")
+      )
+    ) {
+      throw new Error(
+        `PR4 cancelled filter exposed a late result: ${JSON.stringify(cancelledState)}`
+      );
+    }
   });
 
   it("allows switching to a member with inbox activity but no tasks", async () => {

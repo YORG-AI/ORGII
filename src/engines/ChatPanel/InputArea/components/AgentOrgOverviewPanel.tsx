@@ -1,10 +1,14 @@
 import { useSetAtom } from "jotai";
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   AGENT_ORG_RUN_PHASE,
+  AGENT_ORG_TASK_STATUS,
   type AgentOrgRunView,
+  type AgentOrgTaskPage,
+  type AgentOrgTaskStatus,
+  getAgentOrgTaskPage,
   pauseAgentOrgRun,
   resumeAgentOrgRun,
 } from "@src/api/tauri/agent";
@@ -12,6 +16,8 @@ import Button from "@src/components/Button";
 import { createLogger } from "@src/hooks/logger";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
   CancelCircleIcon,
   CheckmarkCircle01Icon,
   HierarchyCircle01Icon,
@@ -51,12 +57,110 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     const { t } = useTranslation("sessions");
     const [expanded, setExpanded] = useState(true);
     const [isTogglingPause, setIsTogglingPause] = useState(false);
+    const [historyExpanded, setHistoryExpanded] = useState(false);
+    const [historyStatus, setHistoryStatus] = useState<AgentOrgTaskStatus>(
+      AGENT_ORG_TASK_STATUS.COMPLETED
+    );
+    const [historyPage, setHistoryPage] = useState<AgentOrgTaskPage | null>(
+      null
+    );
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState(false);
+    const historyRequestIdRef = useRef(0);
+    const currentSessionIdRef = useRef(currentSessionId);
+    const currentRunId = view?.context.runId ?? null;
+    const currentRunIdRef = useRef(currentRunId);
+    currentSessionIdRef.current = currentSessionId;
+    currentRunIdRef.current = currentRunId;
+
+    useEffect(() => {
+      historyRequestIdRef.current += 1;
+      setHistoryExpanded(false);
+      setHistoryStatus(AGENT_ORG_TASK_STATUS.COMPLETED);
+      setHistoryPage(null);
+      setHistoryLoading(false);
+      setHistoryError(false);
+    }, [currentRunId, currentSessionId]);
     const handleRefresh = useCallback(() => onRefresh(), [onRefresh]);
     const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
       handleRefresh,
       false
     );
     const setActiveSessionId = useSetAtom(activeSessionIdAtom);
+
+    const loadHistoryPage = useCallback(
+      async (
+        status: AgentOrgTaskStatus,
+        cursor?: string | null,
+        direction: "forward" | "backward" = "forward"
+      ) => {
+        const sessionId = currentSessionId;
+        const runId = currentRunId;
+        const requestId = ++historyRequestIdRef.current;
+        setHistoryLoading(true);
+        setHistoryError(false);
+        setHistoryPage(null);
+        try {
+          const page = await getAgentOrgTaskPage({
+            sessionId,
+            bucket: "history",
+            status,
+            cursor,
+            direction,
+          });
+          if (
+            historyRequestIdRef.current === requestId &&
+            currentSessionIdRef.current === sessionId &&
+            currentRunIdRef.current === runId
+          ) {
+            setHistoryPage(page);
+          }
+        } catch (historyLoadError) {
+          logger.error(
+            "Failed to load Agent Team Task history:",
+            historyLoadError
+          );
+          if (
+            historyRequestIdRef.current === requestId &&
+            currentSessionIdRef.current === sessionId &&
+            currentRunIdRef.current === runId
+          ) {
+            setHistoryError(true);
+          }
+        } finally {
+          if (
+            historyRequestIdRef.current === requestId &&
+            currentSessionIdRef.current === sessionId &&
+            currentRunIdRef.current === runId
+          ) {
+            setHistoryLoading(false);
+          }
+        }
+      },
+      [currentRunId, currentSessionId]
+    );
+
+    const handleHistoryToggle = useCallback(() => {
+      const next = !historyExpanded;
+      setHistoryExpanded(next);
+      if (next && historyPage === null && !historyLoading) {
+        void loadHistoryPage(historyStatus);
+      }
+    }, [
+      historyExpanded,
+      historyLoading,
+      historyPage,
+      historyStatus,
+      loadHistoryPage,
+    ]);
+
+    const handleHistoryStatus = useCallback(
+      (status: AgentOrgTaskStatus) => {
+        setHistoryStatus(status);
+        void loadHistoryPage(status);
+      },
+      [loadHistoryPage]
+    );
 
     const isRunning = view?.runStatus === "running";
     const isPaused = view?.runStatus === "paused";
@@ -354,58 +458,167 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
               </div>
             ) : null}
 
-            {view.tasks.length > 0 && (
-              <div className="space-y-1" data-testid="agent-org-overview-tasks">
-                <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-medium text-text-2">
-                  <HugeiconsIcon
-                    icon={CheckmarkCircle01Icon}
-                    data-icon="check-circle-2"
-                    size={11}
-                    strokeWidth={2}
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    {t("planner.agentOrgTasks.title")}
-                  </span>
-                  <Button
-                    htmlType="button"
-                    variant="tertiary"
-                    size="mini"
-                    iconOnly
-                    aria-label={t("common:actions.refresh")}
-                    title={t("common:actions.refresh")}
-                    onClick={handleRefreshClick}
-                    data-testid="agent-org-overview-refresh-button"
-                    icon={
-                      <HugeiconsIcon
-                        icon={Refresh04Icon}
-                        data-icon="refresh-cw"
-                        size={10}
-                        strokeWidth={2}
-                        className={spinClass}
-                      />
-                    }
-                  />
-                </div>
+            <div className="space-y-1" data-testid="agent-org-overview-tasks">
+              <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-medium text-text-2">
+                <HugeiconsIcon
+                  icon={CheckmarkCircle01Icon}
+                  data-icon="check-circle-2"
+                  size={11}
+                  strokeWidth={2}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {t("planner.agentOrgTasks.currentWork")}
+                </span>
+              </div>
+              {view.tasks.length > 0 ? (
                 <AgentOrgTaskList
                   tasks={view.tasks}
                   listTestId="agent-org-overview-task-list"
                   rowTestId="agent-org-overview-task-row"
                   className="px-0 pb-0"
                   currentSessionId={currentSessionId}
+                  currentRunId={view.context.runId}
                 />
-                {view.taskOverview.truncated && (
+              ) : (
+                <div className="px-1 py-2 text-[10px] text-text-3">
+                  {t("planner.agentOrgTasks.currentEmpty")}
+                </div>
+              )}
+              {view.taskOverview.truncated && (
+                <div
+                  className="px-1 text-[10px] text-text-3"
+                  data-testid="agent-org-overview-task-window-note"
+                >
+                  {t("planner.agentOrgOverview.taskWindowTruncated", {
+                    visible: view.taskOverview.visible,
+                    total:
+                      view.taskOverview.pending + view.taskOverview.inProgress,
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2" data-testid="agent-org-task-history">
+              <button
+                type="button"
+                className="flex w-full items-center gap-1 px-1 text-left text-[11px] font-medium text-text-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+                aria-expanded={historyExpanded}
+                onClick={handleHistoryToggle}
+                data-testid="agent-org-task-history-toggle"
+              >
+                <HugeiconsIcon
+                  icon={historyExpanded ? ArrowDown01Icon : ArrowRight01Icon}
+                  data-icon={historyExpanded ? "chevron-down" : "chevron-right"}
+                  size={11}
+                  strokeWidth={2}
+                />
+                <span className="min-w-0 flex-1">
+                  {t("planner.agentOrgTasks.history")}
+                </span>
+                <span className="text-[10px] text-text-3">
+                  {view.taskOverview.completed +
+                    view.taskOverview.failed +
+                    view.taskOverview.cancelled}
+                </span>
+              </button>
+
+              {historyExpanded && (
+                <div className="space-y-2">
                   <div
-                    className="px-1 text-[10px] text-text-3"
-                    data-testid="agent-org-overview-task-window-note"
+                    className="flex flex-wrap gap-1 px-1"
+                    role="group"
+                    aria-label={t("planner.agentOrgTasks.historyFilter")}
                   >
-                    {t("planner.agentOrgOverview.taskWindowTruncated", {
-                      visible: view.taskOverview.visible,
-                      total: view.taskOverview.total,
-                    })}
+                    {(
+                      [
+                        AGENT_ORG_TASK_STATUS.COMPLETED,
+                        AGENT_ORG_TASK_STATUS.FAILED,
+                        AGENT_ORG_TASK_STATUS.CANCELLED,
+                      ] as const
+                    ).map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        className={`rounded-full px-2 py-0.5 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${historyStatus === status ? "bg-primary-6/10 text-primary-6" : "bg-bg-1 text-text-3"}`}
+                        aria-pressed={historyStatus === status}
+                        onClick={() => handleHistoryStatus(status)}
+                        data-testid={`agent-org-task-history-filter-${status}`}
+                      >
+                        {t(
+                          status === AGENT_ORG_TASK_STATUS.COMPLETED
+                            ? "planner.agentOrgTasks.statusCompleted"
+                            : status === AGENT_ORG_TASK_STATUS.FAILED
+                              ? "planner.agentOrgTasks.statusFailed"
+                              : "planner.agentOrgTasks.statusCancelled"
+                        )}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
+                  {historyLoading && (
+                    <div className="px-1 text-[10px] text-text-3" role="status">
+                      {t("planner.agentOrgTasks.loadingHistory")}
+                    </div>
+                  )}
+                  {historyError && (
+                    <div className="text-error-6 px-1 text-[10px]" role="alert">
+                      {t("planner.agentOrgTasks.historyLoadFailed")}
+                    </div>
+                  )}
+                  {!historyLoading && historyPage?.tasks.length === 0 && (
+                    <div className="px-1 py-2 text-[10px] text-text-3">
+                      {t("planner.agentOrgTasks.historyEmpty")}
+                    </div>
+                  )}
+                  {historyPage && historyPage.tasks.length > 0 && (
+                    <AgentOrgTaskList
+                      tasks={historyPage.tasks}
+                      listTestId="agent-org-task-history-list"
+                      rowTestId="agent-org-task-history-row"
+                      className="px-0 pb-0"
+                      currentSessionId={currentSessionId}
+                      currentRunId={view.context.runId}
+                    />
+                  )}
+                  {historyPage &&
+                    (historyPage.previousCursor || historyPage.nextCursor) && (
+                      <div className="flex items-center justify-end gap-1 px-1">
+                        <button
+                          type="button"
+                          className="rounded px-2 py-1 text-[10px] text-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 disabled:opacity-40"
+                          data-testid="agent-org-task-history-previous-page"
+                          disabled={
+                            !historyPage.previousCursor || historyLoading
+                          }
+                          onClick={() =>
+                            void loadHistoryPage(
+                              historyStatus,
+                              historyPage.previousCursor,
+                              "backward"
+                            )
+                          }
+                        >
+                          {t("planner.agentOrgTasks.previousPage")}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded px-2 py-1 text-[10px] text-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 disabled:opacity-40"
+                          data-testid="agent-org-task-history-next-page"
+                          disabled={!historyPage.nextCursor || historyLoading}
+                          onClick={() =>
+                            void loadHistoryPage(
+                              historyStatus,
+                              historyPage.nextCursor,
+                              "forward"
+                            )
+                          }
+                        >
+                          {t("planner.agentOrgTasks.nextPage")}
+                        </button>
+                      </div>
+                    )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

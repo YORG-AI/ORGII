@@ -5,6 +5,20 @@ use crate::core::session::SessionStatus;
 use crate::definitions::orgs::{AgentOrgsStore, FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
 use rusqlite::params;
 
+fn completed_task_metadata(owner_member_id: &str) -> Option<serde_json::Value> {
+    Some(serde_json::json!({
+        crate::coordination::agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS:
+            [owner_member_id],
+        crate::coordination::agent_org_tasks::TASK_METADATA_OUTPUT: {
+            "summary": "completed fixture",
+            "content": null,
+            "artifactIds": [],
+            "producedByMemberId": owner_member_id,
+            "producedAt": chrono::Utc::now().to_rfc3339(),
+        },
+    }))
+}
+
 #[test]
 fn enum_values_round_trip() {
     assert_eq!(
@@ -513,11 +527,11 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
         "INSERT INTO agent_org_runtime_plan_approvals (
             approval_id, plan_revision_id, request_id, org_run_id,
             source_task_id, source_member_id, source_session_id,
-            root_session_id, policy, status, plan_title, plan_path,
+            source_turn_intent_id, root_session_id, policy, status, plan_title, plan_path,
             plan_content, created_at
          ) VALUES ('delete-approval','delete-revision','delete-request',?1,
                    'delete-task','member-w1','worker-delete-cascade',
-                   'root-delete-cascade','coordinator','pending','Delete plan',?2,
+                   'delete-intent','root-delete-cascade','coordinator','pending','Delete plan',?2,
                    '# disposable plan',?3)",
         params![&run.id, plan_path.to_string_lossy().as_ref(), &now],
     )
@@ -526,11 +540,11 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
         "INSERT INTO agent_org_runtime_plan_approvals (
             approval_id, plan_revision_id, request_id, org_run_id,
             source_task_id, source_member_id, source_session_id,
-            root_session_id, policy, status, plan_title, plan_path,
+            source_turn_intent_id, root_session_id, policy, status, plan_title, plan_path,
             plan_content, created_at
          ) VALUES ('external-approval','external-revision','external-request',?1,
                    'delete-task','member-w1','worker-delete-cascade',
-                   'root-delete-cascade','coordinator','superseded','Historical notes',?2,
+                   'delete-intent','root-delete-cascade','coordinator','superseded','Historical notes',?2,
                    '# historical corrupt path',?3)",
         params![&run.id, external_notes.to_string_lossy().as_ref(), &now],
     )
@@ -544,9 +558,11 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO agent_org_runtime_task_schema_migrations
-         (name, org_run_id, applied_at)
-         VALUES ('delete-test', ?1, ?2)",
+        "INSERT INTO agent_org_runtime_task_annotations
+         (id, org_run_id, task_id, kind, body, actor_kind,
+          actor_participant_id, created_at)
+         VALUES ('delete-note', ?1, 'delete-task', 'audit_note', 'delete',
+                 'system', 'system:test', ?2)",
         params![&run.id, &now],
     )
     .unwrap();
@@ -564,11 +580,11 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
         "agent_org_runtime_run_progress",
         "agent_org_runtime_tasks",
         "agent_org_runtime_task_events",
+        "agent_org_runtime_task_annotations",
         "agent_org_runtime_inbox",
         "agent_org_runtime_member_interventions",
         "agent_org_runtime_plan_approvals",
         "agent_org_runtime_recovery_attempts",
-        "agent_org_runtime_task_schema_migrations",
     ] {
         let count: i64 = conn
             .query_row(
@@ -1152,10 +1168,7 @@ fn cross_transport_duplicate_member_uses_fresh_rust_session_and_does_not_block_q
         status: TaskStatus::Completed,
         blocks: Vec::new(),
         blocked_by: Vec::new(),
-        metadata: Some(serde_json::json!({
-            crate::coordination::agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS:
-                ["member-w1"],
-        })),
+        metadata: completed_task_metadata("member-w1"),
     })
     .expect("create completed task");
     mark_coordinator_observed_current_work(&run.id);
@@ -1284,10 +1297,7 @@ fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
         status: TaskStatus::Completed,
         blocks: Vec::new(),
         blocked_by: Vec::new(),
-        metadata: Some(serde_json::json!({
-            crate::coordination::agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS:
-                ["member-w1"],
-        })),
+        metadata: completed_task_metadata("member-w1"),
     })
     .expect("create completed task");
     mark_coordinator_observed_current_work(&run.id);
@@ -1417,7 +1427,7 @@ fn quiescence_idles_run_only_after_inbox_is_drained() {
         status: TaskStatus::Completed,
         blocks: Vec::new(),
         blocked_by: Vec::new(),
-        metadata: None,
+        metadata: completed_task_metadata("member-w1"),
     })
     .unwrap();
     mark_coordinator_observed_current_work(&run.id);
@@ -1481,7 +1491,7 @@ fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_quiescence() {
         status: TaskStatus::Completed,
         blocks: Vec::new(),
         blocked_by: Vec::new(),
-        metadata: None,
+        metadata: completed_task_metadata("member-w1"),
     })
     .expect("create completed task");
     mark_coordinator_observed_current_work(&run.id);
@@ -1614,7 +1624,7 @@ fn archived_sessions_with_open_work_do_not_auto_archive_the_run() {
             status,
             blocks: Vec::new(),
             blocked_by: Vec::new(),
-            metadata: None,
+            metadata: completed_task_metadata("member-w1"),
         })
         .expect("create completed task");
     }
@@ -1723,7 +1733,7 @@ fn idle_cas_and_task_create_have_one_serializable_outcome() {
         status: TaskStatus::Completed,
         blocks: Vec::new(),
         blocked_by: Vec::new(),
-        metadata: None,
+        metadata: completed_task_metadata("member-w1"),
     })
     .unwrap();
     mark_coordinator_observed_current_work(&run.id);

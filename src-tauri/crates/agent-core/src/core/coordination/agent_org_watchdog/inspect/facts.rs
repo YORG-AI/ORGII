@@ -76,17 +76,21 @@ pub(super) fn corrupt_task_repair_facts(
     conn: &Connection,
     run_id: &str,
 ) -> Result<Vec<RecoveryRepairFact>, String> {
-    let task_count: i64 = conn
+    const MAX_CORRUPT_TASK_FACTS: usize = 200;
+    let open_task_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id=?1",
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks
+             WHERE org_run_id=?1 AND status IN ('pending','in_progress')",
             params![run_id],
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
-    if task_count > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS as i64 {
+    if open_task_count
+        > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS as i64
+    {
         return Ok(vec![RecoveryRepairFact::new(
-            "task_run_limit_exceeded",
-            [Some(task_count.to_string())],
+            "task_run_open_limit_exceeded",
+            [Some(open_task_count.to_string())],
         )]);
     }
     let predicate = agent_org_tasks::corrupt_task_row_predicate_sql();
@@ -96,15 +100,18 @@ pub(super) fn corrupt_task_repair_facts(
     let sql = format!(
         "SELECT substr(id,1,1024), length(CAST(id AS BLOB)),
                 substr(status,1,128),
-                length(CAST(blocks_json AS BLOB)), hex(substr(blocks_json,1,1024)),
                 length(CAST(blocked_by_json AS BLOB)), hex(substr(blocked_by_json,1,1024)),
                 length(CAST(COALESCE(metadata_json,'') AS BLOB)),
-                hex(substr(COALESCE(metadata_json,''),1,1024))
+                hex(substr(COALESCE(metadata_json,''),1,1024)),
+                length(CAST(COALESCE(output_json,'') AS BLOB)),
+                length(CAST(COALESCE(failure_reason_json,'') AS BLOB)),
+                length(CAST(COALESCE(cancel_reason_json,'') AS BLOB)),
+                COUNT(*) OVER ()
          FROM (
-             SELECT id, subject, description, active_form, owner, status,
-                    created_at, updated_at,
-                    CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_max}
-                         THEN blocks_json ELSE '!' END AS blocks_json,
+             SELECT id, subject, description, active_form, owner, status, execution_mode,
+                    output_json, failure_reason_json, cancel_reason_json,
+                    created_by_participant_id, source_turn_intent_id,
+                    originating_message_id, replaces_task_id, created_at, updated_at,
                     CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_max}
                          THEN blocked_by_json ELSE '!' END AS blocked_by_json,
                     CASE WHEN metadata_json IS NULL
@@ -113,29 +120,49 @@ pub(super) fn corrupt_task_repair_facts(
              FROM agent_org_runtime_tasks WHERE org_run_id=?1
          ) AS bounded_tasks
          WHERE {predicate}
-         ORDER BY id ASC"
+         ORDER BY id ASC
+         LIMIT {}",
+        MAX_CORRUPT_TASK_FACTS + 1
     );
     let mut stmt = conn.prepare(&sql).map_err(|err| err.to_string())?;
     let rows = stmt
         .query_map(params![run_id], |row| {
-            Ok(RecoveryRepairFact::new(
-                "corrupt_task_data",
-                [
-                    Some(row.get::<_, String>(0)?),
-                    Some(row.get::<_, i64>(1)?.to_string()),
-                    Some(row.get::<_, String>(2)?),
-                    Some(row.get::<_, i64>(3)?.to_string()),
-                    Some(row.get::<_, String>(4)?),
-                    Some(row.get::<_, i64>(5)?.to_string()),
-                    Some(row.get::<_, String>(6)?),
-                    Some(row.get::<_, i64>(7)?.to_string()),
-                    Some(row.get::<_, String>(8)?),
-                ],
+            Ok((
+                RecoveryRepairFact::new(
+                    "corrupt_task_data",
+                    [
+                        Some(row.get::<_, String>(0)?),
+                        Some(row.get::<_, i64>(1)?.to_string()),
+                        Some(row.get::<_, String>(2)?),
+                        Some(row.get::<_, i64>(3)?.to_string()),
+                        Some(row.get::<_, String>(4)?),
+                        Some(row.get::<_, i64>(5)?.to_string()),
+                        Some(row.get::<_, String>(6)?),
+                        Some(row.get::<_, i64>(7)?.to_string()),
+                        Some(row.get::<_, i64>(8)?.to_string()),
+                        Some(row.get::<_, i64>(9)?.to_string()),
+                    ],
+                ),
+                row.get::<_, i64>(10)?,
             ))
         })
         .map_err(|err| err.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|err| err.to_string())
+    let mut facts = Vec::new();
+    let mut total_count = 0_i64;
+    for row in rows {
+        let (fact, count) = row.map_err(|err| err.to_string())?;
+        total_count = count;
+        if facts.len() < MAX_CORRUPT_TASK_FACTS {
+            facts.push(fact);
+        }
+    }
+    if total_count > MAX_CORRUPT_TASK_FACTS as i64 {
+        facts.push(RecoveryRepairFact::new(
+            "corrupt_task_data_truncated",
+            [Some(total_count.to_string())],
+        ));
+    }
+    Ok(facts)
 }
 
 pub(in crate::core::coordination::agent_org_watchdog) fn task_snapshot_fingerprint(

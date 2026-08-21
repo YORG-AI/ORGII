@@ -513,7 +513,7 @@ libc = "0.2"
 [features]
 default = []
 # E2E WebDriver automation plugin (debug/test only). Enable with --features webdriver.
-webdriver = ["dep:tauri-plugin-webdriver-automation"]
+webdriver = ["dep:tauri-plugin-webdriver-automation", "agent_core/webdriver"]
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { version = "2.0.0", features = ["deep-link"] }
 

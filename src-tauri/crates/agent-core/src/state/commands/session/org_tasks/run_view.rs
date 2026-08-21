@@ -27,7 +27,8 @@ use crate::coordination::agent_org_runs::{
     WorkerSessionRuntime, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{
-    AgentOrgTaskStore, Task, TaskExecutionMode, TaskSummary,
+    AgentOrgTaskStore, Task, TaskExecutionMode, TaskOutputSummary, TaskPageBucket,
+    TaskPageDirection, TaskSummary,
 };
 use crate::state::AgentAppState;
 
@@ -43,7 +44,10 @@ pub struct AgentOrgTaskRuntime {
     pub description_truncated: bool,
     pub blocks_truncated: bool,
     pub blocked_by_truncated: bool,
+    pub dependencies_satisfied: bool,
     pub execution_mode: TaskExecutionMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_summary: Option<TaskOutputSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_member: Option<AgentOrgContextMember>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,6 +136,8 @@ pub struct AgentOrgRunTaskOverview {
     pub pending: usize,
     pub in_progress: usize,
     pub completed: usize,
+    pub failed: usize,
+    pub cancelled: usize,
     pub corrupt: usize,
     pub visible: usize,
     pub truncated: bool,
@@ -157,7 +163,7 @@ pub enum AgentOrgRunPhase {
 /// Keep the bridge payload bounded; durable history remains available through
 /// the explicitly paginated inbox/history surfaces.
 const RUN_VIEW_INBOX_LIMIT: usize = 200;
-const RUN_VIEW_TASK_LIMIT: usize = 200;
+const RUN_VIEW_TASK_LIMIT: usize = 50;
 
 #[tauri::command]
 pub async fn agent_org_session_run_view(
@@ -208,19 +214,32 @@ pub(super) fn build_agent_org_run_view(
         .ok_or_else(|| format!("Agent Org run {} no longer exists", context.run_id))?;
     let run_status = run_status_value.as_str().to_string();
 
-    let task_page = AgentOrgTaskStore::list_summary_page_with_connection(
+    let task_page = AgentOrgTaskStore::list_task_page_with_connection(
         &tx,
         &context.run_id,
+        TaskPageBucket::Current,
         None,
         None,
-        None,
+        TaskPageDirection::Forward,
         RUN_VIEW_TASK_LIMIT,
     )?;
+    let (failed_task_count, cancelled_task_count): (i64, i64) = tx
+        .query_row(
+            "SELECT
+                COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),0),
+                COALESCE(SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END),0)
+             FROM agent_org_runtime_tasks WHERE org_run_id=?1",
+            params![&context.run_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|error| error.to_string())?;
     let task_overview = AgentOrgRunTaskOverview {
         total: quiescence.facts.task_count,
         pending: quiescence.facts.pending_task_count,
         in_progress: quiescence.facts.in_progress_task_count,
         completed: quiescence.facts.completed_task_count,
+        failed: failed_task_count.max(0) as usize,
+        cancelled: cancelled_task_count.max(0) as usize,
         corrupt: quiescence.facts.corrupt_task_count,
         visible: task_page.tasks.len(),
         truncated: task_page.has_more,
@@ -394,6 +413,7 @@ pub(super) fn tasks_for_context(
     tasks
         .into_iter()
         .map(|summary| {
+            let output_summary = summary.output.clone();
             let owner_member = summary
                 .owner
                 .as_ref()
@@ -411,12 +431,20 @@ pub(super) fn tasks_for_context(
                 active_form: summary.active_form,
                 owner: summary.owner,
                 status: summary.status,
+                execution_mode,
                 blocks: summary.blocks,
                 blocked_by: summary.blocked_by,
                 // Eligibility, role and output summaries are available from
                 // `task_list`; full metadata/output content is intentionally
                 // detail-only and never crosses the polling bridge.
                 metadata: None,
+                output: None,
+                failure_reason: summary.failure_reason,
+                cancel_reason: summary.cancel_reason,
+                created_by_participant_id: String::new(),
+                source_turn_intent_id: String::new(),
+                originating_message_id: None,
+                replaces_task_id: summary.replaces_task_id,
                 created_at: summary.created_at,
                 updated_at: summary.updated_at,
             };
@@ -426,7 +454,9 @@ pub(super) fn tasks_for_context(
                 description_truncated: summary.description_truncated,
                 blocks_truncated: summary.blocks_truncated,
                 blocked_by_truncated: summary.blocked_by_truncated,
+                dependencies_satisfied: summary.dependencies_satisfied,
                 execution_mode,
+                output_summary,
                 owner_member,
                 owner_runtime,
             }
