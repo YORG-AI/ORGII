@@ -52,6 +52,35 @@ Review gate: any UI predicate introduced to hide malformed data must cite an exp
 
 ## Default Delivery Flow
 
+### Verification budget (required)
+
+Keep feedback proportional to the current edit. Agents MUST use the repository's
+two verification entry points instead of repeatedly scanning the whole frontend:
+
+- During implementation, run `pnpm verify:quick -- <exact task files...>`. It
+  lints only changed `src/` files (the repository's configured ESLint scope)
+  and runs only the explicitly supplied `src/**/*.test.ts` files supported by
+  the Vitest configuration. Include the relevant focused test paths even when
+  those tests were not edited. If changed `src/` code has no supplied test, the
+  command refuses to perform an implicit dependency-graph scan; `--no-tests`
+  requires a documented reason. Tooling, packages, and documentation do not
+  trigger a Vitest project scan. In a clean, task-isolated worktree the file
+  list may be omitted; if more than 80 dirty files are detected, automatic
+  scope discovery refuses to run so unrelated user work is not swept
+  accidentally.
+- At final handoff, run `pnpm verify:final` once for the full TypeScript check.
+  `pnpm typecheck` uses the same guarded entry point. A successful result is
+  cached by the exact Git HEAD, changed TypeScript-relevant file contents,
+  runtime, platform, and TypeScript version; an unchanged state is skipped.
+- A failed final check may be rerun only after a relevant code change. Do not
+  use `pnpm typecheck:raw` or `--force` unless the user explicitly requests a
+  fresh rerun or a release/debugging workflow requires it.
+- CI always bypasses the local success cache and performs the real full check.
+  The cache contains one small local record under ignored `.orgii/` state; it
+  is never committed or uploaded.
+- Delivery evidence MUST name the exact quick/final commands that ran and state
+  whether the final check executed or reused a matching successful result.
+
 ### Touching `*.tsx` files (UI work)
 
 Before declaring a UI-touching task complete, ask:
