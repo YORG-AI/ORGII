@@ -198,7 +198,7 @@ pub(super) fn resolve_agent_org_wake_mode(
         }
         AgentOrgTurnKind::UserDirectedWork => {
             return Err(
-                "UserDirectedWork is not enabled in the PR4 formal wake mode resolver".to_string(),
+                "UserDirectedWork is not enabled in the task-bound wake mode resolver".to_string(),
             );
         }
     };

@@ -27,7 +27,7 @@ pub use graph::TaskGraphIndex;
 pub use store::AgentOrgTaskStore;
 
 #[cfg(test)]
-mod pr4_tests;
+mod task_store_contract_tests;
 #[cfg(test)]
 mod tests;
 
@@ -576,8 +576,9 @@ pub struct PendingTaskGraphPatch {
     pub metadata: Option<Option<serde_json::Value>>,
 }
 
-/// Test-only compatibility patch for pre-PR4 Store fixtures. Production
-/// code cannot compile this type and must use the typed actor requests.
+/// Test-only compatibility patch for Store fixtures that exercise the
+/// untyped update surface. Production code cannot compile this type and must
+/// use the typed actor requests.
 #[derive(Debug, Clone, Default)]
 #[cfg(test)]
 pub struct UpdateTaskPatch {

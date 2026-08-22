@@ -16,18 +16,18 @@ use super::task_list_get::{TaskGetTool, TaskListTool};
 use super::task_update::TaskUpdateTool;
 use super::TaskToolsContext;
 
-const RUN_ID: &str = "run-tools-pr4";
-const ROOT_SESSION: &str = "root-tools-pr4";
-const COORDINATOR_TURN: &str = "turn-coordinator-pr4";
+const RUN_ID: &str = "run-task-tools";
+const ROOT_SESSION: &str = "root-task-tools";
+const COORDINATOR_TURN: &str = "turn-coordinator-task-tools";
 const ALICE: &str = "m-alice";
 const BOB: &str = "m-bob";
-const ALICE_SESSION: &str = "session-alice-pr4";
+const ALICE_SESSION: &str = "session-alice-task-tools";
 
 fn org_context() -> Arc<AgentOrgRunContext> {
     Arc::new(AgentOrgRunContext {
         run_id: RUN_ID.into(),
-        org_id: "org-tools-pr4".into(),
-        org_name: "Tools PR4 Org".into(),
+        org_id: "org-task-tools".into(),
+        org_name: "Task Tools Org".into(),
         org_role: "lead".into(),
         coordinator_agent_id: "agent-coordinator".into(),
         coordinator_name: "Coordinator".into(),
@@ -107,8 +107,8 @@ fn sandbox() -> test_env::SandboxGuard {
     let now = chrono::Utc::now().to_rfc3339();
     let snapshot = serde_json::json!({
         "schemaVersion": 1,
-        "orgId": "org-tools-pr4",
-        "orgName": "Tools PR4 Org",
+        "orgId": "org-task-tools",
+        "orgName": "Task Tools Org",
         "coordinatorRole": "lead",
         "coordinatorAgentId": "agent-coordinator",
         "planApprovalPolicy": "coordinator",
@@ -124,7 +124,7 @@ fn sandbox() -> test_env::SandboxGuard {
         "INSERT INTO agent_org_runtime_runs(
             id,org_id,coordinator_agent_id,root_session_id,org_snapshot_json,
             entry_mode,status,activation_generation,created_at,updated_at
-         ) VALUES (?1,'org-tools-pr4','agent-coordinator',?2,?3,
+         ) VALUES (?1,'org-task-tools','agent-coordinator',?2,?3,
                    'standalone_session','running',1,?4,?4)",
         rusqlite::params![RUN_ID, ROOT_SESSION, snapshot, now],
     )

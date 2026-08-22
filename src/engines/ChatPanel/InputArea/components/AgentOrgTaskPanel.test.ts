@@ -119,7 +119,7 @@ const reactActEnvironment = globalThis as typeof globalThis & {
 function task(id: string, status: AgentOrgTaskStatus): AgentOrgTask {
   return {
     id,
-    orgRunId: "run-pr4",
+    orgRunId: "run-task-panel",
     subject: `Task ${id}`,
     description: `Description ${id}`,
     owner: "member-a",
@@ -143,9 +143,9 @@ function deferred<T>() {
 function runView(): AgentOrgRunView {
   return {
     context: {
-      runId: "run-pr4",
-      orgId: "org-pr4",
-      orgName: "PR4 Team",
+      runId: "run-task-panel",
+      orgId: "org-task-panel",
+      orgName: "Task Panel Team",
       orgRole: "lead",
       coordinatorAgentId: "coordinator-agent",
       coordinatorName: "Coordinator",
@@ -175,7 +175,7 @@ function runView(): AgentOrgRunView {
   };
 }
 
-describe("Agent Org PR4 Task panel", () => {
+describe("Agent Org Task panel", () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -371,7 +371,7 @@ describe("Agent Org PR4 Task panel", () => {
         annotations: [
           {
             id: "note-1",
-            orgRunId: "run-pr4",
+            orgRunId: "run-task-panel",
             taskId: "done",
             kind: "audit_note",
             body: "reviewed after completion",
@@ -387,7 +387,7 @@ describe("Agent Org PR4 Task panel", () => {
         annotations: [
           {
             id: "note-2",
-            orgRunId: "run-pr4",
+            orgRunId: "run-task-panel",
             taskId: "done",
             kind: "evidence",
             body: "second annotation page",

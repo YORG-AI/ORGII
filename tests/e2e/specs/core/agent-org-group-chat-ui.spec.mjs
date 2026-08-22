@@ -118,7 +118,7 @@ async function pauseDefaultAgentOrgRuns(label) {
   }
 }
 
-async function waitForPr4ProductionScenario(sessionId, scenarioId) {
+async function waitForTaskFsmProductionScenario(sessionId, scenarioId) {
   let latestTasks = [];
   let latestRunId = null;
   let latestReadError = null;
@@ -128,13 +128,13 @@ async function waitForPr4ProductionScenario(sessionId, scenarioId) {
         try {
           const view = unwrap(
             await invokeE2E("agentOrgSessionRunView", sessionId),
-            `agentOrgSessionRunView(PR4 ${scenarioId})`
+            `agentOrgSessionRunView(Task FSM ${scenarioId})`
           ).view;
           latestRunId = view?.context?.runId ?? latestRunId;
           if (!latestRunId) return false;
           latestTasks = unwrap(
             await invokeE2E("debugAgentOrgTasksList", latestRunId),
-            `debugAgentOrgTasksList(PR4 ${scenarioId})`
+            `debugAgentOrgTasksList(Task FSM ${scenarioId})`
           ).tasks;
           latestReadError = null;
           const subject = (prefix) =>
@@ -143,18 +143,19 @@ async function waitForPr4ProductionScenario(sessionId, scenarioId) {
             );
           const pagedHistory = latestTasks.filter((task) =>
             String(task?.subject ?? "").startsWith(
-              `E2E_PR4_HISTORY:${scenarioId}:`
+              `E2E_TASK_FSM_HISTORY:${scenarioId}:`
             )
           );
           return Boolean(
-            subject("E2E_PR4_PENDING")?.status ===
+            subject("E2E_TASK_FSM_PENDING")?.status ===
               AGENT_ORG_TASK_STATUS.PENDING &&
-            subject("E2E_PR4_REPLACEMENT")?.status ===
+            subject("E2E_TASK_FSM_REPLACEMENT")?.status ===
               AGENT_ORG_TASK_STATUS.PENDING &&
-            subject("E2E_PR4_COMPLETE")?.status ===
+            subject("E2E_TASK_FSM_COMPLETE")?.status ===
               AGENT_ORG_TASK_STATUS.COMPLETED &&
-            subject("E2E_PR4_FAIL")?.status === AGENT_ORG_TASK_STATUS.FAILED &&
-            subject("E2E_PR4_LATE")?.status ===
+            subject("E2E_TASK_FSM_FAIL")?.status ===
+              AGENT_ORG_TASK_STATUS.FAILED &&
+            subject("E2E_TASK_FSM_LATE")?.status ===
               AGENT_ORG_TASK_STATUS.CANCELLED &&
             pagedHistory.length === 20 &&
             pagedHistory.every(
@@ -169,12 +170,12 @@ async function waitForPr4ProductionScenario(sessionId, scenarioId) {
       {
         timeout: REPLY_TIMEOUT_MS,
         interval: 500,
-        timeoutMsg: `PR4 production scenario ${scenarioId} did not settle`,
+        timeoutMsg: `Task FSM production scenario ${scenarioId} did not settle`,
       }
     );
   } catch (error) {
     throw new Error(
-      `PR4 production scenario ${scenarioId} did not settle: ${JSON.stringify({ latestRunId, latestReadError, latestTasks })}`,
+      `Task FSM production scenario ${scenarioId} did not settle: ${JSON.stringify({ latestRunId, latestReadError, latestTasks })}`,
       { cause: error }
     );
   }
@@ -303,7 +304,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
     );
   });
 
-  it("enforces the PR4 Task FSM through the packaged production Tool path", async () => {
+  it("enforces the Agent Org Task FSM through the packaged production Tool path", async () => {
     const account = await getApiAccount();
     const model = selectPreferredModel(account);
     await configureCreatorForDefaultAgentOrg({ account, model });
@@ -312,10 +313,12 @@ describe("Agent Org group chat and plan rendered UI", () => {
 
     const scenarioIds = [1, 2, 3].map((index) => `page${index}_${RUN_ID}`);
     const sessionId = await sendFromRenderedCreator(
-      `Run ${`E2E_PR4_TASK_FSM:${scenarioIds[0]}`}`
+      `Run ${`E2E_AGENT_ORG_TASK_FSM:${scenarioIds[0]}`}`
     );
     if (!sessionId) {
-      throw new Error("PR4 production-path launch did not create a session");
+      throw new Error(
+        "Task FSM production-path launch did not create a session"
+      );
     }
 
     await waitForAgentOrgRunView(
@@ -327,17 +330,17 @@ describe("Agent Org group chat and plan rendered UI", () => {
         (view?.tasks ?? []).some(
           (task) => task.status === AGENT_ORG_TASK_STATUS.PENDING
         ),
-      "PR4 Current Work exposes pending and in-progress"
+      "Task FSM Current Work exposes pending and in-progress"
     );
 
     const scenarioTasks = [];
     scenarioTasks.push(
-      await waitForPr4ProductionScenario(sessionId, scenarioIds[0])
+      await waitForTaskFsmProductionScenario(sessionId, scenarioIds[0])
     );
     for (const scenarioId of scenarioIds.slice(1)) {
-      await sendRenderedChatPrompt(`Run E2E_PR4_TASK_FSM:${scenarioId}`);
+      await sendRenderedChatPrompt(`Run E2E_AGENT_ORG_TASK_FSM:${scenarioId}`);
       scenarioTasks.push(
-        await waitForPr4ProductionScenario(sessionId, scenarioId)
+        await waitForTaskFsmProductionScenario(sessionId, scenarioId)
       );
     }
 
@@ -360,7 +363,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
       statusCounts[AGENT_ORG_TASK_STATUS.CANCELLED] !== 3
     ) {
       throw new Error(
-        `PR4 production scenarios created an unexpected Task set: ${JSON.stringify({ taskCount: settledTasks.length, statusCounts, duplicateSubjects })}`
+        `Task FSM production scenarios created an unexpected Task set: ${JSON.stringify({ taskCount: settledTasks.length, statusCounts, duplicateSubjects })}`
       );
     }
 
@@ -369,10 +372,10 @@ describe("Agent Org group chat and plan rendered UI", () => {
       const tasks = scenarioTasks[index];
       const find = (prefix) =>
         tasks.find((task) => task.subject === `${prefix}:${scenarioId}`);
-      const completed = find("E2E_PR4_COMPLETE");
-      const failed = find("E2E_PR4_FAIL");
-      const cancelled = find("E2E_PR4_LATE");
-      const replacement = find("E2E_PR4_REPLACEMENT");
+      const completed = find("E2E_TASK_FSM_COMPLETE");
+      const failed = find("E2E_TASK_FSM_FAIL");
+      const cancelled = find("E2E_TASK_FSM_LATE");
+      const replacement = find("E2E_TASK_FSM_REPLACEMENT");
       if (
         completed?.output?.producedByMemberId !==
           DEFAULT_AGENT_ORG_MEMBER_IDS.REVIEWER ||
@@ -386,12 +389,12 @@ describe("Agent Org group chat and plan rendered UI", () => {
         replacement?.createdByParticipantId !== AGENT_ORG_COORDINATOR_MEMBER_ID
       ) {
         throw new Error(
-          `PR4 provenance/result invariant failed for ${scenarioId}: ${JSON.stringify({ completed, failed, cancelled, replacement })}`
+          `Task FSM provenance/result invariant failed for ${scenarioId}: ${JSON.stringify({ completed, failed, cancelled, replacement })}`
         );
       }
     }
 
-    await openAgentOrgOverviewPanel("PR4 Current/History");
+    await openAgentOrgOverviewPanel("Task FSM Current/History");
     const collapsed = await execJS(`
       return {
         expanded: document.querySelector('[data-testid="agent-org-task-history-toggle"]')?.getAttribute('aria-expanded'),
@@ -407,7 +410,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
       )
     ) {
       throw new Error(
-        `PR4 collapsed History/Current Work invariant failed: ${JSON.stringify(collapsed)}`
+        `Task FSM collapsed History/Current Work invariant failed: ${JSON.stringify(collapsed)}`
       );
     }
 
@@ -415,7 +418,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
       js.click('[data-testid="agent-org-task-history-toggle"]')
     );
     if (historyToggle !== "clicked") {
-      throw new Error(`PR4 History toggle failed: ${historyToggle}`);
+      throw new Error(`Task FSM History toggle failed: ${historyToggle}`);
     }
     const completedFirstPage = await waitForRenderedTaskHistory(
       AGENT_ORG_TASK_STATUS.COMPLETED,
@@ -424,7 +427,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
     );
     if (completedFirstPage.nextDisabled !== false) {
       throw new Error(
-        `PR4 completed first page did not expose a next cursor: ${JSON.stringify(completedFirstPage)}`
+        `Task FSM completed first page did not expose a next cursor: ${JSON.stringify(completedFirstPage)}`
       );
     }
     const firstPageFirstId = completedFirstPage.rows[0]?.id;
@@ -432,7 +435,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
       js.click('[data-testid="agent-org-task-history-next-page"]')
     );
     if (nextPage !== "clicked") {
-      throw new Error(`PR4 History next page failed: ${nextPage}`);
+      throw new Error(`Task FSM History next page failed: ${nextPage}`);
     }
     const completedSecondPage = await waitForRenderedTaskHistory(
       AGENT_ORG_TASK_STATUS.COMPLETED,
@@ -444,7 +447,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
       completedSecondPage.rows[0]?.id === firstPageFirstId
     ) {
       throw new Error(
-        `PR4 completed second page cursor invariant failed: ${JSON.stringify(completedSecondPage)}`
+        `Task FSM completed second page cursor invariant failed: ${JSON.stringify(completedSecondPage)}`
       );
     }
     await execJS(
@@ -457,11 +460,11 @@ describe("Agent Org group chat and plan rendered UI", () => {
     );
 
     const completedTaskId = scenarioTasks[0].find(
-      (task) => task.subject === `E2E_PR4_COMPLETE:${scenarioIds[0]}`
+      (task) => task.subject === `E2E_TASK_FSM_COMPLETE:${scenarioIds[0]}`
     )?.id;
     if (!completedTaskId) {
       throw new Error(
-        "PR4 completed Task id was missing from the durable snapshot"
+        "Task FSM completed Task id was missing from the durable snapshot"
       );
     }
     let completedDetail = await execJS(`
@@ -491,7 +494,9 @@ describe("Agent Org group chat and plan rendered UI", () => {
       `);
     }
     if (completedDetail !== "clicked") {
-      throw new Error(`PR4 completed detail toggle failed: ${completedDetail}`);
+      throw new Error(
+        `Task FSM completed detail toggle failed: ${completedDetail}`
+      );
     }
     await browser.waitUntil(
       async () => {
@@ -521,7 +526,8 @@ describe("Agent Org group chat and plan rendered UI", () => {
       row?.querySelector('[data-testid="agent-org-task-detail-toggle"]')?.click();
       return Boolean(row);
     `);
-    if (!failedDetail) throw new Error("PR4 failed detail row was missing");
+    if (!failedDetail)
+      throw new Error("Task FSM failed detail row was missing");
     await browser.waitUntil(
       async () =>
         String(
@@ -555,7 +561,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
       )
     ) {
       throw new Error(
-        `PR4 cancelled filter exposed a late result: ${JSON.stringify(cancelledState)}`
+        `Task FSM cancelled filter exposed a late result: ${JSON.stringify(cancelledState)}`
       );
     }
   });

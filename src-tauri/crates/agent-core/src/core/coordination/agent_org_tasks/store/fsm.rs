@@ -1,4 +1,4 @@
-//! Canonical PR4 Task state machine.  Every method validates its typed actor
+//! Canonical Agent Org Task state machine. Every method validates its typed actor
 //! against persisted Turn context after beginning the IMMEDIATE transaction.
 
 use database::db::{get_connection, with_sessions_writer};

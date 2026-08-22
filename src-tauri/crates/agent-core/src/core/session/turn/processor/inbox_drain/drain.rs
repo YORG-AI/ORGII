@@ -68,7 +68,7 @@ pub fn drain_and_render_deferred(
 /// Production typed-drain entry point. A TaskExecution Turn can only claim
 /// the single formal Inbox row for its persisted Task binding; Coordinator
 /// Turns retain the bounded coordinator Inbox drain. UserDirectedWork is not
-/// admitted by PR4's formal wake path and therefore claims nothing here.
+/// admitted by the task-bound wake path and therefore claims nothing here.
 pub(crate) fn drain_and_render_deferred_for_turn(
     org_context: &AgentOrgRunContext,
     recipient_agent_id: &str,

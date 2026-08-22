@@ -2661,9 +2661,9 @@ pub async fn test_agent_org_run_cleanup(
 
 /// `POST /test/agent-org/tasks/seed`
 ///
-/// PR4 makes the Task Store the final lifecycle authority. Test and debug
-/// surfaces may prepare run identity/configuration or read durable state,
-/// but they must not manufacture Task rows or terminal states.
+/// The Task Store is the final lifecycle authority. Test and debug surfaces
+/// may prepare run identity/configuration or read durable state, but they must
+/// not manufacture Task rows or terminal states.
 pub async fn test_agent_org_tasks_seed(
     Json(_body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {

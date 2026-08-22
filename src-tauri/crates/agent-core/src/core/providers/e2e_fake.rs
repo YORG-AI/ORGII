@@ -15,7 +15,7 @@ const ADDRESS_COMMENTS_MARKER: &str =
     "Teammates left review comments on this session. Address every comment below";
 const ADDRESS_COMMENT_ID_MARKER: &str = " — id: ";
 const REPLY_SESSION_COMMENT_TOOL: &str = "reply_session_comment";
-const PR4_TASK_FSM_MARKER: &str = "E2E_PR4_TASK_FSM:";
+const AGENT_ORG_TASK_FSM_MARKER: &str = "E2E_AGENT_ORG_TASK_FSM:";
 const CONTROL_WAIT_MARKER: &str = "Create a stoppable window by waiting for about ";
 const TASK_GRAPH_CREATE_TOOL: &str = "task_graph_create";
 const TASK_UPDATE_TOOL: &str = "task_update";
@@ -121,14 +121,14 @@ impl E2eFakeProvider {
             .collect()
     }
 
-    fn pr4_task_fsm_tool_calls(
+    fn agent_org_task_fsm_tool_calls(
         messages: &[Value],
         tools: Option<&[Value]>,
     ) -> Vec<ToolCallRequest> {
-        let Some((latest_user_index, latest_user)) = latest_pr4_user(messages) else {
+        let Some((latest_user_index, latest_user)) = latest_task_fsm_user(messages) else {
             return Vec::new();
         };
-        let Some(scenario_id) = pr4_scenario_id(latest_user.as_str()) else {
+        let Some(scenario_id) = task_fsm_scenario_id(latest_user.as_str()) else {
             return Vec::new();
         };
         let tool_results = messages[latest_user_index + 1..]
@@ -148,7 +148,7 @@ impl E2eFakeProvider {
             let stage = tool_results.len();
             let arguments = if stage == 0 {
                 serde_json::json!({ "operation": "start", "id": task_id })
-            } else if subject.contains("E2E_PR4_HISTORY:") && stage == 1 {
+            } else if subject.contains("E2E_TASK_FSM_HISTORY:") && stage == 1 {
                 serde_json::json!({
                     "operation": "complete",
                     "id": task_id,
@@ -156,13 +156,13 @@ impl E2eFakeProvider {
                         "summary": format!("E2E paged history result for {scenario_id}"),
                     },
                 })
-            } else if subject.contains("E2E_PR4_COMPLETE:") && stage == 1 {
+            } else if subject.contains("E2E_TASK_FSM_COMPLETE:") && stage == 1 {
                 serde_json::json!({
                     "operation": "append_evidence",
                     "id": task_id,
                     "body": format!("E2E production-path evidence for {scenario_id}"),
                 })
-            } else if subject.contains("E2E_PR4_COMPLETE:") && stage == 2 {
+            } else if subject.contains("E2E_TASK_FSM_COMPLETE:") && stage == 2 {
                 serde_json::json!({
                     "operation": "complete",
                     "id": task_id,
@@ -172,13 +172,13 @@ impl E2eFakeProvider {
                         "artifact_ids": [format!("e2e-artifact-{scenario_id}")],
                     },
                 })
-            } else if subject.contains("E2E_PR4_FAIL:") && stage == 1 {
+            } else if subject.contains("E2E_TASK_FSM_FAIL:") && stage == 1 {
                 serde_json::json!({
                     "operation": "append_progress",
                     "id": task_id,
                     "body": format!("E2E progress before failure for {scenario_id}"),
                 })
-            } else if subject.contains("E2E_PR4_FAIL:") && stage == 2 {
+            } else if subject.contains("E2E_TASK_FSM_FAIL:") && stage == 2 {
                 serde_json::json!({
                     "operation": "fail",
                     "id": task_id,
@@ -187,7 +187,7 @@ impl E2eFakeProvider {
                         "message": format!("Deterministic E2E failure for {scenario_id}"),
                     },
                 })
-            } else if subject.contains("E2E_PR4_LATE:") && stage == 1 {
+            } else if subject.contains("E2E_TASK_FSM_LATE:") && stage == 1 {
                 // The coordinator cancels and replaces this Task while this
                 // owner callback is delayed. The Store must reject the late
                 // completion against the original persisted Turn binding.
@@ -200,7 +200,7 @@ impl E2eFakeProvider {
                 return Vec::new();
             };
             return vec![ToolCallRequest {
-                id: format!("e2e-pr4-owner-{scenario_id}-{task_id}-{stage}"),
+                id: format!("e2e-task-fsm-owner-{scenario_id}-{task_id}-{stage}"),
                 name: TASK_UPDATE_TOOL.to_string(),
                 arguments,
                 thought_signature: None,
@@ -217,29 +217,29 @@ impl E2eFakeProvider {
                 let mut tasks = vec![
                     serde_json::json!({
                         "key": "pending",
-                        "subject": format!("E2E_PR4_PENDING:{scenario_id}"),
-                        "description": format!("{PR4_TASK_FSM_MARKER}{scenario_id}"),
+                        "subject": format!("E2E_TASK_FSM_PENDING:{scenario_id}"),
+                        "description": format!("{AGENT_ORG_TASK_FSM_MARKER}{scenario_id}"),
                         "execution_mode": "build",
                         "eligible_member_ids": ["sde-implementer"]
                     }),
                     serde_json::json!({
                         "key": "complete",
-                        "subject": format!("E2E_PR4_COMPLETE:{scenario_id}"),
-                        "description": format!("{PR4_TASK_FSM_MARKER}{scenario_id}"),
+                        "subject": format!("E2E_TASK_FSM_COMPLETE:{scenario_id}"),
+                        "description": format!("{AGENT_ORG_TASK_FSM_MARKER}{scenario_id}"),
                         "owner_member_id": "sde-reviewer",
                         "execution_mode": "build"
                     }),
                     serde_json::json!({
                         "key": "fail",
-                        "subject": format!("E2E_PR4_FAIL:{scenario_id}"),
-                        "description": format!("{PR4_TASK_FSM_MARKER}{scenario_id}"),
+                        "subject": format!("E2E_TASK_FSM_FAIL:{scenario_id}"),
+                        "description": format!("{AGENT_ORG_TASK_FSM_MARKER}{scenario_id}"),
                         "owner_member_id": "sde-tester",
                         "execution_mode": "build"
                     }),
                     serde_json::json!({
                         "key": "late",
-                        "subject": format!("E2E_PR4_LATE:{scenario_id}"),
-                        "description": format!("{PR4_TASK_FSM_MARKER}{scenario_id}"),
+                        "subject": format!("E2E_TASK_FSM_LATE:{scenario_id}"),
+                        "description": format!("{AGENT_ORG_TASK_FSM_MARKER}{scenario_id}"),
                         "owner_member_id": "sde-planner",
                         "execution_mode": "build"
                     }),
@@ -254,15 +254,15 @@ impl E2eFakeProvider {
                     tasks.extend((0..20).map(|index| {
                         serde_json::json!({
                             "key": format!("history-{index:02}"),
-                            "subject": format!("E2E_PR4_HISTORY:{scenario_id}:{index:02}"),
-                            "description": format!("{PR4_TASK_FSM_MARKER}{scenario_id}"),
+                            "subject": format!("E2E_TASK_FSM_HISTORY:{scenario_id}:{index:02}"),
+                            "description": format!("{AGENT_ORG_TASK_FSM_MARKER}{scenario_id}"),
                             "owner_member_id": owners[index % owners.len()],
                             "execution_mode": "build"
                         })
                     }));
                 }
                 vec![ToolCallRequest {
-                    id: format!("e2e-pr4-graph-{scenario_id}"),
+                    id: format!("e2e-task-fsm-graph-{scenario_id}"),
                     name: TASK_GRAPH_CREATE_TOOL.to_string(),
                     arguments: serde_json::json!({
                         "allow_parallel_with_existing_open_tasks": true,
@@ -287,7 +287,7 @@ impl E2eFakeProvider {
                     return Vec::new();
                 };
                 vec![ToolCallRequest {
-                    id: format!("e2e-pr4-replace-{scenario_id}"),
+                    id: format!("e2e-task-fsm-replace-{scenario_id}"),
                     name: TASK_UPDATE_TOOL.to_string(),
                     arguments: serde_json::json!({
                         "operation": "cancel_and_replace",
@@ -297,7 +297,7 @@ impl E2eFakeProvider {
                             "message": format!("Deterministic E2E replacement for {scenario_id}")
                         },
                         "replacement": {
-                            "subject": format!("E2E_PR4_REPLACEMENT:{scenario_id}"),
+                            "subject": format!("E2E_TASK_FSM_REPLACEMENT:{scenario_id}"),
                             "description": "Ownerless replacement remains in Current Work.",
                             "execution_mode": "build",
                             "eligible_member_ids": ["sde-planner"]
@@ -310,8 +310,8 @@ impl E2eFakeProvider {
         }
     }
 
-    async fn delay_pr4_race_stage(messages: &[Value]) {
-        let Some((latest_user_index, latest_user)) = latest_pr4_user(messages) else {
+    async fn delay_task_fsm_race_stage(messages: &[Value]) {
+        let Some((latest_user_index, latest_user)) = latest_task_fsm_user(messages) else {
             return;
         };
         let stage = messages[latest_user_index + 1..]
@@ -319,18 +319,20 @@ impl E2eFakeProvider {
             .filter(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
             .count();
         let task_assignment = is_task_assignment(latest_user.as_str());
-        let delay_ms = if task_assignment && latest_user.contains("E2E_PR4_LATE:") && stage == 1 {
-            4_000
-        } else if task_assignment
-            && (latest_user.contains("E2E_PR4_COMPLETE:") || latest_user.contains("E2E_PR4_FAIL:"))
-            && stage == 2
-        {
-            3_000
-        } else if !task_assignment && stage == 1 {
-            1_500
-        } else {
-            0
-        };
+        let delay_ms =
+            if task_assignment && latest_user.contains("E2E_TASK_FSM_LATE:") && stage == 1 {
+                4_000
+            } else if task_assignment
+                && (latest_user.contains("E2E_TASK_FSM_COMPLETE:")
+                    || latest_user.contains("E2E_TASK_FSM_FAIL:"))
+                && stage == 2
+            {
+                3_000
+            } else if !task_assignment && stage == 1 {
+                1_500
+            } else {
+                0
+            };
         if delay_ms > 0 {
             sleep(Duration::from_millis(delay_ms)).await;
         }
@@ -358,7 +360,7 @@ fn control_wait_duration(messages: &[Value]) -> Option<Duration> {
     Some(Duration::from_secs(wait_seconds.clamp(1, 60)))
 }
 
-fn latest_pr4_user(messages: &[Value]) -> Option<(usize, String)> {
+fn latest_task_fsm_user(messages: &[Value]) -> Option<(usize, String)> {
     messages
         .iter()
         .enumerate()
@@ -371,13 +373,13 @@ fn latest_pr4_user(messages: &[Value]) -> Option<(usize, String)> {
                 .map(|content| (index, content))
         })
         .find(|(_, content)| {
-            content.contains(PR4_TASK_FSM_MARKER)
+            content.contains(AGENT_ORG_TASK_FSM_MARKER)
                 && !content.trim_start().starts_with("<system-reminder>")
         })
 }
 
-fn pr4_scenario_id(text: &str) -> Option<String> {
-    let suffix = text.split(PR4_TASK_FSM_MARKER).nth(1)?;
+fn task_fsm_scenario_id(text: &str) -> Option<String> {
+    let suffix = text.split(AGENT_ORG_TASK_FSM_MARKER).nth(1)?;
     let id = suffix
         .chars()
         .take_while(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
@@ -450,10 +452,10 @@ impl LLMProvider for E2eFakeProvider {
         if let Some(duration) = control_wait_duration(messages) {
             sleep(duration).await;
         }
-        Self::delay_pr4_race_stage(messages).await;
+        Self::delay_task_fsm_race_stage(messages).await;
         let mut tool_calls = Self::address_comment_tool_calls(messages, tools);
         if tool_calls.is_empty() {
-            tool_calls = Self::pr4_task_fsm_tool_calls(messages, tools);
+            tool_calls = Self::agent_org_task_fsm_tool_calls(messages, tools);
         }
         let content = if tool_calls.is_empty() {
             Some(Self::response_for(messages))
@@ -652,12 +654,12 @@ mod tests {
     }
 
     #[test]
-    fn session_memory_compaction_does_not_replay_pr4_markers() {
+    fn session_memory_compaction_does_not_replay_task_fsm_markers() {
         let messages = vec![json!({
             "role": "user",
             "content": concat!(
                 "<current_session_memory>\n",
-                "Run E2E_PR4_TASK_FSM:stale_page\n",
+                "Run E2E_AGENT_ORG_TASK_FSM:stale_page\n",
                 "</current_session_memory>\n",
                 "<new_messages>settled task updates</new_messages>"
             )
@@ -666,11 +668,11 @@ mod tests {
         let response = E2eFakeProvider::response_for(&messages);
 
         assert!(response.starts_with("E2E_FAKE_COMPACT_SUMMARY:"));
-        assert!(!response.contains(PR4_TASK_FSM_MARKER));
+        assert!(!response.contains(AGENT_ORG_TASK_FSM_MARKER));
     }
 
     #[test]
-    fn pr4_marker_drives_graph_then_atomic_replacement() {
+    fn task_fsm_marker_drives_graph_then_atomic_replacement() {
         let tools = [
             named_tool(TASK_GRAPH_CREATE_TOOL),
             named_tool(TASK_UPDATE_TOOL),
@@ -678,7 +680,7 @@ mod tests {
         let messages = vec![
             json!({
                 "role": "user",
-                "content": "Run E2E_PR4_TASK_FSM:run_1"
+                "content": "Run E2E_AGENT_ORG_TASK_FSM:run_1"
             }),
             json!({
                 "role": "user",
@@ -686,7 +688,7 @@ mod tests {
             }),
         ];
 
-        let graph = E2eFakeProvider::pr4_task_fsm_tool_calls(&messages, Some(&tools));
+        let graph = E2eFakeProvider::agent_org_task_fsm_tool_calls(&messages, Some(&tools));
         assert_eq!(graph.len(), 1);
         assert_eq!(graph[0].name, TASK_GRAPH_CREATE_TOOL);
         assert_eq!(graph[0].arguments["tasks"].as_array().unwrap().len(), 4);
@@ -707,7 +709,8 @@ mod tests {
             "role": "user",
             "content": "<system-reminder>Updated per-turn context.</system-reminder>"
         }));
-        let replacement = E2eFakeProvider::pr4_task_fsm_tool_calls(&with_result, Some(&tools));
+        let replacement =
+            E2eFakeProvider::agent_org_task_fsm_tool_calls(&with_result, Some(&tools));
         assert_eq!(replacement.len(), 1);
         assert_eq!(replacement[0].name, TASK_UPDATE_TOOL);
         assert_eq!(replacement[0].arguments["operation"], "cancel_and_replace");
@@ -719,20 +722,22 @@ mod tests {
     }
 
     #[test]
-    fn pr4_owner_lifecycle_uses_only_task_update_operations() {
+    fn task_owner_lifecycle_uses_only_task_update_operations() {
         let tools = [named_tool(TASK_UPDATE_TOOL)];
         let assigned = json!({
             "role": "user",
             "content": concat!(
-                "Task assigned by coordinator: E2E_PR4_COMPLETE:run_2\n",
+                "Task assigned by coordinator: E2E_TASK_FSM_COMPLETE:run_2\n",
                 "Task ID: task-complete\n",
                 "Execution mode: build\n",
-                "E2E_PR4_TASK_FSM:run_2"
+                "E2E_AGENT_ORG_TASK_FSM:run_2"
             )
         });
 
-        let start =
-            E2eFakeProvider::pr4_task_fsm_tool_calls(std::slice::from_ref(&assigned), Some(&tools));
+        let start = E2eFakeProvider::agent_org_task_fsm_tool_calls(
+            std::slice::from_ref(&assigned),
+            Some(&tools),
+        );
         assert_eq!(
             start[0].arguments,
             json!({ "operation": "start", "id": "task-complete" })
@@ -747,7 +752,8 @@ mod tests {
             context.clone(),
             json!({ "role": "tool", "content": "ok" }),
         ];
-        let evidence = E2eFakeProvider::pr4_task_fsm_tool_calls(&evidence_messages, Some(&tools));
+        let evidence =
+            E2eFakeProvider::agent_org_task_fsm_tool_calls(&evidence_messages, Some(&tools));
         assert_eq!(evidence[0].arguments["operation"], "append_evidence");
 
         let complete_messages = vec![
@@ -756,7 +762,8 @@ mod tests {
             json!({ "role": "tool", "content": "ok" }),
             json!({ "role": "tool", "content": "ok" }),
         ];
-        let complete = E2eFakeProvider::pr4_task_fsm_tool_calls(&complete_messages, Some(&tools));
+        let complete =
+            E2eFakeProvider::agent_org_task_fsm_tool_calls(&complete_messages, Some(&tools));
         assert_eq!(complete[0].arguments["operation"], "complete");
         assert!(complete[0].arguments["output"].get("produced_at").is_none());
         assert!(complete[0].arguments["output"]
@@ -765,28 +772,28 @@ mod tests {
     }
 
     #[test]
-    fn pr4_owner_ignores_state_projection_marker_in_trailing_system_reminder() {
+    fn task_owner_ignores_state_projection_marker_in_trailing_system_reminder() {
         let tools = [named_tool(TASK_UPDATE_TOOL)];
         let messages = vec![
             json!({
                 "role": "user",
                 "content": concat!(
-                    "Task assigned by coordinator: E2E_PR4_COMPLETE:run_3\n",
+                    "Task assigned by coordinator: E2E_TASK_FSM_COMPLETE:run_3\n",
                     "Task ID: task-complete\n",
                     "Execution mode: build\n",
-                    "E2E_PR4_TASK_FSM:run_3"
+                    "E2E_AGENT_ORG_TASK_FSM:run_3"
                 )
             }),
             json!({
                 "role": "user",
                 "content": concat!(
                     "<system-reminder>Current work includes ",
-                    "E2E_PR4_TASK_FSM:stale_projection.</system-reminder>"
+                    "E2E_AGENT_ORG_TASK_FSM:stale_projection.</system-reminder>"
                 )
             }),
         ];
 
-        let calls = E2eFakeProvider::pr4_task_fsm_tool_calls(&messages, Some(&tools));
+        let calls = E2eFakeProvider::agent_org_task_fsm_tool_calls(&messages, Some(&tools));
 
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, TASK_UPDATE_TOOL);
@@ -797,7 +804,7 @@ mod tests {
     }
 
     #[test]
-    fn pr4_owner_lifecycle_accepts_production_inbox_xml_attachment() {
+    fn task_owner_lifecycle_accepts_production_inbox_xml_attachment() {
         let tools = [named_tool(TASK_UPDATE_TOOL)];
         let messages = vec![
             json!({
@@ -805,19 +812,19 @@ mod tests {
                 "content": concat!(
                     "<inbox-batch run_id=\"run\" org=\"Default Agent Org\">\n",
                     "  <inbox-message id=\"3\" from_member_id=\"coordinator\" kind=\"task_assigned\" created_at=\"now\">",
-                    "<task_assigned task_id=\"task-complete\" subject=\"E2E_PR4_COMPLETE:run_4\" assigned_by=\"Coordinator\" execution_mode=\"build\">",
-                    "<description>E2E_PR4_TASK_FSM:run_4</description>",
+                    "<task_assigned task_id=\"task-complete\" subject=\"E2E_TASK_FSM_COMPLETE:run_4\" assigned_by=\"Coordinator\" execution_mode=\"build\">",
+                    "<description>E2E_AGENT_ORG_TASK_FSM:run_4</description>",
                     "</task_assigned></inbox-message>\n",
                     "</inbox-batch>"
                 )
             }),
             json!({
                 "role": "user",
-                "content": "<system-reminder>Current work also contains E2E_PR4_TASK_FSM:run_4.</system-reminder>"
+                "content": "<system-reminder>Current work also contains E2E_AGENT_ORG_TASK_FSM:run_4.</system-reminder>"
             }),
         ];
 
-        let calls = E2eFakeProvider::pr4_task_fsm_tool_calls(&messages, Some(&tools));
+        let calls = E2eFakeProvider::agent_org_task_fsm_tool_calls(&messages, Some(&tools));
 
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, TASK_UPDATE_TOOL);
@@ -828,27 +835,31 @@ mod tests {
     }
 
     #[test]
-    fn pr4_owner_tool_call_ids_are_unique_across_same_scenario_tasks() {
+    fn task_owner_tool_call_ids_are_unique_across_same_scenario_tasks() {
         let tools = [named_tool(TASK_UPDATE_TOOL)];
         let assignment = |task_id: &str| {
             json!({
                 "role": "user",
                 "content": format!(
                     concat!(
-                        "Task assigned by coordinator: E2E_PR4_HISTORY:run_5:00\n",
+                        "Task assigned by coordinator: E2E_TASK_FSM_HISTORY:run_5:00\n",
                         "Task ID: {}\n",
                         "Execution mode: build\n",
-                        "E2E_PR4_TASK_FSM:run_5"
+                        "E2E_AGENT_ORG_TASK_FSM:run_5"
                     ),
                     task_id
                 )
             })
         };
 
-        let first =
-            E2eFakeProvider::pr4_task_fsm_tool_calls(&[assignment("task-history-a")], Some(&tools));
-        let second =
-            E2eFakeProvider::pr4_task_fsm_tool_calls(&[assignment("task-history-b")], Some(&tools));
+        let first = E2eFakeProvider::agent_org_task_fsm_tool_calls(
+            &[assignment("task-history-a")],
+            Some(&tools),
+        );
+        let second = E2eFakeProvider::agent_org_task_fsm_tool_calls(
+            &[assignment("task-history-b")],
+            Some(&tools),
+        );
 
         assert_eq!(first.len(), 1);
         assert_eq!(second.len(), 1);

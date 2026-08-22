@@ -510,7 +510,7 @@ pub(crate) fn revalidate_context_with_connection(
         }
         AgentOrgTurnKind::UserDirectedWork => {
             return Err(invariant_error(
-                "UserDirectedWork execution is not enabled in the PR4 formal wake path".to_string(),
+                "UserDirectedWork execution is not enabled in the task-bound wake path".to_string(),
             ));
         }
     }

@@ -19,7 +19,7 @@ impl AgentInboxStore {
     /// Load the single formal Inbox input bound to one persisted
     /// `TaskExecution` context.
     ///
-    /// A generic member drain is intentionally too broad for PR4: it could
+    /// A generic member drain is intentionally too broad for a task-bound Turn: it could
     /// acknowledge another Task's assignment or a user-directed message in
     /// the same provider Turn. Pending Tasks consume their oldest matching
     /// `TaskAssigned`; an in-progress Plan Task consumes its oldest matching

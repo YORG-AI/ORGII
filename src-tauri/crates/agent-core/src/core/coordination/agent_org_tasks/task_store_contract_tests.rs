@@ -3,13 +3,13 @@ use rusqlite::{params, OptionalExtension};
 
 use super::*;
 
-const RUN_ID: &str = "pr4-run";
-const ROOT_SESSION: &str = "pr4-root-session";
-const COORDINATOR_TURN: &str = "pr4-coordinator-turn";
+const RUN_ID: &str = "task-store-contract-run";
+const ROOT_SESSION: &str = "task-store-contract-root-session";
+const COORDINATOR_TURN: &str = "task-store-contract-coordinator-turn";
 const MEMBER_A: &str = "member-a";
 const MEMBER_B: &str = "member-b";
-const MEMBER_A_SESSION: &str = "pr4-member-a-session";
-const MEMBER_B_SESSION: &str = "pr4-member-b-session";
+const MEMBER_A_SESSION: &str = "task-store-contract-member-a-session";
+const MEMBER_B_SESSION: &str = "task-store-contract-member-b-session";
 
 struct Fixture {
     _sandbox: test_helpers::test_env::SandboxGuard,
@@ -17,7 +17,7 @@ struct Fixture {
 
 fn fixture() -> Fixture {
     let sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("PR4 test database");
+    let conn = get_connection().expect("Task Store contract test database");
     conn.execute_batch(
         "CREATE TABLE agent_sessions (
             session_id TEXT PRIMARY KEY,
@@ -49,8 +49,8 @@ fn fixture() -> Fixture {
     let now = chrono::Utc::now().to_rfc3339();
     let snapshot = serde_json::json!({
         "schemaVersion": 1,
-        "orgId": "pr4-org",
-        "orgName": "PR4 Team",
+        "orgId": "task-store-contract-org",
+        "orgName": "Task Store Contract Team",
         "coordinatorRole": "Lead",
         "coordinatorAgentId": "agent-coordinator",
         "planApprovalPolicy": "coordinator",
@@ -66,7 +66,7 @@ fn fixture() -> Fixture {
         "INSERT INTO agent_org_runtime_runs(
             id,org_id,coordinator_agent_id,root_session_id,org_snapshot_json,
             entry_mode,status,activation_generation,created_at,updated_at
-         ) VALUES (?1,'pr4-org','agent-coordinator',?2,?3,
+         ) VALUES (?1,'task-store-contract-org','agent-coordinator',?2,?3,
                    'standalone_session','running',1,?4,?4)",
         params![RUN_ID, ROOT_SESSION, snapshot, now],
     )
@@ -902,7 +902,7 @@ fn recovery_budget_is_per_task_and_never_resets_on_owner_generation_or_reopen() 
         [RUN_ID],
     )
     .unwrap();
-    let restarted_session = "pr4-member-a-session-gen2";
+    let restarted_session = "task-store-contract-member-a-session-gen2";
     insert_member_session(&conn, MEMBER_A, "agent-a", restarted_session, 2);
     bind_start_and_fail(&conn, MEMBER_A, restarted_session, "task-a", "turn-a-3", 2);
     assert_eq!(recovery_attempts("task-a"), 3);
@@ -1053,7 +1053,13 @@ fn recovery_replay_is_idempotent_and_only_mutates_the_bound_task() {
         [RUN_ID],
     )
     .unwrap();
-    insert_member_session(&conn, MEMBER_A, "agent-a", "pr4-member-a-session-gen2", 2);
+    insert_member_session(
+        &conn,
+        MEMBER_A,
+        "agent-a",
+        "task-store-contract-member-a-session-gen2",
+        2,
+    );
     let stale = AgentOrgTaskStore::recover_task_execution_failure(MEMBER_A_SESSION, "turn-sibling")
         .expect_err("an old activation generation must fail closed");
     assert!(stale.contains("generation"), "{stale}");
