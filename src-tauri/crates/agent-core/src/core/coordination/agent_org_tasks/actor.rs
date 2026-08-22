@@ -158,7 +158,7 @@ impl SystemArchiveOrRecovery {
         &self,
         conn: &rusqlite::Connection,
         org_run_id: &str,
-        owner_member_id: &str,
+        target_key: &str,
     ) -> Result<TaskActorAudit, String> {
         validate_run_and_generation(conn, org_run_id, Some(self.generation))?;
         let action_kind = match self.operation {
@@ -173,7 +173,7 @@ impl SystemArchiveOrRecovery {
                  FROM agent_org_runtime_recovery_attempts
                  WHERE org_run_id=?1 AND reservation_token=?2
                    AND action_kind=?3 AND target_key=?4",
-                params![org_run_id, &self.receipt_id, action_kind, owner_member_id],
+                params![org_run_id, &self.receipt_id, action_kind, target_key],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()
@@ -215,10 +215,6 @@ impl SystemArchiveOrRecovery {
             }
             SystemTaskOperation::ShutdownRelease => "task_shutdown_release",
         }
-    }
-
-    pub(crate) const fn operation(&self) -> SystemTaskOperation {
-        self.operation
     }
 }
 

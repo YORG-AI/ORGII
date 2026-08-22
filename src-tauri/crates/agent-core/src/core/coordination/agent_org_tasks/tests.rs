@@ -1270,55 +1270,6 @@ fn authorized_mutation_precondition_rejects_stale_update_and_delete() {
 }
 
 #[test]
-fn requeue_in_progress_for_owner_releases_to_coordinator_assignment() {
-    let _sandbox = task_store_sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let mut params = make_eligible_params(&run_id, "t-1", "claim me", &["member-alpha"]);
-    params.owner = Some("member-alpha".into());
-    params.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(params).unwrap();
-
-    let requeued = AgentOrgTaskStore::requeue_in_progress_for_owner(&run_id, "member-alpha")
-        .expect("requeue in-progress work");
-
-    assert_eq!(requeued.len(), 1);
-    assert_eq!(requeued[0].owner, None);
-    assert_eq!(requeued[0].status, TaskStatus::Pending);
-    let stored = AgentOrgTaskStore::get(&run_id, "t-1").unwrap().unwrap();
-    assert_eq!(stored.owner, None);
-    assert_eq!(stored.status, TaskStatus::Pending);
-}
-
-#[test]
-fn requeue_in_progress_for_owner_preserves_eligibility_metadata() {
-    let _sandbox = task_store_sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let mut params = make_eligible_params(
-        &run_id,
-        "t-shared",
-        "claim me",
-        &["member-alpha", "member-beta"],
-    );
-    params.owner = Some("member-alpha".into());
-    params.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(params).unwrap();
-
-    let requeued = AgentOrgTaskStore::requeue_in_progress_for_owner(&run_id, "member-alpha")
-        .expect("requeue in-progress work");
-
-    assert_eq!(requeued.len(), 1);
-    assert_eq!(
-        requeued[0].owner, None,
-        "failed owner is removed before coordinator reassignment"
-    );
-    assert_eq!(requeued[0].status, TaskStatus::Pending);
-    assert_eq!(
-        eligible_member_ids(&requeued[0]),
-        vec!["member-alpha".to_string(), "member-beta".to_string()]
-    );
-}
-
-#[test]
 fn task_history_records_create_update_and_release_for_reassignment() {
     let _sandbox = task_store_sandbox();
     let run_id = format!("run-{}", uuid::Uuid::new_v4());

@@ -322,6 +322,7 @@ fn parse_agent_exec_mode(value: Option<&str>) -> Option<crate::session::AgentExe
 
 fn requeue_agent_org_member_in_progress_work(
     session_id: &str,
+    failed_turn_intent_id: Option<&str>,
     requeue_work: bool,
 ) -> Result<Option<AgentOrgMemberLifecycleSnapshot>, String> {
     let Some(record) =
@@ -339,7 +340,11 @@ fn requeue_agent_org_member_in_progress_work(
         .require_participant_agent_id(&member_id)?
         .to_string();
     let requeued = if requeue_work {
-        AgentOrgTaskStore::requeue_in_progress_for_owner(&context.run_id, &member_id)?
+        let failed_turn_intent_id = failed_turn_intent_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "task_failure_recovery_requires_exact_turn_context".to_string())?;
+        AgentOrgTaskStore::recover_task_execution_failure(session_id, failed_turn_intent_id)?
     } else {
         Vec::new()
     };
@@ -355,11 +360,12 @@ fn requeue_agent_org_member_in_progress_work(
 pub fn finalize_agent_org_member_turn(
     app_handle: Option<&tauri::AppHandle>,
     session_id: &str,
+    turn_intent_id: Option<&str>,
     response: &Result<String, String>,
 ) {
     let outcome =
         crate::tools::impls::orchestration::member_idle::run_agent_org_blocking_section(|| {
-            requeue_agent_org_member_in_progress_work(session_id, response.is_err())
+            requeue_agent_org_member_in_progress_work(session_id, turn_intent_id, response.is_err())
         });
     let reconcile_run_id = outcome
         .as_ref()
@@ -596,9 +602,17 @@ pub async fn finalize_session(
         // writes able to stall unrelated async sessions.
         let sid = session_id.to_string();
         let response = response.clone();
+        let turn_intent_id = terminal_turn
+            .as_ref()
+            .and_then(|signal| signal.turn_intent_id.clone());
         let app_handle = app_handle.cloned();
         if let Err(err) = tokio::task::spawn_blocking(move || {
-            finalize_agent_org_member_turn(app_handle.as_ref(), &sid, &response);
+            finalize_agent_org_member_turn(
+                app_handle.as_ref(),
+                &sid,
+                turn_intent_id.as_deref(),
+                &response,
+            );
         })
         .await
         {

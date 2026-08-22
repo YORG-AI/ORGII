@@ -19,7 +19,16 @@ fn fixture() -> Fixture {
     let sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("PR4 test database");
     conn.execute_batch(
-        "CREATE TABLE session_turn_intents (
+        "CREATE TABLE agent_sessions (
+            session_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            agent_definition_id TEXT,
+            org_member_id TEXT
+        );
+        CREATE TABLE session_turn_intents (
             session_id TEXT NOT NULL,
             turn_intent_id TEXT NOT NULL,
             client_message_id TEXT,
@@ -62,8 +71,51 @@ fn fixture() -> Fixture {
         params![RUN_ID, ROOT_SESSION, snapshot, now],
     )
     .expect("running Team");
+    for (session_id, member_id, agent_id) in [
+        (MEMBER_A_SESSION, MEMBER_A, "agent-a"),
+        (MEMBER_B_SESSION, MEMBER_B, "agent-b"),
+    ] {
+        insert_member_session(&conn, member_id, agent_id, session_id, 1);
+    }
     insert_coordinator_context(&conn, COORDINATOR_TURN, 1);
     Fixture { _sandbox: sandbox }
+}
+
+fn insert_member_session(
+    conn: &rusqlite::Connection,
+    member_id: &str,
+    agent_id: &str,
+    session_id: &str,
+    generation: i64,
+) {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_sessions(
+            session_id,name,status,created_at,updated_at,
+            agent_definition_id,org_member_id
+         ) VALUES (?1,?2,'idle',?3,?3,?4,?2)",
+        params![session_id, member_id, now, agent_id],
+    )
+    .expect("canonical Member session");
+    insert_member_materialization(conn, member_id, agent_id, session_id, generation);
+}
+
+fn insert_member_materialization(
+    conn: &rusqlite::Connection,
+    member_id: &str,
+    agent_id: &str,
+    session_id: &str,
+    generation: i64,
+) {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_materializations(
+            org_run_id,member_id,agent_id,generation,session_id,
+            authority_class,status,created_at,updated_at
+         ) VALUES (?1,?2,?3,?4,?5,'formal','succeeded',?6,?6)",
+        params![RUN_ID, member_id, agent_id, generation, session_id, now],
+    )
+    .expect("canonical Member materialization");
 }
 
 fn insert_base_turn(conn: &rusqlite::Connection, session_id: &str, turn_id: &str) {
@@ -172,6 +224,82 @@ fn start(task_id: &str, session_id: &str, turn_id: &str) -> TaskMutationOutcome 
     )
     .expect("start Task")
     .0
+}
+
+fn assign_pending(task_id: &str, owner_member_id: &str) -> Task {
+    let current = AgentOrgTaskStore::get(RUN_ID, task_id)
+        .unwrap()
+        .expect("Task to assign");
+    AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        task_id,
+        &current.updated_at,
+        PendingTaskGraphPatch {
+            owner: Some(Some(owner_member_id.to_string())),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("assign pending Task")
+    .0
+    .current
+}
+
+fn recovery_attempts(task_id: &str) -> i64 {
+    get_connection()
+        .unwrap()
+        .query_row(
+            "SELECT attempts FROM agent_org_runtime_recovery_attempts
+             WHERE org_run_id=?1 AND action_kind='task_failure_recovery'
+               AND target_key=?2",
+            params![RUN_ID, task_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .unwrap()
+        .unwrap_or(0)
+}
+
+fn recovery_event_count() -> i64 {
+    get_connection()
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_recovery_attempts
+             WHERE org_run_id=?1 AND action_kind='task_failure_recovery_event'",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+fn fail_turn(session_id: &str, turn_id: &str) -> Vec<Task> {
+    AgentOrgTaskStore::recover_task_execution_failure(session_id, turn_id)
+        .expect("recover exact failed TaskExecution")
+}
+
+fn bind_and_start(
+    conn: &rusqlite::Connection,
+    member_id: &str,
+    session_id: &str,
+    task_id: &str,
+    turn_id: &str,
+    generation: i64,
+) {
+    insert_owner_context(conn, member_id, session_id, turn_id, task_id, generation);
+    start(task_id, session_id, turn_id);
+}
+
+fn bind_start_and_fail(
+    conn: &rusqlite::Connection,
+    member_id: &str,
+    session_id: &str,
+    task_id: &str,
+    turn_id: &str,
+    generation: i64,
+) -> Vec<Task> {
+    bind_and_start(conn, member_id, session_id, task_id, turn_id, generation);
+    fail_turn(session_id, turn_id)
 }
 
 #[test]
@@ -746,145 +874,290 @@ fn ten_thousand_task_history_uses_bounded_keyset_pages() {
 }
 
 #[test]
-fn recovery_receipt_requeues_then_exhaustion_fails_without_coordinator_owner() {
+fn recovery_budget_is_per_task_and_never_resets_on_owner_generation_or_reopen() {
     let _fixture = fixture();
-    create(pending("recover", Some(MEMBER_A), vec![]));
     let conn = get_connection().unwrap();
-    insert_owner_context(
+    create(pending("task-a", None, vec![]));
+    create(pending("task-b", None, vec![]));
+    assign_pending("task-a", MEMBER_A);
+    assign_pending("task-b", MEMBER_A);
+
+    for (task_id, turn_id) in [("task-a", "turn-a-1"), ("task-b", "turn-b-1")] {
+        assert_eq!(
+            bind_start_and_fail(&conn, MEMBER_A, MEMBER_A_SESSION, task_id, turn_id, 1)[0].status,
+            TaskStatus::Pending
+        );
+    }
+    assert_eq!(recovery_attempts("task-a"), 1);
+    assert_eq!(recovery_attempts("task-b"), 1);
+
+    crate::coordination::agent_org_watchdog::init_schema(&conn).unwrap();
+    assign_pending("task-a", MEMBER_B);
+    bind_start_and_fail(&conn, MEMBER_B, MEMBER_B_SESSION, "task-a", "turn-a-2", 1);
+    assert_eq!(recovery_attempts("task-a"), 2);
+
+    assign_pending("task-a", MEMBER_A);
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET activation_generation=2 WHERE id=?1",
+        [RUN_ID],
+    )
+    .unwrap();
+    let restarted_session = "pr4-member-a-session-gen2";
+    insert_member_session(&conn, MEMBER_A, "agent-a", restarted_session, 2);
+    bind_start_and_fail(&conn, MEMBER_A, restarted_session, "task-a", "turn-a-3", 2);
+    assert_eq!(recovery_attempts("task-a"), 3);
+    assert_eq!(recovery_attempts("task-b"), 1);
+}
+
+#[test]
+fn first_three_runtime_failures_requeue_and_fourth_is_terminal() {
+    let _fixture = fixture();
+    let conn = get_connection().unwrap();
+    create(pending("recover", None, vec![]));
+
+    for attempt in 1..=4 {
+        assign_pending("recover", MEMBER_A);
+        let turn_id = format!("turn-recover-{attempt}");
+        let recovered =
+            bind_start_and_fail(&conn, MEMBER_A, MEMBER_A_SESSION, "recover", &turn_id, 1);
+        assert_eq!(recovery_attempts("recover"), attempt);
+        if attempt <= 3 {
+            assert_eq!(recovered[0].status, TaskStatus::Pending);
+            assert_eq!(recovered[0].owner, None);
+            assert!(eligible_member_ids(&recovered[0]).contains(&MEMBER_A.to_string()));
+        } else {
+            assert_eq!(recovered[0].status, TaskStatus::Failed);
+            assert_eq!(recovered[0].owner.as_deref(), Some(MEMBER_A));
+            assert_eq!(
+                recovered[0].failure_reason.as_ref().unwrap().code,
+                "system.recovery_budget_exhausted"
+            );
+        }
+    }
+}
+
+#[test]
+fn replacement_and_explicit_owner_failure_do_not_share_or_consume_budget() {
+    let _fixture = fixture();
+    let conn = get_connection().unwrap();
+    create(pending("original", None, vec![]));
+    assign_pending("original", MEMBER_A);
+    bind_start_and_fail(
         &conn,
         MEMBER_A,
         MEMBER_A_SESSION,
-        "turn-recover",
-        "recover",
+        "original",
+        "turn-original-1",
         1,
     );
-    start("recover", MEMBER_A_SESSION, "turn-recover");
-    let reservation =
-        crate::coordination::agent_org_watchdog::reserve_task_failure_recovery(RUN_ID, MEMBER_A)
-            .unwrap();
-    let wrong_actor = SystemArchiveOrRecovery::new(
-        reservation.token.clone(),
-        reservation.generation,
-        SystemTaskOperation::RecoveryFail,
+    assign_pending("original", MEMBER_A);
+    bind_and_start(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "original",
+        "turn-original-2",
+        1,
+    );
+    let original = AgentOrgTaskStore::get(RUN_ID, "original").unwrap().unwrap();
+    AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "original",
+        &original.updated_at,
+        TaskTerminalReason {
+            code: "scope.changed".to_string(),
+            message: "replace failed work".to_string(),
+        },
+        pending("replacement", Some(MEMBER_B), vec![]),
+        |_tx, _outcome, _replacement, _tasks| Ok(()),
     )
     .unwrap();
-    let mismatch = AgentOrgTaskStore::recover_owner_failure(wrong_actor, RUN_ID, MEMBER_A)
-        .expect_err("a non-exhausted durable receipt cannot fail the Task");
-    assert_eq!(mismatch, "system_task_recovery_operation_mismatch");
+    bind_start_and_fail(
+        &conn,
+        MEMBER_B,
+        MEMBER_B_SESSION,
+        "replacement",
+        "turn-replacement-1",
+        1,
+    );
+    assert_eq!(recovery_attempts("original"), 1);
+    assert_eq!(recovery_attempts("replacement"), 1);
+
+    create(pending("explicit-failure", Some(MEMBER_A), vec![]));
+    bind_and_start(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "explicit-failure",
+        "turn-explicit-failure",
+        1,
+    );
+    AgentOrgTaskStore::owner_fail_with_transactional_effects(
+        owner_actor(MEMBER_A_SESSION, "turn-explicit-failure"),
+        RUN_ID,
+        "explicit-failure",
+        TaskTerminalReason {
+            code: "execution.failed".to_string(),
+            message: "Owner reported a terminal failure".to_string(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .unwrap();
+    assert_eq!(recovery_attempts("explicit-failure"), 0);
+    crate::coordination::agent_org_watchdog::clear_rewake_budget(RUN_ID, MEMBER_A).unwrap();
+    assert_eq!(recovery_attempts("original"), 1);
+    assert_eq!(recovery_attempts("replacement"), 1);
+}
+
+#[test]
+fn recovery_replay_is_idempotent_and_only_mutates_the_bound_task() {
+    let _fixture = fixture();
+    let conn = get_connection().unwrap();
+    for (task_id, turn_id) in [("exact", "turn-exact"), ("sibling", "turn-sibling")] {
+        create(pending(task_id, Some(MEMBER_A), vec![]));
+        bind_and_start(&conn, MEMBER_A, MEMBER_A_SESSION, task_id, turn_id, 1);
+    }
+    let ambiguous = crate::coordination::agent_org_turn_contexts::unique_running_task_execution_turn_for_recovery(
+        &conn,
+        RUN_ID,
+        MEMBER_A_SESSION,
+        MEMBER_A,
+    )
+    .expect_err("startup must refuse an ambiguous session-level recovery target");
+    assert!(
+        ambiguous.contains("multiple running TaskExecution"),
+        "{ambiguous}"
+    );
+
+    assert_eq!(fail_turn(MEMBER_A_SESSION, "turn-exact").len(), 1);
+    assert!(fail_turn(MEMBER_A_SESSION, "turn-exact").is_empty());
+    assert_eq!(recovery_attempts("exact"), 1);
+    assert_eq!(recovery_event_count(), 1);
     assert_eq!(
-        AgentOrgTaskStore::get(RUN_ID, "recover")
+        AgentOrgTaskStore::get(RUN_ID, "sibling")
             .unwrap()
             .unwrap()
             .status,
         TaskStatus::InProgress
     );
-    let actor = SystemArchiveOrRecovery::new(
-        reservation.token,
-        reservation.generation,
-        SystemTaskOperation::RecoveryRequeue,
-    )
-    .unwrap();
-    let recovered = AgentOrgTaskStore::recover_owner_failure(actor, RUN_ID, MEMBER_A).unwrap();
-    assert_eq!(recovered.len(), 1);
-    assert_eq!(recovered[0].status, TaskStatus::Pending);
-    assert_eq!(recovered[0].owner, None);
-    assert!(eligible_member_ids(&recovered[0]).contains(&MEMBER_A.to_string()));
 
-    let recovered_pending = recovered[0].clone();
-    AgentOrgTaskStore::patch_pending_with_transactional_effects(
-        graph_actor(),
-        RUN_ID,
-        "recover",
-        &recovered_pending.updated_at,
-        PendingTaskGraphPatch {
-            owner: Some(Some(MEMBER_A.to_string())),
-            ..Default::default()
-        },
-        |_tx, _outcome, _tasks| Ok(()),
+    let missing =
+        AgentOrgTaskStore::recover_task_execution_failure(MEMBER_A_SESSION, "missing-turn")
+            .expect_err("a session without the exact failed Turn cannot consume budget");
+    assert!(missing.contains("missing companion context"), "{missing}");
+    assert_eq!(recovery_event_count(), 1);
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET activation_generation=2 WHERE id=?1",
+        [RUN_ID],
     )
     .unwrap();
-    insert_owner_context(
+    insert_member_session(&conn, MEMBER_A, "agent-a", "pr4-member-a-session-gen2", 2);
+    let stale = AgentOrgTaskStore::recover_task_execution_failure(MEMBER_A_SESSION, "turn-sibling")
+        .expect_err("an old activation generation must fail closed");
+    assert!(stale.contains("generation"), "{stale}");
+    assert_eq!(recovery_attempts("sibling"), 0);
+    assert_eq!(recovery_event_count(), 1);
+}
+
+#[test]
+fn an_unprocessed_old_turn_cannot_recover_a_new_execution_of_the_same_task() {
+    let _fixture = fixture();
+    let conn = get_connection().unwrap();
+    create(pending("restarted", Some(MEMBER_A), vec![]));
+    bind_and_start(
         &conn,
         MEMBER_A,
         MEMBER_A_SESSION,
-        "turn-recover-again",
-        "recover",
+        "restarted",
+        "turn-restarted-old",
         1,
     );
-    start("recover", MEMBER_A_SESSION, "turn-recover-again");
-    conn.execute(
-        "UPDATE agent_org_runtime_recovery_attempts SET attempts=3
-         WHERE org_run_id=?1 AND action_kind='task_failure_recovery' AND target_key=?2",
-        params![RUN_ID, MEMBER_A],
-    )
-    .unwrap();
-    let reservation =
-        crate::coordination::agent_org_watchdog::reserve_task_failure_recovery(RUN_ID, MEMBER_A)
-            .unwrap();
-    assert!(reservation.exhausted);
-    let wrong_actor = SystemArchiveOrRecovery::new(
-        reservation.token.clone(),
-        reservation.generation,
-        SystemTaskOperation::RecoveryRequeue,
-    )
-    .unwrap();
-    let mismatch = AgentOrgTaskStore::recover_owner_failure(wrong_actor, RUN_ID, MEMBER_A)
-        .expect_err("an exhausted durable receipt cannot requeue the Task");
-    assert_eq!(mismatch, "system_task_recovery_operation_mismatch");
-    let actor = SystemArchiveOrRecovery::new(
-        reservation.token,
-        reservation.generation,
-        SystemTaskOperation::RecoveryFail,
-    )
-    .unwrap();
-    let failed = AgentOrgTaskStore::recover_owner_failure(actor, RUN_ID, MEMBER_A).unwrap();
-    assert_eq!(failed[0].status, TaskStatus::Failed);
-    assert_eq!(
-        failed[0].failure_reason.as_ref().unwrap().code,
-        "system.recovery_budget_exhausted"
+    AgentOrgTaskStore::dispose_open_tasks_for_shutdown(RUN_ID, MEMBER_A).unwrap();
+    assign_pending("restarted", MEMBER_A);
+    bind_and_start(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "restarted",
+        "turn-restarted-new",
+        1,
     );
-    assert_ne!(failed[0].owner.as_deref(), Some("coordinator"));
 
-    create(pending("corrupt-recovery", Some(MEMBER_B), vec![]));
-    insert_owner_context(
+    let stale =
+        AgentOrgTaskStore::recover_task_execution_failure(MEMBER_A_SESSION, "turn-restarted-old")
+            .expect_err("an old unprocessed Turn cannot recover the current execution");
+    assert!(stale.contains("turn_or_target_changed"), "{stale}");
+    assert_eq!(recovery_attempts("restarted"), 0);
+    assert_eq!(recovery_event_count(), 0);
+    assert_eq!(
+        fail_turn(MEMBER_A_SESSION, "turn-restarted-new")[0].status,
+        TaskStatus::Pending
+    );
+    assert_eq!(recovery_attempts("restarted"), 1);
+}
+
+#[test]
+fn recovery_mutation_failure_rolls_back_budget_and_concurrent_replay_counts_once() {
+    let _fixture = fixture();
+    let conn = get_connection().unwrap();
+    create(pending("corrupt", Some(MEMBER_B), vec![]));
+    bind_and_start(
         &conn,
         MEMBER_B,
         MEMBER_B_SESSION,
-        "turn-corrupt-recovery",
-        "corrupt-recovery",
+        "corrupt",
+        "turn-corrupt",
         1,
-    );
-    start(
-        "corrupt-recovery",
-        MEMBER_B_SESSION,
-        "turn-corrupt-recovery",
     );
     conn.execute(
         "UPDATE agent_org_runtime_tasks
          SET metadata_json='{\"eligible_member_ids\":\"member-b\"}'
-         WHERE org_run_id=?1 AND id='corrupt-recovery'",
+         WHERE org_run_id=?1 AND id='corrupt'",
         [RUN_ID],
     )
     .unwrap();
-    let reservation =
-        crate::coordination::agent_org_watchdog::reserve_task_failure_recovery(RUN_ID, MEMBER_B)
-            .unwrap();
-    let actor = SystemArchiveOrRecovery::new(
-        reservation.token,
-        reservation.generation,
-        SystemTaskOperation::RecoveryRequeue,
-    )
-    .unwrap();
-    let error = AgentOrgTaskStore::recover_owner_failure(actor, RUN_ID, MEMBER_B)
-        .expect_err("system recovery must not silently repair corrupt eligibility metadata");
+    let error = AgentOrgTaskStore::recover_task_execution_failure(MEMBER_B_SESSION, "turn-corrupt")
+        .expect_err("Task mutation failure must roll back receipt and budget");
     assert_eq!(error, "eligible_member_ids must be an array");
-    let persisted_status: String = conn
-        .query_row(
-            "SELECT status FROM agent_org_runtime_tasks
-             WHERE org_run_id=?1 AND id='corrupt-recovery'",
-            [RUN_ID],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(persisted_status, TaskStatus::InProgress.as_wire());
+    assert_eq!(recovery_attempts("corrupt"), 0);
+    assert_eq!(recovery_event_count(), 0);
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "corrupt")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::InProgress
+    );
+
+    create(pending("concurrent", Some(MEMBER_A), vec![]));
+    bind_and_start(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "concurrent",
+        "turn-concurrent",
+        1,
+    );
+    let workers = (0..2)
+        .map(|_| {
+            std::thread::spawn(|| {
+                AgentOrgTaskStore::recover_task_execution_failure(
+                    MEMBER_A_SESSION,
+                    "turn-concurrent",
+                )
+                .unwrap()
+                .len()
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut mutation_counts = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect::<Vec<_>>();
+    mutation_counts.sort_unstable();
+    assert_eq!(mutation_counts, vec![0, 1]);
+    assert_eq!(recovery_attempts("concurrent"), 1);
+    assert_eq!(recovery_event_count(), 1);
 }

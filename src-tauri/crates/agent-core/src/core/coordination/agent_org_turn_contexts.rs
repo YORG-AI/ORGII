@@ -517,6 +517,108 @@ pub(crate) fn revalidate_context_with_connection(
     Ok(context)
 }
 
+/// Resolve the persisted TaskExecution identity used by failure recovery.
+/// A session-level status or Member id is never sufficient: the failed Turn
+/// must name one Task, Owner, run, source, and activation generation.
+pub(crate) fn require_task_failure_recovery_context_with_connection(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    let context = require_context_with_connection(conn, session_id, turn_intent_id)?;
+    let task_id = context
+        .task_id
+        .as_deref()
+        .ok_or_else(|| invariant_error("failure recovery context has no task_id".to_string()))?;
+    let owner_member_id = context.owner_member_id.as_deref().ok_or_else(|| {
+        invariant_error("failure recovery context has no owner_member_id".to_string())
+    })?;
+    if context.turn_kind != AgentOrgTurnKind::TaskExecution
+        || context.participant_id != owner_member_id
+        || context.dispatch_member_id.as_deref() != Some(owner_member_id)
+        || context.source_kind != AgentOrgTurnSourceKind::Task
+        || context.source_id != task_id
+        || context
+            .activation_generation
+            .filter(|value| *value > 0)
+            .is_none()
+    {
+        return Err(invariant_error(
+            "failure recovery context is not an exact TaskExecution binding".to_string(),
+        ));
+    }
+    let base: Option<(Option<String>, String)> = conn
+        .query_row(
+            "SELECT org_run_id,status FROM session_turn_intents
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            params![session_id, turn_intent_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((base_run_id, base_status)) = base else {
+        return Err(invariant_error(
+            "failure recovery context has no base Turn".to_string(),
+        ));
+    };
+    if base_run_id.as_deref() != Some(context.org_run_id.as_str())
+        || !matches!(base_status.as_str(), "running" | "failed")
+    {
+        return Err(invariant_error(format!(
+            "failure recovery base Turn is not running/failed in run {}",
+            context.org_run_id
+        )));
+    }
+    Ok(context)
+}
+
+/// Startup crash recovery may only continue when exactly one persisted,
+/// running TaskExecution belongs to the abandoned Member session.
+pub(crate) fn unique_running_task_execution_turn_for_recovery(
+    conn: &Connection,
+    org_run_id: &str,
+    session_id: &str,
+    owner_member_id: &str,
+) -> Result<Option<String>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT context.turn_intent_id
+             FROM agent_org_runtime_turn_contexts context
+             JOIN session_turn_intents base
+               ON base.session_id=context.session_id
+              AND base.turn_intent_id=context.turn_intent_id
+             WHERE context.org_run_id=?1
+               AND context.session_id=?2
+               AND context.turn_kind='task_execution'
+               AND context.participant_id=?3
+               AND context.owner_member_id=?3
+               AND context.dispatch_member_id=?3
+               AND context.task_id IS NOT NULL
+               AND context.source_kind='task'
+               AND context.source_id=context.task_id
+               AND context.activation_generation IS NOT NULL
+               AND base.org_run_id=?1
+               AND base.status='running'
+             ORDER BY context.created_at DESC,context.context_id DESC
+             LIMIT 2",
+        )
+        .map_err(|error| error.to_string())?;
+    let turns = statement
+        .query_map(params![org_run_id, session_id, owner_member_id], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| error.to_string())?;
+    match turns.as_slice() {
+        [] => Ok(None),
+        [turn_intent_id] => Ok(Some(turn_intent_id.clone())),
+        _ => Err(invariant_error(format!(
+            "abandoned Member session {session_id} has multiple running TaskExecution contexts"
+        ))),
+    }
+}
+
 fn resolve_next_task_wake_binding(
     conn: &Connection,
     org_run_id: &str,
