@@ -136,7 +136,7 @@ pub(super) fn promote_agent_org_direct_session_to_running(
 /// `TaskAssigned` is only a doorbell: the persisted Task context identifies
 /// the one authoritative row, and unknown/corrupt mode values fail closed
 /// instead of falling back to Build. Coordinator wakes have no Task mode.
-pub(super) fn resolve_agent_org_wake_mode(
+pub(crate) fn resolve_agent_org_wake_mode(
     session_id: &str,
     run_id: &str,
     turn_intent_id: &str,

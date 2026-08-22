@@ -151,6 +151,7 @@ fn create_fixture(conn: &Connection) {
     )
     .expect("create canonical fixture schema");
     create_schema(conn).expect("create Turn context schema");
+    crate::coordination::agent_org_pause::create_schema(conn).expect("create Pause receipt schema");
     conn.execute(
         "INSERT INTO agent_org_runtime_runs
             (id, root_session_id, org_snapshot_json, activation_generation, status)
@@ -390,6 +391,113 @@ fn member_wake_binds_oldest_dependency_ready_assignment_and_revalidates_at_start
     let error = revalidate_context_with_connection(&conn, MEMBER_SESSION_ID, "turn-wake-ready")
         .expect_err("queued stale owner binding must fail before Provider execution");
     assert!(error.contains("no longer owned"), "{error}");
+}
+
+#[test]
+fn durable_pause_continuation_excludes_parallel_ordinary_wake_until_terminal() {
+    let mut conn = connection();
+    insert_task_assignment(&conn, "task-a");
+    let original = accept_in_transaction(&mut conn, &task_request("turn-original"))
+        .expect("accept original TaskExecution");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='stale'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        params![MEMBER_SESSION_ID, &original.turn_intent_id],
+    )
+    .expect("finish original Turn before persisted continuation");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET activation_generation=3 WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("advance run to Resume generation");
+    conn.execute(
+        "UPDATE agent_org_runtime_member_materializations
+         SET generation=3 WHERE org_run_id=?1 AND member_id=?2",
+        params![RUN_ID, MEMBER_ID],
+    )
+    .expect("advance canonical materialization");
+
+    let continuation_id = "turn-pause-continuation";
+    let continuation = AgentOrgTurnAdmission::task_continuation(
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        continuation_id,
+        Some("message-pause-continuation".into()),
+        "task-a",
+        MEMBER_ID,
+        3,
+    );
+    let continuation_context = accept_in_transaction(&mut conn, &continuation)
+        .expect("persist Resume continuation before dispatcher starts");
+    assert_eq!(continuation_context.member_dispatch_sequence, Some(2));
+    conn.execute_batch(
+        "INSERT INTO agent_org_runtime_pause_episodes (
+            episode_id,org_run_id,pause_request_id,pause_generation,status,
+            resume_request_id,resume_generation,teardown_owner_id,
+            created_at,updated_at,resumed_at
+         ) VALUES (
+            'episode-a','run-a','pause-request-a',2,'consumed',
+            'resume-request-a',3,'teardown-a','now','now','now'
+         );
+         INSERT INTO agent_org_runtime_pause_handoffs (
+            handoff_id,episode_id,org_run_id,session_id,original_turn_intent_id,
+            turn_kind,participant_id,task_id,original_owner_member_id,
+            original_activation_generation,original_intent_status,drain_status,
+            continuation_turn_intent_id,continuation_status,created_at,updated_at
+         ) VALUES (
+            'handoff-a','episode-a','run-a','session-member','turn-original',
+            'task_execution','member-a','task-a','member-a',1,'queued','released',
+            'turn-pause-continuation','queued','now','now'
+         );",
+    )
+    .expect("seed durable continuation receipt");
+
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("competing ordinary Wake transaction");
+    let error = accept_wake_with_connection(
+        &transaction,
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-duplicate-wake",
+        None,
+        MEMBER_ID,
+    )
+    .expect_err("ordinary Wake must not compete with a live continuation");
+    transaction
+        .rollback()
+        .expect("rollback rejected competing Wake");
+    assert!(error.contains("durable Pause continuation"), "{error}");
+    assert_eq!(
+        conn.query_row(
+            "SELECT COUNT(*) FROM session_turn_intents WHERE turn_intent_id='turn-duplicate-wake'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("count rejected duplicate intent"),
+        0
+    );
+
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        params![MEMBER_SESSION_ID, continuation_id],
+    )
+    .expect("finish continuation");
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("post-continuation Wake transaction");
+    let next = accept_wake_with_connection(
+        &transaction,
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-after-continuation",
+        None,
+        MEMBER_ID,
+    )
+    .expect("ordinary Wake may proceed after continuation is terminal");
+    transaction.commit().expect("commit post-continuation Wake");
+    assert_eq!(next.member_dispatch_sequence, Some(3));
 }
 
 #[test]

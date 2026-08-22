@@ -2458,7 +2458,21 @@
       "memberSessions": "Üye oturumları",
       "pauseRun": "Çalıştırmayı duraklat",
       "resumeRun": "Çalıştırmayı devam ettir",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Koordinatör sohbet geçmişini görüntüle",
+      "phase": {
+        "starting": "Başlatılıyor",
+        "coordinating": "Koordine ediliyor",
+        "dispatching": "Dağıtılıyor",
+        "members_working": "Üyeler çalışıyor",
+        "waiting": "İş bekleniyor",
+        "awaiting_plan_approval": "Plan onayı bekleniyor",
+        "finalizing": "Tamamlanıyor",
+        "draining": "Duraklatıldı · sonlandırılıyor",
+        "paused": "Duraklatıldı",
+        "idle": "Boşta",
+        "failed": "Başarısız",
+        "archived": "Arşivlendi"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent mesajları",
@@ -2696,7 +2710,7 @@
     "userMessagePending": "{{member}} mesajınızı üstleniyor",
     "pausedBanner": {
       "title": "Yeni çalışma duraklatıldı",
-      "body": "Duraklatma aktif yanıtları durdurur, devam etmek için mesaj gönderin veya Devam et'e basın",
+      "body": "Mesaj göndermeden önce bu Agent Ekibini devam ettirin",
       "resume": "Devam et"
     },
     "toolUseSummary": {

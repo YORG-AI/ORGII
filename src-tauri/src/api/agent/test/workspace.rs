@@ -474,7 +474,7 @@ pub async fn test_session_prompt_environment_block(
             "error": "session not found",
         }));
     };
-    let runtime = match session.runtime.read().await.clone() {
+    let runtime = match session.get_runtime().await {
         Some(r) => r,
         None => {
             return Json(serde_json::json!({

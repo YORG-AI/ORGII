@@ -118,12 +118,9 @@ pub async fn process_message(
     app_handle: Option<tauri::AppHandle>,
 ) -> Result<ProcessingResult, String> {
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .as_ref()
-        .ok_or_else(|| format!("Session {} runtime not initialized", session.id))?
-        .clone();
+        .ok_or_else(|| format!("Session {} runtime not initialized", session.id))?;
 
     let workspace_path = runtime.workspace_state.read().working_dir().to_path_buf();
 

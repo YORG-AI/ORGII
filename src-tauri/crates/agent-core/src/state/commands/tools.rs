@@ -212,10 +212,8 @@ pub async fn list_effective_tools_for_session(
         .await
         .ok_or_else(|| format!("session not found: {}", request.session_id))?;
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .clone()
         .ok_or_else(|| format!("session runtime not initialized: {}", request.session_id))?;
 
     let session_record =

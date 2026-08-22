@@ -25,6 +25,7 @@ pub struct DrainGuard {
     run_id: String,
     recipient_member_id: String,
     materialization_session_id: Option<String>,
+    formal_turn_intent_id: Option<String>,
     pending_ids: Vec<i64>,
     new_materialization_ids: Vec<i64>,
     transcript_content: Option<String>,
@@ -37,6 +38,7 @@ impl DrainGuard {
             run_id: run_id.to_string(),
             recipient_member_id: recipient_member_id.to_string(),
             materialization_session_id: None,
+            formal_turn_intent_id: None,
             pending_ids: Vec::new(),
             new_materialization_ids: Vec::new(),
             transcript_content: None,
@@ -57,11 +59,26 @@ impl DrainGuard {
             run_id: run_id.to_string(),
             recipient_member_id: recipient_member_id.to_string(),
             materialization_session_id: materialization_session_id.map(str::to_string),
+            formal_turn_intent_id: None,
             pending_ids,
             new_materialization_ids,
             transcript_content: transcript,
             materializations,
         }
+    }
+
+    pub(super) fn bind_formal_turn(
+        mut self,
+        turn_context: &crate::coordination::agent_org_turn_contexts::AgentOrgTurnContext,
+    ) -> Self {
+        if matches!(
+            turn_context.turn_kind,
+            crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+                | crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
+        ) {
+            self.formal_turn_intent_id = Some(turn_context.turn_intent_id.clone());
+        }
+        self
     }
 
     pub fn transcript_content(&self) -> Option<&str> {
@@ -144,9 +161,14 @@ impl DrainGuard {
             return;
         }
         let result = match self.materialization_session_id.as_deref() {
-            Some(session_id) => {
-                AgentInboxStore::mark_many_read_for_session(&self.pending_ids, session_id)
-            }
+            Some(session_id) => match self.formal_turn_intent_id.as_deref() {
+                Some(turn_intent_id) => AgentInboxStore::mark_many_read_for_turn(
+                    &self.pending_ids,
+                    session_id,
+                    turn_intent_id,
+                ),
+                None => AgentInboxStore::mark_many_read_for_session(&self.pending_ids, session_id),
+            },
             None => AgentInboxStore::mark_many_read(&self.pending_ids),
         };
         match result {

@@ -50,6 +50,7 @@ vi.mock("@src/api/tauri/agent", () => ({
   AGENT_ORG_RUN_PHASE: {
     COORDINATING: "coordinating",
     FINALIZING: "finalizing",
+    DRAINING: "draining",
   },
   AGENT_ORG_TASK_STATUS: {
     PENDING: "pending",
@@ -190,6 +191,8 @@ describe("Agent Org Task panel", () => {
     mocks.getPage.mockReset();
     mocks.getDetail.mockReset();
     mocks.getAnnotations.mockReset();
+    mocks.pause.mockReset();
+    mocks.resume.mockReset();
   });
 
   afterEach(() => {
@@ -274,6 +277,57 @@ describe("Agent Org Task panel", () => {
       cursor: undefined,
       direction: "forward",
     });
+  });
+
+  it("shows Paused draining immediately and keeps Resume enabled", async () => {
+    mocks.resume.mockResolvedValue({
+      requestId: "resume-request",
+      runId: "run-task-panel",
+      episodeId: "episode-a",
+      transitioned: true,
+      resumeGeneration: 3,
+      continuationCount: 2,
+      skippedCount: 0,
+    });
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    const view: AgentOrgRunView = {
+      ...runView(),
+      runStatus: "paused",
+      runPhase: "draining",
+      pauseHandoff: {
+        episodeId: "episode-a",
+        pauseGeneration: 2,
+        totalCount: 2,
+        drainingCount: 2,
+        timedOutCount: 0,
+      },
+    };
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view,
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+    const phase = container.querySelector<HTMLElement>(
+      '[data-testid="agent-org-overview-run-phase"]'
+    );
+    expect(phase?.dataset.runPhase).toBe("draining");
+    expect(phase?.textContent).toContain(
+      "planner.agentOrgOverview.phase.draining"
+    );
+    const resume = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-overview-resume-button"]'
+    );
+    expect(resume?.disabled).toBe(false);
+    await act(async () => {
+      resume?.click();
+    });
+    expect(mocks.resume).toHaveBeenCalledWith("root-session");
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("discards a late History response after switching teams", async () => {

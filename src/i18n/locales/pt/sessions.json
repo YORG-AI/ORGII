@@ -2481,7 +2481,21 @@
       "memberSessions": "Sessões de membros",
       "pauseRun": "Pausar execução",
       "resumeRun": "Retomar execução",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Ver histórico do chat do coordenador",
+      "phase": {
+        "starting": "Iniciando",
+        "coordinating": "Coordenando",
+        "dispatching": "Distribuindo",
+        "members_working": "Membros trabalhando",
+        "waiting": "Aguardando trabalho",
+        "awaiting_plan_approval": "Aguardando aprovação do plano",
+        "finalizing": "Finalizando",
+        "draining": "Pausado · finalizando",
+        "paused": "Pausado",
+        "idle": "Inativo",
+        "failed": "Falhou",
+        "archived": "Arquivado"
+      }
     },
     "agentOrgInbox": {
       "title": "Mensagens Agent",
@@ -2694,7 +2708,7 @@
     "userMessagePending": "{{member}} está assumindo sua mensagem",
     "pausedBanner": {
       "title": "Novo trabalho está pausado",
-      "body": "Pausar interrompe as respostas ativas, envie uma mensagem ou clique em Retomar para continuar",
+      "body": "Retome esta Equipe de Agents antes de enviar uma mensagem",
       "resume": "Retomar"
     },
     "toolUseSummary": {

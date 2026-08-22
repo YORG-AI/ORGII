@@ -2454,7 +2454,21 @@
       "memberSessions": "Phiên thành viên",
       "pauseRun": "Tạm dừng thực thi",
       "resumeRun": "Tiếp tục thực thi",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Xem lịch sử trò chuyện của điều phối viên",
+      "phase": {
+        "starting": "Đang bắt đầu",
+        "coordinating": "Đang điều phối",
+        "dispatching": "Đang phân công",
+        "members_working": "Thành viên đang làm việc",
+        "waiting": "Đang chờ công việc",
+        "awaiting_plan_approval": "Đang chờ phê duyệt kế hoạch",
+        "finalizing": "Đang hoàn tất",
+        "draining": "Đã tạm dừng · đang kết thúc",
+        "paused": "Đã tạm dừng",
+        "idle": "Không hoạt động",
+        "failed": "Thất bại",
+        "archived": "Đã lưu trữ"
+      }
     },
     "agentOrgInbox": {
       "title": "Tin nhắn Agent",
@@ -2692,7 +2706,7 @@
     "userMessagePending": "{{member}} đang tiếp nhận tin nhắn của bạn",
     "pausedBanner": {
       "title": "Công việc mới đang tạm dừng",
-      "body": "Tạm dừng sẽ dừng các phản hồi đang chạy, gửi tin nhắn hoặc nhấn Tiếp tục để tiếp tục",
+      "body": "Tiếp tục Nhóm Agent này trước khi gửi tin nhắn",
       "resume": "Tiếp tục"
     },
     "toolUseSummary": {

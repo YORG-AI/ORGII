@@ -16,6 +16,7 @@ const ADDRESS_COMMENTS_MARKER: &str =
 const ADDRESS_COMMENT_ID_MARKER: &str = " — id: ";
 const REPLY_SESSION_COMMENT_TOOL: &str = "reply_session_comment";
 const AGENT_ORG_TASK_FSM_MARKER: &str = "E2E_AGENT_ORG_TASK_FSM:";
+const AGENT_ORG_PAUSE_MARKER: &str = "E2E_AGENT_ORG_PAUSE:";
 const CONTROL_WAIT_MARKER: &str = "Create a stoppable window by waiting for about ";
 const TASK_GRAPH_CREATE_TOOL: &str = "task_graph_create";
 const TASK_UPDATE_TOOL: &str = "task_update";
@@ -350,6 +351,50 @@ impl E2eFakeProvider {
         }
     }
 
+    fn agent_org_pause_tool_calls(
+        messages: &[Value],
+        tools: Option<&[Value]>,
+    ) -> Vec<ToolCallRequest> {
+        let Some((latest_user_index, latest_user)) = latest_pause_user(messages) else {
+            return Vec::new();
+        };
+        if is_task_assignment(&latest_user) || !Self::has_tool(tools, TASK_GRAPH_CREATE_TOOL) {
+            return Vec::new();
+        }
+        let tool_result_count = messages[latest_user_index + 1..]
+            .iter()
+            .filter(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
+            .count();
+        if tool_result_count != 0 {
+            return Vec::new();
+        }
+        let Some(scenario_id) = pause_scenario_id(&latest_user) else {
+            return Vec::new();
+        };
+        let tasks = (1..=9)
+            .map(|index| {
+                serde_json::json!({
+                    "key": format!("pause-{index:02}"),
+                    "subject": format!("E2E_PAUSE_TASK:{scenario_id}:{index:02}"),
+                    "description": format!(
+                        "{AGENT_ORG_PAUSE_MARKER}{scenario_id}\nCreate a stoppable window by waiting for about 30 seconds before the final answer."
+                    ),
+                    "owner_member_id": format!("pause-worker-{index:02}"),
+                    "execution_mode": "build"
+                })
+            })
+            .collect::<Vec<_>>();
+        vec![ToolCallRequest {
+            id: format!("e2e-pause-graph-{scenario_id}"),
+            name: TASK_GRAPH_CREATE_TOOL.to_string(),
+            arguments: serde_json::json!({
+                "allow_parallel_with_existing_open_tasks": true,
+                "tasks": tasks,
+            }),
+            thought_signature: None,
+        }]
+    }
+
     async fn delay_task_fsm_race_stage(messages: &[Value]) {
         let Some((latest_user_index, latest_user)) = latest_task_fsm_user(messages) else {
             return;
@@ -375,6 +420,73 @@ impl E2eFakeProvider {
             };
         if delay_ms > 0 {
             sleep(Duration::from_millis(delay_ms)).await;
+        }
+    }
+
+    async fn delay_agent_org_pause_stage(messages: &[Value]) {
+        let Some((latest_user_index, latest_user)) = latest_pause_user(messages) else {
+            return;
+        };
+        let tool_result_count = messages[latest_user_index + 1..]
+            .iter()
+            .filter(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
+            .count();
+        if !is_task_assignment(&latest_user) && tool_result_count > 0 {
+            sleep(Duration::from_secs(30)).await;
+        }
+    }
+
+    fn pause_wait_required(messages: &[Value]) -> bool {
+        let Some((latest_user_index, latest_user)) = latest_pause_user(messages) else {
+            return false;
+        };
+        is_task_assignment(&latest_user)
+            || messages[latest_user_index + 1..]
+                .iter()
+                .any(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
+    }
+
+    fn build_response(messages: &[Value], tools: Option<&[Value]>) -> LLMResponse {
+        let mut tool_calls = Self::address_comment_tool_calls(messages, tools);
+        if tool_calls.is_empty() {
+            tool_calls = Self::agent_org_task_fsm_tool_calls(messages, tools);
+        }
+        if tool_calls.is_empty() {
+            tool_calls = Self::agent_org_pause_tool_calls(messages, tools);
+        }
+        let content = if tool_calls.is_empty() {
+            Some(Self::response_for(messages))
+        } else {
+            None
+        };
+        let prompt_tokens = messages
+            .iter()
+            .map(|message| message.to_string().len() as i64 / 4)
+            .sum::<i64>();
+        let completion_tokens = content
+            .as_deref()
+            .map_or(tool_calls.len() as i64 * 12, |text| text.len() as i64 / 4)
+            .max(1);
+        let mut usage = HashMap::new();
+        usage.insert(usage_key::PROMPT_TOKENS.to_string(), prompt_tokens);
+        usage.insert(usage_key::COMPLETION_TOKENS.to_string(), completion_tokens);
+        usage.insert(
+            usage_key::TOTAL_TOKENS.to_string(),
+            prompt_tokens + completion_tokens,
+        );
+        LLMResponse {
+            content,
+            finish_reason: if tool_calls.is_empty() {
+                finish_reason::STOP.to_string()
+            } else {
+                finish_reason::TOOL_CALLS.to_string()
+            },
+            tool_calls,
+            usage,
+            reasoning_content: None,
+            blocks: Vec::new(),
+            stream_error_kind: None,
+            retry_after_ms: None,
         }
     }
 }
@@ -416,6 +528,34 @@ fn latest_task_fsm_user(messages: &[Value]) -> Option<(usize, String)> {
             content.contains(AGENT_ORG_TASK_FSM_MARKER)
                 && !content.trim_start().starts_with("<system-reminder>")
         })
+}
+
+fn latest_pause_user(messages: &[Value]) -> Option<(usize, String)> {
+    messages
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, message)| message.get("role").and_then(Value::as_str) == Some("user"))
+        .filter_map(|(index, message)| {
+            message
+                .get("content")
+                .and_then(content_text)
+                .map(|content| (index, content))
+        })
+        .find(|(_, content)| {
+            content.contains(AGENT_ORG_PAUSE_MARKER)
+                && !content.trim_start().starts_with("<system-reminder>")
+        })
+}
+
+fn pause_scenario_id(text: &str) -> Option<String> {
+    let suffix = text.split(AGENT_ORG_PAUSE_MARKER).nth(1)?;
+    let id = suffix
+        .chars()
+        .take_while(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+        .take(48)
+        .collect::<String>();
+    (!id.is_empty()).then_some(id)
 }
 
 fn task_fsm_scenario_id(text: &str) -> Option<String> {
@@ -493,45 +633,8 @@ impl LLMProvider for E2eFakeProvider {
             sleep(duration).await;
         }
         Self::delay_task_fsm_race_stage(messages).await;
-        let mut tool_calls = Self::address_comment_tool_calls(messages, tools);
-        if tool_calls.is_empty() {
-            tool_calls = Self::agent_org_task_fsm_tool_calls(messages, tools);
-        }
-        let content = if tool_calls.is_empty() {
-            Some(Self::response_for(messages))
-        } else {
-            None
-        };
-        let prompt_tokens = messages
-            .iter()
-            .map(|message| message.to_string().len() as i64 / 4)
-            .sum::<i64>();
-        let completion_tokens = content
-            .as_deref()
-            .map_or(tool_calls.len() as i64 * 12, |text| text.len() as i64 / 4)
-            .max(1);
-        let mut usage = HashMap::new();
-        usage.insert(usage_key::PROMPT_TOKENS.to_string(), prompt_tokens);
-        usage.insert(usage_key::COMPLETION_TOKENS.to_string(), completion_tokens);
-        usage.insert(
-            usage_key::TOTAL_TOKENS.to_string(),
-            prompt_tokens + completion_tokens,
-        );
-
-        Ok(LLMResponse {
-            content,
-            finish_reason: if tool_calls.is_empty() {
-                finish_reason::STOP.to_string()
-            } else {
-                finish_reason::TOOL_CALLS.to_string()
-            },
-            tool_calls,
-            usage,
-            reasoning_content: None,
-            blocks: Vec::new(),
-            stream_error_kind: None,
-            retry_after_ms: None,
-        })
+        Self::delay_agent_org_pause_stage(messages).await;
+        Ok(Self::build_response(messages, tools))
     }
 
     async fn chat_streaming(
@@ -548,9 +651,34 @@ impl LLMProvider for E2eFakeProvider {
             return Err(ProviderError::Cancelled);
         }
 
-        let response = self
-            .chat(messages, tools, model, max_tokens, temperature)
-            .await?;
+        let cancellable_wait = if Self::pause_wait_required(messages) {
+            Some(Duration::from_secs(30))
+        } else {
+            control_wait_duration(messages)
+        };
+        let response = if let Some(wait_duration) = cancellable_wait {
+            if let Some(flag) = cancel_flag {
+                tokio::select! {
+                    _ = sleep(wait_duration) => {}
+                    _ = async {
+                        while !flag.load(std::sync::atomic::Ordering::Relaxed) {
+                            sleep(Duration::from_millis(25)).await;
+                        }
+                    } => {
+                        // Keep the rendered Draining phase observable while
+                        // still proving ten providers yield in parallel.
+                        sleep(Duration::from_millis(350)).await;
+                        return Err(ProviderError::Cancelled);
+                    }
+                }
+            } else {
+                sleep(wait_duration).await;
+            }
+            Self::build_response(messages, tools)
+        } else {
+            self.chat(messages, tools, model, max_tokens, temperature)
+                .await?
+        };
         if let Some(content) = response.content.clone() {
             on_delta(StreamDelta {
                 content: Some(content),
@@ -759,6 +887,29 @@ mod tests {
             replacement[0].arguments["replacement"]["eligible_member_ids"][0],
             "sde-planner"
         );
+    }
+
+    #[test]
+    fn pause_marker_creates_nine_owned_long_running_tasks_once() {
+        let tools = [named_tool(TASK_GRAPH_CREATE_TOOL)];
+        let messages = vec![json!({
+            "role": "user",
+            "content": "Run E2E_AGENT_ORG_PAUSE:episode_1"
+        })];
+        let calls = E2eFakeProvider::agent_org_pause_tool_calls(&messages, Some(&tools));
+        assert_eq!(calls.len(), 1);
+        let tasks = calls[0].arguments["tasks"]
+            .as_array()
+            .expect("pause task array");
+        assert_eq!(tasks.len(), 9);
+        assert_eq!(tasks[0]["owner_member_id"], "pause-worker-01");
+        assert_eq!(tasks[8]["owner_member_id"], "pause-worker-09");
+
+        let replay = vec![
+            messages[0].clone(),
+            json!({ "role": "tool", "content": "{}" }),
+        ];
+        assert!(E2eFakeProvider::agent_org_pause_tool_calls(&replay, Some(&tools)).is_empty());
     }
 
     #[test]

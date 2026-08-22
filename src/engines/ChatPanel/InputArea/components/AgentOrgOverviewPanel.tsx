@@ -246,7 +246,8 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
             data-testid="agent-org-overview-run-phase"
             data-run-phase={view?.runPhase ?? ""}
           >
-            {view?.runPhase === AGENT_ORG_RUN_PHASE.FINALIZING && (
+            {(view?.runPhase === AGENT_ORG_RUN_PHASE.FINALIZING ||
+              view?.runPhase === AGENT_ORG_RUN_PHASE.DRAINING) && (
               <HugeiconsIcon
                 icon={Refresh04Icon}
                 data-icon="refresh-cw"

@@ -96,6 +96,32 @@ pub struct SessionRuntime {
     pub agent_definition_id: Option<String>,
 }
 
+/// One installed runtime generation for a Session.
+///
+/// The lease changes whenever initialization replaces the runtime. Lifecycle
+/// cleanup must present the lease it originally observed, so delayed Pause
+/// teardown cannot clear a runtime installed by a later Resume.
+#[derive(Clone)]
+struct RuntimeSlot {
+    lease_id: String,
+    runtime: Arc<SessionRuntime>,
+}
+
+/// Exact in-memory identity of the Turn currently using a runtime lease.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RuntimeTurnIdentity {
+    pub runtime_lease_id: String,
+    pub dialog_turn_generation: String,
+    pub turn_intent_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ActiveTurnIdentity {
+    runtime_lease_id: Option<String>,
+    dialog_turn_generation: String,
+    turn_intent_id: Option<String>,
+}
+
 /// An active agent session — the single source of truth for all per-session state.
 ///
 /// All sub-resources (runtime, managers, locks) live here. `AgentAppState`
@@ -113,7 +139,7 @@ pub struct AgentSession {
     ///
     /// `None` briefly while the session is being registered before
     /// `ensure_session_initialized` completes.
-    pub runtime: tokio::sync::RwLock<Option<Arc<SessionRuntime>>>,
+    runtime: tokio::sync::RwLock<Option<RuntimeSlot>>,
 
     // ── Execution Control ─────────────────────────────────────────────────
     /// Cancellation flag — set to `true` to abort the active turn.
@@ -183,6 +209,8 @@ pub struct AgentSession {
     /// Synchronous mirror of `active_turn.turn_id` for non-async event-store
     /// write guards on hot paths.
     pub active_turn_generation: Arc<parking_lot::RwLock<Option<String>>>,
+    /// Persisted Turn intent paired with the dialog generation above.
+    active_turn_identity: parking_lot::RwLock<Option<ActiveTurnIdentity>>,
     /// Per-session FIFO message queue.
     ///
     /// All incoming messages are enqueued here and processed one at a time
@@ -315,6 +343,7 @@ impl AgentSession {
             last_active_at: tokio::sync::Mutex::new(Instant::now()),
             active_turn: tokio::sync::Mutex::new(None),
             active_turn_generation: Arc::new(parking_lot::RwLock::new(None)),
+            active_turn_identity: parking_lot::RwLock::new(None),
             scheduler: DialogScheduler::new(session_id_for_scheduler, 32),
             steering_queue: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             sm_state: Arc::new(tokio::sync::Mutex::new(SessionMemoryState::default())),
@@ -336,13 +365,73 @@ impl AgentSession {
     }
 
     /// Attach (or replace) the runtime after initialization completes.
-    pub async fn set_runtime(&self, runtime: Arc<SessionRuntime>) {
-        *self.runtime.write().await = Some(runtime);
+    pub async fn set_runtime(&self, runtime: Arc<SessionRuntime>) -> String {
+        let lease_id = uuid::Uuid::new_v4().to_string();
+        *self.runtime.write().await = Some(RuntimeSlot {
+            lease_id: lease_id.clone(),
+            runtime,
+        });
+        lease_id
     }
 
     /// Return the current runtime, if initialized.
     pub async fn get_runtime(&self) -> Option<Arc<SessionRuntime>> {
-        self.runtime.read().await.clone()
+        self.runtime
+            .read()
+            .await
+            .as_ref()
+            .map(|slot| Arc::clone(&slot.runtime))
+    }
+
+    /// Clear whichever runtime is current. This remains the ordinary SDE
+    /// invalidation path; Pause uses the conditional lease method below.
+    pub(crate) async fn invalidate_runtime(&self) {
+        *self.runtime.write().await = None;
+    }
+
+    /// Return the exact runtime/Turn pair currently active in this Session.
+    pub(crate) async fn runtime_turn_identity(&self) -> Option<RuntimeTurnIdentity> {
+        let turn = self.active_turn_identity.read().clone()?;
+        Some(RuntimeTurnIdentity {
+            runtime_lease_id: turn.runtime_lease_id?,
+            dialog_turn_generation: turn.dialog_turn_generation,
+            turn_intent_id: turn.turn_intent_id,
+        })
+    }
+
+    /// Release only the runtime generation and dialog Turn captured by Pause.
+    /// A stale completion is deliberately a no-op.
+    pub(crate) async fn release_runtime_if_current(
+        &self,
+        runtime_lease_id: &str,
+        dialog_turn_generation: &str,
+    ) -> bool {
+        let mut slot = self.runtime.write().await;
+        let current_lease = slot.as_ref().map(|current| current.lease_id.as_str());
+        let turn = self.active_turn_identity.read();
+        let current_turn_lease = turn
+            .as_ref()
+            .and_then(|turn| turn.runtime_lease_id.as_deref());
+        let current_generation = turn
+            .as_ref()
+            .map(|turn| turn.dialog_turn_generation.as_str());
+        if runtime_release_identity_matches(
+            current_lease,
+            current_turn_lease,
+            current_generation,
+            runtime_lease_id,
+            dialog_turn_generation,
+        ) {
+            *slot = None;
+            return true;
+        }
+        false
+    }
+
+    pub(crate) async fn runtime_agent_definition_id(&self) -> Option<String> {
+        self.get_runtime()
+            .await
+            .and_then(|runtime| runtime.agent_definition_id.clone())
     }
 
     pub async fn invalidate_prompt_cache(&self, reason: PromptCacheInvalidationReason) {
@@ -404,8 +493,28 @@ impl AgentSession {
     /// Returns the stable `turn_id` so the caller can embed it in events
     /// without holding the `active_turn` lock for the duration of processing.
     pub async fn begin_turn(&self, user_input: String) -> String {
+        self.begin_turn_with_intent(user_input, None).await
+    }
+
+    /// Start a dialog Turn and bind it to its durable intent when one exists.
+    pub async fn begin_turn_with_intent(
+        &self,
+        user_input: String,
+        turn_intent_id: Option<String>,
+    ) -> String {
+        let runtime_lease_id = self
+            .runtime
+            .read()
+            .await
+            .as_ref()
+            .map(|slot| slot.lease_id.clone());
         let turn = DialogTurn::new(user_input, Arc::clone(&self.cancel_flag));
         let turn_id = turn.turn_id.clone();
+        *self.active_turn_identity.write() = Some(ActiveTurnIdentity {
+            runtime_lease_id,
+            dialog_turn_generation: turn_id.clone(),
+            turn_intent_id,
+        });
         *self.active_turn_generation.write() = Some(turn_id.clone());
         *self.active_turn.lock().await = Some(turn);
         turn_id
@@ -421,6 +530,7 @@ impl AgentSession {
             turn.finalize(turn_state, stats);
         }
         *guard = None;
+        *self.active_turn_identity.write() = None;
         *self.active_turn_generation.write() = None;
     }
 
@@ -478,5 +588,61 @@ impl AgentSession {
                 plan_approval_manager.clear_silently().await;
             }
         }
+    }
+}
+
+fn runtime_release_identity_matches(
+    current_lease_id: Option<&str>,
+    active_turn_lease_id: Option<&str>,
+    current_turn_generation: Option<&str>,
+    expected_lease_id: &str,
+    expected_turn_generation: &str,
+) -> bool {
+    current_lease_id == Some(expected_lease_id)
+        && active_turn_lease_id == Some(expected_lease_id)
+        && current_turn_generation == Some(expected_turn_generation)
+}
+
+#[cfg(test)]
+mod runtime_lease_tests {
+    use super::runtime_release_identity_matches;
+
+    #[test]
+    fn release_requires_the_same_runtime_lease_and_dialog_generation() {
+        assert!(runtime_release_identity_matches(
+            Some("lease-a"),
+            Some("lease-a"),
+            Some("turn-1"),
+            "lease-a",
+            "turn-1"
+        ));
+        assert!(!runtime_release_identity_matches(
+            Some("lease-b"),
+            Some("lease-a"),
+            Some("turn-1"),
+            "lease-a",
+            "turn-1"
+        ));
+        assert!(!runtime_release_identity_matches(
+            Some("lease-a"),
+            Some("lease-b"),
+            Some("turn-1"),
+            "lease-a",
+            "turn-1"
+        ));
+        assert!(!runtime_release_identity_matches(
+            Some("lease-a"),
+            Some("lease-a"),
+            Some("turn-2"),
+            "lease-a",
+            "turn-1"
+        ));
+        assert!(!runtime_release_identity_matches(
+            None,
+            Some("lease-a"),
+            Some("turn-1"),
+            "lease-a",
+            "turn-1"
+        ));
     }
 }

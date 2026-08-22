@@ -72,4 +72,5 @@ export interface ChatViewComposerSectionProps {
   customMentionOptions: ReadonlyArray<CustomMentionOption>;
   queueEditProps: QueueEditInputAreaProps;
   disableStopWhenEmpty?: boolean;
+  submitDisabled?: boolean;
 }

@@ -343,7 +343,7 @@ impl AgentAppState {
     /// on the next request.
     pub async fn invalidate_session(&self, session_id: &str) {
         if let Some(session) = self.get_session(session_id).await {
-            *session.runtime.write().await = None;
+            session.invalidate_runtime().await;
             info!("[agent-state] Invalidated session runtime: {}", session_id);
         }
     }
@@ -379,13 +379,8 @@ impl AgentAppState {
         let mut count = 0usize;
         for session in &sessions {
             let applies_to_session_definition = session.definition.id == definition_id;
-            let applies_to_runtime_definition = session
-                .runtime
-                .read()
-                .await
-                .as_ref()
-                .and_then(|runtime| runtime.agent_definition_id.as_deref())
-                == Some(definition_id);
+            let applies_to_runtime_definition =
+                session.runtime_agent_definition_id().await.as_deref() == Some(definition_id);
             if applies_to_session_definition || applies_to_runtime_definition {
                 session.invalidate_prompt_cache(reason).await;
                 count += 1;
@@ -408,7 +403,7 @@ impl AgentAppState {
         let mut count = 0usize;
         for (id, session) in sessions.iter() {
             if prefixes.iter().any(|p| id.starts_with(p)) {
-                *session.runtime.write().await = None;
+                session.invalidate_runtime().await;
                 count += 1;
             }
         }

@@ -36,6 +36,7 @@ fn setup(policy: PlanApprovalPolicy) -> (test_helpers::test_env::SandboxGuard, A
     crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
     crate::coordination::agent_org_turn_contexts::create_schema(&conn)
         .expect("Agent Org Turn context schema");
+    crate::coordination::agent_org_pause::create_schema(&conn).expect("Agent Org Pause schema");
     crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
     crate::coordination::agent_inbox::init_schema(&conn).expect("inbox schema");
     init_schema(&conn).expect("approval schema");
@@ -719,7 +720,11 @@ fn paused_run_rejects_plan_decisions_without_mutating_task() {
     let (_sandbox, context) = setup(PlanApprovalPolicy::User);
     create_plan_task(&context);
     let pending = create_pending_approval(&context);
-    AgentOrgRunStore::mark_paused(&context.run_id).expect("pause run");
+    crate::coordination::agent_org_pause::pause_run(
+        &context.run_id,
+        &uuid::Uuid::new_v4().to_string(),
+    )
+    .expect("pause run");
 
     let error = AgentOrgPlanApprovalStore::approve(
         &pending.approval_id,
@@ -743,7 +748,11 @@ fn startup_cleanup_preserves_pending_approval_for_paused_run() {
     let (_sandbox, context) = setup(PlanApprovalPolicy::User);
     create_plan_task(&context);
     let pending = create_pending_approval(&context);
-    AgentOrgRunStore::mark_paused(&context.run_id).expect("pause run");
+    crate::coordination::agent_org_pause::pause_run(
+        &context.run_id,
+        &uuid::Uuid::new_v4().to_string(),
+    )
+    .expect("pause run");
 
     let cancelled = AgentOrgPlanApprovalStore::cancel_pending_for_terminal_or_missing_runs()
         .expect("run startup approval cleanup");

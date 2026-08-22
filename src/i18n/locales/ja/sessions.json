@@ -2456,7 +2456,21 @@
       "memberSessions": "メンバーセッション",
       "pauseRun": "実行を一時停止",
       "resumeRun": "実行を再開",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Coordinator のチャット履歴を表示",
+      "phase": {
+        "starting": "開始中",
+        "coordinating": "調整中",
+        "dispatching": "割り当て中",
+        "members_working": "メンバーが作業中",
+        "waiting": "作業待ち",
+        "awaiting_plan_approval": "プラン承認待ち",
+        "finalizing": "終了処理中",
+        "draining": "一時停止中・終了処理中",
+        "paused": "一時停止中",
+        "idle": "待機中",
+        "failed": "失敗",
+        "archived": "アーカイブ済み"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent メッセージ",
@@ -2694,7 +2708,7 @@
     "userMessagePending": "{{member}} があなたのメッセージを処理しています",
     "pausedBanner": {
       "title": "新しい作業は一時停止中です",
-      "body": "一時停止すると進行中の返信が停止します、メッセージを送信するか、再開を押すと続行します",
+      "body": "メッセージを送信する前に、この Agent Team を再開してください",
       "resume": "再開"
     },
     "toolUseSummary": {

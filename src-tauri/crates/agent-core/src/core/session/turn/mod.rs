@@ -75,7 +75,7 @@ pub async fn debug_prompt_cache_benchmark(
     use crate::core::session::turn::event_handler::EventHandlerConfig;
     use crate::core::session::turn::processor::{ProcessorParams, UnifiedMessageProcessor};
 
-    let runtime = match session.runtime.read().await.clone() {
+    let runtime = match session.get_runtime().await {
         Some(runtime) => runtime,
         None => {
             return serde_json::json!({

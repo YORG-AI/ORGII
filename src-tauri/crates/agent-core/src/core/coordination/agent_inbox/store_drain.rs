@@ -303,7 +303,7 @@ impl AgentInboxStore {
     /// Used by the turn-processor drain hook after rendering the
     /// attachment, so the next turn's drain returns an empty list.
     pub fn mark_many_read(ids: &[i64]) -> Result<usize, String> {
-        Self::mark_many_read_internal(ids, None)
+        Self::mark_many_read_internal(ids, None, None)
     }
 
     /// Production acknowledgement for transcript-backed delivery. Only the
@@ -311,12 +311,23 @@ impl AgentInboxStore {
     /// it read. A stale Guard from an older/replaced Session therefore cannot
     /// acknowledge a row after ownership moved elsewhere.
     pub fn mark_many_read_for_session(ids: &[i64], session_id: &str) -> Result<usize, String> {
-        Self::mark_many_read_internal(ids, Some(session_id))
+        Self::mark_many_read_internal(ids, Some(session_id), None)
+    }
+
+    /// Formal Turn acknowledgement guarded by the exact current lifecycle
+    /// generation inside the same IMMEDIATE write transaction.
+    pub fn mark_many_read_for_turn(
+        ids: &[i64],
+        session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<usize, String> {
+        Self::mark_many_read_internal(ids, Some(session_id), Some(turn_intent_id))
     }
 
     fn mark_many_read_internal(
         ids: &[i64],
         materialization_session_id: Option<&str>,
+        formal_turn_intent_id: Option<&str>,
     ) -> Result<usize, String> {
         if ids.is_empty() {
             return Ok(0);
@@ -327,6 +338,15 @@ impl AgentInboxStore {
                 let tx = conn
                     .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                     .map_err(|err| err.to_string())?;
+                if let (Some(session_id), Some(turn_intent_id)) =
+                    (materialization_session_id, formal_turn_intent_id)
+                {
+                    crate::coordination::agent_org_turn_contexts::validate_formal_turn_generation_with_connection(
+                        &tx,
+                        session_id,
+                        turn_intent_id,
+                    )?;
+                }
                 let now = chrono::Utc::now().to_rfc3339();
                 let mut updated = 0usize;
                 let mut changed_run_ids = HashSet::new();

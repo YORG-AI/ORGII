@@ -70,10 +70,8 @@ pub async fn debug_session_security_snapshot(
         .ok_or_else(|| format!("session not found: {}", session_id))?;
 
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .clone()
         .ok_or_else(|| format!("session runtime not initialized: {}", session_id))?;
 
     let workspace = runtime.resolved.workspace.clone();
@@ -126,10 +124,8 @@ pub async fn debug_session_validate_command(
         .ok_or_else(|| format!("session not found: {}", session_id))?;
 
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .clone()
         .ok_or_else(|| format!("session runtime not initialized: {}", session_id))?;
 
     // Rebuild a fresh `SecurityPolicy` for this validation call rather

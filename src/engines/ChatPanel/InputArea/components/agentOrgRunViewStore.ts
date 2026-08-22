@@ -93,7 +93,11 @@ function viewForSession(
 }
 
 function isPollable(view: AgentOrgRunView | null): boolean {
-  return view !== null && POLLABLE_RUN_STATUSES.has(view.runStatus);
+  return (
+    view !== null &&
+    POLLABLE_RUN_STATUSES.has(view.runStatus) &&
+    view.runPhase !== "idle"
+  );
 }
 
 function findEntryCoveringSession(sessionId: string): RunViewEntry | undefined {
@@ -372,6 +376,14 @@ function refreshAgentOrgRunViewInternal(
         if (requestId < latestRequestId) return;
         latestRequestIdByRun.set(runId, requestId);
         publishRunView(view, requestId);
+        // The lifecycle may advance while the first discovery read is in
+        // flight. A run-scoped push cannot target this entry until that read
+        // teaches the store its run id, so perform exactly one follow-up when
+        // bootstrap lands on Starting. Later Starting reads rely on pushes and
+        // the shared slow fallback instead of creating a retry loop.
+        if (!knownRunId && view.runStatus === "starting") {
+          refreshAfterInFlight.add(`run:${runId}`);
+        }
         return;
       }
       missingRunReplacement = publishMissingRun(entry, requestId);
@@ -433,14 +445,16 @@ function scheduleRunRefresh(runId: string): void {
   pushDebounceTimers.set(runId, timer);
 }
 
-function pollActiveRuns(): void {
+function refreshSubscribedRuns(pollableOnly: boolean): void {
   if (!isDocumentVisible()) return;
 
   const representatives = new Map<string, string>();
   for (const entry of entriesBySessionId.values()) {
     if (
       entry.subscribers.size === 0 ||
-      (entry.snapshot.view !== null && !isPollable(entry.snapshot.view))
+      (pollableOnly &&
+        entry.snapshot.view !== null &&
+        !isPollable(entry.snapshot.view))
     )
       continue;
     if (
@@ -456,12 +470,27 @@ function pollActiveRuns(): void {
   }
 }
 
+function pollActiveRuns(): void {
+  refreshSubscribedRuns(true);
+}
+
+/**
+ * Push notifications are transient. Reconcile every currently observed Run
+ * once after a transport gap so a release/timeout event missed while the
+ * socket was disconnected cannot leave a durable Paused view stuck in
+ * Draining. This is deliberately not the fallback poll: Paused/Idle Runs get
+ * no interval, and representatives keep the reconnect read to one per Run.
+ */
+function reconcileSubscribedRunsAfterTransportGap(): void {
+  refreshSubscribedRuns(false);
+}
+
 function handleVisibilityChange(): void {
   if (!isDocumentVisible()) {
     reconcilePollingTimer();
     return;
   }
-  pollActiveRuns();
+  reconcileSubscribedRunsAfterTransportGap();
   reconcilePollingTimer();
 }
 
@@ -532,7 +561,7 @@ function startScheduler(): void {
   if (!unsubscribeWebsocketConnected) {
     unsubscribeWebsocketConnected = getCodeEditorWebSocket()?.on(
       "connected",
-      pollActiveRuns
+      reconcileSubscribedRunsAfterTransportGap
     );
   }
   if (typeof document !== "undefined" && !visibilityListenerInstalled) {

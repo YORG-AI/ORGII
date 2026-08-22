@@ -410,7 +410,7 @@ pub async fn test_agent_org_launch_coordinator(
                         "error": "Session not found after sync init",
                     }));
                 };
-                if let Some(runtime) = session_arc.runtime.read().await.clone() {
+                if let Some(runtime) = session_arc.get_runtime().await {
                     runtime_tool_names = runtime.tool_registry.tool_names();
                     runtime_tool_names.sort();
                 }
@@ -2898,8 +2898,9 @@ pub async fn test_agent_org_seed_cli_member_run(
 
 /// `POST /test/agent-org/run/pause`
 ///
-/// Transitions the named run `running → paused`. Seed-only path for E2E
-/// tests that verify pause/resume semantics without a live coordinator.
+/// Commits the same durable Pause fence used by the product command. This
+/// seed-only path does not drive runtime teardown; rendered E2E must use the
+/// real product button for Pause itself.
 /// Body: `{ "org_run_id": "<id>" }`
 pub async fn test_agent_org_pause_run(
     Json(body): Json<serde_json::Value>,
@@ -2917,8 +2918,11 @@ pub async fn test_agent_org_pause_run(
         }
     };
 
-    let result =
-        tokio::task::spawn_blocking(move || AgentOrgRunStore::mark_paused(&org_run_id)).await;
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let result = tokio::task::spawn_blocking(move || {
+        agent_core::coordination::agent_org_pause::pause_run(&org_run_id, &request_id)
+    })
+    .await;
 
     match result {
         Err(join_err) => Json(serde_json::json!({
@@ -2926,9 +2930,7 @@ pub async fn test_agent_org_pause_run(
             "error": format!("spawn_blocking join error: {join_err}"),
         })),
         Ok(Err(err)) => Json(serde_json::json!({ "ok": false, "error": err })),
-        Ok(Ok(transitioned)) => {
-            Json(serde_json::json!({ "ok": true, "transitioned": transitioned }))
-        }
+        Ok(Ok(outcome)) => Json(serde_json::json!({ "ok": true, "outcome": outcome })),
     }
 }
 
@@ -3013,8 +3015,8 @@ pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
 
 /// `POST /test/agent-org/run/resume`
 ///
-/// Transitions the named run `paused → running`. Seed-only path for E2E
-/// tests that verify pause/resume semantics without a live coordinator.
+/// Commits the same durable Resume transaction used by the product command.
+/// Rendered E2E must use the real product button for Resume itself.
 /// Body: `{ "org_run_id": "<id>" }`
 pub async fn test_agent_org_resume_run(
     Json(body): Json<serde_json::Value>,
@@ -3032,8 +3034,11 @@ pub async fn test_agent_org_resume_run(
         }
     };
 
-    let result =
-        tokio::task::spawn_blocking(move || AgentOrgRunStore::mark_resumed(&org_run_id)).await;
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let result = tokio::task::spawn_blocking(move || {
+        agent_core::coordination::agent_org_pause::resume_run(&org_run_id, &request_id)
+    })
+    .await;
 
     match result {
         Err(join_err) => Json(serde_json::json!({
@@ -3041,8 +3046,190 @@ pub async fn test_agent_org_resume_run(
             "error": format!("spawn_blocking join error: {join_err}"),
         })),
         Ok(Err(err)) => Json(serde_json::json!({ "ok": false, "error": err })),
-        Ok(Ok(transitioned)) => {
-            Json(serde_json::json!({ "ok": true, "transitioned": transitioned }))
+        Ok(Ok(outcome)) => Json(serde_json::json!({ "ok": true, "outcome": outcome })),
+    }
+}
+
+/// `POST /test/agent-org/pause/evidence`
+///
+/// Read-only evidence for the rendered Pause/Resume scenario. The endpoint
+/// never performs the lifecycle transition; E2E must drive the real Tauri
+/// command through the product buttons.
+pub async fn test_agent_org_pause_evidence(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use rusqlite::OptionalExtension;
+    use tauri::Manager;
+
+    let Some(org_run_id) = body
+        .get("org_run_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+    else {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": "org_run_id is required (non-empty string)"
+        }));
+    };
+    let query_run_id = org_run_id.clone();
+    let durable = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        let (run_status, activation_generation): (String, i64) = conn
+            .query_row(
+                "SELECT status,activation_generation FROM agent_org_runtime_runs WHERE id=?1",
+                [&query_run_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|error| error.to_string())?;
+        let episode: Option<(String, String, i64, Option<i64>)> = conn
+            .query_row(
+                "SELECT episode_id,status,pause_generation,resume_generation
+                 FROM agent_org_runtime_pause_episodes
+                 WHERE org_run_id=?1 ORDER BY created_at DESC LIMIT 1",
+                [&query_run_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        let mut handoffs = Vec::new();
+        let mut session_ids = Vec::new();
+        if let Some((episode_id, _, _, _)) = episode.as_ref() {
+            let mut statement = conn
+                .prepare(
+                    "SELECT handoff.session_id,handoff.original_turn_intent_id,
+                            handoff.turn_kind,handoff.task_id,handoff.original_intent_status,
+                            handoff.drain_status,handoff.drain_timeout_at,
+                            handoff.continuation_turn_intent_id,handoff.continuation_status,
+                            handoff.skip_reason,context.member_dispatch_sequence
+                     FROM agent_org_runtime_pause_handoffs handoff
+                     LEFT JOIN agent_org_runtime_turn_contexts context
+                       ON context.session_id=handoff.session_id
+                      AND context.turn_intent_id=handoff.continuation_turn_intent_id
+                     WHERE handoff.episode_id=?1
+                     ORDER BY handoff.created_at,handoff.handoff_id",
+                )
+                .map_err(|error| error.to_string())?;
+            let rows = statement
+                .query_map([episode_id], |row| {
+                    Ok(serde_json::json!({
+                        "session_id": row.get::<_, String>(0)?,
+                        "original_turn_intent_id": row.get::<_, String>(1)?,
+                        "turn_kind": row.get::<_, String>(2)?,
+                        "task_id": row.get::<_, Option<String>>(3)?,
+                        "original_intent_status": row.get::<_, String>(4)?,
+                        "drain_status": row.get::<_, String>(5)?,
+                        "drain_timeout_at": row.get::<_, Option<String>>(6)?,
+                        "continuation_turn_intent_id": row.get::<_, Option<String>>(7)?,
+                        "continuation_status": row.get::<_, Option<String>>(8)?,
+                        "skip_reason": row.get::<_, Option<String>>(9)?,
+                        "member_dispatch_sequence": row.get::<_, Option<i64>>(10)?,
+                    }))
+                })
+                .map_err(|error| error.to_string())?;
+            for row in rows {
+                let value = row.map_err(|error| error.to_string())?;
+                if let Some(session_id) = value.get("session_id").and_then(|v| v.as_str()) {
+                    session_ids.push(session_id.to_string());
+                }
+                handoffs.push(value);
+            }
+        }
+        if session_ids.is_empty() {
+            let mut statement = conn
+                .prepare(
+                    "SELECT session_id FROM agent_org_runtime_member_materializations
+                     WHERE org_run_id=?1 AND status='succeeded' ORDER BY member_id",
+                )
+                .map_err(|error| error.to_string())?;
+            session_ids = statement
+                .query_map([&query_run_id], |row| row.get::<_, String>(0))
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?;
+        }
+        session_ids.sort();
+        session_ids.dedup();
+        let mut task_statement = conn
+            .prepare(
+                "SELECT id,status,owner,updated_at FROM agent_org_runtime_tasks
+                 WHERE org_run_id=?1 ORDER BY id",
+            )
+            .map_err(|error| error.to_string())?;
+        let tasks = task_statement
+            .query_map([&query_run_id], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "status": row.get::<_, String>(1)?,
+                    "owner": row.get::<_, Option<String>>(2)?,
+                    "updated_at": row.get::<_, String>(3)?,
+                }))
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        let inbox_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_org_runtime_inbox WHERE org_run_id=?1",
+                [&query_run_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(serde_json::json!({
+            "run_status": run_status,
+            "activation_generation": activation_generation,
+            "episode": episode.map(|(episode_id,status,pause_generation,resume_generation)| serde_json::json!({
+                "episode_id": episode_id,
+                "status": status,
+                "pause_generation": pause_generation,
+                "resume_generation": resume_generation,
+            })),
+            "handoffs": handoffs,
+            "tasks": tasks,
+            "inbox_count": inbox_count,
+            "session_ids": session_ids,
+        }))
+    })
+    .await;
+    let durable = match durable {
+        Err(error) => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!("spawn_blocking join error: {error}")
+            }))
+        }
+        Ok(Err(error)) => return Json(serde_json::json!({ "ok": false, "error": error })),
+        Ok(Ok(value)) => value,
+    };
+    let Some(handle) = crate::api::get_app_handle() else {
+        return Json(serde_json::json!({ "ok": false, "error": "AppHandle not initialized" }));
+    };
+    let state = handle.state::<agent_core::state::AgentAppState>();
+    let session_ids = durable
+        .get("session_ids")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut active_runtime_count = 0usize;
+    let mut active_turns = Vec::new();
+    for session_id in session_ids.iter().filter_map(serde_json::Value::as_str) {
+        let Some(session) = state.get_session(session_id).await else {
+            continue;
+        };
+        if session.get_runtime().await.is_some() {
+            active_runtime_count += 1;
+            if let Some(dialog_turn_generation) = session.active_turn_id().await {
+                active_turns.push(serde_json::json!({
+                    "session_id": session_id,
+                    "dialog_turn_generation": dialog_turn_generation,
+                }));
+            }
         }
     }
+    Json(serde_json::json!({
+        "ok": true,
+        "durable": durable,
+        "active_runtime_count": active_runtime_count,
+        "active_turns": active_turns,
+    }))
 }

@@ -118,6 +118,8 @@ pub struct AgentOrgRunView {
     pub context: AgentOrgRunContext,
     pub run_status: String,
     pub run_phase: AgentOrgRunPhase,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_handoff: Option<crate::coordination::agent_org_pause::PauseHandoffSummary>,
     pub current_member_id: Option<String>,
     pub members: Vec<AgentOrgRunMemberView>,
     pub tasks: Vec<AgentOrgTaskRuntime>,
@@ -153,6 +155,7 @@ pub enum AgentOrgRunPhase {
     Waiting,
     AwaitingPlanApproval,
     Finalizing,
+    Draining,
     Paused,
     Idle,
     Failed,
@@ -322,13 +325,28 @@ pub(super) fn build_agent_org_run_view(
             &context.run_id,
         )?;
 
-    let run_phase = project_run_phase(
-        run_status_value,
-        &members,
-        &task_overview,
-        quiescence.facts.unread_inbox_count,
-        &pending_plan_approvals,
-    );
+    // Running Teams are polled while active; keep pause-receipt aggregation
+    // entirely off that hot path. Paused Teams receive push updates only.
+    let pause_handoff = if run_status_value == AgentOrgRunStatus::Paused {
+        crate::coordination::agent_org_pause::pause_summary_with_connection(&tx, &context.run_id)?
+    } else {
+        None
+    };
+    let run_phase = if run_status_value == AgentOrgRunStatus::Paused
+        && pause_handoff
+            .as_ref()
+            .is_some_and(|summary| summary.draining_count > 0)
+    {
+        AgentOrgRunPhase::Draining
+    } else {
+        project_run_phase(
+            run_status_value,
+            &members,
+            &task_overview,
+            quiescence.facts.unread_inbox_count,
+            &pending_plan_approvals,
+        )
+    };
 
     tx.commit().map_err(|err| err.to_string())?;
 
@@ -337,6 +355,7 @@ pub(super) fn build_agent_org_run_view(
         context: context.clone(),
         run_status,
         run_phase,
+        pause_handoff,
         members,
         tasks,
         task_overview,

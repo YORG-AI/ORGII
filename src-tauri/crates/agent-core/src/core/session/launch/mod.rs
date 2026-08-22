@@ -1233,6 +1233,7 @@ pub fn spawn_agent_org_startup_recovery(state: AgentAppState) {
         if let Err(error) = recover_agent_org_initial_dispatches(&state).await {
             tracing::warn!(error = %error, "[agent-org-startup] initial dispatch recovery failed");
         }
+        crate::state::commands::session::org_tasks::schedule_ready_continuations(state);
     });
 }
 

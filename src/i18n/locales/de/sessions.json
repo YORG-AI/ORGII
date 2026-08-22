@@ -2455,7 +2455,21 @@
       "memberSessions": "Mitgliedersitzungen",
       "pauseRun": "Ausführung pausieren",
       "resumeRun": "Ausführung fortsetzen",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Coordinator-Chatverlauf anzeigen",
+      "phase": {
+        "starting": "Wird gestartet",
+        "coordinating": "Koordination",
+        "dispatching": "Wird verteilt",
+        "members_working": "Mitglieder arbeiten",
+        "waiting": "Wartet auf Arbeit",
+        "awaiting_plan_approval": "Wartet auf Planfreigabe",
+        "finalizing": "Wird abgeschlossen",
+        "draining": "Pausiert · wird beendet",
+        "paused": "Pausiert",
+        "idle": "Inaktiv",
+        "failed": "Fehlgeschlagen",
+        "archived": "Archiviert"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent-Nachrichten",
@@ -2693,7 +2707,7 @@
     "userMessagePending": "{{member}} nimmt deine Nachricht auf",
     "pausedBanner": {
       "title": "Neue Arbeit ist pausiert",
-      "body": "Pausieren stoppt aktive Antworten, sende eine Nachricht oder klicke auf Fortsetzen, um weiterzumachen",
+      "body": "Setze dieses Agent-Team fort, bevor du eine Nachricht sendest",
       "resume": "Fortsetzen"
     },
     "toolUseSummary": {

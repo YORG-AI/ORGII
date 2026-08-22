@@ -98,6 +98,37 @@ pub fn materialize_agent_org_inbox_transcript(
     intent_id: &str,
     content: &str,
 ) -> Result<(AgentOrgInboxTranscriptMaterialization, bool), String> {
+    materialize_agent_org_inbox_transcript_internal(
+        session_id, None, inbox_ids, message_id, intent_id, content,
+    )
+}
+
+pub fn materialize_agent_org_inbox_transcript_for_turn(
+    session_id: &str,
+    turn_intent_id: &str,
+    inbox_ids: &[i64],
+    message_id: &str,
+    intent_id: &str,
+    content: &str,
+) -> Result<(AgentOrgInboxTranscriptMaterialization, bool), String> {
+    materialize_agent_org_inbox_transcript_internal(
+        session_id,
+        Some(turn_intent_id),
+        inbox_ids,
+        message_id,
+        intent_id,
+        content,
+    )
+}
+
+fn materialize_agent_org_inbox_transcript_internal(
+    session_id: &str,
+    turn_intent_id: Option<&str>,
+    inbox_ids: &[i64],
+    message_id: &str,
+    intent_id: &str,
+    content: &str,
+) -> Result<(AgentOrgInboxTranscriptMaterialization, bool), String> {
     if inbox_ids.is_empty() {
         return Err("cannot materialize an empty Agent Org Inbox batch".to_string());
     }
@@ -106,6 +137,14 @@ pub fn materialize_agent_org_inbox_transcript(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
+
+        if let Some(turn_intent_id) = turn_intent_id {
+            crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+                &tx,
+                session_id,
+                turn_intent_id,
+            )?;
+        }
 
         let mut existing_receipts = Vec::new();
         {

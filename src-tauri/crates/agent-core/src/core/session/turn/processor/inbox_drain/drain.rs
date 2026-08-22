@@ -85,6 +85,7 @@ pub(crate) fn drain_and_render_deferred_for_turn(
         session,
         Some(turn_context),
     )
+    .bind_formal_turn(turn_context)
 }
 
 fn drain_and_render_deferred_impl(

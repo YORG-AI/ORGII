@@ -461,8 +461,9 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
   };
 
   const agentOrgPauseRun = async (
-    sessionId: string
-  ): Promise<Result<{ transitioned: boolean }>> => {
+    sessionId: string,
+    requestId: string = crypto.randomUUID()
+  ): Promise<Result<{ outcome: Json }>> => {
     try {
       if (!sessionId) {
         return {
@@ -470,18 +471,20 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
           error: "agentOrgPauseRun: `sessionId` is required",
         };
       }
-      const transitioned = (await invoke("agent_org_pause_run", {
+      const outcome = (await invoke("agent_org_pause_run", {
         sessionId,
-      })) as boolean;
-      return { ok: true, transitioned };
+        requestId,
+      })) as Json;
+      return { ok: true, outcome };
     } catch (err) {
       return asError(err);
     }
   };
 
   const agentOrgResumeRun = async (
-    sessionId: string
-  ): Promise<Result<{ transitioned: boolean }>> => {
+    sessionId: string,
+    requestId: string = crypto.randomUUID()
+  ): Promise<Result<{ outcome: Json }>> => {
     try {
       if (!sessionId) {
         return {
@@ -489,10 +492,11 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
           error: "agentOrgResumeRun: `sessionId` is required",
         };
       }
-      const transitioned = (await invoke("agent_org_resume_run", {
+      const outcome = (await invoke("agent_org_resume_run", {
         sessionId,
-      })) as boolean;
-      return { ok: true, transitioned };
+        requestId,
+      })) as Json;
+      return { ok: true, outcome };
     } catch (err) {
       return asError(err);
     }

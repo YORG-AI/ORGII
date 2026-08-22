@@ -120,6 +120,7 @@ export const AGENT_ORG_RUN_PHASE = {
   WAITING: "waiting",
   AWAITING_PLAN_APPROVAL: "awaiting_plan_approval",
   FINALIZING: "finalizing",
+  DRAINING: "draining",
   PAUSED: "paused",
   IDLE: "idle",
   FAILED: "failed",
@@ -133,6 +134,7 @@ export interface AgentOrgRunView {
   context: AgentOrgRunContext;
   runStatus: AgentOrgRunStatus;
   runPhase: AgentOrgRunPhase;
+  pauseHandoff?: AgentOrgPauseHandoffSummary | null;
   currentMemberId?: string | null;
   members: AgentOrgRunMemberView[];
   tasks: AgentOrgTask[];
@@ -140,6 +142,35 @@ export interface AgentOrgRunView {
   inbox: AgentOrgInboxPreviewRow[];
   unreadInboxCount: number;
   pendingPlanApprovals: AgentOrgPlanApprovalSummary[];
+}
+
+export interface AgentOrgPauseHandoffSummary {
+  episodeId: string;
+  pauseGeneration: number;
+  totalCount: number;
+  drainingCount: number;
+  timedOutCount: number;
+}
+
+export interface PauseRunOutcome {
+  requestId: string;
+  runId: string;
+  episodeId: string;
+  transitioned: boolean;
+  pauseGeneration: number;
+  capturedTurnCount: number;
+  drainingTurnCount: number;
+  timedOutTurnCount: number;
+}
+
+export interface ResumeRunOutcome {
+  requestId: string;
+  runId: string;
+  episodeId: string;
+  transitioned: boolean;
+  resumeGeneration: number;
+  continuationCount: number;
+  skippedCount: number;
 }
 
 export interface AgentOrgRunTaskOverview {
@@ -517,18 +548,26 @@ export async function sendAgentOrgUserMessageToMember(
   return response;
 }
 
-export async function pauseAgentOrgRun(sessionId: string): Promise<boolean> {
-  const changed = await invokeTauri<boolean>("agent_org_pause_run", {
+export async function pauseAgentOrgRun(
+  sessionId: string,
+  requestId: string = crypto.randomUUID()
+): Promise<PauseRunOutcome> {
+  const outcome = await invokeTauri<PauseRunOutcome>("agent_org_pause_run", {
     sessionId,
+    requestId,
   });
-  if (changed) publishAgentOrgStateChange(sessionId);
-  return changed;
+  publishAgentOrgStateChange(sessionId);
+  return outcome;
 }
 
-export async function resumeAgentOrgRun(sessionId: string): Promise<boolean> {
-  const changed = await invokeTauri<boolean>("agent_org_resume_run", {
+export async function resumeAgentOrgRun(
+  sessionId: string,
+  requestId: string = crypto.randomUUID()
+): Promise<ResumeRunOutcome> {
+  const outcome = await invokeTauri<ResumeRunOutcome>("agent_org_resume_run", {
     sessionId,
+    requestId,
   });
-  if (changed) publishAgentOrgStateChange(sessionId);
-  return changed;
+  publishAgentOrgStateChange(sessionId);
+  return outcome;
 }

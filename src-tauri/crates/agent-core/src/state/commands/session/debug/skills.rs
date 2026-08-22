@@ -93,10 +93,8 @@ pub async fn debug_session_skills_snapshot(
         .ok_or_else(|| format!("session not found: {}", session_id))?;
 
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .clone()
         .ok_or_else(|| format!("session runtime not initialized: {}", session_id))?;
 
     let agent_id = session.definition.id.clone();

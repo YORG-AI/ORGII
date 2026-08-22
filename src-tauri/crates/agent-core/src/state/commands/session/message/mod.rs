@@ -34,6 +34,7 @@ mod resolve_agent_mode_tests;
 
 pub use entry_points::*;
 pub use exec_mode::*;
+pub(crate) use org_wake::resolve_agent_org_wake_mode;
 // `send_message_impl` is `pub(crate)`, so the re-export matches its visibility
 // rather than widening the module root's public surface.
 pub(crate) use send::*;

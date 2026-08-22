@@ -281,6 +281,9 @@ export function useAgentOrgGroupChatController({
   const handleGroupChatSubmitOverride = useCallback(
     async (input: SubmitOverrideInput): Promise<boolean> => {
       if (!agentOrgRunView) return false;
+      if (agentOrgRunView.runStatus === AGENT_ORG_RUN_STATUS.PAUSED) {
+        throw new Error("Resume this Agent Team before sending a message");
+      }
       // Route on the DISPLAY copy: the `@member` header is what the user
       // typed and what the transcript renders. The agent copy may have been
       // rewritten by an interceptor (canvas contract) and must only feed the

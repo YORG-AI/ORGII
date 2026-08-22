@@ -179,8 +179,7 @@ export function GroupChatPausedBanner({
                 defaultValue: "New work is paused",
               })}
               description={t("groupChat.pausedBanner.body", {
-                defaultValue:
-                  "Pause stops active replies, send a message or press Resume to continue",
+                defaultValue: "Resume this Agent Team before sending a message",
               })}
             />
           ),
