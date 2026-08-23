@@ -62,6 +62,35 @@ describe("shell command display", () => {
 });
 
 describe("convertToShellOperation", () => {
+  it("prefers authoritative Rust shell extraction over stale payload fields", () => {
+    const event = minimalSessionEvent({
+      functionName: "run_shell",
+      uiCanonical: "run_shell",
+      args: { command: "pnpm test --old-filter" },
+      result: { output: "stale partial output" },
+      extracted: {
+        kind: "shell",
+        command: "pnpm test",
+        output: "all tests passed",
+        exitCode: 0,
+        cwd: "/repo",
+        executionTime: 1250,
+        isFailure: false,
+        gitArtifacts: [],
+      },
+    });
+
+    const operation = convertToShellOperation(event, true);
+
+    expect(operation).toMatchObject({
+      command: "pnpm test",
+      output: "all tests passed",
+      exitCode: 0,
+      cwd: "/repo",
+      executionTime: 1250,
+    });
+  });
+
   it("keeps completed inspect_terminals result output visible", () => {
     const event = minimalSessionEvent({
       args: { action: "list" },

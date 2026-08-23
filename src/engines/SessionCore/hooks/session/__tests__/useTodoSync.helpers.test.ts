@@ -321,6 +321,79 @@ describe("extractTodosFromManageTodoSequence", () => {
     ].join("\n");
   }
 
+  it("prefers the authoritative Rust snapshot over stale tool args", () => {
+    const staleArgs = Array.from({ length: 7 }, (_, index) => ({
+      id: `todo-${index}`,
+      content: `Task ${index + 1}`,
+      status: index < 2 ? "completed" : "pending",
+    }));
+    const authoritativeTodos = staleArgs.map((todo, index) => ({
+      ...todo,
+      status: index < 6 ? "completed" : "in_progress",
+    }));
+
+    const events = [
+      makeManageTodoEvent({
+        id: "todo-update",
+        args: { action: "update", todos: staleArgs },
+        extracted: {
+          kind: "todo",
+          todos: authoritativeTodos,
+          wasMerge: false,
+        },
+      }),
+    ];
+
+    const todos = extractTodosFromManageTodoSequence(events, "sdeagent-test");
+
+    expect(todos).toHaveLength(7);
+    expect(todos.filter((todo) => todo.status === "completed")).toHaveLength(6);
+    expect(todos[6]?.status).toBe("in_progress");
+  });
+
+  it("treats a completed authoritative empty snapshot as a clear", () => {
+    const events = [
+      makeManageTodoEvent({
+        id: "todo-write",
+        extracted: {
+          kind: "todo",
+          todos: [{ id: "todo-1", content: "Task", status: "pending" }],
+          wasMerge: false,
+        },
+      }),
+      makeManageTodoEvent({
+        id: "todo-clear",
+        extracted: { kind: "todo", todos: [], wasMerge: false },
+      }),
+    ];
+
+    expect(extractTodosFromManageTodoSequence(events, "sdeagent-test")).toEqual(
+      []
+    );
+  });
+
+  it("does not clear from an incomplete pre-result event", () => {
+    const events = [
+      makeManageTodoEvent({
+        id: "todo-write",
+        extracted: {
+          kind: "todo",
+          todos: [{ id: "todo-1", content: "Task", status: "pending" }],
+          wasMerge: false,
+        },
+      }),
+      makeManageTodoEvent({
+        id: "todo-running",
+        displayStatus: "running",
+        extracted: { kind: "todo", todos: [], wasMerge: false },
+      }),
+    ];
+
+    expect(extractTodosFromManageTodoSequence(events, "sdeagent-test")).toEqual(
+      [{ id: "todo-1", content: "Task", status: "pending" }]
+    );
+  });
+
   it("backfills empty titles in later update snapshots from earlier todo events", () => {
     const events = [
       makeManageTodoEvent({

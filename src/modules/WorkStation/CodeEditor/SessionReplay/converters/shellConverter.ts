@@ -53,6 +53,10 @@ export function convertToShellOperation(
       status: statusString,
       variant: "simulator" as const,
       context: "simulator" as const,
+      rustExtracted: event.extracted,
+      shellPid: event.shellPid,
+      shellProcessStatus: event.shellProcessStatus,
+      shellLogPath: event.shellLogPath,
     };
 
     const data = extractShellData(propsForExtraction);

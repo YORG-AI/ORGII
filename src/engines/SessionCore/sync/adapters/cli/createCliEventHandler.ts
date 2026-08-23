@@ -9,6 +9,10 @@ import {
 } from "@src/engines/SessionCore/sync/utils/activityIds";
 import { createLogger } from "@src/hooks/logger";
 import {
+  pendingPermissionRequestsAtom,
+  upsertPendingPermissionRequest,
+} from "@src/store/session/permissionRequestAtom";
+import {
   clearPendingPlanApproval,
   pendingPlanApprovalsAtom,
   upsertPendingPlanApproval,
@@ -485,8 +489,8 @@ export function createCliEventHandler(
           : {},
       origin,
     };
-    window.dispatchEvent(
-      new CustomEvent("agent-permission-request", { detail: permissionEvent })
+    getStore()?.set(pendingPermissionRequestsAtom, (prev) =>
+      upsertPendingPermissionRequest(prev, permissionEvent)
     );
   }
 

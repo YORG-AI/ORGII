@@ -116,6 +116,7 @@ function extractTodosFromEvent(event: SessionEvent): TodoItem[] {
     status: "success" as const,
     variant: "chat" as const,
     context: "chat" as const,
+    rustExtracted: event.extracted,
   });
 
   return todoData.todos.map((todo, idx) => {
@@ -137,6 +138,14 @@ function extractTodosFromEvent(event: SessionEvent): TodoItem[] {
   });
 }
 
+function hasAuthoritativeEmptyTodoSnapshot(event: SessionEvent): boolean {
+  return (
+    event.displayStatus !== "running" &&
+    event.extracted?.kind === "todo" &&
+    event.extracted.todos.length === 0
+  );
+}
+
 export function extractTodosFromManageTodoSequence(
   events: readonly SessionEvent[],
   sessionId: string,
@@ -151,7 +160,10 @@ export function extractTodosFromManageTodoSequence(
     if (!eventMatchesSession(event, sessionId)) continue;
 
     const nextTodos = extractTodosFromEvent(event);
-    if (nextTodos.length === 0) continue;
+    if (nextTodos.length === 0) {
+      if (hasAuthoritativeEmptyTodoSnapshot(event)) todos = [];
+      continue;
+    }
     todos = preserveTodoContent(todos, nextTodos);
   }
 
@@ -172,16 +184,13 @@ export function useTodoSync(sessionId?: string): void {
   const store = useStore();
 
   const lastSessionIdRef = useRef<string | undefined>(sessionId);
-  const processedCountRef = useRef<number>(0);
   const lastProcessedTodoSnapshotRef = useRef<string | null>(null);
-  const lastCurrentEventIdRef = useRef<string | null>(null);
 
   // Clear todos on session change, then load persisted todos from backend
   useEffect(() => {
     if (sessionId !== lastSessionIdRef.current) {
       const prev = lastSessionIdRef.current;
       lastSessionIdRef.current = sessionId;
-      processedCountRef.current = 0;
       lastProcessedTodoSnapshotRef.current = null;
       // Only clear when actually switching to a *different* session.
       // A transient undefined (panel remount / layout shuffle) must not
@@ -251,13 +260,6 @@ export function useTodoSync(sessionId?: string): void {
 
     const currentEventId = currentEvent?.id ?? null;
 
-    if (
-      replayEvents.length === processedCountRef.current &&
-      currentEventId === lastCurrentEventIdRef.current
-    ) {
-      return;
-    }
-
     let maxIndex = replayEvents.length - 1;
     if (currentEventId) {
       const currentIndex = replayEvents.findIndex(
@@ -274,9 +276,6 @@ export function useTodoSync(sessionId?: string): void {
       maxIndex
     );
 
-    processedCountRef.current = replayEvents.length;
-    lastCurrentEventIdRef.current = currentEventId;
-
     if (!latestTodoEvent) return;
 
     const todos = extractTodosFromManageTodoSequence(
@@ -284,10 +283,14 @@ export function useTodoSync(sessionId?: string): void {
       sessionId,
       maxIndex
     );
-    if (todos.length === 0) return;
-
     const snapshot = serializeTodoSnapshot(todos);
     if (snapshot === lastProcessedTodoSnapshotRef.current) return;
+
+    if (todos.length === 0) {
+      clearTodosForSession(sessionId);
+      lastProcessedTodoSnapshotRef.current = snapshot;
+      return;
+    }
 
     updateTodosForSession({
       sessionId,
@@ -304,6 +307,7 @@ export function useTodoSync(sessionId?: string): void {
     simulatorEvents,
     currentEvent,
     updateTodosForSession,
+    clearTodosForSession,
   ]);
 }
 

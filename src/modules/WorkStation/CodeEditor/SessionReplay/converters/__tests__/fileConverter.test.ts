@@ -46,6 +46,46 @@ describe("parseFilePath", () => {
 });
 
 describe("convertToFileOperation", () => {
+  it("prefers the authoritative deleted path over stale args", () => {
+    const event = minimalSessionEvent({
+      id: "delete-1",
+      functionName: "delete_file",
+      uiCanonical: "edit_file",
+      args: { path: "src/old.ts" },
+      extracted: {
+        kind: "deleteFile",
+        filePath: "packages/app/src/old.ts",
+        fileName: "old.ts",
+      },
+    });
+
+    const op = convertToFileOperation(event, true);
+
+    expect(op).toMatchObject({
+      type: "delete",
+      filePath: "packages/app/src/old.ts",
+      fileName: "old.ts",
+      directory: "packages/app/src",
+    });
+  });
+
+  it("keeps an extracted delete operation when legacy args omit the path", () => {
+    const event = minimalSessionEvent({
+      id: "delete-extracted-only",
+      functionName: "delete_file",
+      uiCanonical: "edit_file",
+      extracted: {
+        kind: "deleteFile",
+        filePath: "src/removed.ts",
+        fileName: "removed.ts",
+      },
+    });
+
+    expect(convertToFileOperation(event, false)?.filePath).toBe(
+      "src/removed.ts"
+    );
+  });
+
   it("builds a read operation when extractFileData finds a path", () => {
     const event = minimalSessionEvent({
       id: "read-1",

@@ -192,6 +192,69 @@ impl PlanApprovalManager {
         self.pending.lock().await.clone()
     }
 
+    /// Durably update the body of the current pending plan without resolving it.
+    ///
+    /// The pending mutex serializes Save against Build/Skip/supersede. The plan
+    /// file is written before the SQLite row, and restored to its prior bytes if
+    /// the row update fails, so the two durable representations cannot silently
+    /// diverge. `plan_revision_id` prevents a stale card from editing a newer
+    /// pending revision for the same session.
+    pub async fn update_pending_content(
+        &self,
+        session_id: &str,
+        plan_revision_id: Option<&str>,
+        content: String,
+    ) -> Result<PendingPlanApproval, String> {
+        let mut guard = self.pending.lock().await;
+        let current = guard
+            .as_ref()
+            .ok_or_else(|| format!("No pending plan approval for session {session_id}"))?;
+
+        if current.session_id != session_id {
+            return Err(format!(
+                "Pending plan belongs to session {}, not {session_id}",
+                current.session_id
+            ));
+        }
+        if let Some(expected_revision) = plan_revision_id {
+            if current.plan_revision_id != expected_revision {
+                return Err(format!(
+                    "Pending plan revision changed (expected {expected_revision}, current {})",
+                    current.plan_revision_id
+                ));
+            }
+        }
+
+        let mut updated = current.clone();
+        updated.plan_content = content;
+        let row = updated.to_row();
+        let plan_path = updated.plan_path.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let previous_bytes = std::fs::read(&plan_path).map_err(|err| {
+                format!("Failed to read pending plan before Save ({plan_path}): {err}")
+            })?;
+            std::fs::write(&plan_path, row.plan_content.as_bytes()).map_err(|err| {
+                format!("Failed to write pending plan ({plan_path}): {err}")
+            })?;
+
+            if let Err(err) = PlanApprovalStore::upsert(&row) {
+                if let Err(rollback_err) = std::fs::write(&plan_path, previous_bytes) {
+                    return Err(format!(
+                        "Failed to persist pending plan snapshot: {err}; file rollback also failed: {rollback_err}"
+                    ));
+                }
+                return Err(format!("Failed to persist pending plan snapshot: {err}"));
+            }
+            Ok::<(), String>(())
+        })
+        .await
+        .map_err(|err| format!("Pending plan Save task failed: {err}"))??;
+
+        *guard = Some(updated.clone());
+        Ok(updated)
+    }
+
     /// Synchronous best-effort pending snapshot for LLM schema rendering.
     ///
     /// Tool descriptions are built through a synchronous trait method, so they

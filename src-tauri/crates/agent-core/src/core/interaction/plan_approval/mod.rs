@@ -137,6 +137,69 @@ mod tests {
         assert_eq!(snap.plan_path, plan_b.to_str().unwrap());
     }
 
+    #[tokio::test]
+    async fn update_pending_content_persists_file_memory_and_rehydrate() {
+        let _lock = lock_and_prepare();
+        let plan_path = temp_home().join("saved.plan.md");
+        std::fs::write(&plan_path, "original").unwrap();
+        let session_id = "s_save";
+        let mgr = PlanApprovalManager::new();
+        mgr.mark_ready(
+            session_id,
+            plan_path.to_str().unwrap(),
+            "Title",
+            "original",
+            Some("call_save"),
+        )
+        .await;
+        wait_for_pending_row(session_id).await;
+        let revision = mgr.pending_snapshot().await.unwrap().plan_revision_id;
+
+        let updated = mgr
+            .update_pending_content(session_id, Some(&revision), "edited".into())
+            .await
+            .unwrap();
+        assert_eq!(updated.plan_content, "edited");
+        assert_eq!(std::fs::read_to_string(&plan_path).unwrap(), "edited");
+        assert_eq!(
+            PlanApprovalStore::load_by_session(session_id)
+                .unwrap()
+                .unwrap()
+                .plan_content,
+            "edited"
+        );
+
+        let fresh = PlanApprovalManager::new();
+        fresh.rehydrate_from_db(session_id).await.unwrap();
+        assert_eq!(
+            fresh.pending_snapshot().await.unwrap().plan_content,
+            "edited"
+        );
+    }
+
+    #[tokio::test]
+    async fn update_pending_content_rejects_stale_revision() {
+        let _lock = lock_and_prepare();
+        let plan_path = temp_home().join("stale-save.plan.md");
+        std::fs::write(&plan_path, "original").unwrap();
+        let mgr = PlanApprovalManager::new();
+        mgr.mark_ready(
+            "s_stale",
+            plan_path.to_str().unwrap(),
+            "T",
+            "original",
+            None,
+        )
+        .await;
+
+        let error = mgr
+            .update_pending_content("s_stale", Some("old-revision"), "edited".into())
+            .await
+            .unwrap_err();
+        assert!(error.contains("revision changed"));
+        assert_eq!(std::fs::read_to_string(&plan_path).unwrap(), "original");
+    }
+
     #[test]
     fn lifecycle_events_keep_plan_revision_creation_timestamp() {
         let snapshot = PendingPlanApproval {

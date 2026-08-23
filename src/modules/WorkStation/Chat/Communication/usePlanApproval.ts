@@ -2,7 +2,10 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { respondPlanApproval } from "@src/api/tauri/agent";
+import {
+  updatePendingPlanContent as persistPendingPlanContent,
+  respondPlanApproval,
+} from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import {
@@ -18,7 +21,6 @@ import {
   planAliasesContain,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
-import { FileService } from "@src/services/file";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
 import {
@@ -253,11 +255,11 @@ export function usePlanApproval({
     try {
       await persistEditedPlanContent({
         sessionId: planSessionId,
-        planPath,
+        planRevisionId: currentPendingPlan?.planRevisionId,
         pendingAliases: planApprovalAliases,
         content: editedContent,
         io: {
-          saveFile: (path, content) => FileService.save(path, content),
+          persistPendingContent: persistPendingPlanContent,
           getEvents: (sessionId) => eventStoreProxy.getEvents(sessionId),
           patchEvent: (id, args, sessionId) =>
             eventStoreProxy.updateById(id, { args }, sessionId),
@@ -279,7 +281,7 @@ export function usePlanApproval({
   }, [
     planSessionId,
     buildDisabled,
-    planPath,
+    currentPendingPlan,
     planApprovalAliases,
     editedContent,
     setPendingPlanApprovals,

@@ -28,6 +28,14 @@ import {
   markCanvasRevisionDraftApplying,
 } from "@src/store/session/canvasRevisionDraftAtom";
 import { clearMcpProgressForCallAtom } from "@src/store/session/mcpProgressAtom";
+import {
+  clearFinalizedPermissionRequest,
+  pendingPermissionRequestsAtom,
+} from "@src/store/session/permissionRequestAtom";
+import {
+  getInstrumentedStore,
+  isStoreInitialized,
+} from "@src/util/core/state/instrumentedStore";
 
 import { makeToolResultEvent } from "../../shared/eventBuilders";
 import {
@@ -376,6 +384,17 @@ export async function handleInteractionFinalized(
     ...resultObject,
   };
   await eventStoreProxy.mergeEvents([resultEvent], sessionId);
+
+  if (event.tool === "permission" && isStoreInitialized()) {
+    const requestId =
+      typeof event.requestId === "string" ? event.requestId : undefined;
+    getInstrumentedStore().set(pendingPermissionRequestsAtom, (prev) =>
+      clearFinalizedPermissionRequest(prev, sessionId, {
+        requestId,
+        toolCallId,
+      })
+    );
+  }
 
   if (isAutoModeSwitchAccept(event.tool, resultObject)) {
     const targetMode =
