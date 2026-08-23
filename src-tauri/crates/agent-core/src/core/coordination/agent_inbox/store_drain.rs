@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use database::db::{get_connection, with_sessions_writer};
 
@@ -14,6 +14,25 @@ use crate::coordination::agent_org_payload_limits as limits;
 use super::record::AgentInboxRecord;
 use super::record::{row_to_record, AgentInboxBatch};
 use super::{AgentInboxStore, MAX_INBOX_DRAIN_PAYLOAD_BYTES, MAX_INBOX_DRAIN_ROWS};
+
+fn ensure_inbox_claim_allowed(conn: &Connection, org_run_id: &str) -> Result<(), String> {
+    let status: Option<String> = conn
+        .query_row(
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+            [org_run_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    if status.as_deref()
+        == Some(crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived.as_str())
+    {
+        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+            org_run_id, "archived",
+        ));
+    }
+    Ok(())
+}
 
 impl AgentInboxStore {
     /// Load the single formal Inbox input bound to one persisted
@@ -42,6 +61,7 @@ impl AgentInboxStore {
         turn_intent_id: &str,
     ) -> Result<AgentInboxBatch, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
+        ensure_inbox_claim_allowed(&conn, org_run_id)?;
         let mut stmt = conn
             .prepare(
                 "SELECT inbox.id,
@@ -251,6 +271,7 @@ impl AgentInboxStore {
         org_run_id: &str,
     ) -> Result<AgentInboxBatch, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
+        ensure_inbox_claim_allowed(&conn, org_run_id)?;
         let mut stmt = conn
             .prepare(
                 "SELECT id,
@@ -365,6 +386,40 @@ impl AgentInboxStore {
                 let tx = conn
                     .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                     .map_err(|err| err.to_string())?;
+                // A late acknowledgement is still a write. Archive leaves
+                // Inbox history readable but permanently closes claim/ack
+                // paths, even when the pre-Archive materialization owner is
+                // otherwise still valid.
+                {
+                    let mut status_stmt = tx
+                        .prepare(
+                            "SELECT inbox.org_run_id,run.status
+                             FROM agent_org_runtime_inbox inbox
+                             LEFT JOIN agent_org_runtime_runs run ON run.id=inbox.org_run_id
+                             WHERE inbox.id=?1",
+                        )
+                        .map_err(|err| err.to_string())?;
+                    for id in ids {
+                        let source: Option<(Option<String>, Option<String>)> = status_stmt
+                            .query_row([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                            .optional()
+                            .map_err(|err| err.to_string())?;
+                        if let Some((Some(run_id), status)) = source {
+                            if status.as_deref()
+                                == Some(
+                                    crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived
+                                        .as_str(),
+                                )
+                            {
+                                return Err(
+                                    crate::coordination::agent_org_runs::mutation_blocked_error(
+                                        &run_id, "archived",
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
                 if let (Some(session_id), Some(turn_intent_id)) =
                     (materialization_session_id, formal_turn_intent_id)
                 {

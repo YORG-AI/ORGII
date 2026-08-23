@@ -21,6 +21,10 @@
 
 pub mod agent_inbox;
 pub mod agent_member_interventions;
+pub mod agent_org_archive;
+#[cfg(test)]
+mod agent_org_archive_tests;
+pub(crate) mod agent_org_ownership;
 pub mod agent_org_pause;
 pub mod agent_org_payload_limits;
 pub mod agent_org_plan_approvals;

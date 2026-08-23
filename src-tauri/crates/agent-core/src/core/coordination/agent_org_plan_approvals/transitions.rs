@@ -37,10 +37,9 @@ pub(super) fn create_pending_in_tx(
         .optional()
         .map_err(|err| err.to_string())?;
     if run_status.as_deref() != Some("running") {
-        return Err(format!(
-            "agent_org_run_not_mutable: run {} is {}",
-            params.org_run_id,
-            run_status.as_deref().unwrap_or("missing")
+        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+            &params.org_run_id,
+            run_status.as_deref().unwrap_or("missing"),
         ));
     }
     let owner_actor = TaskOwnerExecution::new(

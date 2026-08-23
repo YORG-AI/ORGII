@@ -4,13 +4,19 @@ use database::db::{get_connection, with_sessions_writer};
 
 use super::super::helpers::{insert_run, validate_entry_mode, validate_status};
 use super::super::progress::ensure_progress_in_conn;
-use super::super::{AgentOrgRunRecord, CreateAgentOrgRunParams};
+use super::super::{AgentOrgRunRecord, AgentOrgRunStatus, CreateAgentOrgRunParams};
 use super::AgentOrgRunStore;
 
 impl AgentOrgRunStore {
     pub fn create(params: CreateAgentOrgRunParams) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
         let status = validate_status(params.status.as_str())?;
+        if status == AgentOrgRunStatus::Archived {
+            return Err(
+                "team_archived_requires_receipt: create the Team in a live state and use Archive"
+                    .to_string(),
+            );
+        }
         let org_snapshot_json = super::serialize_launch_snapshot(&params.org_snapshot)?;
         let now = chrono::Utc::now().to_rfc3339();
         let run = AgentOrgRunRecord {
@@ -33,6 +39,8 @@ impl AgentOrgRunStore {
             created_at: now.clone(),
             updated_at: now,
             idled_at: None,
+            archived_at: None,
+            archive_receipt_id: None,
         };
 
         with_sessions_writer(|| -> Result<(), String> {

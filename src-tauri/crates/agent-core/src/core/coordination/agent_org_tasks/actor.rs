@@ -115,6 +115,7 @@ impl TaskOwnerExecution {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SystemTaskOperation {
+    ArchiveCancel,
     RecoveryRequeue,
     RecoveryFail,
     ShutdownRelease,
@@ -123,6 +124,7 @@ pub(crate) enum SystemTaskOperation {
 impl SystemTaskOperation {
     pub(crate) const fn as_wire(self) -> &'static str {
         match self {
+            Self::ArchiveCancel => "archive_cancel",
             Self::RecoveryRequeue => "recovery_requeue",
             Self::RecoveryFail => "recovery_fail",
             Self::ShutdownRelease => "shutdown_release",
@@ -160,8 +162,37 @@ impl SystemArchiveOrRecovery {
         org_run_id: &str,
         target_key: &str,
     ) -> Result<TaskActorAudit, String> {
+        if self.operation == SystemTaskOperation::ArchiveCancel {
+            let archive: Option<(String, i64, i64)> = conn
+                .query_row(
+                    "SELECT run.status,run.activation_generation,archive.archive_generation
+                     FROM agent_org_runtime_archive_episodes archive
+                     JOIN agent_org_runtime_runs run ON run.id=archive.org_run_id
+                     WHERE archive.org_run_id=?1 AND archive.archive_receipt_id=?2",
+                    params![org_run_id, &self.receipt_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .optional()
+                .map_err(|error| error.to_string())?;
+            let Some((status, run_generation, archive_generation)) = archive else {
+                return Err("system_task_archive_receipt_invalid".to_string());
+            };
+            if status != AgentOrgRunStatus::Archived.as_str()
+                || run_generation != self.generation
+                || archive_generation != self.generation
+            {
+                return Err("system_task_archive_generation_mismatch".to_string());
+            }
+            return Ok(TaskActorAudit {
+                kind: TaskActorKind::System,
+                participant_id: format!("system:{}", self.operation.as_wire()),
+                turn_intent_id: None,
+            });
+        }
+
         validate_run_and_generation(conn, org_run_id, Some(self.generation))?;
         let action_kind = match self.operation {
+            SystemTaskOperation::ArchiveCancel => unreachable!("handled above"),
             SystemTaskOperation::RecoveryRequeue | SystemTaskOperation::RecoveryFail => {
                 "task_failure_recovery"
             }
@@ -182,6 +213,7 @@ impl SystemArchiveOrRecovery {
             return Err("system_task_recovery_receipt_invalid".to_string());
         };
         let operation_matches_receipt = match self.operation {
+            SystemTaskOperation::ArchiveCancel => unreachable!("handled above"),
             SystemTaskOperation::RecoveryRequeue => {
                 persisted_action_kind == "task_failure_recovery"
                     && !crate::coordination::agent_org_watchdog::task_failure_recovery_attempts_exhausted(attempts)
@@ -210,6 +242,7 @@ impl SystemArchiveOrRecovery {
 
     pub(crate) const fn action_kind(&self) -> &'static str {
         match self.operation {
+            SystemTaskOperation::ArchiveCancel => "team_archive",
             SystemTaskOperation::RecoveryRequeue | SystemTaskOperation::RecoveryFail => {
                 "task_failure_recovery"
             }
@@ -262,8 +295,9 @@ fn validate_run_and_generation(
     let status = AgentOrgRunStatus::parse(&status_raw)
         .ok_or_else(|| format!("unknown Agent Org run status: {status_raw}"))?;
     if status != AgentOrgRunStatus::Running {
-        return Err(format!(
-            "agent_org_run_not_mutable: run {org_run_id} is {status}"
+        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+            org_run_id,
+            status.as_str(),
         ));
     }
     if expected_generation != Some(generation) {

@@ -518,6 +518,12 @@ pub(crate) fn revalidate_context_with_connection(
     };
     let status = AgentOrgRunStatus::parse(&status_raw)
         .ok_or_else(|| invariant_error(format!("unknown run status {status_raw:?}")))?;
+    if status == AgentOrgRunStatus::Archived {
+        return Err(format!(
+            "team_archived: Agent Org run {} is read-only",
+            context.org_run_id
+        ));
+    }
     if status != AgentOrgRunStatus::Running {
         return Err(invariant_error(format!(
             "Turn execution requires a running Team, found {status}"
@@ -1043,6 +1049,11 @@ fn resolve_canonical_admission(
                         "Starting authority mismatch: expected generation {expected}, current generation {generation}, status {status}"
                     )));
                 }
+            } else if status == AgentOrgRunStatus::Archived {
+                return Err(format!(
+                    "team_archived: Agent Org run {} is read-only",
+                    request.org_run_id
+                ));
             } else if status != AgentOrgRunStatus::Running {
                 return Err(invariant_error(format!(
                     "Coordinator Turn requires a running Team, found {status}"
@@ -1072,6 +1083,12 @@ fn resolve_canonical_admission(
             owner_member_id,
             activation_generation,
         } => {
+            if status == AgentOrgRunStatus::Archived {
+                return Err(format!(
+                    "team_archived: Agent Org run {} is read-only",
+                    request.org_run_id
+                ));
+            }
             if status != AgentOrgRunStatus::Running || generation != *activation_generation {
                 return Err(invariant_error(format!(
                     "TaskExecution authority mismatch for generation {activation_generation}; current generation {generation}, status {status}"
@@ -1110,6 +1127,12 @@ fn resolve_canonical_admission(
             dispatch_member_id,
             source,
         } => {
+            if status == AgentOrgRunStatus::Archived {
+                return Err(format!(
+                    "team_archived: Agent Org run {} is read-only",
+                    request.org_run_id
+                ));
+            }
             if matches!(
                 status,
                 AgentOrgRunStatus::Starting
@@ -1517,6 +1540,12 @@ pub(crate) fn validate_formal_turn_generation_with_connection(
     let Some((status, generation)) = run else {
         return Err(invariant_error("formal Turn run disappeared".to_string()));
     };
+    if status == AgentOrgRunStatus::Archived.as_str() {
+        return Err(format!(
+            "team_archived: Agent Org run {} is read-only",
+            context.org_run_id
+        ));
+    }
     if status != AgentOrgRunStatus::Running.as_str()
         || context.activation_generation != Some(generation)
     {

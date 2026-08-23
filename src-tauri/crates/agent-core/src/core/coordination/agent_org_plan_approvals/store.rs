@@ -455,9 +455,9 @@ impl AgentOrgPlanApprovalStore {
                 )
                 .map_err(|err| err.to_string())?;
             if run_status != "running" {
-                return Err(format!(
-                    "agent_org_run_not_mutable: run {} is {run_status}",
-                    approval.org_run_id
+                return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+                    &approval.org_run_id,
+                    &run_status,
                 ));
             }
             let resolved_at = chrono::Utc::now().to_rfc3339();
@@ -620,8 +620,9 @@ impl AgentOrgPlanApprovalStore {
         Ok(report)
     }
 
-    /// Cancel approvals whose parent run is gone or terminal. A paused run is
-    /// resumable and must keep its pending approval intact.
+    /// Cancel approvals whose parent run is gone or failed. Archive owns its
+    /// cancellation atomically with the irreversible fence; this reconciler
+    /// must never mutate an already-Archived Team.
     pub fn cancel_pending_for_terminal_or_missing_runs() -> Result<usize, String> {
         let (changed, run_ids) =
             with_sessions_writer(|| -> Result<(usize, Vec<String>), String> {
@@ -640,7 +641,7 @@ impl AgentOrgPlanApprovalStore {
                              OR EXISTS (
                                SELECT 1 FROM agent_org_runtime_runs run
                                WHERE run.id=approval.org_run_id
-                                 AND run.status IN ('failed','archived')
+                                 AND run.status='failed'
                              )
                            )",
                         )
@@ -667,7 +668,7 @@ impl AgentOrgPlanApprovalStore {
                      OR EXISTS (
                        SELECT 1 FROM agent_org_runtime_runs run
                        WHERE run.id=agent_org_runtime_plan_approvals.org_run_id
-                         AND run.status IN ('failed','archived')
+                         AND run.status='failed'
                      )
                    )",
                         params![

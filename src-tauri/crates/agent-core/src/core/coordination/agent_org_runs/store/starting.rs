@@ -46,6 +46,8 @@ impl AgentOrgRunStore {
             created_at: now.clone(),
             updated_at: now.clone(),
             idled_at: None,
+            archived_at: None,
+            archive_receipt_id: None,
         };
 
         let mut member_ids = HashSet::new();

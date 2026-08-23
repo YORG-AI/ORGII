@@ -92,9 +92,7 @@ impl AgentOrgRunStore {
                 return Err(format!("agent_org_run_not_found: {run_id}"));
             };
             if status != AgentOrgRunStatus::Running.as_str() {
-                return Err(format!(
-                    "agent_org_run_not_mutable: run {run_id} is {status}"
-                ));
+                return Err(super::super::mutation_blocked_error(run_id, &status));
             }
 
             let unresolved_task_ids = {

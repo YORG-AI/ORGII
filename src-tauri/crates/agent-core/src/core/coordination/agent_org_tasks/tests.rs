@@ -199,8 +199,11 @@ fn task_mutations_require_running_parent_run() {
     ))
     .expect("running run permits create");
     conn.execute(
-        "UPDATE agent_org_runtime_runs SET status='archived' WHERE id='guarded-run'",
-        [],
+        "UPDATE agent_org_runtime_runs
+         SET status='archived',activation_generation=activation_generation+1,
+             archived_at=?1,archive_receipt_id='guarded-run-archive-receipt'
+         WHERE id='guarded-run'",
+        [&now],
     )
     .unwrap();
     assert!(AgentOrgTaskStore::update(
@@ -212,10 +215,10 @@ fn task_mutations_require_running_parent_run() {
         },
     )
     .unwrap_err()
-    .contains("agent_org_run_not_mutable"));
+    .contains("team_archived"));
     assert!(AgentOrgTaskStore::delete("guarded-run", "guarded-task")
         .unwrap_err()
-        .contains("agent_org_run_not_mutable"));
+        .contains("team_archived"));
 }
 
 #[test]

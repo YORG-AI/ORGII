@@ -645,7 +645,7 @@ enum ShellCancellationScope {
 
 const fn shell_cancellation_scope(reason: CancelReason) -> ShellCancellationScope {
     match reason {
-        CancelReason::UserStop => ShellCancellationScope::Session,
+        CancelReason::UserStop | CancelReason::OrgArchive => ShellCancellationScope::Session,
         CancelReason::OrgPause => ShellCancellationScope::ActiveTurn,
         CancelReason::ForceSend
         | CancelReason::AgentOrgDelete
@@ -683,6 +683,10 @@ mod runtime_lease_tests {
         assert_eq!(
             shell_cancellation_scope(CancelReason::OrgPause),
             ShellCancellationScope::ActiveTurn
+        );
+        assert_eq!(
+            shell_cancellation_scope(CancelReason::OrgArchive),
+            ShellCancellationScope::Session
         );
         assert_eq!(
             shell_cancellation_scope(CancelReason::ForceSend),

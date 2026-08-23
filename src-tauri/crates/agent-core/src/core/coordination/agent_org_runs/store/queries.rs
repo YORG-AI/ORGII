@@ -41,7 +41,9 @@ impl AgentOrgRunStore {
                     last_activity_outcome,
                     created_at,
                     updated_at,
-                    idled_at
+                    idled_at,
+                    archived_at,
+                    archive_receipt_id
              FROM agent_org_runtime_runs
              WHERE root_session_id IN ({placeholders})
              ORDER BY updated_at DESC, id DESC"
@@ -87,7 +89,9 @@ impl AgentOrgRunStore {
                         last_activity_outcome,
                         created_at,
                         updated_at,
-                        idled_at
+                        idled_at,
+                        archived_at,
+                        archive_receipt_id
                  FROM agent_org_runtime_runs
                  WHERE root_session_id IS NOT NULL
                  ORDER BY updated_at DESC
@@ -140,7 +144,9 @@ impl AgentOrgRunStore {
                         last_activity_outcome,
                         created_at,
                         updated_at,
-                        idled_at
+                        idled_at,
+                        archived_at,
+                        archive_receipt_id
                  FROM agent_org_runtime_runs
                  WHERE root_session_id IS NOT NULL
                    AND status = ?1

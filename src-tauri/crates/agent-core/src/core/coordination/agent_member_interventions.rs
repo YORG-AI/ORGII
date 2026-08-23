@@ -116,6 +116,7 @@ impl AgentMemberInterventionStore {
 
         with_sessions_writer(|| -> Result<(), String> {
             let conn = get_connection().map_err(|err| err.to_string())?;
+            ensure_intervention_run_is_writable(&conn, &params.org_run_id)?;
             conn.execute(
                 "INSERT INTO agent_org_runtime_member_interventions (
                 org_run_id,
@@ -167,6 +168,7 @@ impl AgentMemberInterventionStore {
         let now = chrono::Utc::now().to_rfc3339();
         let changed = with_sessions_writer(|| -> Result<bool, String> {
             let conn = get_connection().map_err(|err| err.to_string())?;
+            ensure_intervention_run_is_writable(&conn, org_run_id)?;
             let updated = conn
                 .execute(
                     "UPDATE agent_org_runtime_member_interventions
@@ -199,6 +201,7 @@ impl AgentMemberInterventionStore {
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
+            ensure_intervention_run_is_writable(&tx, org_run_id)?;
             let updated = tx
                 .execute(
                     "UPDATE agent_org_runtime_member_interventions
@@ -362,6 +365,23 @@ impl AgentMemberInterventionStore {
     }
 }
 
+fn ensure_intervention_run_is_writable(conn: &Connection, org_run_id: &str) -> Result<(), String> {
+    let status: Option<String> = conn
+        .query_row(
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+            [org_run_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    if status.as_deref() == Some("archived") {
+        return Err(super::agent_org_runs::mutation_blocked_error(
+            org_run_id, "archived",
+        ));
+    }
+    Ok(())
+}
+
 fn resume_after_is_future(value: &str) -> bool {
     chrono::DateTime::parse_from_rfc3339(value)
         .map(|timestamp| timestamp.with_timezone(&chrono::Utc) > chrono::Utc::now())
@@ -398,6 +418,7 @@ mod tests {
     fn setup() -> test_helpers::test_env::SandboxGuard {
         let sandbox = test_helpers::test_env::sandbox();
         let conn = get_connection().expect("db connection");
+        crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
         init_schema(&conn).expect("schema");
         conn.execute("DELETE FROM agent_org_runtime_member_interventions", [])
             .expect("clear");
