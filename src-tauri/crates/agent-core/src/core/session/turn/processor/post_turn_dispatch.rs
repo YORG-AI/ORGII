@@ -24,6 +24,19 @@ use crate::turn_executor::TurnResult;
 use super::super::post_turn as post_turn_jobs;
 use super::super::streaming::{broadcast_agent_complete, AgentCompleteParams};
 
+fn should_spawn_goal_loop(
+    final_turn_state: DialogTurnState,
+    is_stream_error: bool,
+    is_agent_org_session: bool,
+) -> bool {
+    final_turn_state != DialogTurnState::Cancelled
+        && !is_stream_error
+        // Agent Org has its own durable multi-member progress loop. Starting
+        // the ordinary SDE presence goal-loop would create an unowned side
+        // provider that Team Archive cannot represent as a formal Turn.
+        && !is_agent_org_session
+}
+
 /// Inputs for [`UnifiedMessageProcessor::dispatch_post_turn_work`].
 ///
 /// Bundled into a struct so the call site stays a single line. The
@@ -190,7 +203,11 @@ impl UnifiedMessageProcessor {
         // the presence policy enables it (Invisible / custom autonomous
         // modes). Fire-and-forget; skipped for cancelled turns (the user
         // explicitly stopped — auto-continuing would fight the Stop).
-        if final_turn_state != DialogTurnState::Cancelled && !result.is_stream_error {
+        if should_spawn_goal_loop(
+            final_turn_state,
+            result.is_stream_error,
+            self.runtime.agent_org_context.is_some(),
+        ) {
             crate::session::goal_loop::spawn_turn_end_evaluation(
                 crate::session::goal_loop::GoalLoopTurnEnd {
                     session_id: session_id.to_string(),
@@ -204,5 +221,35 @@ impl UnifiedMessageProcessor {
                 },
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_spawn_goal_loop;
+    use crate::core::session::types::DialogTurnState;
+
+    #[test]
+    fn agent_org_turns_never_start_the_standalone_goal_loop() {
+        assert!(!should_spawn_goal_loop(
+            DialogTurnState::Completed,
+            false,
+            true
+        ));
+        assert!(should_spawn_goal_loop(
+            DialogTurnState::Completed,
+            false,
+            false
+        ));
+        assert!(!should_spawn_goal_loop(
+            DialogTurnState::Cancelled,
+            false,
+            false
+        ));
+        assert!(!should_spawn_goal_loop(
+            DialogTurnState::Completed,
+            true,
+            false
+        ));
     }
 }

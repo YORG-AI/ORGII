@@ -124,6 +124,67 @@ async function persistenceSnapshot(sessionIds, runIds) {
   });
 }
 
+async function acknowledgePermanentDeleteLikeUser() {
+  const acknowledgementSelector = 'div[role="dialog"] [data-checkbox]';
+  let point = null;
+  await browser.waitUntil(
+    async () => {
+      point = await execJS(`
+        const label = document.querySelector(${JSON.stringify(acknowledgementSelector)});
+        if (!label) return null;
+        const rect = label.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return {
+          x,
+          y,
+          visible: rect.width > 0 && rect.height > 0,
+          hitOwned: !!hit?.closest?.('[data-checkbox]'),
+        };
+      `);
+      return point?.visible === true && point?.hitOwned === true;
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 100,
+      timeoutMsg: `Delete acknowledgement was not pointer-clickable: ${JSON.stringify(point)}`,
+    }
+  );
+
+  // Exercise the visible label through a real pointer sequence. The previous
+  // shortcut clicked the hidden native input, skipped mousedown, and therefore
+  // missed the portal/outside-click regression found in the packaged app.
+  await browser
+    .action("pointer")
+    .move({ x: point.x, y: point.y })
+    .down()
+    .up()
+    .perform();
+
+  const state = await execJS(`
+    const dialog = document.querySelector('div[role="dialog"]');
+    const input = dialog?.querySelector('[data-checkbox-input]');
+    const confirm = dialog?.querySelector('[data-testid="agent-org-delete-confirm-button"]');
+    return {
+      dialogOpen: !!dialog,
+      overviewOpen: !!document.querySelector('[data-testid="agent-org-overview-panel"]'),
+      checked: input?.checked === true,
+      confirmEnabled: !!confirm && !confirm.disabled,
+    };
+  `);
+  if (
+    !state.dialogOpen ||
+    !state.overviewOpen ||
+    !state.checked ||
+    !state.confirmEnabled
+  ) {
+    throw new Error(
+      `Visible Delete acknowledgement collapsed or failed to enable confirmation: ${JSON.stringify(state)}`
+    );
+  }
+}
+
 async function deleteHierarchyAndAssertGone(hierarchy) {
   await refreshAndWaitForSidebarRow(hierarchy.rootSessionId);
   await openRenderedSidebarSession(hierarchy.rootSessionId);
@@ -200,7 +261,7 @@ async function deleteHierarchyAndAssertGone(hierarchy) {
   await (
     await browser.$('[data-testid="agent-org-overview-delete-button"]')
   ).click();
-  await (await browser.$('div[role="dialog"] input[type="checkbox"]')).click();
+  await acknowledgePermanentDeleteLikeUser();
   await (
     await browser.$('[data-testid="agent-org-delete-confirm-button"]')
   ).click();
@@ -217,6 +278,25 @@ async function deleteHierarchyAndAssertGone(hierarchy) {
       timeoutMsg: "deleted Agent Org root remained in the sidebar",
     }
   );
+  const deletedTabTitle = `Agent Org delete ${hierarchy.rootSessionId}`;
+  const deletedSurfaceState = await execJS(`
+    const deletedTitle = ${JSON.stringify(deletedTabTitle)};
+    return {
+      deletedTabVisible: [...document.querySelectorAll('[role="tab"]')]
+        .some((tab) => tab.getAttribute('title') === deletedTitle),
+      deletedOverviewVisible: !!document.querySelector('[data-testid="agent-org-overview-panel"]'),
+      launchpadVisible: !!document.querySelector('[data-testid="chat-panel-start-page"]'),
+    };
+  `);
+  if (
+    deletedSurfaceState.deletedTabVisible ||
+    deletedSurfaceState.deletedOverviewVisible ||
+    !deletedSurfaceState.launchpadVisible
+  ) {
+    throw new Error(
+      `deleted Team left a stale Chat Panel surface: ${JSON.stringify(deletedSurfaceState)}`
+    );
+  }
   const snapshot = await persistenceSnapshot(
     [hierarchy.rootSessionId, ...hierarchy.workerSessionIds],
     [hierarchy.runId]

@@ -34,6 +34,7 @@ import { clearCliTurnLifecycleSession } from "@src/hooks/cliSession/cliTurnLifec
 import { createLogger } from "@src/hooks/logger";
 import type { GoToNewSessionOptions } from "@src/hooks/navigation/useAppNavigation";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
+import { closeSessionChatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   SESSION_SIDEBAR_PAGE_SIZE,
   type Session,
@@ -152,6 +153,7 @@ export function useWorkstationSidebarHandlers({
     },
     [disposeWorkstationTabsWorkspace, disposeEditorCacheForSession]
   );
+  const closeSessionChatPanelTabs = useSetAtom(closeSessionChatPanelTabsAtom);
   const pagination = useAtomValue(sessionPaginationAtom);
   const cloudAuth = useAtomValue(org2CloudAuthAtom);
   const setCloudAuth = useSetAtom(org2CloudAuthAtom);
@@ -175,7 +177,7 @@ export function useWorkstationSidebarHandlers({
           return;
         }
         const session = sessionMap.get(sessionId);
-        let deletedActiveRustSession = false;
+        let requiresNavigationReset = false;
         const forkedFrom = session ? getSessionForkedFrom(session) : undefined;
         // Cloud retraction targets, mirroring the engine's publish targets:
         // a fork publishes only to its source org; an ordinary session
@@ -218,11 +220,13 @@ export function useWorkstationSidebarHandlers({
         if (isCliSession(sessionId)) {
           await invokeTauri("cli_agent_delete", { sessionId });
           clearCliTurnLifecycleSession(sessionId);
+          requiresNavigationReset = sessionId === activeSessionId;
         } else if (isHumanSession(sessionId)) {
           await deleteHumanSession(sessionId);
+          requiresNavigationReset = sessionId === activeSessionId;
         } else {
           const receipt = await deleteSession(sessionId);
-          deletedActiveRustSession = await applyRustSessionDeleteReceipt({
+          requiresNavigationReset = await applyRustSessionDeleteReceipt({
             requestedSessionId: sessionId,
             activeSessionId,
             isAgentOrgRoot: Boolean(session?.agentOrgId),
@@ -242,6 +246,7 @@ export function useWorkstationSidebarHandlers({
                       { deletedSessionId, error }
                     )
                   ),
+              closeSessionTabs: closeSessionChatPanelTabs,
             },
           });
         }
@@ -251,9 +256,7 @@ export function useWorkstationSidebarHandlers({
         clearPendingFileOpensForSession(sessionId);
         clearPendingCodeEditorTabForSession(sessionId);
 
-        if (sessionId === activeSessionId || deletedActiveRustSession) {
-          goToNewSession();
-        }
+        if (requiresNavigationReset) goToNewSession();
       } catch (error) {
         log.error("[WorkstationSidebar] Failed to delete session:", error);
         Message.error(tCommon("sessions:chat.failedToDeleteSession"));
@@ -264,6 +267,7 @@ export function useWorkstationSidebarHandlers({
       cloudAuth,
       setCloudAuth,
       cloudOrgs,
+      closeSessionChatPanelTabs,
       disposeWorkstationWorkspace,
       goToNewSession,
       onCloseChatPanelTab,

@@ -7,6 +7,7 @@ interface RustSessionDeleteCleanup {
   clearPendingFileOpens: (sessionId: string) => void;
   clearPendingCodeEditorTab: (sessionId: string) => void;
   evictEventStore: (sessionId: string) => Promise<void>;
+  closeSessionTabs: (sessionIds: readonly string[]) => boolean;
 }
 
 interface ApplyRustSessionDeleteReceiptOptions {
@@ -20,9 +21,10 @@ interface ApplyRustSessionDeleteReceiptOptions {
 /**
  * Apply the additional local cleanup described by a Rust deletion receipt.
  *
- * The requested row keeps the sidebar's existing single-session cleanup path.
- * Only descendant IDs are handled here, so an ordinary SDE receipt containing
- * one ID has no new cleanup side effects.
+ * The requested row keeps the sidebar's existing single-session data cleanup
+ * path. Chat tabs are receipt-owned, however, so every deleted Root/Member is
+ * removed together before any caller decides whether a separate navigation
+ * reset is still necessary.
  */
 export async function applyRustSessionDeleteReceipt({
   requestedSessionId,
@@ -47,5 +49,6 @@ export async function applyRustSessionDeleteReceipt({
     );
   }
 
-  return deletedSessionIds.includes(activeSessionId);
+  const closedActiveSessionTab = cleanup.closeSessionTabs(deletedSessionIds);
+  return deletedSessionIds.includes(activeSessionId) && !closedActiveSessionTab;
 }

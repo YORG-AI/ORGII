@@ -12,7 +12,7 @@
 //! - an always-run cleanup hook so subsystem state cannot remain stuck after a
 //!   timeout or cancellation.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -190,6 +190,11 @@ struct JobSlot {
 struct CoordinatorState {
     next_slot_id: u64,
     slots: HashMap<JobKey, JobSlot>,
+    /// Sessions sealed by an irreversible lifecycle transition such as Team
+    /// Archive. This lives beside `slots` so submission and sealing have one
+    /// total order: work submitted first is cancelled, work submitted later
+    /// is rejected before it can create a provider.
+    sealed_sessions: HashSet<String>,
 }
 
 /// Result of a non-blocking submission.
@@ -197,6 +202,7 @@ struct CoordinatorState {
 pub enum MemoryJobSubmission {
     Started,
     Coalesced,
+    RejectedSessionSealed,
 }
 
 /// Process-wide coordinator. It owns every detached memory job spawned through
@@ -218,13 +224,26 @@ impl MemoryJobCoordinator {
         })
     }
 
-    fn submit(self: &Arc<Self>, job: MemoryJob) -> MemoryJobSubmission {
+    fn submit(self: &Arc<Self>, mut job: MemoryJob) -> MemoryJobSubmission {
         self.metrics.submitted.fetch_add(1, Ordering::Relaxed);
         let key = job.key();
 
         let mut replaced_slot = None;
         let (slot_id, cancel) = {
             let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            if state.sealed_sessions.contains(&key.session_id) {
+                drop(state);
+                let outcome = self.finish(&key, MemoryJobOutcome::Cancelled, 0);
+                if let Some(cleanup) = job.cleanup.take() {
+                    tokio::spawn(cleanup(outcome));
+                }
+                info!(
+                    session_id = %key.session_id,
+                    job_kind = key.kind.as_str(),
+                    "[memory_background] rejected job for sealed session"
+                );
+                return MemoryJobSubmission::RejectedSessionSealed;
+            }
             // A cancelled slot is torn down by its own drive loop; coalescing
             // into it would silently drop the new job when the loop exits.
             // Replace it with a fresh generation instead.
@@ -453,6 +472,61 @@ impl MemoryJobCoordinator {
         self.cancel_where(|key, _| key.session_id == session_id)
     }
 
+    /// Permanently reject new work for this session in the current process
+    /// and cancel every active/coalesced generation already owned by it.
+    ///
+    /// The sealed-set write and the slot snapshot share the same mutex used
+    /// by `submit`, so a concurrent submission cannot fall between them.
+    fn seal_session(&self, session_id: &str) -> usize {
+        let tokens = {
+            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            state.sealed_sessions.insert(session_id.to_string());
+            state
+                .slots
+                .iter()
+                .filter_map(|(key, slot)| {
+                    (key.session_id == session_id).then_some(slot.cancel.clone())
+                })
+                .collect::<Vec<_>>()
+        };
+        for token in &tokens {
+            token.cancel();
+        }
+        if !tokens.is_empty() {
+            self.idle_notify.notify_waiters();
+        }
+        tokens.len()
+    }
+
+    /// Forget a seal only after the owning session has been physically
+    /// deleted and no callback can still submit work for that identity.
+    fn forget_sealed_session(&self, session_id: &str) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .sealed_sessions
+            .remove(session_id)
+    }
+
+    async fn wait_for_session_idle(&self, session_id: &str) {
+        loop {
+            // Register before checking so a slot cannot disappear between the
+            // check and waiter installation without waking this future.
+            let notified = self.idle_notify.notified();
+            if !self
+                .state
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .slots
+                .keys()
+                .any(|key| key.session_id == session_id)
+            {
+                return;
+            }
+            notified.await;
+        }
+    }
+
     fn cancel_agent(&self, agent_id: &str) -> usize {
         self.cancel_where(|_, slot| slot.agent_id.as_deref() == Some(agent_id))
     }
@@ -500,6 +574,25 @@ pub fn submit_memory_job(job: MemoryJob) -> MemoryJobSubmission {
 /// Cancel active and coalesced memory jobs owned by one session.
 pub fn cancel_memory_jobs_for_session(session_id: &str) -> usize {
     coordinator().cancel_session(session_id)
+}
+
+/// Atomically seal a session against future memory/evolution work and cancel
+/// active or coalesced jobs already owned by it.
+pub fn seal_memory_jobs_for_session(session_id: &str) -> usize {
+    coordinator().seal_session(session_id)
+}
+
+/// Wait until cancellation cleanup has removed every coordinator slot owned
+/// by a sealed session. Archive includes this in its bounded teardown receipt.
+pub async fn wait_for_memory_jobs_for_session_idle(session_id: &str) {
+    coordinator().wait_for_session_idle(session_id).await;
+}
+
+/// Release process-local seal bookkeeping after physical session deletion.
+/// Archive itself never calls this: Archived sessions remain permanently
+/// rejected for as long as their old callbacks could exist.
+pub fn forget_memory_job_seal_for_deleted_session(session_id: &str) -> bool {
+    coordinator().forget_sealed_session(session_id)
 }
 
 /// Cancel active and coalesced memory jobs for every live session backed by an
@@ -702,6 +795,90 @@ mod tests {
         );
         assert_eq!(coordinator.metrics().started, 1);
         assert_eq!(coordinator.metrics().completed, 0);
+    }
+
+    #[tokio::test]
+    async fn sealed_session_cancels_owned_work_and_rejects_late_submission() {
+        let coordinator = MemoryJobCoordinator::new(1);
+        let started = Arc::new(Notify::new());
+        let started_wait = started.notified();
+        let started_signal = Arc::clone(&started);
+        coordinator.submit(test_job(
+            "archived",
+            MemoryJobKind::SessionMemory,
+            move |cancel| async move {
+                started_signal.notify_one();
+                cancel.cancelled().await;
+                Ok(())
+            },
+        ));
+        started_wait.await;
+
+        assert_eq!(coordinator.seal_session("archived"), 1);
+        let late_run_count = Arc::new(AtomicUsize::new(0));
+        let late_run_count_for_job = Arc::clone(&late_run_count);
+        assert_eq!(
+            coordinator.submit(test_job(
+                "archived",
+                MemoryJobKind::WorkspaceExtraction,
+                move |_| async move {
+                    late_run_count_for_job.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                }
+            )),
+            MemoryJobSubmission::RejectedSessionSealed
+        );
+
+        coordinator.wait_for_session_idle("archived").await;
+        assert_eq!(late_run_count.load(Ordering::SeqCst), 0);
+        assert_eq!(coordinator.metrics().started, 1);
+        assert_eq!(coordinator.metrics().cancelled, 2);
+
+        assert!(coordinator.forget_sealed_session("archived"));
+        let after_delete_run_count = Arc::clone(&late_run_count);
+        assert_eq!(
+            coordinator.submit(test_job(
+                "archived",
+                MemoryJobKind::WorkspaceExtraction,
+                move |_| async move {
+                    after_delete_run_count.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                }
+            )),
+            MemoryJobSubmission::Started
+        );
+        coordinator.wait_for_session_idle("archived").await;
+        assert_eq!(late_run_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn session_idle_wait_is_scoped_and_does_not_wait_for_other_sessions() {
+        let coordinator = MemoryJobCoordinator::new(1);
+        let gate = Arc::new(Notify::new());
+        let started = Arc::new(Notify::new());
+        let started_wait = started.notified();
+        let gate_for_job = Arc::clone(&gate);
+        let started_for_job = Arc::clone(&started);
+        coordinator.submit(test_job(
+            "other-session",
+            MemoryJobKind::SessionMemory,
+            move |_| async move {
+                started_for_job.notify_one();
+                gate_for_job.notified().await;
+                Ok(())
+            },
+        ));
+        started_wait.await;
+
+        tokio::time::timeout(
+            Duration::from_millis(20),
+            coordinator.wait_for_session_idle("archived"),
+        )
+        .await
+        .expect("unrelated active session must not hold Archive teardown");
+
+        gate.notify_waiters();
+        coordinator.wait_for_idle().await;
     }
 
     #[tokio::test]

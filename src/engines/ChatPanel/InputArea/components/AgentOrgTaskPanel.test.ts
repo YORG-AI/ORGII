@@ -41,7 +41,10 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-vi.mock("jotai", () => ({ useSetAtom: () => vi.fn() }));
+vi.mock("jotai", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("jotai")>()),
+  useSetAtom: () => vi.fn(),
+}));
 vi.mock("@src/store/session", () => ({
   activeSessionIdAtom: {},
   removeSession: mocks.removeSession,
@@ -635,6 +638,7 @@ describe("Agent Org Task panel", () => {
     mocks.deleteTeam.mockResolvedValue({
       deletedSessionIds: ["member-session", "root-session"],
     });
+    mocks.applyDeleteReceipt.mockResolvedValue(false);
     const view: AgentOrgRunView = {
       ...runView(),
       runStatus: "archived",
@@ -697,7 +701,7 @@ describe("Agent Org Task panel", () => {
         },
       })
     );
-    expect(mocks.goToNewSession).toHaveBeenCalledOnce();
+    expect(mocks.goToNewSession).not.toHaveBeenCalled();
   });
 
   it("discards a late History response after switching teams", async () => {

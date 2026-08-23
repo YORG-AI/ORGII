@@ -10,6 +10,7 @@ function cleanupSpies() {
     clearPendingFileOpens: vi.fn(),
     clearPendingCodeEditorTab: vi.fn(),
     evictEventStore: vi.fn().mockResolvedValue(undefined),
+    closeSessionTabs: vi.fn().mockReturnValue(false),
   };
 }
 
@@ -42,9 +43,14 @@ describe("applyRustSessionDeleteReceipt", () => {
       ["worker-b"],
       ["root"],
     ]);
+    expect(cleanup.closeSessionTabs).toHaveBeenCalledWith([
+      "worker-a",
+      "worker-b",
+      "root",
+    ]);
   });
 
-  it("leaves ordinary SDE cleanup on the existing single-session path", async () => {
+  it("closes the ordinary SDE tab while leaving data cleanup on the existing path", async () => {
     const cleanup = cleanupSpies();
 
     const deletedActiveSession = await applyRustSessionDeleteReceipt({
@@ -64,6 +70,25 @@ describe("applyRustSessionDeleteReceipt", () => {
     expect(cleanup.clearPendingFileOpens).not.toHaveBeenCalled();
     expect(cleanup.clearPendingCodeEditorTab).not.toHaveBeenCalled();
     expect(cleanup.evictEventStore).not.toHaveBeenCalled();
+    expect(cleanup.closeSessionTabs).toHaveBeenCalledWith(["ordinary-session"]);
+  });
+
+  it("does not request a second navigation when closing the active tab selected a safe fallback", async () => {
+    const cleanup = cleanupSpies();
+    cleanup.closeSessionTabs.mockReturnValue(true);
+
+    const requiresNavigationReset = await applyRustSessionDeleteReceipt({
+      requestedSessionId: "root",
+      activeSessionId: "root",
+      isAgentOrgRoot: true,
+      receipt: {
+        deletedSessionIds: ["worker", "root"],
+      },
+      cleanup,
+    });
+
+    expect(requiresNavigationReset).toBe(false);
+    expect(cleanup.closeSessionTabs).toHaveBeenCalledWith(["worker", "root"]);
   });
 
   it("deduplicates malformed duplicate IDs before local cleanup", async () => {
@@ -82,5 +107,6 @@ describe("applyRustSessionDeleteReceipt", () => {
     expect(cleanup.removeSession).toHaveBeenCalledTimes(1);
     expect(cleanup.removeSession).toHaveBeenCalledWith("worker");
     expect(cleanup.evictEventStore.mock.calls).toEqual([["worker"], ["root"]]);
+    expect(cleanup.closeSessionTabs).toHaveBeenCalledWith(["worker", "root"]);
   });
 });

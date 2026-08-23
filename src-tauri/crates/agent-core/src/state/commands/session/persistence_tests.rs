@@ -170,6 +170,21 @@ fn seed_run_owned_rows(run_id: &str) {
     .expect("seed run task history");
 }
 
+fn seed_active_session_registry(session_id: &str) {
+    crate::session::file_registry::register_session(
+        &crate::session::file_registry::SessionRegistryEntry {
+            session_id: session_id.to_string(),
+            agent_type: "SDE Agent".to_string(),
+            model: "test-model".to_string(),
+            workspace_path: Some("/tmp/agent-org-delete-test".to_string()),
+            status: "running".to_string(),
+            started_at: "2026-07-16T00:00:00Z".to_string(),
+            last_updated_at: "2026-07-16T00:00:00Z".to_string(),
+        },
+    )
+    .expect("seed active-session registry");
+}
+
 fn row_exists(table: &str, column: &str, value: &str) -> bool {
     get_connection()
         .expect("sandbox DB")
@@ -199,6 +214,7 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
     seed_run("hierarchy-delete-other-run", unrelated_root);
     for session_id in [root, worker, grandchild, unrelated] {
         seed_session_owned_rows(session_id);
+        seed_active_session_registry(session_id);
     }
     seed_run_owned_rows("hierarchy-delete-run");
     seed_run_owned_rows("hierarchy-delete-other-run");
@@ -255,6 +271,12 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
         "org_run_id",
         "hierarchy-delete-other-run"
     ));
+    let mut registered_session_ids = crate::session::file_registry::list_registered_sessions()
+        .into_iter()
+        .map(|entry| entry.session_id)
+        .collect::<Vec<_>>();
+    registered_session_ids.sort();
+    assert_eq!(registered_session_ids, vec![unrelated.to_string()]);
 }
 
 #[test]

@@ -349,42 +349,70 @@ async fn teardown_archive_target(
     target: ArchiveTeardownTarget,
     round_timeout: Duration,
 ) -> Result<(), String> {
-    let Some(session) = state.get_session(&target.session_id).await else {
-        return persist_archive_teardown_attempt(target, None, None, true, None).await;
+    // Seal first. `MemoryJobCoordinator` orders this against submission under
+    // one mutex, so an old post-turn callback either installed its job before
+    // the seal and is cancelled here, or observes the seal and is rejected.
+    let cancelled_memory_jobs =
+        crate::memory::background::seal_memory_jobs_for_session(&target.session_id);
+    if cancelled_memory_jobs > 0 {
+        tracing::info!(
+            session_id = %target.session_id,
+            cancelled_memory_jobs,
+            "Archive cancelled session-owned background jobs"
+        );
+    }
+
+    let session = state.get_session(&target.session_id).await;
+    if let Some(session) = session.as_ref() {
+        session.cancel_active_turn(CancelReason::OrgArchive).await;
+    }
+    let captured = match session.as_ref() {
+        Some(session) => session.runtime_lease_identity().await,
+        None => None,
     };
-    session.cancel_active_turn(CancelReason::OrgArchive).await;
-    let Some(captured) = session.runtime_lease_identity().await else {
-        return persist_archive_teardown_attempt(target, None, None, true, None).await;
-    };
-    let lease_id = captured.runtime_lease_id.clone();
-    let turn_generation = captured.dialog_turn_generation.clone();
+    let lease_id = captured
+        .as_ref()
+        .map(|identity| identity.runtime_lease_id.clone());
+    let turn_generation = captured
+        .as_ref()
+        .and_then(|identity| identity.dialog_turn_generation.clone());
 
     let released = tokio::time::timeout(round_timeout, async {
-        loop {
-            let current = session.runtime_lease_identity().await;
-            match current {
-                None => return Ok::<bool, String>(true),
-                Some(current) if current.runtime_lease_id != lease_id => {
-                    return Err("archive_runtime_lease_replaced".to_string());
+        let runtime_release = async {
+            let (Some(session), Some(captured)) = (session, captured) else {
+                return Ok::<bool, String>(true);
+            };
+            loop {
+                let current = session.runtime_lease_identity().await;
+                match current {
+                    None => return Ok(true),
+                    Some(current) if current.runtime_lease_id != captured.runtime_lease_id => {
+                        return Err("archive_runtime_lease_replaced".to_string());
+                    }
+                    Some(current) if current.dialog_turn_generation.is_none() => {
+                        return Ok(session
+                            .release_runtime_lease_if_current(&captured.runtime_lease_id)
+                            .await);
+                    }
+                    Some(_) => tokio::time::sleep(DRAIN_OBSERVATION_INTERVAL).await,
                 }
-                Some(current) if current.dialog_turn_generation.is_none() => {
-                    return Ok(session.release_runtime_lease_if_current(&lease_id).await);
-                }
-                Some(_) => tokio::time::sleep(DRAIN_OBSERVATION_INTERVAL).await,
             }
-        }
+        };
+        let memory_idle =
+            crate::memory::background::wait_for_memory_jobs_for_session_idle(&target.session_id);
+        let (runtime_result, ()) = tokio::join!(runtime_release, memory_idle);
+        runtime_result
     })
     .await;
 
     match released {
         Ok(Ok(true)) => {
-            persist_archive_teardown_attempt(target, Some(lease_id), turn_generation, true, None)
-                .await
+            persist_archive_teardown_attempt(target, lease_id, turn_generation, true, None).await
         }
         Ok(Ok(false)) => {
             persist_archive_teardown_attempt(
                 target,
-                Some(lease_id),
+                lease_id,
                 turn_generation,
                 false,
                 Some("archive_runtime_release_stale".to_string()),
@@ -392,22 +420,16 @@ async fn teardown_archive_target(
             .await
         }
         Ok(Err(error)) => {
-            persist_archive_teardown_attempt(
-                target,
-                Some(lease_id),
-                turn_generation,
-                false,
-                Some(error),
-            )
-            .await
+            persist_archive_teardown_attempt(target, lease_id, turn_generation, false, Some(error))
+                .await
         }
         Err(_) => {
             persist_archive_teardown_attempt(
                 target,
-                Some(lease_id),
+                lease_id,
                 turn_generation,
                 false,
-                Some("archive_runtime_stop_timeout".to_string()),
+                Some("archive_runtime_or_background_stop_timeout".to_string()),
             )
             .await
         }

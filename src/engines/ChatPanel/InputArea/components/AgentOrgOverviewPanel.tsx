@@ -41,6 +41,7 @@ import {
 } from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 import { applyRustSessionDeleteReceipt } from "@src/scaffold/NavigationSidebar/connectors/rustSessionDeleteReceipt";
+import { closeSessionChatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { activeSessionIdAtom, removeSession } from "@src/store/session";
 import {
   clearPendingFileOpensForSession,
@@ -141,6 +142,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     const disposeWorkstationWorkspace = useSetAtom(
       disposeWorkstationWorkspaceAtom
     );
+    const closeSessionChatPanelTabs = useSetAtom(closeSessionChatPanelTabsAtom);
 
     const loadHistoryPage = useCallback(
       async (
@@ -343,12 +345,15 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
           evictEventStore: (deletedSessionId: string) =>
             eventStoreProxy.evictSession(deletedSessionId),
         };
-        await applyRustSessionDeleteReceipt({
+        const requiresNavigationReset = await applyRustSessionDeleteReceipt({
           requestedSessionId: currentSessionId,
           activeSessionId: currentSessionId,
           isAgentOrgRoot: view?.context.rootSessionId === currentSessionId,
           receipt,
-          cleanup,
+          cleanup: {
+            ...cleanup,
+            closeSessionTabs: closeSessionChatPanelTabs,
+          },
         });
         cleanup.removeSession(currentSessionId);
         cleanup.removeForkRelayEntry(currentSessionId);
@@ -356,11 +361,11 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         cleanup.clearPendingFileOpens(currentSessionId);
         cleanup.clearPendingCodeEditorTab(currentSessionId);
         setDeleteModalOpen(false);
-        // Team Delete removes the current Root and every Member. Use the same
-        // complete navigation reset as ordinary Session Delete so the
-        // WorkStation active-session projection cannot repopulate a deleted
-        // Root after this component unmounts.
-        goToNewSession();
+        // Closing the active Team tab already activates one safe neighbour (or
+        // Launchpad). Only reset navigation when the deleted session had no
+        // Chat Panel tab to own that transition, such as a WorkStation-only
+        // presentation.
+        if (requiresNavigationReset) goToNewSession();
       } catch (deleteError) {
         logger.error("Failed to delete Archived Agent Team:", deleteError);
         Message.error(
@@ -373,6 +378,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       }
     }, [
       currentSessionId,
+      closeSessionChatPanelTabs,
       deleteConfirmed,
       disposeWorkstationWorkspace,
       goToNewSession,
@@ -915,6 +921,9 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
           title={t("planner.agentOrgOverview.deleteTitle", {
             defaultValue: "Permanently delete this Team?",
           })}
+          // Modal portals to document.body; keep it inside Overview's
+          // document-level outside-click boundary for real pointer events.
+          className="agent-org-overview-owned-overlay"
           width={420}
           maskClosable={!isDeleting}
           closable={!isDeleting}

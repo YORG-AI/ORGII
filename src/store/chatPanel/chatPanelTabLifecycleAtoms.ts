@@ -115,6 +115,67 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
 });
 closeChatPanelTabAtom.debugLabel = "closeChatPanelTab";
 
+/**
+ * Close every Chat Panel tab owned by sessions that were durably deleted.
+ *
+ * A Team deletion receipt can contain the Root and several Members, and more
+ * than one of them may be open. Remove the whole set in one state transition
+ * so activating a fallback can never briefly re-select another deleted
+ * session between per-tab closes.
+ */
+export const closeSessionChatPanelTabsAtom = atom(
+  null,
+  (get, set, sessionIds: readonly string[]): boolean => {
+    if (sessionIds.length === 0) return false;
+    const deletedSessionIds = new Set(sessionIds);
+    const state = get(chatPanelTabsAtom);
+    const tabsToClose = new Set(
+      state.tabs
+        .filter(
+          (tab) =>
+            tab.type === "session" &&
+            Boolean(tab.sessionId && deletedSessionIds.has(tab.sessionId))
+        )
+        .map((tab) => tab.id)
+    );
+    if (tabsToClose.size === 0) return false;
+
+    const activeIndex = state.tabs.findIndex(
+      (tab) => tab.id === state.activeTabId
+    );
+    const activeTabClosed = tabsToClose.has(state.activeTabId);
+    const remainingTabs = state.tabs.filter((tab) => !tabsToClose.has(tab.id));
+
+    const rememberedSessionId = get(workstationActiveSessionIdAtom);
+    if (rememberedSessionId && deletedSessionIds.has(rememberedSessionId)) {
+      set(workstationActiveSessionIdAtom, null);
+    }
+
+    if (!activeTabClosed) {
+      set(chatPanelTabsAtom, { ...state, tabs: remainingTabs });
+      return false;
+    }
+
+    const fallbackTab =
+      state.tabs
+        .slice(0, Math.max(0, activeIndex))
+        .reverse()
+        .find((tab) => !tabsToClose.has(tab.id)) ??
+      state.tabs
+        .slice(Math.max(0, activeIndex + 1))
+        .find((tab) => !tabsToClose.has(tab.id));
+    const nextTab = fallbackTab ?? buildDefaultLaunchpadTab();
+    const nextTabs = fallbackTab ? remainingTabs : [nextTab];
+    set(chatPanelTabsAtom, {
+      tabs: nextTabs,
+      activeTabId: nextTab.id,
+    });
+    set(activateChatPanelTabAtom, nextTab.id);
+    return true;
+  }
+);
+closeSessionChatPanelTabsAtom.debugLabel = "closeSessionChatPanelTabs";
+
 /** Close the singleton organization tab, or clear its legacy surface mirrors. */
 export const closeOrganizationChatPanelTabAtom = atom(null, (get, set) => {
   const tab = get(chatPanelTabsAtom).tabs.find(
