@@ -20,6 +20,46 @@ const CONTROL_WAIT_MARKER: &str = "Create a stoppable window by waiting for abou
 const TASK_GRAPH_CREATE_TOOL: &str = "task_graph_create";
 const TASK_UPDATE_TOOL: &str = "task_update";
 
+fn task_update_arguments_with_empty_placeholders(arguments: Value) -> Value {
+    let Value::Object(mut arguments) = arguments else {
+        return arguments;
+    };
+    let Value::Object(placeholders) = serde_json::json!({
+        "subject": null,
+        "description": "",
+        "active_form": " \t",
+        "clear_active_form": false,
+        "owner_member_id": "",
+        "clear_owner": false,
+        "execution_mode": "",
+        "blocked_by": [],
+        "metadata": {},
+        "eligible_member_ids": [],
+        "required_role": "\n",
+        "body": "",
+        "output": {"summary": "", "content": "", "artifact_ids": []},
+        "reason": {"code": "", "message": ""},
+        "replacement": {
+            "id": "",
+            "subject": "",
+            "description": null,
+            "active_form": "",
+            "owner_member_id": "",
+            "execution_mode": "",
+            "blocked_by": [],
+            "metadata": {},
+            "eligible_member_ids": [],
+            "required_role": ""
+        }
+    }) else {
+        unreachable!("task_update placeholder fixture must be an object");
+    };
+    for (key, value) in placeholders {
+        arguments.entry(key).or_insert(value);
+    }
+    Value::Object(arguments)
+}
+
 pub const E2E_FAKE_PROVIDER_MODEL_PREFIX: &str = "e2e-fake-provider";
 
 pub fn is_e2e_fake_provider_model(model: &str) -> bool {
@@ -202,7 +242,7 @@ impl E2eFakeProvider {
             return vec![ToolCallRequest {
                 id: format!("e2e-task-fsm-owner-{scenario_id}-{task_id}-{stage}"),
                 name: TASK_UPDATE_TOOL.to_string(),
-                arguments,
+                arguments: task_update_arguments_with_empty_placeholders(arguments),
                 thought_signature: None,
             }];
         }
@@ -289,7 +329,7 @@ impl E2eFakeProvider {
                 vec![ToolCallRequest {
                     id: format!("e2e-task-fsm-replace-{scenario_id}"),
                     name: TASK_UPDATE_TOOL.to_string(),
-                    arguments: serde_json::json!({
+                    arguments: task_update_arguments_with_empty_placeholders(serde_json::json!({
                         "operation": "cancel_and_replace",
                         "id": late_task_id,
                         "reason": {
@@ -302,7 +342,7 @@ impl E2eFakeProvider {
                             "execution_mode": "build",
                             "eligible_member_ids": ["sde-planner"]
                         }
-                    }),
+                    })),
                     thought_signature: None,
                 }]
             }
@@ -740,7 +780,9 @@ mod tests {
         );
         assert_eq!(
             start[0].arguments,
-            json!({ "operation": "start", "id": "task-complete" })
+            task_update_arguments_with_empty_placeholders(
+                json!({ "operation": "start", "id": "task-complete" })
+            )
         );
 
         let context = json!({
@@ -799,7 +841,9 @@ mod tests {
         assert_eq!(calls[0].name, TASK_UPDATE_TOOL);
         assert_eq!(
             calls[0].arguments,
-            json!({ "operation": "start", "id": "task-complete" })
+            task_update_arguments_with_empty_placeholders(
+                json!({ "operation": "start", "id": "task-complete" })
+            )
         );
     }
 
@@ -830,7 +874,9 @@ mod tests {
         assert_eq!(calls[0].name, TASK_UPDATE_TOOL);
         assert_eq!(
             calls[0].arguments,
-            json!({ "operation": "start", "id": "task-complete" })
+            task_update_arguments_with_empty_placeholders(
+                json!({ "operation": "start", "id": "task-complete" })
+            )
         );
     }
 

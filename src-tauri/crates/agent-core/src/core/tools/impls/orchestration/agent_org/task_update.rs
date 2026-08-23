@@ -120,6 +120,337 @@ pub struct ReplacementTaskParams {
     pub required_role: Option<String>,
 }
 
+const COORDINATOR_TASK_UPDATE_OPERATIONS: &[&str] = &[
+    "patch_pending",
+    "cancel",
+    "cancel_and_replace",
+    "append_audit_note",
+];
+const OWNER_TASK_UPDATE_OPERATIONS: &[&str] = &[
+    "start",
+    "complete",
+    "fail",
+    "append_progress",
+    "append_evidence",
+];
+const TASK_UPDATE_FIELDS: &[&str] = &[
+    "operation",
+    "id",
+    "subject",
+    "description",
+    "active_form",
+    "clear_active_form",
+    "owner_member_id",
+    "clear_owner",
+    "execution_mode",
+    "blocked_by",
+    "metadata",
+    "eligible_member_ids",
+    "required_role",
+    "body",
+    "output",
+    "reason",
+    "replacement",
+];
+const TASK_OUTPUT_FIELDS: &[&str] = &["summary", "content", "artifact_ids"];
+const TASK_REASON_FIELDS: &[&str] = &["code", "message"];
+const REPLACEMENT_TASK_FIELDS: &[&str] = &[
+    "id",
+    "subject",
+    "description",
+    "active_form",
+    "owner_member_id",
+    "execution_mode",
+    "blocked_by",
+    "metadata",
+    "eligible_member_ids",
+    "required_role",
+];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TaskUpdateAuthority {
+    Coordinator,
+    Owner,
+}
+
+struct TaskUpdateOperationContract {
+    authority: TaskUpdateAuthority,
+    allowed_fields: &'static [&'static str],
+}
+
+fn task_update_operation_contract(operation: &str) -> Option<TaskUpdateOperationContract> {
+    let contract = match operation {
+        "patch_pending" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Coordinator,
+            allowed_fields: &[
+                "operation",
+                "id",
+                "subject",
+                "description",
+                "active_form",
+                "clear_active_form",
+                "owner_member_id",
+                "clear_owner",
+                "execution_mode",
+                "blocked_by",
+                "metadata",
+                "eligible_member_ids",
+                "required_role",
+            ],
+        },
+        "start" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Owner,
+            allowed_fields: &["operation", "id"],
+        },
+        "complete" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Owner,
+            allowed_fields: &["operation", "id", "output"],
+        },
+        "fail" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Owner,
+            allowed_fields: &["operation", "id", "reason"],
+        },
+        "cancel" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Coordinator,
+            allowed_fields: &["operation", "id", "reason"],
+        },
+        "cancel_and_replace" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Coordinator,
+            allowed_fields: &["operation", "id", "reason", "replacement"],
+        },
+        "append_progress" | "append_evidence" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Owner,
+            allowed_fields: &["operation", "id", "body"],
+        },
+        "append_audit_note" => TaskUpdateOperationContract {
+            authority: TaskUpdateAuthority::Coordinator,
+            allowed_fields: &["operation", "id", "body"],
+        },
+        _ => return None,
+    };
+    Some(contract)
+}
+
+fn is_semantically_empty_json_placeholder(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::String(value) => value.trim().is_empty(),
+        Value::Array(values) => values.is_empty(),
+        Value::Object(values) => values.values().all(is_semantically_empty_json_placeholder),
+        Value::Bool(_) | Value::Number(_) => false,
+    }
+}
+
+fn is_empty_known_object_placeholder(value: &Value, known_fields: &[&str]) -> bool {
+    let Value::Object(values) = value else {
+        return false;
+    };
+    values.iter().all(|(key, value)| {
+        known_fields.contains(&key.as_str()) && is_semantically_empty_json_placeholder(value)
+    })
+}
+
+fn is_removable_cross_operation_placeholder(field: &str, value: &Value) -> bool {
+    if !TASK_UPDATE_FIELDS.contains(&field) {
+        return false;
+    }
+    if value.is_null()
+        || value.as_str().is_some_and(|value| value.trim().is_empty())
+        || value.as_array().is_some_and(Vec::is_empty)
+    {
+        return true;
+    }
+    if matches!(field, "clear_active_form" | "clear_owner") && value == &Value::Bool(false) {
+        return true;
+    }
+    match field {
+        "output" => is_empty_known_object_placeholder(value, TASK_OUTPUT_FIELDS),
+        "reason" => is_empty_known_object_placeholder(value, TASK_REASON_FIELDS),
+        "replacement" => is_empty_known_object_placeholder(value, REPLACEMENT_TASK_FIELDS),
+        "metadata" => value
+            .as_object()
+            .is_some_and(|_| is_semantically_empty_json_placeholder(value)),
+        _ => false,
+    }
+}
+
+fn task_update_operation_example(operation: &str) -> Value {
+    match operation {
+        "patch_pending" => json!({
+            "operation": "patch_pending",
+            "id": "<task-id>",
+            "subject": "<optional new subject>"
+        }),
+        "start" => json!({"operation": "start", "id": "<exact task-id>"}),
+        "complete" => json!({
+            "operation": "complete",
+            "id": "<exact task-id>",
+            "output": {"summary": "<required summary>"}
+        }),
+        "fail" => json!({
+            "operation": "fail",
+            "id": "<exact task-id>",
+            "reason": {"code": "<bounded code>", "message": "<bounded message>"}
+        }),
+        "cancel" => json!({
+            "operation": "cancel",
+            "id": "<task-id>",
+            "reason": {"code": "<bounded code>", "message": "<bounded message>"}
+        }),
+        "cancel_and_replace" => json!({
+            "operation": "cancel_and_replace",
+            "id": "<task-id>",
+            "reason": {"code": "<bounded code>", "message": "<bounded message>"},
+            "replacement": {
+                "subject": "<replacement subject>",
+                "execution_mode": "build"
+            }
+        }),
+        "append_progress" => json!({
+            "operation": "append_progress",
+            "id": "<exact task-id>",
+            "body": "<progress>"
+        }),
+        "append_evidence" => json!({
+            "operation": "append_evidence",
+            "id": "<exact task-id>",
+            "body": "<evidence>"
+        }),
+        "append_audit_note" => json!({
+            "operation": "append_audit_note",
+            "id": "<task-id>",
+            "body": "<audit note>"
+        }),
+        _ => Value::Null,
+    }
+}
+
+fn task_update_correction(
+    is_coordinator: bool,
+    operation: Option<&str>,
+    unexpected_fields: Vec<String>,
+    reason: &str,
+) -> Value {
+    let allowed_operations = if is_coordinator {
+        COORDINATOR_TASK_UPDATE_OPERATIONS
+    } else {
+        OWNER_TASK_UPDATE_OPERATIONS
+    };
+    let contract = operation.and_then(task_update_operation_contract);
+    let allowed_fields = contract
+        .as_ref()
+        .map(|contract| contract.allowed_fields)
+        .unwrap_or(&[]);
+    let expected_call = operation
+        .map(task_update_operation_example)
+        .unwrap_or(Value::Null);
+    json!({
+        "needs_correction": true,
+        "tool": tool_names::TASK_UPDATE,
+        "operation": operation,
+        "reason": reason,
+        "unexpected_fields": unexpected_fields,
+        "allowed_operations": allowed_operations,
+        "allowed_fields": allowed_fields,
+        "expected_call": expected_call,
+        "guidance": "Retry task_update once using only the fields in expected_call/allowed_fields. Do not copy fields from another operation."
+    })
+}
+
+fn task_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["summary"],
+        "properties": {
+            "summary": { "type": "string" },
+            "content": { "type": "string" },
+            "artifact_ids": { "type": "array", "items": { "type": "string" } }
+        }
+    })
+}
+
+fn task_reason_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" }
+        }
+    })
+}
+
+fn replacement_task_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "execution_mode"],
+        "properties": {
+            "id": { "type": "string" },
+            "subject": { "type": "string" },
+            "description": { "type": "string" },
+            "active_form": { "type": "string" },
+            "owner_member_id": { "type": "string" },
+            "execution_mode": { "type": "string", "enum": ["plan", "build"] },
+            "blocked_by": { "type": "array", "items": { "type": "string" } },
+            "metadata": { "type": "object", "additionalProperties": true },
+            "eligible_member_ids": { "type": "array", "items": { "type": "string" } },
+            "required_role": { "type": "string" }
+        }
+    })
+}
+
+fn task_update_parameters(is_coordinator: bool) -> Value {
+    if is_coordinator {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["operation", "id"],
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": COORDINATOR_TASK_UPDATE_OPERATIONS,
+                    "description": "Coordinator only. patch_pending uses graph fields; cancel uses reason; cancel_and_replace uses reason+replacement; append_audit_note uses body. Omit fields from every other operation."
+                },
+                "id": { "type": "string" },
+                "subject": { "type": "string", "description": "patch_pending only" },
+                "description": { "type": "string", "description": "patch_pending only" },
+                "active_form": { "type": "string", "description": "patch_pending only" },
+                "clear_active_form": { "type": "boolean", "description": "patch_pending only" },
+                "owner_member_id": { "type": "string", "description": "patch_pending only" },
+                "clear_owner": { "type": "boolean", "description": "patch_pending only" },
+                "execution_mode": { "type": "string", "enum": ["plan", "build"], "description": "patch_pending only" },
+                "blocked_by": { "type": "array", "items": { "type": "string" }, "description": "patch_pending only" },
+                "metadata": { "type": "object", "additionalProperties": true, "description": "patch_pending only" },
+                "eligible_member_ids": { "type": "array", "items": { "type": "string" }, "description": "patch_pending only" },
+                "required_role": { "type": "string", "description": "patch_pending only" },
+                "body": { "type": "string", "description": "append_audit_note only" },
+                "reason": task_reason_schema(),
+                "replacement": replacement_task_schema()
+            }
+        })
+    } else {
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["operation", "id"],
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": OWNER_TASK_UPDATE_OPERATIONS,
+                    "description": "Owner only. start accepts exactly operation+id; complete adds output; fail adds reason; append_progress/append_evidence add body. Omit fields from every other operation."
+                },
+                "id": { "type": "string" },
+                "body": { "type": "string", "description": "append_progress or append_evidence only" },
+                "output": task_output_schema(),
+                "reason": task_reason_schema()
+            }
+        })
+    }
+}
+
 pub struct TaskUpdateTool {
     ctx: Arc<TaskToolsContext>,
 }
@@ -156,81 +487,26 @@ impl Tool for TaskUpdateTool {
         // `TaskUpdateParams` stays a serde-tagged enum so the runtime parser
         // rejects fields that belong to a different actor/operation. Schemars
         // represents that enum as a top-level `oneOf`, however, and several
-        // function-calling providers silently discard such schemas. Advertise
-        // one flat portable object and enforce per-operation requiredness in
-        // the typed parser below.
-        json!({
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["operation", "id"],
-            "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": [
-                        "patch_pending", "start", "complete", "fail", "cancel",
-                        "cancel_and_replace", "append_progress", "append_evidence",
-                        "append_audit_note"
-                    ]
-                },
-                "id": { "type": "string" },
-                "subject": { "type": "string" },
-                "description": { "type": "string" },
-                "active_form": { "type": "string" },
-                "clear_active_form": { "type": "boolean" },
-                "owner_member_id": { "type": "string" },
-                "clear_owner": { "type": "boolean" },
-                "execution_mode": { "type": "string", "enum": ["plan", "build"] },
-                "blocked_by": { "type": "array", "items": { "type": "string" } },
-                "metadata": { "type": "object", "additionalProperties": true },
-                "eligible_member_ids": { "type": "array", "items": { "type": "string" } },
-                "required_role": { "type": "string" },
-                "body": { "type": "string" },
-                "output": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["summary"],
-                    "properties": {
-                        "summary": { "type": "string" },
-                        "content": { "type": "string" },
-                        "artifact_ids": { "type": "array", "items": { "type": "string" } }
-                    }
-                },
-                "reason": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["code", "message"],
-                    "properties": {
-                        "code": { "type": "string" },
-                        "message": { "type": "string" }
-                    }
-                },
-                "replacement": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["subject", "execution_mode"],
-                    "properties": {
-                        "id": { "type": "string" },
-                        "subject": { "type": "string" },
-                        "description": { "type": "string" },
-                        "active_form": { "type": "string" },
-                        "owner_member_id": { "type": "string" },
-                        "execution_mode": { "type": "string", "enum": ["plan", "build"] },
-                        "blocked_by": { "type": "array", "items": { "type": "string" } },
-                        "metadata": { "type": "object", "additionalProperties": true },
-                        "eligible_member_ids": { "type": "array", "items": { "type": "string" } },
-                        "required_role": { "type": "string" }
-                    }
-                }
-            }
-        })
+        // function-calling providers silently discard such schemas. Keep the
+        // portable flat object, but expose only operations and fields this
+        // session's persisted org role may actually use. This prevents strict
+        // providers from filling Coordinator-only fields into an Owner
+        // `start` call while the typed parser remains the authority boundary.
+        task_update_parameters(self.ctx.is_coordinator())
     }
 
     async fn execute_text(
         &self,
-        params_value: Value,
+        mut params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
-        let params: TaskUpdateParams = parse_params(params_value)?;
+        let params = match self.parse_model_params(&mut params_value) {
+            Ok(params) => params,
+            Err(correction) => {
+                return serde_json::to_string(&correction)
+                    .map_err(|error| ToolError::ExecutionFailed(error.to_string()))
+            }
+        };
         match params {
             TaskUpdateParams::PatchPending {
                 id,
@@ -475,6 +751,89 @@ impl Tool for TaskUpdateTool {
 }
 
 impl TaskUpdateTool {
+    fn parse_model_params(&self, params_value: &mut Value) -> Result<TaskUpdateParams, Value> {
+        let Some(params) = params_value.as_object_mut() else {
+            return Err(task_update_correction(
+                self.ctx.is_coordinator(),
+                None,
+                Vec::new(),
+                "task_update parameters must be a JSON object",
+            ));
+        };
+        let operation = params
+            .get("operation")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let Some(operation_name) = operation.as_deref() else {
+            return Err(task_update_correction(
+                self.ctx.is_coordinator(),
+                None,
+                Vec::new(),
+                "operation is required and must be a string",
+            ));
+        };
+        let Some(contract) = task_update_operation_contract(operation_name) else {
+            return Err(task_update_correction(
+                self.ctx.is_coordinator(),
+                Some(operation_name),
+                Vec::new(),
+                "unknown task_update operation",
+            ));
+        };
+        let expected_authority = if self.ctx.is_coordinator() {
+            TaskUpdateAuthority::Coordinator
+        } else {
+            TaskUpdateAuthority::Owner
+        };
+        if contract.authority != expected_authority {
+            return Err(task_update_correction(
+                self.ctx.is_coordinator(),
+                Some(operation_name),
+                Vec::new(),
+                "operation is outside this caller's persisted Task authority",
+            ));
+        }
+
+        // Some providers populate every property in a portable flat schema.
+        // Normalize only known fields from another operation when their value
+        // is semantically empty. Fields used by the selected operation remain
+        // untouched for the typed parser, and unknown or meaningful fields
+        // stay fail-closed.
+        let keys = params.keys().cloned().collect::<Vec<_>>();
+        let mut unexpected_fields = Vec::new();
+        for key in keys {
+            if contract.allowed_fields.contains(&key.as_str()) {
+                continue;
+            }
+            let removable_placeholder = params
+                .get(&key)
+                .is_some_and(|value| is_removable_cross_operation_placeholder(&key, value));
+            if removable_placeholder {
+                params.remove(&key);
+            } else {
+                unexpected_fields.push(key);
+            }
+        }
+        unexpected_fields.sort();
+        if !unexpected_fields.is_empty() {
+            return Err(task_update_correction(
+                self.ctx.is_coordinator(),
+                Some(operation_name),
+                unexpected_fields,
+                "fields from another task_update operation are not accepted",
+            ));
+        }
+
+        parse_params(params_value.take()).map_err(|error| {
+            task_update_correction(
+                self.ctx.is_coordinator(),
+                Some(operation_name),
+                Vec::new(),
+                &error.to_string(),
+            )
+        })
+    }
+
     fn graph_actor(&self, call_ctx: &CallContext) -> Result<TaskGraphWriterAdmin, ToolError> {
         if !self.ctx.is_coordinator() {
             return Err(ToolError::InvalidParams(

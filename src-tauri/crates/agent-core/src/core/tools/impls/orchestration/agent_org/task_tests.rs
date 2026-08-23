@@ -7,6 +7,7 @@ use crate::coordination::agent_org_runs::{
 };
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, TaskStatus};
 use crate::tools::impls::orchestration::org_send_message::NoopInboxWakeHook;
+use crate::tools::registry::ToolRegistry;
 use crate::tools::traits::{CallContext, Tool, ToolError};
 use test_helpers::test_env;
 
@@ -207,6 +208,46 @@ async fn create_owned(id: &str, owner: &str) -> Value {
     serde_json::from_str(&result).expect("Task JSON")
 }
 
+fn strict_provider_task_update_payload(operation: &str, id: &str) -> Value {
+    json!({
+        "operation": operation,
+        "id": id,
+        "subject": null,
+        "description": "",
+        "active_form": " \t ",
+        "clear_active_form": false,
+        "owner_member_id": "",
+        "clear_owner": false,
+        "execution_mode": "",
+        "blocked_by": [],
+        "metadata": {},
+        "eligible_member_ids": [],
+        "required_role": "\n",
+        "body": "",
+        "output": {
+            "summary": "",
+            "content": "  ",
+            "artifact_ids": []
+        },
+        "reason": {
+            "code": "",
+            "message": " \n"
+        },
+        "replacement": {
+            "id": "",
+            "subject": " ",
+            "description": null,
+            "active_form": "",
+            "owner_member_id": "\t",
+            "execution_mode": "",
+            "blocked_by": [],
+            "metadata": {},
+            "eligible_member_ids": [],
+            "required_role": ""
+        }
+    })
+}
+
 #[test]
 fn task_tool_schemas_expose_pending_create_and_tagged_update() {
     let create = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
@@ -220,7 +261,32 @@ fn task_tool_schemas_expose_pending_create_and_tagged_update() {
     let update = TaskUpdateTool::new(tools_context(COORDINATOR_MEMBER_ID));
     let update_schema = update.parameters();
     crate::tools::traits::assert_llm_compatible_schema(&update_schema).expect("task_update schema");
-    assert!(update_schema.to_string().contains("operation"));
+    assert!(update_schema.to_string().contains("patch_pending"));
+    assert!(!update_schema.to_string().contains("\"start\""));
+    assert!(update_schema["properties"].get("active_form").is_some());
+    assert!(update_schema["properties"].get("output").is_none());
+
+    let owner_update = TaskUpdateTool::new(tools_context(ALICE));
+    let owner_update_schema = owner_update.parameters();
+    crate::tools::traits::assert_llm_compatible_schema(&owner_update_schema)
+        .expect("Owner task_update schema");
+    assert!(owner_update_schema.to_string().contains("\"start\""));
+    assert!(!owner_update_schema.to_string().contains("patch_pending"));
+    assert!(owner_update_schema["properties"]
+        .get("active_form")
+        .is_none());
+    assert!(owner_update_schema["properties"].get("output").is_some());
+    let owner_wire =
+        crate::providers::responses_common::convert_tools(Some(&[owner_update.to_schema()]))
+            .expect("Responses tool conversion");
+    let owner_wire_params = &owner_wire[0]["parameters"];
+    assert!(owner_wire_params["properties"].get("active_form").is_none());
+    assert!(owner_wire_params["properties"].get("output").is_some());
+    assert!(owner_wire_params["required"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field == "output"));
 
     let graph = TaskGraphCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
     crate::tools::traits::assert_llm_compatible_schema(&graph.parameters())
@@ -413,14 +479,363 @@ async fn owner_tagged_operations_follow_task_execution_context() {
     let stored = AgentOrgTaskStore::get(RUN_ID, "owned").unwrap().unwrap();
     assert_eq!(stored.output.as_ref().unwrap().produced_by_member_id, ALICE);
 
-    let mixed = tool
-        .execute_text(
-            json!({"operation":"start","id":"owned","subject":"forged graph field"}),
-            &owner_call("turn-owned"),
+    let mixed: Value = serde_json::from_str(
+        &tool
+            .execute_text(
+                json!({"operation":"start","id":"owned","subject":"forged graph field"}),
+                &owner_call("turn-owned"),
+            )
+            .await
+            .expect("recoverable mixed-operation misuse returns guidance"),
+    )
+    .expect("correction JSON");
+    assert_eq!(mixed["needs_correction"], true);
+    assert_eq!(mixed["unexpected_fields"], json!(["subject"]));
+    assert_eq!(
+        mixed["expected_call"],
+        json!({"operation":"start","id":"<exact task-id>"})
+    );
+}
+
+#[tokio::test]
+async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payloads() {
+    let _sandbox = sandbox();
+    create_owned("portable", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-portable", "portable");
+
+    let mut registry = ToolRegistry::new();
+    registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
+    let call = owner_call("turn-portable");
+
+    let correction = registry
+        .execute(
+            "task_update",
+            json!({
+                "active_form": "Reading AGENTS.md",
+                "blocked_by": null,
+                "body": null,
+                "clear_active_form": false,
+                "clear_owner": false,
+                "description": null,
+                "eligible_member_ids": null,
+                "execution_mode": null,
+                "id": "portable",
+                "metadata": null,
+                "operation": "start",
+                "output": null,
+                "owner_member_id": null,
+                "reason": null,
+                "replacement": null,
+                "required_role": null,
+                "subject": null
+            }),
+            &call,
         )
         .await
-        .expect_err("mixed Owner and graph fields are rejected");
-    assert!(matches!(mixed, ToolError::InvalidParams(_)));
+        .expect("recoverable provider misuse is a structured tool result");
+    let correction: Value = serde_json::from_str(&correction.text).expect("correction JSON");
+    assert_eq!(correction["needs_correction"], true);
+    assert_eq!(correction["unexpected_fields"], json!(["active_form"]));
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "portable")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+
+    let started = registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("start", "portable"),
+            &call,
+        )
+        .await
+        .expect("semantic-empty strict-provider placeholders do not block start");
+    let started: Value = serde_json::from_str(&started.text).expect("started task JSON");
+    assert_eq!(started["task"]["status"], "in_progress");
+
+    let mut complete_payload = strict_provider_task_update_payload("complete", "portable");
+    complete_payload["output"] = json!({
+        "summary": "done",
+        "content": "full result",
+        "artifact_ids": ["artifact-portable"]
+    });
+    let completed = registry
+        .execute("task_update", complete_payload, &call)
+        .await
+        .expect("strict-provider complete payload is normalized by the real registry path");
+    let completed: Value = serde_json::from_str(&completed.text).expect("completed task JSON");
+    assert_eq!(completed["task"]["status"], "completed");
+    assert_eq!(completed["task"]["output"]["summary"], "done");
+
+    let history = AgentOrgTaskStore::list_history(RUN_ID).expect("Task history");
+    assert_eq!(history.len(), 3);
+    assert_eq!(history[0].event_type, "created");
+    assert_eq!(history[0].previous_status, None);
+    assert_eq!(history[0].next_status, Some(TaskStatus::Pending));
+    assert_eq!(history[1].event_type, "updated");
+    assert_eq!(history[1].previous_status, Some(TaskStatus::Pending));
+    assert_eq!(history[1].next_status, Some(TaskStatus::InProgress));
+    assert_eq!(history[1].actor_member_id.as_deref(), Some(ALICE));
+    assert_eq!(history[2].event_type, "updated");
+    assert_eq!(history[2].previous_status, Some(TaskStatus::InProgress));
+    assert_eq!(history[2].next_status, Some(TaskStatus::Completed));
+    assert_eq!(history[2].actor_member_id.as_deref(), Some(ALICE));
+    let history_ids = history
+        .iter()
+        .map(|event| event.id.clone())
+        .collect::<Vec<_>>();
+
+    drop(registry);
+    let reconciled = crate::coordination::reconcile_agent_org_turns_after_restart(&conn)
+        .expect("restart reconciliation");
+    assert_eq!(reconciled, 0);
+    let restarted = AgentOrgTaskStore::get(RUN_ID, "portable")
+        .expect("restart Task read")
+        .expect("completed Task persists");
+    assert_eq!(restarted.status, TaskStatus::Completed);
+    assert_eq!(restarted.output.as_ref().unwrap().summary, "done");
+    let restarted_history = AgentOrgTaskStore::list_history(RUN_ID).expect("restart history read");
+    assert_eq!(
+        restarted_history
+            .iter()
+            .map(|event| event.id.clone())
+            .collect::<Vec<_>>(),
+        history_ids,
+        "restart reconciliation must not synthesize completion history"
+    );
+}
+
+#[tokio::test]
+async fn create_fail_and_cancel_accept_only_semantic_empty_cross_operation_placeholders() {
+    let _sandbox = sandbox();
+
+    let mut create_registry = ToolRegistry::new();
+    create_registry.register(Box::new(TaskCreateTool::new(tools_context(
+        COORDINATOR_MEMBER_ID,
+    ))));
+    let created = create_registry
+        .execute(
+            "task_create",
+            json!({
+                "id": "create-portable",
+                "subject": "Portable create",
+                "description": "",
+                "active_form": null,
+                "owner_member_id": ALICE,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build",
+                "dependency_task_ids": [],
+                "allow_parallel_with_unlisted_open_tasks": true,
+                "metadata": {},
+                "eligible_member_ids": null,
+                "required_role": null
+            }),
+            &coordinator_call(),
+        )
+        .await
+        .expect("task_create keeps its existing strict-provider null contract");
+    let created: Value = serde_json::from_str(&created.text).expect("created Task JSON");
+    assert_eq!(created["task"]["status"], "pending");
+
+    create_owned("fail-portable", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-fail-portable", "fail-portable");
+    let mut owner_registry = ToolRegistry::new();
+    owner_registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
+    let owner_call = owner_call("turn-fail-portable");
+    owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("start", "fail-portable"),
+            &owner_call,
+        )
+        .await
+        .expect("start before fail");
+    let mut fail_payload = strict_provider_task_update_payload("fail", "fail-portable");
+    fail_payload["reason"] = json!({
+        "code": "verification.failed",
+        "message": "deterministic failure"
+    });
+    let failed = owner_registry
+        .execute("task_update", fail_payload, &owner_call)
+        .await
+        .expect("fail accepts empty placeholders from other operations");
+    let failed: Value = serde_json::from_str(&failed.text).expect("failed Task JSON");
+    assert_eq!(failed["task"]["status"], "failed");
+
+    create_owned("cancel-portable", ALICE).await;
+    let mut coordinator_registry = ToolRegistry::new();
+    coordinator_registry.register(Box::new(TaskUpdateTool::new(tools_context(
+        COORDINATOR_MEMBER_ID,
+    ))));
+    let mut cancel_payload = strict_provider_task_update_payload("cancel", "cancel-portable");
+    cancel_payload["reason"] = json!({
+        "code": "scope.cancelled",
+        "message": "no longer required"
+    });
+    let cancelled = coordinator_registry
+        .execute("task_update", cancel_payload, &coordinator_call())
+        .await
+        .expect("cancel accepts empty placeholders from other operations");
+    let cancelled: Value = serde_json::from_str(&cancelled.text).expect("cancelled Task JSON");
+    assert_eq!(cancelled["task"]["status"], "cancelled");
+}
+
+#[tokio::test]
+async fn task_update_placeholder_normalization_stays_fail_closed() {
+    let _sandbox = sandbox();
+    create_owned("strict-negative", ALICE).await;
+    create_owned("strict-cancel", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-strict-negative", "strict-negative");
+
+    let mut owner_registry = ToolRegistry::new();
+    owner_registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
+    let owner_call = owner_call("turn-strict-negative");
+
+    let mut unknown = strict_provider_task_update_payload("start", "strict-negative");
+    unknown["unknown_provider_field"] = json!("");
+    let unknown = owner_registry
+        .execute("task_update", unknown, &owner_call)
+        .await
+        .expect("unknown empty field returns structured correction");
+    let unknown: Value = serde_json::from_str(&unknown.text).expect("unknown-field correction");
+    assert_eq!(
+        unknown["unexpected_fields"],
+        json!(["unknown_provider_field"])
+    );
+
+    let wrong_shape = owner_registry
+        .execute(
+            "task_update",
+            json!({"operation":"start", "id":"strict-negative", "body":{}}),
+            &owner_call,
+        )
+        .await
+        .expect("wrong-shaped empty field returns structured correction");
+    let wrong_shape: Value =
+        serde_json::from_str(&wrong_shape.text).expect("wrong-shape correction");
+    assert_eq!(wrong_shape["unexpected_fields"], json!(["body"]));
+
+    let meaningful = owner_registry
+        .execute(
+            "task_update",
+            json!({
+                "operation":"start",
+                "id":"strict-negative",
+                "body":"real progress",
+                "output":{"summary":"forged output"},
+                "reason":{"code":"forged", "message":"forged reason"}
+            }),
+            &owner_call,
+        )
+        .await
+        .expect("meaningful cross-operation fields return structured correction");
+    let meaningful: Value =
+        serde_json::from_str(&meaningful.text).expect("meaningful-field correction");
+    assert_eq!(
+        meaningful["unexpected_fields"],
+        json!(["body", "output", "reason"])
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "strict-negative")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+    assert_eq!(
+        AgentOrgTaskStore::list_history(RUN_ID)
+            .unwrap()
+            .iter()
+            .filter(|event| event.task_id == "strict-negative")
+            .count(),
+        1,
+        "rejected payloads must not write Task history"
+    );
+
+    owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("start", "strict-negative"),
+            &owner_call,
+        )
+        .await
+        .expect("valid start");
+    let missing_output = owner_registry
+        .execute(
+            "task_update",
+            json!({"operation":"complete", "id":"strict-negative"}),
+            &owner_call,
+        )
+        .await
+        .expect("missing current-operation field returns structured correction");
+    let missing_output: Value =
+        serde_json::from_str(&missing_output.text).expect("missing-output correction");
+    assert_eq!(missing_output["needs_correction"], true);
+    assert!(missing_output["reason"]
+        .as_str()
+        .unwrap()
+        .contains("missing field `output`"));
+
+    let empty_output = owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("complete", "strict-negative"),
+            &owner_call,
+        )
+        .await
+        .expect_err("empty current-operation output remains invalid");
+    assert!(empty_output.contains("non-empty summary"));
+    let empty_reason = owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("fail", "strict-negative"),
+            &owner_call,
+        )
+        .await
+        .expect_err("empty current-operation reason remains invalid");
+    assert!(empty_reason.contains("requires non-empty code and message"));
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "strict-negative")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::InProgress
+    );
+    assert_eq!(
+        AgentOrgTaskStore::list_history(RUN_ID)
+            .unwrap()
+            .iter()
+            .filter(|event| event.task_id == "strict-negative")
+            .count(),
+        2,
+        "invalid terminal calls must not write Task history"
+    );
+
+    let mut coordinator_registry = ToolRegistry::new();
+    coordinator_registry.register(Box::new(TaskUpdateTool::new(tools_context(
+        COORDINATOR_MEMBER_ID,
+    ))));
+    let cancel_error = coordinator_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("cancel", "strict-cancel"),
+            &coordinator_call(),
+        )
+        .await
+        .expect_err("empty current-operation cancel reason remains invalid");
+    assert!(cancel_error.contains("requires non-empty code and message"));
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "strict-cancel")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
 }
 
 #[tokio::test]
@@ -428,18 +843,30 @@ async fn coordinator_cannot_submit_output_and_wrong_turn_cannot_start() {
     let _sandbox = sandbox();
     create_owned("protected", ALICE).await;
     let coordinator = TaskUpdateTool::new(tools_context(COORDINATOR_MEMBER_ID));
-    let error = coordinator
-        .execute_text(
-            json!({
-                "operation":"complete",
-                "id":"protected",
-                "output":{"summary":"forged"}
-            }),
-            &coordinator_call(),
-        )
-        .await
-        .expect_err("Coordinator cannot complete Owner Task");
-    assert!(error.to_string().contains("Owner lifecycle"));
+    let correction: Value = serde_json::from_str(
+        &coordinator
+            .execute_text(
+                json!({
+                    "operation":"complete",
+                    "id":"protected",
+                    "output":{"summary":"forged"}
+                }),
+                &coordinator_call(),
+            )
+            .await
+            .expect("role misuse returns correction without mutating the Task"),
+    )
+    .expect("role correction JSON");
+    assert_eq!(correction["needs_correction"], true);
+    assert!(correction["reason"]
+        .as_str()
+        .unwrap()
+        .contains("outside this caller's persisted Task authority"));
+    assert!(!correction["allowed_operations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|operation| operation == "complete"));
 
     let owner = TaskUpdateTool::new(tools_context(ALICE));
     let error = owner
