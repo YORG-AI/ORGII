@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use core_types::session_event::ShellReplayStatus;
 use tauri::AppHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 use crate::tools::traits::ToolError;
@@ -33,6 +34,8 @@ use process_tree::terminate_child_tree;
 pub struct ExecIdentity {
     pub session_id: String,
     pub call_id: String,
+    pub turn_process_control: Option<crate::tools::call_context::TurnProcessControl>,
+    process_cancel: CancellationToken,
 }
 
 impl ExecIdentity {
@@ -40,7 +43,25 @@ impl ExecIdentity {
         Self {
             session_id: session_id.into(),
             call_id: call_id.into(),
+            turn_process_control: None,
+            process_cancel: CancellationToken::new(),
         }
+    }
+
+    pub fn with_turn_process_control(
+        mut self,
+        control: Option<crate::tools::call_context::TurnProcessControl>,
+    ) -> Self {
+        self.turn_process_control = control;
+        self
+    }
+
+    fn cancellation_requested(&self) -> bool {
+        self.process_cancel.is_cancelled()
+            || self
+                .turn_process_control
+                .as_ref()
+                .is_some_and(|control| control.background_cancel.is_cancelled())
     }
 
     fn replay_target(&self) -> ShellReplayTarget {
@@ -83,6 +104,11 @@ pub async fn execute_via_command(
     app_handle: Option<AppHandle>,
     cancel_flag: Option<&AtomicBool>,
 ) -> Result<String, ToolError> {
+    if identity.cancellation_requested() {
+        return Err(ToolError::ExecutionFailed(
+            "Command was not started because its Turn is cancelled".to_string(),
+        ));
+    }
     let mut replay = ShellReplayWriter::create(
         shell_replays_root,
         identity.replay_target(),
@@ -159,8 +185,10 @@ pub async fn execute_via_command(
     let wait_started_at = Instant::now();
     let mut runtime = Some(runtime);
     loop {
-        if cancel_flag.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
-            terminate_child_tree(pid, &mut child).await;
+        if identity.cancellation_requested()
+            || cancel_flag.is_some_and(|flag| flag.load(Ordering::Relaxed))
+        {
+            let termination_error = terminate_child_tree(pid, &mut child).await.err();
             let drain = match drain_output(runtime.take().expect("output runtime present")).await {
                 Ok(drain) => drain,
                 Err(err) => {
@@ -184,6 +212,11 @@ pub async fn execute_via_command(
                     "Command cancelled; shell replay is incomplete: {err}"
                 )));
             }
+            if let Some(error) = termination_error {
+                return Err(ToolError::ExecutionFailed(format!(
+                    "Command cancellation did not terminate its process group: {error}"
+                )));
+            }
             return Err(ToolError::ExecutionFailed(
                 "Command cancelled by user".to_string(),
             ));
@@ -193,7 +226,7 @@ pub async fn execute_via_command(
             .as_ref()
             .and_then(|runtime| runtime.failure_rx.borrow().clone())
         {
-            terminate_child_tree(pid, &mut child).await;
+            let termination_error = terminate_child_tree(pid, &mut child).await.err();
             let drain = match drain_output(runtime.take().expect("output runtime present")).await {
                 Ok(drain) => drain,
                 Err(writer_err) => {
@@ -208,7 +241,10 @@ pub async fn execute_via_command(
                 .finalize(ShellReplayStatus::Incomplete, Some(err.clone()));
             broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
             return Err(ToolError::ExecutionFailed(format!(
-                "Command stopped because complete shell replay failed: {err}"
+                "Command stopped because complete shell replay failed: {err}{}",
+                termination_error
+                    .map(|error| format!("; process-group termination failed: {error}"))
+                    .unwrap_or_default()
             )));
         }
 
@@ -278,7 +314,7 @@ pub async fn execute_via_command(
             }
             Ok(None) => {}
             Err(err) => {
-                terminate_child_tree(pid, &mut child).await;
+                let termination_error = terminate_child_tree(pid, &mut child).await.err();
                 let drain = match drain_output(runtime.take().expect("output runtime present"))
                     .await
                 {
@@ -286,11 +322,20 @@ pub async fn execute_via_command(
                     Err(writer_err) => {
                         broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
                         return Err(ToolError::ExecutionFailed(format!(
-                            "Failed to wait for process; shell replay writer failed: {writer_err}"
+                            "Failed to wait for process; shell replay writer failed: {writer_err}{}",
+                            termination_error
+                                .as_ref()
+                                .map(|error| format!("; process-group termination failed: {error}"))
+                                .unwrap_or_default()
                         )));
                     }
                 };
-                let message = format!("Failed to wait for process: {err}");
+                let message = format!(
+                    "Failed to wait for process: {err}{}",
+                    termination_error
+                        .map(|error| format!("; process-group termination failed: {error}"))
+                        .unwrap_or_default()
+                );
                 let _ = drain
                     .replay
                     .finalize(ShellReplayStatus::Incomplete, Some(message.clone()));

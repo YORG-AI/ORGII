@@ -60,15 +60,28 @@ pub(super) fn handle_backgrounded(
     broadcast_system_output(&identity, &human_line);
     broadcast_process_backgrounded(&identity, pid, reason, app_handle.as_ref());
 
+    let mut monitor_completion = None;
     if pid != 0 {
         let registry_path = log_path.clone().unwrap_or_default();
-        let _ = registry::register_shell_replay(
-            pid,
-            command.to_string(),
-            registry_path,
-            identity.session_id.clone(),
-            identity.call_id.clone(),
-        );
+        if let Some(control) = identity.turn_process_control.as_ref() {
+            monitor_completion = Some(registry::register_owned_shell_replay(
+                pid,
+                command.to_string(),
+                registry_path,
+                identity.session_id.clone(),
+                identity.call_id.clone(),
+                control.owner.clone(),
+                identity.process_cancel.clone(),
+            ));
+        } else {
+            let _ = registry::register_shell_replay(
+                pid,
+                command.to_string(),
+                registry_path,
+                identity.session_id.clone(),
+                identity.call_id.clone(),
+            );
+        }
     }
 
     let preview = active_state(&identity.session_id, &identity.call_id)
@@ -103,37 +116,70 @@ pub(super) fn handle_backgrounded(
         let mut runtime = Some(runtime);
         let started = Instant::now();
         let mut stall_watchdog = StallWatchdog::new();
-        let (exit_code, killed, replay_failure) = loop {
+        let mut parent_exit = None;
+        let (exit_code, mut killed, replay_failure, termination_result) = loop {
+            if identity.cancellation_requested() {
+                if pid != 0 {
+                    registry::mark_shell_cancel_requested(&pid.to_string());
+                }
+                let termination_result = terminate_child_tree(pid, &mut child).await;
+                break (None, true, None, termination_result);
+            }
             if let Some(err) = runtime
                 .as_ref()
                 .and_then(|runtime| runtime.failure_rx.borrow().clone())
             {
-                terminate_child_tree(pid, &mut child).await;
-                break (None, true, Some(err));
+                let termination_result = terminate_child_tree(pid, &mut child).await;
+                break (None, true, Some(err), termination_result);
             }
-            match child.try_wait() {
-                Ok(Some(status)) => break (status.code(), status.code().is_none(), None),
-                Ok(None) => {}
-                Err(err) => {
-                    terminate_child_tree(pid, &mut child).await;
-                    break (
-                        None,
-                        true,
-                        Some(format!("wait for background process: {err}")),
-                    );
+            if parent_exit.is_none() {
+                match child.try_wait() {
+                    Ok(Some(status)) => parent_exit = Some(status),
+                    Ok(None) => {}
+                    Err(err) => {
+                        let termination_result = terminate_child_tree(pid, &mut child).await;
+                        break (
+                            None,
+                            true,
+                            Some(format!("wait for background process: {err}")),
+                            termination_result,
+                        );
+                    }
+                }
+            }
+
+            if let Some(status) = parent_exit.as_ref() {
+                #[cfg(unix)]
+                let process_tree_gone = pid == 0 || !registry::process_tree_exists(pid);
+                #[cfg(windows)]
+                let process_tree_gone = true;
+                if process_tree_gone {
+                    break (status.code(), status.code().is_none(), None, Ok(()));
                 }
             }
             if started.elapsed() >= Duration::from_secs(BACKGROUND_SAFETY_TIMEOUT_SECS) {
-                terminate_child_tree(pid, &mut child).await;
+                let termination_result = if parent_exit.is_some() {
+                    registry::terminate_shell_process_tree(pid)
+                        .await
+                        .map(|_| ())
+                } else {
+                    terminate_child_tree(pid, &mut child).await
+                };
                 break (
                     None,
                     true,
                     Some("background process exceeded 1h safety timeout".to_string()),
+                    termination_result,
                 );
             }
             stall_watchdog.probe(&identity, pid);
             tokio::time::sleep(Duration::from_millis(50)).await;
         };
+
+        // Natural exit and Pause can cross between the last process check and
+        // finalization. A late cancellation still owns the terminal verdict,
+        // suppressing output/wake for the paused Turn.
+        killed |= identity.cancellation_requested();
 
         let drain = match drain_output(runtime.take().expect("output runtime present")).await {
             Ok(drain) => drain,
@@ -150,7 +196,20 @@ pub(super) fn handle_backgrounded(
                     &identity,
                     &format!("[background shell replay writer failed: {writer_err}]"),
                 );
-                broadcast_process_exited(&identity, pid, exit_code, killed, app_handle.as_ref());
+                if termination_result.is_ok() {
+                    broadcast_process_exited(
+                        &identity,
+                        pid,
+                        exit_code,
+                        killed,
+                        app_handle.as_ref(),
+                    );
+                }
+                if let Some(completion) = monitor_completion.take() {
+                    completion.finish(Err(format!(
+                        "shell replay output did not drain: {writer_err}"
+                    )));
+                }
                 finish_background_job(pid, &identity.session_id).await;
                 return;
             }
@@ -190,7 +249,19 @@ pub(super) fn handle_backgrounded(
                 "[Session Replay is incomplete even though process termination status is known]",
             );
         }
-        broadcast_process_exited(&identity, pid, exit_code, killed, app_handle.as_ref());
+        if termination_result.is_ok() {
+            broadcast_process_exited(&identity, pid, exit_code, killed, app_handle.as_ref());
+        } else if let Err(error) = &termination_result {
+            tracing::warn!(
+                session_id = %identity.session_id,
+                pid,
+                error = %error,
+                "background shell monitor could not prove process-group termination"
+            );
+        }
+        if let Some(completion) = monitor_completion.take() {
+            completion.finish(termination_result);
+        }
         finish_background_job(pid, &identity.session_id).await;
     });
 

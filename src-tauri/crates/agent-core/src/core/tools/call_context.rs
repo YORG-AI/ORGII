@@ -40,6 +40,39 @@
 //! dispatch always constructs a populated ctx in
 //! `turn_executor::tool_execution`.
 
+use tokio_util::sync::CancellationToken;
+
+/// Exact runtime owner of subprocesses started by one dialog Turn.
+///
+/// All four fields travel together so a delayed Pause callback cannot target
+/// a newer runtime or a different Turn that happens to reuse the Session.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TurnProcessOwner {
+    pub session_id: String,
+    pub turn_intent_id: String,
+    pub runtime_lease_id: String,
+    pub dialog_turn_generation: String,
+}
+
+/// Per-Turn process lifecycle control threaded to tool execution.
+///
+/// The token is level-triggered and never reset. A shell that transitions to
+/// background after Pause therefore observes the cancellation immediately
+/// instead of missing a short pulse on the Session's ordinary cancel flag.
+#[derive(Debug, Clone)]
+pub struct TurnProcessControl {
+    pub owner: TurnProcessOwner,
+    pub background_cancel: CancellationToken,
+}
+
+impl PartialEq for TurnProcessControl {
+    fn eq(&self, other: &Self) -> bool {
+        self.owner == other.owner
+    }
+}
+
+impl Eq for TurnProcessControl {}
+
 /// Per-call framework metadata.
 ///
 /// Threaded explicitly by `turn_executor::tool_execution` to every
@@ -59,6 +92,9 @@ pub struct CallContext {
     /// Exact Agent Org Inbox rows held by this turn's deferred drain guard.
     /// These rows are acknowledged only when the turn succeeds.
     pub projected_inbox_ids: Vec<i64>,
+    /// Exact owner and level-triggered cancellation for shell processes
+    /// started by this Turn. Direct/maintenance calls intentionally use None.
+    pub turn_process_control: Option<TurnProcessControl>,
 }
 
 impl CallContext {
@@ -69,6 +105,7 @@ impl CallContext {
             session_id: session_id.into(),
             turn_intent_id: String::new(),
             projected_inbox_ids: Vec::new(),
+            turn_process_control: None,
         }
     }
 
@@ -78,11 +115,28 @@ impl CallContext {
         turn_intent_id: impl Into<String>,
         projected_inbox_ids: Vec<i64>,
     ) -> Self {
+        Self::for_runtime_turn(
+            call_id,
+            session_id,
+            turn_intent_id,
+            projected_inbox_ids,
+            None,
+        )
+    }
+
+    pub fn for_runtime_turn(
+        call_id: impl Into<String>,
+        session_id: impl Into<String>,
+        turn_intent_id: impl Into<String>,
+        projected_inbox_ids: Vec<i64>,
+        turn_process_control: Option<TurnProcessControl>,
+    ) -> Self {
         Self {
             call_id: call_id.into(),
             session_id: session_id.into(),
             turn_intent_id: turn_intent_id.into(),
             projected_inbox_ids,
+            turn_process_control,
         }
     }
 }

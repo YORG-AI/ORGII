@@ -651,8 +651,7 @@ mod tests {
         .expect("simulate the previous strict fifteen-table manifest");
         assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 15);
 
-        let error =
-            initialize(&conn).expect_err("previous runtime must not be migrated in place");
+        let error = initialize(&conn).expect_err("previous runtime must not be migrated in place");
         assert!(
             error
                 .to_string()

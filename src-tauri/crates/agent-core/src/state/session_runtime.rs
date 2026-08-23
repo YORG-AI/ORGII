@@ -29,8 +29,10 @@ use crate::session::workspace::SessionWorkspace;
 use crate::session::{DialogScheduler, DialogTurn, DialogTurnState, TurnStats};
 use crate::specialization::policies::activation::SessionScopedContextActivator;
 use crate::state::control_flow::CancelReason;
+use crate::tools::call_context::{TurnProcessControl, TurnProcessOwner};
 use crate::tools::policy::ResolvedToolPolicy;
 use crate::tools::registry::ToolRegistry;
+use tokio_util::sync::CancellationToken;
 
 /// Runtime resources for a single agent session.
 ///
@@ -120,6 +122,7 @@ struct ActiveTurnIdentity {
     runtime_lease_id: Option<String>,
     dialog_turn_generation: String,
     turn_intent_id: Option<String>,
+    process_control: Option<TurnProcessControl>,
 }
 
 /// An active agent session — the single source of truth for all per-session state.
@@ -399,6 +402,16 @@ impl AgentSession {
         })
     }
 
+    /// Return the exact, level-triggered process control for the active Turn.
+    /// Direct/maintenance turns without a durable intent or runtime lease do
+    /// not own detachable shell work through the Agent Org Pause protocol.
+    pub(crate) fn turn_process_control(&self) -> Option<TurnProcessControl> {
+        self.active_turn_identity
+            .read()
+            .as_ref()
+            .and_then(|turn| turn.process_control.clone())
+    }
+
     /// Release only the runtime generation and dialog Turn captured by Pause.
     /// A stale completion is deliberately a no-op.
     pub(crate) async fn release_runtime_if_current(
@@ -510,10 +523,22 @@ impl AgentSession {
             .map(|slot| slot.lease_id.clone());
         let turn = DialogTurn::new(user_input, Arc::clone(&self.cancel_flag));
         let turn_id = turn.turn_id.clone();
+        let process_control = runtime_lease_id.as_ref().zip(turn_intent_id.as_ref()).map(
+            |(runtime_lease_id, turn_intent_id)| TurnProcessControl {
+                owner: TurnProcessOwner {
+                    session_id: self.id.clone(),
+                    turn_intent_id: turn_intent_id.clone(),
+                    runtime_lease_id: runtime_lease_id.clone(),
+                    dialog_turn_generation: turn_id.clone(),
+                },
+                background_cancel: CancellationToken::new(),
+            },
+        );
         *self.active_turn_identity.write() = Some(ActiveTurnIdentity {
             runtime_lease_id,
             dialog_turn_generation: turn_id.clone(),
             turn_intent_id,
+            process_control,
         });
         *self.active_turn_generation.write() = Some(turn_id.clone());
         *self.active_turn.lock().await = Some(turn);
@@ -575,6 +600,25 @@ impl AgentSession {
             crate::tools::impls::coding::exec::registry::cancel_subagents_for_session(&self.id);
         }
 
+        match shell_cancellation_scope(reason) {
+            ShellCancellationScope::ActiveTurn => {
+                if let Some(control) = self.turn_process_control() {
+                    control.background_cancel.cancel();
+                }
+            }
+            ShellCancellationScope::Session => {
+                // Cancel the active Turn token to close the foreground→background
+                // race, then fan out to background jobs from earlier Turns in
+                // the same ordinary SDE Session. ForceSend deliberately does
+                // neither: it preserves intentional background processes.
+                if let Some(control) = self.turn_process_control() {
+                    control.background_cancel.cancel();
+                }
+                crate::tools::impls::coding::exec::registry::cancel_shells_for_session(&self.id);
+            }
+            ShellCancellationScope::None => {}
+        }
+
         let guard: tokio::sync::MutexGuard<'_, Option<DialogTurn>> = self.active_turn.lock().await;
         if let Some(ref turn) = *guard {
             turn.cancel();
@@ -588,6 +632,25 @@ impl AgentSession {
                 plan_approval_manager.clear_silently().await;
             }
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShellCancellationScope {
+    None,
+    ActiveTurn,
+    Session,
+}
+
+const fn shell_cancellation_scope(reason: CancelReason) -> ShellCancellationScope {
+    match reason {
+        CancelReason::UserStop => ShellCancellationScope::Session,
+        CancelReason::OrgPause => ShellCancellationScope::ActiveTurn,
+        CancelReason::ForceSend
+        | CancelReason::AgentOrgDelete
+        | CancelReason::ProgrammaticShutdown
+        | CancelReason::SessionEviction
+        | CancelReason::ModeSwitchAbort => ShellCancellationScope::None,
     }
 }
 
@@ -605,7 +668,30 @@ fn runtime_release_identity_matches(
 
 #[cfg(test)]
 mod runtime_lease_tests {
-    use super::runtime_release_identity_matches;
+    use super::{
+        runtime_release_identity_matches, shell_cancellation_scope, ShellCancellationScope,
+    };
+    use crate::state::control_flow::CancelReason;
+
+    #[test]
+    fn shell_cancellation_preserves_stop_force_send_and_pause_boundaries() {
+        assert_eq!(
+            shell_cancellation_scope(CancelReason::UserStop),
+            ShellCancellationScope::Session
+        );
+        assert_eq!(
+            shell_cancellation_scope(CancelReason::OrgPause),
+            ShellCancellationScope::ActiveTurn
+        );
+        assert_eq!(
+            shell_cancellation_scope(CancelReason::ForceSend),
+            ShellCancellationScope::None
+        );
+        assert_eq!(
+            shell_cancellation_scope(CancelReason::AgentOrgDelete),
+            ShellCancellationScope::None
+        );
+    }
 
     #[test]
     fn release_requires_the_same_runtime_lease_and_dialog_generation() {

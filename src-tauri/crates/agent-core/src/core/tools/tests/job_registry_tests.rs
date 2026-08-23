@@ -1,6 +1,19 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
+use tokio_util::sync::CancellationToken;
+
+use crate::tools::call_context::TurnProcessOwner;
 use crate::tools::impls::coding::exec::registry::{self, JobKind, JobStatus};
+
+fn shell_owner(session_id: &str, lease_id: &str) -> TurnProcessOwner {
+    TurnProcessOwner {
+        session_id: session_id.to_string(),
+        turn_intent_id: "intent-1".to_string(),
+        runtime_lease_id: lease_id.to_string(),
+        dialog_turn_generation: "turn-1".to_string(),
+    }
+}
 
 #[test]
 fn test_register_shell_and_get() {
@@ -89,6 +102,85 @@ fn test_list_shell_for_session() {
 
     registry::remove(&pid_a.to_string());
     registry::remove(&pid_b.to_string());
+}
+
+#[test]
+fn user_stop_shell_fanout_is_session_scoped_and_level_triggered() {
+    let mine_pid = 99_981;
+    let other_pid = 99_982;
+    let mine_cancel = CancellationToken::new();
+    let other_cancel = CancellationToken::new();
+    let mine_completion = registry::register_owned_shell_replay(
+        mine_pid,
+        "mine".into(),
+        PathBuf::from("/tmp/owned-mine.txt"),
+        "owned-session-a".into(),
+        "owned-call-a".into(),
+        shell_owner("owned-session-a", "lease-a"),
+        mine_cancel.clone(),
+    );
+    let other_completion = registry::register_owned_shell_replay(
+        other_pid,
+        "other".into(),
+        PathBuf::from("/tmp/owned-other.txt"),
+        "owned-session-b".into(),
+        "owned-call-b".into(),
+        shell_owner("owned-session-b", "lease-b"),
+        other_cancel.clone(),
+    );
+
+    assert_eq!(registry::cancel_shells_for_session("owned-session-a"), 1);
+    assert!(mine_cancel.is_cancelled());
+    assert!(!other_cancel.is_cancelled());
+
+    mine_completion.finish(Ok(()));
+    other_completion.finish(Ok(()));
+    registry::remove(&mine_pid.to_string());
+    registry::remove(&other_pid.to_string());
+}
+
+#[tokio::test]
+async fn exact_owner_barrier_rejects_an_old_runtime_lease_completion() {
+    let old_pid = 99_983;
+    let new_pid = 99_984;
+    let old_owner = shell_owner("stale-owner-session", "lease-old");
+    let new_owner = shell_owner("stale-owner-session", "lease-new");
+    let old_completion = registry::register_owned_shell_replay(
+        old_pid,
+        "old".into(),
+        PathBuf::from("/tmp/owned-old.txt"),
+        old_owner.session_id.clone(),
+        "owned-call-old".into(),
+        old_owner.clone(),
+        CancellationToken::new(),
+    );
+    let new_completion = registry::register_owned_shell_replay(
+        new_pid,
+        "new".into(),
+        PathBuf::from("/tmp/owned-new.txt"),
+        new_owner.session_id.clone(),
+        "owned-call-new".into(),
+        new_owner.clone(),
+        CancellationToken::new(),
+    );
+
+    old_completion.finish(Ok(()));
+    registry::await_shells_terminated_for_owner(&old_owner, Duration::from_millis(50))
+        .await
+        .unwrap();
+    assert!(
+        registry::await_shells_terminated_for_owner(&new_owner, Duration::from_millis(25))
+            .await
+            .is_err(),
+        "old lease completion must not release the new lease barrier"
+    );
+
+    new_completion.finish(Ok(()));
+    registry::await_shells_terminated_for_owner(&new_owner, Duration::from_millis(50))
+        .await
+        .unwrap();
+    registry::remove(&old_pid.to_string());
+    registry::remove(&new_pid.to_string());
 }
 
 #[test]

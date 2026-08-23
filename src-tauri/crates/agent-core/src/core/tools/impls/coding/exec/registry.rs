@@ -10,9 +10,12 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Instant;
-use tokio::sync::broadcast;
+use std::time::{Duration, Instant};
+use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
+
+use crate::tools::call_context::TurnProcessOwner;
 
 /// Status of a background job.
 #[derive(Debug, Clone)]
@@ -22,6 +25,29 @@ pub enum JobStatus {
     Killed,
     Completed,
     Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ShellCompletionState {
+    Running,
+    Terminated,
+    Failed(String),
+}
+
+/// Completion half retained by the subprocess monitor. The registry keeps
+/// the receiver so Pause can await OS-level process-group finality without
+/// taking ownership away from the one task that owns the child handle.
+pub struct ShellMonitorCompletion {
+    tx: watch::Sender<ShellCompletionState>,
+}
+
+impl ShellMonitorCompletion {
+    pub fn finish(self, result: Result<(), String>) {
+        self.tx.send_replace(match result {
+            Ok(()) => ShellCompletionState::Terminated,
+            Err(error) => ShellCompletionState::Failed(error),
+        });
+    }
 }
 
 /// What kind of background job this is.
@@ -83,6 +109,18 @@ pub struct BackgroundJob {
     /// (LinkedSession terminal write, worktree cleanup, registry grace
     /// period). `None` for shell jobs.
     cancel_flag: Option<Arc<AtomicBool>>,
+    /// Exact owner for detachable shell processes. None for legacy shell
+    /// fixtures and subagents.
+    shell_owner: Option<TurnProcessOwner>,
+    /// Per-process cancellation. This is distinct from the Turn token so an
+    /// explicit kill_handle request terminates only the selected process.
+    shell_cancel: Option<CancellationToken>,
+    /// Reaches a terminal state only after the process group is absent and
+    /// replay readers/writer have drained.
+    shell_completion: Option<watch::Receiver<ShellCompletionState>>,
+    /// Cancellation was requested, but the monitor has not yet proved the
+    /// process group and replay pipeline are terminal.
+    shell_kill_requested: bool,
     /// Set to `true` once the agent has read the completed job's output via
     /// `AwaitTool` (monitor/wait_for). Acknowledged completed jobs are excluded
     /// from the per-turn system reminder to avoid the stale-reminder
@@ -216,7 +254,16 @@ pub fn register_shell(
     log_path: PathBuf,
     session_id: String,
 ) -> broadcast::Sender<String> {
-    register_shell_inner(pid, command, log_path, session_id, None)
+    register_shell_inner(ShellRegistration {
+        pid,
+        command,
+        log_path,
+        session_id,
+        replay_identity: None,
+        shell_owner: None,
+        shell_cancel: None,
+        shell_completion: None,
+    })
 }
 
 /// Register a new durable shell replay job by exact Session/call identity.
@@ -228,22 +275,66 @@ pub fn register_shell_replay(
     call_id: String,
 ) -> broadcast::Sender<String> {
     let replay_session_id = session_id.clone();
-    register_shell_inner(
+    register_shell_inner(ShellRegistration {
         pid,
         command,
         log_path,
         session_id,
-        Some((replay_session_id, call_id)),
-    )
+        replay_identity: Some((replay_session_id, call_id)),
+        shell_owner: None,
+        shell_cancel: None,
+        shell_completion: None,
+    })
 }
 
-fn register_shell_inner(
+/// Register a production shell with its exact Turn/runtime owner and a
+/// completion barrier controlled by the background monitor.
+pub fn register_owned_shell_replay(
+    pid: u32,
+    command: String,
+    log_path: PathBuf,
+    session_id: String,
+    call_id: String,
+    owner: TurnProcessOwner,
+    process_cancel: CancellationToken,
+) -> ShellMonitorCompletion {
+    let replay_session_id = session_id.clone();
+    let (completion_tx, completion_rx) = watch::channel(ShellCompletionState::Running);
+    register_shell_inner(ShellRegistration {
+        pid,
+        command,
+        log_path,
+        session_id,
+        replay_identity: Some((replay_session_id, call_id)),
+        shell_owner: Some(owner),
+        shell_cancel: Some(process_cancel),
+        shell_completion: Some(completion_rx),
+    });
+    ShellMonitorCompletion { tx: completion_tx }
+}
+
+struct ShellRegistration {
     pid: u32,
     command: String,
     log_path: PathBuf,
     session_id: String,
     replay_identity: Option<(String, String)>,
-) -> broadcast::Sender<String> {
+    shell_owner: Option<TurnProcessOwner>,
+    shell_cancel: Option<CancellationToken>,
+    shell_completion: Option<watch::Receiver<ShellCompletionState>>,
+}
+
+fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<String> {
+    let ShellRegistration {
+        pid,
+        command,
+        log_path,
+        session_id,
+        replay_identity,
+        shell_owner,
+        shell_cancel,
+        shell_completion,
+    } = registration;
     let handle = pid.to_string();
     let (tx, _) = broadcast::channel(BROADCAST_CAPACITY);
     let sender = tx.clone();
@@ -264,6 +355,10 @@ fn register_shell_inner(
         recent_lines: VecDeque::new(),
         join_handle: None,
         cancel_flag: None,
+        shell_owner,
+        shell_cancel,
+        shell_completion,
+        shell_kill_requested: false,
         output_acknowledged: false,
         wake_dispatched: false,
         output_seq: 0,
@@ -328,6 +423,10 @@ pub fn register_subagent_with_flag(
         recent_lines: VecDeque::new(),
         join_handle: None,
         cancel_flag: Some(Arc::clone(&cancel_flag)),
+        shell_owner: None,
+        shell_cancel: None,
+        shell_completion: None,
+        shell_kill_requested: false,
         output_acknowledged: false,
         wake_dispatched: false,
         output_seq: 0,
@@ -380,7 +479,11 @@ pub fn mark_exited(handle: &str, status: JobStatus) {
     if matches!(job.status, JobStatus::Killed) {
         return;
     }
-    job.status = status;
+    job.status = if job.shell_kill_requested && matches!(job.kind, JobKind::Shell { .. }) {
+        JobStatus::Killed
+    } else {
+        status
+    };
     if let JobKind::Subagent {
         subagent_type,
         agent_name,
@@ -399,6 +502,17 @@ pub fn mark_exited(handle: &str, status: JobStatus) {
             subagent_type,
             wire_status,
         );
+    }
+}
+
+/// Latch cancellation before signalling the process monitor. The public job
+/// remains Running until OS/process-output finality is confirmed.
+pub fn mark_shell_cancel_requested(handle: &str) {
+    let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(job) = reg.get_mut(handle) {
+        if matches!(job.kind, JobKind::Shell { .. }) && job.is_running() {
+            job.shell_kill_requested = true;
+        }
     }
 }
 
@@ -493,6 +607,70 @@ pub fn list_shell_for_session(session_id: &str) -> Vec<(u32, String)> {
             JobKind::Subagent { .. } => None,
         })
         .collect()
+}
+
+async fn wait_for_shell_completion(
+    pid: u32,
+    mut completion: watch::Receiver<ShellCompletionState>,
+) -> Result<(), String> {
+    loop {
+        let state = completion.borrow().clone();
+        match state {
+            ShellCompletionState::Running => {}
+            ShellCompletionState::Terminated => return Ok(()),
+            ShellCompletionState::Failed(error) => {
+                return Err(format!(
+                    "background shell process group {pid} failed to stop: {error}"
+                ))
+            }
+        }
+        completion.changed().await.map_err(|_| {
+            format!("background shell process group {pid} lost its completion owner")
+        })?;
+    }
+}
+
+/// Wait until every background shell owned by the exact Pause Turn has
+/// reached OS/process-output finality. No matching jobs means foreground work
+/// already completed through the synchronous tool path.
+pub async fn await_shells_terminated_for_owner(
+    owner: &TurnProcessOwner,
+    timeout: Duration,
+) -> Result<(), String> {
+    let completions = {
+        let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+        reg.values()
+            .filter(|job| job.shell_owner.as_ref() == Some(owner))
+            .filter_map(|job| match (&job.kind, &job.shell_completion) {
+                (JobKind::Shell { pid, .. }, Some(completion)) => Some((*pid, completion.clone())),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let wait_all = async move {
+        let results = futures::future::join_all(
+            completions
+                .into_iter()
+                .map(|(pid, completion)| wait_for_shell_completion(pid, completion)),
+        )
+        .await;
+        let failures = results
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<_>>();
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(failures.join("; "))
+        }
+    };
+    tokio::time::timeout(timeout, wait_all).await.map_err(|_| {
+        format!(
+            "timed out after {}ms waiting for background shell process groups owned by Turn {}",
+            timeout.as_millis(),
+            owner.dialog_turn_generation
+        )
+    })?
 }
 
 /// List all jobs (shells + subagents). Pass `Some(session_id)` for session
@@ -806,19 +984,31 @@ fn send_signal_to_process_tree(pid: u32, signal: libc::c_int) -> Result<(), std:
     }
 
     let process_error = std::io::Error::last_os_error();
-    if group_error.raw_os_error() == Some(libc::ESRCH)
-        && process_error.raw_os_error() == Some(libc::ESRCH)
-    {
-        return Err(process_error);
+    if group_error.raw_os_error() == Some(libc::ESRCH) {
+        Err(process_error)
+    } else {
+        Err(group_error)
     }
-
-    Err(process_error)
 }
 
 #[cfg(unix)]
-fn process_tree_exists(pid: u32) -> bool {
+pub(crate) fn process_tree_exists(pid: u32) -> bool {
     let pid = pid as libc::pid_t;
     unsafe { libc::kill(-pid, 0) == 0 || libc::kill(pid, 0) == 0 }
+}
+
+#[cfg(unix)]
+async fn wait_for_process_tree_exit(pid: u32, timeout: Duration) -> bool {
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        if !process_tree_exists(pid) {
+            return true;
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
 }
 
 #[cfg(unix)]
@@ -835,17 +1025,25 @@ pub async fn terminate_shell_process_tree(pid: u32) -> Result<String, String> {
         Err(err) => return Err(format!("Failed to send SIGTERM to {}: {}", pid, err)),
     }
 
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    if process_tree_exists(pid) {
-        match send_signal_to_process_tree(pid, libc::SIGKILL) {
-            Ok(()) => Ok(format!("Process {} killed (SIGKILL)", pid)),
-            Err(err) if err.raw_os_error() == Some(libc::ESRCH) => {
-                Ok(format!("Process {} terminated (SIGTERM)", pid))
-            }
-            Err(err) => Err(format!("Failed to send SIGKILL to {}: {}", pid, err)),
+    // Preserve the existing ordinary SDE kill contract: give cooperative
+    // processes the full two-second SIGTERM grace before escalating.
+    if wait_for_process_tree_exit(pid, Duration::from_secs(2)).await {
+        return Ok(format!("Process {} terminated (SIGTERM)", pid));
+    }
+    match send_signal_to_process_tree(pid, libc::SIGKILL) {
+        Ok(()) => {}
+        Err(err) if err.raw_os_error() == Some(libc::ESRCH) => {
+            return Ok(format!("Process {} terminated (SIGTERM)", pid));
         }
+        Err(err) => return Err(format!("Failed to send SIGKILL to {}: {}", pid, err)),
+    }
+    if wait_for_process_tree_exit(pid, Duration::from_secs(2)).await {
+        Ok(format!("Process {} killed (SIGKILL)", pid))
     } else {
-        Ok(format!("Process {} terminated (SIGTERM)", pid))
+        Err(format!(
+            "Process group {} still exists after SIGKILL verification window",
+            pid
+        ))
     }
 }
 
@@ -880,7 +1078,7 @@ pub async fn terminate_shell_process_tree(pid: u32) -> Result<String, String> {
 /// Returns `Ok(())` on success or `Err(msg)` if the handle is not found or
 /// not a shell job.
 pub async fn kill_shell(handle: &str) -> Result<(), String> {
-    let pid = {
+    let (pid, cancel, completion) = {
         let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
         let job = reg
             .get_mut(handle)
@@ -894,10 +1092,21 @@ pub async fn kill_shell(handle: &str) -> Result<(), String> {
         if !job.is_running() {
             return Err(format!("job '{handle}' already exited"));
         }
-        job.status = JobStatus::Killed;
-        pid
+        job.shell_kill_requested = true;
+        (pid, job.shell_cancel.clone(), job.shell_completion.clone())
     };
 
+    if let Some(cancel) = cancel {
+        cancel.cancel();
+        if let Some(completion) = completion {
+            return tokio::time::timeout(
+                Duration::from_secs(10),
+                wait_for_shell_completion(pid, completion),
+            )
+            .await
+            .map_err(|_| format!("timed out waiting for shell process group {pid} to stop"))?;
+        }
+    }
     terminate_shell_process_tree(pid).await.map(|_| ())
 }
 
@@ -1010,4 +1219,47 @@ pub fn cancel_subagents_for_session(session_id: &str) -> usize {
         );
     }
     cancelled
+}
+
+/// Fan out ordinary user Stop to every running background shell in the
+/// Session. OrgPause does not call this broad API; it cancels only the active
+/// Turn's token and then awaits the exact owner tuple.
+pub fn cancel_shells_for_session(session_id: &str) -> usize {
+    let cancellations = {
+        let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+        reg.values_mut()
+            .filter(|job| {
+                job.session_id == session_id
+                    && job.is_running()
+                    && matches!(job.kind, JobKind::Shell { .. })
+            })
+            .filter_map(|job| {
+                job.shell_kill_requested = true;
+                match (&job.kind, job.shell_cancel.clone()) {
+                    (JobKind::Shell { pid, .. }, cancel) => Some((*pid, cancel)),
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+    for (pid, cancel) in &cancellations {
+        if let Some(cancel) = cancel {
+            cancel.cancel();
+        } else {
+            let pid = *pid;
+            tokio::spawn(async move {
+                if let Err(error) = terminate_shell_process_tree(pid).await {
+                    tracing::warn!(pid, error = %error, "failed to stop legacy background shell");
+                }
+            });
+        }
+    }
+    if !cancellations.is_empty() {
+        tracing::info!(
+            session_id,
+            count = cancellations.len(),
+            "requested cancellation for background shell process groups"
+        );
+    }
+    cancellations.len()
 }

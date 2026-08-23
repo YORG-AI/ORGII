@@ -280,6 +280,27 @@ pub(crate) async fn settle_pause_handoff_after_turn(
     if episode.is_none() {
         return;
     }
+    let process_owner = crate::tools::call_context::TurnProcessOwner {
+        session_id: session.id.clone(),
+        turn_intent_id: turn_intent_id.to_string(),
+        runtime_lease_id: identity.runtime_lease_id.clone(),
+        dialog_turn_generation: identity.dialog_turn_generation.clone(),
+    };
+    if let Err(error) =
+        crate::tools::impls::coding::exec::registry::await_shells_terminated_for_owner(
+            &process_owner,
+            DRAIN_DEADLINE,
+        )
+        .await
+    {
+        tracing::warn!(
+            session_id = %session.id,
+            runtime_lease_id = %identity.runtime_lease_id,
+            error = %error,
+            "Pause handoff remains draining because owned shell processes are not terminal"
+        );
+        return;
+    }
     let released_current_slot = session
         .release_runtime_if_current(&identity.runtime_lease_id, &identity.dialog_turn_generation)
         .await;
@@ -289,6 +310,7 @@ pub(crate) async fn settle_pause_handoff_after_turn(
             runtime_lease_id = %identity.runtime_lease_id,
             "Pause completion observed a replaced runtime lease; preserving the current slot"
         );
+        return;
     }
     let release_session_id = session.id.clone();
     let release_intent_id = turn_intent_id.to_string();

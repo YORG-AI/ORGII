@@ -330,6 +330,66 @@ describe("Agent Org Task panel", () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the inverse Pause control locked through a Resume double-click", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.resume.mockResolvedValue({
+        requestId: "resume-request",
+        runId: "run-task-panel",
+        episodeId: "episode-a",
+        transitioned: true,
+        resumeGeneration: 3,
+        continuationCount: 2,
+        skippedCount: 0,
+      });
+      mocks.pause.mockResolvedValue({
+        requestId: "pause-request",
+        runId: "run-task-panel",
+        episodeId: "episode-b",
+        transitioned: true,
+        pauseGeneration: 4,
+        capturedCount: 0,
+      });
+      const onRefresh = vi.fn().mockResolvedValue(undefined);
+      const render = (runStatus: AgentOrgRunView["runStatus"]) =>
+        root.render(
+          createElement(AgentOrgOverviewPanel, {
+            view: { ...runView(), runStatus },
+            error: null,
+            currentSessionId: "root-session",
+            onRefresh,
+          })
+        );
+
+      await act(async () => render("paused"));
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="agent-org-overview-resume-button"]'
+          )
+          ?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mocks.resume).toHaveBeenCalledTimes(1);
+
+      await act(async () => render("running"));
+      const pause = container.querySelector<HTMLButtonElement>(
+        '[data-testid="agent-org-overview-pause-button"]'
+      );
+      expect(pause?.disabled).toBe(true);
+      pause?.click();
+      expect(mocks.pause).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(pause?.disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("discards a late History response after switching teams", async () => {
     const oldPage = deferred<{
       bucket: "history";

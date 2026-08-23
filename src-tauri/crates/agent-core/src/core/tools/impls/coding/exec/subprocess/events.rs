@@ -14,6 +14,9 @@ pub(crate) fn broadcast_exec_output(
     sequence: u64,
     persisted_bytes: u64,
 ) {
+    if identity.cancellation_requested() {
+        return;
+    }
     crate::bus::broadcast_event(
         "agent:exec_output",
         serde_json::json!({

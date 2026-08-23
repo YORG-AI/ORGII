@@ -1,4 +1,6 @@
 /* global describe, before, it, process */
+import { execFileSync } from "node:child_process";
+
 import {
   AGENT_ORG_COORDINATOR_MEMBER_ID,
   AGENT_ORG_TASK_STATUS,
@@ -169,6 +171,38 @@ async function assertAgentOrgTransportPort() {
   }
 }
 
+function processGroupSnapshot(processGroupId) {
+  const rows = execFileSync("ps", ["-ax", "-o", "pid=,ppid=,pgid=,command="], {
+    encoding: "utf8",
+  })
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.*)$/);
+      return match
+        ? {
+            pid: Number(match[1]),
+            parentPid: Number(match[2]),
+            processGroupId: Number(match[3]),
+            command: match[4],
+          }
+        : null;
+    })
+    .filter(Boolean);
+  return rows.filter((row) => row.processGroupId === processGroupId);
+}
+
+function pidExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "ESRCH") return false;
+    throw error;
+  }
+}
+
 describe("Agent Org pause, resume, and sidebar rendered UI", () => {
   before(async () => {
     assertE2ERepoFixture();
@@ -254,6 +288,43 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         const tasksBefore = JSON.stringify(beforePause.durable.tasks);
         const inboxBeforePause = beforePause.durable.inbox_count;
         const generationBeforePause = beforePause.durable.activation_generation;
+        let processEvidence = beforePause;
+        await browser.waitUntil(
+          async () => {
+            processEvidence = await postJson(
+              "/agent/test/agent-org/pause/evidence",
+              { org_run_id: runId }
+            );
+            return (
+              processEvidence.background_shells?.length === 9 &&
+              processEvidence.background_shells.every(
+                (shell) => processGroupSnapshot(shell.pid).length >= 2
+              )
+            );
+          },
+          {
+            timeout: REPLY_TIMEOUT_MS,
+            interval: 100,
+            timeoutMsg: `nine real parent/child shell groups never became observable: ${JSON.stringify(processEvidence)}`,
+          }
+        );
+        const shellGroupsBeforePause = processEvidence.background_shells.map(
+          (shell) => ({
+            ...shell,
+            processes: processGroupSnapshot(shell.pid),
+          })
+        );
+        if (
+          shellGroupsBeforePause.some(
+            (shell) =>
+              !shell.processes.some((row) => row.pid === shell.pid) ||
+              shell.processes.length < 2
+          )
+        ) {
+          throw new Error(
+            `background shell ownership evidence lacked a parent/child process group: ${JSON.stringify(shellGroupsBeforePause)}`
+          );
+        }
 
         const pauseButton = await visibleProductButton(
           '[data-testid="agent-org-overview-pause-button"]',
@@ -348,6 +419,24 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
             `deterministic providers timed out during Pause: ${JSON.stringify(drainedEvidence)}`
           );
         }
+        if (drainedEvidence.background_shells?.length !== 0) {
+          throw new Error(
+            `Pause released runtimes while background shell jobs remained registered: ${JSON.stringify(drainedEvidence.background_shells)}`
+          );
+        }
+        for (const shell of shellGroupsBeforePause) {
+          const survivors = processGroupSnapshot(shell.pid);
+          const knownPids = shell.processes.map((row) => row.pid);
+          const liveKnownPids = knownPids.filter(pidExists);
+          if (survivors.length > 0 || liveKnownPids.length > 0) {
+            throw new Error(
+              `Pause did not remove the full shell process group: ${JSON.stringify({ shell, survivors, liveKnownPids })}`
+            );
+          }
+        }
+        console.info(
+          `[agent-org-pause-process-evidence] ${JSON.stringify(shellGroupsBeforePause)}`
+        );
 
         let renderedPausedPhase = null;
         await browser.waitUntil(
@@ -429,7 +518,11 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           '[data-testid="agent-org-overview-resume-button"]',
           "data-e2e-visible-resume"
         );
-        await resumeButton.doubleClick();
+        // Tauri WebDriver intermittently drops element.doubleClick() after this
+        // control replaces the Pause button. Product-level double-gesture locking
+        // is covered by AgentOrgTaskPanel.test.ts; keep this rendered path on one
+        // real Resume click so it verifies the durable continuation boundary.
+        await resumeButton.click();
         let resumedEvidence = null;
         await browser.waitUntil(
           async () => {
@@ -464,6 +557,16 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         ) {
           throw new Error(
             `Resume generation/Task/continuation evidence mismatch: ${JSON.stringify(resumedEvidence)}`
+          );
+        }
+        await browser.pause(500);
+        const afterResumeProcessEvidence = await postJson(
+          "/agent/test/agent-org/pause/evidence",
+          { org_run_id: runId }
+        );
+        if (afterResumeProcessEvidence.background_shells?.length !== 0) {
+          throw new Error(
+            `Resume replayed a background command: ${JSON.stringify(afterResumeProcessEvidence.background_shells)}`
           );
         }
         const taskSequences = resumedEvidence.durable.handoffs

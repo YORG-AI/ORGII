@@ -73,6 +73,7 @@ impl UnifiedMessageProcessor {
         let turn_config = TurnConfig {
             turn_intent_id: turn_intent_id.to_string(),
             projected_inbox_ids,
+            turn_process_control: self.session.turn_process_control(),
             model: turn_model,
             account_id: self.runtime.account_id.clone(),
             context_window_override: self

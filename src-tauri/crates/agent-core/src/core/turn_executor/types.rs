@@ -98,6 +98,9 @@ pub struct TurnConfig {
     pub turn_intent_id: String,
     /// Agent Org Inbox rows that this turn will acknowledge on success.
     pub projected_inbox_ids: Vec<i64>,
+    /// Exact runtime owner and cancellation for background shell processes
+    /// started by this Turn. Background/offline callers intentionally use None.
+    pub turn_process_control: Option<crate::tools::call_context::TurnProcessControl>,
     /// Model identifier (provider-specific).
     pub model: String,
     /// KeyVault account id backing this turn. Threaded through so
@@ -452,6 +455,7 @@ mod tests {
         let config = TurnConfig {
             turn_intent_id: String::new(),
             projected_inbox_ids: Vec::new(),
+            turn_process_control: None,
             model: "test".to_string(),
             account_id: None,
             context_window_override: None,
@@ -476,6 +480,7 @@ mod tests {
         let config = TurnConfig {
             turn_intent_id: String::new(),
             projected_inbox_ids: Vec::new(),
+            turn_process_control: None,
             model: "test".to_string(),
             account_id: None,
             context_window_override: None,

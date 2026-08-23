@@ -3099,7 +3099,8 @@ pub async fn test_agent_org_pause_evidence(
                 .prepare(
                     "SELECT handoff.session_id,handoff.original_turn_intent_id,
                             handoff.turn_kind,handoff.task_id,handoff.original_intent_status,
-                            handoff.drain_status,handoff.drain_timeout_at,
+                            handoff.drain_status,handoff.runtime_lease_id,
+                            handoff.dialog_turn_generation,handoff.drain_timeout_at,
                             handoff.continuation_turn_intent_id,handoff.continuation_status,
                             handoff.skip_reason,context.member_dispatch_sequence
                      FROM agent_org_runtime_pause_handoffs handoff
@@ -3119,11 +3120,13 @@ pub async fn test_agent_org_pause_evidence(
                         "task_id": row.get::<_, Option<String>>(3)?,
                         "original_intent_status": row.get::<_, String>(4)?,
                         "drain_status": row.get::<_, String>(5)?,
-                        "drain_timeout_at": row.get::<_, Option<String>>(6)?,
-                        "continuation_turn_intent_id": row.get::<_, Option<String>>(7)?,
-                        "continuation_status": row.get::<_, Option<String>>(8)?,
-                        "skip_reason": row.get::<_, Option<String>>(9)?,
-                        "member_dispatch_sequence": row.get::<_, Option<i64>>(10)?,
+                        "runtime_lease_id": row.get::<_, Option<String>>(6)?,
+                        "dialog_turn_generation": row.get::<_, Option<String>>(7)?,
+                        "drain_timeout_at": row.get::<_, Option<String>>(8)?,
+                        "continuation_turn_intent_id": row.get::<_, Option<String>>(9)?,
+                        "continuation_status": row.get::<_, Option<String>>(10)?,
+                        "skip_reason": row.get::<_, Option<String>>(11)?,
+                        "member_dispatch_sequence": row.get::<_, Option<i64>>(12)?,
                     }))
                 })
                 .map_err(|error| error.to_string())?;
@@ -3212,7 +3215,17 @@ pub async fn test_agent_org_pause_evidence(
         .unwrap_or_default();
     let mut active_runtime_count = 0usize;
     let mut active_turns = Vec::new();
+    let mut background_shells = Vec::new();
     for session_id in session_ids.iter().filter_map(serde_json::Value::as_str) {
+        for (pid, command) in
+            agent_core::tools::impls::coding::exec::registry::list_shell_for_session(session_id)
+        {
+            background_shells.push(serde_json::json!({
+                "session_id": session_id,
+                "pid": pid,
+                "command": command,
+            }));
+        }
         let Some(session) = state.get_session(session_id).await else {
             continue;
         };
@@ -3231,5 +3244,6 @@ pub async fn test_agent_org_pause_evidence(
         "durable": durable,
         "active_runtime_count": active_runtime_count,
         "active_turns": active_turns,
+        "background_shells": background_shells,
     }))
 }

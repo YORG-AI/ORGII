@@ -39,6 +39,11 @@ import ComposerStackHeader, {
 
 const logger = createLogger("AgentOrgOverviewPanel");
 
+// Keep the opposite control disabled briefly after Pause/Resume settles. The
+// two controls occupy the same toolbar position, so the second click of a
+// double-click can otherwise land on the newly rendered inverse action.
+const PAUSE_TOGGLE_GESTURE_COOLDOWN_MS = 500;
+
 const AGENT_SESSION_STATUS = {
   RUNNING: "running",
   WAITING_FOR_USER: "waiting_for_user",
@@ -66,12 +71,28 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     );
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyError, setHistoryError] = useState(false);
+    const pauseToggleLockedRef = useRef(false);
+    const pauseToggleCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    );
+    const mountedRef = useRef(true);
     const historyRequestIdRef = useRef(0);
     const currentSessionIdRef = useRef(currentSessionId);
     const currentRunId = view?.context.runId ?? null;
     const currentRunIdRef = useRef(currentRunId);
     currentSessionIdRef.current = currentSessionId;
     currentRunIdRef.current = currentRunId;
+
+    useEffect(() => {
+      mountedRef.current = true;
+      return () => {
+        mountedRef.current = false;
+        if (pauseToggleCooldownRef.current !== null) {
+          clearTimeout(pauseToggleCooldownRef.current);
+          pauseToggleCooldownRef.current = null;
+        }
+      };
+    }, []);
 
     useEffect(() => {
       historyRequestIdRef.current += 1;
@@ -182,31 +203,48 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       }
     }, [rootSessionId, setActiveSessionId]);
 
-    const handlePauseRun = useCallback(async () => {
-      if (!currentSessionId || isTogglingPause) return;
+    const beginPauseToggle = useCallback(() => {
+      if (pauseToggleLockedRef.current) return false;
+      pauseToggleLockedRef.current = true;
       setIsTogglingPause(true);
+      return true;
+    }, []);
+
+    const finishPauseToggle = useCallback(() => {
+      if (!mountedRef.current) {
+        pauseToggleLockedRef.current = false;
+        return;
+      }
+      pauseToggleCooldownRef.current = setTimeout(() => {
+        pauseToggleCooldownRef.current = null;
+        pauseToggleLockedRef.current = false;
+        setIsTogglingPause(false);
+      }, PAUSE_TOGGLE_GESTURE_COOLDOWN_MS);
+    }, []);
+
+    const handlePauseRun = useCallback(async () => {
+      if (!currentSessionId || !beginPauseToggle()) return;
       try {
         await pauseAgentOrgRun(currentSessionId);
         await onRefresh();
       } catch (err: unknown) {
         logger.error("Failed to pause Agent Team run:", err);
       } finally {
-        setIsTogglingPause(false);
+        finishPauseToggle();
       }
-    }, [currentSessionId, isTogglingPause, onRefresh]);
+    }, [beginPauseToggle, currentSessionId, finishPauseToggle, onRefresh]);
 
     const handleResumeRun = useCallback(async () => {
-      if (!currentSessionId || isTogglingPause) return;
-      setIsTogglingPause(true);
+      if (!currentSessionId || !beginPauseToggle()) return;
       try {
         await resumeAgentOrgRun(currentSessionId);
         await onRefresh();
       } catch (err: unknown) {
         logger.error("Failed to resume Agent Team run:", err);
       } finally {
-        setIsTogglingPause(false);
+        finishPauseToggle();
       }
-    }, [currentSessionId, isTogglingPause, onRefresh]);
+    }, [beginPauseToggle, currentSessionId, finishPauseToggle, onRefresh]);
 
     if (!view && !error) return null;
 

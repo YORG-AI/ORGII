@@ -1202,6 +1202,96 @@ fn pause_captures_only_current_generation_formal_in_flight_turns() {
 }
 
 #[test]
+fn pause_release_receipt_requires_the_exact_runtime_lease_and_turn_generation() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    seed_pause_turn_context(
+        &conn,
+        &context,
+        PauseTurnSeed {
+            session_id: "release-owner-session",
+            turn_intent_id: "release-owner-intent",
+            turn_kind: "coordinator",
+            intent_status: "running",
+            task_id: None,
+            activation_generation: Some(1),
+            member_sequence: None,
+        },
+    );
+    drop(conn);
+    let paused = crate::coordination::agent_org_pause::pause_run(
+        &context.run_id,
+        "00000000-0000-4000-8000-000000000041",
+    )
+    .expect("Pause before owner binding");
+    assert!(
+        crate::coordination::agent_org_pause::bind_runtime_and_request_yield(
+            &paused.episode_id,
+            "release-owner-session",
+            "release-owner-intent",
+            "lease-current",
+            "turn-current",
+        )
+        .expect("bind exact runtime owner")
+    );
+
+    assert_eq!(
+        crate::coordination::agent_org_pause::mark_released(
+            "release-owner-session",
+            "release-owner-intent",
+            "lease-old",
+            "turn-current",
+        )
+        .expect("stale release callback"),
+        None
+    );
+    assert_eq!(
+        crate::coordination::agent_org_pause::mark_released(
+            "release-owner-session",
+            "release-owner-intent",
+            "lease-current",
+            "turn-old",
+        )
+        .expect("stale generation callback"),
+        None
+    );
+    let conn = get_connection().expect("db connection");
+    let still_waiting: String = conn
+        .query_row(
+            "SELECT drain_status FROM agent_org_runtime_pause_handoffs
+             WHERE episode_id=?1 AND session_id='release-owner-session'",
+            [&paused.episode_id],
+            |row| row.get(0),
+        )
+        .expect("read handoff after stale callbacks");
+    assert_eq!(still_waiting, "waiting");
+    drop(conn);
+
+    assert_eq!(
+        crate::coordination::agent_org_pause::mark_released(
+            "release-owner-session",
+            "release-owner-intent",
+            "lease-current",
+            "turn-current",
+        )
+        .expect("release exact owner"),
+        Some(paused.episode_id.clone())
+    );
+    let conn = get_connection().expect("db connection");
+    let released: String = conn
+        .query_row(
+            "SELECT drain_status FROM agent_org_runtime_pause_handoffs
+             WHERE episode_id=?1 AND session_id='release-owner-session'",
+            [&paused.episode_id],
+            |row| row.get(0),
+        )
+        .expect("read released handoff");
+    assert_eq!(released, "released");
+}
+
+#[test]
 fn pause_nth_child_failure_rolls_back_fence_and_all_receipts() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");

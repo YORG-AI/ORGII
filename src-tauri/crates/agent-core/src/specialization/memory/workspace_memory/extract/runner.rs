@@ -96,6 +96,7 @@ pub async fn run_extraction(
     let turn_config = TurnConfig {
         turn_intent_id: String::new(),
         projected_inbox_ids: Vec::new(),
+        turn_process_control: None,
         model: params.model.to_string(),
         account_id: None,
         context_window_override: None,

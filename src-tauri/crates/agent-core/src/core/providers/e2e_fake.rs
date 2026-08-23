@@ -20,6 +20,7 @@ const AGENT_ORG_PAUSE_MARKER: &str = "E2E_AGENT_ORG_PAUSE:";
 const CONTROL_WAIT_MARKER: &str = "Create a stoppable window by waiting for about ";
 const TASK_GRAPH_CREATE_TOOL: &str = "task_graph_create";
 const TASK_UPDATE_TOOL: &str = "task_update";
+const RUN_SHELL_TOOL: &str = "run_shell";
 
 fn task_update_arguments_with_empty_placeholders(arguments: Value) -> Value {
     let Value::Object(mut arguments) = arguments else {
@@ -358,9 +359,6 @@ impl E2eFakeProvider {
         let Some((latest_user_index, latest_user)) = latest_pause_user(messages) else {
             return Vec::new();
         };
-        if is_task_assignment(&latest_user) || !Self::has_tool(tools, TASK_GRAPH_CREATE_TOOL) {
-            return Vec::new();
-        }
         let tool_result_count = messages[latest_user_index + 1..]
             .iter()
             .filter(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
@@ -371,6 +369,29 @@ impl E2eFakeProvider {
         let Some(scenario_id) = pause_scenario_id(&latest_user) else {
             return Vec::new();
         };
+        if is_task_assignment(&latest_user) {
+            if !Self::has_tool(tools, RUN_SHELL_TOOL) {
+                return Vec::new();
+            }
+            let member_id =
+                task_assignment_value(&latest_user, "Owner member ID:", "owner_member_id")
+                    .unwrap_or_else(|| "member".to_string());
+            return vec![ToolCallRequest {
+                id: format!("e2e-pause-shell-{scenario_id}-{member_id}"),
+                name: RUN_SHELL_TOOL.to_string(),
+                arguments: serde_json::json!({
+                    "command": format!(
+                        "trap '' TERM; sh -c 'trap \"\" TERM; while :; do sleep 120; done' & child=$!; printf 'E2E_PAUSE_PROCESS scenario={scenario_id} parent=%s child=%s\\n' \"$$\" \"$child\"; wait"
+                    ),
+                    "description": "Hold Pause process group",
+                    "mode": "background"
+                }),
+                thought_signature: None,
+            }];
+        }
+        if !Self::has_tool(tools, TASK_GRAPH_CREATE_TOOL) {
+            return Vec::new();
+        }
         let tasks = (1..=9)
             .map(|index| {
                 serde_json::json!({
@@ -437,13 +458,14 @@ impl E2eFakeProvider {
     }
 
     fn pause_wait_required(messages: &[Value]) -> bool {
-        let Some((latest_user_index, latest_user)) = latest_pause_user(messages) else {
+        let Some((latest_user_index, _latest_user)) = latest_pause_user(messages) else {
             return false;
         };
-        is_task_assignment(&latest_user)
-            || messages[latest_user_index + 1..]
-                .iter()
-                .any(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
+        // The first provider response must be free to emit the Task graph or
+        // real run_shell call. Hold the Turn only after that tool completed.
+        messages[latest_user_index + 1..]
+            .iter()
+            .any(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
     }
 
     fn build_response(messages: &[Value], tools: Option<&[Value]>) -> LLMResponse {
@@ -652,7 +674,12 @@ impl LLMProvider for E2eFakeProvider {
         }
 
         let cancellable_wait = if Self::pause_wait_required(messages) {
-            Some(Duration::from_secs(30))
+            // Real shell-process materialization across all nine Members can
+            // take longer than the old 30-second fake response window on a
+            // packaged build. Keep every formal Turn cancellably in flight
+            // until the test clicks Pause; this is still interrupted
+            // immediately through the normal provider cancel flag.
+            Some(Duration::from_secs(120))
         } else {
             control_wait_duration(messages)
         };
@@ -910,6 +937,35 @@ mod tests {
             json!({ "role": "tool", "content": "{}" }),
         ];
         assert!(E2eFakeProvider::agent_org_pause_tool_calls(&replay, Some(&tools)).is_empty());
+    }
+
+    #[test]
+    fn pause_task_assignment_starts_one_real_background_process_group_once() {
+        let tools = [named_tool(RUN_SHELL_TOOL)];
+        let assigned = json!({
+            "role": "user",
+            "content": concat!(
+                "Task assigned by coordinator: E2E_PAUSE_TASK:episode_1:01\n",
+                "Owner member ID: pause-worker-01\n",
+                "E2E_AGENT_ORG_PAUSE:episode_1"
+            )
+        });
+        let calls = E2eFakeProvider::agent_org_pause_tool_calls(
+            std::slice::from_ref(&assigned),
+            Some(&tools),
+        );
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, RUN_SHELL_TOOL);
+        assert_eq!(calls[0].arguments["mode"], "background");
+        assert!(calls[0].arguments["command"]
+            .as_str()
+            .is_some_and(|command| command.contains("sleep 120") && command.contains("child=$!")));
+
+        let replay = vec![assigned, json!({ "role": "tool", "content": "{}" })];
+        assert!(
+            E2eFakeProvider::agent_org_pause_tool_calls(&replay, Some(&tools)).is_empty(),
+            "the continuation must not restart the background command"
+        );
     }
 
     #[test]

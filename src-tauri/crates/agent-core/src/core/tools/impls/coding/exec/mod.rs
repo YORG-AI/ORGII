@@ -591,7 +591,8 @@ impl Tool for ExecTool {
                     .to_string(),
             ));
         }
-        let identity = subprocess::ExecIdentity::new(&ctx.session_id, &ctx.call_id);
+        let identity = subprocess::ExecIdentity::new(&ctx.session_id, &ctx.call_id)
+            .with_turn_process_control(ctx.turn_process_control.clone());
         let replay_root = self.shell_replays_root.as_ref().ok_or_else(|| {
             ToolError::ExecutionFailed("Shell replay storage root is not configured.".to_string())
         })?;

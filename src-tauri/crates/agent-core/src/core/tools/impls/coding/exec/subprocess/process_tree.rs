@@ -1,55 +1,35 @@
 //! Platform-specific subprocess-tree termination.
 
-use std::time::Duration;
+use super::super::registry;
 
-use tracing::warn;
+pub(super) async fn terminate_child_tree(
+    pid: u32,
+    child: &mut tokio::process::Child,
+) -> Result<(), String> {
+    if pid == 0 {
+        child
+            .kill()
+            .await
+            .map_err(|error| format!("failed to kill child without PID: {error}"))?;
+        return child
+            .wait()
+            .await
+            .map(|_| ())
+            .map_err(|error| format!("failed to reap child without PID: {error}"));
+    }
 
-#[cfg(unix)]
-fn signal_process_group(pid: u32, signal: libc::c_int) -> std::io::Result<()> {
-    let group_result = unsafe { libc::kill(-(pid as libc::pid_t), signal) };
-    if group_result == 0 {
-        return Ok(());
+    let (tree_result, child_result) =
+        tokio::join!(registry::terminate_shell_process_tree(pid), child.wait());
+    let mut failures = Vec::new();
+    if let Err(error) = tree_result {
+        failures.push(error);
     }
-    let group_error = std::io::Error::last_os_error();
-    if unsafe { libc::kill(pid as libc::pid_t, signal) } == 0 {
-        return Ok(());
+    if let Err(error) = child_result {
+        failures.push(format!("failed to reap shell process {pid}: {error}"));
     }
-    let process_error = std::io::Error::last_os_error();
-    if group_error.raw_os_error() == Some(libc::ESRCH) {
-        Err(process_error)
+    if failures.is_empty() {
+        Ok(())
     } else {
-        Err(group_error)
-    }
-}
-
-#[cfg(unix)]
-pub(super) async fn terminate_child_tree(pid: u32, child: &mut tokio::process::Child) {
-    if pid != 0 {
-        if let Err(err) = signal_process_group(pid, libc::SIGTERM) {
-            if err.raw_os_error() != Some(libc::ESRCH) {
-                warn!("[subprocess] failed to SIGTERM process group {pid}: {err}");
-            }
-        }
-        tokio::time::sleep(Duration::from_millis(250)).await;
-        if matches!(child.try_wait(), Ok(Some(_))) {
-            return;
-        }
-        if let Err(err) = signal_process_group(pid, libc::SIGKILL) {
-            if err.raw_os_error() != Some(libc::ESRCH) {
-                warn!("[subprocess] failed to SIGKILL process group {pid}: {err}");
-            }
-        }
-    }
-    if let Err(err) = child.kill().await {
-        if err.kind() != std::io::ErrorKind::InvalidInput {
-            warn!("[subprocess] failed to kill child process: {err}");
-        }
-    }
-}
-
-#[cfg(windows)]
-pub(super) async fn terminate_child_tree(_pid: u32, child: &mut tokio::process::Child) {
-    if let Err(err) = child.kill().await {
-        warn!("[subprocess] failed to kill child process: {err}");
+        Err(failures.join("; "))
     }
 }
