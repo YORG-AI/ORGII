@@ -28,6 +28,13 @@ const mocks = vi.hoisted(() => ({
   getAnnotations: vi.fn(),
   pause: vi.fn(),
   resume: vi.fn(),
+  archive: vi.fn(),
+  deleteTeam: vi.fn(),
+  confirmDestructive: vi.fn(),
+  applyDeleteReceipt: vi.fn(),
+  evictSession: vi.fn(),
+  goToNewSession: vi.fn(),
+  removeSession: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -35,7 +42,33 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("jotai", () => ({ useSetAtom: () => vi.fn() }));
-vi.mock("@src/store/session", () => ({ activeSessionIdAtom: {} }));
+vi.mock("@src/store/session", () => ({
+  activeSessionIdAtom: {},
+  removeSession: mocks.removeSession,
+}));
+vi.mock("@src/hooks/navigation/useAppNavigation", () => ({
+  useAppNavigation: () => ({ goToNewSession: mocks.goToNewSession }),
+}));
+vi.mock("@src/store/workstation/tabs", () => ({
+  clearPendingFileOpensForSession: vi.fn(),
+  disposeWorkstationWorkspaceAtom: {},
+}));
+vi.mock("@src/store/workstation/tabs/pendingCodeEditorTab", () => ({
+  clearPendingCodeEditorTabForSession: vi.fn(),
+}));
+vi.mock("@src/features/TeamCollaboration/forkSession", () => ({
+  removeForkRelayEntry: vi.fn(),
+}));
+vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
+  eventStoreProxy: { evictSession: mocks.evictSession },
+}));
+vi.mock(
+  "@src/scaffold/NavigationSidebar/connectors/rustSessionDeleteReceipt",
+  () => ({ applyRustSessionDeleteReceipt: mocks.applyDeleteReceipt })
+);
+vi.mock("@src/util/dialogs/confirmDestructiveAction", () => ({
+  confirmDestructiveAction: mocks.confirmDestructive,
+}));
 vi.mock("@src/hooks/logger", () => ({
   createLogger: () => ({ error: vi.fn() }),
 }));
@@ -68,6 +101,51 @@ vi.mock("@src/api/tauri/agent", () => ({
   getAgentOrgTaskAnnotationPage: mocks.getAnnotations,
   pauseAgentOrgRun: mocks.pause,
   resumeAgentOrgRun: mocks.resume,
+  archiveAgentOrgRun: mocks.archive,
+  deleteAgentOrgTeam: mocks.deleteTeam,
+}));
+
+vi.mock("@src/components/Checkbox", () => ({
+  default: ({
+    checked,
+    disabled,
+    onChange,
+    children,
+  }: {
+    checked?: boolean;
+    disabled?: boolean;
+    onChange?: (checked: boolean) => void;
+    children?: React.ReactNode;
+  }) =>
+    createElement(
+      "label",
+      null,
+      createElement("input", {
+        type: "checkbox",
+        checked,
+        disabled,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+          onChange?.(event.target.checked),
+      }),
+      children
+    ),
+}));
+
+vi.mock("@src/scaffold/ModalSystem", () => ({
+  default: ({
+    visible,
+    children,
+    footer,
+  }: {
+    visible: boolean;
+    children?: React.ReactNode;
+    footer?: React.ReactNode;
+  }) =>
+    visible ? createElement("div", { role: "dialog" }, children, footer) : null,
+}));
+
+vi.mock("@src/components/Message", () => ({
+  default: { error: vi.fn() },
 }));
 
 vi.mock("@src/components/Button", () => ({
@@ -193,6 +271,14 @@ describe("Agent Org Task panel", () => {
     mocks.getAnnotations.mockReset();
     mocks.pause.mockReset();
     mocks.resume.mockReset();
+    mocks.archive.mockReset();
+    mocks.deleteTeam.mockReset();
+    mocks.confirmDestructive.mockReset();
+    mocks.applyDeleteReceipt.mockReset();
+    mocks.evictSession.mockReset();
+    mocks.goToNewSession.mockReset();
+    mocks.removeSession.mockReset();
+    mocks.applyDeleteReceipt.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -388,6 +474,230 @@ describe("Agent Org Task panel", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("warns that Working tasks are cancelled before Archive", async () => {
+    mocks.confirmDestructive.mockResolvedValue(true);
+    mocks.archive.mockResolvedValue({
+      requestId: "archive-request",
+      runId: "run-task-panel",
+      receiptId: "archive-receipt",
+      transitioned: true,
+      archiveGeneration: 2,
+      archivedAt: "2026-08-23T00:00:00Z",
+      cancellations: {
+        tasks: 1,
+        turns: 1,
+        inboxDeliveries: 0,
+        planApprovals: 0,
+        interventions: 0,
+        pauseContinuations: 0,
+      },
+      teardown: {
+        receiptId: "archive-receipt",
+        status: "pending",
+        attemptCount: 0,
+        retainedRuntimeCount: 0,
+        deadlineAt: "2026-08-23T00:01:00Z",
+      },
+    });
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: runView(),
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-overview-archive-button"]'
+        )
+        ?.click();
+    });
+    expect(mocks.confirmDestructive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "planner.agentOrgOverview.archiveWorkingWarning",
+      })
+    );
+    expect(mocks.archive).toHaveBeenCalledWith("root-session");
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Archive only for Idle, Working, Paused, and Failed Teams", async () => {
+    mocks.getPage.mockResolvedValue({
+      bucket: "history",
+      status: "cancelled",
+      tasks: [],
+      hasMore: false,
+    });
+    for (const status of ["idle", "running", "paused", "failed"] as const) {
+      await act(async () => {
+        root.render(
+          createElement(AgentOrgOverviewPanel, {
+            view: { ...runView(), runStatus: status },
+            error: null,
+            currentSessionId: "root-session",
+            onRefresh: vi.fn().mockResolvedValue(undefined),
+          })
+        );
+      });
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-overview-archive-button"]'
+        )
+      ).not.toBeNull();
+    }
+    for (const status of ["starting", "archived"] as const) {
+      await act(async () => {
+        root.render(
+          createElement(AgentOrgOverviewPanel, {
+            view: {
+              ...runView(),
+              runStatus: status,
+              runPhase: status,
+              archiveTeardown:
+                status === "archived"
+                  ? {
+                      receiptId: "archive-receipt",
+                      status: "retained_runtime",
+                      attemptCount: 3,
+                      retainedRuntimeCount: 1,
+                      deadlineAt: "2026-08-23T00:01:00Z",
+                    }
+                  : undefined,
+            },
+            error: null,
+            currentSessionId: "root-session",
+            onRefresh: vi.fn().mockResolvedValue(undefined),
+          })
+        );
+      });
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-overview-archive-button"]'
+        )
+      ).toBeNull();
+    }
+  });
+
+  it("keeps Team Delete blocked when Archive retained a runtime", async () => {
+    mocks.getPage.mockResolvedValue({
+      bucket: "history",
+      status: "cancelled",
+      tasks: [],
+      hasMore: false,
+    });
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            runStatus: "archived",
+            runPhase: "archived",
+            archiveTeardown: {
+              receiptId: "archive-receipt",
+              status: "retained_runtime",
+              attemptCount: 3,
+              retainedRuntimeCount: 2,
+              deadlineAt: "2026-08-23T00:01:00Z",
+            },
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-archive-teardown-status"]')
+        ?.getAttribute("data-teardown-status")
+    ).toBe("retained_runtime");
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-testid="agent-org-overview-delete-button"]'
+      )?.disabled
+    ).toBe(true);
+  });
+
+  it("opens Archived history by default and requires checkbox confirmation for Team Delete", async () => {
+    mocks.getPage.mockResolvedValue({
+      bucket: "history",
+      status: "cancelled",
+      tasks: [task("archived-cancelled", "cancelled")],
+      hasMore: false,
+    });
+    mocks.deleteTeam.mockResolvedValue({
+      deletedSessionIds: ["member-session", "root-session"],
+    });
+    const view: AgentOrgRunView = {
+      ...runView(),
+      runStatus: "archived",
+      runPhase: "archived",
+      archiveTeardown: {
+        receiptId: "archive-receipt",
+        status: "quiesced",
+        attemptCount: 1,
+        retainedRuntimeCount: 0,
+        deadlineAt: "2026-08-23T00:01:00Z",
+      },
+    };
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view,
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(mocks.getPage).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "cancelled" })
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-overview-resume-button"]'
+      )
+    ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-overview-archive-button"]'
+      )
+    ).toBeNull();
+    const openDelete = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-overview-delete-button"]'
+    );
+    expect(openDelete?.disabled).toBe(false);
+    await act(async () => openDelete?.click());
+    const confirmDelete = document.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-delete-confirm-button"]'
+    );
+    expect(confirmDelete?.disabled).toBe(true);
+    await act(async () => {
+      document
+        .querySelector<HTMLInputElement>(
+          'div[role="dialog"] input[type="checkbox"]'
+        )
+        ?.click();
+    });
+    expect(confirmDelete?.disabled).toBe(false);
+    await act(async () => confirmDelete?.click());
+    expect(mocks.deleteTeam).toHaveBeenCalledWith("root-session");
+    expect(mocks.applyDeleteReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestedSessionId: "root-session",
+        receipt: {
+          deletedSessionIds: ["member-session", "root-session"],
+        },
+      })
+    );
+    expect(mocks.goToNewSession).toHaveBeenCalledOnce();
   });
 
   it("discards a late History response after switching teams", async () => {

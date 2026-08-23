@@ -1,5 +1,7 @@
 import { invokeTauri } from "@src/util/platform/tauri/init";
 
+import type { DeleteSessionReceipt } from "./types";
+
 export const AGENT_ORG_USER_SENDER_ID = "_user" as const;
 
 export const AGENT_ORG_TASK_STATUS = {
@@ -135,6 +137,7 @@ export interface AgentOrgRunView {
   runStatus: AgentOrgRunStatus;
   runPhase: AgentOrgRunPhase;
   pauseHandoff?: AgentOrgPauseHandoffSummary | null;
+  archiveTeardown?: AgentOrgArchiveTeardownSummary | null;
   currentMemberId?: string | null;
   members: AgentOrgRunMemberView[];
   tasks: AgentOrgTask[];
@@ -150,6 +153,32 @@ export interface AgentOrgPauseHandoffSummary {
   totalCount: number;
   drainingCount: number;
   timedOutCount: number;
+}
+
+export interface AgentOrgArchiveTeardownSummary {
+  receiptId: string;
+  status: "pending" | "quiesced" | "retained_runtime";
+  attemptCount: number;
+  retainedRuntimeCount: number;
+  deadlineAt: string;
+}
+
+export interface ArchiveRunOutcome {
+  requestId: string;
+  runId: string;
+  receiptId: string;
+  transitioned: boolean;
+  archiveGeneration: number;
+  archivedAt: string;
+  cancellations: {
+    tasks: number;
+    turns: number;
+    inboxDeliveries: number;
+    planApprovals: number;
+    interventions: number;
+    pauseContinuations: number;
+  };
+  teardown: AgentOrgArchiveTeardownSummary;
 }
 
 export interface PauseRunOutcome {
@@ -570,4 +599,24 @@ export async function resumeAgentOrgRun(
   });
   publishAgentOrgStateChange(sessionId);
   return outcome;
+}
+
+export async function archiveAgentOrgRun(
+  sessionId: string,
+  requestId: string = crypto.randomUUID()
+): Promise<ArchiveRunOutcome> {
+  const outcome = await invokeTauri<ArchiveRunOutcome>(
+    "agent_org_archive_run",
+    { sessionId, requestId }
+  );
+  publishAgentOrgStateChange(sessionId);
+  return outcome;
+}
+
+export async function deleteAgentOrgTeam(
+  sessionId: string
+): Promise<DeleteSessionReceipt> {
+  return invokeTauri<DeleteSessionReceipt>("agent_org_delete_team", {
+    sessionId,
+  });
 }

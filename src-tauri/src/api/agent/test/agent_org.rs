@@ -1521,7 +1521,7 @@ pub async fn test_agent_org_run_view(
 pub async fn test_agent_org_durable_invariants(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    use rusqlite::{params, OptionalExtension};
+    use rusqlite::params;
 
     let Some(obj) = body.as_object() else {
         return Json(serde_json::json!({ "ok": false, "error": "body must be an object" }));
@@ -1537,6 +1537,8 @@ pub async fn test_agent_org_durable_invariants(
     };
 
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        use rusqlite::OptionalExtension;
+
         let conn = database::db::get_connection().map_err(|err| err.to_string())?;
         let run_row: Option<(String, Option<String>)> = conn
             .query_row(
@@ -1907,6 +1909,8 @@ pub async fn test_agent_org_session_delete_snapshot(
     }
 
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        use rusqlite::OptionalExtension;
+
         let conn = database::db::get_connection().map_err(|err| err.to_string())?;
         let mut sessions = serde_json::Map::new();
         for session_id in session_ids {
@@ -1922,6 +1926,7 @@ pub async fn test_agent_org_session_delete_snapshot(
             sessions.insert(session_id, serde_json::Value::Bool(exists));
         }
         let mut runs = serde_json::Map::new();
+        let mut run_details = serde_json::Map::new();
         for run_id in run_ids {
             let exists = conn
                 .query_row(
@@ -1930,12 +1935,42 @@ pub async fn test_agent_org_session_delete_snapshot(
                     |row| row.get::<_, bool>(0),
                 )
                 .map_err(|err| err.to_string())?;
+            if exists {
+                let detail: Option<serde_json::Value> = conn
+                    .query_row(
+                        "SELECT run.status,run.activation_generation,run.archived_at,
+                                run.archive_receipt_id,archive.teardown_status,
+                                archive.teardown_attempt_count,archive.retained_runtime_count
+                         FROM agent_org_runtime_runs run
+                         LEFT JOIN agent_org_runtime_archive_episodes archive
+                           ON archive.org_run_id=run.id
+                         WHERE run.id=?1",
+                        [&run_id],
+                        |row| {
+                            Ok(serde_json::json!({
+                                "status": row.get::<_, String>(0)?,
+                                "activation_generation": row.get::<_, i64>(1)?,
+                                "archived_at": row.get::<_, Option<String>>(2)?,
+                                "archive_receipt_id": row.get::<_, Option<String>>(3)?,
+                                "teardown_status": row.get::<_, Option<String>>(4)?,
+                                "teardown_attempt_count": row.get::<_, Option<i64>>(5)?,
+                                "retained_runtime_count": row.get::<_, Option<i64>>(6)?,
+                            }))
+                        },
+                    )
+                    .optional()
+                    .map_err(|err| err.to_string())?;
+                if let Some(detail) = detail {
+                    run_details.insert(run_id.clone(), detail);
+                }
+            }
             runs.insert(run_id, serde_json::Value::Bool(exists));
         }
         Ok(serde_json::json!({
             "ok": true,
             "sessions": sessions,
             "runs": runs,
+            "run_details": run_details,
         }))
     })
     .await;

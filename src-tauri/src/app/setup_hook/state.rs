@@ -150,12 +150,20 @@ pub(crate) fn init_core_state(app: &tauri::App) {
     tracing::info!("[JobWake] Job completion wake hook installed");
 
     let agent_org_startup_state = unified_state.clone();
+    let agent_org_archive_reconcile_state = unified_state.clone();
     let housekeeper_compaction_state = unified_state.clone();
     app.manage(unified_state);
     tracing::info!("[UnifiedAgent] Unified agent state initialized");
 
     agent_core::core::session::launch::spawn_agent_org_startup_recovery(agent_org_startup_state);
     tracing::info!("[AgentOrgStartup] one-shot lifecycle recovery scheduled");
+
+    if agent_core::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        agent_core::state::commands::session::org_tasks::reconcile_pending_archive_teardowns(
+            agent_org_archive_reconcile_state,
+        );
+        tracing::info!("[AgentOrgArchive] one-shot teardown reconciliation scheduled");
+    }
 
     agent_core::session::housekeeper_compaction::spawn(housekeeper_compaction_state);
     tracing::info!("[HousekeeperCompaction] opt-in MiniCPM context worker initialized");

@@ -1,10 +1,9 @@
 /* global describe, before, it, browser, process */
-import { execFileSync } from "node:child_process";
-
 import {
   RENDER_TIMEOUT_MS,
   execJS,
   invokeE2E,
+  openAgentOrgOverviewPanel,
   openRenderedSidebarSession,
   unwrap,
   waitForApp,
@@ -35,9 +34,9 @@ async function postJson(pathname, body = {}, timeoutMs = 15_000) {
 
 async function seedHierarchy({
   label,
-  rootStatus = "completed",
-  runStatus = "completed",
-  workerStatus = "completed",
+  rootStatus = "idle",
+  runStatus = "running",
+  workerStatus = "idle",
   nested = false,
 }) {
   const rootSessionId = `sdeagent-e2e-delete-${label}-root-${RUN_ID}`;
@@ -80,13 +79,32 @@ async function seedHierarchy({
 
 async function refreshAndWaitForSidebarRow(sessionId) {
   unwrap(
+    await invokeE2E("primeSidebarEntityCache"),
+    `primeSidebarEntityCache(${sessionId})`
+  );
+  unwrap(
     await invokeE2E("seedSidebarSession", {
       sessionId,
       name: `Agent Org delete ${sessionId}`,
-      status: "completed",
+      status: "idle",
     }),
     `seedSidebarSession(${sessionId})`
   );
+  await (
+    await browser.$('[data-testid="sidebar-session-filter-button"]')
+  ).click();
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="sidebar-refresh-sessions"]');`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 100,
+      timeoutMsg: "sidebar refresh action did not render",
+    }
+  );
+  await (await browser.$('[data-testid="sidebar-refresh-sessions"]')).click();
   const selector = `[data-testid="sidebar-session-item-${sessionId}"]`;
   await browser.waitUntil(
     async () =>
@@ -99,40 +117,6 @@ async function refreshAndWaitForSidebarRow(sessionId) {
   );
 }
 
-async function chooseDeleteFromRenderedSidebarMenu(sessionId) {
-  const rowSelector = `[data-testid="sidebar-session-item-${sessionId}"]`;
-  const moreSelector = `[data-testid="sidebar-session-more-${sessionId}"]`;
-  const row = await browser.$(rowSelector);
-  await row.moveTo();
-
-  let opened = false;
-  for (let attempt = 0; attempt < 2 && !opened; attempt += 1) {
-    await (await browser.$(moreSelector)).click();
-    opened = await browser
-      .waitUntil(
-        async () =>
-          execJS(
-            `return document.querySelector(${JSON.stringify(moreSelector)})?.getAttribute('aria-pressed') === 'true';`
-          ),
-        { timeout: 2_000, interval: 100 }
-      )
-      .catch(() => false);
-  }
-  if (!opened) {
-    throw new Error(`native sidebar menu did not open for ${sessionId}`);
-  }
-
-  // WebDriver key actions target the WebView rather than the macOS menu
-  // process. Native menus support type-to-select, so select the uniquely
-  // named Delete item and confirm it with real OS key events.
-  execFileSync("osascript", [
-    "-e",
-    'tell application "System Events" to keystroke "d"',
-    "-e",
-    'tell application "System Events" to key code 36',
-  ]);
-}
-
 async function persistenceSnapshot(sessionIds, runIds) {
   return postJson("/agent/test/agent-org/session-delete/snapshot", {
     session_ids: sessionIds,
@@ -143,8 +127,83 @@ async function persistenceSnapshot(sessionIds, runIds) {
 async function deleteHierarchyAndAssertGone(hierarchy) {
   await refreshAndWaitForSidebarRow(hierarchy.rootSessionId);
   await openRenderedSidebarSession(hierarchy.rootSessionId);
+  await openAgentOrgOverviewPanel(
+    `Agent Org delete ${hierarchy.rootSessionId}`
+  );
 
-  await chooseDeleteFromRenderedSidebarMenu(hierarchy.rootSessionId);
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="agent-org-overview-archive-button"]');`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archive action did not render",
+    }
+  );
+  await execJS("window.__orgiiE2EAutoConfirmDestructive = true; return true;");
+  await (
+    await browser.$('[data-testid="agent-org-overview-archive-button"]')
+  ).click();
+
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return document.querySelector('[data-testid="agent-org-overview-panel"]')?.getAttribute("data-run-phase") === "archived";`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archive did not project Archived immediately",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="agent-org-archived-composer"]') && document.querySelector('[data-testid="agent-org-task-history-toggle"]')?.getAttribute("aria-expanded") === "true";`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archived read-only composer/history did not render",
+    }
+  );
+
+  const archivedSnapshot = await persistenceSnapshot(
+    [hierarchy.rootSessionId, ...hierarchy.workerSessionIds],
+    [hierarchy.runId]
+  );
+  const detail = archivedSnapshot.run_details[hierarchy.runId];
+  if (
+    detail?.status !== "archived" ||
+    detail?.activation_generation < 2 ||
+    !detail?.archived_at ||
+    !detail?.archive_receipt_id
+  ) {
+    throw new Error(
+      `Archive fence/receipt missing: ${JSON.stringify(archivedSnapshot)}`
+    );
+  }
+
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `const button=document.querySelector('[data-testid="agent-org-overview-delete-button"]'); return !!button && !button.disabled;`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Team Delete stayed blocked after runtime quiescence",
+    }
+  );
+  await (
+    await browser.$('[data-testid="agent-org-overview-delete-button"]')
+  ).click();
+  await (await browser.$('div[role="dialog"] input[type="checkbox"]')).click();
+  await (
+    await browser.$('[data-testid="agent-org-delete-confirm-button"]')
+  ).click();
 
   const rootSelector = `[data-testid="sidebar-session-item-${hierarchy.rootSessionId}"]`;
   await browser.waitUntil(
@@ -168,23 +227,39 @@ async function deleteHierarchyAndAssertGone(hierarchy) {
   ]) {
     if (snapshot.sessions[sessionId] !== false) {
       throw new Error(
-        `deleted Rust session remained durable: ${sessionId} ${JSON.stringify(snapshot)}`
+        `deleted Team session remained durable: ${sessionId} ${JSON.stringify(snapshot)}`
       );
     }
   }
   if (snapshot.runs[hierarchy.runId] !== false) {
     throw new Error(
-      `deleted run remained durable: ${JSON.stringify(snapshot)}`
+      `deleted Team remained durable: ${JSON.stringify(snapshot)}`
     );
   }
 }
-
-describe("Agent Org Rust session hierarchy deletion rendered UI", () => {
+describe("Agent Org irreversible Archive and Team Delete rendered UI", () => {
   before(async () => {
     await waitForApp();
+    unwrap(
+      await invokeE2E("navigateTo", "/orgii/workstation/code"),
+      "navigateTo(Agent Org Archive/Delete)"
+    );
+    await (await browser.$('[data-testid="sidebar-view-sessions"]')).click();
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return document.querySelector('[data-testid="sidebar-view-sessions"]')?.getAttribute('aria-current') === 'page';`
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 100,
+        timeoutMsg:
+          "Agent Org Archive/Delete Sessions sidebar did not activate",
+      }
+    );
   });
 
-  it("deletes the completed root and all Rust workers through the real sidebar menu", async () => {
+  it("archives through Overview, becomes read-only, then deletes through Danger Zone", async () => {
     const hierarchy = await seedHierarchy({
       label: "completed",
       nested: true,
@@ -217,7 +292,7 @@ describe("Agent Org Rust session hierarchy deletion rendered UI", () => {
     }
   });
 
-  it("stops a running run and deletes its Rust hierarchy through the real sidebar menu", async () => {
+  it("archives a Working Team before deleting its full Rust hierarchy", async () => {
     const hierarchy = await seedHierarchy({
       label: "running",
       rootStatus: "idle",
@@ -228,7 +303,7 @@ describe("Agent Org Rust session hierarchy deletion rendered UI", () => {
     await deleteHierarchyAndAssertGone(hierarchy);
   });
 
-  it("deletes a paused run and its Rust hierarchy through the real sidebar menu", async () => {
+  it("archives a Paused Team before deleting its full Rust hierarchy", async () => {
     const hierarchy = await seedHierarchy({
       label: "paused",
       rootStatus: "paused",
