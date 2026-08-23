@@ -7,6 +7,7 @@ pub enum CancelReason {
     UserStop,
     ForceSend,
     OrgPause,
+    OrgArchive,
     AgentOrgDelete,
     ProgrammaticShutdown,
     SessionEviction,
@@ -39,7 +40,10 @@ impl CancelReason {
     /// enumerates durable member rows, including lazy members that have never
     /// started, so absence is normal for `OrgPause` and must not corrupt them.
     pub const fn repairs_missing_session_as_failed(self) -> bool {
-        !matches!(self, Self::OrgPause | Self::AgentOrgDelete)
+        !matches!(
+            self,
+            Self::OrgPause | Self::OrgArchive | Self::AgentOrgDelete
+        )
     }
 
     pub fn boundary_effect(self) -> TurnBoundaryEffect {
@@ -66,6 +70,14 @@ impl CancelReason {
                 persist_cancel_marker: false,
                 allow_crash_repair_on_next_turn: false,
                 discard_queued_messages: false,
+                cancel_background_workers: true,
+            },
+            Self::OrgArchive => TurnBoundaryEffect {
+                keep_pre_turn_cancel_when_idle: true,
+                clear_pending_approvals: true,
+                persist_cancel_marker: false,
+                allow_crash_repair_on_next_turn: false,
+                discard_queued_messages: true,
                 cancel_background_workers: true,
             },
             Self::AgentOrgDelete => TurnBoundaryEffect {
@@ -98,6 +110,7 @@ impl CancelReason {
             Self::UserStop => "user_stop",
             Self::ForceSend => "force_send",
             Self::OrgPause => "org_pause",
+            Self::OrgArchive => "org_archive",
             Self::AgentOrgDelete => "agent_org_delete",
             Self::ProgrammaticShutdown => "programmatic_shutdown",
             Self::SessionEviction => "session_eviction",
@@ -113,6 +126,7 @@ mod tests {
     #[test]
     fn org_pause_does_not_fail_lazy_persisted_sessions() {
         assert!(!CancelReason::OrgPause.repairs_missing_session_as_failed());
+        assert!(!CancelReason::OrgArchive.repairs_missing_session_as_failed());
         assert!(!CancelReason::AgentOrgDelete.repairs_missing_session_as_failed());
         assert!(
             CancelReason::AgentOrgDelete

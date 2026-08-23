@@ -214,9 +214,11 @@ mod tests {
         conn.execute(
             "INSERT INTO agent_org_runtime_runs (
                  id, org_id, coordinator_agent_id, root_session_id,
-                 entry_mode, status, created_at, updated_at
-             ) VALUES (?1, 'org-1', 'coord', 'root-1', 'build', ?2, ?3, ?3)",
-            rusqlite::params![run_id, status, now],
+                 entry_mode, status, created_at, updated_at,archived_at,archive_receipt_id
+             ) VALUES (?1, 'org-1', 'coord', 'root-1', 'build', ?2, ?3, ?3,
+                       CASE WHEN ?2='archived' THEN ?3 ELSE NULL END,
+                       CASE WHEN ?2='archived' THEN ?4 ELSE NULL END)",
+            rusqlite::params![run_id, status, now, format!("{run_id}-archive-receipt")],
         )
         .expect("seed Agent Org run");
     }

@@ -12,7 +12,8 @@ use uuid::Uuid;
 use crate::persistence::images;
 
 use super::super::{
-    insert_message_if_absent_retry, insert_message_retry, message_role, AgentMessageRow,
+    insert_message_if_absent_retry, insert_message_retry, insert_message_with_connection,
+    message_role, AgentMessageRow, MessageConflictPolicy,
 };
 
 pub fn save_system_msg(prefix: &str, session_id: &str, content: &str) -> SqliteResult<String> {
@@ -168,6 +169,37 @@ pub fn save_assistant_msg(
         compact_tokens_after: None,
     };
     insert_message_retry(prefix, &msg)
+}
+
+/// Save an assistant message through a caller-owned transaction. Agent Org
+/// uses this after revalidating its durable Turn/lifecycle fence on the same
+/// connection; ordinary Session writes keep using [`save_assistant_msg`].
+pub fn save_assistant_msg_with_connection(
+    conn: &rusqlite::Connection,
+    prefix: &str,
+    session_id: &str,
+    content: &str,
+    model: &str,
+) -> SqliteResult<String> {
+    let msg = AgentMessageRow {
+        id: Uuid::new_v4().to_string(),
+        session_id: session_id.to_string(),
+        role: message_role::ASSISTANT.to_string(),
+        content: content.to_string(),
+        tool_name: None,
+        tool_call_id: None,
+        tool_input: None,
+        tool_output: None,
+        model: Some(model.to_string()),
+        sequence: 0,
+        created_at: Utc::now().to_rfc3339(),
+        images: None,
+        compact_from_sequence: None,
+        compact_tokens_before: None,
+        compact_tokens_after: None,
+    };
+    insert_message_with_connection(conn, prefix, &msg, MessageConflictPolicy::Replace)
+        .map(|(id, _)| id)
 }
 
 /// Save a tool call.

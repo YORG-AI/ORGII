@@ -80,9 +80,11 @@ fn prepare_command_run(status: &str) -> AgentOrgRunContext {
              id, org_id, coordinator_agent_id, root_session_id,
              org_snapshot_json, entry_mode, status, work_item_id,
              project_slug, routine_fire_id, summary, last_error,
-             created_at, updated_at, idled_at
+             created_at, updated_at, idled_at,archived_at,archive_receipt_id
          ) VALUES (?1, ?2, ?3, ?4, NULL, 'standalone_session', ?5,
-                   NULL, NULL, NULL, NULL, NULL, ?6, ?6, NULL)",
+                   NULL, NULL, NULL, NULL, NULL, ?6, ?6, NULL,
+                   CASE WHEN ?5='archived' THEN ?6 ELSE NULL END,
+                   CASE WHEN ?5='archived' THEN ?7 ELSE NULL END)",
         params![
             &context.run_id,
             &context.org_id,
@@ -90,6 +92,7 @@ fn prepare_command_run(status: &str) -> AgentOrgRunContext {
             context.root_session_id.as_deref(),
             status,
             &now,
+            format!("{}-archive-receipt", context.run_id),
         ],
     )
     .expect("insert command test run");
@@ -465,8 +468,7 @@ fn run_phase_projects_completed_work_as_finalizing_then_idle() {
     );
 }
 
-#[test]
-fn run_view_is_a_pure_read_and_does_not_advance_updated_at() {
+fn assert_run_view_is_a_pure_read(status: &str) {
     let _sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("db connection");
     crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
@@ -498,7 +500,7 @@ fn run_view_is_a_pure_read_and_does_not_advance_updated_at() {
     .expect("runtime support schemas");
     drop(conn);
 
-    let context = prepare_command_run("running");
+    let context = prepare_command_run(status);
     crate::session::persistence::upsert_session(
         &crate::session::persistence::UnifiedSessionRecord {
             session_id: "root-shared-agent".to_string(),
@@ -538,9 +540,19 @@ fn run_view_is_a_pure_read_and_does_not_advance_updated_at() {
             |row| row.get(0),
         )
         .expect("read run timestamp after Run View");
-    assert_eq!(view.run_status, "running");
+    assert_eq!(view.run_status, status);
     assert_eq!(after_data_version, before_data_version);
     assert_eq!(after_updated_at, before_updated_at);
+}
+
+#[test]
+fn running_run_view_is_a_pure_read_and_does_not_advance_updated_at() {
+    assert_run_view_is_a_pure_read("running");
+}
+
+#[test]
+fn archived_run_view_is_a_pure_read_and_does_not_advance_updated_at() {
+    assert_run_view_is_a_pure_read("archived");
 }
 
 #[test]
@@ -680,7 +692,7 @@ fn resume_wake_requires_unread_inbox() {
 #[test]
 fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let context = prepare_command_run("archived");
+    let context = prepare_command_run("running");
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
         org_run_id: context.run_id.clone(),
         member_id: "member-planner".to_string(),
@@ -690,6 +702,19 @@ fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
         ttl_secs: 60,
     })
     .expect("enter intervention");
+    let conn = get_connection().expect("db connection");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='archived',activation_generation=activation_generation+1,
+             archived_at=?2,archive_receipt_id=?3
+         WHERE id=?1",
+        params![
+            &context.run_id,
+            chrono::Utc::now().to_rfc3339(),
+            format!("{}-group-test-archive-receipt", context.run_id)
+        ],
+    )
+    .expect("archive test Run without clearing the corruption fixture");
 
     let error = persist_group_chat_message(
         &context,
@@ -700,7 +725,7 @@ fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
     )
     .expect_err("Archived run rejects group message");
 
-    assert!(error.contains("this status does not accept"));
+    assert!(error.contains("team_archived"));
     assert_eq!(inbox_count_for_member(&context, "member-planner"), 0);
     assert!(
         AgentMemberInterventionStore::active_for_member(&context.run_id, "member-planner")
@@ -833,8 +858,15 @@ fn group_chat_history_pages_all_rows_and_preserves_long_display_text_after_reloa
 
     let conn = get_connection().expect("db connection");
     conn.execute(
-        "UPDATE agent_org_runtime_runs SET status='archived' WHERE id=?1",
-        params![&context.run_id],
+        "UPDATE agent_org_runtime_runs
+         SET status='archived',activation_generation=activation_generation+1,
+             archived_at=?2,archive_receipt_id=?3
+         WHERE id=?1",
+        params![
+            &context.run_id,
+            chrono::Utc::now().to_rfc3339(),
+            format!("{}-history-archive-receipt", context.run_id)
+        ],
     )
     .expect("archive run");
     assert_eq!(
@@ -2309,10 +2341,7 @@ fn return_to_work_rolls_back_intervention_clear_when_boundary_capture_fails() {
 #[test]
 fn group_chat_target_clear_exits_direct_intervention() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("db connection");
-    crate::coordination::agent_member_interventions::init_schema(&conn)
-        .expect("intervention schema");
-    let context = context_with_shared_member_agent_id();
+    let context = prepare_command_run("running");
 
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
         org_run_id: context.run_id.clone(),

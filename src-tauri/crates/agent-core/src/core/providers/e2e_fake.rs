@@ -17,6 +17,7 @@ const ADDRESS_COMMENT_ID_MARKER: &str = " — id: ";
 const REPLY_SESSION_COMMENT_TOOL: &str = "reply_session_comment";
 const AGENT_ORG_TASK_FSM_MARKER: &str = "E2E_AGENT_ORG_TASK_FSM:";
 const AGENT_ORG_PAUSE_MARKER: &str = "E2E_AGENT_ORG_PAUSE:";
+const AGENT_ORG_ARCHIVE_STOP_TIMEOUT_MARKER: &str = "E2E_AGENT_ORG_ARCHIVE_STOP_TIMEOUT:";
 const CONTROL_WAIT_MARKER: &str = "Create a stoppable window by waiting for about ";
 const TASK_GRAPH_CREATE_TOOL: &str = "task_graph_create";
 const TASK_UPDATE_TOOL: &str = "task_update";
@@ -468,6 +469,11 @@ impl E2eFakeProvider {
             .any(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
     }
 
+    fn archive_stop_timeout_required(messages: &[Value]) -> bool {
+        latest_model_user(messages)
+            .is_some_and(|content| content.contains(AGENT_ORG_ARCHIVE_STOP_TIMEOUT_MARKER))
+    }
+
     fn build_response(messages: &[Value], tools: Option<&[Value]>) -> LLMResponse {
         let mut tool_calls = Self::address_comment_tool_calls(messages, tools);
         if tool_calls.is_empty() {
@@ -692,6 +698,11 @@ impl LLMProvider for E2eFakeProvider {
                             sleep(Duration::from_millis(25)).await;
                         }
                     } => {
+                        if Self::archive_stop_timeout_required(messages) {
+                            // Debug-only fault injection: keep the provider call alive
+                            // beyond Archive's absolute 60-second teardown deadline.
+                            sleep(Duration::from_secs(65)).await;
+                        }
                         // Keep the rendered Draining phase observable while
                         // still proving ten providers yield in parallel.
                         sleep(Duration::from_millis(350)).await;
@@ -846,6 +857,24 @@ mod tests {
             control_wait_duration(&messages),
             Some(Duration::from_secs(45))
         );
+    }
+
+    #[test]
+    fn archive_stop_timeout_fault_injection_requires_explicit_marker() {
+        let ordinary = vec![json!({
+            "role": "user",
+            "content": "Create a stoppable window by waiting for about 45 seconds before the final answer."
+        })];
+        let fault = vec![json!({
+            "role": "user",
+            "content": concat!(
+                "E2E_AGENT_ORG_ARCHIVE_STOP_TIMEOUT:retained-runtime\n",
+                "Create a stoppable window by waiting for about 60 seconds before the final answer."
+            )
+        })];
+
+        assert!(!E2eFakeProvider::archive_stop_timeout_required(&ordinary));
+        assert!(E2eFakeProvider::archive_stop_timeout_required(&fault));
     }
 
     #[test]

@@ -4,6 +4,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::coordination::agent_inbox::AgentInboxStore;
+use crate::coordination::agent_org_archive::{
+    ArchiveRunOutcome, ArchiveTeardownTarget, ARCHIVE_TEARDOWN_MAX_ATTEMPTS,
+};
 use crate::coordination::agent_org_pause::{
     ContinuationDispatch, PauseRunOutcome, ResumeRunOutcome,
 };
@@ -18,6 +21,50 @@ use super::context::session_org_read_context;
 const DRAIN_DEADLINE: Duration = Duration::from_secs(10);
 const DRAIN_OBSERVATION_INTERVAL: Duration = Duration::from_millis(100);
 const CONTINUATION_DISPATCH_LIMIT: usize = 256;
+const ARCHIVE_ROUND_TIMEOUT: Duration = Duration::from_secs(10);
+const ARCHIVE_RETRY_BACKOFFS: [Duration; 2] = [Duration::from_secs(5), Duration::from_secs(15)];
+const ARCHIVE_RECONCILE_LIMIT: usize = 128;
+
+fn archive_retry_backoff(attempt_count: i64, remaining: Duration) -> Duration {
+    let index = usize::try_from(attempt_count.saturating_sub(1))
+        .unwrap_or(0)
+        .min(ARCHIVE_RETRY_BACKOFFS.len() - 1);
+    ARCHIVE_RETRY_BACKOFFS[index].min(remaining)
+}
+
+fn archive_retry_delay(attempt_count: i64, remaining: Duration) -> Option<Duration> {
+    (attempt_count < ARCHIVE_TEARDOWN_MAX_ATTEMPTS && !remaining.is_zero())
+        .then(|| archive_retry_backoff(attempt_count, remaining))
+}
+
+#[tauri::command]
+pub async fn agent_org_archive_run(
+    state: tauri::State<'_, AgentAppState>,
+    session_id: String,
+    request_id: String,
+) -> Result<ArchiveRunOutcome, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
+    let read_context = session_org_read_context(&state, &session_id)
+        .await?
+        .ok_or_else(|| format!("Session {session_id} is not part of an Agent Org run"))?;
+    let context = read_context
+        .context
+        .ok_or_else(|| format!("Session {session_id} has no Agent Org context"))?;
+    let run_id = context.run_id.clone();
+    let archive_run_id = run_id.clone();
+    let commit = tokio::task::spawn_blocking(move || {
+        crate::coordination::agent_org_archive::archive_run_commit(&archive_run_id, &request_id)
+    })
+    .await
+    .map_err(|error| format!("Agent Org Archive transaction worker failed: {error}"))??;
+    let outcome = commit.outcome;
+    crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+
+    if commit.owns_teardown {
+        schedule_archive_teardown(state.inner().clone(), outcome.receipt_id.clone());
+    }
+    Ok(outcome)
+}
 
 #[tauri::command]
 pub async fn agent_org_pause_run(
@@ -93,6 +140,299 @@ pub async fn agent_org_resume_run(
         schedule_non_continuation_progress_wakes(app_handle, context, outcome.episode_id.clone());
     }
     Ok(outcome)
+}
+
+fn schedule_archive_teardown(state: AgentAppState, receipt_id: String) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = teardown_archive_receipt(&state, &receipt_id).await {
+            tracing::warn!(
+                archive_receipt_id = %receipt_id,
+                error = %error,
+                "Agent Org Archive fence committed, but bounded runtime teardown failed"
+            );
+        }
+    });
+}
+
+/// One-shot startup reconciliation. It intentionally installs no watchdog or
+/// recurring timer; every pending receipt receives only its remaining bounded
+/// attempts and then becomes quiesced or retained-runtime evidence.
+pub fn reconcile_pending_archive_teardowns(state: AgentAppState) {
+    tauri::async_runtime::spawn(async move {
+        let receipts = match tokio::task::spawn_blocking(|| {
+            crate::coordination::agent_org_archive::pending_receipt_ids(ARCHIVE_RECONCILE_LIMIT)
+        })
+        .await
+        {
+            Ok(Ok(receipts)) => receipts,
+            Ok(Err(error)) => {
+                tracing::warn!(error = %error, "failed to read pending Archive receipts");
+                return;
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "pending Archive receipt reader failed");
+                return;
+            }
+        };
+        for receipt_id in receipts {
+            if let Err(error) = teardown_archive_receipt(&state, &receipt_id).await {
+                tracing::warn!(
+                    archive_receipt_id = %receipt_id,
+                    error = %error,
+                    "startup Archive teardown reconciliation failed"
+                );
+            }
+        }
+    });
+}
+
+async fn teardown_archive_receipt(state: &AgentAppState, receipt_id: &str) -> Result<(), String> {
+    loop {
+        let read_receipt_id = receipt_id.to_string();
+        let targets = tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_org_archive::teardown_targets(&read_receipt_id)
+        })
+        .await
+        .map_err(|error| format!("Archive teardown target reader failed: {error}"))??;
+        if targets.is_empty() {
+            return Ok(());
+        }
+        let run_id = targets[0].run_id.clone();
+        let summary_run_id = run_id.clone();
+        let pre_round_summary = tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_org_archive::summary_for_run(&summary_run_id)
+        })
+        .await
+        .map_err(|error| format!("Archive teardown summary reader failed: {error}"))??
+        .ok_or_else(|| "Archive teardown summary disappeared".to_string())?;
+        let deadline = chrono::DateTime::parse_from_rfc3339(&pre_round_summary.deadline_at)
+            .map_err(|error| format!("invalid Archive teardown deadline: {error}"))?
+            .with_timezone(&chrono::Utc);
+        let remaining = deadline.signed_duration_since(chrono::Utc::now());
+        if remaining <= chrono::Duration::zero() {
+            let expired_receipt_id = receipt_id.to_string();
+            tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_archive::mark_deadline_expired(&expired_receipt_id)
+            })
+            .await
+            .map_err(|error| format!("Archive teardown deadline writer failed: {error}"))??;
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+            return Ok(());
+        }
+        let round_timeout =
+            ARCHIVE_ROUND_TIMEOUT.min(remaining.to_std().map_err(|error| {
+                format!("Archive teardown deadline conversion failed: {error}")
+            })?);
+        let max_attempt = targets
+            .iter()
+            .map(|target| target.attempt_count)
+            .max()
+            .unwrap_or(0);
+        if max_attempt >= ARCHIVE_TEARDOWN_MAX_ATTEMPTS {
+            let expired_receipt_id = receipt_id.to_string();
+            tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_archive::mark_deadline_expired(&expired_receipt_id)
+            })
+            .await
+            .map_err(|error| format!("Archive teardown deadline writer failed: {error}"))??;
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+            return Ok(());
+        }
+
+        let mut round = tokio::task::JoinSet::new();
+        for target in targets {
+            let child_state = state.clone();
+            round.spawn(async move {
+                teardown_archive_target(&child_state, target, round_timeout).await
+            });
+        }
+        while let Some(result) = round.join_next().await {
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => tracing::warn!(error = %error, "Archive target teardown failed"),
+                Err(error) => tracing::warn!(error = %error, "Archive target teardown task failed"),
+            }
+        }
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+
+        let summary_receipt_id = receipt_id.to_string();
+        let summary = tokio::task::spawn_blocking(move || {
+            let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+            let run_id: String = conn
+                .query_row(
+                    "SELECT org_run_id FROM agent_org_runtime_archive_episodes
+                     WHERE archive_receipt_id=?1",
+                    [&summary_receipt_id],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
+            crate::coordination::agent_org_archive::summary_for_run(&run_id)
+        })
+        .await
+        .map_err(|error| format!("Archive teardown summary worker failed: {error}"))??;
+        let Some(summary) = summary else {
+            return Ok(());
+        };
+        if summary.status != crate::coordination::agent_org_archive::ArchiveTeardownStatus::Pending
+        {
+            return Ok(());
+        }
+        if summary.attempt_count >= ARCHIVE_TEARDOWN_MAX_ATTEMPTS {
+            let expired_receipt_id = receipt_id.to_string();
+            tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_archive::mark_deadline_expired(&expired_receipt_id)
+            })
+            .await
+            .map_err(|error| format!("Archive teardown finalizer failed: {error}"))??;
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+            return Ok(());
+        }
+        let deadline = chrono::DateTime::parse_from_rfc3339(&summary.deadline_at)
+            .map_err(|error| format!("invalid Archive teardown deadline: {error}"))?
+            .with_timezone(&chrono::Utc);
+        let remaining = deadline.signed_duration_since(chrono::Utc::now());
+        if remaining <= chrono::Duration::zero() {
+            continue;
+        }
+        let Some(backoff) = archive_retry_delay(
+            summary.attempt_count,
+            remaining.to_std().unwrap_or_default(),
+        ) else {
+            continue;
+        };
+        tokio::time::sleep(backoff).await;
+    }
+}
+
+#[cfg(test)]
+mod archive_retry_policy_tests {
+    use super::{archive_retry_delay, ARCHIVE_RETRY_BACKOFFS, ARCHIVE_ROUND_TIMEOUT};
+    use std::time::Duration;
+
+    #[test]
+    fn fake_clock_three_round_policy_stays_inside_absolute_sixty_second_budget() {
+        let mut fake_elapsed = Duration::ZERO;
+        let mut scheduled_timers = 0;
+        for attempt in 1..=3 {
+            fake_elapsed += ARCHIVE_ROUND_TIMEOUT;
+            if let Some(delay) = archive_retry_delay(attempt, Duration::from_secs(60)) {
+                scheduled_timers += 1;
+                fake_elapsed += delay;
+            }
+        }
+        assert_eq!(
+            ARCHIVE_RETRY_BACKOFFS,
+            [Duration::from_secs(5), Duration::from_secs(15)]
+        );
+        assert_eq!(fake_elapsed, Duration::from_secs(50));
+        assert_eq!(scheduled_timers, 2);
+        assert_eq!(archive_retry_delay(3, Duration::from_secs(10)), None);
+        assert!(fake_elapsed <= Duration::from_secs(60));
+    }
+
+    #[test]
+    fn retry_backoff_is_clamped_by_the_absolute_deadline() {
+        assert_eq!(
+            archive_retry_delay(1, Duration::from_secs(2)),
+            Some(Duration::from_secs(2))
+        );
+        assert_eq!(
+            archive_retry_delay(2, Duration::from_secs(7)),
+            Some(Duration::from_secs(7))
+        );
+        assert_eq!(archive_retry_delay(2, Duration::ZERO), None);
+    }
+}
+
+async fn teardown_archive_target(
+    state: &AgentAppState,
+    target: ArchiveTeardownTarget,
+    round_timeout: Duration,
+) -> Result<(), String> {
+    let Some(session) = state.get_session(&target.session_id).await else {
+        return persist_archive_teardown_attempt(target, None, None, true, None).await;
+    };
+    session.cancel_active_turn(CancelReason::OrgArchive).await;
+    let Some(captured) = session.runtime_lease_identity().await else {
+        return persist_archive_teardown_attempt(target, None, None, true, None).await;
+    };
+    let lease_id = captured.runtime_lease_id.clone();
+    let turn_generation = captured.dialog_turn_generation.clone();
+
+    let released = tokio::time::timeout(round_timeout, async {
+        loop {
+            let current = session.runtime_lease_identity().await;
+            match current {
+                None => return Ok::<bool, String>(true),
+                Some(current) if current.runtime_lease_id != lease_id => {
+                    return Err("archive_runtime_lease_replaced".to_string());
+                }
+                Some(current) if current.dialog_turn_generation.is_none() => {
+                    return Ok(session.release_runtime_lease_if_current(&lease_id).await);
+                }
+                Some(_) => tokio::time::sleep(DRAIN_OBSERVATION_INTERVAL).await,
+            }
+        }
+    })
+    .await;
+
+    match released {
+        Ok(Ok(true)) => {
+            persist_archive_teardown_attempt(target, Some(lease_id), turn_generation, true, None)
+                .await
+        }
+        Ok(Ok(false)) => {
+            persist_archive_teardown_attempt(
+                target,
+                Some(lease_id),
+                turn_generation,
+                false,
+                Some("archive_runtime_release_stale".to_string()),
+            )
+            .await
+        }
+        Ok(Err(error)) => {
+            persist_archive_teardown_attempt(
+                target,
+                Some(lease_id),
+                turn_generation,
+                false,
+                Some(error),
+            )
+            .await
+        }
+        Err(_) => {
+            persist_archive_teardown_attempt(
+                target,
+                Some(lease_id),
+                turn_generation,
+                false,
+                Some("archive_runtime_stop_timeout".to_string()),
+            )
+            .await
+        }
+    }
+}
+
+async fn persist_archive_teardown_attempt(
+    target: ArchiveTeardownTarget,
+    runtime_lease_id: Option<String>,
+    dialog_turn_generation: Option<String>,
+    released: bool,
+    error: Option<String>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        crate::coordination::agent_org_archive::record_teardown_attempt(
+            &target,
+            runtime_lease_id.as_deref(),
+            dialog_turn_generation.as_deref(),
+            released,
+            error.as_deref(),
+        )
+        .map(|_| ())
+    })
+    .await
+    .map_err(|error| format!("Archive teardown receipt worker failed: {error}"))?
 }
 
 async fn teardown_pause_episode(

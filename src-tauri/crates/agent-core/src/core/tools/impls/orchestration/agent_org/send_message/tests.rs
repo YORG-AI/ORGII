@@ -361,8 +361,11 @@ async fn ordinary_message_does_not_create_unread_work_after_run_is_archived() {
     let _sandbox = init_inbox_schema();
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.execute(
-        "UPDATE agent_org_runtime_runs SET status='archived' WHERE id='run-1'",
-        [],
+        "UPDATE agent_org_runtime_runs
+         SET status='archived',activation_generation=activation_generation+1,
+             archived_at=?1,archive_receipt_id='send-message-archive-receipt'
+         WHERE id='run-1'",
+        [chrono::Utc::now().to_rfc3339()],
     )
     .expect("archive run");
     let wake = Arc::new(RecordingWakeHook::default());
@@ -373,16 +376,14 @@ async fn ordinary_message_does_not_create_unread_work_after_run_is_archived() {
         Arc::new(NoopSelfAbortHook),
     );
 
-    let result = tool
+    let error = tool
         .execute_text(
             params("coordinator"),
             &crate::tools::call_context::CallContext::default(),
         )
         .await
-        .expect("terminal race returns structured no-delivery guidance");
-    let value: Value = serde_json::from_str(&result).expect("guidance json");
-    assert_eq!(value["delivered"], false);
-    assert_eq!(value["reason"], "run_not_running");
+        .expect_err("Archived Team rejects the write with a stable error");
+    assert!(error.to_string().contains("team_archived"));
     assert!(wake.snapshot().is_empty());
     assert!(
         AgentInboxStore::list_unread_for_member("coordinator", "run-1")

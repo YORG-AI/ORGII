@@ -28,6 +28,8 @@ fn fake_run(id: &str) -> AgentOrgRunRecord {
         created_at: now.clone(),
         updated_at: now,
         idled_at: None,
+        archived_at: None,
+        archive_receipt_id: None,
     }
 }
 
@@ -169,14 +171,17 @@ fn running_query_is_limited_and_never_visits_quiet_states() {
         conn.execute(
             "INSERT INTO agent_org_runtime_runs (
                  id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
-                 created_at, updated_at
+                 created_at, updated_at,archived_at,archive_receipt_id
              ) VALUES (?1, 'watchdog-org', 'coordinator', ?2, 'standalone_session',
-                       ?3, ?4, ?4)",
+                       ?3, ?4, ?4,
+                       CASE WHEN ?3='archived' THEN ?4 ELSE NULL END,
+                       CASE WHEN ?3='archived' THEN ?5 ELSE NULL END)",
             params![
                 format!("quiet-{status}"),
                 format!("root-quiet-{status}"),
                 status,
-                &now
+                &now,
+                format!("quiet-{status}-archive-receipt")
             ],
         )
         .expect("seed quiet run");

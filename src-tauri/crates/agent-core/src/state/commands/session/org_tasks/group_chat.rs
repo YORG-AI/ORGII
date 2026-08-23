@@ -433,11 +433,16 @@ pub(super) fn persist_group_chat_message(
         })?;
         match run_status {
             AgentOrgRunStatus::Running => {}
+            AgentOrgRunStatus::Archived => {
+                return Err(format!(
+                    "team_archived: Agent Org run {} is read-only",
+                    context.run_id
+                ));
+            }
             AgentOrgRunStatus::Starting
             | AgentOrgRunStatus::Paused
             | AgentOrgRunStatus::Idle
-            | AgentOrgRunStatus::Failed
-            | AgentOrgRunStatus::Archived => {
+            | AgentOrgRunStatus::Failed => {
                 return Err(format!(
                     "Agent Org run {} is {}; this status does not accept new group messages",
                     context.run_id, run_status

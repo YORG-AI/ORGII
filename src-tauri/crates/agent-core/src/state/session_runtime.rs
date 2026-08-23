@@ -117,6 +117,15 @@ pub(crate) struct RuntimeTurnIdentity {
     pub turn_intent_id: Option<String>,
 }
 
+/// Exact lease snapshot used by Archive. Unlike Pause, Archive must also
+/// release an initialized Provider that currently has no active Turn.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RuntimeLeaseIdentity {
+    pub runtime_lease_id: String,
+    pub dialog_turn_generation: Option<String>,
+    pub turn_intent_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ActiveTurnIdentity {
     runtime_lease_id: Option<String>,
@@ -143,6 +152,11 @@ pub struct AgentSession {
     /// `None` briefly while the session is being registered before
     /// `ensure_session_initialized` completes.
     runtime: tokio::sync::RwLock<Option<RuntimeSlot>>,
+    /// In-memory half of the Team Delete fence. The Archived database gate
+    /// prevents normal initialization, while this flag closes the final race
+    /// between Delete's last lease check and a stale initializer installing
+    /// its already-built runtime.
+    runtime_install_blocked: AtomicBool,
 
     // ── Execution Control ─────────────────────────────────────────────────
     /// Cancellation flag — set to `true` to abort the active turn.
@@ -328,6 +342,7 @@ impl AgentSession {
             id,
             definition,
             runtime: tokio::sync::RwLock::new(None),
+            runtime_install_blocked: AtomicBool::new(false),
             compaction: tokio::sync::Mutex::new(CompactionState::default()),
             last_context_tokens: Arc::new(AtomicI64::new(0)),
             permission_manager,
@@ -368,13 +383,34 @@ impl AgentSession {
     }
 
     /// Attach (or replace) the runtime after initialization completes.
-    pub async fn set_runtime(&self, runtime: Arc<SessionRuntime>) -> String {
+    pub async fn set_runtime(&self, runtime: Arc<SessionRuntime>) -> Result<String, String> {
         let lease_id = uuid::Uuid::new_v4().to_string();
-        *self.runtime.write().await = Some(RuntimeSlot {
+        let mut slot = self.runtime.write().await;
+        if self.runtime_install_blocked.load(Ordering::SeqCst) {
+            return Err("team_runtime_delete_in_progress: runtime installation is closed".into());
+        }
+        *slot = Some(RuntimeSlot {
             lease_id: lease_id.clone(),
             runtime,
         });
-        lease_id
+        Ok(lease_id)
+    }
+
+    /// Close runtime installation before Team Delete checks the current slot.
+    /// Storing the fence before taking the read lock makes it race-safe with
+    /// `set_runtime`: either the installer wins and Delete observes its slot,
+    /// or Delete wins and the installer is rejected while holding the slot
+    /// write lock.
+    pub(crate) async fn begin_team_delete_runtime_fence(&self) {
+        self.runtime_install_blocked.store(true, Ordering::SeqCst);
+        // Synchronize with an installer that may already hold the write lock.
+        // The caller performs the complete runtime/turn/scheduler check after
+        // every Team session has installed this fence.
+        drop(self.runtime.read().await);
+    }
+
+    pub(crate) fn clear_team_delete_runtime_fence(&self) {
+        self.runtime_install_blocked.store(false, Ordering::SeqCst);
     }
 
     /// Return the current runtime, if initialized.
@@ -410,6 +446,39 @@ impl AgentSession {
             .read()
             .as_ref()
             .and_then(|turn| turn.process_control.clone())
+    }
+
+    pub(crate) async fn runtime_lease_identity(&self) -> Option<RuntimeLeaseIdentity> {
+        let slot = self.runtime.read().await;
+        let lease_id = slot.as_ref()?.lease_id.clone();
+        let turn = self.active_turn_identity.read().clone();
+        Some(RuntimeLeaseIdentity {
+            runtime_lease_id: lease_id,
+            dialog_turn_generation: turn.as_ref().and_then(|turn| {
+                (turn.runtime_lease_id.as_deref() == Some(slot.as_ref()?.lease_id.as_str()))
+                    .then(|| turn.dialog_turn_generation.clone())
+            }),
+            turn_intent_id: turn.and_then(|turn| {
+                (turn.runtime_lease_id.as_deref() == Some(slot.as_ref()?.lease_id.as_str()))
+                    .then_some(turn.turn_intent_id)
+                    .flatten()
+            }),
+        })
+    }
+
+    /// Release an idle or already-cancelled runtime only when the exact lease
+    /// captured by Archive is still current. A late Archive completion cannot
+    /// clear a replacement runtime.
+    pub(crate) async fn release_runtime_lease_if_current(&self, runtime_lease_id: &str) -> bool {
+        let mut slot = self.runtime.write().await;
+        if runtime_lease_identity_matches(
+            slot.as_ref().map(|current| current.lease_id.as_str()),
+            runtime_lease_id,
+        ) {
+            *slot = None;
+            return true;
+        }
+        false
     }
 
     /// Release only the runtime generation and dialog Turn captured by Pause.
@@ -667,10 +736,15 @@ fn runtime_release_identity_matches(
         && current_turn_generation == Some(expected_turn_generation)
 }
 
+fn runtime_lease_identity_matches(current_lease_id: Option<&str>, expected_lease_id: &str) -> bool {
+    current_lease_id == Some(expected_lease_id)
+}
+
 #[cfg(test)]
 mod runtime_lease_tests {
     use super::{
-        runtime_release_identity_matches, shell_cancellation_scope, ShellCancellationScope,
+        runtime_lease_identity_matches, runtime_release_identity_matches, shell_cancellation_scope,
+        ShellCancellationScope,
     };
     use crate::state::control_flow::CancelReason;
 
@@ -696,6 +770,13 @@ mod runtime_lease_tests {
             shell_cancellation_scope(CancelReason::AgentOrgDelete),
             ShellCancellationScope::None
         );
+    }
+
+    #[test]
+    fn archive_release_never_clears_a_replacement_runtime_lease() {
+        assert!(runtime_lease_identity_matches(Some("lease-a"), "lease-a"));
+        assert!(!runtime_lease_identity_matches(Some("lease-b"), "lease-a"));
+        assert!(!runtime_lease_identity_matches(None, "lease-a"));
     }
 
     #[test]

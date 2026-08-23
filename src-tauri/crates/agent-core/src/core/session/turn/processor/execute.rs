@@ -118,6 +118,11 @@ impl UnifiedMessageProcessor {
         event_handler_config.turn_id = Some(turn_id.to_string());
         event_handler_config.require_durable_assistant_event =
             self.runtime.agent_org_context.is_some();
+        event_handler_config.agent_org_turn_intent_id = self
+            .runtime
+            .agent_org_context
+            .as_ref()
+            .map(|_| turn_intent_id.to_string());
         event_handler_config.agent_org_task_lifecycle = self
             .runtime
             .agent_org_context

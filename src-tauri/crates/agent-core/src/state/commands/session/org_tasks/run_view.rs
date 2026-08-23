@@ -120,6 +120,8 @@ pub struct AgentOrgRunView {
     pub run_phase: AgentOrgRunPhase,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pause_handoff: Option<crate::coordination::agent_org_pause::PauseHandoffSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archive_teardown: Option<crate::coordination::agent_org_archive::ArchiveTeardownSummary>,
     pub current_member_id: Option<String>,
     pub members: Vec<AgentOrgRunMemberView>,
     pub tasks: Vec<AgentOrgTaskRuntime>,
@@ -332,6 +334,14 @@ pub(super) fn build_agent_org_run_view(
     } else {
         None
     };
+    let archive_teardown = if run_status_value == AgentOrgRunStatus::Archived {
+        crate::coordination::agent_org_archive::summary_for_run_with_connection(
+            &tx,
+            &context.run_id,
+        )?
+    } else {
+        None
+    };
     let run_phase = if run_status_value == AgentOrgRunStatus::Paused
         && pause_handoff
             .as_ref()
@@ -356,6 +366,7 @@ pub(super) fn build_agent_org_run_view(
         run_status,
         run_phase,
         pause_handoff,
+        archive_teardown,
         members,
         tasks,
         task_overview,
