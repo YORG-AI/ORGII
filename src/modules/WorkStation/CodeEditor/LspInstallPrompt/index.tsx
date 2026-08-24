@@ -22,8 +22,8 @@ import { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { IconButton } from "@src/components/IconButton";
 import { createLogger } from "@src/hooks/logger";
-import { IconButton } from "@src/modules/WorkStation/shared";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { lspClientManager } from "@src/services/lsp/LspClientManager";
 import { TerminalService } from "@src/services/terminal";

@@ -32,9 +32,6 @@ export type {
   PanelTabIconName,
 } from "./PanelTabBar";
 
-// Icon button
-export { IconButton } from "./IconButton";
-export type { IconButtonProps } from "./IconButton";
 export { TerminalInfoButton } from "./TerminalInfoButton";
 export type { TerminalInfoButtonProps } from "./TerminalInfoButton";
 export { TerminalNewSessionSplitButton } from "./TerminalNewSessionSplitButton";
