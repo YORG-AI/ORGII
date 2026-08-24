@@ -1,5 +1,13 @@
-use super::*;
+use super::inventory::descendant_depth;
+use super::types::{
+    AppMemoryProcessRole, AttributionStatus, EffectiveProcessMemory, MemoryBreakdown,
+    MemoryBreakdownKind, MemoryMetricKind, ProcessDescriptor, ProcessInstanceKey,
+};
+use std::collections::HashMap;
 use std::sync::mpsc;
+use std::sync::OnceLock;
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2Environment8, COREWEBVIEW2_PROCESS_KIND, COREWEBVIEW2_PROCESS_KIND_BROWSER,
     COREWEBVIEW2_PROCESS_KIND_GPU, COREWEBVIEW2_PROCESS_KIND_RENDERER,

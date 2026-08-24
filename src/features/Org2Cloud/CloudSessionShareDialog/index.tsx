@@ -65,7 +65,7 @@ function OrgShareSection({
                     !model.allGrantableSelected &&
                     model.selectedMemberIds.length > 0
                   }
-                  onChange={model.handleToggleSelectAll}
+                  onCheckedChange={model.handleToggleSelectAll}
                 >
                   {t("cloud.share.selectAll", {
                     count: model.grantableMembers.length,
@@ -83,7 +83,9 @@ function OrgShareSection({
                     size="small"
                     className="w-full px-2.5 py-1.5 hover:bg-surface-hover"
                     checked={model.selectedMemberIds.includes(member.userId)}
-                    onChange={() => model.handleToggleMember(member.userId)}
+                    onCheckedChange={() =>
+                      model.handleToggleMember(member.userId)
+                    }
                   >
                     {member.displayName ?? member.userId}
                   </Checkbox>

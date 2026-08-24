@@ -229,7 +229,9 @@ const CreateWorkspaceForm: React.FC<CreateWorkspaceFormProps> = ({
                       <Checkbox
                         checked={isChecked}
                         disabled={isSelectionDisabled}
-                        onChange={(checked) => handleToggle(repo.id, checked)}
+                        onCheckedChange={(checked) =>
+                          handleToggle(repo.id, checked)
+                        }
                       />
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         {repo.kind === REPO_KIND.FOLDER ? (

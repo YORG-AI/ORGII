@@ -198,7 +198,7 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
             <div className="flex items-center px-1 pr-8">
               <Checkbox
                 checked={trusted}
-                onChange={(checked) => setTrusted(checked)}
+                onCheckedChange={(checked) => setTrusted(checked)}
                 size="small"
               >
                 <span className="text-[12px] text-text-2">

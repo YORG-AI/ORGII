@@ -163,7 +163,7 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
           >
             <Checkbox
               checked={isChecked}
-              onChange={handleCheckboxChange}
+              onCheckedChange={handleCheckboxChange}
               size="small"
             />
           </div>

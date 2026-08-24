@@ -158,7 +158,7 @@ const DefaultListItem: React.FC<DefaultItemProps> = ({
       {showCheckbox && (
         <Checkbox
           checked={item.checked ?? false}
-          onChange={handleCheckChange}
+          onCheckedChange={handleCheckChange}
           size="small"
         />
       )}
@@ -319,7 +319,7 @@ export function ListPanelContent({
             <Checkbox
               checked={allChecked}
               indeterminate={someChecked}
-              onChange={onSelectAllChange}
+              onCheckedChange={onSelectAllChange}
               size="small"
             />
           )}

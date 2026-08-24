@@ -63,7 +63,7 @@ function PropertyValueEditor({
           checked={value === true}
           disabled={disabled}
           size="small"
-          onChange={(checked) => void onSave(checked)}
+          onCheckedChange={(checked) => void onSave(checked)}
         >
           {value === true
             ? t("workItems.properties.yes", { defaultValue: "Yes" })

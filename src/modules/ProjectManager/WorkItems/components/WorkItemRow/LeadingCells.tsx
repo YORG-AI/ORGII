@@ -60,7 +60,7 @@ export function LeadingCells({
       >
         <Checkbox
           checked={isChecked}
-          onChange={onCheckboxChange}
+          onCheckedChange={onCheckboxChange}
           size="small"
         />
       </div>

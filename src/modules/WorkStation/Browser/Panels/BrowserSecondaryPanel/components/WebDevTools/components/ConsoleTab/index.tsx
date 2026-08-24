@@ -391,7 +391,7 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
           {onTogglePreserveLogs && (
             <Checkbox
               checked={preserveLogs}
-              onChange={onTogglePreserveLogs}
+              onCheckedChange={onTogglePreserveLogs}
               size="mini"
               className="shrink-0"
             >

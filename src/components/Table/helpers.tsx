@@ -47,7 +47,7 @@ export const IndeterminateCheckbox: React.FC<IndeterminateCheckboxProps> = ({
     <Checkbox
       checked={checked}
       indeterminate={indeterminate}
-      onChange={(_checked, event) => onChange(event)}
+      onCheckedChange={(_checked, event) => onChange(event)}
       className="table-checkbox"
     />
   );

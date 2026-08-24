@@ -304,7 +304,9 @@ const CreateChannelDialog: React.FC<CreateChannelDialogProps> = ({
                                 selectedMemberIds.length >=
                                   CHANNEL_ADD_MEMBERS_MAX_PER_CALL
                               }
-                              onChange={() => handleToggleMember(member.userId)}
+                              onCheckedChange={() =>
+                                handleToggleMember(member.userId)
+                              }
                             >
                               <span className="flex min-w-0 items-center gap-2">
                                 <Avatar size={28}>

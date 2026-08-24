@@ -212,7 +212,7 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
               disabled={
                 personalUnavailable || (personalIncluded && !canLeavePersonal)
               }
-              onChange={(next: boolean) => togglePersonal(next)}
+              onCheckedChange={(next: boolean) => togglePersonal(next)}
             />
             <span className="text-[13px] text-text-1">
               {t("cloud.moveToOrg.personal")}
@@ -264,7 +264,7 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
                     <Checkbox
                       checked={checked}
                       disabled={disabled}
-                      onChange={(next: boolean) =>
+                      onCheckedChange={(next: boolean) =>
                         void toggle(org.orgId, org.name, next)
                       }
                     />

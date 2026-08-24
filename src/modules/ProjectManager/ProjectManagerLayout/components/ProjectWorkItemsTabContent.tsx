@@ -215,7 +215,7 @@ export const ProjectWorkItemsTabContent: React.FC<
               ariaLabel={t("common:workManagementTable.selectRow", {
                 id: displayId,
               })}
-              onChange={(checked) =>
+              onCheckedChange={(checked) =>
                 handleCheckedChange(workItem.session_id, checked)
               }
             />

@@ -379,7 +379,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
             <Checkbox
               size="small"
               checked={data.selectionState.checked}
-              onChange={(_checked, event) => {
+              onCheckedChange={(_checked, event) => {
                 event.stopPropagation();
                 data.selectionState?.onToggle();
               }}

@@ -411,7 +411,7 @@ const ManageChannelMembersDialog: React.FC<ManageChannelMembersDialogProps> = ({
                           selectedAddIds.length >=
                             CHANNEL_ADD_MEMBERS_MAX_PER_CALL
                         }
-                        onChange={() => handleToggleAddId(member.userId)}
+                        onCheckedChange={() => handleToggleAddId(member.userId)}
                       >
                         {member.displayName ?? member.userId}
                       </Checkbox>

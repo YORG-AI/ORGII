@@ -166,21 +166,31 @@ export interface ChannelDeleteConfirmationProps {
   warning: string;
   acknowledgement: string;
   checked: boolean;
-  onChange: (checked: boolean) => void;
+  onCheckedChange: (checked: boolean) => void;
   acknowledgeTestId: string;
 }
 
 /** Shared destructive warning + explicit acknowledgement control. */
 export const ChannelDeleteConfirmation: React.FC<
   ChannelDeleteConfirmationProps
-> = ({ warning, acknowledgement, checked, onChange, acknowledgeTestId }) => (
+> = ({
+  warning,
+  acknowledgement,
+  checked,
+  onCheckedChange,
+  acknowledgeTestId,
+}) => (
   <>
     <div className="flex items-start gap-2 rounded-lg bg-danger-1 px-3 py-2 text-[12px] text-danger-6">
       <TriangleAlert size={14} aria-hidden className="mt-0.5 shrink-0" />
       <span>{warning}</span>
     </div>
     <div data-testid={acknowledgeTestId}>
-      <Checkbox size="small" checked={checked} onChange={onChange}>
+      <Checkbox
+        size="small"
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+      >
         {acknowledgement}
       </Checkbox>
     </div>

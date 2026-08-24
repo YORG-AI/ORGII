@@ -228,7 +228,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
                 <Checkbox
                   size="mini"
                   checked={checked}
-                  onChange={(nextChecked) =>
+                  onCheckedChange={(nextChecked) =>
                     onSelectionChange(option.key, nextChecked)
                   }
                   className="w-full min-w-0 flex-row-reverse items-start justify-between gap-2 [&_[data-checkbox-label]]:min-w-0 [&_[data-checkbox-label]]:flex-1"

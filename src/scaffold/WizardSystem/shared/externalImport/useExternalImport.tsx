@@ -395,7 +395,7 @@ export function useExternalImport({
         key: "name",
         label: (
           <label className="flex items-center gap-3">
-            <Checkbox checked={allSelected} onChange={handleSelectAll} />
+            <Checkbox checked={allSelected} onCheckedChange={handleSelectAll} />
             <span>{labels.itemColumnHeader}</span>
           </label>
         ),
@@ -409,7 +409,7 @@ export function useExternalImport({
               <div className="flex items-center gap-3">
                 <Checkbox
                   checked={selected.has(rowKey(row))}
-                  onChange={(checked) =>
+                  onCheckedChange={(checked) =>
                     handleToggle(rowKey(row), checked as boolean)
                   }
                 />
