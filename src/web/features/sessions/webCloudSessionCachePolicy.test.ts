@@ -4,6 +4,7 @@ import type { CloudSessionEventSnapshot } from "./cloudSessionSegments";
 import type { WebSessionListItem } from "./useWebSessionRoster";
 import {
   buildWebCloudSessionCacheKey,
+  canReadWebCloudSessionEvents,
   isWebCloudSessionCacheFresh,
   shouldFetchWebCloudSessionEvents,
 } from "./webCloudSessionCachePolicy";
@@ -49,13 +50,13 @@ describe("buildWebCloudSessionCacheKey", () => {
 });
 
 describe("isWebCloudSessionCacheFresh", () => {
-  it("accepts cache when roster summary is absent", () => {
+  it("rejects cache when the authorization-bearing roster summary is absent", () => {
     expect(
       isWebCloudSessionCacheFresh(
         session({ eventsEpoch: undefined }),
         snapshot()
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("rejects cache when epoch or tail hash drift", () => {
@@ -64,6 +65,18 @@ describe("isWebCloudSessionCacheFresh", () => {
     );
     expect(
       isWebCloudSessionCacheFresh(session(), snapshot({ tailHash: "tail-b" }))
+    ).toBe(false);
+  });
+});
+
+describe("canReadWebCloudSessionEvents", () => {
+  it("requires a published epoch and more than metadata-only access", () => {
+    expect(canReadWebCloudSessionEvents(session())).toBe(true);
+    expect(
+      canReadWebCloudSessionEvents(session({ eventsEpoch: undefined }))
+    ).toBe(false);
+    expect(
+      canReadWebCloudSessionEvents(session({ accessMode: "metadata_only" }))
     ).toBe(false);
   });
 });
@@ -77,5 +90,15 @@ describe("shouldFetchWebCloudSessionEvents", () => {
       true
     );
     expect(shouldFetchWebCloudSessionEvents(false, null, session())).toBe(true);
+  });
+
+  it("never fetches an unauthorized transcript", () => {
+    expect(
+      shouldFetchWebCloudSessionEvents(
+        true,
+        snapshot(),
+        session({ accessMode: "metadata_only", eventsEpoch: undefined })
+      )
+    ).toBe(false);
   });
 });

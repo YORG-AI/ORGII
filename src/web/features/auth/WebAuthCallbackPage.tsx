@@ -1,5 +1,5 @@
 import { useSetAtom } from "jotai";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -12,16 +12,24 @@ import { getCloudEndpoint } from "@src/features/Org2Cloud/config";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
+import {
+  consumeWebAuthCallbackState,
+  validateWebAuthCallbackState,
+} from "./webAuthFlowState";
+
 export function WebAuthCallbackPage() {
   const { t } = useTranslation("navigation");
   const setAuth = useSetAtom(org2CloudAuthAtom);
   const navigate = useNavigate();
+  const committedRef = useRef(false);
   const result = useMemo(() => {
-    const expected = new URL(
-      "/auth/callback",
-      window.location.origin
-    ).toString();
-    const callback = parseAuthCallbackFragment(window.location.href, expected);
+    const validatedState = validateWebAuthCallbackState(window.location.href);
+    const callback = validatedState
+      ? parseAuthCallbackFragment(
+          window.location.href,
+          validatedState.expectedCallbackUrl
+        )
+      : null;
     if (!callback) {
       return {
         ok: false,
@@ -35,11 +43,21 @@ export function WebAuthCallbackPage() {
         error: t("web.authCallback.missingIdentity"),
       } as const;
     }
-    return { ok: true, callback, userId } as const;
+    return {
+      ok: true,
+      callback,
+      userId,
+      state: validatedState!.state,
+    } as const;
   }, [t]);
 
   useEffect(() => {
-    if (!result.ok) return;
+    if (!result.ok || committedRef.current) return;
+    if (!consumeWebAuthCallbackState(result.state)) {
+      navigate("/login", { replace: true });
+      return;
+    }
+    committedRef.current = true;
     const endpoint = getCloudEndpoint();
     window.history.replaceState(null, "", "/auth/callback");
     setAuth({

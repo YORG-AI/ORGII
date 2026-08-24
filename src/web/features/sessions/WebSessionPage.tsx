@@ -90,7 +90,12 @@ interface WebSessionWorkstationPaneProps {
   currentEventId: string | null;
   loadStatus: SessionLoadStatus;
   loadError: string | null;
+  loadProgress: {
+    loadedEvents: number;
+    totalEvents: number | null;
+  } | null;
   replayState: ReplayControllerState;
+  onRetry: () => void;
   onSeek: (index: number) => void;
   onPlay: () => void;
   onPause: () => void;
@@ -107,7 +112,9 @@ const WebSessionWorkstationPane = memo(function WebSessionWorkstationPane({
   currentEventId,
   loadStatus,
   loadError,
+  loadProgress,
   replayState,
+  onRetry,
   onSeek,
   onPlay,
   onPause,
@@ -129,6 +136,8 @@ const WebSessionWorkstationPane = memo(function WebSessionWorkstationPane({
         events={events as SessionEvent[]}
         loadStatus={loadStatus}
         loadError={loadError}
+        loadProgress={loadProgress}
+        onRetry={onRetry}
         currentEventId={currentEventId}
         replayEndIndex={deferredReplayEndIndex}
       />
@@ -169,6 +178,7 @@ export function WebSessionPage({
     events,
     status: transcriptStatus,
     error: transcriptError,
+    progress: transcriptProgress,
     refresh: refreshTranscript,
   } = cloudEvents;
   const sessionView = useWebSessionViewMode({
@@ -323,7 +333,9 @@ export function WebSessionPage({
       currentEventId={currentEventId}
       loadStatus={transcriptStatus}
       loadError={transcriptError}
+      loadProgress={transcriptProgress}
       replayState={replayState}
+      onRetry={reloadTranscript}
       onSeek={replay.seek}
       onPlay={replay.play}
       onPause={replay.pause}

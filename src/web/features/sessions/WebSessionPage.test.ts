@@ -170,6 +170,7 @@ vi.mock("./useCloudSessionEvents", () => ({
     events: testState.cloudEvents,
     status: "success",
     error: null,
+    progress: null,
     refresh: vi.fn(),
   }),
 }));

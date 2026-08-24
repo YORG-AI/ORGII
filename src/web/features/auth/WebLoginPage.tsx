@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
 
@@ -10,13 +10,22 @@ import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { OnboardingLayout } from "@src/modules/shared/layouts/OnboardingLayout";
 import { ONBOARDING_LOGIN_TOKENS } from "@src/modules/shared/layouts/onboardingTokens";
 
-function webAuthCallbackUrl(): string {
-  return new URL("/auth/callback", window.location.origin).toString();
-}
+import { createWebAuthCallbackUrl } from "./webAuthFlowState";
 
 export function WebLoginPage() {
   const { t } = useTranslation("navigation");
   const auth = useAtomValue(org2CloudAuthAtom);
+  const [startError, setStartError] = useState<string | null>(null);
+  const startSignIn = useCallback(() => {
+    try {
+      setStartError(null);
+      window.location.assign(
+        buildOrg2CloudLoginUrl(createWebAuthCallbackUrl())
+      );
+    } catch {
+      setStartError(t("web.authCallback.failed"));
+    }
+  }, [t]);
   if (auth) return <Navigate to="/sessions" replace />;
 
   return (
@@ -50,14 +59,18 @@ export function WebLoginPage() {
                 size="large"
                 long
                 className={`${ONBOARDING_LOGIN_TOKENS.actionButton} w-full`}
-                onClick={() => {
-                  window.location.assign(
-                    buildOrg2CloudLoginUrl(webAuthCallbackUrl())
-                  );
-                }}
+                onClick={startSignIn}
               >
                 {t("web.login.continue")}
               </Button>
+              {startError ? (
+                <p
+                  className="text-danger-7 m-0 text-center text-xs leading-normal"
+                  role="alert"
+                >
+                  {startError}
+                </p>
+              ) : null}
               <p className="m-0 text-center text-xs leading-normal text-text-3">
                 {t("web.login.hint")}
               </p>

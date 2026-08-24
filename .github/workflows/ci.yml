@@ -87,6 +87,11 @@ jobs:
       - name: i18n contracts
         run: pnpm check:i18n:contracts
 
+      - name: Web production build
+        run: pnpm build:web
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
+
       - name: Unit tests
         run: pnpm run test
 

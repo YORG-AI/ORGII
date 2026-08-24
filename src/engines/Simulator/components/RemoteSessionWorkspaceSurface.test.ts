@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { createSmokeRoot } from "@src/test/reactSmokeHarness";
+import { createSmokeRoot, dispatch } from "@src/test/reactSmokeHarness";
 
 import { RemoteSessionWorkspaceSurface } from "./RemoteSessionWorkspaceSurface";
 
@@ -65,16 +65,25 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     variant,
     title,
     subtitle,
+    onRetry,
   }: {
     variant: string;
     title?: string;
     subtitle?: string;
+    onRetry?: () => void;
   }) =>
     React.createElement(
       "div",
       { "data-placeholder-variant": variant },
       title,
-      subtitle
+      subtitle,
+      onRetry
+        ? React.createElement(
+            "button",
+            { "data-placeholder-retry": true, onClick: onRetry },
+            "retry"
+          )
+        : null
     ),
 }));
 
@@ -137,7 +146,7 @@ describe("RemoteSessionWorkspaceSurface", () => {
     ).not.toBeNull();
   });
 
-  it("shows explicit empty and failure states instead of a blank editor", async () => {
+  it("shows streamed progress, empty, and retryable failure states", async () => {
     const root = createSmokeRoot();
     roots.push(root);
     await root.render(
@@ -156,26 +165,69 @@ describe("RemoteSessionWorkspaceSurface", () => {
         events: [],
         loadStatus: "loading",
         loadError: null,
+        loadProgress: { loadedEvents: 2, totalEvents: 4 },
       })
     );
     expect(
-      root.container.querySelector("[data-placeholder-variant='loading']")
+      root.container.querySelector(
+        "[data-testid='remote-workspace-streaming-progress']"
+      )
     ).not.toBeNull();
     expect(root.container.textContent).toContain(
       "web.sessionPage.workstationLoading"
     );
-    expect(root.container.textContent).not.toContain("status.loading");
+    expect(
+      root.container
+        .querySelector("[role='progressbar']")
+        ?.getAttribute("aria-valuenow")
+    ).toBe("50");
 
+    const onRetry = vi.fn();
     await root.render(
       React.createElement(RemoteSessionWorkspaceSurface, {
         events: [],
         loadStatus: "error",
         loadError: "Cloud request failed",
+        onRetry,
       })
     );
     expect(
       root.container.querySelector("[data-placeholder-variant='error']")
     ).not.toBeNull();
     expect(root.container.textContent).toContain("Cloud request failed");
+    await dispatch(() =>
+      root.container
+        .querySelector<HTMLButtonElement>("[data-placeholder-retry]")
+        ?.click()
+    );
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("reveals the workspace after the first file page while progress continues", async () => {
+    const root = createSmokeRoot();
+    roots.push(root);
+    await root.render(
+      React.createElement(RemoteSessionWorkspaceSurface, {
+        events: [readEvent("export const partial = true;")],
+        loadStatus: "loading",
+        loadError: null,
+        loadProgress: { loadedEvents: 20, totalEvents: 100 },
+        currentEventId: "read",
+      })
+    );
+
+    expect(
+      root.container.querySelector("[data-remote-code-panel]")?.textContent
+    ).toBe("app.ts");
+    expect(
+      root.container.querySelector(
+        "[data-testid='remote-workspace-streaming-banner']"
+      )
+    ).not.toBeNull();
+    expect(
+      root.container
+        .querySelector("[role='progressbar']")
+        ?.getAttribute("aria-valuenow")
+    ).toBe("20");
   });
 });

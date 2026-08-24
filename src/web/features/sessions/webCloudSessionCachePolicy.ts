@@ -12,8 +12,21 @@ export function buildWebCloudSessionCacheKey(
 }
 
 /**
+ * The listing adapter removes segment summary metadata when the viewer may
+ * only see session metadata. Treat that omission as an authorization boundary,
+ * not as an old-client cache compatibility signal.
+ */
+export function canReadWebCloudSessionEvents(
+  session: Pick<WebSessionListItem, "accessMode" | "eventsEpoch">
+): boolean {
+  return (
+    session.accessMode !== "metadata_only" && session.eventsEpoch !== undefined
+  );
+}
+
+/**
  * Returns true when roster summary metadata matches the cached snapshot.
- * When the roster omits segment summary fields, treat the cache as usable.
+ * An omitted epoch means the current viewer is not authorized to read events.
  */
 export function isWebCloudSessionCacheFresh(
   session: Pick<
@@ -22,7 +35,7 @@ export function isWebCloudSessionCacheFresh(
   >,
   snapshot: CloudSessionEventSnapshot
 ): boolean {
-  if (session.eventsEpoch === undefined) return true;
+  if (session.eventsEpoch === undefined) return false;
   if (session.eventsEpoch !== snapshot.epoch) return false;
   if (
     session.eventsFrozenSeq !== undefined &&
@@ -50,6 +63,7 @@ export function shouldFetchWebCloudSessionEvents(
   cached: CloudSessionEventSnapshot | null,
   session: WebSessionListItem
 ): boolean {
+  if (!canReadWebCloudSessionEvents(session)) return false;
   if (forceFull) return true;
   if (!cached) return true;
   return !isWebCloudSessionCacheFresh(session, cached);

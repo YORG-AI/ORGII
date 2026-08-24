@@ -29,6 +29,11 @@ export interface RemoteSessionWorkstationSurfaceProps {
   events: SessionEvent[];
   loadStatus: SessionLoadStatus;
   loadError: string | null;
+  loadProgress?: {
+    loadedEvents: number;
+    totalEvents: number | null;
+  } | null;
+  onRetry?: () => void;
   /** Replay cursor event forwarded to My Station file selection. */
   currentEventId?: string | null;
   /** Inclusive replay cursor on the full event list. */
@@ -52,6 +57,8 @@ export function RemoteSessionWorkstationSurface({
   events,
   loadStatus,
   loadError,
+  loadProgress = null,
+  onRetry,
   currentEventId = null,
   replayEndIndex,
 }: RemoteSessionWorkstationSurfaceProps) {
@@ -141,6 +148,8 @@ export function RemoteSessionWorkstationSurface({
                   events={events}
                   loadStatus={loadStatus}
                   loadError={loadError}
+                  loadProgress={loadProgress}
+                  onRetry={onRetry}
                   currentEventId={currentEventId}
                   replayEndIndex={replayEndIndex}
                 />

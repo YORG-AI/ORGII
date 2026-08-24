@@ -17,10 +17,10 @@ import {
   useOrg2CloudOrgs,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { useOrg2CloudRosterReconcile } from "@src/features/Org2Cloud/org2CloudRosterReconcile";
-import { useOrg2CloudRealtime } from "@src/features/Org2Cloud/useOrg2CloudRealtime";
 
 import { WebAuthCallbackPage } from "./features/auth/WebAuthCallbackPage";
 import { WebLoginPage } from "./features/auth/WebLoginPage";
+import { WebCloudRealtimeScope } from "./features/sessions/WebCloudRealtimeScope";
 import { WebOrgRemoteSessionSubscriptions } from "./features/sessions/WebOrgRemoteSessionSubscriptions";
 import { WebSessionsProvider } from "./features/sessions/WebSessionsContext";
 import { WebSessionsPage } from "./features/sessions/WebSessionsPage";
@@ -58,13 +58,13 @@ function RequireCloudAuth() {
 function WebCloudRuntime() {
   useOrg2CloudOrgs();
   useOrg2CloudRosterReconcile();
-  useOrg2CloudRealtime();
   const auth = useAtomValue(org2CloudAuthAtom);
   const orgs = useAtomValue(org2CloudOrgsAtom);
   return (
     <WebSessionsProvider
       key={auth ? org2CloudAuthIdentityKey(auth) : "signed-out"}
     >
+      <WebCloudRealtimeScope />
       <WebOrgRemoteSessionSubscriptions orgIds={orgs.map((org) => org.orgId)} />
       <Outlet />
     </WebSessionsProvider>

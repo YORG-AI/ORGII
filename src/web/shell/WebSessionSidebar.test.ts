@@ -23,6 +23,7 @@ const testState = vi.hoisted(() => ({
   navigate: vi.fn(),
   refresh: vi.fn(),
   setAuth: vi.fn(),
+  clearCache: vi.fn(),
   sidebarProps: null as Record<string, unknown> | null,
 }));
 
@@ -67,6 +68,10 @@ vi.mock("jotai", async (importOriginal) => {
 vi.mock("react-router-dom", () => ({
   useLocation: () => testState.location,
   useNavigate: () => testState.navigate,
+}));
+
+vi.mock("../features/sessions/webCloudSessionEventCache", () => ({
+  clearWebCloudSessionEventCache: () => testState.clearCache(),
 }));
 
 vi.mock("@src/components/Button", () => ({
@@ -178,6 +183,7 @@ describe("WebSessionSidebar", () => {
     testState.navigate.mockReset();
     testState.refresh.mockReset();
     testState.setAuth.mockReset();
+    testState.clearCache.mockReset().mockResolvedValue(undefined);
     testState.sidebarProps = null;
   });
 
@@ -257,5 +263,20 @@ describe("WebSessionSidebar", () => {
         (item) => item.id === `separator-${CLOUD_MY_SESSIONS_SECTION_ID}`
       )
     ).toBe(true);
+  });
+
+  it("clears auth and persisted transcripts on sign out", async () => {
+    const root = createSmokeRoot();
+    roots.push(root);
+    await root.render(React.createElement(WebSessionSidebar));
+
+    await dispatch(() =>
+      root.container
+        .querySelector<HTMLButtonElement>('[aria-label="cloud.signOut"]')
+        ?.click()
+    );
+
+    expect(testState.setAuth).toHaveBeenCalledWith(null);
+    expect(testState.clearCache).toHaveBeenCalledOnce();
   });
 });

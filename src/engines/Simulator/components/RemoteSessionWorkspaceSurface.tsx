@@ -1,6 +1,9 @@
+import { Loader2 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
+import ProgressBar from "@src/components/ProgressBar";
 import { WORK_STATION_PRIMARY_SIDEBAR } from "@src/config/workStationPrimarySidebar";
 import type {
   SessionEvent,
@@ -21,6 +24,11 @@ export interface RemoteSessionWorkspaceSurfaceProps {
   events: SessionEvent[];
   loadStatus: SessionLoadStatus;
   loadError: string | null;
+  loadProgress?: {
+    loadedEvents: number;
+    totalEvents: number | null;
+  } | null;
+  onRetry?: () => void;
   /** Replay cursor event; file read/edit rows follow this during scrubbing. */
   currentEventId?: string | null;
   /** Inclusive replay cursor on the full event list. */
@@ -31,6 +39,8 @@ export function RemoteSessionWorkspaceSurface({
   events,
   loadStatus,
   loadError,
+  loadProgress = null,
+  onRetry,
   currentEventId = null,
   replayEndIndex,
 }: RemoteSessionWorkspaceSurfaceProps) {
@@ -48,6 +58,24 @@ export function RemoteSessionWorkspaceSurface({
     replay.fileViewMode === FILE_PANEL_VIEW_MODE.TOOL
       ? FILE_PANEL_VIEW_MODE.TERMINAL
       : replay.fileViewMode;
+  const totalEvents = loadProgress?.totalEvents ?? null;
+  const hasKnownTotal = totalEvents !== null;
+  const progressDetail =
+    loadProgress && hasKnownTotal
+      ? t("cloud.download.events", {
+          loaded: loadProgress.loadedEvents,
+          total: totalEvents,
+        })
+      : null;
+  const progressPercent =
+    loadProgress && hasKnownTotal && totalEvents > 0
+      ? Math.min(
+          100,
+          Math.round((loadProgress.loadedEvents / totalEvents) * 100)
+        )
+      : hasKnownTotal
+        ? 100
+        : 0;
 
   const sidebar = useMemo(
     () => (
@@ -77,27 +105,56 @@ export function RemoteSessionWorkspaceSurface({
 
   if (!replay.hasAnyOperations) {
     const isLoading = loadStatus === "idle" || loadStatus === "loading";
+    if (isLoading) {
+      return (
+        <div
+          className="flex h-full min-h-0 w-full items-center justify-center p-6"
+          data-testid="remote-workspace-streaming-progress"
+        >
+          <div className="flex w-64 max-w-full flex-col items-center gap-3 text-center">
+            <Loader2
+              aria-hidden
+              className="h-5 w-5 animate-spin text-text-3 motion-reduce:animate-none"
+            />
+            <div className="text-sm font-medium text-text-2">
+              {t("web.sessionPage.workstationLoading")}
+            </div>
+            <ProgressBar
+              percent={progressPercent}
+              indeterminate={!hasKnownTotal}
+              ariaLabel={t("web.sessionPage.workstationLoading")}
+              ariaValuetext={progressDetail ?? undefined}
+              width="w-full"
+              height="h-1"
+            />
+            {progressDetail ? (
+              <div
+                className="text-xs tabular-nums text-text-3"
+                aria-live="polite"
+              >
+                {progressDetail}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
     return (
       <Placeholder
-        variant={
-          isLoading ? "loading" : loadStatus === "error" ? "error" : "empty"
-        }
+        variant={loadStatus === "error" ? "error" : "empty"}
         placement="detail-panel"
         fillParentHeight
         title={
           loadStatus === "error"
             ? loadError || t("web.sessionPage.workstationLoadErrorFallback")
-            : isLoading
-              ? t("web.sessionPage.workstationLoading")
-              : t("web.sessionPage.workstationEmptyTitle")
+            : t("web.sessionPage.workstationEmptyTitle")
         }
         subtitle={
-          isLoading
-            ? undefined
-            : loadStatus === "error"
-              ? t("web.sessionPage.workstationLoadErrorSubtitle")
-              : t("web.sessionPage.workstationEmptySubtitle")
+          loadStatus === "error"
+            ? t("web.sessionPage.workstationLoadErrorSubtitle")
+            : t("web.sessionPage.workstationEmptySubtitle")
         }
+        onRetry={loadStatus === "error" ? onRetry : undefined}
       />
     );
   }
@@ -118,12 +175,40 @@ export function RemoteSessionWorkspaceSurface({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+      {loadProgress ? (
+        <div
+          className="shrink-0 border-b border-border-2 bg-bg-2"
+          data-testid="remote-workspace-streaming-banner"
+        >
+          <ProgressBar
+            percent={progressPercent}
+            indeterminate={!hasKnownTotal}
+            ariaLabel={t("web.sessionPage.workstationLoading")}
+            ariaValuetext={progressDetail ?? undefined}
+            height="h-0.5"
+            width="w-full"
+            trackColor="bg-transparent"
+            className="rounded-none"
+          />
+          <div
+            className="px-3 py-1 text-[11px] tabular-nums text-text-3"
+            aria-live="polite"
+          >
+            {progressDetail ?? t("web.sessionPage.workstationLoading")}
+          </div>
+        </div>
+      ) : null}
       {loadStatus === "error" ? (
         <div
-          className="text-danger-7 shrink-0 border-b border-border-2 bg-danger-1 px-3 py-1.5 text-[11px]"
+          className="text-danger-7 flex shrink-0 items-center justify-between gap-2 border-b border-border-2 bg-danger-1 px-3 py-1.5 text-[11px]"
           role="status"
         >
-          {t("web.sessionPage.workstationRefreshFailedBanner")}
+          <span>{t("web.sessionPage.workstationRefreshFailedBanner")}</span>
+          {onRetry ? (
+            <Button variant="tertiary" size="mini" onClick={onRetry}>
+              {t("web.sessionsPage.retry")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       <div className="min-h-0 flex-1">

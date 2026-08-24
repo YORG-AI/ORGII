@@ -15,7 +15,9 @@ import {
   SidebarOrgSelector,
 } from "@src/scaffold/NavigationSidebar";
 
+import { resolveWebActiveCloudOrgId } from "../features/sessions/WebCloudRealtimeScope";
 import { useWebSessions } from "../features/sessions/WebSessionsContext";
+import { clearWebCloudSessionEventCache } from "../features/sessions/webCloudSessionEventCache";
 import { webSessionPath } from "../features/sessions/webSessionLocation";
 import {
   resolveWebCloudSessionMenuItemId,
@@ -48,13 +50,12 @@ export function WebSessionSidebar({ onNavigate }: { onNavigate?: () => void }) {
       ),
     [location.pathname, sessions]
   );
-  const requestedOrgId = new URLSearchParams(location.search).get("org");
   const selectedOrgId =
-    selectedSession?.orgId ||
-    (requestedOrgId &&
-    orgOptions.some((option) => option.value === requestedOrgId)
-      ? requestedOrgId
-      : String(orgOptions[0]?.value ?? ""));
+    resolveWebActiveCloudOrgId({
+      pathname: location.pathname,
+      search: location.search,
+      availableOrgIds: orgOptions.map((option) => option.value),
+    }) ?? "";
 
   const {
     cloudMenuItems,
@@ -98,6 +99,11 @@ export function WebSessionSidebar({ onNavigate }: { onNavigate?: () => void }) {
     },
     [navigate, selectedSession?.orgId]
   );
+
+  const handleSignOut = useCallback(() => {
+    setAuth(null);
+    void clearWebCloudSessionEventCache();
+  }, [setAuth]);
 
   const sidebarOrgSelector =
     orgOptions.length > 0 ? (
@@ -160,7 +166,7 @@ export function WebSessionSidebar({ onNavigate }: { onNavigate?: () => void }) {
               icon={<LogOut size={14} />}
               title={t("web.sidebar.signOut", { name: displayName })}
               aria-label={t("cloud.signOut")}
-              onClick={() => setAuth(null)}
+              onClick={handleSignOut}
             />
           }
         />

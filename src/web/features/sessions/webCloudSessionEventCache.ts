@@ -172,3 +172,12 @@ export async function deleteWebCloudSessionEventCache(
     // ignore
   }
 }
+
+/** Remove every transcript snapshot owned by the current browser profile. */
+export async function clearWebCloudSessionEventCache(): Promise<void> {
+  try {
+    await runTransaction("readwrite", (store) => store.clear());
+  } catch {
+    // Cache is best-effort and auth state is cleared synchronously by callers.
+  }
+}
