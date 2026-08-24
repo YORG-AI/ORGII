@@ -209,11 +209,13 @@ fn enqueue_is_atomic_and_idempotent() {
     let _sandbox = test_env::sandbox();
     seed();
 
-    let first = enqueue(request("manual:1")).expect("enqueue");
-    let replay = enqueue(request("manual:1")).expect("idempotent replay");
-    assert_eq!(first.id, replay.id);
-    assert_eq!(first.status, WorkItemRunStatus::Queued);
-    assert_eq!(first.target_snapshot.work_item_revision, 0);
+    let first = enqueue_with_receipt(request("manual:1")).expect("enqueue");
+    let replay = enqueue_with_receipt(request("manual:1")).expect("idempotent replay");
+    assert!(!first.duplicate);
+    assert!(replay.duplicate);
+    assert_eq!(first.run.id, replay.run.id);
+    assert_eq!(first.run.status, WorkItemRunStatus::Queued);
+    assert_eq!(first.run.target_snapshot.work_item_revision, 0);
 
     let connection = conn().expect("connection");
     let run_count: i64 = connection
@@ -228,6 +230,52 @@ fn enqueue_is_atomic_and_idempotent() {
         .expect("dispatch count");
     assert_eq!(run_count, 1);
     assert_eq!(dispatch_count, 1);
+}
+
+#[test]
+fn work_run_status_projects_to_the_turn_receipt_exhaustively() {
+    for status in [
+        WorkItemRunStatus::Queued,
+        WorkItemRunStatus::Deferred,
+        WorkItemRunStatus::Dispatching,
+    ] {
+        assert_eq!(turn_intent_status(status), "queued");
+    }
+    for status in [WorkItemRunStatus::Running, WorkItemRunStatus::Waiting] {
+        assert_eq!(turn_intent_status(status), "running");
+    }
+    assert_eq!(
+        turn_intent_status(WorkItemRunStatus::Succeeded),
+        "completed"
+    );
+    assert_eq!(turn_intent_status(WorkItemRunStatus::Failed), "failed");
+    assert_eq!(
+        turn_intent_status(WorkItemRunStatus::Cancelled),
+        "cancelled"
+    );
+}
+
+#[test]
+fn project_session_turn_recovers_its_effective_run_identity() {
+    let _sandbox = test_env::sandbox();
+    seed();
+    let mut request = request("project-session-turn:session-1:intent-x");
+    request.target_snapshot = WorkItemRunTargetSnapshot::new(WorkItemRunTarget::ResumeSession {
+        session_id: "session-1".to_string(),
+    });
+    request.input = serde_json::json!({
+        "content": "continue",
+        "originTurnIntentId": "intent-x",
+    });
+    let receipt = enqueue_with_receipt(request).expect("enqueue Project turn");
+
+    let recovered = find_project_session_turn("session-1", "intent-x")
+        .expect("lookup Project turn")
+        .expect("mapped WorkItemRun");
+    assert_eq!(recovered.id, receipt.run.id);
+    assert!(find_project_session_turn("session-1", "intent-other")
+        .expect("lookup missing intent")
+        .is_none());
 }
 
 #[test]

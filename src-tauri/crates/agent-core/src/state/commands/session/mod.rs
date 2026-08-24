@@ -87,6 +87,49 @@ pub async fn agent_session_info(
     }))
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnIntentStatusReceipt {
+    pub status: String,
+    pub effective_turn_intent_id: String,
+}
+
+/// Read the durable owner and lifecycle for one exact logical turn.
+///
+/// Project mode maps the composer intent to its WorkItemRun identity; ordinary
+/// native and CLI turns retain their original intent id.
+#[tauri::command]
+pub async fn agent_turn_intent_status(
+    session_id: String,
+    turn_intent_id: String,
+) -> Result<Option<TurnIntentStatusReceipt>, String> {
+    let lookup_session_id = session_id.clone();
+    let lookup_turn_intent_id = turn_intent_id.clone();
+    let project_run = tokio::task::spawn_blocking(move || {
+        project_management::work_run_service::find_project_session_turn(
+            &lookup_session_id,
+            &lookup_turn_intent_id,
+        )
+    })
+    .await
+    .map_err(|err| format!("Project turn receipt lookup worker failed: {err}"))??;
+    if let Some(run) = project_run {
+        return Ok(Some(TurnIntentStatusReceipt {
+            status: project_management::work_run_service::turn_intent_status(run.status)
+                .to_string(),
+            effective_turn_intent_id: run.id,
+        }));
+    }
+
+    Ok(
+        crate::foundation::session_bridge::get_turn_intent_status(&session_id, &turn_intent_id)
+            .map(|status| TurnIntentStatusReceipt {
+                status: status.as_str().to_string(),
+                effective_turn_intent_id: turn_intent_id,
+            }),
+    )
+}
+
 /// Remove a session (cleanup).
 #[tauri::command]
 pub async fn agent_session_remove(

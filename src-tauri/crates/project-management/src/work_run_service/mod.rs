@@ -24,10 +24,11 @@ pub use dispatch::{
     has_claimable_dispatch, next_dispatch_due_at_ms,
 };
 pub(crate) use enqueue::enqueue_in_transaction;
-pub use enqueue::{enqueue, enqueue_for_inline_dispatch};
+pub use enqueue::{enqueue, enqueue_for_inline_dispatch, enqueue_with_receipt};
 pub(crate) use read::read_in_transaction;
 pub use read::{
-    latest_for_session, list_active_session_runs, list_for_work_item, read, routine_origin,
+    find_project_session_turn, latest_for_session, list_active_session_runs, list_for_work_item,
+    read, routine_origin,
 };
 pub use terminal::{
     classify_failure, mark_waiting, record_dispatch_failure, record_run_terminal,
@@ -64,4 +65,24 @@ pub enum WorkItemRunTerminalOutcome {
     Succeeded,
     Failed,
     Cancelled,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnqueueWorkItemRunReceipt {
+    pub run: crate::projects::types::WorkItemRun,
+    pub duplicate: bool,
+}
+
+/// Canonical projection from a WorkItemRun lifecycle to a turn receipt.
+pub fn turn_intent_status(status: crate::projects::types::WorkItemRunStatus) -> &'static str {
+    use crate::projects::types::WorkItemRunStatus;
+    match status {
+        WorkItemRunStatus::Queued
+        | WorkItemRunStatus::Deferred
+        | WorkItemRunStatus::Dispatching => "queued",
+        WorkItemRunStatus::Running | WorkItemRunStatus::Waiting => "running",
+        WorkItemRunStatus::Succeeded => "completed",
+        WorkItemRunStatus::Failed => "failed",
+        WorkItemRunStatus::Cancelled => "cancelled",
+    }
 }

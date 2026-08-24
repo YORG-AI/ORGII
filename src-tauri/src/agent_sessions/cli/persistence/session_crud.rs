@@ -2,7 +2,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 
 use agent_core::session::AgentExecMode;
-use database::db::get_connection;
+use database::db::{begin_immediate, get_connection, with_sessions_writer};
 
 use super::super::types::{
     session_defaults, KeySource, SessionRunner, SessionStatus, DEFAULT_CODE_SESSION_FLOW,
@@ -335,6 +335,95 @@ pub fn accept_cli_turn(
         Some(client_message_id),
         session_persistence::turn_intents::TurnIntentSource::UserSubmit,
     )
+}
+
+/// Result of reserving one exact CLI follow-up identity.
+///
+/// The command holds the per-session control lock while calling this helper,
+/// and this transaction makes the durable row visible before any destructive
+/// follow-up side effect (account/model mutation, killing the old process, or
+/// spawning its replacement). A response-loss retry therefore observes the
+/// original lifecycle instead of executing the turn twice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CliTurnClaim {
+    pub duplicate: bool,
+    pub status: session_persistence::turn_intents::TurnIntentStatus,
+}
+
+pub fn claim_cli_turn(
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: &str,
+) -> Result<CliTurnClaim, String> {
+    with_sessions_writer(|| {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let tx = begin_immediate(&conn).map_err(|err| err.to_string())?;
+        let session_exists = tx
+            .query_row(
+                "SELECT 1 FROM code_sessions WHERE session_id = ?1",
+                [session_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .map_err(|err| err.to_string())?
+            .is_some();
+        if !session_exists {
+            return Err(format!("session not found: {session_id}"));
+        }
+
+        if let Some(existing) =
+            session_persistence::turn_intents::get_intent(&tx, session_id, turn_intent_id)
+                .map_err(|err| err.to_string())?
+        {
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(CliTurnClaim {
+                duplicate: true,
+                status: existing.status,
+            });
+        }
+
+        let claimed = session_persistence::turn_intents::upsert_initial_on(
+            &tx,
+            session_id,
+            turn_intent_id,
+            Some(client_message_id),
+            None,
+            session_persistence::turn_intents::TurnIntentSource::UserSubmit,
+            session_persistence::turn_intents::TurnIntentStatus::Queued,
+        )
+        .map_err(|err| err.to_string())?;
+        tx.commit().map_err(|err| err.to_string())?;
+        Ok(CliTurnClaim {
+            duplicate: false,
+            status: claimed.status,
+        })
+    })
+}
+
+/// Close a newly claimed intent when preparation fails before `run_turn`
+/// accepts it. The guarded canonical transition makes this a no-op for an
+/// intent that has already advanced beyond `queued`.
+pub fn reject_claimed_cli_turn(session_id: &str, turn_intent_id: &str) -> Result<(), String> {
+    with_sessions_writer(|| {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let tx = begin_immediate(&conn).map_err(|err| err.to_string())?;
+        let existing =
+            session_persistence::turn_intents::get_intent(&tx, session_id, turn_intent_id)
+                .map_err(|err| err.to_string())?;
+        if existing.is_some_and(|row| {
+            row.status == session_persistence::turn_intents::TurnIntentStatus::Queued
+        }) {
+            session_persistence::turn_intents::update_status_on(
+                &tx,
+                session_id,
+                turn_intent_id,
+                session_persistence::turn_intents::TurnIntentStatus::Rejected,
+            )
+            .map_err(|err| err.to_string())?;
+        }
+        tx.commit().map_err(|err| err.to_string())?;
+        Ok(())
+    })
 }
 
 /// `accept_cli_turn` for a resumed session: same atomic acceptance, but the

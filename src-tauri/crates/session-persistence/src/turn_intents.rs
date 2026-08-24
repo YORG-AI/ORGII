@@ -31,7 +31,7 @@ use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::connection::get_connection;
+use super::connection::{begin_immediate, get_connection, with_sessions_writer};
 
 // ============================================
 // Source / status enums (wire-stable strings)
@@ -172,7 +172,7 @@ impl TurnIntentStatus {
 // Domain types
 // ============================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnIntentRow {
     pub session_id: String,
@@ -183,6 +183,18 @@ pub struct TurnIntentRow {
     pub status: TurnIntentStatus,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// Result of atomically reserving one logical turn identity.
+///
+/// `duplicate = false` means this caller inserted the canonical lifecycle
+/// row and may proceed with externally visible turn side effects. A duplicate
+/// returns the original row unchanged, including its original
+/// `client_message_id`, so a retry cannot replace the first caller's identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnIntentClaim {
+    pub row: TurnIntentRow,
+    pub duplicate: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -240,6 +252,60 @@ fn transition_allowed(from: TurnIntentStatus, to: TurnIntentStatus) -> bool {
 // ============================================
 // CRUD
 // ============================================
+
+/// Atomically reserve a turn intent before any runtime/transcript/scheduler
+/// mutation.
+///
+/// A read-then-upsert sequence is not a claim: two concurrent IPC calls can
+/// both observe absence and both execute side effects before one loses the
+/// eventual `INSERT OR IGNORE`. This transaction serializes the decision and
+/// returns the existing durable owner to every loser.
+pub fn claim_initial(
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
+    source: TurnIntentSource,
+    status: TurnIntentStatus,
+) -> Result<TurnIntentClaim, IntentError> {
+    with_sessions_writer(|| {
+        let conn = get_connection()?;
+        let tx = begin_immediate(&conn)?;
+        if get_intent(&tx, session_id, turn_intent_id)?.is_some() {
+            // Reuse the canonical upsert's NULL-only org-run backfill and
+            // mismatch fence. A duplicate identity from another Agent Org
+            // run must fail, not inherit the first run's execution.
+            let row = upsert_initial_on(
+                &tx,
+                session_id,
+                turn_intent_id,
+                client_message_id,
+                org_run_id,
+                source,
+                status,
+            )?;
+            tx.commit()?;
+            return Ok(TurnIntentClaim {
+                row,
+                duplicate: true,
+            });
+        }
+        let row = upsert_initial_on(
+            &tx,
+            session_id,
+            turn_intent_id,
+            client_message_id,
+            org_run_id,
+            source,
+            status,
+        )?;
+        tx.commit()?;
+        Ok(TurnIntentClaim {
+            row,
+            duplicate: false,
+        })
+    })
+}
 
 fn row_from_sql(row: &rusqlite::Row<'_>) -> SqliteResult<TurnIntentRow> {
     let source_str: String = row.get(4)?;
@@ -817,6 +883,44 @@ mod tests {
             assert_eq!(
                 rows[second_session].org_run_id, None,
                 "batch projection must preserve the complete row shape"
+            );
+        });
+    }
+
+    #[test]
+    fn concurrent_exact_claim_has_one_durable_owner() {
+        with_temp_orgii_home(|| {
+            let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+            let handles = ["client-a", "client-b"].map(|client_message_id| {
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    claim_initial(
+                        "test-session-concurrent-claim",
+                        "intent-shared",
+                        Some(client_message_id),
+                        None,
+                        TurnIntentSource::UserSubmit,
+                        TurnIntentStatus::Queued,
+                    )
+                    .expect("atomic claim")
+                })
+            });
+            barrier.wait();
+            let claims = handles.map(|handle| handle.join().expect("claim thread"));
+
+            assert_eq!(claims.iter().filter(|claim| !claim.duplicate).count(), 1);
+            assert_eq!(claims.iter().filter(|claim| claim.duplicate).count(), 1);
+            assert_eq!(claims[0].row, claims[1].row);
+            assert!(matches!(
+                claims[0].row.client_message_id.as_deref(),
+                Some("client-a" | "client-b")
+            ));
+            assert_eq!(
+                list_for_session("test-session-concurrent-claim")
+                    .expect("list claimed lifecycle")
+                    .len(),
+                1
             );
         });
     }

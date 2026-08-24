@@ -7,13 +7,16 @@ use super::super::session_runner;
 use super::super::types::{KeySource, SessionStatus};
 use agent_core::session::IdeContext;
 use serde::{Deserialize, Serialize};
+use session_persistence::turn_intents::TurnIntentStatus;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CliRunReceipt {
     pub session_id: String,
     pub turn_intent_id: String,
-    pub status: SessionStatus,
+    pub effective_turn_intent_id: String,
+    pub status: String,
+    pub duplicate: bool,
 }
 
 /// Start one CLI turn on an existing session row.
@@ -108,6 +111,41 @@ pub async fn cli_agent_tui_release(session_id: String) -> Result<bool, String> {
         .map_err(|e| format!("Task error: {}", e))?
 }
 
+async fn claim_cli_turn(
+    session_id: &str,
+    turn: &TurnIdentity,
+) -> Result<persistence::CliTurnClaim, String> {
+    let sid = session_id.to_string();
+    let intent_id = turn.turn_intent_id.clone();
+    let message_id = turn.client_message_id.clone();
+    tokio::task::spawn_blocking(move || persistence::claim_cli_turn(&sid, &intent_id, &message_id))
+        .await
+        .map_err(|err| format!("Task error: {err}"))?
+}
+
+async fn reject_claimed_cli_turn(session_id: &str, turn_intent_id: &str) {
+    let sid = session_id.to_string();
+    let intent_id = turn_intent_id.to_string();
+    let reject_result =
+        tokio::task::spawn_blocking(move || persistence::reject_claimed_cli_turn(&sid, &intent_id))
+            .await;
+    match reject_result {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => tracing::warn!(
+            session_id,
+            turn_intent_id,
+            %error,
+            "failed to reject claimed CLI turn after preparation error"
+        ),
+        Err(error) => tracing::warn!(
+            session_id,
+            turn_intent_id,
+            %error,
+            "CLI turn rejection worker failed"
+        ),
+    }
+}
+
 /// Run a code session (spawn CLI agent in background).
 #[tauri::command]
 pub async fn cli_agent_run(mut request: CliRunRequest) -> Result<(), String> {
@@ -117,7 +155,30 @@ pub async fn cli_agent_run(mut request: CliRunRequest) -> Result<(), String> {
     );
     let control_lock = session_runner::session_control_lock(&request.session_id).await;
     let _control_guard = control_lock.lock().await;
-    run_turn(request, turn).await
+    if route_project_turn_if_needed(
+        &request.session_id,
+        &request.user_input,
+        &turn.turn_intent_id,
+        &turn.client_message_id,
+    )
+    .await?
+    .is_some()
+    {
+        return Ok(());
+    }
+    let claim = claim_cli_turn(&request.session_id, &turn).await?;
+    if claim.duplicate {
+        return Ok(());
+    }
+    let session_id = request.session_id.clone();
+    let turn_intent_id = turn.turn_intent_id.clone();
+    match run_turn(request, turn).await {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            reject_claimed_cli_turn(&session_id, &turn_intent_id).await;
+            Err(error)
+        }
+    }
 }
 
 /// Create the root Work Item on the first non-empty Project-mode turn.
@@ -179,7 +240,7 @@ async fn enqueue_project_turn_if_needed(
     user_input: &str,
     turn_intent_id: &str,
     client_message_id: &str,
-) -> Result<Option<project_management::projects::types::WorkItemRun>, String> {
+) -> Result<Option<project_management::work_run_service::EnqueueWorkItemRunReceipt>, String> {
     if user_input.trim().is_empty() || turn_intent_id.starts_with("wir_") {
         return Ok(None);
     }
@@ -228,21 +289,34 @@ async fn enqueue_project_turn_if_needed(
             "content": user_input,
             "displayText": user_input,
             "clientMessageId": client_message_id,
+            "originTurnIntentId": turn_intent_id,
         }),
         idempotency_key: format!("project-session-turn:{session_id}:{turn_intent_id}"),
         max_attempts: 3,
         parent_run_id: None,
     };
-    tokio::task::spawn_blocking(move || project_management::work_run_service::enqueue(request))
-        .await
-        .map_err(|err| format!("Project CLI WorkItemRun enqueue worker failed: {err}"))?
-        .map(Some)
+    tokio::task::spawn_blocking(move || {
+        project_management::work_run_service::enqueue_with_receipt(request)
+    })
+    .await
+    .map_err(|err| format!("Project CLI WorkItemRun enqueue worker failed: {err}"))?
+    .map(Some)
+}
+
+async fn route_project_turn_if_needed(
+    session_id: &str,
+    user_input: &str,
+    turn_intent_id: &str,
+    client_message_id: &str,
+) -> Result<Option<project_management::work_run_service::EnqueueWorkItemRunReceipt>, String> {
+    bootstrap_project_root_if_needed(session_id, user_input).await?;
+    enqueue_project_turn_if_needed(session_id, user_input, turn_intent_id, client_message_id).await
 }
 
 /// Shared turn body behind both `cli_agent_run` and `cli_agent_message`:
 /// persist acceptance under the registry lock, broadcast `running`, then spawn
 /// the background runner.
-async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<(), String> {
+async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<TurnIntentStatus, String> {
     let CliRunRequest {
         session_id,
         user_input,
@@ -284,23 +358,6 @@ async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<(), Stri
         })
         .await
         .map_err(|err| format!("Task error: {}", err))??;
-    }
-
-    bootstrap_project_root_if_needed(&session_id, &user_input).await?;
-    if let Some(run) = enqueue_project_turn_if_needed(
-        &session_id,
-        &user_input,
-        &turn_intent_id,
-        &client_message_id,
-    )
-    .await?
-    {
-        tracing::info!(
-            session_id = %session_id,
-            run_id = %run.id,
-            "queued CLI Project turn through durable WorkItem dispatcher"
-        );
-        return Ok(());
     }
 
     // Hold the registry lock across acceptance persistence + spawn so two
@@ -437,19 +494,13 @@ async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<(), Stri
     drop(sessions);
     tracing::info!(session_id = %session_id, "cli_agent_run: background runner registered");
 
-    Ok(())
+    Ok(TurnIntentStatus::Running)
 }
 
-/// Send a follow-up message to a running or completed session.
-///
-/// Kills any existing running agent (OS process + proxy), re-allocates a fresh
-/// proxy token (the previous one was released on completion), loads the CLI
-/// session ID for resume, then re-runs with the new input.
-///
-/// If `model` or `account_id` is provided, updates the session config before
-/// re-running so the CLI uses the newly selected model/key.
-#[tauri::command]
-pub async fn cli_agent_message(request: CliMessageRequest) -> Result<CliRunReceipt, String> {
+async fn execute_claimed_cli_message(
+    request: CliMessageRequest,
+    turn: TurnIdentity,
+) -> Result<TurnIntentStatus, String> {
     let CliMessageRequest {
         session_id,
         content,
@@ -458,10 +509,9 @@ pub async fn cli_agent_message(request: CliMessageRequest) -> Result<CliRunRecei
         ide_context,
         mode,
         images,
-        turn_intent_id,
-        client_message_id,
+        turn_intent_id: _,
+        client_message_id: _,
     } = request;
-    let turn = TurnIdentity::from_client(turn_intent_id, client_message_id);
     tracing::info!(
         session_id = %session_id,
         has_model_override = model.is_some(),
@@ -521,11 +571,6 @@ pub async fn cli_agent_message(request: CliMessageRequest) -> Result<CliRunRecei
             }
         }
     }
-
-    // From the kill through run_turn acceptance this must not interleave
-    // with a cancel_session for the same session (see session_control_lock).
-    let control_lock = session_runner::session_control_lock(&session_id).await;
-    let control_guard = control_lock.lock().await;
 
     // Kill the existing agent process, Tokio task, and per-session proxy.
     tracing::info!(session_id = %session_id, "cli_agent_message: killing existing runner");
@@ -621,7 +666,6 @@ pub async fn cli_agent_message(request: CliMessageRequest) -> Result<CliRunRecei
 
     // Re-run the session with the new message
     tracing::info!(session_id = %session_id, "cli_agent_message: dispatching rerun");
-    let turn_intent_id = turn.turn_intent_id.clone();
     run_turn(
         CliRunRequest {
             session_id: session_id.clone(),
@@ -635,12 +679,76 @@ pub async fn cli_agent_message(request: CliMessageRequest) -> Result<CliRunRecei
         },
         turn,
     )
-    .await?;
-    drop(control_guard);
+    .await
+}
+
+/// Send a follow-up message to a running or completed session.
+///
+/// Kills any existing running agent (OS process + proxy), re-allocates a fresh
+/// proxy token (the previous one was released on completion), loads the CLI
+/// session ID for resume, then re-runs with the new input.
+///
+/// If `model` or `account_id` is provided, updates the session config before
+/// re-running so the CLI uses the newly selected model/key.
+#[tauri::command]
+pub async fn cli_agent_message(mut request: CliMessageRequest) -> Result<CliRunReceipt, String> {
+    let turn = TurnIdentity::from_client(
+        request.turn_intent_id.take(),
+        request.client_message_id.take(),
+    );
+    let receipt_turn_intent_id = turn.turn_intent_id.clone();
+    let session_id = request.session_id.clone();
+
+    // Serialize the durable claim with kill + spawn. An exact response-loss
+    // retry returns here before config mutation or process termination.
+    let control_lock = session_runner::session_control_lock(&session_id).await;
+    let _control_guard = control_lock.lock().await;
+    if let Some(project_receipt) = route_project_turn_if_needed(
+        &session_id,
+        &request.content,
+        &turn.turn_intent_id,
+        &turn.client_message_id,
+    )
+    .await?
+    {
+        let status =
+            project_management::work_run_service::turn_intent_status(project_receipt.run.status);
+        return Ok(CliRunReceipt {
+            session_id,
+            turn_intent_id: receipt_turn_intent_id,
+            effective_turn_intent_id: project_receipt.run.id,
+            status: status.to_string(),
+            duplicate: project_receipt.duplicate,
+        });
+    }
+
+    let claim = claim_cli_turn(&session_id, &turn).await?;
+    if claim.duplicate {
+        return Ok(CliRunReceipt {
+            session_id,
+            turn_intent_id: receipt_turn_intent_id,
+            effective_turn_intent_id: turn.turn_intent_id,
+            status: claim.status.as_str().to_string(),
+            duplicate: true,
+        });
+    }
+
+    let execution_result = execute_claimed_cli_message(request, turn).await;
+
+    let accepted_status = match execution_result {
+        Ok(status) => status,
+        Err(error) => {
+            reject_claimed_cli_turn(&session_id, &receipt_turn_intent_id).await;
+            return Err(error);
+        }
+    };
+
     Ok(CliRunReceipt {
         session_id,
-        turn_intent_id,
-        status: SessionStatus::Running,
+        effective_turn_intent_id: receipt_turn_intent_id.clone(),
+        turn_intent_id: receipt_turn_intent_id,
+        status: accepted_status.as_str().to_string(),
+        duplicate: false,
     })
 }
 
@@ -680,4 +788,203 @@ pub async fn cli_agent_approval_response(
         always_allow.unwrap_or(false),
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_sessions::cli::persistence::CreateCodeSessionParams;
+    use crate::test_utils::test_env;
+
+    fn create_test_session(session_id: &str) {
+        persistence::create_session(
+            session_id,
+            &CreateCodeSessionParams {
+                name: Some("CLI exact intent test".to_string()),
+                flow: None,
+                runner: None,
+                cli_agent_type: "claude_code".to_string(),
+                model: Some("original-model".to_string()),
+                tier: None,
+                account_id: Some("account-a".to_string()),
+                repo_path: Some("/tmp".to_string()),
+                branch: None,
+                worktree_path: None,
+                worktree_base_ref: None,
+                proxy_token: None,
+                proxy_url: None,
+                hosted_token: None,
+                proxy_session_id: None,
+                isolate: None,
+                background: Some(false),
+                key_source: Some("own_key".to_string()),
+                additional_directories: None,
+                parent_session_id: None,
+                org_member_id: None,
+                org_id: None,
+                project_id: None,
+                project_name: None,
+                project_slug: None,
+                work_item_id: None,
+                agent_role: None,
+                product_mode: None,
+            },
+        )
+        .expect("create CLI test session");
+    }
+
+    fn seed_running_intent(session_id: &str, turn_intent_id: &str) {
+        let claim = persistence::claim_cli_turn(session_id, turn_intent_id, "message-original")
+            .expect("claim original CLI intent");
+        assert!(!claim.duplicate);
+        persistence::accept_cli_turn(session_id, turn_intent_id, "message-original")
+            .expect("accept original CLI intent");
+    }
+
+    #[test]
+    fn cli_receipt_keeps_origin_and_effective_project_intents_distinct() {
+        let value = serde_json::to_value(CliRunReceipt {
+            session_id: "cliagent-project".to_string(),
+            turn_intent_id: "intent-composer-x".to_string(),
+            effective_turn_intent_id: "wir_effective-y".to_string(),
+            status: "queued".to_string(),
+            duplicate: false,
+        })
+        .expect("serialize CLI receipt");
+
+        assert_eq!(value["turnIntentId"], "intent-composer-x");
+        assert_eq!(value["effectiveTurnIntentId"], "wir_effective-y");
+        assert_eq!(value["status"], "queued");
+    }
+
+    #[tokio::test]
+    async fn initial_exact_replay_does_not_mutate_or_spawn() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "cli-exact-replay-initial";
+        let turn_intent_id = "intent-initial";
+        create_test_session(session_id);
+        seed_running_intent(session_id, turn_intent_id);
+
+        cli_agent_run(CliRunRequest {
+            session_id: session_id.to_string(),
+            user_input: "response-loss retry".to_string(),
+            mode: Some("plan".to_string()),
+            turn_intent_id: Some(turn_intent_id.to_string()),
+            client_message_id: Some("message-retry".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("initial replay receipt");
+
+        let session = persistence::get_session(session_id)
+            .expect("load CLI session")
+            .expect("CLI session exists");
+        assert_eq!(session.agent_exec_mode.as_deref(), Some("build"));
+        assert!(
+            !session_runner::RUNNING_SESSIONS
+                .lock()
+                .await
+                .contains_key(session_id),
+            "initial duplicate spawned a second runner"
+        );
+    }
+
+    #[tokio::test]
+    async fn running_exact_replay_does_not_mutate_kill_or_spawn() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "cli-exact-replay-running";
+        let turn_intent_id = "intent-running";
+        create_test_session(session_id);
+        seed_running_intent(session_id, turn_intent_id);
+
+        let sentinel = tokio::spawn(std::future::pending::<()>());
+        assert!(session_runner::RUNNING_SESSIONS
+            .lock()
+            .await
+            .insert(session_id.to_string(), sentinel)
+            .is_none());
+
+        let receipt = cli_agent_message(CliMessageRequest {
+            session_id: session_id.to_string(),
+            content: "response-loss retry".to_string(),
+            model: Some("must-not-be-written".to_string()),
+            account_id: Some("account-b".to_string()),
+            mode: Some("plan".to_string()),
+            turn_intent_id: Some(turn_intent_id.to_string()),
+            client_message_id: Some("message-retry".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("running replay receipt");
+
+        let handle = session_runner::RUNNING_SESSIONS
+            .lock()
+            .await
+            .remove(session_id)
+            .expect("original runner remains registered");
+        let original_runner_survived = !handle.is_finished();
+        handle.abort();
+        let session = persistence::get_session(session_id)
+            .expect("load CLI session")
+            .expect("CLI session exists");
+
+        assert!(receipt.duplicate);
+        assert_eq!(receipt.status, "running");
+        assert_eq!(receipt.turn_intent_id, turn_intent_id);
+        assert_eq!(receipt.effective_turn_intent_id, turn_intent_id);
+        assert!(
+            original_runner_survived,
+            "duplicate retry killed the runner"
+        );
+        assert_eq!(session.model.as_deref(), Some("original-model"));
+        assert_eq!(session.account_id.as_deref(), Some("account-a"));
+        assert_eq!(session.agent_exec_mode.as_deref(), Some("build"));
+    }
+
+    #[tokio::test]
+    async fn completed_exact_replay_does_not_mutate_or_spawn() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "cli-exact-replay-completed";
+        let turn_intent_id = "intent-completed";
+        create_test_session(session_id);
+        seed_running_intent(session_id, turn_intent_id);
+        persistence::update_cli_turn_lifecycle(
+            session_id,
+            SessionStatus::Completed,
+            None,
+            Some((turn_intent_id, TurnIntentStatus::Completed)),
+        )
+        .expect("complete original CLI intent");
+
+        let receipt = cli_agent_message(CliMessageRequest {
+            session_id: session_id.to_string(),
+            content: "late response-loss retry".to_string(),
+            model: Some("must-not-be-written".to_string()),
+            account_id: Some("account-b".to_string()),
+            mode: Some("plan".to_string()),
+            turn_intent_id: Some(turn_intent_id.to_string()),
+            client_message_id: Some("message-retry".to_string()),
+            ..Default::default()
+        })
+        .await
+        .expect("completed replay receipt");
+
+        let session = persistence::get_session(session_id)
+            .expect("load CLI session")
+            .expect("CLI session exists");
+        assert!(receipt.duplicate);
+        assert_eq!(receipt.status, "completed");
+        assert_eq!(receipt.turn_intent_id, turn_intent_id);
+        assert_eq!(receipt.effective_turn_intent_id, turn_intent_id);
+        assert_eq!(session.model.as_deref(), Some("original-model"));
+        assert_eq!(session.account_id.as_deref(), Some("account-a"));
+        assert_eq!(session.agent_exec_mode.as_deref(), Some("build"));
+        assert!(
+            !session_runner::RUNNING_SESSIONS
+                .lock()
+                .await
+                .contains_key(session_id),
+            "completed duplicate spawned a second runner"
+        );
+    }
 }

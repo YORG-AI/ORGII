@@ -13,8 +13,8 @@
 
 use crate::foundation::session_bridge::TurnIntentBridgeSource;
 use project_management::projects::types::{
-    EnqueueWorkItemRunRequest, WorkItemRun, WorkItemRunTarget, WorkItemRunTargetSnapshot,
-    WorkItemRunTrigger, PERSONAL_ORG_ID,
+    EnqueueWorkItemRunRequest, WorkItemRunTarget, WorkItemRunTargetSnapshot, WorkItemRunTrigger,
+    PERSONAL_ORG_ID,
 };
 
 /// Bootstrap called from the message-accept path. Project mode is an explicit
@@ -55,7 +55,7 @@ pub(super) async fn enqueue_project_turn_if_needed(
     turn_intent_id: &str,
     client_message_id: Option<&str>,
     source: TurnIntentBridgeSource,
-) -> Result<Option<WorkItemRun>, String> {
+) -> Result<Option<project_management::work_run_service::EnqueueWorkItemRunReceipt>, String> {
     if content.trim().is_empty() || turn_intent_id.starts_with("wir_") {
         return Ok(None);
     }
@@ -129,15 +129,18 @@ pub(super) async fn enqueue_project_turn_if_needed(
             "content": content,
             "displayText": display_text,
             "clientMessageId": client_message_id,
+            "originTurnIntentId": turn_intent_id,
         }),
         idempotency_key: format!("project-session-turn:{session_id}:{turn_intent_id}"),
         max_attempts: 3,
         parent_run_id: None,
     };
-    tokio::task::spawn_blocking(move || project_management::work_run_service::enqueue(request))
-        .await
-        .map_err(|err| format!("Project WorkItemRun enqueue worker failed: {err}"))?
-        .map(Some)
+    tokio::task::spawn_blocking(move || {
+        project_management::work_run_service::enqueue_with_receipt(request)
+    })
+    .await
+    .map_err(|err| format!("Project WorkItemRun enqueue worker failed: {err}"))?
+    .map(Some)
 }
 
 /// Blocking core, also driven directly by the `Track this` command —

@@ -499,6 +499,22 @@ pub type UpsertTurnIntentFn = fn(
     status: TurnIntentBridgeStatus,
 );
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnIntentBridgeClaim {
+    pub duplicate: bool,
+    pub status: TurnIntentBridgeStatus,
+    pub client_message_id: Option<String>,
+}
+
+pub type ClaimTurnIntentFn = fn(
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
+    source: TurnIntentBridgeSource,
+    status: TurnIntentBridgeStatus,
+) -> Result<TurnIntentBridgeClaim, String>;
+
 pub type UpdateTurnIntentStatusFn =
     fn(session_id: &str, turn_intent_id: &str, new_status: TurnIntentBridgeStatus);
 
@@ -508,12 +524,17 @@ pub type GetTurnIntentStatusFn =
 pub type MarkPendingTurnIntentsStaleFn = fn(session_id: &str);
 
 static UPSERT_TURN_INTENT: OnceLock<UpsertTurnIntentFn> = OnceLock::new();
+static CLAIM_TURN_INTENT: OnceLock<ClaimTurnIntentFn> = OnceLock::new();
 static UPDATE_TURN_INTENT_STATUS: OnceLock<UpdateTurnIntentStatusFn> = OnceLock::new();
 static GET_TURN_INTENT_STATUS: OnceLock<GetTurnIntentStatusFn> = OnceLock::new();
 static MARK_PENDING_TURN_INTENTS_STALE: OnceLock<MarkPendingTurnIntentsStaleFn> = OnceLock::new();
 
 pub fn register_upsert_turn_intent(implementation: UpsertTurnIntentFn) {
     let _ = UPSERT_TURN_INTENT.set(implementation);
+}
+
+pub fn register_claim_turn_intent(implementation: ClaimTurnIntentFn) {
+    let _ = CLAIM_TURN_INTENT.set(implementation);
 }
 
 pub fn register_update_turn_intent_status(implementation: UpdateTurnIntentStatusFn) {
@@ -551,6 +572,35 @@ pub fn upsert_turn_intent(
             status,
         );
     }
+}
+
+/// Atomically reserve an exact logical intent before any turn side effects.
+///
+/// Unlike the best-effort projection helper above, this is an acceptance
+/// boundary: missing registration or persistence failure is returned to the
+/// caller so it cannot continue with an unowned execution.
+pub fn claim_turn_intent(
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
+    source: TurnIntentBridgeSource,
+    status: TurnIntentBridgeStatus,
+) -> Result<TurnIntentBridgeClaim, String> {
+    if session_id.is_empty() || turn_intent_id.is_empty() {
+        return Err("turn intent claim requires session_id and turn_intent_id".to_string());
+    }
+    let implementation = CLAIM_TURN_INTENT
+        .get()
+        .ok_or_else(|| "turn intent claim persistence is not registered".to_string())?;
+    implementation(
+        session_id,
+        turn_intent_id,
+        client_message_id,
+        org_run_id,
+        source,
+        status,
+    )
 }
 
 /// Patch the status of an existing lifecycle row. Illegal transitions are

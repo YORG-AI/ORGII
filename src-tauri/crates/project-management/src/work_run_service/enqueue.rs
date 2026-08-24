@@ -5,7 +5,7 @@ use crate::projects::io::helpers::{conn, now_ms};
 use crate::projects::types::{EnqueueWorkItemRunRequest, WorkItemRun, WorkItemRunUsage};
 
 use super::store::{append_audit, canonical_standalone_org_id, db, require_run, scope_key};
-use super::{error, DEFAULT_LEASE_MS, MAX_RUN_ATTEMPTS};
+use super::{error, EnqueueWorkItemRunReceipt, DEFAULT_LEASE_MS, MAX_RUN_ATTEMPTS};
 
 #[derive(Debug)]
 struct WorkItemExecutionContext {
@@ -203,6 +203,13 @@ fn hydrate_target_snapshot(
 /// returns the existing Run. Reusing the key with different content is a
 /// typed conflict.
 pub fn enqueue(request: EnqueueWorkItemRunRequest) -> Result<WorkItemRun, String> {
+    Ok(enqueue_with_initial_delay(request, 0)?.run)
+}
+
+/// Enqueue with an explicit idempotency receipt for response-loss recovery.
+pub fn enqueue_with_receipt(
+    request: EnqueueWorkItemRunRequest,
+) -> Result<EnqueueWorkItemRunReceipt, String> {
     enqueue_with_initial_delay(request, 0)
 }
 
@@ -215,19 +222,19 @@ pub fn enqueue(request: EnqueueWorkItemRunRequest) -> Result<WorkItemRun, String
 pub fn enqueue_for_inline_dispatch(
     request: EnqueueWorkItemRunRequest,
 ) -> Result<WorkItemRun, String> {
-    enqueue_with_initial_delay(request, DEFAULT_LEASE_MS)
+    Ok(enqueue_with_initial_delay(request, DEFAULT_LEASE_MS)?.run)
 }
 
 fn enqueue_with_initial_delay(
     request: EnqueueWorkItemRunRequest,
     initial_delay_ms: i64,
-) -> Result<WorkItemRun, String> {
+) -> Result<EnqueueWorkItemRunReceipt, String> {
     let mut connection = conn()?;
     let tx = db(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
-    let run = enqueue_in_transaction(&tx, request, initial_delay_ms)?;
+    let receipt = enqueue_in_transaction_with_receipt(&tx, request, initial_delay_ms)?;
     db(tx.commit())?;
     crate::projects::events::notify_work_item_dispatch_ready();
-    Ok(run)
+    Ok(receipt)
 }
 
 /// Internal composition point for producers that must commit domain state and
@@ -235,9 +242,17 @@ fn enqueue_with_initial_delay(
 /// The caller owns the surrounding `IMMEDIATE` transaction.
 pub(crate) fn enqueue_in_transaction(
     tx: &Transaction<'_>,
-    mut request: EnqueueWorkItemRunRequest,
+    request: EnqueueWorkItemRunRequest,
     initial_delay_ms: i64,
 ) -> Result<WorkItemRun, String> {
+    Ok(enqueue_in_transaction_with_receipt(tx, request, initial_delay_ms)?.run)
+}
+
+fn enqueue_in_transaction_with_receipt(
+    tx: &Transaction<'_>,
+    mut request: EnqueueWorkItemRunRequest,
+    initial_delay_ms: i64,
+) -> Result<EnqueueWorkItemRunReceipt, String> {
     if request.work_item_id.trim().is_empty() || request.idempotency_key.trim().is_empty() {
         return Err(format!(
             "{}:work_item_id and idempotency_key are required",
@@ -273,7 +288,10 @@ pub(crate) fn enqueue_in_transaction(
                 request.idempotency_key
             ));
         }
-        return require_run(tx, &run_id);
+        return Ok(EnqueueWorkItemRunReceipt {
+            run: require_run(tx, &run_id)?,
+            duplicate: true,
+        });
     }
 
     let attempt = if let Some(parent_run_id) = request.parent_run_id.as_deref() {
@@ -364,5 +382,8 @@ pub(crate) fn enqueue_in_transaction(
             "attempt": attempt,
         }),
     )?;
-    require_run(tx, &run_id)
+    Ok(EnqueueWorkItemRunReceipt {
+        run: require_run(tx, &run_id)?,
+        duplicate: false,
+    })
 }

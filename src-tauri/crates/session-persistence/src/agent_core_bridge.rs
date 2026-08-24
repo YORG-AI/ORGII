@@ -154,6 +154,30 @@ fn upsert_turn_intent_adapter(
     }
 }
 
+fn claim_turn_intent_adapter(
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
+    source: session_bridge::TurnIntentBridgeSource,
+    status: session_bridge::TurnIntentBridgeStatus,
+) -> Result<session_bridge::TurnIntentBridgeClaim, String> {
+    let claim = turn_intents::claim_initial(
+        session_id,
+        turn_intent_id,
+        client_message_id,
+        org_run_id,
+        map_bridge_source(source),
+        map_bridge_status(status),
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(session_bridge::TurnIntentBridgeClaim {
+        duplicate: claim.duplicate,
+        status: map_persisted_status(claim.row.status),
+        client_message_id: claim.row.client_message_id,
+    })
+}
+
 fn update_turn_intent_status_adapter(
     session_id: &str,
     turn_intent_id: &str,
@@ -209,6 +233,7 @@ pub fn register() {
     session_bridge::register_record_token_usage(record_token_usage_adapter);
     session_bridge::register_record_usage_telemetry_batch(record_usage_telemetry_batch_adapter);
     session_bridge::register_upsert_turn_intent(upsert_turn_intent_adapter);
+    session_bridge::register_claim_turn_intent(claim_turn_intent_adapter);
     session_bridge::register_update_turn_intent_status(update_turn_intent_status_adapter);
     session_bridge::register_get_turn_intent_status(get_turn_intent_status_adapter);
     session_bridge::register_mark_pending_turn_intents_stale(

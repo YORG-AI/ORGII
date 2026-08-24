@@ -65,6 +65,112 @@ pub(super) fn terminal_intent_status_override(
     }
 }
 
+fn duplicate_turn_intent_response(
+    session_id: String,
+    model: String,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    status: crate::foundation::session_bridge::TurnIntentBridgeStatus,
+) -> AgentResponse {
+    AgentResponse {
+        content: serde_json::json!({
+            "queued": status.is_in_flight(),
+            "messageId": client_message_id.unwrap_or(turn_intent_id),
+            "queuePosition": 0,
+            "duplicate": true,
+            "turnIntentStatus": status.as_str(),
+            "effectiveTurnIntentId": turn_intent_id,
+        })
+        .to_string(),
+        session_id,
+        model,
+    }
+}
+
+fn project_turn_intent_response(
+    session_id: String,
+    model: String,
+    origin_turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    effective_turn_intent_id: String,
+    status: &str,
+    duplicate: bool,
+) -> AgentResponse {
+    AgentResponse {
+        content: serde_json::json!({
+            "queued": matches!(status, "queued" | "running"),
+            "durableRunId": effective_turn_intent_id,
+            "effectiveTurnIntentId": effective_turn_intent_id,
+            "turnIntentStatus": status,
+            "messageId": client_message_id.unwrap_or(origin_turn_intent_id),
+            "queuePosition": 0,
+            "duplicate": duplicate,
+        })
+        .to_string(),
+        session_id,
+        model,
+    }
+}
+
+fn accepted_turn_intent_response(
+    session_id: String,
+    model: String,
+    turn_intent_id: &str,
+    message_id: String,
+    queue_position: usize,
+    duplicate: bool,
+    status: crate::foundation::session_bridge::TurnIntentBridgeStatus,
+) -> AgentResponse {
+    AgentResponse {
+        content: serde_json::json!({
+            "queued": status.is_in_flight(),
+            "messageId": message_id,
+            "queuePosition": queue_position,
+            "duplicate": duplicate,
+            "turnIntentStatus": status.as_str(),
+            "effectiveTurnIntentId": turn_intent_id,
+        })
+        .to_string(),
+        session_id,
+        model,
+    }
+}
+
+/// Reject a newly claimed ordinary turn when preparation exits before a
+/// scheduler or steering boundary accepts ownership.
+struct TurnIntentClaimGuard {
+    session_id: String,
+    turn_intent_id: String,
+    armed: bool,
+}
+
+impl TurnIntentClaimGuard {
+    fn new(session_id: &str, turn_intent_id: &str) -> Self {
+        Self {
+            session_id: session_id.to_string(),
+            turn_intent_id: turn_intent_id.to_string(),
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for TurnIntentClaimGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        crate::foundation::session_bridge::update_turn_intent_status(
+            &self.session_id,
+            &self.turn_intent_id,
+            crate::foundation::session_bridge::TurnIntentBridgeStatus::Rejected,
+        );
+    }
+}
+
 /// Implementation of agent_send_message.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn send_message_impl(
@@ -107,6 +213,63 @@ pub(crate) async fn send_message_impl(
 
     // ── 1. Resolve session identity (unified — single code path) ─────────
     let identity = resolve_session_identity(state, &session_id, overrides).await?;
+
+    // Project mode already reserves its durable execution through the
+    // WorkItemRun idempotency key. Route it before the ordinary turn-intent
+    // claim so one logical submission never acquires two execution owners.
+    if !is_resume {
+        super::project_bootstrap::ensure_project_root_work_item(&session_id, &content).await?;
+        if let Some(receipt) = super::project_bootstrap::enqueue_project_turn_if_needed(
+            &session_id,
+            &content,
+            display_text.as_deref(),
+            &effective_turn_intent_id,
+            client_message_id.as_deref(),
+            source,
+        )
+        .await?
+        {
+            tracing::info!(
+                session_id = %session_id,
+                run_id = %receipt.run.id,
+                duplicate = receipt.duplicate,
+                "queued Project turn through durable WorkItem dispatcher"
+            );
+            let turn_status =
+                project_management::work_run_service::turn_intent_status(receipt.run.status);
+            return Ok(project_turn_intent_response(
+                session_id,
+                identity.model,
+                &effective_turn_intent_id,
+                client_message_id.as_deref(),
+                receipt.run.id,
+                turn_status,
+                receipt.duplicate,
+            ));
+        }
+    }
+
+    // Ordinary native turns claim their exact lifecycle row before goal,
+    // runtime, transcript, steering, or scheduler side effects. Exact IPC
+    // retries return the original durable state and cannot execute twice.
+    let intent_claim = crate::foundation::session_bridge::claim_turn_intent(
+        &session_id,
+        &effective_turn_intent_id,
+        client_message_id.as_deref(),
+        intent_org_run_id.as_deref(),
+        source,
+        crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
+    )?;
+    if intent_claim.duplicate {
+        return Ok(duplicate_turn_intent_response(
+            session_id,
+            identity.model,
+            &effective_turn_intent_id,
+            intent_claim.client_message_id.as_deref(),
+            intent_claim.status,
+        ));
+    }
+    let mut intent_claim_guard = TurnIntentClaimGuard::new(&session_id, &effective_turn_intent_id);
 
     // Goal loop: a real user submission becomes (or replaces) the
     // session's standing goal and resets the continuation counter.
@@ -261,14 +424,6 @@ pub(crate) async fn send_message_impl(
         // part of accepting the control action. If the durable takeover row
         // cannot be written, do not inject a message that Wake may race.
         persist_direct_user_intervention(direct_user_intervention.clone()).await?;
-        crate::foundation::session_bridge::upsert_turn_intent(
-            &session_id,
-            &effective_turn_intent_id,
-            client_message_id.as_deref(),
-            effective_intent_org_run_id.as_deref(),
-            source,
-            crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
-        );
         session_handle
             .steering_queue
             .lock()
@@ -291,6 +446,7 @@ pub(crate) async fn send_message_impl(
         };
 
         if !reclaimed {
+            intent_claim_guard.disarm();
             tracing::info!(
                 "[agent_send_message] Steering message into active turn for session {} (intent={})",
                 session_id,
@@ -303,6 +459,8 @@ pub(crate) async fn send_message_impl(
                     "messageId": effective_turn_intent_id,
                     "queuePosition": 0,
                     "duplicate": false,
+                    "turnIntentStatus": "queued",
+                    "effectiveTurnIntentId": effective_turn_intent_id,
                 })
                 .to_string(),
                 session_id,
@@ -353,45 +511,6 @@ pub(crate) async fn send_message_impl(
                 to_account,
                 Some(&effective_model),
             );
-        }
-    }
-
-    // ── 4b. Project root WorkItem bootstrap (orgtrack/v1 §7.2) ──────────
-    //
-    // The first accepted non-empty submission of a Project session with
-    // no active WorkItem creates and links its root. Resumes replay an
-    // already-accepted submission, so they never bootstrap.
-    if !is_resume {
-        super::project_bootstrap::ensure_project_root_work_item(&session_id, &content).await?;
-        if let Some(run) = super::project_bootstrap::enqueue_project_turn_if_needed(
-            &session_id,
-            &content,
-            display_text.as_deref(),
-            &effective_turn_intent_id,
-            client_message_id.as_deref(),
-            source,
-        )
-        .await?
-        {
-            tracing::info!(
-                session_id = %session_id,
-                run_id = %run.id,
-                "queued Project turn through durable WorkItem dispatcher"
-            );
-            return Ok(AgentResponse {
-                content: serde_json::json!({
-                    "queued": true,
-                    "durableRunId": run.id,
-                    "messageId": client_message_id
-                        .as_deref()
-                        .unwrap_or(&effective_turn_intent_id),
-                    "queuePosition": 0,
-                    "duplicate": false,
-                })
-                .to_string(),
-                session_id,
-                model: effective_model,
-            });
         }
     }
 
@@ -707,6 +826,7 @@ pub(crate) async fn send_message_impl(
         .enqueue(msg)
         .await
         .map_err(|err| format!("Failed to enqueue message: {err}"))?;
+    intent_claim_guard.disarm();
 
     tracing::info!(
         "[agent_send_message] Enqueued message {} at position {} for session {}",
@@ -715,15 +835,83 @@ pub(crate) async fn send_message_impl(
         session_id
     );
 
-    Ok(AgentResponse {
-        content: serde_json::json!({
-            "queued": true,
-            "messageId": enqueue_result.message_id,
-            "queuePosition": enqueue_result.queue_position,
-            "duplicate": enqueue_result.duplicate,
-        })
-        .to_string(),
+    let acknowledged_status = crate::foundation::session_bridge::get_turn_intent_status(
+        &session_id,
+        &effective_turn_intent_id,
+    )
+    .unwrap_or(crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued);
+    Ok(accepted_turn_intent_response(
         session_id,
-        model: effective_model,
-    })
+        effective_model,
+        &effective_turn_intent_id,
+        enqueue_result.message_id,
+        enqueue_result.queue_position,
+        enqueue_result.duplicate,
+        acknowledged_status,
+    ))
+}
+
+#[cfg(test)]
+mod turn_intent_receipt_tests {
+    use super::{
+        accepted_turn_intent_response, duplicate_turn_intent_response, project_turn_intent_response,
+    };
+    use crate::foundation::session_bridge::TurnIntentBridgeStatus;
+
+    #[test]
+    fn duplicate_receipt_preserves_the_exact_durable_status() {
+        let response = duplicate_turn_intent_response(
+            "session-1".to_string(),
+            "model-1".to_string(),
+            "intent-1",
+            Some("message-original"),
+            TurnIntentBridgeStatus::Completed,
+        );
+        let payload: serde_json::Value =
+            serde_json::from_str(&response.content).expect("typed duplicate receipt");
+        assert_eq!(payload["duplicate"], true);
+        assert_eq!(payload["queued"], false);
+        assert_eq!(payload["messageId"], "message-original");
+        assert_eq!(payload["turnIntentStatus"], "completed");
+        assert_eq!(payload["effectiveTurnIntentId"], "intent-1");
+    }
+
+    #[test]
+    fn accepted_receipt_exposes_the_effective_intent() {
+        let response = accepted_turn_intent_response(
+            "session-1".to_string(),
+            "model-1".to_string(),
+            "intent-1",
+            "message-1".to_string(),
+            2,
+            false,
+            TurnIntentBridgeStatus::Queued,
+        );
+        let payload: serde_json::Value =
+            serde_json::from_str(&response.content).expect("typed accepted receipt");
+        assert_eq!(payload["duplicate"], false);
+        assert_eq!(payload["queued"], true);
+        assert_eq!(payload["queuePosition"], 2);
+        assert_eq!(payload["turnIntentStatus"], "queued");
+        assert_eq!(payload["effectiveTurnIntentId"], "intent-1");
+    }
+
+    #[test]
+    fn project_receipt_keeps_origin_and_effective_intents_distinct() {
+        let response = project_turn_intent_response(
+            "session-1".to_string(),
+            "model-1".to_string(),
+            "intent-x",
+            Some("message-x"),
+            "wir-y".to_string(),
+            "queued",
+            true,
+        );
+        let payload: serde_json::Value =
+            serde_json::from_str(&response.content).expect("Project receipt");
+        assert_eq!(payload["messageId"], "message-x");
+        assert_eq!(payload["effectiveTurnIntentId"], "wir-y");
+        assert_eq!(payload["turnIntentStatus"], "queued");
+        assert_eq!(payload["duplicate"], true);
+    }
 }

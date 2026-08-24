@@ -38,7 +38,7 @@
 
 use futures::FutureExt;
 use std::any::Any;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex as TokioMutex};
@@ -163,6 +163,40 @@ pub struct EnqueueResult {
     pub duplicate: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClientMessageClaim {
+    Claimed,
+    SameIntentDuplicate,
+    DifferentIntentDuplicate,
+}
+
+fn claim_client_message(
+    owners: &mut HashMap<String, String>,
+    client_message_id: &str,
+    turn_intent_id: &str,
+) -> ClientMessageClaim {
+    match owners.get(client_message_id) {
+        Some(owner_turn_intent_id) if owner_turn_intent_id == turn_intent_id => {
+            ClientMessageClaim::SameIntentDuplicate
+        }
+        Some(_) => ClientMessageClaim::DifferentIntentDuplicate,
+        None => {
+            owners.insert(client_message_id.to_string(), turn_intent_id.to_string());
+            ClientMessageClaim::Claimed
+        }
+    }
+}
+
+fn release_client_message(
+    owners: &mut HashMap<String, String>,
+    client_message_id: &str,
+    turn_intent_id: &str,
+) {
+    if owners.get(client_message_id).map(String::as_str) == Some(turn_intent_id) {
+        owners.remove(client_message_id);
+    }
+}
+
 // ============================================
 // DialogScheduler
 // ============================================
@@ -198,7 +232,7 @@ pub struct DialogScheduler {
     processing: Arc<std::sync::atomic::AtomicBool>,
     /// Whether the job the worker is currently executing is a [`ScheduledKind::Turn`].
     processing_turn: Arc<std::sync::atomic::AtomicBool>,
-    client_message_ids: Arc<TokioMutex<HashSet<String>>>,
+    client_message_owners: Arc<TokioMutex<HashMap<String, String>>>,
 }
 
 impl DialogScheduler {
@@ -217,7 +251,7 @@ impl DialogScheduler {
             generation: Arc::new(AtomicU64::new(0)),
             processing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             processing_turn: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            client_message_ids: Arc::new(TokioMutex::new(HashSet::new())),
+            client_message_owners: Arc::new(TokioMutex::new(HashMap::new())),
         }
     }
     /// Ensure the worker is spawned and return a reference to the sender.
@@ -237,7 +271,7 @@ impl DialogScheduler {
             generation: Arc::clone(&self.generation),
             processing: Arc::clone(&self.processing),
             processing_turn: Arc::clone(&self.processing_turn),
-            client_message_ids: Arc::clone(&self.client_message_ids),
+            client_message_owners: Arc::clone(&self.client_message_owners),
         };
         tokio::spawn(worker.run());
 
@@ -262,22 +296,37 @@ impl DialogScheduler {
 
         let message_id = msg.message_id.clone();
         if let Some(client_message_id) = msg.client_message_id.as_ref() {
-            let mut ids = self.client_message_ids.lock().await;
-            if !ids.insert(client_message_id.clone()) {
-                // This request minted its own durable intent before enqueue,
-                // but an equivalent client message is already queued/running.
-                // The scheduler is the single authority that knows the request
-                // was coalesced, so it also closes that new intent here.
-                crate::foundation::session_bridge::update_turn_intent_status(
-                    &self.session_id,
-                    &msg.turn_intent_id,
-                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Coalesced,
-                );
-                return Ok(EnqueueResult {
-                    message_id,
-                    queue_position: 0,
-                    duplicate: true,
-                });
+            let claim = {
+                let mut owners = self.client_message_owners.lock().await;
+                claim_client_message(&mut owners, client_message_id, &msg.turn_intent_id)
+            };
+            match claim {
+                ClientMessageClaim::Claimed => {}
+                ClientMessageClaim::SameIntentDuplicate => {
+                    // A response-loss retry owns the same durable intent as the
+                    // queued/running message. Keep that row in its original
+                    // state so the retry can reconcile its exact receipt.
+                    return Ok(EnqueueResult {
+                        message_id,
+                        queue_position: 0,
+                        duplicate: true,
+                    });
+                }
+                ClientMessageClaim::DifferentIntentDuplicate => {
+                    // A distinct logical intent reused an in-flight idempotency
+                    // key. It will never create a round, so close only the new
+                    // intent as coalesced and preserve the original owner.
+                    crate::foundation::session_bridge::update_turn_intent_status(
+                        &self.session_id,
+                        &msg.turn_intent_id,
+                        crate::foundation::session_bridge::TurnIntentBridgeStatus::Coalesced,
+                    );
+                    return Ok(EnqueueResult {
+                        message_id,
+                        queue_position: 0,
+                        duplicate: true,
+                    });
+                }
             }
         }
 
@@ -297,10 +346,12 @@ impl DialogScheduler {
             Err(mpsc::error::TrySendError::Full(rejected)) => {
                 self.pending.fetch_sub(1, Ordering::Relaxed);
                 if let Some(client_message_id) = rejected.client_message_id.as_ref() {
-                    self.client_message_ids
-                        .lock()
-                        .await
-                        .remove(client_message_id);
+                    let mut owners = self.client_message_owners.lock().await;
+                    release_client_message(
+                        &mut owners,
+                        client_message_id,
+                        &rejected.turn_intent_id,
+                    );
                 }
                 crate::foundation::session_bridge::update_turn_intent_status(
                     &self.session_id,
@@ -315,10 +366,12 @@ impl DialogScheduler {
             Err(mpsc::error::TrySendError::Closed(rejected)) => {
                 self.pending.fetch_sub(1, Ordering::Relaxed);
                 if let Some(client_message_id) = rejected.client_message_id.as_ref() {
-                    self.client_message_ids
-                        .lock()
-                        .await
-                        .remove(client_message_id);
+                    let mut owners = self.client_message_owners.lock().await;
+                    release_client_message(
+                        &mut owners,
+                        client_message_id,
+                        &rejected.turn_intent_id,
+                    );
                 }
                 crate::foundation::session_bridge::update_turn_intent_status(
                     &self.session_id,
@@ -339,8 +392,8 @@ impl DialogScheduler {
     pub fn invalidate_pending(&self) {
         self.generation.fetch_add(1, Ordering::AcqRel);
         self.pending.store(0, Ordering::Release);
-        if let Ok(mut ids) = self.client_message_ids.try_lock() {
-            ids.clear();
+        if let Ok(mut owners) = self.client_message_owners.try_lock() {
+            owners.clear();
         }
         // Lifecycle: every still-queued / optimistic intent for this
         // session walks to `stale`. The worker drops queued-but-stale
@@ -393,7 +446,7 @@ struct WorkerTask {
     generation: Arc<AtomicU64>,
     processing: Arc<std::sync::atomic::AtomicBool>,
     processing_turn: Arc<std::sync::atomic::AtomicBool>,
-    client_message_ids: Arc<TokioMutex<HashSet<String>>>,
+    client_message_owners: Arc<TokioMutex<HashMap<String, String>>>,
 }
 
 impl WorkerTask {
@@ -418,10 +471,8 @@ impl WorkerTask {
                     crate::foundation::session_bridge::TurnIntentBridgeStatus::Stale,
                 );
                 if let Some(client_message_id) = msg.client_message_id.as_ref() {
-                    self.client_message_ids
-                        .lock()
-                        .await
-                        .remove(client_message_id);
+                    let mut owners = self.client_message_owners.lock().await;
+                    release_client_message(&mut owners, client_message_id, &msg.turn_intent_id);
                 }
                 self.broadcast_idle_status();
                 continue;
@@ -553,10 +604,8 @@ impl WorkerTask {
             }
 
             if let Some(client_message_id) = client_message_id.as_ref() {
-                self.client_message_ids
-                    .lock()
-                    .await
-                    .remove(client_message_id);
+                let mut owners = self.client_message_owners.lock().await;
+                release_client_message(&mut owners, client_message_id, &turn_intent_id);
             }
             self.processing_turn.store(false, Ordering::Relaxed);
             self.processing.store(false, Ordering::Relaxed);
@@ -582,6 +631,42 @@ impl WorkerTask {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn client_message_claim_preserves_the_exact_intent_owner() {
+        let mut owners = HashMap::new();
+        assert_eq!(
+            claim_client_message(&mut owners, "client-1", "intent-owner"),
+            ClientMessageClaim::Claimed
+        );
+        assert_eq!(
+            claim_client_message(&mut owners, "client-1", "intent-owner"),
+            ClientMessageClaim::SameIntentDuplicate
+        );
+        assert_eq!(
+            claim_client_message(&mut owners, "client-1", "intent-other"),
+            ClientMessageClaim::DifferentIntentDuplicate
+        );
+        assert_eq!(
+            owners.get("client-1").map(String::as_str),
+            Some("intent-owner")
+        );
+
+        // A stale worker must not release a newer owner that claimed the same
+        // idempotency key after invalidation.
+        owners.clear();
+        assert_eq!(
+            claim_client_message(&mut owners, "client-1", "intent-new"),
+            ClientMessageClaim::Claimed
+        );
+        release_client_message(&mut owners, "client-1", "intent-owner");
+        assert_eq!(
+            owners.get("client-1").map(String::as_str),
+            Some("intent-new")
+        );
+        release_client_message(&mut owners, "client-1", "intent-new");
+        assert!(!owners.contains_key("client-1"));
+    }
 
     #[tokio::test]
     async fn invalidated_pending_message_is_skipped() {

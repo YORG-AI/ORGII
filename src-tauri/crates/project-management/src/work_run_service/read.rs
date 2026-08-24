@@ -1,7 +1,7 @@
 use rusqlite::{params, OptionalExtension, Transaction};
 
 use crate::projects::io::helpers::conn;
-use crate::projects::types::WorkItemRun;
+use crate::projects::types::{WorkItemRun, WorkItemRunTarget};
 
 use super::store::{canonical_standalone_org_id, db, require_run, scope_key};
 use super::{error, MAX_RUN_ATTEMPTS};
@@ -9,6 +9,55 @@ use super::{error, MAX_RUN_ATTEMPTS};
 pub fn read(run_id: &str) -> Result<WorkItemRun, String> {
     let connection = conn()?;
     require_run(&connection, run_id)
+}
+
+/// Recover the effective WorkItemRun identity for one Project composer turn.
+pub fn find_project_session_turn(
+    session_id: &str,
+    origin_turn_intent_id: &str,
+) -> Result<Option<WorkItemRun>, String> {
+    if session_id.trim().is_empty() || origin_turn_intent_id.trim().is_empty() {
+        return Err(format!(
+            "{}:session_id and origin_turn_intent_id are required",
+            error::INVALID_REQUEST
+        ));
+    }
+    let connection = conn()?;
+    let idempotency_key = format!("project-session-turn:{session_id}:{origin_turn_intent_id}");
+    let ids = {
+        let mut statement = db(connection.prepare(
+            "SELECT id FROM pm_work_item_runs
+             WHERE idempotency_key = ?1
+             ORDER BY created_at DESC, id DESC",
+        ))?;
+        let rows = db(statement.query_map([&idempotency_key], |row| row.get::<_, String>(0)))?;
+        db(rows.collect::<rusqlite::Result<Vec<_>>>())?
+    };
+    let mut matched = None;
+    for run_id in ids {
+        let run = require_run(&connection, &run_id)?;
+        let target_matches = matches!(
+            &run.target_snapshot.target,
+            WorkItemRunTarget::ResumeSession { session_id: target_session_id }
+                if target_session_id == session_id
+        );
+        let origin_matches = run
+            .input
+            .get("originTurnIntentId")
+            .and_then(serde_json::Value::as_str)
+            == Some(origin_turn_intent_id);
+        if !target_matches || !origin_matches {
+            continue;
+        }
+        if matched.is_some() {
+            return Err(format!(
+                "{}:multiple Work Item Runs map session {session_id} intent {origin_turn_intent_id}",
+                error::IDEMPOTENCY_CONFLICT
+            ));
+        }
+        matched = Some(run);
+    }
+    Ok(matched)
 }
 
 pub(crate) fn read_in_transaction(

@@ -23,7 +23,19 @@ export const CliMessageInputSchema = z.object({
 export const CliRunReceiptSchema = z.object({
   sessionId: z.string(),
   turnIntentId: z.string(),
-  status: z.string(),
+  effectiveTurnIntentId: z.string().min(1),
+  status: z.enum([
+    "optimistic",
+    "queued",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "stale",
+    "coalesced",
+    "rejected",
+  ]),
+  duplicate: z.boolean(),
 });
 
 export const CliSessionIdInputSchema = z.object({
