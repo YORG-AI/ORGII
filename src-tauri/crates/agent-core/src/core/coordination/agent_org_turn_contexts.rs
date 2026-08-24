@@ -14,6 +14,30 @@ use super::agent_org_runs::{AgentOrgRunStatus, COORDINATOR_MEMBER_ID};
 const TASK_WAKE_CANDIDATE_LIMIT: i64 =
     crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS as i64 + 1;
 
+const TASK_ASSISTANT_PERSISTENCE_TARGET_SQL: &str = "SELECT task.status,
+            EXISTS(
+                SELECT 1
+                FROM agent_org_runtime_task_events event
+                WHERE event.org_run_id=task.org_run_id
+                  AND event.task_id=task.id
+                  AND event.previous_owner=?3
+                  AND event.next_owner=?3
+                  AND event.previous_status='in_progress'
+                  AND event.next_status=task.status
+                  AND event.actor_kind='owner_execution'
+                  AND event.actor_member_id=?3
+                  AND event.source_turn_intent_id=?4
+                  AND event.created_at=task.updated_at
+                  AND event.rowid=(
+                      SELECT MAX(latest.rowid)
+                      FROM agent_org_runtime_task_events latest
+                      WHERE latest.org_run_id=task.org_run_id
+                        AND latest.task_id=task.id
+                  )
+            )
+     FROM agent_org_runtime_tasks task
+     WHERE task.org_run_id=?1 AND task.id=?2 AND task.owner=?3";
+
 pub(crate) const TURN_CONTEXT_INVARIANT_PREFIX: &str = "agent_org_turn_context_invalid:";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -500,6 +524,52 @@ pub(crate) fn revalidate_context_with_connection(
     session_id: &str,
     turn_intent_id: &str,
 ) -> Result<AgentOrgTurnContext, String> {
+    let context = revalidate_live_formal_context_with_connection(conn, session_id, turn_intent_id)?;
+    if context.turn_kind == AgentOrgTurnKind::TaskExecution {
+        let task_id = context
+            .task_id
+            .as_deref()
+            .ok_or_else(|| invariant_error("TaskExecution context has no task_id".to_string()))?;
+        let owner_member_id = context.owner_member_id.as_deref().ok_or_else(|| {
+            invariant_error("TaskExecution context has no owner_member_id".to_string())
+        })?;
+        validate_task_execution_target(conn, &context.org_run_id, task_id, owner_member_id)?;
+    }
+    Ok(context)
+}
+
+/// Re-check the authority for persisting one assistant iteration. This is a
+/// later lifecycle phase than execution admission: the exact running Turn may
+/// have already completed or failed its Task, but no other Turn or actor may
+/// use that terminal Task as transcript authority.
+pub(crate) fn revalidate_assistant_persistence_with_connection(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    let context = revalidate_live_formal_context_with_connection(conn, session_id, turn_intent_id)?;
+    validate_assistant_persistence_base_turn(conn, &context)?;
+    if context.turn_kind == AgentOrgTurnKind::TaskExecution {
+        let task_id = context
+            .task_id
+            .as_deref()
+            .ok_or_else(|| invariant_error("TaskExecution context has no task_id".to_string()))?;
+        let owner_member_id = context.owner_member_id.as_deref().ok_or_else(|| {
+            invariant_error("TaskExecution context has no owner_member_id".to_string())
+        })?;
+        validate_task_assistant_persistence_target(conn, &context, task_id, owner_member_id)?;
+    }
+    Ok(context)
+}
+
+/// Common formal-Turn authority shared by execution admission and assistant
+/// persistence. Target-state rules intentionally stay in the two public phase
+/// validators above.
+fn revalidate_live_formal_context_with_connection(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
     let context = require_context_with_connection(conn, session_id, turn_intent_id)?;
     let run: Option<(Option<String>, Option<String>, i64, String)> = conn
         .query_row(
@@ -566,6 +636,8 @@ pub(crate) fn revalidate_context_with_connection(
             })?;
             if context.participant_id != owner_member_id
                 || context.dispatch_member_id.as_deref() != Some(owner_member_id)
+                || context.source_kind != AgentOrgTurnSourceKind::Task
+                || context.source_id != task_id
                 || context.activation_generation != Some(generation)
             {
                 return Err(invariant_error(
@@ -574,7 +646,6 @@ pub(crate) fn revalidate_context_with_connection(
             }
             let agent_id = snapshot_member_agent_id(&snapshot, owner_member_id)?;
             resolve_materialization_version_for_context(conn, &context, owner_member_id, agent_id)?;
-            validate_task_execution_target(conn, &context.org_run_id, task_id, owner_member_id)?;
         }
         AgentOrgTurnKind::UserDirectedWork => {
             return Err(invariant_error(
@@ -583,6 +654,38 @@ pub(crate) fn revalidate_context_with_connection(
         }
     }
     Ok(context)
+}
+
+fn validate_assistant_persistence_base_turn(
+    conn: &Connection,
+    context: &AgentOrgTurnContext,
+) -> Result<(), String> {
+    let base: Option<(Option<String>, String)> = conn
+        .query_row(
+            "SELECT org_run_id,status FROM session_turn_intents
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            params![&context.session_id, &context.turn_intent_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((base_run_id, base_status)) = base else {
+        return Err(invariant_error(
+            "assistant persistence has no base Turn".to_string(),
+        ));
+    };
+    if base_run_id.as_deref() != Some(context.org_run_id.as_str()) {
+        return Err(invariant_error(format!(
+            "assistant persistence base Turn belongs to another run, expected {}",
+            context.org_run_id
+        )));
+    }
+    if base_status != TurnIntentBridgeStatus::Running.as_str() {
+        return Err(invariant_error(format!(
+            "assistant persistence requires the current running Turn, found {base_status}"
+        )));
+    }
+    Ok(())
 }
 
 /// Resolve the persisted TaskExecution identity used by failure recovery.
@@ -893,6 +996,46 @@ fn validate_task_execution_target(
         Some("in_progress") => Ok(()),
         Some(status) => Err(invariant_error(format!(
             "TaskExecution target {task_id} is not runnable (status {status})"
+        ))),
+        None => Err(invariant_error(format!(
+            "TaskExecution target {task_id} is missing or no longer owned by {owner_member_id}"
+        ))),
+    }
+}
+
+fn validate_task_assistant_persistence_target(
+    conn: &Connection,
+    context: &AgentOrgTurnContext,
+    task_id: &str,
+    owner_member_id: &str,
+) -> Result<(), String> {
+    let target: Option<(String, bool)> = conn
+        .query_row(
+            TASK_ASSISTANT_PERSISTENCE_TARGET_SQL,
+            params![
+                &context.org_run_id,
+                task_id,
+                owner_member_id,
+                &context.turn_intent_id
+            ],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    match target.as_ref().map(|(status, exact_terminal)| (status.as_str(), *exact_terminal)) {
+        Some(("pending", _))
+            if task_is_pending_and_ready(conn, &context.org_run_id, task_id, owner_member_id)? =>
+        {
+            Ok(())
+        }
+        Some(("in_progress", _)) => Ok(()),
+        Some(("completed" | "failed", true)) => Ok(()),
+        Some(("completed" | "failed", false)) => Err(invariant_error(format!(
+            "TaskExecution target {task_id} terminal provenance does not belong to Turn {}",
+            context.turn_intent_id
+        ))),
+        Some((status, _)) => Err(invariant_error(format!(
+            "TaskExecution target {task_id} cannot authorize assistant persistence (status {status})"
         ))),
         None => Err(invariant_error(format!(
             "TaskExecution target {task_id} is missing or no longer owned by {owner_member_id}"
