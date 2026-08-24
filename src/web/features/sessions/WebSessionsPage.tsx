@@ -4,11 +4,29 @@ import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
+import { WebOrganizationOnboarding } from "./WebOrganizationOnboarding";
 import { useWebSessions } from "./WebSessionsContext";
 
 export function WebSessionsPage() {
   const { t } = useTranslation("navigation");
-  const { sessions, status, error, refresh } = useWebSessions();
+  const {
+    sessions,
+    status,
+    error,
+    refresh,
+    organizationStatus,
+    organizationsKnown,
+    hasOrganizations,
+  } = useWebSessions();
+
+  if (organizationsKnown && !hasOrganizations) {
+    return (
+      <WebOrganizationOnboarding
+        refreshError={organizationStatus === "error" ? error : null}
+        onRetry={() => void refresh()}
+      />
+    );
+  }
 
   return (
     <main className="flex h-full items-center justify-center bg-workstation-bg p-6">
@@ -23,11 +41,13 @@ export function WebSessionsPage() {
         icon={<PanelsTopLeft size={22} aria-hidden />}
         placement="detail-panel"
         title={
-          status === "error" && sessions.length === 0
-            ? t("web.sessionsPage.loadError")
-            : sessions.length === 0 && status !== "loading"
-              ? t("web.sessionsPage.empty")
-              : t("web.sessionsPage.select")
+          status === "loading" && sessions.length === 0
+            ? t("web.sessionsPage.loading")
+            : status === "error" && sessions.length === 0
+              ? t("web.sessionsPage.loadError")
+              : sessions.length === 0 && status !== "loading"
+                ? t("web.sessionsPage.empty")
+                : t("web.sessionsPage.select")
         }
         subtitle={
           error ||

@@ -1035,11 +1035,23 @@
     },
     "sessionsPage": {
       "loadError": "Sessions could not be loaded",
+      "loading": "Loading sessions…",
       "empty": "No synced sessions",
       "select": "Select a session",
       "emptyHint": "Open ORG2 Desktop and enable Cloud sync for a session.",
       "selectHint": "Choose a Cloud session from the sidebar.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "organizationLoadErrorHint": "Your organizations could not be loaded. Check your connection and try again.",
+      "organizationRetryingHint": "The cloud service could not be reached. Retrying automatically…",
+      "organizationRefreshErrorHint": "Organizations could not be refreshed. Showing the last successful session list.",
+      "sessionRefreshErrorHint": "Some organization sessions could not be refreshed.",
+      "organizationSetupTitle": "Connect an organization",
+      "organizationSetupHint": "Create an organization for your team, or join one with an invite link or code.",
+      "organizationModeLabel": "Organization setup method",
+      "createOrganization": "Create organization",
+      "joinOrganization": "Join organization",
+      "organizationNamePlaceholder": "Team or organization name",
+      "invitePlaceholder": "Paste an invite link or code"
     },
     "sessionPage": {
       "notFound": "Session not found",

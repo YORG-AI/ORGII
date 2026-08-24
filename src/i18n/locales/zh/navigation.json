@@ -1067,11 +1067,23 @@
     },
     "sessionsPage": {
       "loadError": "无法加载会话列表",
+      "loading": "正在加载会话…",
       "empty": "暂无已同步会话",
       "select": "选择一个会话",
       "emptyHint": "请先在 Desktop 中为会话开启 Cloud 同步。",
       "selectHint": "请从侧边栏选择一个 Cloud 会话。",
-      "retry": "重试"
+      "retry": "重试",
+      "organizationLoadErrorHint": "无法加载你的组织。请检查网络连接后重试。",
+      "organizationRetryingHint": "暂时无法连接云服务，正在自动重试…",
+      "organizationRefreshErrorHint": "无法刷新组织，正在显示上次成功加载的会话列表。",
+      "sessionRefreshErrorHint": "部分组织的会话无法刷新。",
+      "organizationSetupTitle": "连接一个组织",
+      "organizationSetupHint": "为团队创建组织，或使用邀请链接/邀请码加入已有组织。",
+      "organizationModeLabel": "组织连接方式",
+      "createOrganization": "创建组织",
+      "joinOrganization": "加入组织",
+      "organizationNamePlaceholder": "团队或组织名称",
+      "invitePlaceholder": "粘贴邀请链接或邀请码"
     },
     "sessionPage": {
       "notFound": "未找到会话",

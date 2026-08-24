@@ -1,5 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   org2CloudAuthAtom,
@@ -8,7 +9,9 @@ import {
 import {
   type Org2CloudOrg,
   org2CloudOrgsAtom,
+  org2CloudOrgsLoadStateAtom,
   org2CloudOrgsLoadedAtom,
+  useRefetchOrg2CloudOrgs,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   type CloudOrgRemoteSessionsEntry,
@@ -25,10 +28,11 @@ export interface WebSessionListItem extends RemoteTeammateSessionMetadata {
   writable: boolean;
 }
 
-interface WebSessionRosterState {
+export interface WebSessionRosterState {
   status: "idle" | "loading" | "loaded" | "error";
   sessions: WebSessionListItem[];
   error: string | null;
+  failedOrganizationCount: number;
 }
 
 function sessionTimestamp(session: WebSessionListItem): number {
@@ -62,7 +66,12 @@ export function aggregateWebSessionRoster({
   userId: string | null;
 }): WebSessionRosterState {
   if (!identityKey || !userId) {
-    return { status: "idle", sessions: [], error: null };
+    return {
+      status: "idle",
+      sessions: [],
+      error: null,
+      failedOrganizationCount: 0,
+    };
   }
 
   const states: CloudRemoteSessionsFetchState[] = [];
@@ -100,21 +109,25 @@ export function aggregateWebSessionRoster({
   return {
     status,
     sessions,
-    error:
-      errorCount > 0
-        ? `${errorCount} organization${errorCount === 1 ? "" : "s"} could not be refreshed.`
-        : null,
+    error: null,
+    failedOrganizationCount: errorCount,
   };
 }
 
 export function useWebSessionRoster(): WebSessionRosterState & {
+  organizationStatus: "idle" | "loading" | "retrying" | "ready" | "error";
+  organizationsKnown: boolean;
+  hasOrganizations: boolean;
   refresh: () => Promise<void>;
 } {
+  const { t } = useTranslation("navigation");
   const auth = useAtomValue(org2CloudAuthAtom);
   const orgs = useAtomValue(org2CloudOrgsAtom);
   const orgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
+  const organizationLoadState = useAtomValue(org2CloudOrgsLoadStateAtom);
   const entries = useAtomValue(org2CloudRemoteSessionsAtom);
   const setVersionByOrg = useSetAtom(org2CloudRemoteSessionsVersionAtom);
+  const refetchOrgs = useRefetchOrg2CloudOrgs();
   const identityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const userId = auth?.userId ?? null;
 
@@ -129,25 +142,89 @@ export function useWebSessionRoster(): WebSessionRosterState & {
     [entries, identityKey, orgs, userId]
   );
 
-  const refresh = useCallback((): Promise<void> => {
-    if (!identityKey || orgs.length === 0) return Promise.resolve();
+  const refresh = useCallback(async (): Promise<void> => {
+    if (!identityKey) return;
+
+    let refreshOrgs = orgs;
+    if (!orgsLoaded || organizationLoadState === "error") {
+      refreshOrgs = await refetchOrgs();
+    }
+    if (refreshOrgs.length === 0) return;
+
     setVersionByOrg((current) =>
-      orgs.reduce(
+      refreshOrgs.reduce(
         (next, org) =>
           bumpRemoteSessionsInvalidation(next, org.orgId, { full: true }),
         current
       )
     );
-    return Promise.resolve();
-  }, [identityKey, orgs, setVersionByOrg]);
+  }, [
+    identityKey,
+    organizationLoadState,
+    orgs,
+    orgsLoaded,
+    refetchOrgs,
+    setVersionByOrg,
+  ]);
 
   return useMemo(() => {
     if (!identityKey) {
-      return { status: "idle" as const, sessions: [], error: null, refresh };
+      return {
+        status: "idle" as const,
+        sessions: [],
+        error: null,
+        failedOrganizationCount: 0,
+        organizationStatus: "idle" as const,
+        organizationsKnown: false,
+        hasOrganizations: false,
+        refresh,
+      };
     }
     if (!orgsLoaded) {
-      return { status: "loading" as const, sessions: [], error: null, refresh };
+      const terminalFailure = organizationLoadState === "error";
+      return {
+        status: terminalFailure ? ("error" as const) : ("loading" as const),
+        sessions: [],
+        error: terminalFailure
+          ? t("web.sessionsPage.organizationLoadErrorHint")
+          : organizationLoadState === "retrying"
+            ? t("web.sessionsPage.organizationRetryingHint")
+            : null,
+        failedOrganizationCount: 0,
+        organizationStatus:
+          organizationLoadState === "idle"
+            ? ("loading" as const)
+            : organizationLoadState,
+        organizationsKnown: false,
+        hasOrganizations: false,
+        refresh,
+      };
     }
-    return { ...aggregated, refresh };
-  }, [aggregated, identityKey, orgsLoaded, refresh]);
+
+    const rosterRefreshError =
+      aggregated.failedOrganizationCount > 0
+        ? t("web.sessionsPage.sessionRefreshErrorHint")
+        : null;
+    const organizationRefreshError =
+      organizationLoadState === "error"
+        ? t("web.sessionsPage.organizationRefreshErrorHint")
+        : null;
+
+    return {
+      ...aggregated,
+      error: organizationRefreshError ?? rosterRefreshError,
+      organizationStatus: organizationLoadState,
+      organizationsKnown: true,
+      hasOrganizations: orgs.length > 0,
+      refresh,
+    };
+  }, [
+    aggregated,
+    identityKey,
+    organizationLoadState,
+    orgs.length,
+    orgsLoaded,
+    refresh,
+    t,
+  ]);
 }

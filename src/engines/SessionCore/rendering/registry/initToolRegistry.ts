@@ -172,6 +172,34 @@ function publishToolClassifierRegistry(): void {
 // Initialization
 // ============================================
 
+async function applyBundledRegistry(): Promise<void> {
+  builtinSimulatorAppMap = new Map();
+  builtinIconIdMap = new Map();
+  builtinActionIconsMap = new Map();
+  builtinStatusIconsMap = new Map();
+  builtinAppSubtoolMap = new Map();
+  builtinChatBlockMap = new Map(BASELINE_CHAT_BLOCKS);
+  builtinDisplayBehaviorMap = new Map();
+  builtinActionsMap = new Map();
+  builtinLabelsMap = new Map();
+  builtinStatusLabelsMap = new Map();
+  cliAliasMap = new Map();
+  const { applyBundledToolRegistryFallback } =
+    await import("./bundledToolRegistryFallback");
+  applyBundledToolRegistryFallback();
+  publishToolClassifierRegistry();
+}
+
+/**
+ * Initialize the browser build from its bundled registry without attempting
+ * desktop-only Tauri IPC. Safe to call multiple times.
+ */
+export async function initBundledToolRegistry(): Promise<void> {
+  if (initAttempted) return;
+  initAttempted = true;
+  await applyBundledRegistry();
+}
+
 /**
  * Initialize the tool registry from Rust via single IPC call.
  * Safe to call multiple times; only fetches once.
@@ -258,18 +286,7 @@ export async function initToolRegistry(): Promise<void> {
     publishToolClassifierRegistry();
   } catch (err) {
     log.error("[initToolRegistry] Failed to fetch from Rust:", err);
-    builtinIconIdMap = new Map();
-    builtinActionIconsMap = new Map();
-    builtinStatusIconsMap = new Map();
-    builtinChatBlockMap = new Map(BASELINE_CHAT_BLOCKS);
-    builtinDisplayBehaviorMap = new Map();
-    builtinActionsMap = new Map();
-    builtinLabelsMap = new Map();
-    builtinStatusLabelsMap = new Map();
-    const { applyBundledToolRegistryFallback } =
-      await import("./bundledToolRegistryFallback");
-    applyBundledToolRegistryFallback();
-    publishToolClassifierRegistry();
+    await applyBundledRegistry();
   }
 }
 
