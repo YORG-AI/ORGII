@@ -10,6 +10,7 @@ import {
 } from "../externalHistoryTranscriptSignatures";
 import type {
   AdapterSendInput,
+  AdapterSendReceipt,
   EventHandlerCallbacks,
   SessionAdapter,
   SessionEventHandler,
@@ -192,7 +193,7 @@ export const externalHistoryAdapter: ExternalHistorySessionAdapter = {
     return createNoopEventHandler();
   },
 
-  async sendMessage(input: AdapterSendInput): Promise<void> {
+  async sendMessage(input: AdapterSendInput): Promise<AdapterSendReceipt> {
     throw new Error(
       `External history sessions are read-only and cannot receive messages (${input.sessionId}).`
     );

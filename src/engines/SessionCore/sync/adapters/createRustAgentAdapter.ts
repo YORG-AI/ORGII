@@ -18,7 +18,12 @@ import {
   getSessionInfo,
   loadMessages,
 } from "@src/api/tauri/agent";
-import type { CancelReason } from "@src/api/tauri/agent";
+import type { AgentMessageResponse, CancelReason } from "@src/api/tauri/agent";
+import {
+  getTurnIntentDispatch,
+  hasActiveTurnIntentDispatch,
+} from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
+import { getTurnGeneration } from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import {
@@ -60,7 +65,10 @@ import {
   applyToolUsageToEvents,
   loadUsageTelemetry,
 } from "./rustAgent/toolUsageCache";
-import { buildRustAgentSendMessageArgs } from "./rustAgentSendPayload";
+import {
+  buildRustAgentSendMessageArgs,
+  parseRustAgentSendReceipt,
+} from "./rustAgentSendPayload";
 import type {
   AgentTokenUsage,
   AgentWSEvent,
@@ -134,6 +142,21 @@ const TURN_NEUTRAL_EVENTS = new Set([
 
 export function isRustAgentTurnNeutralEvent(eventType: string): boolean {
   return TURN_NEUTRAL_EVENTS.has(eventType);
+}
+
+export function shouldAcceptRustAgentTerminalAttribution(
+  event: Pick<AgentWSEvent, "turnIntentId" | "details">,
+  sessionId: string
+): boolean {
+  const turnIntentId = event.turnIntentId ?? event.details?.turnIntentId;
+  if (!turnIntentId) return true;
+  const dispatch = getTurnIntentDispatch(turnIntentId);
+  if (dispatch) return dispatch.sessionId === sessionId;
+  // Rollout compatibility: legacy producers still let the backend mint the
+  // intent. Accept that terminal only when this session has no canonical
+  // active mapping; once a mapped generation exists, an unknown id is stale
+  // or misrouted and must fail closed.
+  return !hasActiveTurnIntentDispatch(sessionId, getTurnGeneration(sessionId));
 }
 
 const PLAN_SUBMITTED_END_TURN_PREFIX = "PLAN_SUBMITTED_END_TURN:";
@@ -458,6 +481,7 @@ export function createRustAgentAdapter(
           errorMessage?: string,
           meta?: {
             turnId?: string;
+            turnIntentId?: string;
             turnStatus?: string;
             intermediate?: boolean;
           }
@@ -543,6 +567,18 @@ export function createRustAgentAdapter(
             event.result.startsWith(PLAN_SUBMITTED_END_TURN_PREFIX);
           const isTerminal =
             TERMINAL_EVENTS.has(event.type) || isPlanReadyTerminal;
+          if (
+            isTerminal &&
+            !shouldAcceptRustAgentTerminalAttribution(event, sessionId)
+          ) {
+            const rejectedTurnIntentId =
+              event.turnIntentId ?? event.details?.turnIntentId;
+            logger.warn(
+              `[${category}] ignored terminal with unknown or misrouted ` +
+                `turn intent ${rejectedTurnIntentId} for ${sessionId}`
+            );
+            return;
+          }
           const isQueueStatus = event.type === "agent:queue_status";
           const queueIsProcessing = event.isProcessing === true;
           const isActiveQueueStatus = isQueueStatus && queueIsProcessing;
@@ -677,14 +713,15 @@ export function createRustAgentAdapter(
       };
     },
 
-    async sendMessage(input: AdapterSendInput): Promise<void> {
+    async sendMessage(input: AdapterSendInput) {
       const { sessionId } = input;
       clearSessionStreamingStopped(sessionId);
-      await retryInvokeTauri(
+      const response = await retryInvokeTauri<AgentMessageResponse>(
         "agent_send_message",
         buildRustAgentSendMessageArgs(input),
         sessionId
       );
+      return parseRustAgentSendReceipt(response);
     },
 
     async stopSession(sessionId: string, reason: CancelReason): Promise<void> {

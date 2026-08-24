@@ -2,6 +2,8 @@ import { z } from "zod/v4";
 
 import { ActivityChunkSchema } from "@src/api/realtime/websocket/schemas";
 
+import { TurnIntentStatusSchema } from "./turnIntent";
+
 export const CliMessageRequestSchema = z.object({
   sessionId: z.string().min(1),
   content: z.string(),
@@ -24,17 +26,7 @@ export const CliRunReceiptSchema = z.object({
   sessionId: z.string(),
   turnIntentId: z.string(),
   effectiveTurnIntentId: z.string().min(1),
-  status: z.enum([
-    "optimistic",
-    "queued",
-    "running",
-    "completed",
-    "failed",
-    "cancelled",
-    "stale",
-    "coalesced",
-    "rejected",
-  ]),
+  status: TurnIntentStatusSchema,
   duplicate: z.boolean(),
 });
 

@@ -4,7 +4,7 @@ import { rpc } from "@src/api/tauri/rpc";
 import { cliTurnLifecycleCoordinator } from "@src/hooks/cliSession/cliTurnLifecycleCoordinator";
 import { createLogger } from "@src/hooks/logger";
 
-import type { AdapterSendInput } from "../../types";
+import type { AdapterSendInput, AdapterSendReceipt } from "../../types";
 
 const log = createLogger("CliTransport");
 
@@ -12,7 +12,9 @@ function newMessageId(): string {
   return crypto.randomUUID();
 }
 
-export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
+export async function sendCliMessage(
+  input: AdapterSendInput
+): Promise<AdapterSendReceipt> {
   const {
     sessionId,
     content,
@@ -42,7 +44,7 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
   });
 
   cliTurnLifecycleCoordinator.registerReceipt(receipt);
-  if (directUserIntent) {
+  if (!receipt.duplicate && directUserIntent) {
     void enterAgentOrgSessionIntervention(sessionId).catch((error) => {
       log.warn(
         "[sendCliMessage] accepted CLI turn but failed to persist intervention:",
@@ -50,6 +52,11 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
       );
     });
   }
+  return {
+    duplicate: receipt.duplicate,
+    turnIntentStatus: receipt.status,
+    effectiveTurnIntentId: receipt.effectiveTurnIntentId,
+  };
 }
 
 export async function stopCliSession(

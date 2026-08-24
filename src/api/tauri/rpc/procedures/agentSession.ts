@@ -11,6 +11,10 @@ export const agentSession = {
     .input(schemas.agentSession.SessionIdInput)
     .output(schemas.agentSession.SessionInfoSchema.nullable())
     .build(),
+  getTurnIntentStatus: defineProcedure("agent_turn_intent_status")
+    .input(schemas.turnIntent.TurnIntentStatusInputSchema)
+    .output(schemas.turnIntent.TurnIntentStatusReceiptSchema.nullable())
+    .build(),
   manualCompact: defineProcedure("agent_session_manual_compact")
     .input(schemas.agentSession.ManualCompactInput)
     .output(schemas.agentSession.ManualCompactResultSchema)

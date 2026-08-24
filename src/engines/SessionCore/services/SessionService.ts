@@ -26,7 +26,10 @@ import {
 } from "@src/api/tauri/agent";
 import { rpc } from "@src/api/tauri/rpc";
 import { ROUTES } from "@src/config/routes";
-import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
+import {
+  type AdapterSendReceipt,
+  getAdapterForSession,
+} from "@src/engines/SessionCore/sync/types";
 import {
   buildPendingForkHandoff,
   markForkHandoffConsumed,
@@ -288,7 +291,9 @@ export const SessionService = {
    * keeps adding new IDEs (Trae, Windsurf, ...) to a single new file
    * under `sync/adapters/` instead of patching the service.
    */
-  async sendMessage(params: SessionSendMessageParams): Promise<void> {
+  async sendMessage(
+    params: SessionSendMessageParams
+  ): Promise<AdapterSendReceipt> {
     const {
       sessionId,
       content,
@@ -296,6 +301,7 @@ export const SessionService = {
       model,
       accountId,
       mode,
+      workspacePath,
       imageDataUrls,
       isResume,
       clientMessageId,
@@ -303,13 +309,13 @@ export const SessionService = {
       turnIntentSource,
       directUserIntent,
     } = params;
-    // Gate ADE context on the session row's persisted repo so a session
-    // on repo A doesn't ship repo B's editor / git / LSP state when the
-    // toolbar happens to point elsewhere. Legacy rows with no
-    // `repoPath` fall through to the unconstrained path.
+    // Gate ADE context on an explicit trusted execution workspace when one
+    // is supplied, otherwise on the session row's persisted repo.
     const sessionRow = getInstrumentedStore().get(sessionByIdAtom(sessionId));
+    const executionWorkspacePath =
+      workspacePath ?? sessionRow?.repoPath ?? null;
     const adeContext = collectAdeContext({
-      expectedRepoPath: sessionRow?.repoPath ?? null,
+      expectedRepoPath: executionWorkspacePath,
       sessionId,
     });
     const adapter = getAdapterForSession(sessionId);
@@ -348,7 +354,7 @@ export const SessionService = {
     }
 
     try {
-      await adapter.sendMessage({
+      const receipt = await adapter.sendMessage({
         sessionId,
         content: effectiveContent,
         displayText: effectiveDisplayText,
@@ -362,7 +368,7 @@ export const SessionService = {
         turnIntentSource,
         directUserIntent,
         adeContext,
-        sessionRepoPath: sessionRow?.repoPath ?? null,
+        sessionRepoPath: executionWorkspacePath,
       });
       if (forkHandoffArmed) {
         markForkHandoffConsumed(sessionId);
@@ -373,9 +379,18 @@ export const SessionService = {
       // which simply overwrites this local stamp — no drift.
       markSessionActive(sessionId);
       logger.info(`Sent message to ${adapter.category} session: ${sessionId}`);
+      return receipt;
     } catch (error) {
       throwServiceError(`Failed to send message to ${sessionId}`, error);
     }
+  },
+
+  /** Durable receipt used to disambiguate a lost send IPC response. */
+  async getTurnIntentStatus(sessionId: string, turnIntentId: string) {
+    return rpc.agentSession.getTurnIntentStatus({
+      sessionId,
+      turnIntentId,
+    });
   },
 
   // ==========================================

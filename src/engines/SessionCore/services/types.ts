@@ -92,6 +92,11 @@ export interface SessionSendMessageParams {
   accountId?: string;
   /** Optional agent mode for SDE sessions (build/plan/explore) */
   mode?: string;
+  /**
+   * Explicit execution workspace override for trusted non-composer sends.
+   * Ordinary chat sends omit this and use the session row's persisted repo.
+   */
+  workspacePath?: string;
   /** Base64 image data URLs attached to this message. */
   imageDataUrls?: string[];
   /** Client-side idempotency key used to suppress duplicate sends. */

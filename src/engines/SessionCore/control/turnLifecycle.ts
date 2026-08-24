@@ -25,9 +25,9 @@
  * Invariants:
  *   - Every dispatch bumps `generation` synchronously (the reserve), so two
  *     concurrent submits can never both see "idle".
- *   - A terminal carrying a generation that does not match the current one is
- *     discarded — a late terminal from an old turn can never release the
- *     queue for a newer turn.
+ *   - A terminal carrying an older exact generation is retained for that
+ *     generation's observers, but can never release the queue or mutate the
+ *     phase of a newer turn.
  *   - A terminal without a generation is discarded while "dispatching"
  *     (before the running ack, any unattributed terminal is by definition
  *     from an older turn).
@@ -42,6 +42,11 @@ import {
   getInstrumentedStore,
   isStoreInitialized,
 } from "@src/util/core/state/instrumentedStore";
+
+import {
+  retireSessionTurnIntentDispatches,
+  retireTurnIntentDispatch,
+} from "./turnIntentDispatchLifecycle";
 
 const log = createLogger("turnLifecycle");
 
@@ -73,8 +78,19 @@ interface SessionTurnState {
     status: TurnTerminalStatus;
     at: number;
   } | null;
+  /**
+   * Exact terminals retained by generation. A single `lastTerminal` slot is
+   * insufficient when a later turn finishes before an observer of the prior
+   * generation attaches (or while that observer is still scheduled).
+   */
+  terminalsByGeneration: Map<
+    number,
+    { generation: number; status: TurnTerminalStatus; at: number }
+  >;
   deadmanTimer: ReturnType<typeof setTimeout> | null;
 }
+
+const MAX_RETAINED_TERMINALS_PER_SESSION = 32;
 
 /**
  * If a dispatch never receives a running ack (backend hung before accepting
@@ -102,6 +118,7 @@ function getState(sessionId: string): SessionTurnState {
       phase: "idle",
       generation: 0,
       lastTerminal: null,
+      terminalsByGeneration: new Map(),
       deadmanTimer: null,
     };
     stateBySession.set(sessionId, state);
@@ -142,7 +159,11 @@ function armDeadman(
       `[turnLifecycle] dead-man: session ${sessionId} stuck in "${phase}" for ` +
         `${timeoutMs}ms (generation ${armedGeneration}) — forcing idle`
     );
-    forceTurnIdle(sessionId);
+    forceTurnIdleFromDeadman(
+      sessionId,
+      current,
+      phase === "stopping" ? "cancelled" : "failed"
+    );
   }, timeoutMs);
 }
 
@@ -160,6 +181,41 @@ function transition(
     armDeadman(sessionId, state, "stopping", STOPPING_DEADMAN_MS);
   }
   bumpSignal();
+}
+
+function recordTurnTerminal(
+  sessionId: string,
+  state: SessionTurnState,
+  generation: number,
+  status: TurnTerminalStatus
+): boolean {
+  // Terminal finality is monotonic for one exact generation. In particular,
+  // an IPC response-loss catch must not overwrite a completed provider
+  // terminal with a synthetic failed terminal for the same dispatch.
+  if (state.terminalsByGeneration.has(generation)) return false;
+  retireTurnIntentDispatch(sessionId, generation);
+  const terminal = {
+    generation,
+    status,
+    at: Date.now(),
+  };
+  // `lastTerminal` is a generation watermark used by follow-up observers.
+  // A delayed exact terminal for an older turn must remain queryable by its
+  // generation without moving that watermark backwards.
+  if (!state.lastTerminal || generation >= state.lastTerminal.generation) {
+    state.lastTerminal = terminal;
+  }
+  state.terminalsByGeneration.set(generation, terminal);
+  while (
+    state.terminalsByGeneration.size > MAX_RETAINED_TERMINALS_PER_SESSION
+  ) {
+    const oldestGeneration = state.terminalsByGeneration.keys().next().value as
+      | number
+      | undefined;
+    if (oldestGeneration === undefined) break;
+    state.terminalsByGeneration.delete(oldestGeneration);
+  }
+  return true;
 }
 
 /**
@@ -195,6 +251,12 @@ export function markTurnRunning(
   ) {
     return;
   }
+  if (
+    options.generation !== undefined &&
+    state.terminalsByGeneration.has(options.generation)
+  ) {
+    return;
+  }
   if (state.phase === "working" || state.phase === "stopping") return;
   if (state.phase === "idle") {
     state.generation += 1;
@@ -207,8 +269,17 @@ export function markTurnRunning(
  * never opens a turn from idle. Use for low-trust activity signals (raw
  * event traffic) that may trail a terminal.
  */
-export function confirmTurnRunning(sessionId: string): void {
+export function confirmTurnRunning(
+  sessionId: string,
+  options: { generation?: number } = {}
+): void {
   const state = getState(sessionId);
+  if (
+    options.generation !== undefined &&
+    options.generation !== state.generation
+  ) {
+    return;
+  }
   if (state.phase !== "dispatching") return;
   transition(sessionId, state, "working");
 }
@@ -228,7 +299,8 @@ export function beginTurnStopping(sessionId: string): void {
  * Provider delivered a turn-final terminal. This is the ONLY natural way a
  * turn ends.
  *
- * - `generation` provided and stale → discarded (late terminal of old turn).
+ * - `generation` provided and stale → recorded for that exact generation,
+ *   but never allowed to change the newer generation's phase.
  * - No `generation` while "dispatching" → discarded (an unattributed
  *   terminal arriving before the running ack belongs to an older turn).
  */
@@ -240,8 +312,12 @@ export function markTurnTerminal(
   const state = getState(sessionId);
   if (
     options.generation !== undefined &&
-    options.generation !== state.generation
+    options.generation > state.generation
   ) {
+    log.warn(
+      `[turnLifecycle] discarding future-generation "${status}" terminal for ` +
+        `session ${sessionId} (signal ${options.generation}, current ${state.generation})`
+    );
     return;
   }
   if (state.phase === "dispatching" && options.generation === undefined) {
@@ -251,11 +327,15 @@ export function markTurnTerminal(
     );
     return;
   }
-  state.lastTerminal = {
-    generation: state.generation,
-    status,
-    at: Date.now(),
-  };
+  const generation = options.generation ?? state.generation;
+  if (!recordTurnTerminal(sessionId, state, generation, status)) return;
+  if (generation !== state.generation) {
+    // Exact finality belongs to an older reservation. Wake exact-generation
+    // observers and retire its identities, but preserve every bit of the
+    // newer turn's phase/timer state.
+    bumpSignal();
+    return;
+  }
   if (state.phase !== "idle") {
     transition(sessionId, state, "idle");
   } else {
@@ -263,13 +343,33 @@ export function markTurnTerminal(
   }
 }
 
+function forceTurnIdleFromDeadman(
+  sessionId: string,
+  state: SessionTurnState,
+  displacedStatus: TurnTerminalStatus
+): void {
+  const displacedGeneration = state.generation;
+  recordTurnTerminal(sessionId, state, displacedGeneration, displacedStatus);
+  // Advance the fence after recording the displaced generation so a delayed
+  // provider signal cannot become the terminal of whatever starts next.
+  state.generation += 1;
+  if (state.phase !== "idle") {
+    transition(sessionId, state, "idle");
+  } else {
+    clearDeadman(state);
+    bumpSignal();
+  }
+}
+
 /**
  * Explicit boundary override: rewind boundaries and bounded fallbacks force
  * the session idle without a provider terminal. The generation is bumped so
- * any in-flight terminal of the overridden turn is discarded when it lands.
+ * any in-flight terminal of the overridden turn cannot mutate the new phase
+ * when it lands (its exact finality is still retained by generation).
  */
 export function forceTurnIdle(sessionId: string): void {
   const state = getState(sessionId);
+  retireTurnIntentDispatch(sessionId, state.generation);
   state.generation += 1;
   if (state.phase !== "idle") {
     transition(sessionId, state, "idle");
@@ -297,8 +397,22 @@ export function getLastTurnTerminal(
   return stateBySession.get(sessionId)?.lastTerminal ?? null;
 }
 
+/** Read the immutable terminal for one exact reserved generation. */
+export function getTurnTerminal(
+  sessionId: string,
+  generation: number
+): { generation: number; status: TurnTerminalStatus; at: number } | null {
+  return (
+    stateBySession.get(sessionId)?.terminalsByGeneration.get(generation) ?? null
+  );
+}
+
 /** Release all retained lifecycle state when a session is permanently removed. */
 export function clearTurnLifecycleSession(sessionId: string): void {
+  // Intent aliases can be published before any lifecycle state is observed
+  // (for example, a recovered receipt during cold startup). Always clear
+  // those identities even when this process has no SessionTurnState yet.
+  retireSessionTurnIntentDispatches(sessionId);
   const state = stateBySession.get(sessionId);
   if (!state) return;
   clearDeadman(state);

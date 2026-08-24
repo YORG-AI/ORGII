@@ -180,6 +180,27 @@ export interface AdapterSendInput {
 }
 
 /**
+ * Transport acknowledgement for one logical send.
+ *
+ * `duplicate` means the adapter observed an idempotency collision. The
+ * canonical dispatcher must then reconcile the exact durable turn-intent
+ * receipt instead of assuming this reservation will emit a provider terminal.
+ */
+export interface AdapterSendReceipt {
+  duplicate: boolean;
+  /** Backend diverted this message into an already-running native turn. */
+  steered?: boolean;
+  /** Exact durable status when the transport can return it in the ack. */
+  turnIntentStatus?: string | null;
+  /**
+   * Backend-selected durable identity for the execution. Project dispatch
+   * replaces a composer intent with its WorkItemRun id; both identities alias
+   * the same frontend generation.
+   */
+  effectiveTurnIntentId?: string | null;
+}
+
+/**
  * Adapter interface for session-type-specific logic.
  * Each session type (SDE Agent, OS Agent, CLI, Cursor IDE) implements this.
  */
@@ -214,7 +235,7 @@ export interface SessionAdapter {
    * previous switch on `isAgentSession` / `isCliSession`. New IDE
    * adapters slot in here without touching `SessionService`.
    */
-  sendMessage(input: AdapterSendInput): Promise<void>;
+  sendMessage(input: AdapterSendInput): Promise<AdapterSendReceipt>;
 
   /** Stop the running agent/session with an explicit control-flow reason. */
   stopSession(sessionId: string, reason: CancelReason): Promise<void>;

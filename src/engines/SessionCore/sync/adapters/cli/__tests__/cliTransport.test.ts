@@ -28,7 +28,9 @@ describe("sendCliMessage acceptance boundary", () => {
     mocks.message.mockResolvedValue({
       sessionId: "cliagent-worker",
       turnIntentId: "intent-1",
+      effectiveTurnIntentId: "intent-1",
       status: "running",
+      duplicate: false,
     });
     mocks.enterIntervention.mockReturnValue(new Promise(() => undefined));
   });
@@ -43,7 +45,11 @@ describe("sendCliMessage acceptance boundary", () => {
         turnIntentSource: "user_submit",
         directUserIntent: true,
       })
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({
+      duplicate: false,
+      turnIntentStatus: "running",
+      effectiveTurnIntentId: "intent-1",
+    });
 
     expect(mocks.message).toHaveBeenCalledWith({
       request: {
@@ -56,9 +62,108 @@ describe("sendCliMessage acceptance boundary", () => {
     expect(mocks.registerReceipt).toHaveBeenCalledWith({
       sessionId: "cliagent-worker",
       turnIntentId: "intent-1",
+      effectiveTurnIntentId: "intent-1",
       status: "running",
+      duplicate: false,
     });
     expect(mocks.enterIntervention).toHaveBeenCalledWith("cliagent-worker");
+  });
+
+  it("returns an exact running replay without repeating intervention", async () => {
+    mocks.message.mockResolvedValue({
+      sessionId: "cliagent-worker",
+      turnIntentId: "intent-running",
+      effectiveTurnIntentId: "intent-running",
+      status: "running",
+      duplicate: true,
+    });
+
+    await expect(
+      sendCliMessage({
+        sessionId: "cliagent-worker",
+        content: "retry after response loss",
+        turnIntentId: "intent-running",
+        clientMessageId: "message-running",
+        turnIntentSource: "user_submit",
+        directUserIntent: true,
+      })
+    ).resolves.toEqual({
+      duplicate: true,
+      turnIntentStatus: "running",
+      effectiveTurnIntentId: "intent-running",
+    });
+
+    expect(mocks.registerReceipt).toHaveBeenCalledWith({
+      sessionId: "cliagent-worker",
+      turnIntentId: "intent-running",
+      effectiveTurnIntentId: "intent-running",
+      status: "running",
+      duplicate: true,
+    });
+    expect(mocks.enterIntervention).not.toHaveBeenCalled();
+  });
+
+  it("returns an exact completed replay without reopening the turn", async () => {
+    mocks.message.mockResolvedValue({
+      sessionId: "cliagent-worker",
+      turnIntentId: "intent-completed",
+      effectiveTurnIntentId: "intent-completed",
+      status: "completed",
+      duplicate: true,
+    });
+
+    await expect(
+      sendCliMessage({
+        sessionId: "cliagent-worker",
+        content: "late retry",
+        turnIntentId: "intent-completed",
+        clientMessageId: "message-completed",
+        turnIntentSource: "user_submit",
+      })
+    ).resolves.toEqual({
+      duplicate: true,
+      turnIntentStatus: "completed",
+      effectiveTurnIntentId: "intent-completed",
+    });
+
+    expect(mocks.registerReceipt).toHaveBeenCalledWith({
+      sessionId: "cliagent-worker",
+      turnIntentId: "intent-completed",
+      effectiveTurnIntentId: "intent-completed",
+      status: "completed",
+      duplicate: true,
+    });
+    expect(mocks.enterIntervention).not.toHaveBeenCalled();
+  });
+
+  it("returns a backend-selected effective Project intent", async () => {
+    mocks.message.mockResolvedValue({
+      sessionId: "cliagent-worker",
+      turnIntentId: "intent-project-x",
+      effectiveTurnIntentId: "wir_project-y",
+      status: "queued",
+      duplicate: false,
+    });
+
+    await expect(
+      sendCliMessage({
+        sessionId: "cliagent-worker",
+        content: "project task",
+        turnIntentId: "intent-project-x",
+        clientMessageId: "message-project-x",
+        turnIntentSource: "user_submit",
+      })
+    ).resolves.toEqual({
+      duplicate: false,
+      turnIntentStatus: "queued",
+      effectiveTurnIntentId: "wir_project-y",
+    });
+    expect(mocks.registerReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turnIntentId: "intent-project-x",
+        effectiveTurnIntentId: "wir_project-y",
+      })
+    );
   });
 
   it("rejects only when the backend command rejects", async () => {
@@ -75,6 +180,25 @@ describe("sendCliMessage acceptance boundary", () => {
     ).rejects.toThrow("ipc unavailable");
 
     expect(mocks.registerReceipt).not.toHaveBeenCalled();
+    expect(mocks.enterIntervention).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the effective receipt cannot be attributed exactly", async () => {
+    mocks.registerReceipt.mockImplementationOnce(() => {
+      throw new Error("CLI effective turn intent wir-conflict conflicts");
+    });
+
+    await expect(
+      sendCliMessage({
+        sessionId: "cliagent-worker",
+        content: "project task",
+        turnIntentId: "intent-conflict",
+        clientMessageId: "message-conflict",
+        turnIntentSource: "user_submit",
+        directUserIntent: true,
+      })
+    ).rejects.toThrow(/conflicts/);
+
     expect(mocks.enterIntervention).not.toHaveBeenCalled();
   });
 });
