@@ -287,7 +287,7 @@ pub(crate) async fn settle_pause_handoff_after_turn(
         dialog_turn_generation: identity.dialog_turn_generation.clone(),
     };
     if let Err(error) =
-        crate::tools::impls::coding::exec::registry::await_shells_terminated_for_owner(
+        crate::tools::impls::coding::exec::registry::cancel_and_await_jobs_for_owner(
             &process_owner,
             DRAIN_DEADLINE,
         )
@@ -297,7 +297,7 @@ pub(crate) async fn settle_pause_handoff_after_turn(
             session_id = %session.id,
             runtime_lease_id = %identity.runtime_lease_id,
             error = %error,
-            "Pause handoff remains draining because owned shell processes are not terminal"
+            "Pause handoff remains draining because exact-owner background work is not terminal"
         );
         return;
     }

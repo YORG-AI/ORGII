@@ -12,7 +12,7 @@ use super::super::shell_replay::active_state;
 use super::events::{
     broadcast_process_backgrounded, broadcast_process_exited, broadcast_system_output,
 };
-use super::output_runtime::{drain_output, OutputRuntime};
+use super::output_runtime::{drain_output, format_summary, OutputRuntime};
 use super::process_tree::terminate_child_tree;
 use super::stall_watchdog::StallWatchdog;
 use super::{BackgroundReason, ExecIdentity};
@@ -70,7 +70,7 @@ pub(super) fn handle_backgrounded(
                 registry_path,
                 identity.session_id.clone(),
                 identity.call_id.clone(),
-                control.owner.clone(),
+                control,
                 identity.process_cancel.clone(),
             ));
         } else {
@@ -210,7 +210,7 @@ pub(super) fn handle_backgrounded(
                         "shell replay output did not drain: {writer_err}"
                     )));
                 }
-                finish_background_job(pid, &identity.session_id).await;
+                finish_background_job(pid, &identity).await;
                 return;
             }
         };
@@ -222,6 +222,18 @@ pub(super) fn handle_backgrounded(
         } else {
             drain.replay.finalize(ShellReplayStatus::Complete, None)
         };
+        if identity
+            .turn_process_control
+            .as_ref()
+            .is_some_and(|control| control.require_owned_job_finality)
+        {
+            if let Ok(summary) = replay_result.as_ref() {
+                registry::set_final_result(
+                    &pid.to_string(),
+                    format_summary(summary.clone(), exit_code.unwrap_or(-1)),
+                );
+            }
+        }
         let replay_incomplete = replay_result.is_err();
 
         if pid != 0 {
@@ -262,7 +274,7 @@ pub(super) fn handle_backgrounded(
         if let Some(completion) = monitor_completion.take() {
             completion.finish(termination_result);
         }
-        finish_background_job(pid, &identity.session_id).await;
+        finish_background_job(pid, &identity).await;
     });
 
     Ok(bounded_background_result(preview, &header, &log_info))
@@ -276,12 +288,19 @@ pub(super) fn handle_backgrounded(
 /// resumed turn can still see it. The old flat 60s eviction raced exactly
 /// that window: a session idle for longer than a minute lost the entry
 /// before any turn could read it.
-async fn finish_background_job(pid: u32, session_id: &str) {
+async fn finish_background_job(pid: u32, identity: &ExecIdentity) {
     if pid == 0 {
         return;
     }
+    if identity
+        .turn_process_control
+        .as_ref()
+        .is_some_and(|control| control.require_owned_job_finality)
+    {
+        return;
+    }
     crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()
-        .wake_owner(session_id);
+        .wake_owner(&identity.session_id);
     registry::retain_until_acknowledged_then_remove(
         &pid.to_string(),
         Duration::from_secs(30 * 60),

@@ -1,18 +1,23 @@
 use std::path::Path;
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use core_types::session_event::ShellReplayStatus;
 use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 
+use super::super::registry;
 use super::super::shell_replay::{
     active_state, ShellReplayStream, ShellReplayTarget, ShellReplayWriter,
 };
-use super::background::{bounded_background_result, SHELL_TOOL_RESULT_MAX_BYTES};
-use super::output_runtime::{drain_output, OutputRuntime};
+use super::background::{
+    bounded_background_result, handle_backgrounded, SHELL_TOOL_RESULT_MAX_BYTES,
+};
+use super::output_runtime::{drain_output, spawn_output_runtime, OutputRuntime};
 use super::stall_watchdog::looks_like_interactive_prompt;
-use super::{execute_via_command, ExecIdentity, ExecMode};
+use super::{execute_via_command, BackgroundReason, ExecIdentity, ExecMode};
 
 #[cfg(unix)]
 fn test_turn_control(
@@ -27,6 +32,7 @@ fn test_turn_control(
             dialog_turn_generation: generation.to_string(),
         },
         background_cancel: CancellationToken::new(),
+        require_owned_job_finality: false,
     }
 }
 
@@ -244,6 +250,61 @@ async fn real_subprocess_background_timeout_and_cancel_cross_completion_barrier(
         wait_for_terminal_replay(session_id, "call-cancelled").await,
         ShellReplayStatus::Running
     );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[serial_test::serial]
+async fn exact_owner_background_shell_stays_in_turn_and_skips_idle_wake() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let temp = tempfile::tempdir().unwrap();
+    let mut control = test_turn_control("owned-shell-finality", "owned-shell-turn");
+    control.require_owned_job_finality = true;
+    let owner = control.owner.clone();
+    let identity = ExecIdentity::new(&owner.session_id, "owned-shell-call")
+        .with_turn_process_control(Some(control));
+
+    execute_via_command(
+        "printf owned-shell-output",
+        temp.path().to_path_buf(),
+        10,
+        None,
+        ExecMode::Background,
+        &identity,
+        &temp.path().join("replays"),
+        None,
+        None,
+    )
+    .await
+    .expect("launch exact-owner background shell");
+    assert_eq!(
+        wait_for_terminal_replay(&owner.session_id, "owned-shell-call").await,
+        ShellReplayStatus::Complete
+    );
+
+    let terminal = loop {
+        let jobs = registry::list_jobs_for_owner(&owner);
+        if jobs
+            .iter()
+            .all(|job| !matches!(job.status, registry::JobStatus::Running))
+        {
+            break jobs;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    };
+    assert_eq!(terminal.len(), 1);
+    let handle = terminal[0].handle.clone();
+    assert!(terminal[0].has_unread_output);
+    assert!(!registry::claim_completion_wake_for_session(
+        &owner.session_id
+    ));
+    assert!(registry::list_jobs_for_reminder(&owner.session_id).is_empty());
+
+    // `await_output` calls this exact acknowledgement after returning the
+    // replay. Exact-owner terminal jobs are removed immediately.
+    registry::acknowledge_outputs_for_owner(&owner, std::slice::from_ref(&handle));
+    assert!(registry::list_jobs_for_owner(&owner).is_empty());
+    assert!(registry::get_status(&handle).is_none());
 }
 
 #[cfg(unix)]

@@ -6,7 +6,7 @@
 //! and query status using a unified string handle.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -15,7 +15,7 @@ use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::tools::call_context::TurnProcessOwner;
+use crate::tools::call_context::{TurnProcessControl, TurnProcessOwner};
 
 /// Status of a background job.
 #[derive(Debug, Clone)]
@@ -101,6 +101,10 @@ pub struct BackgroundJob {
     recent_lines: VecDeque<String>,
     /// Tokio JoinHandle for background subagents — `abort()` cancels the task.
     join_handle: Option<JoinHandle<()>>,
+    /// False only during the narrow register-to-spawn handoff. Exact-owner
+    /// teardown cannot report terminal until the spawned task is attached and
+    /// its JoinHandle has actually finished.
+    join_handle_attached: bool,
     /// Per-job cancel flag for background subagents. Owned by the job (NOT
     /// the parent session's flag — that one is pulsed back to `false` at the
     /// parent's turn boundary, which a slow worker can miss entirely).
@@ -109,9 +113,13 @@ pub struct BackgroundJob {
     /// (LinkedSession terminal write, worktree cleanup, registry grace
     /// period). `None` for shell jobs.
     cancel_flag: Option<Arc<AtomicBool>>,
-    /// Exact owner for detachable shell processes. None for legacy shell
-    /// fixtures and subagents.
-    shell_owner: Option<TurnProcessOwner>,
+    /// Exact dialog Turn that created this job. Shells always carry it when
+    /// launched from a durable Turn; subagents carry it only when Agent Org
+    /// requires same-Turn convergence.
+    turn_owner: Option<TurnProcessOwner>,
+    /// Agent Org jobs are consumed by their owner Turn and never participate
+    /// in the ordinary SDE idle-wake or retention paths.
+    requires_in_turn_finality: bool,
     /// Per-process cancellation. This is distinct from the Turn token so an
     /// explicit kill_handle request terminates only the selected process.
     shell_cancel: Option<CancellationToken>,
@@ -215,14 +223,137 @@ pub fn acknowledge_outputs(handles: &[String]) {
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     for handle in handles {
         if let Some(job) = reg.get_mut(handle) {
+            if job.requires_in_turn_finality {
+                continue;
+            }
             job.output_acknowledged = true;
         }
+    }
+}
+
+/// Snapshot only the jobs that must converge inside one exact Agent Org
+/// Turn. This is an in-memory owner lookup over the already-bounded active
+/// registry; it performs no database query and creates no timer.
+pub fn list_jobs_for_owner(owner: &TurnProcessOwner) -> Vec<JobSnapshot> {
+    let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+    let index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+    index
+        .get(owner)
+        .into_iter()
+        .flatten()
+        .filter_map(|handle| reg.get(handle))
+        .filter(|job| job.requires_in_turn_finality)
+        .filter(|job| job.is_running() || !job.output_acknowledged)
+        .map(|job| {
+            let mut snapshot = job.snapshot();
+            if matches!(job.kind, JobKind::Subagent { .. }) && !owned_job_execution_finished(job) {
+                // `finish_subagent` publishes the result before the spawned
+                // task returns. Keep that narrow cleanup tail logically
+                // Running so the parent cannot consume the result twice or
+                // finalize before the JoinHandle is terminal.
+                snapshot.status = JobStatus::Running;
+                snapshot.final_result = None;
+                snapshot.has_unread_output = false;
+            }
+            snapshot
+        })
+        .collect()
+}
+
+/// Active foreground handoff only: wait for an exact subagent whose result
+/// was already delivered inline to finish its spawned task before removing
+/// the registry row. This bounded owner-local wait creates no retained timer.
+pub async fn await_subagent_execution_for_owner(
+    owner: &TurnProcessOwner,
+    handle: &str,
+    timeout: Duration,
+) -> Result<(), String> {
+    let wait = async {
+        loop {
+            let finished = {
+                let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+                let Some(job) = reg.get(handle) else {
+                    return Err(format!(
+                        "owned subagent {handle} disappeared before finality"
+                    ));
+                };
+                if !job.requires_in_turn_finality || job.turn_owner.as_ref() != Some(owner) {
+                    return Err(format!(
+                        "owned subagent {handle} no longer matches its parent Turn"
+                    ));
+                }
+                if !matches!(job.kind, JobKind::Subagent { .. }) {
+                    return Err(format!("owned job {handle} is not a subagent"));
+                }
+                owned_job_execution_finished(job)
+            };
+            if finished {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    };
+    tokio::time::timeout(timeout, wait)
+        .await
+        .map_err(|_| format!("timed out waiting for owned subagent {handle} to finish"))?
+}
+
+/// Acknowledge terminal results only when both the handle and exact owner
+/// match, then remove them immediately. Agent Org jobs never enter the
+/// ordinary 5-second acknowledgement poll or 30-minute retention tail.
+pub fn acknowledge_outputs_for_owner(owner: &TurnProcessOwner, handles: &[String]) {
+    let removable = {
+        let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+        handles
+            .iter()
+            .filter_map(|handle| {
+                let job = reg.get_mut(handle)?;
+                if !job.requires_in_turn_finality
+                    || job.turn_owner.as_ref() != Some(owner)
+                    || !owned_job_execution_finished(job)
+                {
+                    return None;
+                }
+                job.output_acknowledged = true;
+                Some(handle.clone())
+            })
+            .collect::<Vec<_>>()
+    };
+    for handle in removable {
+        remove(&handle);
+    }
+}
+
+/// Remove already-terminal exact-owner jobs after a cancelled Turn (Pause)
+/// has proved their external work is gone. No terminal result is delivered
+/// because cancellation makes the Turn unsuccessful.
+pub fn remove_terminal_jobs_for_owner(owner: &TurnProcessOwner) {
+    let handles = {
+        let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+        let index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+        index
+            .get(owner)
+            .into_iter()
+            .flatten()
+            .filter_map(|handle| reg.get(handle))
+            .filter(|job| job.requires_in_turn_finality && owned_job_execution_finished(job))
+            .map(|job| job.handle.clone())
+            .collect::<Vec<_>>()
+    };
+    for handle in handles {
+        remove(&handle);
     }
 }
 
 const BROADCAST_CAPACITY: usize = 512;
 
 static REGISTRY: LazyLock<Mutex<HashMap<String, BackgroundJob>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Secondary index owned by the same registry module. Every access locks
+/// `REGISTRY` first and this map second, so owner lookups are O(k) in that
+/// Turn's jobs without a process-wide scan or lock-order inversion.
+static OWNER_INDEX: LazyLock<Mutex<HashMap<TurnProcessOwner, HashSet<String>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// How long a finished job's tombstone is retained after it leaves the live
@@ -260,7 +391,8 @@ pub fn register_shell(
         log_path,
         session_id,
         replay_identity: None,
-        shell_owner: None,
+        turn_owner: None,
+        requires_in_turn_finality: false,
         shell_cancel: None,
         shell_completion: None,
     })
@@ -281,7 +413,8 @@ pub fn register_shell_replay(
         log_path,
         session_id,
         replay_identity: Some((replay_session_id, call_id)),
-        shell_owner: None,
+        turn_owner: None,
+        requires_in_turn_finality: false,
         shell_cancel: None,
         shell_completion: None,
     })
@@ -295,7 +428,7 @@ pub fn register_owned_shell_replay(
     log_path: PathBuf,
     session_id: String,
     call_id: String,
-    owner: TurnProcessOwner,
+    turn_control: &TurnProcessControl,
     process_cancel: CancellationToken,
 ) -> ShellMonitorCompletion {
     let replay_session_id = session_id.clone();
@@ -306,7 +439,8 @@ pub fn register_owned_shell_replay(
         log_path,
         session_id,
         replay_identity: Some((replay_session_id, call_id)),
-        shell_owner: Some(owner),
+        turn_owner: Some(turn_control.owner.clone()),
+        requires_in_turn_finality: turn_control.require_owned_job_finality,
         shell_cancel: Some(process_cancel),
         shell_completion: Some(completion_rx),
     });
@@ -319,7 +453,8 @@ struct ShellRegistration {
     log_path: PathBuf,
     session_id: String,
     replay_identity: Option<(String, String)>,
-    shell_owner: Option<TurnProcessOwner>,
+    turn_owner: Option<TurnProcessOwner>,
+    requires_in_turn_finality: bool,
     shell_cancel: Option<CancellationToken>,
     shell_completion: Option<watch::Receiver<ShellCompletionState>>,
 }
@@ -331,10 +466,12 @@ fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<St
         log_path,
         session_id,
         replay_identity,
-        shell_owner,
+        turn_owner,
+        requires_in_turn_finality,
         shell_cancel,
         shell_completion,
     } = registration;
+    let indexed_owner = turn_owner.clone();
     let handle = pid.to_string();
     let (tx, _) = broadcast::channel(BROADCAST_CAPACITY);
     let sender = tx.clone();
@@ -354,8 +491,10 @@ fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<St
         output_tx: tx,
         recent_lines: VecDeque::new(),
         join_handle: None,
+        join_handle_attached: true,
         cancel_flag: None,
-        shell_owner,
+        turn_owner,
+        requires_in_turn_finality,
         shell_cancel,
         shell_completion,
         shell_kill_requested: false,
@@ -366,7 +505,15 @@ fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<St
         stall_delivered: false,
     };
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-    reg.insert(handle, job);
+    reg.insert(handle.clone(), job);
+    if let Some(owner) = indexed_owner {
+        OWNER_INDEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .entry(owner)
+            .or_default()
+            .insert(handle);
+    }
     sender
 }
 
@@ -381,12 +528,37 @@ pub fn register_subagent(
     session_id: String,
 ) -> (broadcast::Sender<String>, Arc<AtomicBool>) {
     let cancel_flag = Arc::new(AtomicBool::new(false));
-    let sender = register_subagent_with_flag(
+    let sender = register_subagent_inner(
         handle,
         subagent_type,
         agent_name,
         session_id,
         Arc::clone(&cancel_flag),
+        None,
+        false,
+    );
+    (sender, cancel_flag)
+}
+
+/// Register an Agent Org worker owned by one exact parent Turn. Its terminal
+/// result is consumed by that Turn and therefore never starts a later generic
+/// background-job wake.
+pub fn register_owned_subagent(
+    handle: String,
+    subagent_type: String,
+    agent_name: String,
+    session_id: String,
+    owner: TurnProcessOwner,
+) -> (broadcast::Sender<String>, Arc<AtomicBool>) {
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    let sender = register_subagent_inner(
+        handle,
+        subagent_type,
+        agent_name,
+        session_id,
+        Arc::clone(&cancel_flag),
+        Some(owner),
+        true,
     );
     (sender, cancel_flag)
 }
@@ -406,6 +578,27 @@ pub fn register_subagent_with_flag(
     session_id: String,
     cancel_flag: Arc<AtomicBool>,
 ) -> broadcast::Sender<String> {
+    register_subagent_inner(
+        handle,
+        subagent_type,
+        agent_name,
+        session_id,
+        cancel_flag,
+        None,
+        false,
+    )
+}
+
+fn register_subagent_inner(
+    handle: String,
+    subagent_type: String,
+    agent_name: String,
+    session_id: String,
+    cancel_flag: Arc<AtomicBool>,
+    turn_owner: Option<TurnProcessOwner>,
+    requires_in_turn_finality: bool,
+) -> broadcast::Sender<String> {
+    let indexed_owner = turn_owner.clone();
     let (tx, _) = broadcast::channel(BROADCAST_CAPACITY);
     let sender = tx.clone();
     let job = BackgroundJob {
@@ -422,8 +615,10 @@ pub fn register_subagent_with_flag(
         output_tx: tx,
         recent_lines: VecDeque::new(),
         join_handle: None,
+        join_handle_attached: false,
         cancel_flag: Some(Arc::clone(&cancel_flag)),
-        shell_owner: None,
+        turn_owner,
+        requires_in_turn_finality,
         shell_cancel: None,
         shell_completion: None,
         shell_kill_requested: false,
@@ -435,6 +630,14 @@ pub fn register_subagent_with_flag(
     };
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     reg.insert(handle.clone(), job);
+    if let Some(owner) = indexed_owner {
+        OWNER_INDEX
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .entry(owner)
+            .or_default()
+            .insert(handle.clone());
+    }
     drop(reg);
     broadcast_subagent_job_changed(&session_id, &handle, &agent_name, &subagent_type, "running");
     sender
@@ -524,6 +727,51 @@ pub fn set_final_result(handle: &str, result: String) {
     }
 }
 
+/// Atomically publish a subagent's terminal status and final result. Exact
+/// owner finality must never observe a terminal worker before its result is
+/// available for same-Turn consumption.
+pub fn finish_subagent(handle: &str, status: JobStatus, result: String) {
+    let broadcast = {
+        let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(job) = reg.get_mut(handle) else {
+            return;
+        };
+        let JobKind::Subagent {
+            subagent_type,
+            agent_name,
+        } = &job.kind
+        else {
+            return;
+        };
+        job.final_result = Some(result);
+        if !matches!(job.status, JobStatus::Killed) {
+            job.status = status;
+        }
+        let wire_status = match &job.status {
+            JobStatus::Completed | JobStatus::Exited(_) => "completed",
+            JobStatus::Failed => "failed",
+            JobStatus::Killed => "killed",
+            JobStatus::Running => "running",
+        };
+        Some((
+            job.session_id.clone(),
+            job.handle.clone(),
+            agent_name.clone(),
+            subagent_type.clone(),
+            wire_status,
+        ))
+    };
+    if let Some((session_id, handle, agent_name, subagent_type, wire_status)) = broadcast {
+        broadcast_subagent_job_changed(
+            &session_id,
+            &handle,
+            &agent_name,
+            &subagent_type,
+            wire_status,
+        );
+    }
+}
+
 /// Remove a job from the registry (called after grace period).
 ///
 /// Leaves a short-lived [`Tombstone`] behind so a late `await_output` can
@@ -534,7 +782,17 @@ pub fn set_final_result(handle: &str, result: String) {
 pub fn remove(handle: &str) {
     let removed = {
         let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-        reg.remove(handle)
+        let removed = reg.remove(handle);
+        if let Some(owner) = removed.as_ref().and_then(|job| job.turn_owner.as_ref()) {
+            let mut index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(handles) = index.get_mut(owner) {
+                handles.remove(handle);
+                if handles.is_empty() {
+                    index.remove(owner);
+                }
+            }
+        }
+        removed
     };
     if let Some(job) = removed {
         let mut tombs = TOMBSTONES.lock().unwrap_or_else(|e| e.into_inner());
@@ -639,8 +897,12 @@ pub async fn await_shells_terminated_for_owner(
 ) -> Result<(), String> {
     let completions = {
         let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-        reg.values()
-            .filter(|job| job.shell_owner.as_ref() == Some(owner))
+        let index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+        index
+            .get(owner)
+            .into_iter()
+            .flatten()
+            .filter_map(|handle| reg.get(handle))
             .filter_map(|job| match (&job.kind, &job.shell_completion) {
                 (JobKind::Shell { pid, .. }, Some(completion)) => Some((*pid, completion.clone())),
                 _ => None,
@@ -693,7 +955,9 @@ pub fn list_jobs(session_id: Option<&str>) -> Vec<JobSnapshot> {
 pub fn acknowledge_output(handle: &str) {
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(job) = reg.get_mut(handle) {
-        job.output_acknowledged = true;
+        if !job.requires_in_turn_finality {
+            job.output_acknowledged = true;
+        }
     }
 }
 
@@ -717,7 +981,9 @@ pub fn list_jobs_for_reminder(session_id: &str) -> Vec<JobSnapshot> {
     let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     reg.values()
         .filter(|job| {
-            job.session_id == session_id && (job.is_running() || !job.output_acknowledged)
+            job.session_id == session_id
+                && !job.requires_in_turn_finality
+                && (job.is_running() || !job.output_acknowledged)
         })
         .map(|job| job.snapshot())
         .collect()
@@ -765,6 +1031,9 @@ pub fn claim_completion_wake_for_session(session_id: &str) -> bool {
         if job.session_id != session_id {
             continue;
         }
+        if job.requires_in_turn_finality {
+            continue;
+        }
         if !job.is_running()
             && job_completion_is_wakeworthy(job)
             && !job.output_acknowledged
@@ -794,6 +1063,9 @@ pub fn release_completion_wake_for_session(session_id: &str) {
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     for job in reg.values_mut() {
         if job.session_id != session_id {
+            continue;
+        }
+        if job.requires_in_turn_finality {
             continue;
         }
         if !job.is_running() && !job.output_acknowledged {
@@ -965,7 +1237,32 @@ pub fn push_output_line(handle: &str, line: String) {
 pub fn set_join_handle(handle: &str, jh: JoinHandle<()>) {
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(job) = reg.get_mut(handle) {
+        job.join_handle_attached = true;
+        if matches!(job.status, JobStatus::Killed) {
+            jh.abort();
+        }
         job.join_handle = Some(jh);
+    } else {
+        // A concurrent exact-owner teardown removed the registration before
+        // the spawning call could attach its handle. Dropping JoinHandle would
+        // detach the task, so abort it explicitly.
+        jh.abort();
+    }
+}
+
+fn owned_job_execution_finished(job: &BackgroundJob) -> bool {
+    if job.is_running() {
+        return false;
+    }
+    match job.kind {
+        JobKind::Shell { .. } => true,
+        JobKind::Subagent { .. } => {
+            job.join_handle_attached
+                && job
+                    .join_handle
+                    .as_ref()
+                    .is_some_and(JoinHandle::is_finished)
+        }
     }
 }
 
@@ -1125,7 +1422,7 @@ pub async fn kill_shell(handle: &str) -> Result<(), String> {
 pub fn kill_subagent(handle: &str) -> Result<(), String> {
     const HARD_ABORT_GRACE_SECS: u64 = 10;
 
-    let (cancel_flag, join_handle, broadcast_info) = {
+    let (cancel_flag, abort_handle, broadcast_info) = {
         let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
         let job = reg
             .get_mut(handle)
@@ -1149,7 +1446,7 @@ pub fn kill_subagent(handle: &str) -> Result<(), String> {
         job.status = JobStatus::Killed;
         (
             job.cancel_flag.clone(),
-            job.join_handle.take(),
+            job.join_handle.as_ref().map(JoinHandle::abort_handle),
             broadcast_info,
         )
     };
@@ -1159,22 +1456,22 @@ pub fn kill_subagent(handle: &str) -> Result<(), String> {
 
     if let Some(flag) = cancel_flag {
         flag.store(true, Ordering::SeqCst);
-        if let Some(jh) = join_handle {
+        if let Some(abort_handle) = abort_handle {
             // Watchdog: give the cooperative path a grace window, then abort.
             tokio::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_secs(HARD_ABORT_GRACE_SECS)).await;
-                if !jh.is_finished() {
+                if !abort_handle.is_finished() {
                     tracing::warn!(
                         "[job-registry] background subagent did not stop within {}s of cancel; hard-aborting task",
                         HARD_ABORT_GRACE_SECS
                     );
-                    jh.abort();
+                    abort_handle.abort();
                 }
             });
         }
-    } else if let Some(jh) = join_handle {
+    } else if let Some(abort_handle) = abort_handle {
         // Legacy job registered without a flag — hard abort is all we have.
-        jh.abort();
+        abort_handle.abort();
     }
     Ok(())
 }
@@ -1262,4 +1559,95 @@ pub fn cancel_shells_for_session(session_id: &str) -> usize {
         );
     }
     cancellations.len()
+}
+
+/// Cancel every background job owned by one exact Agent Org Turn and wait
+/// until the shell process groups and worker tasks are actually terminal.
+/// This is a bounded failure-recovery path, not a steady-state poller.
+pub async fn cancel_and_await_jobs_for_owner(
+    owner: &TurnProcessOwner,
+    timeout: Duration,
+) -> Result<(), String> {
+    let (shell_cancels, subagent_handles) = {
+        let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+        let index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+        let mut shell_cancels = Vec::new();
+        let mut subagent_handles = Vec::new();
+        let handles = index.get(owner).cloned().unwrap_or_default();
+        for handle in handles {
+            let Some(job) = reg.get_mut(&handle) else {
+                continue;
+            };
+            if !job.requires_in_turn_finality || !job.is_running() {
+                continue;
+            }
+            match &job.kind {
+                JobKind::Shell { .. } => {
+                    job.shell_kill_requested = true;
+                    if let Some(cancel) = job.shell_cancel.clone() {
+                        shell_cancels.push(cancel);
+                    }
+                }
+                JobKind::Subagent { .. } => subagent_handles.push((
+                    job.handle.clone(),
+                    job.join_handle.as_ref().map(JoinHandle::abort_handle),
+                )),
+            }
+        }
+        (shell_cancels, subagent_handles)
+    };
+
+    for cancel in shell_cancels {
+        cancel.cancel();
+    }
+    for (handle, abort_handle) in subagent_handles {
+        if let Err(error) = kill_subagent(&handle) {
+            if get_status(&handle).is_some_and(|(status, _)| matches!(status, JobStatus::Running)) {
+                return Err(format!("failed to cancel owned subagent {handle}: {error}"));
+            }
+        }
+        if let Some(abort_handle) = abort_handle {
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                if !abort_handle.is_finished() {
+                    abort_handle.abort();
+                }
+            });
+        }
+    }
+
+    let wait = async {
+        await_shells_terminated_for_owner(owner, timeout).await?;
+        loop {
+            let all_subagents_terminal = {
+                let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+                let index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+                index
+                    .get(owner)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|handle| reg.get(handle))
+                    .filter(|job| {
+                        job.requires_in_turn_finality
+                            && matches!(job.kind, JobKind::Subagent { .. })
+                    })
+                    .all(owned_job_execution_finished)
+            };
+            if all_subagents_terminal {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        Ok::<(), String>(())
+    };
+
+    tokio::time::timeout(timeout, wait).await.map_err(|_| {
+        format!(
+            "timed out after {}ms stopping background jobs owned by Turn {}",
+            timeout.as_millis(),
+            owner.dialog_turn_generation
+        )
+    })??;
+    remove_terminal_jobs_for_owner(owner);
+    Ok(())
 }

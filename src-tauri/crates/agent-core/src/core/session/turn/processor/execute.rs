@@ -70,10 +70,24 @@ impl UnifiedMessageProcessor {
             None => self.runtime.model.clone(),
         };
 
+        let mut turn_process_control = self.session.turn_process_control();
+        if self.runtime.agent_org_context.is_some() {
+            let control = turn_process_control.as_mut().ok_or_else(|| {
+                "Agent Org Turn execution requires an exact process owner".to_string()
+            })?;
+            if control.owner.session_id != session_id
+                || control.owner.turn_intent_id != turn_intent_id
+            {
+                return Err(
+                    "Agent Org Turn process owner does not match the dispatched Turn".to_string(),
+                );
+            }
+            control.require_owned_job_finality = true;
+        }
         let turn_config = TurnConfig {
             turn_intent_id: turn_intent_id.to_string(),
             projected_inbox_ids,
-            turn_process_control: self.session.turn_process_control(),
+            turn_process_control,
             model: turn_model,
             account_id: self.runtime.account_id.clone(),
             context_window_override: self

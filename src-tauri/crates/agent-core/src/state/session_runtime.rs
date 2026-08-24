@@ -532,6 +532,7 @@ impl AgentSession {
                     dialog_turn_generation: turn_id.clone(),
                 },
                 background_cancel: CancellationToken::new(),
+                require_owned_job_finality: false,
             },
         );
         *self.active_turn_identity.write() = Some(ActiveTurnIdentity {

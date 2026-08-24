@@ -1,6 +1,6 @@
 /* global browser, before, describe, it, process */
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -30,7 +30,12 @@ const PROVIDER_MODE = process.env.E2E_PROVIDER_MODE ?? "mock";
 const ORG_ID = `e2e-pause-resume-live-${ROUND}`;
 const ORG_NAME = `E2E Pause Resume Live ${ROUND}`;
 const MEMBER_ID = "pause-worker";
-const PROCESS_MARKER = `ORGII_PAUSE_LIVE_${ROUND}`;
+// Keep the durable/process marker compatible with sendRenderedChatPrompt's
+// compact marker probe. A hyphenated round id makes that helper fall back to
+// comparing the entire shell-heavy prompt inside JSON-escaped state.
+const MARKER_ROUND = ROUND.replaceAll("-", "_");
+const PROCESS_MARKER = `ORGII_PAUSE_LIVE_${MARKER_ROUND}`;
+const FINALITY_MARKER = `ORGII_RESUME_FINALITY_${MARKER_ROUND}`;
 const ORGII_HOME = process.env.E2E_ORGII_HOME ?? "";
 
 async function postJson(pathname, body = {}, timeoutMs = 15_000) {
@@ -152,6 +157,67 @@ function durableRunIdForRootSession(sessionId) {
   }
 }
 
+function sqlLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function sqliteRow(sql) {
+  const output = execFileSync(
+    "sqlite3",
+    ["-json", "-cmd", ".timeout 5000", join(ORGII_HOME, "sessions.db"), sql],
+    { encoding: "utf8" }
+  ).trim();
+  const rows = output ? JSON.parse(output) : [];
+  return rows[0] ?? null;
+}
+
+function convergenceSnapshot({
+  runId,
+  taskId,
+  memberSessionId,
+  continuationId,
+}) {
+  const run = sqlLiteral(runId);
+  const task = sqlLiteral(taskId);
+  const session = sqlLiteral(memberSessionId);
+  const continuation = sqlLiteral(continuationId);
+  const finalityMarker = sqlLiteral(`%${FINALITY_MARKER}%`);
+  return sqliteRow(`
+    SELECT
+      (SELECT status FROM agent_org_runtime_runs WHERE id=${run}) AS run_status,
+      (SELECT status FROM agent_org_runtime_tasks
+         WHERE org_run_id=${run} AND id=${task}) AS task_status,
+      (SELECT status FROM session_turn_intents
+         WHERE session_id=${session} AND turn_intent_id=${continuation}) AS continuation_status,
+      (SELECT COUNT(*) FROM session_turn_intents
+         WHERE org_run_id=${run} AND status IN ('queued','running')) AS active_intent_count,
+      (SELECT COUNT(*) FROM session_turn_intents
+         WHERE org_run_id=${run}) AS intent_count,
+      (SELECT COUNT(*) FROM agent_org_runtime_turn_contexts
+         WHERE org_run_id=${run}) AS context_count,
+      (SELECT COUNT(*) FROM agent_org_runtime_inbox inbox
+         WHERE inbox.org_run_id=${run}
+           AND inbox.payload_kind='task_assigned'
+           AND json_extract(inbox.payload_json,'$.task_id')=${task}
+           AND inbox.read_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+             WHERE resolution.inbox_id=inbox.id
+           )) AS unresolved_assignment_count,
+      (SELECT COUNT(*)
+         FROM agent_org_runtime_inbox_materializations materialization
+         JOIN agent_org_runtime_inbox inbox ON inbox.id=materialization.inbox_id
+         WHERE inbox.org_run_id=${run}
+           AND inbox.payload_kind='task_assigned'
+           AND json_extract(inbox.payload_json,'$.task_id')=${task}) AS assignment_materialization_count,
+      (SELECT COUNT(*) FROM agent_messages
+         WHERE session_id=${session} AND role='assistant') AS assistant_count,
+      (SELECT COUNT(*) FROM agent_messages
+         WHERE session_id=${session} AND role='assistant'
+           AND content LIKE ${finalityMarker}) AS finality_assistant_count
+  `);
+}
+
 async function assertFeatureGatePreflight() {
   const frontendGate = await execJS(`
     return {
@@ -170,7 +236,9 @@ async function assertFeatureGatePreflight() {
     "enable Agent Org redesign through webdriver-only Rust gate"
   );
   if (enabled.enabled !== true) {
-    throw new Error(`Rust Agent Org runtime gate did not enable: ${JSON.stringify(enabled)}`);
+    throw new Error(
+      `Rust Agent Org runtime gate did not enable: ${JSON.stringify(enabled)}`
+    );
   }
   console.info(
     `[agent-org-live-feature-gates] ${JSON.stringify({ frontendGate, cargoWebdriverAndRuntimeGate: true })}`
@@ -218,13 +286,17 @@ async function runPausePhase() {
     `printf '${PROCESS_MARKER} parent=%s child=%s\\n' \"$$\" \"$child\";`,
     "wait",
   ].join(" ");
+  const convergenceCommand = `sleep 20; printf '${FINALITY_MARKER} terminal\\n'`;
   const prompt = [
     `This is live acceptance round ${ROUND}.`,
     "Use task_graph_create exactly once to create exactly one Task assigned to member pause-worker.",
     `The Task subject must contain ${PROCESS_MARKER}.`,
     "Its description must instruct the Member to do exactly this:",
-    `first call run_shell once with mode=background and command: ${backgroundCommand}`,
-    "then call run_shell once with mode=blocking and command: sleep 120",
+    `before Pause, call run_shell exactly once with mode=background and command: ${backgroundCommand}`,
+    "If that command is interrupted by Pause, the Resume continuation must not repeat it.",
+    `On Resume, call run_shell exactly once with mode=background and command: ${convergenceCommand}`,
+    "Immediately after launching that Resume-only background command, try task_update operation=complete and try to give the final answer without calling await_output first.",
+    `If the system blocks early completion, consume the terminal background result in this same Turn, retry task_update operation=complete once, and include ${FINALITY_MARKER} in the final answer.`,
     "Do not run either command as coordinator and do not create another Task.",
   ].join(" ");
   const sessionId = await sendFromRenderedCreator(prompt);
@@ -268,7 +340,9 @@ async function runPausePhase() {
   );
   const processRows = processGroupSnapshot(targetShell.pid);
   const knownPids = processRows.map((row) => row.pid);
-  const taskIdsBeforePause = runningEvidence.durable.tasks.map((task) => task.id);
+  const taskIdsBeforePause = runningEvidence.durable.tasks.map(
+    (task) => task.id
+  );
   const replayFilesBeforePause = filesContainingMarker(
     join(ORGII_HOME, "shell-replays"),
     PROCESS_MARKER
@@ -335,7 +409,9 @@ async function runPausePhase() {
     drained.durable.tasks.length !== 1 ||
     drained.durable.tasks[0].id !== taskIdsBeforePause[0]
   ) {
-    throw new Error(`live Pause duplicated or replaced its Task: ${JSON.stringify(drained)}`);
+    throw new Error(
+      `live Pause duplicated or replaced its Task: ${JSON.stringify(drained)}`
+    );
   }
 
   const renderedBeforeQuietWindow = await execJS(`
@@ -421,7 +497,9 @@ async function runResumePhase() {
     before.durable.tasks.length !== 1 ||
     replayFilesBefore.length !== 1
   ) {
-    throw new Error(`restart did not restore exact Paused state: ${JSON.stringify(before)}`);
+    throw new Error(
+      `restart did not restore exact Paused state: ${JSON.stringify(before)}`
+    );
   }
 
   const resumeButton = await visibleProductButton(
@@ -462,19 +540,99 @@ async function runResumePhase() {
       `restart Resume duplicated a continuation or Task: ${JSON.stringify(resumed)}`
     );
   }
-
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const evidence = await postJson("/agent/test/agent-org/pause/evidence", {
-      org_run_id: runId,
-    });
-    const repeatedCommand = evidence.background_shells.some((shell) =>
-      String(shell.command).includes(PROCESS_MARKER)
+  const memberHandoff = resumed.durable.handoffs.find(
+    (handoff) => handoff.task_id === taskIds[0]
+  );
+  const memberContinuationId = memberHandoff?.continuation_turn_intent_id;
+  if (!memberHandoff?.session_id || !memberContinuationId) {
+    throw new Error(
+      `Resume lacked exact Member continuation: ${JSON.stringify(resumed)}`
     );
-    if (repeatedCommand) {
-      throw new Error(`Resume restarted the background command: ${JSON.stringify(evidence)}`);
-    }
-    await browser.pause(500);
   }
+  const initialConvergence = convergenceSnapshot({
+    runId,
+    taskId: taskIds[0],
+    memberSessionId: memberHandoff.session_id,
+    continuationId: memberContinuationId,
+  });
+
+  let heldEvidence = null;
+  let heldConvergence = null;
+  let convergenceShell = null;
+  await browser.waitUntil(
+    async () => {
+      heldEvidence = await postJson("/agent/test/agent-org/pause/evidence", {
+        org_run_id: runId,
+      });
+      if (
+        heldEvidence.background_shells.some((shell) =>
+          String(shell.command).includes(PROCESS_MARKER)
+        )
+      ) {
+        throw new Error(
+          `Resume restarted the Pause command: ${JSON.stringify(heldEvidence)}`
+        );
+      }
+      convergenceShell = heldEvidence.background_shells.find((shell) =>
+        String(shell.command).includes(FINALITY_MARKER)
+      );
+      heldConvergence = convergenceSnapshot({
+        runId,
+        taskId: taskIds[0],
+        memberSessionId: memberHandoff.session_id,
+        continuationId: memberContinuationId,
+      });
+      return (
+        Boolean(convergenceShell) &&
+        heldConvergence?.continuation_status === "running" &&
+        heldConvergence?.task_status === "in_progress" &&
+        heldEvidence.active_turns.some(
+          (turn) => turn.session_id === memberHandoff.session_id
+        )
+      );
+    },
+    {
+      timeout: REPLY_TIMEOUT_MS,
+      interval: 100,
+      timeoutMsg: `same-Turn finality gate never held the resumed Member while its job was running: ${JSON.stringify({ heldEvidence, heldConvergence })}`,
+    }
+  );
+
+  let convergedEvidence = null;
+  let converged = null;
+  await browser.waitUntil(
+    async () => {
+      convergedEvidence = await postJson(
+        "/agent/test/agent-org/pause/evidence",
+        {
+          org_run_id: runId,
+        }
+      );
+      converged = convergenceSnapshot({
+        runId,
+        taskId: taskIds[0],
+        memberSessionId: memberHandoff.session_id,
+        continuationId: memberContinuationId,
+      });
+      return (
+        convergedEvidence.durable.run_status === "idle" &&
+        convergedEvidence.active_turns.length === 0 &&
+        convergedEvidence.background_shells.length === 0 &&
+        converged?.run_status === "idle" &&
+        converged?.task_status === "completed" &&
+        converged?.continuation_status === "completed" &&
+        converged?.active_intent_count === 0 &&
+        converged?.unresolved_assignment_count === 0 &&
+        converged?.assignment_materialization_count === 0 &&
+        converged?.finality_assistant_count >= 1
+      );
+    },
+    {
+      timeout: REPLY_TIMEOUT_MS * 2,
+      interval: 250,
+      timeoutMsg: `Resume did not converge Task, Turn, Inbox, assistant, job, and Run to terminal/Idle: ${JSON.stringify({ convergedEvidence, converged })}`,
+    }
+  );
   const replayFilesAfter = filesContainingMarker(
     join(ORGII_HOME, "shell-replays"),
     PROCESS_MARKER
@@ -487,14 +645,64 @@ async function runResumePhase() {
       `Resume created another command replay: ${JSON.stringify({ replayFilesBefore, replayFilesAfter })}`
     );
   }
+  const finalityReplayFiles = filesContainingMarker(
+    join(ORGII_HOME, "shell-replays"),
+    FINALITY_MARKER
+  );
+  if (finalityReplayFiles.length !== 1) {
+    throw new Error(
+      `Resume finality command did not execute exactly once: ${JSON.stringify(finalityReplayFiles)}`
+    );
+  }
+
+  const quietBefore = {
+    convergence: converged,
+    taskUpdatedAt: convergedEvidence.durable.tasks[0]?.updated_at,
+    replayFilesAfter,
+    finalityReplayFiles,
+  };
+  await browser.pause(5_000);
+  const quietEvidence = await postJson("/agent/test/agent-org/pause/evidence", {
+    org_run_id: runId,
+  });
+  const quietConvergence = convergenceSnapshot({
+    runId,
+    taskId: taskIds[0],
+    memberSessionId: memberHandoff.session_id,
+    continuationId: memberContinuationId,
+  });
+  if (
+    quietEvidence.durable.run_status !== "idle" ||
+    quietEvidence.active_turns.length !== 0 ||
+    quietEvidence.background_shells.length !== 0 ||
+    quietConvergence.intent_count !== converged.intent_count ||
+    quietConvergence.context_count !== converged.context_count ||
+    quietConvergence.assistant_count !== converged.assistant_count ||
+    quietEvidence.durable.tasks[0]?.updated_at !== quietBefore.taskUpdatedAt ||
+    filesContainingMarker(join(ORGII_HOME, "shell-replays"), PROCESS_MARKER)
+      .length !== 1 ||
+    filesContainingMarker(join(ORGII_HOME, "shell-replays"), FINALITY_MARKER)
+      .length !== 1
+  ) {
+    throw new Error(
+      `Resume quiet window detected a duplicate Wake, Provider Turn, Task mutation, message, or process: ${JSON.stringify({ quietBefore, quietEvidence, quietConvergence })}`
+    );
+  }
   console.info(
     `[agent-org-live-resume-evidence] ${JSON.stringify({
       round: ROUND,
       runId,
       taskIds,
       continuationIds,
+      memberContinuationId,
+      initialConvergence,
+      heldConvergence,
+      convergenceShell,
+      converged,
+      quietConvergence,
       replayFilesBefore,
       replayFilesAfter,
+      finalityReplayFiles,
     })}`
   );
 }

@@ -1682,6 +1682,209 @@ fn resume_continues_only_legal_work_and_preserves_member_fifo_without_mutating_t
 }
 
 #[test]
+fn exact_resume_continuation_consumes_old_assignment_only_after_task_success() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_dispatch_allocators
+            (org_run_id,member_id,next_sequence)
+         VALUES (?1,'member-planner',2)",
+        [&context.run_id],
+    )
+    .expect("seed continuation FIFO");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_tasks (
+            id,org_run_id,subject,description,owner,status,execution_mode,
+            blocked_by_json,output_json,cancel_reason_json,created_by_participant_id,
+            source_turn_intent_id,created_at,updated_at
+         ) VALUES ('resume-owned-task',?1,'Resume owned task','',
+                   'member-planner','in_progress','build','[]',NULL,NULL,
+                   'coordinator','seed-task',?2,?2)",
+        params![&context.run_id, &now],
+    )
+    .expect("seed in-progress Task");
+    let assignment = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "builtin:sde".to_string(),
+        recipient_member_id: Some("member-planner".to_string()),
+        sender_agent_id: context.coordinator_agent_id.clone(),
+        sender_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        org_run_id: Some(context.run_id.clone()),
+        message: AgentMessage::TaskAssigned {
+            task_id: "resume-owned-task".to_string(),
+            subject: "Resume owned task".to_string(),
+            description: String::new(),
+            assigned_by: "Coordinator".to_string(),
+            execution_mode: TaskExecutionMode::Build,
+            dependency_outputs: Vec::new(),
+        },
+    })
+    .expect("seed old assignment");
+    let unrelated_assignment = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "builtin:sde".to_string(),
+        recipient_member_id: Some("member-planner".to_string()),
+        sender_agent_id: context.coordinator_agent_id.clone(),
+        sender_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        org_run_id: Some(context.run_id.clone()),
+        message: AgentMessage::TaskAssigned {
+            task_id: "resume-owned-task".to_string(),
+            subject: "Unmaterialized duplicate must stay unrelated".to_string(),
+            description: String::new(),
+            assigned_by: "Coordinator".to_string(),
+            execution_mode: TaskExecutionMode::Build,
+            dependency_outputs: Vec::new(),
+        },
+    })
+    .expect("seed unrelated unmaterialized assignment");
+    seed_pause_turn_context(
+        &conn,
+        &context,
+        PauseTurnSeed {
+            session_id: "planner-session",
+            turn_intent_id: "resume-owned-original",
+            turn_kind: "task_execution",
+            intent_status: "running",
+            task_id: Some("resume-owned-task"),
+            activation_generation: Some(1),
+            member_sequence: Some(1),
+        },
+    );
+    conn.execute(
+        "INSERT INTO agent_org_runtime_inbox_materializations (
+             inbox_id,session_id,transcript_message_id,transcript_intent_id,materialized_at
+         ) VALUES (?1,'planner-session','resume-owned-message',
+                   'resume-owned-transcript-intent',?2)",
+        params![assignment.id, &now],
+    )
+    .expect("materialize assignment before Pause");
+    drop(conn);
+
+    let paused = crate::coordination::agent_org_pause::pause_run(
+        &context.run_id,
+        "00000000-0000-4000-8000-000000000021",
+    )
+    .expect("Pause in-progress Task");
+    assert!(crate::coordination::agent_org_pause::mark_runtime_absent(
+        &paused.episode_id,
+        "planner-session",
+        "resume-owned-original",
+    )
+    .expect("mark old runtime absent"));
+    let resumed = crate::coordination::agent_org_pause::resume_run(
+        &context.run_id,
+        "00000000-0000-4000-8000-000000000022",
+    )
+    .expect("Resume in-progress Task");
+    assert_eq!(resumed.continuation_count, 1);
+
+    let conn = get_connection().expect("db connection");
+    let continuation_turn_intent_id: String = conn
+        .query_row(
+            "SELECT continuation_turn_intent_id
+             FROM agent_org_runtime_pause_handoffs
+             WHERE episode_id=?1 AND task_id='resume-owned-task'",
+            [&resumed.episode_id],
+            |row| row.get(0),
+        )
+        .expect("read Task continuation");
+    drop(conn);
+    assert!(
+        crate::coordination::agent_org_pause::claim_continuation_dispatch(
+            &resumed.episode_id,
+            &continuation_turn_intent_id,
+        )
+        .expect("claim Task continuation")
+    );
+    let conn = get_connection().expect("db connection");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id='planner-session' AND turn_intent_id=?1",
+        [&continuation_turn_intent_id],
+    )
+    .expect("start Task continuation");
+
+    let old_turn_batch = AgentInboxStore::list_unread_task_input_for_turn(
+        "member-planner",
+        &context.run_id,
+        "resume-owned-task",
+        "planner-session",
+        "resume-owned-original",
+    )
+    .expect("probe stale original Turn");
+    assert!(old_turn_batch.rows.is_empty());
+    let continuation_batch = AgentInboxStore::list_unread_task_input_for_turn(
+        "member-planner",
+        &context.run_id,
+        "resume-owned-task",
+        "planner-session",
+        &continuation_turn_intent_id,
+    )
+    .expect("exact continuation claims old assignment");
+    assert_eq!(
+        continuation_batch
+            .rows
+            .iter()
+            .map(|row| row.id)
+            .collect::<Vec<_>>(),
+        vec![assignment.id]
+    );
+    drop(conn);
+
+    let early_ack = AgentInboxStore::mark_many_read_for_turn(
+        &[assignment.id],
+        "planner-session",
+        &continuation_turn_intent_id,
+    )
+    .expect_err("in-progress Task must leave assignment unread");
+    assert!(early_ack.contains("did not complete the Task successfully"));
+
+    let conn = get_connection().expect("db connection");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='completed',output_json='{}',updated_at=?3
+         WHERE org_run_id=?1 AND id=?2",
+        params![
+            &context.run_id,
+            "resume-owned-task",
+            chrono::Utc::now().to_rfc3339()
+        ],
+    )
+    .expect("complete resumed Task");
+    drop(conn);
+    assert_eq!(
+        AgentInboxStore::mark_many_read_for_turn(
+            &[assignment.id],
+            "planner-session",
+            &continuation_turn_intent_id,
+        )
+        .expect("successful continuation acknowledges assignment"),
+        1
+    );
+    let conn = get_connection().expect("db connection");
+    let read_at: Option<String> = conn
+        .query_row(
+            "SELECT read_at FROM agent_org_runtime_inbox WHERE id=?1",
+            [assignment.id],
+            |row| row.get(0),
+        )
+        .expect("read assignment receipt");
+    assert!(read_at.is_some());
+    let unrelated_read_at: Option<String> = conn
+        .query_row(
+            "SELECT read_at FROM agent_org_runtime_inbox WHERE id=?1",
+            [unrelated_assignment.id],
+            |row| row.get(0),
+        )
+        .expect("read unrelated assignment");
+    assert!(
+        unrelated_read_at.is_none(),
+        "Resume must not acknowledge an unmaterialized duplicate assignment"
+    );
+}
+
+#[test]
 fn resume_run_update_failure_keeps_active_episode_without_continuations() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");

@@ -22,6 +22,7 @@ use crate::tools::policy::ResolvedToolPolicy;
 use crate::tools::registry::ToolRegistry;
 
 use self::loop_state::{finish_turn, LoopControl, TurnLoopState};
+use super::tool_execution::is_cancelled;
 use super::types::{PermissionProvider, TurnConfig, TurnEventHandler, TurnResult};
 
 /// Execute one agent turn: messages → (LLM + tools)* → final response.
@@ -80,13 +81,19 @@ pub async fn execute_turn(
         .await
         {
             Ok(response) => response,
-            Err(error) => match recovery::handle_provider_error(
-                error, &mut state, messages, config, session_id,
-            )? {
-                LoopControl::Continue => continue,
-                LoopControl::Break => break,
-                LoopControl::Proceed => continue,
-            },
+            Err(error) => {
+                match recovery::handle_provider_error(
+                    error, &mut state, messages, config, session_id,
+                ) {
+                    Ok(LoopControl::Continue) => continue,
+                    Ok(LoopControl::Break) => break,
+                    Ok(LoopControl::Proceed) => continue,
+                    Err(error) => {
+                        state.terminal_error = Some(error);
+                        break;
+                    }
+                }
+            }
         };
 
         if let LoopControl::Break = recovery::handle_post_stream_cancellation(
@@ -130,9 +137,6 @@ pub async fn execute_turn(
                 policy,
                 config,
                 session_id,
-                &config.turn_intent_id,
-                &config.projected_inbox_ids,
-                config.turn_process_control.as_ref(),
                 handler,
                 permission_provider,
                 cancel_flag,
@@ -156,6 +160,33 @@ pub async fn execute_turn(
             LoopControl::Proceed | LoopControl::Continue => continue,
             LoopControl::Break => break,
         }
+    }
+
+    if config
+        .turn_process_control
+        .as_ref()
+        .is_some_and(|control| control.require_owned_job_finality)
+    {
+        let control = config
+            .turn_process_control
+            .as_ref()
+            .ok_or_else(|| "Agent Org Turn finality requires an exact runtime owner".to_string())?;
+        if !crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&control.owner)
+            .is_empty()
+        {
+            crate::tools::impls::coding::exec::registry::cancel_and_await_jobs_for_owner(
+                &control.owner,
+                std::time::Duration::from_secs(12),
+            )
+            .await
+            .map_err(|error| format!("Agent Org Turn background-work teardown failed: {error}"))?;
+            if !is_cancelled(cancel_flag) && state.terminal_error.is_none() {
+                return Err("Agent Org Turn ended before its background work converged".to_string());
+            }
+        }
+    }
+    if let Some(error) = state.terminal_error.take() {
+        return Err(error);
     }
 
     Ok(finish_turn(state, messages, config, session_id, handler))
