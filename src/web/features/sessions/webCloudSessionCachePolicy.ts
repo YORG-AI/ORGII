@@ -8,7 +8,18 @@ export function buildWebCloudSessionCacheKey(
   auth: Pick<Org2CloudAuthState, "supabaseUrl" | "userId">,
   session: Pick<WebSessionListItem, "orgId" | "id">
 ): string {
-  return `${org2CloudAuthIdentityKey(auth)}|${session.orgId}|${session.id}`;
+  return buildWebCloudSessionCacheKeyForIdentity(
+    org2CloudAuthIdentityKey(auth),
+    session
+  );
+}
+
+/** Build an eviction key from an already-captured auth identity. */
+export function buildWebCloudSessionCacheKeyForIdentity(
+  identityKey: string,
+  session: Pick<WebSessionListItem, "orgId" | "id">
+): string {
+  return `${identityKey}|${session.orgId}|${session.id}`;
 }
 
 /**

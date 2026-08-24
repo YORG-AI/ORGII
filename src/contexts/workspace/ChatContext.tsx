@@ -186,6 +186,8 @@ export const useShowInteractArea = () => {
  * Routing rules (prevents subagent-strip race where one cell reads another
  * cell's events):
  *
+ * - If a {@link ChatHistoryOverrideContext} value is present, read that array
+ *   directly without subscribing to desktop/global EventStore atoms.
  * - If a {@link ChatSessionContext} override is present *and* it differs
  *   from the globally-active session, read from
  *   `chatEventsForSessionAtomFamily(sessionId)` — each family entry owns its
@@ -214,6 +216,15 @@ export const useChatHistory = () => {
     contextSessionId && contextSessionId !== activeSessionId
   );
   const selectorAtom = useMemo(() => {
+    if (override !== undefined) {
+      return atom(() => ({
+        chatHistory: override,
+        sourceSessionId: contextSessionId ?? activeSessionId,
+        // The override array identity participates in selector identity, so a
+        // replacement still triggers projection without an EventStore version.
+        sourceVersion: 0,
+      }));
+    }
     if (usePerSession && contextSessionId) {
       const source = chatEventsForSessionAtomFamily(contextSessionId);
       const meta = sessionScopedPlanningMetaAtomFamily(contextSessionId);
@@ -238,15 +249,10 @@ export const useChatHistory = () => {
         sourceVersion: snapshot?.version ?? 0,
       };
     });
-  }, [activeSessionId, usePerSession, contextSessionId]);
+  }, [activeSessionId, contextSessionId, override, usePerSession]);
   const atomSource = useAtomValue(selectorAtom);
-  // Override takes precedence: lets a parent (e.g. the subagent grid
-  // cell) inject a cursor-sliced event array so ChatHistory renders only
-  // events up to the replay timestamp without us touching the shared
-  // atom family or its `_prev` cache.
-  const chatHistory = override ?? atomSource.chatHistory;
   return {
-    chatHistory,
+    chatHistory: atomSource.chatHistory,
     sourceIsOverride: override !== undefined,
     sourceSessionId: atomSource.sourceSessionId,
     sourceVersion: atomSource.sourceVersion,

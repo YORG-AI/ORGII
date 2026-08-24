@@ -21,6 +21,7 @@ import { useOrg2CloudRosterReconcile } from "@src/features/Org2Cloud/org2CloudRo
 import { WebAuthCallbackPage } from "./features/auth/WebAuthCallbackPage";
 import { WebLoginPage } from "./features/auth/WebLoginPage";
 import { WebCloudRealtimeScope } from "./features/sessions/WebCloudRealtimeScope";
+import { WebCloudSessionEventCacheLifecycle } from "./features/sessions/WebCloudSessionEventCacheLifecycle";
 import { WebOrgRemoteSessionSubscriptions } from "./features/sessions/WebOrgRemoteSessionSubscriptions";
 import { WebSessionsProvider } from "./features/sessions/WebSessionsContext";
 import { WebSessionsPage } from "./features/sessions/WebSessionsPage";
@@ -104,6 +105,9 @@ const router = createBrowserRouter([
 
 export function WebApp() {
   return (
-    <RouterProvider router={router} future={{ v7_startTransition: true }} />
+    <>
+      <WebCloudSessionEventCacheLifecycle />
+      <RouterProvider router={router} future={{ v7_startTransition: true }} />
+    </>
   );
 }

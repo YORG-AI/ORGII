@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
+import { Provider, createStore } from "jotai";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import type { SessionEventSegmentsSnapshot } from "@src/features/TeamCollaboration/sync/CollabSyncBackend";
 import { createSmokeRoot, dispatch } from "@src/test/reactSmokeHarness";
 
@@ -55,6 +57,7 @@ vi.mock("./webCloudSessionEventCache", () => ({
 
 vi.mock("./webCloudSessionCachePolicy", () => ({
   buildWebCloudSessionCacheKey: () => "cache-key",
+  buildWebCloudSessionCacheKeyForIdentity: () => "cache-key",
   canReadWebCloudSessionEvents: (value: WebSessionListItem) =>
     mocks.canRead(value),
   shouldFetchWebCloudSessionEvents: (...args: unknown[]) =>
@@ -130,10 +133,35 @@ function Probe({ value }: { value: WebSessionListItem }) {
   );
 }
 
+const AUTH = {
+  kind: "org2_cloud" as const,
+  supabaseUrl: "https://cloud.example.test",
+  supabaseAnonKey: "anon",
+  userId: "user-1",
+  accessToken: "access",
+  refreshToken: "refresh",
+  expiresAt: 4_102_444_800,
+};
+
 describe("useCloudSessionEvents streaming", () => {
   const roots: Array<ReturnType<typeof createSmokeRoot>> = [];
+  let store: ReturnType<typeof createStore>;
+
+  const renderProbe = (
+    root: ReturnType<typeof createSmokeRoot>,
+    value: WebSessionListItem
+  ) =>
+    root.render(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Probe, { value })
+      )
+    );
 
   beforeEach(() => {
+    store = createStore();
+    store.set(org2CloudAuthAtom, AUTH);
     mocks.getFreshSession.mockReset().mockResolvedValue({
       accessToken: "token",
     });
@@ -197,9 +225,7 @@ describe("useCloudSessionEvents streaming", () => {
 
     const root = createSmokeRoot();
     roots.push(root);
-    await root.render(
-      React.createElement(Probe, { value: session("session-1") })
-    );
+    await renderProbe(root, session("session-1"));
 
     const probe = root.container.firstElementChild;
     expect(probe?.getAttribute("data-status")).toBe("loading");
@@ -243,12 +269,8 @@ describe("useCloudSessionEvents streaming", () => {
 
     const root = createSmokeRoot();
     roots.push(root);
-    await root.render(
-      React.createElement(Probe, { value: session("session-old", 1) })
-    );
-    await root.render(
-      React.createElement(Probe, { value: session("session-new", 1) })
-    );
+    await renderProbe(root, session("session-old", 1));
+    await renderProbe(root, session("session-new", 1));
 
     expect(root.container.querySelector("[data-events]")?.textContent).toBe(
       "current"
@@ -287,9 +309,7 @@ describe("useCloudSessionEvents streaming", () => {
 
     const root = createSmokeRoot();
     roots.push(root);
-    await root.render(
-      React.createElement(Probe, { value: session("session-retry", 2) })
-    );
+    await renderProbe(root, session("session-retry", 2));
 
     const probe = root.container.firstElementChild;
     expect(probe?.getAttribute("data-status")).toBe("error");
@@ -323,27 +343,25 @@ describe("useCloudSessionEvents streaming", () => {
     const root = createSmokeRoot();
     roots.push(root);
     const readable = session("session-private", 1);
-    await root.render(React.createElement(Probe, { value: readable }));
+    await renderProbe(root, readable);
     expect(root.container.querySelector("[data-events]")?.textContent).toBe(
       "private-event"
     );
 
-    await root.render(
-      React.createElement(Probe, {
-        value: {
-          ...readable,
-          accessMode: "metadata_only",
-          eventsEpoch: undefined,
-          eventsCount: undefined,
-        },
-      })
-    );
+    mocks.getFreshSession.mockClear().mockResolvedValue(null);
+    await renderProbe(root, {
+      ...readable,
+      accessMode: "metadata_only",
+      eventsEpoch: undefined,
+      eventsCount: undefined,
+    });
 
     expect(root.container.querySelector("[data-events]")?.textContent).toBe("");
     expect(root.container.firstElementChild?.getAttribute("data-status")).toBe(
       "loaded"
     );
     expect(mocks.stream).toHaveBeenCalledOnce();
+    expect(mocks.getFreshSession).not.toHaveBeenCalled();
     expect(mocks.deleteCache).toHaveBeenCalledWith("cache-key");
   });
 
@@ -377,11 +395,10 @@ describe("useCloudSessionEvents streaming", () => {
     );
     const root = createSmokeRoot();
     roots.push(root);
-    await root.render(
-      React.createElement(Probe, {
-        value: { ...session("session-running", 1), status: "running" },
-      })
-    );
+    await renderProbe(root, {
+      ...session("session-running", 1),
+      status: "running",
+    });
     expect(mocks.stream).toHaveBeenCalledOnce();
     expect(mocks.poll).not.toBeNull();
 
@@ -392,6 +409,60 @@ describe("useCloudSessionEvents streaming", () => {
     expect(mocks.stream).toHaveBeenCalledTimes(2);
     expect(root.container.querySelector("[data-events]")?.textContent).toBe(
       "polled"
+    );
+  });
+
+  it("keeps the last complete transcript when a background poll loses its tail", async () => {
+    mocks.stream
+      .mockImplementationOnce(
+        async (
+          _input,
+          onPage: (value: SessionEventSegmentsSnapshot) => Promise<void>
+        ) => {
+          const summary = { frozenSeq: 1, tailHash: "old-tail" };
+          await onPage(page(1, ["old-frozen"], 2, false, summary));
+          await onPage(page(2, ["old-tail"], 2, true, summary));
+          return {
+            epoch: 1,
+            frozenSeq: 1,
+            tailHash: "old-tail",
+            count: 2,
+          };
+        }
+      )
+      .mockImplementationOnce(
+        async (
+          _input,
+          onPage: (value: SessionEventSegmentsSnapshot) => Promise<void>
+        ) => {
+          await onPage(
+            page(2, ["new-frozen"], 3, false, {
+              frozenSeq: 2,
+              tailHash: "new-tail",
+            })
+          );
+          throw new Error("tail page interrupted");
+        }
+      );
+    const root = createSmokeRoot();
+    roots.push(root);
+    await renderProbe(root, {
+      ...session("session-running-failure", 2),
+      status: "running",
+    });
+    expect(root.container.querySelector("[data-events]")?.textContent).toBe(
+      "old-frozen,old-tail"
+    );
+
+    await React.act(async () => {
+      await mocks.poll?.();
+    });
+
+    expect(root.container.firstElementChild?.getAttribute("data-status")).toBe(
+      "error"
+    );
+    expect(root.container.querySelector("[data-events]")?.textContent).toBe(
+      "old-frozen,old-tail"
     );
   });
 });

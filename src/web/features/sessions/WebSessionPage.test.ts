@@ -17,6 +17,21 @@ const testState = vi.hoisted(() => ({
   },
   cloudEvents: [] as Array<{ id: string }>,
   lastChatPanelEvents: null as readonly { id: string }[] | null,
+  refreshRoster: vi.fn(),
+  roster: {
+    status: "loaded" as "idle" | "loading" | "loaded" | "error",
+    sessions: [] as Array<Record<string, unknown>>,
+    sessionFetchStateByOrg: {} as Record<
+      string,
+      "idle" | "loading" | "ready" | "error"
+    >,
+  },
+  placeholderProps: null as null | {
+    variant: string;
+    title?: string;
+    subtitle?: string;
+    onRetry?: () => void;
+  },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -28,6 +43,9 @@ vi.mock("react-i18next", () => ({
         "web.sessionPage.notFound": "Session not found",
         "web.sessionPage.notFoundHint": "Missing",
         "web.sessionPage.loading": "Loading session…",
+        "web.sessionsPage.loadError": "Sessions could not be loaded",
+        "web.sessionsPage.sessionRefreshErrorHint":
+          "Some organization sessions could not be refreshed.",
       };
       return labels[key] ?? defaultValue ?? key;
     },
@@ -106,7 +124,27 @@ vi.mock(
 );
 
 vi.mock("@src/modules/shared/layouts/blocks", () => ({
-  Placeholder: () => null,
+  Placeholder: (props: {
+    variant: string;
+    title?: string;
+    subtitle?: string;
+    onRetry?: () => void;
+  }) => {
+    testState.placeholderProps = props;
+    return React.createElement(
+      "div",
+      { "data-placeholder-variant": props.variant },
+      props.title,
+      props.subtitle,
+      props.onRetry
+        ? React.createElement(
+            "button",
+            { "data-placeholder-retry": true, onClick: props.onRetry },
+            "Retry"
+          )
+        : null
+    );
+  },
 }));
 
 vi.mock("./WebSessionCommentsHeaderExtras", () => ({
@@ -150,18 +188,8 @@ vi.mock("@src/engines/ChatPanel/components/SessionViewSwitcher", () => ({
 
 vi.mock("./WebSessionsContext", () => ({
   useWebSessions: () => ({
-    status: "success",
-    sessions: [
-      {
-        id: "session-1",
-        orgId: "org-1",
-        orgName: "ORG2",
-        title: "Session",
-        sourceSessionId: "source-session-1",
-        status: "stopped",
-        agentDisplayName: "Codex",
-      },
-    ],
+    ...testState.roster,
+    refresh: testState.refreshRoster,
   }),
 }));
 
@@ -188,6 +216,21 @@ describe("WebSessionPage pane composition", () => {
     };
     testState.cloudEvents = [];
     testState.lastChatPanelEvents = null;
+    testState.refreshRoster.mockReset().mockResolvedValue(undefined);
+    testState.roster.status = "loaded";
+    testState.roster.sessions = [
+      {
+        id: "session-1",
+        orgId: "org-1",
+        orgName: "ORG2",
+        title: "Session",
+        sourceSessionId: "source-session-1",
+        status: "stopped",
+        agentDisplayName: "Codex",
+      },
+    ];
+    testState.roster.sessionFetchStateByOrg = { "org-1": "ready" };
+    testState.placeholderProps = null;
   });
 
   afterEach(async () => {
@@ -272,5 +315,53 @@ describe("WebSessionPage pane composition", () => {
       "event-2",
       "event-3",
     ]);
+  });
+
+  it("keeps a target-org deep link loading while another org has rows", async () => {
+    testState.roster.sessions = [
+      {
+        id: "other-session",
+        orgId: "org-2",
+        sourceSessionId: "other-source",
+      },
+    ];
+    testState.roster.sessionFetchStateByOrg = {
+      "org-1": "loading",
+      "org-2": "ready",
+    };
+    const root = createSmokeRoot();
+    roots.push(root);
+    await root.render(React.createElement(WebSessionPage));
+
+    expect(testState.placeholderProps?.variant).toBe("loading");
+    expect(root.container.textContent).not.toContain("Session not found");
+  });
+
+  it("shows retry when the target organization session request fails", async () => {
+    testState.roster.sessions = [
+      {
+        id: "other-session",
+        orgId: "org-2",
+        sourceSessionId: "other-source",
+      },
+    ];
+    testState.roster.sessionFetchStateByOrg = {
+      "org-1": "error",
+      "org-2": "ready",
+    };
+    const root = createSmokeRoot();
+    roots.push(root);
+    await root.render(React.createElement(WebSessionPage));
+
+    expect(testState.placeholderProps?.variant).toBe("error");
+    expect(root.container.textContent).toContain(
+      "Sessions could not be loaded"
+    );
+    await dispatch(() =>
+      root.container
+        .querySelector<HTMLButtonElement>("[data-placeholder-retry]")
+        ?.click()
+    );
+    expect(testState.refreshRoster).toHaveBeenCalledOnce();
   });
 });

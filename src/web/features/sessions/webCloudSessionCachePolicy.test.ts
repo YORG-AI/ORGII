@@ -4,6 +4,7 @@ import type { CloudSessionEventSnapshot } from "./cloudSessionSegments";
 import type { WebSessionListItem } from "./useWebSessionRoster";
 import {
   buildWebCloudSessionCacheKey,
+  buildWebCloudSessionCacheKeyForIdentity,
   canReadWebCloudSessionEvents,
   isWebCloudSessionCacheFresh,
   shouldFetchWebCloudSessionEvents,
@@ -46,6 +47,12 @@ describe("buildWebCloudSessionCacheKey", () => {
     expect(buildWebCloudSessionCacheKey(auth, session())).toBe(
       "https://cloud.example.com|user-1|org-1|session-row-1"
     );
+    expect(
+      buildWebCloudSessionCacheKeyForIdentity(
+        "https://cloud.example.com|user-1",
+        session()
+      )
+    ).toBe("https://cloud.example.com|user-1|org-1|session-row-1");
   });
 });
 

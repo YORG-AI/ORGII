@@ -17,7 +17,6 @@ import {
 
 import { resolveWebActiveCloudOrgId } from "../features/sessions/WebCloudRealtimeScope";
 import { useWebSessions } from "../features/sessions/WebSessionsContext";
-import { clearWebCloudSessionEventCache } from "../features/sessions/webCloudSessionEventCache";
 import { webSessionPath } from "../features/sessions/webSessionLocation";
 import {
   resolveWebCloudSessionMenuItemId,
@@ -102,7 +101,6 @@ export function WebSessionSidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   const handleSignOut = useCallback(() => {
     setAuth(null);
-    void clearWebCloudSessionEventCache();
   }, [setAuth]);
 
   const sidebarOrgSelector =

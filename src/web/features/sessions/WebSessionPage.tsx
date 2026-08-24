@@ -168,11 +168,19 @@ export function WebSessionPage({
   const params = useParams<{ orgId: string; sessionId: string }>();
   const viewportWidth = useViewportWidth();
   const [mobilePane, setMobilePane] = useState<MobilePane>("chat");
-  const { sessions, status: rosterStatus } = useWebSessions();
+  const {
+    sessions,
+    status: rosterStatus,
+    sessionFetchStateByOrg,
+    refresh: refreshRoster,
+  } = useWebSessions();
   const session =
     sessions.find((candidate) =>
       matchesWebSessionPath(candidate, params.orgId, params.sessionId)
     ) ?? null;
+  const targetSessionFetchState = params.orgId
+    ? sessionFetchStateByOrg[params.orgId]
+    : undefined;
   const cloudEvents = useCloudSessionEvents(session);
   const {
     events,
@@ -288,21 +296,33 @@ export function WebSessionPage({
   );
 
   if (!session) {
+    const targetFailed =
+      rosterStatus === "error" || targetSessionFetchState === "error";
+    const targetPending =
+      !targetFailed &&
+      (rosterStatus === "loading" ||
+        targetSessionFetchState === "idle" ||
+        targetSessionFetchState === "loading");
     return (
       <main className="flex h-full items-center justify-center bg-workstation-bg p-6">
         <Placeholder
-          variant={rosterStatus === "loading" ? "loading" : "empty"}
+          variant={targetFailed ? "error" : targetPending ? "loading" : "empty"}
           placement="detail-panel"
           title={
-            rosterStatus === "loading"
+            targetPending
               ? undefined
-              : t("web.sessionPage.notFound")
+              : targetFailed
+                ? t("web.sessionsPage.loadError")
+                : t("web.sessionPage.notFound")
           }
           subtitle={
-            rosterStatus === "loading"
+            targetPending
               ? t("web.sessionPage.loading")
-              : t("web.sessionPage.notFoundHint")
+              : targetFailed
+                ? t("web.sessionsPage.sessionRefreshErrorHint")
+                : t("web.sessionPage.notFoundHint")
           }
+          onRetry={targetFailed ? () => void refreshRoster() : undefined}
         />
       </main>
     );

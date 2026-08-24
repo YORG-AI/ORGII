@@ -1,7 +1,12 @@
+import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SessionEvent } from "@src/engines/SessionCore";
 import { mergeCloudSessionEventSnapshot } from "@src/features/Org2Cloud/cloudSessionEventSegmentMerge";
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { buildCloudSessionFetchClient } from "@src/features/Org2Cloud/org2CloudBackendAdapter";
 import type {
   SessionEventSegmentsSnapshot,
@@ -14,6 +19,7 @@ import type { CloudSessionEventSnapshot } from "./cloudSessionSegments";
 import type { WebSessionListItem } from "./useWebSessionRoster";
 import {
   buildWebCloudSessionCacheKey,
+  buildWebCloudSessionCacheKeyForIdentity,
   canReadWebCloudSessionEvents,
   shouldFetchWebCloudSessionEvents,
 } from "./webCloudSessionCachePolicy";
@@ -94,6 +100,7 @@ function frozenEventCount(snapshot: CloudSessionEventSnapshot | null): number {
 }
 
 export function useCloudSessionEvents(session: WebSessionListItem | null) {
+  const auth = useAtomValue(org2CloudAuthAtom);
   const getFreshSession = useFreshWebCloudSession();
   const [state, setState] = useState<CloudSessionEventsState>({
     sessionKey: null,
@@ -107,6 +114,7 @@ export function useCloudSessionEvents(session: WebSessionListItem | null) {
   const generationRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const sessionKey = session ? `${session.orgId}:${session.id}` : null;
+  const cacheIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const canReadEvents = session ? canReadWebCloudSessionEvents(session) : false;
 
   const refresh = useCallback(
@@ -262,13 +270,17 @@ export function useCloudSessionEvents(session: WebSessionListItem | null) {
                 events: [...streamedEvents],
               };
               const pageSnapshot = streamedSnapshot;
-              snapshotRef.current = pageSnapshot;
               const progress = {
                 loadedEvents: pageSnapshot.events.length,
                 totalEvents: page.count ?? session.eventsCount ?? null,
               };
               progressReporter.cancel();
-              if (revealProgress || !base) {
+              // Foreground loads intentionally reveal recoverable partial
+              // content. A background revalidation with an existing complete
+              // snapshot must remain atomic so a failed tail page cannot make
+              // recent messages disappear.
+              if (revealProgress || displayedSnapshot === null) {
+                snapshotRef.current = pageSnapshot;
                 setState({
                   sessionKey,
                   status: "loading",
@@ -393,14 +405,11 @@ export function useCloudSessionEvents(session: WebSessionListItem | null) {
         error: null,
         progress: null,
       });
-      const generation = generationRef.current;
-      void (async () => {
-        const fresh = await getFreshSession();
-        if (!fresh || generation !== generationRef.current) return;
-        await deleteWebCloudSessionEventCache(
-          buildWebCloudSessionCacheKey(fresh, session)
+      if (cacheIdentityKey) {
+        void deleteWebCloudSessionEventCache(
+          buildWebCloudSessionCacheKeyForIdentity(cacheIdentityKey, session)
         );
-      })();
+      }
       return;
     }
     setState({
@@ -419,7 +428,7 @@ export function useCloudSessionEvents(session: WebSessionListItem | null) {
       generationRef.current += 1;
       abortRef.current?.abort();
     };
-  }, [canReadEvents, getFreshSession, refresh, session, sessionKey]);
+  }, [cacheIdentityKey, canReadEvents, refresh, session, sessionKey]);
 
   useEffect(() => {
     if (!session || !canReadEvents || session.status !== "running") {

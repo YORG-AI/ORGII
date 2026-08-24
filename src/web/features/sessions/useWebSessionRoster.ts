@@ -31,6 +31,7 @@ export interface WebSessionListItem extends RemoteTeammateSessionMetadata {
 export interface WebSessionRosterState {
   status: "idle" | "loading" | "loaded" | "error";
   sessions: WebSessionListItem[];
+  sessionFetchStateByOrg: Record<string, CloudRemoteSessionsFetchState>;
   error: string | null;
   failedOrganizationCount: number;
 }
@@ -69,18 +70,23 @@ export function aggregateWebSessionRoster({
     return {
       status: "idle",
       sessions: [],
+      sessionFetchStateByOrg: {},
       error: null,
       failedOrganizationCount: 0,
     };
   }
 
   const states: CloudRemoteSessionsFetchState[] = [];
+  const sessionFetchStateByOrg: Record<string, CloudRemoteSessionsFetchState> =
+    {};
   const sessions = orgs.flatMap((org) => {
     const entry = remoteSessionsEntryForIdentity(
       entries[org.orgId],
       identityKey
     );
-    states.push(entry?.state ?? "idle");
+    const state = entry?.state ?? "idle";
+    states.push(state);
+    sessionFetchStateByOrg[org.orgId] = state;
     return toSessionRows(org, userId, entry?.rows ?? []);
   });
 
@@ -109,6 +115,7 @@ export function aggregateWebSessionRoster({
   return {
     status,
     sessions,
+    sessionFetchStateByOrg,
     error: null,
     failedOrganizationCount: errorCount,
   };
@@ -172,6 +179,7 @@ export function useWebSessionRoster(): WebSessionRosterState & {
       return {
         status: "idle" as const,
         sessions: [],
+        sessionFetchStateByOrg: {},
         error: null,
         failedOrganizationCount: 0,
         organizationStatus: "idle" as const,
@@ -185,6 +193,7 @@ export function useWebSessionRoster(): WebSessionRosterState & {
       return {
         status: terminalFailure ? ("error" as const) : ("loading" as const),
         sessions: [],
+        sessionFetchStateByOrg: {},
         error: terminalFailure
           ? t("web.sessionsPage.organizationLoadErrorHint")
           : organizationLoadState === "retrying"

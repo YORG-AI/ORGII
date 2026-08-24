@@ -5,6 +5,10 @@ const STORE_NAME = "snapshots";
 const STORED_AT_INDEX = "storedAt";
 const DB_VERSION = 2;
 
+// Delete/clear is an authorization boundary. A write that was waiting for its
+// IndexedDB connection must not recreate a record after that boundary passes.
+let cacheMutationGeneration = 0;
+
 export const WEB_CLOUD_SESSION_CACHE_MAX_ENTRIES = 12;
 export const WEB_CLOUD_SESSION_CACHE_MAX_EVENTS = 10_000;
 export const WEB_CLOUD_SESSION_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -84,9 +88,14 @@ export function webCloudSessionCacheOverflowCount(entryCount: number): number {
 
 async function writeBoundedRecord(
   cacheKey: string,
-  record: WebCloudSessionEventCacheRecord
+  record: WebCloudSessionEventCacheRecord,
+  expectedGeneration: number
 ): Promise<void> {
   const database = await openDatabase();
+  if (expectedGeneration !== cacheMutationGeneration) {
+    database.close();
+    return;
+  }
   return new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
@@ -148,6 +157,7 @@ export async function writeWebCloudSessionEventCache(
   cacheKey: string,
   snapshot: CloudSessionEventSnapshot
 ): Promise<void> {
+  const expectedGeneration = cacheMutationGeneration;
   try {
     if (snapshot.events.length > WEB_CLOUD_SESSION_CACHE_MAX_EVENTS) {
       await deleteWebCloudSessionEventCache(cacheKey);
@@ -157,7 +167,7 @@ export async function writeWebCloudSessionEventCache(
       snapshot,
       storedAt: Date.now(),
     };
-    await writeBoundedRecord(cacheKey, record);
+    await writeBoundedRecord(cacheKey, record, expectedGeneration);
   } catch {
     // Cache is best-effort; network/manual refresh remains authoritative.
   }
@@ -166,6 +176,7 @@ export async function writeWebCloudSessionEventCache(
 export async function deleteWebCloudSessionEventCache(
   cacheKey: string
 ): Promise<void> {
+  cacheMutationGeneration += 1;
   try {
     await runTransaction("readwrite", (store) => store.delete(cacheKey));
   } catch {
@@ -175,6 +186,7 @@ export async function deleteWebCloudSessionEventCache(
 
 /** Remove every transcript snapshot owned by the current browser profile. */
 export async function clearWebCloudSessionEventCache(): Promise<void> {
+  cacheMutationGeneration += 1;
   try {
     await runTransaction("readwrite", (store) => store.clear());
   } catch {
