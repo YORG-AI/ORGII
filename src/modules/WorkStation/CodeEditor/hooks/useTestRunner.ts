@@ -54,7 +54,8 @@ export interface UseTestRunnerReturn {
   runTests: (testIds?: string[]) => Promise<TestRunSummary | null>;
   runTest: (testId: string) => Promise<TestRunSummary | null>;
   runAllTests: () => Promise<TestRunSummary | null>;
-  stopTests: () => Promise<void>;
+  /** Resolves true when an active run was signalled to stop. */
+  stopTests: () => Promise<boolean>;
   clearResults: () => void;
 
   // Standardized actions sub-object for dispatcher integration
@@ -64,7 +65,7 @@ export interface UseTestRunnerReturn {
     runAll: () => Promise<TestRunSummary | null>;
     runFile: (filePath: string) => Promise<TestRunSummary | null>;
     runTests: (testIds?: string[]) => Promise<TestRunSummary | null>;
-    stop: () => Promise<void>;
+    stop: () => Promise<boolean>;
     clear: () => void;
   };
 }
@@ -113,7 +114,7 @@ export function useTestRunner({
     return TestService.runAll(repoPath);
   }, [repoPath]);
 
-  const stopTests = useCallback(async (): Promise<void> => {
+  const stopTests = useCallback(async (): Promise<boolean> => {
     return TestService.stop();
   }, []);
 

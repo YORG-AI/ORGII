@@ -1,4 +1,5 @@
 const SOURCE_FILES: &[(&str, &str)] = &[
+    ("capture.rs", include_str!("../capture.rs")),
     ("commands.rs", include_str!("../commands.rs")),
     ("discovery.rs", include_str!("../discovery.rs")),
     ("runner.rs", include_str!("../runner.rs")),

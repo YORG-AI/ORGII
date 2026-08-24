@@ -11,6 +11,7 @@
 //! - Python: Pytest
 //! - Rust: `cargo test`
 
+pub(crate) mod capture;
 pub mod commands;
 pub mod detection;
 pub mod discovery;

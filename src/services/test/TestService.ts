@@ -11,6 +11,7 @@
 import { createLogger } from "@src/hooks/logger";
 import {
   clearResultsAtom,
+  currentRunAtom,
   lastRunSummaryAtom,
   setCurrentRunAtom,
   setDiscoveringAtom,
@@ -31,6 +32,8 @@ import {
   isTauriReady,
   listenTauri,
 } from "@src/util/platform/tauri/init";
+
+import { nextRunState, stopTargetRunId } from "./testRunLifecycle";
 
 const log = createLogger("TestService");
 
@@ -62,12 +65,18 @@ async function initializeEventListener(): Promise<void> {
 
       switch (data.type) {
         case "run_started":
-          store.set(setCurrentRunAtom, {
-            runId: data.runId,
-            status: "running",
-            progress: 0,
-          });
+        case "run_finished":
+        case "run_cancelled": {
+          const current = store.get(currentRunAtom);
+          const next = nextRunState(current, data);
+          if (next !== current) {
+            store.set(setCurrentRunAtom, next);
+          }
+          if (data.type === "run_finished") {
+            store.set(lastRunSummaryAtom, data.summary);
+          }
           break;
+        }
 
         case "test_started":
           store.set(updateTestResultAtom, {
@@ -78,15 +87,6 @@ async function initializeEventListener(): Promise<void> {
 
         case "test_finished":
           store.set(updateTestResultAtom, data.result);
-          break;
-
-        case "run_finished":
-          store.set(setCurrentRunAtom, {
-            runId: data.summary.runId,
-            status: "completed",
-            progress: 100,
-          });
-          store.set(lastRunSummaryAtom, data.summary);
           break;
 
         case "error":
@@ -234,11 +234,32 @@ export const TestService = {
   },
 
   /**
-   * Stop running tests
+   * Stop the currently running test run.
+   *
+   * Signals the backend, which terminates the whole test process tree; the
+   * run then reports itself as cancelled via a `run_cancelled` event (this
+   * method does not mutate run state locally — the backend confirmation is
+   * the source of truth).
+   *
+   * Returns true when an active run was signalled, false when there was
+   * nothing to stop (or the run had already finished).
    */
-  async stop(): Promise<void> {
-    // TODO: Implement when backend supports cancellation
-    getStore().set(setCurrentRunAtom, null);
+  async stop(): Promise<boolean> {
+    if (!isTauriReady()) {
+      return false;
+    }
+
+    const runId = stopTargetRunId(getStore().get(currentRunAtom));
+    if (!runId) {
+      return false;
+    }
+
+    try {
+      return await invokeTauri<boolean>("stop_tests", { runId });
+    } catch (error) {
+      log.error("[TestService] Failed to stop tests:", error);
+      return false;
+    }
   },
 
   /**

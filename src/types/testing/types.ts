@@ -70,6 +70,11 @@ export interface TestRunSummary {
   results: TestResult[];
   startedAt: string;
   finishedAt?: string;
+  /**
+   * True when the run was stopped before the test process finished on its
+   * own; `results` then only cover tests that completed before termination.
+   */
+  cancelled?: boolean;
 }
 
 /** Discovery result from backend */
@@ -88,6 +93,7 @@ export type TestEvent =
   | { type: "test_started"; testId: string; name: string }
   | { type: "test_finished"; result: TestResult }
   | { type: "run_finished"; summary: TestRunSummary }
+  | { type: "run_cancelled"; runId: string }
   | { type: "error"; message: string };
 
 // ============================================
