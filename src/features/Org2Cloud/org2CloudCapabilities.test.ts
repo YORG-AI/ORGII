@@ -343,6 +343,17 @@ describe("getCloudCapabilitiesConfirmed", () => {
     expect(rawMock).toHaveBeenCalledTimes(2);
   });
 
+  it("surfaces the retry-safe conversation projection capability", async () => {
+    rawMock.mockResolvedValueOnce({
+      conversationEvents: true,
+      conversationEventsIdempotency: true,
+    });
+    const result = await getCloudCapabilitiesConfirmed("jwt-1");
+    expect(result.confirmed).toBe(true);
+    expect(result.capabilities.conversationEvents).toBe(true);
+    expect(result.capabilities.conversationEventsIdempotency).toBe(true);
+  });
+
   it("shares the same per-endpoint cache as getCloudCapabilities", async () => {
     rawMock.mockResolvedValueOnce({ broadcastSignals: true });
     expect(await getCloudCapabilities("jwt-1")).toEqual({

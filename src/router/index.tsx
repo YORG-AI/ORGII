@@ -2,6 +2,7 @@ import { registerAppActions } from "@/src/ActionSystem/registerAppActions";
 import { useEffect } from "react";
 import { Outlet, createBrowserRouter, useNavigate } from "react-router-dom";
 
+import { useWorkItemConversationTurnBridge } from "@src/features/Org2Cloud/SessionConversation/useWorkItemConversationTurnBridge";
 import { useOrg2CloudOrgs } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { useOrg2CloudRosterReconcile } from "@src/features/Org2Cloud/org2CloudRosterReconcile";
 import { useOrg2CloudGuestShareAccess } from "@src/features/Org2Cloud/useOrg2CloudGuestShareAccess";
@@ -53,6 +54,9 @@ const RootLayout = () => {
   // Inbound Realtime: roster / projects / work-items / comments
   // subscriptions replace 60s polling as the primary inbound trigger.
   useOrg2CloudRealtime();
+  // Work Item comments targeting another member's root execute through this
+  // device's persistent local conversation continuation.
+  useWorkItemConversationTurnBridge();
   // Registered non-member imports remain readable only while their persisted
   // share capability is valid; revoked links evict the durable replay.
   useOrg2CloudGuestShareAccess();

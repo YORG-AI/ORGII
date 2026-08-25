@@ -28,6 +28,7 @@ const CloudCapabilitiesWireSchema = z.object({
   orgChannelMessages: z.boolean().nullish().catch(undefined),
   orgChannelMessagesIdempotency: z.boolean().nullish().catch(undefined),
   conversationEvents: z.boolean().nullish().catch(undefined),
+  conversationEventsIdempotency: z.boolean().nullish().catch(undefined),
 });
 
 export interface CloudCapabilities {
@@ -49,6 +50,8 @@ export interface CloudCapabilities {
   orgChannelMessagesIdempotency: boolean;
   /** 0024 multi-writer conversation-events plane (push/list RPCs). */
   conversationEvents: boolean;
+  /** 0026 retry-safe event identity/projection contract. */
+  conversationEventsIdempotency?: boolean;
 }
 
 const LEGACY_CAPABILITIES: CloudCapabilities = {
@@ -116,6 +119,9 @@ async function probeCloudCapabilities(
       orgChannelMessagesIdempotency:
         parsed.data.orgChannelMessagesIdempotency ?? false,
       conversationEvents: parsed.data.conversationEvents ?? false,
+      ...(parsed.data.conversationEventsIdempotency
+        ? { conversationEventsIdempotency: true }
+        : {}),
     };
     capabilitiesByEndpoint.set(endpointKey, capabilities);
     return { capabilities, confirmed: true };

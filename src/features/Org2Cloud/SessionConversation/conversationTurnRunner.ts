@@ -200,11 +200,22 @@ export interface RunConversationTurnParams {
   /** Stable logical id for durable redelivery; minted for ordinary chat. */
   turnIntentId?: string;
   /**
+   * A durable caller may bind this runner before transport send. In that
+   * mode a send error must escape to the caller instead of silently rolling
+   * to a different runner under the same fenced claim.
+   */
+  preserveRunnerOnTransportFailure?: boolean;
+  /**
    * Called when the reusable runner and exact runtime intent are known.
    */
   onRunnerReady?: (
     runnerSessionId: string,
     turnId: string,
+    turnIntentId: string
+  ) => void | Promise<void>;
+  /** Called after the adapter accepts the exact runtime intent. */
+  onTurnAccepted?: (
+    runnerSessionId: string,
     turnIntentId: string
   ) => void | Promise<void>;
   /**
@@ -449,6 +460,7 @@ async function runConversationTurnSerialized(
         accountId: decision.record.accountId,
       });
     } catch (error) {
+      if (params.preserveRunnerOnTransportFailure) throw error;
       log.warn("continuation send rejected; rolling to a fresh runner", error);
       clearContinuation(params.executionScopeKey, params.rootSessionId);
       await cleanupConversationRunnerBestEffort(
@@ -461,6 +473,10 @@ async function runConversationTurnSerialized(
         userRowAlreadyPushed: true,
       });
     }
+    await params.onTurnAccepted?.(
+      decision.record.continuationSessionId,
+      io.turnIntentId
+    );
     return settleEpisode(params, io, {
       key,
       runnerSessionId: decision.record.continuationSessionId,
@@ -633,8 +649,10 @@ async function dispatchBootstrapEpisode(
       accountId: episode.accountId,
     });
   } catch (error) {
-    clearContinuation(params.executionScopeKey, params.rootSessionId);
-    await cleanupConversationRunnerBestEffort(episode.runnerSessionId);
+    if (!params.preserveRunnerOnTransportFailure) {
+      clearContinuation(params.executionScopeKey, params.rootSessionId);
+      await cleanupConversationRunnerBestEffort(episode.runnerSessionId);
+    }
     throw error;
   }
   if (
@@ -647,6 +665,7 @@ async function dispatchBootstrapEpisode(
   ) {
     log.warn("continuation acceptance could not be persisted");
   }
+  await params.onTurnAccepted?.(episode.runnerSessionId, io.turnIntentId);
   return settleEpisode(params, io, {
     key,
     runnerSessionId: episode.runnerSessionId,

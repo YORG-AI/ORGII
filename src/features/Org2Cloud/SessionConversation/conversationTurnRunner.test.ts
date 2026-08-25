@@ -241,8 +241,11 @@ describe("conversation turn continuation", () => {
       ],
     ];
     const onRunnerReady = vi.fn();
+    const onTurnAccepted = vi.fn();
 
-    const result = await runConversationTurn(params({ onRunnerReady }));
+    const result = await runConversationTurn(
+      params({ onRunnerReady, onTurnAccepted })
+    );
 
     expect(result).toMatchObject({
       runnerSessionId: "fresh-runner",
@@ -258,6 +261,10 @@ describe("conversation turn continuation", () => {
       "fresh-runner",
       "intent-1",
       "intent-1"
+    );
+    expect(onTurnAccepted).toHaveBeenCalledWith("fresh-runner", "intent-1");
+    expect(onRunnerReady.mock.invocationCallOrder[0]).toBeLessThan(
+      onTurnAccepted.mock.invocationCallOrder[0]
     );
     expect(loadContinuation("scope", "root")).toMatchObject({
       continuationSessionId: "fresh-runner",
@@ -338,6 +345,49 @@ describe("conversation turn continuation", () => {
     expect(SessionService.create).toHaveBeenCalledTimes(1);
     expect(state.pushes.filter((push) => push.kind === "user")).toHaveLength(1);
     expect(state.cleaned).toContain("runner-dead");
+  });
+
+  it("keeps a durably prepared resume on transport ambiguity", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "runner-prepared",
+      readThroughPlaneSeq: 10,
+      established: true,
+      agentDefinitionId: "agent-a",
+    });
+    state.rejectNextSend = true;
+
+    await expect(
+      runConversationTurn(params({ preserveRunnerOnTransportFailure: true }))
+    ).rejects.toThrow("session cannot accept turns");
+
+    expect(SessionService.create).not.toHaveBeenCalled();
+    expect(state.cleaned).not.toContain("runner-prepared");
+    expect(loadContinuation("scope", "root")).toMatchObject({
+      continuationSessionId: "runner-prepared",
+      established: true,
+    });
+  });
+
+  it("keeps a fresh prepared runner recoverable when its first send is ambiguous", async () => {
+    state.rejectNextSend = true;
+    const onTurnAccepted = vi.fn();
+
+    await expect(
+      runConversationTurn(
+        params({
+          preserveRunnerOnTransportFailure: true,
+          onTurnAccepted,
+        })
+      )
+    ).rejects.toThrow("session cannot accept turns");
+
+    expect(onTurnAccepted).not.toHaveBeenCalled();
+    expect(state.cleaned).not.toContain("fresh-runner");
+    expect(loadContinuation("scope", "root")).toMatchObject({
+      continuationSessionId: "fresh-runner",
+      established: false,
+      bootstrapTurnIntentId: "intent-1",
+    });
   });
 
   it("deletes an unestablished runner before accepting a different intent", async () => {
