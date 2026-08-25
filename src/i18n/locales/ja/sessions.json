@@ -2759,6 +2759,8 @@
     },
     "actions": {
       "moreOpenOptions": "その他の開くオプション",
+      "openAsPullRequest": "PR タブ",
+      "openAsWebPage": "ウェブページ",
       "openInApp": "アプリ内で開く",
       "openWithDefaultBrowser": "既定のブラウザで開く",
       "revealInFinder": "Finder に表示",
@@ -2770,6 +2772,7 @@
       "copyUrl": "URL をコピー",
       "copied": "URL をコピーしました",
       "openExternalFailed": "既定のブラウザで URL を開けませんでした",
+      "openPullRequestFailed": "Pull Request タブを開けませんでした",
       "groupTitle": "Web ページ"
     },
     "path": {

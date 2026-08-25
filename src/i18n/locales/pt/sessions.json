@@ -2759,6 +2759,8 @@
     },
     "actions": {
       "moreOpenOptions": "Mais opções de abertura",
+      "openAsPullRequest": "Aba de PR",
+      "openAsWebPage": "Página web",
       "openInApp": "Abrir no app",
       "openWithDefaultBrowser": "Abrir com o navegador padrão",
       "revealInFinder": "Mostrar no Finder",
@@ -2770,6 +2772,7 @@
       "copyUrl": "Copiar URL",
       "copied": "URL copiado",
       "openExternalFailed": "Falha ao abrir URL no navegador padrão",
+      "openPullRequestFailed": "Falha ao abrir a aba do pull request",
       "groupTitle": "Páginas da web"
     },
     "path": {

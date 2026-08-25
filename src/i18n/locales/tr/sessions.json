@@ -2761,6 +2761,8 @@
     },
     "actions": {
       "moreOpenOptions": "Daha fazla açma seçeneği",
+      "openAsPullRequest": "PR sekmesi",
+      "openAsWebPage": "Web sayfası",
       "openInApp": "Uygulamada aç",
       "openWithDefaultBrowser": "Varsayılan tarayıcıyla aç",
       "revealInFinder": "Finder'da göster",
@@ -2772,6 +2774,7 @@
       "copyUrl": "URL'yi kopyala",
       "copied": "URL kopyalandı",
       "openExternalFailed": "URL varsayılan tarayıcıda açılamadı",
+      "openPullRequestFailed": "Pull request sekmesi açılamadı",
       "groupTitle": "Web sayfaları"
     },
     "path": {

@@ -2758,6 +2758,8 @@
     },
     "actions": {
       "moreOpenOptions": "Weitere Öffnungsoptionen",
+      "openAsPullRequest": "PR-Tab",
+      "openAsWebPage": "Webseite",
       "openInApp": "In der App öffnen",
       "openWithDefaultBrowser": "Mit Standardbrowser öffnen",
       "revealInFinder": "In Finder anzeigen",
@@ -2769,6 +2771,7 @@
       "copyUrl": "URL kopieren",
       "copied": "URL kopiert",
       "openExternalFailed": "URL konnte nicht im Standardbrowser geöffnet werden",
+      "openPullRequestFailed": "Pull-Request-Tab konnte nicht geöffnet werden",
       "groupTitle": "Webseiten"
     },
     "path": {

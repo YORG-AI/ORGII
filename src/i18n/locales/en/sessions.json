@@ -2883,6 +2883,8 @@
     },
     "actions": {
       "moreOpenOptions": "More open options",
+      "openAsPullRequest": "PR tab",
+      "openAsWebPage": "Web page",
       "openInApp": "Open in app",
       "openWithDefaultBrowser": "Open with default browser",
       "revealInFinder": "Reveal in Finder",
@@ -2894,6 +2896,7 @@
       "copyUrl": "Copy URL",
       "copied": "URL copied",
       "openExternalFailed": "Failed to open URL in default browser",
+      "openPullRequestFailed": "Failed to open pull request tab",
       "groupTitle": "Web pages"
     },
     "path": {

@@ -1281,6 +1281,7 @@
       "unknownProcess": "不明なプロセス",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "ブラウザで開く",
+      "openAddress": "{{address}} を開く",
       "copyAddress": "アドレスをコピー",
       "stopProcess": "プロセスを停止",
       "searchPlaceholder": "ポートを検索…",

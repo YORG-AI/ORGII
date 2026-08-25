@@ -1281,6 +1281,7 @@
       "unknownProcess": "Tiến trình không xác định",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Mở trong trình duyệt",
+      "openAddress": "Mở {{address}}",
       "copyAddress": "Sao chép địa chỉ",
       "stopProcess": "Dừng tiến trình",
       "searchPlaceholder": "Tìm cổng…",

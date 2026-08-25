@@ -2760,6 +2760,8 @@
     },
     "actions": {
       "moreOpenOptions": "추가 열기 옵션",
+      "openAsPullRequest": "PR 탭",
+      "openAsWebPage": "웹 페이지",
       "openInApp": "앱에서 열기",
       "openWithDefaultBrowser": "기본 브라우저로 열기",
       "revealInFinder": "Finder에서 보기",
@@ -2771,6 +2773,7 @@
       "copyUrl": "URL 복사",
       "copied": "URL이 복사되었습니다",
       "openExternalFailed": "기본 브라우저에서 URL을 열지 못했습니다",
+      "openPullRequestFailed": "풀 리퀘스트 탭을 열지 못했습니다",
       "groupTitle": "웹 페이지"
     },
     "path": {

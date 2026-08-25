@@ -1286,6 +1286,7 @@
       "unknownProcess": "Nieznany proces",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Otwórz w przeglądarce",
+      "openAddress": "Otwórz {{address}}",
       "copyAddress": "Kopiuj adres",
       "stopProcess": "Zatrzymaj proces",
       "searchPlaceholder": "Szukaj portów…",

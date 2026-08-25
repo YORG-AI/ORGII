@@ -300,7 +300,7 @@
       "missingWorkspace": "The session's original folder is gone — {{agent}} can only resume it from there",
       "sourceMissing": "The original session data is no longer on disk",
       "launchFailed": "Failed to open the {{agent}} terminal",
-      "composerPlaceholder": "Message to continue in a new ORGII session — or resume in {{agent}} from the header…"
+      "composerPlaceholder": "Send a message to continue in a new session…"
     }
   },
   "myRole": {

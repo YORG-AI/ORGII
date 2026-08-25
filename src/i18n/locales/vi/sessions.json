@@ -2757,6 +2757,8 @@
     },
     "actions": {
       "moreOpenOptions": "Thêm tùy chọn mở",
+      "openAsPullRequest": "Thẻ PR",
+      "openAsWebPage": "Trang web",
       "openInApp": "Mở trong ứng dụng",
       "openWithDefaultBrowser": "Mở bằng trình duyệt mặc định",
       "revealInFinder": "Hiển thị trong Finder",
@@ -2768,6 +2770,7 @@
       "copyUrl": "Sao chép URL",
       "copied": "Đã sao chép URL",
       "openExternalFailed": "Không thể mở URL trong trình duyệt mặc định",
+      "openPullRequestFailed": "Không thể mở thẻ pull request",
       "groupTitle": "Trang web"
     },
     "path": {

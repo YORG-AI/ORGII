@@ -122,6 +122,23 @@ describe("BrowserCore blank tab placeholder", () => {
     expect(markup).not.toContain("workstation.browserCore.enterUrlToStart");
   });
 
+  it("keeps the shared workspace placeholder visible when it does not own webviews", () => {
+    const markup = renderToStaticMarkup(
+      createElement(BrowserCore, {
+        browserState: createBrowserState(),
+        blankTabPlaceholder: createElement(
+          "button",
+          { type: "button" },
+          "Open port 1998"
+        ),
+        manageWebviews: false,
+        respectModalBlocking: false,
+      })
+    );
+
+    expect(markup).toContain("Open port 1998");
+  });
+
   it("does not mount blank-tab options while hidden or after navigation", () => {
     const option = createElement(
       "button",

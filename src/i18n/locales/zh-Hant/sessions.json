@@ -2775,6 +2775,8 @@
     },
     "actions": {
       "moreOpenOptions": "更多開啟選項",
+      "openAsPullRequest": "PR 分頁",
+      "openAsWebPage": "網頁",
       "openInApp": "在應用程式內開啟",
       "openWithDefaultBrowser": "用預設瀏覽器開啟",
       "revealInFinder": "在 Finder 中顯示",
@@ -2786,6 +2788,7 @@
       "copyUrl": "複製 URL",
       "copied": "URL 複製",
       "openExternalFailed": "無法用預設瀏覽器開啟 URL",
+      "openPullRequestFailed": "無法開啟 Pull Request 分頁",
       "groupTitle": "網頁"
     },
     "path": {

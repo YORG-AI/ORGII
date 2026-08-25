@@ -535,7 +535,7 @@
       "missingWorkspace": "会话原目录已不存在，{{agent}} 只能在原目录中恢复该会话",
       "sourceMissing": "原始会话数据已不在磁盘上",
       "launchFailed": "打开 {{agent}} 终端失败",
-      "composerPlaceholder": "输入消息以在新的 ORGII 会话中继续 — 也可通过标题栏按钮在 {{agent}} 中原生恢复…"
+      "composerPlaceholder": "发送消息，在新会话中继续…"
     }
   },
   "cloud": {

@@ -20,14 +20,19 @@ import {
 } from "@src/store/ui/workStationAtom";
 import { workspacePortsStateAtom } from "@src/store/workstation/codeEditor/workspacePortsAtom";
 
-import BrowserBlankTabPlaceholder from "./BrowserBlankTabPlaceholder";
+import BrowserBlankTabPlaceholder, {
+  BLANK_TAB_PORT_OPTION_LIMIT,
+} from "./BrowserBlankTabPlaceholder";
 
 const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
 };
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, values?: { address?: string }) =>
+      values?.address ? `${key}:${values.address}` : key,
+  }),
 }));
 
 vi.mock("@src/modules/WorkStation/shared", () => ({
@@ -78,23 +83,29 @@ vi.mock(
   })
 );
 
-function createWorkspacePort(): WorkspacePort {
+function createWorkspacePort(
+  port = 1998,
+  kind: WorkspacePort["kind"] = "workspace"
+): WorkspacePort {
   return {
-    id: "workspace-1998",
+    id: `${kind}-${port}`,
     bindHost: "0.0.0.0",
     connectHost: "localhost",
-    port: 1998,
-    pid: 1998,
+    port,
+    pid: port,
     processName: "node",
     protocol: "http",
-    kind: "workspace",
-    owner: {
-      folderId: "folder-1",
-      repoId: "repo-1",
-      displayName: "ORGII",
-      path: "/workspace/orgii",
-      confidence: "cwd",
-    },
+    kind,
+    owner:
+      kind === "workspace"
+        ? {
+            folderId: "folder-1",
+            repoId: "repo-1",
+            displayName: "ORGII",
+            path: "/workspace/orgii",
+            confidence: "cwd",
+          }
+        : undefined,
   };
 }
 
@@ -124,11 +135,15 @@ describe("BrowserBlankTabPlaceholder", () => {
   it("shows the browser sidebar shortcut and cached scanned ports", () => {
     const store = createStore();
     store.set(workStationBrowserSidebarCollapsedPersistAtom, false);
+    const workspacePorts = Array.from(
+      { length: BLANK_TAB_PORT_OPTION_LIMIT + 2 },
+      (_, index) => createWorkspacePort(1998 + index)
+    );
     store.set(workspacePortsStateAtom, {
       result: {
         platform: "test",
         scannedAt: 1,
-        ports: [createWorkspacePort()],
+        ports: [...workspacePorts, createWorkspacePort(5432, "external")],
       },
       refreshing: false,
       lastScanStartedAt: 1,
@@ -162,8 +177,15 @@ describe("BrowserBlankTabPlaceholder", () => {
     act(() => sidebarAction?.click());
     expect(store.get(workStationBrowserSidebarCollapsedAtom)).toBe(true);
 
-    const portAction = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("1998")
+    const actions = container.querySelectorAll("button");
+    expect(actions).toHaveLength(BLANK_TAB_PORT_OPTION_LIMIT + 1);
+    expect(container.textContent).not.toContain("5432");
+
+    const portAction = container.querySelector<HTMLButtonElement>(
+      '[data-action-id="open-workspace-port-workspace-1998"]'
+    );
+    expect(portAction?.textContent).toBe(
+      "workstation.ports.openAddress:localhost:1998"
     );
     act(() => portAction?.click());
     expect(onOpen).toHaveBeenCalledWith("http://localhost:1998/");

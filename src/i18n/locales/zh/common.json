@@ -1143,6 +1143,7 @@
       "unknownProcess": "未知进程",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "在浏览器中打开",
+      "openAddress": "打开 {{address}}",
       "copyAddress": "复制地址",
       "stopProcess": "停止进程",
       "searchPlaceholder": "搜索端口…",

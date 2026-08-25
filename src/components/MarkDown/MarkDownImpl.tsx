@@ -441,7 +441,12 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
         );
         const linkHasIcon = hasMarkdownLinkIcon(url, linkTarget);
         return (
-          <LinkHoverCard url={url}>
+          <LinkHoverCard
+            url={url}
+            workspaceRootPath={activeWorkspaceRootPath}
+            workspaceRootRepoId={activeWorkspaceRoot?.repoId}
+            workspaceRootRepoUrl={activeWorkspaceRoot?.repo?.repo_url}
+          >
             <a
               {...props}
               className={
@@ -489,6 +494,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
     codeBlockContainerWidth,
     enableFileNavigation,
     handleLinkClick,
+    activeWorkspaceRoot,
     activeWorkspaceRootPath,
     disableCanvasInline,
   ]);

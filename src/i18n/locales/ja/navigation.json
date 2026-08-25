@@ -442,7 +442,7 @@
       "missingWorkspace": "セッションの元のフォルダが存在しません — {{agent}} は元のフォルダからのみ再開できます",
       "sourceMissing": "元のセッションデータがディスク上に見つかりません",
       "launchFailed": "{{agent}} ターミナルの起動に失敗しました",
-      "composerPlaceholder": "メッセージを送って新しい ORGII セッションで続行 — ヘッダーのボタンで {{agent}} でも再開できます…"
+      "composerPlaceholder": "メッセージを送って新しいセッションで続行…"
     }
   },
   "cloud": {

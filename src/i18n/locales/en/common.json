@@ -1155,6 +1155,7 @@
       "unknownProcess": "Unknown process",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Open in Browser",
+      "openAddress": "Open {{address}}",
       "copyAddress": "Copy address",
       "stopProcess": "Stop Process",
       "searchPlaceholder": "Search ports…",

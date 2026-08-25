@@ -2797,6 +2797,8 @@
     },
     "actions": {
       "moreOpenOptions": "Więcej opcji otwierania",
+      "openAsPullRequest": "Karta PR",
+      "openAsWebPage": "Strona WWW",
       "openInApp": "Otwórz w aplikacji",
       "openWithDefaultBrowser": "Otwórz w domyślnej przeglądarce",
       "revealInFinder": "Pokaż w Finderze",
@@ -2808,6 +2810,7 @@
       "copyUrl": "Kopiuj URL",
       "copied": "Skopiowano URL",
       "openExternalFailed": "Nie udało się otworzyć URL w domyślnej przeglądarce",
+      "openPullRequestFailed": "Nie udało się otworzyć karty pull requestu",
       "groupTitle": "Strony internetowe"
     },
     "path": {
