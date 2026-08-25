@@ -1528,6 +1528,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "conversation-native-materializer"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "conversation-portability",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
 name = "conversation-portability"
 version = "0.1.0"
 dependencies = [

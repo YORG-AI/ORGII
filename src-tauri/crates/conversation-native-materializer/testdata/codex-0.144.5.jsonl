@@ -1,0 +1,5 @@
+{"timestamp":"2026-08-25T13:00:00Z","type":"session_meta","payload":{"session_id":"21000000-0000-4000-8000-000000000000","id":"21000000-0000-4000-8000-000000000000","timestamp":"2026-08-25T13:00:00Z","cwd":"/work","originator":"fixture","cli_version":"0.144.5","source":"cli","model_provider":"openai","history_mode":"legacy"}}
+{"timestamp":"2026-08-25T13:00:00Z","type":"response_item","payload":{"type":"message","role":"system","content":[{"type":"input_text","text":"System fixture."}]}}
+{"timestamp":"2026-08-25T13:00:01Z","type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"Developer fixture."}]}}
+{"timestamp":"2026-08-25T13:00:02Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Continue."}]}}
+{"timestamp":"2026-08-25T13:00:03Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Continuing."}]}}

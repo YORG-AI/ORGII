@@ -14,6 +14,7 @@ members = [
     "crates/bin-telegram-smoke",
     "crates/browser",
     "crates/container",
+    "crates/conversation-native-materializer",
     "crates/conversation-portability",
     "crates/continuation-crypto",
     "crates/ui-indexer",

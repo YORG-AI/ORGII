@@ -1,0 +1,25 @@
+[package]
+name = "conversation-native-materializer"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85.0"
+description = "Fail-closed native transcript materialization for portable ORG2 conversations."
+license = "AGPL-3.0-or-later"
+readme = "README.md"
+publish = false
+
+[lib]
+name = "conversation_native_materializer"
+path = "src/lib.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+conversation-portability = { path = "../conversation-portability" }
+libc = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.13"

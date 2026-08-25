@@ -1,0 +1,7 @@
+{"timestamp":"2026-08-17T13:00:00Z","type":"session_meta","payload":{"session_id":"20000000-0000-4000-8000-000000000000","id":"20000000-0000-4000-8000-000000000000","timestamp":"2026-08-17T13:00:00Z","cwd":"/work","originator":"fixture","cli_version":"0.144.4","source":"cli","model_provider":"openai","history_mode":"legacy"}}
+{"timestamp":"2026-08-17T13:00:00Z","type":"event_msg","payload":{"type":"user_message","message":"Remember BETA-2048."}}
+{"timestamp":"2026-08-17T13:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Remember BETA-2048."},{"type":"input_image","image_url":"data:image/png;base64,aGVsbG8="}]}}
+{"timestamp":"2026-08-17T13:00:01Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":\"pwd\"}","call_id":"call_fixture_1"}}
+{"timestamp":"2026-08-17T13:00:02Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_fixture_1","output":[{"type":"input_text","text":"/work"}]}}
+{"timestamp":"2026-08-17T13:00:03Z","type":"compacted","payload":{"message":"Remember BETA-2048 and the shell result."}}
+{"timestamp":"2026-08-17T13:00:04Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Ready."}]}}

@@ -7,6 +7,13 @@ active-graph/compaction traversal are adapted from `session-migrate` at commit
 `2692d2070d8021149f4df5548bff74acbc4ccd38`:
 <https://github.com/xhluca/session-migrate>.
 
+`src-tauri/crates/conversation-native-materializer` is an independently
+rewritten Rust implementation informed by the native transcript format
+research and sanitized fixtures in
+[xhluca/session-migrate](https://github.com/xhluca/session-migrate). Two
+sanitized 0.144.4/2.1.209 fixture families are adapted for compatibility
+tests. ORG2 does not embed or require session-migrate's Python runtime.
+
 MIT License
 
 Copyright (c) 2026 xhluca
