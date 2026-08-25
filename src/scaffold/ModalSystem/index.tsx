@@ -126,13 +126,16 @@ const Modal: React.FC<ModalProps> = ({
   style,
 }) => {
   const handleClose = onClose || onCancel;
+  const modalWrapperRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [okLoading, setOkLoading] = useState(false);
 
-  // Mask only the opaque dialog surface. The translucent backdrop cannot be
-  // composited across sibling native views without removing the live page.
-  useOverlayLayer(visible, modalRef);
+  // A modal owns the entire viewport, including its dimming scrim. Register
+  // the wrapper instead of only the dialog panel so native child WebViews do
+  // not paint through the backdrop. The native page remains mounted and its
+  // mask is cleared when the modal closes.
+  useOverlayLayer(visible, modalWrapperRef);
 
   // Store the previously focused element
   useEffect(() => {
@@ -303,6 +306,7 @@ const Modal: React.FC<ModalProps> = ({
 
   const modalContent = (
     <div
+      ref={modalWrapperRef}
       className="liquid-modal-wrapper"
       style={{ zIndex }}
       onClick={handleMaskClick}

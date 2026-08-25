@@ -112,7 +112,7 @@ macOS CALayer mask + native input handoff
 Important invariants:
 
 - `isActive` controls page lifecycle; `isVisible` controls only the native surface. Opening an overlay must not destroy, reload, or navigate the page.
-- On macOS, each overlay publishes its real viewport rectangle. Every visible browser session intersects those rectangles with its host and applies only the local holes to the WKWebView. The native page remains painted everywhere else; the app never sends the entire WebView behind the opaque main surface.
+- On macOS, each overlay publishes its real viewport coverage rectangle. Local overlays such as dropdowns publish only their panel; full-screen modal overlays publish their wrapper, including the scrim. Every visible browser session intersects those rectangles with its host and applies only the resulting WebView-local holes.
 - Interactive overlays temporarily hand native pointer input back to React while they are open. Passive overlays such as tooltips can leave page input enabled.
 - macOS input handoff routes hit testing directly from the covered child WKWebView to the main React WKWebView. Re-running the child container's parent hit test is not sufficient because the two WebViews can live under different native container views and produce a bare `nil`, which lets the click escape to another application. The fallback must fail closed inside the inline WebView, and it must not change an individual WKWebView's runtime class because AppKit may KVO-observe its frame.
 - Overlapping rectangles are conservatively coalesced before the even-odd mask is built, and both frontend and Rust cap the path at 64 rectangles.
@@ -124,7 +124,10 @@ Important invariants:
 
 BrowserCore's loading and confirmed error panels also set `isVisible=false` while keeping `isActive=true`. The sensitive-host fallback is only a time-based hint and must not hide a successfully loaded native page. This preserves cookies, login state, history, and in-page memory while real blocking UI is shown.
 
-Only opaque overlay surfaces are registered as holes. A translucent backdrop cannot be alpha-composited with a sibling native WKWebView; registering the backdrop itself would replace the live page with the opaque main app surface. Dialog content remains correctly visible and interactive, while the live page stays visible outside it.
+Overlay coverage follows the interaction contract:
+
+- Local popovers, dropdowns, hover cards, and tooltips register only their visible panel, so the native page remains painted and interactive everywhere else.
+- Full-screen modals register their entire wrapper. A translucent DOM scrim cannot alpha-composite with a sibling native WKWebView, so the native surface is masked for the modal's full coverage area. The page remains mounted and preserves cookies, history, scroll, and in-page state; clearing the modal restores it without navigation or reload.
 
 ## Layout-change event
 
