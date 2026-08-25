@@ -73,10 +73,16 @@ export function useInlineWebview(
     onNewWindow,
   });
 
-  const { getContainerRect, updatePosition } = useWebviewLayout({
+  const {
+    getContainerRect,
+    updatePosition,
+    repositionAndShow,
+    stageOffscreen,
+  } = useWebviewLayout({
     containerRef,
     isWebviewCreated,
     isWebviewAvailable,
+    isVisible,
     labelRef,
     log,
   });
@@ -107,6 +113,7 @@ export function useInlineWebview(
       pollIntervalRef,
       newWindowListenerRef,
       lastPolledUrlRef,
+      lastRequestedUrlRef,
       getContainerRect,
       log,
       safeUnlisten,
@@ -126,8 +133,8 @@ export function useInlineWebview(
     isWebviewCreated,
     isVisible,
     isWebviewAvailable,
-    labelRef,
-    updatePosition,
+    repositionAndShow,
+    stageOffscreen,
     log,
   });
 
@@ -138,6 +145,7 @@ export function useInlineWebview(
     isWebviewAvailable,
     createDelay,
     containerRef,
+    getContainerRect,
     isDestroyedRef,
     lastRequestedUrlRef,
     createWebview,

@@ -22,6 +22,7 @@ export interface UseWebviewCommandsParams {
   pollIntervalRef: MutableRefObject<ReturnType<typeof setInterval> | null>;
   newWindowListenerRef: MutableRefObject<UnlistenFn | null>;
   lastPolledUrlRef: MutableRefObject<string>;
+  lastRequestedUrlRef: MutableRefObject<string>;
   getContainerRect: () => DOMRect | null;
   log: (...args: unknown[]) => void;
   safeUnlisten: (listenerFn: UnlistenFn | null) => void;
@@ -59,6 +60,7 @@ export function useWebviewCommands(
     pollIntervalRef,
     newWindowListenerRef,
     lastPolledUrlRef,
+    lastRequestedUrlRef,
     getContainerRect,
     log,
     safeUnlisten,
@@ -157,6 +159,7 @@ export function useWebviewCommands(
           setIsWebviewCreated(true);
           setCurrentUrl(targetUrl);
           lastPolledUrlRef.current = targetUrl;
+          lastRequestedUrlRef.current = targetUrl;
 
           log("WebView created successfully with label:", labelRef.current);
 
@@ -194,6 +197,7 @@ export function useWebviewCommands(
       isDestroyedRef,
       labelRef,
       lastPolledUrlRef,
+      lastRequestedUrlRef,
       log,
       isVisible,
       onCreated,

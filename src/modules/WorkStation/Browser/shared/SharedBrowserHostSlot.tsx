@@ -1,6 +1,7 @@
 import { useSetAtom } from "jotai";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
+import { getVisibleWebviewRect } from "@src/hooks/platform/useInlineWebview/visibleWebviewRect";
 import { WEBVIEW_LAYOUT_CHANGED_EVENT } from "@src/hooks/platform/useInlineWebview/webviewLayoutEvents";
 
 import {
@@ -29,14 +30,22 @@ function getDefaultScope(hostId: SharedBrowserHostId): SharedBrowserHostScope {
 }
 
 function toHostRect(
-  rect: DOMRect,
+  visibleRect: DOMRect,
+  measuredRect: DOMRect,
   bottomInsetPx: number
-): SharedBrowserHostRect {
+): SharedBrowserHostRect | null {
+  const bottom = Math.min(
+    visibleRect.bottom,
+    measuredRect.bottom - bottomInsetPx
+  );
+  const height = bottom - visibleRect.top;
+  if (visibleRect.width <= 0 || height <= 0) return null;
+
   return {
-    x: rect.x,
-    y: rect.y,
-    width: rect.width,
-    height: Math.max(0, rect.height - bottomInsetPx),
+    x: visibleRect.x,
+    y: visibleRect.y,
+    width: visibleRect.width,
+    height,
   };
 }
 
@@ -108,7 +117,16 @@ export const SharedBrowserHostSlot: React.FC<SharedBrowserHostSlotProps> = ({
         const insetPx = measureTarget === element ? bottomInsetPx : 0;
         const nextRect = active
           ? measureTarget
-            ? toHostRect(measureTarget.getBoundingClientRect(), insetPx)
+            ? (() => {
+                const visibleRect = getVisibleWebviewRect(measureTarget);
+                return visibleRect
+                  ? toHostRect(
+                      visibleRect,
+                      measureTarget.getBoundingClientRect(),
+                      insetPx
+                    )
+                  : null;
+              })()
             : null
           : null;
         setRegistry((prev) => {

@@ -7,6 +7,7 @@ export interface UseInlineWebviewUrlEffectParams {
   isWebviewAvailable: boolean;
   createDelay: number;
   containerRef: RefObject<HTMLDivElement | null>;
+  getContainerRect: () => DOMRect | null;
   isDestroyedRef: MutableRefObject<boolean>;
   lastRequestedUrlRef: MutableRefObject<string>;
   createWebview: (targetUrl: string) => Promise<void>;
@@ -25,6 +26,7 @@ export function useInlineWebviewUrlEffect(
     isWebviewAvailable,
     createDelay,
     containerRef,
+    getContainerRect,
     isDestroyedRef,
     lastRequestedUrlRef,
     createWebview,
@@ -71,7 +73,7 @@ export function useInlineWebviewUrlEffect(
         return;
       }
 
-      const rect = containerRef.current?.getBoundingClientRect();
+      const rect = getContainerRect();
 
       if (!rect || rect.width === 0 || rect.height === 0) {
         if (retriesLeft > 0) {
@@ -90,7 +92,6 @@ export function useInlineWebviewUrlEffect(
       }
 
       void createWebview(url);
-      lastRequestedUrlRef.current = url;
     };
 
     const timer = setTimeout(() => {
@@ -111,6 +112,7 @@ export function useInlineWebviewUrlEffect(
     createWebview,
     navigate,
     containerRef,
+    getContainerRect,
     log,
     isDestroyedRef,
     lastRequestedUrlRef,

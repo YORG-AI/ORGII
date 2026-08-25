@@ -1,12 +1,11 @@
-import { invoke } from "@tauri-apps/api/core";
-import { type MutableRefObject, useEffect } from "react";
+import { useEffect } from "react";
 
 export interface UseInlineWebviewNativeVisibilityParams {
   isWebviewCreated: boolean;
   isVisible: boolean;
   isWebviewAvailable: boolean;
-  labelRef: MutableRefObject<string>;
-  updatePosition: (options?: { force?: boolean }) => Promise<void>;
+  repositionAndShow: () => Promise<boolean>;
+  stageOffscreen: (options?: { force?: boolean }) => Promise<void>;
   log: (...args: unknown[]) => void;
 }
 
@@ -17,8 +16,8 @@ export function useInlineWebviewNativeVisibility(
     isWebviewCreated,
     isVisible,
     isWebviewAvailable,
-    labelRef,
-    updatePosition,
+    repositionAndShow,
+    stageOffscreen,
     log,
   } = params;
 
@@ -31,21 +30,10 @@ export function useInlineWebviewNativeVisibility(
       try {
         if (isVisible) {
           log("Showing WebView (isVisible=true)");
-          await updatePosition({ force: true });
-          if (cancelled) return;
-          await invoke("set_inline_webview_visibility", {
-            label: labelRef.current,
-            visible: true,
-          });
+          await repositionAndShow();
         } else {
           log("Staging WebView offscreen (isVisible=false, but still mounted)");
-          await invoke("update_inline_webview_position", {
-            label: labelRef.current,
-            x: -10000,
-            y: -10000,
-            width: 1,
-            height: 1,
-          });
+          await stageOffscreen({ force: true });
         }
       } catch (err) {
         if (!cancelled) {
@@ -63,8 +51,8 @@ export function useInlineWebviewNativeVisibility(
     isWebviewCreated,
     isVisible,
     isWebviewAvailable,
-    labelRef,
-    updatePosition,
+    repositionAndShow,
+    stageOffscreen,
     log,
   ]);
 }

@@ -33,6 +33,7 @@ function createParams(
     pollIntervalRef: { current: null },
     newWindowListenerRef: { current: null },
     lastPolledUrlRef: { current: "https://example.com" },
+    lastRequestedUrlRef: { current: "" },
     getContainerRect: () => null,
     log: vi.fn(),
     safeUnlisten: vi.fn(),
