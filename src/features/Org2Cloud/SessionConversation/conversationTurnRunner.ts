@@ -11,7 +11,7 @@
  * The first turn prepares an idle local runner and dispatches through the
  * canonical turn boundary. Later turns reuse that same session and inject
  * only the plane delta after its monotonic read cursor. A failed episode or
- * assigned-agent change rolls to a fresh runner.
+ * assigned-agent or desired runtime change rolls to a fresh runner.
  *
  * Push order is Slack-shaped: the user's message row goes out FIRST (every
  * client sees it instantly), the agent tail follows under the same turnId
@@ -28,6 +28,7 @@ import {
 } from "@src/engines/SessionCore/services/TurnDispatchService";
 import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import { loadAuthoritativeSessionEvents } from "@src/engines/SessionCore/sync/authoritativeSessionEvents";
+import type { ForkSessionSetupSelection } from "@src/features/TeamCollaboration/components/ForkSessionSetupDialog";
 import { requestForkSessionSetup } from "@src/features/TeamCollaboration/forkSession";
 import {
   clearForkSetupMemory,
@@ -52,6 +53,10 @@ import {
   prepareContinuation,
   retireContinuation,
 } from "./conversationContinuation";
+import {
+  conversationSetupChangesRuntime,
+  isRunnableConversationSetup,
+} from "./conversationExecutionIdentity";
 import {
   cleanupConversationRunnerBestEffort,
   cleanupRetiredConversationRunners,
@@ -448,6 +453,9 @@ async function runConversationTurnSerialized(
     params.executionScopeKey,
     params.rootSessionId
   );
+  const configuredSetup = loadForkSetupMemory(
+    params.setupMemoryKey ?? params.sourceScopeKey
+  );
   if (
     params.requiredRunnerSessionId &&
     record?.continuationSessionId !== params.requiredRunnerSessionId
@@ -462,6 +470,11 @@ async function runConversationTurnSerialized(
     record,
     turnIntentId,
     assignedAgentDefinitionId: params.assignedAgentDefinitionId,
+    runtimeSetupChanged: Boolean(
+      record &&
+      isRunnableConversationSetup(configuredSetup) &&
+      conversationSetupChangesRuntime(record, configuredSetup)
+    ),
   });
   if (params.requiredRunnerSessionId && decision.kind === "fresh") {
     throw new Error(
@@ -528,12 +541,18 @@ async function runConversationTurnSerialized(
       await cleanupConversationRunnerBestEffort(
         decision.record.continuationSessionId
       );
-      return startFreshEpisode(params, io, {
-        request,
-        deadlineMs,
-        dispatchIso,
-        userRowLastSeq,
-      });
+      return startFreshEpisode(
+        params,
+        io,
+        {
+          request,
+          deadlineMs,
+          dispatchIso,
+          userRowLastSeq,
+        },
+        undefined,
+        configuredSetup
+      );
     }
     await params.onTransportAccepted?.(
       decision.record.continuationSessionId,
@@ -581,7 +600,8 @@ async function runConversationTurnSerialized(
       deadlineMs,
       dispatchIso,
     },
-    initialContext
+    initialContext,
+    configuredSetup
   );
 }
 
@@ -604,7 +624,8 @@ async function startFreshEpisode(
   params: RunConversationTurnParams,
   io: TurnPushIo,
   turn: BootstrapTurn,
-  loadedContext?: ConversationInitialContext
+  loadedContext?: ConversationInitialContext,
+  configuredSetup?: ForkSessionSetupSelection | null
 ): Promise<RunConversationTurnResult> {
   const setupMemoryKey = params.setupMemoryKey ?? params.sourceScopeKey;
   const requestSetup = () =>
@@ -616,12 +637,13 @@ async function startFreshEpisode(
       allowCliRuntime: true,
       lockSourceAgent: Boolean(params.assignedAgentDefinitionId),
     });
-  const rememberedCandidate = loadForkSetupMemory(setupMemoryKey);
-  const remembered =
-    rememberedCandidate?.execution.cliAgentType &&
-    !rememberedCandidate.execution.accountId
-      ? null
-      : rememberedCandidate;
+  const rememberedCandidate =
+    configuredSetup === undefined
+      ? loadForkSetupMemory(setupMemoryKey)
+      : configuredSetup;
+  const remembered = isRunnableConversationSetup(rememberedCandidate)
+    ? rememberedCandidate
+    : null;
   if (rememberedCandidate && !remembered) {
     clearForkSetupMemory(setupMemoryKey);
   }

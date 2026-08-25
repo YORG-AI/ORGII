@@ -39,6 +39,17 @@ describe("decideContinuation", () => {
     ).toEqual({ kind: "fresh", rollReason: "assigned_agent_changed" });
   });
 
+  it("rolls when the desired local runtime changes", () => {
+    expect(
+      decideContinuation({
+        record: established,
+        turnIntentId: "intent-2",
+        assignedAgentDefinitionId: "agent-a",
+        runtimeSetupChanged: true,
+      })
+    ).toEqual({ kind: "fresh", rollReason: "runtime_setup_changed" });
+  });
+
   it("retries only the exact unestablished bootstrap intent", () => {
     const prepared: ConversationContinuationRecord = {
       ...established,

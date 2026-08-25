@@ -5,9 +5,10 @@
  * composer used to be a fork entry), so the stock pill reads "Select
  * model" forever, and a manual pick patches the imported row — which the
  * next family refresh wipes. On the conversation plane the model that
- * actually executes a member's turn is the remembered runner setup
- * (`forkSetupMemory`, the same record `runConversationTurn` launches
- * with), so the pill mirrors THAT: display the remembered model, and
+ * will execute a member's next turn is the remembered runner setup
+ * (`forkSetupMemory`, the same record `runConversationTurn` launches with).
+ * A changed setup rolls the active episode under the next serialized turn,
+ * so the pill mirrors that desired runtime: display the remembered model, and
  * route picks back into the memory so they stick across sends,
  * refreshes, and restarts.
  */
@@ -25,8 +26,16 @@ import {
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "../org2CloudAuthAtom";
 import type { CloudOrgRemoteSessionsEntry } from "../org2CloudRemoteSessionsAtom";
 import { org2CloudRemoteSessionsAtom } from "../org2CloudRemoteSessionsAtom";
+import {
+  type CloudConversationExecutionIdentity,
+  resolveCloudConversationExecutionIdentity,
+} from "./conversationExecutionIdentity";
 
 const detachedRemoteSessionsAtom = atom<
   Record<string, CloudOrgRemoteSessionsEntry>
@@ -44,10 +53,45 @@ export interface ConversationSetupPillBinding {
   applyModelPick: (config: AdvancedConfig) => boolean;
 }
 
+interface ImportedConversationIdentity {
+  orgId: string;
+  sourceSessionId: string;
+}
+
+interface ConversationIdentityRow {
+  sourceSessionId: string;
+  agentDefinitionId?: string;
+  forkedFrom?: { rootSessionId?: string } | null;
+}
+
+export function resolveConversationSetupPillIdentity(input: {
+  authIdentity: string | null;
+  importedFrom: ImportedConversationIdentity | null | undefined;
+  rows: readonly ConversationIdentityRow[] | null | undefined;
+}): CloudConversationExecutionIdentity | null {
+  if (!input.importedFrom || !input.authIdentity) return null;
+  const source = input.rows?.find(
+    (candidate) =>
+      candidate.sourceSessionId === input.importedFrom?.sourceSessionId
+  );
+  const rootSessionId =
+    source?.forkedFrom?.rootSessionId ?? input.importedFrom.sourceSessionId;
+  const root = input.rows?.find(
+    (candidate) => candidate.sourceSessionId === rootSessionId
+  );
+  return resolveCloudConversationExecutionIdentity({
+    authIdentity: input.authIdentity,
+    cloudOrgId: input.importedFrom.orgId,
+    rootSessionId,
+    assignedAgentDefinitionId: root?.agentDefinitionId,
+  });
+}
+
 export function useConversationSetupPillBinding(
   sessionId: string | null | undefined
 ): ConversationSetupPillBinding | null {
   const session = useAtomValue(sessionByIdAtom(sessionId ?? ""));
+  const auth = useAtomValue(org2CloudAuthAtom);
   const importedFrom = session?.importedFrom;
   const remoteEntries = useAtomValue(
     importedFrom ? org2CloudRemoteSessionsAtom : detachedRemoteSessionsAtom
@@ -58,40 +102,37 @@ export function useConversationSetupPillBinding(
     forkSetupMemoryVersion
   );
 
-  // Same derivation the plane submit path uses for its setup lookup: the
-  // conversation ROOT row's repo scope keys the memory record.
-  const scopeKey = useMemo(() => {
-    if (!importedFrom) return undefined;
-    const rows = remoteEntries[importedFrom.orgId]?.rows;
-    const row = rows?.find(
-      (candidate) => candidate.sourceSessionId === importedFrom.sourceSessionId
-    );
-    const rootId =
-      row?.forkedFrom?.rootSessionId ?? importedFrom.sourceSessionId;
-    const rootRow = rows?.find(
-      (candidate) => candidate.sourceSessionId === rootId
-    );
-    return rootRow?.repoScopeKey;
-  }, [importedFrom, remoteEntries]);
+  const authIdentity = auth ? org2CloudAuthIdentityKey(auth) : null;
+  // Resolve the exact account/org/root/agent tuple used by both plane submit
+  // paths. A repository scope is a workspace hint, never an executor identity.
+  const executionIdentity = useMemo(() => {
+    return resolveConversationSetupPillIdentity({
+      authIdentity,
+      importedFrom,
+      rows: importedFrom ? remoteEntries[importedFrom.orgId]?.rows : undefined,
+    });
+  }, [authIdentity, importedFrom, remoteEntries]);
 
   const selection = useMemo((): LastModelSelection | null => {
     if (!importedFrom) return null;
     void memoryVersion;
-    const remembered = loadForkSetupMemory(scopeKey);
+    if (!executionIdentity) return null;
+    const remembered = loadForkSetupMemory(executionIdentity.setupMemoryKey);
     if (!remembered) return null;
     return {
       keySource: KEY_SOURCE.OWN,
       model: remembered.execution.model,
       selectedAccountId: remembered.execution.accountId,
     };
-  }, [importedFrom, scopeKey, memoryVersion]);
+  }, [executionIdentity, importedFrom, memoryVersion]);
 
   const applyModelPick = useCallback(
     (config: AdvancedConfig): boolean => {
       if (isHostedKey(config.keySource) || !config.model) return false;
-      const current = loadForkSetupMemory(scopeKey);
+      if (!executionIdentity) return false;
+      const current = loadForkSetupMemory(executionIdentity.setupMemoryKey);
       if (!current) return false;
-      saveForkSetupMemory(scopeKey, {
+      saveForkSetupMemory(executionIdentity.setupMemoryKey, {
         ...current,
         execution: {
           ...current.execution,
@@ -101,7 +142,7 @@ export function useConversationSetupPillBinding(
       });
       return true;
     },
-    [scopeKey]
+    [executionIdentity]
   );
 
   return useMemo(

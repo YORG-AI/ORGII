@@ -22,10 +22,7 @@ import {
   settleCloudConversationRunner,
   signalCloudConversationPlane,
 } from "./cloudConversationRuntime";
-import {
-  cloudConversationExecutorScopeKey,
-  cloudConversationSetupMemoryKey,
-} from "./conversationExecutionStore";
+import { resolveCloudConversationExecutionIdentity } from "./conversationExecutionIdentity";
 import {
   type ConversationInitialContext,
   type RunConversationTurnParams,
@@ -212,10 +209,12 @@ export async function handleWorkItemConversationTurnRequest(
   const resolvedOrgId = decision.cloudOrgId;
   const rootSessionId = request.rootSessionId;
   const authIdentity = org2CloudAuthIdentityKey(auth as Org2CloudAuthState);
-  const executionScopeKey = cloudConversationExecutorScopeKey(
+  const executionIdentity = resolveCloudConversationExecutionIdentity({
     authIdentity,
-    resolvedOrgId
-  );
+    cloudOrgId: resolvedOrgId,
+    rootSessionId,
+    assignedAgentDefinitionId: request.assignedAgentId,
+  });
   let runnerSessionId: string | null = null;
   let transportAccepted = false;
   let acknowledged = false;
@@ -243,13 +242,8 @@ export async function handleWorkItemConversationTurnRequest(
       sourceScopeKey: root.repoScopeKey,
       sourceModel: root.model,
       assignedAgentDefinitionId: request.assignedAgentId ?? undefined,
-      setupMemoryKey: cloudConversationSetupMemoryKey(
-        authIdentity,
-        resolvedOrgId,
-        rootSessionId,
-        request.assignedAgentId ?? undefined
-      ),
-      executionScopeKey,
+      setupMemoryKey: executionIdentity.setupMemoryKey,
+      executionScopeKey: executionIdentity.executorScopeKey,
       turnIntentId: request.runId,
       requiredRunnerSessionId: request.preparedRunnerSessionId ?? undefined,
       preserveRunnerOnTransportFailure: true,

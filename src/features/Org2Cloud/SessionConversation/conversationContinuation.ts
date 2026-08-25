@@ -119,6 +119,7 @@ export function decideContinuation(input: {
   record: ConversationContinuationRecord | null;
   turnIntentId: string;
   assignedAgentDefinitionId?: string;
+  runtimeSetupChanged?: boolean;
 }): ContinuationDecision {
   const { record } = input;
   if (!record) return { kind: "fresh" };
@@ -127,6 +128,9 @@ export function decideContinuation(input: {
     input.assignedAgentDefinitionId !== record.agentDefinitionId
   ) {
     return { kind: "fresh", rollReason: "assigned_agent_changed" };
+  }
+  if (input.runtimeSetupChanged) {
+    return { kind: "fresh", rollReason: "runtime_setup_changed" };
   }
   if (!record.established) {
     return record.bootstrapTurnIntentId === input.turnIntentId

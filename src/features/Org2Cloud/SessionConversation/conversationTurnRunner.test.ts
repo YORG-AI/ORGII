@@ -10,7 +10,11 @@ import {
 } from "@src/features/TeamCollaboration/forkSetupMemory";
 
 import type { CloudConversationEvent } from "../org2CloudConversationEventsClient";
-import { loadContinuation, saveContinuation } from "./conversationContinuation";
+import {
+  loadContinuation,
+  loadContinuationLineage,
+  saveContinuation,
+} from "./conversationContinuation";
 import {
   CONVERSATION_TURN_LOCK_UNAVAILABLE,
   type RunConversationTurnParams,
@@ -403,6 +407,59 @@ describe("conversation turn continuation", () => {
     expect(SessionService.create).toHaveBeenCalledTimes(1);
     expect(state.pushes.filter((push) => push.kind === "user")).toHaveLength(1);
     expect(state.cleaned).toContain("runner-dead");
+  });
+
+  it("rolls at the next serialized turn when desired runtime setup changes", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "runner-old-runtime",
+      readThroughPlaneSeq: 10,
+      established: true,
+      agentDefinitionId: "agent-a",
+      cliAgentType: "codex",
+      accountId: "account-a",
+      model: "model-a",
+      workspaceRepoPath: "/repo-a",
+    });
+    vi.mocked(loadForkSetupMemory).mockReturnValueOnce({
+      workspaceRepoPath: "/repo-b",
+      execution: {
+        agentDefinitionId: "agent-a",
+        cliAgentType: "codex",
+        accountId: "account-b",
+        model: "model-b",
+      },
+    });
+    state.persistedBatches = [
+      [],
+      [
+        event("user-1", "user", "new request", "intent-1"),
+        event("agent-1", "assistant", "new runtime answer"),
+      ],
+    ];
+
+    const result = await runConversationTurn(
+      params({ setupMemoryKey: "canonical-setup" })
+    );
+
+    expect(result.runnerSessionId).toBe("fresh-runner");
+    expect(state.cleaned).toContain("runner-old-runtime");
+    expect(SessionService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoPath: "/repo-b",
+        cliAgentType: "codex",
+        accountId: "account-b",
+        model: "model-b",
+      })
+    );
+    expect(loadContinuationLineage("scope", "root")?.episodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          continuationSessionId: "runner-old-runtime",
+          state: "retired",
+          rollReason: "runtime_setup_changed",
+        }),
+      ])
+    );
   });
 
   it("keeps a durably prepared resume on transport ambiguity", async () => {

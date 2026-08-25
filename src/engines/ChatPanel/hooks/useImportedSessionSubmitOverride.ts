@@ -17,11 +17,8 @@ import {
   type ConversationFamilyMember,
   resolveConversationFamily,
 } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
-import {
-  cloudConversationExecutorScopeKey,
-  cloudConversationSetupMemoryKey,
-  loadStoredOwnerPlaneCursor,
-} from "@src/features/Org2Cloud/SessionConversation/conversationExecutionStore";
+import { resolveCloudConversationExecutionIdentity } from "@src/features/Org2Cloud/SessionConversation/conversationExecutionIdentity";
+import { loadStoredOwnerPlaneCursor } from "@src/features/Org2Cloud/SessionConversation/conversationExecutionStore";
 import { publishOwnerTurn } from "@src/features/Org2Cloud/SessionConversation/conversationOwnerPublisher";
 import {
   conversationPlaneAtom,
@@ -252,19 +249,18 @@ export function useImportedSessionSubmitOverride({
               planeInfo.rootId,
               auth.supabaseUrl
             );
-          // The root row's repo scope keys the setup memory AND resolves the
-          // runner's local checkout — without it the dialog reappears and a
-          // workspace-requiring agent cannot launch at all.
-          const rootRow = familyOrgId
-            ? remoteEntries[familyOrgId]?.rows?.find(
-                (candidate) => candidate.sourceSessionId === planeInfo.rootId
-              )
-            : undefined;
-          const authIdentity = org2CloudAuthIdentityKey(auth);
-          const executorScope = cloudConversationExecutorScopeKey(
-            authIdentity,
-            planeInfo.orgId
+          // The root row supplies workspace/model/agent hints. The canonical
+          // account/org/root/agent tuple below owns setup persistence.
+          const rootRow = remoteEntries[planeInfo.orgId]?.rows?.find(
+            (candidate) => candidate.sourceSessionId === planeInfo.rootId
           );
+          const authIdentity = org2CloudAuthIdentityKey(auth);
+          const executionIdentity = resolveCloudConversationExecutionIdentity({
+            authIdentity,
+            cloudOrgId: planeInfo.orgId,
+            rootSessionId: planeInfo.rootId,
+            assignedAgentDefinitionId: rootRow?.agentDefinitionId,
+          });
           let publishResolve!: () => void;
           const userPublished = new Promise<void>((resolve) => {
             publishResolve = resolve;
@@ -306,13 +302,8 @@ export function useImportedSessionSubmitOverride({
             sourceScopeKey: rootRow?.repoScopeKey,
             sourceModel: currentSession?.model ?? rootRow?.model,
             assignedAgentDefinitionId: rootRow?.agentDefinitionId,
-            setupMemoryKey: cloudConversationSetupMemoryKey(
-              authIdentity,
-              planeInfo.orgId,
-              planeInfo.rootId,
-              rootRow?.agentDefinitionId
-            ),
-            executionScopeKey: executorScope,
+            setupMemoryKey: executionIdentity.setupMemoryKey,
+            executionScopeKey: executionIdentity.executorScopeKey,
             onRunnerReady: (runnerSessionId, turnId, turnIntentId) => {
               // Overlay the runner's LIVE events (thinking / tools / worked-for)
               // into the conversation until the plane carries this turn's
@@ -361,13 +352,16 @@ export function useImportedSessionSubmitOverride({
         // Group-chat routing owns its own sends.
         if (await onFallbackSubmit(input)) return true;
         if (!auth) return false;
-        const executorScope = cloudConversationExecutorScopeKey(
-          org2CloudAuthIdentityKey(auth),
-          planeInfo.orgId
-        );
+        const executionIdentity = resolveCloudConversationExecutionIdentity({
+          authIdentity: org2CloudAuthIdentityKey(auth),
+          cloudOrgId: planeInfo.orgId,
+          rootSessionId: planeInfo.rootId,
+        });
         const ownerCursor =
-          loadStoredOwnerPlaneCursor(executorScope, planeInfo.rootId)
-            ?.readThroughPlaneSeq ?? 0;
+          loadStoredOwnerPlaneCursor(
+            executionIdentity.executorScopeKey,
+            planeInfo.rootId
+          )?.readThroughPlaneSeq ?? 0;
         let delta;
         try {
           delta = await loadCloudConversationPlaneDelta(
@@ -417,7 +411,7 @@ export function useImportedSessionSubmitOverride({
           sessionId,
           turnIntentId,
           displayText: input.displayText,
-          executorScope,
+          executorScope: executionIdentity.executorScopeKey,
           readThroughPlaneSeq: delta.lastSeq,
           onPushed: () => signalCloudConversationPlane(planeInfo.orgId),
         }).catch((error: unknown) => {
@@ -533,7 +527,6 @@ export function useImportedSessionSubmitOverride({
       currentSession?.importedFrom,
       currentSession?.name,
       currentSession?.model,
-      familyOrgId,
       forkImportedSession,
       getAccessToken,
       onFallbackSubmit,

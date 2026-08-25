@@ -17,6 +17,7 @@ import {
   listConversationEvents,
 } from "../org2CloudConversationEventsClient";
 import type { SessionCommentTarget } from "../sessionCommentTarget";
+import { cloudConversationPlaneKey } from "./conversationExecutionIdentity";
 
 const log = createLogger("ConversationPlane");
 
@@ -40,12 +41,7 @@ const EMPTY_ENTRY: ConversationPlaneEntry = {
   lastSeq: 0,
 };
 
-export function conversationPlaneKey(
-  orgId: string,
-  rootSessionId: string
-): string {
-  return `${orgId}:${rootSessionId}`;
-}
+export const conversationPlaneKey = cloudConversationPlaneKey;
 
 export const conversationPlaneAtom = atom<
   Record<string, ConversationPlaneEntry>
