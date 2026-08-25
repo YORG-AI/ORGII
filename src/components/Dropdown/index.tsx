@@ -196,8 +196,13 @@ const Dropdown: React.FC<DropdownProps> = ({
   const isControlled = controlledVisible !== undefined;
   const visible = isControlled ? controlledVisible : internalVisible;
 
+  // Only the portal branch renders at measured viewport coordinates, so only
+  // it can flash a bogus rect at (0,0) before the first measurement. In-flow
+  // panels are placed by their Tailwind position classes and never populate
+  // `dropdownPosition`, so gating them on it would leave the native WebView
+  // unmasked underneath for the whole time they are open.
   useOverlayLayer(
-    visible && Boolean(dropdownPosition),
+    visible && (!getPopupContainer || Boolean(dropdownPosition)),
     dropdownRef,
     DROPDOWN_OCCLUSION_OPTIONS
   );
