@@ -27,6 +27,8 @@ export interface ConversationContinuationRecord {
   established: boolean;
   bootstrapTurnIntentId?: string;
   agentDefinitionId: string;
+  /** Managed External CLI platform; absent means the native Agent runtime. */
+  cliAgentType?: string;
   accountId?: string;
   model?: string;
   workspaceRepoPath?: string | null;
@@ -143,6 +145,8 @@ function sanitizeContinuation(
   if (accountId) record.accountId = accountId;
   const model = optionalString(value, "model");
   if (model) record.model = model;
+  const cliAgentType = optionalString(value, "cliAgentType");
+  if (cliAgentType) record.cliAgentType = cliAgentType;
   if (
     typeof value.workspaceRepoPath === "string" ||
     value.workspaceRepoPath === null

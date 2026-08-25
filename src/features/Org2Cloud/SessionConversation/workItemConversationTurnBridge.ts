@@ -251,6 +251,7 @@ export async function handleWorkItemConversationTurnRequest(
       ),
       executionScopeKey,
       turnIntentId: request.runId,
+      requiredRunnerSessionId: request.preparedRunnerSessionId ?? undefined,
       preserveRunnerOnTransportFailure: true,
       onRunnerReady: async (createdRunnerId, turnId, turnIntentId) => {
         runnerSessionId = createdRunnerId;

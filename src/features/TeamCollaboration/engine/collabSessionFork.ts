@@ -6,6 +6,7 @@
  * fetch/assembly path (`fetchAndAssembleSegments`) and durable-write ordering,
  * differing only in the kind of local session the assembled events land in.
  */
+import type { CliAgentType } from "@src/api/tauri/rpc/schemas/validation";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session/dispatchTypes";
 import type { KeyInfo } from "@src/api/types/keys";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
@@ -118,8 +119,12 @@ export interface ForkSessionResult {
 
 export interface ForkExecutionSelection {
   agentDefinitionId: string;
-  accountId: string;
-  model: string;
+  /** Present only for a managed External CLI runner. */
+  cliAgentType?: CliAgentType;
+  /** Native-agent credential selection; omitted for CLI subscription auth. */
+  accountId?: string;
+  /** Native-agent model selection; omitted for CLI-managed model choice. */
+  model?: string;
 }
 
 export interface ForkSessionOptions extends RemoteSessionFetchOptions {
@@ -250,9 +255,16 @@ export async function forkSession(
   } catch {
     localKeys = null;
   }
+  if (options.execution?.cliAgentType) {
+    throw new Error(
+      "External CLI execution is not supported by replay-copy forks."
+    );
+  }
   if (
     options.execution &&
-    (localKeys === null ||
+    (!options.execution.accountId ||
+      !options.execution.model ||
+      localKeys === null ||
       !isModelRunnableWithAccount(
         options.execution.accountId,
         options.execution.model,
@@ -266,7 +278,7 @@ export async function forkSession(
   const store = getInstrumentedStore();
   const defaultModel =
     store.get(lastModelPairMapAtom)[DISPATCH_CATEGORY.RUST_AGENT]?.modelId;
-  const resolvedModel = options.execution
+  const resolvedModel = options.execution?.model
     ? { model: options.execution.model, fellBack: false }
     : resolveForkModel(remoteSession.model, localKeys, defaultModel);
 

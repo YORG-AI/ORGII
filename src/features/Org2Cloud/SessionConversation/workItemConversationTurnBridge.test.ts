@@ -219,6 +219,7 @@ describe("handleWorkItemConversationTurnRequest", () => {
       orgId: "cloud-org",
       rootSessionId: "root-remote",
       turnIntentId: "run-1",
+      requiredRunnerSessionId: "runner-prepared",
       displayText: "💬 please retry",
       agentContent: REQUEST.content,
       conversationTitle: "Root session",

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { sendReservedTurn } from "@src/engines/SessionCore/services/TurnDispatchService";
+import { requestForkSessionSetup } from "@src/features/TeamCollaboration/forkSession";
 
 import type { CloudConversationEvent } from "../org2CloudConversationEventsClient";
 import { loadContinuation, saveContinuation } from "./conversationContinuation";
@@ -368,6 +369,53 @@ describe("conversation turn continuation", () => {
     });
   });
 
+  it("rejects a durable redelivery that cannot recover its exact prepared runner", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "runner-other",
+      readThroughPlaneSeq: 10,
+      established: true,
+      agentDefinitionId: "agent-a",
+    });
+
+    await expect(
+      runConversationTurn(
+        params({ requiredRunnerSessionId: "runner-prepared" })
+      )
+    ).rejects.toThrow(
+      "requires prepared runner runner-prepared; local continuation is runner-other"
+    );
+
+    expect(SessionService.create).not.toHaveBeenCalled();
+    expect(sendReservedTurn).not.toHaveBeenCalled();
+    expect(state.pushes).toEqual([]);
+  });
+
+  it("never rolls an exact prepared runner when its execution fingerprint differs", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "runner-prepared",
+      readThroughPlaneSeq: 10,
+      established: true,
+      agentDefinitionId: "agent-old",
+    });
+
+    await expect(
+      runConversationTurn(
+        params({
+          requiredRunnerSessionId: "runner-prepared",
+          assignedAgentDefinitionId: "agent-new",
+        })
+      )
+    ).rejects.toThrow(
+      "prepared runner runner-prepared is incompatible: assigned_agent_changed"
+    );
+
+    expect(SessionService.create).not.toHaveBeenCalled();
+    expect(state.cleaned).toEqual([]);
+    expect(loadContinuation("scope", "root")?.continuationSessionId).toBe(
+      "runner-prepared"
+    );
+  });
+
   it("keeps a fresh prepared runner recoverable when its first send is ambiguous", async () => {
     state.rejectNextSend = true;
     const onTurnAccepted = vi.fn();
@@ -412,6 +460,44 @@ describe("conversation turn continuation", () => {
     expect(loadContinuation("scope", "root")).toMatchObject({
       continuationSessionId: "fresh-runner",
       established: true,
+    });
+  });
+
+  it("creates a managed External CLI through the same continuation path", async () => {
+    vi.mocked(requestForkSessionSetup).mockResolvedValueOnce({
+      workspaceRepoPath: "/repo",
+      execution: {
+        agentDefinitionId: "agent-a",
+        cliAgentType: "codex",
+      },
+    });
+    state.persistedBatches = [
+      [
+        event("user-1", "user", "new request", "intent-1"),
+        event("agent-1", "assistant", "answer"),
+      ],
+    ];
+
+    await runConversationTurn(params({ assignedAgentDefinitionId: "agent-a" }));
+
+    expect(requestForkSessionSetup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowCliRuntime: true,
+        lockSourceAgent: true,
+        sourceAgentDefinitionId: "agent-a",
+      })
+    );
+    expect(SessionService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task: "",
+        cliAgentType: "codex",
+        agentDefinitionId: "agent-a",
+      })
+    );
+    expect(loadContinuation("scope", "root")).toMatchObject({
+      continuationSessionId: "fresh-runner",
+      cliAgentType: "codex",
+      agentDefinitionId: "agent-a",
     });
   });
 

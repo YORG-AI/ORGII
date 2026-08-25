@@ -200,6 +200,11 @@ export interface RunConversationTurnParams {
   /** Stable logical id for durable redelivery; minted for ordinary chat. */
   turnIntentId?: string;
   /**
+   * Durable redelivery fence. Once the backend has prepared a local runner,
+   * the same run may only resume that exact Session after a restart.
+   */
+  requiredRunnerSessionId?: string;
+  /**
    * A durable caller may bind this runner before transport send. In that
    * mode a send error must escape to the caller instead of silently rolling
    * to a different runner under the same fenced claim.
@@ -417,11 +422,27 @@ async function runConversationTurnSerialized(
     params.executionScopeKey,
     params.rootSessionId
   );
+  if (
+    params.requiredRunnerSessionId &&
+    record?.continuationSessionId !== params.requiredRunnerSessionId
+  ) {
+    throw new Error(
+      `conversation turn ${turnIntentId} requires prepared runner ` +
+        `${params.requiredRunnerSessionId}; local continuation is ` +
+        `${record?.continuationSessionId ?? "missing"}`
+    );
+  }
   const decision = decideContinuation({
     record,
     turnIntentId,
     assignedAgentDefinitionId: params.assignedAgentDefinitionId,
   });
+  if (params.requiredRunnerSessionId && decision.kind === "fresh") {
+    throw new Error(
+      `prepared runner ${params.requiredRunnerSessionId} is incompatible: ` +
+        `${decision.rollReason ?? "continuation unavailable"}`
+    );
+  }
   if (decision.kind === "fresh" && decision.rollReason) {
     log.info(`rolling conversation continuation: ${decision.rollReason}`);
     clearContinuation(params.executionScopeKey, params.rootSessionId);
@@ -544,6 +565,8 @@ async function startFreshEpisode(
       sourceScopeKey: params.sourceScopeKey,
       sourceModel: params.sourceModel,
       sourceAgentDefinitionId: params.assignedAgentDefinitionId,
+      allowCliRuntime: true,
+      lockSourceAgent: Boolean(params.assignedAgentDefinitionId),
     });
   const remembered = loadForkSetupMemory(setupMemoryKey);
   let usedRememberedSetup = Boolean(remembered);
@@ -560,6 +583,7 @@ async function startFreshEpisode(
       repoPath: setup.workspaceRepoPath ?? undefined,
       model: setup.execution.model,
       accountId: setup.execution.accountId,
+      cliAgentType: setup.execution.cliAgentType,
       keySource: "own_key",
       agentDefinitionId: setup.execution.agentDefinitionId,
       mode: "build",
@@ -580,7 +604,10 @@ async function startFreshEpisode(
   if (usedRememberedSetup) {
     Message.info(
       i18n.t("navigation:collaboration.session.forkSetupReused", {
-        model: setup.execution.model ?? setup.execution.agentDefinitionId,
+        model:
+          setup.execution.model ??
+          setup.execution.cliAgentType ??
+          setup.execution.agentDefinitionId,
       })
     );
   }
@@ -595,6 +622,7 @@ async function startFreshEpisode(
       established: false,
       bootstrapTurnIntentId: io.turnIntentId,
       agentDefinitionId: setup.execution.agentDefinitionId,
+      cliAgentType: setup.execution.cliAgentType,
       accountId: setup.execution.accountId,
       model: setup.execution.model,
       workspaceRepoPath: setup.workspaceRepoPath ?? null,

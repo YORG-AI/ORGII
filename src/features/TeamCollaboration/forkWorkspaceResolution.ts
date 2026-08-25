@@ -133,6 +133,10 @@ export interface ForkSessionSetupSource {
   sourceModel?: string;
   sourceAgentDisplayName?: string;
   sourceAgentDefinitionId?: string;
+  /** Conversation runners may use a managed GUI/headless External CLI. */
+  allowCliRuntime?: boolean;
+  /** Assigned Work Item agents are semantic identity, not a free picker. */
+  lockSourceAgent?: boolean;
 }
 
 /**
@@ -166,6 +170,8 @@ export async function requestForkSessionSetup(
         sourceModel: source.sourceModel,
         sourceAgentDisplayName: source.sourceAgentDisplayName,
         sourceAgentDefinitionId: source.sourceAgentDefinitionId,
+        allowCliRuntime: source.allowCliRuntime,
+        lockSourceAgent: source.lockSourceAgent,
         resolve,
       });
     }

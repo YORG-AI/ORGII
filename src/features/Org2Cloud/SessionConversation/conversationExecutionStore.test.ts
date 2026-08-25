@@ -97,6 +97,7 @@ describe("conversation execution store", () => {
         readThroughPlaneSeq: 12,
         established: true,
         agentDefinitionId: "agent-a",
+        cliAgentType: "codex",
       },
       "2026-08-25T00:00:00Z",
       backing
@@ -111,6 +112,7 @@ describe("conversation execution store", () => {
     expect(loadStoredContinuation("scope", "root", backing)).toMatchObject({
       continuationSessionId: "runner-1",
       readThroughPlaneSeq: 12,
+      cliAgentType: "codex",
     });
     expect(
       loadStoredOwnerPlaneCursor("scope", "root", backing)?.readThroughPlaneSeq
