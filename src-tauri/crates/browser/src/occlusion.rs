@@ -2,9 +2,10 @@
 //!
 //! Native child WebViews do not participate in the React DOM stacking
 //! context. On macOS we keep the live WKWebView in front, but apply a
-//! `CAShapeLayer` mask with holes matching opaque React overlays. This keeps
-//! the rest of the page painted instead of moving the entire WebView behind
-//! the opaque main app surface.
+//! `CAShapeLayer` mask with holes matching opaque React overlays. Translucent
+//! modal scrims are mirrored by a named black `CALayer` above the live page.
+//! This keeps the rest of the page painted instead of moving the entire
+//! WebView behind the opaque main app surface.
 
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
@@ -65,17 +66,26 @@ fn sanitize_occlusion_rects(
         .collect()
 }
 
+fn sanitize_dimming_alpha(dimming_alpha: f64) -> f32 {
+    if !dimming_alpha.is_finite() {
+        return 0.0;
+    }
+    dimming_alpha.clamp(0.0, 1.0) as f32
+}
+
 /// Apply overlay holes to one inline WebView.
 ///
 /// `rects` are WebView-local logical points with a top-left origin. The
 /// frontend derives them from the same scaled frame used to position the
-/// native child view.
+/// native child view. `dimming_alpha` mirrors a translucent black DOM scrim
+/// without turning the full WebView into an opaque compositor hole.
 #[tauri::command]
 pub async fn set_inline_webview_occlusions(
     app: AppHandle,
     label: String,
     rects: Vec<WebviewOcclusionRect>,
     block_input: bool,
+    dimming_alpha: f64,
 ) -> Result<(), String> {
     let Some(webview) = app.get_webview(&label) else {
         // Creation and teardown race with overlay effects; a missing surface
@@ -86,7 +96,7 @@ pub async fn set_inline_webview_occlusions(
     #[cfg(target_os = "macos")]
     {
         let main_webview = app.get_webview("main");
-        apply_macos_occlusions(&webview, main_webview, rects, block_input).await
+        apply_macos_occlusions(&webview, main_webview, rects, block_input, dimming_alpha).await
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -94,18 +104,20 @@ pub async fn set_inline_webview_occlusions(
         let _ = webview;
         let _ = rects;
         let _ = block_input;
+        let _ = dimming_alpha;
         Ok(())
     }
 }
 
 #[cfg(target_os = "macos")]
 mod macos {
-    use super::{sanitize_occlusion_rects, WebviewOcclusionRect};
+    use super::{sanitize_dimming_alpha, sanitize_occlusion_rects, WebviewOcclusionRect};
     use objc2::runtime::{AnyClass, AnyObject, Imp, Sel};
-    use objc2::{msg_send, sel};
+    use objc2::{msg_send, sel, Message};
+    use objc2_app_kit::NSColor;
     use objc2_core_graphics::CGMutablePath;
-    use objc2_foundation::{NSPoint, NSRect, NSSize};
-    use objc2_quartz_core::{kCAFillRuleEvenOdd, CALayer, CAShapeLayer};
+    use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
+    use objc2_quartz_core::{kCAFillRuleEvenOdd, CALayer, CAShapeLayer, CATransaction};
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
 
@@ -116,6 +128,7 @@ mod macos {
     /// receive pointer input while an interactive overlay is open.
     static INPUT_TARGET_WEBVIEWS: OnceLock<Mutex<HashMap<usize, usize>>> = OnceLock::new();
     static ORIGINAL_HIT_TESTS: OnceLock<Mutex<HashMap<usize, Imp>>> = OnceLock::new();
+    const DIMMING_LAYER_NAME: &str = "org2.inline-webview-dimming";
 
     fn input_target_webviews() -> &'static Mutex<HashMap<usize, usize>> {
         INPUT_TARGET_WEBVIEWS.get_or_init(|| Mutex::new(HashMap::new()))
@@ -250,11 +263,50 @@ mod macos {
         Ok(pointer)
     }
 
+    fn find_dimming_layer(root_layer: &CALayer) -> Option<objc2::rc::Retained<CALayer>> {
+        unsafe { root_layer.sublayers() }.and_then(|sublayers| {
+            sublayers
+                .iter()
+                .find(|candidate| {
+                    candidate
+                        .name()
+                        .is_some_and(|name| name.to_string() == DIMMING_LAYER_NAME)
+                })
+                .map(|candidate| candidate.retain())
+        })
+    }
+
+    fn update_dimming_layer(root_layer: &CALayer, bounds: NSRect, dimming_alpha: f64) {
+        let dimming_alpha = sanitize_dimming_alpha(dimming_alpha);
+        let existing = find_dimming_layer(root_layer);
+
+        if dimming_alpha <= 0.0 {
+            if let Some(layer) = existing {
+                layer.removeFromSuperlayer();
+            }
+            return;
+        }
+
+        let dimming_layer = existing.unwrap_or_else(|| {
+            let layer = CALayer::layer();
+            let name = NSString::from_str(DIMMING_LAYER_NAME);
+            layer.setName(Some(&name));
+            root_layer.addSublayer(&layer);
+            layer
+        });
+        let black = NSColor::blackColor().CGColor();
+        dimming_layer.setFrame(bounds);
+        dimming_layer.setBackgroundColor(Some(&black));
+        dimming_layer.setOpacity(dimming_alpha);
+        dimming_layer.setZPosition(1_000_000.0);
+    }
+
     pub(super) async fn apply(
         webview: &tauri::Webview,
         main_webview: Option<tauri::Webview>,
         rects: Vec<WebviewOcclusionRect>,
         block_input: bool,
+        dimming_alpha: f64,
     ) -> Result<(), String> {
         let input_target = if block_input {
             let main_webview = main_webview
@@ -285,41 +337,42 @@ mod macos {
                         }
                         let layer = &*layer;
 
-                        if rects.is_empty() {
-                            layer.setMask(None);
-                            return Ok(());
-                        }
-
                         let bounds: NSRect = msg_send![wk_webview, bounds];
                         let sanitized =
                             sanitize_occlusion_rects(&rects, bounds.size.width, bounds.size.height);
+
+                        CATransaction::begin();
+                        CATransaction::setDisableActions(true);
+
                         if sanitized.is_empty() {
                             layer.setMask(None);
-                            return Ok(());
+                        } else {
+                            let is_flipped: bool = msg_send![wk_webview, isFlipped];
+                            let path = CGMutablePath::new();
+                            CGMutablePath::add_rect(Some(&path), std::ptr::null(), bounds);
+
+                            for rect in sanitized {
+                                let y = if is_flipped {
+                                    bounds.origin.y + rect.y
+                                } else {
+                                    bounds.origin.y + bounds.size.height - rect.y - rect.height
+                                };
+                                let hole = NSRect::new(
+                                    NSPoint::new(bounds.origin.x + rect.x, y),
+                                    NSSize::new(rect.width, rect.height),
+                                );
+                                CGMutablePath::add_rect(Some(&path), std::ptr::null(), hole);
+                            }
+
+                            let mask = CAShapeLayer::layer();
+                            mask.setFrame(bounds);
+                            mask.setPath(Some(&path));
+                            mask.setFillRule(kCAFillRuleEvenOdd);
+                            layer.setMask(Some(&mask));
                         }
 
-                        let is_flipped: bool = msg_send![wk_webview, isFlipped];
-                        let path = CGMutablePath::new();
-                        CGMutablePath::add_rect(Some(&path), std::ptr::null(), bounds);
-
-                        for rect in sanitized {
-                            let y = if is_flipped {
-                                bounds.origin.y + rect.y
-                            } else {
-                                bounds.origin.y + bounds.size.height - rect.y - rect.height
-                            };
-                            let hole = NSRect::new(
-                                NSPoint::new(bounds.origin.x + rect.x, y),
-                                NSSize::new(rect.width, rect.height),
-                            );
-                            CGMutablePath::add_rect(Some(&path), std::ptr::null(), hole);
-                        }
-
-                        let mask = CAShapeLayer::layer();
-                        mask.setFrame(bounds);
-                        mask.setPath(Some(&path));
-                        mask.setFillRule(kCAFillRuleEvenOdd);
-                        layer.setMask(Some(&mask));
+                        update_dimming_layer(layer, bounds, dimming_alpha);
+                        CATransaction::commit();
                     }
 
                     Ok(())
@@ -343,7 +396,12 @@ mod macos {
             let _ = set_input_target(wk_webview, None);
             let layer: *mut CALayer = msg_send![wk_webview, layer];
             if !layer.is_null() {
-                (&*layer).setMask(None);
+                CATransaction::begin();
+                CATransaction::setDisableActions(true);
+                let layer = &*layer;
+                layer.setMask(None);
+                update_dimming_layer(layer, NSRect::ZERO, 0.0);
+                CATransaction::commit();
             }
         });
     }
@@ -355,8 +413,9 @@ async fn apply_macos_occlusions(
     main_webview: Option<tauri::Webview>,
     rects: Vec<WebviewOcclusionRect>,
     block_input: bool,
+    dimming_alpha: f64,
 ) -> Result<(), String> {
-    macos::apply(webview, main_webview, rects, block_input).await
+    macos::apply(webview, main_webview, rects, block_input, dimming_alpha).await
 }
 
 /// Clear native projection state before closing a WebView so pointer-address
@@ -435,5 +494,13 @@ mod tests {
             sanitize_occlusion_rects(&rects, 100.0, 100.0).len(),
             MAX_OCCLUSION_RECTS
         );
+    }
+
+    #[test]
+    fn sanitizes_native_dimming_alpha() {
+        assert_eq!(sanitize_dimming_alpha(f64::NAN), 0.0);
+        assert_eq!(sanitize_dimming_alpha(-0.5), 0.0);
+        assert_eq!(sanitize_dimming_alpha(0.6), 0.6);
+        assert_eq!(sanitize_dimming_alpha(4.0), 1.0);
     }
 }

@@ -126,16 +126,14 @@ const Modal: React.FC<ModalProps> = ({
   style,
 }) => {
   const handleClose = onClose || onCancel;
-  const modalWrapperRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [okLoading, setOkLoading] = useState(false);
 
-  // A modal owns the entire viewport, including its dimming scrim. Register
-  // the wrapper instead of only the dialog panel so native child WebViews do
-  // not paint through the backdrop. The native page remains mounted and its
-  // mask is cleared when the modal closes.
-  useOverlayLayer(visible, modalWrapperRef);
+  // Keep the live native page visible under the modal scrim. Only the opaque
+  // dialog panel becomes a compositor hole; macOS renders the matching black
+  // dim layer directly above the sibling WKWebView.
+  useOverlayLayer(visible, modalRef, { nativeDimmingAlpha: 0.6 });
 
   // Store the previously focused element
   useEffect(() => {
@@ -306,7 +304,6 @@ const Modal: React.FC<ModalProps> = ({
 
   const modalContent = (
     <div
-      ref={modalWrapperRef}
       className="liquid-modal-wrapper"
       style={{ zIndex }}
       onClick={handleMaskClick}

@@ -21,9 +21,15 @@ const RECT = {
   toJSON: () => ({}),
 } as DOMRect;
 
-function Overlay({ active }: { active: boolean }) {
+function Overlay({
+  active,
+  nativeDimmingAlpha,
+}: {
+  active: boolean;
+  nativeDimmingAlpha?: number;
+}) {
   const ref = useRef<HTMLDivElement | null>(null);
-  useOverlayLayer(active, ref);
+  useOverlayLayer(active, ref, { nativeDimmingAlpha });
   // eslint-disable-next-line react-hooks/refs -- Vitest only collects `.test.ts`; createElement is the JSX-equivalent ref prop.
   return createElement("div", { ref }, "overlay");
 }
@@ -70,7 +76,10 @@ describe("useOverlayLayer", () => {
             createElement(
               Provider,
               { store },
-              createElement(Overlay, { active })
+              createElement(Overlay, {
+                active,
+                nativeDimmingAlpha: 0.6,
+              })
             )
           )
         );
@@ -88,6 +97,7 @@ describe("useOverlayLayer", () => {
     expect(store.get(overlayOcclusionStateAtom)).toEqual({
       rects: [{ x: 20, y: 30, width: 200, height: 100 }],
       blocksNativeInput: true,
+      nativeDimmingAlpha: 0.6,
     });
 
     await render(false);
@@ -95,6 +105,7 @@ describe("useOverlayLayer", () => {
     expect(store.get(overlayOcclusionStateAtom)).toEqual({
       rects: [],
       blocksNativeInput: false,
+      nativeDimmingAlpha: 0,
     });
   });
 });

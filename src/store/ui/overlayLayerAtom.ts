@@ -28,11 +28,18 @@ export interface OverlayLayerEntry {
   rect: OverlayOcclusionRect | null;
   /** Interactive overlays temporarily own pointer input over the browser. */
   blocksNativeInput: boolean;
+  /** Black scrim alpha rendered above the live native surface. */
+  nativeDimmingAlpha?: number;
 }
 
 export interface OverlayLayerOptions {
   /** Passive overlays such as tooltips can leave native page input enabled. */
   blocksNativeInput?: boolean;
+  /**
+   * Dim the live native page without removing it. Full-screen modals use this
+   * while their opaque panel remains the registered occlusion rectangle.
+   */
+  nativeDimmingAlpha?: number;
 }
 
 export type OverlayLayerRegistry = Record<string, OverlayLayerEntry>;
@@ -50,9 +57,19 @@ export const overlayOcclusionStateAtom = atom((get) => {
   return {
     rects: entries.flatMap((entry) => (entry.rect ? [entry.rect] : [])),
     blocksNativeInput: entries.some((entry) => entry.blocksNativeInput),
+    nativeDimmingAlpha: entries.reduce(
+      (strongest, entry) =>
+        Math.max(strongest, normalizeDimmingAlpha(entry.nativeDimmingAlpha)),
+      0
+    ),
   };
 });
 overlayOcclusionStateAtom.debugLabel = "overlayOcclusionStateAtom";
+
+function normalizeDimmingAlpha(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
 
 function sameRect(
   left: OverlayOcclusionRect | null,
@@ -109,6 +126,7 @@ export function useOverlayLayer(
   const setRegistry = useSetAtom(overlayLayerRegistryAtom);
   const frameRef = useRef<number | null>(null);
   const blocksNativeInput = options.blocksNativeInput ?? true;
+  const nativeDimmingAlpha = normalizeDimmingAlpha(options.nativeDimmingAlpha);
 
   const publish = useCallback(() => {
     const nextRect = readElementRect(targetRef);
@@ -117,6 +135,7 @@ export function useOverlayLayer(
       if (
         current &&
         current.blocksNativeInput === blocksNativeInput &&
+        current.nativeDimmingAlpha === nativeDimmingAlpha &&
         sameRect(current.rect, nextRect)
       ) {
         return previous;
@@ -124,10 +143,15 @@ export function useOverlayLayer(
 
       return {
         ...previous,
-        [id]: { id, rect: nextRect, blocksNativeInput },
+        [id]: {
+          id,
+          rect: nextRect,
+          blocksNativeInput,
+          nativeDimmingAlpha,
+        },
       };
     });
-  }, [blocksNativeInput, id, setRegistry, targetRef]);
+  }, [blocksNativeInput, id, nativeDimmingAlpha, setRegistry, targetRef]);
 
   const schedulePublish = useCallback(() => {
     if (frameRef.current !== null) return;

@@ -91,6 +91,7 @@ describe("useInlineWebviewOcclusions", () => {
           id: "menu",
           rect: { x: 450, y: 20, width: 100, height: 100 },
           blocksNativeInput: true,
+          nativeDimmingAlpha: 0,
         },
       });
     });
@@ -102,6 +103,7 @@ describe("useInlineWebviewOcclusions", () => {
         label: "browser-session-test",
         rects: [{ x: 350, y: 0, width: 50, height: 70 }],
         blockInput: true,
+        dimmingAlpha: 0,
       }
     );
 
@@ -113,6 +115,38 @@ describe("useInlineWebviewOcclusions", () => {
         label: "browser-session-test",
         rects: [],
         blockInput: false,
+        dimmingAlpha: 0,
+      }
+    );
+  });
+
+  it("keeps a modal panel local while dimming the live native page", async () => {
+    const store = createStore();
+    await act(async () => {
+      root.render(renderHarness(store));
+    });
+    await flushEffects();
+    invokeMock.mockClear();
+
+    act(() => {
+      store.set(overlayLayerRegistryAtom, {
+        modal: {
+          id: "modal",
+          rect: { x: 200, y: 100, width: 200, height: 120 },
+          blocksNativeInput: true,
+          nativeDimmingAlpha: 0.6,
+        },
+      });
+    });
+    await flushEffects();
+
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "set_inline_webview_occlusions",
+      {
+        label: "browser-session-test",
+        rects: [{ x: 100, y: 50, width: 200, height: 120 }],
+        blockInput: true,
+        dimmingAlpha: 0.6,
       }
     );
   });
@@ -139,6 +173,7 @@ describe("useInlineWebviewOcclusions", () => {
           id: "menu",
           rect: { x: 200, y: 100, width: 100, height: 100 },
           blocksNativeInput: true,
+          nativeDimmingAlpha: 0.6,
         },
       });
     });
@@ -159,6 +194,7 @@ describe("useInlineWebviewOcclusions", () => {
         label: "browser-session-test",
         rects: [],
         blockInput: false,
+        dimmingAlpha: 0,
       }
     );
   });

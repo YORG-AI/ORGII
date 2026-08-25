@@ -57,19 +57,23 @@ afterAll(() => {
 });
 
 describe("Modal native surface coverage", () => {
-  it("registers the full-screen wrapper instead of only the dialog panel", async () => {
+  it("registers the opaque panel and dims the live native page", async () => {
     await act(async () => root.render(renderModal(true)));
 
-    const [, coverageRef] = mocks.useOverlayLayer.mock.calls.at(-1) as [
+    const [, coverageRef, options] = mocks.useOverlayLayer.mock.calls.at(
+      -1
+    ) as [
       boolean,
       RefObject<HTMLDivElement | null>,
+      { nativeDimmingAlpha: number },
     ];
     const wrapper = document.querySelector(".liquid-modal-wrapper");
     const panel = document.querySelector(".liquid-modal-content");
 
     expect(wrapper).not.toBeNull();
-    expect(coverageRef.current).toBe(wrapper);
-    expect(coverageRef.current).not.toBe(panel);
+    expect(coverageRef.current).toBe(panel);
+    expect(coverageRef.current).not.toBe(wrapper);
+    expect(options).toEqual({ nativeDimmingAlpha: 0.6 });
   });
 
   it("publishes the inactive state and unmounts coverage when closed", async () => {

@@ -28,13 +28,20 @@ interface DesiredOcclusionState {
   revision: number;
   rects: ReturnType<typeof computeNativeWebviewOcclusions>;
   blockInput: boolean;
+  dimmingAlpha: number;
 }
 
 function samePayload(
   left: DesiredOcclusionState | null,
   right: DesiredOcclusionState
 ): boolean {
-  if (!left || left.blockInput !== right.blockInput) return false;
+  if (
+    !left ||
+    left.blockInput !== right.blockInput ||
+    left.dimmingAlpha !== right.dimmingAlpha
+  ) {
+    return false;
+  }
   if (left.rects.length !== right.rects.length) return false;
   return left.rects.every((rect, index) => {
     const candidate = right.rects[index];
@@ -63,6 +70,7 @@ export function useInlineWebviewOcclusions({
     revision: 0,
     rects: [],
     blockInput: false,
+    dimmingAlpha: 0,
   });
   // Native surfaces start with no mask/input block. Seeding that projection
   // avoids one no-op IPC for every restored but inactive browser session.
@@ -70,6 +78,7 @@ export function useInlineWebviewOcclusions({
     revision: 0,
     rects: [],
     blockInput: false,
+    dimmingAlpha: 0,
   });
   const applyingRef = useRef(false);
   const frameRef = useRef<number | null>(null);
@@ -78,11 +87,13 @@ export function useInlineWebviewOcclusions({
   const measureDesired = useCallback((): DesiredOcclusionState => {
     const revision = desiredRef.current.revision + 1;
     if (!isWebviewCreated || !isSurfaceVisible || !containerRef.current) {
-      return { revision, rects: [], blockInput: false };
+      return { revision, rects: [], blockInput: false, dimmingAlpha: 0 };
     }
 
     const surface = getVisibleWebviewRect(containerRef.current);
-    if (!surface) return { revision, rects: [], blockInput: false };
+    if (!surface) {
+      return { revision, rects: [], blockInput: false, dimmingAlpha: 0 };
+    }
 
     return {
       revision,
@@ -92,12 +103,14 @@ export function useInlineWebviewOcclusions({
         getNativeFrameScale()
       ),
       blockInput: overlayState.blocksNativeInput,
+      dimmingAlpha: overlayState.nativeDimmingAlpha,
     };
   }, [
     containerRef,
     isSurfaceVisible,
     isWebviewCreated,
     overlayState.blocksNativeInput,
+    overlayState.nativeDimmingAlpha,
     overlayState.rects,
   ]);
 
@@ -122,6 +135,7 @@ export function useInlineWebviewOcclusions({
             label,
             rects: desired.rects,
             blockInput: desired.blockInput,
+            dimmingAlpha: desired.dimmingAlpha,
           });
         } catch (error) {
           failedRevision = desired.revision;
@@ -172,7 +186,7 @@ export function useInlineWebviewOcclusions({
       !isMacOS() ||
       !isWebviewCreated ||
       !isSurfaceVisible ||
-      overlayState.rects.length === 0
+      (overlayState.rects.length === 0 && overlayState.nativeDimmingAlpha === 0)
     ) {
       return;
     }
@@ -212,6 +226,7 @@ export function useInlineWebviewOcclusions({
     isSurfaceVisible,
     isWebviewCreated,
     label,
+    overlayState.nativeDimmingAlpha,
     overlayState.rects.length,
     schedulePublish,
   ]);
@@ -227,6 +242,7 @@ export function useInlineWebviewOcclusions({
           label,
           rects: [],
           blockInput: false,
+          dimmingAlpha: 0,
         }).catch(() => undefined);
       }
     };

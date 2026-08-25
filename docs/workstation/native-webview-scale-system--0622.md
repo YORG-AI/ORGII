@@ -102,17 +102,17 @@ Native child WebViews do not participate in DOM stacking contexts. CSS `z-index`
 ORGII therefore separates surface visibility from overlay occlusion:
 
 ```text
-overlay DOMRect registry
+overlay DOMRect + dimming registry
         ↓ intersect + native-frame scale
-BrowserSession WebView-local holes
+BrowserSession local holes + strongest scrim alpha
         ↓ latest-wins IPC
-macOS CALayer mask + native input handoff
+macOS CALayer mask + dim layer + native input handoff
 ```
 
 Important invariants:
 
 - `isActive` controls page lifecycle; `isVisible` controls only the native surface. Opening an overlay must not destroy, reload, or navigate the page.
-- On macOS, each overlay publishes its real viewport coverage rectangle. Local overlays such as dropdowns publish only their panel; full-screen modal overlays publish their wrapper, including the scrim. Every visible browser session intersects those rectangles with its host and applies only the resulting WebView-local holes.
+- On macOS, every opaque overlay surface publishes its real viewport rectangle. Each visible browser session intersects those rectangles with its host and applies only the resulting WebView-local holes. Full-screen modals additionally publish a black scrim alpha; they do not publish the translucent wrapper as an opaque hole.
 - Interactive overlays temporarily hand native pointer input back to React while they are open. Passive overlays such as tooltips can leave page input enabled.
 - macOS input handoff routes hit testing directly from the covered child WKWebView to the main React WKWebView. Re-running the child container's parent hit test is not sufficient because the two WebViews can live under different native container views and produce a bare `nil`, which lets the click escape to another application. The fallback must fail closed inside the inline WebView, and it must not change an individual WKWebView's runtime class because AppKit may KVO-observe its frame.
 - Overlapping rectangles are conservatively coalesced before the even-odd mask is built, and both frontend and Rust cap the path at 64 rectangles.
@@ -127,7 +127,7 @@ BrowserCore's loading and confirmed error panels also set `isVisible=false` whil
 Overlay coverage follows the interaction contract:
 
 - Local popovers, dropdowns, hover cards, and tooltips register only their visible panel, so the native page remains painted and interactive everywhere else.
-- Full-screen modals register their entire wrapper. A translucent DOM scrim cannot alpha-composite with a sibling native WKWebView, so the native surface is masked for the modal's full coverage area. The page remains mounted and preserves cookies, history, scroll, and in-page state; clearing the modal restores it without navigation or reload.
+- Full-screen modals register the opaque dialog panel as a local hole and publish the matching scrim alpha. Because a DOM scrim cannot alpha-composite above a sibling WKWebView, macOS adds a named black `CALayer` above the live native page. The WKWebView's parent mask also masks that dim layer inside the dialog hole, allowing the React panel to remain fully opaque. Closing the modal removes both the mask and dim layer without navigation, reload, or loss of cookies, history, scroll, or in-page state.
 
 ## Layout-change event
 
