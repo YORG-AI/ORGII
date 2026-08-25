@@ -38,7 +38,8 @@ pub struct CloudEnvelopeMetadata {
     root_session_id: String,
     source_episode_id: String,
     source_runtime: String,
-    target_runtime: String,
+    payload_schema: String,
+    payload_schema_version: u16,
     recipient_scope: RecipientScope,
     sender_user_id: Uuid,
     /// Client timestamp that is signed before upload and must be validated by
@@ -55,7 +56,8 @@ impl CloudEnvelopeMetadata {
         root_session_id: String,
         source_episode_id: String,
         source_runtime: String,
-        target_runtime: String,
+        payload_schema: String,
+        payload_schema_version: u16,
         recipient_scope: RecipientScope,
         sender_user_id: Uuid,
         created_at_unix_ms: u64,
@@ -68,7 +70,8 @@ impl CloudEnvelopeMetadata {
             root_session_id,
             source_episode_id,
             source_runtime,
-            target_runtime,
+            payload_schema,
+            payload_schema_version,
             recipient_scope,
             sender_user_id,
             created_at_unix_ms,
@@ -85,7 +88,8 @@ impl CloudEnvelopeMetadata {
         root_session_id: String,
         source_episode_id: String,
         source_runtime: String,
-        target_runtime: String,
+        payload_schema: String,
+        payload_schema_version: u16,
         recipient_scope: &str,
         sender_user_id: &str,
         created_at_unix_ms: u64,
@@ -98,7 +102,8 @@ impl CloudEnvelopeMetadata {
             root_session_id,
             source_episode_id,
             source_runtime,
-            target_runtime,
+            payload_schema,
+            payload_schema_version,
             parse_recipient_scope(recipient_scope)?,
             parse_canonical_uuid(sender_user_id)?,
             created_at_unix_ms,
@@ -148,7 +153,8 @@ impl CloudEnvelopeMetadata {
             root_session_id: self.root_session_id.clone(),
             source_episode_id: self.source_episode_id.clone(),
             source_runtime: self.source_runtime.clone(),
-            target_runtime: self.target_runtime.clone(),
+            payload_schema: self.payload_schema.clone(),
+            payload_schema_version: self.payload_schema_version,
             recipient_scope: self.recipient_scope,
             sender_user_id: self.sender_user_id,
             sender,
@@ -176,8 +182,11 @@ impl CloudEnvelopeMetadata {
     pub fn source_runtime(&self) -> &str {
         &self.source_runtime
     }
-    pub fn target_runtime(&self) -> &str {
-        &self.target_runtime
+    pub fn payload_schema(&self) -> &str {
+        &self.payload_schema
+    }
+    pub fn payload_schema_version(&self) -> u16 {
+        self.payload_schema_version
     }
     pub fn recipient_scope(&self) -> RecipientScope {
         self.recipient_scope
@@ -328,7 +337,8 @@ pub struct CommittedCloudEnvelopeSql<'a> {
     pub sender_device_id: &'a str,
     pub sender_key_version: i32,
     pub source_runtime: &'a str,
-    pub target_runtime: &'a str,
+    pub payload_schema: &'a str,
+    pub payload_schema_version: i32,
     pub recipient_scope: &'a str,
     pub recipient_count: i32,
     pub recipient_set_sha256: &'a str,
@@ -474,7 +484,8 @@ impl CommittedCloudEnvelope {
             || header.root_session_id != row.root_session_id
             || header.source_episode_id != row.source_episode_id
             || header.source_runtime != row.source_runtime
-            || header.target_runtime != row.target_runtime
+            || header.payload_schema != row.payload_schema
+            || i32::from(header.payload_schema_version) != row.payload_schema_version
             || header.recipient_scope != parse_recipient_scope(row.recipient_scope)?
             || header.sender_user_id != parse_canonical_uuid(row.sender_user_id)?
             || header.created_at_unix_ms != row.client_created_at_unix_ms
@@ -690,6 +701,13 @@ where
     P: EnvelopeProfile,
     F: FnOnce(&mut dyn CheckpointRecordWriter) -> Result<(), ContinuationCryptoError>,
 {
+    if request.manifest.schema_id != request.metadata.payload_schema
+        || request.manifest.schema_version != request.metadata.payload_schema_version
+    {
+        return Err(ContinuationCryptoError::InvalidEnvelope(
+            "manifest schema does not match signed payload schema",
+        ));
+    }
     let sender = request.sender.public_identity()?;
     let mut header = request.metadata.header_with_identities(
         sender,
@@ -954,6 +972,15 @@ where
     sink.begin_transaction()?;
     match read_checkpoint_stream(gzip, context.limits, sink) {
         Ok((manifest, footer)) => {
+            if manifest.schema_id != verified.artifact.header.payload_schema
+                || manifest.schema_version
+                    != verified.artifact.header.payload_schema_version
+            {
+                sink.abort_transaction();
+                return Err(ContinuationCryptoError::InvalidEnvelope(
+                    "decrypted manifest schema does not match signed payload schema",
+                ));
+            }
             if let Err(error) = sink.commit_transaction() {
                 sink.abort_transaction();
                 return Err(error);

@@ -10,6 +10,7 @@ pub const ENVELOPE_END_MAGIC: &[u8; 8] = b"ORG2END\0";
 pub const MAX_CANONICAL_HEADER_BYTES: usize = 16 * 1024;
 pub const MAX_CONVERSATION_ID_BYTES: usize = 200;
 pub const MAX_RUNTIME_ID_BYTES: usize = 64;
+pub const MAX_PAYLOAD_SCHEMA_ID_BYTES: usize = 128;
 pub const MAX_ENVELOPE_RECIPIENTS: usize = 64;
 pub const RECIPIENT_SET_HASH_DOMAIN: &[u8] = b"ORG2-CONTINUATION-RECIPIENT-SET-V1";
 pub const MIN_ENVELOPE_TTL_MS: u64 = 5 * 60 * 1_000;
@@ -234,7 +235,8 @@ pub struct ContinuationEnvelopeHeader {
     pub root_session_id: String,
     pub source_episode_id: String,
     pub source_runtime: String,
-    pub target_runtime: String,
+    pub payload_schema: String,
+    pub payload_schema_version: u16,
     pub recipient_scope: RecipientScope,
     pub sender_user_id: Uuid,
     pub sender: DevicePublicIdentity,
@@ -259,7 +261,16 @@ impl ContinuationEnvelopeHeader {
             MAX_CONVERSATION_ID_BYTES,
         )?;
         validate_runtime("source runtime", &self.source_runtime)?;
-        validate_runtime("target runtime", &self.target_runtime)?;
+        validate_identifier(
+            "payload schema",
+            &self.payload_schema,
+            MAX_PAYLOAD_SCHEMA_ID_BYTES,
+        )?;
+        if self.payload_schema_version == 0 {
+            return Err(ContinuationCryptoError::InvalidEnvelope(
+                "payload schema version must be positive",
+            ));
+        }
         self.sender.validate()?;
         CloudRecipientSet::validate_entries(self.recipients.as_slice(), true)?;
         if self.recipient_set_sha256 != self.recipients.sha256() {
@@ -311,7 +322,8 @@ pub fn canonical_header_bytes(
     put_string(&mut bytes, &header.root_session_id)?;
     put_string(&mut bytes, &header.source_episode_id)?;
     put_string(&mut bytes, &header.source_runtime)?;
-    put_string(&mut bytes, &header.target_runtime)?;
+    put_string(&mut bytes, &header.payload_schema)?;
+    bytes.extend_from_slice(&header.payload_schema_version.to_be_bytes());
     bytes.push(header.recipient_scope as u8);
     bytes.extend_from_slice(header.sender_user_id.as_bytes());
     put_identity(&mut bytes, &header.sender)?;
@@ -356,7 +368,8 @@ pub(crate) fn decode_canonical_header(
         root_session_id: cursor.string(MAX_CONVERSATION_ID_BYTES)?,
         source_episode_id: cursor.string(MAX_CONVERSATION_ID_BYTES)?,
         source_runtime: cursor.string(MAX_RUNTIME_ID_BYTES)?,
-        target_runtime: cursor.string(MAX_RUNTIME_ID_BYTES)?,
+        payload_schema: cursor.string(MAX_PAYLOAD_SCHEMA_ID_BYTES)?,
+        payload_schema_version: cursor.u16()?,
         recipient_scope: RecipientScope::try_from(cursor.u8()?)?,
         sender_user_id: Uuid::from_bytes(cursor.array()?),
         sender: cursor.identity()?,

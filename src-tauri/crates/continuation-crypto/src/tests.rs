@@ -287,7 +287,8 @@ fn test_metadata() -> CloudEnvelopeMetadata {
         "root-session-a".into(),
         "episode-a".into(),
         "codex".into(),
-        "claude".into(),
+        "org2.continuation.checkpoint".into(),
+        1,
         RecipientScope::Audience,
         test_uuid(0x20000000000000000000000000000001),
         NOW_MS,
@@ -406,7 +407,8 @@ fn canonical_header_and_signed_bytes_have_exact_golden_vector() {
         root_session_id: "root-session-a".into(),
         source_episode_id: "episode-a".into(),
         source_runtime: "codex".into(),
-        target_runtime: "claude".into(),
+        payload_schema: "org2.portable_conversation".into(),
+        payload_schema_version: 2,
         recipient_scope: RecipientScope::Audience,
         sender_user_id: test_uuid(0x20000000000000000000000000000001),
         sender,
@@ -438,22 +440,22 @@ fn canonical_header_and_signed_bytes_have_exact_golden_vector() {
         hex::encode(recipient_set_sha256),
         "9ddfed1c641fa7cd2e0b93511b878361a3bedf8485708c75f0057ab6429ecbb7"
     );
-    assert_eq!(raw_header.len(), 565);
+    assert_eq!(raw_header.len(), 587);
     assert_eq!(
         hex::encode(&raw_header),
-        "010101011000000000000000000000000000000140000000000000000000000000000001000e726f6f742d73657373696f6e2d610009657069736f64652d610005636f6465780006636c6175646501200000000000000000000000000000013000000000000000000000000000000100000007000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1fd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a5c63ff72e6ce93d42fe2dab5ef6a11bc9aeba024d6176910d9dfb8d9460c397a00029ddfed1c641fa7cd2e0b93511b878361a3bedf8485708c75f0057ab6429ecbb7200000000000000000000000000000023000000000000000000000000000000200000009202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660cd137b40d6290e550801d7481ebaab1ca9ca2f1936e89ddb26ede2b663a0d57db20000000000000000000000000000003300000000000000000000000000000030000000b404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5fed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d10aa1f475680f3504f42465144b415100ab0d25b787494a1860ccca47af8197b4a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5000001a3185c5000000001a318933e8000000000000004d2"
+        "010101011000000000000000000000000000000140000000000000000000000000000001000e726f6f742d73657373696f6e2d610009657069736f64652d610005636f646578001a6f7267322e706f727461626c655f636f6e766572736174696f6e000201200000000000000000000000000000013000000000000000000000000000000100000007000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1fd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a5c63ff72e6ce93d42fe2dab5ef6a11bc9aeba024d6176910d9dfb8d9460c397a00029ddfed1c641fa7cd2e0b93511b878361a3bedf8485708c75f0057ab6429ecbb7200000000000000000000000000000023000000000000000000000000000000200000009202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660cd137b40d6290e550801d7481ebaab1ca9ca2f1936e89ddb26ede2b663a0d57db20000000000000000000000000000003300000000000000000000000000000030000000b404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5fed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d10aa1f475680f3504f42465144b415100ab0d25b787494a1860ccca47af8197b4a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5000001a3185c5000000001a318933e8000000000000004d2"
     );
     assert_eq!(
         hex::encode(Sha256::digest(&raw_header)),
-        "7de14a7d826b915bd19d55bac5255fcc25786fb93a36d268bececa68df451d59"
+        "4bd4bde95b64e5a2230068bcf672184c3e4f64df6a010af1e1132d174841a5e1"
     );
     assert_eq!(
         hex::encode(Sha256::digest(&signed)),
-        "0dd738152b0fbfad87462a770b3c614e828112fe6506052e46e2399001796ad7"
+        "eca71c52611d9317c51a0a4526a1f86bc68655dbaec73c35a7dfdd1f2f3fa10c"
     );
     assert_eq!(
         hex::encode(signature.to_bytes()),
-        "b5f125019861b57d0745ec4d9917208bace0c245850c68ad9f114ebcf0107f88d31f86d551d3b3c6809bebcff5bdd81fe0fd18bbd5869da108725c2b5e04fb03"
+        "b612ae200776267d65b3635502e5044bd0910d5584d6d9cbeabf05823ee13927a946b1273b8527e3c767ef4effcd9cdc5242674b9c665993b8b5983874c7bd07"
     );
 }
 
@@ -537,7 +539,8 @@ fn cloud_routing_metadata_and_receipt_sql_encodings_are_strict() {
             "root-session-a".into(),
             "episode-a".into(),
             "codex".into(),
-            "claude".into(),
+            "org2.continuation.checkpoint".into(),
+            1,
             "audience",
             "20000000-0000-0000-0000-000000000001",
             NOW_MS,
@@ -552,7 +555,8 @@ fn cloud_routing_metadata_and_receipt_sql_encodings_are_strict() {
         "root-session-a".into(),
         "episode-a".into(),
         "Codex".into(),
-        "claude".into(),
+        "org2.continuation.checkpoint".into(),
+        1,
         "audience",
         "20000000-0000-0000-0000-000000000001",
         NOW_MS,
@@ -566,7 +570,8 @@ fn cloud_routing_metadata_and_receipt_sql_encodings_are_strict() {
         "x".repeat(201),
         "episode-a".into(),
         "codex".into(),
-        "claude".into(),
+        "org2.continuation.checkpoint".into(),
+        1,
         "subset",
         "20000000-0000-0000-0000-000000000001",
         NOW_MS,
@@ -580,7 +585,8 @@ fn cloud_routing_metadata_and_receipt_sql_encodings_are_strict() {
         "root-session-a".into(),
         "episode-a".into(),
         "codex".into(),
-        "claude".into(),
+        "org2.continuation.checkpoint".into(),
+        1,
         "all",
         "20000000-0000-0000-0000-000000000001",
         NOW_MS,
@@ -594,7 +600,8 @@ fn cloud_routing_metadata_and_receipt_sql_encodings_are_strict() {
         "root-session-a".into(),
         "episode-a".into(),
         "codex".into(),
-        "claude".into(),
+        "org2.continuation.checkpoint".into(),
+        1,
         "audience",
         "20000000-0000-0000-0000-000000000001",
         NOW_MS,
@@ -1069,7 +1076,8 @@ fn cloud_entrypoint_pins_row_metadata_footer_signature_and_16_mib_profile() {
                 sender_device_id: $sender_device,
                 sender_key_version: header.sender.key_version as i32,
                 source_runtime: &header.source_runtime,
-                target_runtime: &header.target_runtime,
+                payload_schema: &header.payload_schema,
+                payload_schema_version: i32::from(header.payload_schema_version),
                 recipient_scope: "audience",
                 recipient_count: $recipient_count,
                 recipient_set_sha256: $set_hash,
@@ -1673,7 +1681,9 @@ fn writer_rejects_record_limits_without_publishing_partial_ciphertext() {
     limits.max_event_bytes = 2;
     let mut hasher = CheckpointPlaintextHasher::new(LOCAL_CHECKPOINT_LIMITS);
     hasher.update_event(1, "e", "event", payload).unwrap();
-    let manifest = hasher.finish().manifest("schema".into(), 1);
+    let manifest = hasher
+        .finish()
+        .manifest("org2.continuation.checkpoint".into(), 1);
     let result = write_local_checkpoint_atomic(
         &path,
         &staging_for(&path),
@@ -1693,6 +1703,37 @@ fn writer_rejects_record_limits_without_publishing_partial_ciphertext() {
             kind: LimitKind::EventBytes,
             ..
         })
+    ));
+    assert!(!path.exists());
+}
+
+#[test]
+fn writer_rejects_manifest_schema_not_bound_by_the_signed_header() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("schema-mismatch.org2h");
+    let (_manager, sender, recipient) = identities();
+    let source = fixture(b"event", b"blob");
+    let mut manifest = source.manifest;
+    manifest.schema_version = 2;
+
+    let result = write_local_checkpoint_atomic(
+        &path,
+        &staging_for(&path),
+        "schema-mismatch-job",
+        LocalEnvelopeWriteRequest {
+            metadata: test_metadata(),
+            sender: &sender,
+            recipients: test_recipient_set(recipient.public_identity().unwrap()),
+            manifest,
+            limits: LOCAL_CHECKPOINT_LIMITS,
+        },
+        |writer| writer.write_event(7, "event-7", "agent-event", source.event_payload),
+    );
+    assert!(matches!(
+        result,
+        Err(ContinuationCryptoError::InvalidEnvelope(
+            "manifest schema does not match signed payload schema"
+        ))
     ));
     assert!(!path.exists());
 }

@@ -63,7 +63,8 @@ checkpoint_id:uuid[16]
 root_session_id:string16
 source_episode_id:string16
 source_runtime:string16
-target_runtime:string16
+payload_schema:string16
+payload_schema_version:u16
 recipient_scope:u8             = 1 (audience) | 2 (explicit subset)
 sender_user_id:uuid[16]
 sender_device_id:uuid[16]
@@ -127,7 +128,8 @@ the decoded header or complete-object snapshot before decrypt:
 checkpoint_id, org_id, root_session_id, source_episode_id,
 sender_user_id, sender_device_id, sender_key_version,
 sender_x25519_public_key, sender_ed25519_public_key, sender_fingerprint,
-source_runtime, target_runtime, recipient_scope, recipient_count,
+source_runtime, payload_schema, payload_schema_version, recipient_scope,
+recipient_count,
 recipient_set_sha256, client_created_at_unix_ms, expires_at_unix_ms,
 age_ciphertext_len, age_ciphertext_sha256, footer_signature,
 object_size, object_sha256, canonical_header
@@ -144,7 +146,9 @@ recipient_ed25519_public_key, recipient_fingerprint
 SQL UUID text accepted by the Rust boundary is lowercase canonical hyphenated
 form; it is decoded back to the raw 16 signed bytes. Key versions are
 `1..=2147483647`. Runtime IDs match
-`^[a-z0-9][a-z0-9._-]{0,63}$`. Hashes are lowercase 64-hex, public keys are
+`^[a-z0-9][a-z0-9._-]{0,63}$`. Payload schema IDs are non-empty canonical
+UTF-8 without control bytes (maximum 128 bytes), and schema versions are
+positive `u16`. Hashes are lowercase 64-hex, public keys are
 canonical unpadded base64url raw-32, and the footer signature is canonical
 unpadded base64url raw-64.
 
@@ -180,19 +184,22 @@ org_id                    = 10000000-0000-0000-0000-000000000001
 checkpoint_id             = 40000000-0000-0000-0000-000000000001
 root_session_id           = root-session-a
 source_episode_id         = episode-a
+source_runtime            = codex
+payload_schema            = org2.portable_conversation
+payload_schema_version    = 2
 sender_user_id            = 20000000-0000-0000-0000-000000000001
 sender_device_id          = 30000000-0000-0000-0000-000000000001
 recipient_scope           = audience (1)
 recipient users/devices   = (...0002/...0002 key 9), (...0003/...0003 key 11)
 recipient_set_sha256      = 9ddfed1c641fa7cd2e0b93511b878361a3bedf8485708c75f0057ab6429ecbb7
-canonical_header_len      = 565
-canonical_header_sha256   = 7de14a7d826b915bd19d55bac5255fcc25786fb93a36d268bececa68df451d59
-SHA256(signed_message)    = 0dd738152b0fbfad87462a770b3c614e828112fe6506052e46e2399001796ad7
+canonical_header_len      = 587
+canonical_header_sha256   = 4bd4bde95b64e5a2230068bcf672184c3e4f64df6a010af1e1132d174841a5e1
+SHA256(signed_message)    = eca71c52611d9317c51a0a4526a1f86bc68655dbaec73c35a7dfdd1f2f3fa10c
 Ed25519 seed              = 9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60
-signature                 = b5f125019861b57d0745ec4d9917208bace0c245850c68ad9f114ebcf0107f88d31f86d551d3b3c6809bebcff5bdd81fe0fd18bbd5869da108725c2b5e04fb03
+signature                 = b612ae200776267d65b3635502e5044bd0910d5584d6d9cbeabf05823ee13927a946b1273b8527e3c767ef4effcd9cdc5242674b9c665993b8b5983874c7bd07
 ```
 
-The test also freezes the complete 565-byte canonical header hex. The signed
+The test also freezes the complete 587-byte canonical header hex. The signed
 message is reconstructed by the formula above; its digest and signature are
 independently asserted for Cloud migration tests.
 
