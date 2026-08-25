@@ -1,4 +1,6 @@
 /* global browser, describe, before, after, it, process */
+import { execFileSync } from "node:child_process";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import {
@@ -54,6 +56,8 @@ import {
 
 // Rendered shape of buildCloudInviteLink (org2CloudOrgManagement.ts).
 const CLOUD_INVITE_LINK_PREFIX = "https://invite.org2.dev/#invite=";
+const PRIMARY_INSTANCE_MEMBER_NAME = "Neonforge";
+const SECONDARY_INSTANCE_MEMBER_NAME = "VantaNode";
 
 const TEAM_NAME = `Dual-instance Team ${RUN_ID}`;
 const RENAMED_TEAM_NAME = `Renamed dual team ${RUN_ID}`;
@@ -74,6 +78,11 @@ const PROJECT_SLUG = PROJECT_NAME.toLowerCase()
   .replace(/^-|-$/g, "");
 const PROJECT_ID = `proj-${PROJECT_SLUG}`;
 const WORK_ITEM_TITLE = `Dual synced work item ${RUN_ID}`;
+const FIRST_CONTINUATION_COMMENT = `VantaNode continuation one ${RUN_ID}`;
+const SECOND_CONTINUATION_COMMENT = `VantaNode continuation two ${RUN_ID}`;
+const PRIMARY_PLANE_DELTA = `Neonforge plane delta ${RUN_ID}`;
+const CONTINUATION_LOCAL_ORG_ID = `cloud-continuation-${RUN_ID}`;
+const CONTINUATION_WORK_ITEM_SHORT_ID = "CON-1";
 const CASCADE_WORK_ITEM_TITLE = `Project cascade item ${RUN_ID}`;
 const UNREACHABLE_CLOUD_ENDPOINT = {
   webOrigin: "http://127.0.0.1:1",
@@ -89,7 +98,8 @@ let repoScopeKey = EXPECTED_REPO_NETWORK_SCOPE;
 const SECONDARY_E2E_REPO_PATH =
   process.env.E2E_SECONDARY_REPO_PATH ?? E2E_REPO_PATH;
 const E2E_PROVIDER_MODE = process.env.E2E_PROVIDER_MODE ?? "mock";
-const FORK_E2E_MODEL = "gpt-4o-mini";
+const FORK_E2E_MODEL =
+  E2E_PROVIDER_MODE === "mock" ? "e2e-fake-provider-cloud-fork" : "gpt-4o-mini";
 let sourceTurnAnchorEventId = null;
 let secondaryImportedTurnToggleSelector = null;
 let secondaryImportedSessionId = null;
@@ -241,27 +251,60 @@ async function completeForkSetupOn(client, label, options = {}) {
     '[data-testid^="fork-setup-workspace-"]',
     `${label} matching workspace`
   );
-  await client.waitUntil(
-    async () =>
-      executeOn(
-        client,
-        `
-          const agent = document.querySelector('[data-testid="fork-setup-agent"]');
-          const account = document.querySelector('[data-testid="fork-setup-account"]');
-          const model = document.querySelector('[data-testid="fork-setup-model"]');
-          const submit = document.querySelector('[data-testid="fork-session-setup-submit"]');
-          return !!agent?.querySelector('.select-value')?.textContent?.trim() &&
-            !!account?.querySelector('.select-value')?.textContent?.trim() &&
-            !!model?.querySelector('.select-value')?.textContent?.trim() &&
-            !!submit && !submit.disabled;
-        `
-      ),
-    {
-      timeout: CLOUD_FETCH_TIMEOUT_MS,
-      interval: 250,
-      timeoutMsg: `${label} agent/account/model defaults never became runnable`,
-    }
-  );
+  try {
+    await client.waitUntil(
+      async () =>
+        executeOn(
+          client,
+          `
+            const value = (testId) => document
+              .querySelector('[data-testid="' + testId + '"] .select-value')
+              ?.textContent?.trim() ?? '';
+            const submit = document.querySelector('[data-testid="fork-session-setup-submit"]');
+            return !!value('fork-setup-agent') &&
+              !!value('fork-setup-runtime') &&
+              !!value('fork-setup-account') &&
+              !!value('fork-setup-model') &&
+              !!submit && !submit.disabled;
+          `
+        ),
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `${label} runtime/agent/account/model defaults never became runnable`,
+      }
+    );
+  } catch (error) {
+    const setupState = await executeOn(
+      client,
+      `
+        const inspect = (testId) => {
+          const node = document.querySelector('[data-testid="' + testId + '"]');
+          return node ? {
+            testId,
+            text: node.textContent?.trim() ?? '',
+            disabled: node.disabled ?? node.getAttribute('aria-disabled'),
+            className: node.className,
+            html: node.outerHTML,
+          } : { testId, missing: true };
+        };
+        return {
+          controls: [
+            'fork-setup-agent',
+            'fork-setup-runtime',
+            'fork-setup-account',
+            'fork-setup-model',
+            'fork-session-setup-submit',
+          ].map(inspect),
+          dialogText: document.querySelector('[data-testid="fork-session-setup"]')
+            ?.textContent?.trim() ?? '',
+        };
+      `
+    );
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; setup=${JSON.stringify(setupState)}`
+    );
+  }
   if (options.agentName) {
     await clickRenderedOn(
       client,
@@ -703,9 +746,7 @@ async function createInviteFromOwner(previousLink = "") {
           `return document.querySelector('[data-testid="cloud-org-invite-link"]')?.textContent?.trim() ?? '';`
         )) ?? ""
       );
-      return (
-        link.startsWith(CLOUD_INVITE_LINK_PREFIX) && link !== previousLink
-      );
+      return link.startsWith(CLOUD_INVITE_LINK_PREFIX) && link !== previousLink;
     },
     {
       timeout: CLOUD_FETCH_TIMEOUT_MS,
@@ -850,21 +891,129 @@ async function selectAddressCommentsForBatch() {
 async function openWorkItemsLayerOn(client, label) {
   const layerVisible = await executeOn(
     client,
-    "return !!document.querySelector('[data-testid=\"sidebar-create-project\"]');"
+    `return !!document.querySelector(
+      '[data-testid="work-items-create-menu"], [data-testid="sidebar-create-project"]'
+    );`
   );
   if (!layerVisible) {
     await clickRenderedOn(
       client,
-      '[data-testid="sidebar-toggle-work-items"]',
+      '[data-testid="sidebar-view-work-items"], [data-testid="sidebar-toggle-work-items"]',
       `${label} Work Items navigation`
     );
   }
   await waitForRenderedOn(
     client,
-    '[data-testid="sidebar-create-project"]',
+    '[data-testid="work-items-create-menu"], [data-testid="sidebar-create-project"]',
     `${label} Work Items layer`,
     CLOUD_FETCH_TIMEOUT_MS
   );
+}
+
+async function cloudManagementRpc(envConfig, user, functionName, body) {
+  const response = await fetch(
+    `${envConfig.supabaseUrl}/rest/v1/rpc/${functionName}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: envConfig.anonKey,
+        authorization: `Bearer ${user.accessToken}`,
+        "content-type": "application/json",
+        "content-profile": "org2_cloud",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    throw new Error(
+      `${functionName} failed: ${response.status} ${JSON.stringify(payload)}`
+    );
+  }
+  return payload;
+}
+
+async function provisionContinuationTeam(envConfig, ownerUser, teammateUser) {
+  const created = await cloudManagementRpc(envConfig, ownerUser, "create_org", {
+    org_name: TEAM_NAME,
+  });
+  const orgId = created.orgId;
+  await cloudManagementRpc(envConfig, ownerUser, "cloud_set_org_repo_scopes", {
+    p_org_id: orgId,
+    scopes: [EXPECTED_REPO_NETWORK_SCOPE],
+  });
+  const inviteCode = randomBytes(32).toString("hex");
+  const inviteCodeHash = createHash("sha256").update(inviteCode).digest("hex");
+  await cloudManagementRpc(envConfig, ownerUser, "create_invite", {
+    p_org_id: orgId,
+    invite_code_hash: inviteCodeHash,
+    invite_role: "member",
+    max_uses: 1,
+    expires_at: null,
+  });
+  const accepted = await cloudManagementRpc(
+    envConfig,
+    teammateUser,
+    "accept_invite",
+    { invite_code_hash: inviteCodeHash }
+  );
+  if (accepted.orgId !== orgId || accepted.role !== "member") {
+    throw new Error(
+      `VantaNode joined the wrong team: ${JSON.stringify({ created, accepted })}`
+    );
+  }
+  return orgId;
+}
+
+function continuationProjectMeta() {
+  const now = new Date().toISOString();
+  return {
+    id: PROJECT_ID,
+    name: PROJECT_NAME,
+    org_id: CONTINUATION_LOCAL_ORG_ID,
+    status: "planned",
+    priority: "none",
+    health: "no_updates",
+    members: [],
+    labels: [],
+    linked_repos: [SECONDARY_E2E_REPO_PATH],
+    created_at: now,
+    updated_at: now,
+    next_work_item_id: 2,
+    work_item_prefix: "CON",
+    work_item_prefix_custom: true,
+  };
+}
+
+function continuationWorkItemFrontmatter(rootSessionId) {
+  const now = new Date().toISOString();
+  return {
+    id: CONTINUATION_WORK_ITEM_SHORT_ID,
+    short_id: CONTINUATION_WORK_ITEM_SHORT_ID,
+    title: WORK_ITEM_TITLE,
+    project: PROJECT_SLUG,
+    status: "planned",
+    priority: "none",
+    labels: [],
+    created_by: SECONDARY_INSTANCE_MEMBER_NAME,
+    created_at: now,
+    updated_at: now,
+    starred: false,
+    todos: [],
+    linked_sessions: [
+      {
+        session_id: rootSessionId,
+        session_type: "native",
+        agent_role: "coding",
+        started_at: now,
+        completed_at: now,
+        status: "completed",
+        cost_usd: 0,
+        total_tokens: 0,
+      },
+    ],
+  };
 }
 
 async function selectManualCreateModeOn(client, target, label) {
@@ -923,17 +1072,16 @@ async function findSidebarWorkItemIdByTitleOn(client, title) {
 
 async function openWorkItemOn(client, workItemId, label) {
   await openWorkItemsLayerOn(client, label);
+  const workItemRowSelector =
+    `[data-testid="work-item-row-${workItemId}"], ` +
+    `[data-testid="sidebar-work-item-${workItemId}"]`;
   await waitForRenderedOn(
     client,
-    `[data-testid="sidebar-work-item-${workItemId}"]`,
-    `${label} Work Item sidebar row`,
+    workItemRowSelector,
+    `${label} Work Item row`,
     CLOUD_FETCH_TIMEOUT_MS
   );
-  await clickRenderedOn(
-    client,
-    `[data-testid="sidebar-work-item-${workItemId}"]`,
-    `${label} open Work Item`
-  );
+  await clickRenderedOn(client, workItemRowSelector, `${label} open Work Item`);
   await waitForRenderedOn(
     client,
     `[data-testid="work-item-property-status-${workItemId}"]`,
@@ -1033,6 +1181,389 @@ async function setWorkItemStatusOn(
   );
 }
 
+async function openWorkItemDiscussionOn(client, workItemId, label) {
+  await openWorkItemOn(client, workItemId, label);
+  const opened = await executeOn(
+    client,
+    `
+      const history = document.querySelector('[data-testid="work-item-sessions-tab-history"]');
+      if (history) {
+        history.click();
+        return "history";
+      }
+      const discussion = document.querySelector('[data-testid="work-item-thread-open-discussion"]');
+      if (discussion) {
+        discussion.click();
+        return "thread";
+      }
+      return "missing";
+    `
+  );
+  if (opened === "missing") {
+    throw new Error(`${label} Work Item exposes no Discussion navigation`);
+  }
+  await waitForRenderedOn(
+    client,
+    '[data-testid="work-item-comment-editor-textarea"]',
+    `${label} Work Item Discussion composer`,
+    CLOUD_FETCH_TIMEOUT_MS
+  );
+}
+
+async function postWorkItemDiscussionOn(
+  client,
+  { workItemId, body, rootSessionId, label }
+) {
+  await typeRenderedOn(
+    client,
+    '[data-testid="work-item-comment-editor-textarea"]',
+    body,
+    `${label} Discussion body`
+  );
+  await client.waitUntil(
+    async () =>
+      executeOn(
+        client,
+        `
+          const editor = document.querySelector('[data-testid="work-item-comment-editor-textarea"]');
+          const preview = document.querySelector('[data-testid="work-item-discussion-trigger-preview"]');
+          return editor?.value === arguments[0] &&
+            preview?.getAttribute('title') === arguments[1];
+        `,
+        [body, rootSessionId]
+      ),
+    {
+      timeout: CLOUD_FETCH_TIMEOUT_MS,
+      interval: 250,
+      timeoutMsg: `${label} Discussion preview never targeted ${rootSessionId}`,
+    }
+  );
+  await clickRenderedOn(
+    client,
+    'button[aria-label="Submit comment"]',
+    `${label} Discussion submit`
+  );
+  await client.waitUntil(
+    async () =>
+      executeOn(
+        client,
+        `
+          return Array.from(document.querySelectorAll('[data-testid^="work-item-discussion-comment-"]'))
+            .some((node) => node.textContent?.includes(arguments[0]));
+        `,
+        [body]
+      ),
+    {
+      timeout: CLOUD_FETCH_TIMEOUT_MS,
+      interval: 250,
+      timeoutMsg: `${label} Discussion comment never rendered on ${workItemId}`,
+    }
+  );
+}
+
+async function continuationRecordOn(client, orgId, rootSessionId) {
+  return executeOn(
+    client,
+    `
+      const tupleKey = arguments[0];
+      const legacyKey = arguments[1];
+      const orgId = arguments[2];
+      const rootSessionId = arguments[3];
+      const entryPrefix = 'orgii:conversation-execution-v1:';
+      const perConversation = Object.keys(window.localStorage)
+        .filter((storageKey) => storageKey.startsWith(entryPrefix))
+        .flatMap((storageKey) => {
+          try {
+            const executionKey = JSON.parse(
+              decodeURIComponent(storageKey.slice(entryPrefix.length))
+            );
+            if (
+              !Array.isArray(executionKey) ||
+              executionKey.length !== 2 ||
+              executionKey[1] !== rootSessionId ||
+              typeof executionKey[0] !== 'string'
+            ) {
+              return [];
+            }
+            const executorScope = JSON.parse(executionKey[0]);
+            if (
+              !Array.isArray(executorScope) ||
+              executorScope[0] !== 'cloud-conversation-executor' ||
+              executorScope[2] !== orgId
+            ) {
+              return [];
+            }
+            const envelope = JSON.parse(window.localStorage.getItem(storageKey));
+            return envelope?.version === 1 && envelope.continuation
+              ? [envelope.continuation]
+              : [];
+          } catch {
+            return [];
+          }
+        })
+        .sort((left, right) =>
+          String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? ''))
+        );
+      if (perConversation[0]) return perConversation[0];
+      const unifiedRaw = window.localStorage.getItem('orgii:conversation-executions-v2');
+      if (unifiedRaw) {
+        try {
+          const unified = JSON.parse(unifiedRaw);
+          const executions = unified?.version === 2 ? unified.executions : null;
+          const exact = executions?.[tupleKey]?.continuation ?? null;
+          const scoped = executions
+            ? Object.entries(executions)
+                .flatMap(([key, execution]) => {
+                  try {
+                    const tuple = JSON.parse(key);
+                    if (!Array.isArray(tuple) || tuple.length !== 2 || tuple[1] !== rootSessionId) {
+                      return [];
+                    }
+                    let scopeMatches = tuple[0] === orgId;
+                    if (!scopeMatches && typeof tuple[0] === 'string') {
+                      try {
+                        const scope = JSON.parse(tuple[0]);
+                        scopeMatches = Array.isArray(scope) &&
+                          scope.includes(orgId) &&
+                          scope.includes(rootSessionId);
+                      } catch {
+                        scopeMatches = false;
+                      }
+                    }
+                    return scopeMatches && execution?.continuation
+                      ? [execution.continuation]
+                      : [];
+                  } catch {
+                    return [];
+                  }
+                })
+                .sort((left, right) =>
+                  String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? ''))
+                )[0] ?? null
+            : null;
+          const record = exact ?? scoped;
+          if (record) return record;
+        } catch {
+          // Fall through to the v1 migration source.
+        }
+      }
+      const legacyRaw = window.localStorage.getItem('orgii:conversation-continuations-v1');
+      if (!legacyRaw) return null;
+      try {
+        const legacy = JSON.parse(legacyRaw);
+        const record = legacy[tupleKey] ?? legacy[legacyKey] ?? null;
+        if (!record) return null;
+        return {
+          ...record,
+          readThroughPlaneSeq: Number.isSafeInteger(record.readThroughPlaneSeq)
+            ? record.readThroughPlaneSeq
+            : Number.isSafeInteger(record.lastPlaneSeq)
+              ? record.lastPlaneSeq
+              : 0,
+        };
+      } catch {
+        return null;
+      }
+    `,
+    [
+      JSON.stringify([orgId, rootSessionId]),
+      `${orgId}:${rootSessionId}`,
+      orgId,
+      rootSessionId,
+    ]
+  );
+}
+
+async function waitForContinuationOn(
+  client,
+  orgId,
+  rootSessionId,
+  predicate,
+  label
+) {
+  let record = null;
+  await client.waitUntil(
+    async () => {
+      record = await continuationRecordOn(client, orgId, rootSessionId);
+      return Boolean(record && predicate(record));
+    },
+    {
+      timeout: 180_000,
+      interval: 500,
+      timeoutMsg: `${label} continuation record never reached the expected state`,
+    }
+  );
+  return record;
+}
+
+async function listConversationPlane(envConfig, user, orgId, rootSessionId) {
+  const response = await fetch(
+    `${envConfig.supabaseUrl}/rest/v1/rpc/cloud_list_conversation_events`,
+    {
+      method: "POST",
+      headers: {
+        apikey: envConfig.anonKey,
+        authorization: `Bearer ${user.accessToken}`,
+        "content-type": "application/json",
+        "content-profile": "org2_cloud",
+      },
+      body: JSON.stringify({
+        p_org_id: orgId,
+        p_root_session_id: rootSessionId,
+        p_after_seq: 0,
+        p_limit: 500,
+      }),
+    }
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `cloud_list_conversation_events failed: ${response.status} ${JSON.stringify(payload)}`
+    );
+  }
+  return payload.events ?? [];
+}
+
+async function readCloudCapabilities(envConfig, user) {
+  const response = await fetch(
+    `${envConfig.supabaseUrl}/rest/v1/rpc/get_cloud_capabilities`,
+    {
+      method: "POST",
+      headers: {
+        apikey: envConfig.anonKey,
+        authorization: `Bearer ${user.accessToken}`,
+        "content-type": "application/json",
+        "content-profile": "org2_cloud",
+      },
+      body: "{}",
+    }
+  );
+  const payload = await response.json();
+  if (!response.ok || !payload || typeof payload !== "object") {
+    throw new Error(
+      `get_cloud_capabilities failed: ${response.status} ${JSON.stringify(payload)}`
+    );
+  }
+  return payload;
+}
+
+async function pushConversationPlaneSeed(
+  envConfig,
+  user,
+  orgId,
+  rootSessionId,
+  body
+) {
+  const eventId = `dual-plane-seed-${RUN_ID}`;
+  const turnId = randomUUID();
+  const createdAt = new Date().toISOString();
+  const response = await fetch(
+    `${envConfig.supabaseUrl}/rest/v1/rpc/cloud_push_conversation_events`,
+    {
+      method: "POST",
+      headers: {
+        apikey: envConfig.anonKey,
+        authorization: `Bearer ${user.accessToken}`,
+        "content-type": "application/json",
+        "content-profile": "org2_cloud",
+      },
+      body: JSON.stringify({
+        p_org_id: orgId,
+        p_root_session_id: rootSessionId,
+        p_turn_id: turnId,
+        p_events: [
+          {
+            id: eventId,
+            chunk_id: eventId,
+            sessionId: rootSessionId,
+            createdAt,
+            functionName: "user_message",
+            uiCanonical: "user_message",
+            actionType: "raw",
+            args: {},
+            result: {
+              type: "user",
+              message: { content: body, role: "user" },
+            },
+            source: "user",
+            displayText: body,
+            displayStatus: "completed",
+            displayVariant: "message",
+            activityStatus: "agent",
+            payloadRefs: [],
+          },
+        ],
+      }),
+    }
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `cloud_push_conversation_events failed: ${response.status} ${JSON.stringify(payload)}`
+    );
+  }
+  const readback = await listConversationPlane(
+    envConfig,
+    user,
+    orgId,
+    rootSessionId
+  );
+  const row = readback.find(
+    (candidate) =>
+      candidate.turnId === turnId && candidate.event?.displayText === body
+  );
+  if (!row || row.seq !== payload.lastSeq) {
+    throw new Error(
+      `Neonforge plane fixture failed read-back: push=${JSON.stringify(payload)} row=${JSON.stringify(row)}`
+    );
+  }
+  return row;
+}
+
+function latestDiscussionRun(secondInstance, workItemId) {
+  const databasePath = join(
+    secondInstance.orgiiHome,
+    "projects",
+    "projects.db"
+  );
+  const escapedWorkItemId = workItemId.replaceAll("'", "''");
+  const output = execFileSync(
+    "sqlite3",
+    [
+      "-json",
+      databasePath,
+      `SELECT id, status, session_id AS sessionId, failure_json AS failureJson, created_at AS createdAt
+         FROM pm_work_item_runs
+        WHERE work_item_id = '${escapedWorkItemId}' AND trigger_kind = 'discussion_comment'
+        ORDER BY created_at DESC LIMIT 1;`,
+    ],
+    { encoding: "utf8" }
+  ).trim();
+  return output ? (JSON.parse(output)[0] ?? null) : null;
+}
+
+async function waitForDiscussionRun(
+  client,
+  secondInstance,
+  workItemId,
+  predicate,
+  label
+) {
+  let run = null;
+  await client.waitUntil(
+    async () => {
+      run = latestDiscussionRun(secondInstance, workItemId);
+      return Boolean(run && predicate(run));
+    },
+    {
+      timeout: 180_000,
+      interval: 500,
+      timeoutMsg: `${label} Work Item Run never reached the expected state`,
+    }
+  );
+  return run;
+}
+
 describe("Cloud collaboration with two independent rendered app instances", function () {
   let env = null;
   let owner = null;
@@ -1063,15 +1594,15 @@ describe("Cloud collaboration with two independent rendered app instances", func
 
     const ownerResult = await provisionCloudUser(
       env,
-      "dual-owner",
-      "Dual Owner"
+      "neonforge",
+      PRIMARY_INSTANCE_MEMBER_NAME
     );
     if (!ownerResult.ok) throw new Error(ownerResult.reason);
     owner = ownerResult.user;
     const teammateResult = await provisionCloudUser(
       env,
-      "dual-teammate",
-      "Dual Teammate"
+      "vantanode",
+      SECONDARY_INSTANCE_MEMBER_NAME
     );
     if (!teammateResult.ok) {
       await cleanupCloudUser(env, owner);
@@ -1090,7 +1621,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
         accessToken: owner.accessToken,
         refreshToken: owner.refreshToken,
         expiresAt: owner.expiresAt,
-        displayName: "Dual Owner",
+        displayName: PRIMARY_INSTANCE_MEMBER_NAME,
       }),
       "seed primary owner auth"
     );
@@ -1102,7 +1633,12 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "clear secondary cloud auth"
     );
     await applyCloudEndpointOn(second.client, env);
-    await seedAuthOn(second.client, env, teammate, "Dual Teammate");
+    await seedAuthOn(
+      second.client,
+      env,
+      teammate,
+      SECONDARY_INSTANCE_MEMBER_NAME
+    );
 
     const [ownerOrgs, teammateOrgs] = await Promise.all([
       (async () => {
@@ -1132,6 +1668,13 @@ describe("Cloud collaboration with two independent rendered app instances", func
 
   after(async function () {
     this.timeout(180_000);
+    try {
+      if (env && owner && teamOrgId) {
+        await cloudManagementRpc(env, owner, "cloud_delete_org", {
+          p_org_id: teamOrgId,
+        });
+      }
+    } catch {}
     try {
       await invokeE2E("cloudClearAuthState");
     } catch {}
@@ -1243,7 +1786,9 @@ describe("Cloud collaboration with two independent rendered app instances", func
       return document.querySelector('[data-testid="cloud-org-invite-link"]')?.textContent?.trim() ?? '';
     `);
     if (!String(inviteLink).startsWith(CLOUD_INVITE_LINK_PREFIX)) {
-      throw new Error("rendered team invite is not a valid invite handoff link");
+      throw new Error(
+        "rendered team invite is not a valid invite handoff link"
+      );
     }
 
     unwrapOn(
@@ -1287,13 +1832,19 @@ describe("Cloud collaboration with two independent rendered app instances", func
       }
     );
 
-    // The owner's already-open panel must receive roster invalidation live.
+    // The owner's already-open panel must converge without being reopened. The
+    // signed-in owner has a dedicated About me card; member rows contain only
+    // teammates, so a two-person org renders exactly those two distinct views.
     try {
       await browser.waitUntil(
         async () =>
-          execJS(
-            `return document.querySelectorAll('[data-testid="cloud-org-member-row"]').length >= 2;`
-          ),
+          execJS(`
+            const aboutMe = document.querySelector('[data-testid="cloud-org-about-me"]');
+            const teammate = document.querySelector(
+              '[data-testid="cloud-org-member-row"][data-member-id=${JSON.stringify(teammate.userId)}]'
+            );
+            return Boolean(aboutMe && teammate);
+          `),
         {
           timeout: CLOUD_FETCH_TIMEOUT_MS,
           interval: 500,
@@ -1760,7 +2311,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
       collaborationHistory.collaborationOrigin?.sessionRowId !==
         `${teamOrgId}:${owner.userId}:${sessionId}` ||
       collaborationHistory.collaborationOrigin?.ownerDisplayName !==
-        "Dual Owner" ||
+        PRIMARY_INSTANCE_MEMBER_NAME ||
       collaborationHistory.actionCounts?.read !== 1
     ) {
       throw new Error(
@@ -1837,7 +2388,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "return document.querySelector(arguments[0])?.textContent ?? '';",
       [teamBlameSelector]
     );
-    if (!String(blameText).includes("@Dual Owner")) {
+    if (!String(blameText).includes(`@${PRIMARY_INSTANCE_MEMBER_NAME}`)) {
       throw new Error(`Team Session Blame lost owner identity: ${blameText}`);
     }
     await clickRenderedOn(
@@ -1922,7 +2473,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "return document.querySelector(arguments[0])?.getAttribute('aria-label') ?? '';",
       [ownerViewerChip]
     );
-    if (!String(viewerLabel).includes("Dual Owner")) {
+    if (!String(viewerLabel).includes(PRIMARY_INSTANCE_MEMBER_NAME)) {
       throw new Error(`viewer chip did not identify the owner: ${viewerLabel}`);
     }
     const viewerLivesInPublishedHeader = await executeOn(
@@ -3371,7 +3922,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
             second.client,
             `
               const button = document.querySelector('[data-testid="work-item-start-agent-button"]');
-              return !!button && button.disabled && button.textContent.includes('Dual Owner');
+              return !!button && button.disabled && button.textContent.includes(${JSON.stringify(PRIMARY_INSTANCE_MEMBER_NAME)});
             `
           ),
         {
@@ -3416,7 +3967,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
           second.client,
           `
             const button = document.querySelector('[data-testid="work-item-start-agent-button"]');
-            return !!button && !button.textContent.includes('Dual Owner');
+            return !!button && !button.textContent.includes(${JSON.stringify(PRIMARY_INSTANCE_MEMBER_NAME)});
           `
         ),
       {
@@ -3424,6 +3975,472 @@ describe("Cloud collaboration with two independent rendered app instances", func
         interval: 500,
         timeoutMsg: "teammate Work Item action did not clear the released lock",
       }
+    );
+  });
+
+  it("F2. VantaNode reuses one persistent runner for consecutive Work Item Discussion turns", async function () {
+    this.timeout(480_000);
+    const capabilities = await readCloudCapabilities(env, teammate);
+    if (capabilities.conversationEventsIdempotency !== true) {
+      console.warn(
+        "[cloud-dual-e2e] BLOCKED F2: cloud backend lacks conversationEventsIdempotency; client must execute zero plane turns."
+      );
+      this.skip();
+      return;
+    }
+    unwrap(
+      await invokeE2E("ensureRepoSelected", { repoPath: E2E_REPO_PATH }),
+      "select Neonforge continuation workspace"
+    );
+    unwrapOn(
+      await invokeOn(second.client, "ensureRepoSelected", {
+        repoPath: SECONDARY_E2E_REPO_PATH,
+      }),
+      "select VantaNode continuation workspace before scope resolution"
+    );
+    const primaryIdePort = process.env.E2E_IDE_SERVER_PORT ?? "13847";
+    const secondaryIdePort =
+      process.env.E2E_SECONDARY_IDE_SERVER_PORT ?? "13848";
+    await browser.waitUntil(
+      async () => {
+        try {
+          const responses = await Promise.all(
+            [primaryIdePort, secondaryIdePort].map((port) =>
+              fetch(`http://127.0.0.1:${port}/api-docs/openapi.json`)
+            )
+          );
+          return responses.every((response) => response.ok);
+        } catch {
+          return false;
+        }
+      },
+      {
+        timeout: 60_000,
+        interval: 250,
+        timeoutMsg: `Neonforge/VantaNode IDE servers never became ready on ${primaryIdePort}/${secondaryIdePort}`,
+      }
+    );
+    const [primaryScopeResolution, secondaryScopeResolution] =
+      await Promise.all([
+        invokeE2E("cloudResolveRepoScopeKeys", {
+          repoPath: E2E_REPO_PATH,
+        }),
+        invokeOn(second.client, "cloudResolveRepoScopeKeys", {
+          repoPath: SECONDARY_E2E_REPO_PATH,
+        }),
+      ]);
+    const primaryScopeKeys = unwrap(
+      primaryScopeResolution,
+      "resolve Neonforge continuation repo scope"
+    ).keys;
+    const secondaryScopeKeys = unwrapOn(
+      secondaryScopeResolution,
+      "resolve VantaNode continuation repo scope"
+    ).keys;
+    if (
+      !primaryScopeKeys?.includes(EXPECTED_REPO_NETWORK_SCOPE) ||
+      !secondaryScopeKeys?.includes(EXPECTED_REPO_NETWORK_SCOPE)
+    ) {
+      throw new Error(
+        `continuation workspaces do not share ${EXPECTED_REPO_NETWORK_SCOPE}: ${JSON.stringify({ primaryScopeKeys, secondaryScopeKeys })}`
+      );
+    }
+    repoScopeKey = EXPECTED_REPO_NETWORK_SCOPE;
+    if (!teamOrgId) {
+      teamOrgId = await provisionContinuationTeam(env, owner, teammate);
+    }
+    const primaryOrgs = [
+      {
+        orgId: ownerPersonalOrgId,
+        name: `${PRIMARY_INSTANCE_MEMBER_NAME} personal`,
+        role: "owner",
+      },
+      { orgId: teamOrgId, name: TEAM_NAME, role: "owner" },
+    ];
+    const secondaryOrgs = [
+      {
+        orgId: teammatePersonalOrgId,
+        name: `${SECONDARY_INSTANCE_MEMBER_NAME} personal`,
+        role: "owner",
+      },
+      { orgId: teamOrgId, name: TEAM_NAME, role: "member" },
+    ];
+    unwrap(
+      await invokeE2E("cloudSeedOrgs", { orgs: primaryOrgs }),
+      "seed Neonforge team roster"
+    );
+    unwrapOn(
+      await invokeOn(second.client, "cloudSeedOrgs", {
+        orgs: secondaryOrgs,
+      }),
+      "seed VantaNode team roster"
+    );
+    const [primaryRosterReadback, secondaryRosterReadback] = await Promise.all([
+      invokeE2E("cloudListOrgs"),
+      invokeOn(second.client, "cloudListOrgs"),
+    ]);
+    if (
+      !unwrap(primaryRosterReadback, "read Neonforge team roster").orgs.some(
+        (org) => org.orgId === teamOrgId && org.role === "owner"
+      ) ||
+      !unwrapOn(
+        secondaryRosterReadback,
+        "read VantaNode team roster"
+      ).orgs.some((org) => org.orgId === teamOrgId && org.role === "member")
+    ) {
+      throw new Error(
+        "the two rendered stores did not retain the team fixture"
+      );
+    }
+
+    sessionId = `neonforge-continuation-root-${RUN_ID}`;
+    bindRunnableSourceSession(sessionId);
+    await seedAndOpenCloudEligibleSession(sessionId, SESSION_TITLE, {
+      touchedFilePath: join(E2E_REPO_PATH, SESSION_BLAME_FILE),
+    });
+    unwrap(
+      await invokeE2E("cloudTagSessionToOrg", {
+        sessionId,
+        orgId: teamOrgId,
+      }),
+      "tag Neonforge continuation root to team"
+    );
+    await publishCloudSessionMetadata(env, owner, {
+      orgId: teamOrgId,
+      sessionId,
+      title: SESSION_TITLE,
+      repoScopeKey,
+      visibility: "org",
+      accessMode: "full_replay",
+    });
+    unwrapOn(
+      await invokeOn(second.client, "ensureRepoSelected", {
+        repoPath: SECONDARY_E2E_REPO_PATH,
+      }),
+      "select VantaNode continuation workspace"
+    );
+    if (E2E_PROVIDER_MODE === "mock") {
+      unwrapOn(
+        await invokeOn(second.client, "configure", {
+          openaiApiKey: "sk-orgii-continuation-e2e-not-sent",
+          model: FORK_E2E_MODEL,
+          accountName: `VantaNode continuation ${RUN_ID}`,
+          agentDefinitionId: "builtin:sde",
+          repoPath: SECONDARY_E2E_REPO_PATH,
+        }),
+        "configure VantaNode continuation runtime"
+      );
+    }
+    unwrapOn(
+      await invokeOn(second.client, "cloudSeedProjectOrgAlias", {
+        localOrgId: CONTINUATION_LOCAL_ORG_ID,
+        externalOrgId: teamOrgId,
+        name: TEAM_NAME,
+      }),
+      "seed VantaNode Project cloud-org alias"
+    );
+    unwrapOn(
+      await invokeOn(
+        second.client,
+        "writeProject",
+        PROJECT_SLUG,
+        continuationProjectMeta(),
+        "Isolated persistent-continuation fixture.",
+        true
+      ),
+      "write VantaNode continuation Project"
+    );
+    unwrapOn(
+      await invokeOn(
+        second.client,
+        "writeWorkItem",
+        PROJECT_SLUG,
+        CONTINUATION_WORK_ITEM_SHORT_ID,
+        continuationWorkItemFrontmatter(sessionId),
+        "Two rendered comments must reuse one hidden local runner."
+      ),
+      "write VantaNode continuation Work Item"
+    );
+    const workItemReadback = unwrapOn(
+      await invokeOn(
+        second.client,
+        "readWorkItem",
+        PROJECT_SLUG,
+        CONTINUATION_WORK_ITEM_SHORT_ID
+      ),
+      "read VantaNode continuation Work Item"
+    ).item;
+    const workItemFrontmatter =
+      workItemReadback.frontmatter ?? workItemReadback;
+    workItemId = workItemFrontmatter.session_id ?? workItemFrontmatter.id;
+    const linkedSessions =
+      workItemFrontmatter.linkedSessions ??
+      workItemFrontmatter.linked_sessions ??
+      [];
+    if (
+      !workItemId ||
+      !linkedSessions.some((entry) => entry.session_id === sessionId)
+    ) {
+      throw new Error(
+        `VantaNode continuation fixture failed read-back: ${JSON.stringify(workItemReadback)}`
+      );
+    }
+    await selectCloudOrgOn(second.client, teamOrgId);
+    unwrapOn(
+      await invokeOn(
+        second.client,
+        "openProjectWorkItemsTab",
+        PROJECT_ID,
+        PROJECT_NAME,
+        PROJECT_SLUG
+      ),
+      "open VantaNode continuation Project"
+    );
+
+    await openWorkItemDiscussionOn(second.client, workItemId, "VantaNode");
+    await postWorkItemDiscussionOn(second.client, {
+      workItemId,
+      body: FIRST_CONTINUATION_COMMENT,
+      rootSessionId: sessionId,
+      label: "VantaNode first",
+    });
+    await completeForkSetupOn(second.client, "VantaNode first continuation");
+
+    const firstRecord = await waitForContinuationOn(
+      second.client,
+      teamOrgId,
+      sessionId,
+      (record) =>
+        typeof record.continuationSessionId === "string" &&
+        record.continuationSessionId.length > 0 &&
+        Number.isSafeInteger(record.readThroughPlaneSeq) &&
+        record.readThroughPlaneSeq >= 0,
+      "VantaNode first"
+    );
+    const runnerSessionId = firstRecord.continuationSessionId;
+    const firstRun = await waitForDiscussionRun(
+      second.client,
+      second,
+      workItemId,
+      (run) => run.status === "succeeded" && run.sessionId === runnerSessionId,
+      "VantaNode first"
+    );
+    const firstTranscript = unwrapOn(
+      await invokeOn(second.client, "readSdeTranscript", runnerSessionId),
+      "VantaNode first runner transcript"
+    ).result;
+    if (
+      firstTranscript?.ok !== true ||
+      !Array.isArray(firstTranscript.messages)
+    ) {
+      throw new Error(
+        `VantaNode first runner transcript unavailable: ${JSON.stringify(firstTranscript)}`
+      );
+    }
+
+    const firstPlane = await listConversationPlane(
+      env,
+      teammate,
+      teamOrgId,
+      sessionId
+    );
+    const firstUserRow = firstPlane.find(
+      (row) =>
+        row.authorUserId === teammate.userId &&
+        row.event?.source === "user" &&
+        row.event?.displayText?.includes(FIRST_CONTINUATION_COMMENT)
+    );
+    if (
+      !firstUserRow ||
+      firstUserRow.authorDisplayName !== SECONDARY_INSTANCE_MEMBER_NAME ||
+      firstUserRow.turnId !== firstRun.id
+    ) {
+      throw new Error(
+        `first plane turn lost VantaNode attribution/run identity: ${JSON.stringify({ firstUserRow, firstRunId: firstRun.id })}`
+      );
+    }
+    const firstTurnRows = firstPlane.filter(
+      (row) => row.turnId === firstUserRow.turnId
+    );
+    if (!firstTurnRows.some((row) => row.event?.source === "assistant")) {
+      throw new Error(
+        `first plane turn has no agent tail: ${JSON.stringify(firstTurnRows)}`
+      );
+    }
+    if (
+      firstRecord.readThroughPlaneSeq < 0 ||
+      firstRecord.readThroughPlaneSeq >= firstUserRow.seq
+    ) {
+      throw new Error(
+        `first continuation read prefix must precede its own pushed row: ${JSON.stringify({ firstRecord, firstUserSeq: firstUserRow.seq })}`
+      );
+    }
+
+    const hiddenRunnerRendered = await executeOn(
+      second.client,
+      `return !!document.querySelector(arguments[0]);`,
+      [`[data-testid="sidebar-session-item-${runnerSessionId}"]`]
+    );
+    if (hiddenRunnerRendered) {
+      throw new Error(
+        `hidden VantaNode runner leaked into My Sessions: ${runnerSessionId}`
+      );
+    }
+
+    // A deterministic owner-authored row is a setup fixture for the behavior
+    // under test below: VantaNode's real second Discussion send must load this
+    // row as the sole plane delta before resuming the persisted runner.
+    const ownerDelta = await pushConversationPlaneSeed(
+      env,
+      owner,
+      teamOrgId,
+      sessionId,
+      PRIMARY_PLANE_DELTA
+    );
+    if (
+      ownerDelta.authorUserId !== owner.userId ||
+      ownerDelta.authorDisplayName !== PRIMARY_INSTANCE_MEMBER_NAME ||
+      ownerDelta.seq <= firstRecord.readThroughPlaneSeq
+    ) {
+      throw new Error(
+        `Neonforge plane delta attribution/read prefix is wrong: ${JSON.stringify({ ownerDelta, firstRecord })}`
+      );
+    }
+
+    await postWorkItemDiscussionOn(second.client, {
+      workItemId,
+      body: SECOND_CONTINUATION_COMMENT,
+      rootSessionId: sessionId,
+      label: "VantaNode second",
+    });
+    const secondRun = await waitForDiscussionRun(
+      second.client,
+      second,
+      workItemId,
+      (run) =>
+        run.id !== firstRun.id &&
+        run.status === "succeeded" &&
+        run.sessionId === runnerSessionId,
+      "VantaNode second"
+    );
+    const secondRecord = await waitForContinuationOn(
+      second.client,
+      teamOrgId,
+      sessionId,
+      (record) =>
+        record.continuationSessionId === runnerSessionId &&
+        Number.isSafeInteger(record.readThroughPlaneSeq) &&
+        record.readThroughPlaneSeq >= ownerDelta.seq,
+      "VantaNode second"
+    );
+    if (secondRecord.readThroughPlaneSeq <= firstRecord.readThroughPlaneSeq) {
+      throw new Error(
+        `VantaNode continuation read prefix did not advance: ${JSON.stringify({ firstRecord, secondRecord })}`
+      );
+    }
+
+    const secondTranscript = unwrapOn(
+      await invokeOn(second.client, "readSdeTranscript", runnerSessionId),
+      "VantaNode resumed runner transcript"
+    ).result;
+    if (
+      secondTranscript?.ok !== true ||
+      !Array.isArray(secondTranscript.messages) ||
+      secondTranscript.messages.length <= firstTranscript.messages.length
+    ) {
+      throw new Error(
+        `VantaNode runner transcript did not append: ${JSON.stringify({ first: firstTranscript, second: secondTranscript })}`
+      );
+    }
+    const resumedUserMessage = [...secondTranscript.messages]
+      .reverse()
+      .find((message) => message.role === "user");
+    const resumedUserText = JSON.stringify(resumedUserMessage ?? {});
+    if (
+      !resumedUserText.includes(PRIMARY_PLANE_DELTA) ||
+      !resumedUserText.includes(SECOND_CONTINUATION_COMMENT) ||
+      resumedUserText.includes(FIRST_CONTINUATION_COMMENT)
+    ) {
+      throw new Error(
+        `resumed prompt did not contain only the new plane delta: ${resumedUserText}`
+      );
+    }
+
+    const secondPlane = await listConversationPlane(
+      env,
+      teammate,
+      teamOrgId,
+      sessionId
+    );
+    const secondUserRow = secondPlane.find(
+      (row) =>
+        row.seq > ownerDelta.seq &&
+        row.authorUserId === teammate.userId &&
+        row.event?.source === "user" &&
+        row.event?.displayText?.includes(SECOND_CONTINUATION_COMMENT)
+    );
+    const secondTurnRows = secondPlane.filter(
+      (row) => row.turnId === secondUserRow?.turnId
+    );
+    if (
+      !secondUserRow ||
+      secondUserRow.authorDisplayName !== SECONDARY_INSTANCE_MEMBER_NAME ||
+      secondUserRow.turnId !== secondRun.id ||
+      !secondTurnRows.some((row) => row.event?.source === "assistant")
+    ) {
+      throw new Error(
+        `second plane turn lost VantaNode run identity/user/tail rows: ${JSON.stringify({ secondRunId: secondRun.id, secondTurnRows })}`
+      );
+    }
+    if (
+      secondRecord.readThroughPlaneSeq < ownerDelta.seq ||
+      secondRecord.readThroughPlaneSeq >= secondUserRow.seq
+    ) {
+      throw new Error(
+        `second continuation read prefix must include the owner delta and precede its own pushed row: ${JSON.stringify({ secondRecord, ownerDeltaSeq: ownerDelta.seq, secondUserSeq: secondUserRow.seq })}`
+      );
+    }
+    const setupDialogStillOpen = await executeOn(
+      second.client,
+      `return !!document.querySelector('[data-testid="fork-session-setup"]');`
+    );
+    if (setupDialogStillOpen) {
+      throw new Error("VantaNode second turn unexpectedly re-opened setup");
+    }
+
+    await selectCloudOrgOn(browser, teamOrgId);
+    unwrap(
+      await invokeE2E("openSession", sessionId),
+      "Neonforge open root after VantaNode continuation"
+    );
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const list = document.querySelector('[data-testid="chat-message-list"]');
+          return list?.textContent?.includes(${JSON.stringify(SECOND_CONTINUATION_COMMENT)}) === true;
+        `),
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 500,
+        timeoutMsg:
+          "Neonforge root transcript did not render VantaNode's second turn",
+      }
+    );
+
+    console.info(
+      `[cloud-dual-e2e] persistent continuation evidence ${JSON.stringify({
+        primary: PRIMARY_INSTANCE_MEMBER_NAME,
+        secondary: SECONDARY_INSTANCE_MEMBER_NAME,
+        rootSessionId: sessionId,
+        runnerSessionId,
+        firstRunId: firstRun.id,
+        secondRunId: secondRun.id,
+        firstReadThrough: firstRecord.readThroughPlaneSeq,
+        ownerDeltaSeq: ownerDelta.seq,
+        secondReadThrough: secondRecord.readThroughPlaneSeq,
+        firstPlaneRows: firstTurnRows.length,
+        secondPlaneRows: secondTurnRows.length,
+      })}`
     );
   });
 
