@@ -36,6 +36,7 @@ const MEMBER_ID = "pause-worker";
 const MARKER_ROUND = ROUND.replaceAll("-", "_");
 const PROCESS_MARKER = `ORGII_PAUSE_LIVE_${MARKER_ROUND}`;
 const FINALITY_MARKER = `ORGII_RESUME_FINALITY_${MARKER_ROUND}`;
+const ARCHIVE_MARKER = `ORGII_ARCHIVE_LIVE_${MARKER_ROUND}`;
 const ORGII_HOME = process.env.E2E_ORGII_HOME ?? "";
 
 async function postJson(pathname, body = {}, timeoutMs = 15_000) {
@@ -248,12 +249,206 @@ async function assertFeatureGatePreflight() {
 function assertLiveInputs() {
   if (!ROUND) throw new Error("E2E_AGENT_ORG_LIVE_ROUND_ID is required");
   if (!ORGII_HOME) throw new Error("E2E_ORGII_HOME is required");
-  if (!new Set(["pause", "resume", "task-smoke"]).has(PHASE)) {
+  if (!new Set(["pause", "resume", "archive", "task-smoke"]).has(PHASE)) {
     throw new Error(`unsupported E2E_AGENT_ORG_LIVE_PHASE=${PHASE}`);
   }
   if (PROVIDER_MODE === "mock") {
     throw new Error("live acceptance refuses E2E_PROVIDER_MODE=mock");
   }
+}
+
+function archiveConvergenceSnapshot(runId) {
+  const run = sqlLiteral(runId);
+  return sqliteRow(`
+    SELECT
+      (SELECT status FROM agent_org_runtime_runs WHERE id=${run}) AS run_status,
+      (SELECT teardown_status FROM agent_org_runtime_archive_episodes
+         WHERE org_run_id=${run}) AS teardown_status,
+      (SELECT teardown_attempt_count FROM agent_org_runtime_archive_episodes
+         WHERE org_run_id=${run}) AS teardown_attempt_count,
+      (SELECT retained_runtime_count FROM agent_org_runtime_archive_episodes
+         WHERE org_run_id=${run}) AS retained_runtime_count,
+      (SELECT COUNT(*) FROM agent_org_runtime_tasks
+         WHERE org_run_id=${run}) AS task_count,
+      (SELECT COUNT(*) FROM agent_org_runtime_tasks
+         WHERE org_run_id=${run} AND status NOT IN ('completed','failed','cancelled')) AS open_task_count,
+      (SELECT COUNT(*) FROM session_turn_intents
+         WHERE org_run_id=${run} AND status IN ('queued','running')) AS active_intent_count,
+      (SELECT COUNT(*) FROM agent_org_runtime_turn_contexts
+         WHERE org_run_id=${run}) AS context_count,
+      (SELECT COUNT(*) FROM agent_org_runtime_inbox
+         WHERE org_run_id=${run}) AS inbox_count,
+      (SELECT COUNT(*) FROM agent_messages message
+         JOIN agent_org_runtime_member_materializations member
+           ON member.session_id=message.session_id
+         WHERE member.org_run_id=${run}) AS member_message_count,
+      (SELECT MAX(updated_at) FROM agent_org_runtime_tasks
+         WHERE org_run_id=${run}) AS latest_task_updated_at
+  `);
+}
+
+async function runArchivePhase() {
+  const account = await getApiAccount();
+  const model = selectPreferredModel(account);
+  await seedOneMemberOrg();
+  await configureCreatorForAgentOrg({ account, model, agentOrgId: ORG_ID });
+  await selectRenderedAgentOrg(ORG_ID);
+
+  const backgroundCommand = [
+    "trap '' TERM;",
+    `sh -c 'trap "" TERM; while :; do sleep 120; done' & child=$!;`,
+    `printf '${ARCHIVE_MARKER} parent=%s child=%s\\n' "$$" "$child";`,
+    "wait",
+  ].join(" ");
+  const prompt = [
+    `This is live Archive acceptance round ${ROUND}.`,
+    `Use task_graph_create exactly once to create exactly one Task assigned to ${MEMBER_ID}.`,
+    `The Task subject must contain ${ARCHIVE_MARKER}.`,
+    "Its description must tell the Member to call run_shell exactly once with mode=background",
+    `and this exact command: ${backgroundCommand}`,
+    "After starting it, keep the Task in progress and do not kill or await the shell.",
+    "Do not run the command as coordinator and do not create another Task.",
+  ].join(" ");
+  const sessionId = await sendFromRenderedCreator(prompt);
+  if (!sessionId)
+    throw new Error("live Archive launch produced no root Session");
+
+  const view = await waitForAgentOrgRunView(
+    sessionId,
+    (candidate) =>
+      candidate?.runStatus === "running" &&
+      candidate?.tasks?.length === 1 &&
+      candidate.tasks[0]?.owner === MEMBER_ID,
+    "real Provider created one assigned Archive Task",
+    REPLY_TIMEOUT_MS * 2
+  );
+  const runId = view.context.runId;
+  let before = null;
+  let targetShell = null;
+  await browser.waitUntil(
+    async () => {
+      before = await postJson("/agent/test/agent-org/runtime-evidence", {
+        org_run_id: runId,
+      });
+      targetShell = before.runtime.background_shells.find((shell) =>
+        String(shell.command).includes(ARCHIVE_MARKER)
+      );
+      return (
+        Boolean(targetShell) &&
+        before.runtime.execution_blockers.some(
+          (job) => job.handle === String(targetShell.pid)
+        ) &&
+        processGroupSnapshot(targetShell.pid).length >= 3
+      );
+    },
+    {
+      timeout: REPLY_TIMEOUT_MS * 2,
+      interval: 250,
+      timeoutMsg: `real Provider Member never started the Archive parent/child process group: ${JSON.stringify(before)}`,
+    }
+  );
+  const processRows = processGroupSnapshot(targetShell.pid);
+  const knownPids = processRows.map((row) => row.pid);
+  const replayFiles = filesContainingMarker(
+    join(ORGII_HOME, "shell-replays"),
+    ARCHIVE_MARKER
+  );
+  if (replayFiles.length !== 1) {
+    throw new Error(
+      `Archive command did not start exactly once: ${JSON.stringify(replayFiles)}`
+    );
+  }
+
+  await openAgentOrgOverviewPanel("real Provider Archive control");
+  await execJS("window.__orgiiE2EAutoConfirmDestructive = true; return true;");
+  const archiveButton = await visibleProductButton(
+    '[data-testid="agent-org-overview-archive-button"]',
+    "data-e2e-live-archive"
+  );
+  const archiveStartedAt = Date.now();
+  await archiveButton.click();
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const panel = document.querySelector('[data-testid="agent-org-overview-panel"]');
+        return panel?.getAttribute('data-run-phase') === 'archived'
+          && !!document.querySelector('[data-testid="agent-org-archived-composer"]');
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 50,
+      timeoutMsg: "Archive did not project the immediate read-only UI",
+    }
+  );
+  const readOnlyProjectionMs = Date.now() - archiveStartedAt;
+
+  let quiesced = null;
+  await browser.waitUntil(
+    async () => {
+      quiesced = await postJson("/agent/test/agent-org/runtime-evidence", {
+        org_run_id: runId,
+      });
+      return (
+        quiesced.durable.run_status === "archived" &&
+        quiesced.durable.archive?.status === "quiesced" &&
+        quiesced.durable.archive?.retainedRuntimeCount === 0 &&
+        quiesced.runtime.active_runtime_count === 0 &&
+        quiesced.runtime.active_turns.length === 0 &&
+        quiesced.runtime.background_jobs.length === 0 &&
+        quiesced.runtime.execution_blockers.length === 0
+      );
+    },
+    {
+      timeout: 65_000,
+      interval: 100,
+      timeoutMsg: `Archive receipt became read-only but never proved runtime/job finality: ${JSON.stringify(quiesced)}`,
+    }
+  );
+  const quiescenceMs = Date.now() - archiveStartedAt;
+  const survivors = processGroupSnapshot(targetShell.pid);
+  const liveKnownPids = knownPids.filter(pidExists);
+  if (survivors.length > 0 || liveKnownPids.length > 0) {
+    throw new Error(
+      `Archive left parent/child processes alive: ${JSON.stringify({ survivors, liveKnownPids, processRows })}`
+    );
+  }
+
+  const quietBefore = archiveConvergenceSnapshot(runId);
+  await browser.pause(5_000);
+  const quietEvidence = await postJson(
+    "/agent/test/agent-org/runtime-evidence",
+    { org_run_id: runId }
+  );
+  const quietAfter = archiveConvergenceSnapshot(runId);
+  if (
+    JSON.stringify(quietBefore) !== JSON.stringify(quietAfter) ||
+    quietEvidence.runtime.active_runtime_count !== 0 ||
+    quietEvidence.runtime.active_turns.length !== 0 ||
+    quietEvidence.runtime.background_jobs.length !== 0 ||
+    processGroupSnapshot(targetShell.pid).length !== 0 ||
+    filesContainingMarker(join(ORGII_HOME, "shell-replays"), ARCHIVE_MARKER)
+      .length !== 1
+  ) {
+    throw new Error(
+      `late Provider, Task, Inbox, message, replay, or process activity appeared after Archive: ${JSON.stringify({ quietBefore, quietAfter, quietEvidence })}`
+    );
+  }
+
+  console.info(
+    `[agent-org-live-archive-evidence] ${JSON.stringify({
+      round: ROUND,
+      provider: { accountId: account.id, accountName: account.name, model },
+      runId,
+      taskId: view.tasks[0]?.id,
+      processGroupId: targetShell.pid,
+      processRows,
+      replayFiles,
+      readOnlyProjectionMs,
+      quiescenceMs,
+      retainedTombstoneCount: quietEvidence.runtime.retained_tombstone_count,
+      quiet: quietAfter,
+    })}`
+  );
 }
 
 async function seedOneMemberOrg() {
@@ -761,7 +956,7 @@ async function runTaskSmokePhase() {
   );
 }
 
-describe("Agent Org Pause/Resume live Provider process ownership", function () {
+describe("Agent Org lifecycle live Provider process ownership", function () {
   before(async () => {
     assertLiveInputs();
     await waitForApp();
@@ -772,6 +967,7 @@ describe("Agent Org Pause/Resume live Provider process ownership", function () {
     this.timeout(900_000);
     if (PHASE === "pause") return runPausePhase();
     if (PHASE === "resume") return runResumePhase();
+    if (PHASE === "archive") return runArchivePhase();
     return runTaskSmokePhase();
   });
 });

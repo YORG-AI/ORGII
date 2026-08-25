@@ -965,7 +965,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
           <Checkbox
             checked={deleteConfirmed}
             disabled={isDeleting}
-            onChange={setDeleteConfirmed}
+            onCheckedChange={setDeleteConfirmed}
           >
             {t("planner.agentOrgOverview.deleteAcknowledge", {
               defaultValue: "I understand this deletion is permanent.",

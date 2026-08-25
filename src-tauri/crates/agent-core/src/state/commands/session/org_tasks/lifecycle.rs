@@ -366,6 +366,7 @@ async fn teardown_archive_target(
     if let Some(session) = session.as_ref() {
         session.cancel_active_turn(CancelReason::OrgArchive).await;
     }
+    crate::tools::impls::coding::exec::registry::request_cancel_for_session(&target.session_id);
     let captured = match session.as_ref() {
         Some(session) => session.runtime_lease_identity().await,
         None => None,
@@ -400,8 +401,23 @@ async fn teardown_archive_target(
         };
         let memory_idle =
             crate::memory::background::wait_for_memory_jobs_for_session_idle(&target.session_id);
-        let (runtime_result, ()) = tokio::join!(runtime_release, memory_idle);
-        runtime_result
+        let background_jobs_final =
+            crate::tools::impls::coding::exec::registry::wait_for_session_finality(
+                &target.session_id,
+            );
+        let (runtime_result, (), background_result) =
+            tokio::join!(runtime_release, memory_idle, background_jobs_final);
+        let runtime_released = runtime_result?;
+        background_result?;
+
+        // Runtime release closes the last in-flight registration path. Repeat
+        // the idempotent Session barrier after that point so a job registered
+        // during the first parallel wait cannot slip between the barrier and
+        // the durable quiesced receipt.
+        crate::tools::impls::coding::exec::registry::request_cancel_for_session(&target.session_id);
+        crate::tools::impls::coding::exec::registry::wait_for_session_finality(&target.session_id)
+            .await?;
+        Ok::<bool, String>(runtime_released)
     })
     .await;
 
@@ -424,14 +440,23 @@ async fn teardown_archive_target(
                 .await
         }
         Err(_) => {
-            persist_archive_teardown_attempt(
-                target,
-                lease_id,
-                turn_generation,
-                false,
-                Some("archive_runtime_or_background_stop_timeout".to_string()),
-            )
-            .await
+            let blockers =
+                crate::tools::impls::coding::exec::registry::execution_blockers_for_sessions(
+                    std::slice::from_ref(&target.session_id),
+                    8,
+                );
+            let blocker_evidence = blockers
+                .iter()
+                .map(|job| format!("{}:{}:{}", job.kind, job.handle, job.execution_state))
+                .collect::<Vec<_>>()
+                .join(",");
+            let error = if blocker_evidence.is_empty() {
+                "archive_runtime_memory_or_jobs_timeout".to_string()
+            } else {
+                format!("archive_runtime_memory_or_jobs_timeout:{blocker_evidence}")
+            };
+            persist_archive_teardown_attempt(target, lease_id, turn_generation, false, Some(error))
+                .await
         }
     }
 }

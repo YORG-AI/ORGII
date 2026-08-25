@@ -544,6 +544,18 @@ pub fn summary_for_run(run_id: &str) -> Result<Option<ArchiveTeardownSummary>, S
     summary_for_run_with_connection(&conn, run_id)
 }
 
+/// Canonical Team Session scope for debug/WebDriver runtime evidence. Kept
+/// out of release builds so the production API surface remains unchanged.
+#[cfg(debug_assertions)]
+pub fn debug_owned_session_ids_for_run(run_id: &str) -> Result<Vec<String>, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    Ok(load_team_for_run(&conn, run_id)?
+        .sessions
+        .into_iter()
+        .map(|session| session.session_id)
+        .collect())
+}
+
 pub(crate) fn summary_for_run_with_connection(
     conn: &Connection,
     run_id: &str,

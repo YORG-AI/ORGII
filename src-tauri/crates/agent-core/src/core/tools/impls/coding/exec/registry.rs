@@ -17,6 +17,14 @@ use tokio_util::sync::CancellationToken;
 
 use crate::tools::call_context::{TurnProcessControl, TurnProcessOwner};
 
+mod session_lifecycle;
+
+pub use session_lifecycle::{
+    execution_blockers_for_sessions, purge_deleted_sessions, request_cancel_for_session,
+    retained_tombstone_count, session_runtime_evidence, wait_for_session_finality,
+    PurgedSessionJobs, SessionJobEvidence,
+};
+
 /// Status of a background job.
 #[derive(Debug, Clone)]
 pub enum JobStatus {
@@ -129,6 +137,10 @@ pub struct BackgroundJob {
     /// Cancellation was requested, but the monitor has not yet proved the
     /// process group and replay pipeline are terminal.
     shell_kill_requested: bool,
+    /// Archive has installed its short, Session-scoped escalation for this
+    /// subagent. Separate from `Killed`: status is user-visible, while this
+    /// flag prevents repeated finality polls from spawning duplicate timers.
+    session_cancel_escalation_requested: bool,
     /// Set to `true` once the agent has read the completed job's output via
     /// `AwaitTool` (monitor/wait_for). Acknowledged completed jobs are excluded
     /// from the per-turn system reminder to avoid the stale-reminder
@@ -369,6 +381,7 @@ const TOMBSTONE_TTL: std::time::Duration = std::time::Duration::from_secs(10 * 6
 /// mistyped it), instead of synthesising a guess from the handle string.
 #[derive(Clone)]
 struct Tombstone {
+    session_id: String,
     status: JobStatus,
     kind: JobKind,
     created_at: Instant,
@@ -475,6 +488,7 @@ fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<St
     let handle = pid.to_string();
     let (tx, _) = broadcast::channel(BROADCAST_CAPACITY);
     let sender = tx.clone();
+    let indexed_session_id = session_id.clone();
     let job = BackgroundJob {
         handle: handle.clone(),
         label: command,
@@ -498,6 +512,7 @@ fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<St
         shell_cancel,
         shell_completion,
         shell_kill_requested: false,
+        session_cancel_escalation_requested: false,
         output_acknowledged: false,
         wake_dispatched: false,
         output_seq: 0,
@@ -505,15 +520,24 @@ fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<St
         stall_delivered: false,
     };
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-    reg.insert(handle.clone(), job);
-    if let Some(owner) = indexed_owner {
-        OWNER_INDEX
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .entry(owner)
-            .or_default()
-            .insert(handle);
+    let replaced = reg.insert(handle.clone(), job);
+    let mut owner_index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(previous_owner) = replaced
+        .as_ref()
+        .and_then(|previous| previous.turn_owner.as_ref())
+    {
+        remove_indexed_handle(&mut owner_index, previous_owner, &handle);
     }
+    if let Some(owner) = indexed_owner {
+        owner_index.entry(owner).or_default().insert(handle.clone());
+    }
+    session_lifecycle::replace_live_index(
+        replaced
+            .as_ref()
+            .map(|previous| previous.session_id.as_str()),
+        &indexed_session_id,
+        &handle,
+    );
     sender
 }
 
@@ -622,6 +646,7 @@ fn register_subagent_inner(
         shell_cancel: None,
         shell_completion: None,
         shell_kill_requested: false,
+        session_cancel_escalation_requested: false,
         output_acknowledged: false,
         wake_dispatched: false,
         output_seq: 0,
@@ -629,15 +654,24 @@ fn register_subagent_inner(
         stall_delivered: false,
     };
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-    reg.insert(handle.clone(), job);
-    if let Some(owner) = indexed_owner {
-        OWNER_INDEX
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .entry(owner)
-            .or_default()
-            .insert(handle.clone());
+    let replaced = reg.insert(handle.clone(), job);
+    let mut owner_index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(previous_owner) = replaced
+        .as_ref()
+        .and_then(|previous| previous.turn_owner.as_ref())
+    {
+        remove_indexed_handle(&mut owner_index, previous_owner, &handle);
     }
+    if let Some(owner) = indexed_owner {
+        owner_index.entry(owner).or_default().insert(handle.clone());
+    }
+    session_lifecycle::replace_live_index(
+        replaced
+            .as_ref()
+            .map(|previous| previous.session_id.as_str()),
+        &session_id,
+        &handle,
+    );
     drop(reg);
     broadcast_subagent_job_changed(&session_id, &handle, &agent_name, &subagent_type, "running");
     sender
@@ -783,29 +817,56 @@ pub fn remove(handle: &str) {
     let removed = {
         let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
         let removed = reg.remove(handle);
+        let mut index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(owner) = removed.as_ref().and_then(|job| job.turn_owner.as_ref()) {
-            let mut index = OWNER_INDEX.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some(handles) = index.get_mut(owner) {
-                handles.remove(handle);
-                if handles.is_empty() {
-                    index.remove(owner);
-                }
-            }
+            remove_indexed_handle(&mut index, owner, handle);
+        }
+        if let Some(job) = removed.as_ref() {
+            session_lifecycle::remove_live_index(&job.session_id, handle);
         }
         removed
     };
     if let Some(job) = removed {
         let mut tombs = TOMBSTONES.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
-        tombs.retain(|_, t| now.duration_since(t.created_at) < TOMBSTONE_TTL);
-        tombs.insert(
+        let expired = tombs
+            .iter()
+            .filter(|(_, tombstone)| now.duration_since(tombstone.created_at) >= TOMBSTONE_TTL)
+            .map(|(expired_handle, tombstone)| {
+                (tombstone.session_id.clone(), expired_handle.clone())
+            })
+            .collect::<Vec<_>>();
+        tombs.retain(|_, tombstone| now.duration_since(tombstone.created_at) < TOMBSTONE_TTL);
+        session_lifecycle::remove_expired_tombstone_indexes(&expired);
+        let replaced = tombs.insert(
             handle.to_string(),
             Tombstone {
+                session_id: job.session_id.clone(),
                 status: job.status.clone(),
                 kind: job.kind.clone(),
                 created_at: now,
             },
         );
+        session_lifecycle::replace_tombstone_index(
+            replaced
+                .as_ref()
+                .map(|previous| previous.session_id.as_str()),
+            &job.session_id,
+            handle,
+        );
+    }
+}
+
+fn remove_indexed_handle(
+    index: &mut HashMap<TurnProcessOwner, HashSet<String>>,
+    owner: &TurnProcessOwner,
+    handle: &str,
+) {
+    if let Some(handles) = index.get_mut(owner) {
+        handles.remove(handle);
+        if handles.is_empty() {
+            index.remove(owner);
+        }
     }
 }
 
@@ -833,14 +894,15 @@ pub fn resolve_status_with_tombstone(handle: &str) -> Option<(JobStatus, JobKind
     if let Some(found) = get_status(handle) {
         return Some(found);
     }
-    let tombs = TOMBSTONES.lock().unwrap_or_else(|e| e.into_inner());
-    tombs.get(handle).and_then(|t| {
-        if Instant::now().duration_since(t.created_at) < TOMBSTONE_TTL {
-            Some((t.status.clone(), t.kind.clone()))
-        } else {
-            None
-        }
-    })
+    let mut tombs = TOMBSTONES.lock().unwrap_or_else(|e| e.into_inner());
+    let tombstone = tombs.get(handle).cloned()?;
+    if Instant::now().duration_since(tombstone.created_at) < TOMBSTONE_TTL {
+        Some((tombstone.status, tombstone.kind))
+    } else {
+        tombs.remove(handle);
+        session_lifecycle::remove_tombstone_index(&tombstone.session_id, handle);
+        None
+    }
 }
 
 /// Get the final result text for a job.
@@ -939,13 +1001,14 @@ pub async fn await_shells_terminated_for_owner(
 /// scope, `None` for global scope.
 pub fn list_jobs(session_id: Option<&str>) -> Vec<JobSnapshot> {
     let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-    reg.values()
-        .filter(|job| match session_id {
-            Some(sid) => job.session_id == sid,
-            None => true,
-        })
-        .map(|job| job.snapshot())
-        .collect()
+    match session_id {
+        Some(session_id) => session_lifecycle::live_handles(session_id)
+            .into_iter()
+            .filter_map(|handle| reg.get(&handle))
+            .map(BackgroundJob::snapshot)
+            .collect(),
+        None => reg.values().map(BackgroundJob::snapshot).collect(),
+    }
 }
 
 /// Mark a completed job's output as acknowledged. Once acknowledged, the job

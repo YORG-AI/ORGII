@@ -8,6 +8,7 @@ import {
   unwrap,
   waitForApp,
 } from "../../support/core/agentOrgUiDriver.mjs";
+import { selectPersonalScopeFromSidebar } from "../../support/core/cloudOrgUiDriver.mjs";
 
 const E2E_BASE_URL = `http://127.0.0.1:${process.env.E2E_IDE_SERVER_PORT ?? "13847"}`;
 const RUN_ID = Date.now();
@@ -105,6 +106,25 @@ async function refreshAndWaitForSidebarRow(sessionId) {
     }
   );
   await (await browser.$('[data-testid="sidebar-refresh-sessions"]')).click();
+  let rosterState = null;
+  await browser.waitUntil(
+    async () => {
+      const inspected = unwrap(
+        await invokeE2E("inspectSidebarPagination", [sessionId]),
+        `inspectSidebarPagination(${sessionId})`
+      );
+      rosterState = inspected.pagination?.agent_org_root ?? null;
+      return rosterState?.sessionIds?.includes(sessionId) === true;
+    },
+    {
+      // The rendered Refresh action also scans all enabled external-history
+      // sources before publishing the authoritative native roster. On a cold
+      // packaged-app launch that scan can cross the ordinary 20s render bound.
+      timeout: RENDER_TIMEOUT_MS * 3,
+      interval: 250,
+      timeoutMsg: `sidebar refresh never published Agent Org root ${sessionId}: ${JSON.stringify(rosterState)}`,
+    }
+  );
   const selector = `[data-testid="sidebar-session-item-${sessionId}"]`;
   await browser.waitUntil(
     async () =>
@@ -112,7 +132,7 @@ async function refreshAndWaitForSidebarRow(sessionId) {
     {
       timeout: RENDER_TIMEOUT_MS,
       interval: 200,
-      timeoutMsg: `sidebar row ${sessionId} did not render`,
+      timeoutMsg: `sidebar row ${sessionId} did not render after roster publication`,
     }
   );
 }
@@ -231,21 +251,47 @@ async function deleteHierarchyAndAssertGone(hierarchy) {
     }
   );
 
-  const archivedSnapshot = await persistenceSnapshot(
-    [hierarchy.rootSessionId, ...hierarchy.workerSessionIds],
-    [hierarchy.runId]
+  let archivedSnapshot = null;
+  await browser.waitUntil(
+    async () => {
+      archivedSnapshot = await persistenceSnapshot(
+        [hierarchy.rootSessionId, ...hierarchy.workerSessionIds],
+        [hierarchy.runId]
+      );
+      const detail = archivedSnapshot.run_details[hierarchy.runId];
+      return (
+        detail?.status === "archived" &&
+        detail?.activation_generation >= 2 &&
+        Boolean(detail?.archived_at) &&
+        Boolean(detail?.archive_receipt_id) &&
+        detail?.teardown_status === "quiesced" &&
+        detail?.retained_runtime_count === 0
+      );
+    },
+    {
+      timeout: 60_000,
+      interval: 200,
+      timeoutMsg: `Archive fence did not reach quiesced: ${JSON.stringify(archivedSnapshot)}`,
+    }
   );
-  const detail = archivedSnapshot.run_details[hierarchy.runId];
-  if (
-    detail?.status !== "archived" ||
-    detail?.activation_generation < 2 ||
-    !detail?.archived_at ||
-    !detail?.archive_receipt_id
-  ) {
-    throw new Error(
-      `Archive fence/receipt missing: ${JSON.stringify(archivedSnapshot)}`
-    );
-  }
+
+  // Archive is intentionally committed before its bounded teardown finishes.
+  // Refresh through the real product control after the durable receipt proves
+  // quiescence so the Danger Zone consumes the final projected state.
+  await (
+    await browser.$('[data-testid="agent-org-overview-refresh-button"]')
+  ).click();
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return document.querySelector('[data-testid="agent-org-archive-teardown-status"]')?.getAttribute("data-teardown-status") === "quiesced";`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archive teardown receipt did not project as quiesced",
+    }
+  );
 
   await browser.waitUntil(
     async () =>
@@ -324,6 +370,10 @@ describe("Agent Org irreversible Archive and Team Delete rendered UI", () => {
       await invokeE2E("navigateTo", "/orgii/workstation/code"),
       "navigateTo(Agent Org Archive/Delete)"
     );
+    // WebKit localStorage is keyed by the packaged app identity rather than
+    // E2E_ORGII_HOME. Normalize a cloud scope left by another app run before
+    // asserting local Agent Org rows.
+    await selectPersonalScopeFromSidebar();
     await (await browser.$('[data-testid="sidebar-view-sessions"]')).click();
     await browser.waitUntil(
       async () =>

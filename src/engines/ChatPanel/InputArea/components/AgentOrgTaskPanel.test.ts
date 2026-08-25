@@ -112,12 +112,12 @@ vi.mock("@src/components/Checkbox", () => ({
   default: ({
     checked,
     disabled,
-    onChange,
+    onCheckedChange,
     children,
   }: {
     checked?: boolean;
     disabled?: boolean;
-    onChange?: (checked: boolean) => void;
+    onCheckedChange?: (checked: boolean) => void;
     children?: React.ReactNode;
   }) =>
     createElement(
@@ -128,7 +128,7 @@ vi.mock("@src/components/Checkbox", () => ({
         checked,
         disabled,
         onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-          onChange?.(event.target.checked),
+          onCheckedChange?.(event.target.checked),
       }),
       children
     ),

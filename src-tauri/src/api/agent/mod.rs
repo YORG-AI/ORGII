@@ -752,6 +752,10 @@ pub fn create_routes() -> Router {
             post(test::agent_org::test_agent_org_pause_evidence),
         )
         .route(
+            "/test/agent-org/runtime-evidence",
+            post(test::agent_org::test_agent_org_runtime_evidence),
+        )
+        .route(
             "/test/agent-org/simulate-app-restart",
             post(test::agent_org::test_agent_org_simulate_app_restart),
         )

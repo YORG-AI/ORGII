@@ -3085,6 +3085,124 @@ pub async fn test_agent_org_resume_run(
     }
 }
 
+async fn collect_agent_org_runtime_evidence(
+    state: &agent_core::state::AgentAppState,
+    session_ids: &[String],
+) -> serde_json::Value {
+    let mut active_runtime_count = 0usize;
+    let mut active_turns = Vec::new();
+    let mut background_shells = Vec::new();
+    for session_id in session_ids {
+        for (pid, command) in
+            agent_core::tools::impls::coding::exec::registry::list_shell_for_session(session_id)
+        {
+            background_shells.push(serde_json::json!({
+                "session_id": session_id,
+                "pid": pid,
+                "command": command,
+            }));
+        }
+        let Some(session) = state.get_session(session_id).await else {
+            continue;
+        };
+        if session.get_runtime().await.is_some() {
+            active_runtime_count += 1;
+        }
+        if let Some(dialog_turn_generation) = session.active_turn_id().await {
+            active_turns.push(serde_json::json!({
+                "session_id": session_id,
+                "dialog_turn_generation": dialog_turn_generation,
+            }));
+        }
+    }
+    let background_jobs =
+        agent_core::tools::impls::coding::exec::registry::session_runtime_evidence(session_ids, 64);
+    let execution_blockers =
+        agent_core::tools::impls::coding::exec::registry::execution_blockers_for_sessions(
+            session_ids,
+            64,
+        );
+    let retained_tombstone_count =
+        agent_core::tools::impls::coding::exec::registry::retained_tombstone_count(session_ids);
+    serde_json::json!({
+        "active_runtime_count": active_runtime_count,
+        "active_turns": active_turns,
+        "background_shells": background_shells,
+        "background_jobs": background_jobs,
+        "execution_blockers": execution_blockers,
+        "retained_tombstone_count": retained_tombstone_count,
+    })
+}
+
+/// `POST /test/agent-org/runtime-evidence`
+///
+/// Read-only runtime, Turn and background-execution evidence for Archive and
+/// Delete E2E. Product lifecycle actions must still use their real buttons
+/// and Tauri commands.
+pub async fn test_agent_org_runtime_evidence(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use tauri::Manager;
+
+    let Some(org_run_id) = body
+        .get("org_run_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+    else {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": "org_run_id is required (non-empty string)"
+        }));
+    };
+    let query_run_id = org_run_id.clone();
+    let durable = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        let run = agent_core::coordination::agent_org_runs::AgentOrgRunStore::load(&query_run_id)?
+            .ok_or_else(|| format!("agent_org_run_not_found: {query_run_id}"))?;
+        let session_ids =
+            agent_core::coordination::agent_org_archive::debug_owned_session_ids_for_run(
+                &query_run_id,
+            )?;
+        let archive = agent_core::coordination::agent_org_archive::summary_for_run(&query_run_id)?;
+        Ok(serde_json::json!({
+            "org_run_id": query_run_id,
+            "run_status": run.status.as_str(),
+            "activation_generation": run.activation_generation,
+            "session_ids": session_ids,
+            "archive": archive,
+        }))
+    })
+    .await;
+    let durable = match durable {
+        Err(error) => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!("spawn_blocking join error: {error}")
+            }))
+        }
+        Ok(Err(error)) => return Json(serde_json::json!({ "ok": false, "error": error })),
+        Ok(Ok(value)) => value,
+    };
+    let Some(handle) = crate::api::get_app_handle() else {
+        return Json(serde_json::json!({ "ok": false, "error": "AppHandle not initialized" }));
+    };
+    let state = handle.state::<agent_core::state::AgentAppState>();
+    let session_ids = durable
+        .get("session_ids")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let runtime = collect_agent_org_runtime_evidence(&state, &session_ids).await;
+    Json(serde_json::json!({
+        "ok": true,
+        "durable": durable,
+        "runtime": runtime,
+    }))
+}
+
 /// `POST /test/agent-org/pause/evidence`
 ///
 /// Read-only evidence for the rendered Pause/Resume scenario. The endpoint
@@ -3246,39 +3364,18 @@ pub async fn test_agent_org_pause_evidence(
     let session_ids = durable
         .get("session_ids")
         .and_then(serde_json::Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let mut active_runtime_count = 0usize;
-    let mut active_turns = Vec::new();
-    let mut background_shells = Vec::new();
-    for session_id in session_ids.iter().filter_map(serde_json::Value::as_str) {
-        for (pid, command) in
-            agent_core::tools::impls::coding::exec::registry::list_shell_for_session(session_id)
-        {
-            background_shells.push(serde_json::json!({
-                "session_id": session_id,
-                "pid": pid,
-                "command": command,
-            }));
-        }
-        let Some(session) = state.get_session(session_id).await else {
-            continue;
-        };
-        if session.get_runtime().await.is_some() {
-            active_runtime_count += 1;
-            if let Some(dialog_turn_generation) = session.active_turn_id().await {
-                active_turns.push(serde_json::json!({
-                    "session_id": session_id,
-                    "dialog_turn_generation": dialog_turn_generation,
-                }));
-            }
-        }
-    }
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let runtime = collect_agent_org_runtime_evidence(&state, &session_ids).await;
     Json(serde_json::json!({
         "ok": true,
         "durable": durable,
-        "active_runtime_count": active_runtime_count,
-        "active_turns": active_turns,
-        "background_shells": background_shells,
+        "active_runtime_count": runtime["active_runtime_count"].clone(),
+        "active_turns": runtime["active_turns"].clone(),
+        "background_shells": runtime["background_shells"].clone(),
+        "runtime": runtime,
     }))
 }

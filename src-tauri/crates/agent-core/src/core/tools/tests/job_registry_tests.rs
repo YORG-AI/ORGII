@@ -622,3 +622,180 @@ fn test_tombstone_preserves_shell_exit_code() {
         tomb.map(|(s, _)| s)
     );
 }
+
+#[test]
+fn session_runtime_evidence_uses_exact_session_index() {
+    let mine = "agent-session-index-mine".to_string();
+    let other = "agent-session-index-other".to_string();
+    let (_mine_tx, _mine_cancel) = registry::register_subagent(
+        mine.clone(),
+        "delegate".into(),
+        "Mine".into(),
+        "session-index-a".into(),
+    );
+    let (_other_tx, _other_cancel) = registry::register_subagent(
+        other.clone(),
+        "delegate".into(),
+        "Other".into(),
+        "session-index-b".into(),
+    );
+
+    let evidence = registry::session_runtime_evidence(&["session-index-a".into()], 8);
+    assert_eq!(evidence.len(), 1);
+    assert_eq!(evidence[0].handle, mine);
+    assert_eq!(evidence[0].session_id, "session-index-a");
+
+    registry::remove(&mine);
+    registry::remove(&other);
+    registry::purge_deleted_sessions(&["session-index-a".into(), "session-index-b".into()])
+        .expect("purge index fixtures");
+}
+
+#[tokio::test]
+async fn killed_subagent_remains_a_blocker_until_join_handle_finishes() {
+    let session_id = "session-killed-join-pending";
+    let handle = "agent-killed-join-pending".to_string();
+    let (_tx, _cancel) = registry::register_subagent(
+        handle.clone(),
+        "delegate".into(),
+        "Pending Worker".into(),
+        session_id.into(),
+    );
+    registry::set_join_handle(&handle, tokio::spawn(std::future::pending::<()>()));
+
+    registry::request_cancel_for_session(session_id);
+    let blockers = registry::execution_blockers_for_sessions(&[session_id.into()], 8);
+    assert_eq!(blockers.len(), 1);
+    assert_eq!(blockers[0].status, "killed");
+    assert_eq!(blockers[0].execution_state, "worker_task_draining");
+
+    tokio::time::timeout(
+        Duration::from_secs(4),
+        registry::wait_for_session_finality(session_id),
+    )
+    .await
+    .expect("Session finality timeout")
+    .expect("Session finality");
+    assert!(registry::get_status(&handle).is_none());
+    registry::purge_deleted_sessions(&[session_id.into()]).expect("purge killed fixture");
+}
+
+#[tokio::test]
+async fn session_finality_waits_for_register_to_join_handle_handoff() {
+    let session_id = "session-register-join-handoff";
+    let handle = "agent-register-join-handoff".to_string();
+    let (_tx, cancel) = registry::register_subagent(
+        handle.clone(),
+        "delegate".into(),
+        "Handoff Worker".into(),
+        session_id.into(),
+    );
+
+    let wait = tokio::spawn(async move { registry::wait_for_session_finality(session_id).await });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(cancel.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(!wait.is_finished());
+    let blockers = registry::execution_blockers_for_sessions(&[session_id.into()], 8);
+    assert_eq!(blockers[0].execution_state, "join_handle_pending");
+
+    registry::set_join_handle(&handle, tokio::spawn(std::future::pending::<()>()));
+    tokio::time::timeout(Duration::from_secs(1), wait)
+        .await
+        .expect("handoff wait timeout")
+        .expect("join handoff waiter")
+        .expect("handoff finality");
+    assert!(registry::get_status(&handle).is_none());
+    registry::purge_deleted_sessions(&[session_id.into()]).expect("purge handoff fixture");
+}
+
+#[tokio::test]
+async fn archive_finality_reaps_terminal_shell_but_retains_precise_tombstone() {
+    let session_id = "session-archive-shell-reap";
+    let pid = 99_970;
+    let completion = registry::register_owned_shell_replay(
+        pid,
+        "archive-shell".into(),
+        PathBuf::from("/tmp/archive-shell-reap.txt"),
+        session_id.into(),
+        "archive-shell-call".into(),
+        &shell_control(session_id, "archive-shell-lease"),
+        CancellationToken::new(),
+    );
+    registry::mark_exited(&pid.to_string(), JobStatus::Killed);
+    completion.finish(Ok(()));
+
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        registry::wait_for_session_finality(session_id),
+    )
+    .await
+    .expect("shell finality timeout")
+    .expect("shell finality");
+    assert!(registry::get_status(&pid.to_string()).is_none());
+    assert!(matches!(
+        registry::resolve_status_with_tombstone(&pid.to_string()),
+        Some((JobStatus::Killed, JobKind::Shell { .. }))
+    ));
+
+    let purged = registry::purge_deleted_sessions(&[session_id.into()]).expect("purge shell");
+    assert_eq!(purged.tombstones, 1);
+    assert!(registry::resolve_status_with_tombstone(&pid.to_string()).is_none());
+}
+
+#[tokio::test]
+async fn delete_purge_is_session_scoped_and_rejects_execution_active_jobs() {
+    let deleted_session = "session-delete-purge-target";
+    let other_team_session = "session-delete-purge-other-team";
+    let ordinary_sde_session = "session-delete-purge-ordinary-sde";
+    let tombstone_handle = "agent-delete-target-tombstone".to_string();
+    let live_handle = "agent-delete-target-live-terminal".to_string();
+    let other_handle = "agent-delete-other-team".to_string();
+    let sde_handle = "agent-delete-ordinary-sde".to_string();
+
+    for (handle, session_id) in [
+        (&tombstone_handle, deleted_session),
+        (&live_handle, deleted_session),
+        (&other_handle, other_team_session),
+        (&sde_handle, ordinary_sde_session),
+    ] {
+        let (_tx, _cancel) = registry::register_subagent(
+            handle.clone(),
+            "delegate".into(),
+            "Worker".into(),
+            session_id.into(),
+        );
+    }
+    registry::mark_exited(&tombstone_handle, JobStatus::Completed);
+    registry::remove(&tombstone_handle);
+
+    let live_join = tokio::spawn(async {});
+    registry::set_join_handle(&live_handle, live_join);
+    registry::set_join_handle(&other_handle, tokio::spawn(std::future::pending::<()>()));
+    registry::set_join_handle(&sde_handle, tokio::spawn(std::future::pending::<()>()));
+    tokio::task::yield_now().await;
+    registry::mark_exited(&live_handle, JobStatus::Completed);
+
+    let active_error = registry::purge_deleted_sessions(&[other_team_session.into()])
+        .expect_err("executing other Team worker must block purge");
+    assert!(active_error.starts_with("team_background_jobs_not_quiesced:"));
+    assert!(registry::get_status(&other_handle).is_some());
+
+    let purged = registry::purge_deleted_sessions(&[deleted_session.into()])
+        .expect("purge terminal target Session");
+    assert_eq!(purged.live_jobs, 1);
+    assert_eq!(purged.tombstones, 1);
+    assert!(registry::get_status(&live_handle).is_none());
+    assert!(registry::resolve_status_with_tombstone(&tombstone_handle).is_none());
+    assert!(registry::get_status(&other_handle).is_some());
+    assert!(registry::get_status(&sde_handle).is_some());
+
+    registry::request_cancel_for_session(other_team_session);
+    registry::request_cancel_for_session(ordinary_sde_session);
+    tokio::try_join!(
+        registry::wait_for_session_finality(other_team_session),
+        registry::wait_for_session_finality(ordinary_sde_session),
+    )
+    .expect("clean unrelated fixtures");
+    registry::purge_deleted_sessions(&[other_team_session.into(), ordinary_sde_session.into()])
+        .expect("purge unrelated fixture tombstones");
+}

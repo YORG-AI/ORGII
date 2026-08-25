@@ -403,10 +403,13 @@ describe("closeSessionChatPanelTabsAtom", () => {
 
     const state = store.get(chatPanelTabsAtom);
     expect(activeTabClosed).toBe(true);
-    expect(state.tabs.map((tab) => tab.id)).toEqual([safeTabId]);
+    expect(state.tabs.map((tab) => tab.id)).toEqual([
+      "launchpad-default",
+      safeTabId,
+    ]);
     expect(state.tabs.some((tab) => tab.id === rootTabId)).toBe(false);
-    expect(state.activeTabId).toBe(safeTabId);
-    expect(store.get(activeSessionIdAtom)).toBe("safe-session");
+    expect(state.activeTabId).toBe("launchpad-default");
+    expect(store.get(activeSessionIdAtom)).toBeNull();
   });
 
   it("preserves the active tab when only background session tabs were deleted", async () => {
