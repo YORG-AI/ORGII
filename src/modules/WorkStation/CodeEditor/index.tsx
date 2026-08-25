@@ -2,12 +2,12 @@
  * CodeEditor Component
  *
  * Full-featured code editor with file tree, git integration, terminal,
- * diagnostics, and more. Extracted from AppContainer for clean separation.
+ * and more. Extracted from AppContainer for clean separation.
  */
 import { useTerminalState } from "@/src/engines/TerminalCore/hooks/useTerminalState";
 import { invoke } from "@tauri-apps/api/core";
 import { useAtomValue, useSetAtom } from "jotai";
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import { ActionSystemProvider } from "@src/ActionSystem";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
@@ -26,11 +26,7 @@ import {
   workstationLayoutAtom,
 } from "@src/store/workstation/tabs";
 
-import {
-  WorkStationShell,
-  buildPrimarySidebarConfig,
-  buildSecondaryPanelConfig,
-} from "../shared";
+import { WorkStationShell, buildPrimarySidebarConfig } from "../shared";
 // Imported from the SidebarModules entry (not the shared barrel): this
 // module evaluation is also what registers the SourceControl / Terminal /
 // Benchmark tab sidebars into TAB_SIDEBAR_REGISTRY.
@@ -39,11 +35,8 @@ import { EditorIntegrations } from "./EditorLayout/components/EditorIntegrations
 // Static imports — lazy loading added ~200-500ms of blank screen on first open
 // because Suspense fallback={null} shows nothing while the chunk loads.
 import FileSearchPanel from "./EditorLayout/overlays/FileSearchPanel";
-import EditorBottomPanel from "./Panels/EditorBottomPanel";
 import EditorContent from "./Panels/EditorMainPane";
 import { EditorPrimarySidebar } from "./Panels/EditorPrimarySidebar";
-import { useDiagnostics } from "./hooks/diagnostics/useDiagnostics";
-import { useOutputChannels } from "./hooks/output/useOutputChannels";
 import { useCodeEditor } from "./hooks/useCodeEditor";
 import { useCodeEditorEvents } from "./hooks/useCodeEditorEvents";
 import { useCodeEditorHandlers } from "./hooks/useCodeEditorHandlers";
@@ -92,8 +85,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
         workspaceFolders.length > 1 ? workspaceFolders : undefined,
     });
     const panels = useWorkStationPanels();
-    const diagnosticsState = useDiagnostics();
-    const outputState = useOutputChannels({ defaultMaxChars: 100000 });
 
     // === Terminal state (unified via Jotai atoms) ===
     const terminalState = useTerminalState();
@@ -119,20 +110,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       setSearchPanelVisible,
       setPrimaryPanel,
       activeCommitSha,
-      editorPanelPosition,
       handleCursorPositionChange,
-      handleToggleEditorPanelPosition,
-      handleDiagnosticsChange,
-      handleDiagnosticClick,
       handleSymbolClick,
       handleAllChangesClick,
-      handleKillTerminal,
-      handleAddTerminal,
     } = useCodeEditorLocalState({
       isActive,
       codeEditorState,
-      terminalState,
-      diagnosticsState,
     });
 
     // === Extracted handlers (performance optimized) ===
@@ -382,17 +365,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       ]
     );
 
-    const handleTerminalFileLinkOpen = useCallback(
-      (filePath: string, line?: number) => {
-        if (line) {
-          handleFileSelectWithLine(filePath, line);
-          return;
-        }
-        handleFileSelect(filePath);
-      },
-      [handleFileSelect, handleFileSelectWithLine]
-    );
-
     const isSourceControlActive = activeTab?.type === "source-control";
     useEffect(() => {
       const repoId = isActive && isSourceControlActive ? selectedRepoId : null;
@@ -438,7 +410,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
             onContentChange={handleContentChange}
             onSave={handleSave}
             onDiscard={handleDiscard}
-            onDiagnosticsChange={handleDiagnosticsChange}
             onAllChangesClick={handleAllChangesClick}
             hasUnsavedChanges={codeEditorState.hasUnsavedChanges}
             saving={codeEditorState.saving}
@@ -472,7 +443,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
         handleContentChange,
         handleSave,
         handleDiscard,
-        handleDiagnosticsChange,
         handleAllChangesClick,
         handleCursorPositionChange,
         terminalState,
@@ -484,102 +454,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       ]
     );
 
-    const editorPanelContent = useMemo(
-      () => (
-        <EditorBottomPanel
-          diagnostics={diagnosticsState.diagnostics}
-          onDiagnosticClick={handleDiagnosticClick}
-          onClearAllDiagnostics={diagnosticsState.clearAllDiagnostics}
-          onSetDiagnosticsForFile={diagnosticsState.setDiagnosticsForFile}
-          outputChannels={outputState.channels}
-          activeChannelId={outputState.activeChannelId}
-          onSetActiveChannel={outputState.setActiveChannel}
-          onClearChannel={outputState.clearChannel}
-          terminalState={terminalState}
-          onTerminalFileLinkOpen={handleTerminalFileLinkOpen}
-          onKillTerminal={handleKillTerminal}
-          onAddTerminal={handleAddTerminal}
-          terminalSidebarWidth={panels.terminalSidebarWidth}
-          onTerminalSidebarWidthChange={panels.setTerminalSidebarWidth}
-          repoPath={repoPath}
-          position={editorPanelPosition}
-          onTogglePosition={handleToggleEditorPanelPosition}
-        />
-      ),
-      [
-        diagnosticsState.diagnostics,
-        diagnosticsState.clearAllDiagnostics,
-        diagnosticsState.setDiagnosticsForFile,
-        handleDiagnosticClick,
-        outputState.channels,
-        outputState.activeChannelId,
-        outputState.setActiveChannel,
-        outputState.clearChannel,
-        terminalState,
-        handleTerminalFileLinkOpen,
-        handleKillTerminal,
-        handleAddTerminal,
-        panels.terminalSidebarWidth,
-        panels.setTerminalSidebarWidth,
-        repoPath,
-        editorPanelPosition,
-        handleToggleEditorPanelPosition,
-      ]
-    );
-
-    // Editor panel size: bottom uses persisted bottomPanelHeight; right uses local width.
-    // Single mount while visible — CSS grid swaps axis without unmounting EditorBottomPanel.
-    const [editorRightPanelWidth, setEditorRightPanelWidth] = useState(400);
-    const shouldHideSecondaryPanel =
-      activeTab?.type === "terminal" ||
-      activeTab?.type === "source-control" ||
-      activeTab?.type === "chat-session";
-    const secondaryPanelConfig = useMemo(() => {
-      if (shouldHideSecondaryPanel) return undefined;
-
-      return buildSecondaryPanelConfig({
-        content: editorPanelContent,
-        position: editorPanelPosition,
-        collapsed: panels.bottomPanelCollapsed,
-        size:
-          editorPanelPosition === "bottom"
-            ? panels.bottomPanelHeight
-            : editorRightPanelWidth,
-        onSizeChange:
-          editorPanelPosition === "bottom"
-            ? panels.setBottomPanelHeight
-            : setEditorRightPanelWidth,
-        onClose: panels.toggleBottomPanel,
-        minSize: editorPanelPosition === "bottom" ? 160 : 240,
-        maxSize: 800,
-        resetSize: editorPanelPosition === "bottom" ? 250 : 400,
-      });
-    }, [
-      editorPanelContent,
-      editorPanelPosition,
-      panels.bottomPanelCollapsed,
-      panels.bottomPanelHeight,
-      panels.setBottomPanelHeight,
-      editorRightPanelWidth,
-      panels.toggleBottomPanel,
-      shouldHideSecondaryPanel,
-    ]);
-
     return (
       <ActionSystemProvider repoPath={repoPath} repoId={selectedRepoId}>
         <EditorIntegrations
           repoPath={repoPath}
           repoId={selectedRepoId || repoPath}
-          primarySidebarTab={panels.primarySidebarTab}
-          outputState={outputState}
-          setBottomPanelTab={panels.setBottomPanelTab}
-          bottomPanelCollapsed={panels.bottomPanelCollapsed}
-          toggleBottomPanel={panels.toggleBottomPanel}
         />
 
         <WorkStationShell
           primarySidebarConfig={primarySidebarConfig}
-          secondaryPanelConfig={secondaryPanelConfig}
           content={mainContent}
           statusBar={null}
           layoutMode={panels.layoutMode}

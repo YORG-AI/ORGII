@@ -1,12 +1,11 @@
 import { atom } from "jotai";
 
 import type { SessionTabTransfer } from "@src/shared/dnd/sessionTabDrag";
-import {
-  chatPanelTabsAtom,
-  closeChatPanelTabAtom,
-  openOrFocusSessionInChatPanelTabAtom,
-} from "@src/store/chatPanel/chatPanelTabsAtom";
+import { closeChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabLifecycleAtoms";
+import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
+import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsState";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { STATION_MODE, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   closeTab,
   createChatSessionTab,
@@ -66,6 +65,7 @@ export const openSessionInWorkstationAtom = atom(
       ),
     });
     set(chatPanelMaximizedAtom, false);
+    set(stationModeAtom, STATION_MODE.MY_STATION);
     set(claimPipelineSessionAtom, sessionId);
     return true;
   }

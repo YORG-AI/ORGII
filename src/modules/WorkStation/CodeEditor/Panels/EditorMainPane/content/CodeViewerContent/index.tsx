@@ -60,7 +60,6 @@ const CodeViewerContentInner: React.FC<CodeViewerContentWithFileProps> = (
     handleDiscard,
     handleReload,
     handleFileSelect,
-    handleDiagnosticsChange,
     handleTogglePreview,
     handleResolveConflict,
     handleAskAgent,
@@ -149,7 +148,6 @@ const CodeViewerContentInner: React.FC<CodeViewerContentWithFileProps> = (
       onContentChange={handleContentChange}
       onCursorChange={handleCursorChange}
       onTextSelection={handleTextSelection}
-      onDiagnosticsChange={handleDiagnosticsChange}
       onResolveConflict={
         handleResolveConflict as (conflictId: string, choice: unknown) => void
       }

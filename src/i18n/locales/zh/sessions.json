@@ -2159,10 +2159,12 @@
       "resolving": "正在解析 PR…",
       "selectRepository": "请先选择仓库，再选择工作树来源。",
       "sourceTabs": "工作树来源",
+      "sourceTypeAria": "选择分支或拉取请求",
       "tabs": {
         "smart": "智能",
         "github": "GitHub",
         "branch": "分支",
+        "pr": "PR",
         "name": "名称"
       },
       "smartPlaceholder": "名称、#1234、分支或 GitHub/GitLab URL",
@@ -2174,6 +2176,9 @@
       "githubError": "无法加载 GitHub 项目。",
       "githubEmpty": "没有开放的 GitHub PR 或议题。",
       "githubNoMatches": "没有匹配项。",
+      "prSearch": "搜索拉取请求",
+      "prSearchAria": "搜索拉取请求",
+      "prNoMatches": "没有匹配的拉取请求。",
       "refreshBranches": "刷新分支列表",
       "branchSearch": "搜索分支或输入引用",
       "branchSearchAria": "搜索分支或输入基础引用",

@@ -317,7 +317,6 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
                       language="markdown"
                       height="100%"
                       enableMinimap={false}
-                      enableLinting={false}
                       enableDirtyDiff={false}
                       enableFindReplace={false}
                       enableGoToLine={false}

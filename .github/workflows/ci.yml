@@ -67,6 +67,9 @@ jobs:
           node-version: "20"
           cache: "pnpm"
 
+      - name: Test CI policy helpers
+        run: node --test scripts/ci/*.test.cjs
+
       - name: Cache node_modules
         uses: actions/cache@v5
         with:

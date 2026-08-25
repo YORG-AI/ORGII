@@ -1,10 +1,10 @@
 /**
  * useWorktreeSourceData
  *
- * Data layer for `WorktreeSourceModal`. Preloads GitHub (PR/issue) and branch
- * data in parallel the moment the modal opens (as soon as `repoPath` is known),
- * so switching tabs never re-triggers a spinner. Results are cached per repo
- * key with a TTL and reused on reopen / tab-switch:
+ * Shared data layer for worktree-source pickers. Consumers can load GitHub and
+ * branch data together (the legacy modal) or demand-load only the active slice
+ * (the compact Branch / PR selector). Results are cached per repo key with a
+ * TTL and reused on reopen / mode switch:
  *
  * - **GitHub** → dedicated `worktreeGithubCacheAtom` (45s TTL, LRU-bounded).
  * - **Branches** → reuses the app-wide `branchCacheAtom` (`@src/store/repo`,
@@ -149,6 +149,8 @@ export interface UseWorktreeSourceDataOptions {
   open: boolean;
   repoId?: string;
   repoPath?: string;
+  /** Skip GitHub I/O until a consumer exposes PR/issue results. */
+  loadGithub?: boolean;
   /** Skip branch I/O for consumers that only need the shared GitHub slice. */
   loadBranches?: boolean;
 }
@@ -181,9 +183,12 @@ export function useWorktreeSourceData({
   open,
   repoId,
   repoPath,
+  loadGithub: shouldLoadGithub = true,
   loadBranches = true,
 }: UseWorktreeSourceDataOptions): UseWorktreeSourceDataResult {
-  const githubRepoKey = resolveWorktreeRepoKey(repoId, repoPath);
+  const githubRepoKey = shouldLoadGithub
+    ? resolveWorktreeRepoKey(repoId, repoPath)
+    : null;
   // Branch cache is keyed by raw repoId (matching `BranchPalette` /
   // `useBranchFetch`) so both selectors share one entry; fall back to repoPath.
   const branchKey = loadBranches ? repoId || repoPath || null : null;
@@ -204,7 +209,7 @@ export function useWorktreeSourceData({
       ? githubCache.get(githubKey)
       : undefined;
 
-  const loadGithub = useCallback(
+  const loadGithubData = useCallback(
     async (force: boolean) => {
       if (!repoPath || !githubRepoKey) return;
       const generation = ++githubGenerationRef.current;
@@ -296,18 +301,20 @@ export function useWorktreeSourceData({
   );
 
   useEffect(() => {
-    if (!open || !repoPath || !githubRepoKey) return;
-    void loadGithub(false);
+    if (!open || !shouldLoadGithub || !repoPath || !githubRepoKey) return;
+    void loadGithubData(false);
     return () => {
       githubGenerationRef.current += 1;
     };
-  }, [open, githubRepoKey, repoPath, loadGithub]);
+  }, [open, shouldLoadGithub, githubRepoKey, repoPath, loadGithubData]);
 
-  const githubState: WorktreeLoadState = !repoPath
-    ? "empty"
-    : githubEntry
-      ? githubEntry.state
-      : "loading";
+  const githubState: WorktreeLoadState = !shouldLoadGithub
+    ? "idle"
+    : !repoPath
+      ? "empty"
+      : githubEntry
+        ? githubEntry.state
+        : "loading";
 
   const githubError = githubEntry
     ? githubEntry.state === "error"
@@ -323,9 +330,9 @@ export function useWorktreeSourceData({
       state: githubState,
       error: githubError,
       refreshing: githubPending && Boolean(githubEntry),
-      refresh: () => void loadGithub(true),
+      refresh: () => void loadGithubData(true),
     }),
-    [githubEntry, githubState, githubError, githubPending, loadGithub]
+    [githubEntry, githubState, githubError, githubPending, loadGithubData]
   );
 
   // ============ BRANCHES (reuse app-wide branchCacheAtom) ============
@@ -411,17 +418,19 @@ export function useWorktreeSourceData({
     [branchEntry]
   );
 
-  const branchState: WorktreeLoadState = !repoPath
-    ? "empty"
-    : branchEntry
-      ? branchOptions.length > 0
-        ? "ready"
-        : "empty"
-      : branchPending
-        ? "loading"
-        : branchErrored
-          ? "error"
-          : "loading";
+  const branchState: WorktreeLoadState = !loadBranches
+    ? "idle"
+    : !repoPath
+      ? "empty"
+      : branchEntry
+        ? branchOptions.length > 0
+          ? "ready"
+          : "empty"
+        : branchPending
+          ? "loading"
+          : branchErrored
+            ? "error"
+            : "loading";
 
   const branch = useMemo<WorktreeBranchSlice>(
     () => ({

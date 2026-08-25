@@ -91,7 +91,7 @@ describe("external-history Markdown URL pills", () => {
 });
 
 describe("message reference interactions", () => {
-  it("underlines clickable references on hover, press, and keyboard focus", () => {
+  it("renders file references as ordinary links", () => {
     const markup = renderToStaticMarkup(
       createElement(UserMessageContent, {
         text: "fixtures [folder:/tmp/fixtures]",
@@ -101,16 +101,44 @@ describe("message reference interactions", () => {
     expect(markup).toContain("hover:underline");
     expect(markup).toContain("active:underline");
     expect(markup).toContain("focus-visible:underline");
+    expect(markup).toContain('href="/tmp/fixtures"');
+    expect(markup).not.toContain("rounded-md");
   });
 
-  it("does not add interaction underlines to non-clickable references", () => {
+  it("renders non-web references as links instead of special tags", () => {
     const markup = renderToStaticMarkup(
       createElement(UserMessageContent, { text: "main [branch:main]" })
     );
 
-    expect(markup).not.toContain("hover:underline");
-    expect(markup).not.toContain("active:underline");
-    expect(markup).not.toContain("focus-visible:underline");
+    expect(markup).toContain('href="main"');
+    expect(markup).toContain("hover:underline");
+    expect(markup).not.toContain("rounded-md");
+  });
+
+  it("renders an embedded PR reference as its real GitHub link", () => {
+    const url = "https://github.com/org2AI/ORG2/pull/606";
+    const encoded = btoa(
+      encodeURIComponent(JSON.stringify({ prUrl: url, prNumber: 606 }))
+    );
+    const markup = renderToStaticMarkup(
+      createElement(UserMessageContent, {
+        text: `ORG2#606 [pr:pr://606::${encoded}]`,
+      })
+    );
+
+    expect(markup).toContain(`href="${url}"`);
+    expect(markup).not.toContain("rounded-md");
+  });
+
+  it("renders an unsafe serialized reference as plain text", () => {
+    const markup = renderToStaticMarkup(
+      createElement(UserMessageContent, {
+        text: "bad [link:javascript:alert(1)]",
+      })
+    );
+
+    expect(markup).toContain(">bad</span>");
+    expect(markup).not.toContain("javascript:alert(1)");
   });
 });
 

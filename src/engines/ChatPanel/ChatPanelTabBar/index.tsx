@@ -53,9 +53,11 @@ import { useSessionTabDropTarget } from "@src/shared/dnd/useSessionTabDropTarget
 import { openTeamInboxInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
 import {
   activateChatPanelTabAtom,
+  canMoveChatPanelTabToWorkstation,
   chatPanelTabsAtom,
   closeAndDestroyChatPanelTabAtom,
   closeOtherChatPanelTabsAtom,
+  moveChatPanelTabToWorkstationAtom,
   reorderChatPanelTabsAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { moveSessionTabAtom } from "@src/store/session/sessionTabPlacementAtom";
@@ -78,6 +80,7 @@ export function ChatPanelTabBar(): React.ReactNode {
   const closeTab = useSetAtom(closeAndDestroyChatPanelTabAtom);
   const closeOtherTabs = useSetAtom(closeOtherChatPanelTabsAtom);
   const reorderTabs = useSetAtom(reorderChatPanelTabsAtom);
+  const moveTabToWorkstation = useSetAtom(moveChatPanelTabToWorkstationAtom);
   const moveSessionTab = useSetAtom(moveSessionTabAtom);
   const openTeamInbox = useSetAtom(openTeamInboxInChatPanelTabAtom);
   const requestSessionHandoff = useSetAtom(requestTeamInboxSessionHandoffAtom);
@@ -209,6 +212,12 @@ export function ChatPanelTabBar(): React.ReactNode {
     () => setContextMenuTabId(null),
     []
   );
+  const handleMoveToWorkstation = useCallback(
+    (tabId: string) => {
+      moveTabToWorkstation(tabId);
+    },
+    [moveTabToWorkstation]
+  );
   const handleCreateWorkItem = useCallback(
     (reference: SessionReferenceOpen) => {
       requestSessionHandoff(reference);
@@ -318,6 +327,11 @@ export function ChatPanelTabBar(): React.ReactNode {
           }
           onCreateWorkItem={handleCreateWorkItem}
           onOpenInSideChat={handleOpenInSideChat}
+          onMoveToWorkstation={
+            canMoveChatPanelTabToWorkstation(contextMenuTab)
+              ? handleMoveToWorkstation
+              : undefined
+          }
           onCloseTab={closeTab}
           onCloseOtherTabs={closeOtherTabs}
           onDismiss={handleDismissContextMenu}

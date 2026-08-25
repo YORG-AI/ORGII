@@ -16,10 +16,6 @@ vi.mock("@src/features/Org2Cloud/useSessionReferenceDropTarget", () => ({
   useSessionReferenceDropTarget: () => ({ isDragOver: false }),
 }));
 
-vi.mock("@src/features/Org2Cloud/CloudSessionReferencePreview", () => ({
-  CloudSessionReferencePreview: () => null,
-}));
-
 vi.mock("@src/hooks/ui/layout/useElementDimensions", () => ({
   useElementDimensions: () => 0,
 }));

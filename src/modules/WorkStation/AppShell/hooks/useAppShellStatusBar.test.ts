@@ -34,7 +34,6 @@ function Harness() {
   useAppShellStatusBar({
     primaryPanelCollapsed: false,
     showSettingsButton: false,
-    showCodeEditorBottomPanelToggle: false,
     handleOpenSettings: () => {},
     workStationPanels: panels,
   });

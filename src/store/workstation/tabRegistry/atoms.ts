@@ -9,6 +9,9 @@
  */
 import { type Getter, type Setter, atom } from "jotai";
 
+import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { stationModeAtom } from "@src/store/ui/simulatorAtom";
+
 import {
   type PanelState,
   type WorkStationLayoutState,
@@ -87,12 +90,20 @@ focusTabAtom.debugLabel = "focusTabAtom";
 export const closeTabAtom = atom(null, (get, set, request: TabCloseRequest) => {
   const layout = get(workstationLayoutAtom);
   if (!layout) return;
+  const closesSoleLaunchpad =
+    get(stationModeAtom) === "my-station" &&
+    layout.mainPane.tabs.length === 1 &&
+    layout.mainPane.tabs[0]?.id === request.tabId &&
+    layout.mainPane.tabs[0].type === "start";
   closePresentedTabs(
     get,
     set,
     closeTabMutation(layout.mainPane, request.tabId),
     layout.mainPane
   );
+  if (closesSoleLaunchpad) {
+    set(chatPanelMaximizedAtom, true);
+  }
 });
 closeTabAtom.debugLabel = "closeTabAtom";
 

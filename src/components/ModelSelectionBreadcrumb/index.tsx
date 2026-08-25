@@ -25,7 +25,7 @@ export interface ModelSelectionBreadcrumbProps {
   thinking?: boolean;
   /** Raw wire model value shown as secondary breadcrumb detail. */
   rawValue?: string;
-  /** Allow longer model ids without truncating (tooltips). */
+  /** Allow longer model ids to wrap instead of truncating (wide tooltips). */
   wide?: boolean;
   className?: string;
 }
@@ -44,13 +44,19 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
       className = "",
     }) => (
       <span
-        className={`inline-flex min-w-0 items-center gap-1.5 text-[13px] ${
-          wide ? "max-w-[480px]" : "max-w-[320px]"
+        className={`inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] ${
+          wide ? "flex-wrap whitespace-normal" : ""
         } ${className}`}
       >
         {accountName ? (
           <>
-            <span className="shrink-0 text-text-2">{accountName}</span>
+            <span
+              className={
+                wide ? "min-w-0 break-all text-text-2" : "shrink-0 text-text-2"
+              }
+            >
+              {accountName}
+            </span>
             <span className="mx-1 shrink-0 text-text-3">›</span>
           </>
         ) : null}
@@ -64,7 +70,7 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
         ) : null}
         <span
           className={`min-w-0 font-semibold text-text-1 ${
-            wide ? "whitespace-nowrap" : "truncate"
+            wide ? "whitespace-normal break-all" : "truncate"
           }`}
         >
           {modelLabel}

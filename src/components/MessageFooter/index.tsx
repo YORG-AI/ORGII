@@ -9,6 +9,7 @@ import { Copy } from "lucide-react";
 import React, { memo, useCallback } from "react";
 
 import Message from "@src/components/Message";
+import { copyText } from "@src/util/data/clipboard";
 
 export interface MessageFooterTimestampProps {
   dateTime: string;
@@ -32,23 +33,30 @@ export const MessageFooterTimestamp: React.FC<MessageFooterTimestampProps> =
 MessageFooterTimestamp.displayName = "MessageFooterTimestamp";
 
 export interface MessageFooterCopyButtonProps {
-  content: string;
+  getCopyContent?: () => string;
   copyLabel: string;
   copiedLabel: string;
+  copyFailedLabel: string;
 }
 
 export const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> =
-  memo(({ content, copyLabel, copiedLabel }) => {
+  memo(({ getCopyContent, copyLabel, copiedLabel, copyFailedLabel }) => {
     const handleCopy = useCallback(
       async (event: React.MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
-        await navigator.clipboard.writeText(content);
-        Message.success(copiedLabel);
+        try {
+          const content = getCopyContent?.() ?? "";
+          if (!content.trim()) throw new Error("Copy content is unavailable");
+          await copyText(content);
+          Message.success(copiedLabel);
+        } catch {
+          Message.error(copyFailedLabel);
+        }
       },
-      [content, copiedLabel]
+      [copiedLabel, copyFailedLabel, getCopyContent]
     );
 
-    if (!content.trim()) return null;
+    if (!getCopyContent) return null;
 
     return (
       <button
@@ -67,24 +75,26 @@ export const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> =
 MessageFooterCopyButton.displayName = "MessageFooterCopyButton";
 
 export interface MessageFooterProps {
-  content: string;
+  getCopyContent?: () => string;
   timestamp: string;
   timestampLabel: string;
   copyLabel: string;
   copiedLabel: string;
+  copyFailedLabel: string;
   className?: string;
 }
 
 const MessageFooter: React.FC<MessageFooterProps> = memo(
   ({
-    content,
+    getCopyContent,
     timestamp,
     timestampLabel,
     copyLabel,
     copiedLabel,
+    copyFailedLabel,
     className = "",
   }) => {
-    if (!content.trim() && !timestampLabel) return null;
+    if (!getCopyContent && !timestampLabel) return null;
 
     return (
       <div
@@ -93,9 +103,10 @@ const MessageFooter: React.FC<MessageFooterProps> = memo(
       >
         <MessageFooterTimestamp dateTime={timestamp} label={timestampLabel} />
         <MessageFooterCopyButton
-          content={content}
+          getCopyContent={getCopyContent}
           copyLabel={copyLabel}
           copiedLabel={copiedLabel}
+          copyFailedLabel={copyFailedLabel}
         />
       </div>
     );

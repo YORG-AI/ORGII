@@ -157,7 +157,6 @@ export const BundledFileEntry: React.FC<{
           language={languageFromPath(file.relativePath)}
           height="150px"
           enableMinimap={false}
-          enableLinting={false}
           enableDirtyDiff={false}
           enableFindReplace={false}
           enableGoToLine={false}

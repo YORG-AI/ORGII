@@ -10,7 +10,6 @@ import { getStoredValue, setStoredValue } from "./storage";
 export const PRIMARY_SIDEBAR_TABS = {
   FILES: "files",
   SEARCH: "search",
-  TESTING: "testing",
 } as const;
 
 export type PrimarySidebarTabKey =
@@ -19,14 +18,12 @@ export type PrimarySidebarTabKey =
 export const PRIMARY_SIDEBAR_TAB_ORDER = [
   PRIMARY_SIDEBAR_TABS.FILES,
   PRIMARY_SIDEBAR_TABS.SEARCH,
-  PRIMARY_SIDEBAR_TABS.TESTING,
 ] as const;
 
 export const PRIMARY_SIDEBAR_TAB_LABELS: Record<PrimarySidebarTabKey, string> =
   {
     [PRIMARY_SIDEBAR_TABS.FILES]: "Files",
     [PRIMARY_SIDEBAR_TABS.SEARCH]: "Search",
-    [PRIMARY_SIDEBAR_TABS.TESTING]: "Testing",
   };
 
 /**

@@ -1,4 +1,4 @@
-import { ClipboardList, Globe, SquareArrowOutUpRight } from "lucide-react";
+import { Chrome, ClipboardList, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -357,8 +357,8 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       headerAuxiliaryAction={
         githubIssueUrl
           ? {
-              label: t("previews.openInBrowser"),
-              icon: <Globe size={14} strokeWidth={1.75} aria-hidden />,
+              label: t("previews.openInExternalBrowser"),
+              icon: <Chrome size={14} strokeWidth={1.75} aria-hidden />,
               onClick: () => void openExternalLink(githubIssueUrl),
               testId: "team-inbox-open-github",
             }

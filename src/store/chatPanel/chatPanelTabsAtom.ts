@@ -90,3 +90,7 @@ export {
   chatPanelTabCountAtom,
   chatPanelTabsAtom,
 } from "./chatPanelTabsState";
+export {
+  canMoveChatPanelTabToWorkstation,
+  moveChatPanelTabToWorkstationAtom,
+} from "./chatPanelTabPlacementAtom";

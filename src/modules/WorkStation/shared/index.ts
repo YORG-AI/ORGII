@@ -10,6 +10,8 @@ export type { WorkStationShellProps } from "./WorkStationShell";
 export { WorkstationHeaderSectionSeparator } from "./WorkstationHeaderSectionSeparator";
 export { WorkstationToolbarTooltip } from "./WorkstationToolbarTooltip";
 export type { WorkstationToolbarTooltipProps } from "./WorkstationToolbarTooltip";
+export { ExternalBrowserButton } from "./ExternalBrowserButton";
+export type { ExternalBrowserButtonProps } from "./ExternalBrowserButton";
 
 // Shell configuration
 export {
@@ -251,7 +253,6 @@ export type {
   CommitInfo,
   CursorPosition,
   EditorStatusBarProps,
-  LspStatus,
   StatusBarButtonProps,
   StatusBarDividerProps,
   StatusBarTextProps,

@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { FlaskConical, type LucideIcon, Search } from "lucide-react";
+import { type LucideIcon, Search } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,11 +27,6 @@ const CODE_SIDEBAR_HEADER_ACTIONS: Array<{
     key: PRIMARY_SIDEBAR_TABS.SEARCH,
     icon: Search,
     labelKey: "tabs.search",
-  },
-  {
-    key: PRIMARY_SIDEBAR_TABS.TESTING,
-    icon: FlaskConical,
-    labelKey: "tabs.testing",
   },
 ];
 

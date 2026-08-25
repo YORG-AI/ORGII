@@ -8,11 +8,9 @@ import BrowserCore from "@/src/engines/BrowserCore";
 import type { UseBrowserStateReturn } from "@/src/engines/BrowserCore/hooks/useBrowserState";
 import { TabBar, type WorkStationTab } from "@/src/modules/WorkStation/shared";
 import { useSetAtom } from "jotai";
-import { Globe, HatGlasses } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import {
@@ -25,13 +23,7 @@ import {
 
 import { useWebviewScreenshot } from "../../../../hooks/useWebviewScreenshot";
 import WebUrlBar, { focusBrowserUrlBar } from "../../components/WebUrlBar";
-
-const ABOUT_BLANK_URL = "about:blank";
-
-function isBlankBrowserUrl(url?: string): boolean {
-  const normalizedUrl = url?.trim().toLowerCase();
-  return !normalizedUrl || normalizedUrl.startsWith(ABOUT_BLANK_URL);
-}
+import BrowserBlankTabPlaceholder from "./BrowserBlankTabPlaceholder";
 
 // ============================================
 // Types
@@ -284,9 +276,6 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
       webviewLabel: activeWebviewLabel,
     });
 
-    const shouldShowBlankTabPlaceholder =
-      !hideWebviews && activeSession && isBlankBrowserUrl(activeSession.url);
-
     return (
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* Tab Bar - uses the same component as Code Editor and Database Explorer */}
@@ -335,36 +324,15 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
             respectModalBlocking={respectModalBlocking}
             manageWebviews={manageWebviews}
             hidden={hideWebviews}
+            blankTabPlaceholder={
+              publishUrlBarToHost === "browser" ? (
+                <BrowserBlankTabPlaceholder
+                  isIncognito={activeSession?.incognito}
+                  onOpen={handleNavigate}
+                />
+              ) : undefined
+            }
           />
-          {shouldShowBlankTabPlaceholder && (
-            <div
-              className={`absolute inset-0 z-30 flex items-center justify-center p-6 ${EDITOR_TAB_CANVAS_BG_CLASS}`}
-            >
-              <div className="flex max-w-[400px] flex-col items-center gap-4 text-center">
-                {activeSession.incognito ? (
-                  <HatGlasses
-                    size={64}
-                    strokeWidth={1.5}
-                    className="text-warning-6 opacity-80"
-                  />
-                ) : (
-                  <Globe
-                    size={64}
-                    strokeWidth={1.5}
-                    className="text-primary-6 opacity-80"
-                  />
-                )}
-                <h3 className="m-0 text-[20px] font-semibold text-text-1">
-                  {activeSession.incognito
-                    ? t("workstation.browserCore.privateBrowsingEmptyTitle")
-                    : t("workstation.browserCore.enterUrlToStart")}
-                </h3>
-                <p className="m-0 text-[14px] leading-relaxed text-text-2">
-                  {t("workstation.browserCore.tlsDevNote")}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );

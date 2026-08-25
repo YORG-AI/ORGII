@@ -45,7 +45,6 @@ export function useExplorerTabs({
   // Destructure icon components to avoid JSX parsing issues
   const FilesIcon = ICON_CONFIG.files;
   const SearchIcon = ICON_CONFIG.search;
-  const TestingIcon = ICON_CONFIG.testing;
 
   // Tab icon configurations - keyed by tab ID
   const tabIconConfigs: Record<ExplorerViewMode, React.ReactNode> = useMemo(
@@ -56,11 +55,8 @@ export function useExplorerTabs({
       search: React.createElement(SearchIcon, {
         size: PANEL_CONSTANTS.TAB_ICON_SIZE,
       }),
-      testing: React.createElement(TestingIcon, {
-        size: PANEL_CONSTANTS.TAB_ICON_SIZE,
-      }),
     }),
-    [FilesIcon, SearchIcon, TestingIcon]
+    [FilesIcon, SearchIcon]
   );
 
   const { t } = useTranslation();

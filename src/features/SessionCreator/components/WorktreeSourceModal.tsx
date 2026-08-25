@@ -26,6 +26,7 @@ import {
   shouldOfferCustomRef,
   sourceKey,
 } from "./worktreeBranchSource";
+import { prToWorktreeOption } from "./worktreePrSource";
 import { type PrResolveMeta } from "./worktreeSmartInput";
 import type { GitHubWorktreeItem } from "./worktreeSourceModalTypes";
 import {
@@ -58,25 +59,14 @@ function normalizeBaseBranch(branchName?: string): string | undefined {
 }
 
 function githubPrToItem(pr: OpenPRItem): GitHubWorktreeItem {
-  const label = compactText(`#${pr.number} ${pr.title}`);
-  const detail = `${pr.head_branch} -> ${pr.base_branch}`;
+  const option = prToWorktreeOption(pr);
   return {
-    id: `pr:${pr.number}`,
+    id: option.id,
     icon: <GitPullRequest size={14} strokeWidth={1.75} />,
-    source: {
-      kind: "github",
-      label,
-      baseBranch: pr.head_branch || pr.base_branch,
-      sourceRef: `pr:${pr.number}`,
-      title: pr.title,
-    },
-    detail,
-    searchableText: `${label} ${detail}`,
-    pr: {
-      prNumber: pr.number,
-      headBranch: pr.head_branch || undefined,
-      baseBranch: pr.base_branch || undefined,
-    },
+    source: option.source,
+    detail: option.detail,
+    searchableText: option.searchableText,
+    pr: option.resolveMeta,
   };
 }
 

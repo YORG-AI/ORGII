@@ -109,8 +109,6 @@ function getRailTabFileName(tab: WorkStationTab): string | undefined {
       return (tab.data.filePath as string | undefined) || tab.title;
     case "directory":
       return "folder";
-    case "output":
-      return "output.log";
     case "settings":
       return "settings.json";
     default:

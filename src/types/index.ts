@@ -2,7 +2,7 @@
  * Types - Main Barrel Export
  *
  * Centralized export point for all application types.
- * Reorganized by domain: core, session, editor, git, testing, ui
+ * Reorganized by domain: core, session, editor, git, ui
  *
  * Note: Due to duplicate type names across modules, we don't use `export *`.
  * Import directly from specific modules instead:
@@ -43,8 +43,6 @@ export * as FileContentTypes from "./editor/fileContent";
 
 // Git types
 export * as GitTypes from "./git";
-// Testing types
-export * as TestingTypes from "./testing";
 
 // UI types
 export * as UITypes from "./ui";

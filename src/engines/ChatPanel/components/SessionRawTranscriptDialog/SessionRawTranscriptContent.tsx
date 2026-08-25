@@ -35,7 +35,6 @@ const SessionRawTranscriptContent: React.FC<SessionRawTranscriptContentProps> =
           language="json"
           height="100%"
           readOnly
-          enableLinting={false}
           enableDirtyDiff={false}
           registerWithService={false}
           enableGitBlame={false}

@@ -1,9 +1,12 @@
 /**
  * Git Operation Handler Factory
  *
- * Creates standardized git operation handlers with consistent
- * output streaming, error handling, and channel management.
- * This eliminates ~400 lines of duplicated code across operations.
+ * Creates standardized git operation handlers with consistent stream
+ * lifecycle, error classification, and error-dialog handling.
+ *
+ * Streamed lines are accumulated in memory purely to populate the git error
+ * dialog — the Output panel they used to be rendered into was archived
+ * (see `.archive/README.md`).
  */
 import type { GitErrorType } from "@src/api/http/git/streaming";
 import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
@@ -12,14 +15,6 @@ import type {
   GitOperationType,
   OperationContext,
 } from "@src/types/workstation/gitOutputIntegration";
-
-import {
-  formatCommandMessage,
-  formatErrorDetail,
-  formatErrorMessage,
-  formatSuccessMessage,
-  formatTimestamp,
-} from "./formatters";
 
 // ============================================
 // Stream Callback Types
@@ -102,8 +97,6 @@ export type StreamFunction<TParams> = (
 export interface GitOperationConfig<TParams> {
   /** The streaming API function to call */
   streamFn: StreamFunction<TParams>;
-  /** Format the git command string for display */
-  formatCommand: (params: TParams) => string;
   /** Operation name for logs and error dialogs */
   operationName: GitOperationType;
   /** Capitalize operation name for display */
@@ -118,58 +111,24 @@ export interface GitOperationConfig<TParams> {
  * Creates a git operation handler with consistent behavior.
  *
  * All git operations (push, pull, fetch, commit, stage) follow the same pattern:
- * 1. Get/create git channel
- * 2. Log command to output
- * 3. Set channel active
- * 4. Auto-switch to output panel
- * 5. Cleanup previous stream
- * 6. Start streaming with callbacks
- * 7. Log completion/error
- * 8. Show error dialog if needed
- * 9. Resolve promise
- *
- * SSE output lines are batched via requestAnimationFrame to prevent rapid
- * re-renders that can trigger a WebKit rendering mutex self-deadlock (Tauri/macOS).
+ * 1. Cleanup previous stream
+ * 2. Start streaming, accumulating output for the error dialog
+ * 3. Show error dialog if needed
+ * 4. Resolve promise
  */
 export function createGitOperationHandler<TParams>(
   config: GitOperationConfig<TParams>
 ): (context: OperationContext, params: TParams) => Promise<GitOperationResult> {
-  const { streamFn, formatCommand, operationName, operationLabel } = config;
+  const { streamFn, operationName, operationLabel } = config;
 
   return (context, params) => {
     return new Promise((resolve) => {
-      const {
-        outputState,
-        repoPath,
-        repoId,
-        autoSwitchToOutput,
-        onSwitchToOutput,
-        getGitChannel,
-        cleanupRef,
-      } = context;
+      const { repoPath, repoId, cleanupRef } = context;
       const paramsWithDialogOption = params as TParams & {
         showErrorDialog?: boolean;
       };
       const showErrorDialog = paramsWithDialogOption.showErrorDialog !== false;
       delete paramsWithDialogOption.showErrorDialog;
-
-      const channel = getGitChannel();
-      const command = formatCommand(params);
-      const startTime = Date.now();
-      const timestamp = formatTimestamp();
-
-      // Log command
-      outputState.appendToChannel(
-        channel.id,
-        formatCommandMessage(timestamp, command)
-      );
-      outputState.setActiveChannel(channel.id);
-      outputState.setChannelActive(channel.id, true);
-
-      // Auto-switch to Output panel
-      if (autoSwitchToOutput && onSwitchToOutput) {
-        onSwitchToOutput();
-      }
 
       // Cleanup previous stream
       if (cleanupRef.current) {
@@ -178,27 +137,6 @@ export function createGitOperationHandler<TParams>(
 
       // Accumulate output for error dialog
       const outputLines: string[] = [];
-
-      // Batch SSE output to coalesce rapid lines into fewer DOM updates
-      const pendingLines: string[] = [];
-      let flushFrameId: number | null = null;
-
-      const flushPendingOutput = () => {
-        flushFrameId = null;
-        if (pendingLines.length > 0) {
-          const batch = pendingLines.join("");
-          pendingLines.length = 0;
-          outputState.appendToChannel(channel.id, batch);
-        }
-      };
-
-      const flushPendingOutputSync = () => {
-        if (flushFrameId !== null) {
-          cancelAnimationFrame(flushFrameId);
-          flushFrameId = null;
-        }
-        flushPendingOutput();
-      };
 
       // Start streaming
       streamFn(
@@ -210,22 +148,8 @@ export function createGitOperationHandler<TParams>(
         {
           onOutput: (line) => {
             outputLines.push(line);
-            pendingLines.push(`${line}\n`);
-            if (flushFrameId === null) {
-              flushFrameId = requestAnimationFrame(flushPendingOutput);
-            }
           },
           onComplete: (success, errorType) => {
-            flushPendingOutputSync();
-            outputState.setChannelActive(channel.id, false);
-            const duration = Date.now() - startTime;
-            const endTimestamp = formatTimestamp();
-
-            const message = success
-              ? formatSuccessMessage(endTimestamp, operationLabel, duration)
-              : formatErrorMessage(endTimestamp, operationLabel, duration);
-
-            outputState.appendToChannel(channel.id, message);
             cleanupRef.current = null;
 
             // Defer native dialog to next tick — showing NSAlert from within
@@ -259,14 +183,6 @@ export function createGitOperationHandler<TParams>(
             resolve({ success, errorType: resolvedErrorType });
           },
           onError: (error, errorType) => {
-            flushPendingOutputSync();
-            outputState.setChannelActive(channel.id, false);
-            const endTimestamp = formatTimestamp();
-
-            outputState.appendToChannel(
-              channel.id,
-              formatErrorDetail(endTimestamp, error)
-            );
             cleanupRef.current = null;
 
             const captured = outputLines.join("\n");
@@ -307,48 +223,13 @@ export function createGitOperationHandler<TParams>(
  * Used for commit and stage operations that need different error handling.
  */
 export function createGitOperationHandlerWithReject<TParams>(
-  config: GitOperationConfig<TParams> & {
-    /** Custom success message formatter */
-    formatSuccessMsg?: (params: TParams, durationMs: number) => string;
-  }
+  config: GitOperationConfig<TParams>
 ): (context: OperationContext, params: TParams) => Promise<() => void> {
-  const {
-    streamFn,
-    formatCommand,
-    operationName,
-    operationLabel,
-    formatSuccessMsg,
-  } = config;
+  const { streamFn, operationName, operationLabel } = config;
 
   return (context, params) => {
     return new Promise((resolve, reject) => {
-      const {
-        outputState,
-        repoPath,
-        repoId,
-        autoSwitchToOutput,
-        onSwitchToOutput,
-        getGitChannel,
-        cleanupRef,
-      } = context;
-
-      const channel = getGitChannel();
-      const command = formatCommand(params);
-      const startTime = Date.now();
-      const timestamp = formatTimestamp();
-
-      // Log command
-      outputState.appendToChannel(
-        channel.id,
-        formatCommandMessage(timestamp, command)
-      );
-      outputState.setActiveChannel(channel.id);
-      outputState.setChannelActive(channel.id, true);
-
-      // Auto-switch to Output panel
-      if (autoSwitchToOutput && onSwitchToOutput) {
-        onSwitchToOutput();
-      }
+      const { repoPath, repoId, cleanupRef } = context;
 
       // Cleanup previous stream
       if (cleanupRef.current) {
@@ -357,27 +238,6 @@ export function createGitOperationHandlerWithReject<TParams>(
 
       // Accumulate output for error dialog
       const outputLines: string[] = [];
-
-      // Batch SSE output (same as createGitOperationHandler)
-      const pendingLines: string[] = [];
-      let flushFrameId: number | null = null;
-
-      const flushPendingOutput = () => {
-        flushFrameId = null;
-        if (pendingLines.length > 0) {
-          const batch = pendingLines.join("");
-          pendingLines.length = 0;
-          outputState.appendToChannel(channel.id, batch);
-        }
-      };
-
-      const flushPendingOutputSync = () => {
-        if (flushFrameId !== null) {
-          cancelAnimationFrame(flushFrameId);
-          flushFrameId = null;
-        }
-        flushPendingOutput();
-      };
 
       // Start streaming
       streamFn(
@@ -389,24 +249,8 @@ export function createGitOperationHandlerWithReject<TParams>(
         {
           onOutput: (line) => {
             outputLines.push(line);
-            pendingLines.push(`${line}\n`);
-            if (flushFrameId === null) {
-              flushFrameId = requestAnimationFrame(flushPendingOutput);
-            }
           },
           onComplete: (success) => {
-            flushPendingOutputSync();
-            outputState.setChannelActive(channel.id, false);
-            const duration = Date.now() - startTime;
-            const endTimestamp = formatTimestamp();
-
-            const message = success
-              ? formatSuccessMsg
-                ? formatSuccessMsg(params, duration)
-                : formatSuccessMessage(endTimestamp, operationLabel, duration)
-              : formatErrorMessage(endTimestamp, operationLabel, duration);
-
-            outputState.appendToChannel(channel.id, message);
             cleanupRef.current = null;
 
             if (success) {
@@ -427,14 +271,6 @@ export function createGitOperationHandlerWithReject<TParams>(
             }
           },
           onError: (error) => {
-            flushPendingOutputSync();
-            outputState.setChannelActive(channel.id, false);
-            const endTimestamp = formatTimestamp();
-
-            outputState.appendToChannel(
-              channel.id,
-              formatErrorDetail(endTimestamp, error)
-            );
             cleanupRef.current = null;
 
             const captured = outputLines.join("\n");

@@ -67,6 +67,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     flatItems,
     groupCounts,
     turnIds,
+    assistantCopyEventIdsByGroup,
+    resolveAssistantTurnCopyContent,
     totalFlatItems,
     lastAssistantFlatIndexPerItem,
     codeBlockContainerWidth,
@@ -266,6 +268,10 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     rowGroupMetaRef.current = rowGroupMeta;
     const turnIdsRef = useRef(turnIds);
     turnIdsRef.current = turnIds;
+    const assistantCopyEventIdsByGroupRef = useRef(
+      assistantCopyEventIdsByGroup
+    );
+    assistantCopyEventIdsByGroupRef.current = assistantCopyEventIdsByGroup;
 
     // For each flat index, the nearest preceding qualifying item — non-structural,
     // non-unloaded, with an event. Pre-computed once per flatItems change so
@@ -349,6 +355,10 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
             flatIndex={flatIndex}
             groupIndex={groupIndex}
             turnId={turnIdsRef.current[groupIndex] ?? null}
+            assistantCopyEventIds={
+              assistantCopyEventIdsByGroupRef.current[groupIndex] ?? []
+            }
+            resolveAssistantTurnCopyContent={resolveAssistantTurnCopyContent}
             chatItem={currentFlatItems[flatIndex]}
             previousChatItem={previousChatItemsRef.current[flatIndex]}
             lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}
@@ -374,6 +384,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         onSkip,
         onEditUserMessage,
         newEventDividerLabel,
+        resolveAssistantTurnCopyContent,
       ]
     );
 
@@ -442,6 +453,12 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                       flatIndex={itemFlatIndex}
                       groupIndex={groupIndex}
                       turnId={turnIds[groupIndex] ?? null}
+                      assistantCopyEventIds={
+                        assistantCopyEventIdsByGroup[groupIndex] ?? []
+                      }
+                      resolveAssistantTurnCopyContent={
+                        resolveAssistantTurnCopyContent
+                      }
                       chatItem={flatItems[itemFlatIndex]}
                       previousChatItem={previousChatItems[itemFlatIndex]}
                       lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}

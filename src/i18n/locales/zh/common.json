@@ -1373,7 +1373,8 @@
         "approved": "批准了这些更改",
         "changesRequested": "请求了更改",
         "reviewDismissed": "驳回了审查",
-        "reviewed": "进行了审查"
+        "reviewed": "进行了审查",
+        "appendedSession": "附加了一个会话"
       },
       "summary": {
         "label": "pull request 摘要",
@@ -1539,7 +1540,8 @@
         "reviewRequestRemoved": "移除了审查请求",
         "reviewed": "审查了这些更改",
         "reviewDismissed": "驳回了审查",
-        "userBlocked": "屏蔽了此用户"
+        "userBlocked": "屏蔽了此用户",
+        "appendedSession": "附加了一个会话"
       },
       "composer": {
         "addComment": "添加评论",
@@ -1760,6 +1762,7 @@
       "switchNo": "否，仅本次会话使用",
       "switchWorkspace": "切换工作区",
       "switchBranch": "切换分支",
+      "selectWorktreeSource": "选择 Worktree 分支或拉取请求",
       "switchLocation": "切换运行位置",
       "sessionWorkspace": "切换 Session 工作区",
       "locationAria": "选择运行位置",

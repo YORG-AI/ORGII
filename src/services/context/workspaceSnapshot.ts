@@ -117,7 +117,6 @@ export interface WorkspaceSnapshot {
   gitBranch?: string;
   gitStatus?: string;
   gitChangedFiles?: string[];
-  linterErrors?: string[];
   workspaceFolders?: string[];
   /** The PR for the current branch, enriched with commits and description. */
   currentPullRequest?: CurrentPullRequestSnapshot;

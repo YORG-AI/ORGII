@@ -90,6 +90,14 @@ Run `org2-performance-guard` whenever a change adds or modifies polling, timers,
 ### Pull request contract
 
 Every pull request created or updated by an agent MUST follow these rules.
+Before touching a pull request, read `PR_RULES.md`; it is the tracked,
+repository-wide source of truth shared by Codex, Claude, Cursor, and human
+contributors. If this section and `PR_RULES.md` ever differ, follow
+`PR_RULES.md` and fix the stale adapter in the same pull request.
+
+Hard gates: one responsibility; a scoped Conventional Commit title; the
+required `Problem`, `Solution`, `Potential risks`, and `Verification` sections;
+and a final GitHub read-back of the published pull request.
 
 #### Single responsibility
 

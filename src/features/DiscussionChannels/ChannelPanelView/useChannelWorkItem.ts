@@ -1,24 +1,23 @@
 /**
- * Resolving a `workitem://` reference posted in a channel.
+ * Resolving a `workitem://` reference for consumers that need live item data.
  *
- * The pill carries identity only (`<projectSlug>/<shortId>`), so the card has
- * to read the item to show anything beyond the title snapshot. That read goes
+ * The pill carries identity only (`<projectSlug>/<shortId>`), so a detail
+ * consumer has to read the item. That read goes
  * through `projectApi` — the same path `useTeamInboxNavigation` takes to open
- * a Work Item — rather than any channel-local copy, so a card can never
+ * a Work Item — rather than any consumer-local copy, so the summary can never
  * disagree with the Work Item panel it opens.
  *
- * Caching mirrors `useSessionTurnOverview`, the precedent the session card
+ * Caching mirrors `useSessionTurnOverview`, the precedent the session summary
  * already relies on: a module-level map plus in-flight coalescing, both keyed
  * by `<orgId>/<projectSlug>/<shortId>`. A transcript that names one item ten times
- * does ONE read, and a card remounting inside the virtualized list is free.
- * The cache is intentionally not invalidated on write — a reference card is a
- * cheap summary of an item the reader opens to see live, and a channel with a
- * long backlog should not re-read every referenced item on every scroll.
+ * does ONE read, and a consumer remounting inside the virtualized list is free.
+ * The cache is intentionally not invalidated on write — this is a cheap
+ * reference summary, while the item panel remains the live source of truth.
  *
  * `readProject` is loaded alongside because opening the item needs the
  * project's id, name and org — `openWorkItemInChatPanelTabAtom` takes the
  * whole `ChatPanelSelectedWorkItem` payload, not just a slug. It is loaded
- * with `allSettled`: a missing project makes the card degraded-but-openable,
+ * with `allSettled`: a missing project leaves the item degraded-but-openable,
  * not unresolvable, which is exactly how `useTeamInboxNavigation` treats it.
  */
 import { useEffect, useState } from "react";
@@ -31,7 +30,7 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import type { WorkItem } from "@src/types/core/workItem";
 
-const log = createLogger("ChannelWorkItemCard");
+const log = createLogger("WorkItemReference");
 
 const MAX_WORK_ITEM_CACHE_SIZE = 200;
 
@@ -55,7 +54,7 @@ const inFlightLoads = new Map<
   Promise<ResolvedChannelWorkItem | null>
 >();
 
-export function channelWorkItemCacheKey(target: ChannelWorkItemTarget): string {
+function workItemReferenceCacheKey(target: ChannelWorkItemTarget): string {
   return `${target.orgId ?? "default"}/${target.projectSlug}/${target.shortId}`;
 }
 
@@ -139,20 +138,19 @@ function loadCoalesced(
 interface ChannelWorkItemState {
   key: string;
   resolved: ResolvedChannelWorkItem | null;
-  /** False until the first load settles, so the card can hold its snapshot. */
+  /** False until the first load settles, so the consumer can hold its snapshot. */
   settled: boolean;
 }
 
 /**
  * `null` with `settled: false` means "still reading"; `null` with
- * `settled: true` means "there is nothing here", which is what turns the card
- * degraded.
+ * `settled: true` means "there is nothing here", which enables degraded UI.
  */
 export function useChannelWorkItem(target: ChannelWorkItemTarget): {
   resolved: ResolvedChannelWorkItem | null;
   settled: boolean;
 } {
-  const key = channelWorkItemCacheKey(target);
+  const key = workItemReferenceCacheKey(target);
   const [state, setState] = useState<ChannelWorkItemState>(() => {
     const cached = workItemCache.get(key) ?? null;
     return { key, resolved: cached, settled: cached !== null };
@@ -172,7 +170,7 @@ export function useChannelWorkItem(target: ChannelWorkItemTarget): {
         // A reference outlives the item it names: a project this machine has
         // never synced, an item deleted since. Cards degrade; an unhandled
         // rejection would surface app-wide on a transcript full of them.
-        log.debug("channel work item load failed:", key, error);
+        log.debug("work item reference load failed:", key, error);
         if (cancelled) return;
         setState({ key, resolved: null, settled: true });
       });

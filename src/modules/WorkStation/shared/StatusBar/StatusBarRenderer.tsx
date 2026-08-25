@@ -75,7 +75,6 @@ export const StatusBarRenderer: React.FC<StatusBarRendererProps> = memo(
         filePath={state.filePath || undefined}
         totalLines={state.totalLines}
         commitInfo={state.commitInfo}
-        lspStatus={state.lspStatus}
         onRepoClick={callbacks.onRepoClick}
         onBranchClick={callbacks.onBranchClick}
         onWorktreeClick={callbacks.onWorktreeClick}

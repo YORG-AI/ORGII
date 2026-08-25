@@ -10,9 +10,9 @@ import {
   Cloud,
   FolderKanban,
   Laptop,
-  ListPlus,
   ListTodo,
   Search,
+  Split,
 } from "lucide-react";
 
 // ============================================
@@ -189,6 +189,7 @@ export const DEFAULT_RUNNING_LOCATION: RunningLocation = "local";
 export interface RunningLocationEntry {
   id: RunningLocation;
   icon: typeof Laptop;
+  iconClassName?: string;
   i18nKey: string;
   name: string;
   description: string;
@@ -205,7 +206,8 @@ export const RUNNING_LOCATIONS: RunningLocationEntry[] = [
   },
   {
     id: "worktree",
-    icon: ListPlus,
+    icon: Split,
+    iconClassName: "rotate-90",
     i18nKey: "planner.runningLocation.worktree",
     name: "New Worktree",
     description: "Run in a new git worktree",

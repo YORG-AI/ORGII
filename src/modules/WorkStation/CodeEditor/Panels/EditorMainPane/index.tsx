@@ -96,7 +96,6 @@ const EditorContent: React.FC<EditorContentProps> = memo(
     gitDiffLoading,
     onFileSelect,
     onFileSelectWithLine,
-    onDiagnosticsChange,
     onCursorPositionChange,
     terminalState,
     sourceControlHeaderLeadingSlot,
@@ -354,7 +353,6 @@ const EditorContent: React.FC<EditorContentProps> = memo(
         forceRefresh,
         onFileSelect,
         onFileSelectWithLine,
-        onDiagnosticsChange,
         onCursorPositionChange,
         onSearchTabTitleChange: handleSearchTabTitleChange,
         onGitDiffUnsavedChange: handleGitDiffUnsavedChange,
@@ -370,7 +368,6 @@ const EditorContent: React.FC<EditorContentProps> = memo(
         forceRefresh,
         onFileSelect,
         onFileSelectWithLine,
-        onDiagnosticsChange,
         onCursorPositionChange,
         handleSearchTabTitleChange,
         handleGitDiffUnsavedChange,
@@ -451,7 +448,6 @@ const EditorContent: React.FC<EditorContentProps> = memo(
                       hasUnsavedChanges={false}
                       saving={false}
                       requiresFilePreviewRoute={false}
-                      onDiagnosticsChange={onDiagnosticsChange}
                       onCursorPositionChange={onCursorPositionChange}
                     />
                   </Suspense>

@@ -17,7 +17,6 @@
 //! - **[`browser`]**: Browser windows and inline webviews
 //! - **[`integrations`]**: External integrations (external IDEs, Cursor credentials)
 //! - **[`lsp`]**: Language Server Protocol client for code intelligence
-//! - **[`test_runner`]**: Test discovery and execution for various frameworks
 //!
 //! # Initialization Sequence
 //!
@@ -206,16 +205,10 @@ pub fn run() {
     // crate depending on `agent_core::bus`.
     register_integrations_hooks();
 
-    // Wire the LSP diagnostics broadcast pointer so the `lsp` crate can
-    // publish `textDocument/publishDiagnostics` notifications to the IDE
-    // WebSocket without depending back into `api::websocket_handler`.
-    register_lsp_hooks();
-
     // Wire the agent_core bus IoC pointers (frontend broadcast +
     // subscriber-count) so `agent_core::bus::broadcast_event` and
     // `ActionBridge::has_frontend` can reach the IDE WebSocket / IPC layer
-    // without depending back into `api::websocket_handler`. This is the
-    // counterpart to the LSP hook above.
+    // without depending back into `api::websocket_handler`.
     register_agent_core_bus_hooks();
 
     // Wire the event-pipeline bridge so `agent_core` can drive the live
@@ -693,10 +686,6 @@ pub fn run() {
             let index_manager = std::sync::Arc::new(std::sync::Mutex::new(IndexManager::new()));
             app.manage(index_manager);
             tracing::info!("[IndexManager] Centralized index manager initialized");
-
-            // Initialize Test Runner state
-            app.manage(test_runner::TestRunnerState::new());
-            tracing::info!("[TestRunner] Test runner state initialized");
 
             // Initialize PTY state for terminal sessions
             let pty_state = ::terminal::pty_commands::pty::PtyState::new();

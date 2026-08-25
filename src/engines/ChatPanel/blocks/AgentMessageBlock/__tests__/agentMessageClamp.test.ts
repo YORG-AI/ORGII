@@ -1,6 +1,10 @@
+import { type ComponentProps, createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import {
+import { AgentTurnContext } from "@src/engines/ChatPanel/ChatHistory/AgentTurnContext";
+
+import AgentMessageBlock, {
   AGENT_MESSAGE_PREVIEW_MAX_HEIGHT,
   resolveAgentMessageClampEligibility,
   shouldShowAgentMessageFooter,
@@ -76,5 +80,39 @@ describe("shouldShowAgentMessageFooter", () => {
         lastAssistantFlatIndex: 0,
       })
     ).toBe(false);
+  });
+
+  it("offers complete-turn copy only when the resident turn sources exist", () => {
+    const render = (assistantCopyEventIds: readonly string[]) =>
+      renderToStaticMarkup(
+        createElement(
+          AgentTurnContext.Provider,
+          {
+            value: {
+              lastAssistantFlatIndex: 7,
+              assistantCopyEventIds,
+              resolveAssistantTurnCopyContent: () => "complete turn",
+              isLastGroup: false,
+              isLastItemInGroup: true,
+            },
+          },
+          createElement(
+            AgentMessageBlock,
+            {
+              itemIndex: 7,
+              messageContent: "visible final answer",
+              messageTimestamp: "2026-08-25T00:00:00.000Z",
+            } as ComponentProps<typeof AgentMessageBlock>,
+            "visible final answer"
+          )
+        )
+      );
+
+    expect(render(["assistant-1", "assistant-2"])).toContain(
+      'data-testid="message-footer-copy"'
+    );
+    const unloadedMarkup = render([]);
+    expect(unloadedMarkup).toContain('data-testid="message-footer"');
+    expect(unloadedMarkup).not.toContain('data-testid="message-footer-copy"');
   });
 });

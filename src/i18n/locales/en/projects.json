@@ -393,6 +393,7 @@
       "deletedWorkItem": "deleted the work item",
       "restoredWorkItem": "restored the work item",
       "movedFromTo": "moved from {{from}} to {{to}}",
+      "appendedSession": "appended a session",
       "commented": "commented",
       "system": "System",
       "wasAssigned": "was assigned",

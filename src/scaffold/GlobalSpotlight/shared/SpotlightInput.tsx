@@ -18,6 +18,8 @@ export interface SpotlightInputProps {
   value: string;
   /** Change handler */
   onChange: (value: string) => void;
+  /** Accessible name when the visible placeholder is insufficient. */
+  ariaLabel?: string;
   /** Keydown handler */
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   /** Placeholder text */
@@ -38,6 +40,7 @@ export const SpotlightInput: React.FC<SpotlightInputProps> = ({
   inputRef,
   value,
   onChange,
+  ariaLabel,
   onKeyDown,
   placeholder = "Search...",
   isLoading: _isLoading = false,
@@ -83,6 +86,7 @@ export const SpotlightInput: React.FC<SpotlightInputProps> = ({
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          aria-label={ariaLabel}
           className={`min-w-0 flex-1 bg-transparent ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1 outline-none placeholder:text-text-2`}
           autoFocus={autoFocus}
           autoComplete="off"

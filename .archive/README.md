@@ -181,3 +181,153 @@ is a different feature and stays live.
 **Behavior change:** legacy "Benchmark run coordinator" sessions and their child sessions now appear in the sidebar as ordinary sessions (previously the children were hidden and the coordinator opened the run list). Any persisted `benchmark` WorkStation tab is dropped by the storage allow-list on load.
 
 **To restore:** reverse the `git mv`s above and revert the in-place edits (see the archival commit).
+
+## LSP / Lint / Output / Test panels — archived 2026-08-25
+
+Language-server and lint tooling became an **agent-only** capability: the agent
+reaches it through the `manage_lsp` / `query_lsp` tools in `agent-core`, which
+call the Rust `lsp` crate directly as plain functions. Nothing about LSP or lint
+is shown to users any more. The Output panel and the whole test-runner vertical
+were archived in the same pass.
+
+The Rust `lsp` crate itself **stays live** — only its user-facing entry points
+(the 33 `lsp_*` / `lint_*` Tauri commands and the diagnostics WebSocket fan-out)
+were removed.
+
+### What moved here
+
+**LSP / lint (frontend):**
+
+- `src/modules/WorkStation/CodeEditor/Panels/EditorBottomPanel/` — the whole
+  secondary panel (Problems, Output, Test Results tabs; its Terminal tab was
+  already disabled)
+- `src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/LintScanContent/`
+  and `src/modules/WorkStation/TabContent/renderers/lintScan.tsx` — the
+  `lint-scan` tab
+- `src/modules/MainApp/Integrations/DevTools/{LanguageServersPage,LintToolsPage}/`
+  and `src/modules/MainApp/Integrations/hooks/lsp/` — the install / enable /
+  server-log UI
+- `src/modules/MainApp/Settings/sections/EditorSection/components/LanguageServersSection.tsx`
+  — the Settings → Editor entry point into those pages
+- `src/modules/shared/launchpad/components/WorkspaceToolsReadiness.tsx` — the
+  LSP/lint readiness widget
+- `src/modules/WorkStation/CodeEditor/LspInstallPrompt/` — the "install a
+  language server" toast
+- `src/features/CodeMirror/Editor/extensions/linter/` — in-editor squiggles
+- `src/services/lsp/` — the frontend LSP client / workspace-scan layer
+- `src/store/workstation/codeEditor/diagnostics/` and
+  `src/modules/WorkStation/CodeEditor/hooks/diagnostics/`
+- `src/modules/WorkStation/shared/StatusBar/utils/{useLspDropdown,languageServicePanelRows}.ts`
+  — the status-bar LSP indicator and its dropdown
+
+**Output:**
+
+- `src/modules/WorkStation/CodeEditor/hooks/output/` and
+  `src/types/workstation/output.ts` — the output-channel store
+- `src/store/workstation/codeEditor/outputIntegration/taskOutputAtom.ts`
+- `src/modules/WorkStation/TabContent/renderers/output.tsx` — the `output` tab
+- `src/services/guiAgent/` — `GUIAgentService` existed only to write dispatched
+  actions into the panel's "GUI Agent" channel. Left in place it would have
+  buffered every action forever (`connect()` is never called any more), so it
+  was archived rather than neutered.
+- `.../hooks/gitOutputIntegration/{formatters,constants,useFileWatchHeartbeat}.ts`
+  — ANSI message formatting, the panel-log dedup set, and the "no changes" idle
+  heartbeat
+
+**Test runner:**
+
+- `src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/{content/TestingContent,tabs/TestingTab.tsx}`
+- `src/modules/WorkStation/CodeEditor/hooks/useTestRunner.ts`, `src/services/test/`,
+  `src/store/workstation/codeEditor/testRunner/`, `src/types/testing/`
+- `src/modules/WorkStation/ActionSystem/registration/actions/testActions.zod.ts`
+- `src-tauri/crates/test-runner/` — the whole Rust crate (nothing but the
+  archived frontend used it)
+
+**Backend:**
+
+- `src-tauri/crates/lsp/src/broadcast.rs` — the WebSocket fan-out IoC point.
+  Diagnostics are still cached in-process for `query_lsp`; only the push to the
+  frontend is gone.
+
+**Orphaned by the above:**
+
+- `src/modules/WorkStation/CodeEditor/Panels/shared/{PanelLayout.tsx,AutoScrollContainer.tsx,_panel-mixins.scss}`
+  — used only by the bottom panel's tab contents
+- `src/modules/shared/layouts/GenericBottomPanel/` — already dead before this
+  change, and its stated purpose was the "Settings (LSP, Lint, Downloads
+  output)" panel
+
+### What deliberately stayed live
+
+- **`src-tauri/crates/lsp/`** — everything except `broadcast.rs`. `agent-core`
+  calls `lsp_get_workspace_config`, `lsp_set_server_enabled`,
+  `lsp_check_installed`, `lsp_get_install_command`, `servers_for_language_id`,
+  `LspManager`, and `lsp::types::*` as ordinary Rust. `LspManagerState` is still
+  `app.manage`d at startup.
+- **`src/modules/WorkStation/CodeEditor/hooks/gitOutputIntegration/`** — git
+  push / pull / fetch / commit / stage run _through_ this layer, so it could not
+  be deleted with the panel. The output writes, the `requestAnimationFrame`
+  batching (which existed only to coalesce DOM updates), and the channel
+  bookkeeping were stripped; streamed lines are still accumulated in memory to
+  populate the git error dialog. The `WithOutput` method names and the
+  `gitOutputIntegration` paths were left alone on purpose — renaming them would
+  have touched every source-control call site and buried the behavioural change.
+  **Follow-up:** rename the directory, `gitOutputIntegrationAtom`, and the
+  `*WithOutput` methods in a separate mechanical PR.
+- **`ChatPanel/blocks/ToolCallBlock/OutputContent.tsx` and `LspStatusOutputData`**
+  — these render the _agent's_ tool output in chat, including `manage_lsp`
+  results. Unrelated to the editor panel of the same name.
+- **`IdeContext.linter_errors`** (`agent-core`) — the Rust field and its prompt
+  rendering are untouched, but the frontend no longer populates it (the
+  collector read `globalLspDiagnosticsAtom`, which no longer exists), so it is
+  always empty. An agent-side producer can fill it later.
+
+### Shared files edited in place
+
+- `src/modules/WorkStation/CodeEditor/index.tsx` — dropped the secondary-panel
+  mount, `useDiagnostics`, and `useOutputChannels`
+- `.../EditorLayout/components/EditorIntegrations/index.tsx` — now only wires git
+  operations and the go-to-line bridge
+- `src/features/CodeMirror/Editor/` — removed `enableLinting`,
+  `onDiagnosticsChange`, and the whole `Diagnostic` prop chain through
+  `EditorMainPane` → `CodeViewerContent` → `ContentView`
+- `src/store/workstation/tabs/` — dropped the `output` and `lint-scan` tab types,
+  factories, categories, and the `"lint"` tab category
+- `src/store/ui/workStationLayout/` — dropped the bottom-panel _tab_ atoms
+  (`BOTTOM_PANEL_TABS`, labels, order, persist), the terminal-sidebar width, and
+  the Code Editor secondary-panel _position_ atom. The generic collapse/height
+  atoms stay — Browser DevTools and the Simulator placeholder still use them.
+- `src/store/ui/workStationLayout/primarySidebarAtoms.ts`,
+  `EditorPrimarySidebar/config.ts` — removed the `testing` sidebar tab
+- `src/services/panel/PanelService.ts`, `panelActions.zod.ts`,
+  `ActionSystem/actionIds.ts` — removed `panel.showBottom`
+- `src/util/dialogs/gitErrorDialog.ts`, `src/hooks/git/useGitErrorDialog.ts` —
+  the "Show Command Output" button routed to the Output panel; that branch is
+  gone and non-stash failures now offer "Open Git Log" / "Cancel" (the Git Log
+  tab still carries the command output)
+- `src/ActionSystem/ActionSystemContext.tsx` — removed the `GUIAgentService`
+  logging calls
+- `src/modules/MainApp/Integrations/DevTools/DevToolsCategoryView.tsx` — the
+  category is now just Dependencies; the `devToolsTab` deep-link plumbing in
+  `IntegrationsDetailPanel`, `useIntegrationsPage`, and `useAppNavigation` went
+  with it
+- `src/modules/WorkStation/CodeEditor/SessionReplay/CodePanel/severity.tsx` —
+  **new file**; inlines `DiagnosticSeverity` + `getSeverityIcon`, which the
+  search-results renderer borrowed from the Problems panel but which have
+  nothing to do with LSP
+- `src-tauri/src/commands/handler_list.inc` — removed 33 `lsp_*` / `lint_*` and
+  5 `test_runner::*` command registrations
+- `src-tauri/src/lib.rs`, `src-tauri/src/setup/hooks.rs` — removed
+  `register_lsp_hooks()` and the `TestRunnerState` manage
+- `src-tauri/Cargo.toml` — dropped the `test_runner` workspace member/dependency
+
+### Known consequences
+
+- The Chat panel's **Workspace → Overview** tab is now empty except its footer
+  actions; the tools-readiness widget was its entire body.
+- The Code Editor has **no secondary panel at all** any more.
+- Translation keys for the removed surfaces (`tabs.problems`, `tabs.output`,
+  `tabs.testResults`, `placeholders.outputChannelLabel`,
+  `workstation.languageServices`, `languageServersPage.*`, …) were left in the
+  13 locale files. `scripts/quality/check-missing-i18n-keys.mjs` only reports
+  _missing_ keys, so these are inert. **Follow-up:** sweep them separately.

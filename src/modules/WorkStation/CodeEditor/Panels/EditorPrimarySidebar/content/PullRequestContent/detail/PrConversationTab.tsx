@@ -23,12 +23,12 @@ import type {
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ComposerSurface from "@src/components/ComposerSurface";
+import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
 import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import Textarea from "@src/components/Textarea";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
 import {
@@ -356,6 +356,10 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                   const isLast = index === lastIndex - 1;
                   if (entry.kind === "comment") {
                     const { comment } = entry;
+                    const isSessionAttachment =
+                      projectMarkdownSessionReferences(
+                        comment.body
+                      ).referenceOnly;
                     return (
                       <ConnectedTimelineItem
                         key={`c-${comment.id}`}
@@ -373,10 +377,14 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                                 />
                               }
                               actor={comment.user.login}
-                              action={t(
-                                "git.pr.activity.commented",
-                                "commented"
-                              )}
+                              action={
+                                isSessionAttachment
+                                  ? t(
+                                      "git.pr.activity.appendedSession",
+                                      "appended a session"
+                                    )
+                                  : t("git.pr.activity.commented", "commented")
+                              }
                               timestamp={comment.created_at}
                             />
                           }
@@ -510,7 +518,6 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                 onModeChange={setEditorMode}
                 dataTestId="pr-comment-editor"
               />
-              <CloudSessionReferencePreview text={draft} className="px-1.5" />
             </ComposerSurface>
           </section>
         </div>

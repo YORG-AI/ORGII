@@ -47,6 +47,19 @@
   }
 }
 
+.chat-markdown-body a.markdown-link-with-icon {
+  font-weight: inherit;
+  transition: none;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.chat-markdown-body .markdown-link-icon {
+  vertical-align: -2px;
+}
+
 .chat-markdown-body abbr[title] {
   border-bottom: none;
   text-decoration: underline dotted;

@@ -18,10 +18,6 @@ import {
   initializeServices,
   registerCoreActions,
 } from "@src/modules/WorkStation/ActionSystem/registration/registerCoreActions";
-// Deep import: the `@src/services` barrel re-exports EditorService, whose
-// static @codemirror/* imports would otherwise ride into the startup graph
-// through this app-lifetime provider.
-import { GUIAgentService } from "@src/services/guiAgent/GUIAgentService";
 
 import type { ActionResult } from "./schema/defineZodAction";
 import { zodActionRegistry } from "./schema/zodRegistry";
@@ -84,22 +80,12 @@ export function ActionSystemProvider({
     async (
       type: string,
       payload: Record<string, unknown> = {},
-      source: "user" | "ai" | "system" = "user"
+      _source: "user" | "ai" | "system" = "user"
     ): Promise<ActionResult> => {
-      GUIAgentService.logAction(type, payload, source);
-
-      const startTime = performance.now();
-
       try {
-        const result = await zodActionRegistry.execute(type, payload);
-        const duration = performance.now() - startTime;
-        GUIAgentService.logResult(type, result, duration);
-
-        return result;
+        return await zodActionRegistry.execute(type, payload);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        GUIAgentService.logError(type, error);
-
         return { success: false, message };
       }
     },

@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Chromium, Copy, SquareArrowOutUpRight } from "lucide-react";
+import { Chromium, Copy } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -48,15 +48,14 @@ const LinkHoverCardContent: React.FC<{ preview: HttpLinkPreview }> = ({
   return (
     <HoverCardPanel title={preview.host}>
       <div
-        className="line-clamp-2 break-all text-[12px] leading-5 text-text-3"
+        className="truncate text-[12px] leading-5 text-text-3"
         title={preview.url}
       >
         {preview.displayUrl}
       </div>
       <div className="flex items-center justify-end gap-1 border-t border-border-1 pt-2">
         <Button
-          variant="tertiary"
-          appearance="ghost"
+          variant="secondary"
           size="mini"
           icon={<Copy size={13} />}
           iconOnly
@@ -65,21 +64,15 @@ const LinkHoverCardContent: React.FC<{ preview: HttpLinkPreview }> = ({
           onClick={handleCopy}
         />
         <Button
-          variant="tertiary"
-          appearance="ghost"
+          variant="secondary"
           size="mini"
-          icon={<SquareArrowOutUpRight size={13} />}
+          icon={<Chromium size={13} strokeWidth={1.75} />}
           iconOnly
           aria-label={t("cards.actions.openWithDefaultBrowser")}
           title={t("cards.actions.openWithDefaultBrowser")}
           onClick={handleOpenExternal}
         />
-        <Button
-          variant="primary"
-          size="mini"
-          icon={<Chromium size={13} strokeWidth={1.75} aria-hidden />}
-          onClick={handleOpenInApp}
-        >
+        <Button variant="primary" size="mini" onClick={handleOpenInApp}>
           {t("cards.actions.openInApp")}
         </Button>
       </div>

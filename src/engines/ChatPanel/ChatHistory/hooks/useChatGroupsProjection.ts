@@ -6,6 +6,7 @@ import {
 import { isAgentErrorEvent } from "../chatItemPipeline/classifiers";
 import { isAssistantMessageEvent } from "../chatItemPipeline/dedup";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
+import { collectAssistantTurnCopyEventIds } from "../turnCopyContent";
 
 export interface UnloadedTurnMeta {
   turnId: string;
@@ -22,6 +23,8 @@ export interface ChatGroupMeta {
   durationMs: number;
   itemCount: number;
   previewText: string;
+  /** Completed assistant-message ids from the resident, uncollapsed body. */
+  assistantCopyEventIds: string[];
   startMs: number | null;
   endMs: number | null;
   unloadedTurn: UnloadedTurnMeta | null;
@@ -266,6 +269,9 @@ export function projectChatGroups(
       durationMs: unloadedTurn?.durationMs ?? durationMs,
       itemCount: group.items.length,
       previewText: headerEvent?.displayText ?? "",
+      assistantCopyEventIds: unloadedTurn
+        ? []
+        : collectAssistantTurnCopyEventIds(group.items),
       startMs: unloadedStartMs ?? startMs,
       endMs: unloadedEndMs ?? endMs,
       unloadedTurn,

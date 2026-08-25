@@ -117,7 +117,7 @@ function getButtonStyleClasses(
         case "secondary":
           return "enabled:hover:bg-fill-3";
         case "tertiary":
-          return "enabled:hover:text-text-1 enabled:hover:bg-surface-hover focus-visible:text-text-1 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]";
+          return "enabled:hover:text-text-1 enabled:hover:bg-surface-hover enabled:active:bg-surface-selected focus-visible:text-text-1 focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]";
       }
     }
     if (appearance === "outline" || appearance === "dashed") {

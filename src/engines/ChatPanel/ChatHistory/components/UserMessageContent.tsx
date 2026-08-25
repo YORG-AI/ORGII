@@ -1,19 +1,21 @@
 /**
  * UserMessageContent
  *
- * Renders user message text with inline file/repo/branch pills.
+ * Renders user message text with ordinary links and session cards.
  * Parses the serialized pill format: `displayName [type:path]`
  * produced by ComposerInput.getTextWithPills().
  */
 import React, { memo, useMemo } from "react";
 
 import { ChatImageThumbnailRow } from "@src/components/ChatImageThumbnail";
+import SessionReferenceCards from "@src/components/MarkDown/SessionReferenceCards";
+import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
 import { PILL_LINE_HEIGHT } from "@src/config/pillTokens";
 import { normalizeUserMessageText } from "@src/engines/ChatPanel/ChatItems/normalizeUserMessageText";
 import CanvasDomComponentPreview from "@src/features/DomSelection/CanvasDomComponentPreview";
 import { parseCanvasDomComponent } from "@src/features/DomSelection/domComponentPayload";
 
-import { InlinePill, MentionPill } from "./UserMessagePills";
+import { InlineReferenceLink, MentionPill } from "./UserMessagePills";
 import {
   type PillSegment,
   type UserMessageMention,
@@ -52,10 +54,14 @@ const UserMessageContent: React.FC<UserMessageContentProps> = memo(
         normalizeMarkdownReferencePills(normalizeUserMessageText(text, images)),
       [images, text]
     );
+    const sessionProjection = useMemo(
+      () => projectMarkdownSessionReferences(normalizedText),
+      [normalizedText]
+    );
     const segments = useMemo(() => {
-      const parsed = parseNormalizedUserMessage(normalizedText);
+      const parsed = parseNormalizedUserMessage(sessionProjection.text);
       return mentions?.length ? splitMentionSegments(parsed, mentions) : parsed;
-    }, [normalizedText, mentions]);
+    }, [mentions, sessionProjection.text]);
     const hasImages = images && images.length > 0;
     const canvasSelectionJson = segments.find(
       (segment): segment is PillSegment =>
@@ -66,8 +72,8 @@ const UserMessageContent: React.FC<UserMessageContentProps> = memo(
 
     // Fast path: no pills and no images, render plain text
     const hasPills = segments.some((s) => s.kind !== "text");
-    if (!hasPills && !hasImages) {
-      return <span className={TEXT_BASE_CLASS}>{normalizedText}</span>;
+    if (!hasPills && !hasImages && sessionProjection.references.length === 0) {
+      return <span className={TEXT_BASE_CLASS}>{sessionProjection.text}</span>;
     }
 
     return (
@@ -76,7 +82,7 @@ const UserMessageContent: React.FC<UserMessageContentProps> = memo(
         {canvasSelectionJson && (
           <CanvasDomComponentPreview jsonText={canvasSelectionJson} />
         )}
-        {normalizedText && normalizedText !== "(image)" && (
+        {sessionProjection.text && sessionProjection.text !== "(image)" && (
           <span
             className="whitespace-pre-wrap break-words text-[14px] text-text-1"
             style={{ lineHeight: PILL_LINE_HEIGHT }}
@@ -87,11 +93,14 @@ const UserMessageContent: React.FC<UserMessageContentProps> = memo(
               ) : segment.kind === "mention" ? (
                 <MentionPill key={idx} segment={segment} />
               ) : (
-                <InlinePill key={idx} segment={segment} />
+                <InlineReferenceLink key={idx} segment={segment} />
               )
             )}
           </span>
         )}
+        {sessionProjection.references.length > 0 ? (
+          <SessionReferenceCards references={sessionProjection.references} />
+        ) : null}
       </div>
     );
   }

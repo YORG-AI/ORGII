@@ -1066,7 +1066,7 @@
     "copyEventJson": "Copy event JSON",
     "copyEventJsonCopied": "Copied!",
     "copyEventJsonFailed": "Copy failed",
-    "moveToWorkstation": "Move to My Workstation",
+    "moveToWorkstation": "Move to My Station",
     "moveToChatPanel": "Move to Chat Panel",
     "rawTranscript": {
       "title": "Raw session transcript",
@@ -2186,10 +2186,12 @@
       "resolving": "Resolving PR…",
       "selectRepository": "Select a repository before choosing a worktree source.",
       "sourceTabs": "Worktree source",
+      "sourceTypeAria": "Select branch or pull request",
       "tabs": {
         "smart": "Smart",
         "github": "GitHub",
         "branch": "Branch",
+        "pr": "PR",
         "name": "Name"
       },
       "smartPlaceholder": "Name, #1234, branch, or GitHub/GitLab URL",
@@ -2201,6 +2203,9 @@
       "githubError": "GitHub items could not be loaded.",
       "githubEmpty": "No open GitHub PRs or issues.",
       "githubNoMatches": "No matches.",
+      "prSearch": "Search pull requests",
+      "prSearchAria": "Search pull requests",
+      "prNoMatches": "No matching pull requests.",
       "refreshBranches": "Refresh branch list",
       "branchSearch": "Search branches or enter a ref",
       "branchSearchAria": "Search branches or enter a base ref",

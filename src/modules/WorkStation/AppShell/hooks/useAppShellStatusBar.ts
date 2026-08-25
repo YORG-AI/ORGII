@@ -27,7 +27,6 @@ const SPOTLIGHT_CALLBACKS = {
 interface UseAppShellStatusBarOptions {
   primaryPanelCollapsed: boolean;
   showSettingsButton: boolean;
-  showCodeEditorBottomPanelToggle: boolean;
   handleOpenSettings: () => void;
   workStationPanels: ReturnType<typeof useWorkStationPanels>;
 }
@@ -35,7 +34,6 @@ interface UseAppShellStatusBarOptions {
 export function useAppShellStatusBar({
   primaryPanelCollapsed,
   showSettingsButton,
-  showCodeEditorBottomPanelToggle,
   handleOpenSettings,
   workStationPanels,
 }: UseAppShellStatusBarOptions): void {
@@ -60,12 +58,6 @@ export function useAppShellStatusBar({
         ...SPOTLIGHT_CALLBACKS,
         onOpenSettings: showSettingsButton ? handleOpenSettings : undefined,
         ...sharedPanelCallbacks,
-        onToggleBottomPanel: showCodeEditorBottomPanelToggle
-          ? workStationPanels.toggleBottomPanel
-          : undefined,
-        bottomPanelCollapsed: showCodeEditorBottomPanelToggle
-          ? workStationPanels.bottomPanelCollapsed
-          : undefined,
       },
       project: {
         ...prev.project,
@@ -80,12 +72,9 @@ export function useAppShellStatusBar({
   }, [
     handleOpenSettings,
     showSettingsButton,
-    showCodeEditorBottomPanelToggle,
     setPerAppStatusBarCallbacks,
     workStationPanels.togglePrimarySidebar,
     primaryPanelCollapsed,
     workStationPanels.layoutMode,
-    workStationPanels.toggleBottomPanel,
-    workStationPanels.bottomPanelCollapsed,
   ]);
 }

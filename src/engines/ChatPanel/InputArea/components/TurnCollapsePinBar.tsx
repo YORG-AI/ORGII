@@ -8,6 +8,10 @@
  * in the group so only the closing agent message remains visible —
  * matching the Cursor CLI agent's post-turn UX.
  *
+ * A hairline rule sits directly below the bar so each turn boundary reads as a
+ * separated section (matching the Codex transcript layout) instead of the label
+ * floating between two runs of message content.
+ *
  * Visual style intentionally stays weaker than regular event block headers:
  * this is a turn-boundary summary/control, not another tool/card block. Keeping
  * it subtle prevents the many per-event collapsible headers from visually
@@ -143,33 +147,36 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
     const ChevronIcon = expanded ? ChevronsDownUp : ChevronsUpDown;
 
     return (
-      <button
-        type="button"
-        aria-expanded={expanded}
-        className="group/turn-collapse chat-block-header mt-1 flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-left transition-colors hover:bg-fill-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
-        onClick={(event) => {
-          event.stopPropagation();
-          const selection = window.getSelection();
-          if (selection && !selection.isCollapsed) return;
-          void handleToggle();
-        }}
-      >
-        <ChevronIcon
-          size={CHEVRON_SIZE}
-          strokeWidth={1.75}
-          className="shrink-0 text-text-2 transition-colors group-hover/turn-collapse:text-text-1"
-        />
-        <span className="inline-flex min-w-0 flex-1 items-center gap-2 leading-tight">
-          <span className="shrink-0 select-text whitespace-nowrap font-medium text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
-            {label}
-          </span>
-          {showRange && (
-            <span className="min-w-0 select-text truncate text-text-3">
-              {rangeLabel}
+      <div className="mt-1">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          className="group/turn-collapse chat-block-header flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-left transition-colors hover:bg-fill-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+          onClick={(event) => {
+            event.stopPropagation();
+            const selection = window.getSelection();
+            if (selection && !selection.isCollapsed) return;
+            void handleToggle();
+          }}
+        >
+          <ChevronIcon
+            size={CHEVRON_SIZE}
+            strokeWidth={1.75}
+            className="shrink-0 text-text-2 transition-colors group-hover/turn-collapse:text-text-1"
+          />
+          <span className="inline-flex min-w-0 flex-1 items-center gap-2 leading-tight">
+            <span className="shrink-0 select-text whitespace-nowrap font-medium text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
+              {label}
             </span>
-          )}
-        </span>
-      </button>
+            {showRange && (
+              <span className="min-w-0 select-text truncate text-text-3">
+                {rangeLabel}
+              </span>
+            )}
+          </span>
+        </button>
+        <div aria-hidden="true" className="h-px w-full bg-border-1" />
+      </div>
     );
   }
 );

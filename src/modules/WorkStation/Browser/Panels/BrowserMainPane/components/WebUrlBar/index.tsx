@@ -17,14 +17,12 @@ import {
   PenTool,
   PencilRuler,
   RefreshCw,
-  Search,
   X,
 } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { FaviconIcon } from "@src/components/FaviconIcon";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import {
   type WorkstationTabHeaderHost,
@@ -314,7 +312,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
     );
 
     const inputContainerClass =
-      "relative flex h-7 min-w-0 flex-1 cursor-text items-center rounded-lg border border-transparent bg-transparent transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-3 hover:bg-fill-2 focus-within:border-primary-6 focus-within:bg-fill-2 focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]";
+      "relative flex h-7 min-w-0 flex-1 cursor-text items-center rounded-lg border border-transparent bg-transparent transition-[border-color,box-shadow,background-color] duration-150 focus-within:border-primary-6 focus-within:bg-fill-2 focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_30%,transparent)] [&:not(:focus-within):hover]:border-border-3 [&:not(:focus-within):hover]:bg-fill-2";
     const reloadControlLabel = isLoading
       ? t("common:actions.stop")
       : t("common:actions.reload");
@@ -384,26 +382,6 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
             }
           }}
         >
-          {/* Icon on left */}
-          <div className="pointer-events-none absolute left-3 flex items-center">
-            {inputValue ? (
-              <FaviconIcon
-                url={inputValue}
-                isIncognito={false}
-                isLoading={isLoading}
-                size={16}
-                fallbackColor="text-text-3"
-              />
-            ) : isLoading ? (
-              <Loader2
-                size={14}
-                className="shrink-0 animate-spin text-text-3"
-              />
-            ) : (
-              <Search size={14} className="shrink-0 text-text-3" />
-            )}
-          </div>
-
           {/* Input - keep real text selectable in both focused and unfocused states. */}
           <input
             ref={inputRef}
@@ -422,7 +400,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
             onMouseMove={handleInputMouseMove}
             onMouseUp={handleInputMouseUp}
             placeholder={t("placeholders.enterUrlOrSearch")}
-            className="relative z-10 h-7 min-w-0 flex-1 select-text border-none bg-transparent pl-9 pr-3 text-[14px] text-text-1 outline-none placeholder:text-text-3"
+            className="relative z-10 h-7 min-w-0 flex-1 select-text border-none bg-transparent px-3 text-[14px] text-text-1 outline-none placeholder:text-text-3"
             style={NO_DRAG_STYLE}
             autoComplete="off"
             autoCorrect="off"

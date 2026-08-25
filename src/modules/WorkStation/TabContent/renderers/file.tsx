@@ -40,7 +40,6 @@ const FileTabRenderer: React.FC<UnifiedTabContentProps> = memo(({ tab }) => {
     gitFilesByPath,
     repoPath,
     onFileSelect,
-    onDiagnosticsChange,
     onCursorPositionChange,
     forceRefresh,
     onBinaryUnsavedChange,
@@ -112,7 +111,6 @@ const FileTabRenderer: React.FC<UnifiedTabContentProps> = memo(({ tab }) => {
         }
         defaultPreviewMode={tab.data.defaultPreviewMode as boolean}
         contentReady={isDeletedFile ? true : fileContentState.contentReady}
-        onDiagnosticsChange={onDiagnosticsChange}
         onCursorPositionChange={onCursorPositionChange}
         onSaveSuccess={forceRefresh}
         onBinaryUnsavedChange={onBinaryUnsavedChange}

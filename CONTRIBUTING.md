@@ -129,6 +129,11 @@ For deeper guidance, read:
 
 ## Commits and pull requests
 
+The complete, repository-wide pull request contract is in
+[`PR_RULES.md`](PR_RULES.md). It applies to human contributors and coding
+agents. GitHub automation enforces its machine-checkable title, description,
+and label rules.
+
 Commit messages and PR titles must use scoped Conventional Commits:
 
 ```text
@@ -152,7 +157,7 @@ Do not remove this trailer, and do not bypass hooks with `--no-verify`, `HUSKY=0
 
 Before requesting review, make sure the PR has:
 
-- A clear title, description, and test plan.
+- A title, description, and labels that comply with [`PR_RULES.md`](PR_RULES.md).
 - One focused issue, feature, or fix.
 - Relevant checks passing, or a note explaining what could not be run.
 - CLA Assistant passing, plus screenshots or docs when the change needs them.

@@ -222,7 +222,7 @@ export const SessionHeaderActionsMenu: React.FC<
               <span className="flex-1 truncate">
                 {moveToWorkstation
                   ? t("chat.moveToWorkstation", {
-                      defaultValue: "Move to My Workstation",
+                      defaultValue: "Move to My Station",
                     })
                   : t("chat.moveToChatPanel", {
                       defaultValue: "Move to Chat Panel",

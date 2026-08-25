@@ -25,6 +25,8 @@ export interface SpotlightSearchBarProps {
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   /** Placeholder text */
   placeholder: string;
+  /** Accessible name when the visible placeholder is insufficient. */
+  ariaLabel?: string;
   /** Whether data is loading */
   isLoading?: boolean;
   /** Whether countdown is active */
@@ -51,6 +53,7 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
   onSearchQueryChange,
   onKeyDown,
   placeholder,
+  ariaLabel,
   isLoading: _isLoading = false,
   isCountingDown = false,
   path,
@@ -181,6 +184,7 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
             onChange={(event) => onSearchQueryChange(event.target.value)}
             onKeyDown={onKeyDown}
             placeholder={placeholder}
+            aria-label={ariaLabel}
             className={`min-w-0 flex-1 bg-transparent ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1 placeholder:text-text-1 focus:outline-none`}
             autoComplete="off"
             autoCorrect="off"

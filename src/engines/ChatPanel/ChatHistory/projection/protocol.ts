@@ -6,7 +6,7 @@ import type {
   ChatHistoryProjectionResult,
 } from "./core";
 
-export const CHAT_PROJECTION_PROTOCOL_VERSION = 2 as const;
+export const CHAT_PROJECTION_PROTOCOL_VERSION = 3 as const;
 
 export interface ProjectionEnvelope {
   protocolVersion: typeof CHAT_PROJECTION_PROTOCOL_VERSION;

@@ -74,7 +74,6 @@ export const ContentView: React.FC<ContentViewProps> = ({
   onContentChange,
   onCursorChange,
   onTextSelection,
-  onDiagnosticsChange,
   onResolveConflict,
   onSave,
   onDiscard,
@@ -268,11 +267,7 @@ export const ContentView: React.FC<ContentViewProps> = ({
             onTextSelection={
               readOnly || isDeletedFile ? undefined : onTextSelection
             }
-            onDiagnosticsChange={
-              readOnly || isDeletedFile ? undefined : onDiagnosticsChange
-            }
             readOnly={readOnly || isDeletedFile}
-            enableLinting={!readOnly && !isDeletedFile}
             isDeletedFile={isDeletedFile}
             enableGitBlame={showBlame && !isDeletedFile}
             repoPath={repoPath}

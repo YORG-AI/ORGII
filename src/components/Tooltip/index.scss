@@ -6,7 +6,8 @@
 .native-tooltip {
   position: fixed;
   z-index: 1060;
-  max-width: 320px;
+  box-sizing: border-box;
+  max-width: min(320px, calc(100vw - 16px));
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 13px;
@@ -49,7 +50,6 @@
 
     .native-tooltip-content-inner {
       max-width: min(320px, calc(100vw - 40px));
-      white-space: normal;
     }
 
     &.native-tooltip-framed-panel-wide .native-tooltip-content-inner {
@@ -65,10 +65,23 @@
 .native-tooltip-content {
   position: relative;
   z-index: 1;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .native-tooltip-content-inner {
-  // Content inner styling
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+
+  // Rich tooltip bodies (breadcrumbs, shortcut rows, model metadata) must
+  // participate in the viewport constraint instead of keeping max-content
+  // width and painting beyond the framed surface.
+  > * {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 .native-tooltip-arrow {

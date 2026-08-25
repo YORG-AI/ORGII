@@ -278,8 +278,6 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           );
         case "terminal":
           return <FileTypeIcon fileName="terminal.sh" size="small" />;
-        case "output":
-          return <FileTypeIcon fileName="output.log" size="small" />;
         case "settings":
           return <FileTypeIcon fileName="settings.json" size="small" />;
         case "browser-session":
@@ -333,7 +331,6 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
     const getTabTitle = () => {
       const filePath = tab.data.filePath as string | undefined;
       const sessionName = tab.data.sessionName as string | undefined;
-      const channelName = tab.data.channelName as string | undefined;
 
       switch (tab.type) {
         case "file":
@@ -348,8 +345,6 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           return `${filePath || tab.title} (Working Tree)`;
         case "terminal":
           return `Terminal: ${sessionName || tab.title}`;
-        case "output":
-          return `Output: ${channelName || tab.title}`;
         case "github-pr-detail": {
           const prTitle = tab.data.prTitle as string | undefined;
           return prTitle ? `#${tab.data.prNumber} ${prTitle}` : tab.title;

@@ -450,22 +450,6 @@ export interface E2EHelpers {
     source?: string | null;
     category?: string | null;
   }) => Promise<Result<{ learningId: string }>>;
-  lspGetWorkspaceConfig: (
-    workspacePath: string
-  ) => Promise<Result<{ config: Json }>>;
-  lspSetServerEnabled: (
-    workspacePath: string,
-    language: string,
-    enabled: boolean
-  ) => Promise<{ ok: true } | Err>;
-  lintGetWorkspaceConfig: (
-    workspacePath: string
-  ) => Promise<Result<{ config: Json }>>;
-  lintSetToolEnabled: (
-    workspacePath: string,
-    toolId: string,
-    enabled: boolean
-  ) => Promise<{ ok: true } | Err>;
   promptDump: (
     sessionId: string
   ) => Promise<Result<{ dump: PromptDumpResult }>>;

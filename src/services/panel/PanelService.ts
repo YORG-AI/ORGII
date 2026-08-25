@@ -9,10 +9,7 @@
  *   PanelService.showPrimarySidebar("testing");
  */
 import {
-  type BottomPanelTab,
   type PrimarySidebarTabKey,
-  workStationBottomPanelTabPersistAtom,
-  workStationEditorSecondaryCollapsedAtom,
   workStationEditorSecondaryCollapsedPersistAtom,
   workStationPrimarySidebarCollapsedAtom,
   workStationPrimarySidebarCollapsedPersistAtom,
@@ -48,17 +45,6 @@ export const PanelService = {
   // ==========================================
   // Bottom Panel
   // ==========================================
-
-  /**
-   * Show a specific bottom panel tab. Expands the panel if collapsed.
-   */
-  showBottomPanel(tab: BottomPanelTab): void {
-    const store = getStore();
-    store.set(workStationBottomPanelTabPersistAtom, tab);
-    if (store.get(workStationEditorSecondaryCollapsedAtom)) {
-      store.set(workStationEditorSecondaryCollapsedPersistAtom, false);
-    }
-  },
 
   /**
    * Toggle bottom panel visibility (persisted).

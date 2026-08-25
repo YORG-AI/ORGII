@@ -36,6 +36,7 @@ import {
   PropertiesRailFrame,
 } from "@src/modules/ProjectManager/shared";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import {
   DetailHeaderTabs,
   WorkstationTrailIconButton,
@@ -361,6 +362,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     shortId: selectedWorkItem.shortId,
     stateScopeKey: `chat-panel-work-item:${selectedWorkItem.orgId ?? "local"}:${selectedWorkItem.projectSlug}:${selectedWorkItem.shortId}`,
   });
+  const githubIssueExternalUrl = githubIssueState.externalUrl;
   const projectSelectionReadonly =
     Boolean(selectedWorkItem.projectSlug) &&
     (projectSyncAdapterId === undefined || isGitHubSyncedProject);
@@ -424,6 +426,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             />
           </WorkstationToolbarTooltip>
         ) : null}
+        {githubIssueExternalUrl ? (
+          <ExternalBrowserButton
+            href={githubIssueExternalUrl}
+            dataTestId="chat-panel-work-item-open-external"
+          />
+        ) : null}
         <WorkstationToolbarTooltip label={propertiesToggleLabel}>
           <Button
             htmlType="button"
@@ -443,6 +451,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     ),
     [
       handleDeleteWorkItem,
+      githubIssueExternalUrl,
       isGitHubSyncedProject,
       projectSyncAdapterId,
       propertiesOpen,

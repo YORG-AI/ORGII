@@ -39,7 +39,7 @@ describe("UserMessageContent Canvas Design preview", () => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("renders the captured preview above the existing dom-component pill", () => {
+  it("renders the captured preview above the dom-component link", () => {
     const jsonText = JSON.stringify({
       schemaVersion: 1,
       origin: "canvas-design",
@@ -53,6 +53,9 @@ describe("UserMessageContent Canvas Design preview", () => {
 
     expect(
       container.querySelector("iframe[title='Canvas selection preview']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("a[href='paste://canvas-design/event-a/1']")
     ).not.toBeNull();
     expect(container.textContent).toContain("Stat");
     expect(container.textContent).toContain("字体变大一些");

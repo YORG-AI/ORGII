@@ -18,7 +18,6 @@ import {
   FileDiff,
   GitBranch,
   GitCommitHorizontal,
-  Globe,
   ListChecks,
   MessageCircle,
   MessagesSquare,
@@ -32,9 +31,8 @@ import {
   type PrFile,
 } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
-import Button from "@src/components/Button";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import {
   DetailHeaderTabs,
@@ -88,24 +86,12 @@ interface PrSummaryReviewer {
 
 export function PrDetailExternalLinkButton({
   identity,
-  title = "Open on GitHub",
+  title,
 }: {
   identity: PrIdentity;
   title?: string;
 }): React.ReactNode {
-  return (
-    <Button
-      href={identity.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      variant="tertiary"
-      size="small"
-      iconOnly
-      icon={<Globe size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />}
-      title={title}
-      aria-label={title}
-    />
-  );
+  return <ExternalBrowserButton href={identity.url} label={title} />;
 }
 
 function readNumber(
@@ -491,25 +477,25 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
   }
 
   return (
-    <div className="allow-select-deep flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="allow-select-deep flex h-full min-h-0 flex-col overflow-hidden @container/detailheader">
       {/* Header */}
       {showHeader ? (
         <PanelHeader
-          className={headerClassName ?? DETAIL_PANEL_TOKENS.headerPadding}
+          className={`${headerClassName ?? DETAIL_PANEL_TOKENS.headerPadding} ${
+            combineHeaderAndTabs
+              ? "!h-auto [&>div:last-child]:mt-1.5 [&>div:last-child]:self-start @[960px]/detailheader:[&>div:last-child]:mt-0 @[960px]/detailheader:[&>div:last-child]:self-auto"
+              : ""
+          }`.trim()}
           dataTestId="pr-detail-header"
           borderBottom={combineHeaderAndTabs}
           actions={
-            headerActions ?? (
-              <PrDetailExternalLinkButton
-                identity={identity}
-                title={t("actions.openOnGitHub", "Open on GitHub")}
-              />
-            )
+            headerActions ?? <PrDetailExternalLinkButton identity={identity} />
           }
         >
           {combineHeaderAndTabs ? (
             <DetailHeaderTabs
               title={<PrDetailHeaderContent identity={currentIdentity} />}
+              stackTabsBelow
               tabs={
                 <DetailTabStrip
                   activeTab={activeTab}
