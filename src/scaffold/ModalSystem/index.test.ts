@@ -16,10 +16,14 @@ import Modal from "./index";
 
 const mocks = vi.hoisted(() => ({
   useOverlayLayer: vi.fn(),
+  theme: { isDark: false },
 }));
 
 vi.mock("@src/store/ui/overlayLayerAtom", () => ({
   useOverlayLayer: mocks.useOverlayLayer,
+}));
+vi.mock("@src/util/ui/theme/themeUtils", () => ({
+  useCurrentTheme: () => ({ theme: "test", isDark: mocks.theme.isDark }),
 }));
 
 function renderModal(visible: boolean) {
@@ -34,6 +38,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   mocks.useOverlayLayer.mockReset();
+  mocks.theme.isDark = false;
 });
 
 let container: HTMLDivElement;
@@ -74,6 +79,19 @@ describe("Modal native surface coverage", () => {
     expect(coverageRef.current).toBe(panel);
     expect(coverageRef.current).not.toBe(wrapper);
     expect(options).toEqual({ nativeDimmingAlpha: 0.6 });
+  });
+
+  it("matches the stronger dark-theme modal scrim", async () => {
+    mocks.theme.isDark = true;
+    await act(async () => root.render(renderModal(true)));
+
+    const [, , options] = mocks.useOverlayLayer.mock.calls.at(-1) as [
+      boolean,
+      RefObject<HTMLDivElement | null>,
+      { nativeDimmingAlpha: number },
+    ];
+
+    expect(options).toEqual({ nativeDimmingAlpha: 0.7 });
   });
 
   it("publishes the inactive state and unmounts coverage when closed", async () => {

@@ -26,6 +26,7 @@ import PanelHeader, {
   PANEL_HEADER_TOKENS,
 } from "@src/modules/shared/layouts/blocks/PanelHeader";
 import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
+import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
 
@@ -129,11 +130,14 @@ const Modal: React.FC<ModalProps> = ({
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [okLoading, setOkLoading] = useState(false);
+  const { isDark } = useCurrentTheme();
 
   // Keep the live native page visible under the modal scrim. Only the opaque
   // dialog panel becomes a compositor hole; macOS renders the matching black
   // dim layer directly above the sibling WKWebView.
-  useOverlayLayer(visible, modalRef, { nativeDimmingAlpha: 0.6 });
+  useOverlayLayer(visible, modalRef, {
+    nativeDimmingAlpha: isDark ? 0.7 : 0.6,
+  });
 
   // Store the previously focused element
   useEffect(() => {
