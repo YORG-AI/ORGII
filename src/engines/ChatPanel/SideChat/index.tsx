@@ -19,8 +19,8 @@
  * `ChatSessionContext.Provider` + `ChatProvider` route `ChatHistory` to
  * `chatEventsForSessionAtomFamily(sessionId)` — a per-session snapshot
  * subscription that streams live without touching the global pipeline.
- * Sending goes through `SessionService.sendMessage`, which is adapter-
- * routed per session id, via the composer's `onSubmitOverride` (the
+ * Sending goes through the canonical turn-dispatch boundary (which delegates
+ * to the session-category adapter) via the composer's `onSubmitOverride` (the
  * `ChannelComposer` call shape).
  *
  * Two body modes, driven by `sideChatSessionIdAtom`:
@@ -42,7 +42,7 @@ import {
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
-import { SessionService } from "@src/engines/SessionCore/services/SessionService";
+import { dispatchTurn } from "@src/engines/SessionCore/services/TurnDispatchService";
 import { createLogger } from "@src/hooks/logger";
 import {
   activeChatPanelTabTypeAtom,
@@ -264,6 +264,28 @@ interface SideChatSessionBodyProps {
   isLive: boolean;
 }
 
+export async function dispatchSideChatMessage(
+  sessionId: string,
+  { displayText, agentContent, imageDataUrls }: SubmitOverrideInput
+): Promise<boolean> {
+  const content = agentContent ?? displayText;
+  if (!content.trim()) return false;
+  try {
+    await dispatchTurn({
+      sessionId,
+      content,
+      displayText,
+      imageDataUrls,
+      turnIntentSource: "user_submit",
+      directUserIntent: true,
+    });
+    return true;
+  } catch (error) {
+    log.error(`Failed to send side-chat message to ${sessionId}:`, error);
+    return false;
+  }
+}
+
 const SideChatSessionBody: React.FC<SideChatSessionBodyProps> = ({
   sessionId,
   isLive,
@@ -271,28 +293,7 @@ const SideChatSessionBody: React.FC<SideChatSessionBodyProps> = ({
   const turnPaginationEnabled = useAtomValue(chatTurnPaginationEnabledAtom);
 
   const handleSubmit = useCallback(
-    async ({
-      displayText,
-      agentContent,
-      imageDataUrls,
-    }: SubmitOverrideInput): Promise<boolean> => {
-      const content = agentContent ?? displayText;
-      if (!content.trim()) return false;
-      try {
-        await SessionService.sendMessage({
-          sessionId,
-          content,
-          displayText,
-          imageDataUrls,
-          turnIntentSource: "user_submit",
-          directUserIntent: true,
-        });
-        return true;
-      } catch (error) {
-        log.error(`Failed to send side-chat message to ${sessionId}:`, error);
-        return false;
-      }
-    },
+    (input: SubmitOverrideInput) => dispatchSideChatMessage(sessionId, input),
     [sessionId]
   );
 

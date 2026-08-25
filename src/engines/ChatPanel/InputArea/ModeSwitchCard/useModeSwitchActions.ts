@@ -13,10 +13,6 @@ import {
   ALL_AGENT_EXEC_MODES,
   type AgentExecMode,
 } from "@src/config/sessionCreatorConfig";
-import {
-  beginOptimisticTurn,
-  failOptimisticTurn,
-} from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { eventsAtom } from "@src/engines/SessionCore/core/atoms";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
@@ -72,13 +68,12 @@ export const MODE_LABELS: Record<string, string> = Object.fromEntries(
 // Actions
 // ============================================
 
-// Lazily import SessionService to avoid a static import cycle:
+// Lazily import TurnDispatchService to avoid a static import cycle:
 // SessionService -> sync (getAdapterForSession) -> ... -> toolHandlers ->
-// useModeSwitchActions. Loading it on demand inside the async action keeps the
-// runtime behaviour identical while removing the back-edge from the module graph.
-async function getSessionService() {
-  return (await import("@src/engines/SessionCore/services/SessionService"))
-    .SessionService;
+// useModeSwitchActions. Loading it on demand keeps the canonical dispatch
+// boundary without restoring that back-edge in the module graph.
+async function getTurnDispatchService() {
+  return import("@src/engines/SessionCore/services/TurnDispatchService");
 }
 
 async function markModeSwitchEventResolved(
@@ -185,25 +180,19 @@ async function switchAgentMode(
     : fallback;
   const { model, accountId } = resolveModelForMessage(lastModelSelection);
 
-  // Mode-switch re-runs bypass useMessageDispatch, so set the optimistic
-  // running status here (P3).
-  beginOptimisticTurn(sessionId);
-
-  try {
-    const SessionService = await getSessionService();
-    await SessionService.sendMessage({
-      sessionId,
-      content: "",
-      isResume: true,
-      turnIntentSource: "resume",
-      model,
-      accountId,
-      mode: targetMode,
-    });
-  } catch (error) {
-    failOptimisticTurn(sessionId);
-    throw error;
-  }
+  // This is a new provider execution turn, but Resume semantics deliberately
+  // keep it in the existing visible user round. Canonical dispatch supplies a
+  // fresh intent/generation and owns optimistic status plus exact finality.
+  const { dispatchTurn } = await getTurnDispatchService();
+  await dispatchTurn({
+    sessionId,
+    content: "",
+    isResume: true,
+    turnIntentSource: "resume",
+    model,
+    accountId,
+    mode: targetMode,
+  });
 }
 
 function isE2EModeSwitchMockEnabled(): boolean {

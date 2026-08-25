@@ -1,11 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { projectApi } from "@src/api/http/project";
 import type { LinkedSession } from "@src/api/http/project/types/agentWorkflow";
+import { dispatchTurn } from "@src/engines/SessionCore/services/TurnDispatchService";
 
 import {
   buildDiscussionForwardMessage,
   pickForwardTargetSession,
+  retryFailedLinkedSession,
 } from "../discussionCommentForward";
+
+vi.mock("@src/api/http/project", () => ({
+  projectApi: {
+    enqueueWorkItemRun: vi.fn(),
+    retryLatestWorkItemRun: vi.fn(),
+  },
+}));
+
+vi.mock("@src/engines/SessionCore/services/TurnDispatchService", () => ({
+  dispatchTurn: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 function linked(overrides: Partial<LinkedSession>): LinkedSession {
   return {
@@ -68,5 +86,47 @@ describe("buildDiscussionForwardMessage", () => {
     expect(content).toContain("org2-pm work note WI-0042 --kind comment");
     expect(content).toContain("Do not change status");
     expect(displayText).toBe("💬 How far along is the export flow?");
+  });
+});
+
+describe("retryFailedLinkedSession", () => {
+  it("uses the typed durable retry without starting a local turn", async () => {
+    vi.mocked(projectApi.retryLatestWorkItemRun).mockResolvedValue({} as never);
+
+    await retryFailedLinkedSession({
+      orgId: "org-1",
+      projectSlug: "demo",
+      shortId: "WI-0042",
+      sessionId: "sdeagent-run",
+    });
+
+    expect(projectApi.retryLatestWorkItemRun).toHaveBeenCalledOnce();
+    expect(dispatchTurn).not.toHaveBeenCalled();
+  });
+
+  it("routes legacy-session fallback through canonical turn dispatch", async () => {
+    vi.mocked(projectApi.retryLatestWorkItemRun).mockRejectedValue(
+      new Error("PM_RUN_ERR:NOT_FOUND")
+    );
+    vi.mocked(dispatchTurn).mockResolvedValue({
+      accepted: true,
+      sessionId: "sdeagent-legacy",
+      turnIntentId: "intent-1",
+      generation: 1,
+      optimisticSource: "dispatch",
+    });
+
+    await retryFailedLinkedSession({
+      shortId: "WI-0042",
+      sessionId: "sdeagent-legacy",
+    });
+
+    expect(dispatchTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "sdeagent-legacy",
+        displayText: "↻ Retry WI-0042",
+        turnIntentSource: "user_submit",
+      })
+    );
   });
 });

@@ -9,6 +9,8 @@ import {
 } from "@src/store/ui/messageQueueAtom";
 import { type SmokeRoot, createSmokeRoot } from "@src/test/reactSmokeHarness";
 
+import { resetTurnIntentDispatchLifecycleForTests } from "../../../control/turnIntentDispatchLifecycle";
+import { resetTurnDispatchMonitorsForTests } from "../../../services/TurnDispatchService";
 import { useQueueDispatch } from "../useQueueDispatch";
 
 const SESSION_ID = "agent-builtin:sde-queued-worker";
@@ -21,7 +23,10 @@ const mocks = vi.hoisted(() => ({
   confirmTurnRunning: vi.fn(),
   failOptimisticTurn: vi.fn(),
   getSession: vi.fn(),
+  getTurnGeneration: vi.fn(),
   getTurnPhase: vi.fn(),
+  getTurnTerminal: vi.fn(),
+  getTurnIntentStatus: vi.fn(),
   markSessionActive: vi.fn(),
   markTurnTerminal: vi.fn(),
   messageError: vi.fn(),
@@ -55,7 +60,9 @@ vi.mock("@src/engines/SessionCore/control/turnLifecycle", async () => {
   return {
     beginTurnDispatch: mocks.beginTurnDispatch,
     confirmTurnRunning: mocks.confirmTurnRunning,
+    getTurnGeneration: mocks.getTurnGeneration,
     getTurnPhase: mocks.getTurnPhase,
+    getTurnTerminal: mocks.getTurnTerminal,
     markTurnTerminal: mocks.markTurnTerminal,
     turnLifecycleSignalAtom: atom(0),
   };
@@ -69,7 +76,10 @@ vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
 }));
 
 vi.mock("@src/engines/SessionCore/services/SessionService", () => ({
-  SessionService: { sendMessage: mocks.sendMessage },
+  SessionService: {
+    getTurnIntentStatus: mocks.getTurnIntentStatus,
+    sendMessage: mocks.sendMessage,
+  },
 }));
 
 vi.mock("@src/engines/SessionCore/sync/adapters/shared", () => ({
@@ -145,19 +155,24 @@ describe("useQueueDispatch Agent Org intervention", () => {
     mocks.confirmTurnRunning.mockReset();
     mocks.failOptimisticTurn.mockReset();
     mocks.getSession.mockReset().mockResolvedValue(null);
+    mocks.getTurnGeneration.mockReset().mockReturnValue(11);
     mocks.getTurnPhase.mockReset().mockReturnValue("idle");
+    mocks.getTurnTerminal.mockReset().mockReturnValue(null);
+    mocks.getTurnIntentStatus.mockReset().mockResolvedValue(null);
     mocks.markSessionActive.mockReset();
     mocks.markTurnTerminal.mockReset();
     mocks.messageError.mockReset();
     mocks.messageWarning.mockReset();
     mocks.removeByIdPrefix.mockReset().mockResolvedValue(1);
-    mocks.sendMessage.mockReset().mockResolvedValue(undefined);
+    mocks.sendMessage.mockReset().mockResolvedValue({ duplicate: false });
     store = createStore();
     root = createSmokeRoot();
   });
 
   afterEach(async () => {
     await root.unmount();
+    resetTurnDispatchMonitorsForTests();
+    resetTurnIntentDispatchLifecycleForTests();
   });
 
   async function mountWithMessages(messages: QueuedMessage[]): Promise<void> {

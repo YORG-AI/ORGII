@@ -8,15 +8,8 @@
  */
 import { atom } from "jotai";
 
-import {
-  type TurnIntentDispatch,
-  waitForTurnIntentDispatch,
-} from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
-import {
-  getLastTurnTerminal,
-  turnLifecycleSignalAtom,
-} from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { waitForTurnIntentOutcome } from "@src/engines/SessionCore/services/TurnDispatchService";
 import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
 import { createLogger } from "@src/hooks/logger";
@@ -105,37 +98,6 @@ function beginRunActivity(
     else scheduledRunsBySession.set(localSessionId, remaining);
     publishRunActivity(localSessionId);
   };
-}
-
-async function waitForTurnTerminal(
-  dispatch: TurnIntentDispatch,
-  deadlineMs: number
-): Promise<void> {
-  const { sessionId, generation } = dispatch;
-  const isComplete = (): boolean =>
-    getLastTurnTerminal(sessionId)?.generation === generation;
-  if (isComplete()) return;
-  const store = getInstrumentedStore();
-  await new Promise<void>((resolve, reject) => {
-    const remainingMs = deadlineMs - Date.now();
-    if (remainingMs <= 0) {
-      reject(new Error("address-comments run timed out"));
-      return;
-    }
-    let unsubscribe: (() => void) | null = null;
-    const timer = setTimeout(() => {
-      unsubscribe?.();
-      reject(new Error("address-comments run timed out"));
-    }, remainingMs);
-    const check = (): void => {
-      if (!isComplete()) return;
-      clearTimeout(timer);
-      unsubscribe?.();
-      resolve();
-    };
-    unsubscribe = store.sub(turnLifecycleSignalAtom, check);
-    check();
-  });
 }
 
 function findActiveAddressRunForComment(
@@ -430,12 +392,13 @@ async function executeAddressCommentsRound(
       agentContent: buildAddressCommentsBriefing(threads, instruction),
       turnIntentId,
     });
-    const dispatch = await waitForTurnIntentDispatch(turnIntentId, deadlineMs);
-    if (dispatch.sessionId !== localSessionId) {
+    const outcome = await waitForTurnIntentOutcome(turnIntentId, deadlineMs);
+    if (outcome.sessionId !== localSessionId) {
       throw new Error("address-comments turn dispatched to the wrong session");
     }
-
-    await waitForTurnTerminal(dispatch, deadlineMs);
+    if (outcome.status !== "completed") {
+      throw new Error(`address-comments turn ${outcome.status}`);
+    }
     log.info(
       `address round on ${localSessionId}: ${threads.length} thread(s), ${run.replied.size} agent repl(ies)`
     );

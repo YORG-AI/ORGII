@@ -3,21 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { switchMode } from "./useModeSwitchActions";
 
 const storeGetSpy = vi.hoisted(() => vi.fn());
-const sendMessageSpy = vi.hoisted(() => vi.fn());
+const dispatchTurnSpy = vi.hoisted(() => vi.fn());
 const respondModeSwitchSpy = vi.hoisted(() => vi.fn());
 const rpcPatchSpy = vi.hoisted(() => vi.fn());
 const updateByIdSpy = vi.hoisted(() => vi.fn());
 const getSnapshotSpy = vi.hoisted(() => vi.fn());
 const upsertSessionSpy = vi.hoisted(() => vi.fn());
-const beginOptimisticTurnSpy = vi.hoisted(() => vi.fn());
 const isAgentSessionSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
   getInstrumentedStore: () => ({ get: storeGetSpy }),
 }));
 
-vi.mock("@src/engines/SessionCore/services/SessionService", () => ({
-  SessionService: { sendMessage: sendMessageSpy },
+vi.mock("@src/engines/SessionCore/services/TurnDispatchService", () => ({
+  dispatchTurn: dispatchTurnSpy,
 }));
 
 vi.mock("@src/api/tauri/agent", () => ({
@@ -26,11 +25,6 @@ vi.mock("@src/api/tauri/agent", () => ({
 
 vi.mock("@src/api/tauri/rpc", () => ({
   rpc: { sessionAggregate: { patch: rpcPatchSpy } },
-}));
-
-vi.mock("@src/engines/SessionCore/control/optimisticTurnStatus", () => ({
-  beginOptimisticTurn: beginOptimisticTurnSpy,
-  failOptimisticTurn: vi.fn(),
 }));
 
 vi.mock("@src/engines/SessionCore/core/atoms", () => ({
@@ -94,7 +88,7 @@ describe("switchMode → switchAgentMode resume", () => {
     isAgentSessionSpy.mockReturnValue(true);
     delete (window as { __ORGII_E2E_MODE_SWITCH_MOCK__?: boolean })
       .__ORGII_E2E_MODE_SWITCH_MOCK__;
-    sendMessageSpy.mockResolvedValue(undefined);
+    dispatchTurnSpy.mockResolvedValue(undefined);
     respondModeSwitchSpy.mockResolvedValue(undefined);
     rpcPatchSpy.mockResolvedValue(undefined);
     updateByIdSpy.mockResolvedValue(undefined);
@@ -109,16 +103,16 @@ describe("switchMode → switchAgentMode resume", () => {
 
     await switchMode("event-1", "plan");
 
-    expect(sendMessageSpy).toHaveBeenCalledTimes(1);
-    expect(sendMessageSpy).toHaveBeenCalledWith(
+    expect(dispatchTurnSpy).toHaveBeenCalledTimes(1);
+    expect(dispatchTurnSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: SESSION_ID,
         content: "",
         isResume: true,
+        turnIntentSource: "resume",
         mode: "plan",
       })
     );
-    expect(beginOptimisticTurnSpy).toHaveBeenCalledWith(SESSION_ID);
   });
 
   it("resumes the turn for an ordinary task prompt", async () => {
@@ -126,8 +120,8 @@ describe("switchMode → switchAgentMode resume", () => {
 
     await switchMode("event-2", "plan");
 
-    expect(sendMessageSpy).toHaveBeenCalledTimes(1);
-    expect(sendMessageSpy).toHaveBeenCalledWith(
+    expect(dispatchTurnSpy).toHaveBeenCalledTimes(1);
+    expect(dispatchTurnSpy).toHaveBeenCalledWith(
       expect.objectContaining({ content: "", isResume: true, mode: "plan" })
     );
   });
@@ -137,7 +131,16 @@ describe("switchMode → switchAgentMode resume", () => {
 
     await switchMode("event-3", "plan");
 
-    expect(sendMessageSpy).not.toHaveBeenCalled();
-    expect(beginOptimisticTurnSpy).not.toHaveBeenCalled();
+    expect(dispatchTurnSpy).not.toHaveBeenCalled();
+  });
+
+  it("propagates canonical dispatch failures", async () => {
+    setupStore({ lastUserText: "fix the parser" });
+    dispatchTurnSpy.mockRejectedValueOnce(new Error("transport down"));
+
+    await expect(switchMode("event-4", "plan")).rejects.toThrow(
+      "transport down"
+    );
+    expect(dispatchTurnSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -14,12 +14,9 @@ import { useTranslation } from "react-i18next";
 import { sessionLaunch } from "@src/api/tauri/agent/session";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import Message from "@src/components/Message";
-import {
-  beginOptimisticTurn,
-  failOptimisticTurn,
-} from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import type { PendingSessionProposal } from "@src/engines/SessionCore/hooks/useAgentADEActions";
+import { dispatchTurn } from "@src/engines/SessionCore/services/TurnDispatchService";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import { useHousekeeperUiControl } from "@src/hooks/housekeeper";
 import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
@@ -32,7 +29,6 @@ import {
 } from "@src/store/session/creatorDefaultModelAtom";
 import { modelSelectorAtom } from "@src/store/ui/modelSelectorAtom";
 import { adeManagerEnabledAtom } from "@src/store/ui/uiAtom";
-import { invokeTauri } from "@src/util/platform/tauri";
 import { BUILTIN_ADE_MANAGER_DEF_ID } from "@src/util/session/sessionDispatch";
 
 import { useSelectorKernel } from "../core";
@@ -188,25 +184,13 @@ export function useAgentControlPalette({
         const adeContext = collectAdeContext({ expectedRepoPath: null });
         const existingSessionId = controlSessionIdRef.current;
         if (existingSessionId) {
-          // Raw invoke bypasses useMessageDispatch — if the control session
-          // is also open in the chat panel, the optimistic running keeps its
-          // planning indicator alive (#17). Gated no-op otherwise.
-          beginOptimisticTurn(existingSessionId);
-          try {
-            await invokeTauri("agent_send_message", {
-              sessionId: existingSessionId,
-              content: prompt,
-              turnIntentSource: "user_submit",
-              ...(modelConfig.model ? { model: modelConfig.model } : {}),
-              ...(modelConfig.accountId
-                ? { accountId: modelConfig.accountId }
-                : {}),
-              ideContext: adeContext,
-            });
-          } catch (sendError) {
-            failOptimisticTurn(existingSessionId);
-            throw sendError;
-          }
+          await dispatchTurn({
+            sessionId: existingSessionId,
+            content: prompt,
+            turnIntentSource: "user_submit",
+            model: modelConfig.model,
+            accountId: modelConfig.accountId,
+          });
         } else {
           const result = await sessionLaunch({
             category: DISPATCH_CATEGORY.RUST_AGENT,

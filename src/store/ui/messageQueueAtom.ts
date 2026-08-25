@@ -19,7 +19,7 @@ export interface QueuedMessage {
    *
    *   QueuedMessage           (this field)
    *   createSyntheticUserEvent options.turnIntentId
-   *   SessionService.sendMessage params.turnIntentId
+   *   TurnDispatchService params.turnIntentId
    *   agent_send_message Tauri command turnIntentId
    *   ScheduledMessage.turn_intent_id
    *   TurnInput.turn_intent_id

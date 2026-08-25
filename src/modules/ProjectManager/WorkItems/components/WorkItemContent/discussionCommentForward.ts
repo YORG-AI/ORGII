@@ -11,7 +11,7 @@
  */
 import { projectApi } from "@src/api/http/project";
 import type { LinkedSession } from "@src/api/http/project/types/agentWorkflow";
-import { SessionService } from "@src/engines/SessionCore/services/SessionService";
+import { dispatchTurn } from "@src/engines/SessionCore/services/TurnDispatchService";
 import { createLogger } from "@src/hooks/logger";
 
 const logger = createLogger("discussionCommentForward");
@@ -98,7 +98,7 @@ export async function retryFailedLinkedSession({
     "and deliver through org2-pm with exactly one Discussion receipt.",
   ].join("\n");
   try {
-    await SessionService.sendMessage({
+    await dispatchTurn({
       sessionId,
       content,
       displayText: `↻ Retry ${shortId}`,

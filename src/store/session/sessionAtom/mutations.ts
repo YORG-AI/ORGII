@@ -113,7 +113,7 @@ export const upsertSession = (session: Session) => {
  * Bump a session's activity timestamps to "now".
  *
  * Called when the user performs a real action against the session
- * (currently only sending a prompt — see `SessionService.sendMessage`).
+ * (currently only sending a prompt — see `TurnDispatchService`).
  * Updates `updated_at` / `updated_time` so views ordered by "recent
  * activity" (sidebar, Kanban) reflect the action immediately, without
  * waiting for the next session list refresh.

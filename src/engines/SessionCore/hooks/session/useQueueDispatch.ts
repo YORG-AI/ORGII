@@ -31,28 +31,22 @@ import {
   type AgentExecMode,
   resolveSessionAgentExecMode,
 } from "@src/config/sessionCreatorConfig";
-import {
-  beginOptimisticTurn,
-  failOptimisticTurn,
-} from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { cancelTurnForTimelineBoundary } from "@src/engines/SessionCore/control/sessionTimelineBoundary";
-import { publishTurnIntentDispatch } from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
 import {
-  beginTurnDispatch,
-  confirmTurnRunning,
   getTurnPhase,
-  markTurnTerminal,
   turnLifecycleSignalAtom,
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { SessionService } from "@src/engines/SessionCore/services/SessionService";
+import {
+  failReservedTurn,
+  reserveTurnDispatch,
+  sendReservedTurn,
+} from "@src/engines/SessionCore/services/TurnDispatchService";
 import { createSyntheticUserEvent } from "@src/engines/SessionCore/sync/adapters/shared";
 import { createLogger } from "@src/hooks/logger";
-import { markSessionActive } from "@src/store/session";
 import {
   closePostStopDispatchEpisodeAtom,
   lastUserMessageAtom,
-  setSessionRuntimeStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import {
   type LastModelSelection,
@@ -71,7 +65,6 @@ import { selectionFromSession } from "@src/util/session/selectionFromSession";
 import {
   isAgentSession,
   isCliSession,
-  isCursorIdeSession,
 } from "@src/util/session/sessionDispatch";
 
 import {
@@ -191,12 +184,12 @@ export function useQueueDispatch(): void {
         resolveSessionAgentExecMode(session?.agentExecMode);
       const { model, accountId } = resolveModelForMessage(lastModelSelection);
 
-      // Synchronous turn reserve BEFORE any await: from this instant every
-      // submit and every other dispatch pass observes the session as busy.
-      const dispatchGeneration = beginTurnDispatch(sessionId);
-      publishTurnIntentDispatch(msg.turnIntentId, {
+      // Reserve through the canonical dispatch boundary before the first
+      // transcript await so concurrent submits observe this session as busy.
+      const dispatch = reserveTurnDispatch({
         sessionId,
-        generation: dispatchGeneration,
+        turnIntentId: msg.turnIntentId,
+        optimisticSource: "queue",
       });
 
       // An explicit dispatch concludes any pending stop episode.
@@ -211,10 +204,9 @@ export function useQueueDispatch(): void {
         imageDataUrls,
       });
 
-      beginOptimisticTurn(sessionId, "queue");
-
       void (async () => {
         let userEventId: string | null = null;
+        let sendStarted = false;
         try {
           const userEvent = createSyntheticUserEvent(
             sessionId,
@@ -231,8 +223,9 @@ export function useQueueDispatch(): void {
           // the pill format and re-editing shows the pill, not the YAML.
           const displayTextForDispatch =
             content !== displayContent ? displayContent : undefined;
-          await SessionService.sendMessage({
-            sessionId,
+          sendStarted = true;
+          await sendReservedTurn({
+            dispatch,
             content,
             displayText: displayTextForDispatch,
             model,
@@ -240,32 +233,14 @@ export function useQueueDispatch(): void {
             mode: agentExecMode,
             imageDataUrls,
             clientMessageId: `queued:${sessionId}:${msg.id}`,
-            turnIntentId: msg.turnIntentId,
             turnIntentSource: msg.priority === "now" ? "force_send" : "queue",
             directUserIntent: true,
           });
-          // Backend accepted the message — confirm the turn as running.
-          confirmTurnRunning(sessionId);
-          // Bump activity timestamps so the just-flushed session surfaces in
-          // "recent activity" views without waiting for the next refresh.
-          markSessionActive(sessionId);
           rememberSentQueueId(msg.id);
           store.set(messageQueueAtom, (prev) =>
             prev.filter((item) => item.id !== msg.id)
           );
           onDone();
-          if (isCursorIdeSession(sessionId)) {
-            // Cursor IDE sessions have no turn lifecycle (no terminal event
-            // stream) — close the turn right after a successful handoff.
-            store.set(setSessionRuntimeStatusAtom, {
-              sessionId,
-              status: "idle",
-              source: "queue",
-            });
-            markTurnTerminal(sessionId, "completed", {
-              generation: dispatchGeneration,
-            });
-          }
         } catch (err) {
           log.error("[useQueueDispatch] dispatch failed:", err);
           if (userEventId) {
@@ -281,10 +256,7 @@ export function useQueueDispatch(): void {
           // IPC failed before the backend received the message: close the
           // reserved turn and park the message so it does not retry in a
           // tight loop — the user can fix the issue and press Send Now.
-          failOptimisticTurn(sessionId, "queue");
-          markTurnTerminal(sessionId, "failed", {
-            generation: dispatchGeneration,
-          });
+          if (!sendStarted) failReservedTurn(dispatch);
           store.set(messageQueueAtom, (prev) =>
             prev.map((item) =>
               item.id === msg.id

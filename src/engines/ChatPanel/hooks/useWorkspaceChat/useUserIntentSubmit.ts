@@ -11,17 +11,13 @@ import { useCallback, useEffect } from "react";
 
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import { resolveSessionAgentExecMode } from "@src/config/sessionCreatorConfig";
-import {
-  beginOptimisticTurn,
-  failOptimisticTurn,
-} from "@src/engines/SessionCore/control/optimisticTurnStatus";
-import { publishTurnIntentDispatch } from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
-import {
-  beginTurnDispatch,
-  getTurnPhase,
-  markTurnTerminal,
-} from "@src/engines/SessionCore/control/turnLifecycle";
+import { beginOptimisticTurn } from "@src/engines/SessionCore/control/optimisticTurnStatus";
+import { getTurnPhase } from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import {
+  failReservedTurn,
+  reserveTurnDispatch,
+} from "@src/engines/SessionCore/services/TurnDispatchService";
 import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import {
   type SessionRuntimeStatusSource,
@@ -194,10 +190,6 @@ export function useUserIntentSubmit({
           session?.agentExecMode
         );
 
-        if (clearUserInitiatedCancelOnQueue && explicitPostStopSubmit) {
-          closePostStopDispatchEpisode(sessionId);
-        }
-
         enqueueMessage({
           id: `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           turnIntentId,
@@ -211,6 +203,15 @@ export function useUserIntentSubmit({
           status: "queued",
           createdAt: new Date().toISOString(),
         });
+        const queued = store
+          .get(messageQueueAtom)
+          .some((message) => message.turnIntentId === turnIntentId);
+        if (!queued) {
+          throw new Error("Message was not accepted by the queue");
+        }
+        if (clearUserInitiatedCancelOnQueue && explicitPostStopSubmit) {
+          closePostStopDispatchEpisode(sessionId);
+        }
         if (explicitPostStopSubmit) {
           setQueueFlushRequest((requestId) => requestId + 1);
         }
@@ -226,12 +227,11 @@ export function useUserIntentSubmit({
         displayContent,
         imageDataUrls: restoreImageDataUrls,
       });
-      const dispatchGeneration = beginTurnDispatch(sessionId);
-      publishTurnIntentDispatch(turnIntentId, {
+      const dispatch = reserveTurnDispatch({
         sessionId,
-        generation: dispatchGeneration,
+        turnIntentId,
+        optimisticSource: source,
       });
-      beginOptimisticTurn(sessionId, source);
       if (dedupeDirectSubmit) {
         sharedSubmitGuard.current = true;
         sharedSubmitPayload.current = submitPayloadKey;
@@ -253,12 +253,11 @@ export function useUserIntentSubmit({
         await dispatchMessageBySessionType(
           sessionId,
           contentForAgent,
+          dispatch,
           imageDataUrls,
           undefined,
           displayTextForDispatch,
-          `direct:${sessionId}:${stableSubmitHash(submitPayloadKey)}`,
-          turnIntentId,
-          dispatchGeneration
+          `direct:${sessionId}:${stableSubmitHash(submitPayloadKey)}`
         );
       } catch (error) {
         if (dedupeDirectSubmit) {
@@ -266,10 +265,7 @@ export function useUserIntentSubmit({
           sharedSubmitPayload.current = null;
         }
         if (!dispatchStarted) {
-          failOptimisticTurn(sessionId, source);
-          markTurnTerminal(sessionId, "failed", {
-            generation: dispatchGeneration,
-          });
+          failReservedTurn(dispatch);
         }
         if (userEventId) {
           try {
