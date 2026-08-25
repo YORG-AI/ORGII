@@ -1295,5 +1295,11 @@ agent_core::state::commands::session::wingman_stop,
 agent_core::state::commands::session::wingman_close_windows,
 agent_core::state::commands::session::wingman_show_desktop_control_test,
 agent_core::state::commands::session::wingman_list_monitors,
+// Durable remote-root Work Item conversation turn hand-off.
+agent_core::state::commands::work_runs::work_run_conversation_turn_accept,
+agent_core::state::commands::work_runs::work_run_conversation_turn_release,
+agent_core::state::commands::work_runs::work_run_conversation_turn_nack,
+agent_core::state::commands::work_runs::work_run_conversation_turn_prepare_runner,
+agent_core::state::commands::work_runs::work_run_conversation_turn_ack_runner,
 // Model capability resolution (context window lookup from FAMILY_RULES)
 agent_core::core::providers::model_capabilities::resolve_model_context_k,

@@ -317,6 +317,129 @@ fn dispatch_claim_is_leased_and_ack_requires_matching_token() {
 }
 
 #[test]
+fn claimed_ack_is_fenced_and_prepare_is_runner_stable() {
+    let _sandbox = test_env::sandbox();
+    seed();
+    let run = enqueue(request("manual:claim-fence")).expect("enqueue");
+    let lease = claim_next_dispatch("desktop-claim-fence", 30_000)
+        .expect("claim")
+        .expect("lease");
+
+    let prepared = prepare_dispatch_session(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "claim-winner",
+        "runner-winner",
+    )
+    .expect("prepare winner");
+    assert_eq!(prepared.status, WorkItemRunStatus::Dispatching);
+    assert_eq!(prepared.session_id.as_deref(), Some("runner-winner"));
+    prepare_dispatch_session(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "claim-winner",
+        "runner-winner",
+    )
+    .expect("same prepare is idempotent");
+    assert!(prepare_dispatch_session(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "claim-winner",
+        "runner-other",
+    )
+    .expect_err("one claimant cannot switch runners")
+    .starts_with(error::INVALID_TRANSITION));
+
+    let stale = acknowledge_claimed_dispatch_started(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "claim-stale",
+        "runner-winner",
+    )
+    .expect_err("losing claimant cannot acknowledge");
+    assert!(stale.starts_with(error::STALE_LEASE), "{stale}");
+
+    let started = acknowledge_claimed_dispatch_started(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "claim-winner",
+        "runner-winner",
+    )
+    .expect("winner ack");
+    assert_eq!(started.status, WorkItemRunStatus::Running);
+    assert!(delivered_dispatch_matches_claim(&run.id, "claim-winner").expect("durable receipt"));
+    assert!(!delivered_dispatch_matches_claim(&run.id, "claim-stale").expect("stale receipt"));
+}
+
+#[test]
+fn expired_prepared_lease_is_reoffered_with_a_new_fence() {
+    let _sandbox = test_env::sandbox();
+    seed();
+    let run = enqueue(request("manual:prepare-crash")).expect("enqueue");
+    let first = claim_next_dispatch("desktop-before-crash", 30_000)
+        .expect("first claim")
+        .expect("first lease");
+    prepare_dispatch_session(
+        &first.dispatch_id,
+        &first.lease_token,
+        "claim-before-crash",
+        "runner-before-crash",
+    )
+    .expect("prepare before crash");
+
+    conn()
+        .expect("connection")
+        .execute(
+            "UPDATE pm_dispatch_outbox SET lease_expires_at = ?2 WHERE id = ?1",
+            rusqlite::params![first.dispatch_id, now_ms().saturating_sub(1)],
+        )
+        .expect("expire first lease");
+    let second = claim_next_dispatch("desktop-after-crash", 30_000)
+        .expect("reclaim")
+        .expect("reoffered lease");
+    assert_eq!(second.run.id, run.id);
+    assert_ne!(second.lease_token, first.lease_token);
+    assert_eq!(second.delivery_attempt, 2);
+    assert_eq!(
+        second.run.session_id.as_deref(),
+        Some("runner-before-crash")
+    );
+    prepare_dispatch_session(
+        &second.dispatch_id,
+        &second.lease_token,
+        "claim-after-crash",
+        "runner-before-crash",
+    )
+    .expect("new claimant reuses prepared hint");
+    assert!(acknowledge_claimed_dispatch_started(
+        &first.dispatch_id,
+        &first.lease_token,
+        "claim-before-crash",
+        "runner-before-crash",
+    )
+    .expect_err("expired claimant stays fenced")
+    .starts_with(error::STALE_LEASE));
+}
+
+#[test]
+fn lease_heartbeat_renews_only_the_exact_live_lease() {
+    let _sandbox = test_env::sandbox();
+    seed();
+    enqueue(request("manual:lease-heartbeat")).expect("enqueue");
+    let lease = claim_next_dispatch("desktop-heartbeat", 1_000)
+        .expect("claim")
+        .expect("lease");
+    assert!(
+        renew_dispatch_lease(&lease.dispatch_id, &lease.lease_token, 45_000,)
+            .expect("renew exact lease")
+    );
+    assert!(
+        !renew_dispatch_lease(&lease.dispatch_id, "lease-stale", 45_000)
+            .expect("stale heartbeat is a no-op")
+    );
+}
+
+#[test]
 fn latest_for_session_returns_attached_execution_episode() {
     let _sandbox = test_env::sandbox();
     seed();
@@ -611,6 +734,13 @@ fn turn_can_finish_before_dispatch_ack_without_losing_finality() {
     let lease = claim_next_dispatch("desktop-1", 30_000)
         .expect("claim")
         .expect("dispatch");
+    prepare_dispatch_session(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "claim-fast",
+        "session-fast",
+    )
+    .expect("prepare runner before send");
 
     let terminal = record_run_terminal(
         &queued.id,
@@ -626,11 +756,15 @@ fn turn_can_finish_before_dispatch_ack_without_losing_finality() {
     assert_eq!(terminal.status, WorkItemRunStatus::Succeeded);
     assert_eq!(terminal.session_id.as_deref(), Some("session-fast"));
 
-    let acknowledged =
+    let stale =
         acknowledge_dispatch_started(&lease.dispatch_id, &lease.lease_token, "session-fast")
-            .expect("terminal ack is idempotent");
-    assert_eq!(acknowledged.status, WorkItemRunStatus::Succeeded);
-    assert_eq!(acknowledged.usage.total_tokens, 99);
+            .expect_err("terminal already retired the outbox lease");
+    assert!(stale.starts_with(error::STALE_LEASE), "{stale}");
+    assert!(claim_next_dispatch("desktop-after-terminal", 30_000)
+        .expect("claim query")
+        .is_none());
+    let persisted = read(&queued.id).expect("persisted terminal");
+    assert_eq!(persisted.usage.total_tokens, 99);
 }
 
 #[test]
@@ -684,6 +818,43 @@ fn typed_retry_creates_a_new_run_episode_and_resumes_session() {
         retried.target_snapshot.target,
         WorkItemRunTarget::ResumeSession {
             session_id: "session-retry".to_string()
+        }
+    );
+}
+
+#[test]
+fn remote_root_retry_never_promotes_the_hidden_runner() {
+    let _sandbox = test_env::sandbox();
+    seed();
+    let mut remote_request = request("manual:remote-root-retry");
+    remote_request.target_snapshot.target = WorkItemRunTarget::ResumeSession {
+        session_id: "shared-root".to_string(),
+    };
+    let run = enqueue(remote_request).expect("enqueue remote root");
+    let lease = claim_next_dispatch("desktop-remote", 30_000)
+        .expect("claim")
+        .expect("lease");
+    prepare_dispatch_session(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "claim-hidden",
+        "hidden-runner",
+    )
+    .expect("prepare hidden runner");
+    let failed = record_run_terminal(
+        &run.id,
+        Some("hidden-runner"),
+        WorkItemRunTerminalOutcome::Failed,
+        WorkItemRunUsage::default(),
+        Some("request timed out after process restart"),
+    )
+    .expect("terminal");
+
+    let retry = retry(&failed.id, "startup-remote-root:test").expect("retry");
+    assert_eq!(
+        retry.target_snapshot.target,
+        WorkItemRunTarget::ResumeSession {
+            session_id: "shared-root".to_string(),
         }
     );
 }

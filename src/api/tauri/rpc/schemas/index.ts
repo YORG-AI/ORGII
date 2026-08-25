@@ -27,3 +27,4 @@ export * as humanSession from "./humanSession";
 export * as sessionCore from "./sessionCore";
 export * as cli from "./cli";
 export * as turnIntent from "./turnIntent";
+export * as workRuns from "./workRuns";

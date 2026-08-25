@@ -20,8 +20,9 @@ mod tests;
 
 pub use consumer_cursor::{advance_consumer_cursor, initialize_consumer_cursor};
 pub use dispatch::{
-    acknowledge_dispatch_started, claim_dispatch_for_run, claim_next_dispatch,
-    has_claimable_dispatch, next_dispatch_due_at_ms,
+    acknowledge_claimed_dispatch_started, acknowledge_dispatch_started, claim_dispatch_for_run,
+    claim_next_dispatch, delivered_dispatch_matches_claim, has_claimable_dispatch,
+    next_dispatch_due_at_ms, prepare_dispatch_session, renew_dispatch_lease,
 };
 pub(crate) use enqueue::enqueue_in_transaction;
 pub use enqueue::{enqueue, enqueue_for_inline_dispatch, enqueue_with_receipt};

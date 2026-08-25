@@ -74,6 +74,24 @@ fn init_is_idempotent() {
 }
 
 #[test]
+fn init_adds_claim_token_to_legacy_dispatch_outbox() {
+    let conn = open_in_memory();
+    init_project_tables(&conn).expect("initial schema");
+    conn.execute("ALTER TABLE pm_dispatch_outbox DROP COLUMN claim_token", [])
+        .expect("simulate legacy dispatch outbox");
+
+    init_project_tables(&conn).expect("upgrade legacy dispatch outbox");
+    let columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(pm_dispatch_outbox)")
+        .expect("prepare column query")
+        .query_map([], |row| row.get::<_, String>(1))
+        .expect("query columns")
+        .map(Result::unwrap)
+        .collect();
+    assert!(columns.iter().any(|column| column == "claim_token"));
+}
+
+#[test]
 fn legacy_workitems_schema_is_rebuilt_for_org_level_items() {
     let conn = open_in_memory();
     conn.execute_batch(

@@ -296,6 +296,7 @@ pub fn record_run_terminal(
         }
     }
     if existing.status.is_terminal() {
+        close_terminal_dispatch(&tx, run_id, now_ms())?;
         release_path_lock(&tx, run_id)?;
         db(tx.commit())?;
         crate::projects::events::notify_work_item_dispatch_ready();
@@ -338,12 +339,16 @@ pub fn record_run_terminal(
     let usage_json = serde_json::to_string(&usage)
         .map_err(|err| format!("work run usage serialization: {err}"))?;
     let now = now_ms();
-    db(tx.execute(
+    let changed = db(tx.execute(
         "UPDATE pm_work_item_runs
          SET status = ?2, failure_json = ?3, usage_json = ?4,
              session_id = COALESCE(session_id, ?6),
              completed_at = ?5, updated_at = ?5
-         WHERE id = ?1 AND status IN ('running', 'waiting', 'dispatching')",
+         WHERE id = ?1
+           AND (
+             status IN ('running', 'waiting', 'dispatching')
+             OR (status IN ('queued', 'deferred') AND session_id = ?6)
+           )",
         params![
             run_id,
             status.as_str(),
@@ -353,6 +358,19 @@ pub fn record_run_terminal(
             expected_session_id
         ],
     ))?;
+    if changed != 1 {
+        return Err(format!(
+            "{}:{} cannot record exact terminal from {} (expected session {})",
+            error::INVALID_TRANSITION,
+            run_id,
+            existing.status.as_str(),
+            expected_session_id.unwrap_or("none")
+        ));
+    }
+    // A runtime terminal proves transport accepted this Run. Retire a still
+    // leased outbox in the same transaction so it cannot be re-offered if the
+    // explicit frontend acknowledgement lost its response race.
+    close_terminal_dispatch(&tx, run_id, now)?;
     release_path_lock(&tx, run_id)?;
     let updated = require_run(&tx, run_id)?;
     append_audit(
@@ -379,6 +397,22 @@ pub fn record_run_terminal(
         tracing::warn!(run_id = %persisted.id, error = %err, "failed to project Run terminal into Inbox");
     }
     Ok(persisted)
+}
+
+fn close_terminal_dispatch(
+    tx: &rusqlite::Transaction<'_>,
+    run_id: &str,
+    terminal_at: i64,
+) -> Result<(), String> {
+    db(tx.execute(
+        "UPDATE pm_dispatch_outbox
+         SET status = 'delivered', delivered_at = COALESCE(delivered_at, ?2),
+             updated_at = ?2, lease_token = NULL, lease_owner = NULL,
+             lease_expires_at = NULL
+         WHERE run_id = ?1 AND status IN ('pending', 'retry_wait', 'leased')",
+        params![run_id, terminal_at],
+    ))?;
+    Ok(())
 }
 
 fn project_succeeded_run_for_review(run: &WorkItemRun) {
@@ -580,7 +614,15 @@ pub fn retry(run_id: &str, idempotency_key: &str) -> Result<WorkItemRun, String>
                 run_id
             )
         })?;
-        target_snapshot.target = WorkItemRunTarget::ResumeSession { session_id };
+        let keeps_remote_root = matches!(
+            &target_snapshot.target,
+            WorkItemRunTarget::ResumeSession {
+                session_id: root_session_id
+            } if root_session_id != &session_id
+        );
+        if !keeps_remote_root {
+            target_snapshot.target = WorkItemRunTarget::ResumeSession { session_id };
+        }
     }
     enqueue(EnqueueWorkItemRunRequest {
         project_slug: previous.project_slug,

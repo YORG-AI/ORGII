@@ -211,6 +211,7 @@ pub fn init_pm_service_tables(conn: &Connection) -> SqliteResult<()> {
             delivery_attempt  INTEGER NOT NULL DEFAULT 0,
             available_at      INTEGER NOT NULL,
             lease_token       TEXT,
+            claim_token       TEXT,
             lease_owner       TEXT,
             lease_expires_at  INTEGER,
             delivered_at      INTEGER,
@@ -324,6 +325,7 @@ pub fn init_pm_service_tables(conn: &Connection) -> SqliteResult<()> {
             ON pm_work_item_property_values(scope_key, work_item_id);
         "#,
     )?;
+    ensure_column(conn, "pm_dispatch_outbox", "claim_token", "TEXT")?;
     Ok(())
 }
 

@@ -28,6 +28,7 @@ pub mod agent_org_runs;
 pub mod agent_org_tasks;
 pub mod agent_org_watchdog;
 pub mod child_done_wake;
+pub mod conversation_turn_bridge;
 pub mod routine_scheduler;
 pub mod work_item_recovery;
 pub mod work_item_run_dispatcher;

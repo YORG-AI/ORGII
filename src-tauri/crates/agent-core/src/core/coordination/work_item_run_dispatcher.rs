@@ -12,13 +12,14 @@ use std::{
 };
 
 use project_management::projects::types::{
-    WorkItemDispatchLease, WorkItemExecutionLockReason, WorkItemRunTarget, WorkItemRunTrigger,
-    WorkItemRunUsage,
+    WorkItemDispatchLease, WorkItemExecutionLockReason, WorkItemRunStatus, WorkItemRunTarget,
+    WorkItemRunTrigger, WorkItemRunUsage,
 };
 use project_management::work_run_service::{self, WorkItemRunTerminalOutcome};
 use tauri::Manager;
 use tracing::{debug, error, info, warn};
 
+use super::conversation_turn_bridge;
 use crate::foundation::session_bridge::TurnIntentBridgeStatus;
 
 const LEASE_MS: i64 = 30_000;
@@ -207,6 +208,33 @@ async fn reconcile_interrupted_session_runs(app: &tauri::AppHandle) {
     };
 
     for (run, session) in candidates {
+        if let Some(prepared_runner) =
+            prepared_remote_runner_for(&run.target_snapshot.target, run.session_id.as_deref())
+        {
+            let intent =
+                crate::foundation::session_bridge::get_turn_intent_status(prepared_runner, &run.id);
+            if intent.is_some_and(|status| {
+                matches!(
+                    status,
+                    TurnIntentBridgeStatus::Completed
+                        | TurnIntentBridgeStatus::Cancelled
+                        | TurnIntentBridgeStatus::Failed
+                        | TurnIntentBridgeStatus::Stale
+                        | TurnIntentBridgeStatus::Coalesced
+                        | TurnIntentBridgeStatus::Rejected
+                )
+            }) {
+                reconcile_terminal_intent(&run.id, prepared_runner).await;
+                continue;
+            }
+            if run.status == WorkItemRunStatus::Dispatching && intent.is_none() {
+                // Prepare persisted only a runner hint; transport never
+                // accepted this Run. Leave the leased outbox reclaimable so
+                // the next fenced offer can reuse or replace the hint.
+                continue;
+            }
+        }
+
         let Some(session) = session else {
             warn!(
                 run_id = %run.id,
@@ -356,6 +384,33 @@ async fn dispatch_claim(
     lease: &WorkItemDispatchLease,
 ) -> Result<(), String> {
     let run = &lease.run;
+
+    // A previous claimant may have prepared and sent this exact turn before
+    // crashing ahead of ack. Reclaim by acknowledging the persisted intent;
+    // never offer/send the same `(runner Session, Run)` twice.
+    if let Some(prepared_session_id) =
+        prepared_remote_runner_for(&run.target_snapshot.target, run.session_id.as_deref())
+    {
+        if session_is_local(prepared_session_id).await?
+            && crate::foundation::session_bridge::get_turn_intent_status(
+                prepared_session_id,
+                &run.id,
+            )
+            .is_some()
+        {
+            acknowledge_dispatch_delivery(
+                app,
+                &run.id,
+                &lease.dispatch_id,
+                &lease.lease_token,
+                None,
+                prepared_session_id,
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+
     let session_id = match &run.target_snapshot.target {
         WorkItemRunTarget::StartWorkItem {
             account_id,
@@ -385,19 +440,74 @@ async fn dispatch_claim(
             }
         }
         WorkItemRunTarget::ResumeSession { session_id } => {
-            dispatch_session_turn(app, lease, session_id).await?;
+            if session_is_local(session_id).await? {
+                dispatch_session_turn(app, lease, session_id).await?;
+            } else {
+                request_remote_root_turn(app, lease, session_id).await?;
+                // Frontend acceptance only claims the offer. The durable
+                // outbox stays leased until prepare→send→ack names the exact
+                // local runner selected by the winning window.
+                return Ok(());
+            }
             session_id.clone()
         }
     };
 
-    let dispatch_id = lease.dispatch_id.clone();
-    let lease_token = lease.lease_token.clone();
-    let ack_session_id = session_id.clone();
-    let acknowledged = tokio::task::spawn_blocking(move || {
-        work_run_service::acknowledge_dispatch_started(&dispatch_id, &lease_token, &ack_session_id)
+    acknowledge_dispatch_delivery(
+        app,
+        &run.id,
+        &lease.dispatch_id,
+        &lease.lease_token,
+        None,
+        &session_id,
+    )
+    .await
+}
+
+async fn acknowledge_dispatch_delivery(
+    app: &tauri::AppHandle,
+    run_id: &str,
+    dispatch_id: &str,
+    lease_token: &str,
+    claim_token: Option<&str>,
+    session_id: &str,
+) -> Result<(), String> {
+    let dispatch_id = dispatch_id.to_string();
+    let lease_token = lease_token.to_string();
+    let ack_claim_token = claim_token.map(str::to_string);
+    let ack_session_id = session_id.to_string();
+    let durable_ack = tokio::task::spawn_blocking(move || match ack_claim_token.as_deref() {
+        Some(claim_token) => work_run_service::acknowledge_claimed_dispatch_started(
+            &dispatch_id,
+            &lease_token,
+            claim_token,
+            &ack_session_id,
+        ),
+        None => work_run_service::acknowledge_dispatch_started(
+            &dispatch_id,
+            &lease_token,
+            &ack_session_id,
+        ),
     })
     .await
-    .map_err(|err| format!("dispatch acknowledgement task failed: {err}"))??;
+    .map_err(|err| format!("dispatch acknowledgement task failed: {err}"))?;
+    let acknowledged = match durable_ack {
+        Ok(run) => run,
+        Err(err) => {
+            // The exact runtime terminal may win the race and retire the
+            // still-leased outbox. In that case the desired terminal is
+            // already durable and a late ack is an idempotent success.
+            let terminal_won = work_run_service::read(run_id)
+                .map(|run| {
+                    run.status.is_terminal() && run.session_id.as_deref() == Some(session_id)
+                })
+                .unwrap_or(false);
+            if terminal_won {
+                return Ok(());
+            }
+            return Err(err);
+        }
+    };
 
     let routine_origin = match &acknowledged.trigger {
         WorkItemRunTrigger::Routine {
@@ -433,7 +543,7 @@ async fn dispatch_claim(
     if let Some((routine_id, fire_id)) = routine_origin {
         let fire_id_for_update = fire_id.clone();
         let work_item_id = acknowledged.work_item_id.clone();
-        let fire_session_id = session_id.clone();
+        let fire_session_id = session_id.to_string();
         let linked = tokio::task::spawn_blocking(move || {
             project_management::projects::io::mark_routine_fire_work_item_started(
                 &fire_id_for_update,
@@ -469,6 +579,171 @@ async fn dispatch_claim(
         "[work-run-dispatcher] delivered"
     );
     Ok(())
+}
+
+/// Prepare the real local runner for an accepted remote-root hand-off. This
+/// does not acknowledge delivery: the frontend prepares before transport
+/// send, then calls the separate ack only after the exact intent is accepted.
+pub(crate) async fn prepare_remote_conversation_runner(
+    run_id: &str,
+    claim_token: &str,
+    root_session_id: &str,
+    runner_session_id: &str,
+) -> Result<(), String> {
+    if runner_session_id.trim().is_empty() {
+        return Err("runner_session_id is required".to_string());
+    }
+    if !session_is_local(runner_session_id).await? {
+        return Err(format!(
+            "conversation turn runner {runner_session_id} is not a local Session"
+        ));
+    }
+    conversation_turn_bridge::prepare_bound_claim(
+        run_id,
+        claim_token,
+        root_session_id,
+        runner_session_id,
+    )?;
+    let claim = conversation_turn_bridge::prepared_claim(
+        run_id,
+        claim_token,
+        root_session_id,
+        runner_session_id,
+    )?;
+    let dispatch_id = claim.dispatch_id;
+    let lease_token = claim.lease_token;
+    let prepared_claim_token = claim_token.to_string();
+    let prepared_session_id = runner_session_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        work_run_service::prepare_dispatch_session(
+            &dispatch_id,
+            &lease_token,
+            &prepared_claim_token,
+            &prepared_session_id,
+        )
+    })
+    .await
+    .map_err(|err| format!("dispatch prepare task failed: {err}"))??;
+    Ok(())
+}
+
+/// Acknowledge only the exact runner prepared under this claim. The in-memory
+/// claim is consumed after the durable acknowledgement commits, so response
+/// loss can be retried idempotently from the stored claim receipt.
+pub(crate) async fn ack_remote_conversation_runner(
+    app: &tauri::AppHandle,
+    run_id: &str,
+    claim_token: &str,
+    root_session_id: &str,
+    runner_session_id: &str,
+) -> Result<(), String> {
+    if runner_session_id.trim().is_empty() {
+        return Err("runner_session_id is required".to_string());
+    }
+    if !session_is_local(runner_session_id).await? {
+        return Err(format!(
+            "conversation turn runner {runner_session_id} is not a local Session"
+        ));
+    }
+    let claim = match conversation_turn_bridge::prepared_claim(
+        run_id,
+        claim_token,
+        root_session_id,
+        runner_session_id,
+    ) {
+        Ok(claim) => claim,
+        Err(claim_error) => {
+            if durable_remote_ack_is_exact(run_id, claim_token, root_session_id, runner_session_id)
+                .await?
+            {
+                reconcile_terminal_intent(run_id, runner_session_id).await;
+                return Ok(());
+            }
+            return Err(claim_error);
+        }
+    };
+
+    let acknowledged = acknowledge_dispatch_delivery(
+        app,
+        run_id,
+        &claim.dispatch_id,
+        &claim.lease_token,
+        Some(claim_token),
+        runner_session_id,
+    )
+    .await;
+    match acknowledged {
+        Ok(()) => {
+            conversation_turn_bridge::consume_prepared_claim(
+                run_id,
+                &claim.lease_token,
+                claim_token,
+                root_session_id,
+                runner_session_id,
+            );
+            Ok(())
+        }
+        Err(ack_error) => {
+            if durable_remote_ack_is_exact(run_id, claim_token, root_session_id, runner_session_id)
+                .await?
+            {
+                conversation_turn_bridge::consume_prepared_claim(
+                    run_id,
+                    &claim.lease_token,
+                    claim_token,
+                    root_session_id,
+                    runner_session_id,
+                );
+                reconcile_terminal_intent(run_id, runner_session_id).await;
+                Ok(())
+            } else {
+                Err(ack_error)
+            }
+        }
+    }
+}
+
+async fn durable_remote_ack_is_exact(
+    run_id: &str,
+    claim_token: &str,
+    root_session_id: &str,
+    runner_session_id: &str,
+) -> Result<bool, String> {
+    let durable_run_id = run_id.to_string();
+    let durable_claim_token = claim_token.to_string();
+    let durable_root_session_id = root_session_id.to_string();
+    let durable_runner_session_id = runner_session_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        let run = work_run_service::read(&durable_run_id)?;
+        let delivered = work_run_service::delivered_dispatch_matches_claim(
+            &durable_run_id,
+            &durable_claim_token,
+        )?;
+        Ok(durable_remote_ack_identity_matches(
+            delivered,
+            &run.target_snapshot.target,
+            run.session_id.as_deref(),
+            &durable_root_session_id,
+            &durable_runner_session_id,
+        ))
+    })
+    .await
+    .map_err(|err| format!("durable conversation ack lookup task failed: {err}"))?
+}
+
+fn durable_remote_ack_identity_matches(
+    delivered: bool,
+    target: &WorkItemRunTarget,
+    bound_session_id: Option<&str>,
+    root_session_id: &str,
+    runner_session_id: &str,
+) -> bool {
+    delivered
+        && bound_session_id == Some(runner_session_id)
+        && matches!(
+            target,
+            WorkItemRunTarget::ResumeSession { session_id } if session_id == root_session_id
+        )
 }
 
 async fn dispatch_snapshotted_session_launch(
@@ -554,6 +829,88 @@ async fn dispatch_session_turn(
     )
     .await
     .map(|_| ())
+}
+
+async fn session_is_local(session_id: &str) -> Result<bool, String> {
+    let lookup_id = session_id.to_string();
+    let persisted = tokio::task::spawn_blocking(move || {
+        crate::session::persistence::get_session(&lookup_id).map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| format!("session lookup task failed: {err}"))??;
+    if persisted.is_some() {
+        return Ok(true);
+    }
+    Ok(crate::foundation::session_bridge::get_cli_tools_snapshot(session_id)?.is_some())
+}
+
+fn prepared_remote_runner_for<'a>(
+    target: &WorkItemRunTarget,
+    bound_session_id: Option<&'a str>,
+) -> Option<&'a str> {
+    let WorkItemRunTarget::ResumeSession { session_id } = target else {
+        return None;
+    };
+    bound_session_id.filter(|runner_session_id| *runner_session_id != session_id)
+}
+
+/// The target Session belongs to another member: offer the turn to a local
+/// conversation runner instead of treating the remote root as missing.
+async fn request_remote_root_turn(
+    app: &tauri::AppHandle,
+    lease: &WorkItemDispatchLease,
+    root_session_id: &str,
+) -> Result<(), String> {
+    let run = &lease.run;
+    let content = durable_resume_content(&run.input)
+        .unwrap_or_default()
+        .to_string();
+    if content.trim().is_empty() {
+        return Err("durable resume dispatch is missing input.content".to_string());
+    }
+    let discussion_comment_ids = run
+        .input
+        .get("discussionCommentIds")
+        .and_then(serde_json::Value::as_array)
+        .map(|ids| {
+            ids.iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    info!(
+        run_id = %run.id,
+        root_session_id,
+        "[work-run-dispatcher] target Session is not local; offering conversation turn"
+    );
+    conversation_turn_bridge::request_conversation_turn(
+        app,
+        conversation_turn_bridge::ConversationTurnRequest {
+            run_id: run.id.clone(),
+            dispatch_id: lease.dispatch_id.clone(),
+            org_id: run.org_id.clone(),
+            project_slug: run.project_slug.clone(),
+            work_item_id: run.work_item_id.clone(),
+            work_item_title: run.target_snapshot.work_item_title.clone(),
+            assigned_agent_id: run.target_snapshot.agent_definition_id.clone(),
+            root_session_id: root_session_id.to_string(),
+            prepared_runner_session_id: prepared_remote_runner_for(
+                &run.target_snapshot.target,
+                run.session_id.as_deref(),
+            )
+            .map(str::to_string),
+            content,
+            display_text: run
+                .input
+                .get("displayText")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            discussion_comment_ids,
+        },
+        lease.lease_token.clone(),
+    )
+    .await
 }
 
 fn durable_resume_content(input: &serde_json::Value) -> Option<&str> {
@@ -642,8 +999,13 @@ fn lock_reason(trigger: &WorkItemRunTrigger) -> WorkItemExecutionLockReason {
 
 #[cfg(test)]
 mod tests {
-    use super::{durable_resume_content, lock_reason};
-    use project_management::projects::types::{WorkItemExecutionLockReason, WorkItemRunTrigger};
+    use super::{
+        durable_remote_ack_identity_matches, durable_resume_content, lock_reason,
+        prepared_remote_runner_for,
+    };
+    use project_management::projects::types::{
+        WorkItemExecutionLockReason, WorkItemRunTarget, WorkItemRunTrigger,
+    };
 
     #[test]
     fn trigger_maps_to_auditable_lock_reason() {
@@ -665,5 +1027,31 @@ mod tests {
     fn routine_prompt_is_valid_durable_resume_content() {
         let input = serde_json::json!({"prompt": "finish the routine"});
         assert_eq!(durable_resume_content(&input), Some("finish the routine"));
+    }
+
+    #[test]
+    fn prepared_remote_runner_never_replaces_the_immutable_root_target() {
+        let target = WorkItemRunTarget::ResumeSession {
+            session_id: "shared-root".to_string(),
+        };
+        assert_eq!(
+            prepared_remote_runner_for(&target, Some("hidden-runner")),
+            Some("hidden-runner")
+        );
+        assert_eq!(prepared_remote_runner_for(&target, Some("shared-root")), None);
+        assert!(durable_remote_ack_identity_matches(
+            true,
+            &target,
+            Some("hidden-runner"),
+            "shared-root",
+            "hidden-runner",
+        ));
+        assert!(!durable_remote_ack_identity_matches(
+            true,
+            &target,
+            Some("runner-other"),
+            "shared-root",
+            "hidden-runner",
+        ));
     }
 }

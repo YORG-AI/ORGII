@@ -5,6 +5,7 @@ pub mod desktop;
 pub mod routines;
 pub mod session;
 pub mod tools;
+pub mod work_runs;
 
 // `pub use session::*` is required because `tauri::generate_handler!`
 // in `commands/handler_list.inc` resolves a long list of session-level
