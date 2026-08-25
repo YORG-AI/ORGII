@@ -18,7 +18,6 @@ import {
 } from "@src/store/ui/integrationsToolbarAtom";
 
 import { useOSAgentGateway } from "../AgentOrgs/config/osAgent/useOSAgentGateway";
-import type { DevToolsTab } from "./DevTools/DevToolsCategoryView";
 import { useCliAgents } from "./KeyVault/CliClients/hooks/useCliAgents";
 import { useKeyVaultPage } from "./KeyVault/hooks/useKeyVaultPage";
 import { useChannelState } from "./hooks/useChannelState";
@@ -73,9 +72,6 @@ export function useIntegrationsPage() {
       : undefined;
   }, [modelsTabParam]);
 
-  const devToolsTabParam = searchParams.get("devToolsTab");
-  const initialDevToolsTab = devToolsTabParam as DevToolsTab | undefined;
-
   const navigateToCategory = useCallback(
     (next: IntegrationCategory) => {
       navigate(buildIntegrationsPath({ category: next }));
@@ -84,9 +80,6 @@ export function useIntegrationsPage() {
   );
 
   const [detailMode, setDetailMode] = useState<DetailMode>("preview");
-  const [devToolsTab, setDevToolsTab] = useState<DevToolsTab | undefined>(
-    initialDevToolsTab
-  );
   const [databasesActiveTab, setDatabasesActiveTab] = useState("databases");
   const [selectedDbClient, setSelectedDbClient] =
     useState<DependencyStatus | null>(null);
@@ -133,7 +126,6 @@ export function useIntegrationsPage() {
       accountsHook.handleAccountSelect(null);
       routines.clearRoutinesState();
       setSelectedDbClient(null);
-      setDevToolsTab(undefined);
       setDetailMode("preview");
     },
     [
@@ -483,7 +475,6 @@ export function useIntegrationsPage() {
     detailPanelProps: {
       category,
       detailMode,
-      devToolsTab,
       selectedIntegrationKind: connections.selectedIntegrationKind,
       selectedGitProvider: connections.selectedGitProvider,
       onExitFullPage: handleExitFullPage,

@@ -1,0 +1,30 @@
+/**
+ * Plain code styling for text-only renders.
+ *
+ * Applied where a highlighted surface falls back to plain text (the
+ * highlighter chunk has not loaded yet, or the language is unknown). The
+ * highlighted markup itself needs no overrides: `prismHtml` emits bare
+ * `<span class="token …">` elements that inherit the container's font and
+ * are colored by `src/styles/_prism-tokens.scss`.
+ *
+ * Uses --code-font-family CSS variable for consistent font across all code surfaces.
+ */
+@mixin code-fallback(
+  $font-size: 12px,
+  $line-height: 1.5,
+  $color: var(--color-text-1)
+) {
+  code {
+    font-family: var(
+      --code-font-family,
+      "SF Mono",
+      "Menlo",
+      "Monaco",
+      "Consolas",
+      monospace
+    );
+    font-size: #{$font-size};
+    line-height: #{$line-height};
+    color: #{$color};
+  }
+}

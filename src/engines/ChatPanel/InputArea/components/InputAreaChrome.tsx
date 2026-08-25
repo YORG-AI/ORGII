@@ -18,6 +18,7 @@ interface TopRowsProps {
     typeof PinnedActionsBar
   >["composerInputRef"];
   sessionId?: string;
+  showPinnedActions: boolean;
   skillWorkspacePaths?: string[];
 }
 
@@ -28,28 +29,32 @@ export const InputAreaTopRows: React.FC<TopRowsProps> = ({
   topRowTrailingContent,
   composerInputRef,
   sessionId,
+  showPinnedActions,
   skillWorkspacePaths,
-}) => (
-  <>
-    {!isEditMode && !omitChatHeader && <ChatHeader />}
-    {!isEditMode && (
-      <div className="relative z-10 flex min-w-0 items-center gap-1 px-0.5 pb-1.5">
-        <PinnedActionsBar
-          composerInputRef={composerInputRef}
-          sessionId={sessionId}
-          workspacePaths={skillWorkspacePaths ?? undefined}
-          leadingContent={
-            <>
-              <PlanTodoPill sessionId={sessionId} />
-              {topRowPills}
-            </>
-          }
-          trailingContent={topRowTrailingContent}
-        />
-      </div>
-    )}
-  </>
-);
+}) => {
+  return (
+    <>
+      {!isEditMode && !omitChatHeader && <ChatHeader />}
+      {!isEditMode && (
+        <div className="relative z-10 flex min-w-0 items-center gap-1 px-0.5 pb-1.5">
+          <PinnedActionsBar
+            composerInputRef={composerInputRef}
+            sessionId={sessionId}
+            workspacePaths={skillWorkspacePaths ?? undefined}
+            leadingContent={
+              <>
+                <PlanTodoPill sessionId={sessionId} />
+                {topRowPills}
+              </>
+            }
+            trailingContent={topRowTrailingContent}
+            showPinnedActions={showPinnedActions}
+          />
+        </div>
+      )}
+    </>
+  );
+};
 
 interface QuietEditStatusProps {
   isEditMode: boolean;

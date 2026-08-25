@@ -251,7 +251,6 @@ export type {
   CommitInfo,
   CursorPosition,
   EditorStatusBarProps,
-  LspStatus,
   StatusBarButtonProps,
   StatusBarDividerProps,
   StatusBarTextProps,

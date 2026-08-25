@@ -209,10 +209,6 @@ export const E2EBootstrap: FC = () => {
       learningsTriggerReflection,
       learningsDeprecate,
       debugSeedLearning,
-      lspGetWorkspaceConfig,
-      lspSetServerEnabled,
-      lintGetWorkspaceConfig,
-      lintSetToolEnabled,
     } = createMemoryHelpers();
 
     const {
@@ -426,10 +422,6 @@ export const E2EBootstrap: FC = () => {
       learningsTriggerReflection,
       learningsDeprecate,
       debugSeedLearning,
-      lspGetWorkspaceConfig,
-      lspSetServerEnabled,
-      lintGetWorkspaceConfig,
-      lintSetToolEnabled,
       promptDump: promptDumpHelper,
       getActiveSessionId,
       openWorkstationFile,

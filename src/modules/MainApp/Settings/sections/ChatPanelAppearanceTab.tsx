@@ -75,7 +75,7 @@ export const ChatPanelAppearanceTab: React.FC = () => {
         >
           <Switch
             checked={chatAppearance.typingEffectEnabled}
-            onChange={(checked) => {
+            onCheckedChange={(checked) => {
               updateChatAppearance({ typingEffectEnabled: checked });
             }}
           />
@@ -106,7 +106,7 @@ export const ChatPanelAppearanceTab: React.FC = () => {
         >
           <Switch
             checked={chatAppearance.decryptEffectEnabled}
-            onChange={(checked) => {
+            onCheckedChange={(checked) => {
               updateChatAppearance({ decryptEffectEnabled: checked });
             }}
           />
@@ -117,7 +117,7 @@ export const ChatPanelAppearanceTab: React.FC = () => {
         >
           <Switch
             checked={chatAppearance.sendOnEnter}
-            onChange={(checked) => {
+            onCheckedChange={(checked) => {
               updateChatAppearance({ sendOnEnter: checked });
             }}
           />

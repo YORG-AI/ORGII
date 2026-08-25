@@ -1,0 +1,40 @@
+name: PR policy
+
+on:
+  pull_request_target:
+    branches: [develop, release, master]
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+      - converted_to_draft
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  enforce:
+    name: Enforce PR contract
+    runs-on: ubuntu-latest
+
+    steps:
+      # Never execute code from the contributor's head branch. This explicitly
+      # checks out the trusted base policy.
+      - name: Checkout trusted policy
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Test policy helper
+        run: node --test scripts/ci/pr-policy.test.cjs
+
+      - name: Enforce contract
+        run: node scripts/ci/pr-policy.cjs

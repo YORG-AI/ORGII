@@ -347,7 +347,7 @@ const McpAddWizard: React.FC<McpAddWizardProps> = ({
             >
               <Switch
                 checked={!w.config.disabled}
-                onChange={(checked) =>
+                onCheckedChange={(checked) =>
                   w.setConfig((prev) => ({ ...prev, disabled: !checked }))
                 }
               />

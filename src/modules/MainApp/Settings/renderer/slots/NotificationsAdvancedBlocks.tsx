@@ -215,7 +215,10 @@ const NotificationsAdvancedBlocks: React.FC = () => {
 
       <SectionContainer>
         <SectionRow label={t("notifications.enableSound")}>
-          <Switch checked={soundEnabled} onChange={handleSoundEnabledChange} />
+          <Switch
+            checked={soundEnabled}
+            onCheckedChange={handleSoundEnabledChange}
+          />
         </SectionRow>
 
         {soundEnabled && (
@@ -271,7 +274,7 @@ const NotificationsAdvancedBlocks: React.FC = () => {
             <Switch
               checked={categoryValues[category.key]}
               disabled={criticalOnly && !category.critical}
-              onChange={() =>
+              onCheckedChange={() =>
                 categorySetters[category.key](!categoryValues[category.key])
               }
               ariaLabel={t(category.labelKey)}
@@ -285,7 +288,7 @@ const NotificationsAdvancedBlocks: React.FC = () => {
           <Switch
             checked={systemNotificationEnabled}
             disabled={isRequestingPermission}
-            onChange={() => void handleToggleSystemNotification()}
+            onCheckedChange={() => void handleToggleSystemNotification()}
           />
         </SectionRow>
         {(systemNotificationEnabled || permissionStatus !== "unknown") && (
@@ -327,7 +330,10 @@ const NotificationsAdvancedBlocks: React.FC = () => {
 
       <SectionContainer>
         <SectionRow label={t("notifications.enableDockBadge")}>
-          <Switch checked={dockBadgeEnabled} onChange={handleToggleDockBadge} />
+          <Switch
+            checked={dockBadgeEnabled}
+            onCheckedChange={handleToggleDockBadge}
+          />
         </SectionRow>
       </SectionContainer>
 

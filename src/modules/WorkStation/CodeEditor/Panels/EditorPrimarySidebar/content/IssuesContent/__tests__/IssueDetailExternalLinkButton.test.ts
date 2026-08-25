@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
+import { buildCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
 import type { GitHubIssueInteractionConfig } from "@src/modules/ProjectManager/WorkItems/components/WorkItemContent/types";
 
 import {
@@ -189,5 +190,38 @@ describe("IssueDetailExternalLinkButton", () => {
     expect(markup).toContain("commented");
     expect(markup).toContain("grace");
     expect(markup).toContain("assigned this issue");
+  });
+
+  it("labels a session-only timeline entry as an appended session", () => {
+    const body = buildCloudSessionReference({
+      orgId: "org-1",
+      ownerUserId: "owner-1",
+      sourceSessionId: "session-1",
+    });
+    const markup = renderToStaticMarkup(
+      createElement(IssueTimelineItems, {
+        timelineLoading: false,
+        timeline: [
+          {
+            id: 3,
+            event: "commented",
+            created_at: "2026-07-21T15:00:00.000Z",
+            actor: { login: "lin", avatar_url: "" },
+            body,
+            html_url: null,
+            assignee: null,
+            label: null,
+            milestone: null,
+            rename: null,
+            source: null,
+            commit_id: null,
+            lock_reason: null,
+          },
+        ],
+      })
+    );
+
+    expect(markup).toContain("appended a session");
+    expect(markup).not.toContain(">commented<");
   });
 });

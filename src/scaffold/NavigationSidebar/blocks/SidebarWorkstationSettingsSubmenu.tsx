@@ -81,7 +81,7 @@ function SwitchControlRow({
   return (
     <div className={DROPDOWN_CLASSES.menuControlItem}>
       <span>{label}</span>
-      <Switch checked={checked} onChange={onChange} size="small" />
+      <Switch checked={checked} onCheckedChange={onChange} size="small" />
     </div>
   );
 }
@@ -132,14 +132,14 @@ export const SidebarWorkstationSettingsSubmenu: React.FC<SidebarWorkstationSetti
             options={chatPositionOptions}
             onChange={handleStationChatPositionChange}
           />
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
           <SelectionRow<ChatPanelPosition>
             label={t("layoutSettings.agentStation")}
             value={agentChatPosition}
             options={chatPositionOptions}
             onChange={setAgentChatPosition}
           />
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
           <SwitchControlRow
             label={t("layoutSettings.chatPanelPagination")}
             checked={chatTurnPaginationEnabled}
@@ -154,7 +154,7 @@ export const SidebarWorkstationSettingsSubmenu: React.FC<SidebarWorkstationSetti
             options={chatPositionOptions}
             onChange={setLayoutModePersist}
           />
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
           <SelectionRow<ModelPickerStyle>
             label={t("layoutSettings.modelPickerStyle")}
             value={modelPickerStyle}

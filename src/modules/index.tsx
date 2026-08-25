@@ -66,7 +66,11 @@ import {
 } from "@src/store/ui/workStationAtom";
 import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 
-import { BackgroundLayer } from "./shared/components";
+// Deep import, not the `./shared/components` barrel: the barrel re-exports
+// MarkdownContent, which pulls the Markdown renderer (and with it
+// react-markdown + the Prism grammar set) into the pre-paint startup graph.
+// `src/app/root/__tests__/startupGraph.test.ts` pins this.
+import { BackgroundLayer } from "./shared/components/BackgroundLayer";
 import { FloatingSidebar } from "./shared/components/FloatingSidebar";
 import { SidebarSelector } from "./shared/components/SidebarSelector";
 import { useRouteLayoutType, useWorkspaceEvents } from "./shared/hooks";

@@ -22,12 +22,7 @@ import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
 import CanvasRevisionProgress from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasRevisionProgress";
 import { isCanvasRevisionPayload } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasRevision";
 import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
-import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
-import {
-  SessionLinkCard,
-  type SessionLinkCardData,
-} from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards";
 import {
   EventBlockHeader,
   EventBlockHeaderIcon,
@@ -53,12 +48,11 @@ import {
   extractThinkContent,
   stripThinkTags,
 } from "@src/engines/SessionCore/sync/adapters/shared/streamingParsers";
-import { parseGitArtifactsFromText } from "@src/shared/git/sessionGitArtifacts";
 
 // Lazy (same as user-message / thinking): SimulatorMessages is only used by
 // the simulator variant, but a static import here made every chat message
 // renderer pull the whole Communication app — SessionReplay CodePanel,
-// CodeMirror, react-syntax-highlighter, highlight.js, file previewers.
+// CodeMirror, react-syntax-highlighter / Prism, file previewers.
 const LazySimulatorMessages = lazy(
   () => import("@src/modules/WorkStation/Chat/Communication")
 );
@@ -115,47 +109,6 @@ const InlineThinkingBlock: React.FC<{ content: string }> = ({ content }) => {
     </div>
   );
 };
-
-// ============================================
-// PR Session Link Cards (extracted from agent message text)
-// ============================================
-
-function extractPrCards(content: string): SessionLinkCardData[] {
-  const artifacts = parseGitArtifactsFromText(content);
-  return artifacts
-    .filter(
-      (a) => a.kind === "pullRequest" && a.url && a.repoFullName && a.prNumber
-    )
-    .map((a) => ({
-      prUrl: a.url!,
-      prStatus: "open" as const,
-      repoFullName: a.repoFullName!,
-      prNumber: a.prNumber!,
-      prTitle: `PR #${a.prNumber}`,
-    }));
-}
-
-const PrSessionLinkCards: React.FC<{
-  content: string;
-  isStreaming: boolean;
-}> = React.memo(({ content, isStreaming }) => {
-  const cards = useMemo(
-    () => (isStreaming ? [] : extractPrCards(content)),
-    [content, isStreaming]
-  );
-  if (cards.length === 0) return null;
-  return (
-    <>
-      {cards.map((card) => (
-        <SessionLinkCard
-          key={`${card.repoFullName}#${card.prNumber}`}
-          card={card}
-        />
-      ))}
-    </>
-  );
-});
-PrSessionLinkCards.displayName = "PrSessionLinkCards";
 
 // ============================================
 // Chat Variant
@@ -230,21 +183,6 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
             finish={!isStreaming}
             streamHtml={isStreaming}
             showCopyButton={false}
-            appendedContent={
-              <>
-                <MessageReferenceCards
-                  content={content || ""}
-                  enabled={!isStreaming}
-                  sessionId={sessionId}
-                />
-                {!isStreaming && content && (
-                  <PrSessionLinkCards
-                    content={content}
-                    isStreaming={isStreaming}
-                  />
-                )}
-              </>
-            }
           >
             {content || ""}
           </AgentChatItemDefault>

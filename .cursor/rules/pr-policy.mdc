@@ -1,0 +1,24 @@
+---
+description: Repository-wide pull request contract for every Cursor agent
+alwaysApply: true
+---
+
+# Pull Request Contract
+
+@PR_RULES.md
+
+Before creating or updating any pull request, read and follow
+`PR_RULES.md`. It is the tracked, repository-wide source of truth.
+
+Hard gates:
+
+- One pull request has one responsibility.
+- The title uses `type(lowercase-kebab-scope): summary`.
+- The description begins with `Problem`, `Solution`, and `Potential risks` in
+  that exact order and includes a non-empty `Verification` section.
+- The final diff, published description, base, and draft state are read back
+  and verified before handoff.
+
+Do not treat these rules as optional formatting. GitHub automation enforces
+the machine-checkable subset, and the semantic requirements remain review
+gates.

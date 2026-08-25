@@ -148,7 +148,7 @@ const RuntimeScanningPanel: React.FC = () => {
           >
             <Switch
               checked={externalSessionsEnabled}
-              onChange={(checked) => setExternalSessionsEnabled(checked)}
+              onCheckedChange={(checked) => setExternalSessionsEnabled(checked)}
               ariaLabel={t("externalSessionsToggle")}
             />
           </SectionRow>

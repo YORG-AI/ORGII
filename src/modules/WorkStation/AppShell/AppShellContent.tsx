@@ -19,7 +19,6 @@ import {
 } from "@src/store/workstation/workstationTabBarAtoms";
 
 import CodeEditor from "../CodeEditor";
-import { LspInstallPrompt } from "../CodeEditor/LspInstallPrompt";
 import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "../shared/tokens";
 import { WorkStationStartPage } from "./StartPage";
 import {
@@ -224,10 +223,6 @@ export function AppShellContent({
             }}
           >
             {renderCodeEditor()}
-            {!showStartPage &&
-              codeContentVisible &&
-              isActive &&
-              !isAgentStation && <LspInstallPrompt />}
           </div>
         )}
 

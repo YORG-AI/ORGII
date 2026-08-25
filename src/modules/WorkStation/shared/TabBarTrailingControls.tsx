@@ -33,7 +33,7 @@ export const TabBarBottomPanelToggle: React.FC = memo(() => {
 
   return (
     <TabBarTrailingIconButton
-      title={t("titleBar.showBottomPanel")}
+      title={t("simulator.titleBar.showBottomPanel")}
       onClick={() => callbacks.onToggleBottomPanel?.()}
     >
       <PanelBottom size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />

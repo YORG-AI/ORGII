@@ -126,7 +126,9 @@ export interface PinnedActionsBarProps {
   trailingContent?: React.ReactNode;
   manageButtonPlacement?: "after-actions" | "after-leading" | "before-actions";
   managePanelAlign?: "left" | "right";
-  /** Show pinned quick-action pills; the management button stays available. */
+  /** Show the divider before controls when `manageButtonPlacement` is `before-actions`. */
+  showBeforeActionsSeparator?: boolean;
+  /** Show the pinned quick-action pills and their management controls. */
   showPinnedActions?: boolean;
 }
 
@@ -151,6 +153,7 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
     trailingContent,
     manageButtonPlacement = "after-actions",
     managePanelAlign = "right",
+    showBeforeActionsSeparator = true,
     showPinnedActions = true,
   }) => {
     const { t } = useTranslation("sessions");
@@ -403,17 +406,26 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
               {leadingContent}
               {trailingContent}
             </div>
-            <div aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border-2" />
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 scrollbar-hide">
-              {manageButton}
-              {actionPills}
-            </div>
+            {showPinnedActions && (
+              <>
+                {showBeforeActionsSeparator && (
+                  <div
+                    aria-hidden
+                    className="mx-1 h-4 w-px shrink-0 bg-border-2"
+                  />
+                )}
+                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 scrollbar-hide">
+                  {manageButton}
+                  {actionPills}
+                </div>
+              </>
+            )}
           </>
         ) : manageButtonPlacement === "after-leading" ? (
           <>
             <div className="flex shrink-0 items-center gap-1">
               {leadingContent}
-              {manageButton}
+              {showPinnedActions && manageButton}
             </div>
             {showTrailingSeparator && (
               <div aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border-2" />
@@ -433,12 +445,12 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
               <div aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border-2" />
             )}
             {trailingContent}
-            {manageButton}
+            {showPinnedActions && manageButton}
           </>
         )}
 
         <PinActionsPanel
-          visible={panelOpen}
+          visible={showPinnedActions && panelOpen}
           availableItems={availableItems}
           pinnedActions={pinnedActions}
           onTogglePin={handleTogglePin}

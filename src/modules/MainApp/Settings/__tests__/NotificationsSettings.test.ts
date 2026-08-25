@@ -92,17 +92,17 @@ vi.mock("@src/components/Switch", () => ({
   default: ({
     checked,
     disabled,
-    onChange,
+    onCheckedChange,
   }: {
     checked?: boolean;
     disabled?: boolean;
-    onChange?: () => void;
+    onCheckedChange?: () => void;
   }) =>
     createElement("button", {
       type: "button",
       disabled,
       "data-checked": String(Boolean(checked)),
-      onClick: onChange,
+      onClick: onCheckedChange,
     }),
 }));
 

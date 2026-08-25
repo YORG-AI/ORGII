@@ -187,7 +187,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             >
               <Switch
                 checked={usePointerCursors}
-                onChange={setUsePointerCursors}
+                onCheckedChange={setUsePointerCursors}
                 ariaLabel={t("general.usePointerCursors")}
                 dataTestId="use-pointer-cursors-switch"
               />
@@ -215,7 +215,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
               <SectionRow label={t("general.sidebarEdgeDepth")}>
                 <Switch
                   checked={sidebarEdgeDepthEnabled}
-                  onChange={setSidebarEdgeDepthEnabled}
+                  onCheckedChange={setSidebarEdgeDepthEnabled}
                 />
               </SectionRow>
             )}

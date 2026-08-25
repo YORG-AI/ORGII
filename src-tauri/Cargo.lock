@@ -5349,7 +5349,6 @@ dependencies = [
  "tempfile",
  "terminal",
  "test_helpers",
- "test_runner",
  "time",
  "tokio",
  "tokio-rustls",
@@ -8840,22 +8839,6 @@ name = "test_helpers"
 version = "0.1.0"
 dependencies = [
  "tempfile",
-]
-
-[[package]]
-name = "test_runner"
-version = "0.1.0"
-dependencies = [
- "app_utils",
- "chrono",
- "ignore",
- "regex",
- "serde",
- "serde_json",
- "tauri",
- "tokio",
- "tracing",
- "uuid",
 ]
 
 [[package]]

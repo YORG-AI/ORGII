@@ -41,7 +41,6 @@ members = [
     "crates/system-services",
     "crates/terminal",
     "crates/test-helpers",
-    "crates/test-runner",
     "crates/transport",
     "crates/types",
 ]
@@ -377,12 +376,6 @@ file_ops = { path = "crates/file-ops" }
 # emitter once at startup, after which call sites reach it through the
 # `transport::emitter::global()` accessor without depending back into `app`.
 transport = { path = "crates/transport" }
-
-# Multi-framework test runner (Jest/Vitest/Mocha/Pytest/`cargo test`):
-# discovery, execution, and result streaming. Owns 5 `#[tauri::command]`s —
-# `app` re-registers them in `commands/handler_list.inc` via bare
-# `test_runner::…` paths. Pure leaf — no back-edges into `app`.
-test_runner = { path = "crates/test-runner" }
 
 # DB Browser — Tauri commands for opening/querying arbitrary SQLite files
 # from the WorkStation code editor panel (replaces the WASM sql.js

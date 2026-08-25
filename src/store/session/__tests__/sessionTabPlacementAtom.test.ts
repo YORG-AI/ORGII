@@ -11,6 +11,7 @@ import {
   workstationActiveSessionIdAtom,
 } from "@src/store/session/viewAtom";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { STATION_MODE, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   createChatSessionTab,
   workstationLayoutAtom,
@@ -68,6 +69,7 @@ describe("session tab placement", () => {
       mainPane: { tabs: [], activeTabId: null },
     });
     store.set(chatPanelMaximizedAtom, true);
+    store.set(stationModeAtom, STATION_MODE.AGENT_STATION);
 
     const moved = store.set(moveSessionTabAtom, {
       source: "chat-panel",
@@ -92,6 +94,7 @@ describe("session tab placement", () => {
       ],
     });
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
+    expect(store.get(stationModeAtom)).toBe(STATION_MODE.MY_STATION);
     expect(store.get(activeSessionIdAtom)).toBe("session-1");
   });
 

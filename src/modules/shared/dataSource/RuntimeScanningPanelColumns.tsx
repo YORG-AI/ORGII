@@ -153,7 +153,9 @@ export function buildRuntimeScanningPanelColumns({
               <>
                 <Switch
                   checked={cfg.enabled}
-                  onChange={(checked) => void toggleEnabled(row, checked)}
+                  onCheckedChange={(checked) =>
+                    void toggleEnabled(row, checked)
+                  }
                   size="default"
                   ariaLabel={cfg.enabled ? t("disable") : t("enable")}
                 />

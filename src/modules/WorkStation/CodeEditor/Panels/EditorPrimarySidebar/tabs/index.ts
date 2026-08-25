@@ -17,5 +17,3 @@ export {
   SourceControlWithWorktrees,
 } from "./SourceControlTabPanels";
 export type { SourceControlContentHandle } from "./SourceControlTabPanels";
-export { useTestingTabConfig } from "./TestingTab";
-export type { TestingTabConfigProps } from "./TestingTab";

@@ -47,6 +47,6 @@ Covers the `size` API added to consolidate per-call-site font-size specification
 
 - [x] `getDiffStatsSizeClass` returns the correct class for `xs`/`sm`/`md`/`inherit`.
 - [x] Default rendering (no `size`) is byte-for-byte unchanged for `default`/`compact`/`chat` variants.
-- [x] Migrated `plain` sites (`DiffSummary`, `FeedMessage`, `CombinedDiffView`, `CanvasApp`, `ModernSplitDiff`, `GitHubDiff`, `TaskImpactLine`) preserve their previous pixel size.
+- [x] Migrated `plain` sites (`DiffSummary`, `FeedMessage`, `CombinedDiffView`, `CanvasApp`, `ModernSplitDiff`, `TaskImpactLine`) preserve their previous pixel size.
 - [x] Sites whose size does not map to a named token (`SessionDiffWindow` 10px) are left unchanged.
 - [x] Removed external font-size declarations (Tailwind `text-[Npx]` and SCSS `font-size`) leave other styling intact.

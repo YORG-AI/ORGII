@@ -15,7 +15,6 @@ import CodeMirror from "@uiw/react-codemirror";
 import { AlignLeft, History, Play } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { format as formatSql } from "sql-formatter";
 
 import type { TableInfo } from "@src/engines/DatabaseCore";
 import { createLogger } from "@src/hooks/logger";
@@ -86,20 +85,29 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
       }
     }, [value, loading, onExecute]);
 
-    // Handle format
+    // Handle format. `sql-formatter` (~280 KB) is loaded on first use so the
+    // SQL editor chunk does not carry it for users who never press Format.
     const handleFormat = useCallback(() => {
-      try {
-        const formatted = formatSql(value, {
-          language: "sqlite",
-          tabWidth: 2,
-          keywordCase: "upper",
+      const source = value;
+      void import(/* webpackChunkName: "sql-formatter" */ "sql-formatter")
+        .then(({ format }) =>
+          format(source, {
+            language: "sqlite",
+            tabWidth: 2,
+            keywordCase: "upper",
+          })
+        )
+        .then((formatted) => {
+          // Formatting is lazy-loaded on first use. Only apply its result if
+          // the editor still contains the source captured for this request;
+          // edits and history selections made while the chunk loads win.
+          setValue((current) => (current === source ? formatted : current));
+        })
+        .catch(() => {
+          // If formatting fails, keep original
+          log.warn("SQL formatting failed");
         });
-        setValue(formatted);
-      } catch {
-        // If formatting fails, keep original
-        log.warn("SQL formatting failed");
-      }
-    }, [value, setValue]);
+    }, [value]);
 
     // Handle history selection
     const handleHistoryClick = useCallback(

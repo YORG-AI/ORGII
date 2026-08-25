@@ -58,6 +58,7 @@ export const TreeRowBase = React.memo(
         showPathHint = false,
         showNativeTitle = true,
         rounded = true,
+        inset = true,
       },
       ref
     ) => {
@@ -91,11 +92,10 @@ export const TreeRowBase = React.memo(
         [onMouseLeave, resetCursor]
       );
 
-      // Calculate padding based on depth
-      // The row is inset from the sidebar edge, so subtract that same amount
-      // from its internal padding to keep all content at its original x-axis.
-      const paddingLeft =
-        depth * TREE_INDENT_PX + TREE_PADDING_X - TREE_ROW_INSET_X;
+      // Keep content aligned whether the row owns its outer inset or the host
+      // surface supplies that spacing (for example, a padded dropdown panel).
+      const rowInsetX = inset ? TREE_ROW_INSET_X : 0;
+      const paddingLeft = depth * TREE_INDENT_PX + TREE_PADDING_X - rowInsetX;
 
       // Determine text color based on ignored state and selection
       const getTextColorClass = () => {
@@ -112,7 +112,7 @@ export const TreeRowBase = React.memo(
         <div
           ref={ref}
           data-tree-path={dataPath}
-          className={`tree-row-base group/item relative ${TREE_ROW_INSET_CLASS} flex h-7 min-w-0 shrink-0 ${
+          className={`tree-row-base group/item relative ${inset ? TREE_ROW_INSET_CLASS : ""} flex h-7 min-w-0 shrink-0 ${
             isClickable && !cursorReset && !isHighlighted
               ? "cursor-pointer"
               : "cursor-default"
@@ -123,7 +123,7 @@ export const TreeRowBase = React.memo(
           } ${className}`}
           style={{
             paddingLeft: `${paddingLeft}px`,
-            paddingRight: `${TREE_PADDING_RIGHT - TREE_ROW_INSET_X}px`,
+            paddingRight: `${TREE_PADDING_RIGHT - rowInsetX}px`,
           }}
           onClick={isClickable ? handleRowClick : undefined}
           onContextMenu={onContextMenu}
@@ -143,7 +143,7 @@ export const TreeRowBase = React.memo(
                 key={level}
                 className={TREE_INDENT_GUIDE_CLASS}
                 style={{
-                  left: `${TREE_GUIDE_OFFSET_BASE - TREE_ROW_INSET_X + level * TREE_INDENT_PX}px`,
+                  left: `${TREE_GUIDE_OFFSET_BASE - rowInsetX + level * TREE_INDENT_PX}px`,
                 }}
               />
             ))}

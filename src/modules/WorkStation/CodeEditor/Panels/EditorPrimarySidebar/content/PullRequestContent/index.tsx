@@ -84,13 +84,12 @@ type PrVirtualRow =
 interface PrRowProps {
   pr: OpenPRItem;
   depth?: number;
-  isCurrentBranch: boolean;
   isSelected: boolean;
   onClick: (pr: OpenPRItem) => void;
 }
 
 const PrRow: React.FC<PrRowProps> = memo(
-  ({ pr, depth = 1, isCurrentBranch, isSelected, onClick }) => {
+  ({ pr, depth = 1, isSelected, onClick }) => {
     const statusKey = pr.draft ? "draft" : pr.state;
     const statusVariant = getPrStatusVariant(statusKey);
 
@@ -162,11 +161,6 @@ const PrRow: React.FC<PrRowProps> = memo(
             showIndentGuides={false}
             onMouseDown={stashPrDrag}
             {...dragHandlers}
-            className={
-              isCurrentBranch
-                ? "border-l-2 border-primary-5 !pl-[calc(theme(spacing.3)+2px+theme(spacing.4))]"
-                : undefined
-            }
           >
             <span className="ml-auto flex shrink-0 items-center gap-1">
               <span className="min-w-[28px] text-right text-[11px] tabular-nums text-text-3">
@@ -413,7 +407,6 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
           <PrRow
             pr={row.pr}
             depth={1}
-            isCurrentBranch={row.pr.head_branch === branchName}
             isSelected={row.pr.number === selectedPrNumber}
             onClick={handlePrClick}
           />

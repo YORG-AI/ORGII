@@ -63,7 +63,7 @@ export function renderEnabledSwitchCell(
       <Switch
         size={args.switchSize}
         checked={args.enabledSet.has(model)}
-        onChange={() => args.onToggleModel(model)}
+        onCheckedChange={() => args.onToggleModel(model)}
       />
     </div>
   );

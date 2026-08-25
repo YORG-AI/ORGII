@@ -28,6 +28,12 @@ describe("markdown url transform", () => {
     expect(markdownUrlTransform(REFERENCE, "href")).toBe(REFERENCE);
   });
 
+  it("passes projected composer references through on link hrefs", () => {
+    const workItem = "workitem://auth/AUTH-12/1700000000000";
+    expect(markdownUrlTransform(workItem, "href")).toBe(workItem);
+    expect(markdownUrlTransform(workItem, "src")).toBe("");
+  });
+
   it.each([
     "/Users/me/project/View.tsx:220",
     "file:///Users/me/project/View.tsx:220",
@@ -48,7 +54,7 @@ describe("markdown url transform", () => {
 
   it("refuses the scheme on every non-href url attribute", () => {
     // react-markdown runs the transform over src/poster/cite too; only the
-    // link path has a chip renderer, so nothing else may carry the scheme.
+    // link path has a reference renderer, so nothing else may carry the scheme.
     for (const key of ["src", "poster", "cite", "action", undefined]) {
       expect(markdownUrlTransform(REFERENCE, key)).toBe("");
     }

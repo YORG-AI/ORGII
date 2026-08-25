@@ -104,13 +104,11 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
   onChange,
   onCursorChange,
   onTextSelection,
-  onDiagnosticsChange,
   className = "",
   enableMinimap: enableMinimapProp,
   enableIndentGuides: enableIndentGuidesProp,
   enableGoToLine = true,
   enableFindReplace = true,
-  enableLinting = true,
   enableDirtyDiff = true,
   isDeletedFile = false,
   registerWithService = true,
@@ -212,13 +210,11 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
   // ============================================
   // LARGE FILE HANDLING: Auto-disable expensive features
   // ============================================
-  const { effectiveMinimap, effectiveIndentGuides, effectiveLinting } =
-    useLargeFileHandling({
-      value,
-      enableMinimap,
-      enableIndentGuides,
-      enableLinting,
-    });
+  const { effectiveMinimap, effectiveIndentGuides } = useLargeFileHandling({
+    value,
+    enableMinimap,
+    enableIndentGuides,
+  });
 
   // ============================================
   // LAZY LOADING: Language extension
@@ -236,7 +232,6 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
     callbackRefs.current = {
       onCursorChange,
       onTextSelection,
-      onDiagnosticsChange,
       onChange,
       filePath,
     };
@@ -269,7 +264,6 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
   // EXTENSIONS: Build complete extensions array
   // ============================================
   const extensions = useEditorExtensions({
-    filePath,
     originalValueRef,
     enableDirtyDiff,
     originalValue,
@@ -278,14 +272,11 @@ export const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({
     enableFindReplace,
     effectiveMinimap,
     effectiveIndentGuides,
-    effectiveLinting,
     lazyLangExtension,
     cursorExtension,
     selectionExtension,
     copyExtension,
     minimapHostRef,
-    callbackRefs,
-    onDiagnosticsChange,
     enableGitBlame,
     blameDataRef,
     lineNumberStart,

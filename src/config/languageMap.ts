@@ -20,6 +20,7 @@ export {
   getLanguageMetadata,
   getLanguageMetadataFromExtension,
   getLanguageMetadataFromPath,
+  getSyntaxHighlighterLanguage,
   getSyntaxHighlighterLanguageFromPath,
 } from "./languageRegistry";
 export { LANGUAGE_MAP };

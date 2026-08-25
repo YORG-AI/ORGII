@@ -55,7 +55,7 @@ export const SkillRequirementsBlock: React.FC<{
         <Switch
           size="default"
           checked={binsSectionOn}
-          onChange={(checked) => {
+          onCheckedChange={(checked) => {
             setBinsSectionOn(checked);
             if (!checked) editor.updateDraft({ requiredBins: [] });
           }}
@@ -80,7 +80,7 @@ export const SkillRequirementsBlock: React.FC<{
         <Switch
           size="default"
           checked={envSectionOn}
-          onChange={(checked) => {
+          onCheckedChange={(checked) => {
             setEnvSectionOn(checked);
             if (!checked) editor.updateDraft({ requiredEnv: [] });
           }}
@@ -157,7 +157,6 @@ export const BundledFileEntry: React.FC<{
           language={languageFromPath(file.relativePath)}
           height="150px"
           enableMinimap={false}
-          enableLinting={false}
           enableDirtyDiff={false}
           enableFindReplace={false}
           enableGoToLine={false}

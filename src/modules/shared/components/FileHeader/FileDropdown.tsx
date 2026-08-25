@@ -423,6 +423,7 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
                     onClick={() => handleToggle(row.entry.path)}
                     className="bg-bg-2"
                     showIndentGuides
+                    inset={false}
                   >
                     <GitStatusBadge
                       status={getGitStatus(row.entry)}
@@ -465,6 +466,7 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
                   gitStatus={gitStatus}
                   onClick={() => handleRowClick(row.entry)}
                   showIndentGuides
+                  inset={false}
                 >
                   <GitStatusBadge status={gitStatus} isDirectory={isDir} />
                 </TreeRowBase>

@@ -283,7 +283,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.compactionEnabled}
                       dataTestId="agent-orgs-agent-wizard-compaction-enabled-switch"
-                      onChange={w.setCompactionEnabled}
+                      onCheckedChange={w.setCompactionEnabled}
                     />
                   </SectionRow>
                   {w.compactionEnabled && (
@@ -485,7 +485,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capCoding}
                       dataTestId="agent-orgs-agent-wizard-capability-coding-switch"
-                      onChange={w.setCapCoding}
+                      onCheckedChange={w.setCapCoding}
                     />
                   </SectionRow>
                   {w.capCoding && (
@@ -501,7 +501,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       <Switch
                         checked={w.capCodingModeSwitch}
                         dataTestId="agent-orgs-agent-wizard-capability-coding-mode-switch"
-                        onChange={w.setCapCodingModeSwitch}
+                        onCheckedChange={w.setCapCodingModeSwitch}
                       />
                     </SectionRow>
                   )}
@@ -514,7 +514,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capDesktop}
                       dataTestId="agent-orgs-agent-wizard-capability-desktop-switch"
-                      onChange={w.setCapDesktop}
+                      onCheckedChange={w.setCapDesktop}
                     />
                   </SectionRow>
                   <SectionRow
@@ -528,7 +528,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capBrowserExternal}
                       dataTestId="agent-orgs-agent-wizard-capability-browser-external-switch"
-                      onChange={w.setCapBrowserExternal}
+                      onCheckedChange={w.setCapBrowserExternal}
                     />
                   </SectionRow>
                   <SectionRow
@@ -542,7 +542,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capBrowserInternal}
                       dataTestId="agent-orgs-agent-wizard-capability-browser-internal-switch"
-                      onChange={w.setCapBrowserInternal}
+                      onCheckedChange={w.setCapBrowserInternal}
                     />
                   </SectionRow>
                   <SectionRow
@@ -554,7 +554,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capGateway}
                       dataTestId="agent-orgs-agent-wizard-capability-gateway-switch"
-                      onChange={w.setCapGateway}
+                      onCheckedChange={w.setCapGateway}
                     />
                   </SectionRow>
                   <SectionRow
@@ -566,7 +566,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capData}
                       dataTestId="agent-orgs-agent-wizard-capability-data-switch"
-                      onChange={w.setCapData}
+                      onCheckedChange={w.setCapData}
                     />
                   </SectionRow>
                   <SectionRow
@@ -580,7 +580,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capManagement}
                       dataTestId="agent-orgs-agent-wizard-capability-management-switch"
-                      onChange={w.setCapManagement}
+                      onCheckedChange={w.setCapManagement}
                     />
                   </SectionRow>
                 </SectionContainer>

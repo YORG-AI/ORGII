@@ -399,7 +399,7 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_ITEM.hoverBgClass,
   ].join(" "),
 
-  /** Separator between menu groups. */
+  /** Full-width structural separator. Row groups use `menuSeparatorInset`. */
   menuSeparator: ["border-t", "border-solid", "border-border-2"].join(" "),
 
   /** Inset separator between dropdown list groups. */

@@ -55,7 +55,7 @@ const AgentEvolutionRow: React.FC<AgentEvolutionRowProps> = ({ agent }) => {
         <Switch
           checked={learnings.enabled}
           dataTestId={`rules-memory-evolution-agent-memory-enabled-${agent.id}`}
-          onChange={learnings.setEnabled}
+          onCheckedChange={learnings.setEnabled}
         />
       </SectionRow>
       <SectionRow
@@ -68,7 +68,7 @@ const AgentEvolutionRow: React.FC<AgentEvolutionRowProps> = ({ agent }) => {
         <Switch
           checked={learnings.extractMemoriesEnabled}
           dataTestId={`rules-memory-evolution-agent-memory-extract-${agent.id}`}
-          onChange={learnings.setExtractMemoriesEnabled}
+          onCheckedChange={learnings.setExtractMemoriesEnabled}
           disabled={!learnings.enabled}
         />
       </SectionRow>
@@ -82,7 +82,7 @@ const AgentEvolutionRow: React.FC<AgentEvolutionRowProps> = ({ agent }) => {
         <Switch
           checked={learnings.autoDreamEnabled}
           dataTestId={`rules-memory-evolution-agent-memory-auto-dream-${agent.id}`}
-          onChange={learnings.setAutoDreamEnabled}
+          onCheckedChange={learnings.setAutoDreamEnabled}
           disabled={!learnings.enabled}
         />
       </SectionRow>

@@ -394,6 +394,7 @@
       "deletedWorkItem": "删除了工作项",
       "restoredWorkItem": "恢复了工作项",
       "movedFromTo": "从 {{from}} 移动到 {{to}}",
+      "appendedSession": "附加了一个会话",
       "commented": "发表了评论",
       "system": "系统",
       "wasAssigned": "被分配",

@@ -381,7 +381,7 @@ const SubAgentsEditor: React.FC<SubAgentsEditorProps> = ({
                 <Switch
                   checked={ref.isolation === SUB_AGENT_ISOLATION.WORKTREE}
                   dataTestId={`agent-orgs-subagents-isolation-${ref.agentId}`}
-                  onChange={(checked) =>
+                  onCheckedChange={(checked) =>
                     handleWorktreeIsolationChange(ref.agentId, checked)
                   }
                 />

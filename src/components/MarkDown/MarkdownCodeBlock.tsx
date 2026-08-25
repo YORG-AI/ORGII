@@ -1,31 +1,37 @@
 /**
  * MarkdownCodeBlock
  *
- * The default (non-chat) fenced code block: Prism-highlighted source with a
- * copy button and, for references inside the active repo, an open-in-editor
- * button. Memoized on its own props so streaming text does not re-highlight
- * completed blocks.
+ * The default (non-chat) fenced code block: source with a copy button and, for
+ * references inside the active repo, an open-in-editor button. Memoized on its
+ * own props so streaming text does not re-highlight completed blocks.
+ *
+ * Syntax colouring is the one lazy boundary left in the Markdown tree: the
+ * grammar set is heavy and purely cosmetic, so the code renders as plain text
+ * first and gains colour when `MarkdownCodeHighlighter` arrives. If that chunk
+ * never arrives, the fence still shows its code.
  */
 import { Check, Copy, SquareArrowOutUpRight } from "lucide-react";
-import React, { memo, useCallback } from "react";
+import React, { Suspense, lazy, memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
 import { useCopyCheck } from "@src/hooks/ui";
 import { copyText } from "@src/util/data/clipboard";
-import { PrismLight as SyntaxHighlighterPrism } from "@src/util/language/prismLight";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
-const SyntaxHighlighter =
-  SyntaxHighlighterPrism as unknown as React.ComponentType<
-    Record<string, unknown>
-  >;
+import { MarkdownFallbackBoundary } from "./MarkdownFallbackBoundary";
+
+const MarkdownCodeHighlighter = lazy(
+  () =>
+    import(
+      /* webpackChunkName: "markdown-code-highlighter" */ "./MarkdownCodeHighlighter"
+    )
+);
 
 // ============================================
 // Static Styles (moved outside component for performance)
 // ============================================
 
-const CODE_CUSTOM_STYLE: React.CSSProperties = {
+const CODE_PLAIN_STYLE: React.CSSProperties = {
   fontFamily: "var(--cm-font-family)",
   fontSize: "12px",
   lineHeight: "1.6",
@@ -33,6 +39,8 @@ const CODE_CUSTOM_STYLE: React.CSSProperties = {
   padding: "12px 14px",
   borderRadius: "8px",
   background: "transparent",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
 };
 
 const CODE_WRAPPER_STYLE: React.CSSProperties = {
@@ -67,6 +75,14 @@ const CodeBlock = memo<CodeBlockProps>(
     const copyLabel = copied ? t("status.copied") : t("actions.copy");
     const openLabel = t("actions.open");
 
+    // Shown while the grammar chunk loads and if it fails: same text, same
+    // metrics, no colour. `language-*` keeps the fence's CSS hooks intact.
+    const plainCode = (
+      <div style={CODE_PLAIN_STYLE}>
+        <code className={`language-${language}`}>{children}</code>
+      </div>
+    );
+
     return (
       <div className="code-block-wrapper" style={CODE_WRAPPER_STYLE}>
         <div className="code-block-toolbar">
@@ -95,17 +111,15 @@ const CodeBlock = memo<CodeBlockProps>(
             )}
           </button>
         </div>
-        <SyntaxHighlighter
-          customStyle={CODE_CUSTOM_STYLE}
-          style={codeMirrorPrismTheme}
-          language={language}
-          PreTag="div"
-          showLineNumbers={false}
-          wrapLongLines
-          wrapLines={true}
+        <MarkdownFallbackBoundary
+          label="Markdown code highlighter"
+          resetKey={children}
+          fallback={plainCode}
         >
-          {children}
-        </SyntaxHighlighter>
+          <Suspense fallback={plainCode}>
+            <MarkdownCodeHighlighter code={children} language={language} />
+          </Suspense>
+        </MarkdownFallbackBoundary>
       </div>
     );
   },

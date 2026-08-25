@@ -9,17 +9,12 @@
  * - Show Command Output: Switches to Output panel in bottom panel
  * - Cancel: Dismisses dialog without action
  */
-import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import { gitApi } from "@src/api/http/git";
 import { ROUTES } from "@src/config/routes";
 import { getRepoContext } from "@src/services/git/operations/types";
 import { gitPullStrategyAtom } from "@src/store/ui/editorSettingsAtom";
-import {
-  workStationBottomPanelTabAtom,
-  workStationEditorSecondaryCollapsedAtom,
-} from "@src/store/ui/workStationAtom";
 import {
   createGitLogTab,
   openWorkstationTabAtom,
@@ -224,10 +219,6 @@ export function useGitErrorDialog(
   hookOptions: UseGitErrorDialogOptions = {}
 ): UseGitErrorDialogReturn {
   const { onRetry } = hookOptions;
-  const setBottomPanelTab = useSetAtom(workStationBottomPanelTabAtom);
-  const setBottomPanelCollapsed = useSetAtom(
-    workStationEditorSecondaryCollapsedAtom
-  );
 
   /**
    * Open a git log tab with the error details
@@ -251,18 +242,6 @@ export function useGitErrorDialog(
       tab,
     });
   }, []);
-
-  /**
-   * Switch to the Output panel in the bottom panel
-   */
-  const showOutputPanel = useCallback(() => {
-    navigateToCodeEditorIfNeeded();
-
-    // Expand the bottom panel if collapsed
-    setBottomPanelCollapsed(false);
-    // Switch to the output tab
-    setBottomPanelTab("output");
-  }, [setBottomPanelTab, setBottomPanelCollapsed]);
 
   /**
    * Show the error dialog and return user's choice
@@ -291,10 +270,6 @@ export function useGitErrorDialog(
           openGitLogTab(options);
           break;
 
-        case "show-output":
-          showOutputPanel();
-          break;
-
         case "cancel":
         default:
           // Do nothing
@@ -308,7 +283,7 @@ export function useGitErrorDialog(
         // No immediate action needed here
       }
     },
-    [showErrorDialog, openGitLogTab, showOutputPanel, onRetry]
+    [showErrorDialog, openGitLogTab, onRetry]
   );
 
   return {
@@ -354,15 +329,6 @@ export async function showGitErrorAndHandle(
         workspace,
         tab,
       });
-      break;
-    }
-
-    case "show-output": {
-      navigateToCodeEditorIfNeeded();
-
-      // Expand bottom panel and switch to output
-      store.set(workStationEditorSecondaryCollapsedAtom, false);
-      store.set(workStationBottomPanelTabAtom, "output");
       break;
     }
 

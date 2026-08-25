@@ -23,7 +23,7 @@ const SettingsFieldRenderer: React.FC<SettingsFieldRendererProps> = ({
     return (
       <Switch
         checked={Boolean(value)}
-        onChange={(checked) => setValue(checked as never)}
+        onCheckedChange={(checked) => setValue(checked as never)}
       />
     );
   }

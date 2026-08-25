@@ -10,18 +10,13 @@
  * because its diagnostic text lines are the actual deliverable to the user
  * — there is no equivalent surface in the simulator to fall back to.
  */
-import { invoke } from "@tauri-apps/api/core";
-import React, { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
+import React from "react";
 
-import Button from "@src/components/Button";
 import {
   statusToLifecycle,
   useLifecycleLabels,
 } from "@src/engines/SessionCore/rendering/registry";
 import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/types/universalProps";
-import { createLogger } from "@src/hooks/logger";
-import { TerminalService } from "@src/services/terminal";
 import { formatToolTargetPath } from "@src/util/file/repoPathDisplay";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
@@ -29,8 +24,6 @@ import ExploreBlock from "../../blocks/ExploreBlock";
 import ListDirBlock from "../../blocks/ListDirBlock";
 import { extractResultText } from "../../blocks/ToolCallBlock/helpers";
 import { FailedEventRow } from "../../blocks/primitives";
-
-const log = createLogger("ExploreAdapter");
 
 const BRACKETED_DIR_RE = /^\[dir\]\s+(.+)$/i;
 const BRACKETED_FILE_RE = /^\[file\]\s+(.+)$/i;
@@ -41,55 +34,6 @@ const BRACKETED_FILE_RE = /^\[file\]\s+(.+)$/i;
  * The language slug (e.g. "typescript") is what `lsp_get_install_command`
  * expects.
  */
-const LSP_FAILED_TO_START_RE = /Failed to start LSP server for '([^']+)'/i;
-
-interface InstallCommandResult {
-  command: string;
-  packageManagerFound: boolean;
-  error: string | null;
-}
-
-const LspInstallInlineButton: React.FC<{ language: string }> = ({
-  language,
-}) => {
-  const { t } = useTranslation();
-  const [installing, setInstalling] = useState(false);
-
-  const handleInstall = useCallback(async () => {
-    setInstalling(true);
-    try {
-      const result = await invoke<InstallCommandResult>(
-        "lsp_get_install_command",
-        { language }
-      );
-      if (!result.command) {
-        log.warn(
-          "[ExploreAdapter] No install command available:",
-          result.error
-        );
-        setInstalling(false);
-        return;
-      }
-      await TerminalService.execute(result.command);
-    } catch (error: unknown) {
-      log.error("[ExploreAdapter] LSP install failed:", error);
-    } finally {
-      setInstalling(false);
-    }
-  }, [language]);
-
-  return (
-    <Button
-      variant="tertiary"
-      size="mini"
-      onClick={handleInstall}
-      disabled={installing}
-      loading={installing}
-    >
-      {installing ? t("lsp.installing") : t("actions.install")}
-    </Button>
-  );
-};
 
 interface DirEntry {
   name: string;
@@ -280,13 +224,6 @@ export const ExploreAdapter: React.FC<UniversalEventProps> = (props) => {
   // header is misleading once the call resolves.
   if (state === "failed") {
     const detail = extractResultText(props.result);
-    let trailingAction: React.ReactNode | undefined;
-    if (props.eventType === "query_lsp" && detail) {
-      const match = LSP_FAILED_TO_START_RE.exec(detail);
-      if (match) {
-        trailingAction = <LspInstallInlineButton language={match[1]} />;
-      }
-    }
     return (
       <FailedEventRow
         toolName={props.eventType}
@@ -294,7 +231,6 @@ export const ExploreAdapter: React.FC<UniversalEventProps> = (props) => {
         label={title}
         detail={detail}
         eventId={props.eventId}
-        trailingAction={trailingAction}
       />
     );
   }

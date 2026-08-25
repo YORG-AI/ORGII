@@ -344,7 +344,7 @@ const GeneralTabBody: React.FC = () => {
         >
           <Switch
             checked={chatAppearance.sendOnEnter}
-            onChange={(checked) => {
+            onCheckedChange={(checked) => {
               updateChatAppearance({ sendOnEnter: checked });
             }}
           />
@@ -352,7 +352,10 @@ const GeneralTabBody: React.FC = () => {
       </SectionContainer>
       <SectionContainer>
         <SectionRow label={t("general.voiceInput")}>
-          <Switch checked={voiceInputEnabled} onChange={setVoiceInputEnabled} />
+          <Switch
+            checked={voiceInputEnabled}
+            onCheckedChange={setVoiceInputEnabled}
+          />
         </SectionRow>
         {voiceInputEnabled && (
           <SectionRow label={t("general.voiceInputPermission")} indent>
@@ -387,14 +390,17 @@ const GeneralTabBody: React.FC = () => {
         >
           <Switch
             checked={preventSleepWhileRunning}
-            onChange={setPreventSleepWhileRunning}
+            onCheckedChange={setPreventSleepWhileRunning}
           />
         </SectionRow>
         <SectionRow
           label={t("general.devMode")}
           description={t("general.devModeDesc")}
         >
-          <Switch checked={devModeEnabled} onChange={setDevModeEnabled} />
+          <Switch
+            checked={devModeEnabled}
+            onCheckedChange={setDevModeEnabled}
+          />
         </SectionRow>
       </SectionContainer>
 

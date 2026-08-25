@@ -107,7 +107,7 @@ const CloudEndpointCard: React.FC = () => {
       >
         <Switch
           checked={customEnabled}
-          onChange={handleCustomEnabledChange}
+          onCheckedChange={handleCustomEnabledChange}
           ariaLabel={t("cloud.customEndpoint.title")}
           dataTestId="org2-cloud-endpoint-toggle"
         />

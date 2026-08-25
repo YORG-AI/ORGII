@@ -6,7 +6,6 @@ import MessageViewer from "../MessageViewer";
 import type { MessageViewerProps } from "../MessageViewer";
 
 interface CommunicationMessageContentProps {
-  containerRef: React.RefObject<HTMLDivElement | null>;
   chatFontSize: number;
   chatCodeFontSize: number | null | undefined;
   chatLineHeight: number | null | undefined;
@@ -15,7 +14,6 @@ interface CommunicationMessageContentProps {
 
 /** Owns the simulator typography bridge and replay context around MessageViewer. */
 export function CommunicationMessageContent({
-  containerRef,
   chatFontSize,
   chatCodeFontSize,
   chatLineHeight,
@@ -25,7 +23,6 @@ export function CommunicationMessageContent({
   return (
     <InSimulatorReplayContext.Provider value={true}>
       <div
-        ref={containerRef}
         className="flex h-full w-full flex-col overflow-hidden"
         style={
           {

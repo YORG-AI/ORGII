@@ -349,7 +349,7 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
             </span>
             <Switch
               checked={applyForFuture}
-              onChange={handleApplyForFutureChange}
+              onCheckedChange={handleApplyForFutureChange}
               size="small"
               ariaLabel={t("creator.orgMembers.applyForFutureLabel")}
               dataTestId="session-creator-org-members-apply-future-switch"

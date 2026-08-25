@@ -247,7 +247,9 @@ export const RulesMemoryEvolutionTable: React.FC<
             <Switch
               size={MODEL_TABLE_SWITCH_SIZE}
               checked={rule.enabled}
-              onChange={(enabled) => onToggleMarkdownRule?.(rule, enabled)}
+              onCheckedChange={(enabled) =>
+                onToggleMarkdownRule?.(rule, enabled)
+              }
             />
             <Button
               variant="secondary"

@@ -246,7 +246,7 @@ const CustomAgentToolsSection: React.FC<CustomAgentToolsSectionProps> = ({
         <div className="flex justify-center">
           <Switch
             checked={checked}
-            onChange={onChange}
+            onCheckedChange={onChange}
             dataTestId={`agent-orgs-tool-switch-${row.name}`}
           />
         </div>

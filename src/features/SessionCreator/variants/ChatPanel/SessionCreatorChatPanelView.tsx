@@ -15,10 +15,12 @@ import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { pillControlStateClass } from "@src/components/CompoundPill/config";
 import InlineAlert from "@src/components/InlineAlert";
 import SelectorPill from "@src/components/SelectorPill";
+import { COMPOSER_HORIZONTAL_GUTTER_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import type { ScrollNavState } from "@src/engines/ChatPanel/ChatHistory";
 import CollapsedInlineRow from "@src/engines/ChatPanel/InputArea/components/CollapsedInlineRow";
 import PinnedActionsBar from "@src/engines/ChatPanel/InputArea/components/PinnedActionsBar";
+import { usePinnedActionsVisibilityContextMenu } from "@src/engines/ChatPanel/InputArea/components/PinnedActionsBar/usePinnedActionsVisibilityContextMenu";
 import type { SessionLaunchWorkItemContext } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { LaunchpadActionGrid } from "@src/features/SessionCreator/components/LaunchpadActionGrid";
 import {
@@ -179,6 +181,10 @@ const SessionCreatorChatPanelView: React.FC<
   workItemContext,
 }) => {
   const { t } = useTranslation(["sessions", "common"]);
+  const handlePinnedActionsContextMenu = usePinnedActionsVisibilityContextMenu({
+    visible: pinnedActionsVisible,
+    onVisibleChange: onPinnedActionsVisibleChange,
+  });
   const sessionInfoLine = (
     <SessionInfoLine
       {...sessionInfoProps}
@@ -255,11 +261,13 @@ const SessionCreatorChatPanelView: React.FC<
   const sessionSetupActions = !hideSessionSetupControls ? (
     <div
       className={`mx-auto flex w-full items-center ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+      onContextMenu={handlePinnedActionsContextMenu}
     >
       <PinnedActionsBar
         composerInputRef={composerInputRef}
         manageButtonPlacement="before-actions"
         managePanelAlign="left"
+        showBeforeActionsSeparator={Boolean(cliLaunchModeSwitch)}
         showPinnedActions={showPinnedActionPills}
         trailingContent={pinnedActionsContent}
         leadingContent={
@@ -491,7 +499,7 @@ const SessionCreatorChatPanelView: React.FC<
       data-testid="session-creator-chat-panel"
     >
       <div
-        className={`session-creator-chat-panel-content flex min-h-0 flex-1 px-4 ${DETAIL_PANEL_TOKENS.headerWidth} ${
+        className={`session-creator-chat-panel-content flex min-h-0 flex-1 ${COMPOSER_HORIZONTAL_GUTTER_CLASS} ${DETAIL_PANEL_TOKENS.headerWidth} ${
           isLaunchpadLayout
             ? `session-creator-chat-panel-launchpad-content flex-col ${CREATOR_BOTTOM_DOCK_PADDING_CLASS}`
             : `items-center justify-center ${
@@ -532,7 +540,10 @@ const SessionCreatorChatPanelView: React.FC<
                 {cliVersionWarning}
               </>
             )}
-            <div className={composerGroupClassName}>
+            <div
+              className={composerGroupClassName}
+              onContextMenu={handlePinnedActionsContextMenu}
+            >
               <div className={composerFrameClassName}>
                 {compactHeader}
                 {isCliTuiMode && tuiComposerHeader}

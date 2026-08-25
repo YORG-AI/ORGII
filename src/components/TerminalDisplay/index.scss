@@ -8,7 +8,7 @@
  *
  * Provides consistent terminal styling across all contexts.
  */
-@import "../../styles/mixins/shiki-overrides";
+@import "../../styles/mixins/code-fallback";
 @import "../../styles/mixins/bottom-panel";
 
 // ============================================
@@ -44,8 +44,6 @@
     word-break: break-word;
     color: var(--color-text-1);
 
-    // Use shared shiki override mixin
-    @include shiki-inline-overrides(12px);
     @include code-fallback(12px, 1.5, var(--color-text-1));
   }
 
@@ -256,7 +254,6 @@
   line-height: 1.5;
 
   .terminal-command__text {
-    @include shiki-inline-overrides(var(--chat-code-font-size, 13px), 1.5);
     @include code-fallback(
       var(--chat-code-font-size, 13px),
       1.5,

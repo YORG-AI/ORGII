@@ -78,7 +78,6 @@ export const SessionReplayCodeMirrorViewer: React.FC<SessionReplayCodeMirrorView
           height="100%"
           readOnly
           enableMinimap={false}
-          enableLinting={false}
           enableDirtyDiff={false}
           registerWithService={false}
           enableGitBlame={false}

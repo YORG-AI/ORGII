@@ -1,5 +1,7 @@
 # CLAUDE.md — Agent Skill Routing for ORGII
 
+@PR_RULES.md
+
 This file orients Claude / orgii agents working in this repo. It tells you **which audit / methodology skill to invoke** for which kind of task, and what to deliver before declaring work done.
 
 > Test conventions — where a test file belongs, how to name it, and what each
@@ -7,6 +9,10 @@ This file orients Claude / orgii agents working in this repo. It tells you **whi
 > This file does not restate them; it is about skill routing.
 
 This is **advisory**, not a hard contract. Use judgment based on PR size and risk.
+
+The exception is pull request policy: `PR_RULES.md` is mandatory, not
+advisory, for every pull request created or updated by Claude or a Claude-based
+agent.
 
 ---
 
@@ -58,6 +64,17 @@ Review gate: any UI predicate introduced to hide malformed data must cite an exp
 ---
 
 ## Default Delivery Flow
+
+### Pull requests
+
+Before creating or updating any pull request, read and follow `PR_RULES.md`.
+It is the tracked source of truth shared by Claude, Codex, Cursor, and human
+contributors.
+
+Hard gates: one responsibility; a scoped Conventional Commit title; the
+required `Problem`, `Solution`, `Potential risks`, and `Verification` sections;
+and a final GitHub read-back of the published pull request. If this summary
+and `PR_RULES.md` differ, follow `PR_RULES.md` and fix this adapter.
 
 ### Touching `*.tsx` files (UI work)
 

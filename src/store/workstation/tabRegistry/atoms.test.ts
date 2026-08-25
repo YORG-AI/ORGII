@@ -2,9 +2,12 @@ import { createStore } from "jotai/vanilla";
 import { describe, expect, it } from "vitest";
 
 import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
+import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { createBrowserSessionTab } from "@src/store/workstation/browser/tabs";
 import {
   type WorkStationTab,
+  createStartTab,
   workstationLayoutAtom,
   workstationTabsStateAtom,
 } from "@src/store/workstation/tabs";
@@ -29,6 +32,54 @@ function tab(id: string, orgId?: string): WorkStationTab {
     data: orgId ? { orgId } : {},
   };
 }
+
+describe("closeTabAtom", () => {
+  it("maximizes chat when the sole My Station Launchpad closes", () => {
+    const store = createStore();
+    const launchpad = createStartTab();
+    store.set(stationModeAtom, "my-station");
+    store.set(chatPanelMaximizedAtom, false);
+    store.set(workstationLayoutAtom, {
+      mainPane: { tabs: [launchpad], activeTabId: launchpad.id },
+    });
+
+    store.set(closeTabAtom, { tabId: launchpad.id });
+
+    expect(store.get(workstationLayoutAtom).mainPane).toEqual({
+      tabs: [],
+      activeTabId: null,
+    });
+    expect(store.get(chatPanelMaximizedAtom)).toBe(true);
+  });
+
+  it("does not maximize chat when a non-Launchpad last tab closes", () => {
+    const store = createStore();
+    const file = tab("file:/a.ts");
+    store.set(stationModeAtom, "my-station");
+    store.set(chatPanelMaximizedAtom, false);
+    store.set(workstationLayoutAtom, {
+      mainPane: { tabs: [file], activeTabId: file.id },
+    });
+
+    store.set(closeTabAtom, { tabId: file.id });
+
+    expect(store.get(chatPanelMaximizedAtom)).toBe(false);
+  });
+
+  it("does not maximize chat from Agent Station", () => {
+    const store = createStore();
+    const launchpad = createStartTab();
+    store.set(stationModeAtom, "agent-station");
+    store.set(chatPanelMaximizedAtom, false);
+    store.set(workstationLayoutAtom, {
+      mainPane: { tabs: [launchpad], activeTabId: launchpad.id },
+    });
+
+    store.set(closeTabAtom, { tabId: launchpad.id });
+
+    expect(store.get(chatPanelMaximizedAtom)).toBe(false);
+  });
+});
 
 describe("closeProjectOrgWorkStationTabsAtom", () => {
   it("closes every surface for the deleted org and keeps other tabs", () => {

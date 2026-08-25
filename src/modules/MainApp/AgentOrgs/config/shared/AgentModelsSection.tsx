@@ -206,7 +206,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
         >
           <Switch
             checked={compactionEnabled}
-            onChange={(checked: boolean) => {
+            onCheckedChange={(checked: boolean) => {
               update("compaction.enabled", checked);
               if (!checked) setCompactionAdvancedOpen(false);
             }}
@@ -252,7 +252,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
           <Switch
             checked={compactionAdvancedOpen}
             disabled={!compactionEnabled}
-            onChange={setCompactionAdvancedOpen}
+            onCheckedChange={setCompactionAdvancedOpen}
             dataTestId="agent-orgs-model-compaction-advanced-switch"
           />
         </SectionRow>
@@ -379,7 +379,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
         >
           <Switch
             checked={reliabilityEnabled}
-            onChange={(checked: boolean) => {
+            onCheckedChange={(checked: boolean) => {
               if (checked) {
                 // Restore to at least 2 retries when enabling; preserve
                 // existing value if user had already configured > 0.

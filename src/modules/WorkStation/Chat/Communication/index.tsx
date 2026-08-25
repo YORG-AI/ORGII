@@ -1,5 +1,5 @@
-import { useAtomValue, useSetAtom } from "jotai";
-import React, { memo, useCallback, useMemo, useRef } from "react";
+import { useAtomValue } from "jotai";
+import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
@@ -14,16 +14,12 @@ import {
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { matchesCanvasEvent } from "@src/modules/WorkStation/Canvas/config";
-import {
-  TextSelectionDropdown,
-  useTextSelectionDropdown,
-} from "@src/scaffold/ContextMenu/exports";
+import { SelectedTextAddToChat } from "@src/modules/WorkStation/shared/SelectedTextAddToChat";
 import {
   chatCodeFontSizeAtom,
   chatFontSizeAtom,
   chatLineHeightAtom,
 } from "@src/store/config/configAtom";
-import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import { simulatorEffectiveDockAppAtom } from "@src/store/ui/simulatorAtom";
 import type { BackendEvent } from "@src/types/session/steps";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
@@ -66,8 +62,6 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
 }) => {
   const { t } = useTranslation("sessions");
   const effectiveDockApp = useAtomValue(simulatorEffectiveDockAppAtom);
-  const setAddToAgent = useSetAtom(addToAgentAtom);
-  const selectionContainerRef = useRef<HTMLDivElement>(null);
   const chatFontSize = useAtomValue(chatFontSizeAtom);
   const chatCodeFontSize = useAtomValue(chatCodeFontSizeAtom);
   const chatLineHeight = useAtomValue(chatLineHeightAtom);
@@ -154,22 +148,6 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
 
   const sessionEvent = currentEvent as SessionEvent | undefined;
   const isCanvasEvent = matchesCanvasEvent(sessionEvent?.functionName ?? "");
-  const handleSelectedTextAddToChat = useCallback(
-    (text: string, _sessionId: string | null) => {
-      setAddToAgent({
-        type: "terminal",
-        text,
-        displayName: headerBreadcrumbLabel,
-      });
-    },
-    [headerBreadcrumbLabel, setAddToAgent]
-  );
-  const selectionDropdown = useTextSelectionDropdown({
-    source: "terminal",
-    containerRef: selectionContainerRef,
-    onAddToContext: handleSelectedTextAddToChat,
-    enabled: mode === "simulation" && !isCanvasEvent,
-  });
 
   const handleMessageClick = useCallback(
     (messageId: string) => {
@@ -217,33 +195,39 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
   }
 
   const messageContent = (
-    <CommunicationMessageContent
-      containerRef={selectionContainerRef}
-      chatFontSize={chatFontSize}
-      chatCodeFontSize={chatCodeFontSize}
-      chatLineHeight={chatLineHeight}
-      viewerProps={{
-        messages: currentMessages,
-        viewMode: effectiveViewMode,
-        setViewMode: handleViewModeChange,
-        orgMembers,
-        agentOrgTasks: agentOrgRunView?.tasks,
-        sessionReplayMode: mode,
-        planPreviewMode: isPlanDoc ? effectivePreviewMode : undefined,
-        planEditState:
-          isPlanDoc && isPlanPending && isEditing
-            ? { value: editedContent, onChange: setEditedContent }
-            : undefined,
-        planDocPending: isPlanDoc && isPlanPending,
-        activePlanMessage,
-        selectedMessage: state.selectedMessage,
-        previewSelectedPlan:
-          effectiveViewMode === "preview" &&
-          (hasLocalSelection || selectedMessageIsPlan),
-        onMessageClick: handleMessageClick,
-        currentEventId: state.currentEventId,
-      }}
-    />
+    <SelectedTextAddToChat
+      displayName={headerBreadcrumbLabel}
+      enabled={mode === "simulation"}
+      scopeKey={`${sessionId ?? "session"}:${effectiveViewMode}`}
+      className="h-full min-h-0 w-full min-w-0"
+    >
+      <CommunicationMessageContent
+        chatFontSize={chatFontSize}
+        chatCodeFontSize={chatCodeFontSize}
+        chatLineHeight={chatLineHeight}
+        viewerProps={{
+          messages: currentMessages,
+          viewMode: effectiveViewMode,
+          setViewMode: handleViewModeChange,
+          orgMembers,
+          agentOrgTasks: agentOrgRunView?.tasks,
+          sessionReplayMode: mode,
+          planPreviewMode: isPlanDoc ? effectivePreviewMode : undefined,
+          planEditState:
+            isPlanDoc && isPlanPending && isEditing
+              ? { value: editedContent, onChange: setEditedContent }
+              : undefined,
+          planDocPending: isPlanDoc && isPlanPending,
+          activePlanMessage,
+          selectedMessage: state.selectedMessage,
+          previewSelectedPlan:
+            effectiveViewMode === "preview" &&
+            (hasLocalSelection || selectedMessageIsPlan),
+          onMessageClick: handleMessageClick,
+          currentEventId: state.currentEventId,
+        }}
+      />
+    </SelectedTextAddToChat>
   );
 
   return (
@@ -287,14 +271,6 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
             appClassName="session-replay-messages"
           />
         </div>
-        <TextSelectionDropdown
-          visible={selectionDropdown.visible}
-          position={selectionDropdown.position}
-          selectedText={selectionDropdown.selectedText}
-          source="terminal"
-          onClose={selectionDropdown.hideDropdown}
-          onAddToContext={handleSelectedTextAddToChat}
-        />
       </SimulatorReplayChrome>
     </EventWrapper>
   );

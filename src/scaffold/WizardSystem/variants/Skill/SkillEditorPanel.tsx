@@ -214,7 +214,7 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
             >
               <Switch
                 checked={draft.alwaysActive}
-                onChange={(checked) =>
+                onCheckedChange={(checked) =>
                   editor.updateDraft({ alwaysActive: checked })
                 }
               />
@@ -317,7 +317,6 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
                       language="markdown"
                       height="100%"
                       enableMinimap={false}
-                      enableLinting={false}
                       enableDirtyDiff={false}
                       enableFindReplace={false}
                       enableGoToLine={false}

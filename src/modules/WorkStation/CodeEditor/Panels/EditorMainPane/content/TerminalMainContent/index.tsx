@@ -1,8 +1,11 @@
+// Type-only from the barrel, value from `types`: a static value import of
+// `exports` would collapse the `React.lazy(() => import(...exports))`
+// boundary below and load xterm with this file instead of on first mount.
+import type { TerminalCoreProps } from "@/src/engines/TerminalCore/exports";
 import {
-  type TerminalCoreProps,
   type UseTerminalStateReturn,
   getTerminalDisplayTitle,
-} from "@/src/engines/TerminalCore/exports";
+} from "@/src/engines/TerminalCore/types";
 import { useAtomValue, useSetAtom } from "jotai";
 import { Trash2 } from "lucide-react";
 import React, { Suspense, memo, useCallback, useEffect, useMemo } from "react";

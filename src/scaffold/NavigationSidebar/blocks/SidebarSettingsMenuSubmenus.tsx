@@ -128,7 +128,7 @@ export function SidebarSettingsMenuSubmenus({
               </button>
             );
           })}
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
           <div className={DROPDOWN_CLASSES.sectionLabel}>
             {themePresetLabel}
           </div>

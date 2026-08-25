@@ -7,8 +7,7 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { addressRunActiveAtom } from "@src/features/Org2Cloud/addressCommentsRun";
 import {
   estimateRuntimeValueBytes,
-  removeChatRenderedTreeMemoryEntry,
-  updateChatRenderedTreeMemoryEntry,
+  registerChatRenderedTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
 import {
   collapseAllCommandAtom,
@@ -72,6 +71,13 @@ export function useChatHistoryProjectionModel({
   turnPaginationEnabled,
 }: UseChatHistoryProjectionModelOptions) {
   const memoryStatsKeyRef = useRef(Symbol("chat-rendered-tree-memory"));
+  const memoryStatsSourceRef = useRef<{
+    activeId: string | null;
+    activeProjectionHistory: unknown[];
+    flatItems: unknown[];
+    groupCount: number;
+    totalFlatItems: number;
+  } | null>(null);
   const turnCollapseOverrides = useAtomValue(turnCollapseOverrideAtom);
   const collapseAllCommand = useAtomValue(collapseAllCommandAtom);
   const selectedThreadId = useAtomValue(selectedExecutionThreadAtom);
@@ -153,25 +159,31 @@ export function useChatHistoryProjectionModel({
     lastAssistantFlatIndexPerItem: [],
   };
 
-  useEffect(() => {
-    const key = memoryStatsKeyRef.current;
-    updateChatRenderedTreeMemoryEntry(key, {
-      bytes:
-        estimateRuntimeValueBytes(activeProjectionHistory) +
-        estimateRuntimeValueBytes(flatItems) +
-        groupCounts.length * 8,
-      items: totalFlatItems,
-      label: activeId ?? "unknown",
-    });
-
-    return () => removeChatRenderedTreeMemoryEntry(key);
-  }, [
+  memoryStatsSourceRef.current = {
     activeId,
     activeProjectionHistory,
     flatItems,
-    groupCounts,
+    groupCount: groupCounts.length,
     totalFlatItems,
-  ]);
+  };
+
+  useEffect(() => {
+    const key = memoryStatsKeyRef.current;
+    return registerChatRenderedTreeMemoryEntry(key, () => {
+      const source = memoryStatsSourceRef.current;
+      if (!source) {
+        return { bytes: 0, items: 0, label: "unknown" };
+      }
+      return {
+        bytes:
+          estimateRuntimeValueBytes(source.activeProjectionHistory) +
+          estimateRuntimeValueBytes(source.flatItems) +
+          source.groupCount * 8,
+        items: source.totalFlatItems,
+        label: source.activeId ?? "unknown",
+      };
+    });
+  }, []);
 
   const {
     selectedTurnPageIndex,

@@ -98,7 +98,7 @@ const MiniCpmCompactCard: React.FC<MiniCpmCompactCardProps> = memo(
             size="default"
             ariaLabel={t("contextInfo.miniCpmCompactToggleAria")}
             dataTestId="context-info-minicpm-compact-switch"
-            onChange={(enabled) => void handleToggle(enabled)}
+            onCheckedChange={(enabled) => void handleToggle(enabled)}
           />
         </div>
       </section>

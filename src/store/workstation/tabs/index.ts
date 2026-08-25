@@ -110,11 +110,9 @@ export {
   terminalTabFactory,
   terminalContentTabFactory,
   domComponentPreviewTabFactory,
-  outputTabFactory,
   settingsTabFactory,
   aiImpactTabFactory,
   searchSessionsTabFactory,
-  lintScanTabFactory,
   searchTabFactory,
   // Code Editor creator functions
   SOURCE_CONTROL_CHANGES_TAB_ID,
@@ -133,11 +131,9 @@ export {
   createTerminalTab,
   createTerminalContentTab,
   createDomComponentPreviewTab,
-  createOutputTab,
   createSettingsTab,
   createAIImpactTab,
   createSearchSessionsTab,
-  createLintScanTab,
   createSearchTab,
   // Browser factories
   browserSessionTabFactory,
@@ -207,7 +203,6 @@ export type {
   TerminalTabData,
   TerminalContentTabData,
   DomComponentPreviewTabData,
-  OutputTabData,
   SearchTabData,
   DirectoryTabData,
   // Browser data types

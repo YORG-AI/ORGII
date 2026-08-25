@@ -10,7 +10,6 @@ import {
   FilePlus2,
   Files,
   Filter,
-  FlaskConical,
   FolderPlus,
   GitBranch,
   Layers,
@@ -29,7 +28,6 @@ export const ICON_CONFIG = {
   // Tab icons
   files: Files,
   search: SearchIcon,
-  testing: FlaskConical,
   sourceControl: GitBranch,
 
   // Action icons
@@ -49,13 +47,12 @@ export const ICON_CONFIG = {
 // Tab Configuration
 // ============================================
 
-export const TAB_ORDER = ["files", "search", "testing"] as const;
+export const TAB_ORDER = ["files", "search"] as const;
 
 /** Tab label i18n keys - resolve with t() at render time */
 export const TAB_LABELS: Record<string, string> = {
   files: "tabs.explorer",
   search: "tabs.search",
-  testing: "tabs.testing",
 } as const;
 
 // ============================================

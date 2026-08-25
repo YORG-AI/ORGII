@@ -242,9 +242,9 @@ const SideChatWindow: React.FC<ChatPanelSideChatProps> = ({
         // `composer-breathing` shell, and forces dropdowns upward.
         // `hideWorkItemAttachmentControl` (with no `heroFooterSlot`) drops
         // the launchpad action-card grid — no room for it in this window.
-        // The scoped override narrows the creator's full-pane side padding
-        // (px-4) to fit the small floating surface.
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden [&_.session-creator-chat-panel-content]:px-2">
+        // The creator shares the same compact horizontal gutter as the
+        // in-chat composer, so this small floating surface needs no override.
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <SessionCreatorSlot
             className="h-full min-h-0"
             layout="launchpad"

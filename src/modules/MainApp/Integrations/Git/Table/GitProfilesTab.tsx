@@ -353,7 +353,7 @@ const GitProfilesTab: React.FC<GitProfilesTabProps> = ({ connectedEmails }) => {
               <SectionRow label={t("gitProfiles.signCommits")}>
                 <Switch
                   checked={selectedProfile.signCommits}
-                  onChange={(signCommits) =>
+                  onCheckedChange={(signCommits) =>
                     updateSelectedProfile({ signCommits })
                   }
                 />

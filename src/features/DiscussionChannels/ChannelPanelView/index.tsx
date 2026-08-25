@@ -18,8 +18,8 @@
  * composer is the real `InputArea` in the absolutely positioned footer
  * `HumanSessionView` uses. Settings reuses the existing per-scope dialog —
  * this view mounts it, never reimplements it. Cloud rows go through the SAME
- * `ChannelMessageList` / `ChannelMessageRow` as local ones, so session,
- * work-item and GitHub reference cards render identically on both planes.
+ * `ChannelMessageList` / `ChannelMessageRow` as local ones, so session cards
+ * and ordinary reference links render identically on both planes.
  *
  * A channel with a WRITABLE message plane is also a session DROP target
  * (`useChannelSessionDrop`): dragging a session row or tab anywhere over the
@@ -321,7 +321,7 @@ const CloudChannelPanel: React.FC<CloudChannelPanelProps> = ({
   const unknownAuthorLabel = t("cloud.channels.feed.unknownAuthor");
 
   // The cloud rows adapted to the transcript's scope-neutral shape — the same
-  // renderer the local plane uses, so reference cards keep working.
+  // renderer the local plane uses, so link/card projection stays identical.
   const feedMessages = useMemo<ChannelFeedMessage[]>(
     () =>
       messages.map((message) => {

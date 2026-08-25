@@ -15,8 +15,6 @@
 import { useAtomValue } from "jotai";
 import {
   CloudOff,
-  Globe,
-  HatGlasses,
   Monitor,
   RefreshCw,
   SquareArrowOutUpRight,
@@ -25,7 +23,6 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { createLogger } from "@src/hooks/logger";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { webviewBlockedAtom } from "@src/store/ui/overlayAtom";
@@ -79,6 +76,8 @@ export interface BrowserCoreProps {
   className?: string;
   /** Show simulator-specific notice */
   showSimulatorNotice?: boolean;
+  /** Optional complete placeholder shown only on a visible blank tab */
+  blankTabPlaceholder?: React.ReactNode;
   /** Force hide all webviews (e.g., when designer mode is active) */
   hidden?: boolean;
   /**
@@ -106,6 +105,7 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
   respectModalBlocking = true,
   className = "",
   showSimulatorNotice = false,
+  blankTabPlaceholder,
   hidden = false,
   manageWebviews = true,
   bypassStationModeBlocking = false,
@@ -179,7 +179,6 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
   ]);
 
   const isLoadingRaw = currentSession?.isLoading || false;
-  const isIncognito = currentSession?.incognito || false;
   const displayError = currentSession?.error || null;
   const currentUrl = currentSession?.url;
   const [embeddedFallbackUrl, setEmbeddedFallbackUrl] = React.useState<
@@ -246,37 +245,24 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
             aria-hidden="true"
           />
           {shouldShowUrlPlaceholder && (
-            <div
-              className={`browser-native-info ${EDITOR_TAB_CANVAS_BG_CLASS}`}
-            >
-              <div className="browser-native-placeholder">
-                {isIncognito ? (
-                  <HatGlasses
-                    size={64}
-                    strokeWidth={1.5}
-                    className="text-warning-6 opacity-80"
-                  />
-                ) : (
-                  <Globe
-                    size={64}
-                    strokeWidth={1.5}
-                    className="text-primary-6 opacity-80"
-                  />
-                )}
-                <h3>
-                  {isIncognito
-                    ? t("workstation.browserCore.privateBrowsingEmptyTitle")
-                    : t("workstation.browserCore.enterUrlToStart")}
-                </h3>
-                {showSimulatorNotice && (
-                  <p className="mt-2 text-xs font-semibold text-text-3">
-                    {t("workstation.browserCore.simulatorBrowserNotice")}
-                  </p>
-                )}
-                <p className="mt-2 text-xs text-text-3">
-                  {t("workstation.browserCore.tlsDevNote")}
-                </p>
-              </div>
+            <div className="browser-native-info">
+              {blankTabPlaceholder ?? (
+                <Placeholder
+                  variant="empty"
+                  placement="detail-panel"
+                  title={
+                    currentSession?.incognito
+                      ? t("workstation.browserCore.privateBrowsingEmptyTitle")
+                      : t("workstation.browserCore.enterUrlToStart")
+                  }
+                  subtitle={
+                    showSimulatorNotice
+                      ? t("workstation.browserCore.simulatorBrowserNotice")
+                      : undefined
+                  }
+                  fillParentHeight
+                />
+              )}
             </div>
           )}
 

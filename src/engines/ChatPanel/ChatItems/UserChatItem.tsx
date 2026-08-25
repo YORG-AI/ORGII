@@ -25,13 +25,8 @@ import {
   ChatBubbleCopyButton,
 } from "@src/components/ChatBubble";
 import ExpandOverlay from "@src/components/ExpandOverlay";
-import { readPillText } from "@src/config/pillTokens";
 import { REPO_SETUP_PROMPT_MARKER } from "@src/config/repoSetupMarker";
 import type { OptimizedChatItem } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/types";
-import {
-  SessionLinkCard,
-  type SessionLinkCardData,
-} from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards";
 import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
 import type { ConversationSenderStamp } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
 import { CONVERSATION_SENDER_ARG } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
@@ -71,51 +66,6 @@ const USER_MSG_MAX_LINES = 3;
 const USER_MSG_MAX_CHARS = 120;
 const AGENT_ORG_INBOX_TRANSCRIPT_PREFIX = "Acknowledged inbox batch";
 const PLAN_APPROVED_PREFIX = "[Plan approved";
-
-const PR_PILL_REGEX = /[^\n[]+?\s*\[pr:(pr:\/\/\d+)\]/g;
-
-function extractPrPillCards(text: string): SessionLinkCardData[] {
-  const cards: SessionLinkCardData[] = [];
-  const seen = new Set<string>();
-  for (const match of text.matchAll(PR_PILL_REGEX)) {
-    const pillPath = match[1];
-    if (!pillPath || seen.has(pillPath)) continue;
-    seen.add(pillPath);
-    const stored = readPillText(pillPath);
-    if (!stored) continue;
-    try {
-      const prData = JSON.parse(stored) as {
-        prNumber: number;
-        prTitle: string;
-        prUrl: string;
-        prStatus: string;
-        sourceBranch?: string;
-        targetBranch?: string;
-        additions?: number;
-        deletions?: number;
-      };
-      const repoMatch = prData.prUrl.match(
-        /github\.com\/([^/]+\/[^/]+)\/pull\//
-      );
-      const repoFullName = repoMatch?.[1] ?? "";
-      const status = prData.prStatus as SessionLinkCardData["prStatus"];
-      cards.push({
-        prUrl: prData.prUrl,
-        prStatus: status,
-        repoFullName,
-        prNumber: prData.prNumber,
-        prTitle: prData.prTitle,
-        sourceBranch: prData.sourceBranch,
-        targetBranch: prData.targetBranch,
-        additions: prData.additions,
-        deletions: prData.deletions,
-      });
-    } catch {
-      // Malformed stored data — skip
-    }
-  }
-  return cards;
-}
 
 // ============================================
 // Types
@@ -323,11 +273,6 @@ const UserChatItem = ({
   // (pills as badges, expansion block stripped, envelope normalized), so the
   // raw string is only reachable through the event itself.
   const rawPrompt = useMemo(() => resolveRawUserPrompt(event), [event]);
-
-  const prPillCards = useMemo(
-    () => extractPrPillCards(fullContent),
-    [fullContent]
-  );
 
   // Per-message timestamp shown beneath the bubble. Same smart-format used by
   // the other chat surfaces (Group chat, Org task, email): today → 24h time,
@@ -596,16 +541,6 @@ const UserChatItem = ({
             </div>
           )}
           {timestampLabel}
-        </div>
-      )}
-      {prPillCards.length > 0 && (
-        <div className="mt-1 flex w-full max-w-2xl flex-col">
-          {prPillCards.map((card) => (
-            <SessionLinkCard
-              key={`${card.repoFullName}#${card.prNumber}`}
-              card={card}
-            />
-          ))}
         </div>
       )}
     </>

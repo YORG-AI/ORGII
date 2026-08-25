@@ -14,6 +14,7 @@ export interface ChatPanelTabContextMenuProps {
   tabId: string;
   onCloseTab: (tabId: string) => void | Promise<void>;
   onCloseOtherTabs: (tabId: string) => void | Promise<void>;
+  onMoveToWorkstation?: (tabId: string) => void | Promise<void>;
   sessionReference?: SessionReferenceOpen;
   onCreateWorkItem?: (reference: SessionReferenceOpen) => void;
   onOpenInSideChat?: (reference: SessionReferenceOpen) => void;
@@ -43,6 +44,18 @@ export function ChatPanelTabContextMenu(
           buildItems: () => {
             const translate = i18next.t.bind(i18next);
             const items: NativeMenuItemOptions[] = [];
+            if (propsRef.current.onMoveToWorkstation) {
+              items.push({
+                text: translate("sessions:chat.moveToWorkstation", {
+                  defaultValue: "Move to My Station",
+                }),
+                action: () => {
+                  const current = propsRef.current;
+                  void current.onMoveToWorkstation?.(current.tabId);
+                  current.onDismiss();
+                },
+              });
+            }
             const sessionReference = propsRef.current.sessionReference;
             if (sessionReference) {
               items.push({

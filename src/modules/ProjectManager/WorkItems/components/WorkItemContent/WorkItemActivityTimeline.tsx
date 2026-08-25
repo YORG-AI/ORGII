@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import { WORK_ITEM_HISTORY_ACTION } from "@src/api/http/project/types";
 import Avatar from "@src/components/Avatar";
+import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import {
   ActivityTimestamp,
@@ -125,6 +126,8 @@ function SingleTimelineEntry({
 
   if (isDiscussionEntry(entry)) {
     const body = entry.descriptions[0] ?? "";
+    const isSessionAttachment =
+      projectMarkdownSessionReferences(body).referenceOnly;
     const actorVisual = resolveTimelineActorVisual(entry, currentUser);
     const timestampLabel = formatActivityTimestamp(
       entry.timestamp,
@@ -153,7 +156,11 @@ function SingleTimelineEntry({
               </Avatar>
             }
             actor={entry.userName}
-            action={t("workItems.activity.commented")}
+            action={t(
+              isSessionAttachment
+                ? "workItems.activity.appendedSession"
+                : "workItems.activity.commented"
+            )}
             timestamp={entry.timestamp}
             timestampLabel={timestampLabel}
           />

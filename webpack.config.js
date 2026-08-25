@@ -462,21 +462,7 @@ module.exports = (env, argv) => {
                   reuseExistingChunk: true,
                 },
                 asyncVendors: {
-                  test(module) {
-                    const moduleContext = module.context || "";
-                    const isShikiLazyGrammarModule =
-                      /[\\/]node_modules[\\/]\.pnpm[\\/]@shikijs\+(langs|themes)@/.test(
-                        moduleContext
-                      ) ||
-                      /[\\/]node_modules[\\/]@shikijs[\\/](langs|themes)[\\/]/.test(
-                        moduleContext
-                      );
-
-                    return (
-                      !isShikiLazyGrammarModule &&
-                      /[\\/]node_modules[\\/]/.test(moduleContext)
-                    );
-                  },
+                  test: /[\\/]node_modules[\\/]/,
                   name(module, chunks) {
                     const moduleContext = module.context || "";
                     const packageMatch =
@@ -543,7 +529,7 @@ module.exports = (env, argv) => {
         : {
             // Dev still needs chunk de-duplication. With 275+ dynamic-import
             // boundaries and no splitChunks, every shared module (CodeMirror,
-            // xterm, shiki, ...) was copied into each async chunk that used it:
+            // xterm, Prism, ...) was copied into each async chunk that used it:
             // 9k distinct modules became 43k emitted module instances (4.8x),
             // 305 MB JS + 258 MB maps in the dev server's memory FS, and each
             // HMR edit to a shared module re-rendered every copy. This group

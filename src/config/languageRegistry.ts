@@ -22,6 +22,8 @@ export interface LanguageMetadata {
   id: string;
   displayName: string;
   iconFile?: string;
+  /** Canonical Prism/refractor grammar when it differs from this metadata ID. */
+  syntaxHighlighterId?: string;
   aliases?: readonly string[];
   extensions?: readonly LanguageExtensionMetadata[];
   filenames?: readonly SpecialFilenameMetadata[];
@@ -87,7 +89,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     id: "scss",
     displayName: "SCSS",
     iconFile: "file.scss",
-    extensions: [extension("scss", "scss", "sass")],
+    extensions: [extension("scss", "scss", "scss")],
   },
   {
     id: "sass",
@@ -161,6 +163,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     id: "go",
     displayName: "Go",
     iconFile: "file.go",
+    aliases: ["golang"],
     extensions: [extension("go", "go", "go")],
   },
   {
@@ -186,6 +189,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     id: "cpp",
     displayName: "C++",
     iconFile: "file.cpp",
+    aliases: ["c++"],
     extensions: [
       extension("cpp", "cpp", "cpp"),
       extension("cc", "cpp", "cpp"),
@@ -196,6 +200,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     id: "cpp-header",
     displayName: "C++ Header",
     iconFile: "file.hpp",
+    syntaxHighlighterId: "cpp",
     extensions: [extension("hpp", "cpp"), extension("hxx", "cpp")],
   },
   {
@@ -203,7 +208,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     displayName: "C#",
     iconFile: "file.cs",
     aliases: ["cs"],
-    extensions: [extension("cs", "csharp", "cil")],
+    extensions: [extension("cs", "csharp", "csharp")],
   },
   {
     id: "swift",
@@ -214,8 +219,9 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
   {
     id: "objectivec",
     displayName: "Objective-C",
+    aliases: ["objective-c"],
     extensions: [
-      extension("m", "objectivec", "matlab"),
+      extension("m", "objectivec", "objectivec"),
       extension("mm", "objectivec"),
     ],
   },
@@ -236,6 +242,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     id: "jsonc",
     displayName: "JSON with Comments",
     iconFile: "file.json",
+    syntaxHighlighterId: "json",
     extensions: [extension("jsonc", "jsonc")],
   },
   {
@@ -270,14 +277,16 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
   {
     id: "mdx",
     displayName: "MDX",
+    syntaxHighlighterId: "markdown",
     extensions: [extension("mdx", "mdx")],
   },
   {
     id: "text",
     displayName: "Plain Text",
     iconFile: "file.txt",
+    syntaxHighlighterId: "text",
     aliases: ["plain", "plaintext"],
-    extensions: [extension("txt", "plaintext")],
+    extensions: [extension("txt", "plaintext", "log")],
     filenames: [
       { name: ".gitignore", detectedLanguageId: "text" },
       { name: ".npmrc", detectedLanguageId: "text" },
@@ -301,6 +310,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     id: "zsh",
     displayName: "Zsh",
     iconFile: "file.sh",
+    syntaxHighlighterId: "bash",
     extensions: [extension("zsh", "shellscript")],
     filenames: [{ name: ".zshrc", detectedLanguageId: "zsh" }],
   },
@@ -395,6 +405,7 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
   {
     id: "clojurescript",
     displayName: "ClojureScript",
+    syntaxHighlighterId: "clojure",
     extensions: [extension("cljs", "clojurescript")],
   },
   {
@@ -456,6 +467,12 @@ export const LANGUAGE_METADATA: readonly LanguageMetadata[] = [
     id: "ini",
     displayName: "INI",
     extensions: [extension("ini", undefined, "ini")],
+  },
+  {
+    id: "shell-session",
+    displayName: "Shell Session",
+    syntaxHighlighterId: "shell-session",
+    aliases: ["console"],
   },
   {
     id: "env",
@@ -611,13 +628,51 @@ export function getEditorLanguageFromPath(
   return getEditorLanguageFromExtension(extensionName, fallback);
 }
 
+function getSyntaxHighlighterIdForMetadata(metadata: LanguageMetadata): string {
+  return (
+    metadata.syntaxHighlighterId ??
+    metadata.extensions?.find((entry) => entry.syntaxHighlighterId)
+      ?.syntaxHighlighterId ??
+    metadata.id
+  );
+}
+
+/**
+ * Resolve an editor ID, extension, display alias, or legacy highlighter name
+ * to the canonical Prism/refractor grammar owned by this registry.
+ *
+ * Unknown names are returned normalized so the registered-grammar boundary
+ * can decide whether a directly supported Prism grammar exists.
+ */
+export function getSyntaxHighlighterLanguage(
+  language: string | undefined
+): string | undefined {
+  if (!language) return undefined;
+  const normalized = language.trim().toLowerCase();
+  if (!normalized) return undefined;
+
+  const extensionMetadata = EXTENSION_METADATA.get(normalized);
+  if (extensionMetadata?.extension.syntaxHighlighterId) {
+    return extensionMetadata.extension.syntaxHighlighterId;
+  }
+
+  const metadata =
+    extensionMetadata?.language ?? LANGUAGE_METADATA_BY_NAME.get(normalized);
+  return metadata ? getSyntaxHighlighterIdForMetadata(metadata) : normalized;
+}
+
 export function getSyntaxHighlighterLanguageFromPath(
   filePath: string
 ): string | undefined {
   if (!filePath) return undefined;
   const fileName = getFileName(filePath);
-  return EXTENSION_METADATA.get(getExtension(fileName))?.extension
-    .syntaxHighlighterId;
+  const extensionMetadata = EXTENSION_METADATA.get(getExtension(fileName));
+  if (extensionMetadata?.extension.syntaxHighlighterId) {
+    return extensionMetadata.extension.syntaxHighlighterId;
+  }
+
+  const metadata = getLanguageMetadataFromPath(filePath);
+  return metadata ? getSyntaxHighlighterIdForMetadata(metadata) : undefined;
 }
 
 export function getLanguageDisplayName(language: string): string {

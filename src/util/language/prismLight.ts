@@ -1,141 +1,48 @@
 /**
- * Prism highlighter (react-syntax-highlighter) with an explicit grammar set.
+ * React renderer for the app's Prism engine.
  *
  * `import { Prism } from "react-syntax-highlighter"` resolves through the
  * package barrel, which statically imports every refractor grammar (~280
- * modules) plus the highlight.js build and the async-loader variants. In the
- * webpack dev graph that was ~470 modules compiled and cached on every
- * build for grammars the app never renders.
+ * modules) plus a bundled highlight.js build and the async-loader variants.
+ * The `prism-light` entry is the same component over an empty `refractor`
+ * singleton; the grammars it can render are exactly the ones registered in
+ * `./prismGrammars`, which is also what the HTML-string path
+ * (`./prismHtml`) uses — one engine, one grammar set.
  *
- * The light entry starts empty; only the grammars registered below exist.
- * Everything the app's language mappers can produce that Prism knows
- * (`src/config/languageMap.ts`, `src/util/editor/extension.tsx`, markdown
- * fence info strings) is covered. An unregistered language is not an error:
- * react-syntax-highlighter checks `listLanguages()` first and renders the
- * code as plain text, which is also what the full build did for names it
- * did not know (e.g. "typescriptreact").
- *
- * Grammar aliases (`ts`, `js`, `html`, `xml`, `sh`, `yml`, `md`, ...) are
- * declared by the grammars themselves, so they keep working.
+ * An unregistered language is not an error: react-syntax-highlighter checks
+ * `listLanguages()` first and renders the code as plain text.
  */
-import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
-import c from "react-syntax-highlighter/dist/esm/languages/prism/c";
-import clojure from "react-syntax-highlighter/dist/esm/languages/prism/clojure";
-import cmake from "react-syntax-highlighter/dist/esm/languages/prism/cmake";
-import cpp from "react-syntax-highlighter/dist/esm/languages/prism/cpp";
-import csharp from "react-syntax-highlighter/dist/esm/languages/prism/csharp";
-import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
-import dart from "react-syntax-highlighter/dist/esm/languages/prism/dart";
-import diff from "react-syntax-highlighter/dist/esm/languages/prism/diff";
-import docker from "react-syntax-highlighter/dist/esm/languages/prism/docker";
-import elixir from "react-syntax-highlighter/dist/esm/languages/prism/elixir";
-import erlang from "react-syntax-highlighter/dist/esm/languages/prism/erlang";
-import git from "react-syntax-highlighter/dist/esm/languages/prism/git";
-import go from "react-syntax-highlighter/dist/esm/languages/prism/go";
-import graphql from "react-syntax-highlighter/dist/esm/languages/prism/graphql";
-import haskell from "react-syntax-highlighter/dist/esm/languages/prism/haskell";
-import hcl from "react-syntax-highlighter/dist/esm/languages/prism/hcl";
-import ini from "react-syntax-highlighter/dist/esm/languages/prism/ini";
-import java from "react-syntax-highlighter/dist/esm/languages/prism/java";
-import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
-import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
-import json5 from "react-syntax-highlighter/dist/esm/languages/prism/json5";
-import jsx from "react-syntax-highlighter/dist/esm/languages/prism/jsx";
-import kotlin from "react-syntax-highlighter/dist/esm/languages/prism/kotlin";
-import less from "react-syntax-highlighter/dist/esm/languages/prism/less";
-import lua from "react-syntax-highlighter/dist/esm/languages/prism/lua";
-import makefile from "react-syntax-highlighter/dist/esm/languages/prism/makefile";
-import markdown from "react-syntax-highlighter/dist/esm/languages/prism/markdown";
-import markup from "react-syntax-highlighter/dist/esm/languages/prism/markup";
-import nginx from "react-syntax-highlighter/dist/esm/languages/prism/nginx";
-import objectivec from "react-syntax-highlighter/dist/esm/languages/prism/objectivec";
-import ocaml from "react-syntax-highlighter/dist/esm/languages/prism/ocaml";
-import perl from "react-syntax-highlighter/dist/esm/languages/prism/perl";
-import php from "react-syntax-highlighter/dist/esm/languages/prism/php";
-import powershell from "react-syntax-highlighter/dist/esm/languages/prism/powershell";
-import protobuf from "react-syntax-highlighter/dist/esm/languages/prism/protobuf";
-import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
-import r from "react-syntax-highlighter/dist/esm/languages/prism/r";
-import ruby from "react-syntax-highlighter/dist/esm/languages/prism/ruby";
-import rust from "react-syntax-highlighter/dist/esm/languages/prism/rust";
-import sass from "react-syntax-highlighter/dist/esm/languages/prism/sass";
-import scala from "react-syntax-highlighter/dist/esm/languages/prism/scala";
-import shellSession from "react-syntax-highlighter/dist/esm/languages/prism/shell-session";
-import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
-import swift from "react-syntax-highlighter/dist/esm/languages/prism/swift";
-import toml from "react-syntax-highlighter/dist/esm/languages/prism/toml";
-import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
-import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
-import vim from "react-syntax-highlighter/dist/esm/languages/prism/vim";
-import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
-import zig from "react-syntax-highlighter/dist/esm/languages/prism/zig";
+import { createElement } from "react";
+import type { ComponentType } from "react";
+import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
 import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/prism-light";
 
-import scss from "react-syntax-highlighter/dist/esm/languages/prism/scss";
+// Side effect: registers the grammar set on the shared refractor singleton.
+import { resolvePrismLanguage } from "./prismGrammars";
 
-/** Grammar name → refractor grammar. Keys are Prism's canonical names. */
-const PRISM_GRAMMARS = {
-  bash,
-  c,
-  clojure,
-  cmake,
-  cpp,
-  csharp,
-  css,
-  dart,
-  diff,
-  docker,
-  elixir,
-  erlang,
-  git,
-  go,
-  graphql,
-  haskell,
-  hcl,
-  ini,
-  java,
-  javascript,
-  json,
-  json5,
-  jsx,
-  kotlin,
-  less,
-  lua,
-  makefile,
-  markdown,
-  markup,
-  nginx,
-  objectivec,
-  ocaml,
-  perl,
-  php,
-  powershell,
-  protobuf,
-  python,
-  r,
-  ruby,
-  rust,
-  sass,
-  scala,
-  scss,
-  "shell-session": shellSession,
-  sql,
-  swift,
-  toml,
-  tsx,
-  typescript,
-  vim,
-  yaml,
-  zig,
-} as const;
+// The dependency currently resolves its own React 18 types under pnpm while
+// the app compiles against React 19. Its runtime component contract is still
+// the public SyntaxHighlighterProps shape, so bridge only that type boundary.
+const SyntaxHighlighterComponent =
+  SyntaxHighlighter as unknown as ComponentType<SyntaxHighlighterProps>;
 
-for (const [name, grammar] of Object.entries(PRISM_GRAMMARS)) {
-  SyntaxHighlighter.registerLanguage(name, grammar);
+export {
+  PRISM_LIGHT_LANGUAGES,
+  isPrismLanguage,
+  resolvePrismLanguage,
+} from "./prismGrammars";
+
+/**
+ * Drop-in replacement for `Prism` from `react-syntax-highlighter`.
+ *
+ * Callers provide language names from editor state, Markdown fences, and tool
+ * metadata. Normalize every React-rendered surface through the same canonical
+ * registry as the HTML-string renderer so aliases cannot silently fall back to
+ * plain text.
+ */
+export function PrismLight({ language, ...props }: SyntaxHighlighterProps) {
+  return createElement(SyntaxHighlighterComponent, {
+    ...props,
+    language: resolvePrismLanguage(language) ?? "text",
+  });
 }
-
-/** Registered Prism grammar names (canonical names only, aliases excluded). */
-export const PRISM_LIGHT_LANGUAGES: readonly string[] =
-  Object.keys(PRISM_GRAMMARS);
-
-/** Drop-in replacement for `Prism` from "react-syntax-highlighter". */
-export { SyntaxHighlighter as PrismLight };

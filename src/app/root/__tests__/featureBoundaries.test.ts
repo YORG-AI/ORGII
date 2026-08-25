@@ -27,7 +27,13 @@ const EDITOR_STACK = [
   "sql-formatter",
 ];
 const TERMINAL_STACK = ["@xterm/xterm", "@xterm/addon-webgl"];
-const HIGHLIGHTERS = ["react-syntax-highlighter", "refractor", "highlight.js"];
+const HIGHLIGHTERS = [
+  "react-syntax-highlighter",
+  "refractor",
+  // Removed in favour of Prism; listed so they cannot creep back.
+  "highlight.js",
+  "shiki",
+];
 const MISC_HEAVY = [
   "framer-motion",
   "recharts",

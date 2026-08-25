@@ -22,7 +22,7 @@ const CliUpdateAlertsSettingsRow: React.FC = () => {
       >
         <Switch
           checked={enabled}
-          onChange={setEnabled}
+          onCheckedChange={setEnabled}
           ariaLabel={label}
           dataTestId="cli-update-alerts-switch"
         />

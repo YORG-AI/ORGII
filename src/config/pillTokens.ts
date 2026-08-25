@@ -4,7 +4,7 @@
  * Shared styling constants and type definitions for inline context pills.
  * Used by:
  * - ComposerInput (editable composer pills)
- * - InlinePill in UserMessageContent (read-only display pills)
+ * - InlineReferenceLink / MentionPill in UserMessageContent (read-side UI)
  * - pill serialization utilities
  * - normalizers.ts (pill content stripping)
  * - contextPillContent.ts (pill text storage)

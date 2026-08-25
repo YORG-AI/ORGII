@@ -232,7 +232,7 @@ const AgentMcpSection: React.FC<AgentMcpSectionProps> = ({
                   checked={!effectivelyDisabled}
                   disabled={serverDisabled}
                   dataTestId={`agent-orgs-mcp-tool-switch-${server.name}-${tool.name}`}
-                  onChange={() => toggleTool(server.name, tool.name)}
+                  onCheckedChange={() => toggleTool(server.name, tool.name)}
                 />
               </div>
             );

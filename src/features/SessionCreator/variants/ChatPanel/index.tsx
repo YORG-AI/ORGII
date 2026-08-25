@@ -29,10 +29,10 @@ import {
   agentIconIdAtom,
   agentNameAtom,
   cliAgentTypeAtom,
-  creatorPinnedActionsVisibleAtom,
   creatorRepoChromePositionAtom,
   dispatchCategoryAtom,
   normalizeAgentOnlySessionCreatorState,
+  pinnedActionsVisibleAtom,
   resolveCreatorRepoChromePosition,
   selectedAgentDefinitionIdAtom,
   selectedAgentOrgIdAtom,
@@ -108,7 +108,7 @@ const SessionCreatorChatPanelContent: React.FC<
   const [repoChromePositionPreference, setRepoChromePositionPreference] =
     useAtom(creatorRepoChromePositionAtom);
   const [pinnedActionsVisible, setPinnedActionsVisible] = useAtom(
-    creatorPinnedActionsVisibleAtom
+    pinnedActionsVisibleAtom
   );
   const repoChromePosition = resolveCreatorRepoChromePosition(
     repoChromePositionPreference,
@@ -264,7 +264,7 @@ const SessionCreatorChatPanelContent: React.FC<
     clearWorktreeLaunchSelection,
     handleWorktreeLocationChange,
     handleWorktreeSourceSelect,
-  } = useChatPanelWorktreeSelection({ effectiveSource, handleBranchChange });
+  } = useChatPanelWorktreeSelection({ effectiveSource });
 
   const agentVariant = getRustAgentType(selectedAgentDefId);
   const isRustMode = dispatchCategory === "rust_agent";
@@ -652,11 +652,15 @@ const SessionCreatorChatPanelContent: React.FC<
           : multiRunner.isActive
             ? "worktree"
             : runningLocation,
+        worktreeLocationLabel: multiRunner.worktreeSourceLabel,
         worktreeSourceLabel:
-          multiRunner.worktreeSourceLabel ??
-          (runningLocation === "worktree"
-            ? activeWorktreeSelection?.source.label
-            : undefined),
+          runningLocation === "worktree" || multiRunner.isActive
+            ? activeWorktreeSelection?.source.sourceRef?.startsWith("pr:")
+              ? activeWorktreeSelection.source.label
+              : (activeWorktreeSelection?.source.title ??
+                activeWorktreeSelection?.source.baseBranch)
+            : undefined,
+        worktreeSource: activeWorktreeSelection?.source,
         selectedWorktreePath:
           activeWorktreeSelection?.source.existingWorktreePath ?? null,
         onWorktreeLocationChange: multiRunner.handleWorktreeLocationChange,

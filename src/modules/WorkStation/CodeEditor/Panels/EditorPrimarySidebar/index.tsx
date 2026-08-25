@@ -4,7 +4,6 @@
  * Main left panel for Code Editor with multiple tabs:
  * - Files: File tree, outline view, timeline
  * - Search: Repository-wide search
- * - Testing: Test runner panel
  *
  * ARCHITECTURE (Jan 2026):
  * Single Source of Truth: The active editor tab is THE source of truth for file selection.
@@ -38,7 +37,6 @@ import {
   FileTreeContent,
   type FileTreeContentHandle,
 } from "./content/FileTreeContent";
-import TestingContent from "./content/TestingContent";
 // Extracted hooks
 import { useDisplayData } from "./hooks/useDisplayData";
 import { useExplorerActions } from "./hooks/useExplorerActions";
@@ -51,7 +49,6 @@ import { useTargetDirectory } from "./hooks/useTargetDirectory";
 // Tab configs
 import { useFilesTabConfig } from "./tabs/FilesTab";
 import { type SearchTabHandle, useSearchTabConfig } from "./tabs/SearchTab";
-import { useTestingTabConfig } from "./tabs/TestingTab";
 import type { EditorPrimarySidebarProps } from "./types";
 
 export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
@@ -107,7 +104,6 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
     // Local UI state
     // ============================================
     const [showSearchFilters, setShowSearchFilters] = useState(false);
-    const [showTestingFilter, setShowTestingFilter] = useState(false);
 
     // Refs for panel collapse/expand and refresh control
     const searchPanelRef = useRef<SearchTabHandle>(null);
@@ -161,10 +157,6 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
 
     const handleSearchCollapseAll = useCallback(() => {
       searchPanelRef.current?.collapseAll();
-    }, []);
-
-    const handleToggleTestingFilter = useCallback(() => {
-      setShowTestingFilter((prev) => !prev);
     }, []);
 
     // Target directory for new file/folder
@@ -273,18 +265,6 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
       ]
     );
 
-    const testingPanelContent = useMemo(
-      () => (
-        <TestingContent
-          repoPath={repoPath}
-          onFileClick={onFileSelect}
-          isActive={viewMode === "testing"}
-          showFilter={showTestingFilter}
-        />
-      ),
-      [repoPath, onFileSelect, viewMode, showTestingFilter]
-    );
-
     // ============================================
     // Tab configs
     // ============================================
@@ -310,19 +290,7 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
       onOpenInTab: handleOpenSearchTab,
     });
 
-    const testingTab = useTestingTabConfig({
-      testingPanelContent,
-      repoPath,
-      isActive: viewMode === "testing",
-      showFilter: showTestingFilter,
-      onBack: handleBackToFiles,
-      onToggleFilter: handleToggleTestingFilter,
-    });
-
-    const allTabs = useMemo(
-      () => [filesTab, searchTab, testingTab],
-      [filesTab, searchTab, testingTab]
-    );
+    const allTabs = useMemo(() => [filesTab, searchTab], [filesTab, searchTab]);
 
     return (
       <PrimarySidebarLayoutWithSections

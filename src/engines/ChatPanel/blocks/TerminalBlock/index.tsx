@@ -153,16 +153,14 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
     toolUsage,
     tuiRendering,
   }) => {
-    const isErrorExit = exitCode !== undefined && exitCode !== 0;
     const isBackground = processStatus === "background";
     const isStillRunning = isLoading || isBackground;
     // Visibility policy:
     // - Caller-provided defaults always win.
-    // - Errors → expanded (need to see what failed).
     // - Still running OR backgrounded → expanded so progress remains visible.
-    // - Done & no error → collapse to a chip by default.
-    const effectiveDefaultCollapsed =
-      defaultCollapsed ?? (isErrorExit ? false : isStillRunning ? false : true);
+    // - Every settled command → collapsed; failures remain visible in the
+    //   header through their failed state and exit code, and can be expanded.
+    const effectiveDefaultCollapsed = defaultCollapsed ?? !isStillRunning;
 
     const {
       isCollapsed,
@@ -181,11 +179,11 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
 
     const wasStillRunningRef = useRef(isStillRunning);
     useEffect(() => {
-      if (wasStillRunningRef.current && !isStillRunning && !isErrorExit) {
+      if (wasStillRunningRef.current && !isStillRunning) {
         setIsCollapsed(true);
       }
       wasStillRunningRef.current = isStillRunning;
-    }, [isStillRunning, isErrorExit, setIsCollapsed]);
+    }, [isStillRunning, setIsCollapsed]);
 
     const { t } = useTranslation("sessions");
     const { t: tCommon } = useTranslation();

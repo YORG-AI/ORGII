@@ -267,7 +267,7 @@ export default function MyAccountsTableSection({
               <Switch
                 size={MODEL_TABLE_SWITCH_SIZE}
                 checked={isAccountEnabled(account)}
-                onChange={(checked) => onToggleAccount(account, checked)}
+                onCheckedChange={(checked) => onToggleAccount(account, checked)}
               />
               {showEdit ? (
                 <Button

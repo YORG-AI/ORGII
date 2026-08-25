@@ -238,7 +238,7 @@ export const BuiltInToolsTable: React.FC<BuiltInToolsTableProps> = ({
                       ? tSettings("agentTools.systemPinned")
                       : undefined
                   }
-                  onChange={(next) => {
+                  onCheckedChange={(next) => {
                     if (toolName == null) return;
                     void agentMatrix.toggle(agentRow.agentId, toolName, next);
                   }}

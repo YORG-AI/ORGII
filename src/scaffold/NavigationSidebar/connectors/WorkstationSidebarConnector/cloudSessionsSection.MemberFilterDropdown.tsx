@@ -221,7 +221,7 @@ export function useCloudMemberFilterDropdown({
               })}
               {hiddenCountForOrg > 0 && (
                 <>
-                  <div className={DROPDOWN_CLASSES.menuSeparator} />
+                  <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
                   <DropdownItem onClick={handleShowHidden}>
                     <span className="min-w-0 truncate">
                       {t("cloud.sidebar.showHidden", {

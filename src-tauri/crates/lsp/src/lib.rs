@@ -5,7 +5,6 @@
 //!
 //! Also includes ESLint integration for style/formatting diagnostics.
 
-pub mod broadcast;
 pub mod codec;
 pub mod commands;
 pub mod config;
@@ -22,7 +21,6 @@ pub mod types;
 pub mod workspace_config;
 pub mod workspace_scan;
 
-pub use broadcast::{register_broadcast, BroadcastFn};
 pub use commands::LspManagerState;
 pub use config::{
     global_config, is_auto_install_enabled, load_config, reload_config, save_config, update_config,

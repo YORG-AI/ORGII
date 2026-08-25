@@ -68,7 +68,7 @@ export function InlineSplitSelectableRow({
   onToggle,
 }: InlineSplitSelectableRowProps) {
   const switchElement = (
-    <Switch size="small" checked={switchChecked} onChange={onToggle} />
+    <Switch size="small" checked={switchChecked} onCheckedChange={onToggle} />
   );
   return (
     <div

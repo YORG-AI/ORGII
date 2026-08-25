@@ -252,7 +252,7 @@ export const FeaturesSection: React.FC = () => {
       <SectionRow label={t("editor.treeIndentGuides")}>
         <Switch
           checked={showTreeIndentGuides}
-          onChange={setShowTreeIndentGuides}
+          onCheckedChange={setShowTreeIndentGuides}
         />
       </SectionRow>
 
@@ -266,21 +266,21 @@ export const FeaturesSection: React.FC = () => {
       </SectionRow>
 
       <SectionRow label={t("editor.wordWrap")}>
-        <Switch checked={wordWrap} onChange={setWordWrap} />
+        <Switch checked={wordWrap} onCheckedChange={setWordWrap} />
       </SectionRow>
 
       <SectionRow label={t("editor.autoSave")}>
-        <Switch checked={autoSave} onChange={setAutoSave} />
+        <Switch checked={autoSave} onCheckedChange={setAutoSave} />
       </SectionRow>
 
       <SectionRow label={t("editor.minimap")}>
-        <Switch checked={showMinimap} onChange={setShowMinimap} />
+        <Switch checked={showMinimap} onCheckedChange={setShowMinimap} />
       </SectionRow>
 
       <SectionRow label={t("editor.highlightActiveLine")}>
         <Switch
           checked={highlightActiveLine}
-          onChange={setHighlightActiveLine}
+          onCheckedChange={setHighlightActiveLine}
         />
       </SectionRow>
     </SectionContainer>

@@ -1429,7 +1429,8 @@
         "approved": "approved these changes",
         "changesRequested": "requested changes",
         "reviewDismissed": "dismissed a review",
-        "reviewed": "reviewed"
+        "reviewed": "reviewed",
+        "appendedSession": "appended a session"
       },
       "summary": {
         "label": "Pull request summary",
@@ -1591,7 +1592,8 @@
         "reviewRequestRemoved": "removed a review request",
         "reviewed": "reviewed these changes",
         "reviewDismissed": "dismissed a review",
-        "userBlocked": "blocked this user"
+        "userBlocked": "blocked this user",
+        "appendedSession": "appended a session"
       },
       "composer": {
         "addComment": "Add a comment",
@@ -1836,7 +1838,8 @@
           "label": "Documents",
           "description": "Documents folder"
         }
-      }
+      },
+      "selectWorktreeSource": "Select worktree branch or pull request"
     },
     "spotlightFooter": {
       "navigate": "Navigate",

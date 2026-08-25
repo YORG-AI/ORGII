@@ -138,7 +138,9 @@ const AgentSkillsTable: React.FC<AgentSkillsTableProps> = ({
                 size="small"
                 checked={row.enabled}
                 dataTestId={`agent-orgs-skill-switch-${row.name}`}
-                onChange={(enabled: boolean) => toggleSkill(row.name, enabled)}
+                onCheckedChange={(enabled: boolean) =>
+                  toggleSkill(row.name, enabled)
+                }
               />
             </div>
             <div onClick={(event) => event.stopPropagation()}>

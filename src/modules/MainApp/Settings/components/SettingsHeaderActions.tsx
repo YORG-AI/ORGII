@@ -107,7 +107,10 @@ const CompactPlusDropdown: React.FC<CompactPlusDropdownProps> = ({
       {visibleItems.map((item) => {
         if (item.id === "divider") {
           return (
-            <div key={item.id} className={DROPDOWN_CLASSES.menuSeparator} />
+            <div
+              key={item.id}
+              className={DROPDOWN_CLASSES.menuSeparatorInset}
+            />
           );
         }
         const IconComponent = item.icon;

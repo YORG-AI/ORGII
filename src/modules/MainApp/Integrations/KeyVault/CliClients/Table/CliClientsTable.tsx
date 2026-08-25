@@ -289,7 +289,7 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
                 size={MODEL_TABLE_SWITCH_SIZE}
                 checked={switchChecked}
                 disabled={!agent.installed}
-                onChange={(nextEnabled) =>
+                onCheckedChange={(nextEnabled) =>
                   handleEnabledChange(agent, nextEnabled)
                 }
                 ariaLabel={tIntegrations("common:labels.enabled", {

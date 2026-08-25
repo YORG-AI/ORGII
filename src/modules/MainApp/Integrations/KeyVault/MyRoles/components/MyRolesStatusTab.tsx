@@ -258,7 +258,7 @@ export const MyRolesStatusTab: React.FC = () => {
         >
           <Switch
             checked={modeSwitchAutoPlanByPresence[mode]}
-            onChange={handleModeSwitchAutoPlanChange(mode)}
+            onCheckedChange={handleModeSwitchAutoPlanChange(mode)}
             ariaLabel={t("sdeAgent.modeSwitchAutoPlanByStatus", {
               status: statusLabel,
               defaultValue: `${statusLabel} mode switch auto-plan`,

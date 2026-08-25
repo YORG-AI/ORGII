@@ -189,7 +189,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     </DropdownItem>
                   );
                 })}
-                <div className={DROPDOWN_CLASSES.menuSeparator} />
+                <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
                 <DropdownItem
                   selected={includeExternal}
                   onClick={handleToggleIncludeExternal}
@@ -198,7 +198,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                 </DropdownItem>
                 {hasExtraActions && (
                   <>
-                    <div className={DROPDOWN_CLASSES.menuSeparator} />
+                    <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
                     {onRefreshSessions && (
                       <DropdownItem
                         dataTestId="sidebar-refresh-sessions"

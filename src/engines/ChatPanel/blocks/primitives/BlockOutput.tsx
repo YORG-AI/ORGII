@@ -8,7 +8,7 @@
  *   expanded ≤ min(320px, 30vh)). Whenever the natural content height
  *   exceeds the collapsed cap, a "Show more" / "Show less" toggle is
  *   rendered.
- * - Optional Shiki syntax highlighting (e.g. lang="log" for terminal
+ * - Optional Prism syntax highlighting (e.g. lang="log" for terminal
  *   output).
  *
  * Used by TerminalBlock, ToolCallBlock, and any block that displays
@@ -43,7 +43,7 @@ import {
   trackPendingPayloadLoad,
   unloadPayload,
 } from "@src/engines/SessionCore/payloads";
-import { useShikiHighlight } from "@src/hooks/code";
+import { useSyntaxHighlight } from "@src/hooks/code";
 
 import "./_block-output.scss";
 import {
@@ -95,11 +95,9 @@ export interface BlockOutputProps {
   status?: BlockOutputStatus;
   /** Optional custom line renderer (e.g. for highlighting refs in browser snapshots) */
   renderLine?: (line: string, idx: number) => React.ReactNode;
-  /** Shiki language for syntax highlighting (e.g. "log"). When set, output
-   *  is highlighted with Shiki instead of ANSI. */
+  /** Prism language for syntax highlighting (e.g. "log"). When set, output
+   *  is highlighted with Prism instead of ANSI. */
   highlightLang?: string;
-  /** Shiki theme — defaults to "one-dark-pro" */
-  shikiTheme?: string;
   /** Draw an event-block border around this output region. Disable when parent shell already owns the border. */
   withBorder?: boolean;
   sessionId?: string;
@@ -132,7 +130,6 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
     status: _status = "default",
     renderLine,
     highlightLang,
-    shikiTheme = "one-dark-pro",
     withBorder = true,
     sessionId,
     eventId,
@@ -181,7 +178,7 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
       [processedOutput]
     );
 
-    // Shiki-highlighted HTML for the full output
+    // Prism-highlighted HTML for the full output
     const plainText = useMemo(
       () => (highlightLang ? stripAnsiCodes(processedOutput) : ""),
       [highlightLang, processedOutput]
@@ -190,9 +187,8 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
       Boolean(highlightLang) &&
       plainText.length > 0 &&
       plainText.length <= HIGHLIGHT_MAX_CHARS;
-    const highlightedHtml = useShikiHighlight(plainText, {
+    const highlightedHtml = useSyntaxHighlight(plainText, {
       lang: highlightLang,
-      theme: shikiTheme,
       enabled: canHighlight,
     });
 
@@ -200,7 +196,7 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
     // the viewport itself whether its scrollHeight exceeds clientHeight to
     // decide whether the fade + "Show more" pill should be shown. Doing the
     // measurement against the always-clamped viewport (rather than a
-    // separate content wrapper whose layout depends on async Shiki and
+    // separate content wrapper whose layout depends on async Prism and
     // ResizeObserver wakeups) keeps `needsExpand` correct the moment the
     // browser settles — regardless of highlight timing or fast-refresh
     // remounts.
@@ -336,8 +332,8 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
               />
             </Suspense>
           ) : highlightLang && highlightedHtml ? (
-            <div
-              className={`${preClassesShared} [&_pre.shiki]:!m-0 [&_pre.shiki]:!bg-transparent [&_pre.shiki]:!p-0 [&_pre.shiki]:!shadow-none`}
+            <pre
+              className={`${preClassesShared} prism-html`}
               dangerouslySetInnerHTML={{ __html: highlightedHtml }}
             />
           ) : (

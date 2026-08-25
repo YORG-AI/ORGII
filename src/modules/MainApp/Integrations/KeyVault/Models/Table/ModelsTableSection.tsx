@@ -282,7 +282,7 @@ export default function ModelsTableSection({
               <Switch
                 size={MODEL_TABLE_SWITCH_SIZE}
                 checked={groupSomeEnabled(group)}
-                onChange={(checked) => handleToggleGroup(group, checked)}
+                onCheckedChange={(checked) => handleToggleGroup(group, checked)}
               />
             </div>
           );

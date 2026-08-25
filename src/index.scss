@@ -21,6 +21,9 @@
 @import "./features/CodeMirror/styles/diff-tokens";
 @import "./features/CodeMirror/styles/editor-tokens";
 
+// Prism token colors for HTML-string highlighted code (`.prism-html`)
+@import "./styles/prism-tokens";
+
 body {
   --scrollbar-thumb-color: color-mix(
     in srgb,

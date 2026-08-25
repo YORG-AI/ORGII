@@ -1,25 +1,23 @@
 /**
  * useTextSelectionDropdown Hook
  *
- * Manages text selection dropdown state for terminal and browser views.
- * Detects text selection and provides handlers for dropdown actions.
+ * Detects DOM text selection within an optional container and owns the
+ * dropdown's transient position/text/visibility lifecycle.
  *
  * Features:
  * - Listens for mouseup events to detect text selection
  * - Calculates dropdown position based on selection
- * - Provides action handlers for Ask Agent and Add to Context
+ * - Closes on Escape; the dropdown component owns outside-click dismissal
+ * - Cancels debounced and delayed cleanup work on unmount
  *
  * @example
- * const { visible, position, selectedText, hideDropdown, handleAction } = useTextSelectionDropdown({
- *   source: 'terminal',
- *   enabled: true,
- *   onAskAgent: (text) => */
+ * const selection = useTextSelectionDropdown({ containerRef });
+ */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useDebouncedCallback } from "@src/hooks/perf";
 import { getUiScaleFromCssVar } from "@src/lib/dndKit";
 
-import { DropdownAction } from "./config";
 import {
   UseTextSelectionDropdownOptions,
   UseTextSelectionDropdownReturn,
@@ -30,6 +28,7 @@ import {
 // ============================================
 
 const SELECTION_DEBOUNCE_MS = 100;
+const SELECTION_CLEAR_DELAY_MS = 200;
 
 // ============================================
 // Hook Implementation
@@ -38,53 +37,49 @@ const SELECTION_DEBOUNCE_MS = 100;
 export function useTextSelectionDropdown(
   options: UseTextSelectionDropdownOptions
 ): UseTextSelectionDropdownReturn {
-  const { enabled = true, containerRef, onAskAgent, onAddToContext } = options;
+  const { containerRef } = options;
 
   // State
   const [visible, setVisible] = useState(false);
-  const visibleRef = useRef(visible);
-  useEffect(() => {
-    visibleRef.current = visible;
-  }, [visible]);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [selectedText, setSelectedText] = useState("");
+  const clearSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  const cancelSelectionClear = useCallback(() => {
+    if (clearSelectionTimerRef.current === null) return;
+    clearTimeout(clearSelectionTimerRef.current);
+    clearSelectionTimerRef.current = null;
+  }, []);
 
   // Show dropdown at position
   const showDropdown = useCallback(
     (newPosition: { x: number; y: number }, text: string) => {
-      if (!enabled || !text.trim()) return;
+      if (!text.trim()) return;
 
+      cancelSelectionClear();
       setSelectedText(text.trim());
       setPosition(newPosition);
       setVisible(true);
     },
-    [enabled]
+    [cancelSelectionClear]
   );
 
   // Hide dropdown
   const hideDropdown = useCallback(() => {
     setVisible(false);
     // Keep text for animation exit
-    setTimeout(() => {
+    cancelSelectionClear();
+    clearSelectionTimerRef.current = setTimeout(() => {
       setSelectedText("");
-    }, 200);
-  }, []);
+      clearSelectionTimerRef.current = null;
+    }, SELECTION_CLEAR_DELAY_MS);
+  }, [cancelSelectionClear]);
 
-  // Handle action selection
-  const handleAction = useCallback(
-    (action: DropdownAction, sessionId?: string | null) => {
-      if (!selectedText) return;
-
-      if (action === "ask-agent") {
-        onAskAgent?.(selectedText);
-      } else if (action === "add-to-context") {
-        onAddToContext?.(selectedText, sessionId ?? null);
-      }
-
-      hideDropdown();
-    },
-    [selectedText, onAskAgent, onAddToContext, hideDropdown]
-  );
+  useEffect(() => {
+    return () => cancelSelectionClear();
+  }, [cancelSelectionClear]);
 
   const debouncedHandleMouseUp = useDebouncedCallback((event: MouseEvent) => {
     const selection = window.getSelection();
@@ -120,49 +115,30 @@ export function useTextSelectionDropdown(
 
   // Listen for mouseup events to detect selection
   useEffect(() => {
-    if (!enabled) return;
-
     const handleMouseUp = (event: MouseEvent) => {
       debouncedHandleMouseUp(event);
     };
 
-    // Handle click outside to close dropdown
-    const handleClickOutside = (event: MouseEvent) => {
-      if (visibleRef.current) {
-        const target = event.target;
-        if (!(target instanceof Node)) return;
-        const dropdown = document.querySelector(".text-selection-dropdown");
-        if (dropdown && !dropdown.contains(target)) {
-          hideDropdown();
-        }
-      }
-    };
-
-    // Handle escape key
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && visibleRef.current) {
-        hideDropdown();
-      }
-    };
-
     const container = containerRef?.current ?? document;
     container.addEventListener("mouseup", handleMouseUp as EventListener);
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       debouncedHandleMouseUp.cancel();
       container.removeEventListener("mouseup", handleMouseUp as EventListener);
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [
-    enabled,
-    containerRef,
-    showDropdown,
-    hideDropdown,
-    debouncedHandleMouseUp,
-  ]);
+  }, [containerRef, debouncedHandleMouseUp]);
+
+  // Keep the only document-level listener demand-driven while the menu is open.
+  useEffect(() => {
+    if (!visible) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") hideDropdown();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [hideDropdown, visible]);
 
   return {
     visible,
@@ -170,7 +146,6 @@ export function useTextSelectionDropdown(
     selectedText,
     showDropdown,
     hideDropdown,
-    handleAction,
   };
 }
 

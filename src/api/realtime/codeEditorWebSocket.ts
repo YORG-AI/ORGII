@@ -5,7 +5,6 @@
  * code-editor events:
  * - File watcher updates (repo:status_updated, file:changed)
  * - Git operation updates (repo:git_operation)
- * - LSP diagnostics (lsp:diagnostics)
  * - Git status changes
  *
  * This replaces the unreliable Tauri event system for push notifications.

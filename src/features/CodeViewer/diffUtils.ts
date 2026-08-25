@@ -5,40 +5,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
-import { hljs } from "@src/util/language/hljsLight";
-
 import type { DiffLine } from "./types";
-
-// ============================================
-// Syntax Highlighting
-// ============================================
-
-export const highlightLine = (content: string, language?: string): string => {
-  if (!content.trim() || !language) {
-    return escapeHtml(content);
-  }
-
-  try {
-    const result = hljs.highlight(content, {
-      language,
-      ignoreIllegals: true,
-    });
-    return result.value;
-  } catch {
-    return escapeHtml(content);
-  }
-};
-
-export const escapeHtml = (text: string): string => {
-  const map: Record<string, string> = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
-  };
-  return text.replace(/[&<>"']/g, (char) => map[char]);
-};
 
 // Diff Algorithm (via Rust `similar` crate)
 

@@ -16,7 +16,6 @@ import {
   ChatBubbleLayout,
 } from "@src/components/ChatBubble";
 import { containsMarkdownFence } from "@src/components/MarkDown/markdownUtils";
-import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import { SESSION_UI_TOKENS } from "@src/engines/ChatPanel/blocks/primitives/config";
 import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
 import {
@@ -159,11 +158,6 @@ const ChatBubbleView: React.FC<
             {!hasCodeBlockCopy && <ChatBubbleCopyButton content={rawContent} />}
             <div className={`min-w-0 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}>
               <ReplayMarkdown content={rawContent} />
-              <MessageReferenceCards
-                content={rawContent}
-                enabled={message.event.displayStatus !== "running"}
-                sessionId={message.event.sessionId}
-              />
             </div>
           </div>
         )}

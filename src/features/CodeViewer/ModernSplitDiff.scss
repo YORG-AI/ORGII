@@ -411,8 +411,7 @@ $font-mono:
       -ms-user-select: text;
     }
 
-    code,
-    .hljs {
+    code {
       font-family: var(--code-font-family, "Roboto Mono", monospace) !important;
       font-size: var(--chat-code-font-size, 13px) !important;
       background: transparent !important;
@@ -421,56 +420,6 @@ $font-mono:
       -webkit-user-select: text !important;
       -moz-user-select: text !important;
       -ms-user-select: text !important;
-    }
-
-    // Syntax highlighting tokens
-    .hljs-keyword,
-    .hljs-selector-tag,
-    .hljs-built_in {
-      color: var(--cm-syntax-keyword);
-    }
-
-    .hljs-name,
-    .hljs-title,
-    .hljs-section,
-    .hljs-selector-id,
-    .hljs-function {
-      color: var(--cm-syntax-function);
-    }
-
-    .hljs-string,
-    .hljs-symbol,
-    .hljs-bullet,
-    .hljs-addition {
-      color: var(--cm-syntax-string);
-    }
-
-    .hljs-variable,
-    .hljs-template-variable,
-    .hljs-type,
-    .hljs-selector-class,
-    .hljs-selector-attr,
-    .hljs-selector-pseudo,
-    .hljs-number,
-    .hljs-literal,
-    .hljs-meta,
-    .hljs-attr,
-    .hljs-property {
-      color: var(--cm-syntax-variable);
-    }
-
-    .hljs-comment,
-    .hljs-quote {
-      color: var(--cm-syntax-comment);
-      font-style: italic;
-    }
-
-    .hljs-params {
-      color: inherit;
-    }
-
-    .hljs-punctuation {
-      color: var(--cm-editor-foreground);
     }
   }
 }

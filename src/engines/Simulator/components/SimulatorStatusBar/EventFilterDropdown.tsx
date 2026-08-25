@@ -171,7 +171,7 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
                 </span>
               </div>
               <div
-                className={DROPDOWN_CLASSES.menuSeparator}
+                className={DROPDOWN_CLASSES.menuSeparatorInset}
                 role="separator"
               />
               {SIMULATOR_EVENT_FILTER_VALUES.map((filter) => {

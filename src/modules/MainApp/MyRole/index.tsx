@@ -295,7 +295,9 @@ const MyRolePage: React.FC = () => {
         >
           <Switch
             checked={values.modeSwitchAutoPlan}
-            onChange={(checked) => onChange({ modeSwitchAutoPlan: checked })}
+            onCheckedChange={(checked) =>
+              onChange({ modeSwitchAutoPlan: checked })
+            }
             ariaLabel={t("myRole.modeSwitchAutoPlanLabel", {
               defaultValue: "Mode switch auto-plan",
             })}

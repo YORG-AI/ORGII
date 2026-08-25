@@ -148,7 +148,7 @@ export function useAtMention(options: UseAtMentionOptions): AtMentionHandlers {
         }
         case "cloudSession": {
           // A teammate's session has no local id, so it goes in as the
-          // reference text the markdown renderer turns into a chip rather
+          // reference text the read boundary turns into a session card rather
           // than through the pill path, which assumes a local session.
           composerInputRef.current.insertMentionText(
             referenceInsertText(value)

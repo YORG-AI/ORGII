@@ -1,12 +1,12 @@
-# Test Cases: WorktreeSourceModal + worktree launch wiring
+# Test Cases: Worktree source selectors + worktree launch wiring
 
 ## Session info ownership (issue #332)
 
 | #   | Steps                                                | Expected Result                                                                                                                                |
 | --- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| W1  | Open Session Creator with a Git repository selected  | Session info renders Workspace → Branch → Running location; it does not add a Main checkout / Switch worktree segment                          |
+| W1  | Open Session Creator with a Git repository selected  | Session info renders Repository → Running location → Branch; it does not add a Main checkout / Switch worktree segment                         |
 | W2  | Open Session Creator while linked worktrees exist    | Linked worktrees are not listed in SessionInfoLine; global WorktreePalette remains the single place for switching the active checkout          |
-| W3  | Choose New Worktree from the running-location picker | WorktreeSourceModal opens and the PR / issue / branch / name creation flow remains available                                                   |
+| W3  | Choose New Worktree from the running-location picker | The final Branch control opens immediately as a Spotlight or anchored dropdown (matching the picker preference); no modal opens                |
 | W4  | Select a different Workspace                         | Pending new-worktree source state clears and running location returns to `local`; no path or source from the previous repository leaks forward |
 
 ## Repository chrome position
@@ -23,54 +23,55 @@
 | C8  | Reopen Session Creator after hiding pinned actions                    | Pinned quick-action pills remain hidden; choosing **Show pinned actions** restores the existing pins without repinning them                             |
 | C9  | Open compact/hidden repository-info creator after hiding              | Pinned quick actions remain visible because that surface has no repository chrome menu from which visibility could be restored                          |
 
-Covers the worktree-source picker (`WorktreeSourceModal.tsx`) and the
-launch-payload wiring that turns the picked source into backend worktree
-fields (`getWorktreeFields` in `useSessionLaunch/launchPayload.ts`).
+Covers the Session Creator picker (`WorktreeSourceSelector.tsx`), the legacy
+global-worktree creation modal (`WorktreeSourceModal.tsx`), and the
+launch-payload wiring that turns the picked source into backend worktree fields
+(`getWorktreeFields` in `useSessionLaunch/launchPayload.ts`).
 
 ## Preconditions
 
 - A repo is selected in the SessionCreator and the running location can be set
   to `worktree`.
-- For the GitHub tab: the repo has an `origin` remote whose URL parses to a
-  GitHub `owner/name`, and the local GitHub integration can list open PRs/issues.
-- For the Branch tab: `repoPath` is in scope so `getGitBranches` (Rust HTTP
+- For PR mode: the repo has an `origin` remote whose URL parses to a GitHub
+  `owner/name`, and the local GitHub integration can list open PRs.
+- For Branch mode: `repoPath` is in scope so `getGitBranches` (Rust HTTP
   `/repos/:id/branches`) can list local + remote branches. Remote branches come
   back in short-ref form (`origin/develop`) directly usable by `git worktree add`.
 
 ## Happy Path
 
-| #   | Steps                                                                    | Expected Result                                                                                                                                                                               |
-| --- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Open the position pill, choose "worktree" → modal opens on the Smart tab | Unified smart input with a mixed suggestion list (see "Smart tab" section); empty query shows the two smart default rows first; first row preselected; confirm enabled                        |
-| 2   | Switch to GitHub tab with several open PRs                               | PRs+issues load into a scrollable list; modal height stays stable (list capped, internal scroll)                                                                                              |
-| 3   | Pick a **same-repo** PR, confirm                                         | Confirm keeps a stable "Use worktree" label and width while its spinner shows during `worktree_resolve_pr_base`; on success pill shows PR label; source gains `resolvedBaseRef` = PR head SHA |
-| 4   | Launch the session                                                       | Payload carries `isolate: true` and `branch` = `resolvedBaseRef` (the fetched head SHA); backend creates `agent/<session>` from that SHA                                                      |
-| 5   | Branch tab: pick a branch from the list, confirm, launch                 | Payload `isolate: true`, `branch` = picked branch's resolvable ref (no resolve step — non-PR source)                                                                                          |
-| 6   | Pick a **fork / cross-repo** PR, confirm                                 | Resolver's branch fetch misses → falls back to `refs/pull/<n>/head`; success yields `resolvedBaseRef` = fork head SHA; launch uses that SHA                                                   |
+| #   | Steps                                                    | Expected Result                                                                                                                                                               |
+| --- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Open the running-location pill and choose "New Worktree" | The Branch selector opens immediately; the row remains ordered Repository → Running location → Branch and no modal appears                                                    |
+| 2   | Use the left-aligned Branch / PR switch and choose PR    | PR data loads on demand into the same Spotlight/dropdown surface; branch and PR requests are not both started while Branch mode is active                                     |
+| 3   | Pick a **same-repo** PR                                  | The selector stays open while `worktree_resolve_pr_base` runs; on success it closes, the Branch pill shows the PR label, and the source gains `resolvedBaseRef` = PR head SHA |
+| 4   | Launch the session                                       | Payload carries `isolate: true` and `branch` = `resolvedBaseRef` (the fetched head SHA); backend creates `agent/<session>` from that SHA                                      |
+| 5   | Branch mode: pick a branch from the list, then launch    | Selection commits immediately; payload `isolate: true`, `branch` = picked branch's resolvable ref (no PR resolve step)                                                        |
+| 6   | Pick a **fork / cross-repo** PR                          | Resolver's branch fetch misses → falls back to `refs/pull/<n>/head`; success yields `resolvedBaseRef` = fork head SHA; launch uses that SHA                                   |
 
-## Branch tab (grouped branch picker — aligned with the Spotlight "Switch Session Branch" selector)
+## Branch mode (grouped picker — aligned with the Spotlight "Switch Session Branch" selector)
 
-The Branch tab reuses the Spotlight selector's data + logic: `categorizeBranches` for the
+Branch mode reuses the Spotlight selector's data + logic: `groupBranchOptions` for the
 RECENT / WORKTREES / Other Branches sections, `useWorktreeMap` (`getGitWorktrees`) for the
 worktree section, and `formatRelativeTime(..., "short")` for the right-aligned timestamps.
-Rows are icon-first (worktree → `GitFork`, remote → `Cloud`, local → `GitBranch`) with **no
+Rows are icon-first (worktree → `Folder`, remote → `Cloud`, local → `GitBranch`) with **no
 text subtitle**. Pure grouping / timestamp logic is unit-tested in `worktreeBranchSource.test.ts`.
 
-| #   | Steps                                                            | Expected Result                                                                                                                                                                                                                                                                                                           |
-| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Open Branch tab in a repo with branches                          | Branches load into a scrollable **grouped** list: `RECENT` (top ≤5 by commit date, current first), then `WORKTREES` (if any), then `Other Branches`; section headers use the uppercase `sectionLabel` style; current/most-recent branch preselected; confirm enabled; modal height stable (`max-h` cap + internal scroll) |
-| B1a | Inspect a branch row                                             | Single-line row: **left icon** by type (worktree `GitFork` / remote `Cloud` / local `GitBranch`), branch name, **right-aligned relative timestamp** ("Yesterday" / "4 hr ago" / "2 days ago"); **no** "Local branch" / "Remote branch" subtitle                                                                           |
-| B2  | Pick a **local** branch (e.g. `main`), confirm                   | Source `{ kind:"branch", baseBranch:"main", sourceRef:"branch:main" }`; launch `branch: "main"`                                                                                                                                                                                                                           |
-| B3  | Pick a **remote** branch (e.g. `origin/develop`), confirm        | `baseBranch:"origin/develop"` (short-ref form) → `git worktree add origin/develop` resolves without a bare unknown name                                                                                                                                                                                                   |
-| B3a | Pick a branch from the **WORKTREES** section, confirm            | Same `{ kind:"branch", baseBranch:"<branch>", sourceRef:"branch:<branch>" }` as any branch row — the worktree section is a display grouping, not a different source kind                                                                                                                                                  |
-| B4  | Type `dev` in the search box                                     | List filters case-insensitively to names containing `dev`, re-grouped into the same sections; non-matching branches hidden                                                                                                                                                                                                |
-| B5  | Type a ref with no exact branch match (tag / sha, e.g. `v1.2.0`) | A distinct **"Use \"v1.2.0\" as ref"** row (Hash icon + "Tag, commit, or any git ref" hint) appears at the top (above the sections); picking it yields `baseBranch:"v1.2.0"` — the custom-ref escape hatch preserved                                                                                                      |
-| B6  | Type a query that exactly matches an existing branch             | No custom-ref row shown (the real branch row already covers it); exact branch selectable                                                                                                                                                                                                                                  |
-| B7  | Clear the search (allowClear ✕)                                  | Full grouped branch list restored; selection resets to the first branch in the list                                                                                                                                                                                                                                       |
-| B8  | Open Branch tab in a repo with **no worktrees**                  | No `WORKTREES` section shown; only `RECENT` + `Other Branches`; no error (empty worktree map is best-effort)                                                                                                                                                                                                              |
-| B9  | Branch with no commit date                                       | Row renders with no right timestamp (blank), icon + name still shown                                                                                                                                                                                                                                                      |
+| #   | Steps                                                            | Expected Result                                                                                                                                                                                                                                |
+| --- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Open Branch mode in a repo with branches                         | Branches load into a scrollable **grouped** list: `RECENT` (current/default first), then `WORKTREES` (if any), then `Other Branches`; section headers use the shared `sectionLabel` style; current branch is marked selected                   |
+| B1a | Inspect a branch row                                             | Single-line row: **left icon** by type (worktree `Folder` / remote `Cloud` / local `GitBranch`), branch name, **right-aligned relative timestamp** ("Yesterday" / "4 hr ago" / "2 days ago"); **no** "Local branch" / "Remote branch" subtitle |
+| B2  | Pick a **local** branch (e.g. `main`)                            | Source commits immediately as `{ kind:"branch", baseBranch:"main", sourceRef:"branch:main" }`; launch uses `main`                                                                                                                              |
+| B3  | Pick a **remote** branch (e.g. `origin/develop`)                 | `baseBranch:"origin/develop"` (short-ref form) → `git worktree add origin/develop` resolves without a bare unknown name                                                                                                                        |
+| B3a | Pick a branch from the **WORKTREES** section                     | Source carries the registered `existingWorktreePath`; launch reuses that checkout instead of creating another isolated worktree                                                                                                                |
+| B4  | Type `dev` in the search box                                     | List filters case-insensitively to names containing `dev`, re-grouped into the same sections; non-matching branches hidden                                                                                                                     |
+| B5  | Type a ref with no exact branch match (tag / sha, e.g. `v1.2.0`) | A distinct **"Use \"v1.2.0\" as ref"** row (Hash icon + "Tag, commit, or any git ref" hint) appears at the top (above the sections); picking it yields `baseBranch:"v1.2.0"` — the custom-ref escape hatch preserved                           |
+| B6  | Type a query that exactly matches an existing branch             | No custom-ref row shown (the real branch row already covers it); exact branch selectable                                                                                                                                                       |
+| B7  | Delete the current search query                                  | Full grouped branch list is restored                                                                                                                                                                                                           |
+| B8  | Open Branch mode in a repo with **no worktrees**                 | No `WORKTREES` section shown; only `RECENT` + `Other Branches`; no error (empty worktree map is best-effort)                                                                                                                                   |
+| B9  | Branch with no commit date                                       | Row renders with no right timestamp (blank), icon + name still shown                                                                                                                                                                           |
 
-## Smart tab (unified smart input — `worktreeSmartInput.ts`)
+## Legacy modal Smart tab (global WorktreePalette create action)
 
 Covers `parseSmartInput` (classification) + `buildSmartSuggestions` (mixed list) and the
 Smart-tab UI wiring. Pure logic is unit-tested in `worktreeSmartInput.test.ts`.
@@ -124,13 +125,17 @@ Smart-tab UI wiring. Pure logic is unit-tested in `worktreeSmartInput.test.ts`.
 
 ## Accessibility
 
-- [ ] Keyboard-navigable (Tab across tabs / rows, Enter to select, Escape closes) — see keep-with-reason in audit for raw-button gap
-- [ ] Confirm/Cancel are DS `Button`s with labels
-- [ ] Search input has a placeholder label
+- [x] Branch / PR segmented control exposes an accessible group label and pressed state
+- [x] Spotlight and dropdown variants use the shared keyboard-navigation engines; Enter selects and Escape closes
+- [x] Search inputs have explicit accessible labels; fetch/resolve failures use live alert semantics
 
 ## Acceptance Criteria
 
 - [x] A picked **same-repo PR** resolves to its head SHA (`worktree_resolve_pr_base` branch fetch) and that SHA drives worktree creation
+- [x] Session Creator renders Repository → Running location → Branch and opens no modal when New Worktree is chosen
+- [x] The worktree Branch selector follows the configured Spotlight/dropdown presentation and uses the agent-picker pattern: a left-aligned segmented pill for Branch / PR
+- [x] Branch data loads first; GitHub PR I/O begins only after PR mode is selected; both retain the existing bounded repo-scoped caches and in-flight dedupe
+- [x] Worktree source selection does not mutate or checkout the local session branch; switching back to This Mac restores the local branch context unchanged
 - [x] A picked **fork / cross-repo PR** resolves via `refs/pull/<n>/head` fallback and its head SHA drives worktree creation
 - [x] `resolvedBaseRef` (SHA) takes precedence over the label `baseBranch` in the launch payload `branch`
 - [x] Resolve failures surface an inline error and never silently launch on a synthetic id

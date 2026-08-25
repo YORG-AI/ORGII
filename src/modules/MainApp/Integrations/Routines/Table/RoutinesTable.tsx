@@ -431,7 +431,7 @@ export const RoutinesTable: React.FC<RoutinesTableProps> = ({
                                     size="small"
                                     checked={routine.enabled}
                                     dataTestId={`integrations-routine-enabled-switch-${routine.id}`}
-                                    onChange={onToggleEnabled}
+                                    onCheckedChange={onToggleEnabled}
                                   />
                                 </InfoRow>
                               )}

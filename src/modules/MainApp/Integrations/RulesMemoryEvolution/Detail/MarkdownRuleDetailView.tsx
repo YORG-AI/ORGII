@@ -56,7 +56,7 @@ const MarkdownRuleDetailView: React.FC<MarkdownRuleDetailViewProps> = ({
                     {t("agentOrgs.enabledDesc")}
                   </span>
                 </div>
-                <Switch checked={rule.enabled} onChange={onToggle} />
+                <Switch checked={rule.enabled} onCheckedChange={onToggle} />
               </div>
             </div>
           </CollapsibleSection>

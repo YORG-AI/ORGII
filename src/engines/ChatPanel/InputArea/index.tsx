@@ -1,4 +1,4 @@
-import { useAtomValue } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +19,7 @@ import {
   useConversationSubmitOverride,
 } from "@src/features/Org2Cloud/SessionConversation/useConversationComposer";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
+import { pinnedActionsVisibleAtom } from "@src/store/session";
 import type { SlashItemCategory } from "@src/types/extensions";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
@@ -37,6 +38,7 @@ import {
 } from "./components/InputComposerBars";
 import ModePill from "./components/ModePill";
 import ModelPill from "./components/ModelPill";
+import { usePinnedActionsVisibilityContextMenu } from "./components/PinnedActionsBar/usePinnedActionsVisibilityContextMenu";
 import SessionReadOnlyBar from "./components/SessionReadOnlyBar";
 import { useContainerDrag } from "./hooks/useContainerDrag";
 import { useEditMode } from "./hooks/useEditMode";
@@ -278,6 +280,14 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       disableStopWhenEmpty && currentInputEmpty && !isWpGeneWorking;
     const mentionTreePosition = chatPanelPosition === "left" ? "right" : "left";
     const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
+    const [pinnedActionsVisible, setPinnedActionsVisible] = useAtom(
+      pinnedActionsVisibleAtom
+    );
+    const handlePinnedActionsContextMenu =
+      usePinnedActionsVisibilityContextMenu({
+        visible: pinnedActionsVisible,
+        onVisibleChange: setPinnedActionsVisible,
+      });
     const isContextualPanel = presentation === "contextual";
     const isContextual = isContextualInputAreaPresentation(presentation);
 
@@ -411,6 +421,11 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
         onDragOver={handleContainerDragOver}
         onDragLeave={handleContainerDragLeave}
         onDrop={handleContainerDrop}
+        onContextMenu={
+          !isEditMode && !isContextual
+            ? handlePinnedActionsContextMenu
+            : undefined
+        }
       >
         <div className="relative flex flex-col gap-0.5">
           {!isContextual && (
@@ -421,6 +436,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
               topRowTrailingContent={topRowTrailingContent}
               composerInputRef={composerInputRef}
               sessionId={sessionId}
+              showPinnedActions={pinnedActionsVisible}
               skillWorkspacePaths={skillWorkspacePaths}
             />
           )}

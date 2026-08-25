@@ -111,7 +111,7 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
         >
           <Switch
             checked={workItemPrefixCustom}
-            onChange={handleCustomToggle}
+            onCheckedChange={handleCustomToggle}
           />
         </SectionRow>
         {workItemPrefixCustom && (

@@ -230,7 +230,7 @@ export const HousekeeperCategoryView: React.FC = () => {
         >
           <Switch
             checked={config.enabled}
-            onChange={(checked) => config.setEnabled(checked)}
+            onCheckedChange={(checked) => config.setEnabled(checked)}
           />
         </SectionRow>
         <SectionRow
@@ -299,7 +299,9 @@ export const HousekeeperCategoryView: React.FC = () => {
           <Switch
             checked={config.features.promptPolish}
             disabled={!config.enabled}
-            onChange={(checked) => config.setFeatures.promptPolish(checked)}
+            onCheckedChange={(checked) =>
+              config.setFeatures.promptPolish(checked)
+            }
           />
         </SectionRow>
         <SectionRow
@@ -311,7 +313,9 @@ export const HousekeeperCategoryView: React.FC = () => {
           <Switch
             checked={config.features.stepExplain}
             disabled={!config.enabled}
-            onChange={(checked) => config.setFeatures.stepExplain(checked)}
+            onCheckedChange={(checked) =>
+              config.setFeatures.stepExplain(checked)
+            }
           />
         </SectionRow>
         <SectionRow
@@ -323,7 +327,7 @@ export const HousekeeperCategoryView: React.FC = () => {
           <Switch
             checked={config.features.uiControl}
             disabled={!config.enabled}
-            onChange={(checked) => config.setFeatures.uiControl(checked)}
+            onCheckedChange={(checked) => config.setFeatures.uiControl(checked)}
           />
         </SectionRow>
         <SectionRow
@@ -335,7 +339,9 @@ export const HousekeeperCategoryView: React.FC = () => {
           <Switch
             checked={config.features.contextCompact}
             disabled={!config.enabled}
-            onChange={(checked) => config.setFeatures.contextCompact(checked)}
+            onCheckedChange={(checked) =>
+              config.setFeatures.contextCompact(checked)
+            }
           />
         </SectionRow>
       </SectionContainer>

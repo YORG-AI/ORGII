@@ -87,7 +87,7 @@ export function buildGroupColumns(
             checked={allEnabled}
             mixed={mixed}
             type={mixed ? "warning" : "primary"}
-            onChange={() => handleGroupToggle(row.group)}
+            onCheckedChange={() => handleGroupToggle(row.group)}
           />
         </div>
       );

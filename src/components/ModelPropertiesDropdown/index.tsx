@@ -544,7 +544,7 @@ const SwitchRow: React.FC<SwitchRowProps> = ({
       {icon}
       {label}
     </span>
-    <Switch checked={checked} onChange={onChange} size="small" />
+    <Switch checked={checked} onCheckedChange={onChange} size="small" />
   </div>
 );
 

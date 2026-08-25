@@ -227,7 +227,6 @@ const CliRawConfigFileEditor: React.FC<CliRawConfigFileEditorProps> = ({
             readOnly={activeTab !== "edit"}
             enableMinimap={false}
             enableDirtyDiff={false}
-            enableLinting={false}
             registerWithService={false}
           />
         </div>

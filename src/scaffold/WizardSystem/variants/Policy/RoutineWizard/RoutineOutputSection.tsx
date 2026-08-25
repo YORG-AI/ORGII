@@ -165,7 +165,7 @@ const RoutineOutputSection: React.FC<RoutineOutputSectionProps> = ({
             <Switch
               size="small"
               checked={draft.autoStart}
-              onChange={(checked) => updateDraft("autoStart", checked)}
+              onCheckedChange={(checked) => updateDraft("autoStart", checked)}
               dataTestId="routine-wizard-auto-start-switch"
             />
           </SectionRow>

@@ -105,6 +105,13 @@ export function openBranchSpotlight(): void {
   store.set(spotlightOpenAtom, true);
 }
 
+export function openWorktreeSpotlight(): void {
+  if (!isStoreInitialized()) return;
+  const store = getInstrumentedStore();
+  store.set(spotlightInitialQueryAtom, createWorktreeSpotlightRequest());
+  store.set(spotlightOpenAtom, true);
+}
+
 export function openAgentSessionSearchSpotlight(): void {
   if (!isStoreInitialized()) return;
   const store = getInstrumentedStore();

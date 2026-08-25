@@ -383,7 +383,7 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
               { defaultValue: "Capture file interactions" }
             )}`}
             dataTestId={`session-provenance-hook-switch-${row.id}`}
-            onChange={(enabled) => void handleChange(row.id, enabled)}
+            onCheckedChange={(enabled) => void handleChange(row.id, enabled)}
           />
         </div>
       ),
@@ -436,7 +436,7 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
           <Switch
             checked={masterEnabled}
             loading={masterPending}
-            onChange={(enabled) => void handleMasterChange(enabled)}
+            onCheckedChange={(enabled) => void handleMasterChange(enabled)}
             ariaLabel={t("agentOrgs.sessionProvenance.masterToggle", {
               defaultValue: "Provenance hooks",
             })}
@@ -455,7 +455,7 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
             checked={liveStatusEnabled}
             loading={liveStatusPending}
             disabled={!masterEnabled}
-            onChange={(enabled) => void handleLiveStatusChange(enabled)}
+            onCheckedChange={(enabled) => void handleLiveStatusChange(enabled)}
             ariaLabel={t("agentOrgs.sessionProvenance.liveStatusToggle", {
               defaultValue: "Live agent status",
             })}

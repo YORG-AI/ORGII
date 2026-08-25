@@ -135,13 +135,6 @@ pub(crate) fn register_integrations_hooks() {
     }));
 }
 
-/// Wire the inversion-of-control hook the `lsp` crate uses to publish
-/// language-server diagnostics over the IDE WebSocket. Registered once at
-/// startup so the `lsp` crate never has to depend on `api::websocket_handler`.
-pub(crate) fn register_lsp_hooks() {
-    lsp::register_broadcast(api::websocket_handler::broadcast);
-}
-
 /// Wire the IoC hooks the `agent_core::bus` module uses to reach the IDE
 /// WebSocket / IPC layer for event broadcast and subscriber counting.
 /// Registered once at startup so `agent_core` (and the future extracted

@@ -425,7 +425,7 @@ const ModelInlineExpandedCard: React.FC<ModelInlineExpandedCardProps> = ({
         <Switch
           size="small"
           checked={anyAccountEnabled}
-          onChange={toggleAllAccounts}
+          onCheckedChange={toggleAllAccounts}
         />
       }
     />

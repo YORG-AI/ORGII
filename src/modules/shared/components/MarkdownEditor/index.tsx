@@ -260,7 +260,6 @@ const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(
                   language="markdown"
                   height="100%"
                   enableMinimap={false}
-                  enableLinting={false}
                   enableDirtyDiff={false}
                   enableFindReplace={false}
                   enableGoToLine={false}

@@ -4,6 +4,7 @@ import {
   getLanguageFromPath,
   getLanguageIconFile,
   getLanguageMetadataFromExtension,
+  getSyntaxHighlighterLanguage,
   getSyntaxHighlighterLanguageFromPath,
 } from "./languageMap";
 
@@ -99,7 +100,7 @@ describe("language metadata registry", () => {
     {
       filePath: "src/Program.cs",
       editorLanguageId: "csharp",
-      syntaxHighlighterId: "cil",
+      syntaxHighlighterId: "csharp",
       displayName: "C#",
       iconFile: "file.cs",
     },
@@ -140,6 +141,18 @@ describe("language metadata registry", () => {
     expect(getLanguageDisplayNameFromPath("project/.env.local")).toBe(
       "Environment"
     );
+  });
+
+  it("owns Prism IDs for editor IDs, extensions, and legacy aliases", () => {
+    expect(getSyntaxHighlighterLanguage("typescriptreact")).toBe("tsx");
+    expect(getSyntaxHighlighterLanguage("shellscript")).toBe("bash");
+    expect(getSyntaxHighlighterLanguage("console")).toBe("shell-session");
+    expect(getSyntaxHighlighterLanguage("golang")).toBe("go");
+    expect(getSyntaxHighlighterLanguage("objective-c")).toBe("objectivec");
+    expect(getSyntaxHighlighterLanguage("jsonc")).toBe("json");
+    expect(getSyntaxHighlighterLanguage("txt")).toBe("log");
+    expect(getSyntaxHighlighterLanguageFromPath("src/lib.rs")).toBe("rust");
+    expect(getSyntaxHighlighterLanguageFromPath("~/.bashrc")).toBe("bash");
   });
 
   it("preserves editor fallbacks for unknown extensions", () => {

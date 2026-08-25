@@ -149,7 +149,7 @@ const EmailConfig: React.FC<ChannelConfigProps> = ({
         <SectionRow label={t("channels.emailImapSsl")}>
           <Switch
             checked={imapUseSsl}
-            onChange={(checked: boolean) =>
+            onCheckedChange={(checked: boolean) =>
               update(`${pathPrefix}.imapUseSsl`, checked)
             }
           />
@@ -202,7 +202,7 @@ const EmailConfig: React.FC<ChannelConfigProps> = ({
         <SectionRow label={t("channels.emailSmtpTls")}>
           <Switch
             checked={smtpUseTls}
-            onChange={(checked: boolean) =>
+            onCheckedChange={(checked: boolean) =>
               update(`${pathPrefix}.smtpUseTls`, checked)
             }
           />
@@ -228,7 +228,7 @@ const EmailConfig: React.FC<ChannelConfigProps> = ({
         >
           <Switch
             checked={autoReply}
-            onChange={(checked: boolean) =>
+            onCheckedChange={(checked: boolean) =>
               update(`${pathPrefix}.autoReplyEnabled`, checked)
             }
           />

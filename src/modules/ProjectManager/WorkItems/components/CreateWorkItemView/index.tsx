@@ -359,7 +359,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 <Switch
                   size="small"
                   checked={resolvedAiGenerateMode}
-                  onChange={handleAiGenerateModeChange}
+                  onCheckedChange={handleAiGenerateModeChange}
                   ariaLabel="Agent"
                   dataTestId="create-work-item-mode-ai-switch"
                 />
@@ -444,7 +444,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 <Switch
                   size="small"
                   checked={createMore && !autoExecuteBlocked}
-                  onChange={handleAutoExecuteChange}
+                  onCheckedChange={handleAutoExecuteChange}
                   disabled={autoExecuteBlocked}
                   dataTestId="create-work-item-auto-execute-switch"
                 />

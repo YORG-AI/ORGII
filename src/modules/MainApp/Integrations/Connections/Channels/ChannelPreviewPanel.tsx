@@ -120,7 +120,7 @@ const ChannelPreviewPanel: React.FC<ChannelPreviewPanelProps> = ({
               <Switch
                 size="small"
                 checked={isSelectedChannelEnabled}
-                onChange={toggleChannelEnabled}
+                onCheckedChange={toggleChannelEnabled}
               />
             </InfoRow>
           </div>

@@ -30,7 +30,6 @@ import { type ReactNode, createContext, useContext } from "react";
 import type { CursorPosition } from "@src/modules/WorkStation/shared/StatusBar/EditorStatusBar";
 import type { GitFile } from "@src/types/git/types";
 
-import type { Diagnostic } from "../../EditorBottomPanel/content/ProblemsContent/types";
 import type { UseFileContentManagerReturn } from "../hooks/useFileContentManager";
 
 /**
@@ -51,8 +50,6 @@ export interface EditorHostContextValue {
   onFileSelect: (path: string) => void;
   /** File select with line number callback (for navigating to a specific line) */
   onFileSelectWithLine?: (path: string, line: number) => void;
-  /** Diagnostics change callback */
-  onDiagnosticsChange?: (diagnostics: Diagnostic[]) => void;
   /** Cursor position change callback */
   onCursorPositionChange?: (position: CursorPosition | null) => void;
   /** Update an active search tab title from its query */

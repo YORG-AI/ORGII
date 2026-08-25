@@ -206,7 +206,7 @@ const AccountModelsInlineSplit: React.FC<AccountModelsInlineSplitProps> = ({
               checked={allModelsSummary.allEnabled}
               mixed={allModelsSummary.mixed}
               type={allModelsSummary.mixed ? "warning" : "primary"}
-              onChange={handleToggleAllGroups}
+              onCheckedChange={handleToggleAllGroups}
             />
           </>
         }

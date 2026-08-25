@@ -8,7 +8,7 @@
  * - TerminalCommandView
  *
  * Features:
- * - Shiki syntax highlighting (shared hook with caching)
+ * - Prism syntax highlighting (shared lazy hook with caching)
  * - Customizable prompt prefix
  * - Optional highlighting disable
  * - Consistent styling across all contexts
@@ -17,7 +17,7 @@
 import { Square } from "lucide-react";
 import React, { memo } from "react";
 
-import { useShikiHighlight } from "@src/hooks/code";
+import { useSyntaxHighlight } from "@src/hooks/code";
 
 export interface TerminalCommandStopAction {
   /** Tooltip for the stop button */
@@ -33,13 +33,8 @@ export interface TerminalCommandProps {
   command: string;
   /** Prompt prefix (default: "$") */
   prefix?: string;
-  /** Enable Shiki syntax highlighting (default: true) */
+  /** Enable syntax highlighting (default: true) */
   highlighted?: boolean;
-  /**
-   * Shiki color theme. Defaults to auto-detect based on dark/light mode
-   * (one-dark-pro in dark mode, github-light in light mode).
-   */
-  shikiTheme?: string;
   /** Font size in px (default: 14) */
   fontSize?: number;
   /**
@@ -74,7 +69,6 @@ export const TerminalCommand: React.FC<TerminalCommandProps> = memo(
     command,
     prefix = "$",
     highlighted = true,
-    shikiTheme,
     fontSize = 12,
     singleLineEllipsis = false,
     stopAction,
@@ -82,10 +76,9 @@ export const TerminalCommand: React.FC<TerminalCommandProps> = memo(
     style,
   }) => {
     const useHighlight = highlighted && !singleLineEllipsis;
-    // Single-line ellipsis needs plain text; Shiki HTML breaks text-overflow.
-    const highlightedHtml = useShikiHighlight(useHighlight ? command : "", {
-      lang: "shellscript",
-      theme: shikiTheme,
+    // Single-line ellipsis needs plain text; token spans break text-overflow.
+    const highlightedHtml = useSyntaxHighlight(useHighlight ? command : "", {
+      lang: "bash",
     });
 
     const rootClass = [
@@ -106,7 +99,7 @@ export const TerminalCommand: React.FC<TerminalCommandProps> = memo(
         <span className="terminal-command__prefix select-none">{prefix}</span>
         {useHighlight && highlightedHtml ? (
           <span
-            className="terminal-command__text"
+            className="terminal-command__text prism-html"
             dangerouslySetInnerHTML={{ __html: highlightedHtml }}
           />
         ) : (

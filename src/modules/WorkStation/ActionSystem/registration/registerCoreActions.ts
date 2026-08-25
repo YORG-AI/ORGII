@@ -26,7 +26,6 @@ import type { ZodAction } from "@src/ActionSystem/schema/defineZodAction";
 import { zodActionRegistry } from "@src/ActionSystem/schema/zodRegistry";
 import { FileService } from "@src/services/file";
 import { GitOperationsService, GitService } from "@src/services/git";
-import { TestService } from "@src/services/test";
 
 import { appViewZodActions } from "./actions/appViewActions.zod";
 import { editorZodActions } from "./actions/editorActions.zod";
@@ -39,7 +38,6 @@ import { repoZodActions } from "./actions/repoActions.zod";
 import { createSearchZodActions } from "./actions/searchActions.zod";
 import { sessionCommentZodActions } from "./actions/sessionCommentActions.zod";
 import { terminalZodActions } from "./actions/terminalActions.zod";
-import { createTestZodActions } from "./actions/testActions.zod";
 import { urlPreviewActions } from "./actions/urlPreviewActions.zod";
 import { workStationViewZodActions } from "./actions/workStationViewActions.zod";
 
@@ -54,7 +52,6 @@ let registeredZodActionIds: string[] = [];
 export function getAllCoreZodActions(
   repoPath: string
 ): ZodAction<ZodTypeAny>[] {
-  const testActions = createTestZodActions(repoPath);
   const searchActions = createSearchZodActions(repoPath);
   const fileActions = createFileZodActions(repoPath);
 
@@ -65,7 +62,6 @@ export function getAllCoreZodActions(
     ...workStationViewZodActions,
     ...navigationZodActions,
     ...searchActions,
-    ...testActions,
     ...editorZodActions,
     ...editorTabZodActions,
     ...fileActions,
@@ -132,12 +128,9 @@ export async function initializeServices(
     GitService.setRepoContext(repoId, repoPath);
     GitOperationsService.setRepoContext(repoId, repoPath);
   }
-  await TestService.initialize();
 }
 
 /**
  * Cleanup services (call at app shutdown)
  */
-export function cleanupServices(): void {
-  TestService.cleanup();
-}
+export function cleanupServices(): void {}

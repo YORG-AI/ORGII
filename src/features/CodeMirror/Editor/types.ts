@@ -3,7 +3,6 @@
  *
  * Type definitions for the CodeMirror editor component.
  */
-import type { Diagnostic } from "@/src/modules/WorkStation/CodeEditor/Panels/EditorBottomPanel/content/ProblemsContent/types";
 
 // ============================================
 // Public Types (exported to consumers)
@@ -50,8 +49,6 @@ export interface CodeMirrorEditorProps {
   onCursorChange?: (cursor: CursorPosition) => void;
   /** Callback when text is selected (on mouseup with selection) */
   onTextSelection?: (selection: TextSelectionInfo | null) => void;
-  /** Callback when diagnostics change */
-  onDiagnosticsChange?: (diagnostics: Diagnostic[]) => void;
   /** Custom class name */
   className?: string;
   /** Enable minimap (default: false) */
@@ -62,8 +59,6 @@ export interface CodeMirrorEditorProps {
   enableGoToLine?: boolean;
   /** Enable find & replace with Cmd+F/Cmd+H (default: true) */
   enableFindReplace?: boolean;
-  /** Enable linting (default: true) */
-  enableLinting?: boolean;
   /** Enable dirty diff gutter (default: true when originalValue provided) */
   enableDirtyDiff?: boolean;
   /** Whether the file has been deleted (shows all lines as deleted markers) */
@@ -89,7 +84,6 @@ export interface CodeMirrorEditorProps {
 export interface CallbackRefs {
   onCursorChange?: (cursor: CursorPosition) => void;
   onTextSelection?: (selection: TextSelectionInfo | null) => void;
-  onDiagnosticsChange?: (diagnostics: Diagnostic[]) => void;
   onChange?: (value: string) => void;
   filePath?: string;
 }

@@ -8,10 +8,12 @@ import {
   TreeRowBase,
   type TreeRowNode,
 } from "@src/components/TreeRow";
+// `types`, not the `exports` barrel — the barrel re-exports the TerminalCore
+// component and would drag xterm into the sidebar-modules chunk.
 import {
   type TerminalSession,
   getTerminalDisplayTitle,
-} from "@src/engines/TerminalCore/exports";
+} from "@src/engines/TerminalCore/types";
 import { shellProcessMapAtom } from "@src/store/session/shellProcessAtom";
 
 interface AgentSessionRowProps {

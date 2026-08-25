@@ -67,7 +67,11 @@ export const MarkdownContent = memo(function MarkdownContent({
     <div
       className={`chat-text allow-select-deep w-full min-w-0 text-text-1 ${className}`.trim()}
     >
-      <Markdown textContent={normalizeMarkdownContent(body)} skipPreprocess />
+      <Markdown
+        textContent={normalizeMarkdownContent(body)}
+        skipPreprocess
+        sessionReferencesAsCards
+      />
     </div>
   );
 

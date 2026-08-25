@@ -139,13 +139,15 @@ describe("PinnedActionsBar", () => {
     expect(focus).toHaveBeenCalledOnce();
   });
 
-  it("hides pinned pills without removing the management entry point", () => {
+  it("hides pinned pills together with the divider and management button", () => {
     const composerInputRef = createRef<ComposerInputRef>();
 
     act(() =>
       root.render(
         createElement(PinnedActionsBar, {
           composerInputRef,
+          leadingContent: createElement("span", null, "Setup controls"),
+          manageButtonPlacement: "before-actions",
           showPinnedActions: false,
         })
       )
@@ -158,7 +160,30 @@ describe("PinnedActionsBar", () => {
       container.querySelector<HTMLButtonElement>(
         'button[title="input.pinnedActions.manage"]'
       )
+    ).toBeNull();
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(container.textContent).toContain("Setup controls");
+  });
+
+  it("omits the leading divider when the preceding GUI/TUI control is absent", () => {
+    const composerInputRef = createRef<ComposerInputRef>();
+
+    act(() =>
+      root.render(
+        createElement(PinnedActionsBar, {
+          composerInputRef,
+          manageButtonPlacement: "before-actions",
+          showBeforeActionsSeparator: false,
+        })
+      )
+    );
+
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        'button[title="input.pinnedActions.manage"]'
+      )
     ).not.toBeNull();
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
   });
 
   it("does not request skill resolution for hidden pinned pills", () => {

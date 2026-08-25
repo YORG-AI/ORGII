@@ -1,16 +1,8 @@
 // @vitest-environment jsdom
 //
-// Covers the posted-reference half of "drop something into a channel": a
-// session, work item or GitHub issue/PR named in a stored body is promoted
-// out of the prose into its own card, other pill types stay inline on the
-// read-only composer path, and a reference whose target is gone degrades
-// instead of rendering a husk.
-//
-// `ComposerInput` is a contenteditable host with portal-mounted pills,
-// impractical under jsdom, so it is stubbed the way `HumanSessionView.test.ts`
-// stubs it. `useSessionTurnOverview` is stubbed because the real hook reads
-// the on-disk turn index through the Tauri cache adapter; `projectApi` and the
-// Tauri shell opener are stubbed for the same reason.
+// Covers the posted-reference half of "drop something into a channel":
+// sessions become cards, every other reference becomes a Markdown link, and
+// a session whose live row is gone remains available from its snapshot.
 import { Provider, createStore } from "jotai";
 import { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
@@ -31,50 +23,17 @@ import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRe
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { sessionsAtom } from "@src/store/session/sessionAtom";
 import type { Session } from "@src/store/session/sessionAtom/types";
+import { visitedSessionIdsAtom } from "@src/store/session/visitedSessionsAtom";
 import type { LocalChannelMessage } from "@src/store/ui/localChannelMessagesAtom";
 
 import ChannelMessageRow from "./ChannelMessageRow";
 
-interface StubbedComposerProps {
-  initialContent?: string;
-  editable?: boolean;
-  minHeight?: number | string;
-  overflowY?: string;
-  className?: string;
-}
-
 const mocks = vi.hoisted(() => ({
   agentIconRender: vi.fn(),
-  composerProps: [] as StubbedComposerProps[],
   openCloudSession: vi.fn(),
   openSession: vi.fn(),
-  openWorkItem: vi.fn(),
-  openExternalLink: vi.fn(async (_url: string) => undefined),
-  readWorkItem: vi.fn(),
-  readStandaloneWorkItem: vi.fn(),
-  readProject: vi.fn(),
   turnCount: 7,
 }));
-
-vi.mock("@src/components/ComposerInput", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@src/components/ComposerInput")>();
-  const React = await import("react");
-  const MockComposerInput = React.forwardRef<
-    { setContent: (content: unknown) => void },
-    StubbedComposerProps
-  >((props, ref) => {
-    mocks.composerProps.push(props);
-    React.useImperativeHandle(ref, () => ({ setContent: () => undefined }));
-    return React.createElement(
-      "div",
-      { "data-testid": "stub-composer-input" },
-      props.initialContent
-    );
-  });
-  MockComposerInput.displayName = "MockComposerInput";
-  return { ...actual, default: MockComposerInput };
-});
 
 // Provider SVGs resolve to URL strings outside the vite svgr pipeline.
 vi.mock("@src/components/ModelIcon", () => ({
@@ -118,42 +77,6 @@ vi.mock(
     };
   }
 );
-
-// The adapters stay REAL so the card reads the same `WorkItem` shape the Work
-// Item panel does; only the Tauri-backed reads are replaced.
-vi.mock("@src/api/http/project", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@src/api/http/project")>();
-  return {
-    ...actual,
-    projectApi: {
-      ...actual.projectApi,
-      readWorkItem: mocks.readWorkItem,
-      readStandaloneWorkItem: mocks.readStandaloneWorkItem,
-      readProject: mocks.readProject,
-    },
-  };
-});
-
-vi.mock("@src/util/platform/ipcRenderer", () => ({
-  openExternalLink: mocks.openExternalLink,
-}));
-
-vi.mock("@src/store/chatPanel/chatPanelTabsAtom", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@src/store/chatPanel/chatPanelTabsAtom")
-    >();
-  const { atom } = await import("jotai");
-  return {
-    ...actual,
-    openWorkItemInChatPanelTabAtom: atom(
-      null,
-      (_get, _set, options: unknown) => {
-        mocks.openWorkItem(options);
-      }
-    ),
-  };
-});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -228,48 +151,6 @@ function workItemPill(slug: string, shortId: string, label = shortId): string {
   return `${label} [workitem:workitem://${slug}/${shortId}/1700000000000]`;
 }
 
-function workItemData(shortId: string, title: string, overrides = {}) {
-  return {
-    frontmatter: {
-      id: `id-${shortId}`,
-      short_id: shortId,
-      title,
-      status: "in_progress",
-      priority: "high",
-      starred: false,
-      labels: [],
-      todos: [],
-      comments: [],
-      history: [],
-      created_at: NOW,
-      updated_at: NOW,
-      ...overrides,
-    },
-    body: "",
-    filename: `${shortId}.md`,
-  };
-}
-
-function projectData(slug: string, name: string) {
-  return {
-    slug,
-    description: "",
-    meta: {
-      id: `project-${slug}`,
-      name,
-      org_id: "org-1",
-      status: "in_progress",
-      priority: "high",
-      health: "on_track",
-      members: [],
-      labels: [],
-      linked_repos: [],
-      created_at: NOW,
-      updated_at: NOW,
-    },
-  };
-}
-
 function makeMessage(body: string): LocalChannelMessage {
   return {
     id: "msg-1",
@@ -296,13 +177,7 @@ describe("ChannelMessageRow references", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.composerProps.length = 0;
     mocks.turnCount = 7;
-    mocks.readWorkItem.mockRejectedValue(new Error("no such work item"));
-    mocks.readStandaloneWorkItem.mockRejectedValue(
-      new Error("no such work item")
-    );
-    mocks.readProject.mockRejectedValue(new Error("no such project"));
     store = createStore();
     store.set(org2CloudAuthAtom, {
       kind: "org2_cloud",
@@ -352,16 +227,6 @@ describe("ChannelMessageRow references", () => {
           })
         )
       );
-    });
-  }
-
-  /** Renders, then flushes the work-item resolver's microtask chain. */
-  async function renderResolved(body: string) {
-    render(body);
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
     });
   }
 
@@ -480,6 +345,17 @@ describe("ChannelMessageRow references", () => {
         sessionName: "Triage the flaky test",
       })
     );
+  });
+
+  it("does not rerender a local card when an unrelated session is visited", () => {
+    render("Triage-the-flaky-test [session:sess-1]");
+    expect(mocks.agentIconRender).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      store.set(visitedSessionIdsAtom, ["unrelated-session"]);
+    });
+
+    expect(mocks.agentIconRender).toHaveBeenCalledTimes(1);
   });
 
   it("renders a cached cloud session as an available card", () => {
@@ -702,191 +578,69 @@ describe("ChannelMessageRow references", () => {
     expect(card()?.getAttribute("data-session-snapshot")).toBe("true");
   });
 
-  it("leaves other pill types inline on the read-only composer path", () => {
+  it("renders non-session pills as Markdown links instead of blue tags", () => {
     render("config.ts [file:/repo/config.ts] and Triage [session:sess-1]");
 
     expect(
+      container.querySelector("[data-testid='markdown']")?.textContent
+    ).toBe("[config.ts](/repo/config.ts) and");
+    expect(
       container.querySelector("[data-testid='channel-message-pill-body']")
-    ).not.toBeNull();
-    expect(container.querySelector("[data-testid='markdown']")).toBeNull();
-    expect(mocks.composerProps.at(-1)).toMatchObject({
-      editable: false,
-      minHeight: 0,
-      overflowY: "visible",
-      className: "text-sm leading-6 text-text-1",
-    });
-    expect(mocks.composerProps.at(-1)?.initialContent).toBe(
-      "config.ts [file:/repo/config.ts] and"
-    );
+    ).toBeNull();
     expect(card()).not.toBeNull();
   });
 
-  describe("work item references", () => {
-    it("renders the resolved id, title, status and priority", async () => {
-      mocks.readWorkItem.mockResolvedValue(
-        workItemData("AUTH-12", "Rotate the signing key")
-      );
-      mocks.readProject.mockResolvedValue(projectData("auth", "Auth System"));
+  it("renders work-item references as Markdown links, not cards", () => {
+    render(workItemPill("auth", "AUTH-12"));
 
-      await renderResolved(workItemPill("auth", "AUTH-12"));
-
-      const [rendered] = cardsOf("channel-work-item-card");
-      expect(rendered).toBeDefined();
-      expect(rendered.getAttribute("data-work-item-missing")).toBeNull();
-      expect(
-        rendered.querySelector("[data-testid='channel-work-item-card-id']")
-          ?.textContent
-      ).toBe("AUTH-12");
-      expect(rendered.textContent).toContain("Rotate the signing key");
-      expect(rendered.textContent).toContain(
-        "projects:workItems.statusLabels.in_progress"
-      );
-      expect(rendered.textContent).toContain(
-        "projects:workItems.priorityLabels.high"
-      );
-      expect(rendered.textContent).toContain("Auth System");
-
-      // The reference is gone from the prose.
-      expect(container.querySelector("[data-testid='markdown']")).toBeNull();
-    });
-
-    it("falls back to the standalone read when the project read fails", async () => {
-      mocks.readStandaloneWorkItem.mockResolvedValue(
-        workItemData("SOLO-3", "Unfiled follow-up")
-      );
-
-      await renderResolved(workItemPill("loose", "SOLO-3"));
-
-      const [rendered] = cardsOf("channel-work-item-card");
-      expect(rendered.getAttribute("data-work-item-missing")).toBeNull();
-      expect(rendered.textContent).toContain("Unfiled follow-up");
-      // No project row: the slug stands in as the project name.
-      expect(rendered.textContent).toContain("loose");
-    });
-
-    it("degrades to the posted title when the item cannot be read", async () => {
-      await renderResolved(workItemPill("gone", "GONE-9"));
-
-      const [rendered] = cardsOf("channel-work-item-card");
-      expect(rendered.getAttribute("data-work-item-missing")).toBe("true");
-      expect(rendered.textContent).toContain("GONE-9");
-      expect(rendered.textContent).toContain(
-        "cloud.channels.feed.workItemCardMissing"
-      );
-    });
-
-    it("opens the work item panel when the card is clicked", async () => {
-      mocks.readWorkItem.mockResolvedValue(
-        workItemData("OPEN-1", "Ship the importer")
-      );
-      mocks.readProject.mockResolvedValue(projectData("opener", "Importer"));
-
-      await renderResolved(workItemPill("opener", "OPEN-1"));
-
-      act(() => {
-        cardsOf("channel-work-item-card")[0]?.dispatchEvent(
-          new MouseEvent("click", { bubbles: true })
-        );
-      });
-
-      expect(mocks.openWorkItem).toHaveBeenCalledWith(
-        expect.objectContaining({
-          shortId: "OPEN-1",
-          projectSlug: "opener",
-          projectId: "project-opener",
-          projectName: "Importer",
-          orgId: "org-1",
-          workItem: expect.objectContaining({ name: "Ship the importer" }),
-        })
-      );
-    });
-
-    it("reads once for a body that names the same item twice", async () => {
-      mocks.readWorkItem.mockResolvedValue(
-        workItemData("DUP-4", "Dedupe the loader")
-      );
-      mocks.readProject.mockResolvedValue(projectData("dupes", "Dupes"));
-
-      await renderResolved(
-        `${workItemPill("dupes", "DUP-4")} and ${workItemPill("dupes", "DUP-4")}`
-      );
-
-      expect(cardsOf("channel-work-item-card")).toHaveLength(1);
-      expect(mocks.readWorkItem).toHaveBeenCalledTimes(1);
-    });
+    expect(cardsOf("channel-work-item-card")).toHaveLength(0);
+    expect(
+      container.querySelector("[data-testid='markdown']")?.textContent
+    ).toBe("[AUTH-12](workitem://auth/AUTH-12/1700000000000)");
   });
 
-  describe("GitHub references", () => {
+  describe("ordinary web references", () => {
     const PR_URL = "https://github.com/org2AI/ORG2/pull/606";
     const ISSUE_URL = "https://github.com/org2AI/ORG2/issues/443";
 
-    it("renders owner/repo#number for a pasted pull-request pill", () => {
+    it("renders a pasted pull-request pill as a Markdown link", () => {
       render(`org2AI/ORG2#606 [pr:${PR_URL}]`);
-
-      const [rendered] = cardsOf("channel-github-card");
-      expect(rendered.getAttribute("data-github-resource")).toBe("pr");
-      expect(rendered.textContent).toContain("org2AI/ORG2#606");
-      expect(rendered.textContent).toContain(
-        "cloud.channels.feed.githubPullRequest"
-      );
-    });
-
-    it("renders owner/repo#number for a typed issue URL", () => {
-      render(`still blocked on ${ISSUE_URL}`);
-
-      const [rendered] = cardsOf("channel-github-card");
-      expect(rendered.getAttribute("data-github-resource")).toBe("issue");
-      expect(rendered.textContent).toContain("org2AI/ORG2#443");
-      expect(rendered.textContent).toContain("cloud.channels.feed.githubIssue");
-      expect(
-        container.querySelector("[data-testid='markdown']")?.textContent
-      ).toBe("still blocked on");
-    });
-
-    it("renders a card for a typed pull-request URL", () => {
-      render(`merging ${PR_URL} after lunch`);
-
-      expect(cardsOf("channel-github-card")).toHaveLength(1);
-      expect(cardsOf("channel-github-card")[0].textContent).toContain(
-        "org2AI/ORG2#606"
-      );
-    });
-
-    it("leaves a repository-root URL as prose", () => {
-      render("the repo is https://github.com/org2AI/ORG2 by the way");
 
       expect(cardsOf("channel-github-card")).toHaveLength(0);
       expect(
         container.querySelector("[data-testid='markdown']")?.textContent
-      ).toBe("the repo is https://github.com/org2AI/ORG2 by the way");
+      ).toBe(`[org2AI/ORG2#606](${PR_URL})`);
     });
 
-    it("renders one card when the same issue is named twice", () => {
-      render(`org2AI/ORG2#443 [issue:${ISSUE_URL}] — see also ${ISSUE_URL}`);
+    it("resolves an embedded PR token to its GitHub Markdown link", () => {
+      const encoded = btoa(
+        encodeURIComponent(
+          JSON.stringify({
+            prNumber: 606,
+            prTitle: "Remove reference tags",
+            prUrl: PR_URL,
+          })
+        )
+      );
+      render(`#606-Remove-reference-tags [pr:pr://606::${encoded}]`);
 
-      expect(cardsOf("channel-github-card")).toHaveLength(1);
+      expect(
+        container.querySelector("[data-testid='markdown']")?.textContent
+      ).toBe(`[#606-Remove-reference-tags](${PR_URL})`);
     });
 
-    it("opens the URL through the external opener, not window.open", () => {
-      render(`merging ${PR_URL}`);
+    it("keeps a typed issue URL in Markdown prose", () => {
+      render(`still blocked on ${ISSUE_URL}`);
 
-      act(() => {
-        cardsOf("channel-github-card")[0]?.dispatchEvent(
-          new MouseEvent("click", { bubbles: true })
-        );
-      });
-
-      expect(mocks.openExternalLink).toHaveBeenCalledWith(PR_URL);
+      expect(cardsOf("channel-github-card")).toHaveLength(0);
+      expect(
+        container.querySelector("[data-testid='markdown']")?.textContent
+      ).toBe(`still blocked on ${ISSUE_URL}`);
     });
   });
 
-  it("renders a session, a work item and a GitHub reference together", async () => {
-    mocks.readWorkItem.mockResolvedValue(
-      workItemData("MIX-7", "Land the channel cards")
-    );
-    mocks.readProject.mockResolvedValue(projectData("mixed", "Mixed"));
-
-    await renderResolved(
+  it("renders only the session as a card in a mixed message", () => {
+    render(
       `landed Triage-the-flaky-test [session:sess-1] for ${workItemPill(
         "mixed",
         "MIX-7"
@@ -894,10 +648,12 @@ describe("ChannelMessageRow references", () => {
     );
 
     expect(cardsOf("channel-session-card")).toHaveLength(1);
-    expect(cardsOf("channel-work-item-card")).toHaveLength(1);
-    expect(cardsOf("channel-github-card")).toHaveLength(1);
+    expect(cardsOf("channel-work-item-card")).toHaveLength(0);
+    expect(cardsOf("channel-github-card")).toHaveLength(0);
     expect(
       container.querySelector("[data-testid='markdown']")?.textContent
-    ).toBe("landed for via");
+    ).toBe(
+      "landed for [MIX-7](workitem://mixed/MIX-7/1700000000000) via https://github.com/org2AI/ORG2/pull/606"
+    );
   });
 });

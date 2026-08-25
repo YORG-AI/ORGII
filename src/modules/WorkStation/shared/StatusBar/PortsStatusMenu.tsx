@@ -367,7 +367,7 @@ export const PortsStatusMenu: React.FC = memo(() => {
 
                   {externalPorts.length > 0 && (
                     <>
-                      <div className={DROPDOWN_CLASSES.menuSeparator} />
+                      <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
                       <button
                         type="button"
                         className={classNames(
