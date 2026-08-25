@@ -411,6 +411,11 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
     // ============================================
     agent_core::memory::learnings::init_learnings_table(conn)?;
 
+    // Provider-neutral durable continuation execution state. This stays in
+    // the canonical sessions DB initializer so every production/test entry
+    // point gets identical schema and restart behavior.
+    super::conversation_execution::init_schema(conn)?;
+
     // ============================================
     // One-shot cleanup: drop legacy message-branching artifacts
     // ============================================

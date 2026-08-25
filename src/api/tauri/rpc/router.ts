@@ -49,6 +49,7 @@ export const procedures = {
   humanSession: p.humanSession,
   workRuns: p.workRuns,
   cli: p.cli,
+  conversationExecution: p.conversationExecution,
 } as const;
 
 // ============================================================================

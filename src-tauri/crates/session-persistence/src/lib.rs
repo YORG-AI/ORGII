@@ -22,6 +22,7 @@
 
 pub mod agent_core_bridge;
 pub mod commands;
+pub mod conversation_execution;
 mod connection;
 mod crud;
 mod editing;
@@ -74,6 +75,15 @@ pub use commands::{
     cache_search_events, cache_truncate_after_event, cache_update_event,
     cache_update_session_specs, get_session_llm_usage_spans, get_session_token_usage_records,
     get_session_tool_usage_attributions, get_session_tool_usage_attributions_for_call,
+};
+pub use conversation_execution::{
+    conversation_execution_abort_candidate, conversation_execution_activate_candidate,
+    conversation_execution_advance_checkpoint, conversation_execution_begin_materialization,
+    conversation_execution_forget_runner, conversation_execution_get,
+    conversation_execution_import_legacy_runners,
+    conversation_execution_list_cleanup_candidates, conversation_execution_list_runner_ids,
+    conversation_execution_mark_runner_terminal, conversation_execution_prepare_candidate,
+    conversation_execution_retire_active,
 };
 
 /// Tests in several modules temporarily redirect the process-wide

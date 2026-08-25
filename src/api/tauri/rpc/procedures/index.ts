@@ -20,3 +20,4 @@ export { validation } from "./validation";
 export { workspaceMemory } from "./workspaceMemory";
 export { workRuns } from "./workRuns";
 export { cli } from "./cli";
+export { conversationExecution } from "./conversationExecution";
