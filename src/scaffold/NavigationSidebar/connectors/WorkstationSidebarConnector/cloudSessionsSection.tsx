@@ -34,7 +34,7 @@ import { useTranslation } from "react-i18next";
 import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
 import Message from "@src/components/Message";
-import { collectConversationRunnerSessionIds } from "@src/features/Org2Cloud/SessionConversation/conversationTurnRunner";
+import { collectConversationRunnerSessionIds } from "@src/features/Org2Cloud/SessionConversation/conversationRunnerSessions";
 import {
   hiddenRemoteSessionKey,
   readHiddenRemoteSessionIds,

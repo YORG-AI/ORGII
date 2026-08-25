@@ -44,54 +44,18 @@ import {
   pushConversationEvents,
   pushConversationEventsChunked,
 } from "../org2CloudConversationEventsClient";
+import {
+  conversationRunnerKey,
+  markConversationRunnerTerminal,
+  registerConversationRunner,
+} from "./conversationRunnerSessions";
 
 const log = createLogger("ConversationTurnRunner");
 
-const RUNNER_REGISTRY_KEY = "orgii:conversation-runners-v1";
 const TURN_DEADLINE_MS = 15 * 60_000;
 const CONTEXT_MAX_ENTRIES = 60;
 const CONTEXT_MAX_ENTRY_CHARS = 600;
 const CONTEXT_MAX_TOTAL_CHARS = 18_000;
-
-interface RunnerRegistryEntry {
-  /** Every one-shot runner this device created for the conversation. */
-  runnerSessionIds: string[];
-  updatedAt: string;
-}
-
-type RunnerRegistry = Record<string, RunnerRegistryEntry>;
-
-function registryKey(orgId: string, rootSessionId: string): string {
-  return `${orgId}:${rootSessionId}`;
-}
-
-function readRegistry(): RunnerRegistry {
-  if (typeof localStorage === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(RUNNER_REGISTRY_KEY);
-    return raw ? (JSON.parse(raw) as RunnerRegistry) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeRegistry(registry: RunnerRegistry): void {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(RUNNER_REGISTRY_KEY, JSON.stringify(registry));
-  } catch {
-    // Best-effort: losing the registry only means runners stop being hidden.
-  }
-}
-
-/** Every runner session id on this device — the My Sessions hide filter. */
-export function collectConversationRunnerSessionIds(): Set<string> {
-  const ids = new Set<string>();
-  for (const entry of Object.values(readRegistry())) {
-    for (const id of entry.runnerSessionIds ?? []) ids.add(id);
-  }
-  return ids;
-}
 
 /** Conversation timeline rendered as a bounded read-only context block. */
 export function renderConversationContext(
@@ -214,6 +178,8 @@ export interface RunConversationTurnParams {
   timeline: readonly SessionEvent[];
   sourceScopeKey?: string;
   sourceModel?: string;
+  /** Account-and-org-scoped local executor identity. */
+  executionScopeKey?: string;
   /**
    * Called as soon as the one-shot runner session id is known, with the
    * turnId the tail will be pushed under. The caller overlays the runner's
@@ -238,7 +204,10 @@ export interface RunConversationTurnResult {
 export async function runConversationTurn(
   params: RunConversationTurnParams
 ): Promise<RunConversationTurnResult> {
-  const key = registryKey(params.orgId, params.rootSessionId);
+  const key = conversationRunnerKey(
+    params.executionScopeKey ?? params.orgId,
+    params.rootSessionId
+  );
   const contextBlock = renderConversationContext(params.timeline);
   const request = params.agentContent ?? params.displayText;
   const deadlineMs = Date.now() + TURN_DEADLINE_MS;
@@ -312,17 +281,10 @@ export async function runConversationTurn(
     );
   }
   const runnerSessionId = created.sessionId;
-  const registry = readRegistry();
-  const entry = registry[key];
-  writeRegistry({
-    ...registry,
-    [key]: {
-      runnerSessionIds: [...(entry?.runnerSessionIds ?? []), runnerSessionId],
-      updatedAt: dispatchIso,
-    },
-  });
+  registerConversationRunner(key, runnerSessionId, dispatchIso);
   params.onRunnerReady?.(runnerSessionId, turnId);
   await waitForFirstTurnTerminal(runnerSessionId, deadlineMs);
+  markConversationRunnerTerminal(key, runnerSessionId);
 
   const persisted = await eventStoreProxy
     .getPersistedEvents(runnerSessionId)

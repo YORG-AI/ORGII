@@ -12,6 +12,7 @@ import {
   type ConversationFamilyMember,
   resolveConversationFamily,
 } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
+import { cloudConversationExecutorScopeKey } from "@src/features/Org2Cloud/SessionConversation/conversationExecutionStore";
 import { publishOwnerTurn } from "@src/features/Org2Cloud/SessionConversation/conversationOwnerPublisher";
 import {
   bumpConversationPlaneSignal,
@@ -33,6 +34,7 @@ import {
 import {
   commitRefreshedAuth,
   org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
 } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { ensureFreshSession } from "@src/features/Org2Cloud/org2CloudClient";
 import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
@@ -320,6 +322,10 @@ export function useImportedSessionSubmitOverride({
             timeline,
             sourceScopeKey: rootRow?.repoScopeKey,
             sourceModel: currentSession?.model ?? rootRow?.model,
+            executionScopeKey: cloudConversationExecutorScopeKey(
+              org2CloudAuthIdentityKey(auth),
+              planeInfo.orgId
+            ),
             onRunnerReady: (runnerSessionId, turnId) => {
               // Plumbing session: never sync it to the cloud as a session.
               setAccessSettings((current) =>
