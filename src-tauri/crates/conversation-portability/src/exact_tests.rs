@@ -506,7 +506,7 @@ fn canonical_v1_bytes_and_digest_are_frozen() {
 
     assert_eq!(
         String::from_utf8(encoded.bytes.clone()).expect("UTF-8 JSON"),
-        include_str!("../testdata/portable-conversation-v1.json").trim_end_matches('\n')
+        include_str!("../testdata/portable-conversation-v1.canonical").trim_end_matches('\n')
     );
     assert_eq!(
         encoded.sha256,
