@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 
 const PRIMARY_IDE_SERVER_PORT: u16 = 13_847;
 const PRIMARY_CLI_PROXY_PORT: u16 = 17_888;
-const INSTANCE_IDENTIFIER_PREFIXES: &[&str] = &["yorg.orgii.instance", "yorg.orgii.e2e.instance"];
+const PRODUCTION_INSTANCE_IDENTIFIER_PREFIX: &str = "yorg.orgii.instance";
+const E2E_INSTANCE_IDENTIFIER_PREFIX: &str = "yorg.orgii.e2e.instance";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RuntimeInstanceProfile {
@@ -49,9 +50,24 @@ impl RuntimeInstanceProfile {
 }
 
 fn parse_instance_id(identifier: &str) -> Option<u16> {
-    INSTANCE_IDENTIFIER_PREFIXES
-        .iter()
-        .find_map(|prefix| identifier.strip_prefix(prefix))?
+    let raw_id =
+        if let Some(raw_id) = identifier.strip_prefix(PRODUCTION_INSTANCE_IDENTIFIER_PREFIX) {
+            raw_id
+        } else {
+            let profiled = identifier.strip_prefix(E2E_INSTANCE_IDENTIFIER_PREFIX)?;
+            let mut segments = profiled.split('.');
+            let raw_id = segments.next()?;
+            if segments.any(|segment| {
+                segment.is_empty()
+                    || !segment
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            }) {
+                return None;
+            }
+            raw_id
+        };
+    raw_id
         .parse::<u16>()
         .ok()
         .filter(|id| (2..=99).contains(id))
@@ -98,7 +114,9 @@ mod tests {
 
     #[test]
     fn webdriver_secondary_identifier_keeps_the_same_isolation_profile() {
-        let profile = RuntimeInstanceProfile::from_identifier("yorg.orgii.e2e.instance2");
+        let profile = RuntimeInstanceProfile::from_identifier(
+            "yorg.orgii.e2e.instance2.f2-server-ready-20260825",
+        );
         assert_eq!(profile.instance_id, 2);
         assert_eq!(profile.ide_server_port, 13_848);
         assert_eq!(profile.cli_proxy_port, 17_889);
@@ -121,6 +139,7 @@ mod tests {
             "yorg.orgii.instance0",
             "yorg.orgii.instance100",
             "yorg.orgii.instance2.extra",
+            "yorg.orgii.e2e.instance2.bad_profile",
             "other.orgii.instance2",
         ] {
             assert_eq!(

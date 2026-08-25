@@ -23,11 +23,25 @@ describe("runtimeInstanceProfileForIdentifier", () => {
     );
   });
 
+  it("keeps a uniquely profiled WebDriver instance on its isolated ports", () => {
+    expect(
+      runtimeInstanceProfileForIdentifier(
+        "yorg.orgii.e2e.instance2.f2-server-ready-20260825"
+      )
+    ).toEqual({
+      instanceId: 2,
+      ideServerPort: 13_848,
+      cliProxyPort: 17_889,
+      authDeepLinkScheme: "orgii-instance2",
+    });
+  });
+
   it("falls back for malformed and unbounded identifiers", () => {
     for (const identifier of [
       "yorg.orgii.instance1",
       "yorg.orgii.instance100",
       "yorg.orgii.instance2.extra",
+      "yorg.orgii.e2e.instance2.bad_profile",
       "other.orgii.instance2",
     ]) {
       expect(runtimeInstanceProfileForIdentifier(identifier).instanceId).toBe(

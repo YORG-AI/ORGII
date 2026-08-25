@@ -25,13 +25,29 @@ const SECONDARY_WEBDRIVER_PORT = Number.parseInt(
   10
 );
 const SECONDARY_IDE_PORT = Number.parseInt(
-  process.env.E2E_SECONDARY_IDE_SERVER_PORT ?? "24847",
+  process.env.E2E_SECONDARY_IDE_SERVER_PORT ?? "13848",
   10
 );
 const SECONDARY_CLI_PROXY_PORT = Number.parseInt(
-  process.env.E2E_SECONDARY_CLI_PROXY_PORT ?? "28889",
+  process.env.E2E_SECONDARY_CLI_PROXY_PORT ?? "17889",
   10
 );
+const E2E_WEBVIEW_PROFILE_ID = (
+  process.env.E2E_WEBVIEW_PROFILE_ID ?? String(process.pid)
+).replace(/[^a-zA-Z0-9-]/g, "-");
+const SECONDARY_INSTANCE_ID = SECONDARY_IDE_PORT - 13_847 + 1;
+
+if (
+  !Number.isInteger(SECONDARY_INSTANCE_ID) ||
+  SECONDARY_INSTANCE_ID < 2 ||
+  SECONDARY_INSTANCE_ID > 99 ||
+  SECONDARY_CLI_PROXY_PORT !== 17_888 + SECONDARY_INSTANCE_ID - 1
+) {
+  throw new Error(
+    "secondary IDE/CLI ports must describe one runtime instance: " +
+      "IDE 13848..13945 and CLI = IDE + 4041"
+  );
+}
 
 function writeJsonAtomically(path, value) {
   mkdirSync(dirname(path), { recursive: true });
@@ -158,8 +174,8 @@ function secondaryTauriConfig(originalConfig) {
   return `${JSON.stringify(
     {
       ...config,
-      productName: "ORG2 E2E Instance 2",
-      identifier: "yorg.orgii.e2e.instance2",
+      productName: "ORG2 E2E VantaNode",
+      identifier: `yorg.orgii.e2e.instance${SECONDARY_INSTANCE_ID}.${E2E_WEBVIEW_PROFILE_ID}`,
       build: {
         ...config.build,
         devUrl: `http://localhost:${frontendPort}`,
@@ -167,7 +183,7 @@ function secondaryTauriConfig(originalConfig) {
       plugins: {
         ...config.plugins,
         "deep-link": {
-          desktop: { schemes: ["yorgai-e2e-instance2", "orgii-e2e-instance2"] },
+          desktop: { schemes: ["yorgai-e2e-vantanode", "orgii-e2e-vantanode"] },
         },
         updater: { ...config.plugins?.updater, active: false },
       },
@@ -499,7 +515,15 @@ export async function startSecondCloudInstance() {
         try {
           await executeOn(
             client,
-            "window.localStorage.setItem(arguments[0], arguments[1]); return true;",
+            `
+              if (!window.__orgiiE2EWebViewReset) {
+                window.localStorage.clear();
+                window.sessionStorage.clear();
+                window.__orgiiE2EWebViewReset = true;
+              }
+              window.localStorage.setItem(arguments[0], arguments[1]);
+              return window.localStorage.getItem(arguments[0]) === arguments[1];
+            `,
             ["orgii:e2eBaseUrl", `http://127.0.0.1:${SECONDARY_IDE_PORT}`]
           );
           return true;
@@ -527,7 +551,13 @@ export async function startSecondCloudInstance() {
           try {
             mergeSecondaryRealAccount(seededAccount);
           } finally {
-            rmSync(tempRoot, { force: true, recursive: true });
+            if (process.env.E2E_RETAIN_SECONDARY_HOME === "1") {
+              console.info(
+                `[dual-cloud-e2e] retained VantaNode evidence at ${tempRoot}`
+              );
+            } else {
+              rmSync(tempRoot, { force: true, recursive: true });
+            }
           }
         }
       },
@@ -537,7 +567,13 @@ export async function startSecondCloudInstance() {
       await client?.deleteSession();
     } catch {}
     driverProcess.kill("SIGTERM");
-    rmSync(tempRoot, { force: true, recursive: true });
+    if (process.env.E2E_RETAIN_SECONDARY_HOME === "1") {
+      console.info(
+        `[dual-cloud-e2e] retained failed VantaNode evidence at ${tempRoot}`
+      );
+    } else {
+      rmSync(tempRoot, { force: true, recursive: true });
+    }
     throw error;
   }
 }
