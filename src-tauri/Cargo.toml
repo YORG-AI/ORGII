@@ -122,6 +122,8 @@ axum = { version = "0.8", features = ["ws"] }
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-app-kit = "0.3"
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGGeometry", "CGPath"] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer", "CAShapeLayer", "objc2-core-foundation", "objc2-core-graphics"] }
 block2 = "0.6"
 dispatch2 = "0.3"
 

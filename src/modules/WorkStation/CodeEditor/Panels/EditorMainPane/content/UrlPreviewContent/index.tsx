@@ -7,15 +7,18 @@
  * Uses the same useInlineWebview hook as the Browser module to create
  * native webviews that bypass X-Frame-Options restrictions.
  */
+import { useAtomValue } from "jotai";
 import { RefreshCw, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { useInlineWebview } from "@src/hooks/platform/useInlineWebview";
+import { useInlineWebviewOcclusions } from "@src/hooks/platform/useInlineWebview/useInlineWebviewOcclusions";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { webviewOverlayBlockedAtom } from "@src/store/ui/overlayAtom";
 import { isTauriDesktop } from "@src/util/platform/tauri";
 
 interface UrlPreviewContentProps {
@@ -34,6 +37,7 @@ const UrlPreviewContent: React.FC<UrlPreviewContentProps> = memo(
     const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
     const isTauri = isTauriDesktop();
+    const isWebviewBlocked = useAtomValue(webviewOverlayBlockedAtom);
 
     // Generate a stable label for the webview (useState to avoid ref access in render)
     const [label] = React.useState(getNextLabel);
@@ -42,7 +46,7 @@ const UrlPreviewContent: React.FC<UrlPreviewContentProps> = memo(
       containerRef,
       url,
       isActive: true,
-      isVisible: true,
+      isVisible: !isWebviewBlocked,
       labelPrefix: label,
       useExactLabel: true,
       incognito: false,
@@ -52,6 +56,13 @@ const UrlPreviewContent: React.FC<UrlPreviewContentProps> = memo(
         // Open new windows in external browser
         window.open(newUrl, "_blank", "noopener,noreferrer");
       },
+    });
+
+    useInlineWebviewOcclusions({
+      containerRef,
+      isWebviewCreated,
+      isSurfaceVisible: !isWebviewBlocked,
+      label,
     });
 
     // Update position when mounted

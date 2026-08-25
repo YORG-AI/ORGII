@@ -515,6 +515,7 @@ pub fn close_inline_webview(
     }
 
     if let Some(webview) = app.get_webview(&label) {
+        crate::occlusion::clear_webview_occlusions(&webview);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| webview.close()));
 
         clear_generation(&label);
@@ -618,6 +619,7 @@ pub fn close_all_inline_webviews(app: AppHandle) -> Result<Vec<String>, String> 
         // Reset lifecycle state so the next create starts fresh.
         reset_ref(label);
         clear_generation(label);
+        crate::occlusion::clear_webview_occlusions(webview);
 
         // Clone webview for catch_unwind (needs 'static lifetime)
         let webview_clone = webview.clone();

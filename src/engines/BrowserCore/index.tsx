@@ -36,6 +36,7 @@ import BrowserSessionWebview from "./BrowserSessionWebview";
 import type { UseBrowserStateReturn } from "./hooks/useBrowserState";
 import "./index.scss";
 import { BROWSER_WEBVIEW_FRAME_ANCHOR_ATTRIBUTE } from "./nativeFrameAnchor";
+import { shouldShowNativeSurface } from "./nativeSurfaceVisibility";
 
 const log = createLogger("BrowserCore");
 
@@ -222,6 +223,14 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
 
   const showEmbeddedBrowserFallback =
     Boolean(currentUrl) && embeddedFallbackUrl === currentUrl;
+  // The sensitive-host fallback is a time-based hint, not proof that the
+  // native page failed. GitHub/Google can load successfully, so it must never
+  // hide a healthy WebView merely because the timer elapsed.
+  const isNativeSurfaceVisible = shouldShowNativeSurface({
+    isLoading,
+    hasConfirmedError: Boolean(displayError),
+    hasTimedSensitiveHostHint: showEmbeddedBrowserFallback,
+  });
 
   const handleOpenExternal = useCallback(() => {
     if (!currentUrl) return;
@@ -288,6 +297,7 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
                 session={session}
                 isActive={session.id === activeSessionId}
                 isTabActive={isTabReallyActive}
+                isSurfaceVisible={isNativeSurfaceVisible}
                 containerRef={webviewFrameAnchorRef}
                 onSessionUpdate={updateSession}
                 onNewTab={addSession}

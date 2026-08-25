@@ -73,24 +73,19 @@ locationSelectorOpenAtom.debugLabel = "locationSelectorOpenAtom";
  * Agent Station can host the same native browser without recreating it.
  */
 export const webviewOverlayBlockedAtom = atom((get) => {
-  // macOS can move native WKWebViews behind React overlays. Other platforms
-  // need a visibility fallback because inline webviews may paint above modals.
-  const hasNativeBlockingOverlay =
-    !isMacOS() && get(activeOverlayCountAtom) > 0;
+  // Native child WebViews do not participate in the DOM stacking context.
+  // macOS masks only the overlapping portion of each WKWebView. Other
+  // platforms currently need the offscreen fallback for every UI overlay.
+  const needsOffscreenOverlayFallback =
+    !isMacOS() &&
+    (get(activeOverlayCountAtom) > 0 ||
+      get(componentIssueModalOpenAtom) ||
+      get(quitConfirmationModalOpenAtom) ||
+      get(toolbarDropdownOpenAtom) ||
+      get(spotlightOpenAtom));
   const hasGlobalError = get(hasGlobalErrorAtom);
-  const isComponentIssueModalOpen = get(componentIssueModalOpenAtom);
-  const isQuitConfirmationModalOpen = get(quitConfirmationModalOpenAtom);
-  const isToolbarDropdownOpen = get(toolbarDropdownOpenAtom);
-  const isSpotlightOpen = get(spotlightOpenAtom);
 
-  return (
-    hasNativeBlockingOverlay ||
-    hasGlobalError ||
-    isComponentIssueModalOpen ||
-    isQuitConfirmationModalOpen ||
-    isToolbarDropdownOpen ||
-    isSpotlightOpen
-  );
+  return hasGlobalError || needsOffscreenOverlayFallback;
 });
 webviewOverlayBlockedAtom.debugLabel = "webviewOverlayBlockedAtom";
 

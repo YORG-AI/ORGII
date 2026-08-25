@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import { useInlineWebview } from "@src/hooks/platform/useInlineWebview";
+import { useInlineWebviewOcclusions } from "@src/hooks/platform/useInlineWebview/useInlineWebviewOcclusions";
 import { sidebarWidthAtom } from "@src/store/ui/sidebarAtom";
 import {
   simulatorPrimarySidebarCollapsedAtom,
@@ -79,6 +80,7 @@ interface BrowserSessionWebviewProps {
   session: BrowserSession;
   isActive: boolean;
   isTabActive: boolean;
+  isSurfaceVisible: boolean;
   containerRef: React.RefObject<HTMLDivElement | null>;
   onSessionUpdate: (
     sessionId: string,
@@ -103,6 +105,7 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
   session,
   isActive,
   isTabActive,
+  isSurfaceVisible,
   containerRef,
   onSessionUpdate,
   onNewTab,
@@ -157,6 +160,7 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
 
   const webviewConfig = useMemo(() => {
     const shouldActivateWebview = hasNavigableUrl && isActive && isTabActive;
+    const shouldShowWebview = shouldActivateWebview && isSurfaceVisible;
 
     return {
       containerRef,
@@ -164,7 +168,7 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
       // Defers native creation for restored/background tabs so old URLs do not
       // replay as live browser pages when the shared Browser host remounts.
       isActive: shouldActivateWebview,
-      isVisible: shouldActivateWebview,
+      isVisible: shouldShowWebview,
       // Use exact label (no UUID) so we can predict it for console log polling
       labelPrefix: webviewLabel,
       useExactLabel: true,
@@ -215,6 +219,7 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
     session.incognito,
     isActive,
     isTabActive,
+    isSurfaceVisible,
     webviewLabel,
     onSessionUpdate,
     onNewTab,
@@ -227,6 +232,14 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
     isWebviewAvailable,
     isWebviewCreated,
   } = useInlineWebview(webviewConfig);
+
+  useInlineWebviewOcclusions({
+    containerRef,
+    isWebviewCreated,
+    isSurfaceVisible:
+      hasNavigableUrl && isActive && isTabActive && isSurfaceVisible,
+    label: webviewLabel,
+  });
 
   useEffect(() => {
     if (!isWebviewAvailable) return;
@@ -290,7 +303,11 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
       updatedAt: Date.now(),
     };
     const shouldSyncActiveState =
-      hasNavigableUrl && isActive && isTabActive && isWebviewCreated;
+      hasNavigableUrl &&
+      isActive &&
+      isTabActive &&
+      isSurfaceVisible &&
+      isWebviewCreated;
 
     if (shouldSyncActiveState) {
       activeInternalBrowserSyncRef.current = sync;
@@ -326,6 +343,7 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
     hasNavigableUrl,
     isActive,
     isTabActive,
+    isSurfaceVisible,
     isWebviewAvailable,
     isWebviewCreated,
     session.id,

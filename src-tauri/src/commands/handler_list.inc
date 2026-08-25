@@ -98,10 +98,8 @@ browser::automation::commands::browser_automation_resume,
 browser::automation::commands::browser_screenshot_get,
 // Browser commands - Inline webview capture (Camera button → chat attachment)
 browser::browser_inline_capture,
-// Browser commands - Inline webview z-order layering (send-to-back / bring-to-front)
-browser::browser_webview_send_to_back,
-browser::browser_webview_bring_to_front,
-browser::browser_webviews_set_layer_for_all,
+// Browser commands - geometry-aware inline WebView occlusion
+browser::set_inline_webview_occlusions,
 // Browser commands - Active internal browser target state
 browser::set_active_internal_browser_state,
 browser::clear_active_internal_browser_state,

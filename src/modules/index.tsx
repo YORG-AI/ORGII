@@ -32,7 +32,6 @@ import { useAgentADEActions } from "@src/engines/SessionCore/hooks/useAgentADEAc
 import { useProjectDataChangedListener } from "@src/hooks/project";
 import { useUrlPreviewEvents } from "@src/hooks/tabHost/useUrlPreviewEvents";
 import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
-import { useGlobalBrowserWebviewLayering } from "@src/modules/WorkStation/Browser/hooks";
 import { CODE_EDITOR_TOUR_EVENT } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
   GENERAL_LAYOUT_TOUR_EVENT,
@@ -166,12 +165,6 @@ const ConfiguredBackgroundLayer: React.FC = () => {
 
 const AppShell = () => {
   const location = useLocation();
-
-  // === Global Browser Webview Layering ===
-  // Drops inline browser WKWebViews behind React portals whenever any
-  // overlay (dropdown, modal, spotlight) is visible. See
-  // `docs/workstation/Browser/webview-layering--0418.md`.
-  useGlobalBrowserWebviewLayering();
 
   const navigate = useNavigate();
 

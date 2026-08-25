@@ -68,6 +68,8 @@ window-vibrancy = "0.6"
 objc2 = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-app-kit = { workspace = true }
+objc2-core-graphics = { workspace = true }
+objc2-quartz-core = { workspace = true }
 block2 = { workspace = true }
 
 # Windows-specific WebView2 bindings for retrieving JavaScript evaluation
