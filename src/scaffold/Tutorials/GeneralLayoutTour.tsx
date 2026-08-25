@@ -8,7 +8,13 @@ import {
   Monitor,
   X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +24,7 @@ import {
   POPUP_ANIMATION,
   POPUP_SHADOW,
 } from "@src/scaffold/shared/popupTokens";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
@@ -176,6 +183,8 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
   const setStationMode = useSetAtom(stationModeAtom);
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  useOverlayLayer(open, popoverRef);
 
   const currentStep = TOUR_STEPS[stepIndex];
   const isFirstStep = stepIndex === 0;
@@ -343,6 +352,7 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
         )}
 
         <motion.div
+          ref={popoverRef}
           {...POPUP_ANIMATION}
           className="fixed z-[10002] rounded-[14px] p-3"
           style={{ ...popoverStyle, ...popoverGlassStyle }}

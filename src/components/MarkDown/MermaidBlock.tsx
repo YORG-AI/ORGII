@@ -19,6 +19,7 @@ import {
   EventBlockHeaderTitle,
   getEventBlockContainerClasses,
 } from "@src/engines/ChatPanel/blocks/primitives";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 // ============================================
 // Module-level SVG cache (FIFO, max 50)
@@ -253,6 +254,8 @@ const MermaidBlock: React.FC<MermaidBlockProps> = memo(
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(!svg);
     const [expanded, setExpanded] = useState(false);
+    const expandedPanelRef = useRef<HTMLDivElement | null>(null);
+    useOverlayLayer(expanded, expandedPanelRef);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isHeaderHovered, setIsHeaderHovered] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -518,6 +521,7 @@ const MermaidBlock: React.FC<MermaidBlockProps> = memo(
           svg &&
           createPortal(
             <div
+              ref={expandedPanelRef}
               className="fixed inset-0 z-[99999] flex flex-col bg-black/80"
               onClick={toggleExpand}
               role="dialog"

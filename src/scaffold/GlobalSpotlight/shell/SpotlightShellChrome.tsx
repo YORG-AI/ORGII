@@ -44,7 +44,7 @@ export const SpotlightShellChrome: React.FC<SpotlightShellChromeProps> = ({
   const inputHostRef = useRef<HTMLDivElement | null>(null);
   const spotlightPlacement = useAtomValue(spotlightPlacementAtom);
 
-  useOverlayLayer(isOpen && asPortal);
+  useOverlayLayer(isOpen && asPortal, inputHostRef);
 
   // Bubble-phase escape handler (portal mode only — non-portal callers
   // expect the parent's focus trap to own escape).

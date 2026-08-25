@@ -20,7 +20,8 @@ const mocks = vi.hoisted(() => ({
   search: "?view=list",
 }));
 
-vi.mock("jotai", () => ({
+vi.mock("jotai", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("jotai")>()),
   useSetAtom: () => mocks.openRuntime,
 }));
 

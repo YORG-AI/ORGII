@@ -201,9 +201,7 @@ export function useDropdownEngine<
     maxHeight: DROPDOWN_PANEL.maxHeight,
   });
 
-  // Participate in the global overlay-layer count so inline browser
-  // WKWebViews drop behind React portals while this dropdown is open.
-  useOverlayLayer(isOpen);
+  useOverlayLayer(isOpen, panelRef);
 
   const updatePosition = useCallback(() => {
     const triggerElement = latestTriggerRef.current.current;

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useAtomValue, useSetAtom } from "jotai";
 import { X } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@src/components/Button";
@@ -14,6 +14,7 @@ import {
   clearGuideHighlightAtom,
   guideHighlightAtom,
 } from "@src/store/ui/guideHighlightAtom";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
@@ -201,6 +202,8 @@ const GuideHighlightOverlay: React.FC = () => {
     highlight && targetRect?.targetId === highlight.targetId
       ? targetRect.rect
       : null;
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  useOverlayLayer(Boolean(highlight && rect), popoverRef);
   const highlightStyle = useMemo(
     () => (rect ? buildHighlightStyle(rect) : undefined),
     [rect]
@@ -226,6 +229,7 @@ const GuideHighlightOverlay: React.FC = () => {
             transition={{ duration: 0.18, ease: "easeOut" }}
           />
           <motion.div
+            ref={popoverRef}
             className={`pointer-events-auto fixed rounded-2xl border p-4 text-text-1 ${POPUP_SHADOW}`}
             style={{
               ...popoverStyle,

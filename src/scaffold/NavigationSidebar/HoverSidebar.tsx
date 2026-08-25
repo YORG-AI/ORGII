@@ -99,8 +99,7 @@ export const HoverSidebarContainer: React.FC<HoverSidebarContainerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Drop inline browser webviews behind this floating sidebar while open.
-  useOverlayLayer(isHoverSidebarOpen && isSidebarCollapsed);
+  useOverlayLayer(isHoverSidebarOpen && isSidebarCollapsed, containerRef);
 
   // Handle mouse enter on sidebar
   const handleMouseEnter = useCallback(() => {

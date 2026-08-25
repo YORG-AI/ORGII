@@ -1,48 +1,174 @@
 /**
- * Overlay Layer — reference-counted "is any React overlay currently visible?"
+ * Overlay occlusion registry for native inline WebViews.
  *
- * Problem: On macOS, Tauri inline browser WKWebViews are native NSViews that
- * render and hit-test above sibling React content regardless of CSS z-index.
- * Any React overlay (dropdown, modal, spotlight, tooltip) rendered into a
- * portal at document.body will visually lose to an overlapping inline
- * webview.
- *
- * Solution: track how many overlays are currently mounted through a single
- * global ref counter. A bridge effect mounted at the app root watches the
- * count and, when it crosses 0 → 1+, sends all inline browser webviews to
- * the back of their NSView superviews. When the count returns to 0, it
- * brings them back to the front. All existing overlay primitives
- * (`useDropdownEngine`, `SpotlightPortal`, `Tooltip` portal) contribute
- * automatically — no per-call-site work.
- *
- * See `docs/workstation/Browser/webview-layering--0418.md`.
+ * Tauri child WebViews are native surfaces rather than DOM descendants, so a
+ * CSS z-index cannot place a React portal above them. Each mounted overlay
+ * publishes its current viewport rectangle here. Browser surfaces consume the
+ * registry, intersect it with their own frame, and project only those holes to
+ * the native compositor.
  */
-import { atom, useAtom } from "jotai";
-import { useEffect } from "react";
+import { atom, useSetAtom } from "jotai";
+import {
+  type RefObject,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+} from "react";
+
+export interface OverlayOcclusionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface OverlayLayerEntry {
+  id: string;
+  rect: OverlayOcclusionRect | null;
+  /** Interactive overlays temporarily own pointer input over the browser. */
+  blocksNativeInput: boolean;
+}
+
+export interface OverlayLayerOptions {
+  /** Passive overlays such as tooltips can leave native page input enabled. */
+  blocksNativeInput?: boolean;
+}
+
+export type OverlayLayerRegistry = Record<string, OverlayLayerEntry>;
+
+export const overlayLayerRegistryAtom = atom<OverlayLayerRegistry>({});
+overlayLayerRegistryAtom.debugLabel = "overlayLayerRegistryAtom";
+
+export const activeOverlayCountAtom = atom(
+  (get) => Object.keys(get(overlayLayerRegistryAtom)).length
+);
+activeOverlayCountAtom.debugLabel = "activeOverlayCountAtom";
+
+export const overlayOcclusionStateAtom = atom((get) => {
+  const entries = Object.values(get(overlayLayerRegistryAtom));
+  return {
+    rects: entries.flatMap((entry) => (entry.rect ? [entry.rect] : [])),
+    blocksNativeInput: entries.some((entry) => entry.blocksNativeInput),
+  };
+});
+overlayOcclusionStateAtom.debugLabel = "overlayOcclusionStateAtom";
+
+function sameRect(
+  left: OverlayOcclusionRect | null,
+  right: OverlayOcclusionRect | null
+): boolean {
+  if (!left || !right) return left === right;
+  return (
+    Math.abs(left.x - right.x) < 0.5 &&
+    Math.abs(left.y - right.y) < 0.5 &&
+    Math.abs(left.width - right.width) < 0.5 &&
+    Math.abs(left.height - right.height) < 0.5
+  );
+}
+
+function readElementRect(
+  targetRef: RefObject<HTMLElement | null> | undefined
+): OverlayOcclusionRect | null {
+  const element = targetRef?.current;
+  if (!element) return null;
+
+  const rect = element.getBoundingClientRect();
+  if (
+    !Number.isFinite(rect.left) ||
+    !Number.isFinite(rect.top) ||
+    !Number.isFinite(rect.width) ||
+    !Number.isFinite(rect.height) ||
+    rect.width <= 0 ||
+    rect.height <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+}
 
 /**
- * Number of currently visible overlays (dropdowns, modals, tooltips, etc.).
- * Increment on overlay open / mount, decrement on close / unmount. Never
- * mutate directly outside the `useOverlayLayer` helper hook.
- */
-export const activeOverlayCountAtom = atom(0);
-
-/**
- * Contributes one reference to `activeOverlayCountAtom` while `active` is
- * true. Call from any overlay primitive whose portal can visually cross an
- * inline Browser webview's rect.
+ * Register one portal/popup while it is visible.
  *
- * Safe across strict-mode double-invocations: the cleanup always decrements
- * exactly once per active-mount, and the effect is keyed by `active`.
+ * Geometry work exists only during the active lifetime. Scroll, resize, and
+ * ResizeObserver bursts are coalesced to one measurement per animation frame,
+ * and cleanup removes both listeners and the registry entry.
  */
-export function useOverlayLayer(active: boolean): void {
-  const [, setCount] = useAtom(activeOverlayCountAtom);
+export function useOverlayLayer(
+  active: boolean,
+  targetRef?: RefObject<HTMLElement | null>,
+  options: OverlayLayerOptions = {}
+): void {
+  const id = useId();
+  const setRegistry = useSetAtom(overlayLayerRegistryAtom);
+  const frameRef = useRef<number | null>(null);
+  const blocksNativeInput = options.blocksNativeInput ?? true;
 
-  useEffect(() => {
+  const publish = useCallback(() => {
+    const nextRect = readElementRect(targetRef);
+    setRegistry((previous) => {
+      const current = previous[id];
+      if (
+        current &&
+        current.blocksNativeInput === blocksNativeInput &&
+        sameRect(current.rect, nextRect)
+      ) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [id]: { id, rect: nextRect, blocksNativeInput },
+      };
+    });
+  }, [blocksNativeInput, id, setRegistry, targetRef]);
+
+  const schedulePublish = useCallback(() => {
+    if (frameRef.current !== null) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      publish();
+    });
+  }, [publish]);
+
+  useLayoutEffect(() => {
     if (!active) return;
-    setCount((prev) => prev + 1);
+
+    // Register synchronously for the non-macOS full-surface fallback. A
+    // second measurement catches portaled elements mounted in this commit.
+    publish();
+    schedulePublish();
+
+    const element = targetRef?.current;
+    const resizeObserver =
+      element && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(schedulePublish)
+        : null;
+    if (element) resizeObserver?.observe(element);
+
+    window.addEventListener("resize", schedulePublish);
+    window.addEventListener("scroll", schedulePublish, true);
+
     return () => {
-      setCount((prev) => Math.max(0, prev - 1));
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", schedulePublish);
+      window.removeEventListener("scroll", schedulePublish, true);
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+      setRegistry((previous) => {
+        if (!previous[id]) return previous;
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
     };
-  }, [active, setCount]);
+  }, [active, id, publish, schedulePublish, setRegistry, targetRef]);
 }

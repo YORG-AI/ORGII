@@ -8,6 +8,7 @@ import Message from "@src/components/Message";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { componentIssueModalOpenAtom } from "@src/store/ui/overlayAtom";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import {
   ComponentIssuePayload,
   buildIssuePayload,
@@ -45,6 +46,8 @@ const ModalComponentIssue: React.FC<ComponentIssueModalExtendedProps> = ({
   const { query: searchQuery, currentMatchIndex } = searchState;
   const searchInputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const modalPanelRef = useRef<HTMLDivElement>(null);
+  useOverlayLayer(visible, modalPanelRef);
 
   const handleCopy = useCallback(() => {
     if (!payload) {
@@ -216,6 +219,7 @@ const ModalComponentIssue: React.FC<ComponentIssueModalExtendedProps> = ({
   return ReactDOM.createPortal(
     <div className="component-issue-modal-overlay" onClick={onClose}>
       <div
+        ref={modalPanelRef}
         className="component-issue-modal-container"
         onClick={(event) => event.stopPropagation()}
       >

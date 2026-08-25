@@ -1,7 +1,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useSetAtom } from "jotai";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +19,7 @@ import {
   POPUP_SHADOW,
 } from "@src/scaffold/shared/popupTokens";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { sourceControlFilterModeAtom } from "@src/store/workstation/codeEditor/sourceControlFilterModeAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
@@ -207,6 +214,8 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
   const setSourceControlFilterMode = useSetAtom(sourceControlFilterModeAtom);
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  useOverlayLayer(open, popoverRef);
 
   const currentStep = TOUR_STEPS[stepIndex];
   const isFirstStep = stepIndex === 0;
@@ -366,6 +375,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
         )}
 
         <motion.div
+          ref={popoverRef}
           {...POPUP_ANIMATION}
           className="fixed z-[10002] rounded-[14px] p-3"
           style={{ ...popoverStyle, ...popoverGlassStyle }}

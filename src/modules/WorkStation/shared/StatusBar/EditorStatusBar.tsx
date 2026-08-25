@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { Check, Loader2, X } from "lucide-react";
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
@@ -12,6 +12,7 @@ import {
 import { useRepoGitInitialization } from "@src/hooks/git";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { currentBranchAtom, sessionRepoHintAtom } from "@src/store/repo";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { activeFolderIdAtom } from "@src/store/workspace";
 import {
   activeWorkspaceRootNameAtom,
@@ -119,6 +120,8 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
       handleToggleLspDropdown,
       handleCloseLspDropdown,
     } = useLspDropdown();
+    const lspDropdownRef = useRef<HTMLDivElement | null>(null);
+    useOverlayLayer(lspDropdownOpen, lspDropdownRef);
 
     const isIndexingActive = useAtomValue(isIndexingAtom);
     const indexingProgress = useAtomValue(indexingProgressAtom);
@@ -258,6 +261,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
                 onClick={handleCloseLspDropdown}
               />
               <div
+                ref={lspDropdownRef}
                 className={`${DROPDOWN_CLASSES.panel} fixed p-3 ${DROPDOWN_WIDTHS.panelWidthClass}`}
                 style={{
                   bottom: lspDropdownPosition.bottom,

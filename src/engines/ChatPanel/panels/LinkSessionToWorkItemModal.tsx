@@ -9,6 +9,7 @@ import { linkSessionToWorkItem } from "@src/api/tauri/agent/session";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 import {
   type WorkItemLinkOption,
@@ -41,6 +42,8 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const loadGenerationGuardRef = useRef(createAsyncGenerationGuard());
   const linkGenerationGuardRef = useRef(createAsyncGenerationGuard());
+  const modalPanelRef = useRef<HTMLDivElement | null>(null);
+  useOverlayLayer(open, modalPanelRef);
 
   useEffect(() => {
     const guard = loadGenerationGuardRef.current;
@@ -141,7 +144,10 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
       aria-modal="true"
       data-testid="session-link-work-item-modal"
     >
-      <div className="flex max-h-[78vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-solid border-border-1 bg-bg-1 shadow-2xl">
+      <div
+        ref={modalPanelRef}
+        className="flex max-h-[78vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-solid border-border-1 bg-bg-1 shadow-2xl"
+      >
         <div className="flex items-center justify-between gap-3 border-b border-solid border-border-1 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-fill-2 text-text-2">

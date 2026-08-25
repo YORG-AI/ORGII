@@ -8,6 +8,8 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
+
 import FileTreePreview from "./index";
 import type { FileTreePreviewProps } from "./types";
 
@@ -46,7 +48,9 @@ const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
   }, []);
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  useOverlayLayer(showPreview, previewRef);
   const [previewPosition, setPreviewPosition] = useState({ left: 0, top: 0 });
 
   const clearShowTimeout = useCallback(() => {
@@ -135,6 +139,7 @@ const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
       {showPreview &&
         createPortal(
           <div
+            ref={previewRef}
             style={{
               position: "fixed",
               left: previewPosition.left,

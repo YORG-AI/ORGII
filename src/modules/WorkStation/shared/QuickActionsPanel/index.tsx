@@ -20,7 +20,7 @@
  */
 import { AnimatePresence, motion } from "framer-motion";
 import { Box } from "lucide-react";
-import React, { memo, useCallback, useEffect } from "react";
+import React, { memo, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -28,6 +28,7 @@ import {
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 import type { QuickAction, QuickActionsPanelProps } from "./types";
 
@@ -139,6 +140,9 @@ AppLogo.displayName = "AppLogo";
 
 export const QuickActionsPanel = memo<QuickActionsPanelProps>(
   ({ visible, actions, onClose, title, subtitle, showLogo = true }) => {
+    const panelRef = useRef<HTMLDivElement | null>(null);
+    useOverlayLayer(visible, panelRef);
+
     // Handle ESC key to close
     useEffect(() => {
       if (!visible) return;
@@ -185,6 +189,7 @@ export const QuickActionsPanel = memo<QuickActionsPanelProps>(
 
             {/* Panel */}
             <motion.div
+              ref={panelRef}
               className="relative z-10 w-[360px] overflow-hidden rounded-xl border border-border-1 bg-bg-2 shadow-2xl"
               variants={panelVariants}
               initial="hidden"

@@ -23,6 +23,7 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { usePropertyDropdownDirection } from "./PropertyDropdownDirection";
@@ -177,9 +178,11 @@ function useResolvedDropdownAlign(align: DropdownAlign) {
   const [resolvedAlign, setResolvedAlign] = useState<"left" | "right">(
     align === "right" ? "right" : "left"
   );
+  const dropdownElementRef = useRef<HTMLDivElement | null>(null);
 
   const dropdownRef = useCallback(
     (dropdown: HTMLDivElement | null) => {
+      dropdownElementRef.current = dropdown;
       if (!dropdown) return;
       if (align !== "auto") {
         if (resolvedAlign !== align) setResolvedAlign(align);
@@ -197,7 +200,7 @@ function useResolvedDropdownAlign(align: DropdownAlign) {
     [align, resolvedAlign]
   );
 
-  return { dropdownRef, resolvedAlign };
+  return { dropdownElementRef, dropdownRef, resolvedAlign };
 }
 
 export interface DropdownProps {
@@ -265,7 +268,9 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     width?: number;
   } | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
-  const { dropdownRef, resolvedAlign } = useResolvedDropdownAlign(align);
+  const { dropdownElementRef, dropdownRef, resolvedAlign } =
+    useResolvedDropdownAlign(align);
+  useOverlayLayer(Boolean(portalPosition), dropdownElementRef);
   const positionClass =
     widthMode === "menu"
       ? resolvedAlign === "right"

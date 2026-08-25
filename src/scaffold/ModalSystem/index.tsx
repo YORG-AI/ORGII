@@ -130,7 +130,9 @@ const Modal: React.FC<ModalProps> = ({
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [okLoading, setOkLoading] = useState(false);
 
-  useOverlayLayer(visible);
+  // Mask only the opaque dialog surface. The translucent backdrop cannot be
+  // composited across sibling native views without removing the live page.
+  useOverlayLayer(visible, modalRef);
 
   // Store the previously focused element
   useEffect(() => {

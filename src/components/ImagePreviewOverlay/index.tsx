@@ -6,7 +6,7 @@
  * Click backdrop or press ESC to close.
  */
 import { Copy, Download, X } from "lucide-react";
-import React, { memo, useCallback, useEffect } from "react";
+import React, { memo, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
@@ -33,8 +33,8 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
   ({ dataUrl, fileName, onClose, showCopyButton = true }) => {
     const { t } = useTranslation("common");
 
-    // Drop inline browser webviews behind this fullscreen modal.
-    useOverlayLayer(true);
+    const imagePanelRef = useRef<HTMLDivElement | null>(null);
+    useOverlayLayer(true, imagePanelRef);
 
     // Close on ESC
     useEffect(() => {
@@ -88,7 +88,7 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
         aria-label={t("imagePreview.dialogLabel")}
       >
         {/* Image container with toolbar overlay */}
-        <div className="relative">
+        <div ref={imagePanelRef} className="relative">
           {/* Toolbar — floating inside image top-right */}
           <div className="absolute right-2 top-2 flex items-center gap-0.5 rounded-lg bg-black p-1">
             {showCopyButton && (

@@ -39,6 +39,7 @@ import React, {
 } from "react";
 import ReactDOM from "react-dom";
 
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import "./index.scss";
@@ -247,6 +248,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
 
     const isControlled = open !== undefined;
     const effectiveOpen = isControlled ? open : internalOpen;
+    useOverlayLayer(effectiveOpen, tooltipRef, { blocksNativeInput: false });
     const usesFramedSurface = framedPanel || (!panelStyle && !backgroundColor);
 
     const updatePosition = useCallback(() => {

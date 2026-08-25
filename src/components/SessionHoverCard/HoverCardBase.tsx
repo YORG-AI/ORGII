@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import {
@@ -218,6 +219,7 @@ const HoverCardPortal: React.FC<HoverCardPortalProps> = ({
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
   const { triggerRect } = useHoverCardState();
+  useOverlayLayer(Boolean(triggerRect), cardRef);
 
   useLayoutEffect(() => {
     const node = cardRef.current;

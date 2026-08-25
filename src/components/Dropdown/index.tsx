@@ -193,7 +193,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   const isControlled = controlledVisible !== undefined;
   const visible = isControlled ? controlledVisible : internalVisible;
 
-  useOverlayLayer(visible);
+  useOverlayLayer(visible, dropdownRef);
 
   const setVisible = useCallback(
     (newVisible: boolean) => {
