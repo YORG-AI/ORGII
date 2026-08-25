@@ -126,6 +126,52 @@ jobs:
         working-directory: src-tauri
         run: cargo test --workspace --no-fail-fast
 
+  # The continuation handoff wire and secure staging code are security
+  # boundaries with an explicit MSRV and Windows-only DACL implementation.
+  # Keep both promises executable instead of relying on macOS cross-checks.
+  continuation-crypto-msrv:
+    name: Continuation crypto (Rust 1.85 MSRV)
+    needs: changes
+    if: needs.changes.outputs.rust_required == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust 1.85
+        uses: dtolnay/rust-toolchain@1.85.0
+
+      - name: Check continuation crypto at MSRV
+        working-directory: src-tauri
+        run: cargo check --locked -p continuation_crypto --all-targets
+
+      - name: Reject OpenSSL and native-tls in the secure leaf
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          if cargo tree -p continuation_crypto --edges normal | grep -Eiq 'openssl|native-tls'; then
+            echo "continuation_crypto must stay on native OS stores and RustCrypto"
+            exit 1
+          fi
+
+  continuation-crypto-windows:
+    name: Continuation crypto (Windows DACL tests)
+    needs: changes
+    if: needs.changes.outputs.rust_required == 'true'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test continuation crypto on Windows
+        working-directory: src-tauri
+        run: cargo test --locked -p continuation_crypto
+
   # ── Dependency audit ────────────────────────────────────────────────────────
   # Only signal on the ~1000-crate Rust closure; nothing else watches Cargo.lock.
   # Runs on its own runner rather than inside the `rust` job so an advisory

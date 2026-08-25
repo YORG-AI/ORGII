@@ -15,6 +15,7 @@ members = [
     "crates/browser",
     "crates/container",
     "crates/conversation-portability",
+    "crates/continuation-crypto",
     "crates/ui-indexer",
     "crates/database",
     "crates/db-browser",
