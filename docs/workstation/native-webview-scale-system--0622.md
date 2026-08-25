@@ -1,7 +1,7 @@
 ---
 title: Native WebView Scale System
 status: active
-last_updated: 2026-06-13
+last_updated: 2026-08-25
 ---
 
 # Native WebView Scale System
@@ -73,7 +73,7 @@ BrowserCore .browser-content
 └── .browser-webview-frame-anchor
 ```
 
-The anchor is the source of truth for the desired native child WebView rectangle. `useWebviewLayout` reads `anchor.getBoundingClientRect()`, converts it with `toNativeFrame`, and sends the result to Rust.
+The anchor is the source of truth for the desired native child WebView rectangle. `useWebviewLayout` intersects the anchor with the viewport and every overflow-clipping ancestor, converts the resulting visible rectangle with `toNativeFrame`, and sends it to Rust. A fully clipped or invalid rectangle fails closed by staging the native surface offscreen.
 
 ## Shared browser owner flow
 
@@ -92,6 +92,39 @@ This means layout changes must update both:
 
 1. the visible host rect registry, and
 2. the native child WebView position after the shared owner host moves.
+
+`SharedBrowserHostSlot` must publish the clipped rectangle from the original visible panel. Clipping only inside the fixed shared owner is insufficient because the original panel's overflow ancestors no longer exist in that copied DOM path.
+
+## Native surface visibility and overlays
+
+Native child WebViews do not participate in DOM stacking contexts. CSS `z-index`, portal roots, and `overflow: hidden` cannot reliably place React UI above or clip a child WebView.
+
+ORGII therefore separates surface visibility from overlay occlusion:
+
+```text
+overlay DOMRect registry
+        ↓ intersect + native-frame scale
+BrowserSession WebView-local holes
+        ↓ latest-wins IPC
+macOS CALayer mask + native input handoff
+```
+
+Important invariants:
+
+- `isActive` controls page lifecycle; `isVisible` controls only the native surface. Opening an overlay must not destroy, reload, or navigate the page.
+- On macOS, each overlay publishes its real viewport rectangle. Every visible browser session intersects those rectangles with its host and applies only the local holes to the WKWebView. The native page remains painted everywhere else; the app never sends the entire WebView behind the opaque main surface.
+- Interactive overlays temporarily hand native pointer input back to React while they are open. Passive overlays such as tooltips can leave page input enabled.
+- macOS input handoff routes hit testing directly from the covered child WKWebView to the main React WKWebView. Re-running the child container's parent hit test is not sufficient because the two WebViews can live under different native container views and produce a bare `nil`, which lets the click escape to another application. The fallback must fail closed inside the inline WebView, and it must not change an individual WKWebView's runtime class because AppKit may KVO-observe its frame.
+- Overlapping rectangles are conservatively coalesced before the even-odd mask is built, and both frontend and Rust cap the path at 64 rectangles.
+- Platforms without native region masking currently retain the offscreen compatibility fallback.
+- Resize, scroll, scale, and delayed layout callbacks re-check the latest desired visibility before writing a frame. A stale callback cannot move an obscured surface back onscreen.
+- Surface commands are serialized per WebView. The last requested visibility wins.
+- Restoration uses `reposition_and_show_webview`, which sets position and size before calling `show()` in one native command.
+- Frame de-duplication state is committed only after the native command succeeds, so failed IPC remains retryable.
+
+BrowserCore's loading and confirmed error panels also set `isVisible=false` while keeping `isActive=true`. The sensitive-host fallback is only a time-based hint and must not hide a successfully loaded native page. This preserves cookies, login state, history, and in-page memory while real blocking UI is shown.
+
+Only opaque overlay surfaces are registered as holes. A translucent backdrop cannot be alpha-composited with a sibling native WKWebView; registering the backdrop itself would replace the live page with the opaque main app surface. Dialog content remains correctly visible and interactive, while the live page stays visible outside it.
 
 ## Layout-change event
 
@@ -125,12 +158,20 @@ When inline WebViews are misaligned under UI scale:
 6. Confirm Rust receives `a/b` and derives size from corners.
 7. If the browser panel moves without resizing, confirm `orgii-webview-layout-changed` reaches `SharedBrowserHostSlot` and `useWebviewLayout`.
 8. If using the shared browser owner, confirm `SharedBrowserApp` has moved its fixed host before the final native position update.
+9. If a React overlay is covered, confirm its primitive calls `useOverlayLayer(active, elementRef)` and publishes a non-zero rectangle in `overlayOcclusionStateAtom`.
+10. If a hidden WebView reappears during resize or scroll, confirm all native position writes pass through `useWebviewLayout`'s serialized visibility gate.
+11. If the whole page becomes white when an overlay opens, confirm no caller invokes the removed `browser_webviews_set_layer_for_all` z-order command.
 
 ## Files of interest
 
 - `src/app/root/useAppShellEffects.ts` — applies native app zoom and CSS scale variables.
 - `src/util/platform/tauri/nativeFrame.ts` — converts DOMRect to `x/y/a/b` native frame payloads.
 - `src/hooks/platform/useInlineWebview/useWebviewLayout.ts` — observes and repositions inline WebViews.
+- `src/hooks/platform/useInlineWebview/visibleWebviewRect.ts` — intersects anchors with viewport and overflow clipping ancestors.
+- `src/store/ui/overlayLayerAtom.ts` — owns the runtime overlay rectangle registry.
+- `src/hooks/platform/useInlineWebview/nativeWebviewOcclusion.ts` — intersects/coalesces overlay holes in the WebView-local coordinate system.
+- `src/hooks/platform/useInlineWebview/useInlineWebviewOcclusions.ts` — serializes latest-wins native mask projection per browser session.
+- `src-tauri/crates/browser/src/occlusion.rs` — applies the macOS CALayer mask and input handoff.
 - `src/hooks/platform/useInlineWebview/useWebviewCommands.ts` — creates inline WebViews with native frame payloads.
 - `src/hooks/platform/useInlineWebview/webviewLayoutEvents.ts` — shared layout-change event helper.
 - `src/engines/BrowserCore/index.tsx` — owns the browser frame anchor.
