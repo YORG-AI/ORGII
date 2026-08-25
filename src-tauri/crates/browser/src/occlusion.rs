@@ -150,7 +150,7 @@ pub async fn set_inline_webview_occlusions(
 
 #[cfg(target_os = "macos")]
 mod macos {
-    use super::{sanitize_dimming_alpha, sanitize_occlusion_rects, WebviewOcclusionRect};
+    use super::{sanitize_dimming_alpha, WebviewOcclusionRect};
     use objc2::runtime::{AnyClass, AnyObject, Imp, Sel};
     use objc2::{msg_send, sel, Message};
     use objc2_app_kit::NSColor;
