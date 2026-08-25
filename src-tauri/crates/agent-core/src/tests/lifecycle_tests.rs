@@ -437,6 +437,128 @@ async fn successful_member_finalize_keeps_in_progress_work_owned() {
     assert_eq!(task_recovery_attempts, 2);
 }
 
+#[test]
+fn successful_cancelled_turn_resolves_undrainable_formal_rows_once() {
+    let _serial = test_serial_guard();
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run_id = seed_run("builtin:sde");
+    seed_in_progress_task(&run_id, "cancelled-task");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        r#"UPDATE agent_org_runtime_tasks
+         SET status='cancelled',
+             cancel_reason_json='{"code":"writer_cancelled","message":"replaced"}',
+             updated_at=?3
+         WHERE org_run_id=?1 AND id=?2"#,
+        rusqlite::params![&run_id, "cancelled-task", &now],
+    )
+    .expect("cancel exact Task while its old Turn winds down");
+
+    let insert = |message| {
+        crate::coordination::agent_inbox::AgentInboxStore::insert(
+            crate::coordination::agent_inbox::InsertInboxParams {
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: Some("member-worker".to_string()),
+                sender_agent_id: "builtin:coord".to_string(),
+                sender_member_id: Some("coordinator".to_string()),
+                org_run_id: Some(run_id.clone()),
+                message,
+            },
+        )
+        .expect("insert formal row queued behind old Turn");
+    };
+    insert(AgentMessage::TaskAssigned {
+        task_id: "cancelled-task".to_string(),
+        subject: "cancelled task".to_string(),
+        description: "old assignment".to_string(),
+        assigned_by: "Coordinator".to_string(),
+        execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+        dependency_outputs: Vec::new(),
+    });
+    insert(AgentMessage::Plain {
+        summary: "stale reminder".to_string(),
+        text: "finish the cancelled task".to_string(),
+    });
+    insert(AgentMessage::ShutdownRequest {
+        request_id: crate::coordination::agent_inbox::RequestId::new(),
+        reason: Some("no work remains".to_string()),
+    });
+
+    let ok = Ok("the old Provider Turn ended naturally".to_string());
+    finalize_agent_org_member_turn(None, "member-session", None, &ok);
+    finalize_agent_org_member_turn(None, "member-session", None, &ok);
+
+    let (unread_rows, resolutions): (i64, i64) = conn
+        .query_row(
+            "SELECT
+                 (SELECT COUNT(*) FROM agent_org_runtime_inbox
+                  WHERE org_run_id=?1 AND recipient_member_id='member-worker'
+                    AND read_at IS NULL),
+                 (SELECT COUNT(*)
+                  FROM agent_org_runtime_inbox_delivery_resolutions
+                  WHERE org_run_id=?1
+                    AND reason='member_turn_finished_without_owned_formal_work')",
+            [&run_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("load preserved audit rows and lifecycle resolutions");
+    assert_eq!(
+        unread_rows, 3,
+        "original Inbox rows remain unread for audit"
+    );
+    assert_eq!(
+        resolutions, 3,
+        "repeat finalization must not duplicate resolutions"
+    );
+    assert!(
+        !crate::coordination::agent_inbox::AgentInboxStore::has_unread_for_member(
+            "member-worker",
+            &run_id,
+        )
+        .expect("probe unresolved rows"),
+        "resolved stale formal input must not trigger an impossible wake"
+    );
+}
+
+#[test]
+fn successful_turn_keeps_formal_rows_pending_when_member_still_owns_work() {
+    let _serial = test_serial_guard();
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run_id = seed_run("builtin:sde");
+    seed_in_progress_task(&run_id, "still-open-task");
+    crate::coordination::agent_inbox::AgentInboxStore::insert(
+        crate::coordination::agent_inbox::InsertInboxParams {
+            recipient_agent_id: "builtin:sde".to_string(),
+            recipient_member_id: Some("member-worker".to_string()),
+            sender_agent_id: "builtin:coord".to_string(),
+            sender_member_id: Some("coordinator".to_string()),
+            org_run_id: Some(run_id.clone()),
+            message: AgentMessage::Plain {
+                summary: "continue".to_string(),
+                text: "the owned task is still open".to_string(),
+            },
+        },
+    )
+    .expect("insert actionable formal row");
+
+    finalize_agent_org_member_turn(
+        None,
+        "member-session",
+        None,
+        &Ok("turn boundary".to_string()),
+    );
+
+    assert!(
+        crate::coordination::agent_inbox::AgentInboxStore::has_unread_for_member(
+            "member-worker",
+            &run_id,
+        )
+        .expect("probe actionable row"),
+        "lifecycle cleanup must not discard input while owned work remains"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_member_finalize_releases_task_for_coordinator_assignment() {
     let _serial = test_serial_guard();

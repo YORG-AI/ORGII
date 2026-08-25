@@ -38,32 +38,58 @@ impl TaskGraphWriterAdmin {
     ) -> Result<TaskActorAudit, String> {
         let context =
             require_context_with_connection(conn, &self.session_id, &self.turn_intent_id)?;
-        validate_run_and_generation(conn, org_run_id, context.activation_generation)?;
-        if context.org_run_id != org_run_id
-            || context.turn_kind != AgentOrgTurnKind::Coordinator
-            || context.participant_id != COORDINATOR_MEMBER_ID
-            || context.task_id.is_some()
-            || context.owner_member_id.is_some()
-        {
+        let snapshot =
+            validate_run_and_generation(conn, org_run_id, context.activation_generation)?;
+        if context.org_run_id != org_run_id {
             return Err("task_graph_writer_context_mismatch".to_string());
         }
-        let root_session_id: Option<String> = conn
-            .query_row(
-                "SELECT root_session_id FROM agent_org_runtime_runs WHERE id=?1",
-                [org_run_id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|error| error.to_string())?
-            .flatten();
-        if root_session_id.as_deref() != Some(self.session_id.as_str()) {
-            return Err("task_graph_writer_not_canonical_root".to_string());
+        let is_coordinator = context.turn_kind == AgentOrgTurnKind::Coordinator
+            && context.participant_id == COORDINATOR_MEMBER_ID
+            && context.task_id.is_none()
+            && context.owner_member_id.is_none();
+        if is_coordinator {
+            let root_session_id: Option<String> = conn
+                .query_row(
+                    "SELECT root_session_id FROM agent_org_runtime_runs WHERE id=?1",
+                    [org_run_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|error| error.to_string())?
+                .flatten();
+            if root_session_id.as_deref() != Some(self.session_id.as_str()) {
+                return Err("task_graph_writer_not_canonical_root".to_string());
+            }
+        } else {
+            let is_bound_writer_execution = context.turn_kind == AgentOrgTurnKind::TaskExecution
+                && context.task_id.is_some()
+                && context.owner_member_id.as_deref() == Some(context.participant_id.as_str())
+                && context.participant_id != COORDINATOR_MEMBER_ID
+                && snapshot
+                    .additional_task_graph_writer_member_ids
+                    .iter()
+                    .any(|member_id| member_id == &context.participant_id);
+            if !is_bound_writer_execution {
+                return Err("task_graph_writer_context_mismatch".to_string());
+            }
         }
         Ok(TaskActorAudit {
             kind: TaskActorKind::GraphWriter,
             participant_id: context.participant_id,
             turn_intent_id: Some(context.turn_intent_id),
         })
+    }
+
+    pub(crate) fn validate_canonical_coordinator(
+        &self,
+        conn: &rusqlite::Connection,
+        org_run_id: &str,
+    ) -> Result<(), String> {
+        let audit = self.validate(conn, org_run_id)?;
+        if audit.participant_id != COORDINATOR_MEMBER_ID {
+            return Err("agent_org_coordinator_context_required".to_string());
+        }
+        Ok(())
     }
 }
 
@@ -279,7 +305,7 @@ fn validate_run_and_generation(
     conn: &rusqlite::Connection,
     org_run_id: &str,
     expected_generation: Option<i64>,
-) -> Result<(), String> {
+) -> Result<crate::definitions::orgs::AgentOrgLaunchSnapshot, String> {
     let row: Option<(String, i64, Option<String>)> = conn
         .query_row(
             "SELECT status, activation_generation, org_snapshot_json
@@ -308,5 +334,6 @@ fn validate_run_and_generation(
         serde_json::from_str(&snapshot_json)
             .map_err(|error| format!("task_actor_snapshot_invalid: {error}"))?;
     crate::definitions::orgs::validate_launch_snapshot(&snapshot)
-        .map_err(|error| format!("task_actor_snapshot_invalid: {error}"))
+        .map_err(|error| format!("task_actor_snapshot_invalid: {error}"))?;
+    Ok(snapshot)
 }

@@ -5,7 +5,7 @@
 //! coordinator turn was presented with (and successfully observed) the latest
 //! durable task mutation before announcing completion.
 
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::coordination::agent_org_payload_limits::{
@@ -71,10 +71,7 @@ pub(super) fn ensure_progress_in_conn(conn: &Connection, org_run_id: &str) -> Re
 ///
 /// A new mutation invalidates an earlier explicit completion request. The
 /// coordinator must observe the new revision and request completion again.
-pub(crate) fn bump_work_revision_in_tx(
-    tx: &Transaction<'_>,
-    org_run_id: &str,
-) -> Result<i64, String> {
+pub(crate) fn bump_work_revision_in_tx(tx: &Connection, org_run_id: &str) -> Result<i64, String> {
     ensure_progress_in_conn(tx, org_run_id)?;
     tx.execute(
         "UPDATE agent_org_runtime_run_progress
@@ -193,7 +190,7 @@ pub(super) fn mark_coordinator_observed_revision_with_conn(
 }
 
 pub(super) fn record_completion_request_in_tx(
-    tx: &Transaction<'_>,
+    tx: &Connection,
     org_run_id: &str,
     summary: &str,
 ) -> Result<AgentOrgRunProgress, String> {

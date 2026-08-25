@@ -3,19 +3,22 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::Deserialize;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use crate::coordination::agent_org_tasks::{
     AgentOrgTaskStore, CreatePendingTaskParams, PendingTaskGraphPatch, TaskAnnotationKind,
     TaskExecutionMode, TaskGraphWriterAdmin, TaskOutputInput, TaskOwnerExecution,
     TaskTerminalReason,
 };
+use crate::coordination::agent_org_tool_receipts::{
+    AgentOrgToolReceiptKey, AgentOrgToolReceiptStore,
+};
 use crate::tools::names as tool_names;
 use crate::tools::traits::{parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    map_task_write_error, task_to_json, validate_freeform_task_metadata, TaskOutboxCommit,
-    TaskToolsContext,
+    classify_task_receipt_error, merge_task_metadata, task_to_json,
+    validate_freeform_task_metadata, TaskOutboxCommit, TaskToolsContext,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -100,8 +103,6 @@ pub struct TaskReasonParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ReplacementTaskParams {
-    #[serde(default)]
-    pub id: Option<String>,
     pub subject: String,
     #[serde(default)]
     pub description: Option<String>,
@@ -120,13 +121,13 @@ pub struct ReplacementTaskParams {
     pub required_role: Option<String>,
 }
 
-const COORDINATOR_TASK_UPDATE_OPERATIONS: &[&str] = &[
+const GRAPH_OPERATIONS: &[&str] = &[
     "patch_pending",
     "cancel",
     "cancel_and_replace",
     "append_audit_note",
 ];
-const OWNER_TASK_UPDATE_OPERATIONS: &[&str] = &[
+const OWNER_OPERATIONS: &[&str] = &[
     "start",
     "complete",
     "fail",
@@ -155,6 +156,8 @@ const TASK_UPDATE_FIELDS: &[&str] = &[
 const TASK_OUTPUT_FIELDS: &[&str] = &["summary", "content", "artifact_ids"];
 const TASK_REASON_FIELDS: &[&str] = &["code", "message"];
 const REPLACEMENT_TASK_FIELDS: &[&str] = &[
+    // Historical provider-expanded placeholders may still contain an empty
+    // id even though durable replacement ids are no longer model-facing.
     "id",
     "subject",
     "description",
@@ -169,7 +172,7 @@ const REPLACEMENT_TASK_FIELDS: &[&str] = &[
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TaskUpdateAuthority {
-    Coordinator,
+    Graph,
     Owner,
 }
 
@@ -179,9 +182,9 @@ struct TaskUpdateOperationContract {
 }
 
 fn task_update_operation_contract(operation: &str) -> Option<TaskUpdateOperationContract> {
-    let contract = match operation {
+    Some(match operation {
         "patch_pending" => TaskUpdateOperationContract {
-            authority: TaskUpdateAuthority::Coordinator,
+            authority: TaskUpdateAuthority::Graph,
             allowed_fields: &[
                 "operation",
                 "id",
@@ -211,11 +214,11 @@ fn task_update_operation_contract(operation: &str) -> Option<TaskUpdateOperation
             allowed_fields: &["operation", "id", "reason"],
         },
         "cancel" => TaskUpdateOperationContract {
-            authority: TaskUpdateAuthority::Coordinator,
+            authority: TaskUpdateAuthority::Graph,
             allowed_fields: &["operation", "id", "reason"],
         },
         "cancel_and_replace" => TaskUpdateOperationContract {
-            authority: TaskUpdateAuthority::Coordinator,
+            authority: TaskUpdateAuthority::Graph,
             allowed_fields: &["operation", "id", "reason", "replacement"],
         },
         "append_progress" | "append_evidence" => TaskUpdateOperationContract {
@@ -223,12 +226,11 @@ fn task_update_operation_contract(operation: &str) -> Option<TaskUpdateOperation
             allowed_fields: &["operation", "id", "body"],
         },
         "append_audit_note" => TaskUpdateOperationContract {
-            authority: TaskUpdateAuthority::Coordinator,
+            authority: TaskUpdateAuthority::Graph,
             allowed_fields: &["operation", "id", "body"],
         },
         _ => return None,
-    };
-    Some(contract)
+    })
 }
 
 fn is_semantically_empty_json_placeholder(value: &Value) -> bool {
@@ -274,76 +276,16 @@ fn is_removable_cross_operation_placeholder(field: &str, value: &Value) -> bool 
     }
 }
 
-fn task_update_operation_example(operation: &str) -> Value {
-    match operation {
-        "patch_pending" => json!({
-            "operation": "patch_pending",
-            "id": "<task-id>",
-            "subject": "<optional new subject>"
-        }),
-        "start" => json!({"operation": "start", "id": "<exact task-id>"}),
-        "complete" => json!({
-            "operation": "complete",
-            "id": "<exact task-id>",
-            "output": {"summary": "<required summary>"}
-        }),
-        "fail" => json!({
-            "operation": "fail",
-            "id": "<exact task-id>",
-            "reason": {"code": "<bounded code>", "message": "<bounded message>"}
-        }),
-        "cancel" => json!({
-            "operation": "cancel",
-            "id": "<task-id>",
-            "reason": {"code": "<bounded code>", "message": "<bounded message>"}
-        }),
-        "cancel_and_replace" => json!({
-            "operation": "cancel_and_replace",
-            "id": "<task-id>",
-            "reason": {"code": "<bounded code>", "message": "<bounded message>"},
-            "replacement": {
-                "subject": "<replacement subject>",
-                "execution_mode": "build"
-            }
-        }),
-        "append_progress" => json!({
-            "operation": "append_progress",
-            "id": "<exact task-id>",
-            "body": "<progress>"
-        }),
-        "append_evidence" => json!({
-            "operation": "append_evidence",
-            "id": "<exact task-id>",
-            "body": "<evidence>"
-        }),
-        "append_audit_note" => json!({
-            "operation": "append_audit_note",
-            "id": "<task-id>",
-            "body": "<audit note>"
-        }),
-        _ => Value::Null,
-    }
-}
-
 fn task_update_correction(
-    is_coordinator: bool,
+    allowed_operations: &[&str],
     operation: Option<&str>,
     unexpected_fields: Vec<String>,
     reason: &str,
 ) -> Value {
-    let allowed_operations = if is_coordinator {
-        COORDINATOR_TASK_UPDATE_OPERATIONS
-    } else {
-        OWNER_TASK_UPDATE_OPERATIONS
-    };
-    let contract = operation.and_then(task_update_operation_contract);
-    let allowed_fields = contract
-        .as_ref()
+    let allowed_fields = operation
+        .and_then(task_update_operation_contract)
         .map(|contract| contract.allowed_fields)
         .unwrap_or(&[]);
-    let expected_call = operation
-        .map(task_update_operation_example)
-        .unwrap_or(Value::Null);
     json!({
         "needs_correction": true,
         "tool": tool_names::TASK_UPDATE,
@@ -352,103 +294,117 @@ fn task_update_correction(
         "unexpected_fields": unexpected_fields,
         "allowed_operations": allowed_operations,
         "allowed_fields": allowed_fields,
-        "expected_call": expected_call,
-        "guidance": "Retry task_update once using only the fields in expected_call/allowed_fields. Do not copy fields from another operation."
+        "guidance": "Retry once using only fields allowed for the selected operation. Empty fields from other operations are ignored for provider compatibility; meaningful or unknown fields fail closed."
     })
 }
 
-fn task_output_schema() -> Value {
+fn task_update_parameters(allow_graph: bool, allow_owner: bool) -> Value {
+    let operations = GRAPH_OPERATIONS
+        .iter()
+        .copied()
+        .filter(|_| allow_graph)
+        .chain(OWNER_OPERATIONS.iter().copied().filter(|_| allow_owner))
+        .collect::<Vec<_>>();
     json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["summary"],
+        "required": ["operation", "id"],
         "properties": {
-            "summary": { "type": "string" },
-            "content": { "type": "string" },
-            "artifact_ids": { "type": "array", "items": { "type": "string" } }
-        }
-    })
-}
-
-fn task_reason_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["code", "message"],
-        "properties": {
-            "code": { "type": "string" },
-            "message": { "type": "string" }
-        }
-    })
-}
-
-fn replacement_task_schema() -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["subject", "execution_mode"],
-        "properties": {
+            "operation": { "type": "string", "enum": operations },
             "id": { "type": "string" },
             "subject": { "type": "string" },
             "description": { "type": "string" },
             "active_form": { "type": "string" },
+            "clear_active_form": { "type": "boolean" },
             "owner_member_id": { "type": "string" },
+            "clear_owner": { "type": "boolean" },
             "execution_mode": { "type": "string", "enum": ["plan", "build"] },
             "blocked_by": { "type": "array", "items": { "type": "string" } },
             "metadata": { "type": "object", "additionalProperties": true },
             "eligible_member_ids": { "type": "array", "items": { "type": "string" } },
-            "required_role": { "type": "string" }
+            "required_role": { "type": "string" },
+            "body": { "type": "string" },
+            "output": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["summary"],
+                "properties": {
+                    "summary": { "type": "string" },
+                    "content": { "type": "string" },
+                    "artifact_ids": { "type": "array", "items": { "type": "string" } }
+                }
+            },
+            "reason": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "message"],
+                "properties": {
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
+                }
+            },
+            "replacement": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["subject", "execution_mode"],
+                "properties": {
+                    "subject": { "type": "string" },
+                    "description": { "type": "string" },
+                    "active_form": { "type": "string" },
+                    "owner_member_id": { "type": "string" },
+                    "execution_mode": { "type": "string", "enum": ["plan", "build"] },
+                    "blocked_by": { "type": "array", "items": { "type": "string" } },
+                    "metadata": { "type": "object", "additionalProperties": true },
+                    "eligible_member_ids": { "type": "array", "items": { "type": "string" } },
+                    "required_role": { "type": "string" }
+                }
+            }
         }
     })
 }
 
-fn task_update_parameters(is_coordinator: bool) -> Value {
-    if is_coordinator {
-        json!({
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["operation", "id"],
-            "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": COORDINATOR_TASK_UPDATE_OPERATIONS,
-                    "description": "Coordinator only. patch_pending uses graph fields; cancel uses reason; cancel_and_replace uses reason+replacement; append_audit_note uses body. Omit fields from every other operation."
-                },
-                "id": { "type": "string" },
-                "subject": { "type": "string", "description": "patch_pending only" },
-                "description": { "type": "string", "description": "patch_pending only" },
-                "active_form": { "type": "string", "description": "patch_pending only" },
-                "clear_active_form": { "type": "boolean", "description": "patch_pending only" },
-                "owner_member_id": { "type": "string", "description": "patch_pending only" },
-                "clear_owner": { "type": "boolean", "description": "patch_pending only" },
-                "execution_mode": { "type": "string", "enum": ["plan", "build"], "description": "patch_pending only" },
-                "blocked_by": { "type": "array", "items": { "type": "string" }, "description": "patch_pending only" },
-                "metadata": { "type": "object", "additionalProperties": true, "description": "patch_pending only" },
-                "eligible_member_ids": { "type": "array", "items": { "type": "string" }, "description": "patch_pending only" },
-                "required_role": { "type": "string", "description": "patch_pending only" },
-                "body": { "type": "string", "description": "append_audit_note only" },
-                "reason": task_reason_schema(),
-                "replacement": replacement_task_schema()
-            }
-        })
-    } else {
-        json!({
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["operation", "id"],
-            "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": OWNER_TASK_UPDATE_OPERATIONS,
-                    "description": "Owner only. start accepts exactly operation+id; complete adds output; fail adds reason; append_progress/append_evidence add body. Omit fields from every other operation."
-                },
-                "id": { "type": "string" },
-                "body": { "type": "string", "description": "append_progress or append_evidence only" },
-                "output": task_output_schema(),
-                "reason": task_reason_schema()
-            }
-        })
-    }
+enum PreparedTaskUpdate {
+    Patch {
+        actor: TaskGraphWriterAdmin,
+        id: String,
+        patch: PendingTaskGraphPatch,
+    },
+    Start {
+        actor: TaskOwnerExecution,
+        id: String,
+    },
+    Complete {
+        actor: TaskOwnerExecution,
+        id: String,
+        output: TaskOutputInput,
+    },
+    Fail {
+        actor: TaskOwnerExecution,
+        id: String,
+        reason: TaskTerminalReason,
+    },
+    Cancel {
+        actor: TaskGraphWriterAdmin,
+        id: String,
+        reason: TaskTerminalReason,
+    },
+    CancelAndReplace {
+        actor: TaskGraphWriterAdmin,
+        id: String,
+        reason: TaskTerminalReason,
+        replacement: CreatePendingTaskParams,
+    },
+    OwnerAnnotation {
+        actor: TaskOwnerExecution,
+        id: String,
+        kind: TaskAnnotationKind,
+        body: String,
+    },
+    AuditAnnotation {
+        actor: TaskGraphWriterAdmin,
+        id: String,
+        body: String,
+    },
 }
 
 pub struct TaskUpdateTool {
@@ -468,14 +424,14 @@ impl Tool for TaskUpdateTool {
     }
 
     fn description(&self) -> &str {
-        "Apply one explicit Task operation. Coordinator operations manage pending graph fields, cancellation, replacement, and terminal audit notes. Owner operations start, complete, fail, or append progress/evidence to that Owner's persisted in-progress Task. Mixed graph and Owner fields are rejected by the tagged operation schema."
+        "Apply one exactly-once Task operation. Graph writers manage sparse pending fields, cancellation, replacement, and terminal audit notes. A Task Owner may start, complete, fail, or annotate only the Task bound to the exact persisted TaskExecution turn. A configured Writer has both sets of operations but still cannot execute another Task's Owner lifecycle."
     }
 
     fn llm_description(&self) -> Option<String> {
         Some(format!(
-            "{}\n\nYour Task authority: {}. New work is always created pending; only an Owner TaskExecution turn can start, complete, or fail it.",
+            "{}\n\nYour Task authority: {}",
             self.description(),
-            self.ctx.task_authority_summary(),
+            self.ctx.task_authority_summary()
         ))
     }
 
@@ -484,15 +440,7 @@ impl Tool for TaskUpdateTool {
     }
 
     fn parameters(&self) -> Value {
-        // `TaskUpdateParams` stays a serde-tagged enum so the runtime parser
-        // rejects fields that belong to a different actor/operation. Schemars
-        // represents that enum as a top-level `oneOf`, however, and several
-        // function-calling providers silently discard such schemas. Keep the
-        // portable flat object, but expose only operations and fields this
-        // session's persisted org role may actually use. This prevents strict
-        // providers from filling Coordinator-only fields into an Owner
-        // `start` call while the typed parser remains the authority boundary.
-        task_update_parameters(self.ctx.is_coordinator())
+        task_update_parameters(self.ctx.is_task_graph_writer(), !self.ctx.is_coordinator())
     }
 
     async fn execute_text(
@@ -500,13 +448,328 @@ impl Tool for TaskUpdateTool {
         mut params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
-        let params = match self.parse_model_params(&mut params_value) {
-            Ok(params) => params,
+        let (params, canonical_params, operation) = match self.parse_model_params(&mut params_value)
+        {
+            Ok(parsed) => parsed,
             Err(correction) => {
                 return serde_json::to_string(&correction)
                     .map_err(|error| ToolError::ExecutionFailed(error.to_string()))
             }
         };
+        let prepared = self.prepare_update(params, call_ctx)?;
+        let receipt_key = AgentOrgToolReceiptKey::from_call_context(
+            self.ctx.org_context.run_id.clone(),
+            call_ctx,
+        )?;
+        let run_id = self.ctx.org_context.run_id.clone();
+        let context = Arc::clone(&self.ctx);
+
+        let (receipt, committed_outbox, did_mutate) = tokio::task::spawn_blocking(move || {
+            let mut committed_outbox: Option<TaskOutboxCommit> = None;
+            let mut did_mutate = false;
+            let receipt = AgentOrgToolReceiptStore::execute(
+                receipt_key,
+                tool_names::TASK_UPDATE,
+                &operation,
+                &canonical_params,
+                |tx| {
+                    let result: Result<String, String> = match prepared {
+                        PreparedTaskUpdate::Patch { actor, id, patch } => {
+                            AgentOrgTaskStore::patch_pending_in_tx(
+                                tx,
+                                actor,
+                                &run_id,
+                                &id,
+                                patch,
+                                |tx, outcome, tasks| {
+                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                },
+                            )
+                            .and_then(|(outcome, outbox)| {
+                                let response = mutation_response(&outcome, &outbox)?;
+                                committed_outbox = Some(outbox);
+                                did_mutate = true;
+                                Ok(response)
+                            })
+                        }
+                        PreparedTaskUpdate::Start { actor, id } => {
+                            AgentOrgTaskStore::owner_start_in_tx(
+                                tx,
+                                actor,
+                                &run_id,
+                                &id,
+                                |tx, outcome, tasks| {
+                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                },
+                            )
+                            .and_then(|(outcome, outbox)| {
+                                let response = mutation_response(&outcome, &outbox)?;
+                                committed_outbox = Some(outbox);
+                                did_mutate = true;
+                                Ok(response)
+                            })
+                        }
+                        PreparedTaskUpdate::Complete { actor, id, output } => {
+                            AgentOrgTaskStore::owner_complete_in_tx(
+                                tx,
+                                actor,
+                                &run_id,
+                                &id,
+                                output,
+                                |tx, outcome, tasks| {
+                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                },
+                            )
+                            .and_then(|(outcome, outbox)| {
+                                let response = mutation_response(&outcome, &outbox)?;
+                                committed_outbox = Some(outbox);
+                                did_mutate = true;
+                                Ok(response)
+                            })
+                        }
+                        PreparedTaskUpdate::Fail { actor, id, reason } => {
+                            AgentOrgTaskStore::owner_fail_in_tx(
+                                tx,
+                                actor,
+                                &run_id,
+                                &id,
+                                reason,
+                                |tx, outcome, tasks| {
+                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                },
+                            )
+                            .and_then(|(outcome, outbox)| {
+                                let response = mutation_response(&outcome, &outbox)?;
+                                committed_outbox = Some(outbox);
+                                did_mutate = true;
+                                Ok(response)
+                            })
+                        }
+                        PreparedTaskUpdate::Cancel { actor, id, reason } => {
+                            AgentOrgTaskStore::cancel_in_tx(
+                                tx,
+                                actor,
+                                &run_id,
+                                &id,
+                                reason,
+                                |tx, outcome, tasks| {
+                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                },
+                            )
+                            .and_then(|(outcome, outbox)| {
+                                let response = mutation_response(&outcome, &outbox)?;
+                                committed_outbox = Some(outbox);
+                                did_mutate = true;
+                                Ok(response)
+                            })
+                        }
+                        PreparedTaskUpdate::CancelAndReplace {
+                            actor,
+                            id,
+                            reason,
+                            mut replacement,
+                        } => {
+                            replacement.id = crate::coordination::agent_org_tasks::new_task_id();
+                            AgentOrgTaskStore::cancel_and_replace_in_tx(
+                                tx,
+                                actor,
+                                &run_id,
+                                &id,
+                                reason,
+                                replacement,
+                                |tx, outcome, replacement, tasks| {
+                                    let mut outbox = context
+                                        .persist_task_update_outbox_in_tx(tx, outcome, tasks)?;
+                                    let created = context.persist_created_tasks_outbox_in_tx(
+                                        tx,
+                                        std::slice::from_ref(replacement),
+                                        tasks,
+                                    )?;
+                                    merge_outbox(&mut outbox, created);
+                                    Ok(outbox)
+                                },
+                            )
+                            .and_then(
+                                |(outcome, replacement, outbox)| {
+                                    let response = serde_json::to_string(&json!({
+                                        "task": task_to_json(&outcome.current),
+                                        "replacement": task_to_json(&replacement),
+                                        "status_changed": true,
+                                        "replacement_created": true,
+                                    }))
+                                    .map_err(|error| error.to_string())?;
+                                    committed_outbox = Some(outbox);
+                                    did_mutate = true;
+                                    Ok(response)
+                                },
+                            )
+                        }
+                        PreparedTaskUpdate::OwnerAnnotation {
+                            actor,
+                            id,
+                            kind,
+                            body,
+                        } => AgentOrgTaskStore::append_owner_annotation_in_tx(
+                            tx, actor, &run_id, &id, kind, body,
+                        )
+                        .and_then(|annotation| {
+                            did_mutate = true;
+                            serde_json::to_string(&json!({ "annotation": annotation }))
+                                .map_err(|error| error.to_string())
+                        }),
+                        PreparedTaskUpdate::AuditAnnotation { actor, id, body } => {
+                            AgentOrgTaskStore::append_audit_annotation_in_tx(
+                                tx, actor, &run_id, &id, body,
+                            )
+                            .and_then(|annotation| {
+                                did_mutate = true;
+                                serde_json::to_string(&json!({ "annotation": annotation }))
+                                    .map_err(|error| error.to_string())
+                            })
+                        }
+                    };
+                    match result {
+                        Ok(response) => Ok(Ok(response)),
+                        Err(error) => match classify_task_receipt_error(error) {
+                            Ok(error) => Ok(Err(error)),
+                            Err(abort) => Err(abort),
+                        },
+                    }
+                },
+            )?;
+            Ok::<_, ToolError>((receipt, committed_outbox, did_mutate))
+        })
+        .await
+        .map_err(|error| {
+            ToolError::ExecutionFailed(format!("task_update worker failed: {error}"))
+        })??;
+
+        if receipt.is_fresh() && did_mutate {
+            if let Some(outbox) = committed_outbox.as_ref() {
+                self.ctx.wake_committed_task_outbox(outbox);
+            }
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+                &self.ctx.org_context.run_id,
+            );
+        }
+        receipt.result
+    }
+
+    fn is_read_only(&self) -> bool {
+        false
+    }
+}
+
+impl TaskUpdateTool {
+    fn allowed_operations(&self) -> Vec<&'static str> {
+        GRAPH_OPERATIONS
+            .iter()
+            .copied()
+            .filter(|_| self.ctx.is_task_graph_writer())
+            .chain(
+                OWNER_OPERATIONS
+                    .iter()
+                    .copied()
+                    .filter(|_| !self.ctx.is_coordinator()),
+            )
+            .collect()
+    }
+
+    fn parse_model_params(
+        &self,
+        params_value: &mut Value,
+    ) -> Result<(TaskUpdateParams, Value, String), Value> {
+        let allowed_operations = self.allowed_operations();
+        let Some(params) = params_value.as_object_mut() else {
+            return Err(task_update_correction(
+                &allowed_operations,
+                None,
+                Vec::new(),
+                "task_update parameters must be a JSON object",
+            ));
+        };
+        let operation = params
+            .get("operation")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let Some(operation_name) = operation.as_deref() else {
+            return Err(task_update_correction(
+                &allowed_operations,
+                None,
+                Vec::new(),
+                "operation is required and must be a string",
+            ));
+        };
+        let Some(contract) = task_update_operation_contract(operation_name) else {
+            return Err(task_update_correction(
+                &allowed_operations,
+                Some(operation_name),
+                Vec::new(),
+                "unknown task_update operation",
+            ));
+        };
+        if !allowed_operations.contains(&operation_name) {
+            return Err(task_update_correction(
+                &allowed_operations,
+                Some(operation_name),
+                Vec::new(),
+                "operation is outside this caller's frozen Task authority",
+            ));
+        }
+        if contract.authority == TaskUpdateAuthority::Graph && !self.ctx.is_task_graph_writer() {
+            return Err(task_update_correction(
+                &allowed_operations,
+                Some(operation_name),
+                Vec::new(),
+                "operation requires graph-writer authority",
+            ));
+        }
+
+        // Normalize known cross-operation placeholders before both typed
+        // parsing and receipt hashing. This preserves provider compatibility
+        // without allowing an unknown or meaningful field through the wire
+        // boundary.
+        let keys = params.keys().cloned().collect::<Vec<_>>();
+        let mut unexpected_fields = Vec::new();
+        for key in keys {
+            if contract.allowed_fields.contains(&key.as_str()) {
+                continue;
+            }
+            if params
+                .get(&key)
+                .is_some_and(|value| is_removable_cross_operation_placeholder(&key, value))
+            {
+                params.remove(&key);
+            } else {
+                unexpected_fields.push(key);
+            }
+        }
+        unexpected_fields.sort();
+        if !unexpected_fields.is_empty() {
+            return Err(task_update_correction(
+                &allowed_operations,
+                Some(operation_name),
+                unexpected_fields,
+                "fields from another task_update operation are not accepted",
+            ));
+        }
+        let canonical_params = params_value.clone();
+        let parsed = parse_params(canonical_params.clone()).map_err(|error| {
+            task_update_correction(
+                &allowed_operations,
+                Some(operation_name),
+                Vec::new(),
+                &error.to_string(),
+            )
+        })?;
+        Ok((parsed, canonical_params, operation_name.to_string()))
+    }
+
+    fn prepare_update(
+        &self,
+        params: TaskUpdateParams,
+        call_ctx: &CallContext,
+    ) -> Result<PreparedTaskUpdate, ToolError> {
         match params {
             TaskUpdateParams::PatchPending {
                 id,
@@ -534,310 +797,114 @@ impl Tool for TaskUpdateTool {
                 }
                 validate_freeform_task_metadata(metadata.as_ref())
                     .map_err(ToolError::InvalidParams)?;
-                let actor = self.graph_actor(call_ctx)?;
-                let run_id = self.ctx.org_context.run_id.clone();
-                let prior_id = id.clone();
-                let prior =
-                    tokio::task::spawn_blocking(move || AgentOrgTaskStore::get(&run_id, &prior_id))
-                        .await
-                        .map_err(join_error)?
-                        .map_err(ToolError::ExecutionFailed)?
-                        .ok_or_else(|| ToolError::InvalidParams(format!("task_not_found: {id}")))?;
                 let owner = owner_member_id
                     .as_deref()
                     .map(|owner| self.ctx.resolve_owner_member_id(owner))
                     .transpose()
                     .map_err(ToolError::InvalidParams)?;
-                reject_coordinator_owner(owner.as_deref())?;
+                if let Some(owner) = owner.as_ref() {
+                    let denied = self
+                        .ctx
+                        .unauthorized_task_target_member_ids(std::slice::from_ref(owner));
+                    if !denied.is_empty() {
+                        return Err(ToolError::PermissionDenied(format!(
+                            "Task owner is outside frozen Writer authority: {}",
+                            denied.join(", ")
+                        )));
+                    }
+                }
                 let eligible_member_ids = eligible_member_ids
                     .map(|ids| self.ctx.resolve_eligible_member_ids(ids))
                     .transpose()
                     .map_err(ToolError::InvalidParams)?;
-                let metadata = merge_graph_metadata(
-                    prior.metadata.clone(),
-                    metadata,
-                    eligible_member_ids,
-                    required_role,
-                )?;
-                let patch = PendingTaskGraphPatch {
-                    subject,
-                    description,
-                    active_form: clear_active_form.then_some(None).or(active_form.map(Some)),
-                    owner: clear_owner.then_some(None).or(owner.map(Some)),
-                    execution_mode: execution_mode
-                        .as_deref()
-                        .map(TaskExecutionMode::from_wire)
-                        .transpose()
-                        .map_err(ToolError::InvalidParams)?,
-                    blocked_by,
-                    metadata: Some(metadata),
-                };
-                let update_context = Arc::clone(&self.ctx);
-                let run_id = self.ctx.org_context.run_id.clone();
-                let expected_updated_at = prior.updated_at;
-                let (outcome, outbox) = tokio::task::spawn_blocking(move || {
-                    AgentOrgTaskStore::patch_pending_with_transactional_effects(
-                        actor,
-                        &run_id,
-                        &id,
-                        &expected_updated_at,
-                        patch,
-                        |tx, outcome, tasks| {
-                            update_context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
-                        },
-                    )
+                if let Some(ids) = eligible_member_ids.as_ref() {
+                    let denied = self.ctx.unauthorized_task_target_member_ids(ids);
+                    if !denied.is_empty() {
+                        return Err(ToolError::PermissionDenied(format!(
+                            "Task eligibility is outside frozen Writer authority: {}",
+                            denied.join(", ")
+                        )));
+                    }
+                }
+                Ok(PreparedTaskUpdate::Patch {
+                    actor: self.graph_actor(call_ctx)?,
+                    id,
+                    patch: PendingTaskGraphPatch {
+                        subject,
+                        description,
+                        active_form: clear_active_form.then_some(None).or(active_form.map(Some)),
+                        owner: clear_owner.then_some(None).or(owner.map(Some)),
+                        execution_mode: execution_mode
+                            .as_deref()
+                            .map(TaskExecutionMode::from_wire)
+                            .transpose()
+                            .map_err(ToolError::InvalidParams)?,
+                        blocked_by,
+                        metadata_merge_patch: metadata,
+                        eligible_member_ids,
+                        required_role,
+                    },
                 })
-                .await
-                .map_err(join_error)?
-                .map_err(map_task_write_error)?;
-                self.finish_mutation(outcome, outbox)
             }
-            TaskUpdateParams::Start { id } => {
-                let actor = self.owner_actor(call_ctx)?;
-                let update_context = Arc::clone(&self.ctx);
-                let run_id = self.ctx.org_context.run_id.clone();
-                let (outcome, outbox) = tokio::task::spawn_blocking(move || {
-                    AgentOrgTaskStore::owner_start_with_transactional_effects(
-                        actor,
-                        &run_id,
-                        &id,
-                        |tx, outcome, tasks| {
-                            update_context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
-                        },
-                    )
-                })
-                .await
-                .map_err(join_error)?
-                .map_err(map_task_write_error)?;
-                self.finish_mutation(outcome, outbox)
-            }
-            TaskUpdateParams::Complete { id, output } => {
-                let actor = self.owner_actor(call_ctx)?;
-                let output = normalize_output(output).map_err(ToolError::InvalidParams)?;
-                let update_context = Arc::clone(&self.ctx);
-                let run_id = self.ctx.org_context.run_id.clone();
-                let (outcome, outbox) = tokio::task::spawn_blocking(move || {
-                    AgentOrgTaskStore::owner_complete_with_transactional_effects(
-                        actor,
-                        &run_id,
-                        &id,
-                        output,
-                        |tx, outcome, tasks| {
-                            update_context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
-                        },
-                    )
-                })
-                .await
-                .map_err(join_error)?
-                .map_err(map_task_write_error)?;
-                self.finish_mutation(outcome, outbox)
-            }
-            TaskUpdateParams::Fail { id, reason } => {
-                let actor = self.owner_actor(call_ctx)?;
-                let reason = normalize_reason(reason).map_err(ToolError::InvalidParams)?;
-                let update_context = Arc::clone(&self.ctx);
-                let run_id = self.ctx.org_context.run_id.clone();
-                let (outcome, outbox) = tokio::task::spawn_blocking(move || {
-                    AgentOrgTaskStore::owner_fail_with_transactional_effects(
-                        actor,
-                        &run_id,
-                        &id,
-                        reason,
-                        |tx, outcome, tasks| {
-                            update_context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
-                        },
-                    )
-                })
-                .await
-                .map_err(join_error)?
-                .map_err(map_task_write_error)?;
-                self.finish_mutation(outcome, outbox)
-            }
-            TaskUpdateParams::Cancel { id, reason } => {
-                let actor = self.graph_actor(call_ctx)?;
-                let reason = normalize_reason(reason).map_err(ToolError::InvalidParams)?;
-                let prior = self.read_task(&id).await?;
-                let update_context = Arc::clone(&self.ctx);
-                let run_id = self.ctx.org_context.run_id.clone();
-                let expected_updated_at = prior.updated_at;
-                let (outcome, outbox) = tokio::task::spawn_blocking(move || {
-                    AgentOrgTaskStore::cancel_with_transactional_effects(
-                        actor,
-                        &run_id,
-                        &id,
-                        &expected_updated_at,
-                        reason,
-                        |tx, outcome, tasks| {
-                            update_context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
-                        },
-                    )
-                })
-                .await
-                .map_err(join_error)?
-                .map_err(map_task_write_error)?;
-                self.finish_mutation(outcome, outbox)
-            }
+            TaskUpdateParams::Start { id } => Ok(PreparedTaskUpdate::Start {
+                actor: self.owner_actor(call_ctx)?,
+                id,
+            }),
+            TaskUpdateParams::Complete { id, output } => Ok(PreparedTaskUpdate::Complete {
+                actor: self.owner_actor(call_ctx)?,
+                id,
+                output: normalize_output(output).map_err(ToolError::InvalidParams)?,
+            }),
+            TaskUpdateParams::Fail { id, reason } => Ok(PreparedTaskUpdate::Fail {
+                actor: self.owner_actor(call_ctx)?,
+                id,
+                reason: normalize_reason(reason).map_err(ToolError::InvalidParams)?,
+            }),
+            TaskUpdateParams::Cancel { id, reason } => Ok(PreparedTaskUpdate::Cancel {
+                actor: self.graph_actor(call_ctx)?,
+                id,
+                reason: normalize_reason(reason).map_err(ToolError::InvalidParams)?,
+            }),
             TaskUpdateParams::CancelAndReplace {
                 id,
                 reason,
                 replacement,
-            } => {
-                let actor = self.graph_actor(call_ctx)?;
-                let reason = normalize_reason(reason).map_err(ToolError::InvalidParams)?;
-                let prior = self.read_task(&id).await?;
-                let replacement = self.replacement_params(replacement)?;
-                let update_context = Arc::clone(&self.ctx);
-                let run_id = self.ctx.org_context.run_id.clone();
-                let expected_updated_at = prior.updated_at;
-                let (outcome, replacement, outbox) = tokio::task::spawn_blocking(move || {
-                    AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
-                        actor,
-                        &run_id,
-                        &id,
-                        &expected_updated_at,
-                        reason,
-                        replacement,
-                        |tx, outcome, replacement, tasks| {
-                            let mut outbox = update_context
-                                .persist_task_update_outbox_in_tx(tx, outcome, tasks)?;
-                            let created = update_context.persist_created_tasks_outbox_in_tx(
-                                tx,
-                                std::slice::from_ref(replacement),
-                                tasks,
-                            )?;
-                            merge_outbox(&mut outbox, created);
-                            Ok(outbox)
-                        },
-                    )
-                })
-                .await
-                .map_err(join_error)?
-                .map_err(map_task_write_error)?;
-                self.ctx.wake_committed_task_outbox(&outbox);
-                serde_json::to_string(&json!({
-                    "task": task_to_json(&outcome.current),
-                    "replacement": task_to_json(&replacement),
-                    "status_changed": true,
-                    "replacement_created": true,
-                }))
-                .map_err(|error| ToolError::ExecutionFailed(error.to_string()))
-            }
+            } => Ok(PreparedTaskUpdate::CancelAndReplace {
+                actor: self.graph_actor(call_ctx)?,
+                id,
+                reason: normalize_reason(reason).map_err(ToolError::InvalidParams)?,
+                replacement: self.replacement_params(replacement)?,
+            }),
             TaskUpdateParams::AppendProgress { id, body } => {
-                self.append_owner_annotation(call_ctx, id, TaskAnnotationKind::Progress, body)
-                    .await
+                Ok(PreparedTaskUpdate::OwnerAnnotation {
+                    actor: self.owner_actor(call_ctx)?,
+                    id,
+                    kind: TaskAnnotationKind::Progress,
+                    body,
+                })
             }
             TaskUpdateParams::AppendEvidence { id, body } => {
-                self.append_owner_annotation(call_ctx, id, TaskAnnotationKind::Evidence, body)
-                    .await
+                Ok(PreparedTaskUpdate::OwnerAnnotation {
+                    actor: self.owner_actor(call_ctx)?,
+                    id,
+                    kind: TaskAnnotationKind::Evidence,
+                    body,
+                })
             }
             TaskUpdateParams::AppendAuditNote { id, body } => {
-                let actor = self.graph_actor(call_ctx)?;
-                let run_id = self.ctx.org_context.run_id.clone();
-                let annotation = tokio::task::spawn_blocking(move || {
-                    AgentOrgTaskStore::append_audit_annotation(actor, &run_id, &id, body)
+                Ok(PreparedTaskUpdate::AuditAnnotation {
+                    actor: self.graph_actor(call_ctx)?,
+                    id,
+                    body,
                 })
-                .await
-                .map_err(join_error)?
-                .map_err(map_task_write_error)?;
-                serde_json::to_string(&json!({ "annotation": annotation }))
-                    .map_err(|error| ToolError::ExecutionFailed(error.to_string()))
             }
         }
-    }
-
-    fn is_read_only(&self) -> bool {
-        false
-    }
-}
-
-impl TaskUpdateTool {
-    fn parse_model_params(&self, params_value: &mut Value) -> Result<TaskUpdateParams, Value> {
-        let Some(params) = params_value.as_object_mut() else {
-            return Err(task_update_correction(
-                self.ctx.is_coordinator(),
-                None,
-                Vec::new(),
-                "task_update parameters must be a JSON object",
-            ));
-        };
-        let operation = params
-            .get("operation")
-            .and_then(Value::as_str)
-            .map(str::to_string);
-        let Some(operation_name) = operation.as_deref() else {
-            return Err(task_update_correction(
-                self.ctx.is_coordinator(),
-                None,
-                Vec::new(),
-                "operation is required and must be a string",
-            ));
-        };
-        let Some(contract) = task_update_operation_contract(operation_name) else {
-            return Err(task_update_correction(
-                self.ctx.is_coordinator(),
-                Some(operation_name),
-                Vec::new(),
-                "unknown task_update operation",
-            ));
-        };
-        let expected_authority = if self.ctx.is_coordinator() {
-            TaskUpdateAuthority::Coordinator
-        } else {
-            TaskUpdateAuthority::Owner
-        };
-        if contract.authority != expected_authority {
-            return Err(task_update_correction(
-                self.ctx.is_coordinator(),
-                Some(operation_name),
-                Vec::new(),
-                "operation is outside this caller's persisted Task authority",
-            ));
-        }
-
-        // Some providers populate every property in a portable flat schema.
-        // Normalize only known fields from another operation when their value
-        // is semantically empty. Fields used by the selected operation remain
-        // untouched for the typed parser, and unknown or meaningful fields
-        // stay fail-closed.
-        let keys = params.keys().cloned().collect::<Vec<_>>();
-        let mut unexpected_fields = Vec::new();
-        for key in keys {
-            if contract.allowed_fields.contains(&key.as_str()) {
-                continue;
-            }
-            let removable_placeholder = params
-                .get(&key)
-                .is_some_and(|value| is_removable_cross_operation_placeholder(&key, value));
-            if removable_placeholder {
-                params.remove(&key);
-            } else {
-                unexpected_fields.push(key);
-            }
-        }
-        unexpected_fields.sort();
-        if !unexpected_fields.is_empty() {
-            return Err(task_update_correction(
-                self.ctx.is_coordinator(),
-                Some(operation_name),
-                unexpected_fields,
-                "fields from another task_update operation are not accepted",
-            ));
-        }
-
-        parse_params(params_value.take()).map_err(|error| {
-            task_update_correction(
-                self.ctx.is_coordinator(),
-                Some(operation_name),
-                Vec::new(),
-                &error.to_string(),
-            )
-        })
     }
 
     fn graph_actor(&self, call_ctx: &CallContext) -> Result<TaskGraphWriterAdmin, ToolError> {
-        if !self.ctx.is_coordinator() {
-            return Err(ToolError::InvalidParams(
-                "This task_update operation requires the Coordinator graph writer".to_string(),
+        if !self.ctx.is_task_graph_writer() {
+            return Err(ToolError::PermissionDenied(
+                "This task_update operation requires frozen graph-writer authority".to_string(),
             ));
         }
         TaskGraphWriterAdmin::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
@@ -846,25 +913,12 @@ impl TaskUpdateTool {
 
     fn owner_actor(&self, call_ctx: &CallContext) -> Result<TaskOwnerExecution, ToolError> {
         if self.ctx.is_coordinator() {
-            return Err(ToolError::InvalidParams(
+            return Err(ToolError::PermissionDenied(
                 "Coordinator cannot execute an Owner lifecycle operation".to_string(),
             ));
         }
         TaskOwnerExecution::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
             .map_err(ToolError::InvalidParams)
-    }
-
-    async fn read_task(
-        &self,
-        id: &str,
-    ) -> Result<crate::coordination::agent_org_tasks::Task, ToolError> {
-        let run_id = self.ctx.org_context.run_id.clone();
-        let task_id = id.to_string();
-        tokio::task::spawn_blocking(move || AgentOrgTaskStore::get(&run_id, &task_id))
-            .await
-            .map_err(join_error)?
-            .map_err(ToolError::ExecutionFailed)?
-            .ok_or_else(|| ToolError::InvalidParams(format!("task_not_found: {id}")))
     }
 
     fn replacement_params(
@@ -879,7 +933,17 @@ impl TaskUpdateTool {
             .map(|owner| self.ctx.resolve_owner_member_id(owner))
             .transpose()
             .map_err(ToolError::InvalidParams)?;
-        reject_coordinator_owner(owner.as_deref())?;
+        if let Some(owner) = owner.as_ref() {
+            let denied = self
+                .ctx
+                .unauthorized_task_target_member_ids(std::slice::from_ref(owner));
+            if !denied.is_empty() {
+                return Err(ToolError::PermissionDenied(format!(
+                    "Replacement owner is outside frozen Writer authority: {}",
+                    denied.join(", ")
+                )));
+            }
+        }
         let eligible_member_ids = replacement
             .eligible_member_ids
             .map(|ids| self.ctx.resolve_eligible_member_ids(ids))
@@ -890,17 +954,9 @@ impl TaskUpdateTool {
                 "ownerless replacement requires eligible_member_ids".to_string(),
             ));
         }
-        let metadata = merge_graph_metadata(
-            None,
-            replacement.metadata,
-            eligible_member_ids,
-            replacement.required_role,
-        )?;
         Ok(CreatePendingTaskParams {
-            id: replacement
-                .id
-                .filter(|id| !id.trim().is_empty())
-                .unwrap_or_else(crate::coordination::agent_org_tasks::new_task_id),
+            // Minted only after receipt lookup in the transaction closure.
+            id: String::new(),
             org_run_id: self.ctx.org_context.run_id.clone(),
             subject: replacement.subject,
             description: replacement.description.unwrap_or_default(),
@@ -909,48 +965,14 @@ impl TaskUpdateTool {
             execution_mode: TaskExecutionMode::from_wire(&replacement.execution_mode)
                 .map_err(ToolError::InvalidParams)?,
             blocked_by: replacement.blocked_by,
-            metadata,
+            metadata: merge_task_metadata(
+                replacement.metadata,
+                eligible_member_ids,
+                replacement.required_role,
+            ),
             originating_message_id: None,
             replaces_task_id: None,
         })
-    }
-
-    async fn append_owner_annotation(
-        &self,
-        call_ctx: &CallContext,
-        id: String,
-        kind: TaskAnnotationKind,
-        body: String,
-    ) -> Result<String, ToolError> {
-        let actor = self.owner_actor(call_ctx)?;
-        let run_id = self.ctx.org_context.run_id.clone();
-        let annotation = tokio::task::spawn_blocking(move || {
-            AgentOrgTaskStore::append_owner_annotation(actor, &run_id, &id, kind, body)
-        })
-        .await
-        .map_err(join_error)?
-        .map_err(map_task_write_error)?;
-        serde_json::to_string(&json!({ "annotation": annotation }))
-            .map_err(|error| ToolError::ExecutionFailed(error.to_string()))
-    }
-
-    fn finish_mutation(
-        &self,
-        outcome: crate::coordination::agent_org_tasks::TaskMutationOutcome,
-        outbox: TaskOutboxCommit,
-    ) -> Result<String, ToolError> {
-        self.ctx.wake_committed_task_outbox(&outbox);
-        serde_json::to_string(&json!({
-            "task": task_to_json(&outcome.current),
-            "owner_changed": outcome.owner_changed,
-            "status_changed": outcome.status_changed,
-            "task_assigned_dispatched": outbox.task_assigned_ids.contains(&outcome.current.id),
-            "unblocked_task_assigned_ids": outbox.unblocked_task_assigned_ids,
-            "assignment_required_task_ids": outbox.assignment_required_task_ids,
-            "task_completed_notified": outbox.task_completed_notified,
-            "remaining_open_task_count": outbox.remaining_open_task_count,
-        }))
-        .map_err(|error| ToolError::ExecutionFailed(error.to_string()))
     }
 }
 
@@ -989,55 +1011,21 @@ fn normalize_reason(reason: TaskReasonParams) -> Result<TaskTerminalReason, Stri
     })
 }
 
-fn merge_graph_metadata(
-    existing: Option<Value>,
-    patch: Option<Value>,
-    eligible_member_ids: Option<Vec<String>>,
-    required_role: Option<String>,
-) -> Result<Option<Value>, ToolError> {
-    let mut object = match existing {
-        Some(Value::Object(object)) => object,
-        Some(_) => {
-            return Err(ToolError::ExecutionFailed(
-                "persisted task metadata is not an object".to_string(),
-            ))
-        }
-        None => Map::new(),
-    };
-    if let Some(patch) = patch {
-        let patch = patch.as_object().ok_or_else(|| {
-            ToolError::InvalidParams("metadata patch must be an object".to_string())
-        })?;
-        for (key, value) in patch {
-            if value.is_null() {
-                object.remove(key);
-            } else {
-                object.insert(key.clone(), value.clone());
-            }
-        }
-    }
-    if let Some(ids) = eligible_member_ids {
-        object.insert("eligible_member_ids".to_string(), json!(ids));
-    }
-    if let Some(role) = required_role {
-        let role = role.trim();
-        if role.is_empty() {
-            object.remove("required_role");
-        } else {
-            object.insert("required_role".to_string(), Value::String(role.to_string()));
-        }
-    }
-    Ok((!object.is_empty()).then_some(Value::Object(object)))
-}
-
-fn reject_coordinator_owner(owner: Option<&str>) -> Result<(), ToolError> {
-    if owner == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID) {
-        Err(ToolError::InvalidParams(
-            "Coordinator cannot be a formal Task Owner".to_string(),
-        ))
-    } else {
-        Ok(())
-    }
+fn mutation_response(
+    outcome: &crate::coordination::agent_org_tasks::TaskMutationOutcome,
+    outbox: &TaskOutboxCommit,
+) -> Result<String, String> {
+    serde_json::to_string(&json!({
+        "task": task_to_json(&outcome.current),
+        "owner_changed": outcome.owner_changed,
+        "status_changed": outcome.status_changed,
+        "task_assigned_dispatched": outbox.task_assigned_ids.contains(&outcome.current.id),
+        "unblocked_task_assigned_ids": outbox.unblocked_task_assigned_ids,
+        "assignment_required_task_ids": outbox.assignment_required_task_ids,
+        "task_completed_notified": outbox.task_completed_notified,
+        "remaining_open_task_count": outbox.remaining_open_task_count,
+    }))
+    .map_err(|error| error.to_string())
 }
 
 fn merge_outbox(target: &mut TaskOutboxCommit, incoming: TaskOutboxCommit) {
@@ -1057,8 +1045,4 @@ fn merge_outbox(target: &mut TaskOutboxCommit, incoming: TaskOutboxCommit) {
     target.assignment_required_task_ids.dedup();
     target.wake_member_ids.sort();
     target.wake_member_ids.dedup();
-}
-
-fn join_error(error: tokio::task::JoinError) -> ToolError {
-    ToolError::ExecutionFailed(format!("task_update worker failed: {error}"))
 }

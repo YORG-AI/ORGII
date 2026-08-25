@@ -390,6 +390,27 @@ pub fn finalize_agent_org_member_turn(
             }
 
             if response.is_ok() {
+                if snapshot.member_id != crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID
+                {
+                    match crate::coordination::agent_inbox::AgentInboxStore::resolve_obsolete_formal_rows_after_successful_member_turn(
+                        &snapshot.context.run_id,
+                        &snapshot.member_id,
+                    ) {
+                        Ok(resolved) if resolved > 0 => tracing::info!(
+                            run_id = %snapshot.context.run_id,
+                            member_id = %snapshot.member_id,
+                            resolved,
+                            "[lifecycle] resolved obsolete formal Inbox rows after Member Turn ended without owned work"
+                        ),
+                        Ok(_) => {}
+                        Err(err) => tracing::warn!(
+                            run_id = %snapshot.context.run_id,
+                            member_id = %snapshot.member_id,
+                            error = %err,
+                            "[lifecycle] failed to resolve obsolete formal Inbox rows; keeping them unread"
+                        ),
+                    }
+                }
                 if let Err(err) = crate::coordination::agent_org_watchdog::clear_rewake_budget(
                     &snapshot.context.run_id,
                     &snapshot.member_id,

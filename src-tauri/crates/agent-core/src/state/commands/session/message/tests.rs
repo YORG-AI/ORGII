@@ -317,7 +317,7 @@ fn queued_agent_org_wake_rechecks_run_member_and_intervention_at_turn_start() {
 }
 
 #[test]
-fn direct_agent_org_turn_only_promotes_while_run_is_running() {
+fn direct_agent_org_turn_allows_running_or_canonical_root_idle() {
     let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
     let conn = database::db::get_connection().expect("test db");
     for status in [
@@ -364,6 +364,30 @@ fn direct_agent_org_turn_only_promotes_while_run_is_running() {
     conn.execute(
         "UPDATE agent_org_runtime_runs
          SET status=?1,archived_at=NULL,archive_receipt_id=NULL WHERE id=?2",
+        rusqlite::params![AgentOrgRunStatus::Idle.as_str(), &fixture.run_id],
+    )
+    .expect("set idle run");
+    assert_eq!(
+        promote_agent_org_direct_session_to_running(&conn, &fixture.run_id, "root-session")
+            .expect("Idle canonical Root can start a Provider turn"),
+        1
+    );
+    let run_status = conn
+        .query_row(
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+            [&fixture.run_id],
+            |row| row.get::<_, String>(0),
+        )
+        .expect("load idle run status");
+    assert_eq!(
+        run_status,
+        AgentOrgRunStatus::Idle.as_str(),
+        "Root Q&A admission must not activate formal Team work"
+    );
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status=?1,archived_at=NULL,archive_receipt_id=NULL WHERE id=?2",
         rusqlite::params![AgentOrgRunStatus::Running.as_str(), &fixture.run_id],
     )
     .expect("restore running run");
@@ -375,8 +399,9 @@ fn direct_agent_org_turn_only_promotes_while_run_is_running() {
 }
 
 #[test]
-fn provider_preflight_exhaustively_rejects_every_non_running_team_status() {
-    assert!(ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Running).is_ok());
+fn provider_preflight_allows_only_running_or_canonical_root_idle_turns() {
+    assert!(ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Running, false).is_ok());
+    assert!(ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Idle, true).is_ok());
 
     for (status, code) in [
         (AgentOrgRunStatus::Starting, "team_not_ready"),
@@ -385,7 +410,7 @@ fn provider_preflight_exhaustively_rejects_every_non_running_team_status() {
         (AgentOrgRunStatus::Failed, "team_unavailable"),
         (AgentOrgRunStatus::Archived, "team_archived"),
     ] {
-        let error = ensure_agent_org_turn_is_runnable("run", status)
+        let error = ensure_agent_org_turn_is_runnable("run", status, false)
             .expect_err("non-running Team cannot initialize a turn");
         assert!(
             error.starts_with(code),

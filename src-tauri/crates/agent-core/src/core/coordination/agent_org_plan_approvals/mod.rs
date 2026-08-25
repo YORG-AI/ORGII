@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::coordination::agent_org_tasks::TaskMutationOutcome;
 use crate::definitions::orgs::PlanApprovalPolicy;
 
-mod artifact;
+pub(crate) mod artifact;
 mod persistence;
 mod store;
 mod transitions;

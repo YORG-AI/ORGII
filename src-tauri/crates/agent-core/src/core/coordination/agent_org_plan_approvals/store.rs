@@ -42,6 +42,57 @@ pub struct AgentOrgPlanArtifactRepairReport {
 }
 
 impl AgentOrgPlanApprovalStore {
+    pub(crate) fn submit_agent_org_plan_in_tx(
+        conn: &Connection,
+        params: CreateAgentOrgPlanApprovalParams,
+        delivery: Option<AgentOrgPlanInboxDelivery>,
+    ) -> Result<Vec<String>, String> {
+        match params.policy {
+            PlanApprovalPolicy::Coordinator => {
+                let delivery = delivery.ok_or_else(|| {
+                    "coordinator plan approval requires Inbox delivery".to_string()
+                })?;
+                validate_delivery(&delivery)?;
+                let approval = create_pending_in_tx(conn, params)?;
+                AgentInboxStore::insert_in_tx(
+                    conn,
+                    InsertInboxParams {
+                        recipient_agent_id: delivery.recipient_agent_id,
+                        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+                        sender_agent_id: delivery.sender_agent_id,
+                        sender_member_id: delivery.sender_member_id,
+                        org_run_id: Some(approval.org_run_id.clone()),
+                        message: plan_approval_request_message(&approval),
+                    },
+                )?;
+                Ok(vec![COORDINATOR_MEMBER_ID.to_string()])
+            }
+            PlanApprovalPolicy::User => {
+                if delivery.is_some() {
+                    return Err("user plan approval does not accept Inbox delivery".to_string());
+                }
+                create_pending_in_tx(conn, params)?;
+                Ok(Vec::new())
+            }
+            PlanApprovalPolicy::Automatic => {
+                if delivery.is_some() {
+                    return Err(
+                        "automatic plan approval does not accept Inbox delivery".to_string()
+                    );
+                }
+                let approval = create_pending_in_tx(conn, params)?;
+                let plan_content = approval.plan_content.clone();
+                let approved = approve_pending_in_tx(
+                    conn,
+                    approval,
+                    AgentOrgPlanDecisionBy::System,
+                    plan_content,
+                )?;
+                Ok(approved.wake_member_ids)
+            }
+        }
+    }
+
     /// Resolve a filename under the exact Plan root owned by a persisted
     /// source session. Callers use this when they need a fresh path after a
     /// historical revision points outside the session's managed root.
@@ -299,8 +350,16 @@ impl AgentOrgPlanApprovalStore {
         request_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
+        Self::get_pending_by_request_id_with_connection(&conn, run_id, request_id)
+    }
+
+    pub(crate) fn get_pending_by_request_id_with_connection(
+        conn: &Connection,
+        run_id: &str,
+        request_id: &str,
+    ) -> Result<Option<AgentOrgPlanApproval>, String> {
         query_record(
-            &conn,
+            conn,
             "WHERE org_run_id=?1 AND request_id=?2 AND status='pending'",
             params![run_id, request_id],
         )
@@ -420,7 +479,63 @@ impl AgentOrgPlanApprovalStore {
         Ok(approved)
     }
 
+    pub(crate) fn approve_in_tx(
+        conn: &Connection,
+        approval_id: &str,
+        plan_revision_id: &str,
+        decision_by: AgentOrgPlanDecisionBy,
+        edited_content: Option<String>,
+    ) -> Result<ApprovedAgentOrgPlan, String> {
+        if let Some(edited_content) = edited_content.as_deref() {
+            validate_required_text(
+                "plan approval edited content",
+                edited_content,
+                PLAN_CONTENT_MAX_CHARS,
+                PLAN_CONTENT_MAX_BYTES,
+            )?;
+        }
+        let approval = query_record(
+            conn,
+            "WHERE approval_id=?1 AND plan_revision_id=?2 AND status='pending'",
+            params![approval_id, plan_revision_id],
+        )?
+        .ok_or_else(|| "agent_org_plan_approval_stale_revision".to_string())?;
+        authorize_decision(approval.policy, decision_by)?;
+        let plan_content = edited_content.unwrap_or_else(|| approval.plan_content.clone());
+        approve_pending_in_tx(conn, approval, decision_by, plan_content)
+    }
+
     pub fn request_changes(
+        approval_id: &str,
+        plan_revision_id: &str,
+        decision_by: AgentOrgPlanDecisionBy,
+        feedback: &str,
+        delivery: AgentOrgPlanInboxDelivery,
+    ) -> Result<(AgentOrgPlanApproval, AgentInboxRecord), String> {
+        let result = with_sessions_writer(|| {
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            let result = Self::request_changes_in_tx(
+                &tx,
+                approval_id,
+                plan_revision_id,
+                decision_by,
+                feedback,
+                delivery,
+            )?;
+            tx.commit().map_err(|err| err.to_string())?;
+            Ok::<_, String>(result)
+        })?;
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+            &result.0.org_run_id,
+        );
+        Ok(result)
+    }
+
+    pub(crate) fn request_changes_in_tx(
+        conn: &Connection,
         approval_id: &str,
         plan_revision_id: &str,
         decision_by: AgentOrgPlanDecisionBy,
@@ -435,83 +550,72 @@ impl AgentOrgPlanApprovalStore {
             PLAN_FEEDBACK_MAX_BYTES,
         )?;
         validate_delivery(&delivery)?;
-        let result = with_sessions_writer(|| {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
-            let tx = conn
-                .transaction_with_behavior(TransactionBehavior::Immediate)
-                .map_err(|err| err.to_string())?;
-            let approval = query_record(
-                &tx,
-                "WHERE approval_id=?1 AND plan_revision_id=?2 AND status='pending'",
-                params![approval_id, plan_revision_id],
-            )?
-            .ok_or_else(|| "agent_org_plan_approval_stale_revision".to_string())?;
-            authorize_decision(approval.policy, decision_by)?;
-            let run_status: String = tx
-                .query_row(
-                    "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
-                    params![&approval.org_run_id],
-                    |row| row.get(0),
-                )
-                .map_err(|err| err.to_string())?;
-            if run_status != "running" {
-                return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
-                    &approval.org_run_id,
-                    &run_status,
-                ));
-            }
-            let resolved_at = chrono::Utc::now().to_rfc3339();
-            let changed = tx
-                .execute(
-                    "UPDATE agent_org_runtime_plan_approvals
+        let approval = query_record(
+            conn,
+            "WHERE approval_id=?1 AND plan_revision_id=?2 AND status='pending'",
+            params![approval_id, plan_revision_id],
+        )?
+        .ok_or_else(|| "agent_org_plan_approval_stale_revision".to_string())?;
+        authorize_decision(approval.policy, decision_by)?;
+        let run_status: String = conn
+            .query_row(
+                "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+                params![&approval.org_run_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        if run_status != "running" {
+            return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+                &approval.org_run_id,
+                &run_status,
+            ));
+        }
+        let resolved_at = chrono::Utc::now().to_rfc3339();
+        let changed = conn
+            .execute(
+                "UPDATE agent_org_runtime_plan_approvals
                  SET status=?1, decision_by=?2, feedback=?3, resolved_at=?4
                  WHERE approval_id=?5 AND plan_revision_id=?6 AND status=?7",
-                    params![
-                        AgentOrgPlanApprovalStatus::ChangesRequested.as_wire(),
-                        decision_by.as_wire(),
-                        feedback,
-                        &resolved_at,
-                        approval_id,
-                        plan_revision_id,
-                        AgentOrgPlanApprovalStatus::Pending.as_wire(),
-                    ],
-                )
-                .map_err(|err| err.to_string())?;
-            if changed != 1 {
-                return Err("agent_org_plan_approval_stale_revision".to_string());
-            }
-            let inbox_record = AgentInboxStore::insert_in_tx(
-                &tx,
-                InsertInboxParams {
-                    recipient_agent_id: delivery.recipient_agent_id,
-                    recipient_member_id: Some(approval.source_member_id.clone()),
-                    sender_agent_id: delivery.sender_agent_id,
-                    sender_member_id: delivery.sender_member_id,
-                    org_run_id: Some(approval.org_run_id.clone()),
-                    message: AgentMessage::PlanApprovalResponse {
-                        request_id: RequestId(approval.request_id.clone()),
-                        accepted: false,
-                        feedback: Some(feedback.to_string()),
-                        next_mode: Some(crate::session::AgentExecMode::Plan),
-                    },
-                },
-            )?;
-            tx.commit().map_err(|err| err.to_string())?;
-            Ok((
-                AgentOrgPlanApproval {
-                    status: AgentOrgPlanApprovalStatus::ChangesRequested,
-                    decision_by: Some(decision_by.as_wire().to_string()),
+                params![
+                    AgentOrgPlanApprovalStatus::ChangesRequested.as_wire(),
+                    decision_by.as_wire(),
+                    feedback,
+                    &resolved_at,
+                    approval_id,
+                    plan_revision_id,
+                    AgentOrgPlanApprovalStatus::Pending.as_wire(),
+                ],
+            )
+            .map_err(|err| err.to_string())?;
+        if changed != 1 {
+            return Err("agent_org_plan_approval_stale_revision".to_string());
+        }
+        let inbox_record = AgentInboxStore::insert_in_tx(
+            conn,
+            InsertInboxParams {
+                recipient_agent_id: delivery.recipient_agent_id,
+                recipient_member_id: Some(approval.source_member_id.clone()),
+                sender_agent_id: delivery.sender_agent_id,
+                sender_member_id: delivery.sender_member_id,
+                org_run_id: Some(approval.org_run_id.clone()),
+                message: AgentMessage::PlanApprovalResponse {
+                    request_id: RequestId(approval.request_id.clone()),
+                    accepted: false,
                     feedback: Some(feedback.to_string()),
-                    resolved_at: Some(resolved_at),
-                    ..approval
+                    next_mode: Some(crate::session::AgentExecMode::Plan),
                 },
-                inbox_record,
-            ))
-        })?;
-        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
-            &result.0.org_run_id,
-        );
-        Ok(result)
+            },
+        )?;
+        Ok((
+            AgentOrgPlanApproval {
+                status: AgentOrgPlanApprovalStatus::ChangesRequested,
+                decision_by: Some(decision_by.as_wire().to_string()),
+                feedback: Some(feedback.to_string()),
+                resolved_at: Some(resolved_at),
+                ..approval
+            },
+            inbox_record,
+        ))
     }
 
     pub fn get(approval_id: &str) -> Result<Option<AgentOrgPlanApproval>, String> {

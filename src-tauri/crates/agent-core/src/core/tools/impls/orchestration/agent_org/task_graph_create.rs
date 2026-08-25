@@ -9,23 +9,25 @@ use serde_json::{json, Value};
 use crate::coordination::agent_org_payload_limits::{
     validate_task_identifier_list, TASK_GRAPH_CREATE_MAX_TASKS,
 };
+use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::coordination::agent_org_tasks::{
     self, task_dependency_closure, AgentOrgTaskStore, CreatePendingTaskParams, TaskExecutionMode,
     TaskGraphWriterAdmin, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
+};
+use crate::coordination::agent_org_tool_receipts::{
+    AgentOrgToolReceiptAbort, AgentOrgToolReceiptKey, AgentOrgToolReceiptStore,
 };
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    map_task_write_error, merge_task_metadata, task_to_json, validate_freeform_task_metadata,
-    TaskToolsContext,
+    classify_task_receipt_error, merge_task_metadata, task_to_json,
+    validate_freeform_task_metadata, TaskOutboxCommit, TaskToolsContext,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TaskGraphNodeParams {
-    /// Short unique key used only inside this request (for example `plan`,
-    /// `implement`, `review`). The runtime resolves it to a durable UUID.
     pub key: String,
     pub subject: String,
     #[serde(default)]
@@ -34,10 +36,7 @@ pub struct TaskGraphNodeParams {
     pub active_form: Option<String>,
     #[serde(default)]
     pub owner_member_id: Option<String>,
-    /// `plan` only for a plan submitted through create_plan; otherwise build.
     pub execution_mode: String,
-    /// Local node keys from this request or durable task ids already on the
-    /// same run. Every listed task must complete before this node is assigned.
     #[serde(default)]
     pub depends_on: Vec<String>,
     #[serde(default)]
@@ -51,12 +50,20 @@ pub struct TaskGraphNodeParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TaskGraphCreateParams {
-    /// Complete graph patch to create atomically. Use at most 32 nodes.
     pub tasks: Vec<TaskGraphNodeParams>,
-    /// Required only when this graph intentionally starts a new independent
-    /// branch while older open tasks remain outside the graph.
     #[serde(default)]
     pub allow_parallel_with_existing_open_tasks: bool,
+}
+
+struct PreparedGraphNode {
+    key: String,
+    subject: String,
+    description: String,
+    active_form: Option<String>,
+    owner: Option<String>,
+    execution_mode: TaskExecutionMode,
+    depends_on: Vec<String>,
+    metadata: Option<Value>,
 }
 
 pub struct TaskGraphCreateTool {
@@ -77,23 +84,19 @@ impl Tool for TaskGraphCreateTool {
 
     fn description(&self) -> &str {
         concat!(
-            "Create a complete Agent Org task dependency graph atomically. Use this as the ",
-            "coordinator's preferred way to decompose a new multi-stage request. Each node ",
-            "has a short local `key`; `depends_on` references those keys, so you do not need ",
-            "to create upstream tasks first or copy UUIDs between tool calls. The runtime ",
-            "validates owners, eligibility, dependency references, cycles, execution modes, ",
-            "and the run mutation boundary before inserting anything. If validation fails, ",
-            "zero tasks are created. Roots may run in parallel; review, test, synthesis, and ",
-            "other consumers must list every upstream key whose output they consume."
+            "Create a complete pending Task graph atomically. Each node has a request-local key, ",
+            "and depends_on may reference local keys or existing durable Task ids. The runtime ",
+            "mints all durable ids after the exactly-once receipt lookup, validates the complete ",
+            "candidate graph, then commits Tasks, audit history, Inbox outbox, and receipt together."
         )
     }
 
     fn llm_description(&self) -> Option<String> {
         Some(format!(
-            "{}\n\nYour task authority: {}\nAuthorized owner_member_id values: {}\nUse local keys such as plan/write/review/final; do not invent UUID dependencies for nodes in the same request.",
+            "{}\n\nYour task authority: {}\nAuthorized owner_member_id values: {}",
             self.description(),
             self.ctx.task_authority_summary(),
-            self.ctx.authorized_task_target_catalog(),
+            self.ctx.authorized_task_target_catalog()
         ))
     }
 
@@ -110,101 +113,40 @@ impl Tool for TaskGraphCreateTool {
         params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        let canonical_params = params_value.clone();
         let params: TaskGraphCreateParams = parse_params(params_value)?;
-        if !self.ctx.is_coordinator() {
+        if !self.ctx.is_task_graph_writer() {
             return self.ctx.authorization_denied_response(
                 "task_graph_create",
                 vec![self.ctx.caller_owner_member_id()],
-                "Only the coordinator may create a cross-member task graph. Send the proposed graph to the coordinator.",
+                "Only the Coordinator or a configured Writer may create Task graph work.",
             );
         }
-        let actor =
-            TaskGraphWriterAdmin::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
-                .map_err(ToolError::InvalidParams)?;
         if params.tasks.is_empty() || params.tasks.len() > TASK_GRAPH_CREATE_MAX_TASKS {
             return Err(ToolError::InvalidParams(format!(
                 "task_graph_create requires 1..={TASK_GRAPH_CREATE_MAX_TASKS} tasks per request"
             )));
         }
-        for (index, node) in params.tasks.iter().enumerate() {
+
+        let mut keys = HashSet::with_capacity(params.tasks.len());
+        let mut prepared = Vec::with_capacity(params.tasks.len());
+        for (index, node) in params.tasks.into_iter().enumerate() {
+            let key = node.key.trim().to_string();
+            if key.is_empty() || key.chars().count() > 80 || !keys.insert(key.clone()) {
+                return Err(ToolError::InvalidParams(format!(
+                    "task graph key at index {index} must be unique and 1..=80 characters"
+                )));
+            }
+            if node.subject.trim().is_empty() {
+                return Err(ToolError::InvalidParams(format!(
+                    "task graph node '{key}' requires a non-empty subject"
+                )));
+            }
             validate_task_identifier_list(
                 &format!("task_graph_create.tasks[{index}].depends_on"),
                 &node.depends_on,
             )
             .map_err(ToolError::InvalidParams)?;
-        }
-
-        let read_run_id = self.ctx.org_context.run_id.clone();
-        let existing_tasks =
-            tokio::task::spawn_blocking(move || AgentOrgTaskStore::list(&read_run_id))
-                .await
-                .map_err(|err| {
-                    ToolError::ExecutionFailed(format!(
-                        "task_graph_create read worker failed: {err}"
-                    ))
-                })?
-                .map_err(ToolError::ExecutionFailed)?;
-        let existing_ids = existing_tasks
-            .iter()
-            .map(|task| task.id.clone())
-            .collect::<HashSet<_>>();
-        let open_existing = existing_tasks
-            .iter()
-            .filter(|task| task.status.is_open())
-            .map(|task| task.id.clone())
-            .collect::<Vec<_>>();
-        let directly_referenced_existing = params
-            .tasks
-            .iter()
-            .flat_map(|node| node.depends_on.iter())
-            .filter(|dependency| existing_ids.contains(dependency.as_str()))
-            .cloned()
-            .collect::<HashSet<_>>();
-        let referenced_existing = task_dependency_closure(
-            &directly_referenced_existing.into_iter().collect::<Vec<_>>(),
-            &existing_tasks,
-        );
-        let omitted_existing = open_existing
-            .iter()
-            .filter(|task_id| !referenced_existing.contains(task_id.as_str()))
-            .cloned()
-            .collect::<Vec<_>>();
-        if !omitted_existing.is_empty() && !params.allow_parallel_with_existing_open_tasks {
-            return serde_json::to_string(&json!({
-                "created": false,
-                "requires_parallel_confirmation": true,
-                "unlisted_open_task_ids": omitted_existing,
-                "guidance": "This graph would start while older open tasks remain outside it. Add those durable task ids to the appropriate depends_on lists, or retry with allow_parallel_with_existing_open_tasks=true only when the new graph is intentionally independent.",
-            }))
-            .map_err(|err| ToolError::ExecutionFailed(err.to_string()));
-        }
-
-        let mut key_to_id = HashMap::with_capacity(params.tasks.len());
-        for node in &params.tasks {
-            let key = node.key.trim();
-            if key.is_empty() || key.chars().count() > 80 {
-                return Err(ToolError::InvalidParams(
-                    "every task graph key must be 1..=80 characters".to_string(),
-                ));
-            }
-            if key_to_id
-                .insert(key.to_string(), agent_org_tasks::new_task_id())
-                .is_some()
-            {
-                return Err(ToolError::InvalidParams(format!(
-                    "duplicate task graph key: {key}"
-                )));
-            }
-        }
-
-        let mut create_params = Vec::with_capacity(params.tasks.len());
-        for node in params.tasks {
-            if node.subject.trim().is_empty() {
-                return Err(ToolError::InvalidParams(format!(
-                    "task graph node '{}' requires a non-empty subject",
-                    node.key
-                )));
-            }
             validate_freeform_task_metadata(node.metadata.as_ref())
                 .map_err(ToolError::InvalidParams)?;
             let owner = node
@@ -221,131 +163,223 @@ impl Tool for TaskGraphCreateTool {
                     return self.ctx.authorization_denied_response(
                         "task_graph_create.assign_owner",
                         denied,
-                        "The graph contains an owner outside your task authority.",
+                        "The graph contains an owner outside this Writer's frozen Task authority.",
                     );
                 }
             }
             let eligible_member_ids = node
                 .eligible_member_ids
-                .map(|member_ids| self.ctx.resolve_eligible_member_ids(member_ids))
+                .map(|ids| self.ctx.resolve_eligible_member_ids(ids))
                 .transpose()
                 .map_err(ToolError::InvalidParams)?;
-            if owner.is_none()
-                && eligible_member_ids
-                    .as_ref()
-                    .is_none_or(|ids| ids.is_empty())
-            {
+            if owner.is_none() && eligible_member_ids.as_ref().is_none_or(Vec::is_empty) {
                 return Err(ToolError::InvalidParams(format!(
-                    "ownerless graph node '{}' requires eligible_member_ids",
-                    node.key
+                    "ownerless graph node '{key}' requires eligible_member_ids"
                 )));
             }
-            let execution_mode = TaskExecutionMode::from_wire(&node.execution_mode)
-                .map_err(ToolError::InvalidParams)?;
-            let blocked_by = node
-                .depends_on
-                .iter()
-                .map(|dependency| {
-                    let dependency = dependency.trim();
-                    key_to_id
-                        .get(dependency)
-                        .cloned()
-                        .or_else(|| {
-                            existing_ids
-                                .contains(dependency)
-                                .then(|| dependency.to_string())
-                        })
-                        .ok_or_else(|| {
-                            ToolError::InvalidParams(format!(
-                                "task graph node '{}' references unknown dependency '{dependency}'",
-                                node.key
-                            ))
-                        })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let id = key_to_id.get(node.key.trim()).cloned().ok_or_else(|| {
-                ToolError::ExecutionFailed(format!(
-                    "task graph key '{}' lost its generated id before persistence",
-                    node.key
-                ))
-            })?;
-            let metadata =
-                merge_task_metadata(node.metadata, eligible_member_ids, node.required_role);
-            create_params.push(CreatePendingTaskParams {
-                id,
-                org_run_id: self.ctx.org_context.run_id.clone(),
+            if let Some(ids) = eligible_member_ids.as_ref() {
+                let denied = self.ctx.unauthorized_task_target_member_ids(ids);
+                if !denied.is_empty() {
+                    return self.ctx.authorization_denied_response(
+                        "task_graph_create.set_eligibility",
+                        denied,
+                        "The graph contains an eligibility target outside this Writer's frozen Task authority.",
+                    );
+                }
+            }
+            prepared.push(PreparedGraphNode {
+                key,
                 subject: node.subject,
                 description: node.description.unwrap_or_default(),
                 active_form: node.active_form,
                 owner,
-                execution_mode,
-                blocked_by,
-                metadata,
-                originating_message_id: None,
-                replaces_task_id: None,
+                execution_mode: TaskExecutionMode::from_wire(&node.execution_mode)
+                    .map_err(ToolError::InvalidParams)?,
+                depends_on: node.depends_on,
+                metadata: merge_task_metadata(
+                    node.metadata,
+                    eligible_member_ids,
+                    node.required_role,
+                ),
             });
         }
 
-        let create_context = Arc::clone(&self.ctx);
+        let actor =
+            TaskGraphWriterAdmin::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
+                .map_err(ToolError::InvalidParams)?;
+        let activation_session_id = call_ctx.session_id.clone();
+        let activation_turn_intent_id = call_ctx.turn_intent_id.clone();
+        let receipt_key = AgentOrgToolReceiptKey::from_call_context(
+            self.ctx.org_context.run_id.clone(),
+            call_ctx,
+        )?;
+        let run_id = self.ctx.org_context.run_id.clone();
+        let context = Arc::clone(&self.ctx);
         let allow_parallel = params.allow_parallel_with_existing_open_tasks;
-        let create_result = tokio::task::spawn_blocking(move || {
-            AgentOrgTaskStore::create_pending_batch_with_transactional_effects(
-                actor,
-                create_params,
-                allow_parallel,
-                |tx, created, all_tasks| {
-                    create_context.persist_created_tasks_outbox_in_tx(tx, created, all_tasks)
+
+        let (receipt, committed_outbox) = tokio::task::spawn_blocking(move || {
+            let mut committed_outbox: Option<TaskOutboxCommit> = None;
+            let receipt = AgentOrgToolReceiptStore::execute(
+                receipt_key,
+                tool_names::TASK_GRAPH_CREATE,
+                "create_graph",
+                &canonical_params,
+                |tx| {
+                    let existing_tasks = AgentOrgTaskStore::list_with_connection(tx, &run_id)
+                        .map_err(AgentOrgToolReceiptAbort::storage)?;
+                    let existing_ids = existing_tasks
+                        .iter()
+                        .map(|task| task.id.clone())
+                        .collect::<HashSet<_>>();
+                    let mut key_to_id = HashMap::with_capacity(prepared.len());
+                    for node in &prepared {
+                        key_to_id.insert(node.key.clone(), agent_org_tasks::new_task_id());
+                    }
+                    let mut create_params = Vec::with_capacity(prepared.len());
+                    for node in prepared {
+                        let blocked_by = node
+                            .depends_on
+                            .iter()
+                            .map(|dependency| {
+                                let dependency = dependency.trim();
+                                key_to_id
+                                    .get(dependency)
+                                    .cloned()
+                                    .or_else(|| {
+                                        existing_ids
+                                            .contains(dependency)
+                                            .then(|| dependency.to_string())
+                                    })
+                                    .ok_or_else(|| {
+                                        ToolError::InvalidParams(format!(
+                                            "task graph node '{}' references unknown dependency '{dependency}'",
+                                            node.key
+                                        ))
+                                    })
+                            })
+                            .collect::<Result<Vec<_>, _>>();
+                        let blocked_by = match blocked_by {
+                            Ok(blocked_by) => blocked_by,
+                            Err(error) => return Ok(Err(error)),
+                        };
+                        create_params.push(CreatePendingTaskParams {
+                            id: key_to_id[&node.key].clone(),
+                            org_run_id: run_id.clone(),
+                            subject: node.subject,
+                            description: node.description,
+                            active_form: node.active_form,
+                            owner: node.owner,
+                            execution_mode: node.execution_mode,
+                            blocked_by,
+                            metadata: node.metadata,
+                            originating_message_id: None,
+                            replaces_task_id: None,
+                        });
+                    }
+                    let directly_referenced_existing = create_params
+                        .iter()
+                        .flat_map(|task| task.blocked_by.iter())
+                        .filter(|dependency| existing_ids.contains(dependency.as_str()))
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let referenced_existing =
+                        task_dependency_closure(&directly_referenced_existing, &existing_tasks);
+                    let omitted = existing_tasks
+                        .iter()
+                        .filter(|task| {
+                            task.status.is_open() && !referenced_existing.contains(&task.id)
+                        })
+                        .map(|task| task.id.clone())
+                        .collect::<Vec<_>>();
+                    if !omitted.is_empty() && !allow_parallel {
+                        let response = serde_json::to_string(&json!({
+                            "created": false,
+                            "requires_parallel_confirmation": true,
+                            "unlisted_open_task_ids": omitted,
+                            "guidance": "This graph starts while older open work remains outside it. Add dependencies or explicitly confirm an independent branch."
+                        }))
+                        .map_err(AgentOrgToolReceiptAbort::storage)?;
+                        return Ok(Ok(response));
+                    }
+                    if let Err(error) = AgentOrgRunStore::activate_idle_for_task_graph_in_tx(
+                        tx,
+                        &run_id,
+                        &activation_session_id,
+                        &activation_turn_intent_id,
+                    ) {
+                        return match classify_task_receipt_error(error) {
+                            Ok(error) => Ok(Err(error)),
+                            Err(abort) => Err(abort),
+                        };
+                    }
+                    match AgentOrgTaskStore::create_pending_batch_in_tx(
+                        tx,
+                        actor,
+                        create_params,
+                        allow_parallel,
+                        |tx, created, all_tasks| {
+                            context.persist_created_tasks_outbox_in_tx(tx, created, all_tasks)
+                        },
+                    ) {
+                        Ok((created, outbox)) => {
+                            let assignment_required_task_ids = created
+                                .iter()
+                                .filter(|task| task.owner.is_none())
+                                .map(|task| task.id.clone())
+                                .collect::<Vec<_>>();
+                            let task_id_by_key = key_to_id
+                                .into_iter()
+                                .map(|(key, id)| (key, Value::String(id)))
+                                .collect::<serde_json::Map<_, _>>();
+                            let response = serde_json::to_string(&json!({
+                                "created": true,
+                                "org_run_id": run_id,
+                                "tasks": created.iter().map(task_to_json).collect::<Vec<_>>(),
+                                "task_id_by_key": task_id_by_key,
+                                "task_assigned_dispatched_ids": outbox.task_assigned_ids,
+                                "assignment_required_task_ids": assignment_required_task_ids,
+                            }))
+                            .map_err(AgentOrgToolReceiptAbort::storage)?;
+                            committed_outbox = Some(outbox);
+                            Ok(Ok(response))
+                        }
+                        Err(error) if error.starts_with(TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR) => {
+                            let ids = error
+                                .split_once(':')
+                                .map(|(_, ids)| ids.split(',').collect::<Vec<_>>())
+                                .unwrap_or_default();
+                            let response = serde_json::to_string(&json!({
+                                "created": false,
+                                "requires_parallel_confirmation": true,
+                                "unlisted_open_task_ids": ids,
+                                "guidance": "Open work changed inside the transaction; retry with dependencies or explicit independent-branch confirmation."
+                            }))
+                            .map_err(AgentOrgToolReceiptAbort::storage)?;
+                            Ok(Ok(response))
+                        }
+                        Err(error) => match classify_task_receipt_error(error) {
+                            Ok(error) => Ok(Err(error)),
+                            Err(abort) => Err(abort),
+                        },
+                    }
                 },
-            )
+            )?;
+            Ok::<_, ToolError>((receipt, committed_outbox))
         })
         .await
-        .map_err(|err| {
-            ToolError::ExecutionFailed(format!("task_graph_create mutation worker failed: {err}"))
-        })?;
-        let (created, outbox) = match create_result {
-            Ok(created) => created,
-            Err(error) => {
-                if let Some(task_ids) = error
-                    .strip_prefix(TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR)
-                    .and_then(|suffix| suffix.strip_prefix(':'))
-                {
-                    let unlisted_open_task_ids = task_ids
-                        .split(',')
-                        .filter(|task_id| !task_id.is_empty())
-                        .collect::<Vec<_>>();
-                    return serde_json::to_string(&json!({
-                        "created": false,
-                        "requires_parallel_confirmation": true,
-                        "unlisted_open_task_ids": unlisted_open_task_ids,
-                        "guidance": "Open work changed while this graph was being validated. Add the listed ids to depends_on, or retry with allow_parallel_with_existing_open_tasks=true only when the graph is intentionally independent.",
-                    }))
-                    .map_err(|err| ToolError::ExecutionFailed(err.to_string()));
-                }
-                return Err(map_task_write_error(error));
+        .map_err(|error| {
+            ToolError::ExecutionFailed(format!("task_graph_create worker failed: {error}"))
+        })??;
+
+        if receipt.is_fresh() {
+            if let Some(outbox) = committed_outbox.as_ref() {
+                self.ctx.wake_committed_task_outbox(outbox);
             }
-        };
-        self.ctx.wake_committed_task_outbox(&outbox);
-        let dispatched_task_ids = outbox.task_assigned_ids;
-        let assignment_required_task_ids: Vec<String> = created
-            .iter()
-            .filter(|task| task.owner.is_none())
-            .map(|task| task.id.clone())
-            .collect();
-        let has_assignment_required = !assignment_required_task_ids.is_empty();
-        let task_id_by_key = key_to_id
-            .into_iter()
-            .map(|(key, task_id)| (key, Value::String(task_id)))
-            .collect::<serde_json::Map<String, Value>>();
-        serde_json::to_string(&json!({
-            "created": true,
-            "org_run_id": self.ctx.org_context.run_id,
-            "tasks": created.iter().map(task_to_json).collect::<Vec<_>>(),
-            "task_id_by_key": task_id_by_key,
-            "task_assigned_dispatched_ids": dispatched_task_ids,
-            "assignment_required_task_ids": assignment_required_task_ids,
-            "guidance": has_assignment_required.then_some("Ownerless tasks are waiting for explicit assignment. No worker will self-claim or be woken."),
-        }))
-        .map_err(|err| ToolError::ExecutionFailed(err.to_string()))
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+                &self.ctx.org_context.run_id,
+            );
+        }
+        receipt.result
     }
 
     fn is_read_only(&self) -> bool {

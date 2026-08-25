@@ -573,7 +573,13 @@ pub struct PendingTaskGraphPatch {
     pub owner: Option<Option<String>>,
     pub execution_mode: Option<TaskExecutionMode>,
     pub blocked_by: Option<Vec<String>>,
-    pub metadata: Option<Option<serde_json::Value>>,
+    /// RFC 7396-style object merge patch. Absent keys retain their persisted
+    /// value, non-null values replace it, and null removes it. Reserved typed
+    /// Task fields never enter this bag.
+    pub metadata_merge_patch: Option<serde_json::Value>,
+    pub eligible_member_ids: Option<Vec<String>>,
+    /// `Some("")` explicitly clears the typed role hint; `None` retains it.
+    pub required_role: Option<String>,
 }
 
 /// Test-only compatibility patch for Store fixtures that exercise the

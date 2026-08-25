@@ -94,39 +94,38 @@ pub(super) fn promote_agent_org_wake_session_to_running(
     .map_err(|error| error.to_string())
 }
 
-/// Promote a direct Rust Agent Org turn only while its Team is still Running.
-/// Submit preflight is only a snapshot: a queued turn must re-check the
-/// durable lifecycle fence immediately before execution so Starting, Idle,
-/// Paused, Failed, or Archived can never start a Provider turn.
+/// Promote a direct Rust Agent Org turn while its Team is Running, or while
+/// the canonical Root is answering a user message from Idle. The latter keeps
+/// the Team itself Idle until a formal writer commits new work; Q&A-only turns
+/// therefore remain side-effect free at the Team lifecycle boundary.
+///
+/// Submit preflight is only a snapshot, so this claim re-checks both Run state
+/// and Root identity atomically immediately before Provider execution.
 pub(super) fn promote_agent_org_direct_session_to_running(
     conn: &rusqlite::Connection,
     run_id: &str,
     session_id: &str,
 ) -> Result<usize, String> {
-    use rusqlite::OptionalExtension;
-
-    let run_status = conn
-        .query_row(
-            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
-            [run_id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?;
-    if run_status.as_deref()
-        != Some(crate::coordination::agent_org_runs::AgentOrgRunStatus::Running.as_str())
-    {
-        return Ok(0);
-    }
-
     conn.execute(
         "UPDATE agent_sessions
          SET status=?1, updated_at=?2
-         WHERE session_id=?3",
+         WHERE session_id=?3
+           AND EXISTS (
+               SELECT 1
+               FROM agent_org_runtime_runs run
+               WHERE run.id=?4
+                 AND (
+                     run.status=?5
+                     OR (run.status=?6 AND run.root_session_id=?3)
+                 )
+           )",
         rusqlite::params![
             crate::session::SessionStatus::Running.as_str(),
             chrono::Utc::now().to_rfc3339(),
             session_id,
+            run_id,
+            crate::coordination::agent_org_runs::AgentOrgRunStatus::Running.as_str(),
+            crate::coordination::agent_org_runs::AgentOrgRunStatus::Idle.as_str(),
         ],
     )
     .map_err(|error| error.to_string())

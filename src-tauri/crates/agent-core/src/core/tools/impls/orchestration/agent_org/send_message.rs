@@ -24,8 +24,11 @@ use crate::coordination::agent_org_plan_approvals::{
 use crate::coordination::agent_org_runs::{
     AgentOrgParticipant, AgentOrgRunContext, RoutingDecision, COORDINATOR_MEMBER_ID,
 };
+use crate::coordination::agent_org_tool_receipts::{
+    AgentOrgToolReceiptAbort, AgentOrgToolReceiptKey, AgentOrgToolReceiptStore,
+};
 use crate::tools::names as tool_names;
-use crate::tools::traits::{params_schema, parse_params, Tool, ToolError};
+use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 mod hooks;
 mod params;
@@ -36,7 +39,7 @@ mod tests;
 pub use hooks::{InboxWakeHook, NoopInboxWakeHook, NoopSelfAbortHook, SelfAbortHook};
 pub use params::OrgSendMessageParams;
 use persistence::{
-    ensure_recipients_deliverable, persist_ordinary_message_if_running,
+    ensure_recipients_deliverable_in_tx, persist_ordinary_message_in_tx,
     OrdinaryMessagePersistOutcome, OrgRecipientTarget,
 };
 
@@ -56,6 +59,24 @@ fn parse_agent_org_remote_mode(
         ));
     }
     Ok(mode)
+}
+
+fn classify_message_string_error(
+    error: String,
+) -> Result<Result<String, ToolError>, AgentOrgToolReceiptAbort> {
+    match super::tasks::classify_task_receipt_error(error) {
+        Ok(error) => Ok(Err(error)),
+        Err(abort) => Err(abort),
+    }
+}
+
+fn classify_message_tool_error(
+    error: ToolError,
+) -> Result<Result<String, ToolError>, AgentOrgToolReceiptAbort> {
+    match error {
+        ToolError::ExecutionFailed(message) => classify_message_string_error(message),
+        other => Ok(Err(other)),
+    }
 }
 
 pub struct OrgSendMessageTool {
@@ -418,8 +439,9 @@ impl Tool for OrgSendMessageTool {
     async fn execute_text(
         &self,
         params_value: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        let canonical_params = params_value.clone();
         let params: OrgSendMessageParams = parse_params(params_value)?;
         let recipients = self
             .resolve_recipient(&params)
@@ -450,198 +472,219 @@ impl Tool for OrgSendMessageTool {
                 return Err(ToolError::InvalidParams(hint));
             }
         }
-        if let AgentMessage::PlanApprovalResponse {
-            request_id,
-            accepted,
-            feedback,
-            ..
-        } = &message
-        {
-            if !accepted {
-                let deliverable_run_id = self.org_context.run_id.clone();
-                let deliverable_recipients = recipients.clone();
-                tokio::task::spawn_blocking(move || {
-                    ensure_recipients_deliverable(&deliverable_run_id, &deliverable_recipients)
-                })
-                .await
-                .map_err(|err| {
-                    ToolError::ExecutionFailed(format!(
-                        "recipient-delivery validation worker failed: {err}"
-                    ))
-                })??;
-            }
-            let lookup_run_id = self.org_context.run_id.clone();
-            let lookup_request_id = request_id.as_str().to_string();
-            let approval = tokio::task::spawn_blocking(move || {
-                AgentOrgPlanApprovalStore::get_pending_by_request_id(
-                    &lookup_run_id,
-                    &lookup_request_id,
-                )
+        let run_id = self.org_context.run_id.clone();
+        let sender = self.sender.clone();
+        let receipt_key = AgentOrgToolReceiptKey::from_call_context(run_id.clone(), call_ctx)?;
+        let call_session_id = call_ctx.session_id.clone();
+        let call_turn_intent_id = call_ctx.turn_intent_id.clone();
+        let operation = message.kind_tag();
+        let (receipt, wake_member_ids, abort_sender_after_commit) =
+            tokio::task::spawn_blocking(move || {
+                let mut wake_member_ids = Vec::new();
+                let mut abort_sender_after_commit = false;
+                let receipt = AgentOrgToolReceiptStore::execute(
+                    receipt_key,
+                    tool_names::ORG_SEND_MESSAGE,
+                    operation,
+                    &canonical_params,
+                    |tx| {
+                        let context = crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+                            tx,
+                            &call_session_id,
+                            &call_turn_intent_id,
+                        )
+                        .map_err(|error| {
+                            AgentOrgToolReceiptAbort::rejected(ToolError::InvalidParams(error))
+                        })?;
+                        if context.org_run_id != run_id
+                            || context.participant_id != sender.member_id
+                        {
+                            return Err(AgentOrgToolReceiptAbort::rejected(
+                                ToolError::PermissionDenied(
+                                    "org_send_message caller does not match the persisted Agent Org Turn"
+                                        .to_string(),
+                                ),
+                            ));
+                        }
+
+                        if let AgentMessage::PlanApprovalResponse {
+                            request_id,
+                            accepted,
+                            feedback,
+                            ..
+                        } = &message
+                        {
+                            if !accepted {
+                                if let Err(error) = ensure_recipients_deliverable_in_tx(
+                                    tx,
+                                    &run_id,
+                                    &recipients,
+                                ) {
+                                    return classify_message_tool_error(error);
+                                }
+                            }
+                            let approval = match AgentOrgPlanApprovalStore::get_pending_by_request_id_with_connection(
+                                tx,
+                                &run_id,
+                                request_id.as_str(),
+                            ) {
+                                Ok(Some(approval)) => approval,
+                                Ok(None) => {
+                                    return Ok(Err(ToolError::InvalidParams(format!(
+                                        "No pending Agent Org plan approval matches request_id '{}'",
+                                        request_id.as_str()
+                                    ))));
+                                }
+                                Err(error) => return classify_message_string_error(error),
+                            };
+                            if recipients.len() != 1
+                                || recipients[0].member_id != approval.source_member_id
+                            {
+                                return Ok(Err(ToolError::InvalidParams(format!(
+                                    "plan_approval_response request_id '{}' must target source member '{}'",
+                                    request_id.as_str(),
+                                    approval.source_member_id
+                                ))));
+                            }
+
+                            if *accepted {
+                                let approved = match AgentOrgPlanApprovalStore::approve_in_tx(
+                                    tx,
+                                    &approval.approval_id,
+                                    &approval.plan_revision_id,
+                                    AgentOrgPlanDecisionBy::Coordinator,
+                                    None,
+                                ) {
+                                    Ok(approved) => approved,
+                                    Err(error) => return classify_message_string_error(error),
+                                };
+                                wake_member_ids = approved.wake_member_ids.clone();
+                                return serde_json::to_string(&json!({
+                                    "kind": "plan_approval_response",
+                                    "request_id": request_id.as_str(),
+                                    "org_run_id": run_id,
+                                    "sender_member_id": sender.member_id,
+                                    "approval_id": approval.approval_id,
+                                    "source_task_id": approval.source_task_id,
+                                    "decision": "approved",
+                                    "woken_member_ids": wake_member_ids,
+                                }))
+                                .map(Ok)
+                                .map_err(AgentOrgToolReceiptAbort::storage);
+                            }
+
+                            let feedback = feedback
+                                .as_deref()
+                                .map(str::trim)
+                                .filter(|value| !value.is_empty())
+                                .ok_or_else(|| {
+                                    AgentOrgToolReceiptAbort::rejected(ToolError::InvalidParams(
+                                        "A rejected plan requires non-empty feedback".to_string(),
+                                    ))
+                                })?;
+                            let recipient = &recipients[0];
+                            let delivery = AgentOrgPlanInboxDelivery {
+                                recipient_agent_id: recipient.agent_id.clone(),
+                                sender_agent_id: sender.agent_id.clone(),
+                                sender_member_id: Some(sender.member_id.clone()),
+                            };
+                            let (_, record) = match AgentOrgPlanApprovalStore::request_changes_in_tx(
+                                tx,
+                                &approval.approval_id,
+                                &approval.plan_revision_id,
+                                AgentOrgPlanDecisionBy::Coordinator,
+                                feedback,
+                                delivery,
+                            ) {
+                                Ok(result) => result,
+                                Err(error) => return classify_message_string_error(error),
+                            };
+                            wake_member_ids.push(recipient.member_id.clone());
+                            return serde_json::to_string(&json!({
+                                "kind": "plan_approval_response",
+                                "request_id": request_id.as_str(),
+                                "org_run_id": run_id,
+                                "sender_member_id": sender.member_id,
+                                "approval_id": approval.approval_id,
+                                "source_task_id": approval.source_task_id,
+                                "decision": "changes_requested",
+                                "inbox_id": record.id,
+                                "woken_member_ids": wake_member_ids,
+                            }))
+                            .map(Ok)
+                            .map_err(AgentOrgToolReceiptAbort::storage);
+                        }
+
+                        let persist_outcome = match persist_ordinary_message_in_tx(
+                            tx,
+                            &run_id,
+                            &sender,
+                            &params,
+                            &message,
+                            &recipients,
+                        ) {
+                            Ok(outcome) => outcome,
+                            Err(error) => return classify_message_tool_error(error),
+                        };
+                        let delivered_rows = match persist_outcome {
+                            OrdinaryMessagePersistOutcome::Guidance(guidance) => {
+                                return Ok(Ok(guidance));
+                            }
+                            OrdinaryMessagePersistOutcome::Delivered(delivered_rows) => {
+                                delivered_rows
+                            }
+                        };
+                        wake_member_ids.extend(
+                            delivered_rows
+                                .iter()
+                                .map(|(recipient_member_id, _)| recipient_member_id.clone()),
+                        );
+                        abort_sender_after_commit = matches!(
+                            message,
+                            AgentMessage::ShutdownResponse { accepted: true, .. }
+                        ) && !sender.is_coordinator;
+                        let delivered = delivered_rows
+                            .iter()
+                            .map(|(recipient_member_id, inbox_id)| {
+                                json!({
+                                    "recipient_member_id": recipient_member_id,
+                                    "inbox_id": inbox_id,
+                                })
+                            })
+                            .collect::<Vec<_>>();
+                        serde_json::to_string(&json!({
+                            "kind": message.kind_tag(),
+                            "request_id": message.request_id().map(|r| r.as_str().to_string()),
+                            "related_task_id": params.related_task_id.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+                            "org_run_id": run_id,
+                            "sender_member_id": sender.member_id,
+                            "delivered": delivered,
+                            "live_channel": false,
+                        }))
+                        .map(Ok)
+                        .map_err(AgentOrgToolReceiptAbort::storage)
+                    },
+                )?;
+                Ok::<_, ToolError>((receipt, wake_member_ids, abort_sender_after_commit))
             })
-            .await
-            .map_err(|err| {
-                ToolError::ExecutionFailed(format!("plan approval lookup worker failed: {err}"))
-            })?
-            .map_err(ToolError::ExecutionFailed)?
-            .ok_or_else(|| {
-                ToolError::InvalidParams(format!(
-                    "No pending Agent Org plan approval matches request_id '{}'",
-                    request_id.as_str()
-                ))
-            })?;
-            if recipients.len() != 1 || recipients[0].member_id != approval.source_member_id {
-                return Err(ToolError::InvalidParams(format!(
-                    "plan_approval_response request_id '{}' must target source member '{}'",
-                    request_id.as_str(),
-                    approval.source_member_id
-                )));
-            }
-
-            if *accepted {
-                let approval_id = approval.approval_id.clone();
-                let plan_revision_id = approval.plan_revision_id.clone();
-                let approved = tokio::task::spawn_blocking(move || {
-                    AgentOrgPlanApprovalStore::approve(
-                        &approval_id,
-                        &plan_revision_id,
-                        AgentOrgPlanDecisionBy::Coordinator,
-                        None,
-                    )
-                })
-                .await
-                .map_err(|err| {
-                    ToolError::ExecutionFailed(format!("plan approval worker failed: {err}"))
-                })?
-                .map_err(ToolError::ExecutionFailed)?;
-                let wake_member_ids = approved.wake_member_ids.clone();
-                for member_id in &wake_member_ids {
-                    self.wake_hook
-                        .wake_member(member_id, &self.org_context.run_id);
-                }
-                return serde_json::to_string(&json!({
-                    "kind": "plan_approval_response",
-                    "request_id": request_id.as_str(),
-                    "org_run_id": self.org_context.run_id,
-                    "sender_member_id": self.sender.member_id,
-                    "approval_id": approval.approval_id,
-                    "source_task_id": approval.source_task_id,
-                    "decision": "approved",
-                    "woken_member_ids": wake_member_ids,
-                }))
-                .map_err(|err| {
-                    ToolError::ExecutionFailed(format!(
-                        "serialize org_send_message result failed: {err}"
-                    ))
-                });
-            }
-
-            let feedback = feedback
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    ToolError::InvalidParams(
-                        "A rejected plan requires non-empty feedback".to_string(),
-                    )
-                })?;
-            let recipient = &recipients[0];
-            let approval_id = approval.approval_id.clone();
-            let plan_revision_id = approval.plan_revision_id.clone();
-            let feedback = feedback.to_string();
-            let delivery = AgentOrgPlanInboxDelivery {
-                recipient_agent_id: recipient.agent_id.clone(),
-                sender_agent_id: self.sender.agent_id.clone(),
-                sender_member_id: Some(self.sender.member_id.clone()),
-            };
-            let (_, record) = tokio::task::spawn_blocking(move || {
-                AgentOrgPlanApprovalStore::request_changes(
-                    &approval_id,
-                    &plan_revision_id,
-                    AgentOrgPlanDecisionBy::Coordinator,
-                    &feedback,
-                    delivery,
-                )
-            })
-            .await
-            .map_err(|err| {
-                ToolError::ExecutionFailed(format!("plan changes-request worker failed: {err}"))
-            })?
-            .map_err(ToolError::ExecutionFailed)?;
-            self.wake_hook
-                .wake_member(&recipient.member_id, &self.org_context.run_id);
-            return serde_json::to_string(&json!({
-                "kind": "plan_approval_response",
-                "request_id": request_id.as_str(),
-                "org_run_id": self.org_context.run_id,
-                "sender_member_id": self.sender.member_id,
-                "approval_id": approval.approval_id,
-                "source_task_id": approval.source_task_id,
-                "decision": "changes_requested",
-                "inbox_id": record.id,
-                "woken_member_ids": [recipient.member_id.clone()],
-            }))
-            .map_err(|err| {
-                ToolError::ExecutionFailed(format!(
-                    "serialize org_send_message result failed: {err}"
-                ))
-            });
-        }
-
-        let persist_run_id = self.org_context.run_id.clone();
-        let persist_sender = self.sender.clone();
-        let persist_params = params.clone();
-        let persist_message = message.clone();
-        let persist_recipients = recipients.clone();
-        let persist_outcome = tokio::task::spawn_blocking(move || {
-            persist_ordinary_message_if_running(
-                &persist_run_id,
-                &persist_sender,
-                &persist_params,
-                &persist_message,
-                &persist_recipients,
-            )
-        })
         .await
         .map_err(|err| {
             ToolError::ExecutionFailed(format!("org message persistence worker failed: {err}"))
         })??;
-        let delivered_rows = match persist_outcome {
-            OrdinaryMessagePersistOutcome::Guidance(guidance) => return Ok(guidance),
-            OrdinaryMessagePersistOutcome::Delivered(delivered_rows) => delivered_rows,
-        };
-        let delivered = delivered_rows
-            .iter()
-            .map(|(recipient_member_id, inbox_id)| {
-                json!({
-                    "recipient_member_id": recipient_member_id,
-                    "inbox_id": inbox_id,
-                })
-            })
-            .collect::<Vec<_>>();
-        for (recipient_member_id, _) in &delivered_rows {
-            self.wake_hook
-                .wake_member(recipient_member_id, &self.org_context.run_id);
-        }
-
-        if let AgentMessage::ShutdownResponse { accepted: true, .. } = &message {
-            if !self.sender.is_coordinator {
+        if receipt.is_fresh() {
+            for member_id in &wake_member_ids {
+                self.wake_hook
+                    .wake_member(member_id, &self.org_context.run_id);
+            }
+            if abort_sender_after_commit {
                 self.self_abort_hook
                     .abort_self(&self.sender.member_id, &self.org_context.run_id);
             }
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+                &self.org_context.run_id,
+            );
         }
-
-        let result = json!({
-            "kind": message.kind_tag(),
-            "request_id": message.request_id().map(|r| r.as_str().to_string()),
-            "related_task_id": params.related_task_id.as_deref().map(str::trim).filter(|value| !value.is_empty()),
-            "org_run_id": self.org_context.run_id,
-            "sender_member_id": self.sender.member_id,
-            "delivered": delivered,
-            "live_channel": false,
-        });
-        serde_json::to_string(&result).map_err(|err| {
-            ToolError::ExecutionFailed(format!("serialize org_send_message result failed: {err}"))
-        })
+        receipt.result
     }
 
     /// Recipient resolution + JSON validation are read-only side-channel

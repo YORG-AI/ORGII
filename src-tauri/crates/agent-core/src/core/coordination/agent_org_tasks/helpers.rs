@@ -1,4 +1,6 @@
-use rusqlite::{params, Connection, Result as SqliteResult, Transaction};
+#[cfg(test)]
+use rusqlite::Transaction;
+use rusqlite::{params, Connection, Result as SqliteResult};
 
 #[cfg(test)]
 use super::TaskHistoryEvent;
@@ -225,7 +227,7 @@ pub(super) fn insert_task_history_event(
 }
 
 pub(super) fn insert_task_history_event_as(
-    tx: &Transaction<'_>,
+    tx: &Connection,
     org_run_id: &str,
     task_id: &str,
     event_type: &str,

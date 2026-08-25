@@ -227,14 +227,10 @@ fn start(task_id: &str, session_id: &str, turn_id: &str) -> TaskMutationOutcome 
 }
 
 fn assign_pending(task_id: &str, owner_member_id: &str) -> Task {
-    let current = AgentOrgTaskStore::get(RUN_ID, task_id)
-        .unwrap()
-        .expect("Task to assign");
     AgentOrgTaskStore::patch_pending_with_transactional_effects(
         graph_actor(),
         RUN_ID,
         task_id,
-        &current.updated_at,
         PendingTaskGraphPatch {
             owner: Some(Some(owner_member_id.to_string())),
             ..Default::default()
@@ -244,6 +240,72 @@ fn assign_pending(task_id: &str, owner_member_id: &str) -> Task {
     .expect("assign pending Task")
     .0
     .current
+}
+
+#[test]
+fn sparse_graph_patches_merge_latest_fields_and_metadata_subkeys() {
+    let _fixture = fixture();
+    let mut task = pending("sparse-lww", Some(MEMBER_A), vec![]);
+    task.metadata = Some(serde_json::json!({
+        TASK_METADATA_ELIGIBLE_MEMBER_IDS: [MEMBER_A],
+        "retained": "keep",
+        "removed": "old"
+    }));
+    create(task);
+
+    AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "sparse-lww",
+        PendingTaskGraphPatch {
+            description: Some("first description".to_string()),
+            metadata_merge_patch: Some(serde_json::json!({
+                "first": 1,
+                "removed": null
+            })),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("first sparse patch");
+    AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "sparse-lww",
+        PendingTaskGraphPatch {
+            subject: Some("latest subject".to_string()),
+            metadata_merge_patch: Some(serde_json::json!({"second": 2})),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("second sparse patch");
+    AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "sparse-lww",
+        PendingTaskGraphPatch {
+            description: Some("last description".to_string()),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("same field uses last legal commit");
+
+    let stored = AgentOrgTaskStore::get(RUN_ID, "sparse-lww")
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.subject, "latest subject");
+    assert_eq!(stored.description, "last description");
+    let metadata = stored.metadata.unwrap();
+    assert_eq!(metadata["retained"], "keep");
+    assert_eq!(metadata["first"], 1);
+    assert_eq!(metadata["second"], 2);
+    assert!(metadata.get("removed").is_none());
+    assert_eq!(
+        metadata[TASK_METADATA_ELIGIBLE_MEMBER_IDS],
+        serde_json::json!([MEMBER_A])
+    );
 }
 
 fn recovery_attempts(task_id: &str) -> i64 {
@@ -430,7 +492,6 @@ fn owner_fsm_stamps_output_and_freezes_terminal_task() {
         graph_actor(),
         RUN_ID,
         "owned",
-        &completed.updated_at,
         TaskTerminalReason {
             code: "scope.changed".to_string(),
             message: "cannot rewrite terminal work".to_string(),
@@ -496,13 +557,11 @@ fn cancel_and_replace_is_atomic_and_rejects_late_owner_callback() {
     let conn = get_connection().unwrap();
     insert_owner_context(&conn, MEMBER_A, MEMBER_A_SESSION, "turn-old", "old", 1);
     start("old", MEMBER_A_SESSION, "turn-old");
-    let old = AgentOrgTaskStore::get(RUN_ID, "old").unwrap().unwrap();
     let (_outcome, replacement, ()) =
         AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
             graph_actor(),
             RUN_ID,
             "old",
-            &old.updated_at,
             TaskTerminalReason {
                 code: "scope.changed".to_string(),
                 message: "replace the goal".to_string(),
@@ -534,12 +593,11 @@ fn cancel_and_replace_is_atomic_and_rejects_late_owner_callback() {
     .expect_err("cancelled Task rejects late callback");
     assert!(late.contains("requires_in_progress"), "{late}");
 
-    let current = create(pending("fault-old", Some(MEMBER_A), vec![]));
+    create(pending("fault-old", Some(MEMBER_A), vec![]));
     let error = AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
         graph_actor(),
         RUN_ID,
         "fault-old",
-        &current.updated_at,
         TaskTerminalReason {
             code: "scope.changed".to_string(),
             message: "fault injection".to_string(),
@@ -959,12 +1017,10 @@ fn replacement_and_explicit_owner_failure_do_not_share_or_consume_budget() {
         "turn-original-2",
         1,
     );
-    let original = AgentOrgTaskStore::get(RUN_ID, "original").unwrap().unwrap();
     AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
         graph_actor(),
         RUN_ID,
         "original",
-        &original.updated_at,
         TaskTerminalReason {
             code: "scope.changed".to_string(),
             message: "replace failed work".to_string(),

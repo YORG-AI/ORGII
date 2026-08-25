@@ -12,11 +12,11 @@ use rusqlite::{ffi, Connection, Error as SqliteError, Result as SqliteResult};
 
 use super::{
     agent_inbox, agent_member_interventions, agent_org_archive, agent_org_pause,
-    agent_org_plan_approvals, agent_org_runs, agent_org_tasks, agent_org_turn_contexts,
-    agent_org_watchdog,
+    agent_org_plan_approvals, agent_org_runs, agent_org_tasks, agent_org_tool_receipts,
+    agent_org_turn_contexts, agent_org_watchdog,
 };
 
-const RUNTIME_TABLES: [&str; 19] = [
+const RUNTIME_TABLES: [&str; 20] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
     "agent_org_runtime_member_materializations",
@@ -36,6 +36,7 @@ const RUNTIME_TABLES: [&str; 19] = [
     "agent_org_runtime_pause_handoffs",
     "agent_org_runtime_archive_episodes",
     "agent_org_runtime_archive_teardowns",
+    "agent_org_runtime_tool_call_receipts",
 ];
 
 const LEGACY_TABLES: [&str; 13] = [
@@ -135,7 +136,8 @@ fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
     agent_org_watchdog::create_schema(conn)?;
     agent_org_turn_contexts::create_schema(conn)?;
     agent_org_pause::create_schema(conn)?;
-    agent_org_archive::create_schema(conn)
+    agent_org_archive::create_schema(conn)?;
+    agent_org_tool_receipts::create_schema(conn)
 }
 
 fn expected_manifest() -> SqliteResult<SchemaManifest> {
@@ -617,7 +619,7 @@ mod tests {
                          DROP TABLE agent_org_runtime_member_dispatch_allocators;",
                     )
                     .expect("make partial schema");
-                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 17);
+                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 18);
                 }
                 "changed" => {
                     conn.execute_batch(
@@ -645,21 +647,21 @@ mod tests {
     }
 
     #[test]
-    fn previous_seventeen_table_manifest_requires_an_isolated_database() {
+    fn incomplete_runtime_manifest_requires_an_isolated_database() {
         let conn = connection();
         initialize(&conn).expect("canonical pause runtime");
         conn.execute_batch(
             "DROP TABLE agent_org_runtime_pause_handoffs;
              DROP TABLE agent_org_runtime_pause_episodes;",
         )
-        .expect("simulate the previous strict seventeen-table manifest");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 17);
+        .expect("simulate an incomplete strict runtime manifest");
+        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 18);
 
         let error = initialize(&conn).expect_err("previous runtime must not be migrated in place");
         assert!(
             error
                 .to_string()
-                .contains("found 17 of 19 canonical tables"),
+                .contains("found 18 of 20 canonical tables"),
             "unexpected strict-schema error: {error}"
         );
     }
@@ -728,7 +730,7 @@ mod tests {
         let conn = Connection::open(path).expect("reopen shared database");
         verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
             .expect("canonical manifest after concurrent init");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 19);
+        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 20);
     }
 
     #[test]

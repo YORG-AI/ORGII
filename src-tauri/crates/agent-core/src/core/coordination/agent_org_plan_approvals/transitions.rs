@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::coordination::agent_inbox::{
     AgentInboxStore, AgentMessage, InsertInboxParams, RequestId, SYSTEM_SENDER_ID,
@@ -23,7 +23,7 @@ use super::{
 };
 
 pub(super) fn create_pending_in_tx(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Connection,
     params: CreateAgentOrgPlanApprovalParams,
 ) -> Result<AgentOrgPlanApproval, String> {
     validate_create_params(&params)?;
@@ -123,7 +123,7 @@ pub(super) fn create_pending_in_tx(
 }
 
 pub(super) fn approve_pending_in_tx(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Connection,
     approval: AgentOrgPlanApproval,
     decision_by: AgentOrgPlanDecisionBy,
     plan_content: String,
@@ -202,7 +202,7 @@ pub(super) fn approve_pending_in_tx(
 /// transaction commits. A wake is merely a best-effort doorbell; the inbox
 /// rows remain the source of truth across queue failure, pause, or restart.
 fn enqueue_post_approval_messages_in_tx(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Connection,
     approved: &ApprovedAgentOrgPlan,
 ) -> Result<Vec<String>, String> {
     let tasks = AgentOrgTaskStore::list_with_connection(tx, &approved.approval.org_run_id)?;
@@ -283,7 +283,7 @@ fn enqueue_post_approval_messages_in_tx(
 }
 
 fn participant_agent_ids_in_tx(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &Connection,
     run_id: &str,
 ) -> Result<(String, HashMap<String, String>), String> {
     let (coordinator_agent_id, snapshot_json): (String, Option<String>) = tx

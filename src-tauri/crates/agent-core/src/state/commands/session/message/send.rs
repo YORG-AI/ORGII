@@ -30,6 +30,7 @@ use super::org_wake::{
 pub(super) fn ensure_agent_org_turn_is_runnable(
     run_id: &str,
     status: crate::coordination::agent_org_runs::AgentOrgRunStatus,
+    allow_idle_root: bool,
 ) -> Result<(), String> {
     use crate::coordination::agent_org_runs::AgentOrgRunStatus;
 
@@ -41,8 +42,9 @@ pub(super) fn ensure_agent_org_turn_is_runnable(
         AgentOrgRunStatus::Paused => Err(format!(
             "team_paused: Agent Org run {run_id} cannot start a turn in this lifecycle slice"
         )),
+        AgentOrgRunStatus::Idle if allow_idle_root => Ok(()),
         AgentOrgRunStatus::Idle => Err(format!(
-            "team_idle: Agent Org run {run_id} has no formal activation for a new turn"
+            "team_idle: Agent Org run {run_id} accepts new turns only in its canonical Root session"
         )),
         AgentOrgRunStatus::Failed => Err(format!(
             "team_unavailable: Agent Org run {run_id} failed during materialization"
@@ -88,13 +90,14 @@ async fn preflight_agent_org_turn_before_runtime(
 
     crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let status_run_id = run_id.clone();
-    let status = tokio::task::spawn_blocking(move || {
-        crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(&status_run_id)
+    let run = tokio::task::spawn_blocking(move || {
+        crate::coordination::agent_org_runs::AgentOrgRunStore::load(&status_run_id)
     })
     .await
     .map_err(|error| format!("Agent Org status worker failed: {error}"))??
     .ok_or_else(|| format!("team_unavailable: Agent Org run {run_id} does not exist"))?;
-    ensure_agent_org_turn_is_runnable(&run_id, status)?;
+    let allow_idle_root = run.root_session_id.as_deref() == Some(session_id);
+    ensure_agent_org_turn_is_runnable(&run_id, run.status, allow_idle_root)?;
     Ok(Some(run_id))
 }
 

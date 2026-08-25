@@ -1,10 +1,14 @@
+use rusqlite::{params, Connection, OptionalExtension};
+
 use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
 use crate::session::SessionStatus;
 use database::db::{get_connection, with_sessions_writer};
 
 use super::super::helpers::{insert_run, validate_entry_mode, validate_status};
 use super::super::progress::ensure_progress_in_conn;
-use super::super::{AgentOrgRunRecord, AgentOrgRunStatus, CreateAgentOrgRunParams};
+use super::super::{
+    AgentOrgRunRecord, AgentOrgRunStatus, CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
+};
 use super::AgentOrgRunStore;
 
 impl AgentOrgRunStore {
@@ -96,5 +100,105 @@ impl AgentOrgRunStore {
             }
         }
         Ok(changed)
+    }
+
+    /// Promote the canonical Root Coordinator's current Idle Turn only when
+    /// that same transaction is about to commit new formal Task graph work.
+    /// The caller owns the transaction, so any later Task/history/outbox or
+    /// receipt failure rolls this generation change back as well.
+    pub(crate) fn activate_idle_for_task_graph_in_tx(
+        conn: &Connection,
+        run_id: &str,
+        session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<bool, String> {
+        let run: Option<(String, i64)> = conn
+            .query_row(
+                "SELECT status,activation_generation
+                 FROM agent_org_runtime_runs WHERE id=?1",
+                [run_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        let Some((status_raw, generation)) = run else {
+            return Err(format!("agent_org_run_not_found: {run_id}"));
+        };
+        let status = AgentOrgRunStatus::parse(&status_raw)
+            .ok_or_else(|| format!("unknown Agent Org run status: {status_raw}"))?;
+        match status {
+            AgentOrgRunStatus::Running => return Ok(false),
+            AgentOrgRunStatus::Paused => {
+                return Err(format!(
+                    "team_paused_resume_required: Agent Org run {run_id} must be resumed before creating formal work"
+                ));
+            }
+            AgentOrgRunStatus::Archived => {
+                return Err(format!(
+                    "team_archived: Agent Org run {run_id} is read-only"
+                ));
+            }
+            AgentOrgRunStatus::Starting | AgentOrgRunStatus::Failed => {
+                return Err(super::super::mutation_blocked_error(
+                    run_id,
+                    status.as_str(),
+                ));
+            }
+            AgentOrgRunStatus::Idle => {}
+        }
+
+        let context =
+            crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+                conn,
+                session_id,
+                turn_intent_id,
+            )?;
+        if context.org_run_id != run_id
+            || context.participant_id != COORDINATOR_MEMBER_ID
+            || context.turn_kind
+                != crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+        {
+            return Err(
+                "task_graph_writer_idle_activation_requires_canonical_coordinator_turn".to_string(),
+            );
+        }
+        let next_generation = generation
+            .checked_add(1)
+            .ok_or_else(|| format!("Agent Org run {run_id} generation overflow"))?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let changed = conn
+            .execute(
+                "UPDATE agent_org_runtime_runs
+                 SET status='running',activation_generation=?2,updated_at=?3,
+                     idled_at=NULL,last_activity_outcome=NULL
+                 WHERE id=?1 AND status='idle' AND activation_generation=?4",
+                params![run_id, next_generation, &now, generation],
+            )
+            .map_err(|error| error.to_string())?;
+        if changed != 1 {
+            return Err(format!(
+                "agent_org_idle_activation_conflict: run {run_id} changed before commit"
+            ));
+        }
+        let marked = conn
+            .execute(
+                "UPDATE agent_org_runtime_turn_contexts
+                 SET activation_generation=?4
+                 WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3
+                   AND participant_id='coordinator' AND turn_kind='coordinator'
+                   AND activation_generation=?5",
+                params![
+                    session_id,
+                    turn_intent_id,
+                    run_id,
+                    next_generation,
+                    generation
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+        if marked != 1 {
+            return Err("task_graph_writer_idle_activation_turn_marker_conflict".to_string());
+        }
+        Ok(true)
     }
 }
