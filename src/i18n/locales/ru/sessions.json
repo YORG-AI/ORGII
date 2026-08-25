@@ -2807,6 +2807,8 @@
     },
     "actions": {
       "moreOpenOptions": "Другие параметры открытия",
+      "openAsPullRequest": "Вкладка PR",
+      "openAsWebPage": "Веб-страница",
       "openInApp": "Открыть в приложении",
       "openWithDefaultBrowser": "Открыть в браузере по умолчанию",
       "revealInFinder": "Показать в Finder",
@@ -2818,6 +2820,7 @@
       "copyUrl": "Скопировать URL",
       "copied": "URL скопирован",
       "openExternalFailed": "Не удалось открыть URL в браузере по умолчанию",
+      "openPullRequestFailed": "Не удалось открыть вкладку pull request",
       "groupTitle": "Веб-страницы"
     },
     "path": {

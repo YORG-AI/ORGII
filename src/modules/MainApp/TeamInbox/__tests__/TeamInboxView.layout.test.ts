@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Globe, SquareArrowOutUpRight } from "lucide-react";
+import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React, { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -477,8 +477,8 @@ describe("TeamInboxView split layout", () => {
         testId: string;
       }>
     >;
-    expect(browserAction.props.label).toBe("previews.openInBrowser");
-    expect(browserAction.props.icon.type).toBe(Globe);
+    expect(browserAction.props.label).toBe("previews.openInExternalBrowser");
+    expect(browserAction.props.icon.type).toBe(Chrome);
     expect(browserAction.props.testId).toBe("team-inbox-open-github-pr");
     expect(tabAction.props.label).toBe("teamInbox.actions.openPullRequest");
     expect(tabAction.props.icon.type).toBe(SquareArrowOutUpRight);

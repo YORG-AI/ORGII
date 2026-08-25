@@ -1294,6 +1294,7 @@
       "unknownProcess": "未知程序",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "在瀏覽器中開啟",
+      "openAddress": "開啟 {{address}}",
       "copyAddress": "複製位址",
       "stopProcess": "停止程序",
       "searchPlaceholder": "搜尋連接埠…",

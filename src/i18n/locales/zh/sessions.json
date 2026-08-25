@@ -2872,6 +2872,8 @@
     },
     "actions": {
       "moreOpenOptions": "更多打开选项",
+      "openAsPullRequest": "PR 标签页",
+      "openAsWebPage": "网页",
       "openInApp": "在应用内打开",
       "openWithDefaultBrowser": "用默认浏览器打开",
       "revealInFinder": "在 Finder 中显示",
@@ -2883,6 +2885,7 @@
       "copyUrl": "复制 URL",
       "copied": "URL 复制",
       "openExternalFailed": "无法用默认浏览器打开 URL",
+      "openPullRequestFailed": "无法打开 Pull Request 标签页",
       "groupTitle": "网页"
     },
     "path": {

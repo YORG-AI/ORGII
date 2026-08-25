@@ -444,7 +444,7 @@
       "missingWorkspace": "Der ursprüngliche Ordner der Sitzung fehlt — {{agent}} kann sie nur von dort fortsetzen",
       "sourceMissing": "Die ursprünglichen Sitzungsdaten sind nicht mehr auf der Festplatte",
       "launchFailed": "{{agent}}-Terminal konnte nicht geöffnet werden",
-      "composerPlaceholder": "Nachricht senden, um in einer neuen ORGII-Sitzung fortzufahren — oder in {{agent}} über die Kopfzeile fortsetzen…"
+      "composerPlaceholder": "Nachricht senden und in einer neuen Sitzung fortfahren…"
     }
   },
   "cloud": {

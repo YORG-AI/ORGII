@@ -534,7 +534,7 @@
       "missingWorkspace": "工作階段的原始資料夾已不存在，{{agent}} 只能在原資料夾中恢復",
       "sourceMissing": "原始工作階段資料已不在磁碟上",
       "launchFailed": "開啟 {{agent}} 終端失敗",
-      "composerPlaceholder": "輸入訊息以在新的 ORGII 工作階段中繼續 — 也可透過標題列按鈕在 {{agent}} 中原生恢復…"
+      "composerPlaceholder": "傳送訊息，在新工作階段中繼續…"
     }
   },
   "cloud": {

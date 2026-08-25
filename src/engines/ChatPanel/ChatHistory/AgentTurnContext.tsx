@@ -32,6 +32,10 @@ export interface AgentTurnContextValue {
    *  message event in the current group. `null` when no completed
    *  assistant message exists in the group yet. */
   lastAssistantFlatIndex: number | null;
+  /** Resident, completed assistant-message ids for copy-turn behavior. */
+  assistantCopyEventIds: readonly string[];
+  /** Resolves copy text lazily from the current uncollapsed projection. */
+  resolveAssistantTurnCopyContent: (eventIds: readonly string[]) => string;
   /** True when this turn is the most recent group in the chat — i.e. the
    *  user has not started a follow-up turn after it. Consumers that
    *  surface "resume this turn" affordances (AgentErrorChatItem's Resume

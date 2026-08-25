@@ -444,7 +444,7 @@
       "missingWorkspace": "Le dossier d'origine de la session n'existe plus — {{agent}} ne peut la reprendre que depuis ce dossier",
       "sourceMissing": "Les données d'origine de la session ne sont plus sur le disque",
       "launchFailed": "Échec de l'ouverture du terminal {{agent}}",
-      "composerPlaceholder": "Écrivez pour continuer dans une nouvelle session ORGII — ou reprenez dans {{agent}} depuis l'en-tête…"
+      "composerPlaceholder": "Écrivez pour continuer dans une nouvelle session…"
     }
   },
   "cloud": {

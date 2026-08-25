@@ -48,7 +48,11 @@ function paginate(
     group.userHeader ? fakeHeader() : null
   );
   const groupMeta = groups.map(
-    () => ({ turnId: null }) as unknown as ChatGroupMeta
+    (_, index) =>
+      ({
+        turnId: null,
+        assistantCopyEventIds: [`assistant-${index}`],
+      }) as unknown as ChatGroupMeta
   );
   const flatItems = groups.flatMap((group) =>
     Array.from({ length: group.agentItems }, fakeItem)
@@ -91,6 +95,9 @@ describe("useChatTurnPagination — default paging", () => {
     expect(result.pageCount).toBe(100);
     expect(result.currentPageIndex).toBe(49);
     expect(result.displayGroupHeaders).toHaveLength(1);
+    expect(result.displayGroupMeta[0].assistantCopyEventIds).toEqual([
+      "assistant-49",
+    ]);
   });
 });
 

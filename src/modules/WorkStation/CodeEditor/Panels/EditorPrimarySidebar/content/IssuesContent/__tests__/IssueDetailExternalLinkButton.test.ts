@@ -1,4 +1,5 @@
-import { createElement, forwardRef } from "react";
+// @vitest-environment jsdom
+import { type ReactNode, createElement, forwardRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,6 +33,10 @@ vi.mock("react-i18next", () => ({
 vi.mock("@src/components/IntegrationIcon", () => ({
   default: ({ type }: { type: string }) =>
     createElement("span", { "data-integration-icon": type }),
+}));
+
+vi.mock("@src/components/Tooltip", () => ({
+  default: ({ children }: { children: ReactNode }) => children,
 }));
 
 // The product renderer is lazy-loaded behind Suspense. These server-rendered
@@ -107,18 +112,17 @@ function createInteraction(): GitHubIssueInteractionConfig {
 }
 
 describe("IssueDetailExternalLinkButton", () => {
-  it("renders a tertiary globe action for the specific GitHub issue", () => {
+  it("renders a Chrome external-browser action for the specific GitHub issue", () => {
     const markup = renderToStaticMarkup(
       createElement(IssueDetailExternalLinkButton, { issue })
     );
 
-    expect(markup).toContain(
-      'href="https://github.com/openai/example/issues/42"'
-    );
-    expect(markup).toContain('target="_blank"');
-    expect(markup).toContain('aria-label="Open on GitHub"');
-    expect(markup).toContain('class="lucide lucide-square-arrow-out-up-right');
+    expect(markup).toContain('<button type="button"');
+    expect(markup).toContain('aria-label="Open in external browser"');
+    expect(markup).toContain('class="lucide lucide-chromium');
     expect(markup).toContain("enabled:hover:bg-surface-hover");
+    expect(markup).toContain("enabled:active:bg-surface-selected");
+    expect(markup).not.toContain("<a ");
   });
 
   it("uses the same inline Markdown issue UI as Inbox", () => {

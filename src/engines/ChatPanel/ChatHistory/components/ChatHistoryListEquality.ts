@@ -44,6 +44,22 @@ function sameNullableStringArray(
   return left.every((value, index) => value === right[index]);
 }
 
+function sameStringMatrix(
+  left: readonly (readonly string[])[],
+  right: readonly (readonly string[])[]
+): boolean {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  return left.every((leftValues, index) => {
+    const rightValues = right[index];
+    return (
+      rightValues !== undefined &&
+      leftValues.length === rightValues.length &&
+      leftValues.every((value, valueIndex) => value === rightValues[valueIndex])
+    );
+  });
+}
+
 const RESULT_RENDER_KEYS = [
   "type",
   "message",
@@ -177,6 +193,18 @@ export function sameChatHistoryListProps(
     ["flatItems", sameFlatItems(previous.flatItems, next.flatItems)],
     ["groupCounts", sameNumberArray(previous.groupCounts, next.groupCounts)],
     ["turnIds", sameNullableStringArray(previous.turnIds, next.turnIds)],
+    [
+      "assistantCopyEventIdsByGroup",
+      sameStringMatrix(
+        previous.assistantCopyEventIdsByGroup,
+        next.assistantCopyEventIdsByGroup
+      ),
+    ],
+    [
+      "resolveAssistantTurnCopyContent",
+      previous.resolveAssistantTurnCopyContent ===
+        next.resolveAssistantTurnCopyContent,
+    ],
     ["totalFlatItems", previous.totalFlatItems === next.totalFlatItems],
     [
       "lastAssistantFlatIndexPerItem",

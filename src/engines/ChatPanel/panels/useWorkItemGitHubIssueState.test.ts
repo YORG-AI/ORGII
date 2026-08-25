@@ -75,6 +75,7 @@ function Probe({
     "data-has-interaction": String(Boolean(state.interaction)),
     "data-loading": String(state.interaction?.loading),
     "data-timeline-count": String(state.timeline?.items.length ?? 0),
+    "data-external-url": state.externalUrl ?? "",
   });
 }
 
@@ -104,7 +105,12 @@ describe("useWorkItemGitHubIssueState", () => {
         remoteUrl?: string;
       }) => ({
         selectedState: {
-          issue: remoteUrl ? { number: issueNumber } : null,
+          issue: remoteUrl
+            ? {
+                number: issueNumber,
+                html_url: `https://github.com/org2AI/ORG2/issues/${issueNumber}`,
+              }
+            : null,
           timeline: remoteUrl ? [{ id: 1, event: "commented" }] : [],
           loading: false,
           timelineLoading: false,
@@ -175,6 +181,11 @@ describe("useWorkItemGitHubIssueState", () => {
         .querySelector("[data-testid='probe']")
         ?.getAttribute("data-timeline-count")
     ).toBe("1");
+    expect(
+      container
+        .querySelector("[data-testid='probe']")
+        ?.getAttribute("data-external-url")
+    ).toBe("https://github.com/org2AI/ORG2/issues/705");
   });
 
   it("does not resolve or expose GitHub state for local Work Items", () => {
@@ -186,6 +197,11 @@ describe("useWorkItemGitHubIssueState", () => {
         .querySelector("[data-testid='probe']")
         ?.getAttribute("data-has-interaction")
     ).toBe("false");
+    expect(
+      container
+        .querySelector("[data-testid='probe']")
+        ?.getAttribute("data-external-url")
+    ).toBe("");
   });
 
   it("does not expose a dead composer when no GitHub remote resolves", async () => {

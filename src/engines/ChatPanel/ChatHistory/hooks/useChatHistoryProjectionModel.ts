@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
@@ -19,6 +19,7 @@ import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 import type { GroupChatContextValue } from "../GroupChatView/GroupChatContext";
 import { resolveChatHistoryProjectionSource } from "../projection/source";
 import { useChatProjection } from "../projection/useChatProjection";
+import { formatAssistantTurnCopyContent } from "../turnCopyContent";
 import type { ChatGroupsProjectionOptions } from "./useChatGroupsProjection";
 import { useChatTurnPagination } from "./useChatTurnPagination";
 import { useTailTurnCollapse } from "./useTailTurnCollapse";
@@ -75,6 +76,7 @@ export function useChatHistoryProjectionModel({
     activeId: string | null;
     activeProjectionHistory: unknown[];
     flatItems: unknown[];
+    groupMeta: unknown[];
     groupCount: number;
     totalFlatItems: number;
   } | null>(null);
@@ -141,6 +143,19 @@ export function useChatHistoryProjectionModel({
     enabled: projectionSource.enabled,
   });
   const activeProjectionHistory = projection.optimizedChatHistory;
+  const activeProjectionHistoryRef = useRef(activeProjectionHistory);
+  activeProjectionHistoryRef.current = activeProjectionHistory;
+  // The resolver stays stable across projection ticks and scans only after an
+  // explicit copy click. This avoids duplicating transcript strings in group
+  // metadata or rebuilding a full event-id map while the assistant streams.
+  const resolveAssistantTurnCopyContent = useCallback(
+    (eventIds: readonly string[]) =>
+      formatAssistantTurnCopyContent(
+        activeProjectionHistoryRef.current,
+        eventIds
+      ),
+    []
+  );
   const {
     groupCounts,
     groupHeaders,
@@ -163,6 +178,7 @@ export function useChatHistoryProjectionModel({
     activeId,
     activeProjectionHistory,
     flatItems,
+    groupMeta,
     groupCount: groupCounts.length,
     totalFlatItems,
   };
@@ -178,6 +194,7 @@ export function useChatHistoryProjectionModel({
         bytes:
           estimateRuntimeValueBytes(source.activeProjectionHistory) +
           estimateRuntimeValueBytes(source.flatItems) +
+          estimateRuntimeValueBytes(source.groupMeta) +
           source.groupCount * 8,
         items: source.totalFlatItems,
         label: source.activeId ?? "unknown",
@@ -293,6 +310,7 @@ export function useChatHistoryProjectionModel({
     originalToFlatIndex,
     planningIndicatorEnabled,
     projection,
+    resolveAssistantTurnCopyContent,
     tailFollowKey,
     totalFlatItems,
     turnMetadataReloadKey,

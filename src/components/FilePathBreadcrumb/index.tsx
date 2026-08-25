@@ -43,20 +43,32 @@ const FilePathBreadcrumb: React.FC<FilePathBreadcrumbProps> = ({
   }, [segments, maxSegments]);
 
   const lastIndex = displaySegments.length - 1;
+  const showsFullPath = maxSegments === null;
 
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs ${className}`}>
+    <span
+      className={`inline-flex min-w-0 max-w-full items-center gap-0.5 text-xs ${
+        showsFullPath ? "flex-wrap whitespace-normal" : "whitespace-nowrap"
+      } ${className}`}
+    >
       {displaySegments.map((segment, index) => {
         const isFile = index === lastIndex;
         return (
-          <React.Fragment key={index}>
+          <span
+            key={`${segment}-${index}`}
+            className={`inline-flex min-w-0 max-w-full items-center gap-0.5 ${
+              showsFullPath ? "shrink-0" : ""
+            }`}
+          >
             {index > 0 && PATH_SEPARATOR}
             <span
-              className={isFile ? "font-medium text-text-1" : "text-text-2"}
+              className={`${
+                isFile ? "font-medium text-text-1" : "text-text-2"
+              } ${showsFullPath ? "min-w-0 break-all" : ""}`}
             >
               {segment}
             </span>
-          </React.Fragment>
+          </span>
         );
       })}
     </span>

@@ -291,6 +291,55 @@ describe("PrDetailPanel tabs", () => {
     ).toBe("none");
   });
 
+  it("stacks a combined PR header below the detail-panel breakpoint without a separator", () => {
+    const store = createStore();
+    const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
+    store.set(workstationSelectedPrAtomFamily(scopeKey), {
+      ...initialSelectedPrState,
+      loading: false,
+      detail: {},
+    });
+
+    act(() => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(PrDetailPanel, {
+            identity: {
+              number: 42,
+              title: "Use a responsive PR header",
+              url: "https://github.com/org/repo/pull/42",
+              status: "open",
+              headBranch: "feature/responsive-header",
+              baseBranch: "main",
+            },
+            repoPath: "/repo",
+            combineHeaderAndTabs: true,
+          })
+        )
+      );
+    });
+
+    const panel = container.firstElementChild;
+    const header = container.querySelector<HTMLElement>(
+      "[data-testid='pr-detail-header']"
+    );
+    const title = header?.querySelector<HTMLElement>(
+      "[data-testid='detail-header-title']"
+    );
+
+    expect(panel?.className).toContain("@container/detailheader");
+    expect(header?.className).toContain("!h-auto");
+    expect(header?.className).toContain("border-b");
+    expect(title?.parentElement?.className).toContain("flex-col");
+    expect(title?.parentElement?.className).toContain(
+      "@[960px]/detailheader:flex-row"
+    );
+    expect(header?.querySelector('[role="separator"]')).toBeNull();
+    expect(header?.querySelectorAll('[role="tab"]')).toHaveLength(4);
+  });
+
   it("keeps conflict styling while exposing the open-PR action dropdown", () => {
     const store = createStore();
     const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
@@ -569,16 +618,15 @@ describe("PrDetailPanel tabs", () => {
     expect(header?.className).toContain("!pr-[7px]");
     expect(header?.className).not.toContain("border-b");
     const externalLink = header?.querySelector(
-      'a[aria-label="Open on GitHub"]'
+      'button[aria-label="Open in external browser"]'
     );
-    expect(externalLink?.getAttribute("href")).toBe(
-      "https://github.com/org/repo/pull/42"
-    );
-    expect(externalLink?.getAttribute("target")).toBe("_blank");
+    expect(externalLink?.getAttribute("type")).toBe("button");
     expect(externalLink?.getAttribute("style")).toContain("height: 28px");
-    expect(externalLink?.querySelector(".lucide-globe")).not.toBeNull();
+    expect(externalLink?.querySelector(".lucide-chromium")).not.toBeNull();
     expect(
-      container.querySelectorAll('a[aria-label="Open on GitHub"]')
+      container.querySelectorAll(
+        'button[aria-label="Open in external browser"]'
+      )
     ).toHaveLength(1);
     expect(header?.textContent).toContain("Use compact PR metadata");
     const mergedStatus = header?.querySelector(

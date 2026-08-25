@@ -1286,6 +1286,7 @@
       "unknownProcess": "Неизвестный процесс",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Открыть в браузере",
+      "openAddress": "Открыть {{address}}",
       "copyAddress": "Копировать адрес",
       "stopProcess": "Остановить процесс",
       "searchPlaceholder": "Поиск портов…",

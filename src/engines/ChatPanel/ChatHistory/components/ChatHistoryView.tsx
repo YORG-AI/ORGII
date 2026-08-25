@@ -153,6 +153,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     pages,
     planningIndicatorEnabled,
     projection: projectionResult,
+    resolveAssistantTurnCopyContent,
     selectTurnPage,
     setTurnPageListOpen,
     setTurnPageSortAscending,
@@ -212,6 +213,10 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   const getIsExploring = useCallback(
     () => isExploringRef.current ?? false,
     [isExploringRef]
+  );
+  const assistantCopyEventIdsByGroup = useMemo(
+    () => displayGroupMeta.map((meta) => meta.assistantCopyEventIds),
+    [displayGroupMeta]
   );
   const hasCloudDownloadProgress = useCloudSessionHasDownloadSurface(activeId);
 
@@ -473,6 +478,12 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       flatItems={displayFlatItems}
                       groupCounts={displayGroupCounts}
                       turnIds={displayTurnIds}
+                      assistantCopyEventIdsByGroup={
+                        assistantCopyEventIdsByGroup
+                      }
+                      resolveAssistantTurnCopyContent={
+                        resolveAssistantTurnCopyContent
+                      }
                       totalFlatItems={displayTotalFlatItems}
                       lastAssistantFlatIndexPerItem={
                         displayLastAssistantFlatIndexPerItem

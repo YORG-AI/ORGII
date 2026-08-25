@@ -442,7 +442,7 @@
       "missingWorkspace": "Thư mục gốc của phiên không còn tồn tại — {{agent}} chỉ có thể tiếp tục phiên từ thư mục đó",
       "sourceMissing": "Dữ liệu gốc của phiên không còn trên ổ đĩa",
       "launchFailed": "Không thể mở terminal {{agent}}",
-      "composerPlaceholder": "Nhập tin nhắn để tiếp tục trong phiên ORGII mới — hoặc tiếp tục trong {{agent}} bằng nút ở tiêu đề…"
+      "composerPlaceholder": "Nhập tin nhắn để tiếp tục trong phiên mới…"
     }
   },
   "cloud": {

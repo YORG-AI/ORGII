@@ -444,7 +444,7 @@
       "missingWorkspace": "A pasta original da sessão não existe mais — o {{agent}} só pode retomá-la a partir dela",
       "sourceMissing": "Os dados originais da sessão não estão mais no disco",
       "launchFailed": "Falha ao abrir o terminal do {{agent}}",
-      "composerPlaceholder": "Escreva para continuar em uma nova sessão do ORGII — ou retome no {{agent}} pelo cabeçalho…"
+      "composerPlaceholder": "Escreva para continuar em uma nova sessão…"
     }
   },
   "cloud": {

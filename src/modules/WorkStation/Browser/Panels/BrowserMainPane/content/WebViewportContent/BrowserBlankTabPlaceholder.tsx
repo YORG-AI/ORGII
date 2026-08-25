@@ -2,6 +2,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { WorkspacePort } from "@src/api/tauri/workspacePorts";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   NoTabsPlaceholder,
@@ -12,8 +13,21 @@ import {
   workStationBrowserSidebarCollapsedAtom,
   workStationBrowserSidebarCollapsedPersistAtom,
 } from "@src/store/ui/workStationAtom";
+import {
+  addressForPort,
+  browserUrlForPort,
+  workspacePortsAtom,
+} from "@src/store/workstation/codeEditor/workspacePortsAtom";
 
-import BlankTabPortOptions from "./BlankTabPortOptions";
+export const BLANK_TAB_PORT_OPTION_LIMIT = 6;
+
+export function selectBlankTabPortOptions(
+  ports: WorkspacePort[]
+): WorkspacePort[] {
+  return ports
+    .filter((port) => port.kind === "workspace")
+    .slice(0, BLANK_TAB_PORT_OPTION_LIMIT);
+}
 
 interface BrowserBlankTabPlaceholderProps {
   isIncognito?: boolean;
@@ -29,20 +43,32 @@ const BrowserBlankTabPlaceholder: React.FC<BrowserBlankTabPlaceholderProps> =
     const setSidebarCollapsed = useSetAtom(
       workStationBrowserSidebarCollapsedPersistAtom
     );
-
-    const actions = useMemo<QuickAction[]>(
-      () => [
-        {
-          id: "toggle-browser-sidebar",
-          label: sidebarCollapsed
-            ? t("commands.showPrimarySidebar")
-            : t("commands.hidePrimarySidebar"),
-          shortcut: getShortcutKeys("browser_sidebar"),
-          onAction: () => setSidebarCollapsed("toggle"),
-        },
-      ],
-      [setSidebarCollapsed, sidebarCollapsed, t]
+    const scannedPorts = useAtomValue(workspacePortsAtom);
+    const ports = useMemo(
+      () => selectBlankTabPortOptions(scannedPorts),
+      [scannedPorts]
     );
+
+    const actions = useMemo<QuickAction[]>(() => {
+      const sidebarAction: QuickAction = {
+        id: "toggle-browser-sidebar",
+        label: sidebarCollapsed
+          ? t("commands.showPrimarySidebar")
+          : t("commands.hidePrimarySidebar"),
+        shortcut: getShortcutKeys("browser_sidebar"),
+        onAction: () => setSidebarCollapsed("toggle"),
+      };
+      const portActions: QuickAction[] = ports.map((port) => {
+        const address = addressForPort(port);
+        return {
+          id: `open-workspace-port-${port.id}`,
+          label: t("workstation.ports.openAddress", { address }),
+          onAction: () => onOpen(browserUrlForPort(port)),
+        };
+      });
+
+      return [sidebarAction, ...portActions];
+    }, [onOpen, ports, setSidebarCollapsed, sidebarCollapsed, t]);
 
     return (
       <>
@@ -55,9 +81,7 @@ const BrowserBlankTabPlaceholder: React.FC<BrowserBlankTabPlaceholderProps> =
               : undefined
           }
           actions={actions}
-        >
-          <BlankTabPortOptions onOpen={onOpen} />
-        </NoTabsPlaceholder>
+        />
       </>
     );
   });

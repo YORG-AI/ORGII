@@ -5,7 +5,7 @@
  * load/empty placeholders, or the detail for the selected Inbox row.
  */
 import type { TFunction } from "i18next";
-import { Globe, SquareArrowOutUpRight } from "lucide-react";
+import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 
 import type { ManagedPrItem } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
@@ -74,8 +74,8 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
               data-testid="team-inbox-pr-detail-actions"
             >
               <TeamInboxHeaderIconAction
-                label={t("previews.openInBrowser")}
-                icon={<Globe size={14} strokeWidth={1.75} aria-hidden />}
+                label={t("previews.openInExternalBrowser")}
+                icon={<Chrome size={14} strokeWidth={1.75} aria-hidden />}
                 onClick={() =>
                   void openExternalLink(selectedPullRequestIdentity.url)
                 }

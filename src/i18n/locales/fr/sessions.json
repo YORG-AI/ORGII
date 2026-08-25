@@ -2763,6 +2763,8 @@
     },
     "actions": {
       "moreOpenOptions": "Plus d’options d’ouverture",
+      "openAsPullRequest": "Onglet PR",
+      "openAsWebPage": "Page web",
       "openInApp": "Ouvrir dans l’application",
       "openWithDefaultBrowser": "Ouvrir avec le navigateur par défaut",
       "revealInFinder": "Afficher dans Finder",
@@ -2774,6 +2776,7 @@
       "copyUrl": "Copier l'URL",
       "copied": "URL copiée",
       "openExternalFailed": "Impossible d’ouvrir l’URL dans le navigateur par défaut",
+      "openPullRequestFailed": "Impossible d’ouvrir l’onglet de pull request",
       "groupTitle": "Pages web"
     },
     "path": {

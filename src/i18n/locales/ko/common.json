@@ -1281,6 +1281,7 @@
       "unknownProcess": "알 수 없는 프로세스",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "브라우저에서 열기",
+      "openAddress": "{{address}} 열기",
       "copyAddress": "주소 복사",
       "stopProcess": "프로세스 중지",
       "searchPlaceholder": "포트 검색…",
