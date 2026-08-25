@@ -26,7 +26,10 @@ use tokio::sync::oneshot;
 use tracing::warn;
 
 pub const CONVERSATION_TURN_REQUESTED_EVENT: &str = "orgii-work-run-conversation-turn";
-pub const ACCEPT_TIMEOUT: Duration = Duration::from_secs(10);
+// The frontend's cold capability probe is bounded at 15 seconds. Leave room
+// for token refresh and local org-alias lookup so a capable cold window can
+// still claim before this offer is retried.
+pub const ACCEPT_TIMEOUT: Duration = Duration::from_secs(20);
 const CLAIM_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 const CLAIM_LEASE_EXTENSION_MS: i64 = 45_000;
 // An offer must be accepted inside ACCEPT_TIMEOUT, before the frontend can
@@ -430,6 +433,12 @@ mod tests {
             Duration::from_millis(CLAIM_LEASE_EXTENSION_MS as u64) > CLAIM_HEARTBEAT_INTERVAL * 2,
             "each renewal must survive more than one missed heartbeat"
         );
+    }
+
+    #[test]
+    fn acceptance_window_covers_the_cold_capability_probe() {
+        const FRONTEND_CAPABILITY_TIMEOUT: Duration = Duration::from_secs(15);
+        assert!(ACCEPT_TIMEOUT > FRONTEND_CAPABILITY_TIMEOUT);
     }
 
     #[tokio::test]
