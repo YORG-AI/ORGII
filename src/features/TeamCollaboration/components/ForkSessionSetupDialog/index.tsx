@@ -8,6 +8,7 @@ import Button from "@src/components/Button";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import { getCliTransportLabel } from "@src/config/cliAgents";
+import { getCliCompatibleAccountsForAgent } from "@src/hooks/models/useAgentCompatibility";
 import {
   accountHasModel,
   accountModelIds,
@@ -110,7 +111,7 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
     getShareableScopeKeyVersion
   );
 
-  const runnableAccounts = useMemo(
+  const runnableNativeAccounts = useMemo(
     () =>
       accounts.filter(
         (account) =>
@@ -123,15 +124,6 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
   );
   const sourceModel = request.sourceModel;
   const sourceAgentDefinitionId = request.sourceAgentDefinitionId;
-  const preferredAccount = useMemo(
-    () =>
-      (sourceModel
-        ? runnableAccounts.find((account) =>
-            accountHasModel(account, sourceModel)
-          )
-        : undefined) ?? runnableAccounts[0],
-    [sourceModel, runnableAccounts]
-  );
   const preferredAgent = useMemo(() => {
     const sourceAgent = sourceAgentDefinitionId
       ? allAgents.find((agent) => agent.id === sourceAgentDefinitionId)
@@ -157,25 +149,6 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
         (agent) => agent.id === (chosenAgentDefinitionId || preferredAgent?.id)
       ) ?? null,
     [allAgents, chosenAgentDefinitionId, preferredAgent?.id]
-  );
-  const agentPreferredAccountId = selectedAgent?.selectedAccountId
-    ? runnableAccounts.find(
-        (account) => account.id === selectedAgent.selectedAccountId
-      )?.id
-    : undefined;
-  const accountId =
-    chosenAccountId || agentPreferredAccountId || preferredAccount?.id || "";
-  const selectedAccount = runnableAccounts.find(
-    (account) => account.id === accountId
-  );
-  const accountOptions = useMemo<SelectOption[]>(
-    () =>
-      runnableAccounts.map((account) => ({
-        value: account.id,
-        label: `${account.name} · ${account.modelType}`,
-        triggerLabel: account.name,
-      })),
-    [runnableAccounts]
   );
   const agentOptions = useMemo<SelectOption[]>(
     () =>
@@ -222,6 +195,48 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
       ) ?? null
     );
   }, [chosenRuntime, runnableCliAgents]);
+  const runnableCliAccounts = useMemo(
+    () =>
+      selectedCliAgent
+        ? getCliCompatibleAccountsForAgent(
+            selectedCliAgent.agent,
+            selectedCliAgent.cliAgentType,
+            accounts
+          ).filter((account) => account.enabled && account.hasKey)
+        : [],
+    [accounts, selectedCliAgent]
+  );
+  const executionAccounts = selectedCliAgent
+    ? runnableCliAccounts
+    : runnableNativeAccounts;
+  const preferredAccount = useMemo(
+    () =>
+      (sourceModel
+        ? executionAccounts.find((account) =>
+            accountHasModel(account, sourceModel)
+          )
+        : undefined) ?? executionAccounts[0],
+    [executionAccounts, sourceModel]
+  );
+  const agentPreferredAccountId = selectedAgent?.selectedAccountId
+    ? executionAccounts.find(
+        (account) => account.id === selectedAgent.selectedAccountId
+      )?.id
+    : undefined;
+  const accountId =
+    chosenAccountId || agentPreferredAccountId || preferredAccount?.id || "";
+  const selectedAccount = executionAccounts.find(
+    (account) => account.id === accountId
+  );
+  const accountOptions = useMemo<SelectOption[]>(
+    () =>
+      executionAccounts.map((account) => ({
+        value: account.id,
+        label: `${account.name} · ${account.modelType}`,
+        triggerLabel: account.name,
+      })),
+    [executionAccounts]
+  );
   const modelOptions = useMemo<SelectOption[]>(() => {
     if (!selectedAccount) return [];
     return accountModelIds(selectedAccount)
@@ -259,7 +274,7 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
     Boolean(selectedAccount && accountId && model) &&
     Boolean(selectedAccount && accountHasModel(selectedAccount, model));
   const executionReady = selectedCliAgent
-    ? true
+    ? Boolean(selectedAccount && accountId)
     : chosenRuntime === "native" && nativeExecutionReady;
   const canContinue =
     Boolean(selectedAgent) &&
@@ -299,6 +314,8 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
         ? {
             agentDefinitionId: selectedAgent.id,
             cliAgentType: selectedCliAgent.cliAgentType,
+            accountId,
+            model: model || undefined,
           }
         : {
             agentDefinitionId: selectedAgent.id,
@@ -407,42 +424,44 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
               <Select
                 value={chosenRuntime}
                 options={runtimeOptions}
-                onChange={(value) => setChosenRuntime(String(value))}
+                onChange={(value) => {
+                  setChosenRuntime(String(value));
+                  setChosenAccountId("");
+                  setChosenModel("");
+                }}
                 style={{ width: "100%" }}
                 dataTestId="fork-setup-runtime"
               />
             </label>
           ) : null}
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-1">
+            {t("collaboration.session.forkSetupAccount")}
+            <Select
+              value={accountId || undefined}
+              options={accountOptions}
+              placeholder={t("collaboration.session.forkSetupAccount")}
+              onChange={(value) => {
+                setChosenAccountId(String(value));
+                setChosenModel("");
+              }}
+              style={{ width: "100%" }}
+              dataTestId="fork-setup-account"
+            />
+          </label>
           {!selectedCliAgent ? (
-            <>
-              <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-1">
-                {t("collaboration.session.forkSetupAccount")}
-                <Select
-                  value={accountId || undefined}
-                  options={accountOptions}
-                  placeholder={t("collaboration.session.forkSetupAccount")}
-                  onChange={(value) => {
-                    setChosenAccountId(String(value));
-                    setChosenModel("");
-                  }}
-                  style={{ width: "100%" }}
-                  dataTestId="fork-setup-account"
-                />
-              </label>
-              <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-1">
-                {t("collaboration.session.forkSetupModel")}
-                <Select
-                  value={model || undefined}
-                  options={modelOptions}
-                  placeholder={t("collaboration.session.forkSetupModel")}
-                  disabled={!selectedAccount}
-                  showSearch
-                  onChange={(value) => setChosenModel(String(value))}
-                  style={{ width: "100%" }}
-                  dataTestId="fork-setup-model"
-                />
-              </label>
-            </>
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-1">
+              {t("collaboration.session.forkSetupModel")}
+              <Select
+                value={model || undefined}
+                options={modelOptions}
+                placeholder={t("collaboration.session.forkSetupModel")}
+                disabled={!selectedAccount}
+                showSearch
+                onChange={(value) => setChosenModel(String(value))}
+                style={{ width: "100%" }}
+                dataTestId="fork-setup-model"
+              />
+            </label>
           ) : null}
         </div>
 

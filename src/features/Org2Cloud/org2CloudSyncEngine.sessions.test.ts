@@ -93,8 +93,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     );
   });
 
-  it("publishes live CLI sessions from the native transcript when the events cache is empty", async () => {
-    eventStoreMock.getPersistedEvents.mockResolvedValueOnce([]);
+  it("publishes live CLI sessions from the native transcript", async () => {
     const chunks = [{ id: "cli-chunk" }] as never;
     const chunksSpy = vi.spyOn(rpc.cli, "chunks").mockResolvedValue(chunks);
     const converted = [makeEvent("cli-event")];
@@ -114,13 +113,17 @@ describe("Org2CloudSyncEngine session publishing", () => {
       chunks,
       "cliagent-123-native"
     );
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
+      "cliagent-123-native"
+    );
     chunksSpy.mockRestore();
   });
 
-  it("prefers the persisted event cache for CLI sessions when it is populated", async () => {
-    const persisted = [makeEvent("persisted-cli-event")];
-    eventStoreMock.getPersistedEvents.mockResolvedValueOnce(persisted);
-    const chunksSpy = vi.spyOn(rpc.cli, "chunks");
+  it("uses CLI-owned history even when EventStore has an optimistic row", async () => {
+    const chunks = [{ id: "authoritative-cli-chunk" }] as never;
+    const chunksSpy = vi.spyOn(rpc.cli, "chunks").mockResolvedValue(chunks);
+    const converted = [makeEvent("authoritative-cli-event")];
+    processChunksRustMock.mockResolvedValueOnce(converted);
 
     const events = await (
       engine as unknown as {
@@ -128,8 +131,17 @@ describe("Org2CloudSyncEngine session publishing", () => {
       }
     ).loadPushEvents("cliagent-123-native");
 
-    expect(events).toEqual(persisted);
-    expect(chunksSpy).not.toHaveBeenCalled();
+    expect(events).toEqual(converted);
+    expect(chunksSpy).toHaveBeenCalledWith({
+      sessionId: "cliagent-123-native",
+    });
+    expect(processChunksRustMock).toHaveBeenCalledWith(
+      chunks,
+      "cliagent-123-native"
+    );
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
+      "cliagent-123-native"
+    );
     chunksSpy.mockRestore();
   });
   it("pushes only scope-matched own sessions (metadata + epoch-1 rewrite)", async () => {

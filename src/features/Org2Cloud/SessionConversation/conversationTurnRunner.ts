@@ -19,7 +19,6 @@
  */
 import Message from "@src/components/Message";
 import type { TurnTerminalStatus } from "@src/engines/SessionCore/control/turnLifecycle";
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import {
@@ -28,6 +27,7 @@ import {
   waitForTurnOutcome,
 } from "@src/engines/SessionCore/services/TurnDispatchService";
 import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
+import { loadAuthoritativeSessionEvents } from "@src/engines/SessionCore/sync/authoritativeSessionEvents";
 import { requestForkSessionSetup } from "@src/features/TeamCollaboration/forkSession";
 import {
   clearForkSetupMemory,
@@ -60,6 +60,7 @@ import {
 } from "./conversationRunnerSessions";
 import {
   buildConversationPlaneUserEvent,
+  sliceAppendedTurnTail,
   sliceTurnTailByIntent,
   turnIntentIdOf,
 } from "./conversationTurnEvents";
@@ -67,6 +68,8 @@ import {
 const log = createLogger("ConversationTurnRunner");
 
 const TURN_DEADLINE_MS = 15 * 60_000;
+const CLI_TRANSCRIPT_SETTLE_TIMEOUT_MS = 5_000;
+const CLI_TRANSCRIPT_SETTLE_POLL_MS = 100;
 export const CONVERSATION_CONTEXT_MAX_ENTRIES = 60;
 export const CONVERSATION_TURN_LOCK_UNAVAILABLE =
   "ORG2_CONVERSATION_TURN_LOCK_UNAVAILABLE";
@@ -282,8 +285,8 @@ async function pushUserRow(
   io: TurnPushIo,
   displayText: string,
   dispatchIso: string
-): Promise<void> {
-  await pushConversationEvents(await io.getAccessToken(), {
+): Promise<number> {
+  const pushed = await pushConversationEvents(await io.getAccessToken(), {
     orgId: io.orgId,
     rootSessionId: io.rootSessionId,
     turnId: io.turnId,
@@ -299,31 +302,49 @@ async function pushUserRow(
     ],
   });
   io.onPushed?.();
+  return pushed.lastSeq;
 }
 
 async function pushAgentTail(
   io: TurnPushIo,
-  runnerSessionId: string
-): Promise<number> {
-  const persisted = await eventStoreProxy
-    .getPersistedEvents(runnerSessionId)
-    .catch(() => [] as SessionEvent[]);
-  const sliced = sliceTurnTailByIntent(persisted, io.turnIntentId);
-  if (sliced === null) {
-    throw new Error(
-      `conversation turn ${io.turnIntentId} is missing its user anchor`
+  runnerSessionId: string,
+  deadlineMs: number,
+  eventsBefore?: readonly SessionEvent[]
+): Promise<{ count: number; lastSeq?: number }> {
+  const settleDeadline = eventsBefore
+    ? Math.min(deadlineMs, Date.now() + CLI_TRANSCRIPT_SETTLE_TIMEOUT_MS)
+    : Date.now();
+  let sliced: SessionEvent[] | null = null;
+  for (;;) {
+    const { events } = await loadAuthoritativeSessionEvents(runnerSessionId);
+    sliced =
+      sliceTurnTailByIntent(events, io.turnIntentId) ??
+      (eventsBefore ? sliceAppendedTurnTail(eventsBefore, events) : null);
+    if (sliced && (sliced.length > 0 || !eventsBefore)) break;
+    if (!eventsBefore || Date.now() >= settleDeadline) {
+      throw new Error(
+        eventsBefore
+          ? `conversation turn ${io.turnIntentId} native transcript did not expose an agent tail`
+          : `conversation turn ${io.turnIntentId} is missing its user anchor`
+      );
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, CLI_TRANSCRIPT_SETTLE_POLL_MS)
     );
   }
   const tail = sliced.map(boundConversationEventForPush);
-  if (tail.length === 0) return 0;
-  await pushConversationEventsChunked(await io.getAccessToken(), {
-    orgId: io.orgId,
-    rootSessionId: io.rootSessionId,
-    turnId: io.turnId,
-    events: tail,
-  });
+  if (tail.length === 0) return { count: 0 };
+  const pushed = await pushConversationEventsChunked(
+    await io.getAccessToken(),
+    {
+      orgId: io.orgId,
+      rootSessionId: io.rootSessionId,
+      turnId: io.turnId,
+      events: tail,
+    }
+  );
   io.onPushed?.();
-  return tail.length;
+  return { count: tail.length, lastSeq: pushed.lastSeq };
 }
 
 function collectLocalTurnIntentIds(
@@ -451,9 +472,11 @@ async function runConversationTurnSerialized(
     }
   }
   if (decision.kind === "resume") {
-    const persistedBefore = await eventStoreProxy
-      .getPersistedEvents(decision.record.continuationSessionId)
-      .catch(() => [] as SessionEvent[]);
+    const persistedBefore = (
+      await loadAuthoritativeSessionEvents(
+        decision.record.continuationSessionId
+      )
+    ).events;
     const delta = await params.loadPlaneDelta(
       decision.record.readThroughPlaneSeq
     );
@@ -466,7 +489,11 @@ async function runConversationTurnSerialized(
       turnIntentId,
       turnIntentId
     );
-    await pushUserRow(io, params.displayText, dispatchIso);
+    const userRowLastSeq = await pushUserRow(
+      io,
+      params.displayText,
+      dispatchIso
+    );
     params.onUserMessagePublished?.();
 
     let dispatch;
@@ -491,7 +518,7 @@ async function runConversationTurnSerialized(
         request,
         deadlineMs,
         dispatchIso,
-        userRowAlreadyPushed: true,
+        userRowLastSeq,
       });
     }
     await params.onTurnAccepted?.(
@@ -503,6 +530,8 @@ async function runConversationTurnSerialized(
       runnerSessionId: decision.record.continuationSessionId,
       deadlineMs,
       readThroughPlaneSeq: delta.lastSeq,
+      userRowLastSeq,
+      eventsBefore: decision.record.cliAgentType ? persistedBefore : undefined,
       dispatch,
     });
   }
@@ -516,10 +545,10 @@ async function runConversationTurnSerialized(
         request,
         deadlineMs,
         dispatchIso,
-        userRowAlreadyPushed: false,
       },
       {
         runnerSessionId: decision.record.continuationSessionId,
+        cliAgentType: decision.record.cliAgentType,
         accountId: decision.record.accountId,
         model: decision.record.model,
       },
@@ -533,7 +562,6 @@ async function runConversationTurnSerialized(
       request,
       deadlineMs,
       dispatchIso,
-      userRowAlreadyPushed: false,
     },
     initialContext
   );
@@ -543,11 +571,13 @@ interface BootstrapTurn {
   request: string;
   deadlineMs: number;
   dispatchIso: string;
-  userRowAlreadyPushed: boolean;
+  /** Present when a rejected resume already published the idempotent row. */
+  userRowLastSeq?: number;
 }
 
 interface BootstrapEpisode {
   runnerSessionId: string;
+  cliAgentType?: string;
   accountId?: string;
   model?: string;
 }
@@ -568,9 +598,22 @@ async function startFreshEpisode(
       allowCliRuntime: true,
       lockSourceAgent: Boolean(params.assignedAgentDefinitionId),
     });
-  const remembered = loadForkSetupMemory(setupMemoryKey);
+  const rememberedCandidate = loadForkSetupMemory(setupMemoryKey);
+  const remembered =
+    rememberedCandidate?.execution.cliAgentType &&
+    !rememberedCandidate.execution.accountId
+      ? null
+      : rememberedCandidate;
+  if (rememberedCandidate && !remembered) {
+    clearForkSetupMemory(setupMemoryKey);
+  }
   let usedRememberedSetup = Boolean(remembered);
   let setup = remembered ?? (await requestSetup());
+  if (setup.execution.cliAgentType && !setup.execution.accountId) {
+    throw new Error(
+      "External CLI continuation requires an explicit local account"
+    );
+  }
   if (!remembered) saveForkSetupMemory(setupMemoryKey, setup);
   assertAssignedAgent(setup.execution.agentDefinitionId, params);
   const initialContext =
@@ -596,6 +639,11 @@ async function startFreshEpisode(
     log.warn("remembered runner setup failed; re-prompting", error);
     clearForkSetupMemory(setupMemoryKey);
     setup = await requestSetup();
+    if (setup.execution.cliAgentType && !setup.execution.accountId) {
+      throw new Error(
+        "External CLI continuation requires an explicit local account"
+      );
+    }
     assertAssignedAgent(setup.execution.agentDefinitionId, params);
     saveForkSetupMemory(setupMemoryKey, setup);
     usedRememberedSetup = false;
@@ -635,6 +683,7 @@ async function startFreshEpisode(
     turn,
     {
       runnerSessionId,
+      cliAgentType: setup.execution.cliAgentType,
       accountId: setup.execution.accountId,
       model: setup.execution.model,
     },
@@ -658,10 +707,18 @@ async function dispatchBootstrapEpisode(
     io.turnId,
     io.turnIntentId
   );
-  if (!turn.userRowAlreadyPushed) {
-    await pushUserRow(io, params.displayText, turn.dispatchIso);
+  let userRowLastSeq = turn.userRowLastSeq;
+  if (userRowLastSeq === undefined) {
+    userRowLastSeq = await pushUserRow(
+      io,
+      params.displayText,
+      turn.dispatchIso
+    );
     params.onUserMessagePublished?.();
   }
+  const eventsBefore = episode.cliAgentType
+    ? (await loadAuthoritativeSessionEvents(episode.runnerSessionId)).events
+    : undefined;
   let dispatch;
   try {
     dispatch = await dispatchRunnerTurn(params, io, {
@@ -699,6 +756,8 @@ async function dispatchBootstrapEpisode(
     runnerSessionId: episode.runnerSessionId,
     deadlineMs: turn.deadlineMs,
     readThroughPlaneSeq: initialContext.readThroughPlaneSeq,
+    userRowLastSeq,
+    eventsBefore,
     dispatch,
   });
 }
@@ -711,21 +770,33 @@ async function settleEpisode(
     runnerSessionId: string;
     deadlineMs: number;
     readThroughPlaneSeq: number;
+    userRowLastSeq: number;
+    eventsBefore?: readonly SessionEvent[];
     dispatch: ReturnType<typeof reserveTurnDispatch>;
   }
 ): Promise<RunConversationTurnResult> {
   const outcome = await waitForTurnOutcome(input.dispatch, input.deadlineMs);
   markConversationRunnerTerminal(input.key, input.runnerSessionId);
-  if (outcome.status === "completed") {
-    advanceContinuationReadThrough(
-      params.executionScopeKey,
-      params.rootSessionId,
-      input.readThroughPlaneSeq
-    );
-  }
   let tailCount = 0;
   try {
-    tailCount = await pushAgentTail(io, input.runnerSessionId);
+    const tail = await pushAgentTail(
+      io,
+      input.runnerSessionId,
+      input.deadlineMs,
+      input.eventsBefore
+    );
+    tailCount = tail.count;
+    if (outcome.status === "completed") {
+      advanceContinuationReadThrough(
+        params.executionScopeKey,
+        params.rootSessionId,
+        Math.max(
+          input.readThroughPlaneSeq,
+          input.userRowLastSeq,
+          tail.lastSeq ?? 0
+        )
+      );
+    }
   } finally {
     if (outcome.status === "completed") {
       await cleanupRetiredConversationRunners(input.key, input.runnerSessionId);

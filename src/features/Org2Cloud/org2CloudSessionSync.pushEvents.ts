@@ -9,16 +9,12 @@
  * network-facing halves live further down.
  */
 import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
-import { rpc } from "@src/api/tauri/rpc";
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge";
+import { loadAuthoritativeSessionEvents } from "@src/engines/SessionCore/sync/authoritativeSessionEvents";
 import { createLogger } from "@src/hooks/logger";
 import type { ActivityChunk } from "@src/types/session/session";
-import {
-  isCliSession,
-  isImportedHistorySession,
-} from "@src/util/session/sessionDispatch";
+import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import {
   sha256Hex,
@@ -172,29 +168,7 @@ export class Org2CloudSessionSyncPushEvents extends Org2CloudSessionSyncState {
       }
       return { events };
     }
-    const revisionBefore =
-      await eventStoreProxy.getPersistedEventRevision(sessionId);
-    const persisted = await eventStoreProxy.getPersistedEvents(sessionId);
-    const revisionAfter =
-      await eventStoreProxy.getPersistedEventRevision(sessionId);
-    const localContentRevision =
-      revisionBefore &&
-      revisionAfter &&
-      revisionBefore.revision === revisionAfter.revision &&
-      revisionAfter.eventCount === persisted.length
-        ? revisionAfter.revision
-        : undefined;
-    if (persisted.length > 0 || !isCliSession(sessionId)) {
-      return { events: persisted, localContentRevision };
-    }
-    // Live CLI sessions keep their transcript of record in the CLI's native
-    // store (account-profile aware) and never write the events cache, so a
-    // persisted read alone pushes a hollow session: metadata with no replay,
-    // and the pass then stamps the event plane clean. Load the full native
-    // transcript through the same command the session-resume path uses.
-    const chunks = (await rpc.cli.chunks({ sessionId })) as ActivityChunk[];
-    if (!Array.isArray(chunks) || chunks.length === 0) return { events: [] };
-    return { events: await processChunksRust(chunks, sessionId) };
+    return loadAuthoritativeSessionEvents(sessionId);
   }
 
   /** Authoritative complete loader retained for first anchor and recovery. */

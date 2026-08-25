@@ -7,6 +7,7 @@
  */
 import { useAtomValue } from "jotai";
 
+import type { AvailableAgent } from "@src/api/tauri/rpc/schemas/validation";
 import type { DispatchCategory } from "@src/api/tauri/session";
 import { CLI_AGENT } from "@src/api/types/keys";
 import {
@@ -26,12 +27,23 @@ export function getCliCompatibleProviderTypes(
   registry: AgentRegistry,
   cliAgentType: string
 ): Set<string> {
-  const types = new Set<string>([cliAgentType]);
   const agent = registry.agents.find((agent) => agent.name === cliAgentType);
-  if (agent) {
-    for (const provider of agent.compatibleApiProviders) {
-      types.add(provider);
-    }
+  const types = getCliCompatibleProviderTypesForAgent(agent, cliAgentType);
+  return types;
+}
+
+/**
+ * Resolve compatibility from the exact CLI inventory row already loaded by a
+ * caller. This avoids making dialogs depend on the separately mounted global
+ * registry while keeping the compatibility rules in one place.
+ */
+export function getCliCompatibleProviderTypesForAgent(
+  agent: Pick<AvailableAgent, "name" | "compatibleApiProviders"> | undefined,
+  cliAgentType: string
+): Set<string> {
+  const types = new Set<string>([cliAgentType]);
+  if (agent?.name === cliAgentType) {
+    for (const provider of agent.compatibleApiProviders) types.add(provider);
   }
   return types;
 }
@@ -48,7 +60,27 @@ export function getCliCompatibleAccounts<
     hasApiKey?: boolean;
   },
 >(registry: AgentRegistry, cliAgentType: string, accounts: T[]): T[] {
-  const compatTypes = getCliCompatibleProviderTypes(registry, cliAgentType);
+  const agent = registry.agents.find((agent) => agent.name === cliAgentType);
+  return getCliCompatibleAccountsForAgent(agent, cliAgentType, accounts);
+}
+
+/** Filter accounts using an already loaded CLI inventory row. */
+export function getCliCompatibleAccountsForAgent<
+  T extends {
+    modelType: string;
+    status: string;
+    canLaunchCli?: boolean;
+    hasApiKey?: boolean;
+  },
+>(
+  agent: Pick<AvailableAgent, "name" | "compatibleApiProviders"> | undefined,
+  cliAgentType: string,
+  accounts: T[]
+): T[] {
+  const compatTypes = getCliCompatibleProviderTypesForAgent(
+    agent,
+    cliAgentType
+  );
   return accounts.filter((acc) => {
     if (acc.status !== "ready") return false;
 

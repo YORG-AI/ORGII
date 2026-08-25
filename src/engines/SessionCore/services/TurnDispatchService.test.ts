@@ -51,6 +51,7 @@ vi.mock("./SessionService", () => ({
 }));
 
 const SESSION = "sdeagent-session-1";
+const CLI_SESSION = "cliagent-session-1";
 
 describe("TurnDispatchService", () => {
   beforeEach(() => {
@@ -70,6 +71,7 @@ describe("TurnDispatchService", () => {
   afterEach(() => {
     resetTurnDispatchMonitorsForTests();
     clearRecentOptimisticTurn(SESSION);
+    clearRecentOptimisticTurn(CLI_SESSION);
     clearRecentOptimisticTurn("cursoride-session-1");
     resetTurnLifecycleForTests();
   });
@@ -462,6 +464,45 @@ describe("TurnDispatchService", () => {
 
       expect(mocks.getTurnIntentStatus).not.toHaveBeenCalled();
       expect(getTurnPhase(SESSION)).toBe("working");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      resetTurnDispatchMonitorsForTests();
+      vi.useRealTimers();
+    }
+  });
+
+  it("polls accepted CLI finality when no live status channel is available", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.sendMessage.mockResolvedValueOnce({
+        duplicate: false,
+        turnIntentStatus: "running",
+        effectiveTurnIntentId: "intent-cli-background",
+      });
+      mocks.getTurnIntentStatus.mockResolvedValueOnce({
+        status: "completed",
+        effectiveTurnIntentId: "intent-cli-background",
+      });
+      const dispatch = reserveTurnDispatch({
+        sessionId: CLI_SESSION,
+        turnIntentId: "intent-cli-background",
+      });
+
+      await sendReservedTurn({
+        dispatch,
+        content: "background CLI turn",
+        turnIntentSource: "user_submit",
+      });
+      const outcome = waitForTurnOutcome(dispatch, Date.now() + 1_000);
+      expect(vi.getTimerCount()).toBe(2);
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      await expect(outcome).resolves.toMatchObject({ status: "completed" });
+      expect(mocks.getTurnIntentStatus).toHaveBeenCalledWith(
+        CLI_SESSION,
+        "intent-cli-background"
+      );
       expect(vi.getTimerCount()).toBe(0);
     } finally {
       resetTurnDispatchMonitorsForTests();

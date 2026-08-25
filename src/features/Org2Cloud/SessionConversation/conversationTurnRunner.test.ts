@@ -4,6 +4,10 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { sendReservedTurn } from "@src/engines/SessionCore/services/TurnDispatchService";
 import { requestForkSessionSetup } from "@src/features/TeamCollaboration/forkSession";
+import {
+  clearForkSetupMemory,
+  loadForkSetupMemory,
+} from "@src/features/TeamCollaboration/forkSetupMemory";
 
 import type { CloudConversationEvent } from "../org2CloudConversationEventsClient";
 import { loadContinuation, saveContinuation } from "./conversationContinuation";
@@ -19,6 +23,8 @@ const { state } = vi.hoisted(() => ({
     generation: 0,
     persistedBatches: [] as SessionEvent[][],
     pushes: [] as Array<{ kind: "user" | "tail"; turnId: string }>,
+    pushLastSeqs: [] as number[],
+    tailEventIds: [] as string[][],
     sent: [] as Record<string, unknown>[],
     rejectNextSend: false,
     cleaned: [] as string[],
@@ -29,10 +35,11 @@ const { state } = vi.hoisted(() => ({
 vi.mock("@src/components/Message", () => ({
   default: { info: vi.fn(), error: vi.fn() },
 }));
-vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
-  eventStoreProxy: {
-    getPersistedEvents: vi.fn(async () => state.persistedBatches.shift() ?? []),
-  },
+vi.mock("@src/engines/SessionCore/sync/authoritativeSessionEvents", () => ({
+  loadAuthoritativeSessionEvents: vi.fn(async () => ({
+    events: state.persistedBatches.shift() ?? [],
+    source: "event_store",
+  })),
 }));
 vi.mock("@src/engines/SessionCore/services/SessionService", () => ({
   SessionService: {
@@ -98,13 +105,19 @@ vi.mock("../org2CloudConversationEventsClient", () => ({
   pushConversationEvents: vi.fn(
     async (_token: string, input: { turnId: string }) => {
       state.pushes.push({ kind: "user", turnId: input.turnId });
-      return { firstSeq: 1, lastSeq: 1 };
+      const lastSeq = state.pushLastSeqs.shift() ?? 1;
+      return { firstSeq: lastSeq, lastSeq };
     }
   ),
   pushConversationEventsChunked: vi.fn(
-    async (_token: string, input: { turnId: string }) => {
+    async (
+      _token: string,
+      input: { turnId: string; events: SessionEvent[] }
+    ) => {
       state.pushes.push({ kind: "tail", turnId: input.turnId });
-      return { firstSeq: 2, lastSeq: 2 };
+      state.tailEventIds.push(input.events.map((event) => event.id));
+      const lastSeq = state.pushLastSeqs.shift() ?? 2;
+      return { firstSeq: lastSeq, lastSeq };
     }
   ),
 }));
@@ -129,7 +142,7 @@ function fakeStorage(): Storage {
 
 function event(
   id: string,
-  source: "user" | "assistant",
+  source: "user" | "assistant" | "system",
   text: string,
   turnIntentId?: string
 ): SessionEvent {
@@ -188,6 +201,8 @@ beforeEach(() => {
   state.generation = 0;
   state.persistedBatches = [];
   state.pushes = [];
+  state.pushLastSeqs = [];
+  state.tailEventIds = [];
   state.sent = [];
   state.rejectNextSend = false;
   state.cleaned = [];
@@ -305,6 +320,7 @@ describe("conversation turn continuation", () => {
       ],
       lastSeq: 57,
     }));
+    state.pushLastSeqs = [58, 59];
 
     const result = await runConversationTurn(
       params({
@@ -320,7 +336,7 @@ describe("conversation turn continuation", () => {
     expect(loadPlaneDelta).toHaveBeenCalledWith(55);
     expect(state.sent[0].content).toContain("Alice: note from Alice");
     expect(state.sent[0].content).not.toContain("duplicate local turn");
-    expect(loadContinuation("scope", "root")?.readThroughPlaneSeq).toBe(57);
+    expect(loadContinuation("scope", "root")?.readThroughPlaneSeq).toBe(59);
   });
 
   it("rolls a rejected resume to fresh without publishing the user twice", async () => {
@@ -469,11 +485,13 @@ describe("conversation turn continuation", () => {
       execution: {
         agentDefinitionId: "agent-a",
         cliAgentType: "codex",
+        accountId: "codex-account",
       },
     });
     state.persistedBatches = [
+      [],
       [
-        event("user-1", "user", "new request", "intent-1"),
+        event("native-user-1", "user", "new request"),
         event("agent-1", "assistant", "answer"),
       ],
     ];
@@ -491,14 +509,112 @@ describe("conversation turn continuation", () => {
       expect.objectContaining({
         task: "",
         cliAgentType: "codex",
+        accountId: "codex-account",
         agentDefinitionId: "agent-a",
       })
     );
     expect(loadContinuation("scope", "root")).toMatchObject({
       continuationSessionId: "fresh-runner",
       cliAgentType: "codex",
+      accountId: "codex-account",
       agentDefinitionId: "agent-a",
     });
+    expect(state.tailEventIds).toEqual([["agent-1"]]);
+  });
+
+  it("resumes a native-transcript CLI by authoritative snapshot delta", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "cliagent-runner-live",
+      readThroughPlaneSeq: 20,
+      established: true,
+      agentDefinitionId: "agent-a",
+      cliAgentType: "codex",
+      accountId: "codex-account",
+    });
+    const previous = [
+      event("native-user-1", "user", "first request"),
+      event("native-agent-1", "assistant", "first answer"),
+    ];
+    state.persistedBatches = [
+      previous,
+      [
+        ...previous,
+        event("native-user-2", "user", "second request"),
+        event("native-tool-2", "system", "tool output"),
+        event("native-agent-2", "assistant", "second answer"),
+      ],
+    ];
+    state.pushLastSeqs = [21, 24];
+
+    const result = await runConversationTurn(
+      params({
+        turnIntentId: "intent-2",
+        loadPlaneDelta: async () => ({ events: [], lastSeq: 20 }),
+      })
+    );
+
+    expect(result.runnerSessionId).toBe("cliagent-runner-live");
+    expect(SessionService.create).not.toHaveBeenCalled();
+    expect(state.tailEventIds).toEqual([["native-tool-2", "native-agent-2"]]);
+    expect(loadContinuation("scope", "root")?.readThroughPlaneSeq).toBe(24);
+  });
+
+  it("rereads a completed CLI transcript until its agent tail is visible", async () => {
+    vi.mocked(requestForkSessionSetup).mockResolvedValueOnce({
+      workspaceRepoPath: "/repo",
+      execution: {
+        agentDefinitionId: "agent-a",
+        cliAgentType: "codex",
+        accountId: "codex-account",
+      },
+    });
+    const nativeUser = event("native-user-1", "user", "new request");
+    state.persistedBatches = [
+      [],
+      [nativeUser],
+      [nativeUser, event("native-agent-1", "assistant", "answer")],
+    ];
+
+    const result = await runConversationTurn(params());
+
+    expect(result.terminalStatus).toBe("completed");
+    expect(state.tailEventIds).toEqual([["native-agent-1"]]);
+  });
+
+  it("discards a remembered CLI setup that predates explicit account binding", async () => {
+    vi.mocked(loadForkSetupMemory).mockReturnValueOnce({
+      workspaceRepoPath: "/old-repo",
+      execution: {
+        agentDefinitionId: "agent-a",
+        cliAgentType: "codex",
+      },
+    });
+    vi.mocked(requestForkSessionSetup).mockResolvedValueOnce({
+      workspaceRepoPath: "/repo",
+      execution: {
+        agentDefinitionId: "agent-a",
+        cliAgentType: "codex",
+        accountId: "codex-account",
+      },
+    });
+    state.persistedBatches = [
+      [],
+      [
+        event("native-user-1", "user", "new request"),
+        event("agent-1", "assistant", "answer"),
+      ],
+    ];
+
+    await runConversationTurn(params({ sourceScopeKey: "scope" }));
+
+    expect(clearForkSetupMemory).toHaveBeenCalledWith("scope");
+    expect(requestForkSessionSetup).toHaveBeenCalledTimes(1);
+    expect(SessionService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cliAgentType: "codex",
+        accountId: "codex-account",
+      })
+    );
   });
 
   it("clears and cleans a failed execution episode", async () => {

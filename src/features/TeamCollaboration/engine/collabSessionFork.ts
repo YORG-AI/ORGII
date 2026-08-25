@@ -121,9 +121,9 @@ export interface ForkExecutionSelection {
   agentDefinitionId: string;
   /** Present only for a managed External CLI runner. */
   cliAgentType?: CliAgentType;
-  /** Native-agent credential selection; omitted for CLI subscription auth. */
+  /** Explicit local credential used by native and managed CLI runtimes. */
   accountId?: string;
-  /** Native-agent model selection; omitted for CLI-managed model choice. */
+  /** Explicit model when selected; CLI runtimes may use their account default. */
   model?: string;
 }
 

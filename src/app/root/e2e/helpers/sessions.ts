@@ -271,6 +271,26 @@ export function createSessionHelpers(store: E2EStore) {
     }
   };
 
+  const inspectCliHistory = async (
+    sessionId: string
+  ): Promise<Result<{ events: Json[] }>> => {
+    try {
+      if (!sessionId) {
+        return {
+          ok: false,
+          error: "inspectCliHistory: `sessionId` is required",
+        };
+      }
+      const events = await cliAdapter.loadHistory(
+        sessionId,
+        new AbortController().signal
+      );
+      return { ok: true, events: events as unknown as Json[] };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
   const resetToNewSession = async (): Promise<{ ok: true } | Result<never>> => {
     try {
       store.set(clearSessionAtom);
@@ -830,6 +850,7 @@ export function createSessionHelpers(store: E2EStore) {
     inspectOrgtrackFileSessionHistory,
     inspectCliSessionStatus,
     inspectCliHistoryMutation,
+    inspectCliHistory,
     resetToNewSession,
     openSession,
     reloadSessionList,

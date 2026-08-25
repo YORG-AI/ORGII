@@ -1,6 +1,7 @@
 /* global browser, describe, before, after, it, process */
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createServer } from "node:http";
 import { join } from "node:path";
 
 import {
@@ -100,9 +101,178 @@ const SECONDARY_E2E_REPO_PATH =
 const E2E_PROVIDER_MODE = process.env.E2E_PROVIDER_MODE ?? "mock";
 const FORK_E2E_MODEL =
   E2E_PROVIDER_MODE === "mock" ? "e2e-fake-provider-cloud-fork" : "gpt-4o-mini";
+const CONTINUATION_CLI_AGENT_TYPE = (
+  process.env.E2E_CONTINUATION_CLI_AGENT_TYPE ?? ""
+).trim();
+const CONTINUATION_RUNTIME_LABEL =
+  CONTINUATION_CLI_AGENT_TYPE === "codex" ? "Codex" : "";
 let sourceTurnAnchorEventId = null;
 let secondaryImportedTurnToggleSelector = null;
 let secondaryImportedSessionId = null;
+
+function completedResponsesBody(responseId, model, outputText) {
+  return {
+    id: responseId,
+    object: "response",
+    created_at: Math.floor(Date.now() / 1_000),
+    status: "completed",
+    error: null,
+    incomplete_details: null,
+    instructions: null,
+    max_output_tokens: null,
+    model,
+    output: [
+      {
+        id: `msg_${responseId}`,
+        type: "message",
+        status: "completed",
+        role: "assistant",
+        content: [
+          {
+            type: "output_text",
+            text: outputText,
+            annotations: [],
+            logprobs: [],
+          },
+        ],
+      },
+    ],
+    parallel_tool_calls: true,
+    previous_response_id: null,
+    reasoning: { effort: null, summary: null },
+    store: false,
+    temperature: 1,
+    text: { format: { type: "text" } },
+    tool_choice: "auto",
+    tools: [],
+    top_p: 1,
+    truncation: "disabled",
+    usage: {
+      input_tokens: 12,
+      input_tokens_details: { cached_tokens: 0 },
+      output_tokens: 4,
+      output_tokens_details: { reasoning_tokens: 0 },
+      total_tokens: 16,
+    },
+    metadata: {},
+  };
+}
+
+function latestResponsesUserInput(requestBody) {
+  const input = Array.isArray(requestBody?.input)
+    ? requestBody.input
+    : [requestBody?.input];
+  return [...input].reverse().find((item) => item?.role === "user") ?? null;
+}
+
+async function startContinuationCodexMock() {
+  const requests = [];
+  const server = createServer((request, response) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      if (request.method !== "POST" || request.url !== "/v1/responses") {
+        response.writeHead(404, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: { message: "not found" } }));
+        return;
+      }
+      const rawBody = Buffer.concat(chunks).toString("utf8");
+      const body = JSON.parse(rawBody);
+      requests.push(body);
+      const responseId = `resp_orgii_e2e_${requests.length}`;
+      const outputText = `ORGII Codex continuation ${requests.length}`;
+      const outputItem = {
+        id: `msg_${responseId}`,
+        type: "message",
+        status: "in_progress",
+        role: "assistant",
+        content: [],
+      };
+      const completed = completedResponsesBody(
+        responseId,
+        body.model ?? FORK_E2E_MODEL,
+        outputText
+      );
+      const events = [
+        {
+          type: "response.created",
+          response: {
+            ...completed,
+            status: "in_progress",
+            output: [],
+            usage: null,
+          },
+        },
+        {
+          type: "response.output_item.added",
+          output_index: 0,
+          item: outputItem,
+        },
+        {
+          type: "response.content_part.added",
+          item_id: outputItem.id,
+          output_index: 0,
+          content_index: 0,
+          part: {
+            type: "output_text",
+            text: "",
+            annotations: [],
+            logprobs: [],
+          },
+        },
+        {
+          type: "response.output_text.delta",
+          item_id: outputItem.id,
+          output_index: 0,
+          content_index: 0,
+          delta: outputText,
+          logprobs: [],
+        },
+        {
+          type: "response.output_text.done",
+          item_id: outputItem.id,
+          output_index: 0,
+          content_index: 0,
+          text: outputText,
+          logprobs: [],
+        },
+        {
+          type: "response.output_item.done",
+          output_index: 0,
+          item: completed.output[0],
+        },
+        { type: "response.completed", response: completed },
+      ].map((event, sequenceNumber) => ({
+        ...event,
+        sequence_number: sequenceNumber,
+      }));
+      response.writeHead(200, {
+        "cache-control": "no-cache",
+        connection: "close",
+        "content-type": "text/event-stream",
+      });
+      for (const event of events) {
+        response.write(
+          `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
+        );
+      }
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Codex mock did not bind a TCP port");
+  }
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requests,
+    stop: () => new Promise((resolveStop) => server.close(resolveStop)),
+  };
+}
 
 function bindRunnableSourceSession(nextSessionId) {
   sessionId = nextSessionId;
@@ -251,6 +421,39 @@ async function completeForkSetupOn(client, label, options = {}) {
     '[data-testid^="fork-setup-workspace-"]',
     `${label} matching workspace`
   );
+  if (options.runtimeName) {
+    await clickRenderedOn(
+      client,
+      '[data-testid="fork-setup-runtime"]',
+      `${label} runtime picker`
+    );
+    await client.waitUntil(
+      async () =>
+        executeOn(
+          client,
+          `
+            const target = Array.from(
+              document.querySelectorAll('[role="listbox"] [role="option"]')
+            ).find((node) =>
+              (node.textContent ?? '').includes(${JSON.stringify(options.runtimeName)})
+            );
+            if (!target) return false;
+            target.setAttribute('data-e2e-fork-runtime-option', 'true');
+            return true;
+          `
+        ),
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `${label} runtime ${options.runtimeName} never rendered`,
+      }
+    );
+    await clickRenderedOn(
+      client,
+      '[data-e2e-fork-runtime-option="true"]',
+      `${label} runtime ${options.runtimeName}`
+    );
+  }
   try {
     await client.waitUntil(
       async () =>
@@ -260,11 +463,14 @@ async function completeForkSetupOn(client, label, options = {}) {
             const value = (testId) => document
               .querySelector('[data-testid="' + testId + '"] .select-value')
               ?.textContent?.trim() ?? '';
+            const account = document.querySelector('[data-testid="fork-setup-account"]');
+            const model = document.querySelector('[data-testid="fork-setup-model"]');
+            const runtimeReady = (!account || !!value('fork-setup-account')) &&
+              (!model || !!value('fork-setup-model'));
             const submit = document.querySelector('[data-testid="fork-session-setup-submit"]');
             return !!value('fork-setup-agent') &&
               !!value('fork-setup-runtime') &&
-              !!value('fork-setup-account') &&
-              !!value('fork-setup-model') &&
+              runtimeReady &&
               !!submit && !submit.disabled;
           `
         ),
@@ -316,10 +522,8 @@ async function completeForkSetupOn(client, label, options = {}) {
         executeOn(
           client,
           `
-            const overlay = document.querySelector('.select-options-overlay');
-            if (!overlay) return false;
             const target = Array.from(
-              overlay.querySelectorAll(':scope > div > div')
+              document.querySelectorAll('[role="listbox"] [role="option"]')
             ).find((node) =>
               (node.textContent ?? '').includes(${JSON.stringify(options.agentName)})
             );
@@ -1424,6 +1628,31 @@ async function listConversationPlane(envConfig, user, orgId, rootSessionId) {
   return payload.events ?? [];
 }
 
+async function waitForConversationPlane(
+  client,
+  envConfig,
+  user,
+  orgId,
+  rootSessionId,
+  predicate,
+  label
+) {
+  let rows = [];
+  const startedAt = Date.now();
+  await client.waitUntil(
+    async () => {
+      rows = await listConversationPlane(envConfig, user, orgId, rootSessionId);
+      return predicate(rows);
+    },
+    {
+      timeout: 5_000,
+      interval: 100,
+      timeoutMsg: `${label} did not reach the conversation plane within 5s of runtime terminal`,
+    }
+  );
+  return { rows, visibleAfterMs: Date.now() - startedAt };
+}
+
 async function readCloudCapabilities(envConfig, user) {
   const response = await fetch(
     `${envConfig.supabaseUrl}/rest/v1/rpc/get_cloud_capabilities`,
@@ -1553,6 +1782,15 @@ async function waitForDiscussionRun(
   await client.waitUntil(
     async () => {
       run = latestDiscussionRun(secondInstance, workItemId);
+      if (
+        run &&
+        ["failed", "cancelled"].includes(run.status) &&
+        !predicate(run)
+      ) {
+        throw new Error(
+          `${label} Work Item Run terminated as ${run.status}: ${run.failureJson ?? "<no failure_json>"}`
+        );
+      }
       return Boolean(run && predicate(run));
     },
     {
@@ -1575,6 +1813,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
   let inviteLink = null;
   let workItemId = null;
   let cascadeWorkItemId = null;
+  let continuationCodexMock = null;
 
   before(async function () {
     this.timeout(900_000);
@@ -1683,6 +1922,9 @@ describe("Cloud collaboration with two independent rendered app instances", func
         await invokeOn(second.client, "cloudClearAuthState");
         await second.stop();
       }
+    } catch {}
+    try {
+      await continuationCodexMock?.stop();
     } catch {}
     if (env && teammate) await cleanupCloudUser(env, teammate);
     if (env && owner) await cleanupCloudUser(env, owner);
@@ -4120,15 +4362,36 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "select VantaNode continuation workspace"
     );
     if (E2E_PROVIDER_MODE === "mock") {
+      if (CONTINUATION_CLI_AGENT_TYPE === "codex") {
+        continuationCodexMock = await startContinuationCodexMock();
+      }
       unwrapOn(
         await invokeOn(second.client, "configure", {
           openaiApiKey: "sk-orgii-continuation-e2e-not-sent",
           model: FORK_E2E_MODEL,
+          baseUrl: continuationCodexMock?.baseUrl,
           accountName: `VantaNode continuation ${RUN_ID}`,
           agentDefinitionId: "builtin:sde",
           repoPath: SECONDARY_E2E_REPO_PATH,
         }),
         "configure VantaNode continuation runtime"
+      );
+    }
+    if (CONTINUATION_CLI_AGENT_TYPE) {
+      const providerMatrix = unwrapOn(
+        await invokeOn(second.client, "inspectProviderMatrix"),
+        "inspect VantaNode CLI runtime inventory"
+      );
+      const cliRuntime = providerMatrix.agents.find(
+        (agent) => agent?.name === CONTINUATION_CLI_AGENT_TYPE
+      );
+      if (cliRuntime?.installed !== true || cliRuntime.supportsGui !== true) {
+        throw new Error(
+          `VantaNode cannot offer ${CONTINUATION_CLI_AGENT_TYPE} as a managed GUI runtime: ${JSON.stringify(cliRuntime ?? providerMatrix.agents)}`
+        );
+      }
+      console.info(
+        `[cloud-dual-e2e] VantaNode CLI inventory ${JSON.stringify({ name: cliRuntime.name, command: cliRuntime.command, installedVia: cliRuntime.installedVia, supportsGui: cliRuntime.supportsGui })}`
       );
     }
     unwrapOn(
@@ -4204,9 +4467,11 @@ describe("Cloud collaboration with two independent rendered app instances", func
       rootSessionId: sessionId,
       label: "VantaNode first",
     });
-    await completeForkSetupOn(second.client, "VantaNode first continuation");
+    await completeForkSetupOn(second.client, "VantaNode first continuation", {
+      runtimeName: CONTINUATION_RUNTIME_LABEL || undefined,
+    });
 
-    const firstRecord = await waitForContinuationOn(
+    let firstRecord = await waitForContinuationOn(
       second.client,
       teamOrgId,
       sessionId,
@@ -4225,25 +4490,62 @@ describe("Cloud collaboration with two independent rendered app instances", func
       (run) => run.status === "succeeded" && run.sessionId === runnerSessionId,
       "VantaNode first"
     );
-    const firstTranscript = unwrapOn(
-      await invokeOn(second.client, "readSdeTranscript", runnerSessionId),
-      "VantaNode first runner transcript"
-    ).result;
-    if (
-      firstTranscript?.ok !== true ||
-      !Array.isArray(firstTranscript.messages)
-    ) {
-      throw new Error(
-        `VantaNode first runner transcript unavailable: ${JSON.stringify(firstTranscript)}`
+    let firstTranscript = null;
+    if (CONTINUATION_CLI_AGENT_TYPE) {
+      const firstCliStatus = unwrapOn(
+        await invokeOn(
+          second.client,
+          "inspectCliSessionStatus",
+          runnerSessionId
+        ),
+        "VantaNode first CLI runner status"
+      ).session;
+      if (
+        firstRecord.cliAgentType !== CONTINUATION_CLI_AGENT_TYPE ||
+        !JSON.stringify(firstCliStatus ?? {}).includes(
+          CONTINUATION_CLI_AGENT_TYPE
+        )
+      ) {
+        throw new Error(
+          `VantaNode continuation did not use ${CONTINUATION_CLI_AGENT_TYPE}: ${JSON.stringify({ firstRecord, firstCliStatus })}`
+        );
+      }
+      const firstCliHistory = unwrapOn(
+        await invokeOn(second.client, "inspectCliHistory", runnerSessionId),
+        "VantaNode first CLI authoritative history"
+      ).events;
+      console.info(
+        `[cloud-dual-e2e] VantaNode first CLI history ${JSON.stringify(firstCliHistory.map((event) => ({ id: event.id, source: event.source, functionName: event.functionName, displayText: event.displayText })))}`
       );
+    } else {
+      firstTranscript = unwrapOn(
+        await invokeOn(second.client, "readSdeTranscript", runnerSessionId),
+        "VantaNode first runner transcript"
+      ).result;
+      if (
+        firstTranscript?.ok !== true ||
+        !Array.isArray(firstTranscript.messages)
+      ) {
+        throw new Error(
+          `VantaNode first runner transcript unavailable: ${JSON.stringify(firstTranscript)}`
+        );
+      }
     }
 
-    const firstPlane = await listConversationPlane(
+    const firstPlaneRead = await waitForConversationPlane(
+      second.client,
       env,
       teammate,
       teamOrgId,
-      sessionId
+      sessionId,
+      (rows) =>
+        rows.some(
+          (row) =>
+            row.turnId === firstRun.id && row.event?.source === "assistant"
+        ),
+      "VantaNode first agent tail"
     );
+    const firstPlane = firstPlaneRead.rows;
     const firstUserRow = firstPlane.find(
       (row) =>
         row.authorUserId === teammate.userId &&
@@ -4267,12 +4569,17 @@ describe("Cloud collaboration with two independent rendered app instances", func
         `first plane turn has no agent tail: ${JSON.stringify(firstTurnRows)}`
       );
     }
-    if (
-      firstRecord.readThroughPlaneSeq < 0 ||
-      firstRecord.readThroughPlaneSeq >= firstUserRow.seq
-    ) {
+    const firstTurnLastSeq = Math.max(...firstTurnRows.map((row) => row.seq));
+    firstRecord = await waitForContinuationOn(
+      second.client,
+      teamOrgId,
+      sessionId,
+      (record) => record.readThroughPlaneSeq === firstTurnLastSeq,
+      "VantaNode first exact cursor"
+    );
+    if (firstRecord.readThroughPlaneSeq !== firstTurnLastSeq) {
       throw new Error(
-        `first continuation read prefix must precede its own pushed row: ${JSON.stringify({ firstRecord, firstUserSeq: firstUserRow.seq })}`
+        `first continuation cursor did not land on its exact pushed tail: ${JSON.stringify({ firstRecord, firstTurnLastSeq })}`
       );
     }
 
@@ -4323,7 +4630,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
         run.sessionId === runnerSessionId,
       "VantaNode second"
     );
-    const secondRecord = await waitForContinuationOn(
+    let secondRecord = await waitForContinuationOn(
       second.client,
       teamOrgId,
       sessionId,
@@ -4339,39 +4646,68 @@ describe("Cloud collaboration with two independent rendered app instances", func
       );
     }
 
-    const secondTranscript = unwrapOn(
-      await invokeOn(second.client, "readSdeTranscript", runnerSessionId),
-      "VantaNode resumed runner transcript"
-    ).result;
-    if (
-      secondTranscript?.ok !== true ||
-      !Array.isArray(secondTranscript.messages) ||
-      secondTranscript.messages.length <= firstTranscript.messages.length
-    ) {
-      throw new Error(
-        `VantaNode runner transcript did not append: ${JSON.stringify({ first: firstTranscript, second: secondTranscript })}`
-      );
-    }
-    const resumedUserMessage = [...secondTranscript.messages]
-      .reverse()
-      .find((message) => message.role === "user");
-    const resumedUserText = JSON.stringify(resumedUserMessage ?? {});
-    if (
-      !resumedUserText.includes(PRIMARY_PLANE_DELTA) ||
-      !resumedUserText.includes(SECOND_CONTINUATION_COMMENT) ||
-      resumedUserText.includes(FIRST_CONTINUATION_COMMENT)
-    ) {
-      throw new Error(
-        `resumed prompt did not contain only the new plane delta: ${resumedUserText}`
-      );
+    if (CONTINUATION_CLI_AGENT_TYPE) {
+      const secondCliStatus = unwrapOn(
+        await invokeOn(
+          second.client,
+          "inspectCliSessionStatus",
+          runnerSessionId
+        ),
+        "VantaNode resumed CLI runner status"
+      ).session;
+      if (
+        secondRecord.cliAgentType !== CONTINUATION_CLI_AGENT_TYPE ||
+        !JSON.stringify(secondCliStatus ?? {}).includes(
+          CONTINUATION_CLI_AGENT_TYPE
+        )
+      ) {
+        throw new Error(
+          `VantaNode resumed runner lost ${CONTINUATION_CLI_AGENT_TYPE}: ${JSON.stringify({ secondRecord, secondCliStatus })}`
+        );
+      }
+    } else {
+      const secondTranscript = unwrapOn(
+        await invokeOn(second.client, "readSdeTranscript", runnerSessionId),
+        "VantaNode resumed runner transcript"
+      ).result;
+      if (
+        secondTranscript?.ok !== true ||
+        !Array.isArray(secondTranscript.messages) ||
+        secondTranscript.messages.length <= firstTranscript.messages.length
+      ) {
+        throw new Error(
+          `VantaNode runner transcript did not append: ${JSON.stringify({ first: firstTranscript, second: secondTranscript })}`
+        );
+      }
+      const resumedUserMessage = [...secondTranscript.messages]
+        .reverse()
+        .find((message) => message.role === "user");
+      const resumedUserText = JSON.stringify(resumedUserMessage ?? {});
+      if (
+        !resumedUserText.includes(PRIMARY_PLANE_DELTA) ||
+        !resumedUserText.includes(SECOND_CONTINUATION_COMMENT) ||
+        resumedUserText.includes(FIRST_CONTINUATION_COMMENT)
+      ) {
+        throw new Error(
+          `resumed prompt did not contain only the new plane delta: ${resumedUserText}`
+        );
+      }
     }
 
-    const secondPlane = await listConversationPlane(
+    const secondPlaneRead = await waitForConversationPlane(
+      second.client,
       env,
       teammate,
       teamOrgId,
-      sessionId
+      sessionId,
+      (rows) =>
+        rows.some(
+          (row) =>
+            row.turnId === secondRun.id && row.event?.source === "assistant"
+        ),
+      "VantaNode second agent tail"
     );
+    const secondPlane = secondPlaneRead.rows;
     const secondUserRow = secondPlane.find(
       (row) =>
         row.seq > ownerDelta.seq &&
@@ -4392,12 +4728,17 @@ describe("Cloud collaboration with two independent rendered app instances", func
         `second plane turn lost VantaNode run identity/user/tail rows: ${JSON.stringify({ secondRunId: secondRun.id, secondTurnRows })}`
       );
     }
-    if (
-      secondRecord.readThroughPlaneSeq < ownerDelta.seq ||
-      secondRecord.readThroughPlaneSeq >= secondUserRow.seq
-    ) {
+    const secondTurnLastSeq = Math.max(...secondTurnRows.map((row) => row.seq));
+    secondRecord = await waitForContinuationOn(
+      second.client,
+      teamOrgId,
+      sessionId,
+      (record) => record.readThroughPlaneSeq === secondTurnLastSeq,
+      "VantaNode second exact cursor"
+    );
+    if (secondRecord.readThroughPlaneSeq !== secondTurnLastSeq) {
       throw new Error(
-        `second continuation read prefix must include the owner delta and precede its own pushed row: ${JSON.stringify({ secondRecord, ownerDeltaSeq: ownerDelta.seq, secondUserSeq: secondUserRow.seq })}`
+        `second continuation cursor did not include the owner delta and land on its exact pushed tail: ${JSON.stringify({ secondRecord, ownerDeltaSeq: ownerDelta.seq, secondTurnRows })}`
       );
     }
     const setupDialogStillOpen = await executeOn(
@@ -4406,6 +4747,28 @@ describe("Cloud collaboration with two independent rendered app instances", func
     );
     if (setupDialogStillOpen) {
       throw new Error("VantaNode second turn unexpectedly re-opened setup");
+    }
+    if (
+      CONTINUATION_CLI_AGENT_TYPE === "codex" &&
+      (continuationCodexMock?.requests.length ?? 0) < 2
+    ) {
+      throw new Error(
+        `Codex continuation did not execute two local Responses calls: ${continuationCodexMock?.requests.length ?? 0}`
+      );
+    }
+    if (CONTINUATION_CLI_AGENT_TYPE === "codex") {
+      const resumedUserInput = JSON.stringify(
+        latestResponsesUserInput(continuationCodexMock.requests[1]) ?? {}
+      );
+      if (
+        !resumedUserInput.includes(PRIMARY_PLANE_DELTA) ||
+        !resumedUserInput.includes(SECOND_CONTINUATION_COMMENT) ||
+        resumedUserInput.includes(FIRST_CONTINUATION_COMMENT)
+      ) {
+        throw new Error(
+          `resumed Codex user input did not contain only the new plane delta: ${resumedUserInput}`
+        );
+      }
     }
 
     await selectCloudOrgOn(browser, teamOrgId);
@@ -4440,6 +4803,10 @@ describe("Cloud collaboration with two independent rendered app instances", func
         secondReadThrough: secondRecord.readThroughPlaneSeq,
         firstPlaneRows: firstTurnRows.length,
         secondPlaneRows: secondTurnRows.length,
+        firstTailVisibleAfterMs: firstPlaneRead.visibleAfterMs,
+        secondTailVisibleAfterMs: secondPlaneRead.visibleAfterMs,
+        runtime: CONTINUATION_CLI_AGENT_TYPE || "native",
+        cliProviderRequests: continuationCodexMock?.requests.length ?? 0,
       })}`
     );
   });

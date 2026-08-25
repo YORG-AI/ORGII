@@ -32,7 +32,10 @@ import {
   setSessionRuntimeStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+import {
+  isCliSession,
+  isCursorIdeSession,
+} from "@src/util/session/sessionDispatch";
 
 import { SessionService } from "./SessionService";
 import type { SessionSendMessageParams } from "./types";
@@ -541,6 +544,13 @@ export async function sendReservedTurn(
 
   confirmTurnRunning(dispatch.sessionId, { generation: dispatch.generation });
   markSessionActive(dispatch.sessionId);
+  if (isCliSession(dispatch.sessionId)) {
+    // CLI live status normally arrives over the window-level WebSocket, but
+    // hidden/background runners and isolated app instances may not have that
+    // channel. Reuse the canonical exact-intent durable monitor so provider
+    // finality never depends on a mounted transcript or an active socket.
+    startEffectiveTurnStatusMonitor(dispatch, effectiveTurnIntentId);
+  }
   if (isCursorIdeSession(dispatch.sessionId)) {
     if (getTurnGeneration(dispatch.sessionId) !== dispatch.generation) {
       return { ...dispatch, accepted: true };

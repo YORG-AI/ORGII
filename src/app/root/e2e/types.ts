@@ -485,6 +485,7 @@ export interface E2EHelpers {
   inspectCliHistoryMutation: (
     sessionId: string
   ) => Promise<Result<{ mutation: Json | null }>>;
+  inspectCliHistory: (sessionId: string) => Promise<Result<{ events: Json[] }>>;
   resetToNewSession: () => Promise<{ ok: true } | Err>;
   openSession: (sessionId: string) => Promise<Result<{ sessionId: string }>>;
   debugSessionSecuritySnapshot: (
