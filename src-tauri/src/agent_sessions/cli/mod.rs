@@ -15,6 +15,7 @@ pub mod agent_core_bridge;
 pub mod commands;
 pub mod hook_approvals;
 pub mod launch_profile_store;
+pub mod native_snapshot;
 pub mod native_transcript;
 pub mod parsers;
 pub mod persistence;
