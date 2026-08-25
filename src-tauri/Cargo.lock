@@ -1531,7 +1531,6 @@ dependencies = [
 name = "conversation-portability"
 version = "0.1.0"
 dependencies = [
- "core_types",
  "ryu",
  "serde",
  "serde_json",
@@ -5901,9 +5900,11 @@ version = "0.1.0"
 dependencies = [
  "app_paths",
  "chrono",
+ "conversation-portability",
  "core_types",
  "dirs",
  "git2",
+ "libc",
  "memchr",
  "orgtrack_protocol",
  "orgtrack_sync",

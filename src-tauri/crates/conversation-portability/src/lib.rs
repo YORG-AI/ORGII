@@ -8,11 +8,9 @@
 mod canonical;
 mod exact_reader;
 mod model;
-mod projection;
 
 pub use exact_reader::*;
 pub use model::*;
-pub use projection::project_exact_read;
 
 #[cfg(test)]
 mod exact_tests;

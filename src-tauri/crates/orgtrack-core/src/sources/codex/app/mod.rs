@@ -21,6 +21,7 @@ mod normalize;
 mod transcript;
 
 // Public API — preserved at `...::sources::codex::app::*`.
+pub(crate) use index::codex_sessions_dirs;
 pub use index::{
     codex_thread_id_from_file_stem, list_codex_app_recent_paths,
     list_codex_app_reconciliation_sessions, list_codex_app_sessions_paginated,

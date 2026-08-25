@@ -12,15 +12,18 @@ stream within the same database read transaction. Hash-then-reopen and
 metadata-before-open observations are forbidden TOCTOU gaps. It must fail
 closed on reader caps, skipped or unterminated records, unknown roles, and
 truncated visible/tool content. A string such as `...[truncated]` is ordinary
-source text, never truncation metadata. No current provider adapter is enabled
-by this crate.
+source text, never truncation metadata. Exact adapters produce `PortableEvent`
+directly, including source record/block provenance; display `ActivityChunk`,
+preview-window, and truncating replay loaders are outside this boundary. No
+provider adapter is enabled by this leaf crate.
 
-The v1 IR preserves user, assistant, system, and developer messages;
-compaction summaries; source thread identity; structured tool input/result
-linkage; and explicit pending versus settled tool state. It never invents a
-successful result for a pending call and never guesses that an arbitrary raw
-record is a user message. Images must be embedded data URIs; local paths and
-mutable HTTP references are blocking attachment loss.
+The v2 IR preserves user, assistant, system, and developer messages; distinct
+compaction boundaries and summaries; source record/block grouping and thread
+identity; structured tool input/result linkage; and explicit pending versus
+settled tool state. It never invents a successful result for a pending call
+and never guesses that an arbitrary raw record is a user message. Images must
+be embedded data URIs; local paths and mutable HTTP references are blocking
+attachment loss.
 
 ## Fidelity and materialization
 
@@ -41,8 +44,8 @@ or byte-identical native files.
 
 ## Frozen encoding
 
-Canonical JSON v1 sorts object keys lexically, keeps array order, uses fixed
+Canonical JSON sorts object keys lexically, keeps array order, uses fixed
 string escaping, base-10 integers, and the pinned `ryu` finite-float encoding.
-Golden bytes and SHA-256 freeze this behavior. Producers and decoders enforce
-a 64 MiB bound and reject rather than truncate; the projection performs a
+The v2 golden bytes and SHA-256 freeze this behavior. Producers and decoders
+enforce a 64 MiB bound and reject rather than truncate; the encoder performs a
 checked payload lower-bound pass before materializing the JSON value.

@@ -56,6 +56,7 @@ fn payload_lower_bound(conversation: &PortableConversation) -> Result<usize, Str
     add_escaped_len(&mut total, &conversation.source.source_session_id)?;
     add_escaped_len(&mut total, &conversation.source.source_snapshot.digest)?;
     for value in [
+        conversation.source.source_runtime_version.as_deref(),
         conversation.source.title.as_deref(),
         conversation.source.model.as_deref(),
         conversation.source.source_workspace_hint.as_deref(),
@@ -69,6 +70,15 @@ fn payload_lower_bound(conversation: &PortableConversation) -> Result<usize, Str
     }
     for event in &conversation.events {
         add_escaped_len(&mut total, &event.event_id)?;
+        for provenance in [
+            event.source_record_type.as_deref(),
+            event.source_record_id.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            add_escaped_len(&mut total, provenance)?;
+        }
         if let Some(thread_id) = event.source_thread_id.as_deref() {
             add_escaped_len(&mut total, thread_id)?;
         }
@@ -79,7 +89,8 @@ fn payload_lower_bound(conversation: &PortableConversation) -> Result<usize, Str
             PortableEventBody::Message { content, .. }
             | PortableEventBody::ToolResult { content, .. }
             | PortableEventBody::Annotation { content, .. }
-            | PortableEventBody::CompactionSummary { content } => {
+            | PortableEventBody::CompactionSummary { content }
+            | PortableEventBody::CompactionBoundary { content } => {
                 add_content_lower_bound(&mut total, content)?;
             }
             PortableEventBody::ToolCall {

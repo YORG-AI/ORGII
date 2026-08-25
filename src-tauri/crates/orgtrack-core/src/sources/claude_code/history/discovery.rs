@@ -274,7 +274,7 @@ pub(super) fn resolve_claude_session_path(
         .ok_or_else(|| format!("Claude Code history file not found for session: {file_stem}"))
 }
 
-pub(super) fn claude_projects_dirs() -> Result<Vec<PathBuf>, String> {
+pub(crate) fn claude_projects_dirs() -> Result<Vec<PathBuf>, String> {
     let home = app_paths::external_history_home_dir();
     let mut dirs = claude_projects_dir_candidates(&home);
     // ORGII-managed sessions run with CLAUDE_CONFIG_DIR redirected into

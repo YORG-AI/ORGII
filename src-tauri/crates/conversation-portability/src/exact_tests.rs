@@ -1,8 +1,8 @@
-use core_types::activity::ActivityChunk;
 use serde_json::{json, Value};
 
-use crate::projection::project_activity_chunks;
 use crate::*;
+
+const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn source() -> PortableConversationSource {
     PortableConversationSource {
@@ -10,10 +10,11 @@ fn source() -> PortableConversationSource {
         source_session_id: "fixture-session".to_string(),
         source_snapshot: PortableSourceSnapshot {
             algorithm: PortableSourceSnapshotAlgorithm::Sha256,
-            digest: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(),
+            digest: DIGEST.to_string(),
             observed_bytes: 42,
         },
-        parser_version: 1,
+        parser_version: 2,
+        source_runtime_version: Some("1.2.3".to_string()),
         title: Some("A session".to_string()),
         model: Some("model".to_string()),
         source_workspace_hint: Some("/source/only".to_string()),
@@ -22,579 +23,457 @@ fn source() -> PortableConversationSource {
     }
 }
 
-fn chunk(index: usize, action_type: &str, function: &str, result: Value) -> ActivityChunk {
-    let mut chunk = ActivityChunk::new("fixture-session", action_type, function);
-    chunk.chunk_id = format!("chunk-{index}");
-    chunk.created_at = format!("2026-08-25T00:00:{index:02}Z");
-    chunk.result = result;
-    chunk
+fn event(
+    logical_index: u64,
+    record_index: u64,
+    block_index: Option<u64>,
+    suffix: &str,
+    body: PortableEventBody,
+) -> PortableEvent {
+    PortableEvent {
+        event_id: format!("record-{record_index}:{suffix}"),
+        source_index: logical_index,
+        source_record_index: record_index,
+        source_record_type: Some("fixture_record".to_string()),
+        source_record_id: Some(format!("native-{record_index}")),
+        source_block_index: block_index,
+        source_thread_id: Some("main".to_string()),
+        timestamp: Some(format!("2026-08-25T00:00:{record_index:02}Z")),
+        body,
+    }
 }
 
-fn empty_manifest() -> PortableLossManifest {
-    PortableLossManifest::default()
+fn message(
+    logical_index: u64,
+    record_index: u64,
+    block_index: Option<u64>,
+    role: PortableRole,
+    content: PortableContentBlock,
+) -> PortableEvent {
+    event(
+        logical_index,
+        record_index,
+        block_index,
+        &format!("block-{}", block_index.unwrap_or_default()),
+        PortableEventBody::Message {
+            role,
+            content: vec![content],
+        },
+    )
 }
 
-fn manifest(reason: PortableLossReason, count: u64) -> PortableLossManifest {
-    let entry = PortableLossEntry {
-        reason,
-        impact: reason.impact(),
-        count,
-    };
-    let mut manifest = PortableLossManifest {
-        fidelity: PortableFidelity::default(),
-        entries: vec![entry],
-        total_omitted_items: count,
-    };
-    manifest.fidelity = manifest.computed_fidelity();
-    manifest
-}
-
-fn exact_project(chunks: Vec<ActivityChunk>) -> Result<PortableConversation, String> {
-    project_exact_read(ExactReadOutcome {
+fn exact(events: Vec<PortableEvent>) -> PortableConversation {
+    ExactReadOutcome {
         source: source(),
-        chunks,
-        reader_loss_manifest: empty_manifest(),
-    })
+        events,
+        reader_loss_manifest: PortableLossManifest::default(),
+    }
+    .finalize()
+    .expect("valid exact fixture")
 }
 
-fn projected_with_manifest(
-    chunks: &[ActivityChunk],
-    initial_manifest: PortableLossManifest,
-) -> PortableConversation {
-    project_activity_chunks(source(), chunks, initial_manifest).expect("project fixture")
-}
-
-fn settled_tool(index: usize, call_id: &str, output: Value) -> ActivityChunk {
-    let mut result = json!({
-        "call_id": call_id,
-        "raw_tool_name": "Shell",
-        "status": "completed",
-        "success": true,
-    });
-    result
-        .as_object_mut()
-        .expect("object")
-        .insert("output".to_string(), output);
-    chunk(index, "tool_call", "shell", result)
-}
-
-#[test]
-fn preserves_visible_messages_without_handoff_truncation() {
-    let long = "原文".repeat(2_000);
-    let chunks = (0..101)
-        .map(|index| {
-            chunk(
-                index,
-                "raw",
-                "user_message",
-                json!({"message": {"content": format!("{index}:{long}")}}),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    let projected = exact_project(chunks).expect("exact projection");
-    assert_eq!(projected.events.len(), 101);
-    let PortableEventBody::Message { content, .. } = &projected.events[100].body else {
-        panic!("expected message");
-    };
-    assert_eq!(
-        content,
-        &vec![PortableContentBlock::Text {
-            text: format!("100:{long}")
-        }]
-    );
-    assert_eq!(projected.loss_manifest.total_omitted_items, 0);
-}
-
-#[test]
-fn preserves_system_developer_and_compaction_as_distinct_context() {
-    let projected = exact_project(vec![
-        chunk(0, "raw", "system_message", json!({"content": "system"})),
-        chunk(
-            1,
-            "raw",
-            "developer_message",
-            json!({"content": "developer"}),
+fn mixed_fixture() -> PortableConversation {
+    exact(vec![
+        message(
+            0,
+            3,
+            Some(0),
+            PortableRole::User,
+            PortableContentBlock::Text {
+                text: "开头原文".repeat(4),
+            },
         ),
-        chunk(
+        message(
+            1,
+            3,
+            Some(1),
+            PortableRole::User,
+            PortableContentBlock::Image {
+                uri: "data:image/png;base64,c21hbGw=".to_string(),
+            },
+        ),
+        message(
             2,
-            "compaction_summary",
-            "compaction_summary",
-            json!({"content": "summary"}),
+            3,
+            Some(2),
+            PortableRole::User,
+            PortableContentBlock::Text {
+                text: "结尾原文".to_string(),
+            },
+        ),
+        event(
+            3,
+            3,
+            Some(3),
+            "tool",
+            PortableEventBody::ToolCall {
+                call_id: "call-1".to_string(),
+                name: "Read".to_string(),
+                canonical_name: "read_file".to_string(),
+                state: PortableToolCallState::Settled,
+                input: json!({"path": "原文.md"}),
+            },
+        ),
+        event(
+            4,
+            8,
+            Some(0),
+            "tool-result",
+            PortableEventBody::ToolResult {
+                call_id: "call-1".to_string(),
+                content: vec![PortableContentBlock::Text {
+                    text: "完整结果".to_string(),
+                }],
+                is_error: false,
+            },
         ),
     ])
-    .expect("exact projection");
+}
 
+#[test]
+fn preserves_interleaved_blocks_multi_text_and_native_grouping() {
+    let conversation = mixed_fixture();
+    assert_eq!(conversation.events.len(), 5);
+    assert_eq!(
+        conversation.events[..4]
+            .iter()
+            .map(|event| event.source_record_index)
+            .collect::<Vec<_>>(),
+        vec![3, 3, 3, 3]
+    );
+    assert_eq!(
+        conversation.events[..4]
+            .iter()
+            .map(|event| event.source_block_index)
+            .collect::<Vec<_>>(),
+        vec![Some(0), Some(1), Some(2), Some(3)]
+    );
     assert!(matches!(
-        projected.events[0].body,
-        PortableEventBody::Message {
-            role: PortableRole::System,
-            ..
-        }
+        &conversation.events[0].body,
+        PortableEventBody::Message { content, .. }
+            if matches!(&content[0], PortableContentBlock::Text { text } if text.starts_with("开头原文"))
     ));
     assert!(matches!(
-        projected.events[1].body,
-        PortableEventBody::Message {
-            role: PortableRole::Developer,
-            ..
-        }
+        &conversation.events[1].body,
+        PortableEventBody::Message { content, .. }
+            if matches!(&content[0], PortableContentBlock::Image { .. })
     ));
     assert!(matches!(
-        projected.events[2].body,
+        &conversation.events[2].body,
+        PortableEventBody::Message { content, .. }
+            if matches!(&content[0], PortableContentBlock::Text { text } if text == "结尾原文")
+    ));
+}
+
+#[test]
+fn compaction_boundary_and_summary_are_independent_ordered_semantics() {
+    let boundary_only = exact(vec![event(
+        0,
+        4,
+        None,
+        "boundary",
+        PortableEventBody::CompactionBoundary {
+            content: vec![PortableContentBlock::Text {
+                text: "portable boundary context".to_string(),
+            }],
+        },
+    )]);
+    assert!(matches!(
+        boundary_only.events[0].body,
+        PortableEventBody::CompactionBoundary { .. }
+    ));
+    let boundary_canonical = boundary_only
+        .encode_canonical()
+        .expect("encode boundary golden");
+    assert_eq!(
+        boundary_canonical.bytes,
+        include_bytes!("../testdata/portable-compaction-boundary-v2.canonical")
+            .strip_suffix(b"\n")
+            .expect("boundary golden newline")
+    );
+    assert_eq!(
+        boundary_canonical.sha256,
+        include_str!("../testdata/portable-compaction-boundary-v2.sha256").trim()
+    );
+
+    let empty_boundary = exact(vec![event(
+        0,
+        5,
+        None,
+        "empty-boundary",
+        PortableEventBody::CompactionBoundary {
+            content: Vec::new(),
+        },
+    )]);
+    let canonical = empty_boundary.encode_canonical().expect("encode boundary");
+    let decoded = PortableConversation::decode_canonical(&canonical.bytes)
+        .expect("empty boundary canonical round trip");
+    assert!(matches!(
+        decoded.events[0].body,
+        PortableEventBody::CompactionBoundary { ref content } if content.is_empty()
+    ));
+
+    let summary_only = exact(vec![event(
+        0,
+        7,
+        None,
+        "summary",
+        PortableEventBody::CompactionSummary {
+            content: vec![PortableContentBlock::Text {
+                text: "summary".to_string(),
+            }],
+        },
+    )]);
+    assert!(matches!(
+        summary_only.events[0].body,
         PortableEventBody::CompactionSummary { .. }
     ));
 }
 
 #[test]
-fn arbitrary_raw_chunks_are_never_guessed_to_be_user_messages() {
-    let chunks = vec![chunk(
-        0,
-        "raw",
-        "provider_specific_role",
-        json!({"content": "do not relabel"}),
-    )];
-    let projected = projected_with_manifest(&chunks, empty_manifest());
+fn source_record_groups_are_contiguous_consistent_and_strictly_ordered() {
+    let mut repeated = mixed_fixture();
+    repeated.events[4].source_record_index = 3;
+    assert!(repeated
+        .validate()
+        .expect_err("inconsistent reused group")
+        .contains("inconsistent provenance"));
 
-    assert!(projected.events.is_empty());
-    assert_eq!(
-        projected.loss_manifest.entries,
-        vec![PortableLossEntry {
-            reason: PortableLossReason::UnknownRole,
-            impact: PortableLossImpact::VisibleBlocking,
-            count: 1,
-        }]
+    let mut non_contiguous = mixed_fixture();
+    let tail = message(
+        5,
+        3,
+        Some(4),
+        PortableRole::User,
+        PortableContentBlock::Text {
+            text: "late".to_string(),
+        },
     );
-    assert!(!projected.loss_manifest.is_exact_visible());
-    assert!(exact_project(chunks).is_err());
+    non_contiguous.events.push(tail);
+    assert!(non_contiguous
+        .validate()
+        .expect_err("record group cannot resume")
+        .contains("contiguous"));
+
+    let mut duplicate_block = mixed_fixture();
+    duplicate_block.events[2].source_block_index = Some(1);
+    assert!(duplicate_block
+        .validate()
+        .expect_err("block indices are strict")
+        .contains("strict source-record order"));
+
+    let mut missing_block = mixed_fixture();
+    missing_block.events[1].source_block_index = None;
+    assert!(missing_block
+        .validate()
+        .expect_err("group blocks need ordinals")
+        .contains("requires every event"));
 }
 
 #[test]
-fn pending_tool_call_has_no_fabricated_result() {
-    let mut tool = chunk(
-        0,
-        "tool_call",
-        "read_file",
-        json!({
-            "call_id": "call-pending",
-            "raw_tool_name": "Read",
-            "status": "running"
-        }),
-    );
-    tool.args = json!({"path": "README.md"});
-
-    let projected = exact_project(vec![tool]).expect("pending call is exact");
-    assert_eq!(projected.events.len(), 1);
-    assert!(matches!(
-        &projected.events[0].body,
-        PortableEventBody::ToolCall {
-            call_id,
-            state: PortableToolCallState::Pending,
-            ..
-        } if call_id == "call-pending"
-    ));
-
-    let pending_with_output = chunk(
-        1,
-        "tool_call",
-        "read_file",
-        json!({
-            "call_id": "call-progress",
-            "status": "running",
-            "output": "partial output"
-        }),
-    );
-    assert!(exact_project(vec![pending_with_output])
-        .expect_err("pending output cannot be dropped")
-        .contains("contains result payload"));
-}
-
-#[test]
-fn settled_tool_call_preserves_linkage_input_and_result() {
-    let mut tool = settled_tool(0, "call-1", json!({"z": 1, "a": [true, 1.5]}));
-    tool.args = json!({"z": 1, "a": {"y": 2, "b": 3}});
-
-    let projected = exact_project(vec![tool]).expect("settled call is exact");
-    assert_eq!(projected.events.len(), 2);
-    assert!(matches!(
-        &projected.events[0].body,
-        PortableEventBody::ToolCall {
-            call_id,
-            name,
-            state: PortableToolCallState::Settled,
-            input,
-            ..
-        } if call_id == "call-1"
-            && name == "Shell"
-            && input == &json!({"a": {"b": 3, "y": 2}, "z": 1})
-    ));
-    assert!(matches!(
-        &projected.events[1].body,
-        PortableEventBody::ToolResult { call_id, content, .. }
-            if call_id == "call-1"
-                && content == &vec![PortableContentBlock::Json {
-                    value: json!({"a": [true, 1.5], "z": 1})
-                }]
-    ));
-}
-
-#[test]
-fn tool_status_is_required_and_linkage_repairs_are_blocking() {
-    let missing_status = chunk(
-        0,
-        "tool_call",
-        "shell",
-        json!({"call_id": "call-1", "output": "done"}),
-    );
-    assert!(exact_project(vec![missing_status])
-        .expect_err("status cannot be inferred")
-        .contains("explicitly declare"));
-
-    let chunks = vec![
-        settled_tool(0, "same", json!("one")),
-        settled_tool(1, "same", json!("two")),
-    ];
-    let projected = projected_with_manifest(&chunks, empty_manifest());
-    assert_eq!(
-        projected.loss_manifest.fidelity.continuation,
-        PortableContinuationFidelity::BlockingLoss
-    );
-    assert!(projected.loss_manifest.is_exact_visible());
-    assert!(!projected.loss_manifest.is_continuation_materializable());
-    assert!(exact_project(chunks).is_err());
-}
-
-#[test]
-fn ambiguous_normalized_content_is_rejected_instead_of_selecting_one_alias() {
-    let message = chunk(
-        0,
-        "raw",
-        "user_message",
-        json!({"content": "one", "text": "two"}),
-    );
-    assert!(exact_project(vec![message])
-        .expect_err("ambiguous message")
-        .contains("multiple content fields"));
-
-    let tool = chunk(
-        0,
-        "tool_call",
-        "shell",
-        json!({
-            "call_id": "call-1",
-            "status": "completed",
-            "output": "one",
-            "observation": "two"
-        }),
-    );
-    assert!(exact_project(vec![tool])
-        .expect_err("ambiguous tool result")
-        .contains("multiple content fields"));
-
-    let malformed_images = vec![chunk(
-        0,
-        "raw",
-        "user_message",
-        json!({"content": "image", "images": "not-an-array"}),
-    )];
-    let projected = projected_with_manifest(&malformed_images, empty_manifest());
-    assert_eq!(
-        projected.loss_manifest.entries[0].reason,
-        PortableLossReason::InvalidAttachmentReference
-    );
-    assert!(exact_project(malformed_images).is_err());
-}
-
-#[test]
-fn decoder_rejects_duplicate_pending_or_missing_tool_results() {
-    let settled =
-        exact_project(vec![settled_tool(0, "call-1", json!("done"))]).expect("settled fixture");
+fn tool_linkage_and_logical_indices_fail_closed() {
+    let settled = mixed_fixture();
 
     let mut duplicate = settled.clone();
-    let mut duplicate_result = duplicate.events[1].clone();
-    duplicate_result.event_id.push_str(":duplicate");
-    duplicate.events.push(duplicate_result);
+    let mut result = duplicate.events[4].clone();
+    result.event_id.push_str(":duplicate");
+    result.source_index = 5;
+    result.source_record_index = 9;
+    result.source_record_id = Some("native-9".to_string());
+    duplicate.events.push(result);
     assert!(duplicate
         .validate()
         .expect_err("duplicate result")
         .contains("Duplicate portable tool result"));
 
-    let mut pending_with_result = settled.clone();
-    let PortableEventBody::ToolCall { state, .. } = &mut pending_with_result.events[0].body else {
-        panic!("tool call");
+    let mut pending = settled.clone();
+    let PortableEventBody::ToolCall { state, .. } = &mut pending.events[3].body else {
+        panic!("tool call")
     };
     *state = PortableToolCallState::Pending;
-    assert!(pending_with_result
+    assert!(pending
         .validate()
-        .expect_err("pending result")
+        .expect_err("pending cannot have result")
         .contains("Pending portable tool call"));
 
-    let mut missing = settled;
-    missing.events.pop();
-    assert!(missing
+    let mut duplicate_index = settled;
+    duplicate_index.events[1].source_index = 0;
+    assert!(duplicate_index
         .validate()
-        .expect_err("missing result")
-        .contains("has no result"));
+        .expect_err("logical indices are strict")
+        .contains("contiguous from zero"));
 }
 
 #[test]
-fn fidelity_separates_visible_exactness_from_continuation_context() {
-    let thinking = chunk(0, "thinking", "thinking", json!({"content": "private"}));
-    let degraded = exact_project(vec![thinking]).expect("private loss is non-blocking");
-    assert!(degraded.loss_manifest.is_exact_visible());
-    assert!(degraded.loss_manifest.is_continuation_materializable());
-    assert!(!degraded.loss_manifest.is_continuation_complete());
-    assert_eq!(
-        degraded.loss_manifest.fidelity.continuation,
-        PortableContinuationFidelity::ContextDegraded
-    );
-
-    let context_loss = manifest(PortableLossReason::SystemContextOmitted, 1);
-    assert!(context_loss.is_exact_visible());
-    assert!(!context_loss.is_continuation_materializable());
-    assert!(project_exact_read(ExactReadOutcome {
-        source: source(),
-        chunks: Vec::new(),
-        reader_loss_manifest: context_loss,
-    })
-    .is_err());
-
-    let visible_loss = manifest(PortableLossReason::SourceVisibleContentTruncated, 1);
-    assert!(!visible_loss.is_exact_visible());
-}
-
-#[test]
-fn attachment_content_must_be_embedded_for_exact_export() {
-    let local_or_remote = vec![chunk(
-        0,
-        "raw",
-        "user_message",
-        json!({
-            "content": "images",
-            "images": ["/tmp/local.png", "https://example.invalid/mutable.png"]
-        }),
-    )];
-    let projected = projected_with_manifest(&local_or_remote, empty_manifest());
-    assert_eq!(
-        projected.loss_manifest.entries,
-        vec![
-            PortableLossEntry {
-                reason: PortableLossReason::LocalAttachmentUnavailable,
-                impact: PortableLossImpact::VisibleBlocking,
-                count: 1,
-            },
-            PortableLossEntry {
-                reason: PortableLossReason::RemoteAttachmentUncaptured,
-                impact: PortableLossImpact::VisibleBlocking,
-                count: 1,
-            },
-        ]
-    );
-    assert!(exact_project(local_or_remote).is_err());
-
-    let embedded = exact_project(vec![chunk(
-        0,
-        "raw",
-        "user_message",
-        json!({
-            "content": "image",
-            "images": ["data:image/png;base64,c21hbGw="]
-        }),
-    )])
-    .expect("embedded image");
-    assert!(embedded.loss_manifest.is_exact_visible());
-}
-
-#[test]
-fn exact_reader_loss_manifest_is_validated_before_projection() {
-    let mut malformed = manifest(PortableLossReason::PrivateReasoningOmitted, 1);
-    malformed.entries[0].impact = PortableLossImpact::Informational;
-    let error = project_exact_read(ExactReadOutcome {
-        source: source(),
-        chunks: Vec::new(),
-        reader_loss_manifest: malformed,
-    })
-    .expect_err("invalid reader manifest");
-    assert!(error.contains("impact does not match"));
-}
-
-#[test]
-fn source_snapshot_digest_and_source_order_are_fail_closed() {
-    let mut projected = exact_project(vec![
-        chunk(0, "raw", "user_message", json!({"content": "one"})),
-        chunk(1, "assistant", "assistant", json!({"content": "two"})),
-    ])
-    .expect("fixture");
-    projected.source.source_snapshot.digest = "ABC".to_string();
-    assert!(projected.validate().is_err());
-
-    projected.source.source_snapshot.digest =
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string();
-    projected.events[0].source_index = 2;
-    assert!(projected.validate().is_err());
-}
-
-#[test]
-fn source_identity_ephemeral_deltas_and_thread_context_are_explicit() {
-    let mut wrong_session = chunk(0, "raw", "user_message", json!({"content": "wrong root"}));
-    wrong_session.session_id = "another-session".to_string();
-    assert!(exact_project(vec![wrong_session])
-        .expect_err("mixed source sessions")
-        .contains("different session"));
-
-    let mut ephemeral = chunk(0, "assistant", "assistant", json!({"content": "delta"}));
-    ephemeral.broadcast_only = true;
-    assert!(exact_project(vec![ephemeral])
-        .expect_err("ephemeral delta")
-        .contains("ephemeral broadcast delta"));
-
-    let mut threaded = chunk(0, "raw", "user_message", json!({"content": "branch"}));
-    threaded.thread_id = Some("thread-a".to_string());
-    threaded.process_id = Some("local-pid".to_string());
-    let projected = exact_project(vec![threaded]).expect("runtime loss is non-blocking");
-    assert_eq!(
-        projected.events[0].source_thread_id.as_deref(),
-        Some("thread-a")
-    );
-    assert_eq!(
-        projected.loss_manifest.entries,
-        vec![PortableLossEntry {
-            reason: PortableLossReason::OpaqueProviderStateOmitted,
-            impact: PortableLossImpact::ContinuationDegrading,
-            count: 1,
-        }]
-    );
-}
-
-#[test]
-fn embedded_image_validation_rejects_malformed_base64_padding() {
-    for uri in [
-        "data:image/png;base64,ab=c",
-        "data:image/png;base64,a===",
-        "data:image/svg+xml;base64,PHN2Zz4=",
-    ] {
-        assert!(!portable_image_uri(uri), "accepted malformed URI: {uri}");
-    }
-    assert!(portable_image_uri("data:image/png;base64,c21hbGw="));
-}
-
-#[test]
-fn canonical_v1_bytes_and_digest_are_frozen() {
-    let mut pending = chunk(
+fn loss_manifest_separates_degraded_from_blocking_context() {
+    let degraded = PortableLossManifest::from_reason_counts([(
+        PortableLossReason::OpaqueProviderStateOmitted,
         2,
-        "tool_call",
-        "read_file",
-        json!({
-            "call_id": "pending-1",
-            "raw_tool_name": "Read",
-            "status": "pending"
-        }),
-    );
-    pending.args = json!({"z": 1.5, "a": ["\u{1}", true]});
-    let projected = exact_project(vec![
-        chunk(
-            0,
-            "raw",
-            "system_message",
-            json!({"content": "规则\n\"严\""}),
-        ),
-        chunk(1, "raw", "user_message", json!({"content": "你好"})),
-        pending,
-        chunk(3, "task_completed", "", json!({})),
-    ])
-    .expect("golden projection");
-    let encoded = projected.encode_canonical().expect("canonical encode");
+    )])
+    .expect("degraded manifest");
+    assert!(degraded.is_exact_visible());
+    assert!(degraded.is_continuation_materializable());
+    assert!(!degraded.is_continuation_complete());
 
-    assert_eq!(
-        String::from_utf8(encoded.bytes.clone()).expect("UTF-8 JSON"),
-        include_str!("../testdata/portable-conversation-v1.canonical").trim_end_matches('\n')
-    );
+    let blocked =
+        PortableLossManifest::from_reason_counts([(PortableLossReason::SystemContextOmitted, 1)])
+            .expect("blocking manifest");
+    let error = ExactReadOutcome {
+        source: source(),
+        events: vec![message(
+            0,
+            0,
+            None,
+            PortableRole::User,
+            PortableContentBlock::Text {
+                text: "message".to_string(),
+            },
+        )],
+        reader_loss_manifest: blocked,
+    }
+    .finalize()
+    .expect_err("blocking loss cannot finalize");
+    assert_eq!(error.kind, ExactReadFailureKind::BlockingLoss);
+}
+
+#[test]
+fn canonical_v2_golden_freezes_grouping_and_boundary_fields() {
+    let conversation = mixed_fixture();
+    let encoded = conversation.encode_canonical().expect("canonical fixture");
+    let golden = include_bytes!("../testdata/portable-conversation-v2.canonical")
+        .strip_suffix(b"\n")
+        .expect("golden newline");
+    assert_eq!(encoded.bytes, golden);
     assert_eq!(
         encoded.sha256,
-        include_str!("../testdata/portable-conversation-v1.sha256").trim()
+        include_str!("../testdata/portable-conversation-v2.sha256").trim()
     );
     assert_eq!(
-        PortableConversation::decode_canonical(&encoded.bytes).expect("canonical decode"),
-        projected
+        PortableConversation::decode_canonical(golden),
+        Ok(conversation)
     );
 }
 
 #[test]
-fn canonical_decoder_rejects_pretty_or_reordered_json() {
-    let projected = exact_project(vec![chunk(
-        0,
-        "assistant",
-        "assistant",
-        json!({"content": "done"}),
-    )])
-    .expect("fixture");
-    let pretty = serde_json::to_vec_pretty(&projected).expect("pretty");
-    assert!(PortableConversation::decode_canonical(&pretty).is_err());
+fn decoder_rejects_unknown_fields_variants_and_old_schema() {
+    let encoded = mixed_fixture()
+        .encode_canonical()
+        .expect("canonical fixture");
+    let value: Value = serde_json::from_slice(&encoded.bytes).expect("JSON");
 
-    let reordered = serde_json::to_vec(&projected).expect("serde order differs from canonical");
-    assert!(PortableConversation::decode_canonical(&reordered).is_err());
-}
-
-#[test]
-fn canonical_size_limit_is_checked_before_value_materialization() {
-    let text = "x".repeat(2_048);
-    let projected = exact_project(vec![chunk(
-        0,
-        "raw",
-        "user_message",
-        json!({"content": text}),
-    )])
-    .expect("fixture");
-    let error = crate::canonical::encode_canonical_json_with_test_limit(&projected, 1_024)
-        .expect_err("small test limit");
-    assert!(error.contains("payload is at least"));
-}
-
-#[test]
-fn nested_tool_json_is_bounded_before_projection_clones_it() {
-    let mut input = Value::Null;
-    for _ in 0..=MAX_PORTABLE_JSON_DEPTH {
-        input = Value::Array(vec![input]);
+    for pointer in [
+        "",
+        "/source",
+        "/source/sourceSnapshot",
+        "/events/0",
+        "/events/0/content/0",
+        "/lossManifest",
+        "/lossManifest/fidelity",
+    ] {
+        let mut candidate = value.clone();
+        candidate
+            .pointer_mut(pointer)
+            .and_then(Value::as_object_mut)
+            .expect("object pointer")
+            .insert("unknownField".to_string(), Value::Bool(true));
+        let bytes = serde_json::to_vec(&candidate).expect("candidate");
+        assert!(PortableConversation::decode_canonical(&bytes)
+            .expect_err("unknown fields must fail")
+            .contains("unknown"));
     }
-    let mut tool = chunk(
-        0,
-        "tool_call",
-        "deep_tool",
-        json!({"call_id": "deep", "status": "pending"}),
-    );
-    tool.args = input;
 
-    assert!(exact_project(vec![tool])
-        .expect_err("deep JSON")
-        .contains("nesting limit"));
+    let mut unknown_loss_entry = value.clone();
+    unknown_loss_entry["lossManifest"] = json!({
+        "fidelity": {"visible": "exact", "continuation": "context_degraded"},
+        "entries": [{
+            "reason": "runtime_lifecycle_omitted",
+            "impact": "continuation_degrading",
+            "count": 1,
+            "unknownField": true
+        }],
+        "totalOmittedItems": 1
+    });
+    assert!(PortableConversation::decode_canonical(
+        &serde_json::to_vec(&unknown_loss_entry).expect("candidate")
+    )
+    .expect_err("unknown loss-entry field must fail")
+    .contains("unknown"));
+
+    let mut unknown_kind = value.clone();
+    unknown_kind["events"][0]["kind"] = Value::String("future_visible_record".to_string());
+    assert!(PortableConversation::decode_canonical(
+        &serde_json::to_vec(&unknown_kind).expect("candidate")
+    )
+    .is_err());
+
+    let mut old_version = value;
+    old_version["schemaVersion"] = Value::from(1);
+    assert!(PortableConversation::decode_canonical(
+        &serde_json::to_vec(&old_version).expect("candidate")
+    )
+    .expect_err("v1 is not v2")
+    .contains("version"));
 }
 
 #[test]
-fn decoder_rejects_overflowing_loss_totals() {
-    let mut projected = exact_project(vec![chunk(
-        0,
-        "raw",
-        "user_message",
-        json!({"content": "one"}),
-    )])
-    .expect("fixture");
-    projected.loss_manifest = PortableLossManifest {
-        fidelity: PortableFidelity::default(),
-        entries: vec![
-            PortableLossEntry {
-                reason: PortableLossReason::EmptyVisibleMessage,
-                impact: PortableLossImpact::VisibleBlocking,
-                count: u64::MAX,
-            },
-            PortableLossEntry {
-                reason: PortableLossReason::UnsupportedChunk,
-                impact: PortableLossImpact::VisibleBlocking,
-                count: 1,
-            },
-        ],
-        total_omitted_items: 0,
-    };
-    assert!(projected
+fn bounds_reject_event_count_payload_size_and_json_depth() {
+    let conversation = mixed_fixture();
+    assert!(
+        crate::canonical::encode_canonical_json_with_test_limit(&conversation, 32)
+            .expect_err("small output cap")
+            .contains("limit")
+    );
+
+    let mut too_many = conversation.clone();
+    too_many.events = (0..=MAX_PORTABLE_CONVERSATION_EVENTS)
+        .map(|index| {
+            message(
+                index as u64,
+                index as u64,
+                None,
+                PortableRole::User,
+                PortableContentBlock::Text {
+                    text: "x".to_string(),
+                },
+            )
+        })
+        .collect();
+    assert!(too_many
         .validate()
-        .expect_err("loss counts must not wrap")
-        .contains("overflowed"));
+        .expect_err("event cap")
+        .contains("limit"));
+
+    let mut nested = Value::Null;
+    for _ in 0..=MAX_PORTABLE_JSON_DEPTH {
+        nested = Value::Array(vec![nested]);
+    }
+    let mut deep = conversation;
+    deep.events[3].body = PortableEventBody::ToolCall {
+        call_id: "call-1".to_string(),
+        name: "Read".to_string(),
+        canonical_name: "read_file".to_string(),
+        state: PortableToolCallState::Settled,
+        input: nested,
+    };
+    assert!(deep.validate().expect_err("depth cap").contains("nesting"));
+
+    let mut wide = mixed_fixture();
+    wide.events[3].body = PortableEventBody::ToolCall {
+        call_id: "call-1".to_string(),
+        name: "Read".to_string(),
+        canonical_name: "read_file".to_string(),
+        state: PortableToolCallState::Settled,
+        input: Value::Array(vec![Value::Null; MAX_PORTABLE_JSON_NODES]),
+    };
+    assert!(wide
+        .validate()
+        .expect_err("node cap")
+        .contains("node limit"));
+
+    assert!(PortableLossManifest::from_reason_counts([
+        (PortableLossReason::RuntimeLifecycleOmitted, u64::MAX),
+        (PortableLossReason::PrivateReasoningOmitted, 1),
+    ])
+    .expect_err("loss total overflow")
+    .contains("overflow"));
 }

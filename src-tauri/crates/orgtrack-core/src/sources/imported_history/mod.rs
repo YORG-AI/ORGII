@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod exact;
 pub mod managed_mirror;
 pub mod managed_roots;
 pub mod metadata;

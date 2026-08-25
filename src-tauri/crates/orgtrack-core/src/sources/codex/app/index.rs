@@ -693,7 +693,7 @@ fn resolve_codex_session_path(conn: &Connection, file_stem: &str) -> Result<Path
         .ok_or_else(|| format!("Codex app file not found for session: {file_stem}"))
 }
 
-fn codex_sessions_dirs() -> Result<Vec<PathBuf>, String> {
+pub(crate) fn codex_sessions_dirs() -> Result<Vec<PathBuf>, String> {
     let home = app_paths::external_history_home_dir();
     let mut dirs = codex_sessions_dir_candidates(&home);
     // ORGII-managed Codex runs redirect CODEX_HOME into isolated profile

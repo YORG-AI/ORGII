@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::canonical::encode_canonical_json;
 
 pub const PORTABLE_CONVERSATION_SCHEMA: &str = "org2.portable_conversation";
-pub const PORTABLE_CONVERSATION_VERSION: u32 = 1;
+pub const PORTABLE_CONVERSATION_VERSION: u32 = 2;
 pub const MAX_PORTABLE_CONVERSATION_EVENTS: usize = 100_000;
 pub const MAX_PORTABLE_CONVERSATION_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_PORTABLE_JSON_DEPTH: usize = 128;
@@ -34,6 +34,10 @@ pub struct PortableConversationSource {
     /// parsed by the source reader. Cached metadata is not sufficient.
     pub source_snapshot: PortableSourceSnapshot,
     pub parser_version: i64,
+    /// Source CLI/runtime version observed inside the authoritative
+    /// transcript. This is not the portable-schema or parser version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_runtime_version: Option<String>,
     pub title: Option<String>,
     pub model: Option<String>,
     /// A hint only. The receiver must explicitly authorize its actual target
@@ -63,7 +67,25 @@ pub enum PortableSourceSnapshotAlgorithm {
 #[serde(rename_all = "camelCase")]
 pub struct PortableEvent {
     pub event_id: String,
+    /// Zero-based logical event order after provider-native graph selection.
     pub source_index: u64,
+    /// Zero-based non-empty record index in the authoritative source stream.
+    /// It may be non-monotonic when the native format stores a child before
+    /// its logical parent; `source_index` remains the replay order.
+    pub source_record_index: u64,
+    /// Provider record discriminator (for example `response_item`). This is
+    /// provenance only; consumers must dispatch on `body`, not this string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_record_type: Option<String>,
+    /// Stable provider record identity when one exists (for example Claude's
+    /// UUID). It is never synthesized from display-layer chunk ids.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_record_id: Option<String>,
+    /// Original position inside a provider content-block array. Multiple
+    /// portable events may share a source record while retaining exact block
+    /// order through this field and their order in `events`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_block_index: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_thread_id: Option<String>,
     pub timestamp: Option<String>,
@@ -99,6 +121,13 @@ pub enum PortableEventBody {
         content: Vec<PortableContentBlock>,
     },
     CompactionSummary {
+        content: Vec<PortableContentBlock>,
+    },
+    /// A native compaction boundary is distinct from its optional summary.
+    /// Portable boundary content is ordered and role-free; raw provider graph
+    /// metadata is not promoted into model context.
+    CompactionBoundary {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         content: Vec<PortableContentBlock>,
     },
 }
@@ -194,7 +223,7 @@ pub enum PortableLossImpact {
     VisibleBlocking,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PortableLossReason {
     CompactionSummaryOmitted,
@@ -309,6 +338,45 @@ impl PortableFidelity {
 }
 
 impl PortableLossManifest {
+    pub fn from_reason_counts(
+        counts: impl IntoIterator<Item = (PortableLossReason, u64)>,
+    ) -> Result<Self, String> {
+        let mut merged = BTreeMap::<PortableLossReason, u64>::new();
+        for (reason, count) in counts {
+            if count == 0 {
+                continue;
+            }
+            let next = merged
+                .get(&reason)
+                .copied()
+                .unwrap_or_default()
+                .checked_add(count)
+                .ok_or_else(|| "Portable loss count overflowed".to_string())?;
+            merged.insert(reason, next);
+        }
+        let total_omitted_items = merged
+            .values()
+            .try_fold(0u64, |total, count| total.checked_add(*count))
+            .ok_or_else(|| "Portable loss manifest total overflowed".to_string())?;
+        let mut entries = merged
+            .into_iter()
+            .map(|(reason, count)| PortableLossEntry {
+                reason,
+                impact: reason.impact(),
+                count,
+            })
+            .collect::<Vec<_>>();
+        entries.sort_unstable_by_key(|entry| entry.reason.wire_name());
+        let mut manifest = Self {
+            fidelity: PortableFidelity::default(),
+            entries,
+            total_omitted_items,
+        };
+        manifest.fidelity = manifest.computed_fidelity();
+        manifest.validate()?;
+        Ok(manifest)
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         let manifest_total = self
             .entries
@@ -391,6 +459,10 @@ impl PortableConversation {
             ("source title", self.source.title.as_deref()),
             ("source model", self.source.model.as_deref()),
             (
+                "source runtime version",
+                self.source.source_runtime_version.as_deref(),
+            ),
+            (
                 "source workspace hint",
                 self.source.source_workspace_hint.as_deref(),
             ),
@@ -424,10 +496,24 @@ impl PortableConversation {
         let mut event_ids = HashSet::with_capacity(self.events.len());
         let mut call_states = HashMap::new();
         let mut result_ids = HashSet::new();
-        let mut last_source_index = None;
-        for event in &self.events {
+        let mut last_source_record_index = None;
+        let mut completed_source_records = HashSet::new();
+        let mut last_source_record_type = None;
+        let mut last_source_record_id = None;
+        let mut last_source_thread_id = None;
+        let mut last_source_timestamp = None;
+        let mut last_source_block = None;
+        for (logical_index, event) in self.events.iter().enumerate() {
             validate_non_empty("portable event id", &event.event_id)?;
             validate_component_bytes("portable event id", &event.event_id)?;
+            if let Some(record_type) = event.source_record_type.as_deref() {
+                validate_non_empty("source record type", record_type)?;
+                validate_component_bytes("source record type", record_type)?;
+            }
+            if let Some(record_id) = event.source_record_id.as_deref() {
+                validate_non_empty("source record id", record_id)?;
+                validate_component_bytes("source record id", record_id)?;
+            }
             if let Some(thread_id) = event.source_thread_id.as_deref() {
                 validate_non_empty("source thread id", thread_id)?;
                 validate_component_bytes("source thread id", thread_id)?;
@@ -438,14 +524,60 @@ impl PortableConversation {
             if !event_ids.insert(event.event_id.as_str()) {
                 return Err(format!("Duplicate portable event id: {}", event.event_id));
             }
-            if last_source_index.is_some_and(|previous| event.source_index < previous) {
-                return Err("Portable conversation events are not in source order".to_string());
+            if event.source_index != logical_index as u64 {
+                return Err(
+                    "Portable conversation logical event indices must be contiguous from zero"
+                        .to_string(),
+                );
             }
-            last_source_index = Some(event.source_index);
+            if last_source_record_index == Some(event.source_record_index) {
+                if last_source_record_type != event.source_record_type.as_deref()
+                    || last_source_record_id != event.source_record_id.as_deref()
+                    || last_source_thread_id != event.source_thread_id.as_deref()
+                    || last_source_timestamp != event.timestamp.as_deref()
+                {
+                    return Err(
+                        "Portable events in one source record have inconsistent provenance"
+                            .to_string(),
+                    );
+                }
+                let (Some(previous), Some(current)) = (last_source_block, event.source_block_index)
+                else {
+                    return Err(
+                        "A multi-event source record requires every event to carry a block index"
+                            .to_string(),
+                    );
+                };
+                if current <= previous {
+                    return Err(
+                        "Portable conversation blocks are not in strict source-record order"
+                            .to_string(),
+                    );
+                }
+            } else {
+                if let Some(previous) = last_source_record_index {
+                    completed_source_records.insert(previous);
+                }
+                if completed_source_records.contains(&event.source_record_index) {
+                    return Err(
+                        "Portable events from one source record must form one contiguous group"
+                            .to_string(),
+                    );
+                }
+            }
+            last_source_block = event.source_block_index;
+            last_source_record_index = Some(event.source_record_index);
+            last_source_record_type = event.source_record_type.as_deref();
+            last_source_record_id = event.source_record_id.as_deref();
+            last_source_thread_id = event.source_thread_id.as_deref();
+            last_source_timestamp = event.timestamp.as_deref();
             match &event.body {
                 PortableEventBody::Message { content, .. }
                 | PortableEventBody::Annotation { content, .. }
                 | PortableEventBody::CompactionSummary { content } => validate_content(content)?,
+                PortableEventBody::CompactionBoundary { content } => {
+                    validate_content_allow_empty(content)?;
+                }
                 PortableEventBody::ToolCall {
                     call_id,
                     name,
@@ -534,7 +666,10 @@ impl PortableConversation {
                 bytes.len()
             ));
         }
-        let conversation: Self = serde_json::from_slice(bytes)
+        let wire: Value = serde_json::from_slice(bytes)
+            .map_err(|err| format!("Failed to decode portable conversation: {err}"))?;
+        validate_wire_shape(&wire)?;
+        let conversation: Self = serde_json::from_value(wire)
             .map_err(|err| format!("Failed to decode portable conversation: {err}"))?;
         conversation.validate()?;
         if conversation.encode_canonical()?.bytes != bytes {
@@ -542,6 +677,162 @@ impl PortableConversation {
         }
         Ok(conversation)
     }
+}
+
+fn validate_wire_shape(value: &Value) -> Result<(), String> {
+    let root = wire_object(value, "portable conversation")?;
+    wire_fields(
+        root,
+        "portable conversation",
+        &[
+            "schema",
+            "schemaVersion",
+            "source",
+            "events",
+            "lossManifest",
+        ],
+    )?;
+
+    let source = wire_object_field(root, "source", "portable source")?;
+    wire_fields(
+        source,
+        "portable source",
+        &[
+            "sourceKind",
+            "sourceSessionId",
+            "sourceSnapshot",
+            "parserVersion",
+            "sourceRuntimeVersion",
+            "title",
+            "model",
+            "sourceWorkspaceHint",
+            "startedAt",
+            "updatedAt",
+        ],
+    )?;
+    let snapshot = wire_object_field(source, "sourceSnapshot", "source snapshot")?;
+    wire_fields(
+        snapshot,
+        "source snapshot",
+        &["algorithm", "digest", "observedBytes"],
+    )?;
+
+    let events = root
+        .get("events")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Portable conversation events must be an array".to_string())?;
+    for (event_index, event) in events.iter().enumerate() {
+        let label = format!("portable event {event_index}");
+        let event = wire_object(event, &label)?;
+        let kind = event
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("{label} kind must be a string"))?;
+        let variant_fields: &[&str] = match kind {
+            "message" => &["role", "content"],
+            "tool_call" => &["callId", "name", "canonicalName", "state", "input"],
+            "tool_result" => &["callId", "content", "isError"],
+            "annotation" => &["annotationKind", "content"],
+            "compaction_summary" | "compaction_boundary" => &["content"],
+            unknown => {
+                return Err(format!("Unknown portable event kind: {unknown}"));
+            }
+        };
+        let mut allowed = vec![
+            "eventId",
+            "sourceIndex",
+            "sourceRecordIndex",
+            "sourceRecordType",
+            "sourceRecordId",
+            "sourceBlockIndex",
+            "sourceThreadId",
+            "timestamp",
+            "kind",
+        ];
+        allowed.extend_from_slice(variant_fields);
+        wire_fields(event, &label, &allowed)?;
+        match kind {
+            "message" | "tool_result" | "annotation" | "compaction_summary" => {
+                validate_wire_content(event.get("content"), &label)?;
+            }
+            "compaction_boundary" => {
+                if let Some(content) = event.get("content") {
+                    validate_wire_content(Some(content), &label)?;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let manifest = wire_object_field(root, "lossManifest", "loss manifest")?;
+    wire_fields(
+        manifest,
+        "loss manifest",
+        &["fidelity", "entries", "totalOmittedItems"],
+    )?;
+    let fidelity = wire_object_field(manifest, "fidelity", "loss fidelity")?;
+    wire_fields(fidelity, "loss fidelity", &["visible", "continuation"])?;
+    let entries = manifest
+        .get("entries")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Portable loss entries must be an array".to_string())?;
+    for (index, entry) in entries.iter().enumerate() {
+        wire_fields(
+            wire_object(entry, "loss entry")?,
+            &format!("loss entry {index}"),
+            &["reason", "impact", "count"],
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_wire_content(value: Option<&Value>, owner: &str) -> Result<(), String> {
+    let blocks = value
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("{owner} content must be an array"))?;
+    for (index, block) in blocks.iter().enumerate() {
+        let label = format!("{owner} content block {index}");
+        let block = wire_object(block, &label)?;
+        match block.get("type").and_then(Value::as_str) {
+            Some("text") => wire_fields(block, &label, &["type", "text"]),
+            Some("image") => wire_fields(block, &label, &["type", "uri"]),
+            Some("json") => wire_fields(block, &label, &["type", "value"]),
+            Some(unknown) => Err(format!("Unknown portable content block type: {unknown}")),
+            None => Err(format!("{label} type must be a string")),
+        }?;
+    }
+    Ok(())
+}
+
+fn wire_object<'a>(
+    value: &'a Value,
+    label: &str,
+) -> Result<&'a serde_json::Map<String, Value>, String> {
+    value
+        .as_object()
+        .ok_or_else(|| format!("{label} must be an object"))
+}
+
+fn wire_object_field<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    field: &str,
+    label: &str,
+) -> Result<&'a serde_json::Map<String, Value>, String> {
+    object
+        .get(field)
+        .and_then(Value::as_object)
+        .ok_or_else(|| format!("{label} must be an object"))
+}
+
+fn wire_fields(
+    object: &serde_json::Map<String, Value>,
+    label: &str,
+    allowed: &[&str],
+) -> Result<(), String> {
+    if let Some(unknown) = object.keys().find(|key| !allowed.contains(&key.as_str())) {
+        return Err(format!("{label} contains unknown field {unknown:?}"));
+    }
+    Ok(())
 }
 
 pub(crate) fn portable_image_uri(uri: &str) -> bool {
