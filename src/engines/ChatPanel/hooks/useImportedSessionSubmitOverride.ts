@@ -12,7 +12,11 @@ import {
   type ConversationFamilyMember,
   resolveConversationFamily,
 } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
-import { cloudConversationExecutorScopeKey } from "@src/features/Org2Cloud/SessionConversation/conversationExecutionStore";
+import {
+  cloudConversationExecutorScopeKey,
+  cloudConversationSetupMemoryKey,
+  loadStoredOwnerPlaneCursor,
+} from "@src/features/Org2Cloud/SessionConversation/conversationExecutionStore";
 import { publishOwnerTurn } from "@src/features/Org2Cloud/SessionConversation/conversationOwnerPublisher";
 import {
   bumpConversationPlaneSignal,
@@ -20,11 +24,14 @@ import {
   conversationPlaneKey,
   conversationPlaneSignalAtom,
 } from "@src/features/Org2Cloud/SessionConversation/conversationPlaneAtom";
-import { buildConversationPlaneStreamEvents } from "@src/features/Org2Cloud/SessionConversation/conversationPlaneEvents";
-import { mergePlaneIntoTranscript } from "@src/features/Org2Cloud/SessionConversation/conversationTimeline";
 import {
-  buildRunnerPrompt,
-  renderConversationContext,
+  conversationEventKey,
+  mergePlaneIntoTranscript,
+} from "@src/features/Org2Cloud/SessionConversation/conversationTimeline";
+import {
+  CONVERSATION_CONTEXT_MAX_ENTRIES,
+  buildResumePrompt,
+  renderPlaneDeltaContext,
   runConversationTurn,
 } from "@src/features/Org2Cloud/SessionConversation/conversationTurnRunner";
 import {
@@ -37,6 +44,7 @@ import {
   org2CloudAuthIdentityKey,
 } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { ensureFreshSession } from "@src/features/Org2Cloud/org2CloudClient";
+import { listConversationEventsFrom } from "@src/features/Org2Cloud/org2CloudConversationEventsClient";
 import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import { findImportedSession } from "@src/features/TeamCollaboration/engine/collabImportIdentity";
 import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
@@ -157,7 +165,7 @@ export function useImportedSessionSubmitOverride({
 
   // CONVERSATION PLANE (0024): once the backend supports the multi-writer
   // turn plane, implicit sends stop forking entirely — a member's turn runs
-  // in an invisible one-shot local session and publishes to the plane; the
+  // in an invisible persistent local continuation and publishes to the plane; the
   // owner's sends keep their own session but inject the plane delta as
   // context. The fork/tip paths below remain ONLY as the pre-0024 fallback.
   const setAuth = useSetAtom(org2CloudAuthAtom);
@@ -246,8 +254,8 @@ export function useImportedSessionSubmitOverride({
     async (input: SubmitOverrideInput): Promise<boolean> => {
       const planeReady = planeInfo?.entry.state === "ready";
       // (a) Member send on a plane-capable backend: publish the message to
-      // the conversation immediately, run the turn in an invisible one-shot
-      // local session, stream the agent tail back to the plane. No fork.
+      // the conversation immediately, run the turn in an invisible local
+      // continuation, stream the agent tail back to the plane. No fork.
       if (planeReady && planeInfo && !viewerOwnsRoot) {
         if (forkSubmitInFlightRef.current) {
           restorePendingDraft(input, sessionId);
@@ -269,17 +277,6 @@ export function useImportedSessionSubmitOverride({
               planeInfo.rootId,
               auth.supabaseUrl
             );
-          const rootEvents = rootLocal
-            ? await eventStoreProxy
-                .getPersistedEvents(rootLocal.session_id)
-                .catch(() => [] as SessionEvent[])
-            : [];
-          const timeline = mergePlaneIntoTranscript(
-            rootEvents,
-            planeInfo.entry.events,
-            sessionId,
-            auth.userId
-          );
           // The root row's repo scope keys the setup memory AND resolves the
           // runner's local checkout — without it the dialog reappears and a
           // workspace-requiring agent cannot launch at all.
@@ -288,6 +285,11 @@ export function useImportedSessionSubmitOverride({
                 (candidate) => candidate.sourceSessionId === planeInfo.rootId
               )
             : undefined;
+          const authIdentity = org2CloudAuthIdentityKey(auth);
+          const executorScope = cloudConversationExecutorScopeKey(
+            authIdentity,
+            planeInfo.orgId
+          );
           let publishResolve!: () => void;
           const userPublished = new Promise<void>((resolve) => {
             publishResolve = resolve;
@@ -319,14 +321,69 @@ export function useImportedSessionSubmitOverride({
             displayText: input.displayText,
             agentContent: input.agentContent,
             imageDataUrls: input.imageDataUrls,
-            timeline,
+            loadInitialContext: async (excludeTurnIntentId) => {
+              const window = await listConversationEventsFrom(
+                await getAccessToken(),
+                {
+                  orgId: planeInfo.orgId,
+                  rootSessionId: planeInfo.rootId,
+                  afterSeq: 0,
+                  retainLast: CONVERSATION_CONTEXT_MAX_ENTRIES,
+                }
+              );
+              const rows = window.events.filter(
+                (row) => row.turnId !== excludeTurnIntentId
+              );
+              const rootEvents = rootLocal
+                ? await eventStoreProxy
+                    .getPersistedEvents(rootLocal.session_id)
+                    .catch(() => [] as SessionEvent[])
+                : [];
+              const timeline = mergePlaneIntoTranscript(
+                rootEvents,
+                rows,
+                sessionId,
+                auth.userId
+              );
+              const authorByEventKey = new Map(
+                rows.map((row) => [
+                  conversationEventKey(row.event),
+                  row.authorDisplayName ?? row.authorUserId,
+                ])
+              );
+              const senders = new Map<string, string>();
+              for (const event of timeline) {
+                const sender = authorByEventKey.get(
+                  conversationEventKey(event)
+                );
+                if (sender) senders.set(event.id, sender);
+              }
+              return {
+                timeline,
+                senders,
+                readThroughPlaneSeq: window.lastSeq,
+              };
+            },
+            loadPlaneDelta: (afterSeq) =>
+              getAccessToken().then((accessToken) =>
+                listConversationEventsFrom(accessToken, {
+                  orgId: planeInfo.orgId,
+                  rootSessionId: planeInfo.rootId,
+                  afterSeq,
+                  retainLast: CONVERSATION_CONTEXT_MAX_ENTRIES,
+                })
+              ),
             sourceScopeKey: rootRow?.repoScopeKey,
             sourceModel: currentSession?.model ?? rootRow?.model,
-            executionScopeKey: cloudConversationExecutorScopeKey(
-              org2CloudAuthIdentityKey(auth),
-              planeInfo.orgId
+            assignedAgentDefinitionId: rootRow?.agentDefinitionId,
+            setupMemoryKey: cloudConversationSetupMemoryKey(
+              authIdentity,
+              planeInfo.orgId,
+              planeInfo.rootId,
+              rootRow?.agentDefinitionId
             ),
-            onRunnerReady: (runnerSessionId, turnId) => {
+            executionScopeKey: executorScope,
+            onRunnerReady: (runnerSessionId, turnId, turnIntentId) => {
               // Plumbing session: never sync it to the cloud as a session.
               setAccessSettings((current) =>
                 withCloudSessionMode(
@@ -344,7 +401,10 @@ export function useImportedSessionSubmitOverride({
                 const list = current[planeInfo.rootId] ?? [];
                 return {
                   ...current,
-                  [planeInfo.rootId]: [...list, { runnerSessionId, turnId }],
+                  [planeInfo.rootId]: [
+                    ...list,
+                    { runnerSessionId, turnId, turnIntentId },
+                  ],
                 };
               });
             },
@@ -387,15 +447,34 @@ export function useImportedSessionSubmitOverride({
         const freshAuth = await ensureFreshSession(auth);
         if (!freshAuth) return false;
         commitRefreshedAuth(setAuth, auth, freshAuth);
-        const othersRows = planeInfo.entry.events.filter(
+        const executorScope = cloudConversationExecutorScopeKey(
+          org2CloudAuthIdentityKey(auth),
+          planeInfo.orgId
+        );
+        const ownerCursor =
+          loadStoredOwnerPlaneCursor(executorScope, planeInfo.rootId)
+            ?.readThroughPlaneSeq ?? 0;
+        let delta;
+        try {
+          delta = await listConversationEventsFrom(freshAuth.accessToken, {
+            orgId: planeInfo.orgId,
+            rootSessionId: planeInfo.rootId,
+            afterSeq: ownerCursor,
+            retainLast: CONVERSATION_CONTEXT_MAX_ENTRIES,
+          });
+        } catch (error) {
+          logger.error("owner conversation delta load failed", error);
+          restorePendingDraft(input, sessionId);
+          Message.error(t("collaboration.forkImported.sendFailed"));
+          return true;
+        }
+        const othersRows = delta.events.filter(
           (row) => row.authorUserId !== auth.userId
         );
         const agentContent =
           othersRows.length > 0
-            ? buildRunnerPrompt(
-                renderConversationContext(
-                  buildConversationPlaneStreamEvents(othersRows, sessionId)
-                ),
+            ? buildResumePrompt(
+                renderPlaneDeltaContext(othersRows),
                 input.agentContent ?? input.displayText
               )
             : input.agentContent;
@@ -424,6 +503,8 @@ export function useImportedSessionSubmitOverride({
           sessionId,
           turnIntentId,
           displayText: input.displayText,
+          executorScope,
+          readThroughPlaneSeq: delta.lastSeq,
           onPushed: () =>
             bumpConversationPlaneSignal(setPlaneSignal, planeInfo.orgId),
         }).catch((error: unknown) => {

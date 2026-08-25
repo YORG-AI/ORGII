@@ -1,7 +1,7 @@
 /**
  * Live overlay registry for in-flight member turns.
  *
- * A member's send runs the turn in an invisible one-shot local runner and
+ * A member's send runs the turn in an invisible persistent local runner and
  * only publishes the agent tail to the plane at terminal — so without this,
  * even the SENDER stares at their own message with no thinking, no tools,
  * no "Agent worked for Ns" until the whole turn lands at once.
@@ -21,16 +21,50 @@ import { atom } from "jotai";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
+import { sliceTurnTailByIntent } from "./conversationTurnEvents";
+
 export interface ActiveConversationRunner {
   runnerSessionId: string;
   /** The turnId the tail is pushed under — the plane-landed drop signal. */
   turnId: string;
+  /** Exact runtime turn overlaid from a reusable local session. */
+  turnIntentId: string;
+}
+
+type RunnerRegistry = Record<string, ActiveConversationRunner[]>;
+
+function dedupeByTurnId(
+  runners: readonly ActiveConversationRunner[]
+): ActiveConversationRunner[] {
+  const seen = new Set<string>();
+  const kept: ActiveConversationRunner[] = [];
+  for (let index = runners.length - 1; index >= 0; index -= 1) {
+    const runner = runners[index];
+    if (seen.has(runner.turnId)) continue;
+    seen.add(runner.turnId);
+    kept.push(runner);
+  }
+  return kept.reverse();
 }
 
 /** plane rootSessionId → this device's in-flight member runners. */
-export const activeConversationRunnersAtom = atom<
-  Record<string, ActiveConversationRunner[]>
->({});
+const runnerRegistryStateAtom = atom<RunnerRegistry>({});
+export const activeConversationRunnersAtom = atom(
+  (get) => get(runnerRegistryStateAtom),
+  (
+    get,
+    set,
+    update: RunnerRegistry | ((current: RunnerRegistry) => RunnerRegistry)
+  ) => {
+    const current = get(runnerRegistryStateAtom);
+    const proposed = typeof update === "function" ? update(current) : update;
+    const next: RunnerRegistry = {};
+    for (const [rootSessionId, runners] of Object.entries(proposed)) {
+      next[rootSessionId] = dedupeByTurnId(runners);
+    }
+    set(runnerRegistryStateAtom, next);
+  }
+);
 activeConversationRunnersAtom.debugLabel = "activeConversationRunnersAtom";
 
 /** Plane turnIds whose agent tail has landed (a non-user row is present). */
@@ -42,6 +76,14 @@ export function collectLandedTurnIds(
     if (row.event.source !== "user") landed.add(row.turnId);
   }
   return landed;
+}
+
+/** Exact current-turn tail from a reusable runner transcript. */
+export function overlayableRunnerEvents(
+  events: readonly SessionEvent[],
+  turnIntentId: string
+): SessionEvent[] {
+  return sliceTurnTailByIntent(events, turnIntentId) ?? [];
 }
 
 /** Runners still worth overlaying: their turn has no agent tail on the plane yet. */

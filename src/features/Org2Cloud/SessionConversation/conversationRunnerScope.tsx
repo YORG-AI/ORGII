@@ -1,7 +1,7 @@
 /**
  * The live runner scope for a mounted conversation surface.
  *
- * A member's turn runs in an invisible one-shot local runner, so the mounted
+ * A member's turn runs in an invisible persistent local runner, so the mounted
  * imported session stays idle — its planning indicator and streaming-delta
  * footer never light up, and a long turn looks frozen (no "Thinking…", no
  * activity) until the tail lands. The conversation stream publishes the

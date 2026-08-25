@@ -1,0 +1,383 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { SessionService } from "@src/engines/SessionCore/services/SessionService";
+import { sendReservedTurn } from "@src/engines/SessionCore/services/TurnDispatchService";
+
+import type { CloudConversationEvent } from "../org2CloudConversationEventsClient";
+import { loadContinuation, saveContinuation } from "./conversationContinuation";
+import {
+  CONVERSATION_TURN_LOCK_UNAVAILABLE,
+  type RunConversationTurnParams,
+  runConversationTurn,
+  withConversationTurnLock,
+} from "./conversationTurnRunner";
+
+const { state } = vi.hoisted(() => ({
+  state: {
+    generation: 0,
+    persistedBatches: [] as SessionEvent[][],
+    pushes: [] as Array<{ kind: "user" | "tail"; turnId: string }>,
+    sent: [] as Record<string, unknown>[],
+    rejectNextSend: false,
+    cleaned: [] as string[],
+    terminalStatus: "completed" as "completed" | "failed" | "cancelled",
+  },
+}));
+
+vi.mock("@src/components/Message", () => ({
+  default: { info: vi.fn(), error: vi.fn() },
+}));
+vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
+  eventStoreProxy: {
+    getPersistedEvents: vi.fn(async () => state.persistedBatches.shift() ?? []),
+  },
+}));
+vi.mock("@src/engines/SessionCore/services/SessionService", () => ({
+  SessionService: {
+    create: vi.fn(async () => ({ sessionId: "fresh-runner" })),
+  },
+}));
+vi.mock("@src/engines/SessionCore/services/TurnDispatchService", () => ({
+  reserveTurnDispatch: vi.fn(
+    (input: { sessionId: string; turnIntentId: string }) => ({
+      ...input,
+      generation: ++state.generation,
+      optimisticSource: "dispatch",
+    })
+  ),
+  sendReservedTurn: vi.fn(async (input: Record<string, unknown>) => {
+    state.sent.push(input);
+    if (state.rejectNextSend) {
+      state.rejectNextSend = false;
+      throw new Error("session cannot accept turns");
+    }
+    return { ...(input.dispatch as object), accepted: true };
+  }),
+  waitForTurnOutcome: vi.fn(async (dispatch: Record<string, unknown>) => ({
+    ...dispatch,
+    status: state.terminalStatus,
+    at: 1,
+  })),
+}));
+vi.mock("@src/engines/SessionCore/sync/adapters/shared/eventFactories", () => ({
+  mintTurnIntentId: () => "intent-1",
+}));
+vi.mock("@src/features/TeamCollaboration/forkSession", () => ({
+  requestForkSessionSetup: vi.fn(async () => ({
+    workspaceRepoPath: "/repo",
+    execution: {
+      agentDefinitionId: "agent-a",
+      accountId: "account-a",
+      model: "model-a",
+    },
+  })),
+}));
+vi.mock("@src/features/TeamCollaboration/forkSetupMemory", () => ({
+  loadForkSetupMemory: vi.fn(() => null),
+  saveForkSetupMemory: vi.fn(),
+  clearForkSetupMemory: vi.fn(),
+}));
+vi.mock("@src/hooks/logger", () => ({
+  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+}));
+vi.mock("@src/i18n", () => ({ default: { t: (key: string) => key } }));
+vi.mock("./conversationRunnerSessions", () => ({
+  conversationRunnerKey: (scope: string, root: string) =>
+    JSON.stringify([scope, root]),
+  registerConversationRunner: vi.fn(),
+  markConversationRunnerTerminal: vi.fn(),
+  cleanupRetiredConversationRunners: vi.fn(async () => undefined),
+  cleanupConversationRunnerBestEffort: vi.fn(async (sessionId: string) => {
+    state.cleaned.push(sessionId);
+  }),
+}));
+vi.mock("../org2CloudConversationEventsClient", () => ({
+  boundConversationEventForPush: (event: SessionEvent) => event,
+  pushConversationEvents: vi.fn(
+    async (_token: string, input: { turnId: string }) => {
+      state.pushes.push({ kind: "user", turnId: input.turnId });
+      return { firstSeq: 1, lastSeq: 1 };
+    }
+  ),
+  pushConversationEventsChunked: vi.fn(
+    async (_token: string, input: { turnId: string }) => {
+      state.pushes.push({ kind: "tail", turnId: input.turnId });
+      return { firstSeq: 2, lastSeq: 2 };
+    }
+  ),
+}));
+
+function fakeStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => [...values.keys()][index] ?? null,
+    removeItem: (key) => {
+      values.delete(key);
+    },
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+  };
+}
+
+function event(
+  id: string,
+  source: "user" | "assistant",
+  text: string,
+  turnIntentId?: string
+): SessionEvent {
+  return {
+    id,
+    chunk_id: id,
+    sessionId: "runner",
+    createdAt: "2026-08-25T00:00:00.000Z",
+    source,
+    displayText: text,
+    result: turnIntentId ? { turnIntentId } : {},
+  } as SessionEvent;
+}
+
+function row(
+  seq: number,
+  turnId: string,
+  authorDisplayName: string,
+  text: string
+): CloudConversationEvent {
+  return {
+    id: `plane-${seq}`,
+    rootSessionId: "root",
+    authorUserId: authorDisplayName.toLowerCase(),
+    authorDisplayName,
+    turnId,
+    seq,
+    event: event(`plane-event-${seq}`, "user", text, turnId),
+    createdAt: "2026-08-25T00:00:00.000Z",
+  };
+}
+
+function params(
+  overrides: Partial<RunConversationTurnParams> = {}
+): RunConversationTurnParams {
+  return {
+    getAccessToken: async () => "token",
+    orgId: "org",
+    rootSessionId: "root",
+    conversationTitle: "Conversation",
+    displayText: "new request",
+    executionScopeKey: "scope",
+    loadInitialContext: async () => ({
+      timeline: [event("history", "assistant", "root answer")],
+      readThroughPlaneSeq: 12,
+    }),
+    loadPlaneDelta: async (afterSeq) => ({ events: [], lastSeq: afterSeq }),
+    ...overrides,
+  };
+}
+
+let storageBackup: PropertyDescriptor | undefined;
+let locksBackup: PropertyDescriptor | undefined;
+
+beforeEach(() => {
+  state.generation = 0;
+  state.persistedBatches = [];
+  state.pushes = [];
+  state.sent = [];
+  state.rejectNextSend = false;
+  state.cleaned = [];
+  state.terminalStatus = "completed";
+  storageBackup = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: fakeStorage(),
+  });
+  locksBackup = Object.getOwnPropertyDescriptor(navigator, "locks");
+  Object.defineProperty(navigator, "locks", {
+    configurable: true,
+    value: {
+      request: (
+        _name: string,
+        _options: LockOptions,
+        callback: () => Promise<unknown>
+      ) => callback(),
+    } as unknown as LockManager,
+  });
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  if (storageBackup) {
+    Object.defineProperty(globalThis, "localStorage", storageBackup);
+  } else {
+    Reflect.deleteProperty(globalThis, "localStorage");
+  }
+  if (locksBackup) {
+    Object.defineProperty(navigator, "locks", locksBackup);
+  } else {
+    Reflect.deleteProperty(navigator, "locks");
+  }
+});
+
+describe("conversation turn continuation", () => {
+  it("fails closed in a browser without a cross-window lock", async () => {
+    Reflect.deleteProperty(navigator, "locks");
+    const run = vi.fn(async () => "never");
+    await expect(withConversationTurnLock("root", run)).rejects.toThrow(
+      CONVERSATION_TURN_LOCK_UNAVAILABLE
+    );
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("creates one idle runner and persists the verified initial cursor", async () => {
+    state.persistedBatches = [
+      [
+        event("user-1", "user", "new request", "intent-1"),
+        event("agent-1", "assistant", "answer"),
+      ],
+    ];
+    const onRunnerReady = vi.fn();
+
+    const result = await runConversationTurn(params({ onRunnerReady }));
+
+    expect(result).toMatchObject({
+      runnerSessionId: "fresh-runner",
+      turnIntentId: "intent-1",
+      terminalStatus: "completed",
+    });
+    expect(SessionService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ task: "" })
+    );
+    expect(sendReservedTurn).toHaveBeenCalledTimes(1);
+    expect(state.sent[0].content).toContain("Assistant: root answer");
+    expect(onRunnerReady).toHaveBeenCalledWith(
+      "fresh-runner",
+      "intent-1",
+      "intent-1"
+    );
+    expect(loadContinuation("scope", "root")).toMatchObject({
+      continuationSessionId: "fresh-runner",
+      established: true,
+      readThroughPlaneSeq: 12,
+    });
+    expect(state.pushes).toEqual([
+      { kind: "user", turnId: "intent-1" },
+      { kind: "tail", turnId: "intent-1" },
+    ]);
+  });
+
+  it("reuses the runner, injects only new foreign rows, and advances the cursor", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "runner-live",
+      readThroughPlaneSeq: 55,
+      established: true,
+      agentDefinitionId: "agent-a",
+    });
+    state.persistedBatches = [
+      [
+        event("old-user", "user", "prior", "own-prior"),
+        event("old-agent", "assistant", "prior answer"),
+      ],
+      [
+        event("old-user", "user", "prior", "own-prior"),
+        event("old-agent", "assistant", "prior answer"),
+        event("user-2", "user", "new request", "intent-2"),
+        event("agent-2", "assistant", "fresh answer"),
+      ],
+    ];
+    const loadInitialContext = vi.fn();
+    const loadPlaneDelta = vi.fn(async () => ({
+      events: [
+        row(56, "own-prior", "Vince", "duplicate local turn"),
+        row(57, "alice-turn", "Alice", "note from Alice"),
+      ],
+      lastSeq: 57,
+    }));
+
+    const result = await runConversationTurn(
+      params({
+        turnIntentId: "intent-2",
+        loadInitialContext,
+        loadPlaneDelta,
+      })
+    );
+
+    expect(result.runnerSessionId).toBe("runner-live");
+    expect(SessionService.create).not.toHaveBeenCalled();
+    expect(loadInitialContext).not.toHaveBeenCalled();
+    expect(loadPlaneDelta).toHaveBeenCalledWith(55);
+    expect(state.sent[0].content).toContain("Alice: note from Alice");
+    expect(state.sent[0].content).not.toContain("duplicate local turn");
+    expect(loadContinuation("scope", "root")?.readThroughPlaneSeq).toBe(57);
+  });
+
+  it("rolls a rejected resume to fresh without publishing the user twice", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "runner-dead",
+      readThroughPlaneSeq: 10,
+      established: true,
+      agentDefinitionId: "agent-a",
+    });
+    state.rejectNextSend = true;
+    state.persistedBatches = [
+      [],
+      [
+        event("user-1", "user", "new request", "intent-1"),
+        event("agent-1", "assistant", "recovered answer"),
+      ],
+    ];
+
+    const result = await runConversationTurn(params());
+
+    expect(result.runnerSessionId).toBe("fresh-runner");
+    expect(sendReservedTurn).toHaveBeenCalledTimes(2);
+    expect(SessionService.create).toHaveBeenCalledTimes(1);
+    expect(state.pushes.filter((push) => push.kind === "user")).toHaveLength(1);
+    expect(state.cleaned).toContain("runner-dead");
+  });
+
+  it("deletes an unestablished runner before accepting a different intent", async () => {
+    saveContinuation("scope", "root", {
+      continuationSessionId: "runner-pending",
+      readThroughPlaneSeq: 0,
+      established: false,
+      bootstrapTurnIntentId: "intent-old",
+      agentDefinitionId: "agent-a",
+    });
+    state.persistedBatches = [
+      [
+        event("user-1", "user", "new request", "intent-new"),
+        event("agent-1", "assistant", "answer"),
+      ],
+    ];
+
+    await runConversationTurn(params({ turnIntentId: "intent-new" }));
+
+    expect(state.cleaned).toContain("runner-pending");
+    expect(SessionService.create).toHaveBeenCalledTimes(1);
+    expect(loadContinuation("scope", "root")).toMatchObject({
+      continuationSessionId: "fresh-runner",
+      established: true,
+    });
+  });
+
+  it("clears and cleans a failed execution episode", async () => {
+    state.terminalStatus = "failed";
+    state.persistedBatches = [
+      [
+        event("user-1", "user", "new request", "intent-1"),
+        event("agent-1", "assistant", "partial answer"),
+      ],
+    ];
+
+    const result = await runConversationTurn(params());
+
+    expect(result.terminalStatus).toBe("failed");
+    expect(loadContinuation("scope", "root")).toBeNull();
+    expect(state.cleaned).toContain("fresh-runner");
+  });
+});

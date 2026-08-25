@@ -18,6 +18,7 @@ import {
   sourceEventIdOf,
 } from "./continuationEvents";
 import { buildConversationPlaneStreamEvents } from "./conversationPlaneEvents";
+import { turnIntentIdOf } from "./conversationTurnEvents";
 
 /**
  * Plane identity of an event. User rows match on the turn-intent id so the
@@ -27,11 +28,8 @@ import { buildConversationPlaneStreamEvents } from "./conversationPlaneEvents";
  */
 export function conversationEventKey(event: SessionEvent): string {
   if (event.source === "user") {
-    const intent = (event.result as { turnIntentId?: unknown } | undefined)
-      ?.turnIntentId;
-    if (typeof intent === "string" && intent.length > 0) {
-      return `intent:${intent}`;
-    }
+    const intent = turnIntentIdOf(event);
+    if (intent) return `intent:${intent}`;
   }
   return `event:${sourceEventIdOf(event)}`;
 }

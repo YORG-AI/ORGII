@@ -7,6 +7,7 @@ import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionCommen
 import {
   activeConversationRunnersAtom,
   collectLandedTurnIds,
+  overlayableRunnerEvents,
   selectActiveRunners,
 } from "@src/features/Org2Cloud/SessionConversation/activeConversationRunnersAtom";
 import {
@@ -277,8 +278,7 @@ export function ConversationStreamProvider({
     for (const runner of activeRunners) {
       const live = runnerEventsById.get(runner.runnerSessionId);
       if (!live?.length) continue;
-      for (const event of live) {
-        if (event.source === "user") continue;
+      for (const event of overlayableRunnerEvents(live, runner.turnIntentId)) {
         synthetic.push({
           ...event,
           id: `runlive-${event.id}`,

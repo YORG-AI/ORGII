@@ -1,7 +1,7 @@
 /**
  * Owner publisher — the owner's half of "every turn is on the plane".
  *
- * A member's turn reaches the plane through its one-shot runner; the
+ * A member's turn reaches the plane through its local continuation; the
  * owner's turn runs in the owner's own session and used to reach other
  * clients only through the session replay (slow, and ordered by sender
  * clock against the plane). This publishes the owner's turn to the plane
@@ -14,40 +14,29 @@
  * lets every client fold the plane rows onto their local twins instead of
  * rendering a second copy.
  */
-import {
-  getLastTurnTerminal,
-  getTurnPhase,
-  turnLifecycleSignalAtom,
-} from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { extractChatEvents } from "@src/engines/SessionCore/core/store/useSessionEvents";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { waitForTurnIntentOutcome } from "@src/engines/SessionCore/services/TurnDispatchService";
 import { createLogger } from "@src/hooks/logger";
-import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import {
   boundConversationEventForPush,
   pushConversationEventsChunked,
 } from "../org2CloudConversationEventsClient";
-import { conversationEventKey } from "./conversationTimeline";
+import { advanceStoredOwnerPlaneCursor } from "./conversationExecutionStore";
+import {
+  buildConversationPlaneUserEvent,
+  findUserEventByIntent,
+  sliceTurnTailByIntent,
+  turnIntentIdOf,
+} from "./conversationTurnEvents";
 
 const log = createLogger("ConversationOwnerPublisher");
 
 const TURN_DEADLINE_MS = 15 * 60_000;
 
-export function turnIntentIdOf(event: SessionEvent): string | null {
-  if (event.source !== "user") return null;
-  const intent = (event.result as { turnIntentId?: unknown } | undefined)
-    ?.turnIntentId;
-  return typeof intent === "string" && intent.length > 0 ? intent : null;
-}
-
-export function findUserEventByIntent(
-  events: readonly SessionEvent[],
-  turnIntentId: string
-): SessionEvent | null {
-  return events.find((event) => turnIntentIdOf(event) === turnIntentId) ?? null;
-}
+export { findUserEventByIntent };
 
 /**
  * The clean user row for the plane: the user's visible words only (the
@@ -59,27 +48,15 @@ export function buildOwnerUserRow(
   displayText: string
 ): SessionEvent {
   const turnIntentId = turnIntentIdOf(userEvent);
-  return {
+  if (!turnIntentId) {
+    throw new Error("owner user row is missing its turn intent");
+  }
+  return buildConversationPlaneUserEvent({
     id: userEvent.id,
-    chunk_id: userEvent.id,
-    sessionId: "conversation",
     createdAt: userEvent.createdAt,
-    functionName: "user_message",
-    uiCanonical: "user_message",
-    actionType: "raw",
-    args: {},
-    result: {
-      type: "user",
-      message: { content: displayText, role: "user" },
-      ...(turnIntentId ? { turnIntentId } : {}),
-    },
-    source: "user",
     displayText,
-    displayStatus: "completed",
-    displayVariant: "message",
-    activityStatus: "agent",
-    payloadRefs: [],
-  } as SessionEvent;
+    turnIntentId,
+  });
 }
 
 /**
@@ -87,26 +64,7 @@ export function buildOwnerUserRow(
  * row, up to the next turn's user row. `null` when the user row is not in
  * the transcript (the dispatch failed and removed it).
  */
-export function sliceOwnerTurnTail(
-  events: readonly SessionEvent[],
-  turnIntentId: string
-): SessionEvent[] | null {
-  const start = events.findIndex(
-    (event) => turnIntentIdOf(event) === turnIntentId
-  );
-  if (start < 0) return null;
-  const turnKey = conversationEventKey(events[start]);
-  const tail: SessionEvent[] = [];
-  for (let index = start + 1; index < events.length; index += 1) {
-    const event = events[index];
-    if (event.source === "user") {
-      if (conversationEventKey(event) !== turnKey) break;
-      continue;
-    }
-    tail.push(event);
-  }
-  return tail;
-}
+export const sliceOwnerTurnTail = sliceTurnTailByIntent;
 
 function waitForUserEvent(
   sessionId: string,
@@ -142,38 +100,6 @@ function waitForUserEvent(
   });
 }
 
-function waitForTurnEnd(
-  sessionId: string,
-  userEventMs: number,
-  deadlineMs: number
-): Promise<void> {
-  const store = getInstrumentedStore();
-  const isDone = (): boolean =>
-    getTurnPhase(sessionId) === "idle" &&
-    (getLastTurnTerminal(sessionId)?.at ?? 0) >= userEventMs;
-  if (isDone()) return Promise.resolve();
-  return new Promise<void>((resolve, reject) => {
-    const remainingMs = deadlineMs - Date.now();
-    if (remainingMs <= 0) {
-      reject(new Error("owner turn timed out"));
-      return;
-    }
-    let unsubscribe: (() => void) | null = null;
-    const timer = setTimeout(() => {
-      unsubscribe?.();
-      reject(new Error("owner turn timed out"));
-    }, remainingMs);
-    const check = (): void => {
-      if (!isDone()) return;
-      clearTimeout(timer);
-      unsubscribe?.();
-      resolve();
-    };
-    unsubscribe = store.sub(turnLifecycleSignalAtom, check);
-    check();
-  });
-}
-
 export interface PublishOwnerTurnParams {
   /** Resolved before every push — a long turn outlives a captured token. */
   getAccessToken: () => Promise<string>;
@@ -184,6 +110,9 @@ export interface PublishOwnerTurnParams {
   /** The intent id the dispatch was minted with; keys the local user row. */
   turnIntentId: string;
   displayText: string;
+  executorScope: string;
+  /** Plane head fetched and injected immediately before this dispatch. */
+  readThroughPlaneSeq: number;
   /** Fires after each successful push (signal-bump hook). */
   onPushed?: () => void;
 }
@@ -197,7 +126,7 @@ export async function publishOwnerTurn(
   params: PublishOwnerTurnParams
 ): Promise<PublishOwnerTurnResult> {
   const deadlineMs = Date.now() + TURN_DEADLINE_MS;
-  const turnId = crypto.randomUUID();
+  const turnId = params.turnIntentId;
   const userEvent = await waitForUserEvent(
     params.sessionId,
     params.turnIntentId,
@@ -215,16 +144,21 @@ export async function publishOwnerTurn(
   });
   params.onPushed?.();
 
-  const userEventMs = new Date(userEvent.createdAt).getTime();
-  await waitForTurnEnd(
-    params.sessionId,
-    Number.isFinite(userEventMs) ? userEventMs : 0,
+  const outcome = await waitForTurnIntentOutcome(
+    params.turnIntentId,
     deadlineMs
   );
+  if (outcome.status === "completed") {
+    advanceStoredOwnerPlaneCursor(
+      params.executorScope,
+      params.rootSessionId,
+      params.readThroughPlaneSeq
+    );
+  }
   const persisted = await eventStoreProxy
     .getPersistedEvents(params.sessionId)
     .catch(() => [] as SessionEvent[]);
-  const tail = sliceOwnerTurnTail(persisted, params.turnIntentId) ?? [];
+  const tail = sliceTurnTailByIntent(persisted, params.turnIntentId) ?? [];
   if (tail.length > 0) {
     await pushConversationEventsChunked(await params.getAccessToken(), {
       orgId: params.orgId,

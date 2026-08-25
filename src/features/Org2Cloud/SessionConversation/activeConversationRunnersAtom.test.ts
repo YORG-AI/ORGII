@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+
 import {
   collectLandedTurnIds,
+  overlayableRunnerEvents,
   selectActiveRunners,
 } from "./activeConversationRunnersAtom";
 
@@ -31,8 +34,8 @@ describe("collectLandedTurnIds", () => {
 
 describe("selectActiveRunners", () => {
   const runners = [
-    { runnerSessionId: "r1", turnId: "t1" },
-    { runnerSessionId: "r2", turnId: "t2" },
+    { runnerSessionId: "r1", turnId: "t1", turnIntentId: "i1" },
+    { runnerSessionId: "r2", turnId: "t2", turnIntentId: "i2" },
   ];
 
   it("keeps a runner while only its user row is on the plane", () => {
@@ -47,5 +50,33 @@ describe("selectActiveRunners", () => {
       row("t2", "user"),
     ]);
     expect(selectActiveRunners(runners, landed)).toEqual([runners[1]]);
+  });
+});
+
+describe("overlayableRunnerEvents", () => {
+  const event = (overrides: Partial<SessionEvent>) =>
+    ({
+      id: "event",
+      source: "assistant",
+      result: {},
+      ...overrides,
+    }) as SessionEvent;
+  const user = (id: string, turnIntentId: string) =>
+    event({
+      id,
+      source: "user",
+      result: { turnIntentId },
+    });
+
+  it("overlays only the current turn from a reused runner", () => {
+    const events = [
+      user("old-user", "old-intent"),
+      event({ id: "old-tail" }),
+      user("current-user", "current-intent"),
+      event({ id: "current-tail" }),
+    ];
+    expect(
+      overlayableRunnerEvents(events, "current-intent").map((item) => item.id)
+    ).toEqual(["current-tail"]);
   });
 });

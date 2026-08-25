@@ -2,13 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import {
   __CONVERSATION_EXECUTION_STORE_INTERNALS,
+  advanceStoredContinuationReadThrough,
+  advanceStoredOwnerPlaneCursor,
   cloudConversationExecutorScopeKey,
+  cloudConversationSetupMemoryKey,
   collectStoredRunnerSessionIds,
   conversationExecutionKey,
   forgetStoredRunner,
+  loadStoredContinuation,
+  loadStoredOwnerPlaneCursor,
   loadStoredRunnerRegistryEntry,
+  markStoredContinuationEstablished,
   markStoredRunnerTerminal,
+  prepareStoredContinuation,
   registerStoredRunner,
+  saveStoredContinuation,
 } from "./conversationExecutionStore";
 
 function fakeStorage(): Storage {
@@ -61,6 +69,133 @@ describe("conversation execution store", () => {
     expect(conversationExecutionKey("a:b", "c")).not.toBe(
       conversationExecutionKey("a", "b:c")
     );
+  });
+
+  it("shares setup memory across surfaces per account, root, and agent", () => {
+    const first = cloudConversationSetupMemoryKey(
+      "cloud|user",
+      "org",
+      "root",
+      "agent-a"
+    );
+    expect(
+      cloudConversationSetupMemoryKey("cloud|user", "org", "root", "agent-a")
+    ).toBe(first);
+    expect(
+      cloudConversationSetupMemoryKey("cloud|user", "org", "root", "agent-b")
+    ).not.toBe(first);
+  });
+
+  it("preserves runner, continuation, and owner cursor in one entry", () => {
+    const backing = fakeStorage();
+    const key = conversationExecutionKey("scope", "root");
+    prepareStoredContinuation(
+      "scope",
+      "root",
+      {
+        continuationSessionId: "runner-1",
+        readThroughPlaneSeq: 12,
+        established: true,
+        agentDefinitionId: "agent-a",
+      },
+      "2026-08-25T00:00:00Z",
+      backing
+    );
+    advanceStoredOwnerPlaneCursor("scope", "root", 9, backing);
+    markStoredRunnerTerminal(key, "runner-1", backing);
+
+    expect(loadStoredRunnerRegistryEntry(key, backing)).toMatchObject({
+      runnerSessionIds: ["runner-1"],
+      terminalRunnerSessionIds: ["runner-1"],
+    });
+    expect(loadStoredContinuation("scope", "root", backing)).toMatchObject({
+      continuationSessionId: "runner-1",
+      readThroughPlaneSeq: 12,
+    });
+    expect(
+      loadStoredOwnerPlaneCursor("scope", "root", backing)?.readThroughPlaneSeq
+    ).toBe(9);
+    expect(backing.length).toBe(1);
+  });
+
+  it("advances both plane cursors monotonically", () => {
+    const backing = fakeStorage();
+    saveStoredContinuation(
+      "scope",
+      "root",
+      {
+        continuationSessionId: "runner-1",
+        readThroughPlaneSeq: 12,
+        established: true,
+        agentDefinitionId: "agent-a",
+      },
+      backing
+    );
+    advanceStoredContinuationReadThrough("scope", "root", 40, backing);
+    advanceStoredContinuationReadThrough("scope", "root", 30, backing);
+    advanceStoredOwnerPlaneCursor("scope", "root", 18, backing);
+    advanceStoredOwnerPlaneCursor("scope", "root", 11, backing);
+
+    expect(
+      loadStoredContinuation("scope", "root", backing)?.readThroughPlaneSeq
+    ).toBe(40);
+    expect(
+      loadStoredOwnerPlaneCursor("scope", "root", backing)?.readThroughPlaneSeq
+    ).toBe(18);
+    expect(() =>
+      advanceStoredOwnerPlaneCursor("scope", "root", -1, backing)
+    ).toThrow("invalid conversation plane seq");
+  });
+
+  it("establishes only the exact bootstrap runner and intent", () => {
+    const backing = fakeStorage();
+    saveStoredContinuation(
+      "scope",
+      "root",
+      {
+        continuationSessionId: "runner-1",
+        readThroughPlaneSeq: 0,
+        established: false,
+        bootstrapTurnIntentId: "intent-1",
+        agentDefinitionId: "agent-a",
+      },
+      backing
+    );
+
+    expect(
+      markStoredContinuationEstablished(
+        "scope",
+        "root",
+        "runner-2",
+        "intent-1",
+        backing
+      )
+    ).toBe(false);
+    expect(
+      markStoredContinuationEstablished(
+        "scope",
+        "root",
+        "runner-1",
+        "intent-2",
+        backing
+      )
+    ).toBe(false);
+    expect(
+      markStoredContinuationEstablished(
+        "scope",
+        "root",
+        "runner-1",
+        "intent-1",
+        backing
+      )
+    ).toBe(true);
+    expect(loadStoredContinuation("scope", "root", backing)).toMatchObject({
+      established: true,
+      readThroughPlaneSeq: 0,
+    });
+    expect(
+      loadStoredContinuation("scope", "root", backing)?.bootstrapTurnIntentId
+    ).toBeUndefined();
   });
 
   it("persists and sanitizes runner lifecycle per conversation", () => {
@@ -172,6 +307,18 @@ describe("conversation execution store", () => {
       backing
     );
     registerStoredRunner(second, "keep-other", "2026-08-25T00:00:02Z", backing);
+    saveStoredContinuation(
+      "scope",
+      "first",
+      {
+        continuationSessionId: "remove-me",
+        readThroughPlaneSeq: 4,
+        established: true,
+        agentDefinitionId: "agent-a",
+      },
+      backing
+    );
+    advanceStoredOwnerPlaneCursor("scope", "first", 3, backing);
     backing.setItem(
       __CONVERSATION_EXECUTION_STORE_INTERNALS.LEGACY_RUNNERS_KEY,
       JSON.stringify({
@@ -192,5 +339,9 @@ describe("conversation execution store", () => {
       runnerSessionIds: ["keep-current"],
       terminalRunnerSessionIds: [],
     });
+    expect(loadStoredContinuation("scope", "first", backing)).toBeNull();
+    expect(
+      loadStoredOwnerPlaneCursor("scope", "first", backing)?.readThroughPlaneSeq
+    ).toBe(3);
   });
 });

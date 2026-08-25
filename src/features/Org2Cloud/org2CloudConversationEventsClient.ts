@@ -172,6 +172,72 @@ export interface PushConversationEventsResult {
   lastSeq: number;
 }
 
+export interface ConversationEventWindow {
+  events: CloudConversationEvent[];
+  /** Highest server seq traversed; `0` means no row has ever been read. */
+  lastSeq: number;
+}
+
+export function retainConversationEventTail(
+  current: readonly CloudConversationEvent[],
+  incoming: readonly CloudConversationEvent[],
+  retainLast: number
+): CloudConversationEvent[] {
+  if (!Number.isSafeInteger(retainLast) || retainLast <= 0) {
+    throw new Org2CloudConversationError(
+      "ORG2_VALIDATION: retainLast must be a positive integer"
+    );
+  }
+  const combined = [...current, ...incoming];
+  return combined.length > retainLast
+    ? combined.slice(combined.length - retainLast)
+    : combined;
+}
+
+/**
+ * Traverse the plane from one exclusive cursor to its authoritative head.
+ * Callers may retain only the newest rows for prompt construction without
+ * losing the exact head cursor. Sequence zero is the sole unread sentinel.
+ */
+export async function listConversationEventsFrom(
+  accessToken: string,
+  params: {
+    orgId: string;
+    rootSessionId: string;
+    afterSeq: number;
+    retainLast?: number;
+  }
+): Promise<ConversationEventWindow> {
+  if (!Number.isSafeInteger(params.afterSeq) || params.afterSeq < 0) {
+    throw new Org2CloudConversationError(
+      "ORG2_VALIDATION: afterSeq must be a non-negative integer"
+    );
+  }
+  let events: CloudConversationEvent[] = [];
+  let lastSeq = params.afterSeq;
+  for (;;) {
+    const page = await listConversationEvents(accessToken, {
+      orgId: params.orgId,
+      rootSessionId: params.rootSessionId,
+      afterSeq: lastSeq,
+    });
+    for (const row of page.events) {
+      if (!Number.isSafeInteger(row.seq) || row.seq <= lastSeq) {
+        throw new Org2CloudConversationError(
+          "unparseable cloud conversation event sequence"
+        );
+      }
+      lastSeq = row.seq;
+    }
+    events =
+      params.retainLast === undefined
+        ? [...events, ...page.events]
+        : retainConversationEventTail(events, page.events, params.retainLast);
+    if (!page.hasMore || page.events.length === 0) break;
+  }
+  return { events, lastSeq };
+}
+
 export async function pushConversationEvents(
   accessToken: string,
   params: {
