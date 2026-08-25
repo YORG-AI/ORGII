@@ -66,6 +66,9 @@ export type {
   SimulatorEventPreview,
 } from "./core/types";
 
+// Provider-neutral conversation root/executor identity.
+export * from "./conversations";
+
 // ============================================
 // Core Atoms
 // ============================================

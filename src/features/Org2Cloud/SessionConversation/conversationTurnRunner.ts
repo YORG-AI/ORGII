@@ -205,6 +205,8 @@ export interface RunConversationTurnParams {
   setupMemoryKey?: string;
   /** Account-and-org-scoped local executor identity. */
   executionScopeKey: string;
+  /** Provider-neutral local persistence identity for the canonical root. */
+  executionRootKey: string;
   /** Stable logical id for durable redelivery; minted for ordinary chat. */
   turnIntentId?: string;
   /**
@@ -423,7 +425,7 @@ export async function runConversationTurn(
 ): Promise<RunConversationTurnResult> {
   const key = conversationRunnerKey(
     params.executionScopeKey,
-    params.rootSessionId
+    params.executionRootKey
   );
   return withConversationTurnLock(key, () =>
     runConversationTurnSerialized(params)
@@ -435,7 +437,7 @@ async function runConversationTurnSerialized(
 ): Promise<RunConversationTurnResult> {
   const key = conversationRunnerKey(
     params.executionScopeKey,
-    params.rootSessionId
+    params.executionRootKey
   );
   const request = params.agentContent ?? params.displayText;
   const deadlineMs = Date.now() + TURN_DEADLINE_MS;
@@ -451,7 +453,7 @@ async function runConversationTurnSerialized(
   };
   const record = loadContinuation(
     params.executionScopeKey,
-    params.rootSessionId
+    params.executionRootKey
   );
   const configuredSetup = loadForkSetupMemory(
     params.setupMemoryKey ?? params.sourceScopeKey
@@ -486,7 +488,7 @@ async function runConversationTurnSerialized(
     log.info(`rolling conversation continuation: ${decision.rollReason}`);
     retireContinuation(
       params.executionScopeKey,
-      params.rootSessionId,
+      params.executionRootKey,
       decision.rollReason
     );
     if (record) {
@@ -534,7 +536,7 @@ async function runConversationTurnSerialized(
       log.warn("continuation send rejected; rolling to a fresh runner", error);
       retireContinuation(
         params.executionScopeKey,
-        params.rootSessionId,
+        params.executionRootKey,
         "resume_transport_rejected",
         true
       );
@@ -704,7 +706,7 @@ async function startFreshEpisode(
   try {
     prepareContinuation(
       params.executionScopeKey,
-      params.rootSessionId,
+      params.executionRootKey,
       {
         continuationSessionId: runnerSessionId,
         readThroughPlaneSeq: 0,
@@ -745,7 +747,7 @@ async function dispatchBootstrapEpisode(
 ): Promise<RunConversationTurnResult> {
   const key = conversationRunnerKey(
     params.executionScopeKey,
-    params.rootSessionId
+    params.executionRootKey
   );
   await params.onRunnerReady?.(
     episode.runnerSessionId,
@@ -782,7 +784,7 @@ async function dispatchBootstrapEpisode(
     if (!params.preserveRunnerOnTransportFailure) {
       retireContinuation(
         params.executionScopeKey,
-        params.rootSessionId,
+        params.executionRootKey,
         "bootstrap_transport_rejected",
         true
       );
@@ -794,7 +796,7 @@ async function dispatchBootstrapEpisode(
   if (
     !markContinuationEstablished(
       params.executionScopeKey,
-      params.rootSessionId,
+      params.executionRootKey,
       episode.runnerSessionId,
       io.turnIntentId
     )
@@ -840,7 +842,7 @@ async function settleEpisode(
     if (outcome.status === "completed") {
       advanceContinuationReadThrough(
         params.executionScopeKey,
-        params.rootSessionId,
+        params.executionRootKey,
         Math.max(
           input.readThroughPlaneSeq,
           input.userRowLastSeq,
@@ -854,7 +856,7 @@ async function settleEpisode(
     } else {
       retireContinuation(
         params.executionScopeKey,
-        params.rootSessionId,
+        params.executionRootKey,
         `turn_${outcome.status}`,
         true
       );

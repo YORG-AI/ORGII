@@ -111,6 +111,8 @@ export interface PublishOwnerTurnParams {
   turnIntentId: string;
   displayText: string;
   executorScope: string;
+  /** Provider-neutral local persistence identity; not the Cloud transport id. */
+  executionRootKey: string;
   /** Plane head fetched and injected immediately before this dispatch. */
   readThroughPlaneSeq: number;
   /** Fires after each successful push (signal-bump hook). */
@@ -151,7 +153,7 @@ export async function publishOwnerTurn(
   if (outcome.status === "completed") {
     advanceStoredOwnerPlaneCursor(
       params.executorScope,
-      params.rootSessionId,
+      params.executionRootKey,
       params.readThroughPlaneSeq
     );
   }

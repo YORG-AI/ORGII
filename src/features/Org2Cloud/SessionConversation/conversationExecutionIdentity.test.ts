@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  conversationExecutionKey,
+  conversationExecutorScopeKey,
+  conversationRootKey,
+  conversationSetupMemoryKey,
+} from "@src/engines/SessionCore/conversations";
+
+import {
   continuationRuntimeFingerprint,
   conversationSetupChangesRuntime,
   conversationSetupRuntimeFingerprint,
@@ -26,43 +33,43 @@ describe("cloud conversation execution identity", () => {
   it("resolves transport, executor, execution, and setup keys from one tuple", () => {
     const identity = resolveCloudConversationExecutionIdentity({
       authIdentity: "https://cloud.example|user-a",
+      cloudEndpoint: "https://cloud.example/",
       cloudOrgId: "org-a",
       rootSessionId: "root-a",
       assignedAgentDefinitionId: "agent-a",
     });
 
+    const rootKey = conversationRootKey({
+      authority: "org2-cloud",
+      authorityScope: ["https://cloud.example", "org-a"],
+      conversationId: "root-a",
+    });
+    const executorScopeKey = conversationExecutorScopeKey({
+      authority: "org2-cloud-account",
+      authorityScope: ["https://cloud.example|user-a", "org-a"],
+    });
     expect(identity).toEqual({
       authIdentity: "https://cloud.example|user-a",
+      cloudEndpoint: "https://cloud.example",
       cloudOrgId: "org-a",
       rootSessionId: "root-a",
+      rootKey,
       assignedAgentDefinitionId: "agent-a",
       planeKey: "org-a:root-a",
-      executorScopeKey: JSON.stringify([
-        "cloud-conversation-executor",
-        "https://cloud.example|user-a",
-        "org-a",
-      ]),
-      executionKey: JSON.stringify([
-        JSON.stringify([
-          "cloud-conversation-executor",
-          "https://cloud.example|user-a",
-          "org-a",
-        ]),
-        "root-a",
-      ]),
-      setupMemoryKey: JSON.stringify([
-        "cloud-conversation-setup",
-        "https://cloud.example|user-a",
-        "org-a",
-        "root-a",
-        "agent-a",
-      ]),
+      executorScopeKey,
+      executionKey: conversationExecutionKey(executorScopeKey, rootKey),
+      setupMemoryKey: conversationSetupMemoryKey({
+        executorScope: executorScopeKey,
+        rootKey,
+        agentDefinitionId: "agent-a",
+      }),
     });
   });
 
   it("isolates setup by account, org, root, and assigned agent", () => {
     const base = {
       authIdentity: "cloud|user-a",
+      cloudEndpoint: "https://cloud.example",
       cloudOrgId: "org-a",
       rootSessionId: "root-a",
       assignedAgentDefinitionId: "agent-a",
@@ -70,6 +77,7 @@ describe("cloud conversation execution identity", () => {
     const key = resolveCloudConversationExecutionIdentity(base).setupMemoryKey;
     for (const changed of [
       { ...base, authIdentity: "cloud|user-b" },
+      { ...base, cloudEndpoint: "https://other.example" },
       { ...base, cloudOrgId: "org-b" },
       { ...base, rootSessionId: "root-b" },
       { ...base, assignedAgentDefinitionId: "agent-b" },
@@ -84,6 +92,7 @@ describe("cloud conversation execution identity", () => {
     expect(() =>
       resolveCloudConversationExecutionIdentity({
         authIdentity: "",
+        cloudEndpoint: "https://cloud.example",
         cloudOrgId: "org-a",
         rootSessionId: "root-a",
       })

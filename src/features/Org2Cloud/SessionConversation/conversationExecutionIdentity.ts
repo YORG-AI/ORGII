@@ -1,12 +1,12 @@
 /** Canonical local identity and runtime fingerprint for one cloud conversation. */
-import type { ForkSessionSetupSelection } from "@src/features/TeamCollaboration/components/ForkSessionSetupDialog";
-
 import {
-  type ConversationContinuationRecord,
-  cloudConversationExecutorScopeKey,
-  cloudConversationSetupMemoryKey,
-  conversationExecutionKey,
-} from "./conversationExecutionStore";
+  type ConversationExecutionIdentity,
+  resolveConversationExecutionIdentity,
+} from "@src/engines/SessionCore/conversations";
+import type { ForkSessionSetupSelection } from "@src/features/TeamCollaboration/components/ForkSessionSetupDialog";
+import { normalizeSourceEndpointUrl } from "@src/features/TeamCollaboration/engine/collabImportIdentity";
+
+import { type ConversationContinuationRecord } from "./conversationExecutionStore";
 
 export function cloudConversationPlaneKey(
   cloudOrgId: string,
@@ -15,19 +15,14 @@ export function cloudConversationPlaneKey(
   return `${cloudOrgId}:${rootSessionId}`;
 }
 
-export interface CloudConversationExecutionIdentity {
+export interface CloudConversationExecutionIdentity extends ConversationExecutionIdentity {
   authIdentity: string;
+  cloudEndpoint: string;
   cloudOrgId: string;
   rootSessionId: string;
   assignedAgentDefinitionId?: string;
   /** Shared transport/read identity. Never contains a local account. */
   planeKey: string;
-  /** Local executor boundary: signed-in cloud account plus cloud org. */
-  executorScopeKey: string;
-  /** Durable local execution row for this executor and root. */
-  executionKey: string;
-  /** Desired runtime selection for this executor, root, and assigned agent. */
-  setupMemoryKey: string;
 }
 
 function requireIdentityPart(label: string, value: string): string {
@@ -44,11 +39,15 @@ function requireIdentityPart(label: string, value: string): string {
  */
 export function resolveCloudConversationExecutionIdentity(input: {
   authIdentity: string;
+  cloudEndpoint: string;
   cloudOrgId: string;
   rootSessionId: string;
   assignedAgentDefinitionId?: string | null;
 }): CloudConversationExecutionIdentity {
   const authIdentity = requireIdentityPart("auth identity", input.authIdentity);
+  const cloudEndpoint = normalizeSourceEndpointUrl(
+    requireIdentityPart("cloud endpoint", input.cloudEndpoint)
+  );
   const cloudOrgId = requireIdentityPart("organization", input.cloudOrgId);
   const rootSessionId = requireIdentityPart(
     "root session",
@@ -56,24 +55,26 @@ export function resolveCloudConversationExecutionIdentity(input: {
   );
   const assignedAgentDefinitionId =
     input.assignedAgentDefinitionId || undefined;
-  const executorScopeKey = cloudConversationExecutorScopeKey(
-    authIdentity,
-    cloudOrgId
-  );
+  const execution = resolveConversationExecutionIdentity({
+    root: {
+      authority: "org2-cloud",
+      authorityScope: [cloudEndpoint, cloudOrgId],
+      conversationId: rootSessionId,
+    },
+    executor: {
+      authority: "org2-cloud-account",
+      authorityScope: [authIdentity, cloudOrgId],
+    },
+    agentDefinitionId: assignedAgentDefinitionId,
+  });
   return {
+    ...execution,
     authIdentity,
+    cloudEndpoint,
     cloudOrgId,
     rootSessionId,
     ...(assignedAgentDefinitionId ? { assignedAgentDefinitionId } : {}),
     planeKey: cloudConversationPlaneKey(cloudOrgId, rootSessionId),
-    executorScopeKey,
-    executionKey: conversationExecutionKey(executorScopeKey, rootSessionId),
-    setupMemoryKey: cloudConversationSetupMemoryKey(
-      authIdentity,
-      cloudOrgId,
-      rootSessionId,
-      assignedAgentDefinitionId
-    ),
   };
 }
 

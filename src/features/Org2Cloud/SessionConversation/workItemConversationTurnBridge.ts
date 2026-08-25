@@ -211,6 +211,7 @@ export async function handleWorkItemConversationTurnRequest(
   const authIdentity = org2CloudAuthIdentityKey(auth as Org2CloudAuthState);
   const executionIdentity = resolveCloudConversationExecutionIdentity({
     authIdentity,
+    cloudEndpoint: (auth as Org2CloudAuthState).supabaseUrl,
     cloudOrgId: resolvedOrgId,
     rootSessionId,
     assignedAgentDefinitionId: request.assignedAgentId,
@@ -244,6 +245,7 @@ export async function handleWorkItemConversationTurnRequest(
       assignedAgentDefinitionId: request.assignedAgentId ?? undefined,
       setupMemoryKey: executionIdentity.setupMemoryKey,
       executionScopeKey: executionIdentity.executorScopeKey,
+      executionRootKey: executionIdentity.rootKey,
       turnIntentId: request.runId,
       requiredRunnerSessionId: request.preparedRunnerSessionId ?? undefined,
       preserveRunnerOnTransportFailure: true,

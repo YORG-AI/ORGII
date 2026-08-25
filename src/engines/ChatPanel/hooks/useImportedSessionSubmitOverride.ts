@@ -257,6 +257,7 @@ export function useImportedSessionSubmitOverride({
           const authIdentity = org2CloudAuthIdentityKey(auth);
           const executionIdentity = resolveCloudConversationExecutionIdentity({
             authIdentity,
+            cloudEndpoint: auth.supabaseUrl,
             cloudOrgId: planeInfo.orgId,
             rootSessionId: planeInfo.rootId,
             assignedAgentDefinitionId: rootRow?.agentDefinitionId,
@@ -304,6 +305,7 @@ export function useImportedSessionSubmitOverride({
             assignedAgentDefinitionId: rootRow?.agentDefinitionId,
             setupMemoryKey: executionIdentity.setupMemoryKey,
             executionScopeKey: executionIdentity.executorScopeKey,
+            executionRootKey: executionIdentity.rootKey,
             onRunnerReady: (runnerSessionId, turnId, turnIntentId) => {
               // Overlay the runner's LIVE events (thinking / tools / worked-for)
               // into the conversation until the plane carries this turn's
@@ -354,13 +356,14 @@ export function useImportedSessionSubmitOverride({
         if (!auth) return false;
         const executionIdentity = resolveCloudConversationExecutionIdentity({
           authIdentity: org2CloudAuthIdentityKey(auth),
+          cloudEndpoint: auth.supabaseUrl,
           cloudOrgId: planeInfo.orgId,
           rootSessionId: planeInfo.rootId,
         });
         const ownerCursor =
           loadStoredOwnerPlaneCursor(
             executionIdentity.executorScopeKey,
-            planeInfo.rootId
+            executionIdentity.rootKey
           )?.readThroughPlaneSeq ?? 0;
         let delta;
         try {
@@ -412,6 +415,7 @@ export function useImportedSessionSubmitOverride({
           turnIntentId,
           displayText: input.displayText,
           executorScope: executionIdentity.executorScopeKey,
+          executionRootKey: executionIdentity.rootKey,
           readThroughPlaneSeq: delta.lastSeq,
           onPushed: () => signalCloudConversationPlane(planeInfo.orgId),
         }).catch((error: unknown) => {

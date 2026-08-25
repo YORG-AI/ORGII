@@ -22,9 +22,9 @@ const log = createLogger("ConversationRunnerSessions");
 
 export function conversationRunnerKey(
   executorScope: string,
-  rootSessionId: string
+  rootKey: string
 ): string {
-  return conversationExecutionKey(executorScope, rootSessionId);
+  return conversationExecutionKey(executorScope, rootKey);
 }
 
 /** Every runner session id on this device — the My Sessions hide filter. */

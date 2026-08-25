@@ -5,8 +5,6 @@ import {
   __CONVERSATION_EXECUTION_STORE_INTERNALS,
   advanceStoredContinuationReadThrough,
   advanceStoredOwnerPlaneCursor,
-  cloudConversationExecutorScopeKey,
-  cloudConversationSetupMemoryKey,
   collectStoredRunnerSessionIds,
   conversationExecutionKey,
   forgetStoredRunner,
@@ -41,52 +39,10 @@ function fakeStorage(): Storage {
 }
 
 describe("conversation execution store", () => {
-  it("keys execution by account, organization, and root session", () => {
-    const scope = cloudConversationExecutorScopeKey(
-      "https://cloud.example|user-b",
-      "cloud-org"
-    );
-
-    expect(scope).toBe(
-      JSON.stringify([
-        "cloud-conversation-executor",
-        "https://cloud.example|user-b",
-        "cloud-org",
-      ])
-    );
-    expect(conversationExecutionKey(scope, "root-a")).not.toBe(
-      conversationExecutionKey(scope, "root-b")
-    );
-    expect(
-      conversationExecutionKey(
-        cloudConversationExecutorScopeKey(
-          "https://cloud.example|user-c",
-          "cloud-org"
-        ),
-        "root-a"
-      )
-    ).not.toBe(conversationExecutionKey(scope, "root-a"));
-  });
-
   it("uses tuple keys without colon collisions", () => {
     expect(conversationExecutionKey("a:b", "c")).not.toBe(
       conversationExecutionKey("a", "b:c")
     );
-  });
-
-  it("shares setup memory across surfaces per account, root, and agent", () => {
-    const first = cloudConversationSetupMemoryKey(
-      "cloud|user",
-      "org",
-      "root",
-      "agent-a"
-    );
-    expect(
-      cloudConversationSetupMemoryKey("cloud|user", "org", "root", "agent-a")
-    ).toBe(first);
-    expect(
-      cloudConversationSetupMemoryKey("cloud|user", "org", "root", "agent-b")
-    ).not.toBe(first);
   });
 
   it("preserves runner, continuation, and owner cursor in one entry", () => {

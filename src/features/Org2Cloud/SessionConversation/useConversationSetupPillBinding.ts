@@ -56,6 +56,7 @@ export interface ConversationSetupPillBinding {
 interface ImportedConversationIdentity {
   orgId: string;
   sourceSessionId: string;
+  sourceEndpointUrl?: string;
 }
 
 interface ConversationIdentityRow {
@@ -66,10 +67,13 @@ interface ConversationIdentityRow {
 
 export function resolveConversationSetupPillIdentity(input: {
   authIdentity: string | null;
+  cloudEndpoint: string | null;
   importedFrom: ImportedConversationIdentity | null | undefined;
   rows: readonly ConversationIdentityRow[] | null | undefined;
 }): CloudConversationExecutionIdentity | null {
-  if (!input.importedFrom || !input.authIdentity) return null;
+  if (!input.importedFrom || !input.authIdentity || !input.cloudEndpoint) {
+    return null;
+  }
   const source = input.rows?.find(
     (candidate) =>
       candidate.sourceSessionId === input.importedFrom?.sourceSessionId
@@ -81,6 +85,7 @@ export function resolveConversationSetupPillIdentity(input: {
   );
   return resolveCloudConversationExecutionIdentity({
     authIdentity: input.authIdentity,
+    cloudEndpoint: input.importedFrom.sourceEndpointUrl ?? input.cloudEndpoint,
     cloudOrgId: input.importedFrom.orgId,
     rootSessionId,
     assignedAgentDefinitionId: root?.agentDefinitionId,
@@ -108,10 +113,11 @@ export function useConversationSetupPillBinding(
   const executionIdentity = useMemo(() => {
     return resolveConversationSetupPillIdentity({
       authIdentity,
+      cloudEndpoint: auth?.supabaseUrl ?? null,
       importedFrom,
       rows: importedFrom ? remoteEntries[importedFrom.orgId]?.rows : undefined,
     });
-  }, [authIdentity, importedFrom, remoteEntries]);
+  }, [auth?.supabaseUrl, authIdentity, importedFrom, remoteEntries]);
 
   const selection = useMemo((): LastModelSelection | null => {
     if (!importedFrom) return null;

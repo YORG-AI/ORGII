@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  conversationExecutorScopeKey,
+  conversationRootKey,
+} from "@src/engines/SessionCore/conversations";
+
 import type { Org2CloudAuthState } from "../org2CloudAuthAtom";
 import {
   type WorkItemConversationTurnDeps,
@@ -233,11 +238,17 @@ describe("handleWorkItemConversationTurnRequest", () => {
       preserveRunnerOnTransportFailure: true,
     });
     expect(deps.turnParams[0].executionScopeKey).toBe(
-      JSON.stringify([
-        "cloud-conversation-executor",
-        "https://cloud.example|user-b",
-        "cloud-org",
-      ])
+      conversationExecutorScopeKey({
+        authority: "org2-cloud-account",
+        authorityScope: ["https://cloud.example|user-b", "cloud-org"],
+      })
+    );
+    expect(deps.turnParams[0].executionRootKey).toBe(
+      conversationRootKey({
+        authority: "org2-cloud",
+        authorityScope: ["https://cloud.example", "cloud-org"],
+        conversationId: "root-remote",
+      })
     );
   });
 

@@ -7,6 +7,9 @@
  * blob remains readable so an upgrade never exposes plumbing sessions in My
  * Sessions.
  */
+import { conversationExecutionKey } from "@src/engines/SessionCore/conversations";
+
+export { conversationExecutionKey };
 
 const STORE_VERSION = 2 as const;
 const STORAGE_KEY_PREFIX = "orgii:conversation-execution-v2:";
@@ -452,41 +455,6 @@ function allStorageKeys(backing: Storage | null): string[] {
 function readLegacyRunnerMap(backing: Storage | null): Record<string, unknown> {
   const parsed = readJson(backing, LEGACY_RUNNERS_KEY);
   return isObject(parsed) ? parsed : {};
-}
-
-export function conversationExecutionKey(
-  executorScope: string,
-  rootSessionId: string
-): string {
-  return JSON.stringify([executorScope, rootSessionId]);
-}
-
-/** One executor per signed-in cloud identity and organization. */
-export function cloudConversationExecutorScopeKey(
-  authIdentity: string,
-  cloudOrgId: string
-): string {
-  return JSON.stringify([
-    "cloud-conversation-executor",
-    authIdentity,
-    cloudOrgId,
-  ]);
-}
-
-/** Execution setup is shared by every surface targeting this agent/root. */
-export function cloudConversationSetupMemoryKey(
-  authIdentity: string,
-  cloudOrgId: string,
-  rootSessionId: string,
-  assignedAgentDefinitionId?: string
-): string {
-  return JSON.stringify([
-    "cloud-conversation-setup",
-    authIdentity,
-    cloudOrgId,
-    rootSessionId,
-    assignedAgentDefinitionId ?? "unassigned",
-  ]);
 }
 
 function keyFor(executorScope: string, rootSessionId: string): string {

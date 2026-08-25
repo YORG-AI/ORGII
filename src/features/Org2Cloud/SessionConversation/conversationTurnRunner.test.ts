@@ -186,6 +186,7 @@ function params(
     getAccessToken: async () => "token",
     orgId: "org",
     rootSessionId: "root",
+    executionRootKey: "root",
     conversationTitle: "Conversation",
     displayText: "new request",
     executionScopeKey: "scope",
