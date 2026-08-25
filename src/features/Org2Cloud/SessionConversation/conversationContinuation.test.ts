@@ -4,6 +4,7 @@ import type { ConversationContinuationRecord } from "./conversationContinuation"
 import { decideContinuation } from "./conversationContinuation";
 
 const established: ConversationContinuationRecord = {
+  episodeId: "conversation-episode:runner-1",
   continuationSessionId: "runner-1",
   readThroughPlaneSeq: 12,
   established: true,

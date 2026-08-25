@@ -1,15 +1,19 @@
 /** Persistent local execution episode for a shared conversation. */
 import {
+  type ConversationContinuationInput,
+  type ConversationContinuationLineage,
   type ConversationContinuationRecord,
   advanceStoredContinuationReadThrough,
   clearStoredContinuation,
   loadStoredContinuation,
+  loadStoredContinuationLineage,
   markStoredContinuationEstablished,
   prepareStoredContinuation,
+  retireStoredContinuation,
   saveStoredContinuation,
 } from "./conversationExecutionStore";
 
-export type { ConversationContinuationRecord };
+export type { ConversationContinuationLineage, ConversationContinuationRecord };
 
 export function loadContinuation(
   executorScope: string,
@@ -22,7 +26,7 @@ export function loadContinuation(
 export function saveContinuation(
   executorScope: string,
   rootSessionId: string,
-  record: Omit<ConversationContinuationRecord, "updatedAt">,
+  record: ConversationContinuationInput,
   backing?: Storage | null
 ): void {
   saveStoredContinuation(executorScope, rootSessionId, record, backing);
@@ -31,7 +35,7 @@ export function saveContinuation(
 export function prepareContinuation(
   executorScope: string,
   rootSessionId: string,
-  record: Omit<ConversationContinuationRecord, "updatedAt">,
+  record: ConversationContinuationInput,
   preparedAt: string,
   backing?: Storage | null
 ): void {
@@ -40,6 +44,30 @@ export function prepareContinuation(
     rootSessionId,
     record,
     preparedAt,
+    backing
+  );
+}
+
+export function loadContinuationLineage(
+  executorScope: string,
+  rootSessionId: string,
+  backing?: Storage | null
+): ConversationContinuationLineage | null {
+  return loadStoredContinuationLineage(executorScope, rootSessionId, backing);
+}
+
+export function retireContinuation(
+  executorScope: string,
+  rootSessionId: string,
+  rollReason: string,
+  failed = false,
+  backing?: Storage | null
+): void {
+  retireStoredContinuation(
+    executorScope,
+    rootSessionId,
+    rollReason,
+    failed ? "failed" : "retired",
     backing
   );
 }

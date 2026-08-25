@@ -46,11 +46,11 @@ import {
 } from "../org2CloudConversationEventsClient";
 import {
   advanceContinuationReadThrough,
-  clearContinuation,
   decideContinuation,
   loadContinuation,
   markContinuationEstablished,
   prepareContinuation,
+  retireContinuation,
 } from "./conversationContinuation";
 import {
   cleanupConversationRunnerBestEffort,
@@ -219,6 +219,11 @@ export interface RunConversationTurnParams {
   onRunnerReady?: (
     runnerSessionId: string,
     turnId: string,
+    turnIntentId: string
+  ) => void | Promise<void>;
+  /** Adapter accepted the exact intent; failures after this point are ambiguous. */
+  onTransportAccepted?: (
+    runnerSessionId: string,
     turnIntentId: string
   ) => void | Promise<void>;
   /** Called after the adapter accepts the exact runtime intent. */
@@ -466,7 +471,11 @@ async function runConversationTurnSerialized(
   }
   if (decision.kind === "fresh" && decision.rollReason) {
     log.info(`rolling conversation continuation: ${decision.rollReason}`);
-    clearContinuation(params.executionScopeKey, params.rootSessionId);
+    retireContinuation(
+      params.executionScopeKey,
+      params.rootSessionId,
+      decision.rollReason
+    );
     if (record) {
       await cleanupConversationRunnerBestEffort(record.continuationSessionId);
     }
@@ -510,7 +519,12 @@ async function runConversationTurnSerialized(
     } catch (error) {
       if (params.preserveRunnerOnTransportFailure) throw error;
       log.warn("continuation send rejected; rolling to a fresh runner", error);
-      clearContinuation(params.executionScopeKey, params.rootSessionId);
+      retireContinuation(
+        params.executionScopeKey,
+        params.rootSessionId,
+        "resume_transport_rejected",
+        true
+      );
       await cleanupConversationRunnerBestEffort(
         decision.record.continuationSessionId
       );
@@ -521,6 +535,10 @@ async function runConversationTurnSerialized(
         userRowLastSeq,
       });
     }
+    await params.onTransportAccepted?.(
+      decision.record.continuationSessionId,
+      io.turnIntentId
+    );
     await params.onTurnAccepted?.(
       decision.record.continuationSessionId,
       io.turnIntentId
@@ -661,22 +679,27 @@ async function startFreshEpisode(
   }
 
   const runnerSessionId = created.sessionId;
-  prepareContinuation(
-    params.executionScopeKey,
-    params.rootSessionId,
-    {
-      continuationSessionId: runnerSessionId,
-      readThroughPlaneSeq: 0,
-      established: false,
-      bootstrapTurnIntentId: io.turnIntentId,
-      agentDefinitionId: setup.execution.agentDefinitionId,
-      cliAgentType: setup.execution.cliAgentType,
-      accountId: setup.execution.accountId,
-      model: setup.execution.model,
-      workspaceRepoPath: setup.workspaceRepoPath ?? null,
-    },
-    turn.dispatchIso
-  );
+  try {
+    prepareContinuation(
+      params.executionScopeKey,
+      params.rootSessionId,
+      {
+        continuationSessionId: runnerSessionId,
+        readThroughPlaneSeq: 0,
+        established: false,
+        bootstrapTurnIntentId: io.turnIntentId,
+        agentDefinitionId: setup.execution.agentDefinitionId,
+        cliAgentType: setup.execution.cliAgentType,
+        accountId: setup.execution.accountId,
+        model: setup.execution.model,
+        workspaceRepoPath: setup.workspaceRepoPath ?? null,
+      },
+      turn.dispatchIso
+    );
+  } catch (error) {
+    await cleanupConversationRunnerBestEffort(runnerSessionId);
+    throw error;
+  }
   return dispatchBootstrapEpisode(
     params,
     io,
@@ -735,11 +758,17 @@ async function dispatchBootstrapEpisode(
     });
   } catch (error) {
     if (!params.preserveRunnerOnTransportFailure) {
-      clearContinuation(params.executionScopeKey, params.rootSessionId);
+      retireContinuation(
+        params.executionScopeKey,
+        params.rootSessionId,
+        "bootstrap_transport_rejected",
+        true
+      );
       await cleanupConversationRunnerBestEffort(episode.runnerSessionId);
     }
     throw error;
   }
+  await params.onTransportAccepted?.(episode.runnerSessionId, io.turnIntentId);
   if (
     !markContinuationEstablished(
       params.executionScopeKey,
@@ -748,7 +777,7 @@ async function dispatchBootstrapEpisode(
       io.turnIntentId
     )
   ) {
-    log.warn("continuation acceptance could not be persisted");
+    throw new Error("continuation acceptance could not be persisted");
   }
   await params.onTurnAccepted?.(episode.runnerSessionId, io.turnIntentId);
   return settleEpisode(params, io, {
@@ -801,7 +830,12 @@ async function settleEpisode(
     if (outcome.status === "completed") {
       await cleanupRetiredConversationRunners(input.key, input.runnerSessionId);
     } else {
-      clearContinuation(params.executionScopeKey, params.rootSessionId);
+      retireContinuation(
+        params.executionScopeKey,
+        params.rootSessionId,
+        `turn_${outcome.status}`,
+        true
+      );
       await cleanupConversationRunnerBestEffort(input.runnerSessionId);
     }
   }

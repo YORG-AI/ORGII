@@ -269,8 +269,10 @@ export async function handleWorkItemConversationTurnRequest(
           createdRunnerId
         );
       },
-      onTurnAccepted: async (acceptedRunnerId) => {
+      onTransportAccepted: () => {
         transportAccepted = true;
+      },
+      onTurnAccepted: async (acceptedRunnerId) => {
         try {
           await deps.ackRunner(
             request.runId,
@@ -309,7 +311,7 @@ export async function handleWorkItemConversationTurnRequest(
       }
     }
     if (runnerSessionId) {
-      deps.settleRunner(rootSessionId, runnerSessionId);
+      deps.settleRunner(resolvedOrgId, rootSessionId, runnerSessionId);
     }
   }
 }

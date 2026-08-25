@@ -129,6 +129,10 @@ function makeDeps(
         params.turnIntentId ?? "missing",
         params.turnIntentId ?? "missing"
       );
+      await params.onTransportAccepted?.(
+        "runner-1",
+        params.turnIntentId ?? "missing"
+      );
       await params.onTurnAccepted?.(
         "runner-1",
         params.turnIntentId ?? "missing"
@@ -144,8 +148,8 @@ function makeDeps(
     registerRunner: ({ orgId, rootSessionId, runnerSessionId }) => {
       calls.push(`runner:${orgId}:${rootSessionId}:${runnerSessionId}`);
     },
-    settleRunner: (rootSessionId, runnerSessionId) => {
-      calls.push(`settle:${rootSessionId}:${runnerSessionId}`);
+    settleRunner: (orgId, rootSessionId, runnerSessionId) => {
+      calls.push(`settle:${orgId}:${rootSessionId}:${runnerSessionId}`);
     },
     signalPlane: (orgId) => calls.push(`signal:${orgId}`),
     ...overrides,
@@ -213,7 +217,7 @@ describe("handleWorkItemConversationTurnRequest", () => {
       "prepare:run-1:claim-1:root-remote:runner-1",
       "ack:run-1:claim-1:root-remote:runner-1",
       "signal:cloud-org",
-      "settle:root-remote:runner-1",
+      "settle:cloud-org:root-remote:runner-1",
     ]);
     expect(deps.turnParams[0]).toMatchObject({
       orgId: "cloud-org",
@@ -283,7 +287,7 @@ describe("handleWorkItemConversationTurnRequest", () => {
       "accept:run-1:claim-1",
       "runner:cloud-org:root-remote:runner-1",
       "nack:run-1:claim-1:PM_RUN_ERR:INVALID_TRANSITION",
-      "settle:root-remote:runner-1",
+      "settle:cloud-org:root-remote:runner-1",
     ]);
   });
 
@@ -306,7 +310,28 @@ describe("handleWorkItemConversationTurnRequest", () => {
       "ack:run-1:claim-1:root-remote:runner-1",
       "signal:cloud-org",
       "release:run-1:claim-1",
-      "settle:root-remote:runner-1",
+      "settle:cloud-org:root-remote:runner-1",
+    ]);
+  });
+
+  it("releases instead of nacking after adapter acceptance", async () => {
+    const deps = makeDeps({
+      runTurn: async (params) => {
+        await params.onRunnerReady?.("runner-1", "run-1", "run-1");
+        await params.onTransportAccepted?.("runner-1", "run-1");
+        throw new Error("continuation persistence lost");
+      },
+    });
+
+    await expect(
+      handleWorkItemConversationTurnRequest(REQUEST, deps)
+    ).resolves.toBe("failed");
+    expect(deps.calls).toEqual([
+      "accept:run-1:claim-1",
+      "runner:cloud-org:root-remote:runner-1",
+      "prepare:run-1:claim-1:root-remote:runner-1",
+      "release:run-1:claim-1",
+      "settle:cloud-org:root-remote:runner-1",
     ]);
   });
 

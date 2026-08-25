@@ -16,7 +16,10 @@ import {
   type ConversationEventWindow,
   listConversationEventsFrom,
 } from "../org2CloudConversationEventsClient";
-import { activeConversationRunnersAtom } from "./activeConversationRunnersAtom";
+import {
+  activeConversationRunnersAtom,
+  conversationRunnerRegistryKey,
+} from "./activeConversationRunnersAtom";
 import {
   bumpConversationPlaneSignal,
   conversationPlaneSignalAtom,
@@ -147,6 +150,10 @@ export function registerCloudConversationRunner(input: {
   turnIntentId: string;
 }): void {
   const store = getInstrumentedStore();
+  const planeKey = conversationRunnerRegistryKey(
+    input.orgId,
+    input.rootSessionId
+  );
   store.set(org2CloudAccessSettingsAtom, (current) =>
     withCloudSessionMode(
       current,
@@ -157,8 +164,8 @@ export function registerCloudConversationRunner(input: {
   );
   store.set(activeConversationRunnersAtom, (current) => ({
     ...current,
-    [input.rootSessionId]: [
-      ...(current[input.rootSessionId] ?? []),
+    [planeKey]: [
+      ...(current[planeKey] ?? []),
       {
         runnerSessionId: input.runnerSessionId,
         turnId: input.turnId,
@@ -169,20 +176,22 @@ export function registerCloudConversationRunner(input: {
 }
 
 export function settleCloudConversationRunner(
+  orgId: string,
   rootSessionId: string,
   runnerSessionId: string
 ): void {
   const store = getInstrumentedStore();
+  const planeKey = conversationRunnerRegistryKey(orgId, rootSessionId);
   store.set(activeConversationRunnersAtom, (current) => {
-    const list = current[rootSessionId];
+    const list = current[planeKey];
     if (!list) return current;
     const kept = list.filter(
       (runner) => runner.runnerSessionId !== runnerSessionId
     );
     if (kept.length === list.length) return current;
     const next = { ...current };
-    if (kept.length === 0) delete next[rootSessionId];
-    else next[rootSessionId] = kept;
+    if (kept.length === 0) delete next[planeKey];
+    else next[planeKey] = kept;
     return next;
   });
 }

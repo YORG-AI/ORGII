@@ -4,9 +4,18 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import {
   collectLandedTurnIds,
+  conversationRunnerRegistryKey,
   overlayableRunnerEvents,
   selectActiveRunners,
 } from "./activeConversationRunnersAtom";
+
+describe("conversationRunnerRegistryKey", () => {
+  it("isolates the same root id in different organizations", () => {
+    expect(conversationRunnerRegistryKey("org-a", "root")).not.toBe(
+      conversationRunnerRegistryKey("org-b", "root")
+    );
+  });
+});
 
 const row = (turnId: string, source: "user" | "assistant" | "system") => ({
   turnId,

@@ -8,10 +8,13 @@
  * Sessions.
  */
 
-const STORE_VERSION = 1 as const;
-const STORAGE_KEY_PREFIX = "orgii:conversation-execution-v1:";
+const STORE_VERSION = 2 as const;
+const STORAGE_KEY_PREFIX = "orgii:conversation-execution-v2:";
+const LEGACY_EXECUTION_STORE_VERSION = 1 as const;
+const LEGACY_EXECUTION_STORAGE_KEY_PREFIX = "orgii:conversation-execution-v1:";
 const LEGACY_RUNNERS_KEY = "orgii:conversation-runners-v1";
 const UNKNOWN_UPDATED_AT = "1970-01-01T00:00:00.000Z";
+export const MAX_CONVERSATION_CONTINUATION_EPISODES = 16;
 
 export interface ConversationRunnerRegistryEntry {
   runnerSessionIds: string[];
@@ -20,6 +23,8 @@ export interface ConversationRunnerRegistryEntry {
 }
 
 export interface ConversationContinuationRecord {
+  /** Stable lineage node. Derived from the runner id for legacy records. */
+  episodeId: string;
   continuationSessionId: string;
   /** Highest plane seq this continuation has successfully consumed. */
   readThroughPlaneSeq: number;
@@ -35,6 +40,35 @@ export interface ConversationContinuationRecord {
   updatedAt: string;
 }
 
+export type ConversationContinuationEpisodeState =
+  | "prepared"
+  | "active"
+  | "retired"
+  | "failed";
+
+/**
+ * Immutable execution identity plus the mutable lifecycle/cursor of one
+ * native runner. Retired nodes remain as bounded metadata so a runtime roll
+ * is explainable without keeping old transcripts in localStorage.
+ */
+export interface ConversationContinuationEpisode extends ConversationContinuationRecord {
+  state: ConversationContinuationEpisodeState;
+  createdAt: string;
+  supersedesEpisodeId?: string;
+  rollReason?: string;
+}
+
+export interface ConversationContinuationLineage {
+  activeEpisodeId?: string;
+  episodes: ConversationContinuationEpisode[];
+  updatedAt: string;
+}
+
+export type ConversationContinuationInput = Omit<
+  ConversationContinuationRecord,
+  "episodeId" | "updatedAt"
+> & { episodeId?: string };
+
 export interface ConversationPlaneReadCursor {
   readThroughPlaneSeq: number;
   updatedAt: string;
@@ -43,8 +77,16 @@ export interface ConversationPlaneReadCursor {
 interface ConversationExecutionEnvelope {
   version: typeof STORE_VERSION;
   runners?: ConversationRunnerRegistryEntry;
-  continuation?: ConversationContinuationRecord;
+  /** Authoritative continuation state. */
+  continuationLineage?: ConversationContinuationLineage;
   /** Independent cursor for execution directly in the owner's root session. */
+  ownerPlaneCursor?: ConversationPlaneReadCursor;
+}
+
+interface LegacyConversationExecutionEnvelope {
+  version: typeof LEGACY_EXECUTION_STORE_VERSION;
+  runners?: ConversationRunnerRegistryEntry;
+  continuation?: ConversationContinuationRecord;
   ownerPlaneCursor?: ConversationPlaneReadCursor;
 }
 
@@ -132,6 +174,9 @@ function sanitizeContinuation(
     return null;
   }
   const record: ConversationContinuationRecord = {
+    episodeId:
+      optionalString(value, "episodeId") ??
+      episodeIdForRunner(continuationSessionId),
     continuationSessionId,
     readThroughPlaneSeq: value.readThroughPlaneSeq,
     established: value.established,
@@ -154,6 +199,110 @@ function sanitizeContinuation(
     record.workspaceRepoPath = value.workspaceRepoPath;
   }
   return record;
+}
+
+function episodeIdForRunner(continuationSessionId: string): string {
+  return `conversation-episode:${continuationSessionId}`;
+}
+
+function isEpisodeState(
+  value: unknown
+): value is ConversationContinuationEpisodeState {
+  return (
+    value === "prepared" ||
+    value === "active" ||
+    value === "retired" ||
+    value === "failed"
+  );
+}
+
+function sanitizeEpisode(
+  value: unknown
+): ConversationContinuationEpisode | null {
+  if (!isObject(value)) return null;
+  const record = sanitizeContinuation(value);
+  if (!record || !isEpisodeState(value.state)) return null;
+  if (
+    (value.state === "prepared" && record.established) ||
+    (value.state === "active" && !record.established)
+  ) {
+    return null;
+  }
+  const episode: ConversationContinuationEpisode = {
+    ...record,
+    state: value.state,
+    createdAt: optionalString(value, "createdAt") ?? record.updatedAt,
+  };
+  const supersedesEpisodeId = optionalString(value, "supersedesEpisodeId");
+  if (supersedesEpisodeId) episode.supersedesEpisodeId = supersedesEpisodeId;
+  const rollReason = optionalString(value, "rollReason");
+  if (rollReason) episode.rollReason = rollReason;
+  return episode;
+}
+
+function activeEpisode(
+  lineage: ConversationContinuationLineage | null | undefined
+): ConversationContinuationEpisode | null {
+  if (!lineage?.activeEpisodeId) return null;
+  const episode = lineage.episodes.find(
+    (candidate) => candidate.episodeId === lineage.activeEpisodeId
+  );
+  return episode && (episode.state === "prepared" || episode.state === "active")
+    ? episode
+    : null;
+}
+
+function sanitizeLineage(
+  value: unknown,
+  legacyContinuation: ConversationContinuationRecord | null
+): ConversationContinuationLineage | null {
+  if (isObject(value) && Array.isArray(value.episodes)) {
+    const seen = new Set<string>();
+    const sanitizedEpisodes = value.episodes
+      .map(sanitizeEpisode)
+      .filter((episode): episode is ConversationContinuationEpisode => {
+        if (!episode || seen.has(episode.episodeId)) return false;
+        seen.add(episode.episodeId);
+        return true;
+      });
+    const requestedActiveEpisodeId = optionalString(value, "activeEpisodeId");
+    const requestedActiveEpisode = sanitizedEpisodes.find(
+      (episode) =>
+        episode.episodeId === requestedActiveEpisodeId &&
+        (episode.state === "prepared" || episode.state === "active")
+    );
+    const recentEpisodes = sanitizedEpisodes.slice(
+      -MAX_CONVERSATION_CONTINUATION_EPISODES
+    );
+    const episodes =
+      requestedActiveEpisode && !recentEpisodes.includes(requestedActiveEpisode)
+        ? [
+            requestedActiveEpisode,
+            ...sanitizedEpisodes
+              .filter((episode) => episode !== requestedActiveEpisode)
+              .slice(-(MAX_CONVERSATION_CONTINUATION_EPISODES - 1)),
+          ]
+        : recentEpisodes;
+    const activeEpisodeId = requestedActiveEpisode?.episodeId;
+    if (episodes.length > 0) {
+      return {
+        ...(activeEpisodeId ? { activeEpisodeId } : {}),
+        episodes,
+        updatedAt: optionalString(value, "updatedAt") ?? UNKNOWN_UPDATED_AT,
+      };
+    }
+  }
+  if (!legacyContinuation) return null;
+  const legacyEpisode: ConversationContinuationEpisode = {
+    ...legacyContinuation,
+    state: legacyContinuation.established ? "active" : "prepared",
+    createdAt: legacyContinuation.updatedAt,
+  };
+  return {
+    activeEpisodeId: legacyEpisode.episodeId,
+    episodes: [legacyEpisode],
+    updatedAt: legacyEpisode.updatedAt,
+  };
 }
 
 function sanitizePlaneCursor(
@@ -185,37 +334,75 @@ function entryStorageKey(executionKey: string): string {
   return `${STORAGE_KEY_PREFIX}${encodeURIComponent(executionKey)}`;
 }
 
-function executionKeyFromStorageKey(storageKey: string): string | null {
-  if (!storageKey.startsWith(STORAGE_KEY_PREFIX)) return null;
+function legacyEntryStorageKey(executionKey: string): string {
+  return `${LEGACY_EXECUTION_STORAGE_KEY_PREFIX}${encodeURIComponent(
+    executionKey
+  )}`;
+}
+
+function executionKeyFromStorageKey(
+  storageKey: string,
+  prefix = STORAGE_KEY_PREFIX
+): string | null {
+  if (!storageKey.startsWith(prefix)) return null;
   try {
     return normalizeExecutionKey(
-      decodeURIComponent(storageKey.slice(STORAGE_KEY_PREFIX.length))
+      decodeURIComponent(storageKey.slice(prefix.length))
     );
   } catch {
     return null;
   }
 }
 
-function readEnvelope(
+function readCurrentEnvelope(
   backing: Storage | null,
   executionKey: string
 ): ConversationExecutionEnvelope | null {
   const parsed = readJson(backing, entryStorageKey(executionKey));
   if (!isObject(parsed) || parsed.version !== STORE_VERSION) return null;
   const runners = sanitizeRunners(parsed.runners);
-  const continuation = sanitizeContinuation(parsed.continuation);
+  const continuationLineage = sanitizeLineage(parsed.continuationLineage, null);
   const ownerPlaneCursor = sanitizePlaneCursor(parsed.ownerPlaneCursor);
   return {
     version: STORE_VERSION,
     ...(runners ? { runners } : {}),
-    ...(continuation ? { continuation } : {}),
+    ...(continuationLineage ? { continuationLineage } : {}),
     ...(ownerPlaneCursor ? { ownerPlaneCursor } : {}),
   };
 }
 
-function hasExecutionData(envelope: ConversationExecutionEnvelope): boolean {
-  return Boolean(
-    envelope.runners || envelope.continuation || envelope.ownerPlaneCursor
+function readLegacyExecutionEnvelope(
+  backing: Storage | null,
+  executionKey: string
+): ConversationExecutionEnvelope | null {
+  const parsed = readJson(backing, legacyEntryStorageKey(executionKey));
+  if (!isObject(parsed) || parsed.version !== LEGACY_EXECUTION_STORE_VERSION) {
+    return null;
+  }
+  const legacy = parsed as unknown as LegacyConversationExecutionEnvelope;
+  const runners = sanitizeRunners(legacy.runners);
+  const continuation = sanitizeContinuation(legacy.continuation);
+  const continuationLineage = sanitizeLineage(null, continuation);
+  const ownerPlaneCursor = sanitizePlaneCursor(legacy.ownerPlaneCursor);
+  return {
+    version: STORE_VERSION,
+    ...(runners ? { runners } : {}),
+    ...(continuationLineage ? { continuationLineage } : {}),
+    ...(ownerPlaneCursor ? { ownerPlaneCursor } : {}),
+  };
+}
+
+/**
+ * A valid v2 envelope owns the execution key, including an empty tombstone.
+ * The immutable v1 entry is consulted only until the first v2 mutation.
+ */
+function readEnvelope(
+  backing: Storage | null,
+  executionKey: string
+): ConversationExecutionEnvelope | null {
+  return (
+    readCurrentEnvelope(backing, executionKey) ??
+    readLegacyExecutionEnvelope(backing, executionKey)
   );
 }
 
@@ -224,15 +411,16 @@ function writeEnvelope(
   executionKey: string,
   envelope: ConversationExecutionEnvelope
 ): void {
-  if (!backing) return;
-  try {
-    if (!hasExecutionData(envelope)) {
-      backing.removeItem(entryStorageKey(executionKey));
-      return;
-    }
-    backing.setItem(entryStorageKey(executionKey), JSON.stringify(envelope));
-  } catch {
-    // Best-effort: a failed local persistence write rolls through recovery.
+  if (!backing) {
+    throw new Error("conversation execution storage unavailable");
+  }
+  // Persist an empty v2 tombstone as well. Removing it could expose a stale v1
+  // record written by an older window after this build retired the runner.
+  const storageKey = entryStorageKey(executionKey);
+  const serialized = JSON.stringify(envelope);
+  backing.setItem(storageKey, serialized);
+  if (backing.getItem(storageKey) !== serialized) {
+    throw new Error("conversation execution state did not persist");
   }
 }
 
@@ -305,17 +493,106 @@ function keyFor(executorScope: string, rootSessionId: string): string {
   return conversationExecutionKey(executorScope, rootSessionId);
 }
 
+function ensureLineage(
+  envelope: ConversationExecutionEnvelope,
+  updatedAt: string
+): ConversationContinuationLineage {
+  const lineage = envelope.continuationLineage ?? {
+    episodes: [],
+    updatedAt,
+  };
+  envelope.continuationLineage = lineage;
+  return lineage;
+}
+
+function continuationEpisodeFromRecord(
+  record: ConversationContinuationInput,
+  updatedAt: string,
+  previousActiveEpisodeId?: string
+): ConversationContinuationEpisode {
+  const episodeId =
+    record.episodeId || episodeIdForRunner(record.continuationSessionId);
+  return {
+    ...record,
+    episodeId,
+    state: record.established ? "active" : "prepared",
+    createdAt: updatedAt,
+    updatedAt,
+    ...(previousActiveEpisodeId && previousActiveEpisodeId !== episodeId
+      ? { supersedesEpisodeId: previousActiveEpisodeId }
+      : {}),
+  };
+}
+
+function installActiveEpisode(
+  envelope: ConversationExecutionEnvelope,
+  record: ConversationContinuationInput,
+  updatedAt: string
+): void {
+  const lineage = ensureLineage(envelope, updatedAt);
+  const previousActive = activeEpisode(lineage);
+  const nextEpisodeId =
+    record.episodeId || episodeIdForRunner(record.continuationSessionId);
+  if (previousActive && previousActive.episodeId !== nextEpisodeId) {
+    previousActive.state = "retired";
+    previousActive.rollReason ??= "superseded";
+    previousActive.updatedAt = updatedAt;
+  }
+  const episode = continuationEpisodeFromRecord(
+    record,
+    updatedAt,
+    previousActive?.episodeId
+  );
+  const existingIndex = lineage.episodes.findIndex(
+    (candidate) => candidate.episodeId === episode.episodeId
+  );
+  if (existingIndex >= 0) {
+    episode.createdAt = lineage.episodes[existingIndex].createdAt;
+    lineage.episodes[existingIndex] = episode;
+  } else {
+    lineage.episodes.push(episode);
+  }
+  lineage.activeEpisodeId = episode.episodeId;
+  lineage.updatedAt = updatedAt;
+  lineage.episodes = lineage.episodes.slice(
+    -MAX_CONVERSATION_CONTINUATION_EPISODES
+  );
+}
+
+function mutateActiveEpisode(
+  envelope: ConversationExecutionEnvelope,
+  mutate: (episode: ConversationContinuationEpisode) => boolean
+): boolean {
+  const episode = activeEpisode(envelope.continuationLineage);
+  if (!episode || !mutate(episode)) return false;
+  const now = new Date().toISOString();
+  episode.updatedAt = now;
+  if (envelope.continuationLineage) {
+    envelope.continuationLineage.updatedAt = now;
+  }
+  return true;
+}
+
 export function loadStoredContinuation(
   executorScope: string,
   rootSessionId: string,
   backing: Storage | null = defaultStorage()
 ): ConversationContinuationRecord | null {
   const key = keyFor(executorScope, rootSessionId);
-  return readEnvelope(backing, key)?.continuation ?? null;
+  return activeEpisode(readEnvelope(backing, key)?.continuationLineage);
+}
+
+export function loadStoredContinuationLineage(
+  executorScope: string,
+  rootSessionId: string,
+  backing: Storage | null = defaultStorage()
+): ConversationContinuationLineage | null {
+  const key = keyFor(executorScope, rootSessionId);
+  return readEnvelope(backing, key)?.continuationLineage ?? null;
 }
 
 function assertValidContinuationRecord(
-  record: Omit<ConversationContinuationRecord, "updatedAt">
+  record: ConversationContinuationInput
 ): void {
   if (
     !validPlaneSeq(record.readThroughPlaneSeq) ||
@@ -331,15 +608,12 @@ function assertValidContinuationRecord(
 export function saveStoredContinuation(
   executorScope: string,
   rootSessionId: string,
-  record: Omit<ConversationContinuationRecord, "updatedAt">,
+  record: ConversationContinuationInput,
   backing: Storage | null = defaultStorage()
 ): void {
   assertValidContinuationRecord(record);
   mutateEnvelope(backing, keyFor(executorScope, rootSessionId), (envelope) => {
-    envelope.continuation = {
-      ...record,
-      updatedAt: new Date().toISOString(),
-    };
+    installActiveEpisode(envelope, record, new Date().toISOString());
     return true;
   });
 }
@@ -348,7 +622,7 @@ export function saveStoredContinuation(
 export function prepareStoredContinuation(
   executorScope: string,
   rootSessionId: string,
-  record: Omit<ConversationContinuationRecord, "updatedAt">,
+  record: ConversationContinuationInput,
   preparedAt: string,
   backing: Storage | null = defaultStorage()
 ): void {
@@ -366,7 +640,7 @@ export function prepareStoredContinuation(
       terminalRunnerSessionIds: current?.terminalRunnerSessionIds ?? [],
       updatedAt: preparedAt,
     };
-    envelope.continuation = { ...record, updatedAt: preparedAt };
+    installActiveEpisode(envelope, record, preparedAt);
     return true;
   });
 }
@@ -377,10 +651,44 @@ export function clearStoredContinuation(
   backing: Storage | null = defaultStorage()
 ): void {
   mutateEnvelope(backing, keyFor(executorScope, rootSessionId), (envelope) => {
-    if (!envelope.continuation) return false;
-    delete envelope.continuation;
+    const lineage = envelope.continuationLineage;
+    const episode = activeEpisode(lineage);
+    if (!lineage || !episode) return false;
+    const now = new Date().toISOString();
+    episode.state = "retired";
+    episode.rollReason ??= "cleared";
+    episode.updatedAt = now;
+    delete lineage.activeEpisodeId;
+    lineage.updatedAt = now;
     return true;
   });
+}
+
+export function retireStoredContinuation(
+  executorScope: string,
+  rootSessionId: string,
+  rollReason: string,
+  state: Extract<
+    ConversationContinuationEpisodeState,
+    "retired" | "failed"
+  > = "retired",
+  backing: Storage | null = defaultStorage()
+): ConversationContinuationEpisode | null {
+  let retired: ConversationContinuationEpisode | null = null;
+  mutateEnvelope(backing, keyFor(executorScope, rootSessionId), (envelope) => {
+    const lineage = envelope.continuationLineage;
+    const episode = activeEpisode(lineage);
+    if (!lineage || !episode || !rollReason.trim()) return false;
+    const now = new Date().toISOString();
+    episode.state = state;
+    episode.rollReason = rollReason;
+    episode.updatedAt = now;
+    delete lineage.activeEpisodeId;
+    lineage.updatedAt = now;
+    retired = { ...episode };
+    return true;
+  });
+  return retired;
 }
 
 /** Fence bootstrap completion to the exact local runner and logical intent. */
@@ -393,7 +701,7 @@ export function markStoredContinuationEstablished(
 ): boolean {
   let established = false;
   mutateEnvelope(backing, keyFor(executorScope, rootSessionId), (envelope) => {
-    const continuation = envelope.continuation;
+    const continuation = activeEpisode(envelope.continuationLineage);
     if (
       !continuation ||
       continuation.continuationSessionId !== continuationSessionId ||
@@ -403,10 +711,10 @@ export function markStoredContinuationEstablished(
       return false;
     }
     continuation.established = true;
+    continuation.state = "active";
     delete continuation.bootstrapTurnIntentId;
-    continuation.updatedAt = new Date().toISOString();
     established = true;
-    return true;
+    return mutateActiveEpisode(envelope, () => true);
   });
   return established;
 }
@@ -421,13 +729,11 @@ export function advanceStoredContinuationReadThrough(
     throw new Error(`invalid conversation plane seq: ${planeSeq}`);
   }
   mutateEnvelope(backing, keyFor(executorScope, rootSessionId), (envelope) => {
-    const continuation = envelope.continuation;
-    if (!continuation || continuation.readThroughPlaneSeq >= planeSeq) {
-      return false;
-    }
-    continuation.readThroughPlaneSeq = planeSeq;
-    continuation.updatedAt = new Date().toISOString();
-    return true;
+    return mutateActiveEpisode(envelope, (continuation) => {
+      if (continuation.readThroughPlaneSeq >= planeSeq) return false;
+      continuation.readThroughPlaneSeq = planeSeq;
+      return true;
+    });
   });
 }
 
@@ -515,11 +821,25 @@ export function collectStoredRunnerSessionIds(
   backing: Storage | null = defaultStorage()
 ): Set<string> {
   const sessionIds = new Set<string>();
+  const currentExecutionKeys = new Set<string>();
   for (const storageKey of allStorageKeys(backing)) {
     const executionKey = executionKeyFromStorageKey(storageKey);
     if (!executionKey) continue;
-    for (const sessionId of readEnvelope(backing, executionKey)?.runners
-      ?.runnerSessionIds ?? []) {
+    const current = readCurrentEnvelope(backing, executionKey);
+    if (!current) continue;
+    currentExecutionKeys.add(executionKey);
+    for (const sessionId of current.runners?.runnerSessionIds ?? []) {
+      sessionIds.add(sessionId);
+    }
+  }
+  for (const storageKey of allStorageKeys(backing)) {
+    const executionKey = executionKeyFromStorageKey(
+      storageKey,
+      LEGACY_EXECUTION_STORAGE_KEY_PREFIX
+    );
+    if (!executionKey || currentExecutionKeys.has(executionKey)) continue;
+    for (const sessionId of readLegacyExecutionEnvelope(backing, executionKey)
+      ?.runners?.runnerSessionIds ?? []) {
       sessionIds.add(sessionId);
     }
   }
@@ -535,17 +855,26 @@ export function forgetStoredRunner(
   runnerSessionId: string,
   backing: Storage | null = defaultStorage()
 ): void {
+  const executionKeys = new Set<string>();
   for (const storageKey of allStorageKeys(backing)) {
-    const executionKey = executionKeyFromStorageKey(storageKey);
-    if (!executionKey) continue;
+    const executionKey =
+      executionKeyFromStorageKey(storageKey) ??
+      executionKeyFromStorageKey(
+        storageKey,
+        LEGACY_EXECUTION_STORAGE_KEY_PREFIX
+      );
+    if (executionKey) executionKeys.add(executionKey);
+  }
+  for (const executionKey of executionKeys) {
     const envelope = readEnvelope(backing, executionKey);
     const current = envelope?.runners;
     if (!envelope) continue;
     const removesRunner = Boolean(
       current?.runnerSessionIds.includes(runnerSessionId)
     );
+    const currentContinuation = activeEpisode(envelope.continuationLineage);
     const removesContinuation =
-      envelope.continuation?.continuationSessionId === runnerSessionId;
+      currentContinuation?.continuationSessionId === runnerSessionId;
     if (!removesRunner && !removesContinuation) continue;
     if (current && removesRunner) {
       const runnerSessionIds = current.runnerSessionIds.filter(
@@ -563,8 +892,13 @@ export function forgetStoredRunner(
         };
       }
     }
-    if (removesContinuation) {
-      delete envelope.continuation;
+    if (removesContinuation && envelope.continuationLineage) {
+      const now = new Date().toISOString();
+      currentContinuation.state = "failed";
+      currentContinuation.rollReason ??= "runner_deleted";
+      currentContinuation.updatedAt = now;
+      delete envelope.continuationLineage.activeEpisodeId;
+      envelope.continuationLineage.updatedAt = now;
     }
     writeEnvelope(backing, executionKey, envelope);
   }
@@ -606,6 +940,9 @@ export function forgetStoredRunner(
 export const __CONVERSATION_EXECUTION_STORE_INTERNALS = {
   STORE_VERSION,
   STORAGE_KEY_PREFIX,
+  LEGACY_EXECUTION_STORE_VERSION,
+  LEGACY_EXECUTION_STORAGE_KEY_PREFIX,
   LEGACY_RUNNERS_KEY,
   entryStorageKey,
+  legacyEntryStorageKey,
 };

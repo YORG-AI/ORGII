@@ -274,7 +274,11 @@ export function useImportedSessionSubmitOverride({
             const runnerSessionId = liveRunnerSessionId;
             if (!runnerSessionId) return;
             liveRunnerSessionId = null;
-            settleCloudConversationRunner(planeInfo.rootId, runnerSessionId);
+            settleCloudConversationRunner(
+              planeInfo.orgId,
+              planeInfo.rootId,
+              runnerSessionId
+            );
           };
           const turnPromise = runConversationTurn({
             getAccessToken,

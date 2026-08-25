@@ -293,6 +293,47 @@ describe("conversation turn continuation", () => {
     ]);
   });
 
+  it("does not acknowledge an accepted turn after continuation storage loss", async () => {
+    const onTurnAccepted = vi.fn();
+    const onTransportAccepted = vi.fn();
+
+    await expect(
+      runConversationTurn(
+        params({
+          onRunnerReady: () => {
+            Object.defineProperty(globalThis, "localStorage", {
+              configurable: true,
+              value: fakeStorage(),
+            });
+          },
+          onTransportAccepted,
+          onTurnAccepted,
+        })
+      )
+    ).rejects.toThrow("continuation acceptance could not be persisted");
+
+    expect(onTransportAccepted).toHaveBeenCalledWith(
+      "fresh-runner",
+      "intent-1"
+    );
+    expect(onTurnAccepted).not.toHaveBeenCalled();
+    expect(state.cleaned).toEqual([]);
+  });
+
+  it("deletes a new runner when durable prepare cannot be persisted", async () => {
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: null,
+    });
+
+    await expect(runConversationTurn(params())).rejects.toThrow(
+      "conversation execution storage unavailable"
+    );
+
+    expect(sendReservedTurn).not.toHaveBeenCalled();
+    expect(state.cleaned).toEqual(["fresh-runner"]);
+  });
+
   it("reuses the runner, injects only new foreign rows, and advances the cursor", async () => {
     saveContinuation("scope", "root", {
       continuationSessionId: "runner-live",

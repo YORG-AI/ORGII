@@ -47,7 +47,15 @@ function dedupeByTurnId(
   return kept.reverse();
 }
 
-/** plane rootSessionId → this device's in-flight member runners. */
+/** Canonical in-memory plane identity. Root ids are not globally unique. */
+export function conversationRunnerRegistryKey(
+  orgId: string,
+  rootSessionId: string
+): string {
+  return JSON.stringify([orgId, rootSessionId]);
+}
+
+/** (organization, plane rootSessionId) → this device's in-flight runners. */
 const runnerRegistryStateAtom = atom<RunnerRegistry>({});
 export const activeConversationRunnersAtom = atom(
   (get) => get(runnerRegistryStateAtom),
@@ -59,8 +67,8 @@ export const activeConversationRunnersAtom = atom(
     const current = get(runnerRegistryStateAtom);
     const proposed = typeof update === "function" ? update(current) : update;
     const next: RunnerRegistry = {};
-    for (const [rootSessionId, runners] of Object.entries(proposed)) {
-      next[rootSessionId] = dedupeByTurnId(runners);
+    for (const [planeKey, runners] of Object.entries(proposed)) {
+      next[planeKey] = dedupeByTurnId(runners);
     }
     set(runnerRegistryStateAtom, next);
   }

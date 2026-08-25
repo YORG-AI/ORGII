@@ -7,6 +7,7 @@ import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionCommen
 import {
   activeConversationRunnersAtom,
   collectLandedTurnIds,
+  conversationRunnerRegistryKey,
   overlayableRunnerEvents,
   selectActiveRunners,
 } from "@src/features/Org2Cloud/SessionConversation/activeConversationRunnersAtom";
@@ -204,19 +205,20 @@ export function ConversationStreamProvider({
   const runnerRegistry = useAtomValue(activeConversationRunnersAtom);
   const setRunnerRegistry = useSetAtom(activeConversationRunnersAtom);
   const planeRootId = target?.sessionId ?? null;
+  const planeKey =
+    target && planeRootId
+      ? conversationRunnerRegistryKey(target.orgId, planeRootId)
+      : null;
   const landedTurnIds = useMemo(
     () => collectLandedTurnIds(plane.events),
     [plane.events]
   );
   const activeRunners = useMemo(() => {
-    if (!planeRootId) return [];
+    if (!planeKey) return [];
     // Drop a runner as soon as its agent tail is on the plane — the
     // authoritative rows take over with no double-render.
-    return selectActiveRunners(
-      runnerRegistry[planeRootId] ?? [],
-      landedTurnIds
-    );
-  }, [runnerRegistry, planeRootId, landedTurnIds]);
+    return selectActiveRunners(runnerRegistry[planeKey] ?? [], landedTurnIds);
+  }, [runnerRegistry, planeKey, landedTurnIds]);
   // The in-flight runner drives the chat footer's running/typing indicator
   // so a member's long turn shows "Thinking…" instead of a frozen screen.
   const activeRunnerScope =
@@ -224,18 +226,18 @@ export function ConversationStreamProvider({
       ? activeRunners[activeRunners.length - 1].runnerSessionId
       : null;
   useEffect(() => {
-    if (!planeRootId) return;
-    const list = runnerRegistry[planeRootId];
+    if (!planeKey) return;
+    const list = runnerRegistry[planeKey];
     if (!list?.length) return;
     const kept = selectActiveRunners(list, landedTurnIds);
     if (kept.length === list.length) return;
     setRunnerRegistry((current) => {
       const next = { ...current };
-      if (kept.length === 0) delete next[planeRootId];
-      else next[planeRootId] = kept;
+      if (kept.length === 0) delete next[planeKey];
+      else next[planeKey] = kept;
       return next;
     });
-  }, [planeRootId, runnerRegistry, landedTurnIds, setRunnerRegistry]);
+  }, [planeKey, runnerRegistry, landedTurnIds, setRunnerRegistry]);
   const [runnerEventsById, setRunnerEventsById] = useState<
     ReadonlyMap<string, readonly SessionEvent[]>
   >(() => new Map());
