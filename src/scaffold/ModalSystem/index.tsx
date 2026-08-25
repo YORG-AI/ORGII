@@ -25,7 +25,10 @@ import PanelFooter from "@src/modules/shared/layouts/blocks/PanelFooter";
 import PanelHeader, {
   PANEL_HEADER_TOKENS,
 } from "@src/modules/shared/layouts/blocks/PanelHeader";
-import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
+import {
+  MODAL_MASK_OCCLUSION_OPTIONS,
+  useOverlayLayer,
+} from "@src/store/ui/overlayLayerAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
@@ -131,13 +134,16 @@ const Modal: React.FC<ModalProps> = ({
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [okLoading, setOkLoading] = useState(false);
   const { isDark } = useCurrentTheme();
+  const modalDimmingAlpha = isDark ? 0.7 : 0.6;
 
-  // Keep the live native page visible under the modal scrim. Only the opaque
-  // dialog panel becomes a compositor hole; macOS renders the matching black
-  // dim layer directly above the sibling WKWebView.
-  useOverlayLayer(visible, modalRef, {
-    nativeDimmingAlpha: isDark ? 0.7 : 0.6,
+  // Uniform dim on the live browser surface; the opaque dialog panel gets its
+  // own WebView mask hole aligned to `.liquid-modal-content` (not the padded
+  // bounds wrapper, which would leave transparent slack showing as white).
+  useOverlayLayer(visible, undefined, {
+    nativeDimmingAlpha: modalDimmingAlpha,
+    cutsNativeSurface: false,
   });
+  useOverlayLayer(visible, modalRef, MODAL_MASK_OCCLUSION_OPTIONS);
 
   // Store the previously focused element
   useEffect(() => {

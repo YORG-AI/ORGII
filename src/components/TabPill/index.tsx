@@ -2,7 +2,10 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
-import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
+import {
+  DROPDOWN_OCCLUSION_OPTIONS,
+  useOverlayLayer,
+} from "@src/store/ui/overlayLayerAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { SidebarTabButton } from "./SidebarTabButton";
@@ -59,7 +62,11 @@ const TabPill: React.FC<TabPillProps> = ({
   const [dropdownPositioned, setDropdownPositioned] = useState(false);
   const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
   const dropdownPanelRef = useRef<HTMLDivElement>(null);
-  useOverlayLayer(dropdownOpen, dropdownPanelRef);
+  useOverlayLayer(
+    dropdownOpen && dropdownPositioned,
+    dropdownPanelRef,
+    DROPDOWN_OCCLUSION_OPTIONS
+  );
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
 
   const dropdownTab = normalizedTabs.find((tab) => tab.dropdown);

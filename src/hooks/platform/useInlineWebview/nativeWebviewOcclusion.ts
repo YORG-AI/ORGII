@@ -1,4 +1,5 @@
 import type { OverlayOcclusionRect } from "@src/store/ui/overlayLayerAtom";
+import { toNativeFrameFromCorners } from "@src/util/platform/tauri/nativeFrame";
 
 export interface NativeWebviewOcclusionRect {
   x: number;
@@ -15,6 +16,35 @@ export interface ViewportRect {
 }
 
 const MAX_OCCLUSION_RECTS = 64;
+const DEFAULT_HOLE_INFLATION_CSS = 4;
+const MODAL_HOLE_INFLATION_CSS = 16;
+
+export { DEFAULT_HOLE_INFLATION_CSS, MODAL_HOLE_INFLATION_CSS };
+
+function inflateViewportRect(
+  rect: ViewportRect,
+  inflationCss: number
+): ViewportRect {
+  if (inflationCss <= 0) return rect;
+  return {
+    left: rect.left - inflationCss,
+    top: rect.top - inflationCss,
+    right: rect.right + inflationCss,
+    bottom: rect.bottom + inflationCss,
+  };
+}
+
+function clampViewportRectToSurface(
+  rect: ViewportRect,
+  surface: ViewportRect
+): ViewportRect | null {
+  const left = Math.max(surface.left, rect.left);
+  const top = Math.max(surface.top, rect.top);
+  const right = Math.min(surface.right, rect.right);
+  const bottom = Math.min(surface.bottom, rect.bottom);
+  if (right <= left || bottom <= top) return null;
+  return { left, top, right, bottom };
+}
 
 function overlapsOrTouches(
   left: NativeWebviewOcclusionRect,
@@ -72,7 +102,8 @@ export function coalesceOcclusionRects(
 export function computeNativeWebviewOcclusions(
   surface: ViewportRect,
   overlays: readonly OverlayOcclusionRect[],
-  nativeFrameScale: number
+  nativeFrameScale: number,
+  options: { holeInflationCss?: number } = {}
 ): NativeWebviewOcclusionRect[] {
   if (
     !Number.isFinite(nativeFrameScale) ||
@@ -83,8 +114,18 @@ export function computeNativeWebviewOcclusions(
     return [];
   }
 
-  const nativeSurfaceLeft = Math.round(surface.left * nativeFrameScale);
-  const nativeSurfaceTop = Math.round(surface.top * nativeFrameScale);
+  const holeInflationCss = Math.max(0, options.holeInflationCss ?? 0);
+  const nativeSurface = toNativeFrameFromCorners(
+    {
+      left: surface.left,
+      top: surface.top,
+      right: surface.right,
+      bottom: surface.bottom,
+    },
+    nativeFrameScale
+  );
+  const nativeSurfaceRight = nativeSurface.x + nativeSurface.width;
+  const nativeSurfaceBottom = nativeSurface.y + nativeSurface.height;
   const intersections: NativeWebviewOcclusionRect[] = [];
 
   for (const overlay of overlays.slice(0, MAX_OCCLUSION_RECTS)) {
@@ -99,22 +140,39 @@ export function computeNativeWebviewOcclusions(
       continue;
     }
 
-    const left = Math.max(surface.left, overlay.x);
-    const top = Math.max(surface.top, overlay.y);
-    const right = Math.min(surface.right, overlay.x + overlay.width);
-    const bottom = Math.min(surface.bottom, overlay.y + overlay.height);
+    const overlayViewport = inflateViewportRect(
+      {
+        left: overlay.x,
+        top: overlay.y,
+        right: overlay.x + overlay.width,
+        bottom: overlay.y + overlay.height,
+      },
+      holeInflationCss
+    );
+    const intersection = clampViewportRectToSurface(overlayViewport, surface);
+    if (!intersection) continue;
+
+    const nativeOverlay = toNativeFrameFromCorners(
+      intersection,
+      nativeFrameScale
+    );
+    const left = Math.max(nativeSurface.x, nativeOverlay.x);
+    const top = Math.max(nativeSurface.y, nativeOverlay.y);
+    const right = Math.min(
+      nativeSurfaceRight,
+      nativeOverlay.x + nativeOverlay.width
+    );
+    const bottom = Math.min(
+      nativeSurfaceBottom,
+      nativeOverlay.y + nativeOverlay.height
+    );
     if (right <= left || bottom <= top) continue;
 
-    const nativeLeft = Math.round(left * nativeFrameScale);
-    const nativeTop = Math.round(top * nativeFrameScale);
-    const nativeRight = Math.round(right * nativeFrameScale);
-    const nativeBottom = Math.round(bottom * nativeFrameScale);
-
     intersections.push({
-      x: nativeLeft - nativeSurfaceLeft,
-      y: nativeTop - nativeSurfaceTop,
-      width: nativeRight - nativeLeft,
-      height: nativeBottom - nativeTop,
+      x: left - nativeSurface.x,
+      y: top - nativeSurface.y,
+      width: right - left,
+      height: bottom - top,
     });
   }
 

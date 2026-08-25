@@ -30,6 +30,15 @@ export interface OverlayLayerEntry {
   blocksNativeInput: boolean;
   /** Black scrim alpha rendered above the live native surface. */
   nativeDimmingAlpha?: number;
+  /**
+   * When false, the rect only punches through the native dim layer (spotlight
+   * tours) instead of cutting the live WebView backing surface.
+   */
+  cutsNativeSurface?: boolean;
+  /** Contribute the rect to dim-layer holes without cutting the WebView. */
+  dimHoleOnly?: boolean;
+  /** Cut the live WebView surface without punching a matching dim-layer hole. */
+  maskHoleOnly?: boolean;
 }
 
 export interface OverlayLayerOptions {
@@ -40,6 +49,46 @@ export interface OverlayLayerOptions {
    * while their opaque panel remains the registered occlusion rectangle.
    */
   nativeDimmingAlpha?: number;
+  /**
+   * When false, keep the live WebView painted and only mirror the scrim on a
+   * native dim layer. Spotlight tours use this for glass popovers.
+   */
+  cutsNativeSurface?: boolean;
+  /** Register a dim-layer hole without cutting the live WebView surface. */
+  dimHoleOnly?: boolean;
+  /** Cut the live WebView for opaque/glass UI without undimming the page. */
+  maskHoleOnly?: boolean;
+  /**
+   * Extra CSS pixels around the measured rect so native compositor holes stay
+   * aligned with React UI at panel boundaries and under shadows/borders.
+   */
+  occlusionSlop?: number;
+}
+
+const DEFAULT_OCCLUSION_SLOP = 4;
+const MODAL_OCCLUSION_SLOP = 48;
+/** Opaque dropdown panels should not inflate native holes beyond their bounds. */
+export const DROPDOWN_OCCLUSION_OPTIONS: OverlayLayerOptions = {
+  occlusionSlop: 0,
+};
+
+/** Modal dialog panel: mask hole aligned to opaque content, not a padded wrapper. */
+export const MODAL_MASK_OCCLUSION_OPTIONS: OverlayLayerOptions = {
+  maskHoleOnly: true,
+  occlusionSlop: MODAL_OCCLUSION_SLOP,
+};
+
+function expandOverlayRect(
+  rect: OverlayOcclusionRect,
+  slop: number
+): OverlayOcclusionRect {
+  if (slop <= 0) return rect;
+  return {
+    x: rect.x - slop,
+    y: rect.y - slop,
+    width: rect.width + slop * 2,
+    height: rect.height + slop * 2,
+  };
 }
 
 export type OverlayLayerRegistry = Record<string, OverlayLayerEntry>;
@@ -54,8 +103,28 @@ activeOverlayCountAtom.debugLabel = "activeOverlayCountAtom";
 
 export const overlayOcclusionStateAtom = atom((get) => {
   const entries = Object.values(get(overlayLayerRegistryAtom));
+  const maskRects: OverlayOcclusionRect[] = [];
+  const dimHoleRects: OverlayOcclusionRect[] = [];
+
+  for (const entry of entries) {
+    if (!entry.rect) continue;
+    const dimHoleOnly = entry.dimHoleOnly === true;
+    const maskHoleOnly = entry.maskHoleOnly === true;
+    const cutsNativeSurface = entry.cutsNativeSurface !== false;
+
+    if (cutsNativeSurface && !dimHoleOnly) {
+      maskRects.push(entry.rect);
+    }
+    if (!maskHoleOnly && (dimHoleOnly || cutsNativeSurface)) {
+      dimHoleRects.push(entry.rect);
+    }
+  }
+
   return {
-    rects: entries.flatMap((entry) => (entry.rect ? [entry.rect] : [])),
+    maskRects,
+    dimHoleRects,
+    /** @deprecated Use maskRects — kept for callers not yet split. */
+    rects: maskRects,
     blocksNativeInput: entries.some((entry) => entry.blocksNativeInput),
     nativeDimmingAlpha: entries.reduce(
       (strongest, entry) =>
@@ -127,15 +196,29 @@ export function useOverlayLayer(
   const frameRef = useRef<number | null>(null);
   const blocksNativeInput = options.blocksNativeInput ?? true;
   const nativeDimmingAlpha = normalizeDimmingAlpha(options.nativeDimmingAlpha);
+  const cutsNativeSurface = options.cutsNativeSurface ?? true;
+  const dimHoleOnly = options.dimHoleOnly ?? false;
+  const maskHoleOnly = options.maskHoleOnly ?? false;
+  const occlusionSlop =
+    options.occlusionSlop ??
+    (nativeDimmingAlpha > 0 && cutsNativeSurface
+      ? MODAL_OCCLUSION_SLOP
+      : DEFAULT_OCCLUSION_SLOP);
 
   const publish = useCallback(() => {
-    const nextRect = readElementRect(targetRef);
+    const measuredRect = readElementRect(targetRef);
+    const nextRect = measuredRect
+      ? expandOverlayRect(measuredRect, occlusionSlop)
+      : null;
     setRegistry((previous) => {
       const current = previous[id];
       if (
         current &&
         current.blocksNativeInput === blocksNativeInput &&
         current.nativeDimmingAlpha === nativeDimmingAlpha &&
+        current.cutsNativeSurface === cutsNativeSurface &&
+        current.dimHoleOnly === dimHoleOnly &&
+        current.maskHoleOnly === maskHoleOnly &&
         sameRect(current.rect, nextRect)
       ) {
         return previous;
@@ -148,10 +231,23 @@ export function useOverlayLayer(
           rect: nextRect,
           blocksNativeInput,
           nativeDimmingAlpha,
+          cutsNativeSurface,
+          dimHoleOnly,
+          maskHoleOnly,
         },
       };
     });
-  }, [blocksNativeInput, id, nativeDimmingAlpha, setRegistry, targetRef]);
+  }, [
+    blocksNativeInput,
+    cutsNativeSurface,
+    dimHoleOnly,
+    maskHoleOnly,
+    id,
+    nativeDimmingAlpha,
+    occlusionSlop,
+    setRegistry,
+    targetRef,
+  ]);
 
   const schedulePublish = useCallback(() => {
     if (frameRef.current !== null) return;
@@ -178,11 +274,13 @@ export function useOverlayLayer(
 
     window.addEventListener("resize", schedulePublish);
     window.addEventListener("scroll", schedulePublish, true);
+    window.addEventListener("orgii-ui-scale-applied", schedulePublish);
 
     return () => {
       resizeObserver?.disconnect();
       window.removeEventListener("resize", schedulePublish);
       window.removeEventListener("scroll", schedulePublish, true);
+      window.removeEventListener("orgii-ui-scale-applied", schedulePublish);
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;

@@ -36,7 +36,10 @@ import React, {
 } from "react";
 
 import { useDropdownAutoKeyboard } from "@src/hooks/dropdown";
-import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
+import {
+  DROPDOWN_OCCLUSION_OPTIONS,
+  useOverlayLayer,
+} from "@src/store/ui/overlayLayerAtom";
 
 import DropdownMenuSurface from "./DropdownMenuSurface";
 import DropdownOptionsContent from "./DropdownOptionsContent";
@@ -193,7 +196,11 @@ const Dropdown: React.FC<DropdownProps> = ({
   const isControlled = controlledVisible !== undefined;
   const visible = isControlled ? controlledVisible : internalVisible;
 
-  useOverlayLayer(visible, dropdownRef);
+  useOverlayLayer(
+    visible && Boolean(dropdownPosition),
+    dropdownRef,
+    DROPDOWN_OCCLUSION_OPTIONS
+  );
 
   const setVisible = useCallback(
     (newVisible: boolean) => {

@@ -7,7 +7,11 @@ import { overlayOcclusionStateAtom } from "@src/store/ui/overlayLayerAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 import { getNativeFrameScale } from "@src/util/platform/tauri/nativeFrame";
 
-import { computeNativeWebviewOcclusions } from "./nativeWebviewOcclusion";
+import {
+  DEFAULT_HOLE_INFLATION_CSS,
+  MODAL_HOLE_INFLATION_CSS,
+  computeNativeWebviewOcclusions,
+} from "./nativeWebviewOcclusion";
 import { getVisibleWebviewRect } from "./visibleWebviewRect";
 import {
   WEBVIEW_LAYOUT_CHANGED_EVENT,
@@ -26,7 +30,8 @@ export interface UseInlineWebviewOcclusionsParams {
 
 interface DesiredOcclusionState {
   revision: number;
-  rects: ReturnType<typeof computeNativeWebviewOcclusions>;
+  maskRects: ReturnType<typeof computeNativeWebviewOcclusions>;
+  dimHoleRects: ReturnType<typeof computeNativeWebviewOcclusions>;
   blockInput: boolean;
   dimmingAlpha: number;
 }
@@ -42,16 +47,23 @@ function samePayload(
   ) {
     return false;
   }
-  if (left.rects.length !== right.rects.length) return false;
-  return left.rects.every((rect, index) => {
-    const candidate = right.rects[index];
-    return (
-      rect.x === candidate.x &&
-      rect.y === candidate.y &&
-      rect.width === candidate.width &&
-      rect.height === candidate.height
-    );
-  });
+  for (const rects of ["maskRects", "dimHoleRects"] as const) {
+    if (left[rects].length !== right[rects].length) return false;
+    if (
+      !left[rects].every((rect, index) => {
+        const candidate = right[rects][index];
+        return (
+          rect.x === candidate.x &&
+          rect.y === candidate.y &&
+          rect.width === candidate.width &&
+          rect.height === candidate.height
+        );
+      })
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -68,7 +80,8 @@ export function useInlineWebviewOcclusions({
   const overlayState = useAtomValue(overlayOcclusionStateAtom);
   const desiredRef = useRef<DesiredOcclusionState>({
     revision: 0,
-    rects: [],
+    maskRects: [],
+    dimHoleRects: [],
     blockInput: false,
     dimmingAlpha: 0,
   });
@@ -76,7 +89,8 @@ export function useInlineWebviewOcclusions({
   // avoids one no-op IPC for every restored but inactive browser session.
   const appliedRef = useRef<DesiredOcclusionState | null>({
     revision: 0,
-    rects: [],
+    maskRects: [],
+    dimHoleRects: [],
     blockInput: false,
     dimmingAlpha: 0,
   });
@@ -87,20 +101,44 @@ export function useInlineWebviewOcclusions({
   const measureDesired = useCallback((): DesiredOcclusionState => {
     const revision = desiredRef.current.revision + 1;
     if (!isWebviewCreated || !isSurfaceVisible || !containerRef.current) {
-      return { revision, rects: [], blockInput: false, dimmingAlpha: 0 };
+      return {
+        revision,
+        maskRects: [],
+        dimHoleRects: [],
+        blockInput: false,
+        dimmingAlpha: 0,
+      };
     }
 
     const surface = getVisibleWebviewRect(containerRef.current);
     if (!surface) {
-      return { revision, rects: [], blockInput: false, dimmingAlpha: 0 };
+      return {
+        revision,
+        maskRects: [],
+        dimHoleRects: [],
+        blockInput: false,
+        dimmingAlpha: 0,
+      };
     }
+
+    const holeInflationCss =
+      overlayState.nativeDimmingAlpha > 0
+        ? MODAL_HOLE_INFLATION_CSS
+        : DEFAULT_HOLE_INFLATION_CSS;
 
     return {
       revision,
-      rects: computeNativeWebviewOcclusions(
+      maskRects: computeNativeWebviewOcclusions(
         surface,
-        overlayState.rects,
-        getNativeFrameScale()
+        overlayState.maskRects,
+        getNativeFrameScale(),
+        { holeInflationCss }
+      ),
+      dimHoleRects: computeNativeWebviewOcclusions(
+        surface,
+        overlayState.dimHoleRects,
+        getNativeFrameScale(),
+        { holeInflationCss }
       ),
       blockInput: overlayState.blocksNativeInput,
       dimmingAlpha: overlayState.nativeDimmingAlpha,
@@ -110,8 +148,9 @@ export function useInlineWebviewOcclusions({
     isSurfaceVisible,
     isWebviewCreated,
     overlayState.blocksNativeInput,
+    overlayState.dimHoleRects,
+    overlayState.maskRects,
     overlayState.nativeDimmingAlpha,
-    overlayState.rects,
   ]);
 
   const applyLatest = useCallback(async () => {
@@ -133,7 +172,8 @@ export function useInlineWebviewOcclusions({
         try {
           await invoke("set_inline_webview_occlusions", {
             label,
-            rects: desired.rects,
+            rects: desired.maskRects,
+            dimHoleRects: desired.dimHoleRects,
             blockInput: desired.blockInput,
             dimmingAlpha: desired.dimmingAlpha,
           });
@@ -186,7 +226,9 @@ export function useInlineWebviewOcclusions({
       !isMacOS() ||
       !isWebviewCreated ||
       !isSurfaceVisible ||
-      (overlayState.rects.length === 0 && overlayState.nativeDimmingAlpha === 0)
+      (overlayState.maskRects.length === 0 &&
+        overlayState.dimHoleRects.length === 0 &&
+        overlayState.nativeDimmingAlpha === 0)
     ) {
       return;
     }
@@ -226,8 +268,9 @@ export function useInlineWebviewOcclusions({
     isSurfaceVisible,
     isWebviewCreated,
     label,
+    overlayState.dimHoleRects.length,
+    overlayState.maskRects.length,
     overlayState.nativeDimmingAlpha,
-    overlayState.rects.length,
     schedulePublish,
   ]);
 
@@ -241,6 +284,7 @@ export function useInlineWebviewOcclusions({
         void invoke("set_inline_webview_occlusions", {
           label,
           rects: [],
+          dimHoleRects: [],
           blockInput: false,
           dimmingAlpha: 0,
         }).catch(() => undefined);

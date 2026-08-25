@@ -95,7 +95,9 @@ describe("useOverlayLayer", () => {
     await render(true);
     expect(store.get(activeOverlayCountAtom)).toBe(1);
     expect(store.get(overlayOcclusionStateAtom)).toEqual({
-      rects: [{ x: 20, y: 30, width: 200, height: 100 }],
+      maskRects: [{ x: -28, y: -18, width: 296, height: 196 }],
+      dimHoleRects: [{ x: -28, y: -18, width: 296, height: 196 }],
+      rects: [{ x: -28, y: -18, width: 296, height: 196 }],
       blocksNativeInput: true,
       nativeDimmingAlpha: 0.6,
     });
@@ -103,6 +105,8 @@ describe("useOverlayLayer", () => {
     await render(false);
     expect(store.get(activeOverlayCountAtom)).toBe(0);
     expect(store.get(overlayOcclusionStateAtom)).toEqual({
+      maskRects: [],
+      dimHoleRects: [],
       rects: [],
       blocksNativeInput: false,
       nativeDimmingAlpha: 0,

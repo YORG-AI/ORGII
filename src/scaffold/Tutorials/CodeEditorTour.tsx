@@ -19,7 +19,6 @@ import {
   POPUP_SHADOW,
 } from "@src/scaffold/shared/popupTokens";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
-import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { sourceControlFilterModeAtom } from "@src/store/workstation/codeEditor/sourceControlFilterModeAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
@@ -27,6 +26,7 @@ import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { createAnimationFrameScheduler } from "./animationFrameScheduler";
 import { CODE_EDITOR_TOUR_TARGETS } from "./codeEditorTourConfig";
+import { useSpotlightTourNativeOcclusion } from "./useSpotlightTourNativeOcclusion";
 
 type CodeEditorTourTarget =
   (typeof CODE_EDITOR_TOUR_TARGETS)[keyof typeof CODE_EDITOR_TOUR_TARGETS];
@@ -215,7 +215,8 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  useOverlayLayer(open, popoverRef);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  useSpotlightTourNativeOcclusion(open, popoverRef, highlightRef);
 
   const currentStep = TOUR_STEPS[stepIndex];
   const isFirstStep = stepIndex === 0;
@@ -367,6 +368,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
 
         {highlightStyle && (
           <motion.div
+            ref={highlightRef}
             className="pointer-events-none fixed z-[10001] border-2 border-primary-6 shadow-[0_0_0_6px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
             layout
             style={highlightStyle}

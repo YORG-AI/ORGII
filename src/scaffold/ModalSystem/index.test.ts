@@ -12,6 +12,8 @@ import {
   vi,
 } from "vitest";
 
+import { MODAL_MASK_OCCLUSION_OPTIONS } from "@src/store/ui/overlayLayerAtom";
+
 import Modal from "./index";
 
 const mocks = vi.hoisted(() => ({
@@ -19,9 +21,14 @@ const mocks = vi.hoisted(() => ({
   theme: { isDark: false },
 }));
 
-vi.mock("@src/store/ui/overlayLayerAtom", () => ({
-  useOverlayLayer: mocks.useOverlayLayer,
-}));
+vi.mock("@src/store/ui/overlayLayerAtom", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@src/store/ui/overlayLayerAtom")>();
+  return {
+    ...actual,
+    useOverlayLayer: mocks.useOverlayLayer,
+  };
+});
 vi.mock("@src/util/ui/theme/themeUtils", () => ({
   useCurrentTheme: () => ({ theme: "test", isDark: mocks.theme.isDark }),
 }));
@@ -62,49 +69,60 @@ afterAll(() => {
 });
 
 describe("Modal native surface coverage", () => {
-  it("registers the opaque panel and dims the live native page", async () => {
+  it("dims the live native page and masks the opaque panel", async () => {
     await act(async () => root.render(renderModal(true)));
 
-    const [, coverageRef, options] = mocks.useOverlayLayer.mock.calls.at(
-      -1
-    ) as [
+    expect(mocks.useOverlayLayer).toHaveBeenCalledTimes(2);
+    const [dimActive, dimRef, dimOptions] = mocks.useOverlayLayer.mock
+      .calls[0] as [
       boolean,
       RefObject<HTMLDivElement | null>,
-      { nativeDimmingAlpha: number },
+      { nativeDimmingAlpha: number; cutsNativeSurface: boolean },
     ];
-    const wrapper = document.querySelector(".liquid-modal-wrapper");
+    const [maskActive, maskRef, maskOptions] = mocks.useOverlayLayer.mock
+      .calls[1] as [
+      boolean,
+      RefObject<HTMLDivElement | null>,
+      typeof MODAL_MASK_OCCLUSION_OPTIONS,
+    ];
     const panel = document.querySelector(".liquid-modal-content");
 
-    expect(wrapper).not.toBeNull();
-    expect(coverageRef.current).toBe(panel);
-    expect(coverageRef.current).not.toBe(wrapper);
-    expect(options).toEqual({ nativeDimmingAlpha: 0.6 });
+    expect(dimActive).toBe(true);
+    expect(dimRef?.current).toBeUndefined();
+    expect(dimOptions).toEqual({
+      nativeDimmingAlpha: 0.6,
+      cutsNativeSurface: false,
+    });
+    expect(maskActive).toBe(true);
+    expect(maskRef.current).toBe(panel);
+    expect(maskOptions).toEqual(MODAL_MASK_OCCLUSION_OPTIONS);
   });
 
   it("matches the stronger dark-theme modal scrim", async () => {
     mocks.theme.isDark = true;
     await act(async () => root.render(renderModal(true)));
 
-    const [, , options] = mocks.useOverlayLayer.mock.calls.at(-1) as [
+    const [, , dimOptions] = mocks.useOverlayLayer.mock.calls[0] as [
       boolean,
       RefObject<HTMLDivElement | null>,
       { nativeDimmingAlpha: number },
     ];
 
-    expect(options).toEqual({ nativeDimmingAlpha: 0.7 });
+    expect(dimOptions).toEqual({
+      nativeDimmingAlpha: 0.7,
+      cutsNativeSurface: false,
+    });
   });
 
   it("publishes the inactive state and unmounts coverage when closed", async () => {
     await act(async () => root.render(renderModal(true)));
     await act(async () => root.render(renderModal(false)));
 
-    const [active, coverageRef] = mocks.useOverlayLayer.mock.calls.at(-1) as [
-      boolean,
-      RefObject<HTMLDivElement | null>,
-    ];
-
-    expect(active).toBe(false);
-    expect(coverageRef.current).toBeNull();
+    expect(mocks.useOverlayLayer).toHaveBeenLastCalledWith(
+      false,
+      expect.any(Object),
+      MODAL_MASK_OCCLUSION_OPTIONS
+    );
     expect(document.querySelector(".liquid-modal-wrapper")).toBeNull();
   });
 });

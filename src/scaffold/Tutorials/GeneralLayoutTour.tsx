@@ -24,7 +24,6 @@ import {
   POPUP_ANIMATION,
   POPUP_SHADOW,
 } from "@src/scaffold/shared/popupTokens";
-import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
@@ -34,6 +33,7 @@ import {
   GENERAL_LAYOUT_TOUR_STEPS,
   GENERAL_LAYOUT_TOUR_TARGETS,
 } from "./generalLayoutTourConfig";
+import { useSpotlightTourNativeOcclusion } from "./useSpotlightTourNativeOcclusion";
 
 type GeneralLayoutTourTarget =
   (typeof GENERAL_LAYOUT_TOUR_TARGETS)[keyof typeof GENERAL_LAYOUT_TOUR_TARGETS];
@@ -184,7 +184,8 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  useOverlayLayer(open, popoverRef);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  useSpotlightTourNativeOcclusion(open, popoverRef, highlightRef);
 
   const currentStep = TOUR_STEPS[stepIndex];
   const isFirstStep = stepIndex === 0;
@@ -344,6 +345,7 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
 
         {highlightStyle && (
           <motion.div
+            ref={highlightRef}
             className="pointer-events-none fixed z-[10001] border-2 border-primary-6 shadow-[0_0_0_6px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
             layout
             style={highlightStyle}

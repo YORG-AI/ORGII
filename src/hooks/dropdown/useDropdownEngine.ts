@@ -19,7 +19,10 @@ import {
 } from "react";
 
 import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
-import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
+import {
+  DROPDOWN_OCCLUSION_OPTIONS,
+  useOverlayLayer,
+} from "@src/store/ui/overlayLayerAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { useDropdownAutoKeyboard } from "./useDropdownAutoKeyboard";
@@ -201,7 +204,7 @@ export function useDropdownEngine<
     maxHeight: DROPDOWN_PANEL.maxHeight,
   });
 
-  useOverlayLayer(isOpen, panelRef);
+  useOverlayLayer(isOpen && isPositioned, panelRef, DROPDOWN_OCCLUSION_OPTIONS);
 
   const updatePosition = useCallback(() => {
     const triggerElement = latestTriggerRef.current.current;

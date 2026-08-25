@@ -13,6 +13,15 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@src/util/platform/tauri", () => ({ isMacOS: () => true }));
 vi.mock("@src/util/platform/tauri/nativeFrame", () => ({
   getNativeFrameScale: () => 1,
+  toNativeFrameFromCorners: (
+    rect: { left: number; top: number; right: number; bottom: number },
+    _scale: number
+  ) => ({
+    x: rect.left,
+    y: rect.top,
+    width: rect.right - rect.left,
+    height: rect.bottom - rect.top,
+  }),
 }));
 vi.mock("../visibleWebviewRect", () => ({
   getVisibleWebviewRect: () => ({
@@ -101,7 +110,8 @@ describe("useInlineWebviewOcclusions", () => {
       "set_inline_webview_occlusions",
       {
         label: "browser-session-test",
-        rects: [{ x: 350, y: 0, width: 50, height: 70 }],
+        rects: [{ x: 346, y: 0, width: 54, height: 74 }],
+        dimHoleRects: [{ x: 346, y: 0, width: 54, height: 74 }],
         blockInput: true,
         dimmingAlpha: 0,
       }
@@ -114,6 +124,7 @@ describe("useInlineWebviewOcclusions", () => {
       {
         label: "browser-session-test",
         rects: [],
+        dimHoleRects: [],
         blockInput: false,
         dimmingAlpha: 0,
       }
@@ -144,9 +155,50 @@ describe("useInlineWebviewOcclusions", () => {
       "set_inline_webview_occlusions",
       {
         label: "browser-session-test",
-        rects: [{ x: 100, y: 50, width: 200, height: 120 }],
+        rects: [{ x: 84, y: 34, width: 232, height: 152 }],
+        dimHoleRects: [{ x: 84, y: 34, width: 232, height: 152 }],
         blockInput: true,
         dimmingAlpha: 0.6,
+      }
+    );
+  });
+
+  it("dims spotlight tours with a popover mask hole only", async () => {
+    const store = createStore();
+    await act(async () => {
+      root.render(renderHarness(store));
+    });
+    await flushEffects();
+    invokeMock.mockClear();
+
+    act(() => {
+      store.set(overlayLayerRegistryAtom, {
+        scrim: {
+          id: "scrim",
+          rect: null,
+          blocksNativeInput: true,
+          nativeDimmingAlpha: 0.3,
+          cutsNativeSurface: false,
+        },
+        popover: {
+          id: "popover",
+          rect: { x: 450, y: 20, width: 100, height: 100 },
+          blocksNativeInput: true,
+          nativeDimmingAlpha: 0,
+          maskHoleOnly: true,
+        },
+      });
+    });
+    await flushEffects();
+
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "set_inline_webview_occlusions",
+      {
+        label: "browser-session-test",
+        rects: [{ x: 334, y: 0, width: 66, height: 86 }],
+        dimHoleRects: [],
+        blockInput: true,
+        dimmingAlpha: 0.3,
       }
     );
   });
@@ -193,6 +245,7 @@ describe("useInlineWebviewOcclusions", () => {
       {
         label: "browser-session-test",
         rects: [],
+        dimHoleRects: [],
         blockInput: false,
         dimmingAlpha: 0,
       }

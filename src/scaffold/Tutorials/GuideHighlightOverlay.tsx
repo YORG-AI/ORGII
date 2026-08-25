@@ -14,11 +14,14 @@ import {
   clearGuideHighlightAtom,
   guideHighlightAtom,
 } from "@src/store/ui/guideHighlightAtom";
-import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { createAnimationFrameScheduler } from "./animationFrameScheduler";
+import {
+  GUIDE_HIGHLIGHT_NATIVE_DIMMING_ALPHA,
+  useSpotlightTourNativeOcclusion,
+} from "./useSpotlightTourNativeOcclusion";
 
 interface TargetRect {
   top: number;
@@ -203,7 +206,15 @@ const GuideHighlightOverlay: React.FC = () => {
       ? targetRect.rect
       : null;
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  useOverlayLayer(Boolean(highlight && rect), popoverRef);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  useSpotlightTourNativeOcclusion(
+    Boolean(highlight && rect),
+    popoverRef,
+    highlightRef,
+    {
+      dimmingAlpha: GUIDE_HIGHLIGHT_NATIVE_DIMMING_ALPHA,
+    }
+  );
   const highlightStyle = useMemo(
     () => (rect ? buildHighlightStyle(rect) : undefined),
     [rect]
@@ -220,6 +231,7 @@ const GuideHighlightOverlay: React.FC = () => {
       {highlight && rect && highlightStyle && popoverStyle && (
         <div className="pointer-events-none fixed inset-0 z-[10060]">
           <motion.div
+            ref={highlightRef}
             aria-hidden="true"
             className="fixed rounded-2xl border border-primary-5/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.42),0_0_26px_rgba(99,102,241,0.55)]"
             style={highlightStyle}

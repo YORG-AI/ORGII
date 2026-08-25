@@ -66,6 +66,36 @@ fn sanitize_occlusion_rects(
         .collect()
 }
 
+fn expand_occlusion_holes(
+    rects: Vec<WebviewOcclusionRect>,
+    surface_width: f64,
+    surface_height: f64,
+    padding: f64,
+) -> Vec<WebviewOcclusionRect> {
+    if padding <= 0.0 {
+        return rects;
+    }
+
+    rects
+        .into_iter()
+        .filter_map(|rect| {
+            let x = (rect.x - padding).max(0.0);
+            let y = (rect.y - padding).max(0.0);
+            let right = (rect.x + rect.width + padding).min(surface_width);
+            let bottom = (rect.y + rect.height + padding).min(surface_height);
+            if right <= x || bottom <= y {
+                return None;
+            }
+            Some(WebviewOcclusionRect {
+                x,
+                y,
+                width: right - x,
+                height: bottom - y,
+            })
+        })
+        .collect()
+}
+
 fn sanitize_dimming_alpha(dimming_alpha: f64) -> f32 {
     if !dimming_alpha.is_finite() {
         return 0.0;
@@ -84,6 +114,7 @@ pub async fn set_inline_webview_occlusions(
     app: AppHandle,
     label: String,
     rects: Vec<WebviewOcclusionRect>,
+    dim_hole_rects: Vec<WebviewOcclusionRect>,
     block_input: bool,
     dimming_alpha: f64,
 ) -> Result<(), String> {
@@ -96,7 +127,15 @@ pub async fn set_inline_webview_occlusions(
     #[cfg(target_os = "macos")]
     {
         let main_webview = app.get_webview("main");
-        apply_macos_occlusions(&webview, main_webview, rects, block_input, dimming_alpha).await
+        apply_macos_occlusions(
+            &webview,
+            main_webview,
+            rects,
+            dim_hole_rects,
+            block_input,
+            dimming_alpha,
+        )
+        .await
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -124,26 +163,78 @@ mod macos {
     type HitTestImplementation =
         unsafe extern "C-unwind" fn(&AnyObject, Sel, NSPoint) -> *mut AnyObject;
 
-    /// Maps an occluded inline WKWebView to the main React WKWebView that must
-    /// receive pointer input while an interactive overlay is open.
-    static INPUT_TARGET_WEBVIEWS: OnceLock<Mutex<HashMap<usize, usize>>> = OnceLock::new();
+    #[derive(Clone, Debug, Default)]
+    struct OcclusionInputState {
+        main_target: Option<usize>,
+        holes: Vec<WebviewOcclusionRect>,
+        block_input: bool,
+    }
+
+    /// Per-inline-WebView occlusion routing state used by the hit-test hook.
+    static OCCLUSION_INPUT_STATES: OnceLock<Mutex<HashMap<usize, OcclusionInputState>>> =
+        OnceLock::new();
     static ORIGINAL_HIT_TESTS: OnceLock<Mutex<HashMap<usize, Imp>>> = OnceLock::new();
     const DIMMING_LAYER_NAME: &str = "org2.inline-webview-dimming";
 
-    fn input_target_webviews() -> &'static Mutex<HashMap<usize, usize>> {
-        INPUT_TARGET_WEBVIEWS.get_or_init(|| Mutex::new(HashMap::new()))
+    fn occlusion_input_states() -> &'static Mutex<HashMap<usize, OcclusionInputState>> {
+        OCCLUSION_INPUT_STATES.get_or_init(|| Mutex::new(HashMap::new()))
     }
 
     fn original_hit_tests() -> &'static Mutex<HashMap<usize, Imp>> {
         ORIGINAL_HIT_TESTS.get_or_init(|| Mutex::new(HashMap::new()))
     }
 
-    fn input_target_webview(webview: &AnyObject) -> Option<usize> {
-        input_target_webviews().lock().ok().and_then(|targets| {
-            targets
+    fn occlusion_input_state(webview: &AnyObject) -> Option<OcclusionInputState> {
+        occlusion_input_states().lock().ok().and_then(|states| {
+            states
                 .get(&(webview as *const AnyObject as usize))
-                .copied()
+                .cloned()
         })
+    }
+
+    fn point_in_hole(
+        point: NSPoint,
+        bounds: NSRect,
+        holes: &[WebviewOcclusionRect],
+        is_flipped: bool,
+    ) -> bool {
+        let local_x = point.x - bounds.origin.x;
+        let local_y = if is_flipped {
+            point.y - bounds.origin.y
+        } else {
+            bounds.size.height - (point.y - bounds.origin.y)
+        };
+
+        holes.iter().any(|rect| {
+            local_x >= rect.x
+                && local_x <= rect.x + rect.width
+                && local_y >= rect.y
+                && local_y <= rect.y + rect.height
+        })
+    }
+
+    fn route_hit_to_main(
+        source: &AnyObject,
+        point: NSPoint,
+        target_key: usize,
+    ) -> *mut AnyObject {
+        if target_key == 0 || target_key == source as *const AnyObject as usize {
+            return std::ptr::null_mut();
+        }
+
+        let target = unsafe { &*(target_key as *const AnyObject) };
+        // Convert through the window so sibling WKWebViews with different
+        // container views still agree on the click location.
+        let window_point: NSPoint =
+            unsafe { msg_send![source, convertPoint: point, toView: std::ptr::null::<AnyObject>()] };
+        let point_in_target: NSPoint = unsafe {
+            msg_send![
+                target,
+                convertPoint: window_point,
+                fromView: std::ptr::null::<AnyObject>()
+            ]
+        };
+        unsafe { msg_send![target, hitTest: point_in_target] }
     }
 
     fn original_hit_test(this: &AnyObject, command: Sel, point: NSPoint) -> *mut AnyObject {
@@ -167,25 +258,28 @@ mod macos {
     }
 
     extern "C-unwind" fn hit_test(this: &AnyObject, _cmd: Sel, point: NSPoint) -> *mut AnyObject {
-        let key = this as *const AnyObject as usize;
-        if let Some(target_key) = input_target_webview(this) {
-            // Route directly to the main React WKWebView. Asking the inline
-            // WebView's parent to re-run hit testing can return nil when the
-            // two WebViews have different native container views; AppKit may
-            // then deliver the click to a window in another application.
-            if target_key != 0 && target_key != key {
-                let target = unsafe { &*(target_key as *const AnyObject) };
-                let point_in_target: NSPoint =
-                    unsafe { msg_send![this, convertPoint: point, toView: target] };
-                let routed: *mut AnyObject = unsafe { msg_send![target, hitTest: point_in_target] };
-                if !routed.is_null() {
-                    return routed;
-                }
-            }
+        if let Some(state) = occlusion_input_state(this) {
+            let bounds: NSRect = unsafe { msg_send![this, bounds] };
+            let is_flipped: bool = unsafe { msg_send![this, isFlipped] };
+            let in_hole = point_in_hole(point, bounds, &state.holes, is_flipped);
+            let should_route = state.block_input || in_hole;
 
-            // Fail closed: keeping the event inside ORG2 is safer than a bare
-            // nil, even if the main surface is temporarily being recreated.
-            return original_hit_test(this, _cmd, point);
+            if should_route {
+                if let Some(target_key) = state.main_target {
+                    let routed = route_hit_to_main(this, point, target_key);
+                    if !routed.is_null() {
+                        return routed;
+                    }
+
+                    // Absorb into the main React surface instead of falling
+                    // through to the live inline page underneath.
+                    if target_key != 0 {
+                        return target_key as *mut AnyObject;
+                    }
+                }
+
+                return original_hit_test(this, _cmd, point);
+            }
         }
 
         original_hit_test(this, _cmd, point)
@@ -228,19 +322,32 @@ mod macos {
         Ok(())
     }
 
-    fn set_input_target(webview: &AnyObject, target: Option<usize>) -> Result<(), String> {
+    fn set_occlusion_input_state(
+        webview: &AnyObject,
+        main_target: Option<usize>,
+        holes: Vec<WebviewOcclusionRect>,
+        block_input: bool,
+    ) -> Result<(), String> {
         let key = webview as *const AnyObject as usize;
-        if target.is_some() {
+        let needs_hook = block_input || !holes.is_empty();
+        if needs_hook {
             ensure_hit_test_hook(webview)?;
         }
 
-        let mut registry = input_target_webviews()
+        let mut registry = occlusion_input_states()
             .lock()
             .map_err(|_| "native WebView input registry is poisoned".to_string())?;
-        if let Some(target) = target {
-            registry.insert(key, target);
-        } else {
+        if main_target.is_none() && holes.is_empty() && !block_input {
             registry.remove(&key);
+        } else {
+            registry.insert(
+                key,
+                OcclusionInputState {
+                    main_target,
+                    holes,
+                    block_input,
+                },
+            );
         }
         Ok(())
     }
@@ -276,7 +383,12 @@ mod macos {
         })
     }
 
-    fn update_dimming_layer(root_layer: &CALayer, bounds: NSRect, dimming_alpha: f64) {
+    fn update_dimming_layer(
+        root_layer: &CALayer,
+        bounds: NSRect,
+        dimming_alpha: f64,
+        mask: Option<&CAShapeLayer>,
+    ) {
         let dimming_alpha = sanitize_dimming_alpha(dimming_alpha);
         let existing = find_dimming_layer(root_layer);
 
@@ -299,16 +411,26 @@ mod macos {
         dimming_layer.setBackgroundColor(Some(&black));
         dimming_layer.setOpacity(dimming_alpha);
         dimming_layer.setZPosition(1_000_000.0);
+        if let Some(mask) = mask {
+            unsafe {
+                dimming_layer.setMask(Some(mask));
+            }
+        } else {
+            unsafe {
+                dimming_layer.setMask(None);
+            }
+        }
     }
 
     pub(super) async fn apply(
         webview: &tauri::Webview,
         main_webview: Option<tauri::Webview>,
         rects: Vec<WebviewOcclusionRect>,
+        dim_hole_rects: Vec<WebviewOcclusionRect>,
         block_input: bool,
         dimming_alpha: f64,
     ) -> Result<(), String> {
-        let input_target = if block_input {
+        let input_target = if block_input || !rects.is_empty() {
             let main_webview = main_webview
                 .as_ref()
                 .ok_or_else(|| "main React WebView is unavailable".to_string())?;
@@ -327,8 +449,6 @@ mod macos {
                     }
                     let wk_webview = unsafe { &*wk_webview };
 
-                    set_input_target(wk_webview, input_target)?;
-
                     unsafe {
                         let _: () = msg_send![wk_webview, setWantsLayer: true];
                         let layer: *mut CALayer = msg_send![wk_webview, layer];
@@ -338,20 +458,49 @@ mod macos {
                         let layer = &*layer;
 
                         let bounds: NSRect = msg_send![wk_webview, bounds];
-                        let sanitized =
-                            sanitize_occlusion_rects(&rects, bounds.size.width, bounds.size.height);
+                        let sanitized_mask = super::expand_occlusion_holes(
+                            super::sanitize_occlusion_rects(
+                                &rects,
+                                bounds.size.width,
+                                bounds.size.height,
+                            ),
+                            bounds.size.width,
+                            bounds.size.height,
+                            3.0,
+                        );
+                        let dim_source = if dim_hole_rects.is_empty() {
+                            sanitized_mask.clone()
+                        } else {
+                            super::expand_occlusion_holes(
+                                super::sanitize_occlusion_rects(
+                                    &dim_hole_rects,
+                                    bounds.size.width,
+                                    bounds.size.height,
+                                ),
+                                bounds.size.width,
+                                bounds.size.height,
+                                3.0,
+                            )
+                        };
+
+                        set_occlusion_input_state(
+                            wk_webview,
+                            input_target,
+                            sanitized_mask.clone(),
+                            block_input,
+                        )?;
 
                         CATransaction::begin();
                         CATransaction::setDisableActions(true);
 
-                        if sanitized.is_empty() {
+                        if sanitized_mask.is_empty() {
                             layer.setMask(None);
                         } else {
                             let is_flipped: bool = msg_send![wk_webview, isFlipped];
                             let path = CGMutablePath::new();
                             CGMutablePath::add_rect(Some(&path), std::ptr::null(), bounds);
 
-                            for rect in sanitized {
+                            for rect in &sanitized_mask {
                                 let y = if is_flipped {
                                     bounds.origin.y + rect.y
                                 } else {
@@ -371,7 +520,30 @@ mod macos {
                             layer.setMask(Some(&mask));
                         }
 
-                        update_dimming_layer(layer, bounds, dimming_alpha);
+                        if dim_source.is_empty() {
+                            update_dimming_layer(layer, bounds, dimming_alpha, None);
+                        } else {
+                            let is_flipped: bool = msg_send![wk_webview, isFlipped];
+                            let dim_path = CGMutablePath::new();
+                            CGMutablePath::add_rect(Some(&dim_path), std::ptr::null(), bounds);
+                            for rect in &dim_source {
+                                let y = if is_flipped {
+                                    bounds.origin.y + rect.y
+                                } else {
+                                    bounds.origin.y + bounds.size.height - rect.y - rect.height
+                                };
+                                let hole = NSRect::new(
+                                    NSPoint::new(bounds.origin.x + rect.x, y),
+                                    NSSize::new(rect.width, rect.height),
+                                );
+                                CGMutablePath::add_rect(Some(&dim_path), std::ptr::null(), hole);
+                            }
+                            let dim_mask = CAShapeLayer::layer();
+                            dim_mask.setFrame(bounds);
+                            dim_mask.setPath(Some(&dim_path));
+                            dim_mask.setFillRule(kCAFillRuleEvenOdd);
+                            update_dimming_layer(layer, bounds, dimming_alpha, Some(&dim_mask));
+                        }
                         CATransaction::commit();
                     }
 
@@ -393,14 +565,14 @@ mod macos {
                 return;
             }
             let wk_webview = &*wk_webview;
-            let _ = set_input_target(wk_webview, None);
+            let _ = set_occlusion_input_state(wk_webview, None, Vec::new(), false);
             let layer: *mut CALayer = msg_send![wk_webview, layer];
             if !layer.is_null() {
                 CATransaction::begin();
                 CATransaction::setDisableActions(true);
                 let layer = &*layer;
                 layer.setMask(None);
-                update_dimming_layer(layer, NSRect::ZERO, 0.0);
+                update_dimming_layer(layer, NSRect::ZERO, 0.0, None);
                 CATransaction::commit();
             }
         });
@@ -412,10 +584,19 @@ async fn apply_macos_occlusions(
     webview: &tauri::Webview,
     main_webview: Option<tauri::Webview>,
     rects: Vec<WebviewOcclusionRect>,
+    dim_hole_rects: Vec<WebviewOcclusionRect>,
     block_input: bool,
     dimming_alpha: f64,
 ) -> Result<(), String> {
-    macos::apply(webview, main_webview, rects, block_input, dimming_alpha).await
+    macos::apply(
+        webview,
+        main_webview,
+        rects,
+        dim_hole_rects,
+        block_input,
+        dimming_alpha,
+    )
+    .await
 }
 
 /// Clear native projection state before closing a WebView so pointer-address
