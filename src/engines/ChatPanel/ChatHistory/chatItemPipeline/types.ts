@@ -17,7 +17,8 @@ export type ChatItemType =
   | "readFileGroup"
   | "actionSummaryGroup"
   | "activityStackGroup"
-  | "threadSelector";
+  | "threadSelector"
+  | "turnToolBundle";
 
 // ============================================
 // Output Types
@@ -65,6 +66,8 @@ export interface OptimizedChatItem {
     threads: unknown[];
     threadFirstEventMap: Map<string, string>;
   };
+  /** Turn-level bundle of tool/activity blocks when collapse-tools pref is on */
+  turnToolBundleItems?: OptimizedChatItem[];
 }
 
 export interface ChatHistoryStats {

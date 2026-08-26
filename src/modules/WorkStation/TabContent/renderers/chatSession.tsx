@@ -142,6 +142,9 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
           handleTokenUsageVisibleToggle={
             headerActions.handleTokenUsageVisibleToggle
           }
+          handleToolBlocksCollapsedToggle={
+            headerActions.handleToolBlocksCollapsedToggle
+          }
           handleTurnMetadataVisibleToggle={
             headerActions.handleTurnMetadataVisibleToggle
           }
@@ -155,6 +158,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
           showCloudShareSettings={sessionActions.showCloudShareSettings}
           showTranscriptActions={!humanSession}
           tokenUsageVisible={headerActions.tokenUsageVisible}
+          toolBlocksCollapsed={headerActions.toolBlocksCollapsed}
           turnMetadataVisible={headerActions.turnMetadataVisible}
           toggleHeaderActionsMenu={headerActions.toggleHeaderActionsMenu}
           triggerTestId="workstation-session-header-more-button"

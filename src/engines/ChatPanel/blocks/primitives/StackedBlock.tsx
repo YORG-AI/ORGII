@@ -50,6 +50,10 @@ export interface StackedBlockProps<T> {
   eventId?: string;
   /** Optional content shown on the right side of the group header. */
   rightContent?: React.ReactNode;
+  /** Max height for expanded content; null removes the cap. */
+  contentMaxHeightPx?: number | null;
+  /** Show groupSummary in the header while collapsed. */
+  showGroupSummaryWhenCollapsed?: boolean;
 }
 
 // ============================================
@@ -66,6 +70,8 @@ function StackedBlockInner<T>({
   collapseWhen,
   eventId,
   rightContent,
+  contentMaxHeightPx = STACKED_BLOCK_CONTENT_MAX_HEIGHT_PX,
+  showGroupSummaryWhenCollapsed = false,
 }: StackedBlockProps<T>) {
   const {
     isCollapsed,
@@ -106,19 +112,23 @@ function StackedBlockInner<T>({
           hasContent={true}
         />
         {label && <EventBlockHeaderTitle>{label}</EventBlockHeaderTitle>}
-        {groupSummary && (
+        {groupSummary && (!isCollapsed || showGroupSummaryWhenCollapsed) ? (
           <EventBlockHeaderSubtitle
             title={typeof groupSummary === "string" ? groupSummary : undefined}
           >
             {groupSummary}
           </EventBlockHeaderSubtitle>
-        )}
+        ) : null}
       </EventBlockHeader>
 
       {!isCollapsed && (
         <div
           className="ml-[14px] overflow-y-auto border-l border-border-1 py-0.5"
-          style={{ maxHeight: STACKED_BLOCK_CONTENT_MAX_HEIGHT_PX }}
+          style={
+            contentMaxHeightPx === null
+              ? undefined
+              : { maxHeight: contentMaxHeightPx }
+          }
         >
           <div className="flex flex-col gap-0.5 pl-3">
             {items.map((item, idx) => (

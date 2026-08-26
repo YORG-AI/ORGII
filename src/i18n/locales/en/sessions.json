@@ -1018,6 +1018,21 @@
     "showTokenUsage": "Show token",
     "showTurnMetadata": "Show edits & reads",
     "compactDisplayMode": "Compact mode",
+    "collapseToolBlocks": "Collapse tools",
+    "collapseToolBlocksLabel": "Tool activity",
+    "collapseToolBlocksSummary": "{{count}} items",
+    "collapseToolBlocksTypeEntry": "{{label}} ×{{count}}",
+    "collapseToolBlocksTypeSeparator": " · ",
+    "collapseToolBlocksTypes": {
+      "thinking": "Thinking",
+      "explore": "Explore",
+      "readFiles": "Read",
+      "terminal": "Commands",
+      "edit": "Edit",
+      "browser": "Browser",
+      "readImage": "View Image",
+      "other": "Tool"
+    },
     "replay": {
       "follow": "Follow"
     },

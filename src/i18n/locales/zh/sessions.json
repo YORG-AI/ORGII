@@ -1009,6 +1009,21 @@
     "showTokenUsage": "显示 Token",
     "showTurnMetadata": "显示读写摘要",
     "compactDisplayMode": "紧凑模式",
+    "collapseToolBlocks": "折叠 Tool",
+    "collapseToolBlocksLabel": "Tool 活动",
+    "collapseToolBlocksSummary": "{{count}} 项",
+    "collapseToolBlocksTypeEntry": "{{label}} ×{{count}}",
+    "collapseToolBlocksTypeSeparator": " · ",
+    "collapseToolBlocksTypes": {
+      "thinking": "思考",
+      "explore": "探索",
+      "readFiles": "读文件",
+      "terminal": "执行命令",
+      "edit": "编辑",
+      "browser": "浏览器",
+      "readImage": "View Image",
+      "other": "Tool"
+    },
     "replay": {
       "follow": "跟随"
     },

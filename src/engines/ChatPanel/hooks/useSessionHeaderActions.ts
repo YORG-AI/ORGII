@@ -9,6 +9,7 @@ import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
   chatHistoryDisplayModeAtom,
   chatTokenUsageVisibleAtom,
+  chatToolBlocksCollapsedAtom,
   chatTurnMetadataVisibleAtom,
   chatTurnPaginationEnabledAtom,
 } from "@src/store/ui/chatPanelAtom";
@@ -45,6 +46,9 @@ export function useSessionHeaderActions({
   );
   const [turnMetadataVisible, setTurnMetadataVisible] = useAtom(
     chatTurnMetadataVisibleAtom
+  );
+  const [toolBlocksCollapsed, setToolBlocksCollapsed] = useAtom(
+    chatToolBlocksCollapsedAtom
   );
   const eventCount = useAtomValue(eventCountAtom);
   const store = useStore();
@@ -85,6 +89,12 @@ export function useSessionHeaderActions({
     (checked: boolean) => setTurnMetadataVisible(checked),
     [setTurnMetadataVisible]
   );
+  const handleToolBlocksCollapsedToggle = useCallback(
+    (checked: boolean) => {
+      setToolBlocksCollapsed(checked);
+    },
+    [setToolBlocksCollapsed]
+  );
 
   const handleCopyEventJson = useCallback(() => {
     const json = JSON.stringify(store.get(eventsAtom), null, 2);
@@ -113,6 +123,7 @@ export function useSessionHeaderActions({
     handleRegisterSearchOpen,
     handleReloadFromMenu,
     handleTokenUsageVisibleToggle,
+    handleToolBlocksCollapsedToggle,
     handleTurnMetadataVisibleToggle,
     headerActionsDropdownRef,
     headerActionsPosition,
@@ -121,6 +132,7 @@ export function useSessionHeaderActions({
     isHeaderActionsPositioned,
     paginationEnabled,
     tokenUsageVisible,
+    toolBlocksCollapsed,
     turnMetadataVisible,
     toggleHeaderActionsMenu,
   };

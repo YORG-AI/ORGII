@@ -9,6 +9,7 @@ import {
   estimateRuntimeValueBytes,
   registerChatRenderedTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
+import { chatToolBlocksCollapsedAtom } from "@src/store/ui/chatPanelAtom";
 import {
   collapseAllCommandAtom,
   turnCollapseOverrideAtom,
@@ -20,6 +21,7 @@ import type { GroupChatContextValue } from "../GroupChatView/GroupChatContext";
 import { resolveChatHistoryProjectionSource } from "../projection/source";
 import { useChatProjection } from "../projection/useChatProjection";
 import { formatAssistantTurnCopyContent } from "../turnCopyContent";
+import { bundleFlatItemsByGroup } from "../turnToolBundle";
 import type { ChatGroupsProjectionOptions } from "./useChatGroupsProjection";
 import { useChatTurnPagination } from "./useChatTurnPagination";
 import { useTailTurnCollapse } from "./useTailTurnCollapse";
@@ -82,6 +84,7 @@ export function useChatHistoryProjectionModel({
   } | null>(null);
   const turnCollapseOverrides = useAtomValue(turnCollapseOverrideAtom);
   const collapseAllCommand = useAtomValue(collapseAllCommandAtom);
+  const toolBlocksCollapsed = useAtomValue(chatToolBlocksCollapsedAtom);
   const selectedThreadId = useAtomValue(selectedExecutionThreadAtom);
   const collapseTailWhenIdle = useTailTurnCollapse({
     activeId,
@@ -174,13 +177,36 @@ export function useChatHistoryProjectionModel({
     lastAssistantFlatIndexPerItem: [],
   };
 
+  const bundledProjection = useMemo(() => {
+    if (!toolBlocksCollapsed) {
+      return {
+        flatItems,
+        groupCounts,
+        lastAssistantFlatIndexPerItem,
+      };
+    }
+    return bundleFlatItemsByGroup(flatItems, groupCounts, { isAgentWorking });
+  }, [
+    flatItems,
+    groupCounts,
+    isAgentWorking,
+    lastAssistantFlatIndexPerItem,
+    toolBlocksCollapsed,
+  ]);
+
+  const {
+    flatItems: visibleFlatItems,
+    groupCounts: visibleGroupCounts,
+    lastAssistantFlatIndexPerItem: visibleLastAssistantFlatIndexPerItem,
+  } = bundledProjection;
+
   memoryStatsSourceRef.current = {
     activeId,
     activeProjectionHistory,
-    flatItems,
+    flatItems: visibleFlatItems,
     groupMeta,
-    groupCount: groupCounts.length,
-    totalFlatItems,
+    groupCount: visibleGroupCounts.length,
+    totalFlatItems: visibleFlatItems.length,
   };
 
   useEffect(() => {
@@ -213,11 +239,11 @@ export function useChatHistoryProjectionModel({
   const turnPages = useChatTurnPagination({
     enabled: turnPaginationEnabled,
     activePageIndex: selectedTurnPageIndex,
-    groupCounts,
+    groupCounts: visibleGroupCounts,
     groupHeaders,
     groupMeta,
-    flatItems,
-    lastAssistantFlatIndexPerItem,
+    flatItems: visibleFlatItems,
+    lastAssistantFlatIndexPerItem: visibleLastAssistantFlatIndexPerItem,
     cursorIdeTurnSummaries,
     mergeUserOnlyPages: hideGroupUserMessage,
   });
@@ -271,6 +297,7 @@ export function useChatHistoryProjectionModel({
     projection.groupShapeDigest,
     projection.itemShapeDigest,
     collapseStateKey,
+    toolBlocksCollapsed ? "tools-collapsed" : "tools-expanded",
   ].join(":");
   const displayTurnIds = useMemo(
     () => turnPages.displayGroupMeta.map((meta) => meta.turnId),
@@ -303,8 +330,8 @@ export function useChatHistoryProjectionModel({
     collapseTailWhenIdle,
     defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
     displayTurnIds,
-    flatItems,
-    groupCounts,
+    flatItems: visibleFlatItems,
+    groupCounts: visibleGroupCounts,
     groupHeaders,
     groupMeta,
     originalToFlatIndex,
@@ -312,7 +339,7 @@ export function useChatHistoryProjectionModel({
     projection,
     resolveAssistantTurnCopyContent,
     tailFollowKey,
-    totalFlatItems,
+    totalFlatItems: visibleFlatItems.length,
     turnMetadataReloadKey,
     turnPageListOpen,
     setTurnPageListOpen,

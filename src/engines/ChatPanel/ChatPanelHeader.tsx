@@ -54,6 +54,7 @@ interface ChatPanelHeaderProps {
   handlePaginationToggle: (checked: boolean) => void;
   handleReloadFromMenu: () => void;
   handleTokenUsageVisibleToggle: (checked: boolean) => void;
+  handleToolBlocksCollapsedToggle: (checked: boolean) => void;
   handleTurnMetadataVisibleToggle: (checked: boolean) => void;
   headerActionsDropdownRef: React.RefObject<HTMLDivElement | null>;
   headerActionsPosition: DropdownEnginePosition;
@@ -64,6 +65,7 @@ interface ChatPanelHeaderProps {
   focusedWorkstationMenuHostRef?: React.RefCallback<HTMLSpanElement>;
   paginationEnabled: boolean;
   tokenUsageVisible: boolean;
+  toolBlocksCollapsed: boolean;
   turnMetadataVisible: boolean;
   shouldOffsetHeaderForCollapsedSidebar: boolean;
   /** Whether the active tab may reveal a Station beside the chat pane. */
@@ -108,6 +110,7 @@ export function ChatPanelHeader({
   handlePaginationToggle,
   handleReloadFromMenu,
   handleTokenUsageVisibleToggle,
+  handleToolBlocksCollapsedToggle,
   handleTurnMetadataVisibleToggle,
   headerActionsDropdownRef,
   headerActionsPosition,
@@ -118,6 +121,7 @@ export function ChatPanelHeader({
   focusedWorkstationMenuHostRef,
   paginationEnabled,
   tokenUsageVisible,
+  toolBlocksCollapsed,
   turnMetadataVisible,
   shouldOffsetHeaderForCollapsedSidebar,
   stationAvailable,
@@ -221,6 +225,7 @@ export function ChatPanelHeader({
             handlePaginationToggle={handlePaginationToggle}
             handleReloadFromMenu={handleReloadFromMenu}
             handleTokenUsageVisibleToggle={handleTokenUsageVisibleToggle}
+            handleToolBlocksCollapsedToggle={handleToolBlocksCollapsedToggle}
             handleTurnMetadataVisibleToggle={handleTurnMetadataVisibleToggle}
             headerActionsDropdownRef={headerActionsDropdownRef}
             headerActionsPosition={headerActionsPosition}
@@ -232,6 +237,7 @@ export function ChatPanelHeader({
             showCloudShareSettings={showCloudShareSettings}
             showTranscriptActions={showTranscriptActions}
             tokenUsageVisible={tokenUsageVisible}
+            toolBlocksCollapsed={toolBlocksCollapsed}
             turnMetadataVisible={turnMetadataVisible}
             toggleHeaderActionsMenu={toggleHeaderActionsMenu}
             triggerTestId="chat-panel-header-more-button"
