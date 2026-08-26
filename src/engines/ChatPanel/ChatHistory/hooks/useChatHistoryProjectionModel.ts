@@ -164,7 +164,6 @@ export function useChatHistoryProjectionModel({
     groupHeaders,
     groupMeta,
     flatItems,
-    totalFlatItems,
     originalToFlatIndex,
     lastAssistantFlatIndexPerItem,
   } = projection.groups ?? {
