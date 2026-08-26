@@ -2745,7 +2745,7 @@ export async function waitForRenderedInterventionPin(memberId, label) {
   await browser.waitUntil(
     async () => {
       state = await execJS(`
-        const element = document.querySelector('[data-testid="agent-org-intervention-pin-bar"]');
+        const element = document.querySelector('[data-testid="agent-org-member-direct-work-bar"]');
         if (!element) return { exists: false };
         return {
           exists: true,
