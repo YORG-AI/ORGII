@@ -4,7 +4,6 @@ import {
   type AgentOrgMemberIntervention,
   type AgentOrgRunView,
   CANCEL_REASON,
-  type ReturnToWorkOutcome,
   type ReturnToWorkResult,
   cancelSession,
   returnAgentOrgSessionToWork,
@@ -19,7 +18,6 @@ const EMPTY_RESULT = {
   error: null as string | null,
   returning: false,
   stopping: false,
-  returnOutcome: null as ReturnToWorkOutcome | null,
   refresh: async () => {},
   returnToWork: async () => null as ReturnToWorkResult | null,
   stopUserDirectedWork: async () => false,
@@ -30,7 +28,6 @@ interface AgentOrgInterventionActionState {
   error: string | null;
   returning: boolean;
   stopping: boolean;
-  returnOutcome: ReturnToWorkOutcome | null;
 }
 
 export function interventionForSession(
@@ -62,7 +59,6 @@ export function useAgentOrgIntervention(
       error: null,
       returning: false,
       stopping: false,
-      returnOutcome: null,
     });
   const returnRequestRef = useRef<{
     receiptId: string;
@@ -82,7 +78,6 @@ export function useAgentOrgIntervention(
       error: null,
       returning: true,
       stopping: false,
-      returnOutcome: null,
     });
     try {
       if (!intervention) return null;
@@ -100,12 +95,12 @@ export function useAgentOrgIntervention(
         intervention.interventionReceiptId,
         returnRequestRef.current.requestId
       );
-      setActionState((previous) =>
-        previous.sessionId === currentSessionId
-          ? { ...previous, returnOutcome: result.outcome }
-          : previous
-      );
-      await refreshRunView();
+      // The durable Return has already succeeded. Do not hold its exact
+      // business result (and the one-shot Toast that consumes it) behind a
+      // follow-up projection refresh: a busy continuation may replace the
+      // Member view before that refresh settles. Native invalidation already
+      // reconciles the view; this remains one additional bounded refresh.
+      void refreshRunView().catch(() => {});
       return result;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -127,14 +122,12 @@ export function useAgentOrgIntervention(
   const stopUserDirectedWork = useCallback(async () => {
     if (!eligible || !sessionId) return false;
     const currentSessionId = sessionId;
-    setActionState((previous) => ({
+    setActionState({
       sessionId: currentSessionId,
       error: null,
       returning: false,
       stopping: true,
-      returnOutcome:
-        previous.sessionId === currentSessionId ? previous.returnOutcome : null,
-    }));
+    });
     try {
       const cancelled = await cancelSession(
         currentSessionId,
@@ -167,10 +160,6 @@ export function useAgentOrgIntervention(
       error: stateMatches ? actionState.error : null,
       returning: stateMatches ? actionState.returning : false,
       stopping: stateMatches ? actionState.stopping : false,
-      returnOutcome:
-        stateMatches && intervention === null
-          ? actionState.returnOutcome
-          : null,
       refresh: refreshRunView,
       returnToWork,
       stopUserDirectedWork,

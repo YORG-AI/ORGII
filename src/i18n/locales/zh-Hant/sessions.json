@@ -2525,6 +2525,9 @@
       "unavailableFailed": "團隊處於失敗狀態，暫時不能直接交付工作",
       "returnToWork": "恢復工作",
       "returning": "正在恢復…",
+      "endDirectWork": "結束直接工作",
+      "endingDirectWork": "正在結束…",
+      "directReady": "直接工作已完成；你可以繼續追問，或結束這次直接工作",
       "stopping": "正在停止…",
       "loadFailed": "干預狀態載入失敗",
       "actionFailed": "直接工作操作失敗，請重試。",
@@ -2534,15 +2537,14 @@
         "yielding": "正在安全讓出正式工作…",
         "user_intervention": "等待你恢復正式工作",
         "side_quest": "{{count}} 個直接回合正在執行或排隊",
-        "yield_timeout": "仍在等待安全交接",
-        "returned": "已返回正式工作"
+        "yield_timeout": "仍在等待安全交接"
       },
       "outcome": {
         "restoredTask": "原任務已恢復",
         "clearedPaused": "直接工作已結束；團隊正式工作仍暫停",
-        "clearedIdle": "直接工作已結束；沒有正式任務需要恢復",
-        "noLongerNeeded": "原工作已結束或改派",
-        "alreadyApplied": "這次返回已處理"
+        "clearedIdle": "直接工作已結束；團隊保持閒置",
+        "directEnded": "直接工作已結束",
+        "noLongerNeeded": "直接工作已結束；原工作已結束或改派"
       }
     },
     "timeline": {

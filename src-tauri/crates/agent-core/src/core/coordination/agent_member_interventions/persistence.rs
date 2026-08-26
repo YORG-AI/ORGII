@@ -1,6 +1,6 @@
 use rusqlite::{Connection, OptionalExtension, Result as SqliteResult};
 
-use super::{AgentMemberInterventionRecord, MemberInterventionStatus, ReturnToWorkOutcome};
+use super::{AgentMemberInterventionRecord, AppliedReturnToWorkOutcome, MemberInterventionStatus};
 
 pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
@@ -26,7 +26,7 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
             yield_timed_out_at TEXT,
             return_request_id TEXT,
             return_outcome TEXT CHECK(return_outcome IS NULL OR return_outcome IN (
-                'restored_task','cleared_paused','cleared_idle','no_longer_needed','already_applied'
+                'restored_task','cleared_paused','cleared_idle','no_longer_needed'
             )),
             continuation_turn_intent_id TEXT,
             cleared_revision INTEGER,
@@ -49,11 +49,6 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_org_member_intervention_continuation
             ON agent_org_runtime_member_interventions(session_id, continuation_turn_intent_id)
             WHERE continuation_turn_intent_id IS NOT NULL;
-        CREATE INDEX IF NOT EXISTS idx_agent_org_member_intervention_returned_projection
-            ON agent_org_runtime_member_interventions(
-                org_run_id,member_id,status,cleared_revision DESC
-            );
-
         CREATE TABLE IF NOT EXISTS agent_org_runtime_member_intervention_turns (
             intervention_receipt_id TEXT NOT NULL,
             session_id TEXT NOT NULL,
@@ -128,7 +123,7 @@ pub(super) fn row_to_intervention(
     let return_outcome_raw: Option<String> = row.get(19)?;
     let return_outcome = return_outcome_raw
         .as_deref()
-        .and_then(ReturnToWorkOutcome::parse);
+        .and_then(AppliedReturnToWorkOutcome::parse);
     Ok(AgentMemberInterventionRecord {
         intervention_receipt_id: row.get(0)?,
         org_run_id: row.get(1)?,

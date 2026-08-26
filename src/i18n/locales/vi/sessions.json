@@ -2507,6 +2507,9 @@
       "unavailableFailed": "Không thể giao việc trực tiếp khi nhóm đang lỗi",
       "returnToWork": "Tiếp tục làm việc",
       "returning": "Đang tiếp tục…",
+      "endDirectWork": "Kết thúc việc trực tiếp",
+      "endingDirectWork": "Đang kết thúc…",
+      "directReady": "Việc trực tiếp đã hoàn tất; hãy gửi yêu cầu tiếp theo hoặc kết thúc luồng việc trực tiếp này",
       "stopping": "Đang dừng…",
       "loadFailed": "Không tải được trạng thái can thiệp",
       "actionFailed": "Thao tác công việc trực tiếp thất bại. Vui lòng thử lại.",
@@ -2516,15 +2519,14 @@
         "yielding": "Đang bàn giao an toàn công việc chính thức…",
         "user_intervention": "Đang chờ bạn tiếp tục công việc chính thức",
         "side_quest": "{{count}} lượt trực tiếp đang chạy hoặc xếp hàng",
-        "yield_timeout": "Vẫn đang chờ bàn giao an toàn",
-        "returned": "Đã trở lại công việc chính thức"
+        "yield_timeout": "Vẫn đang chờ bàn giao an toàn"
       },
       "outcome": {
         "restoredTask": "Nhiệm vụ ban đầu đã tiếp tục",
         "clearedPaused": "Việc trực tiếp đã xong; việc chính thức của nhóm vẫn tạm dừng",
-        "clearedIdle": "Việc trực tiếp đã xong; không có nhiệm vụ chính thức để tiếp tục",
-        "noLongerNeeded": "Công việc ban đầu đã kết thúc hoặc được giao lại",
-        "alreadyApplied": "Lần quay lại này đã được áp dụng"
+        "clearedIdle": "Việc trực tiếp đã xong; nhóm vẫn ở trạng thái rảnh",
+        "directEnded": "Việc trực tiếp đã xong",
+        "noLongerNeeded": "Việc trực tiếp đã xong; công việc ban đầu đã kết thúc hoặc được giao lại"
       }
     },
     "timeline": {

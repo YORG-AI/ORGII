@@ -2534,6 +2534,9 @@
       "unavailableFailed": "O trabalho direto não está disponível enquanto a equipe está com falha",
       "returnToWork": "Retomar trabalho",
       "returning": "Retomando…",
+      "endDirectWork": "Encerrar trabalho direto",
+      "endingDirectWork": "Encerrando…",
+      "directReady": "O trabalho direto terminou; envie um acompanhamento ou encerre esta sequência de trabalho direto",
       "stopping": "Parando…",
       "loadFailed": "Falha ao carregar estado de intervenção",
       "actionFailed": "A ação de trabalho direto falhou. Tente novamente.",
@@ -2543,15 +2546,14 @@
         "yielding": "Cedendo o trabalho formal com segurança…",
         "user_intervention": "Aguardando você retomar o trabalho formal",
         "side_quest": "{{count}} turno direto em andamento ou na fila",
-        "yield_timeout": "Ainda aguardando uma transição segura",
-        "returned": "Retornou ao trabalho formal"
+        "yield_timeout": "Ainda aguardando uma transição segura"
       },
       "outcome": {
         "restoredTask": "A tarefa original foi retomada",
         "clearedPaused": "O trabalho direto terminou; a equipe continua pausada",
-        "clearedIdle": "O trabalho direto terminou; não há tarefa formal para retomar",
-        "noLongerNeeded": "O trabalho original terminou ou foi reatribuído",
-        "alreadyApplied": "Este retorno já foi aplicado"
+        "clearedIdle": "O trabalho direto terminou; a equipe continua ociosa",
+        "directEnded": "O trabalho direto terminou",
+        "noLongerNeeded": "O trabalho direto terminou; o trabalho original terminou ou foi reatribuído"
       }
     },
     "timeline": {

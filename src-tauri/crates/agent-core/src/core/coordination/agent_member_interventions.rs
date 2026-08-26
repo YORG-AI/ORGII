@@ -73,14 +73,22 @@ pub enum ReturnToWorkOutcome {
     AlreadyApplied,
 }
 
-impl ReturnToWorkOutcome {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppliedReturnToWorkOutcome {
+    RestoredTask,
+    ClearedPaused,
+    ClearedIdle,
+    NoLongerNeeded,
+}
+
+impl AppliedReturnToWorkOutcome {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::RestoredTask => "restored_task",
             Self::ClearedPaused => "cleared_paused",
             Self::ClearedIdle => "cleared_idle",
             Self::NoLongerNeeded => "no_longer_needed",
-            Self::AlreadyApplied => "already_applied",
         }
     }
 
@@ -90,9 +98,19 @@ impl ReturnToWorkOutcome {
             "cleared_paused" => Self::ClearedPaused,
             "cleared_idle" => Self::ClearedIdle,
             "no_longer_needed" => Self::NoLongerNeeded,
-            "already_applied" => Self::AlreadyApplied,
             _ => return None,
         })
+    }
+}
+
+impl From<AppliedReturnToWorkOutcome> for ReturnToWorkOutcome {
+    fn from(value: AppliedReturnToWorkOutcome) -> Self {
+        match value {
+            AppliedReturnToWorkOutcome::RestoredTask => Self::RestoredTask,
+            AppliedReturnToWorkOutcome::ClearedPaused => Self::ClearedPaused,
+            AppliedReturnToWorkOutcome::ClearedIdle => Self::ClearedIdle,
+            AppliedReturnToWorkOutcome::NoLongerNeeded => Self::NoLongerNeeded,
+        }
     }
 }
 
@@ -118,7 +136,7 @@ pub struct AgentMemberInterventionRecord {
     pub yield_released_at: Option<String>,
     pub yield_timed_out_at: Option<String>,
     pub return_request_id: Option<String>,
-    pub return_outcome: Option<ReturnToWorkOutcome>,
+    pub return_outcome: Option<AppliedReturnToWorkOutcome>,
     pub continuation_turn_intent_id: Option<String>,
     pub cleared_revision: Option<i64>,
     pub cleared_at: Option<String>,
@@ -166,8 +184,15 @@ pub(crate) struct RecoverableUserDirectedWork {
 #[serde(rename_all = "camelCase")]
 pub struct ReturnToWorkResult {
     pub outcome: ReturnToWorkOutcome,
+    /// The durable business resolution. Unlike `outcome`, this remains the
+    /// original four-way result when an exact request is replayed and
+    /// `outcome` is `already_applied`.
+    pub applied_outcome: AppliedReturnToWorkOutcome,
+    pub had_original_formal_work: bool,
     pub intervention_receipt_id: String,
     pub request_id: String,
+    pub cleared_revision: i64,
+    pub cleared_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continuation_turn_intent_id: Option<String>,
 }
@@ -901,11 +926,25 @@ impl AgentMemberInterventionStore {
             }
             if !receipt.status.is_active() {
                 if receipt.return_request_id.as_deref() == Some(request_id) {
+                    let applied_outcome = receipt.return_outcome.ok_or_else(|| {
+                        "return_receipt_corrupt: applied Return has no durable outcome".to_string()
+                    })?;
+                    let cleared_revision = receipt.cleared_revision.ok_or_else(|| {
+                        "return_receipt_corrupt: applied Return has no cleared revision".to_string()
+                    })?;
+                    let cleared_at = receipt.cleared_at.ok_or_else(|| {
+                        "return_receipt_corrupt: applied Return has no cleared time".to_string()
+                    })?;
                     tx.commit().map_err(|error| error.to_string())?;
                     return Ok(ReturnToWorkResult {
                         outcome: ReturnToWorkOutcome::AlreadyApplied,
+                        applied_outcome,
+                        had_original_formal_work: receipt.original_task_id.is_some()
+                            && receipt.original_turn_intent_id.is_some(),
                         intervention_receipt_id: receipt_id.to_string(),
                         request_id: request_id.to_string(),
+                        cleared_revision,
+                        cleared_at,
                         continuation_turn_intent_id: receipt.continuation_turn_intent_id,
                     });
                 }
@@ -961,11 +1000,11 @@ impl AgentMemberInterventionStore {
 
             let mut continuation_turn_intent_id = None;
             let outcome = match run_status {
-                AgentOrgRunStatus::Paused => ReturnToWorkOutcome::ClearedPaused,
-                AgentOrgRunStatus::Idle => ReturnToWorkOutcome::ClearedIdle,
+                AgentOrgRunStatus::Paused => AppliedReturnToWorkOutcome::ClearedPaused,
+                AgentOrgRunStatus::Idle => AppliedReturnToWorkOutcome::ClearedIdle,
                 AgentOrgRunStatus::Starting
                 | AgentOrgRunStatus::Failed
-                | AgentOrgRunStatus::Archived => ReturnToWorkOutcome::NoLongerNeeded,
+                | AgentOrgRunStatus::Archived => AppliedReturnToWorkOutcome::NoLongerNeeded,
                 AgentOrgRunStatus::Running => {
                     match (
                         receipt.original_task_id.as_deref(),
@@ -997,12 +1036,12 @@ impl AgentMemberInterventionStore {
                                 );
                                 agent_org_turn_contexts::accept_with_connection(&tx, &admission)?;
                                 continuation_turn_intent_id = Some(continuation_id);
-                                ReturnToWorkOutcome::RestoredTask
+                                AppliedReturnToWorkOutcome::RestoredTask
                             } else {
-                                ReturnToWorkOutcome::NoLongerNeeded
+                                AppliedReturnToWorkOutcome::NoLongerNeeded
                             }
                         }
-                        _ => ReturnToWorkOutcome::NoLongerNeeded,
+                        _ => AppliedReturnToWorkOutcome::NoLongerNeeded,
                     }
                 }
             };
@@ -1039,9 +1078,14 @@ impl AgentMemberInterventionStore {
             }
             tx.commit().map_err(|error| error.to_string())?;
             Ok(ReturnToWorkResult {
-                outcome,
+                outcome: outcome.into(),
+                applied_outcome: outcome,
+                had_original_formal_work: receipt.original_task_id.is_some()
+                    && receipt.original_turn_intent_id.is_some(),
                 intervention_receipt_id: receipt_id.to_string(),
                 request_id: request_id.to_string(),
+                cleared_revision,
+                cleared_at: now,
                 continuation_turn_intent_id,
             })
         })?;
@@ -1220,35 +1264,6 @@ impl AgentMemberInterventionStore {
                 params![org_run_id, COORDINATOR_MEMBER_ID],
                 row_to_intervention,
             )
-            .map_err(|error| error.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())
-    }
-
-    pub(crate) fn list_latest_returned_with_connection(
-        conn: &Connection,
-        org_run_id: &str,
-    ) -> Result<Vec<AgentMemberInterventionRecord>, String> {
-        let mut statement = conn
-            .prepare(&format!(
-                "{INTERVENTION_SELECT}
-                 WHERE intervention.org_run_id=?1
-                   AND intervention.status='cleared'
-                   AND intervention.cleared_revision IS NOT NULL
-                   AND intervention.intervention_receipt_id=(
-                       SELECT latest.intervention_receipt_id
-                       FROM agent_org_runtime_member_interventions latest
-                       WHERE latest.org_run_id=intervention.org_run_id
-                         AND latest.member_id=intervention.member_id
-                         AND latest.status='cleared'
-                         AND latest.cleared_revision IS NOT NULL
-                       ORDER BY latest.cleared_revision DESC LIMIT 1
-                   )
-                 ORDER BY intervention.cleared_revision DESC"
-            ))
-            .map_err(|error| error.to_string())?;
-        let rows = statement
-            .query_map([org_run_id], row_to_intervention)
             .map_err(|error| error.to_string())?;
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())

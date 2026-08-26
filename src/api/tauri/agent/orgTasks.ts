@@ -65,10 +65,19 @@ export type ReturnToWorkOutcome =
   | "no_longer_needed"
   | "already_applied";
 
+export type AppliedReturnToWorkOutcome = Exclude<
+  ReturnToWorkOutcome,
+  "already_applied"
+>;
+
 export interface ReturnToWorkResult {
   outcome: ReturnToWorkOutcome;
+  appliedOutcome: AppliedReturnToWorkOutcome;
+  hadOriginalFormalWork: boolean;
   interventionReceiptId: string;
   requestId: string;
+  clearedRevision: number;
+  clearedAt: string;
   continuationTurnIntentId?: string | null;
 }
 
@@ -123,15 +132,9 @@ export interface AgentOrgRunMemberView {
   completedTaskCount: number;
   queuedUserDirectedCount: number;
   activity?: {
-    kind:
-      | "yielding"
-      | "user_intervention"
-      | "side_quest"
-      | "yield_timeout"
-      | "returned";
+    kind: "yielding" | "user_intervention" | "side_quest" | "yield_timeout";
     source: "direct_member";
     interventionReceiptId: string;
-    clearedRevision?: number | null;
   } | null;
   intervention?: AgentOrgMemberIntervention | null;
 }

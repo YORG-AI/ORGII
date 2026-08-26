@@ -2510,6 +2510,9 @@
       "unavailableFailed": "팀이 실패 상태인 동안 직접 작업을 요청할 수 없습니다",
       "returnToWork": "작업 재개",
       "returning": "재개 중…",
+      "endDirectWork": "직접 작업 종료",
+      "endingDirectWork": "종료 중…",
+      "directReady": "직접 작업이 완료되었습니다. 후속 요청을 보내거나 이 직접 작업을 종료하세요",
       "stopping": "중지 중…",
       "loadFailed": "개입 상태를 불러오지 못했습니다",
       "actionFailed": "직접 작업 동작에 실패했습니다. 다시 시도하세요.",
@@ -2519,15 +2522,14 @@
         "yielding": "공식 작업을 안전하게 넘기는 중…",
         "user_intervention": "공식 작업 재개를 기다리는 중",
         "side_quest": "직접 턴 {{count}}개 실행 또는 대기 중",
-        "yield_timeout": "안전한 인계를 계속 기다리는 중",
-        "returned": "공식 작업으로 돌아감"
+        "yield_timeout": "안전한 인계를 계속 기다리는 중"
       },
       "outcome": {
         "restoredTask": "원래 작업이 재개되었습니다",
         "clearedPaused": "직접 작업 종료; 팀 공식 작업은 계속 일시 중지됨",
-        "clearedIdle": "직접 작업 종료; 재개할 공식 작업 없음",
-        "noLongerNeeded": "원래 작업이 끝났거나 재할당됨",
-        "alreadyApplied": "이 복귀는 이미 적용됨"
+        "clearedIdle": "직접 작업 종료; 팀은 계속 유휴 상태",
+        "directEnded": "직접 작업 종료",
+        "noLongerNeeded": "직접 작업 종료; 원래 작업이 끝났거나 재할당됨"
       }
     },
     "timeline": {

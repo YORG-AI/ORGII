@@ -2509,6 +2509,9 @@
       "unavailableFailed": "チームが失敗状態の間は直接作業を依頼できません",
       "returnToWork": "作業を再開",
       "returning": "再開しています…",
+      "endDirectWork": "直接作業を終了",
+      "endingDirectWork": "終了しています…",
+      "directReady": "直接作業は完了しました。続けて依頼するか、この直接作業を終了してください",
       "stopping": "停止しています…",
       "loadFailed": "介入状態を読み込めませんでした",
       "actionFailed": "直接作業の操作に失敗しました。もう一度お試しください。",
@@ -2518,15 +2521,14 @@
         "yielding": "正式作業を安全に引き渡しています…",
         "user_intervention": "正式作業の再開待ち",
         "side_quest": "{{count}} 件の直接ターンが実行中または待機中",
-        "yield_timeout": "安全な引き渡しを引き続き待っています",
-        "returned": "正式作業に戻りました"
+        "yield_timeout": "安全な引き渡しを引き続き待っています"
       },
       "outcome": {
         "restoredTask": "元のタスクを再開しました",
         "clearedPaused": "直接作業は終了しました。チームの正式作業は一時停止中です",
-        "clearedIdle": "直接作業は終了しました。再開する正式タスクはありません",
-        "noLongerNeeded": "元の作業は終了したか再割り当てされました",
-        "alreadyApplied": "この復帰はすでに適用されています"
+        "clearedIdle": "直接作業は終了しました。チームはアイドルのままです",
+        "directEnded": "直接作業は終了しました",
+        "noLongerNeeded": "直接作業は終了しました。元の作業は終了したか再割り当てされました"
       }
     },
     "timeline": {

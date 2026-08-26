@@ -15,9 +15,14 @@ import {
 import type {
   AgentOrgMemberIntervention,
   AgentOrgRunMemberView,
+  ReturnToWorkResult,
 } from "@src/api/tauri/agent";
 
 import AgentOrgInterventionPinBar from "./AgentOrgInterventionPinBar";
+
+const mocks = vi.hoisted(() => ({
+  messageSuccess: vi.fn(),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -38,6 +43,10 @@ vi.mock("@src/components/Button", () => ({
       },
       props.children as React.ReactNode
     ),
+}));
+
+vi.mock("@src/components/Message", () => ({
+  Message: { success: mocks.messageSuccess },
 }));
 
 vi.mock("@src/engines/ChatPanel/components/ChatStatusBanners", () => ({
@@ -90,7 +99,9 @@ function member(overrides: Partial<AgentOrgRunMemberView> = {}) {
   } satisfies AgentOrgRunMemberView;
 }
 
-function intervention(): AgentOrgMemberIntervention {
+function intervention(
+  overrides: Partial<AgentOrgMemberIntervention> = {}
+): AgentOrgMemberIntervention {
   return {
     interventionReceiptId: "receipt-direct",
     orgRunId: "run-direct",
@@ -102,6 +113,23 @@ function intervention(): AgentOrgMemberIntervention {
     queuedUserDirectedCount: 0,
     enteredAt: "2026-08-25T00:00:00Z",
     lastUserActivityAt: "2026-08-25T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function returnResult(
+  overrides: Partial<ReturnToWorkResult> = {}
+): ReturnToWorkResult {
+  return {
+    outcome: "no_longer_needed",
+    appliedOutcome: "no_longer_needed",
+    hadOriginalFormalWork: false,
+    interventionReceiptId: "receipt-direct",
+    requestId: "request-direct",
+    clearedRevision: 1,
+    clearedAt: "2026-08-25T00:01:00Z",
+    continuationTurnIntentId: null,
+    ...overrides,
   };
 }
 
@@ -117,6 +145,7 @@ describe("AgentOrgInterventionPinBar", () => {
   });
 
   beforeEach(() => {
+    mocks.messageSuccess.mockReset();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -141,7 +170,6 @@ describe("AgentOrgInterventionPinBar", () => {
           error: null,
           returning: false,
           stopping: false,
-          returnOutcome: null,
           onReturnToWork: vi.fn(),
           onStopUserDirectedWork: vi.fn(),
         })
@@ -157,13 +185,18 @@ describe("AgentOrgInterventionPinBar", () => {
     expect(
       container.querySelector('[data-testid="agent-org-return-to-work-button"]')
     ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-end-direct-work-button"]'
+      )
+    ).toBeNull();
   });
 
-  it("offers exact Stop while queued and enables Return only after terminal", async () => {
+  it("offers Stop while nonbusy direct work runs and enables End after terminal", async () => {
     const activeMember = member({
       queuedUserDirectedCount: 1,
       activity: {
-        kind: "user_intervention",
+        kind: "side_quest",
         source: "direct_member",
         interventionReceiptId: "receipt-direct",
       },
@@ -177,7 +210,6 @@ describe("AgentOrgInterventionPinBar", () => {
           error: null,
           returning: false,
           stopping: false,
-          returnOutcome: null,
           onReturnToWork: vi.fn(),
           onStopUserDirectedWork: vi.fn(),
         })
@@ -190,7 +222,7 @@ describe("AgentOrgInterventionPinBar", () => {
     ).not.toBeNull();
     expect(
       container.querySelector<HTMLButtonElement>(
-        '[data-testid="agent-org-return-to-work-button"]'
+        '[data-testid="agent-org-end-direct-work-button"]'
       )?.disabled
     ).toBe(true);
 
@@ -206,7 +238,6 @@ describe("AgentOrgInterventionPinBar", () => {
           error: null,
           returning: false,
           stopping: false,
-          returnOutcome: null,
           onReturnToWork: vi.fn(),
           onStopUserDirectedWork: vi.fn(),
         })
@@ -225,7 +256,6 @@ describe("AgentOrgInterventionPinBar", () => {
           error: null,
           returning: false,
           stopping: false,
-          returnOutcome: null,
           onReturnToWork: vi.fn(),
           onStopUserDirectedWork: vi.fn(),
         })
@@ -233,32 +263,208 @@ describe("AgentOrgInterventionPinBar", () => {
     });
     expect(
       container.querySelector<HTMLButtonElement>(
-        '[data-testid="agent-org-return-to-work-button"]'
+        '[data-testid="agent-org-end-direct-work-button"]'
       )?.disabled
     ).toBe(true);
 
+    const onReturnToWork = vi
+      .fn<() => Promise<ReturnToWorkResult | null>>()
+      .mockResolvedValue(returnResult());
     await act(async () => {
       root.render(
         createElement(AgentOrgInterventionPinBar, {
           intervention: intervention(),
-          member: member(),
+          member: member({
+            activity: {
+              kind: "side_quest",
+              source: "direct_member",
+              interventionReceiptId: "receipt-direct",
+            },
+          }),
           runStatus: "idle",
           error: null,
           returning: false,
           stopping: false,
-          returnOutcome: "cleared_idle",
-          onReturnToWork: vi.fn(),
+          onReturnToWork,
           onStopUserDirectedWork: vi.fn(),
         })
       );
     });
     expect(container.textContent).toContain(
-      "planner.agentOrgIntervention.outcome.clearedIdle"
+      "planner.agentOrgIntervention.directReady"
+    );
+    const endButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-end-direct-work-button"]'
+    );
+    expect(endButton?.disabled).toBe(false);
+    expect(endButton?.textContent).toContain(
+      "planner.agentOrgIntervention.endDirectWork"
+    );
+
+    await act(async () => {
+      endButton?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.messageSuccess).toHaveBeenCalledWith(
+      "planner.agentOrgIntervention.outcome.directEnded",
+      { duration: 4000 }
+    );
+
+    await act(async () => {
+      endButton?.click();
+      await Promise.resolve();
+    });
+    expect(onReturnToWork).toHaveBeenCalledTimes(2);
+    expect(mocks.messageSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses Return only for a resumable formal handoff and toasts the durable outcome", async () => {
+    const formalIntervention = intervention({
+      originalTaskId: "task-formal",
+      originalTurnIntentId: "turn-formal",
+    });
+    const onReturnToWork = vi.fn().mockResolvedValue(
+      returnResult({
+        outcome: "restored_task",
+        appliedOutcome: "restored_task",
+        hadOriginalFormalWork: true,
+        continuationTurnIntentId: "turn-continuation",
+      })
+    );
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgInterventionPinBar, {
+          intervention: formalIntervention,
+          member: member({
+            activity: {
+              kind: "user_intervention",
+              source: "direct_member",
+              interventionReceiptId: "receipt-direct",
+            },
+          }),
+          runStatus: "running",
+          error: null,
+          returning: false,
+          stopping: false,
+          onReturnToWork,
+          onStopUserDirectedWork: vi.fn(),
+        })
+      );
+    });
+
+    const returnButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-return-to-work-button"]'
+    );
+    expect(returnButton?.textContent).toContain(
+      "planner.agentOrgIntervention.returnToWork"
     );
     expect(
-      container.querySelector<HTMLButtonElement>(
-        '[data-testid="agent-org-return-to-work-button"]'
-      )?.disabled
-    ).toBe(false);
+      container.querySelector(
+        '[data-testid="agent-org-end-direct-work-button"]'
+      )
+    ).toBeNull();
+    await act(async () => {
+      returnButton?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.messageSuccess).toHaveBeenCalledWith(
+      "planner.agentOrgIntervention.outcome.restoredTask",
+      { duration: 4000 }
+    );
+  });
+
+  it.each([
+    {
+      name: "keeps an Idle Team idle",
+      runStatus: "idle" as const,
+      intervention: intervention(),
+      result: returnResult({
+        outcome: "cleared_idle",
+        appliedOutcome: "cleared_idle",
+      }),
+      expectedKey: "planner.agentOrgIntervention.outcome.clearedIdle",
+      buttonTestId: "agent-org-end-direct-work-button",
+    },
+    {
+      name: "reports formal work that ended or was reassigned",
+      runStatus: "running" as const,
+      intervention: intervention({
+        originalTaskId: "task-formal",
+        originalTurnIntentId: "turn-formal",
+      }),
+      result: returnResult({
+        outcome: "no_longer_needed",
+        appliedOutcome: "no_longer_needed",
+        hadOriginalFormalWork: true,
+      }),
+      expectedKey: "planner.agentOrgIntervention.outcome.noLongerNeeded",
+      buttonTestId: "agent-org-return-to-work-button",
+    },
+  ])("toasts the exact outcome when $name", async (scenario) => {
+    const onReturnToWork = vi.fn().mockResolvedValue(scenario.result);
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgInterventionPinBar, {
+          intervention: scenario.intervention,
+          member: member(),
+          runStatus: scenario.runStatus,
+          error: null,
+          returning: false,
+          stopping: false,
+          onReturnToWork,
+          onStopUserDirectedWork: vi.fn(),
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          `[data-testid="${scenario.buttonTestId}"]`
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.messageSuccess).toHaveBeenCalledWith(scenario.expectedKey, {
+      duration: 4000,
+    });
+  });
+
+  it("ends a formal handoff without claiming resume while the Team is paused", async () => {
+    const onReturnToWork = vi.fn().mockResolvedValue(
+      returnResult({
+        outcome: "already_applied",
+        appliedOutcome: "cleared_paused",
+        hadOriginalFormalWork: true,
+      })
+    );
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgInterventionPinBar, {
+          intervention: intervention({
+            originalTaskId: "task-formal",
+            originalTurnIntentId: "turn-formal",
+          }),
+          member: member(),
+          runStatus: "paused",
+          error: null,
+          returning: false,
+          stopping: false,
+          onReturnToWork,
+          onStopUserDirectedWork: vi.fn(),
+        })
+      );
+    });
+
+    const endButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-end-direct-work-button"]'
+    );
+    await act(async () => {
+      endButton?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.messageSuccess).toHaveBeenCalledWith(
+      "planner.agentOrgIntervention.outcome.clearedPaused",
+      { duration: 4000 }
+    );
   });
 });

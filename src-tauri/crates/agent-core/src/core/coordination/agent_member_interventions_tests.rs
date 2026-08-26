@@ -865,16 +865,20 @@ fn one_receipt_chains_followups_without_repeating_the_formal_handoff() {
 fn return_outcomes_are_explicit_and_same_request_is_idempotent() {
     let _sandbox = test_helpers::test_env::sandbox();
     for (index, status, expected) in [
-        (0, AgentOrgRunStatus::Idle, ReturnToWorkOutcome::ClearedIdle),
+        (
+            0,
+            AgentOrgRunStatus::Idle,
+            AppliedReturnToWorkOutcome::ClearedIdle,
+        ),
         (
             1,
             AgentOrgRunStatus::Paused,
-            ReturnToWorkOutcome::ClearedPaused,
+            AppliedReturnToWorkOutcome::ClearedPaused,
         ),
         (
             2,
             AgentOrgRunStatus::Running,
-            ReturnToWorkOutcome::NoLongerNeeded,
+            AppliedReturnToWorkOutcome::NoLongerNeeded,
         ),
     ] {
         let fixture = create_fixture(&format!("return-{index}"), status);
@@ -891,7 +895,11 @@ fn return_outcomes_are_explicit_and_same_request_is_idempotent() {
             &request_id,
         )
         .expect("Return to Work");
-        assert_eq!(returned.outcome, expected);
+        assert_eq!(returned.outcome, expected.into());
+        assert_eq!(returned.applied_outcome, expected);
+        assert!(!returned.had_original_formal_work);
+        assert_eq!(returned.cleared_revision, 1);
+        assert!(!returned.cleared_at.is_empty());
         assert!(returned.continuation_turn_intent_id.is_none());
         let replay = AgentMemberInterventionStore::return_to_work(
             &fixture.member_session_id,
@@ -900,6 +908,16 @@ fn return_outcomes_are_explicit_and_same_request_is_idempotent() {
         )
         .expect("idempotent Return replay");
         assert_eq!(replay.outcome, ReturnToWorkOutcome::AlreadyApplied);
+        assert_eq!(replay.applied_outcome, expected);
+        assert!(!replay.had_original_formal_work);
+        assert_eq!(replay.cleared_revision, returned.cleared_revision);
+        assert_eq!(replay.cleared_at, returned.cleared_at);
+        let wire = serde_json::to_value(&replay).expect("serialize replay result");
+        assert_eq!(wire["outcome"], "already_applied");
+        assert_eq!(wire["appliedOutcome"], expected.as_str());
+        assert_eq!(wire["hadOriginalFormalWork"], false);
+        assert_eq!(wire["clearedRevision"], returned.cleared_revision);
+        assert_eq!(wire["clearedAt"], returned.cleared_at);
     }
 }
 
@@ -967,6 +985,12 @@ fn return_restores_one_exact_continuation_and_never_duplicates_it() {
     )
     .expect("restore formal Task");
     assert_eq!(returned.outcome, ReturnToWorkOutcome::RestoredTask);
+    assert_eq!(
+        returned.applied_outcome,
+        AppliedReturnToWorkOutcome::RestoredTask
+    );
+    assert!(returned.had_original_formal_work);
+    assert_eq!(returned.cleared_revision, 1);
     let continuation_id = returned
         .continuation_turn_intent_id
         .expect("one continuation identity");
@@ -977,6 +1001,13 @@ fn return_restores_one_exact_continuation_and_never_duplicates_it() {
     )
     .expect("replay exact Return");
     assert_eq!(replay.outcome, ReturnToWorkOutcome::AlreadyApplied);
+    assert_eq!(
+        replay.applied_outcome,
+        AppliedReturnToWorkOutcome::RestoredTask
+    );
+    assert!(replay.had_original_formal_work);
+    assert_eq!(replay.cleared_revision, returned.cleared_revision);
+    assert_eq!(replay.cleared_at, returned.cleared_at);
     assert_eq!(
         replay.continuation_turn_intent_id.as_deref(),
         Some(continuation_id.as_str())
@@ -1068,6 +1099,11 @@ fn return_does_not_restore_completed_cancelled_or_reassigned_work() {
         )
         .expect("Return after original work changed");
         assert_eq!(returned.outcome, ReturnToWorkOutcome::NoLongerNeeded);
+        assert_eq!(
+            returned.applied_outcome,
+            AppliedReturnToWorkOutcome::NoLongerNeeded
+        );
+        assert!(returned.had_original_formal_work);
         assert!(returned.continuation_turn_intent_id.is_none());
 
         let conn = get_connection().expect("test sqlite connection");
@@ -1348,4 +1384,9 @@ fn active_stop_waits_for_terminal_evidence_before_return_becomes_legal() {
     )
     .expect("Return after finality");
     assert_eq!(returned.outcome, ReturnToWorkOutcome::ClearedIdle);
+    assert_eq!(
+        returned.applied_outcome,
+        AppliedReturnToWorkOutcome::ClearedIdle
+    );
+    assert!(!returned.had_original_formal_work);
 }

@@ -2510,6 +2510,9 @@
       "unavailableFailed": "Le travail direct est indisponible tant que l’équipe est en échec",
       "returnToWork": "Reprendre le travail",
       "returning": "Reprise…",
+      "endDirectWork": "Terminer le travail direct",
+      "endingDirectWork": "Fin en cours…",
+      "directReady": "Le travail direct est terminé ; envoyez un suivi ou terminez ce fil de travail direct",
       "stopping": "Arrêt…",
       "loadFailed": "Échec du chargement de l’état d’intervention",
       "actionFailed": "L’action de travail direct a échoué. Réessayez.",
@@ -2519,15 +2522,14 @@
         "yielding": "Cession sécurisée du travail formel…",
         "user_intervention": "En attente de la reprise du travail formel",
         "side_quest": "{{count}} tour direct en cours ou en attente",
-        "yield_timeout": "Toujours en attente d’un transfert sûr",
-        "returned": "Retour au travail formel"
+        "yield_timeout": "Toujours en attente d’un transfert sûr"
       },
       "outcome": {
         "restoredTask": "La tâche d’origine a repris",
         "clearedPaused": "Le travail direct est terminé ; l’équipe reste en pause",
-        "clearedIdle": "Le travail direct est terminé ; aucune tâche formelle à reprendre",
-        "noLongerNeeded": "Le travail d’origine est terminé ou réaffecté",
-        "alreadyApplied": "Ce retour a déjà été appliqué"
+        "clearedIdle": "Le travail direct est terminé ; l’équipe reste inactive",
+        "directEnded": "Le travail direct est terminé",
+        "noLongerNeeded": "Le travail direct est terminé ; le travail d’origine est terminé ou réaffecté"
       }
     },
     "timeline": {

@@ -5,7 +5,6 @@ import type {
   AgentOrgMemberIntervention,
   AgentOrgRunMemberView,
   AgentOrgRunStatus,
-  ReturnToWorkOutcome,
   ReturnToWorkResult,
 } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
@@ -59,7 +58,6 @@ interface AgentOrgInterventionView {
   error: string | null;
   returning: boolean;
   stopping: boolean;
-  returnOutcome: ReturnToWorkOutcome | null;
   onReturnToWork: () => Promise<ReturnToWorkResult | null>;
   onStopUserDirectedWork: () => Promise<boolean>;
 }
@@ -368,7 +366,6 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
                     error={agentOrgIntervention.error}
                     returning={agentOrgIntervention.returning}
                     stopping={agentOrgIntervention.stopping}
-                    returnOutcome={agentOrgIntervention.returnOutcome}
                     onReturnToWork={agentOrgIntervention.onReturnToWork}
                     onStopUserDirectedWork={
                       agentOrgIntervention.onStopUserDirectedWork

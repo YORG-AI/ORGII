@@ -421,7 +421,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
             AGENT_SESSION_STATUS.WAITING_FOR_USER ||
           member.sessionRuntime?.status ===
             AGENT_SESSION_STATUS.WAITING_FOR_FUNDS ||
-          (member.activity != null && member.activity.kind !== "returned")
+          member.activity != null
       ).length ?? 0;
     const membersWithDirectActivity =
       view?.members.filter((member) => member.activity != null) ?? [];
@@ -711,9 +711,6 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                     data-activity-source={member.activity?.source}
                     data-intervention-receipt-id={
                       member.activity?.interventionReceiptId
-                    }
-                    data-cleared-revision={
-                      member.activity?.clearedRevision ?? undefined
                     }
                   >
                     <span className="min-w-0 flex-1 truncate font-medium text-text-1">

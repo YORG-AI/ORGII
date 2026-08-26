@@ -84,7 +84,6 @@ pub enum AgentOrgMemberActivityKind {
     UserIntervention,
     SideQuest,
     YieldTimeout,
-    Returned,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -93,8 +92,6 @@ pub struct AgentOrgMemberActivity {
     pub kind: AgentOrgMemberActivityKind,
     pub source: &'static str,
     pub intervention_receipt_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cleared_revision: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -306,12 +303,6 @@ pub(super) fn build_agent_org_run_view(
             .into_iter()
             .map(|record| (record.member_id.clone(), record))
             .collect();
-    let latest_returned: HashMap<String, AgentMemberInterventionRecord> =
-        AgentMemberInterventionStore::list_latest_returned_with_connection(&tx, &context.run_id)?
-            .into_iter()
-            .map(|record| (record.member_id.clone(), record))
-            .collect();
-
     let coordinator_runtime =
         AgentOrgRunStore::find_coordinator_session_by_member_id_with_connection(
             &tx,
@@ -338,7 +329,6 @@ pub(super) fn build_agent_org_run_view(
         &member_task_counts,
         &inbox_counts,
         &active_interventions,
-        &latest_returned,
     )?);
     for member in &context.members {
         members.push(member_view(
@@ -350,7 +340,6 @@ pub(super) fn build_agent_org_run_view(
             &member_task_counts,
             &inbox_counts,
             &active_interventions,
-            &latest_returned,
         )?);
     }
 
@@ -690,7 +679,6 @@ fn coordinator_member_view(
     task_counts: &HashMap<String, MemberTaskCounts>,
     inbox_counts: &[AgentInboxRecipientCounts],
     active_interventions: &HashMap<String, AgentMemberInterventionRecord>,
-    latest_returned: &HashMap<String, AgentMemberInterventionRecord>,
 ) -> Result<AgentOrgRunMemberView, String> {
     member_view_from_parts(
         AgentOrgMemberViewIdentity {
@@ -705,7 +693,6 @@ fn coordinator_member_view(
         task_counts,
         inbox_counts,
         active_interventions,
-        latest_returned,
     )
 }
 
@@ -716,7 +703,6 @@ fn member_view(
     task_counts: &HashMap<String, MemberTaskCounts>,
     inbox_counts: &[AgentInboxRecipientCounts],
     active_interventions: &HashMap<String, AgentMemberInterventionRecord>,
-    latest_returned: &HashMap<String, AgentMemberInterventionRecord>,
 ) -> Result<AgentOrgRunMemberView, String> {
     member_view_from_parts(
         AgentOrgMemberViewIdentity {
@@ -731,7 +717,6 @@ fn member_view(
         task_counts,
         inbox_counts,
         active_interventions,
-        latest_returned,
     )
 }
 
@@ -750,7 +735,6 @@ fn member_view_from_parts(
     task_counts: &HashMap<String, MemberTaskCounts>,
     inbox_counts: &[AgentInboxRecipientCounts],
     active_interventions: &HashMap<String, AgentMemberInterventionRecord>,
-    latest_returned: &HashMap<String, AgentMemberInterventionRecord>,
 ) -> Result<AgentOrgRunMemberView, String> {
     let AgentOrgMemberViewIdentity {
         member_id,
@@ -792,27 +776,25 @@ fn member_view_from_parts(
         Some(record) => Some(record),
         None => active_interventions.get(&member_id).cloned(),
     };
-    let activity_record = intervention
-        .as_ref()
-        .or_else(|| latest_returned.get(&member_id));
-    let activity = activity_record.map(|record| AgentOrgMemberActivity {
+    let activity = intervention.as_ref().map(|record| AgentOrgMemberActivity {
         kind: match record.status {
             MemberInterventionStatus::YieldRequested if record.yield_timed_out_at.is_some() => {
                 AgentOrgMemberActivityKind::YieldTimeout
             }
             MemberInterventionStatus::YieldRequested => AgentOrgMemberActivityKind::Yielding,
-            MemberInterventionStatus::Active if record.queued_user_directed_count > 0 => {
-                AgentOrgMemberActivityKind::SideQuest
-            }
             MemberInterventionStatus::Active | MemberInterventionStatus::ReturnRequested => {
-                AgentOrgMemberActivityKind::UserIntervention
+                if record.original_task_id.is_some() && record.original_turn_intent_id.is_some() {
+                    AgentOrgMemberActivityKind::UserIntervention
+                } else {
+                    AgentOrgMemberActivityKind::SideQuest
+                }
             }
-            MemberInterventionStatus::Cleared => AgentOrgMemberActivityKind::Returned,
-            MemberInterventionStatus::Failed => AgentOrgMemberActivityKind::UserIntervention,
+            MemberInterventionStatus::Cleared | MemberInterventionStatus::Failed => {
+                unreachable!("Run View only receives active intervention receipts")
+            }
         },
         source: "direct_member",
         intervention_receipt_id: record.intervention_receipt_id.clone(),
-        cleared_revision: record.cleared_revision,
     });
     let queued_user_directed_count = intervention
         .as_ref()

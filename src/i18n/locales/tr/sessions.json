@@ -2511,6 +2511,9 @@
       "unavailableFailed": "Ekip hata durumundayken doğrudan çalışma kullanılamaz",
       "returnToWork": "İşe devam et",
       "returning": "Devam ediliyor…",
+      "endDirectWork": "Doğrudan işi bitir",
+      "endingDirectWork": "Bitiriliyor…",
+      "directReady": "Doğrudan iş tamamlandı; takip mesajı gönderin veya bu doğrudan iş akışını sonlandırın",
       "stopping": "Durduruluyor…",
       "loadFailed": "Müdahale durumu yüklenemedi",
       "actionFailed": "Doğrudan çalışma işlemi başarısız oldu. Yeniden deneyin.",
@@ -2520,15 +2523,14 @@
         "yielding": "Resmi iş güvenle devrediliyor…",
         "user_intervention": "Resmi işe dönmenizi bekliyor",
         "side_quest": "{{count}} doğrudan tur çalışıyor veya sırada",
-        "yield_timeout": "Güvenli devir hâlâ bekleniyor",
-        "returned": "Resmi işe dönüldü"
+        "yield_timeout": "Güvenli devir hâlâ bekleniyor"
       },
       "outcome": {
         "restoredTask": "Özgün görev devam etti",
         "clearedPaused": "Doğrudan iş bitti; resmi ekip işi hâlâ duraklatılmış",
-        "clearedIdle": "Doğrudan iş bitti; devam edecek resmi görev yok",
-        "noLongerNeeded": "Özgün iş bitti veya yeniden atandı",
-        "alreadyApplied": "Bu dönüş zaten uygulandı"
+        "clearedIdle": "Doğrudan iş bitti; ekip boşta kalıyor",
+        "directEnded": "Doğrudan iş bitti",
+        "noLongerNeeded": "Doğrudan iş bitti; özgün iş bitti veya yeniden atandı"
       }
     },
     "timeline": {

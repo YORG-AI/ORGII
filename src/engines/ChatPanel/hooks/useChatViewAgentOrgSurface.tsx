@@ -130,7 +130,6 @@ export function useChatViewAgentOrgSurface({
     error: agentOrgInterventionError,
     returning: agentOrgInterventionReturning,
     stopping: agentOrgInterventionStopping,
-    returnOutcome: agentOrgInterventionReturnOutcome,
     returnToWork: returnAgentOrgMemberToWork,
     stopUserDirectedWork: stopAgentOrgUserDirectedWork,
   } = useAgentOrgIntervention(
@@ -153,7 +152,6 @@ export function useChatViewAgentOrgSurface({
         error: agentOrgInterventionError,
         returning: agentOrgInterventionReturning,
         stopping: agentOrgInterventionStopping,
-        returnOutcome: agentOrgInterventionReturnOutcome,
         onReturnToWork: returnAgentOrgMemberToWork,
         onStopUserDirectedWork: stopAgentOrgUserDirectedWork,
       }

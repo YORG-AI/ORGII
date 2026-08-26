@@ -1,20 +1,25 @@
-import React, { memo } from "react";
+import React, { memo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   AgentOrgMemberIntervention,
   AgentOrgRunMemberView,
   AgentOrgRunStatus,
-  ReturnToWorkOutcome,
   ReturnToWorkResult,
 } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
+import { Message } from "@src/components/Message";
 import { AgentOrgWriterBadge } from "@src/engines/ChatPanel/blocks/OrgTaskBadges";
 import {
   ChatStatusSegmentedBar,
   ChatStatusTwoLineContent,
 } from "@src/engines/ChatPanel/components/ChatStatusBanners";
-import { HugeiconsIcon, PlayIcon, SquareIcon } from "@src/icons";
+import {
+  CheckmarkCircle01Icon,
+  HugeiconsIcon,
+  PlayIcon,
+  SquareIcon,
+} from "@src/icons";
 
 interface AgentOrgInterventionPinBarProps {
   intervention: AgentOrgMemberIntervention | null;
@@ -23,18 +28,24 @@ interface AgentOrgInterventionPinBarProps {
   error: string | null;
   returning: boolean;
   stopping: boolean;
-  returnOutcome: ReturnToWorkOutcome | null;
   onReturnToWork: () => Promise<ReturnToWorkResult | null>;
   onStopUserDirectedWork: () => Promise<boolean>;
 }
 
-const RETURN_OUTCOME_KEYS: Record<ReturnToWorkOutcome, string> = {
-  restored_task: "planner.agentOrgIntervention.outcome.restoredTask",
-  cleared_paused: "planner.agentOrgIntervention.outcome.clearedPaused",
-  cleared_idle: "planner.agentOrgIntervention.outcome.clearedIdle",
-  no_longer_needed: "planner.agentOrgIntervention.outcome.noLongerNeeded",
-  already_applied: "planner.agentOrgIntervention.outcome.alreadyApplied",
-};
+function returnNoticeKey(result: ReturnToWorkResult): string {
+  switch (result.appliedOutcome) {
+    case "restored_task":
+      return "planner.agentOrgIntervention.outcome.restoredTask";
+    case "cleared_paused":
+      return "planner.agentOrgIntervention.outcome.clearedPaused";
+    case "cleared_idle":
+      return "planner.agentOrgIntervention.outcome.clearedIdle";
+    case "no_longer_needed":
+      return result.hadOriginalFormalWork
+        ? "planner.agentOrgIntervention.outcome.noLongerNeeded"
+        : "planner.agentOrgIntervention.outcome.directEnded";
+  }
+}
 
 const AgentOrgInterventionPinBar: React.FC<AgentOrgInterventionPinBarProps> =
   memo(
@@ -45,11 +56,11 @@ const AgentOrgInterventionPinBar: React.FC<AgentOrgInterventionPinBarProps> =
       error,
       returning,
       stopping,
-      returnOutcome,
       onReturnToWork,
       onStopUserDirectedWork,
     }) => {
       const { t } = useTranslation("sessions");
+      const lastReturnNoticeRef = useRef<string | null>(null);
 
       if (error) {
         return (
@@ -71,10 +82,10 @@ const AgentOrgInterventionPinBar: React.FC<AgentOrgInterventionPinBarProps> =
       }
 
       const activityKind = member.activity?.kind ?? null;
-      const description = returnOutcome
-        ? t(RETURN_OUTCOME_KEYS[returnOutcome])
-        : intervention?.failureReason
-          ? t("planner.agentOrgIntervention.directUnknown")
+      const description = intervention?.failureReason
+        ? t("planner.agentOrgIntervention.directUnknown")
+        : activityKind === "side_quest" && member.queuedUserDirectedCount === 0
+          ? t("planner.agentOrgIntervention.directReady")
           : activityKind
             ? t(`planner.agentOrgIntervention.activity.${activityKind}`, {
                 count: member.queuedUserDirectedCount,
@@ -87,8 +98,24 @@ const AgentOrgInterventionPinBar: React.FC<AgentOrgInterventionPinBarProps> =
                   ? t("planner.agentOrgIntervention.directPaused")
                   : t("planner.agentOrgIntervention.directNotice");
       const hasUserDirectedTurn = member.queuedUserDirectedCount > 0;
-      const canReturn =
+      const canResolveDirectWork =
         intervention?.status === "active" && !hasUserDirectedTurn;
+      const canRestoreFormalWork = Boolean(
+        runStatus === "running" &&
+        intervention?.originalTaskId &&
+        intervention.originalTurnIntentId
+      );
+      const returnControlTestId = canRestoreFormalWork
+        ? "agent-org-return-to-work-button"
+        : "agent-org-end-direct-work-button";
+      const handleReturnToWork = async () => {
+        const result = await onReturnToWork();
+        if (!result) return;
+        const noticeIdentity = `${result.interventionReceiptId}:${result.clearedRevision}`;
+        if (lastReturnNoticeRef.current === noticeIdentity) return;
+        lastReturnNoticeRef.current = noticeIdentity;
+        Message.success(t(returnNoticeKey(result)), { duration: 4000 });
+      };
 
       return (
         <ChatStatusSegmentedBar
@@ -170,23 +197,37 @@ const AgentOrgInterventionPinBar: React.FC<AgentOrgInterventionPinBarProps> =
                         shape="round"
                         size="mini"
                         htmlType="button"
-                        data-testid="agent-org-return-to-work-button"
-                        disabled={!canReturn || returning || stopping}
+                        data-testid={returnControlTestId}
+                        disabled={
+                          !canResolveDirectWork || returning || stopping
+                        }
                         loading={returning}
                         loadingSpinIcon
-                        onClick={() => void onReturnToWork()}
+                        onClick={() => void handleReturnToWork()}
                         icon={
                           <HugeiconsIcon
-                            icon={PlayIcon}
-                            data-icon="play"
+                            icon={
+                              canRestoreFormalWork
+                                ? PlayIcon
+                                : CheckmarkCircle01Icon
+                            }
+                            data-icon={canRestoreFormalWork ? "play" : "check"}
                             size={12}
                             strokeWidth={2}
                           />
                         }
                       >
                         {returning
-                          ? t("planner.agentOrgIntervention.returning")
-                          : t("planner.agentOrgIntervention.returnToWork")}
+                          ? t(
+                              canRestoreFormalWork
+                                ? "planner.agentOrgIntervention.returning"
+                                : "planner.agentOrgIntervention.endingDirectWork"
+                            )
+                          : t(
+                              canRestoreFormalWork
+                                ? "planner.agentOrgIntervention.returnToWork"
+                                : "planner.agentOrgIntervention.endDirectWork"
+                            )}
                       </Button>
                     ),
                   },

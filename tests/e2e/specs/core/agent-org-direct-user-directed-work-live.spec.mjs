@@ -302,15 +302,30 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
     }
 
     const returnButton = await waitForDisplayed(
-      '[data-testid="agent-org-return-to-work-button"]',
-      "Return to Work button"
+      '[data-testid="agent-org-end-direct-work-button"]',
+      "End direct work button"
     );
     await browser.waitUntil(async () => returnButton.isEnabled(), {
       timeout: RENDER_TIMEOUT_MS,
       interval: 200,
-      timeoutMsg: "Return remained disabled after direct work became terminal",
+      timeoutMsg:
+        "End direct work remained disabled after direct work became terminal",
     });
     await returnButton.click();
+
+    let returnToast = "";
+    await browser.waitUntil(
+      async () => {
+        const roots = await browser.$$('[data-message-root="true"]');
+        returnToast = roots.length > 0 ? await roots[0].getText() : "";
+        return returnToast.includes("Direct work ended");
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 100,
+        timeoutMsg: `exact one-shot direct-work outcome did not render: ${returnToast}`,
+      }
+    );
 
     await browser.waitUntil(
       async () => {
@@ -318,17 +333,39 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
         const member = view?.members?.find(
           (candidate) => candidate.memberId === memberId
         );
-        return (
-          member?.intervention == null &&
-          member?.activity?.kind === "returned" &&
-          member?.activity?.interventionReceiptId === acceptedReceipt
-        );
+        return member?.intervention == null && member?.activity == null;
       },
       {
         timeout: RENDER_TIMEOUT_MS,
         interval: 200,
-        timeoutMsg: "Return did not clear the exact intervention receipt once",
+        timeoutMsg: `End direct work did not clear receipt ${acceptedReceipt} from current activity`,
       }
     );
+
+    await browser.waitUntil(
+      async () => {
+        const roots = await browser.$$('[data-message-root="true"]');
+        const text = roots.length > 0 ? await roots[0].getText() : "";
+        return !text.includes("Direct work ended");
+      },
+      {
+        timeout: 6_000,
+        interval: 100,
+        timeoutMsg:
+          "one-shot direct-work outcome remained visible after 4 seconds",
+      }
+    );
+    const refreshed = await runView(memberSessionId, "cleared receipt refresh");
+    const refreshedMember = refreshed?.members?.find(
+      (candidate) => candidate.memberId === memberId
+    );
+    if (
+      refreshedMember?.activity != null ||
+      refreshedMember?.intervention != null
+    ) {
+      throw new Error(
+        `cleared receipt reappeared as current activity: ${JSON.stringify(refreshedMember)}`
+      );
+    }
   });
 });

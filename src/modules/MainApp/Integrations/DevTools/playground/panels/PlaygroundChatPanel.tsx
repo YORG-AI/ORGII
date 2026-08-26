@@ -239,7 +239,6 @@ export function PlaygroundChatPanel({
       error={null}
       returning={false}
       stopping={false}
-      returnOutcome={null}
       onReturnToWork={async () => null}
       onStopUserDirectedWork={async () => false}
     />

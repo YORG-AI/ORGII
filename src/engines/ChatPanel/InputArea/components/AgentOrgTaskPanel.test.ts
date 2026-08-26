@@ -368,7 +368,7 @@ describe("Agent Org Task panel", () => {
     });
   });
 
-  it("projects current and returned direct activity without changing the Team phase", async () => {
+  it("projects only current direct activity without changing the Team phase", async () => {
     const view: AgentOrgRunView = {
       ...runView(),
       runStatus: "idle",
@@ -397,8 +397,8 @@ describe("Agent Org Task panel", () => {
           intervention: null,
         },
         {
-          memberId: "member-returned",
-          name: "Returned Member",
+          memberId: "member-cleared",
+          name: "Cleared Member",
           role: "Review",
           agentId: "agent-returned",
           isCoordinator: false,
@@ -411,12 +411,7 @@ describe("Agent Org Task panel", () => {
           inProgressTaskCount: 0,
           completedTaskCount: 0,
           queuedUserDirectedCount: 0,
-          activity: {
-            kind: "returned",
-            source: "direct_member",
-            interventionReceiptId: "receipt-returned",
-            clearedRevision: 7,
-          },
+          activity: null,
           intervention: null,
         },
       ],
@@ -445,11 +440,11 @@ describe("Agent Org Task panel", () => {
         )
         ?.getAttribute("data-activity-kind")
     ).toBe("side_quest");
-    const returned = container.querySelector(
-      '[data-testid="agent-org-overview-member-activity-member-returned"]'
-    );
-    expect(returned?.getAttribute("data-activity-kind")).toBe("returned");
-    expect(returned?.getAttribute("data-cleared-revision")).toBe("7");
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-overview-member-activity-member-cleared"]'
+      )
+    ).toBeNull();
   });
 
   it("shows Paused draining immediately and keeps Resume enabled", async () => {

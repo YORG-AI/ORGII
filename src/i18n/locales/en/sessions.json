@@ -2629,6 +2629,9 @@
       "unavailableFailed": "Direct work is unavailable while the Team is failed",
       "returnToWork": "Resume work",
       "returning": "Resuming…",
+      "endDirectWork": "End direct work",
+      "endingDirectWork": "Ending…",
+      "directReady": "Direct work is complete; send a follow-up or end this direct-work thread",
       "stopping": "Stopping…",
       "loadFailed": "Intervention state failed to load",
       "actionFailed": "The direct-work action failed. Please try again.",
@@ -2638,15 +2641,14 @@
         "yielding": "Yielding formal work…",
         "user_intervention": "Waiting for you to resume formal work",
         "side_quest": "{{count}} direct turn in progress or queued",
-        "yield_timeout": "Still waiting for a safe handoff",
-        "returned": "Returned to formal work"
+        "yield_timeout": "Still waiting for a safe handoff"
       },
       "outcome": {
         "restoredTask": "The original Task resumed",
         "clearedPaused": "Direct work ended; formal Team work is still paused",
-        "clearedIdle": "Direct work ended; there is no formal Task to resume",
-        "noLongerNeeded": "The original work ended or was reassigned",
-        "alreadyApplied": "This return was already applied"
+        "clearedIdle": "Direct work ended; the Team remains idle",
+        "directEnded": "Direct work ended",
+        "noLongerNeeded": "Direct work ended; the original work ended or was reassigned"
       }
     },
     "timeline": {
