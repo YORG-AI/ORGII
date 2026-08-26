@@ -4,10 +4,12 @@ import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { postStopDispatchSessionsAtom } from "@src/store/session/cliSessionStatusAtom";
+import { sessionsAtom } from "@src/store/session/sessionAtom";
 import { messageQueueAtom } from "@src/store/ui/messageQueueAtom";
 
 import {
   type SubmitUserIntentOptions,
+  isAgentOrgMemberDirectTarget,
   useUserIntentSubmit,
 } from "./useUserIntentSubmit";
 
@@ -23,7 +25,15 @@ const mocks = vi.hoisted(() => ({
   markTurnTerminal: vi.fn(),
   mintTurnIntentId: vi.fn(),
   removeByIdPrefix: vi.fn(),
+  refreshAgentOrgRunView: vi.fn(),
 }));
+
+vi.mock(
+  "@src/engines/ChatPanel/InputArea/components/agentOrgRunViewStore",
+  () => ({
+    refreshAgentOrgRunView: mocks.refreshAgentOrgRunView,
+  })
+);
 
 vi.mock("@src/engines/SessionCore/control/optimisticTurnStatus", () => ({
   beginOptimisticTurn: mocks.beginOptimisticTurn,
@@ -87,6 +97,26 @@ describe("useUserIntentSubmit Agent Org intervention", () => {
     mocks.markTurnTerminal.mockReset();
     mocks.mintTurnIntentId.mockReset().mockReturnValue("turn-intent-1");
     mocks.removeByIdPrefix.mockReset().mockResolvedValue(1);
+    mocks.refreshAgentOrgRunView.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("recognizes only a materialized non-coordinator Member as direct", () => {
+    expect(
+      isAgentOrgMemberDirectTarget({
+        parentSessionId: "root-session",
+        orgMemberId: "member-direct",
+      })
+    ).toBe(true);
+    expect(
+      isAgentOrgMemberDirectTarget({
+        parentSessionId: "root-session",
+        orgMemberId: "coordinator",
+      })
+    ).toBe(false);
+    expect(isAgentOrgMemberDirectTarget({ orgMemberId: "member-direct" })).toBe(
+      false
+    );
+    expect(isAgentOrgMemberDirectTarget(undefined)).toBe(false);
   });
 
   it("appends the direct user event before dispatching the same intent", async () => {
@@ -98,7 +128,8 @@ describe("useUserIntentSubmit Agent Org intervention", () => {
       SESSION_ID,
       "hello worker",
       undefined,
-      "turn-intent-1"
+      "turn-intent-1",
+      false
     );
     expect(mocks.dispatchMessageBySessionType).toHaveBeenCalledOnce();
     expect(mocks.addUserMessage.mock.invocationCallOrder[0]).toBeLessThan(
@@ -143,6 +174,57 @@ describe("useUserIntentSubmit Agent Org intervention", () => {
     expect(mocks.dispatchMessageBySessionType).not.toHaveBeenCalled();
   });
 
+  it("sends a busy canonical Member direct Turn to Rust with its exact source event", async () => {
+    const store = createStore();
+    store.set(sessionsAtom, [
+      {
+        session_id: SESSION_ID,
+        status: "running",
+        created_at: "2026-08-25T00:00:00Z",
+        updated_at: "2026-08-25T00:00:00Z",
+        orgMemberId: "member-direct",
+        parentSessionId: "root-session",
+      },
+    ]);
+    const submit = renderSubmitHook(store);
+    mocks.getTurnPhase.mockReturnValue("working");
+
+    await submit({
+      sessionId: SESSION_ID,
+      displayContent: "inspect the fixture",
+    });
+
+    expect(store.get(messageQueueAtom)).toEqual([]);
+    expect(mocks.addUserMessage).toHaveBeenCalledWith(
+      SESSION_ID,
+      "inspect the fixture",
+      undefined,
+      "turn-intent-1",
+      true
+    );
+    expect(mocks.dispatchMessageBySessionType).toHaveBeenCalledWith(
+      SESSION_ID,
+      "inspect the fixture",
+      undefined,
+      undefined,
+      undefined,
+      expect.stringMatching(/^direct:/),
+      "turn-intent-1",
+      7,
+      "synthetic-user-1"
+    );
+    expect(mocks.refreshAgentOrgRunView).toHaveBeenCalledWith(SESSION_ID);
+  });
+
+  it("does not read the Agent Org projection for an ordinary SDE send", async () => {
+    const submit = renderSubmitHook(createStore());
+
+    await submit({ sessionId: SESSION_ID, displayContent: "ordinary send" });
+
+    expect(mocks.dispatchMessageBySessionType).toHaveBeenCalledOnce();
+    expect(mocks.refreshAgentOrgRunView).not.toHaveBeenCalled();
+  });
+
   it("removes the optimistic user event and rejects when backend dispatch fails", async () => {
     const submit = renderSubmitHook(createStore());
     mocks.dispatchMessageBySessionType.mockRejectedValue(
@@ -158,5 +240,30 @@ describe("useUserIntentSubmit Agent Org intervention", () => {
       "synthetic-user-1",
       SESSION_ID
     );
+  });
+
+  it("keeps the durable Member user fact when typed backend dispatch fails", async () => {
+    const store = createStore();
+    store.set(sessionsAtom, [
+      {
+        session_id: SESSION_ID,
+        status: "running",
+        created_at: "2026-08-25T00:00:00Z",
+        updated_at: "2026-08-25T00:00:00Z",
+        orgMemberId: "member-direct",
+        parentSessionId: "root-session",
+      },
+    ]);
+    const submit = renderSubmitHook(store);
+    mocks.dispatchMessageBySessionType.mockRejectedValue(
+      new Error("user_directed_queue_full")
+    );
+
+    await expect(
+      submit({ sessionId: SESSION_ID, displayContent: "preserve this fact" })
+    ).rejects.toThrow("user_directed_queue_full");
+
+    expect(mocks.addUserMessage).toHaveBeenCalledOnce();
+    expect(mocks.removeByIdPrefix).not.toHaveBeenCalled();
   });
 });

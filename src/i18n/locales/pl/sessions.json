@@ -2507,6 +2507,7 @@
       "tasks": "Zadania",
       "doneOf": "{{done}} / {{total}} ukończono",
       "members": "Członkowie",
+      "directActivity": "Bezpośrednia praca członków",
       "activeOf": "{{active}} / {{total}} aktywnych",
       "inbox": "Inbox",
       "unreadCount": "{{count}} nieprzeczytanych",
@@ -2562,11 +2563,34 @@
     "agentOrgIntervention": {
       "title": "Rozmowa z {{member}}",
       "description": "Wiadomości Inbox i nowa praca są wstrzymane do wznowienia pracy",
+      "directTitle": "Bezpośrednia praca z {{member}}",
+      "writerBadge": "Writer",
+      "directNotice": "Bezpośrednia praca pozostaje poza tablicą zadań, chyba że użyto dozwolonego narzędzia grafu",
+      "directPaused": "Bezpośrednia praca poboczna jest dostępna; formalna praca zespołu pozostaje wstrzymana",
+      "directUnknown": "Bezpośrednia praca zakończyła się nieoczekiwanie; przed powrotem sprawdź możliwe skutki uboczne",
+      "unavailableStarting": "Bezpośrednia praca będzie dostępna po uruchomieniu zespołu",
+      "unavailableFailed": "Bezpośrednia praca jest niedostępna, gdy zespół jest w stanie błędu",
       "returnToWork": "Wznów pracę",
       "returning": "Wznawianie…",
+      "stopping": "Zatrzymywanie…",
       "loadFailed": "Nie udało się wczytać stanu interwencji",
+      "actionFailed": "Działanie bezpośredniej pracy nie powiodło się. Spróbuj ponownie.",
       "busyShort": "Chat użytkownika",
-      "teammateBusy": "Ten teammate jest w bezpośrednim chacie z użytkownikiem"
+      "teammateBusy": "Ten teammate jest w bezpośrednim chacie z użytkownikiem",
+      "activity": {
+        "yielding": "Bezpieczne przekazywanie formalnej pracy…",
+        "user_intervention": "Oczekiwanie na wznowienie formalnej pracy",
+        "side_quest": "{{count}} bezpośredni turn trwa lub czeka",
+        "yield_timeout": "Nadal oczekuje na bezpieczne przekazanie",
+        "returned": "Powrót do formalnej pracy"
+      },
+      "outcome": {
+        "restoredTask": "Pierwotne zadanie zostało wznowione",
+        "clearedPaused": "Bezpośrednia praca zakończona; zespół nadal wstrzymany",
+        "clearedIdle": "Bezpośrednia praca zakończona; brak formalnego zadania do wznowienia",
+        "noLongerNeeded": "Pierwotna praca zakończyła się lub została przydzielona ponownie",
+        "alreadyApplied": "Ten powrót został już zastosowany"
+      }
     },
     "timeline": {
       "askUser": "Zapytaj użytkownika",

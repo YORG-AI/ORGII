@@ -368,6 +368,90 @@ describe("Agent Org Task panel", () => {
     });
   });
 
+  it("projects current and returned direct activity without changing the Team phase", async () => {
+    const view: AgentOrgRunView = {
+      ...runView(),
+      runStatus: "idle",
+      runPhase: "idle",
+      members: [
+        {
+          memberId: "member-active",
+          name: "Active Member",
+          role: "Build",
+          agentId: "agent-active",
+          isCoordinator: false,
+          writerCapable: true,
+          sessionRuntime: null,
+          unreadInboxCount: 0,
+          inboxActivityCount: 0,
+          activeTaskCount: 0,
+          pendingTaskCount: 0,
+          inProgressTaskCount: 0,
+          completedTaskCount: 0,
+          queuedUserDirectedCount: 2,
+          activity: {
+            kind: "side_quest",
+            source: "direct_member",
+            interventionReceiptId: "receipt-active",
+          },
+          intervention: null,
+        },
+        {
+          memberId: "member-returned",
+          name: "Returned Member",
+          role: "Review",
+          agentId: "agent-returned",
+          isCoordinator: false,
+          writerCapable: false,
+          sessionRuntime: null,
+          unreadInboxCount: 0,
+          inboxActivityCount: 0,
+          activeTaskCount: 0,
+          pendingTaskCount: 0,
+          inProgressTaskCount: 0,
+          completedTaskCount: 0,
+          queuedUserDirectedCount: 0,
+          activity: {
+            kind: "returned",
+            source: "direct_member",
+            interventionReceiptId: "receipt-returned",
+            clearedRevision: 7,
+          },
+          intervention: null,
+        },
+      ],
+    };
+
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view,
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-overview-run-phase"]')
+        ?.getAttribute("data-run-phase")
+    ).toBe("idle");
+    expect(
+      container
+        .querySelector(
+          '[data-testid="agent-org-overview-member-activity-member-active"]'
+        )
+        ?.getAttribute("data-activity-kind")
+    ).toBe("side_quest");
+    const returned = container.querySelector(
+      '[data-testid="agent-org-overview-member-activity-member-returned"]'
+    );
+    expect(returned?.getAttribute("data-activity-kind")).toBe("returned");
+    expect(returned?.getAttribute("data-cleared-revision")).toBe("7");
+  });
+
   it("shows Paused draining immediately and keeps Resume enabled", async () => {
     mocks.resume.mockResolvedValue({
       requestId: "resume-request",

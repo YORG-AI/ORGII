@@ -2445,6 +2445,7 @@
       "tasks": "작업",
       "doneOf": "{{done}} / {{total}} 완료",
       "members": "멤버",
+      "directActivity": "멤버 직접 작업",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
       "unreadCount": "{{count}} unread",
@@ -2500,11 +2501,34 @@
     "agentOrgIntervention": {
       "title": "{{member}}와 채팅 중",
       "description": "Inbox 메시지와 새 작업은 작업이 재개될 때까지 일시 중지됩니다",
+      "directTitle": "{{member}}에게 직접 작업",
+      "writerBadge": "Writer",
+      "directNotice": "허용된 그래프 도구를 사용하지 않는 한 직접 작업은 작업 보드에 들어가지 않습니다",
+      "directPaused": "직접 부가 작업은 가능하며 팀의 공식 작업은 계속 일시 중지됩니다",
+      "directUnknown": "직접 작업이 예기치 않게 종료되었습니다. 돌아가기 전에 가능한 부작용을 확인하세요",
+      "unavailableStarting": "팀 시작이 끝나면 직접 작업을 요청할 수 있습니다",
+      "unavailableFailed": "팀이 실패 상태인 동안 직접 작업을 요청할 수 없습니다",
       "returnToWork": "작업 재개",
       "returning": "재개 중…",
+      "stopping": "중지 중…",
       "loadFailed": "개입 상태를 불러오지 못했습니다",
+      "actionFailed": "직접 작업 동작에 실패했습니다. 다시 시도하세요.",
       "busyShort": "사용자 채팅",
-      "teammateBusy": "이 teammate는 직접 사용자 채팅 중입니다"
+      "teammateBusy": "이 teammate는 직접 사용자 채팅 중입니다",
+      "activity": {
+        "yielding": "공식 작업을 안전하게 넘기는 중…",
+        "user_intervention": "공식 작업 재개를 기다리는 중",
+        "side_quest": "직접 턴 {{count}}개 실행 또는 대기 중",
+        "yield_timeout": "안전한 인계를 계속 기다리는 중",
+        "returned": "공식 작업으로 돌아감"
+      },
+      "outcome": {
+        "restoredTask": "원래 작업이 재개되었습니다",
+        "clearedPaused": "직접 작업 종료; 팀 공식 작업은 계속 일시 중지됨",
+        "clearedIdle": "직접 작업 종료; 재개할 공식 작업 없음",
+        "noLongerNeeded": "원래 작업이 끝났거나 재할당됨",
+        "alreadyApplied": "이 복귀는 이미 적용됨"
+      }
     },
     "timeline": {
       "askUser": "사용자에게 질문",

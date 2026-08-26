@@ -280,6 +280,12 @@ export function createSyntheticUserEvent(
     createdAt?: string;
     imageDataUrls?: string[];
     /**
+     * Marks the synthetic Member-page prompt as the durable DirectMember
+     * source. The EventStore command persists only this synthetic shape so
+     * Rust can admit UserDirectedWork from the exact visible user event.
+     */
+    agentOrgDirectSource?: boolean;
+    /**
      * Canonical user-intent id. Threaded all the way through the queue,
      * the wire layer, and the persisted user_message event so the turn
      * indexer can collapse the synthetic row with the backend row that
@@ -296,6 +302,7 @@ export function createSyntheticUserEvent(
   const id = `${ID_PREFIX.USER_INPUT}${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
   const images = options?.imageDataUrls;
   const turnIntentId = options?.turnIntentId;
+  const agentOrgDirectSource = options?.agentOrgDirectSource === true;
   return {
     id,
     chunk_id: null,
@@ -310,6 +317,7 @@ export function createSyntheticUserEvent(
       type: "user",
       message: { content, role: "user" },
       syntheticUserInput: true,
+      ...(agentOrgDirectSource ? { agentOrgDirectSource: true } : {}),
       ...(images && images.length > 0 ? { images } : {}),
       ...(turnIntentId ? { turnIntentId } : {}),
     },

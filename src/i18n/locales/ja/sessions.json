@@ -2444,6 +2444,7 @@
       "tasks": "タスク",
       "doneOf": "{{done}} / {{total}} 完了",
       "members": "メンバー",
+      "directActivity": "メンバーへの直接作業",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
       "unreadCount": "{{count}} unread",
@@ -2499,11 +2500,34 @@
     "agentOrgIntervention": {
       "title": "{{member}} とチャット中",
       "description": "Inbox メッセージと新しい作業は、作業が再開されるまで一時停止されます",
+      "directTitle": "{{member}} への直接作業",
+      "writerBadge": "Writer",
+      "directNotice": "許可されたグラフツールを使わない限り、直接作業はタスクボードに入りません",
+      "directPaused": "直接のサイド作業は可能です。チームの正式作業は一時停止のままです",
+      "directUnknown": "直接作業が予期せず終了しました。戻る前に副作用を確認してください",
+      "unavailableStarting": "チームの起動完了後に直接作業を依頼できます",
+      "unavailableFailed": "チームが失敗状態の間は直接作業を依頼できません",
       "returnToWork": "作業を再開",
       "returning": "再開しています…",
+      "stopping": "停止しています…",
       "loadFailed": "介入状態を読み込めませんでした",
+      "actionFailed": "直接作業の操作に失敗しました。もう一度お試しください。",
       "busyShort": "ユーザーチャット",
-      "teammateBusy": "この teammate は直接ユーザーチャット中です"
+      "teammateBusy": "この teammate は直接ユーザーチャット中です",
+      "activity": {
+        "yielding": "正式作業を安全に引き渡しています…",
+        "user_intervention": "正式作業の再開待ち",
+        "side_quest": "{{count}} 件の直接ターンが実行中または待機中",
+        "yield_timeout": "安全な引き渡しを引き続き待っています",
+        "returned": "正式作業に戻りました"
+      },
+      "outcome": {
+        "restoredTask": "元のタスクを再開しました",
+        "clearedPaused": "直接作業は終了しました。チームの正式作業は一時停止中です",
+        "clearedIdle": "直接作業は終了しました。再開する正式タスクはありません",
+        "noLongerNeeded": "元の作業は終了したか再割り当てされました",
+        "alreadyApplied": "この復帰はすでに適用されています"
+      }
     },
     "timeline": {
       "askUser": "ユーザーに質問",

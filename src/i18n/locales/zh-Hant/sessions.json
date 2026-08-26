@@ -2460,6 +2460,7 @@
       "tasks": "任務",
       "doneOf": "{{done}} / {{total}} 已完成",
       "members": "成員",
+      "directActivity": "成員的直接工作",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
       "unreadCount": "{{count}} unread",
@@ -2515,11 +2516,34 @@
     "agentOrgIntervention": {
       "title": "正在與 {{member}} 對話",
       "description": "Inbox 訊息和新工作已暫停，直到恢復工作",
+      "directTitle": "直接交給 {{member}} 工作",
+      "writerBadge": "可改任務圖",
+      "directNotice": "直接工作預設不會進入任務看板；只有獲准的任務圖工具會改動看板",
+      "directPaused": "可以處理直接支線工作；團隊的正式工作仍保持暫停",
+      "directUnknown": "直接工作意外結束；返回前請先檢查可能已發生的副作用",
+      "unavailableStarting": "團隊啟動完成後才能直接交付工作",
+      "unavailableFailed": "團隊處於失敗狀態，暫時不能直接交付工作",
       "returnToWork": "恢復工作",
       "returning": "正在恢復…",
+      "stopping": "正在停止…",
       "loadFailed": "干預狀態載入失敗",
+      "actionFailed": "直接工作操作失敗，請重試。",
       "busyShort": "使用者聊天",
-      "teammateBusy": "此 teammate 正在直接使用者聊天"
+      "teammateBusy": "此 teammate 正在直接使用者聊天",
+      "activity": {
+        "yielding": "正在安全讓出正式工作…",
+        "user_intervention": "等待你恢復正式工作",
+        "side_quest": "{{count}} 個直接回合正在執行或排隊",
+        "yield_timeout": "仍在等待安全交接",
+        "returned": "已返回正式工作"
+      },
+      "outcome": {
+        "restoredTask": "原任務已恢復",
+        "clearedPaused": "直接工作已結束；團隊正式工作仍暫停",
+        "clearedIdle": "直接工作已結束；沒有正式任務需要恢復",
+        "noLongerNeeded": "原工作已結束或改派",
+        "alreadyApplied": "這次返回已處理"
+      }
     },
     "timeline": {
       "askUser": "詢問用戶",

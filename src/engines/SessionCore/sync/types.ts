@@ -166,6 +166,8 @@ export interface AdapterSendInput {
   turnIntentSource: TurnIntentSource;
   /** True only for a real user-authored prompt (not resume/wake/continuation). */
   directUserIntent?: boolean;
+  /** Exact persisted EventStore user event authorizing Member direct work. */
+  agentOrgDirectSourceEventId?: string;
   /**
    * When `true`, this is a user-initiated Resume after a failed turn.
    * The backend runs deletion-based orphan tool-use filter instead of

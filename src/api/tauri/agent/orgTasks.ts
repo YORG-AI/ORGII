@@ -39,16 +39,37 @@ export function agentOrgTaskStatusSatisfiesDependency(
 }
 
 export interface AgentOrgMemberIntervention {
+  interventionReceiptId: string;
   orgRunId: string;
   memberId: string;
   agentId: string;
   sessionId: string;
-  status: "user_intervention";
-  reason?: string | null;
+  status: "yield_requested" | "active" | "return_requested";
+  sourceEventId: string;
+  originalTaskId?: string | null;
+  originalTurnIntentId?: string | null;
+  queuedUserDirectedCount: number;
   enteredAt: string;
   lastUserActivityAt: string;
-  resumeAfter: string;
+  yieldRequestedAt?: string | null;
+  yieldReleasedAt?: string | null;
+  yieldTimedOutAt?: string | null;
+  failureReason?: string | null;
   clearedAt?: string | null;
+}
+
+export type ReturnToWorkOutcome =
+  | "restored_task"
+  | "cleared_paused"
+  | "cleared_idle"
+  | "no_longer_needed"
+  | "already_applied";
+
+export interface ReturnToWorkResult {
+  outcome: ReturnToWorkOutcome;
+  interventionReceiptId: string;
+  requestId: string;
+  continuationTurnIntentId?: string | null;
 }
 
 export interface AgentOrgOwnerRuntime {
@@ -92,6 +113,7 @@ export interface AgentOrgRunMemberView {
   role: string;
   agentId: string;
   isCoordinator: boolean;
+  writerCapable: boolean;
   sessionRuntime?: AgentOrgOwnerRuntime | null;
   unreadInboxCount: number;
   inboxActivityCount: number;
@@ -99,6 +121,18 @@ export interface AgentOrgRunMemberView {
   pendingTaskCount: number;
   inProgressTaskCount: number;
   completedTaskCount: number;
+  queuedUserDirectedCount: number;
+  activity?: {
+    kind:
+      | "yielding"
+      | "user_intervention"
+      | "side_quest"
+      | "yield_timeout"
+      | "returned";
+    source: "direct_member";
+    interventionReceiptId: string;
+    clearedRevision?: number | null;
+  } | null;
   intervention?: AgentOrgMemberIntervention | null;
 }
 
@@ -260,15 +294,6 @@ export interface AgentOrgPlanApproval {
   feedback?: string | null;
   createdAt: string;
   resolvedAt?: string | null;
-}
-
-export interface AgentOrgDirectMemberMessageResponse {
-  memberSessionId: string;
-  response: {
-    content: string;
-    sessionId: string;
-    model: string;
-  };
 }
 
 export interface AgentOrgGroupChatMessageResponse {
@@ -515,30 +540,21 @@ export async function respondAgentOrgPlanApproval(input: {
   });
 }
 
-export async function enterAgentOrgSessionIntervention(
-  sessionId: string
-): Promise<boolean> {
-  const changed = await invokeTauri<boolean>(
-    "agent_org_session_enter_intervention",
-    {
-      sessionId,
-    }
-  );
-  if (changed) publishAgentOrgStateChange(sessionId);
-  return changed;
-}
-
 export async function returnAgentOrgSessionToWork(
-  sessionId: string
-): Promise<boolean> {
-  const changed = await invokeTauri<boolean>(
+  sessionId: string,
+  interventionReceiptId: string,
+  requestId: string
+): Promise<ReturnToWorkResult> {
+  const result = await invokeTauri<ReturnToWorkResult>(
     "agent_org_session_return_to_work",
     {
       sessionId,
+      interventionReceiptId,
+      requestId,
     }
   );
-  if (changed) publishAgentOrgStateChange(sessionId);
-  return changed;
+  publishAgentOrgStateChange(sessionId);
+  return result;
 }
 
 export async function sendAgentOrgGroupChatMessage(
@@ -554,23 +570,6 @@ export async function sendAgentOrgGroupChatMessage(
       targetMemberId,
       content,
       displayText: displayText ?? null,
-    }
-  );
-  publishAgentOrgStateChange(sessionId);
-  return response;
-}
-
-export async function sendAgentOrgUserMessageToMember(
-  sessionId: string,
-  memberId: string,
-  content: string
-): Promise<AgentOrgDirectMemberMessageResponse> {
-  const response = await invokeTauri<AgentOrgDirectMemberMessageResponse>(
-    "agent_org_send_user_message_to_member",
-    {
-      sessionId,
-      memberId,
-      content,
     }
   );
   publishAgentOrgStateChange(sessionId);

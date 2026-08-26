@@ -2443,6 +2443,7 @@
       "tasks": "Aufgaben",
       "doneOf": "{{done}} / {{total}} erledigt",
       "members": "Mitglieder",
+      "directActivity": "Direkte Mitgliederaktivität",
       "activeOf": "{{active}} / {{total}} aktiv",
       "inbox": "Inbox",
       "unreadCount": "{{count}} ungelesen",
@@ -2498,11 +2499,34 @@
     "agentOrgIntervention": {
       "title": "Chat mit {{member}}",
       "description": "Inbox-Nachrichten und neue Aufgaben sind pausiert, bis die Arbeit fortgesetzt wird",
+      "directTitle": "Direkte Arbeit mit {{member}}",
+      "writerBadge": "Writer",
+      "directNotice": "Direkte Arbeit bleibt außerhalb des Task-Boards, außer ein erlaubtes Graph-Werkzeug wird verwendet",
+      "directPaused": "Direkte Nebenarbeit ist möglich; die formale Teamarbeit bleibt pausiert",
+      "directUnknown": "Die direkte Arbeit endete unerwartet; prüfen Sie mögliche Nebenwirkungen vor der Rückkehr",
+      "unavailableStarting": "Direkte Arbeit ist nach dem Teamstart verfügbar",
+      "unavailableFailed": "Direkte Arbeit ist im Fehlerstatus des Teams nicht verfügbar",
       "returnToWork": "Arbeit fortsetzen",
       "returning": "Wird fortgesetzt…",
+      "stopping": "Wird gestoppt…",
       "loadFailed": "Interventionsstatus konnte nicht geladen werden",
+      "actionFailed": "Die direkte Arbeitsaktion ist fehlgeschlagen. Bitte erneut versuchen.",
       "busyShort": "Nutzerchat",
-      "teammateBusy": "Dieser teammate ist im direkten Nutzerchat"
+      "teammateBusy": "Dieser teammate ist im direkten Nutzerchat",
+      "activity": {
+        "yielding": "Formale Arbeit wird sicher übergeben…",
+        "user_intervention": "Wartet auf Fortsetzung der formalen Arbeit",
+        "side_quest": "{{count}} direkter Turn läuft oder wartet",
+        "yield_timeout": "Wartet weiter auf eine sichere Übergabe",
+        "returned": "Zur formalen Arbeit zurückgekehrt"
+      },
+      "outcome": {
+        "restoredTask": "Die ursprüngliche Aufgabe wurde fortgesetzt",
+        "clearedPaused": "Direkte Arbeit beendet; formale Teamarbeit bleibt pausiert",
+        "clearedIdle": "Direkte Arbeit beendet; keine formale Aufgabe fortzusetzen",
+        "noLongerNeeded": "Die ursprüngliche Arbeit endete oder wurde neu zugewiesen",
+        "alreadyApplied": "Diese Rückkehr wurde bereits angewendet"
+      }
     },
     "timeline": {
       "askUser": "Benutzer fragen",

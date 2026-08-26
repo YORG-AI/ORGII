@@ -17,7 +17,7 @@ export function buildRustAgentSendMessageArgs(
     clientMessageId,
     turnIntentId,
     turnIntentSource,
-    directUserIntent,
+    agentOrgDirectSourceEventId,
     sessionRepoPath,
   } = input;
   const workspacePath = sessionRepoPath ?? undefined;
@@ -37,7 +37,7 @@ export function buildRustAgentSendMessageArgs(
     ...(isResume ? { isResume: true } : {}),
     ...(clientMessageId ? { clientMessageId } : {}),
     ...(turnIntentId ? { turnIntentId } : {}),
-    ...(directUserIntent ? { markDirectUserIntervention: true } : {}),
+    ...(agentOrgDirectSourceEventId ? { agentOrgDirectSourceEventId } : {}),
     turnIntentSource,
   };
 }

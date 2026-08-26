@@ -47,6 +47,40 @@ interface UseAgentOrgGroupChatControllerOptions {
   refreshAgentOrgRunView: () => Promise<void>;
 }
 
+export function isDirectAgentOrgMemberView(
+  currentAgentOrgMember: AgentOrgRunMemberView | null
+): boolean {
+  return currentAgentOrgMember !== null && !currentAgentOrgMember.isCoordinator;
+}
+
+export function shouldRouteAgentOrgGroupChatSubmit(
+  groupChatViewActive: boolean,
+  directMemberView: boolean,
+  displayText: string
+): boolean {
+  // A canonical non-coordinator Member page is the sole PR8 direct-work
+  // source. A stale root Group Chat selection must never capture its input,
+  // including text beginning with "@"; member/group fan-out belongs to PR9.
+  if (directMemberView) return false;
+  return groupChatViewActive || displayText.trim().startsWith("@");
+}
+
+export function shouldBlockPausedAgentOrgGroupChatSubmit(
+  runStatus: AgentOrgRunView["runStatus"],
+  groupChatViewActive: boolean,
+  directMemberView: boolean,
+  displayText: string
+): boolean {
+  return (
+    runStatus === AGENT_ORG_RUN_STATUS.PAUSED &&
+    shouldRouteAgentOrgGroupChatSubmit(
+      groupChatViewActive,
+      directMemberView,
+      displayText
+    )
+  );
+}
+
 function timestampMs(value: string | null | undefined): number | null {
   if (!value) return null;
   const ms = new Date(value).getTime();
@@ -109,7 +143,9 @@ export function useAgentOrgGroupChatController({
     setGroupChatPendingMessage(null);
   }, [sessionId]);
 
-  const groupChatViewActive = groupChatViewSessionId === sessionId;
+  const directMemberView = isDirectAgentOrgMemberView(currentAgentOrgMember);
+  const groupChatViewActive =
+    groupChatViewSessionId === sessionId && !directMemberView;
   const agentOrgInteractionSessionId =
     currentAgentOrgMember?.sessionRuntime?.sessionId ?? sessionId;
   const queueSessionId = groupChatViewActive
@@ -281,14 +317,27 @@ export function useAgentOrgGroupChatController({
   const handleGroupChatSubmitOverride = useCallback(
     async (input: SubmitOverrideInput): Promise<boolean> => {
       if (!agentOrgRunView) return false;
-      if (agentOrgRunView.runStatus === AGENT_ORG_RUN_STATUS.PAUSED) {
+      if (
+        shouldBlockPausedAgentOrgGroupChatSubmit(
+          agentOrgRunView.runStatus,
+          groupChatViewActive,
+          directMemberView,
+          input.displayText
+        )
+      ) {
         throw new Error("Resume this Agent Team before sending a message");
       }
       // Route on the DISPLAY copy: the `@member` header is what the user
       // typed and what the transcript renders. The agent copy may have been
       // rewritten by an interceptor (canvas contract) and must only feed the
       // member-inbox body — resolveGroupChatOutgoing owns that split.
-      if (!groupChatViewActive && !input.displayText.trim().startsWith("@")) {
+      if (
+        !shouldRouteAgentOrgGroupChatSubmit(
+          groupChatViewActive,
+          directMemberView,
+          input.displayText
+        )
+      ) {
         return false;
       }
       let route: GroupChatOutgoing;
@@ -360,7 +409,13 @@ export function useAgentOrgGroupChatController({
       }
       return true;
     },
-    [agentOrgRunView, groupChatViewActive, refreshAgentOrgRunView, sessionId]
+    [
+      agentOrgRunView,
+      directMemberView,
+      groupChatViewActive,
+      refreshAgentOrgRunView,
+      sessionId,
+    ]
   );
 
   return {

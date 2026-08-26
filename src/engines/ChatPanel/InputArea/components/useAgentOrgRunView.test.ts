@@ -49,6 +49,7 @@ function runView(): AgentOrgRunView {
         role: "worker",
         agentId: "alice",
         isCoordinator: false,
+        writerCapable: false,
         sessionRuntime: {
           sessionId: "alice-session",
           status: "idle",
@@ -60,6 +61,7 @@ function runView(): AgentOrgRunView {
         pendingTaskCount: 0,
         inProgressTaskCount: 0,
         completedTaskCount: 0,
+        queuedUserDirectedCount: 0,
       },
       {
         memberId: "m2",
@@ -67,6 +69,7 @@ function runView(): AgentOrgRunView {
         role: "worker",
         agentId: "bob",
         isCoordinator: false,
+        writerCapable: false,
         sessionRuntime: {
           sessionId: "bob-session",
           status: "idle",
@@ -78,6 +81,7 @@ function runView(): AgentOrgRunView {
         pendingTaskCount: 0,
         inProgressTaskCount: 0,
         completedTaskCount: 0,
+        queuedUserDirectedCount: 0,
       },
     ],
     tasks: [],

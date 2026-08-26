@@ -2446,6 +2446,7 @@
       "tasks": "Görevler",
       "doneOf": "{{done}} / {{total}} tamamlandı",
       "members": "Üyeler",
+      "directActivity": "Doğrudan üye çalışması",
       "activeOf": "{{active}} / {{total}} aktif",
       "inbox": "Inbox",
       "unreadCount": "{{count}} okunmadı",
@@ -2501,11 +2502,34 @@
     "agentOrgIntervention": {
       "title": "{{member}} ile sohbet ediliyor",
       "description": "Inbox mesajları ve yeni görevler iş devam edene kadar duraklatılır",
+      "directTitle": "{{member}} ile doğrudan çalışma",
+      "writerBadge": "Writer",
+      "directNotice": "İzin verilen bir grafik aracı kullanılmadıkça doğrudan çalışma görev panosuna girmez",
+      "directPaused": "Doğrudan yan çalışma kullanılabilir; resmi ekip işi duraklatılmış kalır",
+      "directUnknown": "Doğrudan çalışma beklenmedik şekilde sona erdi; dönmeden önce olası yan etkileri kontrol edin",
+      "unavailableStarting": "Doğrudan çalışma ekip başlatıldıktan sonra kullanılabilir",
+      "unavailableFailed": "Ekip hata durumundayken doğrudan çalışma kullanılamaz",
       "returnToWork": "İşe devam et",
       "returning": "Devam ediliyor…",
+      "stopping": "Durduruluyor…",
       "loadFailed": "Müdahale durumu yüklenemedi",
+      "actionFailed": "Doğrudan çalışma işlemi başarısız oldu. Yeniden deneyin.",
       "busyShort": "Kullanıcı sohbeti",
-      "teammateBusy": "Bu teammate doğrudan kullanıcı sohbetinde"
+      "teammateBusy": "Bu teammate doğrudan kullanıcı sohbetinde",
+      "activity": {
+        "yielding": "Resmi iş güvenle devrediliyor…",
+        "user_intervention": "Resmi işe dönmenizi bekliyor",
+        "side_quest": "{{count}} doğrudan tur çalışıyor veya sırada",
+        "yield_timeout": "Güvenli devir hâlâ bekleniyor",
+        "returned": "Resmi işe dönüldü"
+      },
+      "outcome": {
+        "restoredTask": "Özgün görev devam etti",
+        "clearedPaused": "Doğrudan iş bitti; resmi ekip işi hâlâ duraklatılmış",
+        "clearedIdle": "Doğrudan iş bitti; devam edecek resmi görev yok",
+        "noLongerNeeded": "Özgün iş bitti veya yeniden atandı",
+        "alreadyApplied": "Bu dönüş zaten uygulandı"
+      }
     },
     "timeline": {
       "askUser": "Kullanıcıya sor",

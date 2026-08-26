@@ -3,23 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sendCliMessage } from "../cliTransport";
 
 const mocks = vi.hoisted(() => ({
-  enterIntervention: vi.fn(),
   message: vi.fn(),
   registerReceipt: vi.fn(),
-  warn: vi.fn(),
 }));
 
-vi.mock("@src/api/tauri/agent", () => ({
-  enterAgentOrgSessionIntervention: mocks.enterIntervention,
-}));
 vi.mock("@src/api/tauri/rpc", () => ({
   rpc: { cli: { message: mocks.message, cancel: vi.fn() } },
 }));
 vi.mock("@src/hooks/cliSession/cliTurnLifecycleCoordinator", () => ({
   cliTurnLifecycleCoordinator: { registerReceipt: mocks.registerReceipt },
-}));
-vi.mock("@src/hooks/logger", () => ({
-  createLogger: () => ({ warn: mocks.warn }),
 }));
 
 describe("sendCliMessage acceptance boundary", () => {
@@ -30,7 +22,6 @@ describe("sendCliMessage acceptance boundary", () => {
       turnIntentId: "intent-1",
       status: "running",
     });
-    mocks.enterIntervention.mockReturnValue(new Promise(() => undefined));
   });
 
   it("resolves from the receipt without status or history reconciliation", async () => {
@@ -58,7 +49,6 @@ describe("sendCliMessage acceptance boundary", () => {
       turnIntentId: "intent-1",
       status: "running",
     });
-    expect(mocks.enterIntervention).toHaveBeenCalledWith("cliagent-worker");
   });
 
   it("rejects only when the backend command rejects", async () => {
@@ -75,6 +65,20 @@ describe("sendCliMessage acceptance boundary", () => {
     ).rejects.toThrow("ipc unavailable");
 
     expect(mocks.registerReceipt).not.toHaveBeenCalled();
-    expect(mocks.enterIntervention).not.toHaveBeenCalled();
+  });
+
+  it("rejects Agent Org direct source before invoking a CLI provider", async () => {
+    await expect(
+      sendCliMessage({
+        sessionId: "cliagent-worker",
+        content: "direct work",
+        turnIntentSource: "user_submit",
+        directUserIntent: true,
+        agentOrgDirectSourceEventId: "event-direct-member",
+      })
+    ).rejects.toThrow("user_directed_target_invalid");
+
+    expect(mocks.message).not.toHaveBeenCalled();
+    expect(mocks.registerReceipt).not.toHaveBeenCalled();
   });
 });

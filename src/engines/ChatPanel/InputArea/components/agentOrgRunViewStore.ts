@@ -48,10 +48,6 @@ const inFlightByRunOrSession = new Map<string, Promise<void>>();
 const latestRequestIdByRun = new Map<string, number>();
 const refreshAfterInFlight = new Set<string>();
 const pushDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const interventionExpiryTimers = new Map<
-  string,
-  ReturnType<typeof setTimeout>
->();
 let nextRequestId = 0;
 let activeSubscriberCount = 0;
 let bootstrapOwner: RunViewEntry | null = null;
@@ -215,7 +211,6 @@ function publishEntry(
 }
 
 function publishRunView(view: AgentOrgRunView, requestId: number): void {
-  scheduleInterventionExpiryRefresh(view);
   for (const entry of entriesBySessionId.values()) {
     if (
       !runViewContainsSession(view, entry.sessionId) &&
@@ -267,30 +262,6 @@ function publishMissingRun(
     publishEntry(related, null, null, requestId);
   }
   return null;
-}
-
-function scheduleInterventionExpiryRefresh(view: AgentOrgRunView): void {
-  const runId = view.context.runId;
-  const existing = interventionExpiryTimers.get(runId);
-  if (existing) clearTimeout(existing);
-  interventionExpiryTimers.delete(runId);
-
-  const now = Date.now();
-  const nextExpiry = view.members.reduce<number | null>((soonest, member) => {
-    const intervention =
-      member.intervention ?? member.sessionRuntime?.intervention ?? null;
-    if (!intervention) return soonest;
-    const expiresAt = Date.parse(intervention.resumeAfter);
-    if (!Number.isFinite(expiresAt) || expiresAt <= now) return soonest;
-    return soonest === null ? expiresAt : Math.min(soonest, expiresAt);
-  }, null);
-  if (nextExpiry === null) return;
-
-  const timer = setTimeout(() => {
-    interventionExpiryTimers.delete(runId);
-    scheduleRunRefresh(runId);
-  }, nextExpiry - now);
-  interventionExpiryTimers.set(runId, timer);
 }
 
 function requestKey(entry: RunViewEntry): string {
@@ -429,6 +400,22 @@ function refreshAgentOrgRunViewInternal(
 
 export function refreshAgentOrgRunView(sessionId: string): Promise<void> {
   return refreshAgentOrgRunViewInternal(sessionId, true);
+}
+
+/**
+ * Reconcile a mounted Agent Org projection after the native Session lifecycle
+ * reports a status change. Ordinary SDE Sessions never have a covering entry,
+ * so this performs no IPC for them. This event-driven read is what lets an
+ * Idle or Paused Member expose Return immediately after its direct Turn ends
+ * even when the optional code-editor websocket is unavailable.
+ */
+export function refreshAgentOrgRunViewForChangedSession(
+  sessionId: string
+): void {
+  const entry =
+    entriesBySessionId.get(sessionId) ?? findEntryCoveringSession(sessionId);
+  if (!entry?.snapshot.view || entry.subscribers.size === 0) return;
+  scheduleRunRefresh(entry.snapshot.view.context.runId);
 }
 
 function scheduleRunRefresh(runId: string): void {
@@ -573,7 +560,6 @@ function startScheduler(): void {
     const view = entry.snapshot.view;
     if (!view || scheduledRuns.has(view.context.runId)) continue;
     scheduledRuns.add(view.context.runId);
-    scheduleInterventionExpiryRefresh(view);
   }
   reconcilePollingTimer();
 }
@@ -593,8 +579,6 @@ function stopScheduler(): void {
   unsubscribeWebsocketConnected = undefined;
   for (const timer of pushDebounceTimers.values()) clearTimeout(timer);
   pushDebounceTimers.clear();
-  for (const timer of interventionExpiryTimers.values()) clearTimeout(timer);
-  interventionExpiryTimers.clear();
   if (typeof document !== "undefined" && visibilityListenerInstalled) {
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     visibilityListenerInstalled = false;
@@ -644,6 +628,7 @@ export const agentOrgRunViewStoreTestApi = {
   subscribe: subscribeAgentOrgRunView,
   getSnapshot: getAgentOrgRunViewSnapshot,
   refresh: refreshAgentOrgRunView,
+  refreshForChangedSession: refreshAgentOrgRunViewForChangedSession,
   hasEntry(sessionId: string): boolean {
     return entriesBySessionId.has(sessionId);
   },

@@ -2469,6 +2469,7 @@
       "tasks": "Tarefas",
       "doneOf": "{{done}} / {{total}} concluídas",
       "members": "Membros",
+      "directActivity": "Atividade direta dos membros",
       "activeOf": "{{active}} / {{total}} ativos",
       "inbox": "Inbox",
       "unreadCount": "{{count}} não lidos",
@@ -2524,11 +2525,34 @@
     "agentOrgIntervention": {
       "title": "Conversando com {{member}}",
       "description": "Mensagens do Inbox e novo trabalho estão pausados até o trabalho ser retomado",
+      "directTitle": "Trabalho direto com {{member}}",
+      "writerBadge": "Writer",
+      "directNotice": "O trabalho direto fica fora do quadro de tarefas, exceto quando uma ferramenta de grafo permitida é usada",
+      "directPaused": "O trabalho direto paralelo está disponível; o trabalho formal da equipe continua pausado",
+      "directUnknown": "O trabalho direto terminou inesperadamente; revise possíveis efeitos antes de retornar",
+      "unavailableStarting": "O trabalho direto estará disponível após a equipe iniciar",
+      "unavailableFailed": "O trabalho direto não está disponível enquanto a equipe está com falha",
       "returnToWork": "Retomar trabalho",
       "returning": "Retomando…",
+      "stopping": "Parando…",
       "loadFailed": "Falha ao carregar estado de intervenção",
+      "actionFailed": "A ação de trabalho direto falhou. Tente novamente.",
       "busyShort": "Chat usuário",
-      "teammateBusy": "Este teammate está em chat direto com usuário"
+      "teammateBusy": "Este teammate está em chat direto com usuário",
+      "activity": {
+        "yielding": "Cedendo o trabalho formal com segurança…",
+        "user_intervention": "Aguardando você retomar o trabalho formal",
+        "side_quest": "{{count}} turno direto em andamento ou na fila",
+        "yield_timeout": "Ainda aguardando uma transição segura",
+        "returned": "Retornou ao trabalho formal"
+      },
+      "outcome": {
+        "restoredTask": "A tarefa original foi retomada",
+        "clearedPaused": "O trabalho direto terminou; a equipe continua pausada",
+        "clearedIdle": "O trabalho direto terminou; não há tarefa formal para retomar",
+        "noLongerNeeded": "O trabalho original terminou ou foi reatribuído",
+        "alreadyApplied": "Este retorno já foi aplicado"
+      }
     },
     "timeline": {
       "askUser": "Perguntar ao usuário",

@@ -21,6 +21,7 @@ const PLANNER_MEMBER: AgentOrgRunMemberView = {
   role: "Planner",
   agentId: "builtin:sde",
   isCoordinator: false,
+  writerCapable: false,
   sessionRuntime: {
     sessionId: MEMBER_SESSION_ID,
     status: "idle",
@@ -32,6 +33,7 @@ const PLANNER_MEMBER: AgentOrgRunMemberView = {
   pendingTaskCount: 0,
   inProgressTaskCount: 0,
   completedTaskCount: 0,
+  queuedUserDirectedCount: 0,
 };
 
 const ORG_MEMBERS: ReadonlyArray<AgentOrgRunMemberView> = [PLANNER_MEMBER];
