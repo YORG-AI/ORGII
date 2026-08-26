@@ -435,6 +435,7 @@ async fn enqueue_continuation(
         None,
         None,
         false,
+        None,
         false,
         None,
         None,

@@ -17,7 +17,7 @@ use crate::coordination::agent_inbox::{
     AgentInboxUnreadRecipientCounts, AgentMessage, SYSTEM_SENDER_ID, USER_SENDER_ID,
 };
 use crate::coordination::agent_member_interventions::{
-    AgentMemberInterventionRecord, AgentMemberInterventionStore,
+    AgentMemberInterventionRecord, AgentMemberInterventionStore, MemberInterventionStatus,
 };
 use crate::coordination::agent_org_plan_approvals::{
     AgentOrgPlanApprovalStore, AgentOrgPlanApprovalSummary,
@@ -62,6 +62,7 @@ pub struct AgentOrgRunMemberView {
     pub role: String,
     pub agent_id: String,
     pub is_coordinator: bool,
+    pub writer_capable: bool,
     pub session_runtime: Option<WorkerSessionRuntime>,
     pub unread_inbox_count: usize,
     pub inbox_activity_count: usize,
@@ -69,8 +70,31 @@ pub struct AgentOrgRunMemberView {
     pub pending_task_count: usize,
     pub in_progress_task_count: usize,
     pub completed_task_count: usize,
+    pub queued_user_directed_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activity: Option<AgentOrgMemberActivity>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intervention: Option<AgentMemberInterventionRecord>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOrgMemberActivityKind {
+    Yielding,
+    UserIntervention,
+    SideQuest,
+    YieldTimeout,
+    Returned,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgMemberActivity {
+    pub kind: AgentOrgMemberActivityKind,
+    pub source: &'static str,
+    pub intervention_receipt_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleared_revision: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -282,6 +306,11 @@ pub(super) fn build_agent_org_run_view(
             .into_iter()
             .map(|record| (record.member_id.clone(), record))
             .collect();
+    let latest_returned: HashMap<String, AgentMemberInterventionRecord> =
+        AgentMemberInterventionStore::list_latest_returned_with_connection(&tx, &context.run_id)?
+            .into_iter()
+            .map(|record| (record.member_id.clone(), record))
+            .collect();
 
     let coordinator_runtime =
         AgentOrgRunStore::find_coordinator_session_by_member_id_with_connection(
@@ -309,14 +338,19 @@ pub(super) fn build_agent_org_run_view(
         &member_task_counts,
         &inbox_counts,
         &active_interventions,
+        &latest_returned,
     )?);
     for member in &context.members {
         members.push(member_view(
             member,
+            context
+                .capability_index
+                .is_additional_writer(&member.member_id),
             member_runtimes.get(&member.member_id).cloned(),
             &member_task_counts,
             &inbox_counts,
             &active_interventions,
+            &latest_returned,
         )?);
     }
 
@@ -656,6 +690,7 @@ fn coordinator_member_view(
     task_counts: &HashMap<String, MemberTaskCounts>,
     inbox_counts: &[AgentInboxRecipientCounts],
     active_interventions: &HashMap<String, AgentMemberInterventionRecord>,
+    latest_returned: &HashMap<String, AgentMemberInterventionRecord>,
 ) -> Result<AgentOrgRunMemberView, String> {
     member_view_from_parts(
         AgentOrgMemberViewIdentity {
@@ -664,20 +699,24 @@ fn coordinator_member_view(
             role: context.coordinator_role.clone(),
             agent_id: context.coordinator_agent_id.clone(),
             is_coordinator: true,
+            writer_capable: true,
         },
         runtime,
         task_counts,
         inbox_counts,
         active_interventions,
+        latest_returned,
     )
 }
 
 fn member_view(
     member: &AgentOrgContextMember,
+    writer_capable: bool,
     runtime: Option<WorkerSessionRuntime>,
     task_counts: &HashMap<String, MemberTaskCounts>,
     inbox_counts: &[AgentInboxRecipientCounts],
     active_interventions: &HashMap<String, AgentMemberInterventionRecord>,
+    latest_returned: &HashMap<String, AgentMemberInterventionRecord>,
 ) -> Result<AgentOrgRunMemberView, String> {
     member_view_from_parts(
         AgentOrgMemberViewIdentity {
@@ -686,11 +725,13 @@ fn member_view(
             role: member.role.clone(),
             agent_id: member.agent_id.clone(),
             is_coordinator: false,
+            writer_capable,
         },
         runtime,
         task_counts,
         inbox_counts,
         active_interventions,
+        latest_returned,
     )
 }
 
@@ -700,6 +741,7 @@ struct AgentOrgMemberViewIdentity {
     role: String,
     agent_id: String,
     is_coordinator: bool,
+    writer_capable: bool,
 }
 
 fn member_view_from_parts(
@@ -708,6 +750,7 @@ fn member_view_from_parts(
     task_counts: &HashMap<String, MemberTaskCounts>,
     inbox_counts: &[AgentInboxRecipientCounts],
     active_interventions: &HashMap<String, AgentMemberInterventionRecord>,
+    latest_returned: &HashMap<String, AgentMemberInterventionRecord>,
 ) -> Result<AgentOrgRunMemberView, String> {
     let AgentOrgMemberViewIdentity {
         member_id,
@@ -715,7 +758,11 @@ fn member_view_from_parts(
         role,
         agent_id,
         is_coordinator,
+        mut writer_capable,
     } = identity;
+    // The coordinator is always a writer. Additional writer capability is
+    // filled by the caller below from the immutable Run context.
+    writer_capable |= is_coordinator;
     let (inbox_activity_count, unread_inbox_count) = inbox_counts
         .iter()
         // member_id is the only canonical Agent Org identity. A legacy row
@@ -745,6 +792,32 @@ fn member_view_from_parts(
         Some(record) => Some(record),
         None => active_interventions.get(&member_id).cloned(),
     };
+    let activity_record = intervention
+        .as_ref()
+        .or_else(|| latest_returned.get(&member_id));
+    let activity = activity_record.map(|record| AgentOrgMemberActivity {
+        kind: match record.status {
+            MemberInterventionStatus::YieldRequested if record.yield_timed_out_at.is_some() => {
+                AgentOrgMemberActivityKind::YieldTimeout
+            }
+            MemberInterventionStatus::YieldRequested => AgentOrgMemberActivityKind::Yielding,
+            MemberInterventionStatus::Active if record.queued_user_directed_count > 0 => {
+                AgentOrgMemberActivityKind::SideQuest
+            }
+            MemberInterventionStatus::Active | MemberInterventionStatus::ReturnRequested => {
+                AgentOrgMemberActivityKind::UserIntervention
+            }
+            MemberInterventionStatus::Cleared => AgentOrgMemberActivityKind::Returned,
+            MemberInterventionStatus::Failed => AgentOrgMemberActivityKind::UserIntervention,
+        },
+        source: "direct_member",
+        intervention_receipt_id: record.intervention_receipt_id.clone(),
+        cleared_revision: record.cleared_revision,
+    });
+    let queued_user_directed_count = intervention
+        .as_ref()
+        .map(|record| record.queued_user_directed_count)
+        .unwrap_or(0);
 
     Ok(AgentOrgRunMemberView {
         member_id,
@@ -752,6 +825,7 @@ fn member_view_from_parts(
         role,
         agent_id,
         is_coordinator,
+        writer_capable,
         session_runtime,
         unread_inbox_count,
         inbox_activity_count,
@@ -759,6 +833,8 @@ fn member_view_from_parts(
         pending_task_count,
         in_progress_task_count,
         completed_task_count,
+        queued_user_directed_count,
+        activity,
         intervention,
     })
 }

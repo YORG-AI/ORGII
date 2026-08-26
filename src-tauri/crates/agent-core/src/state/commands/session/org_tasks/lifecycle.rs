@@ -14,11 +14,13 @@ use crate::coordination::agent_org_runs::{AgentOrgRunContext, COORDINATOR_MEMBER
 use crate::foundation::session_bridge::TurnIntentBridgeSource;
 use crate::state::commands::session::identity::IdentityOverrides;
 use crate::state::control_flow::CancelReason;
+use crate::state::session_runtime::RuntimeTurnIdentity;
 use crate::state::{AgentAppState, AgentSession};
 
 use super::context::session_org_read_context;
 
 const DRAIN_DEADLINE: Duration = Duration::from_secs(10);
+const USER_DIRECTED_YIELD_SLO: Duration = Duration::from_secs(5);
 const DRAIN_OBSERVATION_INTERVAL: Duration = Duration::from_millis(100);
 const CONTINUATION_DISPATCH_LIMIT: usize = 256;
 const ARCHIVE_ROUND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -729,6 +731,229 @@ pub(crate) async fn settle_pause_handoff_after_turn(
     schedule_ready_continuations(state.clone());
 }
 
+/// Release the exact formal runtime lease captured by a direct-user
+/// intervention. This runs at the formal Turn boundary before the queued UDW
+/// starts, so the same scheduler worker may initialize one replacement lease;
+/// no parallel runtime or dispatcher is introduced.
+pub(crate) fn schedule_user_directed_yield_timeout_observer(receipt_id: String) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(USER_DIRECTED_YIELD_SLO).await;
+        let slo_receipt_id = receipt_id.clone();
+        let still_waiting = tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_member_interventions::AgentMemberInterventionStore::get_by_receipt(
+                &slo_receipt_id,
+            )
+            .map(|receipt| {
+                receipt.is_some_and(|receipt| {
+                    receipt.status
+                        == crate::coordination::agent_member_interventions::MemberInterventionStatus::YieldRequested
+                })
+            })
+        })
+        .await;
+        match still_waiting {
+            Ok(Ok(true)) => tracing::warn!(
+                intervention_receipt_id = %receipt_id,
+                event = "agent_org_user_directed_yield_slo_exceeded",
+                "UserDirectedWork handoff exceeded the five-second yield SLO"
+            ),
+            Ok(Ok(false)) => return,
+            Ok(Err(error)) => {
+                tracing::warn!(
+                    intervention_receipt_id = %receipt_id,
+                    error = %error,
+                    "failed to inspect UserDirectedWork yield SLO"
+                );
+                return;
+            }
+            Err(error) => {
+                tracing::warn!(
+                    intervention_receipt_id = %receipt_id,
+                    error = %error,
+                    "UserDirectedWork yield SLO observer failed"
+                );
+                return;
+            }
+        }
+
+        tokio::time::sleep(USER_DIRECTED_YIELD_SLO).await;
+        let timeout_receipt_id = receipt_id.clone();
+        match tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_member_interventions::AgentMemberInterventionStore::mark_yield_timeout(
+                &timeout_receipt_id,
+            )
+        })
+        .await
+        {
+            Ok(Ok(true)) => tracing::warn!(
+                intervention_receipt_id = %receipt_id,
+                event = "agent_org_user_directed_yield_timeout",
+                "UserDirectedWork remains durably waiting after the ten-second hard yield bound"
+            ),
+            Ok(Ok(false)) => {}
+            Ok(Err(error)) => tracing::warn!(
+                intervention_receipt_id = %receipt_id,
+                error = %error,
+                "failed to persist UserDirectedWork yield timeout"
+            ),
+            Err(error) => tracing::warn!(
+                intervention_receipt_id = %receipt_id,
+                error = %error,
+                "UserDirectedWork yield timeout worker failed"
+            ),
+        }
+    });
+}
+
+pub(crate) async fn settle_user_directed_handoff_after_turn(
+    session: &Arc<AgentSession>,
+    turn_intent_id: &str,
+    captured_identity: Option<&RuntimeTurnIdentity>,
+) {
+    let identity = match captured_identity {
+        Some(identity) => identity.clone(),
+        None => match session.runtime_turn_identity().await {
+            Some(identity) => identity,
+            None => return,
+        },
+    };
+    if identity.turn_intent_id.as_deref() != Some(turn_intent_id) {
+        return;
+    }
+
+    let lookup_session_id = session.id.clone();
+    let lookup_turn_intent_id = turn_intent_id.to_string();
+    let lookup_lease = identity.runtime_lease_id.clone();
+    let lookup_generation = identity.dialog_turn_generation.clone();
+    let receipt_id = match tokio::task::spawn_blocking(move || -> Result<Option<String>, String> {
+        let bound = crate::coordination::agent_member_interventions::AgentMemberInterventionStore::bound_receipt_for_runtime(
+                &lookup_session_id,
+                &lookup_turn_intent_id,
+                &lookup_lease,
+                &lookup_generation,
+            )?;
+        if bound.is_some() {
+            return Ok(bound);
+        }
+        let pending = crate::coordination::agent_member_interventions::AgentMemberInterventionStore::receipt_for_original_turn(
+                &lookup_session_id,
+                &lookup_turn_intent_id,
+            )?;
+        if let Some(receipt_id) = pending.as_deref() {
+            let bound = crate::coordination::agent_member_interventions::AgentMemberInterventionStore::bind_runtime_and_request_yield(
+                    receipt_id,
+                    &lookup_turn_intent_id,
+                    &lookup_lease,
+                    &lookup_generation,
+                )?;
+            if !bound {
+                return Ok(None);
+            }
+        }
+        Ok(pending)
+    })
+    .await
+    {
+        Ok(Ok(value)) => value,
+        Ok(Err(error)) => {
+            tracing::warn!(session_id = %session.id, error = %error, "failed to read UserDirectedWork handoff receipt");
+            return;
+        }
+        Err(error) => {
+            tracing::warn!(session_id = %session.id, error = %error, "UserDirectedWork handoff receipt worker failed");
+            return;
+        }
+    };
+    let Some(receipt_id) = receipt_id else {
+        return;
+    };
+
+    let process_owner = crate::tools::call_context::TurnProcessOwner {
+        session_id: session.id.clone(),
+        turn_intent_id: turn_intent_id.to_string(),
+        runtime_lease_id: identity.runtime_lease_id.clone(),
+        dialog_turn_generation: identity.dialog_turn_generation.clone(),
+    };
+    if let Err(slo_error) =
+        crate::tools::impls::coding::exec::registry::cancel_and_await_jobs_for_owner(
+            &process_owner,
+            USER_DIRECTED_YIELD_SLO,
+        )
+        .await
+    {
+        tracing::warn!(
+            session_id = %session.id,
+            intervention_receipt_id = %receipt_id,
+            error = %slo_error,
+            event = "agent_org_user_directed_yield_slo_exceeded",
+            "UserDirectedWork handoff exceeded the five-second yield SLO"
+        );
+        if let Err(hard_error) =
+            crate::tools::impls::coding::exec::registry::cancel_and_await_jobs_for_owner(
+                &process_owner,
+                USER_DIRECTED_YIELD_SLO,
+            )
+            .await
+        {
+            let timeout_receipt = receipt_id.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_member_interventions::AgentMemberInterventionStore::mark_yield_timeout(
+                    &timeout_receipt,
+                )
+            })
+            .await;
+            tracing::warn!(
+                session_id = %session.id,
+                intervention_receipt_id = %receipt_id,
+                error = %hard_error,
+                event = "agent_org_user_directed_yield_timeout",
+                "UserDirectedWork remains durably waiting after the ten-second hard yield bound"
+            );
+            return;
+        }
+    }
+
+    let released_current = session
+        .release_runtime_if_current(&identity.runtime_lease_id, &identity.dialog_turn_generation)
+        .await;
+    let released = if released_current {
+        true
+    } else {
+        // A terminal Agent Org path may already have cleared the live Turn
+        // identity. The captured lease still makes this fail closed: an idle
+        // slot is released only if the exact lease is still current, while a
+        // replacement/newer Turn leaves active identity installed and wins.
+        session
+            .release_yielded_runtime_if_idle(&identity.runtime_lease_id)
+            .await
+    };
+    if !released {
+        tracing::warn!(
+            session_id = %session.id,
+            intervention_receipt_id = %receipt_id,
+            runtime_lease_id = %identity.runtime_lease_id,
+            dialog_turn_generation = %identity.dialog_turn_generation,
+            "UserDirectedWork handoff did not own the current runtime lease"
+        );
+        return;
+    }
+    let release_lease = identity.runtime_lease_id;
+    let release_generation = identity.dialog_turn_generation;
+    match tokio::task::spawn_blocking(move || {
+        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::mark_yield_released(
+            &receipt_id,
+            &release_lease,
+            &release_generation,
+        )
+    })
+    .await
+    {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => tracing::warn!(session_id = %session.id, error = %error, "failed to mark UserDirectedWork handoff released"),
+        Err(error) => tracing::warn!(session_id = %session.id, error = %error, "UserDirectedWork release worker failed"),
+    }
+}
+
 pub(crate) fn schedule_ready_continuations(state: AgentAppState) {
     tauri::async_runtime::spawn(async move {
         if let Err(error) = dispatch_ready_continuations(&state).await {
@@ -810,6 +1035,7 @@ async fn dispatch_one_continuation(
         None,
         None,
         true,
+        None,
         false,
         Some(dispatch.turn_intent_id.clone()),
         Some(dispatch.turn_intent_id.clone()),

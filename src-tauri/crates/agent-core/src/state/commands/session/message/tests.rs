@@ -305,8 +305,6 @@ fn queued_agent_org_wake_rechecks_run_member_and_intervention_at_turn_start() {
         member_id: fixture.member_id.clone(),
         agent_id: "planner-agent".into(),
         session_id: fixture.session_id.clone(),
-        reason: Some("User is directly inspecting the planner".into()),
-        ttl_secs: 60,
     })
     .expect("enter intervention");
     assert_eq!(
@@ -400,8 +398,10 @@ fn direct_agent_org_turn_allows_running_or_canonical_root_idle() {
 
 #[test]
 fn provider_preflight_allows_only_running_or_canonical_root_idle_turns() {
-    assert!(ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Running, false).is_ok());
-    assert!(ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Idle, true).is_ok());
+    assert!(
+        ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Running, false, false).is_ok()
+    );
+    assert!(ensure_agent_org_turn_is_runnable("run", AgentOrgRunStatus::Idle, true, false).is_ok());
 
     for (status, code) in [
         (AgentOrgRunStatus::Starting, "team_not_ready"),
@@ -410,7 +410,7 @@ fn provider_preflight_allows_only_running_or_canonical_root_idle_turns() {
         (AgentOrgRunStatus::Failed, "team_unavailable"),
         (AgentOrgRunStatus::Archived, "team_archived"),
     ] {
-        let error = ensure_agent_org_turn_is_runnable("run", status, false)
+        let error = ensure_agent_org_turn_is_runnable("run", status, false, false)
             .expect_err("non-running Team cannot initialize a turn");
         assert!(
             error.starts_with(code),

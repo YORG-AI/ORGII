@@ -16,7 +16,7 @@ use super::{
     agent_org_turn_contexts, agent_org_watchdog,
 };
 
-const RUNTIME_TABLES: [&str; 20] = [
+const RUNTIME_TABLES: [&str; 21] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
     "agent_org_runtime_member_materializations",
@@ -30,6 +30,7 @@ const RUNTIME_TABLES: [&str; 20] = [
     "agent_org_runtime_inbox_materializations",
     "agent_org_runtime_inbox_delivery_resolutions",
     "agent_org_runtime_member_interventions",
+    "agent_org_runtime_member_intervention_turns",
     "agent_org_runtime_member_dispatch_allocators",
     "agent_org_runtime_turn_contexts",
     "agent_org_runtime_pause_episodes",
@@ -569,10 +570,11 @@ mod tests {
              VALUES ('team-a', 'member_rewake', 'member-a', 'fingerprint', 1,
                      '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
              INSERT INTO agent_org_runtime_member_interventions
-                (org_run_id, member_id, agent_id, session_id, status, entered_at,
-                 last_user_activity_at, resume_after)
-             VALUES ('team-a', 'member-a', 'agent-a', 'session-a', 'user_intervention',
-                     '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z', '2099-08-01T00:00:00Z');",
+                (intervention_receipt_id,org_run_id,member_id,agent_id,session_id,
+                 status,source_event_id,entered_at,last_user_activity_at,updated_at)
+             VALUES ('intervention-a','team-a','member-a','agent-a','session-a','active',
+                     'message-a','2026-08-01T00:00:00Z','2026-08-01T00:00:00Z',
+                     '2026-08-01T00:00:00Z');",
         )
         .expect("canonical Team A fixture");
         let before = RUNTIME_TABLES
@@ -619,11 +621,12 @@ mod tests {
                          DROP TABLE agent_org_runtime_member_dispatch_allocators;",
                     )
                     .expect("make partial schema");
-                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 18);
+                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 19);
                 }
                 "changed" => {
                     conn.execute_batch(
-                        "DROP TABLE agent_org_runtime_member_interventions;
+                        "DROP TABLE agent_org_runtime_member_intervention_turns;
+                         DROP TABLE agent_org_runtime_member_interventions;
                          CREATE TABLE agent_org_runtime_member_interventions (sentinel TEXT);",
                     )
                     .expect("make changed schema");
@@ -655,13 +658,13 @@ mod tests {
              DROP TABLE agent_org_runtime_pause_episodes;",
         )
         .expect("simulate an incomplete strict runtime manifest");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 18);
+        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 19);
 
         let error = initialize(&conn).expect_err("previous runtime must not be migrated in place");
         assert!(
             error
                 .to_string()
-                .contains("found 18 of 20 canonical tables"),
+                .contains("found 19 of 21 canonical tables"),
             "unexpected strict-schema error: {error}"
         );
     }
@@ -730,7 +733,7 @@ mod tests {
         let conn = Connection::open(path).expect("reopen shared database");
         verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
             .expect("canonical manifest after concurrent init");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 20);
+        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 21);
     }
 
     #[test]

@@ -345,11 +345,23 @@ pub(crate) fn archive_run_commit(run_id: &str, request_id: &str) -> Result<Archi
         let interventions = tx
             .execute(
                 "UPDATE agent_org_runtime_member_interventions
-                 SET cleared_at=?2
-                 WHERE org_run_id=?1 AND cleared_at IS NULL",
+                 SET status='failed',failure_reason='team_archived',cleared_at=?2,updated_at=?2
+                 WHERE org_run_id=?1
+                   AND status IN ('yield_requested','active','return_requested')",
                 params![run_id, &archived_at_text],
             )
             .map_err(|error| error.to_string())?;
+        tx.execute(
+            "UPDATE agent_org_runtime_member_intervention_turns
+             SET status='cancelled',terminal_at=?2,failure_reason='team_archived'
+             WHERE intervention_receipt_id IN (
+                 SELECT intervention_receipt_id
+                 FROM agent_org_runtime_member_interventions
+                 WHERE org_run_id=?1
+             ) AND status IN ('queued','running')",
+            params![run_id, &archived_at_text],
+        )
+        .map_err(|error| error.to_string())?;
         let pause_continuations = tx
             .execute(
                 "UPDATE agent_org_runtime_pause_handoffs

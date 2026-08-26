@@ -116,6 +116,7 @@ fn test_resolved_multi_layer() {
             },
         ],
         ask_tools: Vec::new(),
+        agent_org_turn_profile: None,
     };
 
     assert!(policy.is_allowed("read_file"));
@@ -143,6 +144,66 @@ fn test_permissive_default_allows_everything() {
 }
 
 #[test]
+fn user_directed_worker_hides_graph_but_keeps_real_work_tools() {
+    let mut policy = ResolvedToolPolicy::permissive();
+    policy.agent_org_turn_profile = Some(AgentOrgTurnToolProfile::UserDirectedWorker);
+
+    assert!(!policy.is_allowed(crate::tools::names::TASK_CREATE));
+    assert!(!policy.is_allowed(crate::tools::names::TASK_GRAPH_CREATE));
+    assert!(!policy.is_allowed(crate::tools::names::TASK_UPDATE));
+    assert!(policy.is_allowed("read_file"));
+    assert!(policy.is_allowed("write_file"));
+    assert!(policy.is_allowed("run_shell"));
+}
+
+#[test]
+fn user_directed_writer_sees_only_graph_task_update_operations() {
+    let mut policy = ResolvedToolPolicy::permissive();
+    policy.agent_org_turn_profile = Some(AgentOrgTurnToolProfile::UserDirectedWriter);
+    assert!(policy.is_allowed(crate::tools::names::TASK_CREATE));
+    assert!(policy.is_allowed(crate::tools::names::TASK_GRAPH_CREATE));
+    assert!(policy.is_allowed(crate::tools::names::TASK_UPDATE));
+    assert!(!policy.is_allowed(crate::tools::names::ORG_RUN_COMPLETE));
+
+    let filtered = policy.filter_definitions(vec![serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": crate::tools::names::TASK_UPDATE,
+            "parameters": {
+                "properties": {
+                    "operation": {
+                        "enum": [
+                            "patch_pending",
+                            "cancel",
+                            "cancel_and_replace",
+                            "append_audit_note",
+                            "start",
+                            "complete",
+                            "fail"
+                        ]
+                    }
+                }
+            }
+        }
+    })]);
+    let operations = filtered[0]
+        .pointer("/function/parameters/properties/operation/enum")
+        .and_then(serde_json::Value::as_array)
+        .expect("filtered operation enum");
+    assert_eq!(
+        operations,
+        serde_json::json!([
+            "patch_pending",
+            "cancel",
+            "cancel_and_replace",
+            "append_audit_note"
+        ])
+        .as_array()
+        .unwrap()
+    );
+}
+
+#[test]
 fn test_filter_definitions() {
     let policy = ResolvedToolPolicy {
         layers: vec![ToolPolicyLayer {
@@ -150,6 +211,7 @@ fn test_filter_definitions() {
             deny: Vec::new(),
         }],
         ask_tools: Vec::new(),
+        agent_org_turn_profile: None,
     };
 
     let defs = vec![

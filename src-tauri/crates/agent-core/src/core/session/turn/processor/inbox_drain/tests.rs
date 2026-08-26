@@ -313,8 +313,8 @@ fn shared_agent_id_member_session_drains_only_its_member_inbox() {
 #[test]
 fn user_intervention_pauses_member_inbox_drain_without_marking_read() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let ctx = ctx_for_with_member(&run_id, "worker-1", "Worker 1");
+    let ctx = running_ctx_for_members(&[("member-worker-1", "worker-1", "Worker 1")]);
+    let run_id = ctx.run_id.clone();
 
     AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: "worker-1".into(),
@@ -333,8 +333,6 @@ fn user_intervention_pauses_member_inbox_drain_without_marking_read() {
         member_id: "member-worker-1".into(),
         agent_id: "worker-1".into(),
         session_id: "session-worker-1".into(),
-        reason: Some("direct_user_chat".into()),
-        ttl_secs: 180,
     })
     .expect("enter intervention");
 
@@ -357,8 +355,8 @@ fn user_intervention_pauses_member_inbox_drain_without_marking_read() {
 #[test]
 fn return_to_work_restores_member_inbox_drain() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let ctx = ctx_for_with_member(&run_id, "worker-1", "Worker 1");
+    let ctx = running_ctx_for_members(&[("member-worker-1", "worker-1", "Worker 1")]);
+    let run_id = ctx.run_id.clone();
 
     AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: "worker-1".into(),
@@ -377,8 +375,6 @@ fn return_to_work_restores_member_inbox_drain() {
         member_id: "member-worker-1".into(),
         agent_id: "worker-1".into(),
         session_id: "session-worker-1".into(),
-        reason: Some("direct_user_chat".into()),
-        ttl_secs: 180,
     })
     .expect("enter intervention");
     AgentMemberInterventionStore::clear(&run_id, "member-worker-1").expect("return to work");

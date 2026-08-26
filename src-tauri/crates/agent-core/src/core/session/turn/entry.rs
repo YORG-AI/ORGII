@@ -163,7 +163,15 @@ pub async fn process_message(
         agent_org_turn_intent_id: None,
     };
 
-    let policy = Arc::clone(&runtime.policy);
+    let policy = if runtime.agent_org_context.is_some() {
+        Arc::new(
+            runtime
+                .policy
+                .for_persisted_agent_org_turn(&session.id, &input.turn_intent_id)?,
+        )
+    } else {
+        Arc::clone(&runtime.policy)
+    };
 
     let processor = UnifiedMessageProcessor::new(super::processor::ProcessorParams {
         runtime: Arc::clone(&runtime),

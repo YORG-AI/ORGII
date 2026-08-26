@@ -222,7 +222,7 @@ pub(super) fn assemble_overlay(
             if !ctx.disabled_set.contains(names::TASK_CREATE) {
                 overlay.register(Box::new(TaskCreateTool::new(Arc::clone(&task_tools_ctx))));
             }
-            if task_tools_ctx.is_coordinator()
+            if task_tools_ctx.is_task_graph_writer()
                 && !ctx.disabled_set.contains(names::TASK_GRAPH_CREATE)
             {
                 overlay.register(Box::new(TaskGraphCreateTool::new(Arc::clone(

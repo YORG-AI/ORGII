@@ -48,7 +48,7 @@ pub(crate) enum AgentOrgTurnKind {
 }
 
 impl AgentOrgTurnKind {
-    const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Coordinator => "coordinator",
             Self::TaskExecution => "task_execution",
@@ -76,7 +76,7 @@ pub(crate) enum AgentOrgTurnSourceKind {
 }
 
 impl AgentOrgTurnSourceKind {
-    const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::RootTurn => "root_turn",
             Self::Task => "task",
@@ -116,6 +116,18 @@ pub(crate) struct AgentOrgTurnContext {
     pub actor_version: Option<i64>,
     pub activation_generation: Option<i64>,
     pub created_at: String,
+}
+
+impl AgentOrgTurnContext {
+    pub(crate) fn is_user_directed_work(&self) -> bool {
+        self.turn_kind == AgentOrgTurnKind::UserDirectedWork
+    }
+
+    pub(crate) fn direct_source_event_id(&self) -> Option<&str> {
+        (self.turn_kind == AgentOrgTurnKind::UserDirectedWork
+            && self.source_kind == AgentOrgTurnSourceKind::DirectMember)
+            .then_some(self.source_id.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -524,7 +536,7 @@ pub(crate) fn revalidate_context_with_connection(
     session_id: &str,
     turn_intent_id: &str,
 ) -> Result<AgentOrgTurnContext, String> {
-    let context = revalidate_live_formal_context_with_connection(conn, session_id, turn_intent_id)?;
+    let context = revalidate_live_context_with_connection(conn, session_id, turn_intent_id)?;
     if context.turn_kind == AgentOrgTurnKind::TaskExecution {
         let task_id = context
             .task_id
@@ -547,7 +559,7 @@ pub(crate) fn revalidate_assistant_persistence_with_connection(
     session_id: &str,
     turn_intent_id: &str,
 ) -> Result<AgentOrgTurnContext, String> {
-    let context = revalidate_live_formal_context_with_connection(conn, session_id, turn_intent_id)?;
+    let context = revalidate_live_context_with_connection(conn, session_id, turn_intent_id)?;
     validate_assistant_persistence_base_turn(conn, &context)?;
     if context.turn_kind == AgentOrgTurnKind::TaskExecution {
         let task_id = context
@@ -565,7 +577,7 @@ pub(crate) fn revalidate_assistant_persistence_with_connection(
 /// Common formal-Turn authority shared by execution admission and assistant
 /// persistence. Target-state rules intentionally stay in the two public phase
 /// validators above.
-fn revalidate_live_formal_context_with_connection(
+fn revalidate_live_context_with_connection(
     conn: &Connection,
     session_id: &str,
     turn_intent_id: &str,
@@ -594,11 +606,20 @@ fn revalidate_live_formal_context_with_connection(
             context.org_run_id
         ));
     }
-    let idle_coordinator =
-        status == AgentOrgRunStatus::Idle && context.turn_kind == AgentOrgTurnKind::Coordinator;
-    if status != AgentOrgRunStatus::Running && !idle_coordinator {
+    let lifecycle_allows_turn = match context.turn_kind {
+        AgentOrgTurnKind::Coordinator => {
+            matches!(status, AgentOrgRunStatus::Running | AgentOrgRunStatus::Idle)
+        }
+        AgentOrgTurnKind::TaskExecution => status == AgentOrgRunStatus::Running,
+        AgentOrgTurnKind::UserDirectedWork => matches!(
+            status,
+            AgentOrgRunStatus::Running | AgentOrgRunStatus::Idle | AgentOrgRunStatus::Paused
+        ),
+    };
+    if !lifecycle_allows_turn {
         return Err(invariant_error(format!(
-            "Turn execution requires a running Team, found {status}"
+            "Turn {:?} cannot execute in Team status {status}",
+            context.turn_kind
         )));
     }
     let snapshot_json = snapshot_json.ok_or_else(|| {
@@ -650,9 +671,45 @@ fn revalidate_live_formal_context_with_connection(
             resolve_materialization_version_for_context(conn, &context, owner_member_id, agent_id)?;
         }
         AgentOrgTurnKind::UserDirectedWork => {
-            return Err(invariant_error(
-                "UserDirectedWork execution is not enabled in the task-bound wake path".to_string(),
-            ));
+            let member_id = context.dispatch_member_id.as_deref().ok_or_else(|| {
+                invariant_error("UserDirectedWork context has no dispatch Member".to_string())
+            })?;
+            if context.participant_id != member_id
+                || context.source_kind != AgentOrgTurnSourceKind::DirectMember
+                || context.root_authority_turn_id.as_deref()
+                    != Some(context.turn_intent_id.as_str())
+                || context.activation_generation.is_some()
+            {
+                return Err(invariant_error(
+                    "UserDirectedWork no longer matches direct source/participant authority"
+                        .to_string(),
+                ));
+            }
+            let agent_id = snapshot_member_agent_id(&snapshot, member_id)?;
+            let materialization_version =
+                resolve_materialization_version_for_context(conn, &context, member_id, agent_id)?;
+            if context.actor_version != Some(materialization_version) {
+                return Err(invariant_error(format!(
+                    "UserDirectedWork actor version {:?} is stale; canonical version is {materialization_version}",
+                    context.actor_version
+                )));
+            }
+            let source_exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(
+                         SELECT 1 FROM events
+                         WHERE id=?1 AND session_id=?2 AND function_name='user_message'
+                     )",
+                    params![&context.source_id, session_id],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
+            if !source_exists {
+                return Err(invariant_error(format!(
+                    "DirectMember source event {} disappeared",
+                    context.source_id
+                )));
+            }
         }
     }
     Ok(context)
@@ -1662,6 +1719,28 @@ pub(crate) fn require_existing_context(
     Ok(context)
 }
 
+/// Load one persisted companion context from its canonical Session/Turn
+/// identity. Per-Turn tool assembly uses this without re-deriving a run id.
+pub(crate) fn require_existing_context_for_session(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    require_context_with_connection(&conn, session_id, turn_intent_id)
+}
+
+/// Resolve the exact EventStore source for a DirectMember Turn. Callers first
+/// gate on Agent Org runtime context, so ordinary SDE performs no companion
+/// lookup; formal and other typed Agent Org sources return `None`.
+pub(crate) fn direct_source_event_for_turn(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<Option<String>, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    let context = read_context_optional(&conn, session_id, turn_intent_id)?;
+    Ok(context.and_then(|context| context.direct_source_event_id().map(ToString::to_string)))
+}
+
 /// Validate only the lifecycle fence for a formal Turn. This narrower check
 /// is used by the post-provider Inbox acknowledgement: the Turn may have
 /// legitimately completed its Task, but it must still belong to the current
@@ -1794,6 +1873,56 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
     drop(statement);
 
     let now = chrono::Utc::now().to_rfc3339();
+    let abandoned = conn
+        .execute(
+            "UPDATE agent_org_runtime_member_intervention_turns AS chain
+             SET status='abandoned',terminal_at=?1,failure_reason='app_restart_after_start'
+             WHERE chain.status='running'
+               AND EXISTS (
+                   SELECT 1 FROM session_turn_intents intent
+                   WHERE intent.session_id=chain.session_id
+                     AND intent.turn_intent_id=chain.turn_intent_id
+                     AND intent.status='running'
+               )",
+            [&now],
+        )
+        .map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE session_turn_intents AS intent
+         SET status='failed',updated_at=?1
+         WHERE intent.status='running'
+           AND EXISTS (
+               SELECT 1
+               FROM agent_org_runtime_member_intervention_turns chain
+               WHERE chain.session_id=intent.session_id
+                 AND chain.turn_intent_id=intent.turn_intent_id
+                 AND chain.status='abandoned'
+           )",
+        [&now],
+    )
+    .map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE agent_org_runtime_member_interventions AS intervention
+         SET failure_reason='user_directed_turn_abandoned_after_restart',updated_at=?1
+         WHERE intervention.status IN ('yield_requested','active','return_requested')
+           AND EXISTS (
+               SELECT 1 FROM agent_org_runtime_member_intervention_turns chain
+               WHERE chain.intervention_receipt_id=intervention.intervention_receipt_id
+                 AND chain.status='abandoned'
+           )",
+        [&now],
+    )
+    .map_err(|error| error.to_string())?;
+    let runtime_absent_yields = conn
+        .execute(
+            "UPDATE agent_org_runtime_member_interventions
+             SET status='active',yield_released_at=COALESCE(yield_released_at,?1),
+                 failure_reason=COALESCE(failure_reason,'runtime_absent_after_restart'),
+                 updated_at=?1
+             WHERE status='yield_requested'",
+            [&now],
+        )
+        .map_err(|error| error.to_string())?;
     let affected = conn
         .execute(
             "UPDATE session_turn_intents AS intent
@@ -1841,6 +1970,23 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
                       AND context.activation_generation=run.activation_generation
                       AND run.status='running'
                    )
+                   OR EXISTS (
+                    SELECT 1
+                    FROM agent_org_runtime_member_intervention_turns chain
+                    JOIN agent_org_runtime_member_interventions intervention
+                      ON intervention.intervention_receipt_id=chain.intervention_receipt_id
+                    JOIN agent_org_runtime_turn_contexts context
+                      ON context.session_id=chain.session_id
+                     AND context.turn_intent_id=chain.turn_intent_id
+                    JOIN agent_org_runtime_runs run ON run.id=context.org_run_id
+                    WHERE chain.session_id=intent.session_id
+                      AND chain.turn_intent_id=intent.turn_intent_id
+                      AND chain.status='queued'
+                      AND intervention.status IN ('yield_requested','active','return_requested')
+                      AND context.turn_kind='user_directed_work'
+                      AND context.source_kind='direct_member'
+                      AND run.status IN ('running','idle','paused')
+                   )
                   )
                )",
             [&now],
@@ -1868,7 +2014,7 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
             "retained contextless running Agent Org Turns as unknown/in-flight"
         );
     }
-    Ok(affected)
+    Ok(affected + abandoned + runtime_absent_yields)
 }
 
 fn invariant_error(message: String) -> String {

@@ -39,6 +39,15 @@ fn is_synthetic_user_input(event: &SessionEvent) -> bool {
             .unwrap_or(false)
 }
 
+fn is_agent_org_direct_source(event: &SessionEvent) -> bool {
+    is_synthetic_user_input(event)
+        && event
+            .result
+            .get("agentOrgDirectSource")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+}
+
 /// Set the active repository context on a session's store.
 #[tauri::command]
 pub async fn es_set_repo_context(
@@ -112,6 +121,7 @@ pub async fn es_append(
     // only resurface as duplicate user bubbles on the next replay merge.
     // Their edit path (`cli_agent_truncate_after_chunk`) truncates chunks by
     // timestamp and does not consult the `events` table.
+    let durable_direct_source = events.iter().any(is_agent_org_direct_source);
     let user_event_ids: Vec<_> = if session_providers::skips_event_cache_save(&sid) {
         Vec::new()
     } else {
@@ -120,7 +130,7 @@ pub async fn es_append(
             .filter(|event| {
                 event.source == EventSource::User
                     && !is_ts_placeholder_id(&event.id)
-                    && !is_synthetic_user_input(event)
+                    && (!is_synthetic_user_input(event) || is_agent_org_direct_source(event))
             })
             .map(|event| event.id.clone())
             .collect()
@@ -156,11 +166,15 @@ pub async fn es_append(
 
         match persist_result {
             Ok(Ok(())) => {}
+            Ok(Err(err)) if durable_direct_source => {
+                return Err(format!("agent_org_direct_source_persistence_failed: {err}"));
+            }
             Ok(Err(err)) => {
                 tracing::warn!(
                     "[event-pipeline] best-effort es_append_user failed for {sid}: {err}"
                 );
             }
+            Err(err) if durable_direct_source => return Err(err),
             Err(err) => {
                 tracing::warn!("[event-pipeline] es_append_user join failed for {sid}: {err}");
             }

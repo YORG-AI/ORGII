@@ -127,8 +127,6 @@ fn unread_race_guard_defers_during_direct_user_intervention() {
             member_id: member_id.to_string(),
             agent_id: "builtin:sde".to_string(),
             session_id: "member-session".to_string(),
-            reason: Some("direct_user_chat".to_string()),
-            ttl_secs: 180,
         },
     )
     .expect("enter intervention");
@@ -435,6 +433,71 @@ async fn successful_member_finalize_keeps_in_progress_work_owned() {
         )
         .expect("Task recovery budget survives a successful Turn");
     assert_eq!(task_recovery_attempts, 2);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn user_directed_finalize_never_mutates_formal_task_lifecycle() {
+    let _serial = test_serial_guard();
+    let _sandbox = test_helpers::test_env::sandbox();
+    let hook = Arc::new(RecordingMemberIdleHook::default());
+    let _guard = MemberIdleHookGuard::install(hook.clone());
+    let run_id = seed_run("builtin:sde");
+    seed_in_progress_task(&run_id, "formal-task");
+
+    let turn_intent_id = "turn-user-directed-finalizer";
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents(
+            session_id,turn_intent_id,client_message_id,org_run_id,source,status,
+            created_at,updated_at
+         ) VALUES ('member-session',?1,'direct:member-session:test',?2,
+                   'agent_org','running',?3,?3)",
+        rusqlite::params![turn_intent_id, &run_id, &now],
+    )
+    .expect("seed admitted direct Turn intent");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            dispatch_member_id,member_dispatch_sequence,source_kind,source_id,
+            root_authority_turn_id,actor_version,created_at
+         ) VALUES ('member-session',?1,?2,'member-worker','user_directed_work',
+                   'member-worker',1,'direct_member',?3,?1,1,?4)",
+        rusqlite::params![
+            turn_intent_id,
+            &run_id,
+            "event-user-directed-finalizer",
+            &now
+        ],
+    )
+    .expect("seed admitted direct Member Turn context");
+
+    let status = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(finalize_session(
+            "member-session",
+            &Err("provider failed during direct work".to_string()),
+            None,
+            None,
+            false,
+            Some(TerminalTurnSignal {
+                turn_id: "dialog-user-directed-finalizer".to_string(),
+                turn_intent_id: Some(turn_intent_id.to_string()),
+                status: TurnTerminalStatus::Failed,
+                completed_at: chrono::Utc::now().to_rfc3339(),
+            }),
+        ))
+    });
+
+    assert_eq!(status, AgentSessionStatus::Idle);
+    let task = AgentOrgTaskStore::get(&run_id, "formal-task")
+        .expect("load formal Task")
+        .expect("formal Task exists");
+    assert_eq!(task.status, TaskStatus::InProgress);
+    assert_eq!(task.owner.as_deref(), Some("member-worker"));
+    assert!(
+        hook.snapshot().is_empty(),
+        "UserDirectedWork must not emit formal MemberIdle lifecycle output"
+    );
 }
 
 #[test]

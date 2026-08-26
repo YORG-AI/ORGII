@@ -5,6 +5,8 @@
 //! weaker pre-check from declaring a terminal candidate that the atomic
 //! reconciler then rejects for a different set of rules.
 
+use std::collections::HashSet;
+
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
@@ -37,7 +39,6 @@ pub struct AgentOrgQuiescenceFacts {
     pub in_progress_task_count: usize,
     pub completed_task_count: usize,
     pub unread_inbox_count: usize,
-    pub active_intervention_member_ids: Vec<String>,
     pub in_flight_turn_intent_count: usize,
     pub unknown_turn_intent_count: usize,
     pub pending_formal_materialization_count: usize,
@@ -105,9 +106,6 @@ pub enum AgentOrgQuiescenceBlocker {
     UnreadInbox {
         count: usize,
     },
-    ActiveInterventions {
-        count: usize,
-    },
     InFlightTurnIntents {
         count: usize,
     },
@@ -135,7 +133,6 @@ pub enum AgentOrgQuiescenceBlocker {
         open_task_count: usize,
         corrupt_task_count: usize,
         unread_inbox_count: usize,
-        active_intervention_count: usize,
         in_flight_turn_intent_count: usize,
         unknown_turn_intent_count: usize,
         pending_formal_materialization_count: usize,
@@ -350,7 +347,6 @@ pub(super) fn load_and_assess(
             in_progress_task_count: 0,
             completed_task_count: 0,
             unread_inbox_count: 0,
-            active_intervention_member_ids: Vec::new(),
             in_flight_turn_intent_count: 0,
             unknown_turn_intent_count: 0,
             pending_formal_materialization_count: 0,
@@ -383,13 +379,43 @@ pub(super) fn load_and_assess(
     // and recovery.  Duplicating the Rust/CLI queries here used to let a stale
     // session for the same member block quiescence even though the UI and
     // watchdog correctly selected the freshest one.
+    let formal_turn_session_ids = {
+        let mut statement = conn
+            .prepare(
+                "SELECT DISTINCT context.session_id
+                 FROM agent_org_runtime_turn_contexts context
+                 JOIN session_turn_intents intent
+                   ON intent.session_id=context.session_id
+                  AND intent.turn_intent_id=context.turn_intent_id
+                 WHERE context.org_run_id=?1
+                   AND context.turn_kind IN ('coordinator','task_execution')
+                   AND intent.status IN ('optimistic','queued','running')",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([run_id], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?;
+        rows.collect::<Result<HashSet<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
     let worker_sessions =
         AgentOrgRunStore::list_descendant_worker_sessions_with_connection(conn, run_id)?
             .into_iter()
-            .map(|session| AgentOrgQuiescenceSessionFact {
-                session_id: session.session_id,
-                member_id: session.member_id,
-                status: session.status,
+            .map(|session| {
+                let status = if session.status == SessionStatus::Running
+                    && !formal_turn_session_ids.contains(&session.session_id)
+                {
+                    // A warm or UDW-only Member runtime is activity, not a
+                    // formal-work blocker for Working -> Idle.
+                    SessionStatus::Idle
+                } else {
+                    session.status
+                };
+                AgentOrgQuiescenceSessionFact {
+                    session_id: session.session_id,
+                    member_id: session.member_id,
+                    status,
+                }
             })
             .collect();
 
@@ -467,28 +493,16 @@ pub(super) fn load_and_assess(
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
-    let active_intervention_member_ids = {
-        let mut stmt = conn
-            .prepare(
-                "SELECT DISTINCT member_id FROM agent_org_runtime_member_interventions
-                 WHERE org_run_id=?1 AND member_id<>'coordinator'
-                   AND cleared_at IS NULL
-                   AND datetime(resume_after)>datetime(?2)
-                 ORDER BY member_id ASC",
-            )
-            .map_err(|err| err.to_string())?;
-        let rows = stmt
-            .query_map(params![run_id, chrono::Utc::now().to_rfc3339()], |row| {
-                row.get::<_, String>(0)
-            })
-            .map_err(|err| err.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|err| err.to_string())?
-    };
     let in_flight_turn_intent_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM session_turn_intents
-             WHERE org_run_id=?1 AND status IN (?2, ?3, ?4)",
+            "SELECT COUNT(*)
+             FROM session_turn_intents intent
+             JOIN agent_org_runtime_turn_contexts context
+               ON context.session_id=intent.session_id
+              AND context.turn_intent_id=intent.turn_intent_id
+             WHERE intent.org_run_id=?1
+               AND context.turn_kind IN ('coordinator','task_execution')
+               AND intent.status IN (?2, ?3, ?4)",
             params![
                 run_id,
                 IN_FLIGHT_TURN_INTENT_STATUSES[0],
@@ -500,9 +514,14 @@ pub(super) fn load_and_assess(
         .map_err(|err| err.to_string())?;
     let unknown_turn_intent_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM session_turn_intents
-             WHERE org_run_id=?1
-               AND status NOT IN (
+            "SELECT COUNT(*)
+             FROM session_turn_intents intent
+             JOIN agent_org_runtime_turn_contexts context
+               ON context.session_id=intent.session_id
+              AND context.turn_intent_id=intent.turn_intent_id
+             WHERE intent.org_run_id=?1
+               AND context.turn_kind IN ('coordinator','task_execution')
+               AND intent.status NOT IN (
                    'optimistic', 'queued', 'running', 'completed', 'failed',
                    'cancelled', 'stale', 'coalesced', 'rejected'
                )",
@@ -550,7 +569,6 @@ pub(super) fn load_and_assess(
         in_progress_task_count: count_to_usize("in-progress task", in_progress_task_count)?,
         completed_task_count: count_to_usize("completed task", completed_task_count)?,
         unread_inbox_count: count_to_usize("unread inbox", unread_inbox_count)?,
-        active_intervention_member_ids,
         in_flight_turn_intent_count: count_to_usize(
             "in-flight turn intent",
             in_flight_turn_intent_count,
@@ -643,11 +661,6 @@ pub fn assess_quiescence(facts: AgentOrgQuiescenceFacts) -> AgentOrgQuiescenceAs
             count: facts.unread_inbox_count,
         });
     }
-    if !facts.active_intervention_member_ids.is_empty() {
-        blockers.push(AgentOrgQuiescenceBlocker::ActiveInterventions {
-            count: facts.active_intervention_member_ids.len(),
-        });
-    }
     if facts.in_flight_turn_intent_count > 0 {
         blockers.push(AgentOrgQuiescenceBlocker::InFlightTurnIntents {
             count: facts.in_flight_turn_intent_count,
@@ -732,7 +745,6 @@ fn quiet_state_inconsistency(
         || facts.unresolved_task_count > 0
         || facts.corrupt_task_count > 0
         || facts.unread_inbox_count > 0
-        || !facts.active_intervention_member_ids.is_empty()
         || facts.in_flight_turn_intent_count > 0
         || facts.unknown_turn_intent_count > 0
         || facts.pending_formal_materialization_count > 0
@@ -745,7 +757,6 @@ fn quiet_state_inconsistency(
         open_task_count: facts.unresolved_task_count,
         corrupt_task_count: facts.corrupt_task_count,
         unread_inbox_count: facts.unread_inbox_count,
-        active_intervention_count: facts.active_intervention_member_ids.len(),
         in_flight_turn_intent_count: facts.in_flight_turn_intent_count,
         unknown_turn_intent_count: facts.unknown_turn_intent_count,
         pending_formal_materialization_count: facts.pending_formal_materialization_count,
@@ -796,7 +807,6 @@ mod tests {
             in_progress_task_count: 0,
             completed_task_count: 1,
             unread_inbox_count: 0,
-            active_intervention_member_ids: Vec::new(),
             in_flight_turn_intent_count: 0,
             unknown_turn_intent_count: 0,
             pending_formal_materialization_count: 0,

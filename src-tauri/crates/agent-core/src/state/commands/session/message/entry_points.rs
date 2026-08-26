@@ -45,6 +45,7 @@ pub async fn send_message_impl_for_job_wake(
         None,
         None,
         true,
+        None,
         false,
         None,
         None,
@@ -76,6 +77,7 @@ pub async fn send_message_impl_for_org_wake(
         None,
         None,
         true,
+        None,
         false,
         Some(format!("agent-org-wake:{org_run_id}:{member_id}")),
         None,
@@ -83,6 +85,35 @@ pub async fn send_message_impl_for_org_wake(
         Some(member_id.to_string()),
         Some(org_run_id.to_string()),
         TurnIntentBridgeSource::Resume,
+    )
+    .await
+}
+
+/// Re-enqueue one already-admitted DirectMember Turn after restart. The
+/// original EventStore source, Turn id, and client id are reused; admission
+/// returns the existing receipt and never mints a second user fact.
+pub(crate) async fn send_message_impl_for_direct_recovery(
+    state: &AgentAppState,
+    work: crate::coordination::agent_member_interventions::RecoverableUserDirectedWork,
+) -> Result<AgentResponse, String> {
+    send_message_impl(
+        state,
+        work.session_id,
+        work.dispatch_content,
+        Some(work.display_content),
+        IdentityOverrides::default(),
+        None,
+        work.images,
+        None,
+        false,
+        Some(work.source_event_id),
+        true,
+        work.client_message_id,
+        Some(work.turn_intent_id),
+        None,
+        None,
+        Some(work.org_run_id),
+        TurnIntentBridgeSource::UserSubmit,
     )
     .await
 }
@@ -119,6 +150,7 @@ pub async fn send_message_impl_for_test(
         None,
         None,
         false,
+        None,
         false,
         None,
         None,

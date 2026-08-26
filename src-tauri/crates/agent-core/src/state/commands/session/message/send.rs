@@ -11,8 +11,8 @@
 use std::sync::Arc;
 
 use crate::coordination::agent_member_interventions::{
-    can_enter_member_intervention, AgentMemberInterventionStore, EnterMemberInterventionParams,
-    DEFAULT_INTERVENTION_TTL_SECS,
+    AgentMemberInterventionStore, EnqueueUserDirectedWorkParams, EnqueueUserDirectedWorkResult,
+    DEFAULT_USER_DIRECTED_QUEUE_CAP,
 };
 use crate::foundation::session_bridge::TurnIntentBridgeSource;
 use crate::persistence::AgentResponse;
@@ -27,10 +27,22 @@ use super::org_wake::{
     resolve_agent_org_wake_mode,
 };
 
+pub(crate) const USER_DIRECTED_WAITING_ERROR_PREFIX: &str = "user_directed_waiting_for_yield:";
+pub(crate) const USER_DIRECTED_CANCELLED_ERROR_PREFIX: &str = "user_directed_cancelled:";
+
+fn should_dispatch_admitted_direct(
+    duplicate: bool,
+    turn_status: &str,
+    allow_recovery: bool,
+) -> bool {
+    !duplicate || (allow_recovery && turn_status == "queued")
+}
+
 pub(super) fn ensure_agent_org_turn_is_runnable(
     run_id: &str,
     status: crate::coordination::agent_org_runs::AgentOrgRunStatus,
     allow_idle_root: bool,
+    allow_direct_member: bool,
 ) -> Result<(), String> {
     use crate::coordination::agent_org_runs::AgentOrgRunStatus;
 
@@ -39,10 +51,11 @@ pub(super) fn ensure_agent_org_turn_is_runnable(
         AgentOrgRunStatus::Starting => Err(format!(
             "team_not_ready: Agent Org run {run_id} is still materializing"
         )),
+        AgentOrgRunStatus::Paused if allow_direct_member => Ok(()),
         AgentOrgRunStatus::Paused => Err(format!(
             "team_paused: Agent Org run {run_id} cannot start a turn in this lifecycle slice"
         )),
-        AgentOrgRunStatus::Idle if allow_idle_root => Ok(()),
+        AgentOrgRunStatus::Idle if allow_idle_root || allow_direct_member => Ok(()),
         AgentOrgRunStatus::Idle => Err(format!(
             "team_idle: Agent Org run {run_id} accepts new turns only in its canonical Root session"
         )),
@@ -60,6 +73,7 @@ async fn preflight_agent_org_turn_before_runtime(
     explicit_run_id: Option<&str>,
     run_id_hint: Option<&str>,
     has_persisted_agent_org_identity: bool,
+    is_direct_member: bool,
 ) -> Result<Option<String>, String> {
     if let (Some(explicit), Some(hint)) = (explicit_run_id, run_id_hint) {
         if explicit != hint {
@@ -97,7 +111,7 @@ async fn preflight_agent_org_turn_before_runtime(
     .map_err(|error| format!("Agent Org status worker failed: {error}"))??
     .ok_or_else(|| format!("team_unavailable: Agent Org run {run_id} does not exist"))?;
     let allow_idle_root = run.root_session_id.as_deref() == Some(session_id);
-    ensure_agent_org_turn_is_runnable(&run_id, run.status, allow_idle_root)?;
+    ensure_agent_org_turn_is_runnable(&run_id, run.status, allow_idle_root, is_direct_member)?;
     Ok(Some(run_id))
 }
 
@@ -134,17 +148,6 @@ fn should_record_standalone_goal(
         && !has_agent_org_context
 }
 
-async fn persist_direct_user_intervention(
-    params: Option<EnterMemberInterventionParams>,
-) -> Result<(), String> {
-    let Some(params) = params else {
-        return Ok(());
-    };
-    tokio::task::spawn_blocking(move || AgentMemberInterventionStore::enter(params).map(|_| ()))
-        .await
-        .map_err(|err| format!("Agent Org intervention worker failed: {err}"))?
-}
-
 pub(super) fn terminal_intent_status_override(
     state: crate::session::DialogTurnState,
 ) -> Option<crate::foundation::session_bridge::TurnIntentBridgeStatus> {
@@ -170,7 +173,8 @@ pub(crate) async fn send_message_impl(
     images: Option<Vec<String>>,
     ide_context: Option<crate::session::IdeContext>,
     is_resume: bool,
-    mark_direct_user_intervention: bool,
+    agent_org_direct_source_event_id: Option<String>,
+    allow_admitted_direct_recovery: bool,
     client_message_id: Option<String>,
     turn_intent_id: Option<String>,
     org_wake_run_id: Option<String>,
@@ -211,11 +215,27 @@ pub(crate) async fn send_message_impl(
         (Some(run_id), _) | (None, Some(run_id)) => Some(run_id),
         (None, None) => None,
     };
+    let is_direct_member = agent_org_direct_source_event_id.is_some();
+    if is_direct_member
+        && (is_resume
+            || content.trim().is_empty()
+            || !matches!(source, TurnIntentBridgeSource::UserSubmit))
+    {
+        return Err(
+            "user_directed_source_invalid: DirectMember requires a non-empty user_submit Turn"
+                .to_string(),
+        );
+    }
+    let direct_source_display_content = display_text
+        .as_deref()
+        .unwrap_or(content.as_str())
+        .to_string();
     let preflight_org_run_id = preflight_agent_org_turn_before_runtime(
         &session_id,
         explicit_org_run_id,
         identity.agent_org_run_id_hint.as_deref(),
         identity.has_persisted_agent_org_identity,
+        is_direct_member,
     )
     .await?;
 
@@ -243,7 +263,34 @@ pub(crate) async fn send_message_impl(
     )
     .await?;
 
-    let runtime = crate::init::init_session(state, launch_spec).await?;
+    // A busy direct Member submission must first suspend the runtime that is
+    // already executing TaskExecution. Re-entering generic initialization
+    // here can decide that model/account/workspace drift requires a rebuild,
+    // replace the lease before the durable handoff CAS, and strand the
+    // receipt in `yield_requested`. Reuse only the exact live runtime for
+    // this pre-admission window; idle direct and every ordinary SDE message
+    // retain the normal initialization/revalidation path.
+    let active_direct_runtime = if is_direct_member {
+        match state.get_session(&session_id).await {
+            Some(session) if session.runtime_turn_identity().await.is_some() => {
+                session.get_runtime().await
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let runtime = match active_direct_runtime {
+        Some(runtime) => {
+            tracing::info!(
+                event = "agent_org_user_directed_reuse_active_runtime",
+                session_id = %session_id,
+                "reusing the exact busy Member runtime until durable handoff"
+            );
+            runtime
+        }
+        None => crate::init::init_session(state, launch_spec).await?,
+    };
 
     // Turn intent ownership is independent from wake behavior. Explicit
     // callers (initial Org launch, direct member message, wake) pass the run
@@ -267,17 +314,18 @@ pub(crate) async fn send_message_impl(
         (None, None) => preflight_org_run_id,
     };
 
-    // Every Agent Org turn receives its persisted typed authority before a
-    // base intent or scheduler item can exist. Background Member wakes derive
-    // one TaskExecution binding from canonical unread formal work; ordinary
-    // direct submissions in this PR remain Coordinator-only.
+    // Every Agent Org Turn receives persisted typed authority before a base
+    // intent or scheduler item can exist. Background Member wakes derive one
+    // TaskExecution binding from canonical unread formal work; direct Member
+    // submissions use the source/receipt transaction below instead.
     if let Some(run_id) = effective_intent_org_run_id.as_deref() {
         let admission_run_id = run_id.to_string();
         let admission_session_id = session_id.clone();
         let admission_turn_intent_id = effective_turn_intent_id.clone();
         let admission_client_message_id = client_message_id.clone();
         let admission_wake_member_id = org_wake_member_id.clone();
-        tokio::task::spawn_blocking(move || match admission_wake_member_id {
+        if !is_direct_member {
+            tokio::task::spawn_blocking(move || match admission_wake_member_id {
             Some(member_id) => crate::coordination::agent_org_turn_contexts::accept_wake(
                 &admission_run_id,
                 &admission_session_id,
@@ -305,8 +353,14 @@ pub(crate) async fn send_message_impl(
                 crate::coordination::agent_org_turn_contexts::accept(&admission)
             }
         })
-        .await
-        .map_err(|error| format!("Agent Org Turn admission worker failed: {error}"))??;
+            .await
+            .map_err(|error| format!("Agent Org Turn admission worker failed: {error}"))??;
+        }
+    } else if is_direct_member {
+        return Err(
+            "user_directed_target_invalid: source was supplied for a non-Agent-Org Session"
+                .to_string(),
+        );
     }
 
     // Wingman resume: reopen the bottom bar. On fresh start the frontend
@@ -336,49 +390,134 @@ pub(crate) async fn send_message_impl(
     let session_for_closure = Arc::clone(&session_handle);
     let load_workspace_resources = runtime.resolved.load_workspace_resources;
 
-    let direct_user_intervention =
-        if mark_direct_user_intervention && !is_resume && !content.trim().is_empty() {
-            let runtime_snapshot = session_handle.get_runtime().await;
-            match runtime_snapshot.and_then(|runtime| runtime.agent_org_context.clone()) {
-                Some(org_context) => {
-                    let session_id_for_intervention = session_id.clone();
-                    let member_id = tokio::task::spawn_blocking(move || {
-                        crate::session::persistence::get_session(&session_id_for_intervention)
-                            .map_err(|err| err.to_string())?
-                            .and_then(|record| record.org_member_id)
-                            .ok_or_else(|| {
-                                format!(
-                                    "Agent Org session {} has no canonical member_id",
-                                    session_id_for_intervention
-                                )
-                            })
+    let direct_user_directed_work: Option<EnqueueUserDirectedWorkResult> = if let Some(
+        source_event_id,
+    ) =
+        agent_org_direct_source_event_id.as_ref()
+    {
+        let run_id = effective_intent_org_run_id.clone().ok_or_else(|| {
+            "user_directed_target_invalid: canonical Agent Org run is missing".to_string()
+        })?;
+        let lookup_session_id = session_id.clone();
+        let member_id = tokio::task::spawn_blocking(move || {
+                crate::session::persistence::get_session(&lookup_session_id)
+                    .map_err(|error| error.to_string())?
+                    .and_then(|record| record.org_member_id)
+                    .ok_or_else(|| {
+                        format!(
+                            "user_directed_target_invalid: Session {lookup_session_id} has no canonical Member"
+                        )
                     })
-                    .await
-                    .map_err(|err| format!("Agent Org member lookup worker failed: {err}"))??;
-                    if can_enter_member_intervention(&member_id) {
-                        let agent_id = org_context.require_participant_agent_id(&member_id)?;
-                        Some(EnterMemberInterventionParams {
-                            org_run_id: org_context.run_id,
-                            member_id,
-                            agent_id,
-                            session_id: session_id.clone(),
-                            reason: Some("direct_user_chat".to_string()),
-                            ttl_secs: DEFAULT_INTERVENTION_TTL_SECS,
-                        })
-                    } else {
-                        tracing::debug!(
-                            org_run_id = %org_context.run_id,
-                            session_id = %session_id,
-                            "ordinary coordinator message does not enter member intervention"
-                        );
-                        None
-                    }
-                }
-                None => None,
-            }
-        } else {
-            None
+            })
+            .await
+            .map_err(|error| format!("Agent Org Member lookup worker failed: {error}"))??;
+        let enqueue = EnqueueUserDirectedWorkParams {
+            org_run_id: run_id,
+            session_id: session_id.clone(),
+            member_id,
+            turn_intent_id: effective_turn_intent_id.clone(),
+            client_message_id: client_message_id.clone(),
+            source_event_id: source_event_id.clone(),
+            dispatch_content: content.clone(),
+            source_display_content: direct_source_display_content.clone(),
+            source_images: images.clone().filter(|images| !images.is_empty()),
+            queue_cap: DEFAULT_USER_DIRECTED_QUEUE_CAP,
         };
+        Some(
+            tokio::task::spawn_blocking(move || {
+                AgentMemberInterventionStore::enqueue_user_directed_work(enqueue)
+            })
+            .await
+            .map_err(|error| format!("UserDirectedWork admission worker failed: {error}"))??,
+        )
+    } else {
+        None
+    };
+
+    if let Some(admission) = direct_user_directed_work.as_ref() {
+        tracing::info!(
+            event = "agent_org_user_directed_admitted",
+            org_run_id = %admission.context.org_run_id,
+            session_id = %admission.context.session_id,
+            turn_intent_id = %admission.context.turn_intent_id,
+            member_dispatch_sequence = ?admission.context.member_dispatch_sequence,
+            intervention_receipt_id = %admission.intervention.intervention_receipt_id,
+            duplicate = admission.duplicate,
+            turn_status = %admission.turn_status,
+            "accepted durable direct Member Turn"
+        );
+        if admission.should_request_yield {
+            org_tasks::schedule_user_directed_yield_timeout_observer(
+                admission.intervention.intervention_receipt_id.clone(),
+            );
+            if let Some(original_turn_intent_id) =
+                admission.intervention.original_turn_intent_id.as_deref()
+            {
+                match session_handle.runtime_turn_identity().await {
+                    Some(identity)
+                        if identity.turn_intent_id.as_deref() == Some(original_turn_intent_id) =>
+                    {
+                        let receipt_id = admission.intervention.intervention_receipt_id.clone();
+                        let original_turn_intent_id = original_turn_intent_id.to_string();
+                        let runtime_lease_id = identity.runtime_lease_id.clone();
+                        let dialog_turn_generation = identity.dialog_turn_generation.clone();
+                        let bound = tokio::task::spawn_blocking(move || {
+                            AgentMemberInterventionStore::bind_runtime_and_request_yield(
+                                &receipt_id,
+                                &original_turn_intent_id,
+                                &runtime_lease_id,
+                                &dialog_turn_generation,
+                            )
+                        })
+                        .await
+                        .map_err(|error| {
+                            format!("UserDirectedWork handoff worker failed: {error}")
+                        })??;
+                        if bound {
+                            session_handle
+                                .cancel_active_turn(
+                                    crate::state::control_flow::CancelReason::UserIntervention,
+                                )
+                                .await;
+                        }
+                    }
+                    None => {
+                        // The durable formal intent can become Running just
+                        // before begin_turn installs its exact in-memory
+                        // identity. Preserve a pre-turn cancellation marker;
+                        // the formal finalizer binds and releases the exact
+                        // lease once the identity exists.
+                        session_handle
+                            .cancel_active_turn(
+                                crate::state::control_flow::CancelReason::UserIntervention,
+                            )
+                            .await;
+                    }
+                    Some(_) => {}
+                }
+            }
+        }
+    }
+
+    if let Some(admission) = direct_user_directed_work.as_ref() {
+        if !should_dispatch_admitted_direct(
+            admission.duplicate,
+            &admission.turn_status,
+            allow_admitted_direct_recovery,
+        ) {
+            return Ok(AgentResponse {
+                content: serde_json::json!({
+                    "queued": matches!(admission.turn_status.as_str(), "queued" | "running"),
+                    "duplicate": true,
+                    "turnStatus": admission.turn_status,
+                    "interventionReceiptId": admission.intervention.intervention_receipt_id,
+                })
+                .to_string(),
+                session_id,
+                model: effective_model,
+            });
+        }
+    }
 
     let app_handle = state.app_handle.clone();
     let app_state_for_closure = state.clone();
@@ -402,11 +541,11 @@ pub(crate) async fn send_message_impl(
         &content,
         images.as_deref(),
         session_handle.scheduler.is_turn_processing(),
-    ) {
+    ) && direct_user_directed_work.is_none()
+    {
         // Steering mutates an already-running member turn, so intervention is
         // part of accepting the control action. If the durable takeover row
         // cannot be written, do not inject a message that Wake may race.
-        persist_direct_user_intervention(direct_user_intervention.clone()).await?;
         if effective_intent_org_run_id.is_none() {
             crate::foundation::session_bridge::upsert_turn_intent(
                 &session_id,
@@ -549,7 +688,7 @@ pub(crate) async fn send_message_impl(
     let display_text_for_closure = display_text;
     let workspace_root_for_closure = effective_workspace_root.clone();
     let turn_intent_id_for_closure = effective_turn_intent_id.clone();
-    let direct_user_intervention_for_closure = direct_user_intervention;
+    let direct_user_directed_work_for_closure = direct_user_directed_work.clone();
     let intent_org_run_id_for_closure = effective_intent_org_run_id.clone();
     // Resolve durable mode-control rows from exactly the bounded inbox batch
     // this background wake will drain. A control row in a later batch must
@@ -603,12 +742,19 @@ pub(crate) async fn send_message_impl(
         let workspace_root = workspace_root_for_closure;
         let session = session_for_closure;
         let turn_intent_id = turn_intent_id_for_closure;
-        let direct_user_intervention = direct_user_intervention_for_closure;
+        let direct_user_directed_work = direct_user_directed_work_for_closure;
         let org_wake_run_id = org_wake_run_id;
         let intent_org_run_id = intent_org_run_id_for_closure;
         let app_state = app_state_for_closure;
 
         Box::pin(async move {
+            if direct_user_directed_work.is_some()
+                && session.scheduler.turn_is_invalidated(&turn_intent_id)
+            {
+                return Err(format!(
+                    "{USER_DIRECTED_CANCELLED_ERROR_PREFIX} exact Turn was stopped before start"
+                ));
+            }
             // Clear a stale pre-turn cancel signal before the durable
             // Agent Org gate. This must happen before that gate: deletion may
             // establish its cancelled fence immediately after the DB claim
@@ -620,11 +766,6 @@ pub(crate) async fn send_message_impl(
             // or hierarchy deletion is discarded before this callback runs.
             cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
-            // The scheduler now owns this accepted turn. Intervention is a
-            // turn-start side effect, not submit preflight: queued work that is
-            // invalidated before execution must never leave a takeover row.
-            persist_direct_user_intervention(direct_user_intervention).await?;
-
             // Queued and coalesced messages are not running sessions. Promote
             // the DB state only when the scheduler actually begins execution.
             // Both Agent Org wakes and direct turns require a Running Team.
@@ -634,6 +775,7 @@ pub(crate) async fn send_message_impl(
             let status_wake_run_id = org_wake_run_id.clone();
             let status_intent_run_id = intent_org_run_id.clone();
             let status_turn_intent_id = turn_intent_id.clone();
+            let is_user_directed_work_turn = direct_user_directed_work.is_some();
             match tokio::task::spawn_blocking(move || {
                 database::db::with_sessions_writer(|| -> Result<bool, String> {
                     let mut conn = database::db::get_connection().map_err(|err| err.to_string())?;
@@ -647,7 +789,27 @@ pub(crate) async fn send_message_impl(
                             &status_turn_intent_id,
                         )?;
                     }
-                    let updated = if let Some(run_id) = status_wake_run_id.as_deref() {
+                    if is_user_directed_work_turn
+                        && !AgentMemberInterventionStore::mark_turn_running_with_connection(
+                            &tx,
+                            &status_sid,
+                            &status_turn_intent_id,
+                        )?
+                    {
+                        tx.commit().map_err(|err| err.to_string())?;
+                        return Ok(false);
+                    }
+                    let updated = if is_user_directed_work_turn {
+                        tx.execute(
+                            "UPDATE agent_sessions SET status=?1,updated_at=?2 WHERE session_id=?3",
+                            rusqlite::params![
+                                crate::session::SessionStatus::Running.as_str(),
+                                chrono::Utc::now().to_rfc3339(),
+                                &status_sid,
+                            ],
+                        )
+                        .map_err(|error| error.to_string())?
+                    } else if let Some(run_id) = status_wake_run_id.as_deref() {
                         promote_agent_org_wake_session_to_running(&tx, run_id, &status_sid)?
                     } else if let Some(run_id) = status_intent_run_id.as_deref() {
                         promote_agent_org_direct_session_to_running(&tx, run_id, &status_sid)?
@@ -676,14 +838,32 @@ pub(crate) async fn send_message_impl(
             .await
             {
                 Ok(Ok(true)) => {}
+                Ok(Ok(false)) if is_user_directed_work_turn => {
+                    return Err(format!(
+                        "{USER_DIRECTED_WAITING_ERROR_PREFIX} intervention handoff is not released"
+                    ));
+                }
                 Ok(Ok(false)) => return Ok(String::new()),
                 Ok(Err(err)) => return Err(format!("failed to persist running status: {err}")),
                 Err(err) => return Err(format!("running-status task failed: {err}")),
+            }
+            if let Some(accepted) = direct_user_directed_work.as_ref() {
+                crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+                    &accepted.context.org_run_id,
+                );
+                session
+                    .attach_warm_runtime_if_empty(Arc::clone(&runtime))
+                    .await?;
             }
 
             let turn_id = session
                 .begin_turn_with_intent(content.clone(), Some(turn_intent_id.clone()))
                 .await;
+            // Keep the exact identity installed at the Turn boundary. A
+            // cancelled Agent Org Turn can publish terminal state before the
+            // handoff finalizer runs; consulting only the live slot there can
+            // therefore lose the lease/generation needed for the CAS release.
+            let turn_identity = session.runtime_turn_identity().await;
 
             let input = crate::session::TurnInput {
                 content: content.clone(),
@@ -727,6 +907,12 @@ pub(crate) async fn send_message_impl(
                 &session,
                 intent_org_run_id.as_deref(),
                 &turn_intent_id,
+            )
+            .await;
+            org_tasks::settle_user_directed_handoff_after_turn(
+                &session,
+                &turn_intent_id,
+                turn_identity.as_ref(),
             )
             .await;
             session.end_turn(final_turn_state, stats).await;
@@ -827,6 +1013,35 @@ pub(crate) async fn send_message_impl(
 
             let content_result = response.map(|r| r.content);
 
+            // Persist the UserDirectedWork terminal before the ordinary
+            // session finalizer emits `session-status-changed`. The frontend
+            // uses that existing terminal event as its local, websocket-free
+            // Run View invalidation, so every read triggered by the event must
+            // already observe the direct FIFO slot as terminal. Keep the
+            // result until after session finalization so a receipt write error
+            // cannot strand the Session itself in Running.
+            let direct_terminal_result = if direct_user_directed_work.is_some() {
+                let terminal_session_id = sid.clone();
+                let terminal_turn_intent_id = turn_intent_id.clone();
+                let terminal_status = match final_turn_state {
+                    crate::session::DialogTurnState::Cancelled => "cancelled",
+                    crate::session::DialogTurnState::Failed => "failed",
+                    crate::session::DialogTurnState::Running
+                    | crate::session::DialogTurnState::Completed => "completed",
+                };
+                let terminal_error = content_result.as_ref().err().map(String::as_str);
+                tokio::task::block_in_place(|| {
+                    AgentMemberInterventionStore::mark_turn_terminal(
+                        &terminal_session_id,
+                        &terminal_turn_intent_id,
+                        terminal_status,
+                        terminal_error,
+                    )
+                })
+            } else {
+                Ok(false)
+            };
+
             crate::lifecycle::finalize_session(
                 &sid,
                 &content_result,
@@ -836,6 +1051,7 @@ pub(crate) async fn send_message_impl(
                 terminal_turn,
             )
             .await;
+            direct_terminal_result?;
 
             cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
@@ -844,11 +1060,19 @@ pub(crate) async fn send_message_impl(
     });
 
     // ── 6. Enqueue and return immediately ────────────────────────────────
+    let scheduler_client_message_id = if direct_user_directed_work.is_some() {
+        Some(effective_turn_intent_id.clone())
+    } else {
+        client_message_id
+    };
+    let intervention_receipt_id = direct_user_directed_work
+        .as_ref()
+        .map(|accepted| accepted.intervention.intervention_receipt_id.clone());
     let msg = crate::session::ScheduledMessage {
         kind: crate::session::ScheduledKind::Turn,
         message_id: uuid::Uuid::new_v4().to_string(),
         generation: 0,
-        client_message_id,
+        client_message_id: scheduler_client_message_id,
         turn_intent_id: effective_turn_intent_id.clone(),
         org_run_id: effective_intent_org_run_id.clone(),
         content,
@@ -871,11 +1095,39 @@ pub(crate) async fn send_message_impl(
         );
     }
 
-    let enqueue_result = session_handle
-        .scheduler
-        .enqueue(msg)
-        .await
-        .map_err(|err| format!("Failed to enqueue message: {err}"))?;
+    let enqueue_result = match session_handle.scheduler.enqueue(msg).await {
+        Ok(result) => result,
+        Err(error) => {
+            if direct_user_directed_work.is_some() {
+                let failed_session_id = session_id.clone();
+                let failed_turn_intent_id = effective_turn_intent_id.clone();
+                let enqueue_failure = error.clone();
+                tokio::task::spawn_blocking(move || {
+                    if allow_admitted_direct_recovery {
+                        AgentMemberInterventionStore::requeue_direct_after_recovery_enqueue_failure(
+                            &failed_session_id,
+                            &failed_turn_intent_id,
+                        )
+                    } else {
+                        let failure = format!("scheduler_enqueue_failed: {enqueue_failure}");
+                        AgentMemberInterventionStore::mark_turn_terminal(
+                            &failed_session_id,
+                            &failed_turn_intent_id,
+                            "failed",
+                            Some(&failure),
+                        )
+                    }
+                })
+                .await
+                .map_err(|join_error| {
+                    format!(
+                        "Failed to enqueue message: {error}; failed to persist terminal evidence: {join_error}"
+                    )
+                })??;
+            }
+            return Err(format!("Failed to enqueue message: {error}"));
+        }
+    };
 
     tracing::info!(
         "[agent_send_message] Enqueued message {} at position {} for session {}",
@@ -890,6 +1142,7 @@ pub(crate) async fn send_message_impl(
             "messageId": enqueue_result.message_id,
             "queuePosition": enqueue_result.queue_position,
             "duplicate": enqueue_result.duplicate,
+            "interventionReceiptId": intervention_receipt_id,
         })
         .to_string(),
         session_id,
@@ -939,5 +1192,15 @@ mod admission_tests {
             true,
             false
         ));
+    }
+
+    #[test]
+    fn exact_direct_retry_never_replays_but_startup_can_recover_one_queued_turn() {
+        assert!(should_dispatch_admitted_direct(false, "queued", false));
+        assert!(!should_dispatch_admitted_direct(true, "queued", false));
+        assert!(should_dispatch_admitted_direct(true, "queued", true));
+        assert!(!should_dispatch_admitted_direct(true, "running", true));
+        assert!(!should_dispatch_admitted_direct(true, "completed", true));
+        assert!(!should_dispatch_admitted_direct(true, "failed", true));
     }
 }

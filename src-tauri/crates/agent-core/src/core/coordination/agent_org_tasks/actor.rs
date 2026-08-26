@@ -38,16 +38,21 @@ impl TaskGraphWriterAdmin {
     ) -> Result<TaskActorAudit, String> {
         let context =
             require_context_with_connection(conn, &self.session_id, &self.turn_intent_id)?;
-        let snapshot =
-            validate_run_and_generation(conn, org_run_id, context.activation_generation)?;
         if context.org_run_id != org_run_id {
             return Err("task_graph_writer_context_mismatch".to_string());
         }
+        let (status, generation, snapshot) = load_run_snapshot(conn, org_run_id)?;
         let is_coordinator = context.turn_kind == AgentOrgTurnKind::Coordinator
             && context.participant_id == COORDINATOR_MEMBER_ID
             && context.task_id.is_none()
             && context.owner_member_id.is_none();
         if is_coordinator {
+            validate_running_generation(
+                org_run_id,
+                status,
+                generation,
+                context.activation_generation,
+            )?;
             let root_session_id: Option<String> = conn
                 .query_row(
                     "SELECT root_session_id FROM agent_org_runtime_runs WHERE id=?1",
@@ -69,7 +74,43 @@ impl TaskGraphWriterAdmin {
                     .additional_task_graph_writer_member_ids
                     .iter()
                     .any(|member_id| member_id == &context.participant_id);
-            if !is_bound_writer_execution {
+            let is_user_directed_writer = context.turn_kind == AgentOrgTurnKind::UserDirectedWork
+                && context.task_id.is_none()
+                && context.owner_member_id.is_none()
+                && context.dispatch_member_id.as_deref() == Some(context.participant_id.as_str())
+                && context.participant_id != COORDINATOR_MEMBER_ID
+                && snapshot
+                    .additional_task_graph_writer_member_ids
+                    .iter()
+                    .any(|member_id| member_id == &context.participant_id);
+            if is_bound_writer_execution {
+                validate_running_generation(
+                    org_run_id,
+                    status,
+                    generation,
+                    context.activation_generation,
+                )?;
+            } else if is_user_directed_writer {
+                crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+                    conn,
+                    &self.session_id,
+                    &self.turn_intent_id,
+                )?;
+                match status {
+                    AgentOrgRunStatus::Running | AgentOrgRunStatus::Idle => {}
+                    AgentOrgRunStatus::Paused => {
+                        return Err(format!(
+                            "team_paused_resume_required: Agent Org run {org_run_id} must be resumed before changing formal work"
+                        ));
+                    }
+                    _ => {
+                        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+                            org_run_id,
+                            status.as_str(),
+                        ));
+                    }
+                }
+            } else {
                 return Err("task_graph_writer_context_mismatch".to_string());
             }
         }
@@ -306,6 +347,40 @@ fn validate_run_and_generation(
     org_run_id: &str,
     expected_generation: Option<i64>,
 ) -> Result<crate::definitions::orgs::AgentOrgLaunchSnapshot, String> {
+    let (status, generation, snapshot) = load_run_snapshot(conn, org_run_id)?;
+    validate_running_generation(org_run_id, status, generation, expected_generation)?;
+    Ok(snapshot)
+}
+
+fn validate_running_generation(
+    org_run_id: &str,
+    status: AgentOrgRunStatus,
+    generation: i64,
+    expected_generation: Option<i64>,
+) -> Result<(), String> {
+    if status != AgentOrgRunStatus::Running {
+        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+            org_run_id,
+            status.as_str(),
+        ));
+    }
+    if expected_generation != Some(generation) {
+        return Err("task_actor_generation_mismatch".to_string());
+    }
+    Ok(())
+}
+
+fn load_run_snapshot(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+) -> Result<
+    (
+        AgentOrgRunStatus,
+        i64,
+        crate::definitions::orgs::AgentOrgLaunchSnapshot,
+    ),
+    String,
+> {
     let row: Option<(String, i64, Option<String>)> = conn
         .query_row(
             "SELECT status, activation_generation, org_snapshot_json
@@ -320,20 +395,11 @@ fn validate_run_and_generation(
     };
     let status = AgentOrgRunStatus::parse(&status_raw)
         .ok_or_else(|| format!("unknown Agent Org run status: {status_raw}"))?;
-    if status != AgentOrgRunStatus::Running {
-        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
-            org_run_id,
-            status.as_str(),
-        ));
-    }
-    if expected_generation != Some(generation) {
-        return Err("task_actor_generation_mismatch".to_string());
-    }
     let snapshot_json = snapshot_json.ok_or_else(|| "task_actor_snapshot_missing".to_string())?;
     let snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot =
         serde_json::from_str(&snapshot_json)
             .map_err(|error| format!("task_actor_snapshot_invalid: {error}"))?;
     crate::definitions::orgs::validate_launch_snapshot(&snapshot)
         .map_err(|error| format!("task_actor_snapshot_invalid: {error}"))?;
-    Ok(snapshot)
+    Ok((status, generation, snapshot))
 }

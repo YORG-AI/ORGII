@@ -297,6 +297,8 @@ async fn finish_background_job(pid: u32, identity: &ExecIdentity) {
         .as_ref()
         .is_some_and(|control| control.require_owned_job_finality)
     {
+        crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()
+            .resume_user_directed_handoff(&identity.session_id);
         return;
     }
     crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()

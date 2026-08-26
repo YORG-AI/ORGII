@@ -38,6 +38,17 @@ fn fixture() -> Fixture {
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             PRIMARY KEY(session_id,turn_intent_id)
+        );
+        CREATE TABLE events (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            function_name TEXT,
+            args_json TEXT NOT NULL DEFAULT '{}',
+            result_json TEXT NOT NULL DEFAULT '{}',
+            content TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            meta_json TEXT
         );",
     )
     .expect("base Turn table");
@@ -173,8 +184,87 @@ fn insert_owner_context(
     .expect("Owner TaskExecution context");
 }
 
+fn grant_additional_writer(conn: &rusqlite::Connection, member_id: &str) {
+    let snapshot: String = conn
+        .query_row(
+            "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id=?1",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .expect("read launch snapshot");
+    let mut snapshot: serde_json::Value =
+        serde_json::from_str(&snapshot).expect("decode launch snapshot");
+    snapshot["additionalTaskGraphWriterMemberIds"] = serde_json::json!([member_id]);
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?2 WHERE id=?1",
+        params![RUN_ID, snapshot.to_string()],
+    )
+    .expect("grant additional Writer in immutable test snapshot");
+}
+
+fn insert_direct_context(
+    conn: &rusqlite::Connection,
+    member_id: &str,
+    session_id: &str,
+    turn_id: &str,
+) {
+    insert_base_turn(conn, session_id, turn_id);
+    let source_event_id = format!("event-{turn_id}");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO events(
+             id,session_id,event_type,function_name,result_json,created_at,meta_json
+         ) VALUES (?1,?2,'raw','user_message',?3,?4,?5)",
+        params![
+            &source_event_id,
+            session_id,
+            serde_json::json!({
+                "message": {"content": "direct graph work", "role": "user"},
+                "syntheticUserInput": true,
+                "agentOrgDirectSource": true,
+                "turnIntentId": turn_id,
+            })
+            .to_string(),
+            &now,
+            serde_json::json!({"source": "user"}).to_string(),
+        ],
+    )
+    .expect("direct EventStore source");
+    let sequence: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(member_dispatch_sequence),0)+1
+             FROM agent_org_runtime_turn_contexts
+             WHERE org_run_id=?1 AND dispatch_member_id=?2",
+            params![RUN_ID, member_id],
+            |row| row.get(0),
+        )
+        .expect("next direct sequence");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+             dispatch_member_id,member_dispatch_sequence,source_kind,source_id,
+             root_authority_turn_id,actor_version,created_at
+         ) VALUES (?1,?2,?3,?4,'user_directed_work',?4,?5,
+                   'direct_member',?6,?2,1,?7)",
+        params![
+            session_id,
+            turn_id,
+            RUN_ID,
+            member_id,
+            sequence,
+            source_event_id,
+            now,
+        ],
+    )
+    .expect("direct UserDirectedWork context");
+}
+
 fn graph_actor() -> TaskGraphWriterAdmin {
     TaskGraphWriterAdmin::new(ROOT_SESSION, COORDINATOR_TURN).expect("graph actor")
+}
+
+fn direct_graph_actor(session_id: &str, turn_id: &str) -> TaskGraphWriterAdmin {
+    TaskGraphWriterAdmin::new(session_id, turn_id).expect("direct graph actor")
 }
 
 fn owner_actor(session_id: &str, turn_id: &str) -> TaskOwnerExecution {
@@ -426,6 +516,106 @@ fn graph_create_forces_pending_and_injects_provenance() {
     assert!(AgentOrgTaskStore::get(RUN_ID, "bad-owner")
         .unwrap()
         .is_none());
+}
+
+#[test]
+fn user_directed_graph_authority_is_denied_for_workers_allowed_for_writer_and_paused_safe() {
+    let _fixture = fixture();
+    let conn = get_connection().expect("test sqlite connection");
+    insert_direct_context(&conn, MEMBER_B, MEMBER_B_SESSION, "direct-worker-denied");
+    let denied = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        direct_graph_actor(MEMBER_B_SESSION, "direct-worker-denied"),
+        pending("direct-worker-task", Some(MEMBER_B), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("ordinary Member must fail at the Store actor boundary");
+    assert!(denied.contains("task_graph_writer_context_mismatch"));
+    assert!(AgentOrgTaskStore::get(RUN_ID, "direct-worker-task")
+        .expect("read denied task")
+        .is_none());
+
+    grant_additional_writer(&conn, MEMBER_A);
+    insert_direct_context(&conn, MEMBER_A, MEMBER_A_SESSION, "direct-writer-allowed");
+    let written = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        direct_graph_actor(MEMBER_A_SESSION, "direct-writer-allowed"),
+        pending("direct-writer-task", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect("Writer direct Turn may mutate the formal graph")
+    .0;
+    assert_eq!(written.created_by_participant_id, MEMBER_A);
+    assert_eq!(written.source_turn_intent_id, "direct-writer-allowed");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='paused' WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("pause Team");
+    insert_direct_context(&conn, MEMBER_A, MEMBER_A_SESSION, "direct-writer-paused");
+    let paused = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        direct_graph_actor(MEMBER_A_SESSION, "direct-writer-paused"),
+        pending("direct-writer-paused-task", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("Paused Writer must not mutate formal work");
+    assert!(paused.contains("team_paused_resume_required"));
+    assert!(AgentOrgTaskStore::get(RUN_ID, "direct-writer-paused-task")
+        .expect("read paused denied task")
+        .is_none());
+}
+
+#[test]
+fn idle_user_directed_writer_activates_team_and_task_atomically() {
+    let _fixture = fixture();
+    let conn = get_connection().expect("test sqlite connection");
+    grant_additional_writer(&conn, MEMBER_A);
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='idle' WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("idle Team");
+    insert_direct_context(&conn, MEMBER_A, MEMBER_A_SESSION, "direct-writer-idle");
+
+    AgentOrgTaskStore::create_pending_with_transactional_effects(
+        direct_graph_actor(MEMBER_A_SESSION, "direct-writer-idle"),
+        pending("direct-idle-activation", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |tx, _task, _tasks| {
+            crate::coordination::agent_org_runs::AgentOrgRunStore::activate_idle_for_task_graph_in_tx(
+                tx,
+                RUN_ID,
+                MEMBER_A_SESSION,
+                "direct-writer-idle",
+            )?;
+            Ok(())
+        },
+    )
+    .expect("Idle Writer activation");
+
+    let (status, generation, task_count): (String, i64, i64) = conn
+        .query_row(
+            "SELECT run.status,run.activation_generation,
+                    (SELECT COUNT(*) FROM agent_org_runtime_tasks task
+                     WHERE task.org_run_id=run.id AND task.id='direct-idle-activation')
+             FROM agent_org_runtime_runs run WHERE run.id=?1",
+            [RUN_ID],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("read atomic Idle activation");
+    assert_eq!(status, "running");
+    assert_eq!(generation, 2);
+    assert_eq!(task_count, 1);
 }
 
 #[test]
