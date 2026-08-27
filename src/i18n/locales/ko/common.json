@@ -1447,17 +1447,37 @@
         "reviewed": "리뷰했습니다"
       },
       "summary": {
-        "label": "pull request 요약",
-        "branch": "브랜치",
+        "label": "pull request 요약"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "님이 {{count}}개의 커밋을 병합하려고 합니다:",
+        "wantsToMergeCommitsInto_other": "님이 {{count}}개의 커밋을 병합하려고 합니다:",
+        "mergedCommitsInto_one": "님이 {{count}}개의 커밋을 병합했습니다:",
+        "mergedCommitsInto_other": "님이 {{count}}개의 커밋을 병합했습니다:",
+        "from": "←",
+        "copyHeadBranch": "브랜치 이름 복사",
+        "branchCopied": "브랜치 이름이 복사되었습니다"
+      },
+      "sidebar": {
         "reviewers": "리뷰어",
-        "noReviewers": "리뷰어 없음",
-        "comments": "댓글",
-        "commentCount_one": "댓글 {{count}}개",
-        "commentCount_other": "댓글 {{count}}개",
-        "checks": "검사",
-        "noChecks": "CI 검사 없음",
-        "checksFailed": "검사 실패",
-        "status": "상태"
+        "requestReviewers": "리뷰어 요청",
+        "awaitingReview": "리뷰 대기 중",
+        "noReviews": "리뷰 없음",
+        "assignees": "담당자",
+        "noAssignees": "담당자 없음",
+        "labels": "레이블",
+        "noLabels": "아직 없음",
+        "actions": "작업",
+        "editAssignees": "담당자 편집",
+        "searchAssignees": "사용자 검색",
+        "noAssigneeCandidates": "사용 가능한 사용자가 없습니다",
+        "assigneesLoadFailed": "사용자를 불러오지 못했습니다",
+        "assigneesUpdated": "담당자가 업데이트되었습니다",
+        "editLabels": "레이블 편집",
+        "searchLabels": "레이블 검색",
+        "noLabelCandidates": "사용 가능한 레이블이 없습니다",
+        "labelsLoadFailed": "레이블을 불러오지 못했습니다",
+        "labelsUpdated": "레이블이 업데이트되었습니다"
       },
       "tabs": {
         "conversation": "대화",
@@ -1508,6 +1528,8 @@
         "removedFromQueue": "병합 대기열에서 제거했습니다",
         "autoMergeEnabled": "자동 병합을 활성화했습니다",
         "autoMergeDisabled": "자동 병합을 비활성화했습니다",
+        "convertToDraft": "초안으로 전환",
+        "convertedToDraft": "pull request를 초안으로 전환했습니다",
         "confirmCloseTitle": "pull request를 닫을까요?",
         "confirmCloseMessage": "pull request는 계속 사용할 수 있으며 나중에 다시 열 수 있습니다.",
         "closeSuccess": "pull request를 닫았습니다",
@@ -1530,9 +1552,6 @@
         "reviewersLoadFailed": "리뷰어를 불러올 수 없습니다",
         "noReviewers": "사용 가능한 리뷰어가 없습니다",
         "reviewersUpdated": "리뷰어를 업데이트했습니다",
-        "reviewersCount_one": "리뷰어 {{count}}명",
-        "reviewersCount_other": "리뷰어 {{count}}명",
-        "reviewers": "리뷰어",
         "tooltips": {
           "merge": "GitHub에서 이 pull request 병합",
           "alreadyMerged": "이 pull request는 이미 병합되었습니다",

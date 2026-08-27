@@ -7,6 +7,8 @@ import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions"
 import {
   DetailPanelContainer,
   ScrollTrail,
+  WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
+  WORKSTATION_TRAIL_WIDTH,
 } from "@src/modules/shared/layouts/blocks";
 
 import { resolveWorkItemThreadHeaderPolicy } from "./presentation";
@@ -15,8 +17,16 @@ import { WORK_ITEM_THREAD_TOKENS } from "./tokens";
 interface WorkItemThreadLayoutProps {
   path?: React.ReactNode;
   properties?: React.ReactNode;
+  /** GitHub-style flow title rendered above the thread body. */
+  flowHeader?: React.ReactNode;
   children: React.ReactNode;
   floatingFooter?: React.ReactNode;
+  /**
+   * Details rail rendered to the right of the thread, on the Workstation trail
+   * surface. Hosts that publish their own rail (and portal the navigation trail
+   * into it) keep owning that composition instead.
+   */
+  sidebar?: React.ReactNode;
 }
 
 /** Optional host beneath a floating properties trail for the section navigator. */
@@ -26,8 +36,10 @@ export const WorkItemThreadNavigationPortalContext =
 export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
   path,
   properties,
+  flowHeader,
   children,
   floatingFooter,
+  sidebar,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
   const navigationTrailHost = useContext(WorkItemThreadNavigationPortalContext);
@@ -45,10 +57,17 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
     Boolean(path),
     Boolean(properties)
   );
+  // The trail sits inside the details rail when this layout owns one, so the
+  // thread keeps a single right-hand column instead of stacking two rails.
+  const ownsDetailsRail = Boolean(sidebar) && !navigationTrailHost;
   const navigationRail = (
     <div
       className={
-        navigationTrailHost ? "relative h-full w-11" : "relative w-11 shrink-0"
+        navigationTrailHost
+          ? "relative h-full w-11"
+          : ownsDetailsRail
+            ? "relative ml-auto min-h-0 w-11 flex-1"
+            : "relative w-11 shrink-0"
       }
       data-testid="work-item-thread-navigation-rail"
     >
@@ -92,6 +111,9 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
                 ) : null}
               </div>
             ) : null}
+            {flowHeader ? (
+              <div data-testid="work-item-thread-flow-header">{flowHeader}</div>
+            ) : null}
             {children}
           </div>
         </div>
@@ -99,7 +121,11 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
           <div
             ref={floatingFooterRef}
             className={`absolute bottom-0 left-0 ${
-              navigationTrailHost ? "right-0" : "right-11"
+              navigationTrailHost
+                ? "right-0"
+                : ownsDetailsRail
+                  ? "right-64"
+                  : "right-11"
             } z-50 flex flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
             data-testid="work-item-thread-floating-footer"
           >
@@ -112,9 +138,20 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
             </div>
           </div>
         ) : null}
-        {navigationTrailHost
-          ? createPortal(navigationRail, navigationTrailHost)
-          : navigationRail}
+        {navigationTrailHost ? (
+          createPortal(navigationRail, navigationTrailHost)
+        ) : ownsDetailsRail ? (
+          <div
+            className={`box-border flex h-full shrink-0 flex-col ${WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`}
+            style={{ width: WORKSTATION_TRAIL_WIDTH.expandedPx }}
+            data-testid="work-item-thread-details-rail"
+          >
+            {sidebar}
+            {navigationRail}
+          </div>
+        ) : (
+          navigationRail
+        )}
       </div>
     </DetailPanelContainer>
   );

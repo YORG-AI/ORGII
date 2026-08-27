@@ -1448,17 +1448,37 @@
         "reviewed": "hat ein Review abgegeben"
       },
       "summary": {
-        "label": "Zusammenfassung zum pull request",
-        "branch": "Branch",
+        "label": "Zusammenfassung zum pull request"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "möchte {{count}} Commit zusammenführen in",
+        "wantsToMergeCommitsInto_other": "möchte {{count}} Commits zusammenführen in",
+        "mergedCommitsInto_one": "hat {{count}} Commit zusammengeführt in",
+        "mergedCommitsInto_other": "hat {{count}} Commits zusammengeführt in",
+        "from": "von",
+        "copyHeadBranch": "Branch-Namen kopieren",
+        "branchCopied": "Branch-Name kopiert"
+      },
+      "sidebar": {
         "reviewers": "Reviewer",
-        "noReviewers": "Keine Reviewer",
-        "comments": "Kommentare",
-        "commentCount_one": "{{count}} Kommentar",
-        "commentCount_other": "{{count}} Kommentare",
-        "checks": "Checks",
-        "noChecks": "Keine CI-Checks",
-        "checksFailed": "Checks fehlgeschlagen",
-        "status": "Status"
+        "requestReviewers": "Reviewer anfordern",
+        "awaitingReview": "Review ausstehend",
+        "noReviews": "Keine Reviews",
+        "assignees": "Zugewiesene",
+        "noAssignees": "Niemand zugewiesen",
+        "labels": "Labels",
+        "noLabels": "Noch keine",
+        "actions": "Aktionen",
+        "editAssignees": "Zugewiesene bearbeiten",
+        "searchAssignees": "Personen suchen",
+        "noAssigneeCandidates": "Keine Personen verfügbar",
+        "assigneesLoadFailed": "Personen konnten nicht geladen werden",
+        "assigneesUpdated": "Zugewiesene aktualisiert",
+        "editLabels": "Labels bearbeiten",
+        "searchLabels": "Labels suchen",
+        "noLabelCandidates": "Keine Labels verfügbar",
+        "labelsLoadFailed": "Labels konnten nicht geladen werden",
+        "labelsUpdated": "Labels aktualisiert"
       },
       "tabs": {
         "conversation": "Unterhaltung",
@@ -1509,6 +1529,8 @@
         "removedFromQueue": "Aus der Merge-Warteschlange entfernt",
         "autoMergeEnabled": "Automatisches Zusammenführen aktiviert",
         "autoMergeDisabled": "Automatisches Zusammenführen deaktiviert",
+        "convertToDraft": "In Entwurf umwandeln",
+        "convertedToDraft": "Pull Request in Entwurf umgewandelt",
         "confirmCloseTitle": "Pull Request schließen?",
         "confirmCloseMessage": "Der Pull Request bleibt verfügbar und kann später erneut geöffnet werden.",
         "closeSuccess": "Pull Request geschlossen",
@@ -1531,9 +1553,6 @@
         "reviewersLoadFailed": "Reviewer konnten nicht geladen werden",
         "noReviewers": "Keine Reviewer verfügbar",
         "reviewersUpdated": "Reviewer aktualisiert",
-        "reviewersCount_one": "{{count}} Reviewer",
-        "reviewersCount_other": "{{count}} Reviewer",
-        "reviewers": "Reviewer",
         "tooltips": {
           "merge": "Diesen Pull Request auf GitHub zusammenführen",
           "alreadyMerged": "Dieser Pull Request wurde bereits zusammengeführt",

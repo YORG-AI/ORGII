@@ -415,12 +415,17 @@ describe("AssignedWorkItemDetail navigation actions", () => {
         loading: false,
       },
       githubIssueInteraction: mocks.githubIssueState.interaction,
-      propertyFields: ["status", "assignee"],
+      // GitHub owns labels, so they render read-only beside the editable
+      // status and assignee in the Workstation trail rail.
+      propertyFields: ["status", "assignee", "labels"],
+      propertiesPlacement: "rail",
       propertyProps: {
         externalStatusConfig: {
           currentStatusId: "open",
           disabled: false,
         },
+        labelsReadonly: true,
+        showSchedule: false,
       },
     });
   });

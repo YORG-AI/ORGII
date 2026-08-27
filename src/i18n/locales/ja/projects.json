@@ -336,6 +336,7 @@
       "noDueDay": "期限日なし",
       "noStartDate": "開始日なし",
       "noLabels": "ラベルなし",
+      "labels": "ラベル",
       "today": "今日",
       "tomorrow": "明日",
       "thisFriday": "今週金曜",

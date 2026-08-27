@@ -1447,17 +1447,37 @@
         "reviewed": "đã đánh giá"
       },
       "summary": {
-        "label": "Tóm tắt pull request",
-        "branch": "Nhánh",
-        "reviewers": "Người đánh giá",
-        "noReviewers": "Không có người đánh giá",
-        "comments": "Bình luận",
-        "commentCount_one": "{{count}} bình luận",
-        "commentCount_other": "{{count}} bình luận",
-        "checks": "Kiểm tra",
-        "noChecks": "Không có kiểm tra CI",
-        "checksFailed": "Kiểm tra thất bại",
-        "status": "Trạng thái"
+        "label": "Tóm tắt pull request"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "muốn merge {{count}} commit vào",
+        "wantsToMergeCommitsInto_other": "muốn merge {{count}} commit vào",
+        "mergedCommitsInto_one": "đã merge {{count}} commit vào",
+        "mergedCommitsInto_other": "đã merge {{count}} commit vào",
+        "from": "từ",
+        "copyHeadBranch": "Sao chép tên nhánh",
+        "branchCopied": "Đã sao chép tên nhánh"
+      },
+      "sidebar": {
+        "reviewers": "Người review",
+        "requestReviewers": "Yêu cầu review",
+        "awaitingReview": "Đang chờ review",
+        "noReviews": "Chưa có review",
+        "assignees": "Người được giao",
+        "noAssignees": "Chưa giao cho ai",
+        "labels": "Nhãn",
+        "noLabels": "Chưa có",
+        "actions": "Thao tác",
+        "editAssignees": "Sửa người được giao",
+        "searchAssignees": "Tìm người",
+        "noAssigneeCandidates": "Không có người khả dụng",
+        "assigneesLoadFailed": "Không tải được danh sách người",
+        "assigneesUpdated": "Đã cập nhật người được giao",
+        "editLabels": "Sửa nhãn",
+        "searchLabels": "Tìm nhãn",
+        "noLabelCandidates": "Không có nhãn khả dụng",
+        "labelsLoadFailed": "Không tải được nhãn",
+        "labelsUpdated": "Đã cập nhật nhãn"
       },
       "tabs": {
         "conversation": "Thảo luận",
@@ -1508,6 +1528,8 @@
         "removedFromQueue": "Đã xóa khỏi hàng đợi hợp nhất",
         "autoMergeEnabled": "Đã bật tự động hợp nhất",
         "autoMergeDisabled": "Đã tắt tự động hợp nhất",
+        "convertToDraft": "Chuyển thành bản nháp",
+        "convertedToDraft": "Đã chuyển pull request thành bản nháp",
         "confirmCloseTitle": "Đóng pull request?",
         "confirmCloseMessage": "Pull request vẫn sẽ khả dụng và có thể được mở lại sau.",
         "closeSuccess": "Đã đóng pull request",
@@ -1530,9 +1552,6 @@
         "reviewersLoadFailed": "Không thể tải người đánh giá",
         "noReviewers": "Không có người đánh giá khả dụng",
         "reviewersUpdated": "Đã cập nhật người đánh giá",
-        "reviewersCount_one": "{{count}} người đánh giá",
-        "reviewersCount_other": "{{count}} người đánh giá",
-        "reviewers": "Người đánh giá",
         "tooltips": {
           "merge": "Hợp nhất pull request này trên GitHub",
           "alreadyMerged": "Pull request này đã được hợp nhất",

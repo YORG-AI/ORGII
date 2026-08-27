@@ -1448,17 +1448,37 @@
         "reviewed": "a effectué une revue"
       },
       "summary": {
-        "label": "Résumé de la pull request",
-        "branch": "Branche",
+        "label": "Résumé de la pull request"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "souhaite fusionner {{count}} commit dans",
+        "wantsToMergeCommitsInto_other": "souhaite fusionner {{count}} commits dans",
+        "mergedCommitsInto_one": "a fusionné {{count}} commit dans",
+        "mergedCommitsInto_other": "a fusionné {{count}} commits dans",
+        "from": "depuis",
+        "copyHeadBranch": "Copier le nom de la branche",
+        "branchCopied": "Nom de la branche copié"
+      },
+      "sidebar": {
         "reviewers": "Relecteurs",
-        "noReviewers": "Aucun relecteur",
-        "comments": "Commentaires",
-        "commentCount_one": "{{count}} commentaire",
-        "commentCount_other": "{{count}} commentaires",
-        "checks": "Vérifications",
-        "noChecks": "Aucune vérification CI",
-        "checksFailed": "Échec des vérifications",
-        "status": "Statut"
+        "requestReviewers": "Demander des relecteurs",
+        "awaitingReview": "Relecture en attente",
+        "noReviews": "Aucune relecture",
+        "assignees": "Assignés",
+        "noAssignees": "Personne d'assigné",
+        "labels": "Étiquettes",
+        "noLabels": "Aucune pour l'instant",
+        "actions": "Actions",
+        "editAssignees": "Modifier les assignés",
+        "searchAssignees": "Rechercher des personnes",
+        "noAssigneeCandidates": "Aucune personne disponible",
+        "assigneesLoadFailed": "Impossible de charger les personnes",
+        "assigneesUpdated": "Assignés mis à jour",
+        "editLabels": "Modifier les étiquettes",
+        "searchLabels": "Rechercher des étiquettes",
+        "noLabelCandidates": "Aucune étiquette disponible",
+        "labelsLoadFailed": "Impossible de charger les étiquettes",
+        "labelsUpdated": "Étiquettes mises à jour"
       },
       "tabs": {
         "conversation": "Conversation",
@@ -1509,6 +1529,8 @@
         "removedFromQueue": "Retirée de la file de fusion",
         "autoMergeEnabled": "Fusion automatique activée",
         "autoMergeDisabled": "Fusion automatique désactivée",
+        "convertToDraft": "Convertir en brouillon",
+        "convertedToDraft": "Pull request convertie en brouillon",
         "confirmCloseTitle": "Fermer la pull request ?",
         "confirmCloseMessage": "La pull request restera disponible et pourra être rouverte ultérieurement.",
         "closeSuccess": "Pull request fermée",
@@ -1531,9 +1553,6 @@
         "reviewersLoadFailed": "Impossible de charger les réviseurs",
         "noReviewers": "Aucun réviseur disponible",
         "reviewersUpdated": "Réviseurs mis à jour",
-        "reviewersCount_one": "{{count}} réviseur",
-        "reviewersCount_other": "{{count}} réviseurs",
-        "reviewers": "Réviseurs",
         "tooltips": {
           "merge": "Fusionner cette pull request sur GitHub",
           "alreadyMerged": "Cette pull request est déjà fusionnée",

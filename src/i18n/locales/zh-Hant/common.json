@@ -1460,18 +1460,37 @@
         "reviewed": "進行了審查"
       },
       "summary": {
-        "label": "pull request 摘要",
-        "branch": "分支",
-        "createdBy": "建立者",
+        "label": "pull request 摘要"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "想要將 {{count}} 個提交合併到",
+        "wantsToMergeCommitsInto_other": "想要將 {{count}} 個提交合併到",
+        "mergedCommitsInto_one": "已將 {{count}} 個提交合併到",
+        "mergedCommitsInto_other": "已將 {{count}} 個提交合併到",
+        "from": "來自",
+        "copyHeadBranch": "複製分支名稱",
+        "branchCopied": "已複製分支名稱"
+      },
+      "sidebar": {
         "reviewers": "審查者",
-        "noReviewers": "無審查者",
-        "comments": "留言",
-        "commentCount_one": "{{count}} 則留言",
-        "commentCount_other": "{{count}} 則留言",
-        "checks": "檢查",
-        "noChecks": "無 CI 檢查",
-        "checksFailed": "檢查失敗",
-        "status": "狀態"
+        "requestReviewers": "要求審查",
+        "awaitingReview": "等待審查",
+        "noReviews": "尚無審查",
+        "assignees": "指派人",
+        "noAssignees": "尚未指派",
+        "labels": "標籤",
+        "noLabels": "尚無",
+        "actions": "操作",
+        "editAssignees": "編輯指派人",
+        "searchAssignees": "搜尋成員",
+        "noAssigneeCandidates": "尚無可用成員",
+        "assigneesLoadFailed": "無法載入成員",
+        "assigneesUpdated": "已更新指派人",
+        "editLabels": "編輯標籤",
+        "searchLabels": "搜尋標籤",
+        "noLabelCandidates": "尚無可用標籤",
+        "labelsLoadFailed": "無法載入標籤",
+        "labelsUpdated": "已更新標籤"
       },
       "tabs": {
         "conversation": "對話",
@@ -1548,9 +1567,6 @@
         "reviewersLoadFailed": "無法載入審查者",
         "noReviewers": "沒有可用的審查者",
         "reviewersUpdated": "審查者已更新",
-        "reviewersCount_one": "{{count}} 名審查者",
-        "reviewersCount_other": "{{count}} 名審查者",
-        "reviewers": "審查者",
         "tooltips": {
           "merge": "在 GitHub 上合併此 pull request",
           "alreadyMerged": "此 pull request 已合併",

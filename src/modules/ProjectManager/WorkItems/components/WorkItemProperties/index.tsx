@@ -15,6 +15,7 @@ import { usePropertyDropdownDirection } from "@src/components/PropertyField/Prop
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
 import { DEFAULT_LABELS } from "@src/modules/ProjectManager/config/manage";
+import { WorkstationTrailSection } from "@src/modules/shared/layouts/blocks";
 import type { ContextMenuItem } from "@src/types/core/shared";
 import type {
   WorkItemPriority,
@@ -141,6 +142,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
   projectIconType,
   projectReadonly = false,
   assigneeReadonly = false,
+  labelsReadonly = false,
   showTime = true,
   externalStatusConfig,
   externalAssigneeConfig,
@@ -148,6 +150,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
   pillLayout = "nowrap",
   visibleFields = DEFAULT_VISIBLE_FIELDS,
   showMoreMenu = false,
+  showSchedule = true,
   panelVariant = "cards",
 }) => {
   const { t } = useTranslation("projects");
@@ -369,6 +372,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
               handlers={handlers}
               t={t}
               fieldVariant={fieldVariant}
+              readonly={labelsReadonly}
             />
           )}
           {showMoreMenu && moreMenuItems.length > 0 && (
@@ -427,6 +431,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           externalStatusConfig={externalStatusConfig}
           t={t}
           fieldVariant={propertyFieldVariant}
+          visibleFields={visibleFieldSet}
         />
         <DatesScheduleSection
           workItem={workItem}
@@ -436,16 +441,34 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           showTime={showTime}
           t={t}
           fieldVariant={propertyFieldVariant}
+          visibleFields={visibleFieldSet}
         />
-        <LabelsSection
-          workItem={workItem}
-          openPicker={openPicker}
-          togglePicker={togglePicker}
-          availableLabels={availableLabels}
-          handlers={handlers}
-          t={t}
-          fieldVariant={propertyFieldVariant}
-        />
+        {visibleFieldSet.has("labels") ? (
+          labelsReadonly ? (
+            <WorkstationTrailSection title={t("workItems.properties.labels")}>
+              <LabelsSection
+                workItem={workItem}
+                openPicker={openPicker}
+                togglePicker={togglePicker}
+                availableLabels={availableLabels}
+                handlers={handlers}
+                t={t}
+                fieldVariant={propertyFieldVariant}
+                readonly
+              />
+            </WorkstationTrailSection>
+          ) : (
+            <LabelsSection
+              workItem={workItem}
+              openPicker={openPicker}
+              togglePicker={togglePicker}
+              availableLabels={availableLabels}
+              handlers={handlers}
+              t={t}
+              fieldVariant={propertyFieldVariant}
+            />
+          )
+        ) : null}
         <DelegationsSection
           workItem={workItem}
           t={t}
@@ -469,7 +492,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           assigneeReadonly={assigneeReadonly}
           externalAssigneeConfig={externalAssigneeConfig}
         />
-        {panelVariant === "cards" ? (
+        {panelVariant === "cards" && showSchedule ? (
           <>
             <div className="mx-4 my-2 h-px bg-border-1" />
             <ScheduleEditor
@@ -480,7 +503,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           </>
         ) : null}
       </PropertyCard>
-      {panelVariant === "workstation-trail" ? (
+      {panelVariant === "workstation-trail" && showSchedule ? (
         <ScheduleEditor
           schedule={workItem.schedule}
           onChange={handlers.handleScheduleChange}

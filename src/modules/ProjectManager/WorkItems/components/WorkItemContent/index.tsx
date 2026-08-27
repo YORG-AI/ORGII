@@ -62,6 +62,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   availableOrgs = [],
   headerPath,
   headerProperties,
+  flowHeader,
+  propertiesRail,
   titleVisible = false,
   repoPath,
   projectSlug,
@@ -567,6 +569,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       <WorkItemThreadLayout
         path={headerPath}
         properties={headerProperties}
+        flowHeader={flowHeader}
+        sidebar={propertiesRail}
         floatingFooter={githubIssueComposer}
       >
         {activeThreadView === "overview" ? (

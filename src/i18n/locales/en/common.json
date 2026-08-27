@@ -1409,9 +1409,6 @@
         "reviewersLoadFailed": "Could not load reviewers",
         "noReviewers": "No reviewers available",
         "reviewersUpdated": "Reviewers updated",
-        "reviewersCount_one": "{{count}} reviewer",
-        "reviewersCount_other": "{{count}} reviewers",
-        "reviewers": "Reviewers",
         "tooltips": {
           "merge": "Merge this pull request on GitHub",
           "alreadyMerged": "This pull request is already merged",
@@ -1436,18 +1433,37 @@
         "appendedSession": "appended a session"
       },
       "summary": {
-        "label": "Pull request summary",
-        "branch": "Branch",
-        "createdBy": "Created by",
+        "label": "Pull request summary"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "wants to merge {{count}} commit into",
+        "wantsToMergeCommitsInto_other": "wants to merge {{count}} commits into",
+        "mergedCommitsInto_one": "merged {{count}} commit into",
+        "mergedCommitsInto_other": "merged {{count}} commits into",
+        "from": "from",
+        "copyHeadBranch": "Copy head branch name",
+        "branchCopied": "Branch name copied"
+      },
+      "sidebar": {
         "reviewers": "Reviewers",
-        "noReviewers": "No reviewers",
-        "comments": "Comments",
-        "commentCount_one": "{{count}} comment",
-        "commentCount_other": "{{count}} comments",
-        "checks": "Checks",
-        "noChecks": "No CI checks",
-        "checksFailed": "Checks failed",
-        "status": "Status"
+        "requestReviewers": "Request reviewers",
+        "awaitingReview": "Awaiting review",
+        "noReviews": "No reviews",
+        "assignees": "Assignees",
+        "noAssignees": "No one assigned",
+        "labels": "Labels",
+        "noLabels": "None yet",
+        "actions": "Actions",
+        "editAssignees": "Edit assignees",
+        "searchAssignees": "Search people",
+        "noAssigneeCandidates": "No people available",
+        "assigneesLoadFailed": "Could not load people",
+        "assigneesUpdated": "Assignees updated",
+        "editLabels": "Edit labels",
+        "searchLabels": "Search labels",
+        "noLabelCandidates": "No labels available",
+        "labelsLoadFailed": "Could not load labels",
+        "labelsUpdated": "Labels updated"
       },
       "tabs": {
         "conversation": "Conversation",

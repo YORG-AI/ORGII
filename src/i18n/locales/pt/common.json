@@ -1448,17 +1448,37 @@
         "reviewed": "revisou"
       },
       "summary": {
-        "label": "Resumo do pull request",
-        "branch": "Branch",
+        "label": "Resumo do pull request"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "quer fazer merge de {{count}} commit em",
+        "wantsToMergeCommitsInto_other": "quer fazer merge de {{count}} commits em",
+        "mergedCommitsInto_one": "fez merge de {{count}} commit em",
+        "mergedCommitsInto_other": "fez merge de {{count}} commits em",
+        "from": "a partir de",
+        "copyHeadBranch": "Copiar nome do branch",
+        "branchCopied": "Nome do branch copiado"
+      },
+      "sidebar": {
         "reviewers": "Revisores",
-        "noReviewers": "Sem revisores",
-        "comments": "Comentários",
-        "commentCount_one": "{{count}} comentário",
-        "commentCount_other": "{{count}} comentários",
-        "checks": "Verificações",
-        "noChecks": "Sem verificações de CI",
-        "checksFailed": "Falha nas verificações",
-        "status": "Status"
+        "requestReviewers": "Solicitar revisores",
+        "awaitingReview": "Aguardando revisão",
+        "noReviews": "Sem revisões",
+        "assignees": "Responsáveis",
+        "noAssignees": "Ninguém atribuído",
+        "labels": "Rótulos",
+        "noLabels": "Nenhum ainda",
+        "actions": "Ações",
+        "editAssignees": "Editar responsáveis",
+        "searchAssignees": "Pesquisar pessoas",
+        "noAssigneeCandidates": "Nenhuma pessoa disponível",
+        "assigneesLoadFailed": "Não foi possível carregar as pessoas",
+        "assigneesUpdated": "Responsáveis atualizados",
+        "editLabels": "Editar rótulos",
+        "searchLabels": "Pesquisar rótulos",
+        "noLabelCandidates": "Nenhum rótulo disponível",
+        "labelsLoadFailed": "Não foi possível carregar os rótulos",
+        "labelsUpdated": "Rótulos atualizados"
       },
       "tabs": {
         "conversation": "Conversa",
@@ -1509,6 +1529,8 @@
         "removedFromQueue": "Removido da fila de mesclagem",
         "autoMergeEnabled": "Mesclagem automática ativada",
         "autoMergeDisabled": "Mesclagem automática desativada",
+        "convertToDraft": "Converter em rascunho",
+        "convertedToDraft": "Pull request convertido em rascunho",
         "confirmCloseTitle": "Fechar o pull request?",
         "confirmCloseMessage": "O pull request continuará disponível e poderá ser reaberto depois.",
         "closeSuccess": "Pull request fechado",
@@ -1531,9 +1553,6 @@
         "reviewersLoadFailed": "Não foi possível carregar os revisores",
         "noReviewers": "Nenhum revisor disponível",
         "reviewersUpdated": "Revisores atualizados",
-        "reviewersCount_one": "{{count}} revisor",
-        "reviewersCount_other": "{{count}} revisores",
-        "reviewers": "Revisores",
         "tooltips": {
           "merge": "Mesclar este pull request no GitHub",
           "alreadyMerged": "Este pull request já foi mesclado",

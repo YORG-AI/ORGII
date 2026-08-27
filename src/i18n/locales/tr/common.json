@@ -1449,17 +1449,37 @@
         "reviewed": "inceledi"
       },
       "summary": {
-        "label": "Pull request özeti",
-        "branch": "Dal",
+        "label": "Pull request özeti"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "{{count}} commit'i şuraya birleştirmek istiyor:",
+        "wantsToMergeCommitsInto_other": "{{count}} commit'i şuraya birleştirmek istiyor:",
+        "mergedCommitsInto_one": "{{count}} commit'i şuraya birleştirdi:",
+        "mergedCommitsInto_other": "{{count}} commit'i şuraya birleştirdi:",
+        "from": "şuradan:",
+        "copyHeadBranch": "Dal adını kopyala",
+        "branchCopied": "Dal adı kopyalandı"
+      },
+      "sidebar": {
         "reviewers": "İnceleyenler",
-        "noReviewers": "İnceleyen yok",
-        "comments": "Yorumlar",
-        "commentCount_one": "{{count}} yorum",
-        "commentCount_other": "{{count}} yorum",
-        "checks": "Kontroller",
-        "noChecks": "CI kontrolü yok",
-        "checksFailed": "Kontroller başarısız",
-        "status": "Durum"
+        "requestReviewers": "İnceleyen iste",
+        "awaitingReview": "İnceleme bekleniyor",
+        "noReviews": "İnceleme yok",
+        "assignees": "Atananlar",
+        "noAssignees": "Kimse atanmadı",
+        "labels": "Etiketler",
+        "noLabels": "Henüz yok",
+        "actions": "İşlemler",
+        "editAssignees": "Atananları düzenle",
+        "searchAssignees": "Kişi ara",
+        "noAssigneeCandidates": "Kullanılabilir kişi yok",
+        "assigneesLoadFailed": "Kişiler yüklenemedi",
+        "assigneesUpdated": "Atananlar güncellendi",
+        "editLabels": "Etiketleri düzenle",
+        "searchLabels": "Etiket ara",
+        "noLabelCandidates": "Kullanılabilir etiket yok",
+        "labelsLoadFailed": "Etiketler yüklenemedi",
+        "labelsUpdated": "Etiketler güncellendi"
       },
       "tabs": {
         "conversation": "Konuşma",
@@ -1510,6 +1530,8 @@
         "removedFromQueue": "Birleştirme kuyruğundan çıkarıldı",
         "autoMergeEnabled": "Otomatik birleştirme etkinleştirildi",
         "autoMergeDisabled": "Otomatik birleştirme devre dışı bırakıldı",
+        "convertToDraft": "Taslağa dönüştür",
+        "convertedToDraft": "Pull request taslağa dönüştürüldü",
         "confirmCloseTitle": "Pull request kapatılsın mı?",
         "confirmCloseMessage": "Pull request erişilebilir kalacak ve daha sonra yeniden açılabilecek.",
         "closeSuccess": "Pull request kapatıldı",
@@ -1532,9 +1554,6 @@
         "reviewersLoadFailed": "İnceleyenler yüklenemedi",
         "noReviewers": "Kullanılabilir inceleyen yok",
         "reviewersUpdated": "İnceleyenler güncellendi",
-        "reviewersCount_one": "{{count}} inceleyen",
-        "reviewersCount_other": "{{count}} inceleyen",
-        "reviewers": "İnceleyenler",
         "tooltips": {
           "merge": "Bu pull request'i GitHub'da birleştir",
           "alreadyMerged": "Bu pull request zaten birleştirildi",

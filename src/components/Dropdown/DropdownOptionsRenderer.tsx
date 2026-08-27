@@ -57,9 +57,12 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
       </div>
     );
   } else if (options.length === 0) {
-    content = emptyContent ?? (
+    // Caller-supplied empty content goes through the same message shell as the
+    // built-in one. Rendering it raw left every custom empty state inheriting
+    // the panel's default type instead of the dropdown's own scale.
+    content = (
       <div className={DROPDOWN_CLASSES.listMessage}>
-        <span>{t("placeholders.noOptions")}</span>
+        {emptyContent ?? <span>{t("placeholders.noOptions")}</span>}
       </div>
     );
   } else {

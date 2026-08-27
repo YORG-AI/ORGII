@@ -1353,9 +1353,6 @@
         "reviewersLoadFailed": "无法加载审查者",
         "noReviewers": "没有可用的审查者",
         "reviewersUpdated": "审查者已更新",
-        "reviewersCount_one": "{{count}} 名审查者",
-        "reviewersCount_other": "{{count}} 名审查者",
-        "reviewers": "审查者",
         "tooltips": {
           "merge": "在 GitHub 上合并此 pull request",
           "alreadyMerged": "此 pull request 已合并",
@@ -1380,18 +1377,37 @@
         "appendedSession": "附加了一个会话"
       },
       "summary": {
-        "label": "pull request 摘要",
-        "branch": "分支",
-        "createdBy": "创建者",
-        "reviewers": "审查者",
-        "noReviewers": "无审查者",
-        "comments": "评论",
-        "commentCount_one": "{{count}} 条评论",
-        "commentCount_other": "{{count}} 条评论",
-        "checks": "检查",
-        "noChecks": "无 CI 检查",
-        "checksFailed": "检查失败",
-        "status": "状态"
+        "label": "pull request 摘要"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "想要将 {{count}} 个提交合并到",
+        "wantsToMergeCommitsInto_other": "想要将 {{count}} 个提交合并到",
+        "mergedCommitsInto_one": "已将 {{count}} 个提交合并到",
+        "mergedCommitsInto_other": "已将 {{count}} 个提交合并到",
+        "from": "来自",
+        "copyHeadBranch": "复制分支名",
+        "branchCopied": "已复制分支名"
+      },
+      "sidebar": {
+        "reviewers": "评审人",
+        "requestReviewers": "请求评审",
+        "awaitingReview": "等待评审",
+        "noReviews": "暂无评审",
+        "assignees": "指派人",
+        "noAssignees": "暂无指派",
+        "labels": "标签",
+        "noLabels": "暂无",
+        "actions": "操作",
+        "editAssignees": "编辑指派人",
+        "searchAssignees": "搜索成员",
+        "noAssigneeCandidates": "暂无可用成员",
+        "assigneesLoadFailed": "无法加载成员",
+        "assigneesUpdated": "已更新指派人",
+        "editLabels": "编辑标签",
+        "searchLabels": "搜索标签",
+        "noLabelCandidates": "暂无可用标签",
+        "labelsLoadFailed": "无法加载标签",
+        "labelsUpdated": "已更新标签"
       },
       "tabs": {
         "conversation": "对话",

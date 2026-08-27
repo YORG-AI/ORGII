@@ -30,6 +30,13 @@ const childProps = vi.hoisted(() => ({
   conversation: null as Record<string, unknown> | null,
 }));
 
+/** Measured body width driving the rail's column-vs-stacked placement. */
+const bodyWidth = vi.hoisted(() => ({ value: 0 }));
+
+vi.mock("@src/hooks/ui/layout/useElementDimensions", () => ({
+  useElementDimensions: () => bodyWidth.value,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string | Record<string, unknown>) => {
@@ -63,10 +70,17 @@ vi.mock("../../../hooks/useWorkstationPrDetail", () => ({
     updatePullRequestDraft: vi.fn(),
     updatePullRequestState: vi.fn(),
     updateRequestedReviewers: vi.fn(),
+    updateAssignees: vi.fn(),
+    updateLabels: vi.fn(),
     loadReviewerCandidates: vi.fn().mockResolvedValue(undefined),
     reviewerCandidates: [],
+    assigneeCandidates: [],
     loadingReviewerCandidates: false,
     reviewerCandidatesError: null,
+    loadLabelCandidates: vi.fn().mockResolvedValue(undefined),
+    labelCandidates: [],
+    loadingLabelCandidates: false,
+    labelCandidatesError: null,
     prActionPending: false,
   }),
 }));
@@ -84,16 +98,16 @@ vi.mock("@src/modules/shared/layouts/blocks", async (importOriginal) => {
 vi.mock("./PrConversationTab", () => ({
   PrConversationTab: (
     props: Record<string, unknown> & {
-      summary?: ReactNode;
-      levelActions?: ReactNode;
+      flowHeader?: ReactNode;
+      sidebar?: ReactNode;
     }
   ) => {
     childProps.conversation = props;
     return createElement(
       "div",
       { "data-testid": "conversation-tab" },
-      props.summary,
-      props.levelActions
+      props.flowHeader,
+      props.sidebar
     );
   },
 }));
@@ -134,6 +148,8 @@ describe("PrDetailPanel tabs", () => {
     childProps.changes = null;
     childProps.commits = null;
     childProps.conversation = null;
+    // 0 = unmeasured, which keeps the rail as its own column.
+    bodyWidth.value = 0;
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -206,9 +222,42 @@ describe("PrDetailPanel tabs", () => {
       expect(tab.className).toContain("py-1.5");
       expect(tab.className).not.toContain("h-9");
     }
+    // Details rail: always shown, rendered at the panel level (beside the tab
+    // panels, not inside them), with the scroll trail sharing its column.
+    const rail = container.querySelector(
+      "[data-testid='pr-detail-sidebar-rail']"
+    );
+    expect(rail).not.toBeNull();
+    const sidebar = container.querySelector("[data-testid='pr-sidebar']");
+    expect(rail?.contains(sidebar)).toBe(true);
+    const navigationRail = container.querySelector(
+      '[data-testid="pr-detail-navigation-rail"]'
+    );
+    expect(rail?.contains(navigationRail as Node)).toBe(true);
+    expect(sidebar?.compareDocumentPosition(navigationRail as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    // The rail opens straight into its sections — no panel title above them.
+    expect(sidebar?.textContent).not.toContain("Details");
+    expect(sidebar?.textContent).toContain("Reviewers");
+    expect(sidebar?.textContent).toContain("Assignees");
+    expect(sidebar?.textContent).toContain("No one assigned");
+    expect(sidebar?.textContent).toContain("Labels");
+    expect(sidebar?.textContent).toContain("None yet");
+    expect(
+      sidebar?.querySelector('[data-testid="pr-reviewer-action"]')
+    ).not.toBeNull();
+    // The rail is permanent: no show/hide affordance remains.
+    expect(
+      sidebar?.querySelector('[data-testid="pr-sidebar-collapse"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="pr-sidebar-toggle"]')
+    ).toBeNull();
     const actions = container.querySelector("[data-testid='pr-level-actions']");
+    expect(sidebar?.contains(actions)).toBe(true);
+    expect(actions?.className).toContain("flex-col");
     expect(actions?.textContent).toContain("Enable auto-merge");
-    expect(actions?.textContent).toContain("Reviewers");
     expect(actions?.textContent).toContain("Close");
     expect(actions?.textContent).not.toContain("Close pull request");
     const closeAction = actions?.querySelector<HTMLButtonElement>(
@@ -223,11 +272,6 @@ describe("PrDetailPanel tabs", () => {
     ).toBe("28px");
     expect(
       actions?.querySelector<HTMLButtonElement>(
-        '[data-testid="pr-reviewer-action"]'
-      )?.style.height
-    ).toBe("28px");
-    expect(
-      actions?.querySelector<HTMLButtonElement>(
         '[data-testid="pr-state-action"]'
       )?.style.height
     ).toBe("28px");
@@ -235,7 +279,7 @@ describe("PrDetailPanel tabs", () => {
     expect(actions?.className).not.toContain("border");
     expect(
       container.querySelector('[role="tabpanel"]')?.contains(actions)
-    ).toBe(true);
+    ).toBe(false);
     expect(
       container.querySelector('[data-testid="pr-detail-navigation-rail"]')
     ).not.toBeNull();
@@ -256,10 +300,15 @@ describe("PrDetailPanel tabs", () => {
       expect(activePanel?.id).toBe(
         `pr-detail-tabpanel-${["commits", "checks", "changes"][tabIndex - 1]}`
       );
+      expect(conversationPanel?.style.display).toBe("none");
+      // The details rail stays for every tab; the conversation scroll trail
+      // belongs to the conversation and steps aside with it.
+      expect(
+        container.querySelector('[data-testid="pr-detail-sidebar-rail"]')
+      ).not.toBeNull();
       expect(
         container.querySelector('[data-testid="pr-detail-navigation-rail"]')
-      ).not.toBeNull();
-      expect(conversationPanel?.style.display).toBe("none");
+      ).toBeNull();
     }
 
     act(() => {
@@ -280,15 +329,78 @@ describe("PrDetailPanel tabs", () => {
       container.querySelector('[role="tabpanel"][aria-hidden="false"]')?.id
     ).toBe("pr-detail-tabpanel-changes");
     expect(
-      container.querySelector('[data-testid="pr-detail-navigation-rail"]')
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="pr-detail-navigation-trail"]')
-    ).not.toBeNull();
-    expect(
       container.querySelector<HTMLElement>("#pr-detail-tabpanel-conversation")
         ?.style.display
     ).toBe("none");
+    // Files changed keeps the rail too — it is no longer hideable — while the
+    // conversation-owned scroll trail steps aside with its tab.
+    expect(
+      container.querySelector('[data-testid="pr-detail-sidebar-rail"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="pr-detail-navigation-rail"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="pr-detail-navigation-trail"]')
+    ).toBeNull();
+  });
+
+  it("stacks the details rail under the flow title when the body is narrow", () => {
+    bodyWidth.value = 640;
+    const store = createStore();
+    const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
+    store.set(workstationSelectedPrAtomFamily(scopeKey), {
+      ...initialSelectedPrState,
+      loading: false,
+      detail: {},
+    });
+
+    act(() => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(PrDetailPanel, {
+            identity: {
+              number: 42,
+              title: "Stack the rail when space runs out",
+              url: "https://github.com/org/repo/pull/42",
+              status: "open",
+              headBranch: "feature/narrow",
+              baseBranch: "main",
+            },
+            repoPath: "/repo",
+            showHeader: false,
+          })
+        )
+      );
+    });
+
+    // No second column: the rail is handed to the conversation, which renders
+    // it under the flow title and above the description.
+    expect(
+      container.querySelector('[data-testid="pr-detail-sidebar-rail"]')
+    ).toBeNull();
+    expect(childProps.conversation?.sidebar).toBeTruthy();
+    const conversationTab = container.querySelector(
+      '[data-testid="conversation-tab"]'
+    );
+    const flowHeader = conversationTab?.querySelector(
+      '[data-testid="pr-flow-header"]'
+    );
+    const stackedSidebar = conversationTab?.querySelector(
+      '[data-testid="pr-sidebar"]'
+    );
+    expect(stackedSidebar).not.toBeNull();
+    expect(flowHeader?.compareDocumentPosition(stackedSidebar as Node)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    // The trail keeps its own narrow column while the rail is stacked.
+    const navigationRail = container.querySelector(
+      '[data-testid="pr-detail-navigation-rail"]'
+    );
+    expect(navigationRail).not.toBeNull();
+    expect(navigationRail?.className).toContain("shrink-0");
   });
 
   it("stacks a combined PR header below the detail-panel breakpoint without a separator", () => {
@@ -387,7 +499,7 @@ describe("PrDetailPanel tabs", () => {
     ).not.toBeNull();
   });
 
-  it("uses a neutral fill for drafts and omits unavailable reviewer controls", async () => {
+  it("uses a neutral fill for drafts and keeps their rail editors", async () => {
     const store = createStore();
     const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
     store.set(workstationSelectedPrAtomFamily(scopeKey), {
@@ -444,12 +556,19 @@ describe("PrDetailPanel tabs", () => {
     expect(
       document.body.querySelector('[data-testid="pr-mark-ready-action"]')
     ).not.toBeNull();
+    // A draft is still an open pull request, so its rail keeps every editor.
     expect(
       container.querySelector('[data-testid="pr-reviewer-action"]')
-    ).toBeNull();
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="pr-assignee-action"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="pr-label-action"]')
+    ).not.toBeNull();
   });
 
-  it("offers converting an open pull request to draft from the action dropdown", async () => {
+  it("offers converting an open pull request to draft as its own button", async () => {
     const store = createStore();
     const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
     store.set(workstationSelectedPrAtomFamily(scopeKey), {
@@ -484,6 +603,16 @@ describe("PrDetailPanel tabs", () => {
       );
     });
 
+    const actions = container.querySelector('[data-testid="pr-level-actions"]');
+    const convertAction = actions?.querySelector(
+      '[data-testid="pr-convert-to-draft-action"]'
+    );
+    expect(convertAction?.textContent).toContain("Convert to draft");
+    expect(
+      convertAction?.querySelector(".lucide-git-pull-request-draft")
+    ).not.toBeNull();
+
+    // The action moved out of the merge dropdown into the actions stack.
     const mergeAction = container.querySelector<HTMLButtonElement>(
       '[data-testid="pr-merge-action"]'
     );
@@ -494,14 +623,11 @@ describe("PrDetailPanel tabs", () => {
       dropdownButton?.click();
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
-
-    const convertAction = document.body.querySelector(
-      '[data-testid="pr-convert-to-draft-action"]'
-    );
-    expect(convertAction?.textContent).toContain("Convert to draft");
     expect(
-      convertAction?.querySelector(".lucide-git-pull-request-draft")
-    ).not.toBeNull();
+      document.body.querySelectorAll(
+        '[data-testid="pr-convert-to-draft-action"]'
+      )
+    ).toHaveLength(1);
   });
 
   it("restores the per-PR sub-tab and nested selection after remount", () => {
@@ -565,7 +691,7 @@ describe("PrDetailPanel tabs", () => {
     });
   });
 
-  it("keeps the GitHub header at 40px and moves branch details into the Codex-style summary", () => {
+  it("keeps the GitHub header at 40px and renders the GitHub-flow title and operations sidebar", () => {
     const store = createStore();
     const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
     store.set(workstationSelectedPrAtomFamily(scopeKey), {
@@ -575,6 +701,8 @@ describe("PrDetailPanel tabs", () => {
         additions: 2313,
         deletions: 217,
         comments: 1,
+        commits: 3,
+        merged: true,
         user: {
           login: "creator",
           avatar_url: "https://example.com/creator.png",
@@ -585,6 +713,7 @@ describe("PrDetailPanel tabs", () => {
             avatar_url: "https://example.com/reviewer.png",
           },
         ],
+        labels: [{ name: "bug", color: "d73a4a" }],
       },
     });
 
@@ -609,9 +738,10 @@ describe("PrDetailPanel tabs", () => {
     });
 
     const header = container.querySelector("[data-testid='pr-detail-header']");
-    const summary = container.querySelector(
-      "[data-testid='pr-detail-summary']"
+    const flowHeader = container.querySelector(
+      "[data-testid='pr-flow-header']"
     );
+    const sidebar = container.querySelector("[data-testid='pr-sidebar']");
 
     expect(header?.className).toContain("h-10");
     expect(header?.className).toContain("!pl-4");
@@ -642,57 +772,61 @@ describe("PrDetailPanel tabs", () => {
       "fix/issue-556-delete-agent-org-workers"
     );
 
-    expect(summary?.textContent).toContain("Branch");
-    expect(summary?.textContent).toContain(
-      "fix/issue-556-delete-agent-org-workers"
+    // GitHub-flow title: big title + muted #number over a status pill and
+    // the merge-flow sentence with branch pills and the diff stat.
+    const flowTitle = flowHeader?.querySelector(
+      "[data-testid='pr-flow-title']"
     );
-    expect(summary?.textContent).toContain("develop");
-    expect(summary?.textContent).toContain("+2,313");
-    expect(summary?.textContent).toContain("-217");
-    expect(summary?.textContent).toContain("Created by");
-    const author = summary?.querySelector("[data-testid='pr-summary-author']");
-    expect(author?.textContent).toContain("creator");
-    expect(author?.querySelector("img")?.getAttribute("src")).toBe(
+    expect(flowTitle?.textContent).toContain("Use compact PR metadata");
+    expect(flowTitle?.textContent).toContain("#42");
+    const flowStatus = flowHeader?.querySelector(
+      "[data-testid='pr-flow-status']"
+    );
+    expect(flowStatus?.textContent).toContain("merged");
+    expect(flowStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
+    expect(flowStatus?.firstElementChild?.className).toContain("bg-purple-1");
+    expect(flowStatus?.firstElementChild?.className).toContain("text-purple-6");
+    const subline = flowHeader?.querySelector(
+      "[data-testid='pr-flow-subline']"
+    );
+    expect(subline?.textContent).toContain("creator");
+    expect(subline?.querySelector("img")?.getAttribute("src")).toBe(
       "https://example.com/creator.png"
     );
-    expect(summary?.textContent).toContain("Reviewers");
-    const reviewers = summary?.querySelector(
-      "[data-testid='pr-summary-reviewers']"
+    expect(subline?.textContent).toContain("merged 3 commits into");
+    expect(subline?.textContent).not.toContain("wants to merge");
+    expect(subline?.textContent).toContain("develop");
+    expect(subline?.textContent).toContain(
+      "fix/issue-556-delete-agent-org-workers"
     );
-    expect(reviewers?.textContent).toContain("reviewer");
-    expect(reviewers?.querySelector("img")?.getAttribute("src")).toBe(
+    expect(subline?.textContent).toContain("+2,313");
+    expect(subline?.textContent).toContain("-217");
+    expect(
+      subline?.querySelector("[data-testid='pr-flow-copy-branch']")
+    ).not.toBeNull();
+
+    // Operations sidebar: requested reviewer listed, no reviewer picker on a
+    // merged PR, and the read-only label chip.
+    const reviewersSection = sidebar?.querySelector(
+      "[data-testid='pr-sidebar-reviewers']"
+    );
+    expect(reviewersSection?.textContent).toContain("reviewer");
+    expect(reviewersSection?.querySelector("img")?.getAttribute("src")).toBe(
       "https://example.com/reviewer.png"
     );
-    expect(reviewers?.className).toContain("items-center");
-    expect(summary?.textContent).toContain("Comments");
-    expect(summary?.textContent).toContain("1 comment");
-    expect(summary?.textContent).toContain("Checks");
-    expect(summary?.textContent).toContain("No CI checks");
-    expect(summary?.textContent).toContain("Status");
-    expect(summary?.textContent).toContain("merged");
-    const summaryStatus = summary?.querySelector(
-      "[data-testid='pr-summary-status']"
-    );
-    expect(summaryStatus?.className).toContain("text-purple-6");
-    expect(summaryStatus?.className).not.toContain("rounded-full");
-    expect(summaryStatus?.className).not.toContain("bg-purple-1");
-    expect(summaryStatus?.textContent).toBe("merged");
-    expect(summaryStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
-    const summaryStatusLabel = summary?.querySelector(
-      "[data-testid='pr-summary-status-label']"
-    );
-    expect(summaryStatusLabel?.className).toContain("text-text-3");
     expect(
-      summaryStatusLabel?.querySelector(".lucide-circle-dot")
+      sidebar?.querySelector("[data-testid='pr-reviewer-action']")
+    ).toBeNull();
+    expect(
+      sidebar?.querySelector("[data-testid='pr-sidebar-assignees']")
+        ?.textContent
+    ).toContain("No one assigned");
+    expect(
+      sidebar?.querySelector("[data-testid='pr-sidebar-labels']")?.textContent
+    ).toContain("bug");
+    expect(
+      sidebar?.querySelector("[data-testid='pr-level-actions']")
     ).not.toBeNull();
-    expect(
-      summaryStatusLabel?.querySelector(".lucide-circle-dot")?.className
-    ).not.toContain("text-purple-6");
-    expect(summary?.className).not.toContain("border-b");
-    expect(summary?.firstElementChild?.className).toContain("px-6");
-    expect(summary?.firstElementChild?.className).toContain("pt-4");
-    expect(summary?.firstElementChild?.className).toContain("items-center");
-    expect(summary?.firstElementChild?.className).not.toContain("py-4");
   });
 
   it("shows the PR skeleton on the first render before detail loading starts", () => {

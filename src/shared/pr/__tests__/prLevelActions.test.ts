@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { SUPPORTED_LANGUAGES } from "@src/i18n";
+
 import {
   presentPullRequestActions,
   readRequestedReviewers,
@@ -204,4 +206,24 @@ describe("PR-level action presentation", () => {
       },
     ]);
   });
+});
+
+describe("PR-level action button labels", () => {
+  // The sidebar renders "Close" and "Convert to draft" as standalone buttons,
+  // so both keys have to resolve in every shipped language rather than falling
+  // back to the English default baked into the t() call.
+  it.each(SUPPORTED_LANGUAGES)(
+    "translates the action buttons in %s",
+    async (language) => {
+      const common = (await import(`@src/i18n/locales/${language}/common.json`))
+        .default as {
+        actions: Record<string, string>;
+        git: { pr: { actions: Record<string, string> } };
+      };
+
+      expect(common.actions.close).toBeTruthy();
+      expect(common.git.pr.actions.convertToDraft).toBeTruthy();
+      expect(common.git.pr.actions.convertedToDraft).toBeTruthy();
+    }
+  );
 });

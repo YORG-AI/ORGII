@@ -131,8 +131,13 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
         <div className="min-h-0 flex-1 overflow-hidden">
           <WorkItemThreadSurface
             workItem={workItem}
-            propertyFields={isGitHubIssue ? ["status", "assignee"] : undefined}
+            propertyFields={
+              isGitHubIssue ? ["status", "assignee", "labels"] : undefined
+            }
+            propertiesPlacement="rail"
             propertyProps={{
+              showSchedule: !isGitHubIssue,
+              labelsReadonly: isGitHubIssue,
               onUpdate: updateWorkItem,
               externalStatusConfig: isGitHubIssue
                 ? {

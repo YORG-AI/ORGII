@@ -7,7 +7,10 @@ import {
 } from "react";
 
 import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
+import {
+  EDITOR_TAB_CANVAS_BG_CLASS,
+  WORKSTATION_TRAIL_CONTENT,
+} from "@src/config/workstation/tokens";
 
 export interface WorkstationTrailSurfaceProps extends HTMLAttributes<HTMLElement> {
   as?: "aside" | "div";
@@ -64,6 +67,53 @@ export const WorkstationTrailIconButton: FC<
   </button>
 );
 
+export interface WorkstationTrailSectionProps {
+  title: ReactNode;
+  /** Control aligned to the right end of the label row (e.g. a picker trigger). */
+  action?: ReactNode;
+  hideTitle?: boolean;
+  dataTestId?: string;
+  children?: ReactNode;
+}
+
+/**
+ * Labelled section for trail property rails (Work Item properties, PR detail
+ * sidebar): the shared uppercase section label, an optional right-end action,
+ * then the section content.
+ */
+export const WorkstationTrailSection: FC<WorkstationTrailSectionProps> = ({
+  title,
+  action,
+  hideTitle = false,
+  dataTestId,
+  children,
+}) => {
+  const label = !hideTitle ? (
+    <h3 className={WORKSTATION_TRAIL_CONTENT.sectionLabel}>{title}</h3>
+  ) : null;
+
+  return (
+    <section
+      data-testid={dataTestId}
+      className={WORKSTATION_TRAIL_CONTENT.section}
+    >
+      {/* Same row geometry as WorkstationTrailHeader, so a section action lands
+          on the exact spot the trail's own collapse control occupies. Rendered
+          unconditionally to keep every section label on one baseline. */}
+      <div className="flex h-7 items-center justify-between gap-2">
+        {label}
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+};
+
+/** Muted empty-state line inside a trail section. */
+export const WorkstationTrailEmptyText: FC<{ children?: ReactNode }> = ({
+  children,
+}) => <div className="px-2 text-[12px] text-text-3">{children}</div>;
+
 /** Shared scroll container directly below a Workstation trail header. */
 export const WorkstationTrailBody: FC<HTMLAttributes<HTMLDivElement>> = ({
   children,
@@ -98,5 +148,7 @@ WorkstationTrailSurface.displayName = "WorkstationTrailSurface";
 WorkstationTrailHeader.displayName = "WorkstationTrailHeader";
 WorkstationTrailIconButton.displayName = "WorkstationTrailIconButton";
 WorkstationTrailBody.displayName = "WorkstationTrailBody";
+WorkstationTrailSection.displayName = "WorkstationTrailSection";
+WorkstationTrailEmptyText.displayName = "WorkstationTrailEmptyText";
 
 export default WorkstationTrailSurface;

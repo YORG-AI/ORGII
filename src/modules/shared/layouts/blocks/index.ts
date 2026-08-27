@@ -45,8 +45,10 @@ export type { PersistentDetailTabPanelProps } from "./PersistentDetailTabPanel";
 export {
   default as WorkstationTrailSurface,
   WorkstationTrailBody,
+  WorkstationTrailEmptyText,
   WorkstationTrailHeader,
   WorkstationTrailIconButton,
+  WorkstationTrailSection,
   FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
   WORKSTATION_TRAIL_ICON_BUTTON_CLASS,
   WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
@@ -55,6 +57,7 @@ export {
 } from "./WorkstationTrailSurface";
 export type {
   WorkstationTrailHeaderProps,
+  WorkstationTrailSectionProps,
   WorkstationTrailSurfaceProps,
 } from "./WorkstationTrailSurface";
 
