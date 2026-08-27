@@ -11,6 +11,7 @@ use crate::coordination::agent_org_runs::{
     AgentOrgParticipant, AgentOrgRunStore, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
+use crate::coordination::agent_org_turn_contexts::{AgentOrgTurnContext, AgentOrgTurnKind};
 use crate::core::session::SessionStatus;
 use crate::tools::traits::ToolError;
 
@@ -36,7 +37,109 @@ pub(super) struct OrgRecipientTarget {
 #[derive(Debug)]
 pub(super) enum OrdinaryMessagePersistOutcome {
     Guidance(String),
-    Delivered(Vec<(String, i64)>),
+    Delivered {
+        rows: Vec<(String, i64)>,
+        member_coordination_trigger_coalesced: Option<bool>,
+    },
+}
+
+fn member_coordination_guidance(
+    conn: &Connection,
+    run_id: &str,
+    sender: &AgentOrgParticipant,
+    context: &AgentOrgTurnContext,
+    params: &OrgSendMessageParams,
+    message: &AgentMessage,
+    recipients: &[OrgRecipientTarget],
+) -> Result<Option<String>, ToolError> {
+    let is_member_to_coordinator_plain = !sender.is_coordinator
+        && matches!(message, AgentMessage::Plain { .. })
+        && recipients.len() == 1
+        && recipients[0].member_id == COORDINATOR_MEMBER_ID;
+
+    if !is_member_to_coordinator_plain {
+        if params.purpose.is_some() {
+            return Err(ToolError::InvalidParams(
+                "purpose is valid only for a TaskExecution member's plain message to the Coordinator"
+                    .to_string(),
+            ));
+        }
+        return Ok(None);
+    }
+
+    if context.turn_kind != AgentOrgTurnKind::TaskExecution
+        || context.participant_id != sender.member_id
+        || context.owner_member_id.as_deref() != Some(sender.member_id.as_str())
+    {
+        return Err(ToolError::PermissionDenied(
+            "Member coordination messages require the sender's exact persisted TaskExecution Turn"
+                .to_string(),
+        ));
+    }
+
+    let related_task_id = params
+        .related_task_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|task_id| !task_id.is_empty());
+    let exact_task_id = context.task_id.as_deref().ok_or_else(|| {
+        ToolError::PermissionDenied(
+            "TaskExecution coordination context has no exact task_id".to_string(),
+        )
+    })?;
+    let Some(related_task_id) = related_task_id else {
+        return serde_json::to_string(&json!({
+            "delivered": false,
+            "requires_task": true,
+            "requires_purpose": true,
+            "reason": "member_coordination_requires_related_task",
+            "guidance": "Routine progress is not a Coordinator message. If the Coordinator must act, retry once with the exact current related_task_id and purpose=blocker|decision_required|material_change|risk|requested_reply. Use Task state for progress and TaskOutput for completion.",
+        }))
+        .map(Some)
+        .map_err(|error| ToolError::ExecutionFailed(error.to_string()));
+    };
+    if related_task_id != exact_task_id {
+        return serde_json::to_string(&json!({
+            "delivered": false,
+            "requires_task": true,
+            "reason": "member_coordination_task_mismatch",
+            "related_task_id": related_task_id,
+            "guidance": "Use the exact task_id bound to this persisted TaskExecution Turn. A member cannot report another Task or a stale/reassigned Task.",
+        }))
+        .map(Some)
+        .map_err(|error| ToolError::ExecutionFailed(error.to_string()));
+    }
+    if params.purpose.is_none() {
+        return serde_json::to_string(&json!({
+            "delivered": false,
+            "requires_purpose": true,
+            "reason": "member_coordination_requires_purpose",
+            "related_task_id": related_task_id,
+            "allowed_purposes": ["blocker", "decision_required", "material_change", "risk", "requested_reply"],
+            "guidance": "Send only when the Coordinator must act. Routine progress, next-step narration, self-resolved problems, and duplicate completion messages are not valid purposes.",
+        }))
+        .map(Some)
+        .map_err(|error| ToolError::ExecutionFailed(error.to_string()));
+    }
+
+    let exact_task_is_active: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agent_org_runtime_tasks
+                 WHERE org_run_id=?1 AND id=?2 AND owner=?3
+                   AND status='in_progress'
+             )",
+            params![run_id, related_task_id, &sender.member_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?;
+    if !exact_task_is_active {
+        return Err(ToolError::PermissionDenied(format!(
+            "Member coordination task '{related_task_id}' is no longer the sender's in-progress TaskExecution"
+        )));
+    }
+
+    Ok(None)
 }
 
 fn plain_work_context_guidance(
@@ -106,6 +209,7 @@ pub(super) fn persist_ordinary_message_in_tx(
     conn: &Connection,
     run_id: &str,
     sender: &AgentOrgParticipant,
+    context: &AgentOrgTurnContext,
     params: &OrgSendMessageParams,
     message: &AgentMessage,
     recipients: &[OrgRecipientTarget],
@@ -135,11 +239,47 @@ pub(super) fn persist_ordinary_message_in_tx(
         return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
     }
 
-    let all_tasks = AgentOrgTaskStore::list_with_connection(conn, run_id)
-        .map_err(ToolError::ExecutionFailed)?;
-    if let Some(guidance) = plain_work_context_guidance(params, message, recipients, &all_tasks)? {
+    if let Some(guidance) =
+        member_coordination_guidance(conn, run_id, sender, context, params, message, recipients)?
+    {
         return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
     }
+
+    if matches!(message, AgentMessage::Plain { .. })
+        && recipients
+            .iter()
+            .any(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
+    {
+        let all_tasks = AgentOrgTaskStore::list_with_connection(conn, run_id)
+            .map_err(ToolError::ExecutionFailed)?;
+        if let Some(guidance) =
+            plain_work_context_guidance(params, message, recipients, &all_tasks)?
+        {
+            return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
+        }
+    }
+
+    let member_coordination_trigger_coalesced = if !sender.is_coordinator
+        && matches!(message, AgentMessage::Plain { .. })
+        && recipients.len() == 1
+        && recipients[0].member_id == COORDINATOR_MEMBER_ID
+    {
+        Some(
+            conn.query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_runtime_run_progress
+                     WHERE org_run_id=?1
+                       AND coordinator_claimed_trigger_sequence
+                           < coordinator_trigger_sequence
+                 )",
+                [run_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?,
+        )
+    } else {
+        None
+    };
 
     let member_ids = recipients
         .iter()
@@ -182,7 +322,10 @@ pub(super) fn persist_ordinary_message_in_tx(
         .map_err(ToolError::ExecutionFailed)?;
         delivered.push((recipient.member_id.clone(), record.id));
     }
-    Ok(OrdinaryMessagePersistOutcome::Delivered(delivered))
+    Ok(OrdinaryMessagePersistOutcome::Delivered {
+        rows: delivered,
+        member_coordination_trigger_coalesced,
+    })
 }
 
 pub(super) fn ensure_recipients_deliverable_in_tx(

@@ -214,7 +214,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     );
     lines.push(String::new());
     lines.push(
-        "Task assignment wakes idle members through their normal member-session runtime and queues work for running members without starting a second concurrent turn. Keep task state in the task board; use plain org messages for discussion, clarifications, and status notes that are not task-state transitions."
+        "Task assignment wakes idle members through their normal member-session runtime and queues work for running members without starting a second concurrent turn. Keep ordinary progress in Task state and record completion once through TaskOutput. Do not send routine work narration such as starting work, completed modules, next steps, or problems you already resolved yourself."
             .to_string(),
     );
     lines.push(String::new());
@@ -257,7 +257,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     lines.push("## Org messaging".to_string());
     lines.push(String::new());
     lines.push(
-        "Use the `org_send_message` tool to send a typed org message to exactly one coordinator/member participant in this org. The only routing field is `recipient_member_id`; never route by display name or agent id. Messages are persisted and surfaced to the recipient on its next turn — they do not interrupt the recipient's current turn. Every plain message to a non-coordinator worker must include `related_task_id` for unresolved, dependency-ready work already owned by that worker. Eligibility alone is not assignment; the coordinator must set `owner_member_id` before sending formal work instructions. Chat cannot create invisible work or bypass dependencies.".to_string(),
+        "Use the `org_send_message` tool to send a typed org message to exactly one coordinator/member participant in this org. The only routing field is `recipient_member_id`; never route by display name or agent id. Messages are persisted and surfaced to the recipient on its next turn — they do not interrupt the recipient's current turn. Every plain message to a non-coordinator worker must include `related_task_id` for unresolved, dependency-ready work already owned by that worker. Eligibility alone is not assignment; the coordinator must set `owner_member_id` before sending formal work instructions. A TaskExecution member may send plain text to the Coordinator only when the Coordinator must act: bind the exact current `related_task_id` and set `purpose` to `blocker`, `decision_required`, `material_change`, `risk`, or `requested_reply`. `requested_reply` is only for an explicit mid-task reply requested by the Coordinator. Chat cannot create invisible work or bypass dependencies.".to_string(),
     );
 
     lines.push(String::new());
@@ -268,6 +268,11 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     lines.push(String::new());
     lines.push(
         "**Messaging is not delegation.** Do not use a `plain` message to bypass task authority by telling a peer or another branch to start formal work. Use messages for questions, discussion, handoff context, and proposals. Formal work must already exist as an authority-checked task; if an unauthorized peer asks you to start new work, route the proposal to the coordinator instead of silently creating or executing a second task chain."
+            .to_string(),
+    );
+    lines.push(String::new());
+    lines.push(
+        "**Routine progress is not a Coordinator message or assistant reply.** The activity UI already shows tool calls. During TaskExecution, call the next required tool directly: do not preface or accompany tools with assistant prose about starting, retries, finished modules, next steps, or self-resolved problems, and never prefix such prose with `@Coordinator`. Continue working when you can resolve an issue yourself without changing scope, dependencies, approach, or risk. Reserve normal text for the compact final result after the terminal Task update; use Task state for progress and `task_update operation=complete` with TaskOutput for completion."
             .to_string(),
     );
     lines.push(String::new());

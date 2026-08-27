@@ -143,6 +143,17 @@ fn agent_org_prompt_uses_task_board_for_roster_delegation() {
         "prompt must describe member-session reaction semantics: {section}"
     );
     assert!(
+        section.contains("Routine progress is not a Coordinator message or assistant reply")
+            && section.contains("call the next required tool directly")
+            && section.contains("purpose` to `blocker`")
+            && section.contains("TaskOutput for completion"),
+        "prompt must keep routine progress out of the durable coordination channel: {section}"
+    );
+    assert!(
+        !section.contains("status notes that are not task-state transitions"),
+        "prompt must not encourage work-liveblog messages: {section}"
+    );
+    assert!(
         section.contains("set `eligible_member_ids` to the exact candidates"),
         "prompt must describe eligible_member_ids as a coordinator-validated candidate list: {section}"
     );

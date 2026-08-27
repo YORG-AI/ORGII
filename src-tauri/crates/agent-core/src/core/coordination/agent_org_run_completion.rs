@@ -432,7 +432,7 @@ fn try_assess_delivered_candidate_with_connection(
         coordinator_turn_intent_id,
         projected_inbox_ids,
     )?;
-    let non_task_blockers = completion_non_task_blockers(&quiescence, guaranteed);
+    let non_task_blockers = completion_non_task_blockers(quiescence, guaranteed);
     if !non_task_blockers.is_empty() {
         return Ok(RunCompletionCandidateAssessment::new(
             RunCompletionCandidateState::Blocked,

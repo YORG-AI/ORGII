@@ -908,7 +908,12 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                     data-handoff-state={receipt.state}
                   >
                     <div className="flex items-center gap-1 font-medium text-warning-6">
-                      <AlertTriangle size={11} strokeWidth={2} />
+                      <HugeiconsIcon
+                        icon={Alert01Icon}
+                        data-icon="alert"
+                        size={11}
+                        strokeWidth={2}
+                      />
                       {resolvable
                         ? t("planner.agentOrgTasks.handoffNeedsDecision", {
                             defaultValue: "Task handoff needs your decision",
